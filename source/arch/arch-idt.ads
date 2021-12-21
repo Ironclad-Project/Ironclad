@@ -14,10 +14,22 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System;
+
 package Arch.IDT is
    --  Initialize the global IDT and load it on the callee core.
    procedure Init;
 
    --  Load the IDT in the callee core.
    procedure Load_IDT;
+
+   --  Load an ISR into the IDT.
+   type IST_Index is private;
+   procedure Load_ISR
+      (Index   : Integer;
+       Address : System.Address;
+       IST     : IST_Index);
+private
+   type IST_Index is range 0 .. 7;
+   procedure Default_ISR;
 end Arch.IDT;

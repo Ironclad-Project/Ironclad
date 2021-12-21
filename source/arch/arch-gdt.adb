@@ -135,14 +135,18 @@ package body Arch.GDT is
    end Load_GDT;
 
    procedure Load_TSS (Address : System.Address) is
-      CAddress : constant Unsigned_64 := Unsigned_64 (To_Integer (Address));
+      Addr  : constant Unsigned_64 := Unsigned_64 (To_Integer (Address));
+      Low16 : constant Unsigned_64 := Addr                   and 16#FFFF#;
+      Mid8  : constant Unsigned_64 := Shift_Right (Addr, 16) and 16#FF#;
+      High8 : constant Unsigned_64 := Shift_Right (Addr, 24) and 16#FF#;
+      Up32  : constant Unsigned_64 := Shift_Right (Addr, 32) and 16#FFFFFFFF#;
    begin
-      Global_GDT.TSS.Base_Low_16   := Unsigned_16 (CAddress);
-      Global_GDT.TSS.Base_Mid_8    := Unsigned_8  (Shift_Right (CAddress, 16));
+      Global_GDT.TSS.Base_Low_16   := Unsigned_16 (Low16);
+      Global_GDT.TSS.Base_Mid_8    := Unsigned_8  (Mid8);
       Global_GDT.TSS.Flags_1       := 2#10001001#;
       Global_GDT.TSS.Flags_2       := 0;
-      Global_GDT.TSS.Base_High_8   := Unsigned_8  (Shift_Right (CAddress, 24));
-      Global_GDT.TSS.Base_Upper_32 := Unsigned_32 (Shift_Right (CAddress, 32));
+      Global_GDT.TSS.Base_High_8   := Unsigned_8  (High8);
+      Global_GDT.TSS.Base_Upper_32 := Unsigned_32 (Up32);
       Global_GDT.TSS.Reserved      := 0;
 
       Asm ("ltr %0",

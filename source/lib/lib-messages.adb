@@ -21,33 +21,25 @@ with Arch.Stivale2;
 package body Lib.Messages is
    use ASCII;
 
-   New_Line    : constant String := ""  & LF;
-   Color_Red   : constant String := ESC & "[1;31m";
-   Color_Cyan  : constant String := ESC & "[1;36m";
-   Color_Reset : constant String := ESC & "[0m";
+   New_Line : constant String := "" & LF;
 
-   procedure Print (Message : String) is
+   procedure Put_Line (Message : String) is
    begin
-      Basic_Print (Color_Cyan);
-      Basic_Print (">> ");
-      Basic_Print (Color_Reset);
-      Basic_Print (Message);
-      Basic_Print (New_Line);
-   end Print;
+      Put (Message);
+      Put (New_Line);
+   end Put_Line;
 
    procedure Panic (Message : String) is
    begin
-      Basic_Print (Color_Red);
-      Basic_Print ("++ ");
-      Basic_Print (Color_Reset);
-      Basic_Print (Message);
-      Basic_Print (New_Line);
+      Put ("PANIC: ");
+      Put (Message);
+      Put (New_Line);
       Arch.Power.HCF;
    end Panic;
 
-   procedure Basic_Print (Message : String) is
+   procedure Put (Message : String) is
    begin
       Arch.Debug.Print (Message);
       Arch.Stivale2.Print_Terminal (Message);
-   end Basic_Print;
+   end Put;
 end Lib.Messages;

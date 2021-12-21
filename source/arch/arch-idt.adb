@@ -14,14 +14,16 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces;          use Interfaces;
-with System.Machine_Code; use System.Machine_Code;
+with Interfaces;              use Interfaces;
+with System.Machine_Code;     use System.Machine_Code;
+with System.Storage_Elements; use System.Storage_Elements;
+with Arch.GDT;
+with Lib.Messages;
 
 package body Arch.IDT is
    --  Records for the GDT structure and its entries.
-   type IST_Index  is range 0 .. 7;
-   type Gate_Value is mod   2 ** 4;
-   type DPL_Value  is mod   2 ** 2;
+   type Gate_Value is mod 2 ** 4;
+   type DPL_Value  is mod 2 ** 2;
 
    type IDT_Entry is record
       Offset_Low  : Unsigned_16;
@@ -65,6 +67,13 @@ package body Arch.IDT is
 
    procedure Init is
    begin
+      --  Load default ISRs.
+      LoadISRs :
+      for I in Global_IDT'Range loop
+         Load_ISR (I, Default_ISR'Address, 0);
+      end loop LoadISRs;
+
+      --  Prepare the pointer and load the IDT.
       Global_Pointer := (Global_IDT'Size - 1, Global_IDT'Address);
       Load_IDT;
    end Init;
@@ -75,4 +84,29 @@ package body Arch.IDT is
            Inputs   => IDT_Pointer'Asm_Input ("m",  Global_Pointer),
            Volatile => True);
    end Load_IDT;
+
+   procedure Load_ISR
+     (Index : Integer;
+     Address : System.Address;
+     IST : IST_Index) is
+      Addr   : constant Unsigned_64 := Unsigned_64 (To_Integer (Address));
+      Low16  : constant Unsigned_64 := Addr                   and 16#FFFF#;
+      Mid16  : constant Unsigned_64 := Shift_Right (Addr, 16) and 16#FFFF#;
+      High32 : constant Unsigned_64 := Shift_Right (Addr, 32) and 16#FFFFFFFF#;
+   begin
+      Global_IDT (Index).Offset_Low  := Unsigned_16 (Low16);
+      Global_IDT (Index).Selector    := GDT.Kernel_Code64_Segment;
+      Global_IDT (Index).IST         := IST;
+      Global_IDT (Index).Gate_Type   := 16#E#;
+      Global_IDT (Index).Reserved_1  := False;
+      Global_IDT (Index).DPL         := 0;
+      Global_IDT (Index).Present     := True;
+      Global_IDT (Index).Offset_Mid  := Unsigned_16 (Mid16);
+      Global_IDT (Index).Offset_High := Unsigned_32 (High32);
+   end Load_ISR;
+
+   procedure Default_ISR is
+   begin
+      Lib.Messages.Panic ("Default ISR triggered");
+   end Default_ISR;
 end Arch.IDT;

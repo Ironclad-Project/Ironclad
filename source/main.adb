@@ -26,7 +26,7 @@ procedure Main (Protocol : access Arch.Stivale2.Header) is
    Term : constant access Arch.Stivale2.TerminalTag := Convert.To_Pointer
      (Arch.Stivale2.Get_Tag (Protocol, Arch.Stivale2.TerminalID));
 begin
-   Lib.Messages.Print ("Entered the kernel");
+   Lib.Messages.Put_Line ("Entered the kernel");
    Arch.GDT.Init;
    Arch.IDT.Init;
    Arch.Stivale2.Init_Terminal (Term);

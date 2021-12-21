@@ -15,12 +15,12 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Lib.Messages is
-   --  Non formatting general purpose printing function.
-   procedure Print (Message : String);
+   --  Prints and adds a newline.
+   procedure Put_Line (Message : String);
 
    --  Panic function of the kernel, prints the message and then halts.
    procedure Panic (Message : String);
 
-private
-   procedure Basic_Print (Message : String);
+   --  Prints a string.
+   procedure Put (Message : String);
 end Lib.Messages;

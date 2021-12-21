@@ -22,6 +22,11 @@ package body Lib.Glue is
       Lib.Messages.Panic ("Access check failure");
    end Access_Check;
 
+   procedure Index_Check (File : System.Address; Line : Integer) is
+   begin
+      Lib.Messages.Panic ("Index check failure");
+   end Index_Check;
+
    procedure Range_Check (File : System.Address; Line : Integer) is
    begin
       Lib.Messages.Panic ("Range check failure");

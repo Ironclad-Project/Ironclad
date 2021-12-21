@@ -6,3 +6,4 @@ config.log
 config.status
 autom4te*
 ironclad
+limine

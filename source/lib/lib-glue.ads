@@ -23,6 +23,9 @@ package Lib.Glue is
    procedure Access_Check (File : System.Address; Line : Integer);
    pragma Export (C, Access_Check, "__gnat_rcheck_CE_Access_Check");
 
+   procedure Index_Check (File : System.Address; Line : Integer);
+   pragma Export (C, Index_Check, "__gnat_rcheck_CE_Index_Check");
+
    procedure Range_Check (File : System.Address; Line : Integer);
    pragma Export (C, Range_Check, "__gnat_rcheck_CE_Range_Check");
 
