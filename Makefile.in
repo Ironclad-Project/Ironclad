@@ -1,0 +1,99 @@
+# Makefile.in: Template for the project's generated Makefile.
+# Copyright (C) 2021 streaksu
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Some useful constants.
+KERNEL    := ironclad
+IMAGE     := ironclad.hdd
+CMAGENTA  := $(shell tput setaf 5)
+CRESET    := $(shell tput sgr0)
+SOURCEDIR := source
+TESTDIR   := test
+
+# Limine.
+LIMINE_URL  := https://github.com/limine-bootloader/limine.git
+LIMINE_DIR  := limine
+LIMINE_VERS := v2.0-branch-binary
+
+# Directories for install.
+DESTDIR ?=
+PREFIX  ?= @prefix@
+
+# Set compilers and flags with the help of autoconf.
+ADAC      := @ADAC@
+ADAFLAGS  := @ADAFLAGS@
+AS        := @AS@
+ASFLAGS   := @ASFLAGS@
+LD        := @LD@
+LDFLAGS   := @LDFLAGS@
+QEMU      := @QEMU@
+QEMUFLAGS := @QEMUFLAGS@
+
+# Hard flags, that is, the user flags and the ones we forcefully need.
+ADAHARDFLAGS  := $(ADAFLAGS) -fpie -mno-sse -mno-sse2 -mno-red-zone -fno-stack-protector
+ASHARDFLAGS   := $(ASFLAGS) -ffreestanding -fpie
+LDHARDFLAGS   := $(LDFLAGS) --nostdlib -pie
+QEMUHARDFLAGS := $(QEMUFLAGS)
+
+# Source to compile.
+ADASOURCE := $(shell find $(SOURCEDIR) -type f -name '*.adb')
+ASMSOURCE := $(shell find $(SOURCEDIR) -type f -name '*.S')
+OBJ       := $(ADASOURCE:.adb=.o) $(ASMSOURCE:.S=.o)
+
+# Where the fun begins!
+.PHONY: all test clean distclean install
+
+all: $(KERNEL)
+
+$(KERNEL): $(OBJ)
+	@echo "$(CMAGENTA)$(LD)$(CRESET) $@"
+	@$(LD) $(LDHARDFLAGS) $(OBJ) -T $(SOURCEDIR)/linker.ld -o $@
+
+%.o: %.adb
+	@echo "$(CMAGENTA)$(ADAC)$(CRESET) $@"
+	@$(ADAC) $(ADAHARDFLAGS) -I$(SOURCEDIR)/arch -I$(SOURCEDIR)/lib -I$(SOURCEDIR) -c $< -o $@
+
+%.o: %.S
+	@echo "$(CMAGENTA)$(AS)$(CRESET) $@"
+	@$(AS) $(ASHARDFLAGS) -I$(SOURCEDIR) -c $< -o $@
+
+test: $(KERNEL) $(LIMINE_DIR)
+	@dd if=/dev/zero bs=1M count=0 seek=64 of=$(IMAGE)
+	@parted -s $(IMAGE) mklabel msdos
+	@parted -s $(IMAGE) mkpart primary 1 100%
+	@echfs-utils -m -p0 $(IMAGE) quick-format 512
+	@echfs-utils -m -p0 $(IMAGE) import $(KERNEL)                ironclad
+	@echfs-utils -m -p0 $(IMAGE) import $(TESTDIR)/limine.cfg    limine.cfg
+	@echfs-utils -m -p0 $(IMAGE) import $(LIMINE_DIR)/limine.sys limine.sys
+	@$(LIMINE_DIR)/limine-install $(IMAGE)
+	@$(QEMU) $(QEMUHARDFLAGS) -hda $(IMAGE)
+
+$(LIMINE_DIR):
+	@git clone --depth=1 --branch=$(LIMINE_VERS) $(LIMINE_URL) $(LIMINE_DIR)
+	@make -C $(LIMINE_DIR)
+
+clean:
+	@rm -rf $(OBJ) $(KERNEL) $(IMAGE)
+	@find $(SOURCEDIR) -name "*.ali" -type f -delete
+
+distclean: clean
+	@rm -rf $(LIMINE_DIR) configure Makefile config.log config.status autom4te*
+
+install: $(KERNEL)
+	@install -d "$(DESTDIR)$(PREFIX)"
+	@install $(KERNEL) "$(DESTDIR)$(PREFIX)"
+
+uninstall:
+	@rm -rf "$(DESTDIR)$(PREFIX)/$(KERNEL)"

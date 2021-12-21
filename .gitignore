@@ -1,0 +1,7 @@
+*.o
+*.ali
+configure
+Makefile
+config.log
+config.status
+autom4te*
