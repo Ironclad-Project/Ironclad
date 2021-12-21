@@ -1,4 +1,4 @@
---  main.adb: Main function and its closest utilities.
+--  arch-idt.ads: Specification of the IDT package.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,21 +14,10 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System.Address_To_Access_Conversions;
-with Arch.GDT;
-with Arch.IDT;
-with Arch.Stivale2;
-with Lib.Messages;
+package Arch.IDT is
+   --  Initialize the global IDT and load it on the callee core.
+   procedure Init;
 
-procedure Main (Protocol : access Arch.Stivale2.Header) is
-   package Convert is new System.Address_To_Access_Conversions
-     (Arch.Stivale2.TerminalTag);
-   Term : constant access Arch.Stivale2.TerminalTag := Convert.To_Pointer
-     (Arch.Stivale2.Get_Tag (Protocol, Arch.Stivale2.TerminalID));
-begin
-   Lib.Messages.Print ("Entered the kernel");
-   Arch.GDT.Init;
-   Arch.IDT.Init;
-   Arch.Stivale2.Init_Terminal (Term);
-   Lib.Messages.Panic ("End of kernel");
-end Main;
+   --  Load the IDT in the callee core.
+   procedure Load_IDT;
+end Arch.IDT;

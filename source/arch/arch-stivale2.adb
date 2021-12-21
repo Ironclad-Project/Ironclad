@@ -25,17 +25,17 @@ package body Arch.Stivale2 is
    Terminal_Entrypoint : System.Address;
 
    function Get_Tag
-      (Proto     : access Header;
-      Identifier : Unsigned_64) return System.Address is
-      searchAddress : System.Address := Proto.Tags;
-      searchTag     : access Tag;
+     (Proto     : access Header;
+     Identifier : Unsigned_64) return System.Address is
+      Search_Address : System.Address := Proto.Tags;
+      Search_Tag     : access Tag;
    begin
-      while searchAddress /= System'To_Address (0) loop
-         searchTag := Convert.To_Pointer (searchAddress);
-         if searchTag.Identifier = Identifier then
-            return searchAddress;
+      while Search_Address /= System'To_Address (0) loop
+         Search_Tag := Convert.To_Pointer (Search_Address);
+         if Search_Tag.Identifier = Identifier then
+            return Search_Address;
          end if;
-         searchAddress := searchTag.Next;
+         Search_Address := Search_Tag.Next;
       end loop;
       return System'To_Address (0);
    end Get_Tag;
