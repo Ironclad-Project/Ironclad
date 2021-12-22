@@ -14,17 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces;          use Interfaces;
-with System.Machine_Code; use System.Machine_Code;
+with Arch.IOPorts;
 
 package body Arch.Debug is
    procedure Print (Message : String) is
    begin
       for C of Message loop
-         Asm ("outb %0, %1",
-              Inputs   => (Character'Asm_Input   ("a",       C),
-                           Unsigned_16'Asm_Input ("Nd", 16#E9#)),
-              Volatile => True);
+         IOPorts.Port_Out (16#E9#, Character'Pos (C));
       end loop;
    end Print;
 end Arch.Debug;

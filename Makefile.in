@@ -97,7 +97,8 @@ clean:
 	@find $(SOURCEDIR) -name "*.ali" -type f -delete
 
 distclean: clean
-	@rm -rf $(LIMINE_DIR) configure Makefile config.log config.status autom4te*
+	@rm -rf $(LIMINE_DIR) configure Makefile config.log config.status \
+	autom4te* $(SOURCEDIR)/config.ads
 
 install: $(KERNEL)
 	@install -d "$(DESTDIR)$(PREFIX)"

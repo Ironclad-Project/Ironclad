@@ -1,4 +1,4 @@
---  arch-power.adb: Utilities for ach-specific power levels and states.
+--  arch-ioports.ads: Specification of the x86 IO ports functions.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,13 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System.Machine_Code; use System.Machine_Code;
+with Interfaces; use Interfaces;
 
-package body Arch.Power is
-   procedure HCF is
-   begin
-      loop
-         Asm ("cli; hlt", Volatile => True);
-      end loop;
-   end HCF;
-end Arch.Power;
+package Arch.IOPorts is
+   --  IO port wrappers.
+   procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8);
+end Arch.IOPorts;

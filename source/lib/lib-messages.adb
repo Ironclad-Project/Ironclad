@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Debug;
-with Arch.Power;
+with Arch.Interrupts;
 with Arch.Stivale2;
 
 package body Lib.Messages is
@@ -31,10 +31,14 @@ package body Lib.Messages is
 
    procedure Panic (Message : String) is
    begin
+      --  Print the error.
       Put ("PANIC: ");
       Put (Message);
       Put (New_Line);
-      Arch.Power.HCF;
+
+      --  Disable interrupts and loop forever, effectively killing the core.
+      Arch.Interrupts.Set_Interrupt_Flag (False);
+      loop null; end loop;
    end Panic;
 
    procedure Put (Message : String) is

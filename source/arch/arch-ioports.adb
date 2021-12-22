@@ -1,4 +1,4 @@
---  arch-power.ads: Specification of arch-specific power utilities.
+--  arch-ioports.adb: IO port functions.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,9 +14,14 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Arch.Power is
-   --  Comes from 'Halt and Catch Fire'. Drives the callee core into
-   --  an irrecoverable state.
-   procedure HCF;
-   pragma No_Return (HCF);
-end Arch.Power;
+with System.Machine_Code; use System.Machine_Code;
+
+package body Arch.IOPorts is
+   procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) is
+   begin
+      Asm ("outb %0, %1",
+           Inputs   => (Unsigned_8'Asm_Input  ("a",  Value),
+                        Unsigned_16'Asm_Input ("Nd", Port)),
+           Volatile => True);
+   end Port_Out;
+end Arch.IOPorts;
