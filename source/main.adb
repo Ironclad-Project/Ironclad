@@ -26,9 +26,12 @@ procedure Main (Protocol : access Arch.Stivale2.Header) is
    Term : constant access Arch.Stivale2.TerminalTag := Convert.To_Pointer
      (Arch.Stivale2.Get_Tag (Protocol, Arch.Stivale2.TerminalID));
 begin
-   Lib.Messages.Put_Line ("Entered the kernel");
+   Arch.Stivale2.Init_Terminal (Term);
+   Lib.Messages.Put      ("Kernel booted by ");
+   Lib.Messages.Put      (Protocol.BootloaderBrand);
+   Lib.Messages.Put      (" ");
+   Lib.Messages.Put_Line (Protocol.BootloaderVersion);
    Arch.GDT.Init;
    Arch.IDT.Init;
-   Arch.Stivale2.Init_Terminal (Term);
    Lib.Messages.Panic ("End of kernel");
 end Main;

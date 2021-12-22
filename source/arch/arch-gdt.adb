@@ -39,7 +39,7 @@ package body Arch.GDT is
    for GDT_Entry'Size use 64;
 
    type TSS_Entry is record
-      Length        : Unsigned_16;
+      Limit         : Unsigned_16;
       Base_Low_16   : Unsigned_16;
       Base_Mid_8    : Unsigned_8;
       Flags_1       : Unsigned_8;
@@ -49,7 +49,7 @@ package body Arch.GDT is
       Reserved      : Unsigned_32;
    end record;
    for TSS_Entry use record
-      Length        at 0 range  0 ..  15;
+      Limit         at 0 range  0 ..  15;
       Base_Low_16   at 0 range 16 ..  31;
       Base_Mid_8    at 0 range 32 ..  39;
       Flags_1       at 0 range 40 ..  47;
@@ -104,9 +104,6 @@ package body Arch.GDT is
       Global_GDT.Entries (8) :=        (0, 0, 0, 2#11110010#,           0, 0);
       Global_GDT.Entries (9) :=        (0, 0, 0, 2#11111010#, 2#00100000#, 0);
 
-      --  Fill up the TSS with its length and zero out the rest.
-      Global_GDT.TSS := (104, 0, 0, 0, 0, 0, 0, 0);
-
       --  Set GDT Pointer and load the GDT for the current core.
       Global_Pointer := (Global_GDT'Size - 1, Global_GDT'Address);
       Load_GDT;
@@ -141,13 +138,16 @@ package body Arch.GDT is
       High8 : constant Unsigned_64 := Shift_Right (Addr, 24) and 16#FF#;
       Up32  : constant Unsigned_64 := Shift_Right (Addr, 32) and 16#FFFFFFFF#;
    begin
-      Global_GDT.TSS.Base_Low_16   := Unsigned_16 (Low16);
-      Global_GDT.TSS.Base_Mid_8    := Unsigned_8  (Mid8);
-      Global_GDT.TSS.Flags_1       := 2#10001001#;
-      Global_GDT.TSS.Flags_2       := 0;
-      Global_GDT.TSS.Base_High_8   := Unsigned_8  (High8);
-      Global_GDT.TSS.Base_Upper_32 := Unsigned_32 (Up32);
-      Global_GDT.TSS.Reserved      := 0;
+      Global_GDT.TSS := (
+         Limit         => 103,
+         Base_Low_16   => Unsigned_16 (Low16),
+         Base_Mid_8    => Unsigned_8  (Mid8),
+         Flags_1       => 2#10001001#,
+         Flags_2       => 0,
+         Base_High_8   => Unsigned_8  (High8),
+         Base_Upper_32 => Unsigned_32 (Up32),
+         Reserved      => 0
+      );
 
       Asm ("ltr %0",
            Inputs   => Unsigned_16'Asm_Input ("rm", TSS_Segment),

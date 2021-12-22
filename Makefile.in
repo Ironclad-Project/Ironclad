@@ -16,7 +16,7 @@
 
 # Some useful constants.
 KERNEL    := ironclad
-IMAGE     := ironclad.hdd
+IMAGE     := ironclad.iso
 CMAGENTA  := $(shell tput setaf 5)
 CRESET    := $(shell tput sgr0)
 SOURCEDIR := source
@@ -69,16 +69,18 @@ $(KERNEL): $(OBJ)
 	@echo "$(CMAGENTA)$(AS)$(CRESET) $@"
 	@$(AS) $(ASHARDFLAGS) -I$(SOURCEDIR) -c $< -o $@
 
-test: $(KERNEL) $(LIMINE_DIR)
-	@dd if=/dev/zero bs=1M count=0 seek=64 of=$(IMAGE)
-	@parted -s $(IMAGE) mklabel msdos
-	@parted -s $(IMAGE) mkpart primary 1 100%
-	@echfs-utils -m -p0 $(IMAGE) quick-format 512
-	@echfs-utils -m -p0 $(IMAGE) import $(KERNEL)                ironclad
-	@echfs-utils -m -p0 $(IMAGE) import $(TESTDIR)/limine.cfg    limine.cfg
-	@echfs-utils -m -p0 $(IMAGE) import $(LIMINE_DIR)/limine.sys limine.sys
-	@$(LIMINE_DIR)/limine-install $(IMAGE)
+test: $(IMAGE)
 	@$(QEMU) $(QEMUHARDFLAGS) -hda $(IMAGE)
+
+$(IMAGE): $(KERNEL) $(LIMINE_DIR)
+	@mkdir -p iso_root
+	@cp $(KERNEL) $(TESTDIR)/limine.cfg $(LIMINE_DIR)/limine.sys \
+		$(LIMINE_DIR)/limine-cd.bin $(LIMINE_DIR)/limine-eltorito-efi.bin iso_root/
+	@xorriso -as mkisofs -b limine-cd.bin -no-emul-boot -boot-load-size 4  \
+		-boot-info-table --efi-boot limine-eltorito-efi.bin -efi-boot-part \
+		--efi-boot-image iso_root --protective-msdos-label -o $(IMAGE)
+	@$(LIMINE_DIR)/limine-install $(IMAGE)
+	@rm -rf iso_root
 
 $(LIMINE_DIR):
 	@git clone --depth=1 --branch=$(LIMINE_VERS) $(LIMINE_URL) $(LIMINE_DIR)

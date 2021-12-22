@@ -17,26 +17,24 @@
 .section ".stivale2hdr", "aw", @progbits
 
 header:
-    .quad 0              // Alternative entrypoint, 0 is none.
-    .quad stackTop       // Stack to be loaded for the kernel.
-    .quad 0              // Flags, we dont need anything in particular.
-    .quad framebufferTag // Start of tags.
+    .quad 0             // Alternative entrypoint, 0 is none.
+    .quad stack_top     // Stack to be loaded for the kernel.
+    .quad 0             // Flags, we dont need anything in particular.
+    .quad any_video_tag // Start of tags.
 
 .section .data
 
-framebufferTag:
-    .quad 0x3ecc1bc43d0f7971 // Identifier of the tag.
-    .quad terminalTag        // Next in line.
-    .word 0                  // Prefered width, 0 for default.
-    .word 0                  // Ditto.
-    .word 0                  // Ditto.
+any_video_tag:
+    .quad 0xc75c9fa92a44c4db // Identifier of the tag.
+    .quad terminal_tag       // Next in line.
+    .word 0                  // Prefered.
 
-terminalTag:
+terminal_tag:
     .quad 0xa85d499b1823be72 // Identifier of the tag.
-    .quad smpTag             // Next in line.
+    .quad smp_tag            // Next in line.
     .quad 0                  // Flags.
 
-smpTag:
+smp_tag:
     .quad 0x1ab015085f3273df // Identifier of the tag.
     .quad 0                  // Next one in line, 0 is none.
     .quad 0                  // Flags, we dont need anything in particular.
@@ -46,4 +44,4 @@ smpTag:
 
 stack:
     .space 32768
-stackTop:
+stack_top:

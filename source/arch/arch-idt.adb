@@ -22,6 +22,8 @@ with Lib.Messages;
 
 package body Arch.IDT is
    --  Records for the GDT structure and its entries.
+   Gate_Type_Interrupt : constant := 16#E#;
+
    type Gate_Value is mod 2 ** 4;
    type DPL_Value  is mod 2 ** 2;
 
@@ -30,7 +32,7 @@ package body Arch.IDT is
       Selector    : Unsigned_16;
       IST         : IST_Index;
       Gate_Type   : Gate_Value;
-      Reserved_1  : Boolean;
+      Zero        : Boolean;
       DPL         : DPL_Value;
       Present     : Boolean;
       Offset_Mid  : Unsigned_16;
@@ -42,7 +44,7 @@ package body Arch.IDT is
       Selector    at 0 range 16 ..  31;
       IST         at 0 range 32 ..  39;
       Gate_Type   at 0 range 40 ..  43;
-      Reserved_1  at 0 range 44 ..  44;
+      Zero        at 0 range 44 ..  44;
       DPL         at 0 range 45 ..  46;
       Present     at 0 range 47 ..  47;
       Offset_Mid  at 0 range 48 ..  63;
@@ -86,23 +88,26 @@ package body Arch.IDT is
    end Load_IDT;
 
    procedure Load_ISR
-     (Index : Integer;
+     (Index  : Integer;
      Address : System.Address;
-     IST : IST_Index) is
+     IST     : IST_Index) is
       Addr   : constant Unsigned_64 := Unsigned_64 (To_Integer (Address));
       Low16  : constant Unsigned_64 := Addr                   and 16#FFFF#;
       Mid16  : constant Unsigned_64 := Shift_Right (Addr, 16) and 16#FFFF#;
       High32 : constant Unsigned_64 := Shift_Right (Addr, 32) and 16#FFFFFFFF#;
    begin
-      Global_IDT (Index).Offset_Low  := Unsigned_16 (Low16);
-      Global_IDT (Index).Selector    := GDT.Kernel_Code64_Segment;
-      Global_IDT (Index).IST         := IST;
-      Global_IDT (Index).Gate_Type   := 16#E#;
-      Global_IDT (Index).Reserved_1  := False;
-      Global_IDT (Index).DPL         := 0;
-      Global_IDT (Index).Present     := True;
-      Global_IDT (Index).Offset_Mid  := Unsigned_16 (Mid16);
-      Global_IDT (Index).Offset_High := Unsigned_32 (High32);
+      Global_IDT (Index) := (
+         Offset_Low  => Unsigned_16 (Low16),
+         Selector    => GDT.Kernel_Code64_Segment,
+         IST         => IST,
+         Gate_Type   => Gate_Type_Interrupt,
+         Zero        => False,
+         DPL         => 0,
+         Present     => True,
+         Offset_Mid  => Unsigned_16 (Mid16),
+         Offset_High => Unsigned_32 (High32),
+         Reserved_2  => 0
+      );
    end Load_ISR;
 
    procedure Default_ISR is
