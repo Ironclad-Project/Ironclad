@@ -48,9 +48,11 @@ LDHARDFLAGS   := $(LDFLAGS) --nostdlib -pie -zmax-page-size=0x1000
 QEMUHARDFLAGS := $(QEMUFLAGS)
 
 # Source to compile.
-ADASOURCE := $(shell find $(SOURCEDIR) -type f -name '*.adb')
+ADABODIES := $(shell find $(SOURCEDIR) -type f -name '*.adb')
+ADASPECS  := $(shell find $(SOURCEDIR) -type f -name '*.ads')
+ADAOBJ    := $(shell comm -13 <(echo $(ADABODIES:.adb=.o)) <(echo $(ADASPECS:.ads=.o)))
 ASMSOURCE := $(shell find $(SOURCEDIR) -type f -name '*.S')
-OBJ       := $(ADASOURCE:.adb=.o) $(ASMSOURCE:.S=.o)
+OBJ       := $(ADAOBJ) $(ASMSOURCE:.S=.o)
 
 # Where the fun begins!
 .PHONY: all test clean distclean install
@@ -62,7 +64,11 @@ $(KERNEL): $(OBJ)
 	@$(LD) $(LDHARDFLAGS) $(OBJ) -T $(SOURCEDIR)/linker.ld -o $@
 
 %.o: %.adb
-	@echo "$(CMAGENTA)$(ADAC)$(CRESET) $@"
+	@echo "$(CMAGENTA)$(ADAC)$(CRESET) $<"
+	@$(ADAC) $(ADAHARDFLAGS) -I$(SOURCEDIR)/arch -I$(SOURCEDIR)/lib -I$(SOURCEDIR) -c $< -o $@
+
+%.o: %.ads
+	@echo "$(CMAGENTA)$(ADAC)$(CRESET) $<"
 	@$(ADAC) $(ADAHARDFLAGS) -I$(SOURCEDIR)/arch -I$(SOURCEDIR)/lib -I$(SOURCEDIR) -c $< -o $@
 
 %.o: %.S

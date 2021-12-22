@@ -19,6 +19,7 @@ with Arch.GDT;
 with Arch.IDT;
 with Arch.Stivale2;
 with Lib.Messages;
+with Config;
 
 procedure Main (Protocol : access Arch.Stivale2.Header) is
    package Convert is new System.Address_To_Access_Conversions
@@ -27,10 +28,16 @@ procedure Main (Protocol : access Arch.Stivale2.Header) is
      (Arch.Stivale2.Get_Tag (Protocol, Arch.Stivale2.TerminalID));
 begin
    Arch.Stivale2.Init_Terminal (Term);
-   Lib.Messages.Put      ("Kernel booted by ");
+   Lib.Messages.Put      (Config.Package_Name);
+   Lib.Messages.Put      (" ");
+   Lib.Messages.Put      (Config.Package_Version);
+   Lib.Messages.Put      (" booted by ");
    Lib.Messages.Put      (Protocol.BootloaderBrand);
    Lib.Messages.Put      (" ");
    Lib.Messages.Put_Line (Protocol.BootloaderVersion);
+   Lib.Messages.Put      ("Please report errors and issues to ");
+   Lib.Messages.Put_Line (Config.Package_BugReport);
+
    Arch.GDT.Init;
    Arch.IDT.Init;
    Lib.Messages.Panic ("End of kernel");
