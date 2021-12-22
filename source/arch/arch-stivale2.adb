@@ -14,8 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;              use System;
-with System.Machine_Code; use System.Machine_Code;
+with System;                 use System;
+with System.Machine_Code;    use System.Machine_Code;
+with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
 with System.Address_To_Access_Conversions;
 
 package body Arch.Stivale2 is
@@ -47,7 +48,6 @@ package body Arch.Stivale2 is
    end Init_Terminal;
 
    procedure Print_Terminal (Message : String) is
-      use ASCII;
    begin
       if Terminal_Enabled then
          Asm ("push %%rdi" & LF & HT &

@@ -42,7 +42,8 @@ QEMU      := @QEMU@
 QEMUFLAGS := @QEMUFLAGS@
 
 # Hard flags, that is, the user flags and the ones we forcefully need.
-ADAHARDFLAGS  := $(ADAFLAGS) -fpie -mno-sse -mno-sse2 -mno-red-zone -fno-stack-protector
+ADAHARDFLAGS  := $(ADAFLAGS) -fpie -mno-sse -mno-sse2 -mno-red-zone -fno-stack-protector \
+				 -gnatec=$(SOURCEDIR)/pragmas.adc
 ASHARDFLAGS   := $(ASFLAGS) -ffreestanding -fpie
 LDHARDFLAGS   := $(LDFLAGS) --nostdlib -pie -zmax-page-size=0x1000
 QEMUHARDFLAGS := $(QEMUFLAGS)

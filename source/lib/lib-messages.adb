@@ -14,14 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Characters.Latin_1;
 with Arch.Debug;
 with Arch.Interrupts;
 with Arch.Stivale2;
 
 package body Lib.Messages is
-   use ASCII;
-
-   New_Line : constant String := "" & LF;
+   New_Line : constant String := "" & Ada.Characters.Latin_1.LF;
 
    procedure Put_Line (Message : String) is
    begin
