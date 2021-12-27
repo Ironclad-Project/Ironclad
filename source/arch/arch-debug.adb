@@ -20,7 +20,12 @@ package body Arch.Debug is
    procedure Print (Message : String) is
    begin
       for C of Message loop
-         IOPorts.Port_Out (16#E9#, Character'Pos (C));
+         Print (C);
       end loop;
+   end Print;
+
+   procedure Print (Message : Character) is
+   begin
+      IOPorts.Port_Out (16#E9#, Character'Pos (Message));
    end Print;
 end Arch.Debug;

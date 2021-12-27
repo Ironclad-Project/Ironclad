@@ -21,6 +21,7 @@ package Arch.Stivale2 is
    --  IDs of several tags.
    CmdlineID  : constant := 16#E5E76A1B4597A781#;
    TerminalID : constant := 16#C2B3F4C3233B0974#;
+   MemmapID   : constant := 16#2187F79E8612DE07#;
 
    --  Stivale2 header passed by the bootloader to kernel.
    type Header is record
@@ -28,22 +29,35 @@ package Arch.Stivale2 is
       BootloaderVersion : String (1 .. 64);
       Tags              : System.Address;
    end record;
-   pragma Convention (C, Header);
+   for Header use record
+      BootloaderBrand   at 0 range    0 ..  511;
+      BootloaderVersion at 0 range  512 .. 1023;
+      Tags              at 0 range 1024 .. 1087;
+   end record;
+   for Header'Size use 1088;
 
    --  Stivale2 tag passed in front of all specialized tags.
    type Tag is record
       Identifier : Unsigned_64;
       Next       : System.Address;
    end record;
-   pragma Convention (C, Tag);
+   for Tag use record
+      Identifier at 0 range  0 ..  63;
+      Next       at 0 range 64 .. 127;
+   end record;
+   for Tag'Size use 128;
 
-   type CmdlineTag is record
+   type Cmdline_Tag is record
       TagInfo : Tag;
       Cmdline : System.Address;
    end record;
-   pragma Convention (C, CmdlineTag);
+   for Cmdline_Tag use record
+      TagInfo at 0 range   0 .. 127;
+      Cmdline at 0 range 128 .. 191;
+   end record;
+   for Cmdline_Tag'Size use 192;
 
-   type TerminalTag is record
+   type Terminal_Tag is record
       TagInfo   : Tag;
       Flags     : Unsigned_32;
       Cols      : Unsigned_16;
@@ -51,7 +65,52 @@ package Arch.Stivale2 is
       TermWrite : System.Address;
       MaxLength : Unsigned_64;
    end record;
-   pragma Convention (C, TerminalTag);
+   for Terminal_Tag use record
+      TagInfo   at 0 range   0 .. 127;
+      Flags     at 0 range 128 .. 159;
+      Cols      at 0 range 160 .. 175;
+      Rows      at 0 range 176 .. 191;
+      TermWrite at 0 range 192 .. 255;
+      MaxLength at 0 range 256 .. 319;
+   end record;
+   for Terminal_Tag'Size use 320;
+
+   Memmap_Entry_Usable                 : constant := 1;
+   Memmap_Entry_Reserved               : constant := 2;
+   Memmap_Entry_ACPI_Reclaimable       : constant := 3;
+   Memmap_Entry_ACPI_NVS               : constant := 4;
+   Memmap_Entry_Bad                    : constant := 5;
+   Memmap_Entry_Bootloader_Reclaimable : constant := 16#1000#;
+   Memmap_Entry_Kernel_And_Modules     : constant := 16#1001#;
+   Memmap_Entry_Framebuffer            : constant := 16#1002#;
+
+   type Memmap_Entry is record
+      Base      : System.Address;
+      Length    : Unsigned_64;
+      EntryType : Unsigned_32;
+      Unused    : Unsigned_32;
+   end record;
+   for Memmap_Entry use record
+      Base      at 0 range   0 ..  63;
+      Length    at 0 range  64 .. 127;
+      EntryType at 0 range 128 .. 159;
+      Unused    at 0 range 160 .. 191;
+   end record;
+   for Memmap_Entry'Size use 192;
+
+   --  TODO: There must be a better way in Ada to represent this VLA.
+   --  Discriminants with a record field would be nice, but it doesnt work.
+   type Memmap_Tag is record
+      TagInfo    : Tag;
+      EntryCount : Unsigned_64;
+      Entries    : Unsigned_64; --  Is actually a VLA with length = EntryCount
+   end record;
+   for Memmap_Tag use record
+      TagInfo    at 0 range   0 .. 127;
+      EntryCount at 0 range 128 .. 191;
+      Entries    at 0 range 192 .. 255;
+   end record;
+   for Memmap_Tag'Size use 256;
 
    --  Find a header.
    function Get_Tag
@@ -59,8 +118,9 @@ package Arch.Stivale2 is
       Identifier : Unsigned_64) return System.Address;
 
    --  Initialize the terminal with a header.
-   procedure Init_Terminal (Terminal : access TerminalTag);
+   procedure Init_Terminal (Terminal : access Terminal_Tag);
 
-   --  Print a string using the stivale2 terminal.
+   --  Print a message using the stivale2 terminal.
    procedure Print_Terminal (Message : String);
+   procedure Print_Terminal (Message : Character);
 end Arch.Stivale2;

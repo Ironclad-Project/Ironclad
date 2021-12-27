@@ -45,4 +45,35 @@ package body Lib.Messages is
       Arch.Debug.Print (Message);
       Arch.Stivale2.Print_Terminal (Message);
    end Put;
+
+   procedure Put (Message : Character) is
+   begin
+      Arch.Debug.Print (Message);
+      Arch.Stivale2.Print_Terminal (Message);
+   end Put;
+
+   procedure Put (Message : Integer) is
+      Conversion_Table : constant String := "0123456789";
+      To_Convert       : Integer         := abs Message;
+      Written          : Integer         := 0;
+      Result           : String (1 .. 20);
+   begin
+      if Message = 0 then
+         Put ('0');
+      else
+         if Message < 0 then
+            Put ('-');
+         end if;
+
+         while To_Convert /= 0 loop
+            Written          := Written + 1;
+            Result (Written) := Conversion_Table ((To_Convert mod 10) + 1);
+            To_Convert       := To_Convert / 10;
+         end loop;
+
+         for I in reverse 1 .. Written loop
+            Put (Result (I));
+         end loop;
+      end if;
+   end Put;
 end Lib.Messages;

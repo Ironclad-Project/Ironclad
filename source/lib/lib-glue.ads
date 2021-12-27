@@ -34,4 +34,16 @@ package Lib.Glue is
 
    procedure Overflow_Check (File : System.Address; Line : Integer);
    pragma Export (C, Overflow_Check, "__gnat_rcheck_CE_Overflow_Check");
+
+   procedure Large_Object_Check (File : System.Address; Line : Integer);
+   pragma Export (C, Large_Object_Check, "__gnat_rcheck_SE_Object_Too_Large");
+
+   procedure Invalid_Data_Check (File : System.Address; Line : Integer);
+   pragma Export (C, Invalid_Data_Check, "__gnat_rcheck_CE_Invalid_Data");
+
+private
+   procedure Print_Exception
+      (Message      : String;
+       File_Address : System.Address;
+       Line_Number  : Integer);
 end Lib.Glue;

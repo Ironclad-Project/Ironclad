@@ -66,11 +66,13 @@ $(KERNEL): $(OBJ)
 
 %.o: %.adb
 	@echo "$(CMAGENTA)$(ADAC)$(CRESET) $<"
-	@$(ADAC) $(ADAHARDFLAGS) -I$(SOURCEDIR)/arch -I$(SOURCEDIR)/lib -I$(SOURCEDIR) -c $< -o $@
+	@$(ADAC) $(ADAHARDFLAGS) -I$(SOURCEDIR)/arch -I$(SOURCEDIR)/lib \
+		-I$(SOURCEDIR)/memory -I$(SOURCEDIR) -c $< -o $@
 
 %.o: %.ads
 	@echo "$(CMAGENTA)$(ADAC)$(CRESET) $<"
-	@$(ADAC) $(ADAHARDFLAGS) -I$(SOURCEDIR)/arch -I$(SOURCEDIR)/lib -I$(SOURCEDIR) -c $< -o $@
+	@$(ADAC) $(ADAHARDFLAGS) -I$(SOURCEDIR)/arch -I$(SOURCEDIR)/lib \
+		-I$(SOURCEDIR)/memory -I$(SOURCEDIR) -c $< -o $@
 
 %.o: %.S
 	@echo "$(CMAGENTA)$(AS)$(CRESET) $@"
@@ -81,7 +83,7 @@ test: $(IMAGE)
 
 $(IMAGE): $(KERNEL) $(LIMINE_DIR)
 	@mkdir -p iso_root
-	@cp $(KERNEL) $(TESTDIR)/limine.cfg $(LIMINE_DIR)/limine.sys \
+	@cp $(KERNEL) $(TESTDIR)/limine.cfg $(TESTDIR)/font.bin $(LIMINE_DIR)/limine.sys \
 		$(LIMINE_DIR)/limine-cd.bin $(LIMINE_DIR)/limine-eltorito-efi.bin iso_root/
 	@xorriso -as mkisofs -b limine-cd.bin -no-emul-boot -boot-load-size 4  \
 		-boot-info-table --efi-boot limine-eltorito-efi.bin -efi-boot-part \

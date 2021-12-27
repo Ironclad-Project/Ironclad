@@ -1,4 +1,4 @@
---  lib-messages.ads: Specification of the messages package.
+--  memory.ads: Specification of the memory package.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,15 +14,5 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Lib.Messages is
-   --  Prints and adds a newline.
-   procedure Put_Line (Message : String);
-
-   --  Panic function of the kernel, prints the message and then halts.
-   procedure Panic (Message : String);
-
-   --  Prints a message of different types.
-   procedure Put (Message : String);
-   procedure Put (Message : Character);
-   procedure Put (Message : Integer);
-end Lib.Messages;
+package Memory is
+end Memory;

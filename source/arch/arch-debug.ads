@@ -17,4 +17,5 @@
 package Arch.Debug is
    --  Print a message using an architecture-specific debug output.
    procedure Print (Message : String);
+   procedure Print (Message : Character);
 end Arch.Debug;

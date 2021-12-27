@@ -22,8 +22,8 @@ with System.Address_To_Access_Conversions;
 package body Arch.Stivale2 is
    package Convert is new System.Address_To_Access_Conversions (Tag);
 
-   Terminal_Enabled    : Boolean;
-   Terminal_Entrypoint : System.Address;
+   Terminal_Enabled    : Boolean        := False;
+   Terminal_Entrypoint : System.Address := System'To_Address (0);
 
    function Get_Tag
      (Proto     : access Header;
@@ -41,7 +41,7 @@ package body Arch.Stivale2 is
       return System'To_Address (0);
    end Get_Tag;
 
-   procedure Init_Terminal (Terminal : access TerminalTag) is
+   procedure Init_Terminal (Terminal : access Terminal_Tag) is
    begin
       Terminal_Enabled    := True;
       Terminal_Entrypoint := Terminal.TermWrite;
@@ -58,6 +58,22 @@ package body Arch.Stivale2 is
               Inputs => (System.Address'Asm_Input ("rm", Terminal_Entrypoint),
                          System.Address'Asm_Input ("D",  Message'Address),
                          Unsigned_64'Asm_Input    ("S",  Message'Length)),
+              Clobber  => "rax, rdx, rcx, r8, r9, r10, r11",
+              Volatile => True);
+      end if;
+   end Print_Terminal;
+
+   procedure Print_Terminal (Message : Character) is
+   begin
+      if Terminal_Enabled then
+         Asm ("push %%rdi" & LF & HT &
+              "push %%rsi" & LF & HT &
+              "call *%0"   & LF & HT &
+              "pop %%rsi"  & LF & HT &
+              "pop %%rdi",
+              Inputs => (System.Address'Asm_Input ("rm", Terminal_Entrypoint),
+                         System.Address'Asm_Input ("D",  Message'Address),
+                         Unsigned_64'Asm_Input    ("S", Unsigned_64 (1))),
               Clobber  => "rax, rdx, rcx, r8, r9, r10, r11",
               Volatile => True);
       end if;
