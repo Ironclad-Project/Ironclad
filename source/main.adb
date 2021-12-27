@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
 with System.Address_To_Access_Conversions;
 with Arch.GDT;
 with Arch.IDT;
@@ -33,7 +34,7 @@ procedure Main (Protocol : access Arch.Stivale2.Header) is
    Memmap : constant access Arch.Stivale2.Memmap_Tag := Convert2.To_Pointer
      (Arch.Stivale2.Get_Tag (Protocol, Arch.Stivale2.MemmapID));
 
-   Total_Memory, Free_Memory, Used_Memory : Natural := 0;
+   Total_Memory, Free_Memory, Used_Memory : Memory.Size;
 begin
    Arch.Stivale2.Init_Terminal (Term);
    Lib.Messages.Put      (Config.Package_Name);
@@ -52,12 +53,21 @@ begin
    Lib.Messages.Put_Line ("Initializing allocators");
    Memory.Physical.Init_Allocator (Memmap);
    Memory.Physical.Get_Info (Total_Memory, Free_Memory, Used_Memory);
-   Lib.Messages.Put      (Used_Memory);
+   Lib.Messages.Put      (Unsigned_64 (Used_Memory));
    Lib.Messages.Put      (" used + ");
-   Lib.Messages.Put      (Free_Memory);
+   Lib.Messages.Put      (Unsigned_64 (Free_Memory));
    Lib.Messages.Put      (" free / ");
-   Lib.Messages.Put      (Total_Memory);
+   Lib.Messages.Put      (Unsigned_64 (Total_Memory));
    Lib.Messages.Put_Line (" memory used");
+   for E of Memmap.Entries loop
+      Lib.Messages.Put      ('[');
+      Lib.Messages.Put      (E.Base, True);
+      Lib.Messages.Put      ('+');
+      Lib.Messages.Put      (E.Length, True, True);
+      Lib.Messages.Put      ("] ");
+      Lib.Messages.Put      (Integer (E.EntryType), False, True);
+      Lib.Messages.Put_Line ("");
+   end loop;
 
    Lib.Messages.Panic ("End of kernel");
 end Main;

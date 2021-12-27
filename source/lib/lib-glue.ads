@@ -20,27 +20,23 @@ with System;
 --  Most of them are for error-reporting, and the names are preset.
 
 package Lib.Glue is
-   procedure Access_Check (File : System.Address; Line : Integer);
+   procedure Access_Check         (File : System.Address; Line : Integer);
+   procedure Index_Check          (File : System.Address; Line : Integer);
+   procedure Range_Check          (File : System.Address; Line : Integer);
+   procedure Accessib_Check       (File : System.Address; Line : Integer);
+   procedure Overflow_Check       (File : System.Address; Line : Integer);
+   procedure Large_Object_Check   (File : System.Address; Line : Integer);
+   procedure Invalid_Data_Check   (File : System.Address; Line : Integer);
+   procedure Divide_By_Zero_Check (File : System.Address; Line : Integer);
+
    pragma Export (C, Access_Check, "__gnat_rcheck_CE_Access_Check");
-
-   procedure Index_Check (File : System.Address; Line : Integer);
    pragma Export (C, Index_Check, "__gnat_rcheck_CE_Index_Check");
-
-   procedure Range_Check (File : System.Address; Line : Integer);
    pragma Export (C, Range_Check, "__gnat_rcheck_CE_Range_Check");
-
-   procedure Accessib_Check (File : System.Address; Line : Integer);
    pragma Export (C, Accessib_Check, "__gnat_rcheck_PE_Accessibility_Check");
-
-   procedure Overflow_Check (File : System.Address; Line : Integer);
    pragma Export (C, Overflow_Check, "__gnat_rcheck_CE_Overflow_Check");
-
-   procedure Large_Object_Check (File : System.Address; Line : Integer);
    pragma Export (C, Large_Object_Check, "__gnat_rcheck_SE_Object_Too_Large");
-
-   procedure Invalid_Data_Check (File : System.Address; Line : Integer);
    pragma Export (C, Invalid_Data_Check, "__gnat_rcheck_CE_Invalid_Data");
-
+   pragma Export (C, Divide_By_Zero_Check, "__gnat_rcheck_CE_Divide_By_Zero");
 private
    procedure Print_Exception
       (Message      : String;

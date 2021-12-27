@@ -55,6 +55,11 @@ package body Lib.Glue is
       Print_Exception ("Invalid data check failure", File, Line);
    end Invalid_Data_Check;
 
+   procedure Divide_By_Zero_Check (File : System.Address; Line : Integer) is
+   begin
+      Print_Exception ("Divide by zero check failure", File, Line);
+   end Divide_By_Zero_Check;
+
    procedure Print_Exception
       (Message      : String;
        File_Address : System.Address;

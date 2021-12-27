@@ -14,6 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
+with System;
+
 package Lib.Messages is
    --  Prints and adds a newline.
    procedure Put_Line (Message : String);
@@ -24,5 +27,8 @@ package Lib.Messages is
    --  Prints a message of different types.
    procedure Put (Message : String);
    procedure Put (Message : Character);
-   procedure Put (Message : Integer);
+   procedure Put (Message : Integer;     Pad, Use_Hex : Boolean := False);
+   procedure Put (Message : Integer_64;  Pad, Use_Hex : Boolean := False);
+   procedure Put (Message : Unsigned_64; Pad, Use_Hex : Boolean := False);
+   procedure Put (Message : System.Address; Pad : Boolean := False);
 end Lib.Messages;

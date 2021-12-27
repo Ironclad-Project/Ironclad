@@ -100,17 +100,15 @@ package Arch.Stivale2 is
 
    --  TODO: There must be a better way in Ada to represent this VLA.
    --  Discriminants with a record field would be nice, but it doesnt work.
-   type Memmap_Tag is record
-      TagInfo    : Tag;
-      EntryCount : Unsigned_64;
-      Entries    : Unsigned_64; --  Is actually a VLA with length = EntryCount
+   type Memmap_Entries is array (Natural range <>) of Memmap_Entry;
+   type Memmap_Tag (Count : Natural) is record
+      TagInfo : Tag;
+      Entries : Memmap_Entries (1 .. Count);
    end record;
    for Memmap_Tag use record
-      TagInfo    at 0 range   0 .. 127;
-      EntryCount at 0 range 128 .. 191;
-      Entries    at 0 range 192 .. 255;
+      TagInfo at 0 range   0 .. 127;
+      Count   at 0 range 128 .. 191;
    end record;
-   for Memmap_Tag'Size use 256;
 
    --  Find a header.
    function Get_Tag
@@ -123,4 +121,7 @@ package Arch.Stivale2 is
    --  Print a message using the stivale2 terminal.
    procedure Print_Terminal (Message : String);
    procedure Print_Terminal (Message : Character);
+
+private
+   procedure Inner_Terminal (Message : System.Address; Length : Natural);
 end Arch.Stivale2;

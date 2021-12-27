@@ -15,29 +15,27 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Memory.Physical is
+   Total_Memory : Memory.Size; --  Total size of memory.
+
    procedure Init_Allocator (Memmap : access Arch.Stivale2.Memmap_Tag) is
-      type Mmap is array (Unsigned_64 range <>) of Arch.Stivale2.Memmap_Entry;
-
-      Entries : Mmap (1 .. Memmap.EntryCount);
-      for Entries'Address use Memmap.Entries'Address;
-   begin
-      null;
-   end Init_Allocator;
-
-   function Memory_Alloc (Size : Unsigned_64) return System.Address is
-   begin
-      return System'To_Address (0);
-   end Memory_Alloc;
-
-   procedure Memory_Free (Address : System.Address) is
-   begin
-      null;
-   end Memory_Free;
-
-   procedure Get_Info (Total_Memory, Free, Used : out Natural) is
    begin
       Total_Memory := 0;
-      Free         := 0;
-      Used         := 0;
+   end Init_Allocator;
+
+   function Alloc (Size : Memory.Size) return System.Address is
+   begin
+      return System'To_Address (0);
+   end Alloc;
+
+   procedure Free (Address : System.Address) is
+   begin
+      null;
+   end Free;
+
+   procedure Get_Info (Total, Free, Used : out Memory.Size) is
+   begin
+      Total := Total_Memory;
+      Free  := 0;
+      Used  := 0;
    end Get_Info;
 end Memory.Physical;

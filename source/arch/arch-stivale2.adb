@@ -49,21 +49,15 @@ package body Arch.Stivale2 is
 
    procedure Print_Terminal (Message : String) is
    begin
-      if Terminal_Enabled then
-         Asm ("push %%rdi" & LF & HT &
-              "push %%rsi" & LF & HT &
-              "call *%0"   & LF & HT &
-              "pop %%rsi"  & LF & HT &
-              "pop %%rdi",
-              Inputs => (System.Address'Asm_Input ("rm", Terminal_Entrypoint),
-                         System.Address'Asm_Input ("D",  Message'Address),
-                         Unsigned_64'Asm_Input    ("S",  Message'Length)),
-              Clobber  => "rax, rdx, rcx, r8, r9, r10, r11",
-              Volatile => True);
-      end if;
+      Inner_Terminal (Message'Address, Message'Length);
    end Print_Terminal;
 
    procedure Print_Terminal (Message : Character) is
+   begin
+      Inner_Terminal (Message'Address, 1);
+   end Print_Terminal;
+
+   procedure Inner_Terminal (Message : System.Address; Length : Natural) is
    begin
       if Terminal_Enabled then
          Asm ("push %%rdi" & LF & HT &
@@ -72,10 +66,10 @@ package body Arch.Stivale2 is
               "pop %%rsi"  & LF & HT &
               "pop %%rdi",
               Inputs => (System.Address'Asm_Input ("rm", Terminal_Entrypoint),
-                         System.Address'Asm_Input ("D",  Message'Address),
-                         Unsigned_64'Asm_Input    ("S", Unsigned_64 (1))),
+                         System.Address'Asm_Input ("D",  Message),
+                         Natural'Asm_Input        ("S",  Length)),
               Clobber  => "rax, rdx, rcx, r8, r9, r10, r11",
               Volatile => True);
       end if;
-   end Print_Terminal;
+   end Inner_Terminal;
 end Arch.Stivale2;

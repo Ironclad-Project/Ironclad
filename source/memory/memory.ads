@@ -15,4 +15,5 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Memory is
+   type Size is mod 2 ** Standard'Address_Size; --  Any object in bytes.
 end Memory;
