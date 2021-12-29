@@ -24,12 +24,9 @@ package Arch.IDT is
    procedure Load_IDT;
 
    --  Load an ISR into the IDT.
-   type IST_Index is private;
+   type IST_Index is range 0 .. 7;
    procedure Load_ISR
       (Index   : Integer;
        Address : System.Address;
        IST     : IST_Index);
-private
-   type IST_Index is range 0 .. 7;
-   procedure Default_ISR;
 end Arch.IDT;

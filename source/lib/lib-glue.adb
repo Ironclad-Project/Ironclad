@@ -14,10 +14,10 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
 with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 with Lib.Messages;
+with Lib.Panic;
 
 package body Lib.Glue is
    procedure Access_Check (File : System.Address; Line : Integer) is
@@ -89,7 +89,7 @@ package body Lib.Glue is
          Lib.Messages.Put      (":");
          Lib.Messages.Put      (Line_Number);
          Lib.Messages.Put_Line ("");
-         Lib.Messages.Panic    (Message);
+         Lib.Panic.Hard_Panic  (Message);
       end;
    end Print_Exception;
 end Lib.Glue;

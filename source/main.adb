@@ -20,6 +20,7 @@ with Arch.GDT;
 with Arch.IDT;
 with Arch.Stivale2;
 with Lib.Messages;
+with Lib.Panic;
 with Memory.Physical;
 with Config;
 
@@ -69,5 +70,5 @@ begin
       Lib.Messages.Put_Line ("");
    end loop;
 
-   Lib.Messages.Panic ("End of kernel");
+   Lib.Panic.Hard_Panic ("End of kernel");
 end Main;

@@ -41,4 +41,13 @@ package Arch.Interrupts is
 
    --  Enable or disable interrupts for the callee core.
    procedure Set_Interrupt_Flag (Enable : Boolean);
+
+   --  Default ISR handler body.
+   procedure Default_ISR_Handler
+      with Import => True, External_Name => "default_isr_handler";
+
+   procedure Default_ISR_Body;
+   pragma Export (Convention    => C,
+                  Entity        => Default_ISR_Body,
+                  External_Name => "default_isr_body");
 end Arch.Interrupts;

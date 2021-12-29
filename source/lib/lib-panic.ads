@@ -1,4 +1,4 @@
---  lib-messages.ads: Specification of the messages package.
+--  lib-panic.ads: Specification of the panic function package.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,18 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
-with System;
+package Lib.Panic is
+   --  Panics and attempts recovery saving state, restarting the
+   --  problematic parts of the kernel, and doing housekeeping.
+   type Hint is (Arch_Error, Lib_Error, Memory_Error, Unknown_Error);
+   procedure Soft_Panic (Message : String; Err_Hint : Hint := Unknown_Error);
 
-package Lib.Messages is
-   --  Prints and adds a newline.
-   procedure Put_Line (Message : String);
-
-   --  Prints a message of different types.
-   procedure Put (Message : String);
-   procedure Put (Message : Character);
-   procedure Put (Message : Integer;     Pad, Use_Hex : Boolean := False);
-   procedure Put (Message : Integer_64;  Pad, Use_Hex : Boolean := False);
-   procedure Put (Message : Unsigned_64; Pad, Use_Hex : Boolean := False);
-   procedure Put (Message : System.Address; Pad : Boolean := False);
-end Lib.Messages;
+   --  Panics for good, for cases when soft reboot is risky.
+   procedure Hard_Panic (Message : String);
+   pragma No_Return (Hard_Panic);
+end Lib.Panic;

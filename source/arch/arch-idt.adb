@@ -19,7 +19,6 @@ with System.Machine_Code;     use System.Machine_Code;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.GDT;
 with Arch.Interrupts;
-with Lib.Messages;
 
 package body Arch.IDT is
    --  Records for the GDT structure and its entries.
@@ -97,7 +96,7 @@ package body Arch.IDT is
       --  Load default ISRs.
       LoadISRs :
       for I in 32 .. Global_IDT'Length loop
-         Load_ISR (I, Default_ISR'Address, 0);
+         Load_ISR (I, Interrupts.Default_ISR_Handler'Address, 0);
       end loop LoadISRs;
 
       --  Prepare the pointer and load the IDT.
@@ -135,9 +134,4 @@ package body Arch.IDT is
          Reserved_2  => 0
       );
    end Load_ISR;
-
-   procedure Default_ISR is
-   begin
-      Lib.Messages.Panic ("Default ISR triggered");
-   end Default_ISR;
 end Arch.IDT;

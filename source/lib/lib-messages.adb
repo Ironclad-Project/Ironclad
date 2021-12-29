@@ -17,7 +17,6 @@
 with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Debug;
-with Arch.Interrupts;
 with Arch.Stivale2;
 
 package body Lib.Messages is
@@ -28,18 +27,6 @@ package body Lib.Messages is
       Put (Message);
       Put (New_Line);
    end Put_Line;
-
-   procedure Panic (Message : String) is
-   begin
-      --  Print the error.
-      Put ("PANIC: ");
-      Put (Message);
-      Put (New_Line);
-
-      --  Disable interrupts and loop forever, effectively killing the core.
-      Arch.Interrupts.Set_Interrupt_Flag (False);
-      loop null; end loop;
-   end Panic;
 
    procedure Put (Message : String) is
    begin
