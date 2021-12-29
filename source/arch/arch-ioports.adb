@@ -22,6 +22,7 @@ package body Arch.IOPorts is
       Asm ("outb %0, %1",
            Inputs   => (Unsigned_8'Asm_Input  ("a",  Value),
                         Unsigned_16'Asm_Input ("Nd", Port)),
+           Clobber  => "memory",
            Volatile => True);
    end Port_Out;
 end Arch.IOPorts;

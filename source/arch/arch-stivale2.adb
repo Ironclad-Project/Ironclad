@@ -68,7 +68,7 @@ package body Arch.Stivale2 is
               Inputs => (System.Address'Asm_Input ("rm", Terminal_Entrypoint),
                          System.Address'Asm_Input ("D",  Message),
                          Natural'Asm_Input        ("S",  Length)),
-              Clobber  => "rax, rdx, rcx, r8, r9, r10, r11",
+              Clobber  => "rax, rdx, rcx, r8, r9, r10, r11, memory",
               Volatile => True);
       end if;
    end Inner_Terminal;

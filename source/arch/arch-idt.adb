@@ -109,6 +109,7 @@ package body Arch.IDT is
    begin
       Asm ("lidt %0",
            Inputs   => IDT_Pointer'Asm_Input ("m",  Global_Pointer),
+           Clobber  => "memory",
            Volatile => True);
    end Load_IDT;
 

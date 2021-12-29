@@ -78,26 +78,24 @@ package body Lib.Messages is
          Base := 16;
       end if;
 
-      if Message = 0 then
-         Put ('0');
-      else
+      if Message /= 0 then
          while To_Convert /= 0 loop
             Written          := Written + 1;
             Result (Written) := Conversion_Table
                (Integer (To_Convert rem Base) + 1);
             To_Convert       := To_Convert / Base;
          end loop;
+      end if;
 
-         if Pad then
-            for I in Written .. Result'Length loop
-               Put ('0');
-            end loop;
-         end if;
-
-         for I in reverse 1 .. Written loop
-            Put (Result (I));
+      if Pad then
+         for I in Written .. Result'Length loop
+            Put ('0');
          end loop;
       end if;
+
+      for I in reverse 1 .. Written loop
+         Put (Result (I));
+      end loop;
    end Put;
 
    procedure Put (Message : System.Address; Pad : Boolean := False) is

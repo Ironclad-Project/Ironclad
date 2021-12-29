@@ -9,8 +9,11 @@ that, its the usual
 ```bash
 ./configure
 make
+make test # If wanted.
 make install
 ```
+
+The default `ADAFLAGS`, `ASFLAGS`, and `LDFLAGS` are `-O2 -g`.
 
 Several flags and variables are available for tuning, `./configure --help` will
 display and explain them.

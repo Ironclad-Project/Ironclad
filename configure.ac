@@ -28,11 +28,11 @@ AC_ARG_VAR(QEMU, [QEMU emulator command [qemu-system-x86_64]])
 AC_ARG_VAR(QEMUFLAGS, [QEMU emulator flags [-m 2G -smp 4 -debugcon stdio -enable-kvm]])
 
 test -z "$ADAC"      && ADAC="gcc"
-test -z "$ADAFLAGS"  && ADAFLAGS="-g -gnaty -Wall"
+test -z "$ADAFLAGS"  && ADAFLAGS="-O2 -g"
 test -z "$AS"        && AS="gcc"
-test -z "$ASFLAGS"   && ASFLAGS="-g"
-test -z "$LD"        && LD="ld"
-test -z "$LDFLAGS"   && LDFLAGS="-g"
+test -z "$ASFLAGS"   && ASFLAGS="-O2 -g"
+test -z "$LD"        && LD="gcc"
+test -z "$LDFLAGS"   && LDFLAGS="-O2 -g"
 test -z "$QEMU"      && QEMU="qemu-system-x86_64"
 test -z "$QEMUFLAGS" && QEMUFLAGS="-m 2G -smp 4 -debugcon stdio -enable-kvm"
 

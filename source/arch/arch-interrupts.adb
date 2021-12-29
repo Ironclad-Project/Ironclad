@@ -42,11 +42,12 @@ package body Arch.Interrupts is
    procedure SX_Handler is begin Lib.Messages.Panic ("#SX"); end SX_Handler;
 
    procedure Set_Interrupt_Flag (Enable : Boolean) is
+      package SM renames System.Machine_Code;
    begin
       if Enable then
-         System.Machine_Code.Asm ("sti", Volatile => True);
+         SM.Asm ("sti", Clobber  => "memory", Volatile => True);
       else
-         System.Machine_Code.Asm ("cli", Volatile => True);
+         SM.Asm ("cli", Clobber  => "memory", Volatile => True);
       end if;
    end Set_Interrupt_Flag;
 end Arch.Interrupts;

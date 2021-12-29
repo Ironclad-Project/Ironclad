@@ -98,8 +98,6 @@ package Arch.Stivale2 is
    end record;
    for Memmap_Entry'Size use 192;
 
-   --  TODO: There must be a better way in Ada to represent this VLA.
-   --  Discriminants with a record field would be nice, but it doesnt work.
    type Memmap_Entries is array (Natural range <>) of Memmap_Entry;
    type Memmap_Tag (Count : Natural) is record
       TagInfo : Tag;
