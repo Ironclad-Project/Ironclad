@@ -16,6 +16,7 @@
 
 with Interfaces; use Interfaces;
 with System.Address_To_Access_Conversions;
+with Arch.ACPI;
 with Arch.GDT;
 with Arch.IDT;
 with Arch.Stivale2;
@@ -27,13 +28,16 @@ with Config;
 procedure Main (Protocol : access Arch.Stivale2.Header) is
    package ST renames Arch.Stivale2;
 
-   package C1 is new System.Address_To_Access_Conversions (ST.Terminal_Tag);
-   package C2 is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
+   package C1 is new System.Address_To_Access_Conversions (ST.RSDP_Tag);
+   package C2 is new System.Address_To_Access_Conversions (ST.Terminal_Tag);
+   package C3 is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
 
+   RSDP : constant access ST.RSDP_Tag :=
+     C1.To_Pointer (ST.Get_Tag (Protocol, ST.RSDPID));
    Term : constant access ST.Terminal_Tag :=
-     C1.To_Pointer (ST.Get_Tag (Protocol, ST.TerminalID));
+     C2.To_Pointer (ST.Get_Tag (Protocol, ST.TerminalID));
    Memmap : constant access ST.Memmap_Tag :=
-     C2.To_Pointer (ST.Get_Tag (Protocol, ST.MemmapID));
+     C3.To_Pointer (ST.Get_Tag (Protocol, ST.MemmapID));
 
    Total_Memory, Free_Memory, Used_Memory : Memory.Size;
 begin
@@ -69,6 +73,11 @@ begin
       Lib.Messages.Put      (Integer (E.EntryType), False, True);
       Lib.Messages.Put_Line ("");
    end loop;
+
+   Lib.Messages.Put_Line ("Scanning ACPI tables");
+   if not Arch.ACPI.ScanTables (RSDP.RSDP_Address) then
+      Lib.Panic.Hard_Panic ("ACPI tables not found");
+   end if;
 
    Lib.Panic.Hard_Panic ("End of kernel");
 end Main;

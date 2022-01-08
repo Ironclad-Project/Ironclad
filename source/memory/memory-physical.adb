@@ -39,7 +39,7 @@ package body Memory.Physical is
    end Init_Allocator;
 
    function Alloc (Size : Memory.Size) return System.Address is
-      Error_Return : constant System.Address := System'To_Address (0);
+      Error_Return : constant System.Address := System.Null_Address;
    begin
       --  Check we can allocate at all.
       if Size = 0 or Size > Free_Memory then

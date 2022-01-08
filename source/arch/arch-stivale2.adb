@@ -20,7 +20,6 @@ with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
 with System.Address_To_Access_Conversions;
 
 package body Arch.Stivale2 is
-   package Convert is new System.Address_To_Access_Conversions (Tag);
 
    Terminal_Enabled    : Boolean        := False;
    Terminal_Entrypoint : System.Address := System'To_Address (0);
@@ -28,17 +27,19 @@ package body Arch.Stivale2 is
    function Get_Tag
      (Proto     : access Header;
      Identifier : Unsigned_64) return System.Address is
+      package Convert is new System.Address_To_Access_Conversions (Tag);
+
       Search_Address : System.Address := Proto.Tags;
       Search_Tag     : access Tag;
    begin
-      while Search_Address /= System'To_Address (0) loop
+      while Search_Address /= Null_Address loop
          Search_Tag := Convert.To_Pointer (Search_Address);
          if Search_Tag.Identifier = Identifier then
             return Search_Address;
          end if;
          Search_Address := Search_Tag.Next;
       end loop;
-      return System'To_Address (0);
+      return Null_Address;
    end Get_Tag;
 
    procedure Init_Terminal (Terminal : access Terminal_Tag) is

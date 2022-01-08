@@ -19,7 +19,7 @@ with Interfaces; use Interfaces;
 
 package Arch.Stivale2 is
    --  IDs of several tags.
-   CmdlineID  : constant := 16#E5E76A1B4597A781#;
+   RSDPID     : constant := 16#9E1786930A375E78#;
    TerminalID : constant := 16#C2B3F4C3233B0974#;
    MemmapID   : constant := 16#2187F79E8612DE07#;
 
@@ -47,15 +47,15 @@ package Arch.Stivale2 is
    end record;
    for Tag'Size use 128;
 
-   type Cmdline_Tag is record
-      TagInfo : Tag;
-      Cmdline : System.Address;
+   type RSDP_Tag is record
+      TagInfo      : Tag;
+      RSDP_Address : System.Address;
    end record;
-   for Cmdline_Tag use record
-      TagInfo at 0 range   0 .. 127;
-      Cmdline at 0 range 128 .. 191;
+   for RSDP_Tag use record
+      TagInfo      at 0 range   0 .. 127;
+      RSDP_Address at 0 range 128 .. 191;
    end record;
-   for Cmdline_Tag'Size use 192;
+   for RSDP_Tag'Size use 192;
 
    type Terminal_Tag is record
       TagInfo   : Tag;
