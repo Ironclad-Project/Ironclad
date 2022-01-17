@@ -17,6 +17,7 @@
 with Interfaces; use Interfaces;
 with System.Address_To_Access_Conversions;
 with Arch.ACPI;
+with Arch.APIC;
 with Arch.GDT;
 with Arch.IDT;
 with Arch.Stivale2;
@@ -78,6 +79,9 @@ begin
    if not Arch.ACPI.ScanTables (RSDP.RSDP_Address) then
       Lib.Panic.Hard_Panic ("ACPI tables not found");
    end if;
+
+   Lib.Messages.Put_Line ("Initializing APIC");
+   Arch.APIC.Init;
 
    Lib.Panic.Hard_Panic ("End of kernel");
 end Main;

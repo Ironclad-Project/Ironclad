@@ -15,45 +15,49 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # Some useful constants.
-KERNEL    := ironclad
-IMAGE     := ironclad.iso
-CMAGENTA  := $(shell tput setaf 5)
-CRESET    := $(shell tput sgr0)
-SOURCEDIR := source
-TESTDIR   := test
+override KERNEL    := ironclad
+override IMAGE     := ironclad.iso
+override CMAGENTA  := $(shell tput setaf 5)
+override CRESET    := $(shell tput sgr0)
+override SOURCEDIR := source
+override TESTDIR   := test
 
 # Limine.
-LIMINE_URL  := https://github.com/limine-bootloader/limine.git
-LIMINE_DIR  := limine
-LIMINE_VERS := v2.0-branch-binary
+override LIMINE_URL  := https://github.com/limine-bootloader/limine.git
+override LIMINE_DIR  := limine
+override LIMINE_VERS := v2.0-branch-binary
 
 # Directories for install.
 DESTDIR ?=
 PREFIX  ?= @prefix@
 
 # Set compilers and flags with the help of autoconf.
-ADAC      := @ADAC@
-ADAFLAGS  := @ADAFLAGS@
-AS        := @AS@
-ASFLAGS   := @ASFLAGS@
-LD        := @LD@
-LDFLAGS   := @LDFLAGS@
-QEMU      := @QEMU@
-QEMUFLAGS := @QEMUFLAGS@
+ADAC      ?= @ADAC@
+ADAFLAGS  ?= @ADAFLAGS@
+ASFLAGS   ?= @ASFLAGS@
+LDFLAGS   ?= @LDFLAGS@
+QEMU      ?= @QEMU@
+QEMUFLAGS ?= @QEMUFLAGS@
+ifeq ($(origin AS), default)
+    AS := @AS@
+endif
+ifeq ($(origin LD), default)
+    LD := @LD@
+endif
 
 # Hard flags, that is, the user flags and the ones we forcefully need.
-ADAHARDFLAGS  := $(ADAFLAGS) -fpie -mno-sse -mno-sse2 -mno-red-zone -fno-stack-protector \
-				 -gnatec=$(SOURCEDIR)/pragmas.adc
-ASHARDFLAGS   := $(ASFLAGS) -ffreestanding -fpie
-LDHARDFLAGS   := $(LDFLAGS) -nostdlib -pie -zmax-page-size=0x1000
-QEMUHARDFLAGS := $(QEMUFLAGS)
+override ADAHARDFLAGS  := $(ADAFLAGS) -fpie -mno-sse -mno-sse2 -mno-red-zone \
+	-fno-stack-protector -gnatec=$(SOURCEDIR)/pragmas.adc
+override ASHARDFLAGS   := $(ASFLAGS) -ffreestanding -fpie
+override LDHARDFLAGS   := $(LDFLAGS) -nostdlib -pie -zmax-page-size=0x1000
+override QEMUHARDFLAGS := $(QEMUFLAGS)
 
 # Source to compile.
-ADABODIES := $(shell find $(SOURCEDIR) -type f -name '*.adb')
-ADASPECS  := $(shell find $(SOURCEDIR) -type f -name '*.ads')
-ADAOBJ    := $(shell comm -13 <(echo $(ADABODIES:.adb=.o)) <(echo $(ADASPECS:.ads=.o)))
-ASMSOURCE := $(shell find $(SOURCEDIR) -type f -name '*.S')
-OBJ       := $(ADAOBJ) $(ASMSOURCE:.S=.o)
+override ADABODIES := $(shell find $(SOURCEDIR) -type f -name '*.adb')
+override ADASPECS  := $(shell find $(SOURCEDIR) -type f -name '*.ads')
+override ADAOBJ    := $(shell comm -13 <(echo $(ADABODIES:.adb=.o)) <(echo $(ADASPECS:.ads=.o)))
+override ASMSOURCE := $(shell find $(SOURCEDIR) -type f -name '*.S')
+override OBJ       := $(ADAOBJ) $(ASMSOURCE:.S=.o)
 
 # Where the fun begins!
 .PHONY: all test clean distclean install
@@ -100,7 +104,7 @@ clean:
 	@find $(SOURCEDIR) -name "*.ali" -type f -delete
 
 distclean: clean
-	@rm -rf $(LIMINE_DIR) configure Makefile config.log config.status \
+	@rm -rf $(LIMINE_DIR) configure GNUmakefile config.log config.status \
 	autom4te* $(SOURCEDIR)/config.ads
 
 install: $(KERNEL)

@@ -3,8 +3,8 @@ compromise in speed or complexity, written in Ada.
 
 ## Building
 
-If the project's `configure` has not been generated, call `autoconf`, after
-that, its the usual
+If the project's `configure` has not been generated, there is a `autogen.sh`.
+The steps for a generated project are the usual:
 
 ```bash
 ./configure

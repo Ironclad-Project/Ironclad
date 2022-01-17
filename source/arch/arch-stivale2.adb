@@ -22,7 +22,7 @@ with System.Address_To_Access_Conversions;
 package body Arch.Stivale2 is
 
    Terminal_Enabled    : Boolean        := False;
-   Terminal_Entrypoint : System.Address := System'To_Address (0);
+   Terminal_Entrypoint : System.Address := System.Null_Address;
 
    function Get_Tag
      (Proto     : access Header;

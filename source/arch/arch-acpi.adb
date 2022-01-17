@@ -16,7 +16,6 @@
 
 with System;     use System;
 with Interfaces; use Interfaces;
-with System.Address_To_Access_Conversions;
 
 package body Arch.ACPI is
    --  RSDP table in memory, and its 2.0 version.
@@ -52,7 +51,7 @@ package body Arch.ACPI is
    type XSDT_Entries is array (Natural range <>) of Unsigned_64;
    type RSDT is record
       Header  : SDT_Header;
-      Entries : Unsigned_32; --  Actually the start of them.
+      Entries : Unsigned_32; --  Actually the start of the RSDT/XSDT entries.
    end record;
    for RSDT use record
       Header at 0 range 0 .. 287;
@@ -81,15 +80,13 @@ package body Arch.ACPI is
       return True;
    end ScanTables;
 
-   function FindTable (Signature : SDT_Signature) return access SDT_Header is
-      package C1 is new System.Address_To_Access_Conversions (SDT_Header);
-
+   function FindTable (Signature : SDT_Signature) return System.Address is
       Root : RSDT;
       for Root'Address use Root_Address;
 
       Limit : constant Natural := (Natural (Root.Header.Length)
          - Root.Header'Size / 8) / (if Use_XSDT then 8 else 4);
-      Returned : access SDT_Header := null;
+      Returned : System.Address := System.Null_Address;
    begin
       for I in 1 .. Limit loop
          if Use_XSDT then
@@ -97,22 +94,27 @@ package body Arch.ACPI is
                Entries : XSDT_Entries (1 .. Limit);
                for Entries'Address use Root.Entries'Address;
             begin
-               Returned := C1.To_Pointer (System'To_Address (Entries (I)));
+               Returned := System'To_Address (Entries (I));
             end;
          else
             declare
                Entries : RSDT_Entries (1 .. Limit);
                for Entries'Address use Root.Entries'Address;
             begin
-               Returned := C1.To_Pointer (System'To_Address (Entries (I)));
+               Returned := System'To_Address (Entries (I));
             end;
          end if;
 
-         if Returned.Signature = Signature then
-            return Returned;
-         end if;
+         declare
+            Test_Header : SDT_Header;
+            for Test_Header'Address use Returned;
+         begin
+            if Test_Header.Signature = Signature then
+               return Returned;
+            end if;
+         end;
       end loop;
 
-      return null;
+      return System.Null_Address;
    end FindTable;
 end Arch.ACPI;

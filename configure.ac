@@ -40,5 +40,5 @@ test -z "$QEMUFLAGS" && QEMUFLAGS="-m 2G -smp 4 -debugcon stdio -enable-kvm"
 AC_PREFIX_DEFAULT(/boot)
 
 # Replace the variables in the makefile.
-AC_CONFIG_FILES(Makefile source/config.ads)
+AC_CONFIG_FILES(GNUmakefile source/config.ads)
 AC_OUTPUT

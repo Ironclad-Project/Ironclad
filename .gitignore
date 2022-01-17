@@ -1,7 +1,7 @@
 *.o
 *.ali
 configure
-Makefile
+GNUmakefile
 config.log
 config.status
 autom4te*
