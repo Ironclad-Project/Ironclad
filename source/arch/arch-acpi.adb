@@ -62,8 +62,7 @@ package body Arch.ACPI is
    Root_Address : System.Address := Null_Address;
 
    function ScanTables (RSDP_Address : System.Address) return Boolean is
-      Table : RSDP;
-      for Table'Address use RSDP_Address;
+      Table : RSDP with Address => RSDP_Address;
    begin
       if RSDP_Address = Null_Address or Table.Signature /= "RSD PTR " then
          return False;
@@ -81,8 +80,7 @@ package body Arch.ACPI is
    end ScanTables;
 
    function FindTable (Signature : SDT_Signature) return System.Address is
-      Root : RSDT;
-      for Root'Address use Root_Address;
+      Root : RSDT with Address => Root_Address;
 
       Limit : constant Natural := (Natural (Root.Header.Length)
          - Root.Header'Size / 8) / (if Use_XSDT then 8 else 4);
@@ -106,8 +104,7 @@ package body Arch.ACPI is
          end if;
 
          declare
-            Test_Header : SDT_Header;
-            for Test_Header'Address use Returned;
+            Test_Header : SDT_Header with Address => Returned;
          begin
             if Test_Header.Signature = Signature then
                return Returned;

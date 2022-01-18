@@ -50,4 +50,7 @@ package Arch.Interrupts is
    pragma Export (Convention    => C,
                   Entity        => Default_ISR_Body,
                   External_Name => "default_isr_body");
+
+   --  LAPIC spurious interrupt handling.
+   procedure Spurious_Handler;
 end Arch.Interrupts;

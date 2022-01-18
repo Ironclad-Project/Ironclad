@@ -17,6 +17,7 @@
 with Interfaces;              use Interfaces;
 with System.Machine_Code;     use System.Machine_Code;
 with System.Storage_Elements; use System.Storage_Elements;
+with Arch.APIC;
 with Arch.GDT;
 with Arch.Interrupts;
 
@@ -98,6 +99,10 @@ package body Arch.IDT is
       for I in 32 .. Global_IDT'Length loop
          Load_ISR (I, Interrupts.Default_ISR_Handler'Address, 0);
       end loop LoadISRs;
+
+      --  Some special entries for several hardcoded hardware.
+      Load_ISR (APIC.LAPIC_Spurious_Entry,
+                Interrupts.Spurious_Handler'Address, 0);
 
       --  Prepare the pointer and load the IDT.
       Global_Pointer := (Global_IDT'Size - 1, Global_IDT'Address);

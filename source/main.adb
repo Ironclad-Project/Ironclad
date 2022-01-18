@@ -81,7 +81,7 @@ begin
    end if;
 
    Lib.Messages.Put_Line ("Initializing APIC");
-   Arch.APIC.Init;
+   Arch.APIC.Init_LAPIC;
 
    Lib.Panic.Hard_Panic ("End of kernel");
 end Main;

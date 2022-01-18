@@ -55,4 +55,9 @@ package body Arch.Interrupts is
    begin
       Lib.Panic.Soft_Panic ("Default ISR triggered");
    end Default_ISR_Body;
+
+   procedure Spurious_Handler is
+   begin
+      Lib.Panic.Hard_Panic ("LAPIC Spurious interrupt occured");
+   end Spurious_Handler;
 end Arch.Interrupts;

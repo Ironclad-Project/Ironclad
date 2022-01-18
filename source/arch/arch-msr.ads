@@ -1,4 +1,4 @@
---  arch-apic.ads: Specification of the IO/LAPIC driver.
+--  arch-msr.ads: Specification of the MSR reading library.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,18 +14,10 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
 with Interfaces; use Interfaces;
 
-package Arch.APIC is
-   --  Entry of the IDT for LAPIC spurious fires.
-   LAPIC_Spurious_Entry : constant := 255;
-
-   --  Initialize the Local APIC for the caller core.
-   procedure Init_LAPIC;
-
-private
-   function Get_LAPIC_Base return System.Address;
-   function LAPIC_Read (Register : Unsigned_32) return Unsigned_32;
-   procedure LAPIC_Write (Register : Unsigned_32; Value : Unsigned_32);
-end Arch.APIC;
+package Arch.MSR is
+   --  Read an write MSRs.
+   function Read (MSRNumber : Unsigned_32) return Unsigned_64;
+   procedure Write (MSRNumber : Unsigned_32; Value : Unsigned_64);
+end Arch.MSR;
