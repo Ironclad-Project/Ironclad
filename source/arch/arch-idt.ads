@@ -23,10 +23,14 @@ package Arch.IDT is
    --  Load the IDT in the callee core.
    procedure Load_IDT;
 
-   --  Load an ISR into the IDT.
+   --  Load and unload an ISR into the IDT, either statically or dynamically.
    type IST_Index is range 0 .. 7;
-   procedure Load_ISR
-      (Index   : Integer;
-       Address : System.Address;
-       IST     : IST_Index);
+   type IDT_Index is range 1 .. 256;
+   procedure Load_ISR (Index : IDT_Index; Address : System.Address);
+   function Load_ISR (Address : System.Address;
+                      Index : out IDT_Index) return Boolean;
+   procedure Unload_ISR (Index : IDT_Index);
+
+private
+   procedure Load_IDT_ISR (Index : IDT_Index; Address : System.Address);
 end Arch.IDT;

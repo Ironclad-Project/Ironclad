@@ -21,7 +21,8 @@ package body Arch.APIC is
    --  TODO: Allocate the LAPIC base in a core-specific way instead of fetching
    --  it each time.
 
-   LAPIC_MSR               : constant := 16#1B#;
+   LAPIC_MSR               : constant := 16#01B#;
+   LAPIC_EOI_Register      : constant := 16#0B0#;
    LAPIC_Spurious_Register : constant := 16#0F0#;
 
    procedure Init_LAPIC is
@@ -32,6 +33,11 @@ package body Arch.APIC is
       --  ORing the enable bit.
       LAPIC_Write (LAPIC_Spurious_Register, To_Write or Shift_Right (1, 8));
    end Init_LAPIC;
+
+   procedure LAPIC_EOI is
+   begin
+      LAPIC_Write (LAPIC_EOI_Register, 0);
+   end LAPIC_EOI;
 
    function Get_LAPIC_Base return System.Address is
       Value : constant Unsigned_64 := Arch.MSR.Read (LAPIC_MSR);

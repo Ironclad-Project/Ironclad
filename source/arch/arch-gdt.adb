@@ -61,7 +61,7 @@ package body Arch.GDT is
    end record;
    for TSS_Entry'Size use 128;
 
-   --  GDT has 16 and 32 bit entries for the stivale protocol terminal.
+   --  XXX: GDT has 16 and 32 bit entries for the stivale protocol terminal.
    --  If the kernel was to move from it, remove them
    --  (unless another reason happens).
    type GDT_Entries is array (1 .. 9) of GDT_Entry;

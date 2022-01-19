@@ -1,4 +1,4 @@
---  arch-interrupts.ads: Specification of interrupt utilities.
+--  arch-exceptions.ads: Specification of interrupt utilities.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -42,14 +42,8 @@ package Arch.Interrupts is
    --  Enable or disable interrupts for the callee core.
    procedure Set_Interrupt_Flag (Enable : Boolean);
 
-   --  Default ISR handler body.
-   procedure Default_ISR_Handler
-      with Import => True, External_Name => "default_isr_handler";
-
-   procedure Default_ISR_Body;
-   pragma Export (Convention    => C,
-                  Entity        => Default_ISR_Body,
-                  External_Name => "default_isr_body");
+   --  Default ISR handler.
+   procedure Default_ISR_Handler;
 
    --  LAPIC spurious interrupt handling.
    procedure Spurious_Handler;

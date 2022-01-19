@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces;              use Interfaces;
+with System;                  use System;
 with System.Machine_Code;     use System.Machine_Code;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.APIC;
@@ -64,45 +65,53 @@ package body Arch.IDT is
    end record;
    for IDT_Pointer'Size use 80;
 
-   --  Global variables for the IDT and its pointer.
-   Global_IDT     : array (1 .. 256) of IDT_Entry;
+   --  Global variables for the user IDT and its pointer.
+   Global_IDT     : array (IDT_Index) of IDT_Entry;
    Global_Pointer : IDT_Pointer;
+
+   --  Thunk list and the isr table, the thunk list containts a list of thunks
+   --  to be loaded to the idt that directly call the elements in isr_table.
+   Thunk_List     : array (IDT_Index) of System.Address
+      with Import => True, External_Name => "interrupt_thunk_list";
+   ISR_Table      : array (IDT_Index) of System.Address
+      with Export => True, External_Name => "isr_table";
 
    procedure Init is
    begin
-      --  Load exceptions.
-      Load_ISR  (1, Interrupts.DE_Handler'Address, 0);
-      Load_ISR  (2, Interrupts.DB_Handler'Address, 0);
-      Load_ISR  (4, Interrupts.BP_Handler'Address, 0);
-      Load_ISR  (5, Interrupts.OF_Handler'Address, 0);
-      Load_ISR  (6, Interrupts.BR_Handler'Address, 0);
-      Load_ISR  (7, Interrupts.UD_Handler'Address, 0);
-      Load_ISR  (8, Interrupts.NM_Handler'Address, 0);
-      Load_ISR  (9, Interrupts.DF_Handler'Address, 0);
-      Load_ISR (11, Interrupts.TS_Handler'Address, 0);
-      Load_ISR (12, Interrupts.NP_Handler'Address, 0);
-      Load_ISR (13, Interrupts.SS_Handler'Address, 0);
-      Load_ISR (14, Interrupts.GP_Handler'Address, 0);
-      Load_ISR (15, Interrupts.PF_Handler'Address, 0);
-      Load_ISR (17, Interrupts.MF_Handler'Address, 0);
-      Load_ISR (18, Interrupts.AC_Handler'Address, 0);
-      Load_ISR (19, Interrupts.MC_Handler'Address, 0);
-      Load_ISR (20, Interrupts.XM_Handler'Address, 0);
-      Load_ISR (21, Interrupts.VE_Handler'Address, 0);
-      Load_ISR (22, Interrupts.CP_Handler'Address, 0);
-      Load_ISR (29, Interrupts.HV_Handler'Address, 0);
-      Load_ISR (30, Interrupts.VC_Handler'Address, 0);
-      Load_ISR (31, Interrupts.SX_Handler'Address, 0);
+      --  Load the thunks into the actual IDT and default handlers in the
+      --  ISR list.
+      for I in IDT_Index loop
+         Load_IDT_ISR (I, Thunk_List (I));
+         Load_ISR (I, Interrupts.Default_ISR_Handler'Address);
+      end loop;
 
-      --  Load default ISRs.
-      LoadISRs :
-      for I in 32 .. Global_IDT'Length loop
-         Load_ISR (I, Interrupts.Default_ISR_Handler'Address, 0);
-      end loop LoadISRs;
+      --  Load exceptions.
+      Load_ISR  (1, Interrupts.DE_Handler'Address);
+      Load_ISR  (2, Interrupts.DB_Handler'Address);
+      Load_ISR  (4, Interrupts.BP_Handler'Address);
+      Load_ISR  (5, Interrupts.OF_Handler'Address);
+      Load_ISR  (6, Interrupts.BR_Handler'Address);
+      Load_ISR  (7, Interrupts.UD_Handler'Address);
+      Load_ISR  (8, Interrupts.NM_Handler'Address);
+      Load_ISR  (9, Interrupts.DF_Handler'Address);
+      Load_ISR (11, Interrupts.TS_Handler'Address);
+      Load_ISR (12, Interrupts.NP_Handler'Address);
+      Load_ISR (13, Interrupts.SS_Handler'Address);
+      Load_ISR (14, Interrupts.GP_Handler'Address);
+      Load_ISR (15, Interrupts.PF_Handler'Address);
+      Load_ISR (17, Interrupts.MF_Handler'Address);
+      Load_ISR (18, Interrupts.AC_Handler'Address);
+      Load_ISR (19, Interrupts.MC_Handler'Address);
+      Load_ISR (20, Interrupts.XM_Handler'Address);
+      Load_ISR (21, Interrupts.VE_Handler'Address);
+      Load_ISR (22, Interrupts.CP_Handler'Address);
+      Load_ISR (29, Interrupts.HV_Handler'Address);
+      Load_ISR (30, Interrupts.VC_Handler'Address);
+      Load_ISR (31, Interrupts.SX_Handler'Address);
 
       --  Some special entries for several hardcoded hardware.
       Load_ISR (APIC.LAPIC_Spurious_Entry,
-                Interrupts.Spurious_Handler'Address, 0);
+                Interrupts.Spurious_Handler'Address);
 
       --  Prepare the pointer and load the IDT.
       Global_Pointer := (Global_IDT'Size - 1, Global_IDT'Address);
@@ -117,10 +126,32 @@ package body Arch.IDT is
            Volatile => True);
    end Load_IDT;
 
-   procedure Load_ISR
-     (Index  : Integer;
-     Address : System.Address;
-     IST     : IST_Index) is
+   procedure Load_ISR (Index : IDT_Index; Address : System.Address) is
+   begin
+      ISR_Table (Index) := Address;
+   end Load_ISR;
+
+   function Load_ISR (Address : System.Address;
+                      Index : out IDT_Index) return Boolean is
+   begin
+      for I in IDT_Index loop
+         if ISR_Table (I) = Interrupts.Default_ISR_Handler'Address then
+            Index := I;
+            Load_ISR (I, Address);
+            return True;
+         end if;
+      end loop;
+
+      Index := 1;
+      return False;
+   end Load_ISR;
+
+   procedure Unload_ISR (Index : IDT_Index) is
+   begin
+      ISR_Table (Index) := Interrupts.Default_ISR_Handler'Address;
+   end Unload_ISR;
+
+   procedure Load_IDT_ISR (Index : IDT_Index; Address : System.Address) is
       Addr   : constant Unsigned_64 := Unsigned_64 (To_Integer (Address));
       Low16  : constant Unsigned_64 := Addr                   and 16#FFFF#;
       Mid16  : constant Unsigned_64 := Shift_Right (Addr, 16) and 16#FFFF#;
@@ -129,7 +160,7 @@ package body Arch.IDT is
       Global_IDT (Index) := (
          Offset_Low  => Unsigned_16 (Low16),
          Selector    => GDT.Kernel_Code64_Segment,
-         IST         => IST,
+         IST         => 0,
          Gate_Type   => Gate_Type_Interrupt,
          Zero        => False,
          DPL         => 0,
@@ -138,5 +169,5 @@ package body Arch.IDT is
          Offset_High => Unsigned_32 (High32),
          Reserved_2  => 0
       );
-   end Load_ISR;
+   end Load_IDT_ISR;
 end Arch.IDT;

@@ -24,6 +24,10 @@ package Arch.APIC is
    --  Initialize the Local APIC for the caller core.
    procedure Init_LAPIC;
 
+   --  LAPIC End Of Interrupt routine, that is to be called at the end of
+   --  an interrupt.
+   procedure LAPIC_EOI;
+
 private
    function Get_LAPIC_Base return System.Address;
    function LAPIC_Read (Register : Unsigned_32) return Unsigned_32;

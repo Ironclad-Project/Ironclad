@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System.Machine_Code;
+with Arch.APIC;
 with Lib.Panic;
 
 package body Arch.Interrupts is
@@ -51,10 +52,11 @@ package body Arch.Interrupts is
       end if;
    end Set_Interrupt_Flag;
 
-   procedure Default_ISR_Body is
+   procedure Default_ISR_Handler is
    begin
       Lib.Panic.Soft_Panic ("Default ISR triggered");
-   end Default_ISR_Body;
+      Arch.APIC.LAPIC_EOI;
+   end Default_ISR_Handler;
 
    procedure Spurious_Handler is
    begin
