@@ -16,6 +16,7 @@
 
 with System;
 with Interfaces; use Interfaces;
+with Arch.IDT;
 
 package Arch.APIC is
    --  Entry of the IDT for LAPIC spurious fires.
@@ -28,8 +29,45 @@ package Arch.APIC is
    --  an interrupt.
    procedure LAPIC_EOI;
 
+   ----------------------------------------------------------------------------
+
+   --  Initialize the IOAPICs, return True in success or False on failure.
+   function Init_IOAPIC return Boolean;
+
+   --  Use the IOAPIC to redirect an IRQ to an IDT entry for a given LAPIC.
+   --  Set enable to true or false to enable or disable it.
+   --  Return true on success.
+   function IOAPIC_Set_Redirect
+      (LAPIC_ID  : Unsigned_32;
+       IRQ       : IDT.IDT_Index;
+       IDT_Entry : IDT.IDT_Index;
+       Enable    : Boolean) return Boolean;
+
+   --  Use the IOAPIC to redirect a GSI to an IDT entry for a given LAPIC.
+   --  Use ISO flags for setting specific flags for the GSI, and set enable to
+   --  true or false to enable or disable it. Return true on success.
+   IOAPIC_ISO_Flag_Polarity : constant Unsigned_16 := Shift_Left (1, 1);
+   IOAPIC_ISO_Flag_Trigger  : constant Unsigned_16 := Shift_Left (1, 3);
+   function IOAPIC_Set_Redirect
+      (LAPIC_ID  : Unsigned_32;
+       GSI       : Unsigned_32;
+       IDT_Entry : IDT.IDT_Index;
+       Flags     : Unsigned_16;
+       Enable    : Boolean) return Boolean;
 private
    function Get_LAPIC_Base return System.Address;
    function LAPIC_Read (Register : Unsigned_32) return Unsigned_32;
    procedure LAPIC_Write (Register : Unsigned_32; Value : Unsigned_32);
+
+   function Get_IOAPIC_From_GSI
+      (GSI  : Unsigned_32;
+       GSIB : out Unsigned_32) return System.Address;
+   function Get_IOAPIC_GSI_Count (MMIO : System.Address) return Unsigned_32;
+   function IOAPIC_Read
+      (IOAPIC_MMIO : System.Address;
+       Register    : Unsigned_32) return Unsigned_32;
+   procedure IOAPIC_Write
+      (IOAPIC_MMIO : System.Address;
+       Register    : Unsigned_32;
+       Value       : Unsigned_32);
 end Arch.APIC;

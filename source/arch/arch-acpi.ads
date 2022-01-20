@@ -55,11 +55,11 @@ package Arch.ACPI is
    end record;
    for MADT use record
       Header        at 0 range   0 .. 287;
-      LAPIC_Address at 0 range 288 .. 352;
-      Flags         at 0 range 353 .. 384;
-      Entries_Start at 0 range 385 .. 416;
+      LAPIC_Address at 0 range 288 .. 319;
+      Flags         at 0 range 320 .. 351;
+      Entries_Start at 0 range 352 .. 383;
    end record;
-   for MADT'Size use 417;
+   for MADT'Size use 384;
 
    --  Header of each MADT hardware entry.
    type MADT_Header is record

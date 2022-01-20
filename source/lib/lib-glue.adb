@@ -80,8 +80,7 @@ package body Lib.Glue is
 
       --  Declare the Ada string, print and panic.
       declare
-         File_String : String (1 .. File_Length);
-         for File_String'Address use File_Address;
+         File_String : String (1 .. File_Length) with Address => File_Address;
       begin
          Lib.Messages.Put_Line ("");
          Lib.Messages.Put      ("Exception triggered at ");

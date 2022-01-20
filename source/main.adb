@@ -80,8 +80,11 @@ begin
       Lib.Panic.Hard_Panic ("ACPI tables not found");
    end if;
 
-   Lib.Messages.Put_Line ("Initializing APIC");
+   Lib.Messages.Put_Line ("Initializing APICs");
    Arch.APIC.Init_LAPIC;
+   if not Arch.APIC.Init_IOAPIC then
+      Lib.Panic.Hard_Panic ("Could not start IOAPIC");
+   end if;
 
    Lib.Panic.Hard_Panic ("End of kernel");
 end Main;

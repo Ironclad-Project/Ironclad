@@ -17,6 +17,8 @@
 with Arch.IOPorts;
 
 package body Arch.Debug is
+   QEMU_Debug_Port : constant := 16#E9#;
+
    procedure Print (Message : String) is
    begin
       for C of Message loop
@@ -26,6 +28,6 @@ package body Arch.Debug is
 
    procedure Print (Message : Character) is
    begin
-      IOPorts.Port_Out (16#E9#, Character'Pos (Message));
+      IOPorts.Port_Out (QEMU_Debug_Port, Character'Pos (Message));
    end Print;
 end Arch.Debug;

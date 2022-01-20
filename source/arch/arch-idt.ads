@@ -27,8 +27,9 @@ package Arch.IDT is
    type IST_Index is range 0 .. 7;
    type IDT_Index is range 1 .. 256;
    procedure Load_ISR (Index : IDT_Index; Address : System.Address);
-   function Load_ISR (Address : System.Address;
-                      Index : out IDT_Index) return Boolean;
+   function Load_ISR
+      (Address : System.Address;
+       Index   : out IDT_Index) return Boolean;
    procedure Unload_ISR (Index : IDT_Index);
 
 private
