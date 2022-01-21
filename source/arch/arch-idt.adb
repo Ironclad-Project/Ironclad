@@ -132,9 +132,10 @@ package body Arch.IDT is
    end Load_ISR;
 
    function Load_ISR (Address : System.Address;
-                      Index : out IDT_Index) return Boolean is
+                      Index : out IRQ_Index) return Boolean is
    begin
-      for I in IDT_Index loop
+      --  Allocate an interrupt in the IRQ region.
+      for I in IRQ_Index loop
          if ISR_Table (I) = Interrupts.Default_ISR_Handler'Address then
             Index := I;
             Load_ISR (I, Address);
@@ -142,7 +143,7 @@ package body Arch.IDT is
          end if;
       end loop;
 
-      Index := 1;
+      Index := IRQ_Index'First;
       return False;
    end Load_ISR;
 

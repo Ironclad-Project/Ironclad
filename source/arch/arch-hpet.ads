@@ -1,4 +1,4 @@
---  arch-ioports.ads: Specification of the x86 IO ports functions.
+--  arch-hpet.ads: Specification of the HPET driver.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,10 +14,16 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
+package Arch.HPET is
+   --  True if the HPET is present and enabled.
+   Is_Enabled : Boolean := False;
 
-package Arch.IOPorts is
-   --  IO port wrappers.
-   procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8);
-   function  Port_In  (Port : Unsigned_16) return Unsigned_8;
-end Arch.IOPorts;
+   --  Initialize the HPET, returns true on success or false on failure.
+   function Init return Boolean;
+
+   --  Loop for the passed microseconds.
+   procedure USleep (Microseconds : Positive);
+
+   --  Do the same for nanoseconds.
+   procedure NSleep (Nanoseconds : Positive);
+end Arch.HPET;

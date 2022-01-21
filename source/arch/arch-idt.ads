@@ -24,12 +24,13 @@ package Arch.IDT is
    procedure Load_IDT;
 
    --  Load and unload an ISR into the IDT, either statically or dynamically.
-   type IST_Index is range 0 .. 7;
-   type IDT_Index is range 1 .. 256;
+   type    IST_Index is           range  0 ..   7;
+   type    IDT_Index is           range  1 .. 256;
+   subtype IRQ_Index is IDT_Index range 32 .. 256;
    procedure Load_ISR (Index : IDT_Index; Address : System.Address);
    function Load_ISR
       (Address : System.Address;
-       Index   : out IDT_Index) return Boolean;
+       Index   : out IRQ_Index) return Boolean;
    procedure Unload_ISR (Index : IDT_Index);
 
 private

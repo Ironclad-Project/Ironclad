@@ -140,6 +140,60 @@ package Arch.ACPI is
    end record;
    for MADT_NMI'Size use 48;
 
+   --  HPET table.
+   HPET_Signature : constant SDT_Signature := "HPET";
+   type HPET is record
+      Header              : SDT_Header;
+      Hardware_Revision   : Interfaces.Unsigned_8;
+      Information         : Interfaces.Unsigned_8;
+      PCI_Vendor_ID       : Interfaces.Unsigned_16;
+      Address_Space_ID    : Interfaces.Unsigned_8;
+      Register_Bit_Width  : Interfaces.Unsigned_8;
+      Register_Bit_Offset : Interfaces.Unsigned_8;
+      Reserved1           : Interfaces.Unsigned_8;
+      Address             : System.Address; -- Pointer to HPET_Contents.
+      HPET_Number         : Interfaces.Unsigned_8;
+      Minimum_Tick        : Interfaces.Unsigned_16;
+      Page_Protection     : Interfaces.Unsigned_8;
+   end record;
+   for HPET use record
+      Header              at 0 range   0 .. 287;
+      Hardware_Revision   at 0 range 288 .. 295;
+      Information         at 0 range 296 .. 303;
+      PCI_Vendor_ID       at 0 range 304 .. 319;
+      Address_Space_ID    at 0 range 320 .. 327;
+      Register_Bit_Width  at 0 range 328 .. 335;
+      Register_Bit_Offset at 0 range 336 .. 343;
+      Reserved1           at 0 range 344 .. 351;
+      Address             at 0 range 352 .. 415;
+      HPET_Number         at 0 range 416 .. 423;
+      Minimum_Tick        at 0 range 424 .. 439;
+      Page_Protection     at 0 range 440 .. 447;
+   end record;
+   for HPET'Size use 448;
+   type HPET_Padding is array (1 .. 25) of Interfaces.Unsigned_64;
+   type HPET_Contents is record
+      General_Capabilities  : Interfaces.Unsigned_64;
+      Unused0               : Interfaces.Unsigned_64;
+      General_Configuration : Interfaces.Unsigned_64;
+      Unused1               : Interfaces.Unsigned_64;
+      General_Int_Status    : Interfaces.Unsigned_64;
+      Unused2               : HPET_Padding;
+      Main_Counter_Value    : Interfaces.Unsigned_64;
+      Unused3               : Interfaces.Unsigned_64;
+   end record;
+   for HPET_Contents use record
+      General_Capabilities  at 0 range    0 ..   63;
+      Unused0               at 0 range   64 ..  127;
+      General_Configuration at 0 range  128 ..  191;
+      Unused1               at 0 range  192 ..  255;
+      General_Int_Status    at 0 range  256 ..  319;
+      Unused2               at 0 range  320 .. 1919;
+      Main_Counter_Value    at 0 range 1920 .. 1983;
+      Unused3               at 0 range 1984 .. 2047;
+   end record;
+   for HPET_Contents'Size use 2048;
+
    --  Scan the ACPI tables from the RSDP, true on success, false on failure.
    function ScanTables (RSDP_Address : System.Address) return Boolean;
 

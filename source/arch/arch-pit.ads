@@ -1,4 +1,4 @@
---  arch-ioports.ads: Specification of the x86 IO ports functions.
+--  arch-pit.ads: Specification of the PIT driver.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -16,8 +16,17 @@
 
 with Interfaces; use Interfaces;
 
-package Arch.IOPorts is
-   --  IO port wrappers.
-   procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8);
-   function  Port_In  (Port : Unsigned_16) return Unsigned_8;
-end Arch.IOPorts;
+package Arch.PIT is
+   --  The total uptime kept by the PIT.
+   Uptime : Unsigned_64 with Volatile;
+   pragma Atomic (Uptime);
+
+   --  Initialize by doing a first configure of the PIT, true on success.
+   function Init return Boolean;
+
+   --  Loop for the passed ms.
+   procedure Sleep (Milliseconds : Positive);
+
+private
+   procedure IRQ_Handler;
+end Arch.PIT;

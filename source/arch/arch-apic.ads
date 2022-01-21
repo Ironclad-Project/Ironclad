@@ -39,7 +39,7 @@ package Arch.APIC is
    --  Return true on success.
    function IOAPIC_Set_Redirect
       (LAPIC_ID  : Unsigned_32;
-       IRQ       : IDT.IDT_Index;
+       IRQ       : IDT.IRQ_Index;
        IDT_Entry : IDT.IDT_Index;
        Enable    : Boolean) return Boolean;
 

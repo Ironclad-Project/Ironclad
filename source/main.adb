@@ -19,7 +19,9 @@ with System.Address_To_Access_Conversions;
 with Arch.ACPI;
 with Arch.APIC;
 with Arch.GDT;
+with Arch.HPET;
 with Arch.IDT;
+with Arch.PIT;
 with Arch.Stivale2;
 with Lib.Messages;
 with Lib.Panic;
@@ -84,6 +86,14 @@ begin
    Arch.APIC.Init_LAPIC;
    if not Arch.APIC.Init_IOAPIC then
       Lib.Panic.Hard_Panic ("Could not start IOAPIC");
+   end if;
+
+   Lib.Messages.Put_Line ("Initializing timers");
+   if not Arch.PIT.Init then
+      Lib.Panic.Hard_Panic ("Could not start PIT");
+   end if;
+   if Arch.HPET.Init then
+      Lib.Messages.Put_Line ("HPET found");
    end if;
 
    Lib.Panic.Hard_Panic ("End of kernel");

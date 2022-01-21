@@ -79,21 +79,23 @@ package body Arch.APIC is
 
    function IOAPIC_Set_Redirect
       (LAPIC_ID  : Unsigned_32;
-       IRQ       : IDT.IDT_Index;
+       IRQ       : IDT.IRQ_Index;
        IDT_Entry : IDT.IDT_Index;
        Enable    : Boolean) return Boolean is
       MADT         : ACPI.MADT with Address => MADT_Address;
       MADT_Length  : constant Unsigned_32 := MADT.Header.Length;
       Current_Byte : Unsigned_32          := 0;
+      Actual_IRQ   : constant Unsigned_8  :=
+         Unsigned_8 (IRQ) - Unsigned_8 (IDT.IRQ_Index'First);
    begin
-      while (Current_Byte + (MADT'Size - 1)) < MADT_Length loop
+      while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
          declare
             ISO : ACPI.MADT_ISO;
             for ISO'Address use
                MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
          begin
             if ISO.Header.Entry_Type = ACPI.MADT_ISO_Type and
-               ISO.IRQ_Source        = Unsigned_8 (IRQ)
+               ISO.IRQ_Source        = Actual_IRQ
             then
                return IOAPIC_Set_Redirect (LAPIC_ID, ISO.GSI, IDT_Entry,
                                            ISO.Flags, Enable);
@@ -101,8 +103,8 @@ package body Arch.APIC is
             Current_Byte := Current_Byte + Unsigned_32 (ISO.Header.Length);
          end;
       end loop;
-      return IOAPIC_Set_Redirect (LAPIC_ID, Unsigned_32 (IRQ), IDT_Entry, 0,
-                                  Enable);
+      return IOAPIC_Set_Redirect (LAPIC_ID, Unsigned_32 (Actual_IRQ),
+                                  IDT_Entry, 0, Enable);
    end IOAPIC_Set_Redirect;
 
    function IOAPIC_Set_Redirect
@@ -113,7 +115,7 @@ package body Arch.APIC is
        Enable    : Boolean) return Boolean is
       GSIB        :          Unsigned_32    := 0;
       IOAPIC_MMIO : constant System.Address := Get_IOAPIC_From_GSI (GSI, GSIB);
-      Redirect    :          Unsigned_64    := Unsigned_64 (IDT_Entry);
+      Redirect    :          Unsigned_64    := Unsigned_64 (IDT_Entry) - 1;
       IOREDTBL    : constant Unsigned_32    := (GSI - GSIB) * 2 + 16;
    begin
       --  Check if the IOAPIC could be found.
