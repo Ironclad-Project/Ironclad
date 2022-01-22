@@ -1,18 +1,18 @@
-//  arch-interruptthunks.S: ASM thunks for handler callbacks.
-//  Copyright (C) 2021 streaksu
-//
-//  This program is free software: you can redistribute it and/or modify
-//  it under the terms of the GNU General Public License as published by
-//  the Free Software Foundation, either version 3 of the License, or
-//  (at your option) any later version.
-//
-//  This program is distributed in the hope that it will be useful,
-//  but WITHOUT ANY WARRANTY; without even the implied warranty of
-//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//  GNU General Public License for more details.
-//
-//  You should have received a copy of the GNU General Public License
-//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# arch-interruptthunks.S: ASM thunks for handler callbacks.
+# Copyright (C) 2021 streaksu
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 .altmacro
 
@@ -35,8 +35,8 @@ interrupt_thunk_\num:
     push %r14
     push %r15
 
-    // XXX: Restore segment registers since the limine terminal couldve
-    // change them. Remove this if we were to move from it.
+    # XXX: Restore segment registers since the limine terminal couldve
+    # change them. Remove this if we were to move from it.
     mov %es, %eax
     push %rax
     mov %ds, %eax
@@ -45,7 +45,7 @@ interrupt_thunk_\num:
     mov %eax, %ds
     mov %eax, %es
     mov %eax, %ss
-    //
+    #
 
     cld
     mov $(\num * 8), %rax
@@ -53,12 +53,12 @@ interrupt_thunk_\num:
     add %rax, %rbx
     call *(%rbx)
 
-    // Second part of above, restore to what they were.
+    # Second part of above, restore to what they were.
     pop %rax
     mov %eax, %ds
     pop %rax
     mov %eax, %es
-    //
+    #
 
     pop %r15
     pop %r14

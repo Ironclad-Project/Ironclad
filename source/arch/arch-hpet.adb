@@ -19,6 +19,7 @@ with System;     use System;
 with Arch.ACPI;
 
 package body Arch.HPET is
+   Is_Enabled    : Boolean;
    HPET_Contents : System.Address;
    HPET_Period   : Unsigned_64; --  Time in femtoseconds to increment by 1.
 

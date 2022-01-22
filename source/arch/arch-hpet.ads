@@ -15,9 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Arch.HPET is
-   --  True if the HPET is present and enabled.
-   Is_Enabled : Boolean := False;
-
    --  Initialize the HPET, returns true on success or false on failure.
    function Init return Boolean;
 

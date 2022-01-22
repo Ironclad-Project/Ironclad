@@ -48,7 +48,7 @@ endif
 # Hard flags, that is, the user flags and the ones we forcefully need.
 override ADAHARDFLAGS  := $(ADAFLAGS) -fpie -mno-sse -mno-sse2 -mno-red-zone \
 	-fno-stack-protector -gnatec=$(SOURCEDIR)/pragmas.adc
-override ASHARDFLAGS   := $(ASFLAGS) -ffreestanding -fpie
+override ASHARDFLAGS   := $(ASFLAGS)
 override LDHARDFLAGS   := $(LDFLAGS) -nostdlib -pie -zmax-page-size=0x1000
 override QEMUHARDFLAGS := $(QEMUFLAGS)
 
@@ -60,7 +60,7 @@ override ASMSOURCE := $(shell find $(SOURCEDIR) -type f -name '*.S')
 override OBJ       := $(ADAOBJ) $(ASMSOURCE:.S=.o)
 
 # Where the fun begins!
-.PHONY: all test clean distclean install
+.PHONY: all test clean distclean maintainer-clean install install-strip uninstall
 
 all: $(KERNEL)
 
@@ -104,12 +104,18 @@ clean:
 	@find $(SOURCEDIR) -name "*.ali" -type f -delete
 
 distclean: clean
-	@rm -rf $(LIMINE_DIR) configure GNUmakefile config.log config.status \
-	autom4te* $(SOURCEDIR)/config.ads
+	@rm -rf $(LIMINE_DIR) GNUmakefile config.log config.status $(SOURCEDIR)/config.ads
+
+maintainer-clean: distclean
+	@rm -rf configure install-sh autom4te* *'~'
 
 install: $(KERNEL)
-	@install -d "$(DESTDIR)$(PREFIX)"
-	@install $(KERNEL) "$(DESTDIR)$(PREFIX)"
+	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)"
+	@@INSTALL@ $(KERNEL) "$(DESTDIR)$(PREFIX)"
+
+install-strip: $(KERNEL)
+	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)"
+	@@INSTALL@ -s $(KERNEL) "$(DESTDIR)$(PREFIX)"
 
 uninstall:
 	@rm -rf "$(DESTDIR)$(PREFIX)/$(KERNEL)"
