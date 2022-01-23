@@ -14,9 +14,10 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;                 use System;
-with System.Machine_Code;    use System.Machine_Code;
-with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
+with System;                  use System;
+with System.Machine_Code;     use System.Machine_Code;
+with System.Storage_Elements; use System.Storage_Elements;
+with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with System.Address_To_Access_Conversions;
 
 package body Arch.Stivale2 is
@@ -26,7 +27,7 @@ package body Arch.Stivale2 is
 
    function Get_Tag
      (Proto     : access Header;
-     Identifier : Unsigned_64) return System.Address is
+     Identifier : Unsigned_64) return Memory.Physical_Address is
       package Convert is new System.Address_To_Access_Conversions (Tag);
 
       Search_Address : System.Address := Proto.Tags;
@@ -35,11 +36,11 @@ package body Arch.Stivale2 is
       while Search_Address /= Null_Address loop
          Search_Tag := Convert.To_Pointer (Search_Address);
          if Search_Tag.Identifier = Identifier then
-            return Search_Address;
+            return To_Integer (Search_Address);
          end if;
          Search_Address := Search_Tag.Next;
       end loop;
-      return Null_Address;
+      return 0;
    end Get_Tag;
 
    procedure Init_Terminal (Terminal : access Terminal_Tag) is

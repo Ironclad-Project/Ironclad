@@ -28,7 +28,14 @@ PHDRS
 }
 
 SECTIONS {
-    . = 2M;
+    . = 0xFFFFFFFF80000000 + 2M;
+
+    /* Actual kernel. */
+    .text : {
+        *(.text .text.*)
+    } :text
+
+    . += CONSTANT(MAXPAGESIZE);
 
     /* Name required by spec. */
     .stivale2hdr : {
@@ -36,20 +43,13 @@ SECTIONS {
     } :rodata
 
     .rodata : {
-        *(.rodata*)
+        *(.rodata .rodata.*)
     } :rodata
 
     . += CONSTANT(MAXPAGESIZE);
 
-    /* Actual kernel. */
-    .text : {
-        *(.text*)
-    } :text
-
-    . += CONSTANT(MAXPAGESIZE);
-
     .data : {
-        *(.data*)
+        *(.data .data.*)
     } :data
 
     .dynamic : {
@@ -57,7 +57,7 @@ SECTIONS {
     } :data :dynamic
 
     .bss : {
-        *(.bss*)
+        *(.bss .bss.*)
         *(COMMON)
     } :data
 }

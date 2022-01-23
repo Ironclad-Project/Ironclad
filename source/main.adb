@@ -16,6 +16,7 @@
 
 with Interfaces; use Interfaces;
 with System.Address_To_Access_Conversions;
+with System.Storage_Elements; use System.Storage_Elements;
 with Arch.ACPI;
 with Arch.APIC;
 with Arch.GDT;
@@ -36,11 +37,11 @@ procedure Main (Protocol : access Arch.Stivale2.Header) is
    package C3 is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
 
    RSDP : constant access ST.RSDP_Tag :=
-     C1.To_Pointer (ST.Get_Tag (Protocol, ST.RSDPID));
+     C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.RSDPID) + Memory.Memory_Offset));
    Term : constant access ST.Terminal_Tag :=
-     C2.To_Pointer (ST.Get_Tag (Protocol, ST.TerminalID));
+     C2.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.TerminalID) + Memory.Memory_Offset));
    Memmap : constant access ST.Memmap_Tag :=
-     C3.To_Pointer (ST.Get_Tag (Protocol, ST.MemmapID));
+     C3.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.MemmapID) + Memory.Memory_Offset));
 
    Total_Memory, Free_Memory, Used_Memory : Memory.Size;
 begin

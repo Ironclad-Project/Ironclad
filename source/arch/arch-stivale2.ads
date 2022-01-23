@@ -16,6 +16,7 @@
 
 with System;
 with Interfaces; use Interfaces;
+with Memory;
 
 package Arch.Stivale2 is
    --  IDs of several tags.
@@ -111,7 +112,7 @@ package Arch.Stivale2 is
    --  Find a header.
    function Get_Tag
       (Proto     : access Header;
-      Identifier : Unsigned_64) return System.Address;
+      Identifier : Unsigned_64) return Memory.Physical_Address;
 
    --  Initialize the terminal with a header.
    procedure Init_Terminal (Terminal : access Terminal_Tag);

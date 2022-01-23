@@ -14,6 +14,20 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System.Storage_Elements; use System.Storage_Elements;
+
 package Memory is
    type Size is mod 2 ** Standard'Address_Size; --  Any object in bytes.
+
+   --  The kernel has a memory window into the rest of physical memory mapped
+   --  at the beggining of the higher half. The kernel code itself is mapped
+   --  2 GiB at the end of the address space.
+   Kernel_Offset : constant := 16#FFFFFFFF80000000#;
+   Memory_Offset : constant := 16#FFFF800000000000#;
+
+   --  The maximum physical address we can have is as much as we can fit into
+   --  the higher half, with a virtual address covering the whole space.
+   Physical_Max : constant := Kernel_Offset - Memory_Offset;
+   subtype Physical_Address is Integer_Address range 0 .. Physical_Max;
+   subtype Virtual_Address  is Integer_Address;
 end Memory;
