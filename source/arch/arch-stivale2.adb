@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;                  use System;
 with System.Machine_Code;     use System.Machine_Code;
 with System.Storage_Elements; use System.Storage_Elements;
 with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
@@ -22,25 +21,26 @@ with System.Address_To_Access_Conversions;
 
 package body Arch.Stivale2 is
 
-   Terminal_Enabled    : Boolean        := False;
-   Terminal_Entrypoint : System.Address := System.Null_Address;
+   Terminal_Enabled    : Boolean          := False;
+   Terminal_Entrypoint : Physical_Address := Null_Address;
 
    function Get_Tag
      (Proto     : access Header;
-     Identifier : Unsigned_64) return Memory.Physical_Address is
+     Identifier : Unsigned_64) return Virtual_Address is
       package Convert is new System.Address_To_Access_Conversions (Tag);
 
-      Search_Address : System.Address := Proto.Tags;
+      Search_Address : Virtual_Address := Proto.Tags;
       Search_Tag     : access Tag;
    begin
       while Search_Address /= Null_Address loop
-         Search_Tag := Convert.To_Pointer (Search_Address);
+         Search_Address := Search_Address + Memory_Offset;
+         Search_Tag     := Convert.To_Pointer (To_Address (Search_Address));
          if Search_Tag.Identifier = Identifier then
-            return To_Integer (Search_Address);
+            return Search_Address;
          end if;
          Search_Address := Search_Tag.Next;
       end loop;
-      return 0;
+      return Null_Address;
    end Get_Tag;
 
    procedure Init_Terminal (Terminal : access Terminal_Tag) is
@@ -67,9 +67,9 @@ package body Arch.Stivale2 is
               "call *%0"   & LF & HT &
               "pop %%rsi"  & LF & HT &
               "pop %%rdi",
-              Inputs => (System.Address'Asm_Input ("rm", Terminal_Entrypoint),
-                         System.Address'Asm_Input ("D",  Message),
-                         Natural'Asm_Input        ("S",  Length)),
+              Inputs => (Physical_Address'Asm_Input ("m", Terminal_Entrypoint),
+                         System.Address'Asm_Input   ("D",  Message),
+                         Natural'Asm_Input          ("S",  Length)),
               Clobber  => "rax, rdx, rcx, r8, r9, r10, r11, memory",
               Volatile => True);
       end if;

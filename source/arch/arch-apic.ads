@@ -14,9 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
 with Interfaces; use Interfaces;
 with Arch.IDT;
+with Memory; use Memory;
 
 package Arch.APIC is
    --  Entry of the IDT for LAPIC spurious fires.
@@ -55,19 +55,19 @@ package Arch.APIC is
        Flags     : Unsigned_16;
        Enable    : Boolean) return Boolean;
 private
-   function Get_LAPIC_Base return System.Address;
+   function Get_LAPIC_Base return Virtual_Address;
    function LAPIC_Read (Register : Unsigned_32) return Unsigned_32;
    procedure LAPIC_Write (Register : Unsigned_32; Value : Unsigned_32);
 
    function Get_IOAPIC_From_GSI
       (GSI  : Unsigned_32;
-       GSIB : out Unsigned_32) return System.Address;
-   function Get_IOAPIC_GSI_Count (MMIO : System.Address) return Unsigned_32;
+       GSIB : out Unsigned_32) return Virtual_Address;
+   function Get_IOAPIC_GSI_Count (MMIO : Virtual_Address) return Unsigned_32;
    function IOAPIC_Read
-      (IOAPIC_MMIO : System.Address;
-       Register    : Unsigned_32) return Unsigned_32;
+      (MMIO     : Virtual_Address;
+       Register : Unsigned_32) return Unsigned_32;
    procedure IOAPIC_Write
-      (IOAPIC_MMIO : System.Address;
-       Register    : Unsigned_32;
-       Value       : Unsigned_32);
+      (MMIO     : Virtual_Address;
+       Register : Unsigned_32;
+       To_Write : Unsigned_32);
 end Arch.APIC;

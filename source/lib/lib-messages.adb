@@ -65,6 +65,11 @@ package body Lib.Messages is
          Base := 16;
       end if;
 
+      if Message = 0 and not Pad then
+         Put ("0");
+         return;
+      end if;
+
       if Message /= 0 then
          while To_Convert /= 0 loop
             Written          := Written + 1;

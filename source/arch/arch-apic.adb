@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;                  use System;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.ACPI;
 with Arch.MSR;
@@ -41,13 +40,14 @@ package body Arch.APIC is
       LAPIC_Write (LAPIC_EOI_Register, 0);
    end LAPIC_EOI;
 
-   function Get_LAPIC_Base return System.Address is
+   function Get_LAPIC_Base return Virtual_Address is
+      MSR_Read : constant Unsigned_64 := Arch.MSR.Read (LAPIC_MSR);
    begin
-      return System'To_Address (Arch.MSR.Read (LAPIC_MSR) and 16#FFFFF000#);
+      return Virtual_Address ((MSR_Read and 16#FFFFF000#) + Memory_Offset);
    end Get_LAPIC_Base;
 
    function LAPIC_Read (Register : Unsigned_32) return Unsigned_32 is
-      Base       : constant System.Address := Get_LAPIC_Base;
+      Base       : constant System.Address := To_Address (Get_LAPIC_Base);
       Value_Addr : constant System.Address := Base + Storage_Offset (Register);
       Value_Mem  : Unsigned_32 with Address => Value_Addr, Volatile;
    begin
@@ -55,7 +55,7 @@ package body Arch.APIC is
    end LAPIC_Read;
 
    procedure LAPIC_Write (Register : Unsigned_32; Value : Unsigned_32) is
-      Base       : constant System.Address := Get_LAPIC_Base;
+      Base       : constant System.Address := To_Address (Get_LAPIC_Base);
       Value_Addr : constant System.Address := Base + Storage_Offset (Register);
       Value_Mem  : Unsigned_32 with Address => Value_Addr, Volatile;
    begin
@@ -69,12 +69,12 @@ package body Arch.APIC is
    IOAPIC_IOREDTBL_Trigger_Mode : constant Unsigned_64 := Shift_Left (1, 15);
    IOAPIC_IOREDTBL_Mask         : constant Unsigned_64 := Shift_Left (1, 16);
 
-   MADT_Address : System.Address := System.Null_Address;
+   MADT_Address : Virtual_Address := Null_Address;
 
    function Init_IOAPIC return Boolean is
    begin
       MADT_Address := ACPI.FindTable (ACPI.MADT_Signature);
-      return MADT_Address /= System.Null_Address;
+      return MADT_Address /= Null_Address;
    end Init_IOAPIC;
 
    function IOAPIC_Set_Redirect
@@ -82,7 +82,7 @@ package body Arch.APIC is
        IRQ       : IDT.IRQ_Index;
        IDT_Entry : IDT.IDT_Index;
        Enable    : Boolean) return Boolean is
-      MADT         : ACPI.MADT with Address => MADT_Address;
+      MADT         : ACPI.MADT with Address => To_Address (MADT_Address);
       MADT_Length  : constant Unsigned_32 := MADT.Header.Length;
       Current_Byte : Unsigned_32          := 0;
       Actual_IRQ   : constant Unsigned_8  :=
@@ -113,13 +113,14 @@ package body Arch.APIC is
        IDT_Entry : IDT.IDT_Index;
        Flags     : Unsigned_16;
        Enable    : Boolean) return Boolean is
-      GSIB        :          Unsigned_32    := 0;
-      IOAPIC_MMIO : constant System.Address := Get_IOAPIC_From_GSI (GSI, GSIB);
-      Redirect    :          Unsigned_64    := Unsigned_64 (IDT_Entry) - 1;
-      IOREDTBL    : constant Unsigned_32    := (GSI - GSIB) * 2 + 16;
+      GSIB        :          Unsigned_32     := 0;
+      Redirect    :          Unsigned_64     := Unsigned_64 (IDT_Entry) - 1;
+      IOREDTBL    : constant Unsigned_32     := (GSI - GSIB) * 2 + 16;
+      IOAPIC_MMIO : constant Virtual_Address :=
+         Get_IOAPIC_From_GSI (GSI, GSIB);
    begin
       --  Check if the IOAPIC could be found.
-      if IOAPIC_MMIO = System.Null_Address then
+      if IOAPIC_MMIO = Null_Address then
          return False;
       end if;
 
@@ -149,8 +150,8 @@ package body Arch.APIC is
 
    function Get_IOAPIC_From_GSI
       (GSI  : Unsigned_32;
-       GSIB : out Unsigned_32) return System.Address is
-      MADT         : ACPI.MADT with Address => MADT_Address;
+       GSIB : out Unsigned_32) return Virtual_Address is
+      MADT         : ACPI.MADT with Address => To_Address (MADT_Address);
       MADT_Length  : constant Unsigned_32 := MADT.Header.Length;
       Current_Byte : Unsigned_32          := 0;
    begin
@@ -159,8 +160,8 @@ package body Arch.APIC is
             IOAPIC : ACPI.MADT_IOAPIC;
             for IOAPIC'Address use
                MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
-            IOAPIC_MMIO : constant System.Address :=
-               System'To_Address (IOAPIC.Address);
+            IOAPIC_MMIO : constant Virtual_Address :=
+               Virtual_Address (IOAPIC.Address) + Memory_Offset;
          begin
             if IOAPIC.Header.Entry_Type = ACPI.MADT_IOAPIC_Type          and
                IOAPIC.GSIB <= GSI                                        and
@@ -174,10 +175,10 @@ package body Arch.APIC is
       end loop;
 
       GSIB := 0;
-      return System.Null_Address;
+      return Null_Address;
    end Get_IOAPIC_From_GSI;
 
-   function Get_IOAPIC_GSI_Count (MMIO : System.Address) return Unsigned_32 is
+   function Get_IOAPIC_GSI_Count (MMIO : Virtual_Address) return Unsigned_32 is
       Read : constant Unsigned_32 := IOAPIC_Read (MMIO, IOAPIC_VER_Register);
    begin
       --  The number of GSIs handled by the IOAPIC is in its IOAPICVER register
@@ -186,23 +187,23 @@ package body Arch.APIC is
    end Get_IOAPIC_GSI_Count;
 
    function IOAPIC_Read
-      (IOAPIC_MMIO : System.Address;
-       Register    : Unsigned_32) return Unsigned_32 is
-      Value_Register : Unsigned_32 with Address => IOAPIC_MMIO,      Volatile;
-      Value_Final    : Unsigned_32 with Address => IOAPIC_MMIO + 16, Volatile;
+      (MMIO     : Virtual_Address;
+       Register : Unsigned_32) return Unsigned_32 is
+      Value_Reg : Unsigned_32 with Address => To_Address (MMIO),      Volatile;
+      Value     : Unsigned_32 with Address => To_Address (MMIO + 16), Volatile;
    begin
-      Value_Register := Register;
-      return Value_Final;
+      Value_Reg := Register;
+      return Value;
    end IOAPIC_Read;
 
    procedure IOAPIC_Write
-      (IOAPIC_MMIO : System.Address;
-       Register    : Unsigned_32;
-       Value       : Unsigned_32) is
-      Value_Register : Unsigned_32 with Address => IOAPIC_MMIO,      Volatile;
-      Value_Final    : Unsigned_32 with Address => IOAPIC_MMIO + 16, Volatile;
+      (MMIO     : Virtual_Address;
+       Register : Unsigned_32;
+       To_Write : Unsigned_32) is
+      Value_Reg : Unsigned_32 with Address => To_Address (MMIO),      Volatile;
+      Value     : Unsigned_32 with Address => To_Address (MMIO + 16), Volatile;
    begin
-      Value_Register := Register;
-      Value_Final    := Value;
+      Value_Reg := Register;
+      Value     := To_Write;
    end IOAPIC_Write;
 end Arch.APIC;

@@ -16,7 +16,7 @@
 
 with System;
 with Interfaces; use Interfaces;
-with Memory;
+with Memory;     use Memory;
 
 package Arch.Stivale2 is
    --  IDs of several tags.
@@ -28,7 +28,7 @@ package Arch.Stivale2 is
    type Header is record
       BootloaderBrand   : String (1 .. 64);
       BootloaderVersion : String (1 .. 64);
-      Tags              : System.Address;
+      Tags              : Physical_Address;
    end record;
    for Header use record
       BootloaderBrand   at 0 range    0 ..  511;
@@ -40,7 +40,7 @@ package Arch.Stivale2 is
    --  Stivale2 tag passed in front of all specialized tags.
    type Tag is record
       Identifier : Unsigned_64;
-      Next       : System.Address;
+      Next       : Physical_Address;
    end record;
    for Tag use record
       Identifier at 0 range  0 ..  63;
@@ -50,7 +50,7 @@ package Arch.Stivale2 is
 
    type RSDP_Tag is record
       TagInfo      : Tag;
-      RSDP_Address : System.Address;
+      RSDP_Address : Physical_Address;
    end record;
    for RSDP_Tag use record
       TagInfo      at 0 range   0 .. 127;
@@ -63,7 +63,7 @@ package Arch.Stivale2 is
       Flags     : Unsigned_32;
       Cols      : Unsigned_16;
       Rows      : Unsigned_16;
-      TermWrite : System.Address;
+      TermWrite : Physical_Address;
       MaxLength : Unsigned_64;
    end record;
    for Terminal_Tag use record
@@ -86,7 +86,7 @@ package Arch.Stivale2 is
    Memmap_Entry_Framebuffer            : constant := 16#1002#;
 
    type Memmap_Entry is record
-      Base      : System.Address;
+      Base      : Physical_Address;
       Length    : Unsigned_64;
       EntryType : Unsigned_32;
       Unused    : Unsigned_32;
@@ -112,7 +112,7 @@ package Arch.Stivale2 is
    --  Find a header.
    function Get_Tag
       (Proto     : access Header;
-      Identifier : Unsigned_64) return Memory.Physical_Address;
+      Identifier : Unsigned_64) return Virtual_Address;
 
    --  Initialize the terminal with a header.
    procedure Init_Terminal (Terminal : access Terminal_Tag);

@@ -14,28 +14,30 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
-with System;     use System;
+with Interfaces;              use Interfaces;
+with System.Storage_Elements; use System.Storage_Elements;
+with Memory;                  use Memory;
 with Arch.ACPI;
 
 package body Arch.HPET is
    Is_Enabled    : Boolean;
-   HPET_Contents : System.Address;
+   HPET_Contents : Virtual_Address;
    HPET_Period   : Unsigned_64; --  Time in femtoseconds to increment by 1.
 
    function Init return Boolean is
-      ACPI_Address : System.Address;
+      ACPI_Address : Virtual_Address;
    begin
       ACPI_Address := ACPI.FindTable (ACPI.HPET_Signature);
-      if ACPI_Address = System.Null_Address then
+      if ACPI_Address = Null_Address then
          return False;
       end if;
 
       declare
-         Table : ACPI.HPET          with Address => ACPI_Address;
-         HPET  : ACPI.HPET_Contents with Address => Table.Address, Volatile;
+         Table : ACPI.HPET          with Address => To_Address (ACPI_Address);
+         HPET  : ACPI.HPET_Contents with Address => To_Address (Table.Address);
+         pragma Volatile (HPET);
       begin
-         HPET_Contents := Table.Address;
+         HPET_Contents := Table.Address + Memory_Offset;
          HPET_Period   := Shift_Right (HPET.General_Capabilities, 32);
 
          --  TODO: Check if the HPET is 64 bits, if so, enable 64 bit mode.
@@ -60,7 +62,7 @@ package body Arch.HPET is
    procedure NSleep (Nanoseconds : Positive) is
       --  Reads must be atomic according to spec in 64-bit mode, for 32-bit
       --  mode it doesnt hurt either.
-      HPET    : ACPI.HPET_Contents with Address => HPET_Contents;
+      HPET    : ACPI.HPET_Contents with Address => To_Address (HPET_Contents);
       Counter : Unsigned_64 with Address => HPET.Main_Counter_Value'Address;
       pragma Atomic (Counter);
 

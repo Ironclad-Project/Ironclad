@@ -7,9 +7,7 @@ srcdir="$(dirname "$0")"
 test -z "$srcdir" && srcdir=.
 
 cd "$srcdir"
-# Generate install-sh.
-automake --add-missing --copy || true
-autoconf
+autoreconf -i
 
 if test -z "$NOCONFIGURE"; then
     cd "$origdir"

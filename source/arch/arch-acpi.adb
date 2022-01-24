@@ -14,8 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;     use System;
-with Interfaces; use Interfaces;
+with Interfaces;              use Interfaces;
+with System.Storage_Elements; use System.Storage_Elements;
 
 package body Arch.ACPI is
    --  RSDP table in memory, and its 2.0 version.
@@ -58,33 +58,34 @@ package body Arch.ACPI is
    end record;
 
    --  Globals to keep track of scanned tables.
-   Use_XSDT     : Boolean        := False;
-   Root_Address : System.Address := Null_Address;
+   Use_XSDT     : Boolean         := False;
+   Root_Address : Virtual_Address := Null_Address;
 
-   function ScanTables (RSDP_Address : System.Address) return Boolean is
-      Table : RSDP with Address => RSDP_Address;
+   function ScanTables (RSDP_Address : Virtual_Address) return Boolean is
+      Table : RSDP with Address => To_Address (RSDP_Address);
    begin
       if RSDP_Address = Null_Address or Table.Signature /= "RSD PTR " then
          return False;
       end if;
 
-      if Table.Revision >= 2 and Table.XSDT_Address /= 0 then
+      if Table.Revision >= 2 and Table.XSDT_Address /= Null_Address then
          Use_XSDT     := True;
-         Root_Address := System'To_Address (Table.XSDT_Address);
+         Root_Address := Physical_Address (Table.XSDT_Address);
       else
          Use_XSDT     := False;
-         Root_Address := System'To_Address (Table.RSDT_Address);
+         Root_Address := Physical_Address (Table.RSDT_Address);
       end if;
 
+      Root_Address := Memory_Offset + Root_Address;
       return True;
    end ScanTables;
 
-   function FindTable (Signature : SDT_Signature) return System.Address is
-      Root : RSDT with Address => Root_Address;
+   function FindTable (Signature : SDT_Signature) return Virtual_Address is
+      Root : RSDT with Address => To_Address (Root_Address);
 
       Limit : constant Natural := (Natural (Root.Header.Length)
          - Root.Header'Size / 8) / (if Use_XSDT then 8 else 4);
-      Returned : System.Address := System.Null_Address;
+      Returned : Physical_Address := Null_Address;
    begin
       for I in 1 .. Limit loop
          if Use_XSDT then
@@ -92,26 +93,26 @@ package body Arch.ACPI is
                Entries : XSDT_Entries (1 .. Limit);
                for Entries'Address use Root.Entries'Address;
             begin
-               Returned := System'To_Address (Entries (I));
+               Returned := Physical_Address (Entries (I));
             end;
          else
             declare
                Entries : RSDT_Entries (1 .. Limit);
                for Entries'Address use Root.Entries'Address;
             begin
-               Returned := System'To_Address (Entries (I));
+               Returned := Physical_Address (Entries (I));
             end;
          end if;
 
          declare
-            Test_Header : SDT_Header with Address => Returned;
+            Test_Header : SDT_Header with Address => To_Address (Returned);
          begin
             if Test_Header.Signature = Signature then
-               return Returned;
+               return Returned + Memory_Offset;
             end if;
          end;
       end loop;
 
-      return System.Null_Address;
+      return Null_Address;
    end FindTable;
 end Arch.ACPI;

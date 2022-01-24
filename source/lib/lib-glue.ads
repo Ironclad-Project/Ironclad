@@ -20,13 +20,13 @@ with System;
 --  Most of them are for error-reporting, and the names are preset.
 
 package Lib.Glue is
-   procedure Access_Check         (File : System.Address; Line : Integer);
-   procedure Index_Check          (File : System.Address; Line : Integer);
-   procedure Range_Check          (File : System.Address; Line : Integer);
-   procedure Accessib_Check       (File : System.Address; Line : Integer);
-   procedure Overflow_Check       (File : System.Address; Line : Integer);
-   procedure Large_Object_Check   (File : System.Address; Line : Integer);
-   procedure Invalid_Data_Check   (File : System.Address; Line : Integer);
+   procedure Access_Check (File : System.Address; Line : Integer);
+   procedure Index_Check (File : System.Address; Line : Integer);
+   procedure Range_Check (File : System.Address; Line : Integer);
+   procedure Accessib_Check (File : System.Address; Line : Integer);
+   procedure Overflow_Check (File : System.Address; Line : Integer);
+   procedure Large_Object_Check (File : System.Address; Line : Integer);
+   procedure Invalid_Data_Check (File : System.Address; Line : Integer);
    procedure Divide_By_Zero_Check (File : System.Address; Line : Integer);
    pragma Export (C, Access_Check, "__gnat_rcheck_CE_Access_Check");
    pragma Export (C, Index_Check, "__gnat_rcheck_CE_Index_Check");
@@ -42,4 +42,5 @@ private
       (Message      : String;
        File_Address : System.Address;
        Line_Number  : Integer);
+   pragma No_Return (Print_Exception);
 end Lib.Glue;

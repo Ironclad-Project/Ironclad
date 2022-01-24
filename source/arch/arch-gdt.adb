@@ -14,10 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces;              use Interfaces;
-with System.Machine_Code;     use System.Machine_Code;
-with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
-with System.Storage_Elements; use System.Storage_Elements;
+with Interfaces;             use Interfaces;
+with System.Machine_Code;    use System.Machine_Code;
+with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
 
 package body Arch.GDT is
    --  Records for the GDT structure and its entries.
@@ -132,8 +131,8 @@ package body Arch.GDT is
            Volatile => True);
    end Load_GDT;
 
-   procedure Load_TSS (Address : System.Address) is
-      Addr  : constant Unsigned_64 := Unsigned_64 (To_Integer (Address));
+   procedure Load_TSS (Address : Virtual_Address) is
+      Addr  : constant Unsigned_64 := Unsigned_64 (Address);
       Low16 : constant Unsigned_64 := Addr                   and 16#FFFF#;
       Mid8  : constant Unsigned_64 := Shift_Right (Addr, 16) and 16#FF#;
       High8 : constant Unsigned_64 := Shift_Right (Addr, 24) and 16#FF#;

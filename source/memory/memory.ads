@@ -19,10 +19,13 @@ with System.Storage_Elements; use System.Storage_Elements;
 package Memory is
    type Size is mod 2 ** Standard'Address_Size; --  Any object in bytes.
 
+   --  Some notable memory locations.
+   Null_Address : constant := 0;
+
    --  The kernel has a memory window into the rest of physical memory mapped
    --  at the beggining of the higher half. The kernel code itself is mapped
    --  2 GiB at the end of the address space.
-   Kernel_Offset : constant := 16#FFFFFFFF80000000#;
+   Kernel_Offset : constant := Size'Last - (16#80000000# - 1);
    Memory_Offset : constant := 16#FFFF800000000000#;
 
    --  The maximum physical address we can have is as much as we can fit into

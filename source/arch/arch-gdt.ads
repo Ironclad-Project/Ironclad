@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
+with Memory; use Memory;
 
 package Arch.GDT is
    --  Indexes of the corresponding segments in the GDT.
@@ -29,5 +29,5 @@ package Arch.GDT is
    procedure Load_GDT;
 
    --  Load an address on the active TSS of the GDT.
-   procedure Load_TSS (Address : System.Address);
+   procedure Load_TSS (Address : Virtual_Address);
 end Arch.GDT;

@@ -14,8 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
 with Interfaces;
+with Memory; use Memory;
 
 package Arch.ACPI is
    --  SDT header, which leads all ACPI tables.
@@ -151,7 +151,7 @@ package Arch.ACPI is
       Register_Bit_Width  : Interfaces.Unsigned_8;
       Register_Bit_Offset : Interfaces.Unsigned_8;
       Reserved1           : Interfaces.Unsigned_8;
-      Address             : System.Address; -- Pointer to HPET_Contents.
+      Address             : Physical_Address; -- Pointer to HPET_Contents.
       HPET_Number         : Interfaces.Unsigned_8;
       Minimum_Tick        : Interfaces.Unsigned_16;
       Page_Protection     : Interfaces.Unsigned_8;
@@ -195,8 +195,8 @@ package Arch.ACPI is
    for HPET_Contents'Size use 2048;
 
    --  Scan the ACPI tables from the RSDP, true on success, false on failure.
-   function ScanTables (RSDP_Address : System.Address) return Boolean;
+   function ScanTables (RSDP_Address : Virtual_Address) return Boolean;
 
    --  Search for an ACPI table and return its address, null if not found.
-   function FindTable (Signature : SDT_Signature) return System.Address;
+   function FindTable (Signature : SDT_Signature) return Virtual_Address;
 end Arch.ACPI;

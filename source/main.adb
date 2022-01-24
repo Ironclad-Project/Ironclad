@@ -37,11 +37,11 @@ procedure Main (Protocol : access Arch.Stivale2.Header) is
    package C3 is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
 
    RSDP : constant access ST.RSDP_Tag :=
-     C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.RSDPID) + Memory.Memory_Offset));
+     C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.RSDPID)));
    Term : constant access ST.Terminal_Tag :=
-     C2.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.TerminalID) + Memory.Memory_Offset));
+     C2.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.TerminalID)));
    Memmap : constant access ST.Memmap_Tag :=
-     C3.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.MemmapID) + Memory.Memory_Offset));
+     C3.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.MemmapID)));
 
    Total_Memory, Free_Memory, Used_Memory : Memory.Size;
 begin
@@ -70,7 +70,7 @@ begin
    Lib.Messages.Put_Line (" memory used");
    for E of Memmap.Entries loop
       Lib.Messages.Put      ('[');
-      Lib.Messages.Put      (E.Base, True);
+      Lib.Messages.Put      (To_Address (E.Base), True);
       Lib.Messages.Put      ('+');
       Lib.Messages.Put      (E.Length, True, True);
       Lib.Messages.Put      ("] ");
@@ -79,7 +79,7 @@ begin
    end loop;
 
    Lib.Messages.Put_Line ("Scanning ACPI tables");
-   if not Arch.ACPI.ScanTables (RSDP.RSDP_Address) then
+   if not Arch.ACPI.ScanTables (RSDP.RSDP_Address + Memory.Memory_Offset) then
       Lib.Panic.Hard_Panic ("ACPI tables not found");
    end if;
 
