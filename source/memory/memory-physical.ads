@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
 with Memory;
 with Arch.Stivale2;
 
@@ -23,8 +22,8 @@ package Memory.Physical is
    procedure Init_Allocator (Memmap : access Arch.Stivale2.Memmap_Tag);
 
    --  Kernel's malloc and free, also called by ada internally.
-   function Alloc (Size : Memory.Size) return System.Address;
-   procedure Free (Address : System.Address);
+   function Alloc (Size : Memory.Size) return Memory.Virtual_Address;
+   procedure Free (Address : Memory.Virtual_Address);
    pragma Export (C, Alloc, "__gnat_malloc");
    pragma Export (C, Free,  "__gnat_free");
 

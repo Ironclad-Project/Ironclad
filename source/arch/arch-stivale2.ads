@@ -87,7 +87,7 @@ package Arch.Stivale2 is
 
    type Memmap_Entry is record
       Base      : Physical_Address;
-      Length    : Unsigned_64;
+      Length    : Size;
       EntryType : Unsigned_32;
       Unused    : Unsigned_32;
    end record;
