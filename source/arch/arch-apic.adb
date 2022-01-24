@@ -69,12 +69,69 @@ package body Arch.APIC is
    IOAPIC_IOREDTBL_Trigger_Mode : constant Unsigned_64 := Shift_Left (1, 15);
    IOAPIC_IOREDTBL_Mask         : constant Unsigned_64 := Shift_Left (1, 16);
 
-   MADT_Address : Virtual_Address := Null_Address;
+   type IOAPIC_Array is array (Natural range <>) of ACPI.MADT_IOAPIC;
+   type ISO_Array    is array (Natural range <>) of ACPI.MADT_ISO;
+
+   MADT_IOAPICs : access IOAPIC_Array;
+   MADT_ISOs    : access ISO_Array;
 
    function Init_IOAPIC return Boolean is
+      Addr : constant Virtual_Address := ACPI.FindTable (ACPI.MADT_Signature);
+      MADT           : ACPI.MADT with Address => To_Address (Addr);
+      MADT_Length    : constant Unsigned_32 := MADT.Header.Length;
+      Current_Byte   : Unsigned_32          := 0;
+      Current_IOAPIC : Natural              := 1;
+      IOAPIC_Count   : Natural              := 0;
+      Current_ISO    : Natural              := 1;
+      ISO_Count      : Natural              := 0;
    begin
-      MADT_Address := ACPI.FindTable (ACPI.MADT_Signature);
-      return MADT_Address /= Null_Address;
+      if Addr = Null_Address then
+         return False;
+      end if;
+
+      --  Check how many entries do we need to allocate.
+      while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
+         declare
+            Header : ACPI.MADT_Header;
+            for Header'Address use
+               MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
+         begin
+            case Header.Entry_Type is
+               when ACPI.MADT_IOAPIC_Type => IOAPIC_Count := IOAPIC_Count + 1;
+               when ACPI.MADT_ISO_Type    => ISO_Count    := ISO_Count    + 1;
+               when others                => null;
+            end case;
+            Current_Byte := Current_Byte + Unsigned_32 (Header.Length);
+         end;
+      end loop;
+
+      --  Allocate and fill the entries.
+      Current_Byte := 0;
+      MADT_IOAPICs := new IOAPIC_Array (1 .. IOAPIC_Count);
+      MADT_ISOs    := new ISO_Array    (1 .. ISO_Count);
+      while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
+         declare
+            IOAPIC : ACPI.MADT_IOAPIC;
+            ISO    : ACPI.MADT_ISO;
+            for IOAPIC'Address use
+               MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
+            for ISO'Address use
+               MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
+         begin
+            case IOAPIC.Header.Entry_Type is
+               when ACPI.MADT_IOAPIC_Type =>
+                  MADT_IOAPICs (Current_IOAPIC) := IOAPIC;
+                  Current_IOAPIC := Current_IOAPIC + 1;
+               when ACPI.MADT_ISO_Type =>
+                  MADT_ISOs (Current_ISO) := ISO;
+                  Current_ISO := Current_ISO + 1;
+               when others => null;
+            end case;
+            Current_Byte := Current_Byte + Unsigned_32 (IOAPIC.Header.Length);
+         end;
+      end loop;
+
+      return True;
    end Init_IOAPIC;
 
    function IOAPIC_Set_Redirect
@@ -82,26 +139,14 @@ package body Arch.APIC is
        IRQ       : IDT.IRQ_Index;
        IDT_Entry : IDT.IDT_Index;
        Enable    : Boolean) return Boolean is
-      MADT         : ACPI.MADT with Address => To_Address (MADT_Address);
-      MADT_Length  : constant Unsigned_32 := MADT.Header.Length;
-      Current_Byte : Unsigned_32          := 0;
-      Actual_IRQ   : constant Unsigned_8  :=
+      Actual_IRQ : constant Unsigned_8  :=
          Unsigned_8 (IRQ) - Unsigned_8 (IDT.IRQ_Index'First);
    begin
-      while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
-         declare
-            ISO : ACPI.MADT_ISO;
-            for ISO'Address use
-               MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
-         begin
-            if ISO.Header.Entry_Type = ACPI.MADT_ISO_Type and
-               ISO.IRQ_Source        = Actual_IRQ
-            then
-               return IOAPIC_Set_Redirect (LAPIC_ID, ISO.GSI, IDT_Entry,
-                                           ISO.Flags, Enable);
-            end if;
-            Current_Byte := Current_Byte + Unsigned_32 (ISO.Header.Length);
-         end;
+      for ISO of MADT_ISOs.all loop
+         if ISO.IRQ_Source = Actual_IRQ then
+            return IOAPIC_Set_Redirect (LAPIC_ID, ISO.GSI, IDT_Entry,
+                                        ISO.Flags, Enable);
+         end if;
       end loop;
       return IOAPIC_Set_Redirect (LAPIC_ID, Unsigned_32 (Actual_IRQ),
                                   IDT_Entry, 0, Enable);
@@ -151,29 +196,16 @@ package body Arch.APIC is
    function Get_IOAPIC_From_GSI
       (GSI  : Unsigned_32;
        GSIB : out Unsigned_32) return Virtual_Address is
-      MADT         : ACPI.MADT with Address => To_Address (MADT_Address);
-      MADT_Length  : constant Unsigned_32 := MADT.Header.Length;
-      Current_Byte : Unsigned_32          := 0;
    begin
-      while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
-         declare
-            IOAPIC : ACPI.MADT_IOAPIC;
-            for IOAPIC'Address use
-               MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
-            IOAPIC_MMIO : constant Virtual_Address :=
-               Virtual_Address (IOAPIC.Address) + Memory_Offset;
-         begin
-            if IOAPIC.Header.Entry_Type = ACPI.MADT_IOAPIC_Type          and
-               IOAPIC.GSIB <= GSI                                        and
-               IOAPIC.GSIB + Get_IOAPIC_GSI_Count (IOAPIC_MMIO) > GSI
-            then
-               GSIB := IOAPIC.GSIB;
-               return IOAPIC_MMIO;
-            end if;
-            Current_Byte := Current_Byte + Unsigned_32 (IOAPIC.Header.Length);
-         end;
+      for IOAPIC of MADT_IOAPICs.all loop
+         if IOAPIC.GSIB <= GSI and
+            IOAPIC.GSIB + Get_IOAPIC_GSI_Count
+               (Virtual_Address (IOAPIC.Address) + Memory_Offset) > GSI
+         then
+            GSIB := IOAPIC.GSIB;
+            return Virtual_Address (IOAPIC.Address) + Memory_Offset;
+         end if;
       end loop;
-
       GSIB := 0;
       return Null_Address;
    end Get_IOAPIC_From_GSI;

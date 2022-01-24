@@ -22,6 +22,8 @@ package Memory.Physical is
    procedure Init_Allocator (Memmap : access Arch.Stivale2.Memmap_Tag);
 
    --  Kernel's malloc and free, also called by ada internally.
+   --  The malloc cannot return null, and the free cannot be passed null
+   --  either. Those are Ada's rules.
    function Alloc (Size : Memory.Size) return Memory.Virtual_Address;
    procedure Free (Address : Memory.Virtual_Address);
    pragma Export (C, Alloc, "__gnat_malloc");

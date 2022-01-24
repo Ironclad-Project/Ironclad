@@ -72,7 +72,7 @@ begin
       Lib.Messages.Put      ('[');
       Lib.Messages.Put      (To_Address (E.Base), True);
       Lib.Messages.Put      ('+');
-      Lib.Messages.Put      (E.Length, True, True);
+      Lib.Messages.Put      (Unsigned_64 (E.Length), True, True);
       Lib.Messages.Put      ("] ");
       Lib.Messages.Put      (Integer (E.EntryType), False, True);
       Lib.Messages.Put_Line ("");

@@ -15,10 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Lib.Panic is
-   --  Panics and attempts recovery saving state, restarting the
-   --  problematic parts of the kernel, and doing housekeeping.
-   type Hint is (Arch_Error, Lib_Error, Memory_Error, Unknown_Error);
-   procedure Soft_Panic (Message : String; Err_Hint : Hint := Unknown_Error);
+   --  Warns about a weird situation, but doesnt die like a hard panic would.
+   procedure Soft_Panic (Message : String);
 
    --  Panics for good, for cases when soft reboot is risky.
    procedure Hard_Panic (Message : String);

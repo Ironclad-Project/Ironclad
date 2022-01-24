@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-AC_PREREQ(2.71)
+AC_PREREQ(2.69)
 AC_INIT(Ironclad, 0.0.1, https://github.com/streaksu/ironclad/issues, ironclad)
 
 # Search for some programs.
