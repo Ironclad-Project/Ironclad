@@ -30,8 +30,8 @@ package body Arch.IOPorts is
       Value : Unsigned_8;
    begin
       Asm ("inb %1, %0",
-           Inputs   => Unsigned_16'Asm_Input ("Nd", Port),
            Outputs  => Unsigned_8'Asm_Output ("=a", Value),
+           Inputs   => Unsigned_16'Asm_Input ("Nd", Port),
            Clobber  => "memory",
            Volatile => True);
       return Value;

@@ -21,8 +21,8 @@ package body Arch.MSR is
       Result : Unsigned_64 := 0;
    begin
       Asm ("rdmsr",
-           Inputs   => Unsigned_32'Asm_Input  ("c", MSRNumber),
            Outputs  => Unsigned_64'Asm_Output ("=A", Result),
+           Inputs   => Unsigned_32'Asm_Input  ("c", MSRNumber),
            Clobber  => "memory",
            Volatile => True);
       return Result;

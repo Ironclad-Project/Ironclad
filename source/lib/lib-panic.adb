@@ -18,10 +18,19 @@ with Arch.Interrupts;
 with Lib.Messages;
 
 package body Lib.Panic is
+   Already_Soft_Panicked : Boolean := False;
+
    procedure Soft_Panic (Message : String) is
    begin
-      Lib.Messages.Put      ("Soft panic requested: ");
-      Lib.Messages.Put_Line (Message);
+      --  Check whether it makes sense to go on.
+      if Already_Soft_Panicked then
+         Hard_Panic (Message);
+      end if;
+
+      --  Print the error and try to recover.
+      Already_Soft_Panicked := True;
+      Lib.Messages.Put ("Soft panic requested: ");
+      Lib.Messages.Put (Message);
    end Soft_Panic;
 
    procedure Hard_Panic (Message : String) is

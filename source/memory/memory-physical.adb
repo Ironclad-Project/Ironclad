@@ -17,6 +17,7 @@
 with Interfaces; use Interfaces;
 with Memory;     use Memory;
 with Lib.Panic;
+with Lib.Synchronization; use Lib.Synchronization;
 
 package body Memory.Physical is
    Block_Free : constant Boolean := True;
@@ -30,6 +31,7 @@ package body Memory.Physical is
    Bitmap_Address   : Virtual_Address := Null_Address;
    Bitmap_Last_Used : Unsigned_64     := 1;
 
+   Alloc_Mutex  : aliased Binary_Semaphore;
    Free_Memory  : Memory.Size := 0;
    Used_Memory  : Memory.Size := 0;
    Total_Memory : Memory.Size := 0;
@@ -92,6 +94,9 @@ package body Memory.Physical is
             end if;
          end loop;
       end;
+
+      --  Prepare the mutex.
+      Lib.Synchronization.Release (Alloc_Mutex'Access);
    end Init_Allocator;
 
    function Alloc (Size : Memory.Size) return Virtual_Address is
@@ -112,6 +117,7 @@ package body Memory.Physical is
       end if;
 
       --  Search for contiguous blocks, as many as needed.
+      Lib.Synchronization.Seize (Alloc_Mutex'Access);
    <<Search_Blocks>>
       for I in Bitmap_Last_Used .. Block_Count loop
          if Bitmap_Body (I) = Block_Free and First_Found_Index = 0 then
@@ -144,6 +150,7 @@ package body Memory.Physical is
       for I in 0 .. Blocks_To_Allocate loop
          Bitmap_Body (First_Found_Index + Unsigned_64 (I)) := Block_Used;
       end loop;
+      Lib.Synchronization.Release (Alloc_Mutex'Access);
 
       --  Set statistic and global variables and return value.
       Bitmap_Last_Used := First_Found_Index;
@@ -163,13 +170,17 @@ package body Memory.Physical is
    begin
       --  TODO: This is basically a placeholder free that will free only the
       --  first block. Blocks per address should be tracked and freed.
+      Lib.Synchronization.Seize (Alloc_Mutex'Access);
       Bitmap_Body (Unsigned_64 (Index)) := Block_Free;
+      Lib.Synchronization.Release (Alloc_Mutex'Access);
    end Free;
 
    procedure Get_Info (Total, Free, Used : out Memory.Size) is
    begin
+      Lib.Synchronization.Seize (Alloc_Mutex'Access);
       Total := Total_Memory;
       Free  := Free_Memory;
       Used  := Used_Memory;
+      Lib.Synchronization.Release (Alloc_Mutex'Access);
    end Get_Info;
 end Memory.Physical;
