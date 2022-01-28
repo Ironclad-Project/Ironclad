@@ -27,6 +27,7 @@ with Arch.Stivale2;
 with Lib.Messages;
 with Lib.Panic;
 with Memory.Physical;
+with Memory.Virtual;
 with Config;
 
 procedure Main (Protocol : access Arch.Stivale2.Header) is
@@ -77,6 +78,7 @@ begin
       Lib.Messages.Put      (Integer (E.EntryType), False, True);
       Lib.Messages.Put_Line ("");
    end loop;
+   Memory.Virtual.Init (Memmap);
 
    Lib.Messages.Put_Line ("Scanning ACPI tables");
    if not Arch.ACPI.ScanTables (RSDP.RSDP_Address + Memory.Memory_Offset) then

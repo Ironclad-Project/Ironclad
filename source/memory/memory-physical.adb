@@ -152,11 +152,23 @@ package body Memory.Physical is
       end loop;
       Lib.Synchronization.Release (Alloc_Mutex'Access);
 
-      --  Set statistic and global variables and return value.
+      --  Set statistic and global variables.
       Bitmap_Last_Used := First_Found_Index;
       Free_Memory      := Free_Memory - (Blocks_To_Allocate * Block_Size);
       Used_Memory      := Used_Memory + (Blocks_To_Allocate * Block_Size);
-      return Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
+
+      --  Zero out memory and return value.
+      declare
+         Addr : constant Virtual_Address :=
+            Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
+         Pool : array (1 .. Unsigned_64 (Size)) of Unsigned_8;
+         for Pool'Address use To_Address (Addr);
+      begin
+         for I in Pool'First .. Pool'Last loop
+            Pool (I) := 0;
+         end loop;
+         return Addr;
+      end;
 
    <<Error_Return>>
       Lib.Panic.Hard_Panic ("Could not allocate block");

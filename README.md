@@ -1,5 +1,5 @@
-Ironclad is a kernel for x86_64 devices with an enphasis on security without a
-compromise in speed or complexity, written in Ada.
+Ironclad is a kernel for x86_64 devices exclusively (for now) with an enphasis
+on security without a compromise in speed or complexity, written in Ada.
 
 ## Building
 
@@ -10,10 +10,8 @@ The steps for a generated project are the usual:
 ./configure
 make
 make test # If wanted.
-make install
+make install-strip
 ```
-
-The default `ADAFLAGS`, `ASFLAGS`, and `LDFLAGS` are `-O2 -g`.
 
 Several flags and variables are available for tuning, `./configure --help` will
 display and explain them.

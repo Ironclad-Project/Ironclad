@@ -24,6 +24,7 @@ package Memory.Physical is
    --  Kernel's malloc and free, also called by ada internally.
    --  The malloc cannot return null, and the free cannot be passed null
    --  either. Those are Ada's rules.
+   --  Allocated memory is always zero'ed out.
    function Alloc (Size : Memory.Size) return Memory.Virtual_Address;
    procedure Free (Address : Memory.Virtual_Address);
    pragma Export (C, Alloc, "__gnat_malloc");
