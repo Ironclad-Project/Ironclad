@@ -1,4 +1,4 @@
---  arch-ioports.ads: Specification of the x86 IO ports functions.
+--  arch-wrappers.ads: Specification of some ASM wrappers.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,21 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
+with Memory; use Memory;
 
-package Arch.IOPorts is
+package Arch.Wrappers is
    --  IO port wrappers.
    procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8);
    function  Port_In  (Port : Unsigned_16) return Unsigned_8;
-end Arch.IOPorts;
+   ----------------------------------------------------------------------------
+   --  Invalidate page.
+   procedure Invalidate_Page (Value : Virtual_Address);
+   ----------------------------------------------------------------------------
+   --  Read an write MSRs.
+   function Read_MSR (MSRNumber : Unsigned_32) return Unsigned_64;
+   procedure Write_MSR (MSRNumber : Unsigned_32; Value : Unsigned_64);
+   ----------------------------------------------------------------------------
+   --  Read and write control registers.
+   function Read_CR3 return Unsigned_64;
+   procedure Write_CR3 (Value : Unsigned_64);
+end Arch.Wrappers;

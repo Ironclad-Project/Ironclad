@@ -16,7 +16,7 @@
 
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.ACPI;
-with Arch.MSR;
+with Arch.Wrappers;
 
 package body Arch.APIC is
    --  TODO: Allocate the LAPIC base in a core-specific way instead of fetching
@@ -41,7 +41,7 @@ package body Arch.APIC is
    end LAPIC_EOI;
 
    function Get_LAPIC_Base return Virtual_Address is
-      MSR_Read : constant Unsigned_64 := Arch.MSR.Read (LAPIC_MSR);
+      MSR_Read : constant Unsigned_64 := Arch.Wrappers.Read_MSR (LAPIC_MSR);
    begin
       return Virtual_Address ((MSR_Read and 16#FFFFF000#) + Memory_Offset);
    end Get_LAPIC_Base;

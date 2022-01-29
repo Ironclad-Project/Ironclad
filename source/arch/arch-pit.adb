@@ -16,7 +16,7 @@
 
 with Arch.APIC;
 with Arch.IDT;
-with Arch.IOPorts;
+with Arch.Wrappers;
 
 package body Arch.PIT is
    PIT_IRQ           : constant := 32;
@@ -36,9 +36,9 @@ package body Arch.PIT is
       High8 : constant Unsigned_8 := Unsigned_8 (Low_Divisor and 16#FF#);
    begin
       --  Setup the PIT.
-      Arch.IOPorts.Port_Out (PIT_Command_Port,  16#36#);
-      Arch.IOPorts.Port_Out (PIT_Channel0_Port, Low8);
-      Arch.IOPorts.Port_Out (PIT_Channel0_Port, High8);
+      Arch.Wrappers.Port_Out (PIT_Command_Port,  16#36#);
+      Arch.Wrappers.Port_Out (PIT_Channel0_Port, Low8);
+      Arch.Wrappers.Port_Out (PIT_Channel0_Port, High8);
 
       --  Prepare the uptime and register the interrupt.
       Uptime := 0;

@@ -14,8 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.CR;
-with Arch.INVLPG;
+with Arch.Wrappers;
 with Lib.Panic;
 
 package body Memory.Virtual is
@@ -55,7 +54,7 @@ package body Memory.Virtual is
       --  Make the pagemap active on the callee core by writting the top-level
       --  address to CR3.
       Lib.Synchronization.Seize (Map.Mutex'Access);
-      Arch.CR.Write_CR3 (Unsigned_64 (Addr));
+      Arch.Wrappers.Write_CR3 (Unsigned_64 (Addr));
       Lib.Synchronization.Release (Map.Mutex'Access);
    end Make_Active;
 
@@ -96,8 +95,8 @@ package body Memory.Virtual is
       end;
 
       --  Check whether we have to invalidate.
-      if Arch.CR.Read_CR3 = Unsigned_64 (Addr4) then
-         Arch.INVLPG.Invalidate (Virtual);
+      if Arch.Wrappers.Read_CR3 = Unsigned_64 (Addr4) then
+         Arch.Wrappers.Invalidate_Page (Virtual);
       end if;
 
       Lib.Synchronization.Release (Map.Mutex'Access);

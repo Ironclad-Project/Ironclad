@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.IOPorts;
+with Arch.Wrappers;
 
 package body Arch.Debug is
    QEMU_Debug_Port : constant := 16#E9#;
@@ -28,6 +28,6 @@ package body Arch.Debug is
 
    procedure Print (Message : Character) is
    begin
-      IOPorts.Port_Out (QEMU_Debug_Port, Character'Pos (Message));
+      Wrappers.Port_Out (QEMU_Debug_Port, Character'Pos (Message));
    end Print;
 end Arch.Debug;

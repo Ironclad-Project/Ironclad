@@ -16,6 +16,13 @@ make install-strip
 Several flags and variables are available for tuning, `./configure --help` will
 display and explain them.
 
+A list of the tools needed for compilation and checked by `configure` is:
+
+- `autoconf` 2.69 and `automake`.
+- An ADA compiler, preferably `gcc`.
+- A standard linker and GAS assembler.
+- `xorriso` and QEMU for testing.
+
 ## Thanks to
 
 - [Mintsuki](https://github.com/mintsuki) et al - For the
