@@ -32,6 +32,8 @@ package body Memory.Virtual is
           Dirty           => False,
           PAT             => False,
           Global          => False);
+      Page_Size        : constant := 16#1000#;
+      Hardcoded_Region : constant := 16#100000000#;
    begin
       --  Initialize the kernel pagemap.
       Kernel_Map := new Page_Map;
@@ -63,16 +65,42 @@ package body Memory.Virtual is
             while I < E.Length loop
                Map_Page (Kernel_Map.all,
                          Virt_Addr + I, Phys_Addr + I, Flags, Not_Execute);
-               I := I + 16#1000#;
+               I := I + Page_Size;
             end loop;
          end;
       end loop;
 
-      --  Map the first 2 GiB to the higher half and identity mapped.
-      while Index < 16#100000000# loop
+      --  Map the first 2 GiB (except 0) to the window and identity mapped.
+      --  This is done instead of following the pagemap to ensure that all
+      --  I/O and memory tables that may not be in the memmap are mapped.
+      Index := Page_Size;
+      while Index < Hardcoded_Region loop
          Map_Page (Kernel_Map.all, Index,                 Index, Flags, False);
          Map_Page (Kernel_Map.all, Index + Memory_Offset, Index, Flags, False);
-         Index := Index + 16#1000#;
+         Index := Index + Page_Size;
+      end loop;
+
+      --  Map the memmap memory (that is not kernel or already mapped)
+      --  identity mapped and to the memory window.
+      Index := 0;
+      for E of Memmap.Entries loop
+         if E.EntryType /= Arch.Stivale2.Memmap_Entry_Kernel_And_Modules and
+            E.Base + Physical_Address (E.Length) > Hardcoded_Region
+         then
+            while Size (Index) < E.Length loop
+               declare
+                  Addr  : constant Virtual_Address := E.Base + Index;
+                  KAddr : constant Virtual_Address := Addr + Memory_Offset;
+               begin
+                  if Addr >= Hardcoded_Region then
+                     Map_Page (Kernel_Map.all, Addr,  Addr, Flags, False);
+                     Map_Page (Kernel_Map.all, KAddr, Addr, Flags, False);
+                  end if;
+                  Index := Index + Page_Size;
+               end;
+            end loop;
+            Index := 0;
+         end if;
       end loop;
 
       --  Make active.
