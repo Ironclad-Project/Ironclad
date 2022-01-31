@@ -79,11 +79,13 @@ package Memory.Virtual is
       Flags    : Page_Table_Flags;
       Ignored  : Boolean;
       Addr     : Physical_Address;
+      NX       : Boolean;
    end record;
    for Page_Table_Entry use record
       Flags    at 0 range  0 ..  7;
       Ignored  at 0 range  8 .. 11;
-      Addr     at 0 range 12 .. 63;
+      Addr     at 0 range 12 .. 62;
+      NX       at 0 range 63 .. 63;
    end record;
    for Page_Table_Entry'Size use 64;
 
@@ -93,16 +95,20 @@ package Memory.Virtual is
       Flags   : Page_Flags;
       Ignored : Boolean;
       Addr    : Physical_Address;
+      NX      : Boolean;
    end record;
    for Page use record
       Flags    at 0 range  0 ..  8;
       Ignored  at 0 range  9 .. 11;
-      Addr     at 0 range 12 .. 63;
+      Addr     at 0 range 12 .. 62;
+      NX       at 0 range 63 .. 63;
    end record;
    for Page'Size use 64;
 
-   --  Initialize the manager with a memmap.
-   procedure Init (Memmap : access Arch.Stivale2.Memmap_Tag);
+   --  Initialize the manager with a memmap and PMRs to take into account.
+   procedure Init
+      (Memmap : access Arch.Stivale2.Memmap_Tag;
+       PMRs   : access Arch.Stivale2.PMR_Tag);
 
    --  Object to represent a page map.
    Page_Size    : constant := 16#1000#;
@@ -124,10 +130,11 @@ package Memory.Virtual is
    --  Functions to manipulate pagemaps.
    procedure Make_Active (Map : in out Page_Map);
    procedure Map_Page
-      (Map      : in out Page_Map;
-       Virtual  : Virtual_Address;
-       Physical : Physical_Address;
-       Flags    : Page_Flags);
+      (Map         : in out Page_Map;
+       Virtual     : Virtual_Address;
+       Physical    : Physical_Address;
+       Flags       : Page_Flags;
+       Not_Execute : Boolean);
    procedure Unmap_Page (Map : in out Page_Map; Virtual : Virtual_Address);
    procedure Change_Page_Flags
       (Map     : in out Page_Map;

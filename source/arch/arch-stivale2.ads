@@ -23,6 +23,7 @@ package Arch.Stivale2 is
    RSDPID     : constant := 16#9E1786930A375E78#;
    TerminalID : constant := 16#C2B3F4C3233B0974#;
    MemmapID   : constant := 16#2187F79E8612DE07#;
+   PMRID      : constant := 16#5DF266A64047B6BD#;
 
    --  Stivale2 header passed by the bootloader to kernel.
    type Header is record
@@ -105,6 +106,33 @@ package Arch.Stivale2 is
       Entries : Memmap_Entries (1 .. Count);
    end record;
    for Memmap_Tag use record
+      TagInfo at 0 range   0 .. 127;
+      Count   at 0 range 128 .. 191;
+   end record;
+
+   --  Stivale2 tag or protected memory ranges, details some ranges
+   --  and permissions for them.
+   PMR_Executable_Mask : constant Unsigned_64 := Shift_Left (1, 0);
+   PMR_Writable_Mask   : constant Unsigned_64 := Shift_Left (1, 1);
+   PMR_Readable_Mask   : constant Unsigned_64 := Shift_Left (1, 2);
+
+   type PMR is record
+      Base        : Physical_Address;
+      Length      : Physical_Address;
+      Permissions : Unsigned_64; --  Checked with the values above.
+   end record;
+   for PMR use record
+      Base        at 0 range   0 ..  63;
+      Length      at 0 range  64 .. 127;
+      Permissions at 0 range 128 .. 191;
+   end record;
+   for PMR'Size use 192;
+   type PMRs is array (Natural range <>) of PMR;
+   type PMR_Tag (Count : Natural) is record
+      TagInfo : Tag;
+      Entries : PMRs (1 .. Count);
+   end record;
+   for PMR_Tag use record
       TagInfo at 0 range   0 .. 127;
       Count   at 0 range 128 .. 191;
    end record;

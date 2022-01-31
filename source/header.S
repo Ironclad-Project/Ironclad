@@ -17,10 +17,10 @@
 .section ".stivale2hdr", "aw", @progbits
 
 header:
-    .quad 0             # Alternative entrypoint, 0 is none.
-    .quad stack_top     # Stack to be loaded for the kernel.
-    .quad 0             # Flags, we dont need anything in particular.
-    .quad any_video_tag # Start of tags.
+    .quad 0                   # Alternative entrypoint, 0 is none.
+    .quad stack_top           # Stack to be loaded for the kernel.
+    .quad (1 << 2) | (1 << 4) # Flags to request PMRs.
+    .quad any_video_tag       # Start of tags.
 
 .section .data
 

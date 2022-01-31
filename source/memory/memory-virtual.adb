@@ -18,32 +18,64 @@ with Arch.Wrappers;
 with Lib.Panic;
 
 package body Memory.Virtual is
-   procedure Init (Memmap : access Arch.Stivale2.Memmap_Tag) is
+   procedure Init
+      (Memmap : access Arch.Stivale2.Memmap_Tag;
+       PMRs   : access Arch.Stivale2.PMR_Tag) is
       Index : Physical_Address := 0;
-      Flags : constant Page_Flags := (Present         => True,
-                                      Read_Write      => True,
-                                      User_Supervisor => False,
-                                      Write_Through   => False,
-                                      Cache_Disable   => False,
-                                      Accessed        => False,
-                                      Dirty           => False,
-                                      PAT             => False,
-                                      Global          => False);
+      Flags : constant Page_Flags :=
+         (Present         => True,
+          Read_Write      => True,
+          User_Supervisor => False,
+          Write_Through   => False,
+          Cache_Disable   => False,
+          Accessed        => False,
+          Dirty           => False,
+          PAT             => False,
+          Global          => False);
    begin
       --  Initialize the kernel pagemap.
       Kernel_Map := new Page_Map;
       Lib.Synchronization.Release (Kernel_Map.Mutex'Access);
+
+      --  Map PMRs.
+      for E of PMRs.Entries loop
+         declare
+            I         : Physical_Address          := 0;
+            Phys_Addr : constant Physical_Address := E.Base - Kernel_Offset;
+            Virt_Addr : constant Virtual_Address  := E.Base;
+            Flags     : Page_Flags :=
+               (Present => True, Read_Write => True, User_Supervisor => False,
+                Write_Through => False, Cache_Disable => False,
+                Accessed => False, Dirty => False, PAT => False,
+                Global => False);
+            Not_Execute : Boolean := True;
+         begin
+            if (E.Permissions and Arch.Stivale2.PMR_Executable_Mask) /= 0 then
+               Not_Execute := False;
+            end if;
+
+            if (E.Permissions and Arch.Stivale2.PMR_Writable_Mask) /= 0 then
+               Flags.Read_Write := True;
+            elsif (E.Permissions and Arch.Stivale2.PMR_Readable_Mask) /= 0 then
+               Flags.Read_Write := False;
+            end if;
+
+            while I < E.Length loop
+               Map_Page (Kernel_Map.all,
+                         Virt_Addr + I, Phys_Addr + I, Flags, Not_Execute);
+               I := I + 16#1000#;
+            end loop;
+         end;
+      end loop;
+
+      --  Map the first 2 GiB to the higher half and identity mapped.
       while Index < 16#100000000# loop
-         Map_Page (Kernel_Map.all, Index,                 Index, Flags);
-         Map_Page (Kernel_Map.all, Index + Memory_Offset, Index, Flags);
+         Map_Page (Kernel_Map.all, Index,                 Index, Flags, False);
+         Map_Page (Kernel_Map.all, Index + Memory_Offset, Index, Flags, False);
          Index := Index + 16#1000#;
       end loop;
 
-      Index := 0;
-      while Index < 16#80000000# loop
-         Map_Page (Kernel_Map.all, Index + Kernel_Offset, Index, Flags);
-         Index := Index + 16#1000#;
-      end loop;
+      --  Make active.
       Make_Active (Kernel_Map.all);
    end Init;
 
@@ -59,10 +91,11 @@ package body Memory.Virtual is
    end Make_Active;
 
    procedure Map_Page
-      (Map      : in out Page_Map;
-       Virtual  : Virtual_Address;
-       Physical : Physical_Address;
-       Flags    : Page_Flags) is
+      (Map         : in out Page_Map;
+       Virtual     : Virtual_Address;
+       Physical    : Physical_Address;
+       Flags       : Page_Flags;
+       Not_Execute : Boolean) is
       Page_Address : Virtual_Address;
    begin
       Lib.Synchronization.Seize (Map.Mutex'Access);
@@ -74,6 +107,7 @@ package body Memory.Virtual is
       begin
          Entry_Body.Addr  := Chomp_Flags (Physical);
          Entry_Body.Flags := Flags;
+         Entry_Body.NX    := Not_Execute;
       end;
 
       Lib.Synchronization.Release (Map.Mutex'Access);

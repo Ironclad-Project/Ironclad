@@ -36,6 +36,7 @@ procedure Main (Protocol : access Arch.Stivale2.Header) is
    package C1 is new System.Address_To_Access_Conversions (ST.RSDP_Tag);
    package C2 is new System.Address_To_Access_Conversions (ST.Terminal_Tag);
    package C3 is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
+   package C4 is new System.Address_To_Access_Conversions (ST.PMR_Tag);
 
    RSDP : constant access ST.RSDP_Tag :=
      C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.RSDPID)));
@@ -43,6 +44,8 @@ procedure Main (Protocol : access Arch.Stivale2.Header) is
      C2.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.TerminalID)));
    Memmap : constant access ST.Memmap_Tag :=
      C3.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.MemmapID)));
+   PMRs : constant access ST.PMR_Tag :=
+     C4.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.PMRID)));
 
    Total_Memory, Free_Memory, Used_Memory : Memory.Size;
 begin
@@ -78,7 +81,7 @@ begin
       Lib.Messages.Put      (Integer (E.EntryType), False, True);
       Lib.Messages.Put_Line ("");
    end loop;
-   Memory.Virtual.Init (Memmap);
+   Memory.Virtual.Init (Memmap, PMRs);
 
    Lib.Messages.Put_Line ("Scanning ACPI tables");
    if not Arch.ACPI.ScanTables (RSDP.RSDP_Address + Memory.Memory_Offset) then
