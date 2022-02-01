@@ -27,6 +27,7 @@ package body Memory.Physical is
 
    Block_Size       : constant        := 16#1000#;
    Block_Count      : Unsigned_64     := 0;
+   Highest_Usable   : Memory.Size     := 0;
    Bitmap_Length    : Memory.Size     := 0;
    Bitmap_Address   : Virtual_Address := Null_Address;
    Bitmap_Last_Used : Unsigned_64     := 1;
@@ -39,20 +40,26 @@ package body Memory.Physical is
    procedure Init_Allocator (Memmap : access Arch.Stivale2.Memmap_Tag) is
    begin
       --  Count memory by just taking into account usable entries.
+      --  We will also search for how big our bitmap must be, which is as big
+      --  as the last usable memory entry.
       --  XXX: If we ever move from the stivale2 term, one can also use
       --  reclaimable.
       for E of Memmap.Entries loop
-         Total_Memory := Total_Memory + E.Length;
-
          if E.EntryType = Arch.Stivale2.Memmap_Entry_Usable then
-            Free_Memory := Free_Memory + E.Length;
+            Free_Memory    := Free_Memory + E.Length;
+            Highest_Usable := Size (E.Base) + E.Length;
          else
             Used_Memory := Used_Memory + E.Length;
          end if;
       end loop;
 
+      --  The memmap is sorted, so total memory is the last entry's
+      --  base + length.
+      Total_Memory := Size (Memmap.Entries (Memmap.Entries'Last).Base)
+                    + Memmap.Entries (Memmap.Entries'Last).Length;
+
       --  Calculate what we will need for the bitmap, and find a hole for it.
-      Block_Count   := Unsigned_64 (Total_Memory) / Block_Size;
+      Block_Count   := Unsigned_64 (Highest_Usable) / Block_Size;
       Bitmap_Length := Size (Block_Count) / 8;
       for I in Memmap.Entries'Range loop
          if Memmap.Entries (I).EntryType = Arch.Stivale2.Memmap_Entry_Usable
