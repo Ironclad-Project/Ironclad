@@ -1,4 +1,4 @@
-#!/bin/sh
+#! /bin/sh
 
 set -ex
 
@@ -7,8 +7,8 @@ srcdir="$(dirname "$0")"
 test -z "$srcdir" && srcdir=.
 
 cd "$srcdir"
-automake --add-missing --copy || true
-autoreconf -i
+cp "$(automake --print-libdir)/install-sh" .
+autoconf
 
 if test -z "$NOCONFIGURE"; then
     cd "$origdir"

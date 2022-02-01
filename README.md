@@ -1,5 +1,8 @@
-Ironclad is a kernel for x86_64 devices exclusively (for now) with an enphasis
-on security without a compromise in speed or complexity, written in Ada.
+# Ironclad
+
+<img align="center" height="300" alt="Seal of approval" src="banner.png"/>
+
+Ironclad is a kernel for x86_64 devices exclusively (for now), written in Ada.
 
 ## Building
 
@@ -30,6 +33,8 @@ A list of the tools needed for compilation and checked by `configure` is:
 and code reference.
 
 ## Licensing
+
+<img align="right" height="68" alt="License logo" src="https://www.gnu.org/graphics/gplv3-with-text-136x68.png"/>
 
 This project and its components are licensed under the GPLv3 license.
 The license in full is provided in `LICENSE.md`, and a little header is
