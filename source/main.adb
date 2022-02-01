@@ -19,6 +19,7 @@ with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.ACPI;
 with Arch.APIC;
+with Arch.CPU;
 with Arch.GDT;
 with Arch.HPET;
 with Arch.IDT;
@@ -37,15 +38,18 @@ procedure Main (Protocol : access Arch.Stivale2.Header) is
    package C2 is new System.Address_To_Access_Conversions (ST.Terminal_Tag);
    package C3 is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
    package C4 is new System.Address_To_Access_Conversions (ST.PMR_Tag);
+   package C5 is new System.Address_To_Access_Conversions (ST.SMP_Tag);
 
    RSDP : constant access ST.RSDP_Tag :=
-     C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.RSDPID)));
+     C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.RSDP_ID)));
    Term : constant access ST.Terminal_Tag :=
-     C2.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.TerminalID)));
+     C2.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Terminal_ID)));
    Memmap : constant access ST.Memmap_Tag :=
-     C3.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.MemmapID)));
+     C3.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Memmap_ID)));
    PMRs : constant access ST.PMR_Tag :=
-     C4.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.PMRID)));
+     C4.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.PMR_ID)));
+   SMP : constant access ST.SMP_Tag :=
+     C5.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.SMP_ID)));
 
    Total_Memory, Free_Memory, Used_Memory : Memory.Size;
 begin
@@ -93,6 +97,10 @@ begin
    if not Arch.APIC.Init_IOAPIC then
       Lib.Panic.Hard_Panic ("Could not start IOAPIC");
    end if;
+
+   Lib.Messages.Put_Line ("Initializing cores");
+   Arch.CPU.Init_BSP;
+   Arch.CPU.Init_Cores (SMP);
 
    Lib.Messages.Put_Line ("Initializing timers");
    if not Arch.PIT.Init then

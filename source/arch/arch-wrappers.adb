@@ -46,20 +46,25 @@ package body Arch.Wrappers is
    end Invalidate_Page;
    ----------------------------------------------------------------------------
    function Read_MSR (MSRNumber : Unsigned_32) return Unsigned_64 is
-      Result : Unsigned_64 := 0;
+      Res_High : Unsigned_32;
+      Res_Low  : Unsigned_32;
    begin
       Asm ("rdmsr",
-           Outputs  => Unsigned_64'Asm_Output ("=A", Result),
+           Outputs  => (Unsigned_32'Asm_Output ("=a", Res_Low),
+                        Unsigned_32'Asm_Output ("=d", Res_High)),
            Inputs   => Unsigned_32'Asm_Input  ("c", MSRNumber),
            Clobber  => "memory",
            Volatile => True);
-      return Result;
+      return Shift_Left (Unsigned_64 (Res_High), 32) or Unsigned_64 (Res_Low);
    end Read_MSR;
 
    procedure Write_MSR (MSRNumber : Unsigned_32; Value : Unsigned_64) is
+      Value_Hi : constant Unsigned_32 := Unsigned_32 (Shift_Right (Value, 32));
+      Value_Lo : constant Unsigned_32 := Unsigned_32 (Value and 16#FFFFFFFF#);
    begin
       Asm ("wrmsr",
-           Inputs   => (Unsigned_64'Asm_Input ("A", Value),
+           Inputs   => (Unsigned_32'Asm_Input ("a", Value_Lo),
+                        Unsigned_32'Asm_Input ("d", Value_Hi),
                         Unsigned_32'Asm_Input ("c", MSRNumber)),
            Clobber  => "memory",
            Volatile => True);
@@ -82,4 +87,14 @@ package body Arch.Wrappers is
            Clobber  => "memory",
            Volatile => True);
    end Write_CR3;
+   ----------------------------------------------------------------------------
+   function Read_GS return Unsigned_64 is
+   begin
+      return Read_MSR (16#C0000101#);
+   end Read_GS;
+
+   procedure Write_GS (Value : Unsigned_64) is
+   begin
+      Write_MSR (16#C0000101#, Value);
+   end Write_GS;
 end Arch.Wrappers;

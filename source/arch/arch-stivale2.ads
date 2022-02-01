@@ -20,10 +20,11 @@ with Memory;     use Memory;
 
 package Arch.Stivale2 is
    --  IDs of several tags.
-   RSDPID     : constant := 16#9E1786930A375E78#;
-   TerminalID : constant := 16#C2B3F4C3233B0974#;
-   MemmapID   : constant := 16#2187F79E8612DE07#;
-   PMRID      : constant := 16#5DF266A64047B6BD#;
+   RSDP_ID     : constant := 16#9E1786930A375E78#;
+   Terminal_ID : constant := 16#C2B3F4C3233B0974#;
+   Memmap_ID   : constant := 16#2187F79E8612DE07#;
+   PMR_ID      : constant := 16#5DF266A64047B6BD#;
+   SMP_ID      : constant := 16#34D1D96339647025#;
 
    --  Stivale2 header passed by the bootloader to kernel.
    type Header is record
@@ -135,6 +136,38 @@ package Arch.Stivale2 is
    for PMR_Tag use record
       TagInfo at 0 range   0 .. 127;
       Count   at 0 range 128 .. 191;
+   end record;
+
+   --  Stivale2 SMP protocol.
+   type SMP_Core is record
+      Processor_ID   : Unsigned_32;
+      LAPIC_ID       : Unsigned_32;
+      Target_Stack   : Virtual_Address;
+      Goto_Address   : Virtual_Address;
+      Extra_Argument : Unsigned_64;
+   end record;
+   for SMP_Core use record
+      Processor_ID   at 0 range   0 ..  31;
+      LAPIC_ID       at 0 range  32 ..  63;
+      Target_Stack   at 0 range  64 .. 127;
+      Goto_Address   at 0 range 128 .. 191;
+      Extra_Argument at 0 range 192 .. 255;
+   end record;
+   for SMP_Core'Size use 256;
+   type SMP_Cores is array (Natural range <>) of SMP_Core;
+   type SMP_Tag (Count : Natural) is record
+      TagInfo      : Tag;
+      Flags        : Unsigned_64;
+      BSP_LAPIC_ID : Unsigned_32;
+      Unused       : Unsigned_32;
+      Entries      : SMP_Cores (1 .. Count);
+   end record;
+   for SMP_Tag use record
+      TagInfo      at 0 range   0 .. 127;
+      Flags        at 0 range 128 .. 191;
+      BSP_LAPIC_ID at 0 range 192 .. 223;
+      Unused       at 0 range 224 .. 255;
+      Count        at 0 range 256 .. 319;
    end record;
 
    --  Find a header.

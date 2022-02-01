@@ -22,7 +22,7 @@ display and explain them.
 A list of the tools needed for compilation and checked by `configure` is:
 
 - `autoconf` 2.69 and `automake`.
-- An ADA compiler, preferably `gcc`.
+- An Ada compiler, preferably `gcc`.
 - A standard linker and GAS assembler.
 - `xorriso` and QEMU for testing.
 
@@ -34,7 +34,7 @@ and code reference.
 
 ## Licensing
 
-<img align="right" height="68" alt="License logo" src="https://www.gnu.org/graphics/gplv3-with-text-136x68.png"/>
+<img align="right" alt="License logo" src="https://www.gnu.org/graphics/gplv3-with-text-136x68.png"/>
 
 This project and its components are licensed under the GPLv3 license.
 The license in full is provided in `LICENSE.md`, and a little header is

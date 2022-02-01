@@ -32,4 +32,8 @@ package Arch.Wrappers is
    --  Read and write control registers.
    function Read_CR3 return Unsigned_64;
    procedure Write_CR3 (Value : Unsigned_64);
+   ----------------------------------------------------------------------------
+   --  Read and write several registers.
+   function Read_GS return Unsigned_64;
+   procedure Write_GS (Value : Unsigned_64);
 end Arch.Wrappers;
