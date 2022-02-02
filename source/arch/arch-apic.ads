@@ -25,6 +25,9 @@ package Arch.APIC is
    --  Initialize the Local APIC for the caller core.
    procedure Init_LAPIC;
 
+   --  Send an InterProcessor Interrupt to another LAPIC.
+   procedure LAPIC_Send_IPI (LAPIC_ID : Unsigned_32; Vector : IDT.IDT_Index);
+
    --  LAPIC End Of Interrupt routine, that is to be called at the end of
    --  an interrupt.
    procedure LAPIC_EOI;

@@ -25,6 +25,8 @@ package body Arch.APIC is
    LAPIC_MSR               : constant := 16#01B#;
    LAPIC_EOI_Register      : constant := 16#0B0#;
    LAPIC_Spurious_Register : constant := 16#0F0#;
+   LAPIC_ICR0_Register     : constant := 16#300#;
+   LAPIC_ICR1_Register     : constant := 16#310#;
 
    procedure Init_LAPIC is
       Value    : constant Unsigned_32 := LAPIC_Read (LAPIC_Spurious_Register);
@@ -34,6 +36,12 @@ package body Arch.APIC is
       --  ORing the enable bit.
       LAPIC_Write (LAPIC_Spurious_Register, To_Write or Shift_Right (1, 8));
    end Init_LAPIC;
+
+   procedure LAPIC_Send_IPI (LAPIC_ID : Unsigned_32; Vector : IDT.IDT_Index) is
+   begin
+      LAPIC_Write (LAPIC_ICR1_Register, Shift_Left (LAPIC_ID, 24));
+      LAPIC_Write (LAPIC_ICR0_Register, Unsigned_32 (Vector));
+   end LAPIC_Send_IPI;
 
    procedure LAPIC_EOI is
    begin

@@ -70,6 +70,24 @@ package body Arch.Wrappers is
            Volatile => True);
    end Write_MSR;
    ----------------------------------------------------------------------------
+   function Read_CR0 return Unsigned_64 is
+      Value : Unsigned_64;
+   begin
+      Asm ("mov %%cr0, %0",
+           Outputs  => Unsigned_64'Asm_Output ("=r", Value),
+           Clobber  => "memory",
+           Volatile => True);
+      return Value;
+   end Read_CR0;
+
+   procedure Write_CR0 (Value : Unsigned_64) is
+   begin
+      Asm ("mov %0, %%cr0",
+           Inputs   => Unsigned_64'Asm_Input ("r", Value),
+           Clobber  => "memory",
+           Volatile => True);
+   end Write_CR0;
+
    function Read_CR3 return Unsigned_64 is
       Value : Unsigned_64;
    begin
@@ -87,14 +105,45 @@ package body Arch.Wrappers is
            Clobber  => "memory",
            Volatile => True);
    end Write_CR3;
+
+   function Read_CR4 return Unsigned_64 is
+      Value : Unsigned_64;
+   begin
+      Asm ("mov %%cr4, %0",
+           Outputs  => Unsigned_64'Asm_Output ("=r", Value),
+           Clobber  => "memory",
+           Volatile => True);
+      return Value;
+   end Read_CR4;
+
+   procedure Write_CR4 (Value : Unsigned_64) is
+   begin
+      Asm ("mov %0, %%cr4",
+           Inputs   => Unsigned_64'Asm_Input ("r", Value),
+           Clobber  => "memory",
+           Volatile => True);
+   end Write_CR4;
    ----------------------------------------------------------------------------
+   GS_MSR        : constant := 16#C0000101#;
+   Kernel_GS_MSR : constant := 16#C0000102#;
+
    function Read_GS return Unsigned_64 is
    begin
-      return Read_MSR (16#C0000101#);
+      return Read_MSR (GS_MSR);
    end Read_GS;
 
    procedure Write_GS (Value : Unsigned_64) is
    begin
-      Write_MSR (16#C0000101#, Value);
+      Write_MSR (GS_MSR, Value);
    end Write_GS;
+
+   function Read_Kernel_GS return Unsigned_64 is
+   begin
+      return Read_MSR (Kernel_GS_MSR);
+   end Read_Kernel_GS;
+
+   procedure Write_Kernel_GS (Value : Unsigned_64) is
+   begin
+      Write_MSR (Kernel_GS_MSR, Value);
+   end Write_Kernel_GS;
 end Arch.Wrappers;

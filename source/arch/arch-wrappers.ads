@@ -30,10 +30,16 @@ package Arch.Wrappers is
    procedure Write_MSR (MSRNumber : Unsigned_32; Value : Unsigned_64);
    ----------------------------------------------------------------------------
    --  Read and write control registers.
+   function Read_CR0 return Unsigned_64;
+   procedure Write_CR0 (Value : Unsigned_64);
    function Read_CR3 return Unsigned_64;
    procedure Write_CR3 (Value : Unsigned_64);
+   function Read_CR4 return Unsigned_64;
+   procedure Write_CR4 (Value : Unsigned_64);
    ----------------------------------------------------------------------------
-   --  Read and write several registers.
+   --  Read and write userland and kernel GS.
    function Read_GS return Unsigned_64;
    procedure Write_GS (Value : Unsigned_64);
+   function Read_Kernel_GS return Unsigned_64;
+   procedure Write_Kernel_GS (Value : Unsigned_64);
 end Arch.Wrappers;

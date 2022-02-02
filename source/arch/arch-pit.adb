@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.APIC;
+with Arch.CPU;
 with Arch.IDT;
 with Arch.Wrappers;
 
@@ -34,18 +35,21 @@ package body Arch.PIT is
 
       Low8  : constant Unsigned_8 := Unsigned_8 (New_Divisor and 16#FF#);
       High8 : constant Unsigned_8 := Unsigned_8 (Low_Divisor and 16#FF#);
+
+      BSP_LAPIC_ID : constant Unsigned_32 := Arch.CPU.Core_LAPICs (1);
    begin
       --  Setup the PIT.
       Arch.Wrappers.Port_Out (PIT_Command_Port,  16#36#);
       Arch.Wrappers.Port_Out (PIT_Channel0_Port, Low8);
       Arch.Wrappers.Port_Out (PIT_Channel0_Port, High8);
 
-      --  Prepare the uptime and register the interrupt.
+      --  Prepare the uptime and register the interrupt only for the BSP.
       Uptime := 0;
       if not Arch.IDT.Load_ISR (IRQ_Handler'Address, Handler_Index) then
          return False;
       end if;
-      if not Arch.APIC.IOAPIC_Set_Redirect (0, PIT_IRQ, Handler_Index, True)
+      if not Arch.APIC.IOAPIC_Set_Redirect
+         (BSP_LAPIC_ID, PIT_IRQ, Handler_Index, True)
       then
          return False;
       end if;

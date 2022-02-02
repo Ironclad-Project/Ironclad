@@ -14,11 +14,17 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
 with Arch.Stivale2;
 
 package Arch.CPU is
    --  Core count, always equal or larger than 1.
    Core_Count : Positive;
+
+   --  Array of LAPIC IDs, the index is the core owning said LAPIC (1-based).
+   type LAPIC_Array is array (Positive range <>) of Unsigned_32;
+   type LAPIC_Arr_Acc is access LAPIC_Array;
+   Core_LAPICs : LAPIC_Arr_Acc;
 
    --  Tweak the Bootstrap Processor.
    procedure Init_BSP;
@@ -32,4 +38,5 @@ package Arch.CPU is
 private
    procedure Init_Core (Core_Info : access Arch.Stivale2.SMP_Core)
       with Convention => C;
+   procedure Init_Common;
 end Arch.CPU;
