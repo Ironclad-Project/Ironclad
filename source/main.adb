@@ -30,6 +30,7 @@ with Lib.Panic;
 with Memory.Physical;
 with Memory.Virtual;
 with Config;
+with Scheduler;
 
 procedure Main (Protocol : access Arch.Stivale2.Header) is
    package ST renames Arch.Stivale2;
@@ -98,8 +99,7 @@ begin
       Lib.Panic.Hard_Panic ("Could not start IOAPIC");
    end if;
 
-   Lib.Messages.Put_Line ("Initializing cores");
-   Arch.CPU.Init_BSP;
+   Lib.Messages.Put_Line ("Initialize cores");
    Arch.CPU.Init_Cores (SMP);
 
    Lib.Messages.Put_Line ("Initializing timers");
@@ -110,5 +110,13 @@ begin
       Lib.Messages.Put_Line ("HPET found");
    end if;
 
-   Lib.Panic.Hard_Panic ("End of kernel");
+   Lib.Messages.Put ("Initializing scheduler for ");
+   Lib.Messages.Put (Arch.CPU.Core_Count);
+   Lib.Messages.Put_Line (" cores");
+   if not Scheduler.Init then
+      Lib.Panic.Hard_Panic ("Could not initialize the scheduler");
+   end if;
+
+   Lib.Messages.Put_Line ("Bootstrap done, sending BSP into idle");
+   Scheduler.Idle_Core;
 end Main;

@@ -18,31 +18,29 @@
 with Arch.APIC;
 with Arch.GDT;
 with Arch.IDT;
-with Arch.Interrupts;
 with Arch.Syscall;
 with Arch.Wrappers;
+with Lib.Synchronization;
 with Memory.Virtual;
+with Scheduler;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body Arch.CPU is
-   procedure Init_BSP is
-   begin
-      Init_Common;
-      Arch.Wrappers.Write_GS        (1);
-      Arch.Wrappers.Write_Kernel_GS (1);
-   end Init_BSP;
+   Count_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
 
    procedure Init_Cores (SMP_Info : access Arch.Stivale2.SMP_Tag) is
    begin
-      --  Take into account the BSP is already there and initialize the LAPIC
-      --  list.
-      Core_Count  := 1;
+      --  Initialize the LAPIC list, and fill the BSP fields.
+      Core_Count := 1;
       Core_LAPICs := new LAPIC_Array (SMP_Info.Entries'Range);
-
-      --  Add the BSP LAPIC ID to the list, since it didnt.
       Core_LAPICs (1) := SMP_Info.BSP_LAPIC_ID;
 
-      --  Initialize the cores.
+      Lib.Synchronization.Release (Count_Mutex'Access);
+      Init_Common;
+      Arch.Wrappers.Write_GS        (1);
+      Arch.Wrappers.Write_Kernel_GS (1);
+
+      --  Initialize the rest of cores.
       for I in SMP_Info.Entries'Range loop
          declare
             Stack_Size : constant := 32768;
@@ -65,9 +63,12 @@ package body Arch.CPU is
    end Get_Core_Number;
 
    procedure Init_Core (Core_Info : access Arch.Stivale2.SMP_Core) is
-      Core_Number : constant Positive := Core_Count + 1;
+      Core_Number : Positive;
    begin
-      Core_Count := Core_Count + 1;
+      Lib.Synchronization.Seize (Count_Mutex'Access);
+      Core_Count  := Core_Count + 1;
+      Core_Number := Core_Count;
+      Lib.Synchronization.Release (Count_Mutex'Access);
 
       --  Load the global GDT, IDT, mappings, and LAPIC.
       Arch.GDT.Load_GDT;
@@ -83,7 +84,9 @@ package body Arch.CPU is
       Arch.Wrappers.Write_Kernel_GS (Unsigned_64 (Core_Number));
       Core_LAPICs (Core_Number) := Core_Info.LAPIC_ID;
 
-      loop null; end loop;
+      --  Send the core to idle, waiting for the scheduler to tell it to do
+      --  something, from here, we lose control. Fairwell, core.
+      Scheduler.Idle_Core;
    end Init_Core;
 
    --  The BSP already has some facilities initialized, so we have to take
@@ -98,6 +101,11 @@ package body Arch.CPU is
       Syscall_Entry : constant Unsigned_64 :=
          Unsigned_64 (To_Integer (Arch.Syscall.Syscall_Entry'Address));
 
+      Syscall_CS_DS : constant := Arch.GDT.User_Code64_Segment - 16;
+      Sysret_CS_DS  : constant := Arch.GDT.Kernel_Code64_Segment;
+      STAR_Value : constant Unsigned_64 := Shift_Left (Syscall_CS_DS, 48) or
+                                           Shift_Left (Sysret_CS_DS,  32);
+
       CR0  : Unsigned_64 := Arch.Wrappers.Read_CR0;
       CR4  : Unsigned_64 := Arch.Wrappers.Read_CR4;
       EFER : Unsigned_64 := Arch.Wrappers.Read_MSR (EFER_MSR);
@@ -111,11 +119,8 @@ package body Arch.CPU is
       --  Enable syscall with a null entry address with bit 0 of EFER.
       EFER := EFER or 1;
       Arch.Wrappers.Write_MSR (EFER_MSR,  EFER);
-      Arch.Wrappers.Write_MSR (STAR_MSR,  16#0033002800000000#); -- ???
+      Arch.Wrappers.Write_MSR (STAR_MSR,  STAR_Value);
       Arch.Wrappers.Write_MSR (LSTAR_MSR, Syscall_Entry);
       Arch.Wrappers.Write_MSR (FMASK_MSR, Unsigned_64 (not Unsigned_32 (2)));
-
-      --  Enable interrupts.
-      Arch.Interrupts.Set_Interrupt_Flag (True);
    end Init_Common;
 end Arch.CPU;

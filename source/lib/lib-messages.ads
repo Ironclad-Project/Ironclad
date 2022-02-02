@@ -28,4 +28,8 @@ package Lib.Messages is
    procedure Put (Message : Integer_64;  Pad, Use_Hex : Boolean := False);
    procedure Put (Message : Unsigned_64; Pad, Use_Hex : Boolean := False);
    procedure Put (Message : System.Address; Pad : Boolean := False);
+
+private
+   procedure Inner_Print (Message : String);
+   procedure Inner_Print (Message : Character);
 end Lib.Messages;

@@ -20,7 +20,6 @@ with Memory;                  use Memory;
 with Arch.ACPI;
 
 package body Arch.HPET is
-   Is_Enabled    : Boolean;
    HPET_Contents : Virtual_Address;
    HPET_Period   : Unsigned_64; --  Time in femtoseconds to increment by 1.
 
@@ -50,7 +49,7 @@ package body Arch.HPET is
          HPET.Main_Counter_Value    := 0;
          HPET.General_Configuration := 1;
       end;
-      Is_Enabled := True;
+      Is_Initialized := True;
       return True;
    end Init;
 
@@ -70,7 +69,7 @@ package body Arch.HPET is
       To_Add   : constant Unsigned_64 := FemtoSec / HPET_Period;
       Target   : constant Unsigned_64 := Counter + To_Add;
    begin
-      if not Is_Enabled then
+      if not Is_Initialized then
          return;
       end if;
 

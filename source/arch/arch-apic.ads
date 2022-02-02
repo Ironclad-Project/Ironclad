@@ -28,6 +28,19 @@ package Arch.APIC is
    --  Send an InterProcessor Interrupt to another LAPIC.
    procedure LAPIC_Send_IPI (LAPIC_ID : Unsigned_32; Vector : IDT.IDT_Index);
 
+   --  Find out the LAPIC timer frequency, in Hz.
+   function LAPIC_Timer_Calibrate return Unsigned_64;
+
+   --  Stop the timer.
+   procedure LAPIC_Timer_Stop;
+
+   --  Setup the LAPIC timer to wait for some given time and then call the
+   --  vector.
+   procedure LAPIC_Timer_Oneshot
+      (Vector       : IDT.IDT_Index;
+       Hz           : Unsigned_64;
+       Microseconds : Unsigned_64);
+
    --  LAPIC End Of Interrupt routine, that is to be called at the end of
    --  an interrupt.
    procedure LAPIC_EOI;

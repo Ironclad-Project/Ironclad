@@ -15,6 +15,9 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Arch.HPET is
+   --  True if initialized.
+   Is_Initialized : Boolean;
+
    --  Initialize the HPET, returns true on success or false on failure.
    function Init return Boolean;
 

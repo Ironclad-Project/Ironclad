@@ -1,4 +1,4 @@
---  arch-gdt.ads: Specification of the GDT utilities.
+--  scheduler.ads: Specification of the scheduler.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,21 +14,17 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Memory; use Memory;
+package Scheduler is
+   --  True if the scheduler is initialized.
+   Is_Initialized : Boolean with Volatile;
 
-package Arch.GDT is
-   --  Indexes of the corresponding segments in the GDT.
-   Kernel_Code64_Segment : constant := 16#28#;
-   Kernel_Data64_Segment : constant := 16#30#;
-   User_Code64_Segment   : constant := 16#42#;
-   TSS_Segment           : constant := 16#48#;
+   --  Initialize the scheduler, return true on success, false on failure.
+   function Init return Boolean;
 
-   --  Initialize the global GDT and load it on the callee core.
-   procedure Init;
+   --  Function for all cores to use when doing nothing, doubles as the
+   --  function to initialize core locals.
+   procedure Idle_Core;
 
-   --  Load the GDT in the callee core.
-   procedure Load_GDT;
-
-   --  Load an address on the active TSS of the GDT.
-   procedure Load_TSS (Address : Virtual_Address);
-end Arch.GDT;
+private
+   procedure Scheduler_ISR;
+end Scheduler;

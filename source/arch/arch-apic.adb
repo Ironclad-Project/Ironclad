@@ -16,17 +16,23 @@
 
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.ACPI;
+with Arch.HPET;
+with Arch.PIT;
 with Arch.Wrappers;
 
 package body Arch.APIC is
    --  TODO: Allocate the LAPIC base in a core-specific way instead of fetching
    --  it each time.
 
-   LAPIC_MSR               : constant := 16#01B#;
-   LAPIC_EOI_Register      : constant := 16#0B0#;
-   LAPIC_Spurious_Register : constant := 16#0F0#;
-   LAPIC_ICR0_Register     : constant := 16#300#;
-   LAPIC_ICR1_Register     : constant := 16#310#;
+   LAPIC_MSR                         : constant := 16#01B#;
+   LAPIC_EOI_Register                : constant := 16#0B0#;
+   LAPIC_Spurious_Register           : constant := 16#0F0#;
+   LAPIC_ICR0_Register               : constant := 16#300#;
+   LAPIC_ICR1_Register               : constant := 16#310#;
+   LAPIC_Timer_Register              : constant := 16#320#;
+   LAPIC_Timer_Init_Counter_Register : constant := 16#380#;
+   LAPIC_Timer_Curr_Counter_Register : constant := 16#390#;
+   LAPIC_Timer_Divisor_Register      : constant := 16#3E0#;
 
    procedure Init_LAPIC is
       Value    : constant Unsigned_32 := LAPIC_Read (LAPIC_Spurious_Register);
@@ -42,6 +48,45 @@ package body Arch.APIC is
       LAPIC_Write (LAPIC_ICR1_Register, Shift_Left (LAPIC_ID, 24));
       LAPIC_Write (LAPIC_ICR0_Register, Unsigned_32 (Vector));
    end LAPIC_Send_IPI;
+
+   function LAPIC_Timer_Calibrate return Unsigned_64 is
+      Sample : constant Unsigned_32 := Unsigned_32'Last;
+      R1 : constant Unsigned_32 := Shift_Left (1, 16) or LAPIC_Spurious_Entry;
+      Final_Count : Unsigned_32;
+   begin
+      LAPIC_Timer_Stop;
+      LAPIC_Write (LAPIC_Timer_Register, R1);
+      LAPIC_Write (LAPIC_Timer_Divisor_Register, 0);
+
+      LAPIC_Write (LAPIC_Timer_Init_Counter_Register, Sample);
+      if Arch.HPET.Is_Initialized then
+         Arch.HPET.USleep (1000);
+         Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
+         return Unsigned_64 (Sample - Final_Count) / 1000000000;
+      else
+         Arch.PIT.Sleep (1);
+         Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
+         return Unsigned_64 (Sample - Final_Count) / 1000;
+      end if;
+   end LAPIC_Timer_Calibrate;
+
+   procedure LAPIC_Timer_Stop is
+   begin
+      LAPIC_Write (LAPIC_Timer_Init_Counter_Register, 0);
+      LAPIC_Write (LAPIC_Timer_Register, Shift_Left (1, 16));
+   end LAPIC_Timer_Stop;
+
+   procedure LAPIC_Timer_Oneshot
+      (Vector       : IDT.IDT_Index;
+       Hz           : Unsigned_64;
+       Microseconds : Unsigned_64) is
+      Ticks : constant Unsigned_64 := Microseconds * (Hz / 1000000);
+   begin
+      LAPIC_Timer_Stop;
+      LAPIC_Write (LAPIC_Timer_Register, Unsigned_32 (Vector));
+      LAPIC_Write (LAPIC_Timer_Divisor_Register, 0);
+      LAPIC_Write (LAPIC_Timer_Init_Counter_Register, Unsigned_32 (Ticks));
+   end LAPIC_Timer_Oneshot;
 
    procedure LAPIC_EOI is
    begin

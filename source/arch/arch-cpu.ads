@@ -26,10 +26,7 @@ package Arch.CPU is
    type LAPIC_Arr_Acc is access LAPIC_Array;
    Core_LAPICs : LAPIC_Arr_Acc;
 
-   --  Tweak the Bootstrap Processor.
-   procedure Init_BSP;
-
-   --  Init the rest of cores.
+   --  Init the cores and BSP.
    procedure Init_Cores (SMP_Info : access Arch.Stivale2.SMP_Tag);
 
    --  Get core number (1 based) for array indexes on modules or reporting.

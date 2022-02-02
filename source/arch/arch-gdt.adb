@@ -91,9 +91,10 @@ package body Arch.GDT is
    procedure Init is
    begin
       --  Filling the GDT's descriptors, which are in order Null followed by:
-      --  16-bit kernel code | 16-bit kernel data | 32-bit kernel code
-      --  32-bit kernel data | 64-bit kernel code | 64-bit-kernel data
-      --    64-bit user data |   64-bit user code
+      --  16-bit kernel code | 16-bit kernel data
+      --  32-bit kernel code | 32-bit kernel data
+      --  64-bit kernel code | 64-bit-kernel data
+      --  64-bit user data   | 64-bit user code
       Global_GDT.Entries (1) :=        (0, 0, 0,           0,           0, 0);
       Global_GDT.Entries (2) := (16#FFFF#, 0, 0, 2#10011010#,           0, 0);
       Global_GDT.Entries (3) := (16#FFFF#, 0, 0, 2#10010010#,           0, 0);
