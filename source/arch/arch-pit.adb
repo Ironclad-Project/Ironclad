@@ -20,7 +20,7 @@ with Arch.IDT;
 with Arch.Wrappers;
 
 package body Arch.PIT is
-   PIT_IRQ           : constant := 32;
+   PIT_IRQ           : constant := 33;
    PIT_Divisor       : constant := 1193180;
    PIT_Frequency     : constant := 1000;
    PIT_Channel0_Port : constant := 16#40#;

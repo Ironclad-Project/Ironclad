@@ -19,6 +19,7 @@ with Arch.ACPI;
 with Arch.HPET;
 with Arch.PIT;
 with Arch.Wrappers;
+with Arch.Interrupts;
 
 package body Arch.APIC is
    --  TODO: Allocate the LAPIC base in a core-specific way instead of fetching
@@ -34,40 +35,46 @@ package body Arch.APIC is
    LAPIC_Timer_Curr_Counter_Register : constant := 16#390#;
    LAPIC_Timer_Divisor_Register      : constant := 16#3E0#;
 
+   LAPIC_Timer_2_Divisor : constant := 0;
+
    procedure Init_LAPIC is
       Value    : constant Unsigned_32 := LAPIC_Read (LAPIC_Spurious_Register);
-      To_Write : constant Unsigned_32 := Value or LAPIC_Spurious_Entry;
+      To_Write : constant Unsigned_32 := Value or (LAPIC_Spurious_Entry - 1);
    begin
       --  Enable the LAPIC by setting the spurious interrupt vector and
       --  ORing the enable bit.
-      LAPIC_Write (LAPIC_Spurious_Register, To_Write or Shift_Right (1, 8));
+      LAPIC_Write (LAPIC_Spurious_Register, To_Write or Shift_Left (1, 8));
    end Init_LAPIC;
 
    procedure LAPIC_Send_IPI (LAPIC_ID : Unsigned_32; Vector : IDT.IDT_Index) is
    begin
       LAPIC_Write (LAPIC_ICR1_Register, Shift_Left (LAPIC_ID, 24));
-      LAPIC_Write (LAPIC_ICR0_Register, Unsigned_32 (Vector));
+      LAPIC_Write (LAPIC_ICR0_Register, Unsigned_32 (Vector) - 1);
    end LAPIC_Send_IPI;
 
    function LAPIC_Timer_Calibrate return Unsigned_64 is
       Sample : constant Unsigned_32 := Unsigned_32'Last;
-      R1 : constant Unsigned_32 := Shift_Left (1, 16) or LAPIC_Spurious_Entry;
       Final_Count : Unsigned_32;
    begin
       LAPIC_Timer_Stop;
-      LAPIC_Write (LAPIC_Timer_Register, R1);
-      LAPIC_Write (LAPIC_Timer_Divisor_Register, 0);
-
+      LAPIC_Write (LAPIC_Timer_Register, Shift_Left (1, 16) or 16#FF#);
+      LAPIC_Write (LAPIC_Timer_Divisor_Register, LAPIC_Timer_2_Divisor);
       LAPIC_Write (LAPIC_Timer_Init_Counter_Register, Sample);
+
+      --  Check the ticks we get in 1 ms, and calculate with that.
       if Arch.HPET.Is_Initialized then
          Arch.HPET.USleep (1000);
          Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
-         return Unsigned_64 (Sample - Final_Count) / 1000000000;
       else
+         Arch.Interrupts.Set_Interrupt_Flag (True);
          Arch.PIT.Sleep (1);
+         Arch.Interrupts.Set_Interrupt_Flag (False);
          Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
-         return Unsigned_64 (Sample - Final_Count) / 1000;
       end if;
+
+      --  Stop timer and adjust the ticks to make them ticks/ms -> ticks/s
+      LAPIC_Timer_Stop;
+      return Unsigned_64 (Sample - Final_Count) * 1000;
    end LAPIC_Timer_Calibrate;
 
    procedure LAPIC_Timer_Stop is
@@ -83,8 +90,8 @@ package body Arch.APIC is
       Ticks : constant Unsigned_64 := Microseconds * (Hz / 1000000);
    begin
       LAPIC_Timer_Stop;
-      LAPIC_Write (LAPIC_Timer_Register, Unsigned_32 (Vector));
-      LAPIC_Write (LAPIC_Timer_Divisor_Register, 0);
+      LAPIC_Write (LAPIC_Timer_Register, (Unsigned_32 (Vector) - 1));
+      LAPIC_Write (LAPIC_Timer_Divisor_Register, LAPIC_Timer_2_Divisor);
       LAPIC_Write (LAPIC_Timer_Init_Counter_Register, Unsigned_32 (Ticks));
    end LAPIC_Timer_Oneshot;
 

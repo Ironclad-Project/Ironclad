@@ -16,7 +16,7 @@
 
 package Lib.Synchronization is
    --  A simple binary semaphore.
-   type Binary_Semaphore is new Boolean with Volatile;
+   type Binary_Semaphore is new Boolean with Volatile, Atomic;
    procedure Seize (Semaphore : access Binary_Semaphore);
    procedure Release (Semaphore : access Binary_Semaphore);
    function Try_Seize (Semaphore : access Binary_Semaphore) return Boolean;

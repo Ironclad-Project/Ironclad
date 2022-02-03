@@ -51,6 +51,7 @@ package body Scheduler is
    begin
       --  Check we are initialized and have all the data.
       while not Is_Initialized loop null; end loop;
+
       if Core_Locals (I).LAPIC_Timer_Hz = 0 then
          Core_Locals (I).LAPIC_Timer_Hz := Arch.APIC.LAPIC_Timer_Calibrate;
       end if;
@@ -68,6 +69,7 @@ package body Scheduler is
    procedure Scheduler_ISR is
    begin
       Lib.Messages.Put_Line ("A new earthrise");
+      Arch.APIC.LAPIC_EOI;
       loop null; end loop;
    end Scheduler_ISR;
 end Scheduler;

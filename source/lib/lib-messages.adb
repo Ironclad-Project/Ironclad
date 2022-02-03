@@ -74,6 +74,7 @@ package body Lib.Messages is
 
       if Message = 0 and not Pad then
          Inner_Print ("0");
+         Lib.Synchronization.Release (Messages_Mutex'Access);
          return;
       end if;
 

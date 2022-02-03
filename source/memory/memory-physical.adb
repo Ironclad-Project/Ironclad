@@ -140,6 +140,7 @@ package body Memory.Physical is
          end if;
          exit when Blocks_To_Allocate = Memory.Size (Found_Count);
       end loop;
+
       if Blocks_To_Allocate /= Memory.Size (Found_Count) and
          Bitmap_Last_Used   /= 1
       then
@@ -150,6 +151,7 @@ package body Memory.Physical is
       if Blocks_To_Allocate /= Memory.Size (Found_Count) and
          Bitmap_Last_Used = 1
       then
+         Lib.Synchronization.Release (Alloc_Mutex'Access);
          goto Error_Return;
       end if;
 

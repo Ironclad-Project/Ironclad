@@ -18,8 +18,8 @@ with System;
 with System.Machine_Code; use System.Machine_Code;
 
 package body Lib.Synchronization is
-   Semaphore_Locked : constant Integer := 1;
-   Semaphore_Free   : constant Integer := 0;
+   Semaphore_Locked : constant Binary_Semaphore := True;
+   Semaphore_Free   : constant Binary_Semaphore := False;
 
    procedure Seize (Semaphore : access Binary_Semaphore) is
    begin
@@ -29,28 +29,26 @@ package body Lib.Synchronization is
    end Seize;
 
    procedure Release (Semaphore : access Binary_Semaphore) is
-      Write_This : Integer                 := Semaphore_Free;
-      In_Here    : constant System.Address := Semaphore.all'Address;
+      Write_This : Binary_Semaphore := Semaphore_Free;
    begin
-      Asm ("lock; xchg (%1), %0",
-           Outputs  => Integer'Asm_Output       ("+r", Write_This),
-           Inputs   => System.Address'Asm_Input ("r", In_Here),
+      Asm ("lock; xchg %1, %0",
+           Outputs  => Binary_Semaphore'Asm_Output ("+r", Write_This),
+           Inputs   => Binary_Semaphore'Asm_Input ("m", Semaphore.all),
            Clobber  => "memory",
            Volatile => True);
    end Release;
 
    function Try_Seize (Semaphore : access Binary_Semaphore) return Boolean is
-      In_Here    : constant System.Address := Semaphore.all'Address;
-      If_This    : Integer                 := Semaphore_Free;
-      Write_This : constant Integer        := Semaphore_Locked;
-      Did_Change : Boolean                 := False;
+      If_This    : Binary_Semaphore          := Semaphore_Free;
+      Write_This : constant Binary_Semaphore := Semaphore_Locked;
+      Did_Change : Boolean                   := False;
    begin
-      Asm ("lock; cmpxchg %2, (%3)",
-           Outputs  => (Integer'Asm_Output       ("+a",    If_This),
-                        Boolean'Asm_Output       ("=@ccz", Did_Change)),
-           Inputs   => (Integer'Asm_Input        ("r",     Write_This),
-                        System.Address'Asm_Input ("r",     In_Here)),
-           Clobber  => "memory",
+      Asm ("lock; cmpxchg %3, %1; setz %2",
+           Outputs  => (Binary_Semaphore'Asm_Output ("+a", If_This),
+                        Binary_Semaphore'Asm_Output ("+m", Semaphore.all),
+                        Boolean'Asm_Output          ("=r", Did_Change)),
+           Inputs   => Binary_Semaphore'Asm_Input ("r",  Write_This),
+           Clobber  => "memory, cc",
            Volatile => True);
       return Did_Change;
    end Try_Seize;
