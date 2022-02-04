@@ -14,6 +14,10 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
+with Arch.Interrupts;
+with Memory; use Memory;
+
 package Scheduler is
    --  True if the scheduler is initialized.
    Is_Initialized : Boolean with Volatile;
@@ -21,10 +25,34 @@ package Scheduler is
    --  Initialize the scheduler, return true on success, false on failure.
    function Init return Boolean;
 
-   --  Function for all cores to use when doing nothing, doubles as the
-   --  function to initialize core locals.
+   --  Use when doing nothing and we want the scheduler to put us to work.
+   --  Doubles as the function to initialize core locals.
    procedure Idle_Core;
 
+   --  Creates a kernel thread, and queues it for execution.
+   --  Allows to pass an argument to the thread, that will be loaded to RDI.
+   --  (C calling convention).
+   --  Return thread ID or 0 on failure.
+   type TID is new Natural;
+   function Create_Kernel_Thread
+      (Address  : Virtual_Address;
+       Argument : Unsigned_64) return TID;
+
+   --  Removes a thread, kernel or user, from existance (if it exists).
+   procedure Delete_Thread (Thread : TID);
+
+   --  Sets whether a thread is allowed to execute or not (if it exists).
+   procedure Ban_Thread (Thread : TID; Is_Banned : Boolean);
+
+   --  Set the preference for the thread to run, the higher the value, the
+   --  more preference.
+   --  The default preference is 4.
+   procedure Set_Thread_Preference (Thread : TID; Preference : Unsigned_8);
+
+   --  Give up the rest of our execution time for some other process.
+   procedure Yield;
+
 private
-   procedure Scheduler_ISR;
+   procedure Scheduler_ISR (State : access Arch.Interrupts.ISR_GPRs);
+   function Is_Thread_Present (Thread : TID) return Boolean;
 end Scheduler;

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-ENTRY(_ada_main)
+ENTRY(kernel_main)
 
 PHDRS
 {

@@ -19,62 +19,84 @@
 .macro THUNK num
 .global interrupt_thunk_\num
 interrupt_thunk_\num:
-    push %rax
-    push %rbx
-    push %rcx
-    push %rdx
-    push %rsi
-    push %rdi
-    push %rbp
-    push %r8
-    push %r9
-    push %r10
-    push %r11
-    push %r12
-    push %r13
-    push %r14
+# Push the values in the order of arch-interrupts.ads
+# Account for the error codes on the relevant exceptions.
+.if \num != 8 && \num != 10 && \num != 11 && \num != 12 && \num != 13 && \num != 14 && \num != 17 && \num != 30
+    push $0
+.endif
+    # Check for the user 64 bit code selector in CS.
+    cmpq $0x43, 16(%rsp)
+    jne 1f
+    swapgs
+1:
     push %r15
-
-    # XXX: Restore segment registers since the limine terminal couldve
-    # change them. Remove this if we were to move from it.
+    push %r14
+    push %r13
+    push %r12
+    push %r11
+    push %r10
+    push %r9
+    push %r8
+    push %rbp
+    push %rdi
+    push %rsi
+    push %rdx
+    push %rcx
+    push %rbx
+    push %rax
     mov %es, %eax
     push %rax
     mov %ds, %eax
     push %rax
+
+    cld
+
+    # XXX: Restore segment registers since the limine terminal couldve
+    # change them. Remove this if we were to move from it.
     mov $0x30, %eax
     mov %eax, %ds
     mov %eax, %es
     mov %eax, %ss
-    #
 
-    cld
+    # Calculate the index on the isr table and call the handler
+    # using C calling convetion.
+    mov $\num, %rdi
     mov $(\num * 8), %rax
     lea isr_table(%rip), %rbx
     add %rax, %rbx
+    mov %rsp, %rsi
+    xor %rbp, %rbp
     call *(%rbx)
 
-    # Second part of above, restore to what they were.
+
+    # XXX: Second part of above's XXX.
     pop %rax
     mov %eax, %ds
     pop %rax
     mov %eax, %es
-    #
 
-    pop %r15
-    pop %r14
-    pop %r13
-    pop %r12
-    pop %r11
-    pop %r10
-    pop %r9
-    pop %r8
-    pop %rbp
-    pop %rdi
-    pop %rsi
-    pop %rdx
-    pop %rcx
-    pop %rbx
+    # Pop back state.
     pop %rax
+    pop %rbx
+    pop %rcx
+    pop %rdx
+    pop %rsi
+    pop %rdi
+    pop %rbp
+    pop %r8
+    pop %r9
+    pop %r10
+    pop %r11
+    pop %r12
+    pop %r13
+    pop %r14
+    pop %r15
+    add $8, %rsp
+
+    cmpq $0x43, 8(%rsp) # if user
+    jne 1f
+    swapgs
+1:
     iretq
 .endm
 
