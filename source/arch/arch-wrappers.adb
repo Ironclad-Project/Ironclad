@@ -124,8 +124,19 @@ package body Arch.Wrappers is
            Volatile => True);
    end Write_CR4;
    ----------------------------------------------------------------------------
+   FS_MSR        : constant := 16#C0000100#;
    GS_MSR        : constant := 16#C0000101#;
    Kernel_GS_MSR : constant := 16#C0000102#;
+
+   function Read_FS return Unsigned_64 is
+   begin
+      return Read_MSR (FS_MSR);
+   end Read_FS;
+
+   procedure Write_FS (Value : Unsigned_64) is
+   begin
+      Write_MSR (FS_MSR, Value);
+   end Write_FS;
 
    function Read_GS return Unsigned_64 is
    begin
@@ -146,4 +157,9 @@ package body Arch.Wrappers is
    begin
       Write_MSR (Kernel_GS_MSR, Value);
    end Write_Kernel_GS;
+   ----------------------------------------------------------------------------
+   procedure HLT is
+   begin
+      Asm ("hlt", Volatile => True);
+   end HLT;
 end Arch.Wrappers;

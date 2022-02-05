@@ -108,13 +108,15 @@ package body Memory.Virtual is
    end Init;
 
    procedure Make_Active (Map : in out Page_Map) is
-      Addr : constant Physical_Address := Physical_Address
-         (To_Integer (Map.PML4_Level'Address) - Memory_Offset);
+      Addr : constant Unsigned_64 := Unsigned_64 (Physical_Address
+         (To_Integer (Map.PML4_Level'Address) - Memory_Offset));
    begin
-      --  Make the pagemap active on the callee core by writting the top-level
+      --  Make the pagemap active on the callee core by writing the top-level
       --  address to CR3.
       Lib.Synchronization.Seize (Map.Mutex'Access);
-      Arch.Wrappers.Write_CR3 (Unsigned_64 (Addr));
+      if Arch.Wrappers.Read_CR3 /= Addr then
+         Arch.Wrappers.Write_CR3 (Addr);
+      end if;
       Lib.Synchronization.Release (Map.Mutex'Access);
    end Make_Active;
 

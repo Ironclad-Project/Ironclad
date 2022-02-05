@@ -37,9 +37,14 @@ package Arch.Wrappers is
    function Read_CR4 return Unsigned_64;
    procedure Write_CR4 (Value : Unsigned_64);
    ----------------------------------------------------------------------------
-   --  Read and write userland and kernel GS.
+   --  Read and write userland and kernel FS and GS.
+   function Read_FS return Unsigned_64;
+   procedure Write_FS (Value : Unsigned_64);
    function Read_GS return Unsigned_64;
    procedure Write_GS (Value : Unsigned_64);
    function Read_Kernel_GS return Unsigned_64;
    procedure Write_Kernel_GS (Value : Unsigned_64);
+   ----------------------------------------------------------------------------
+   --  HLT.
+   procedure HLT;
 end Arch.Wrappers;

@@ -19,9 +19,11 @@ with Arch.APIC;
 with Arch.CPU;
 with Arch.IDT;
 with Arch.GDT;
+with Arch.Wrappers;
 with Lib.Synchronization;
-with System.Machine_Code;    use System.Machine_Code;
-with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
+with Memory.Virtual;
+with System.Machine_Code;     use System.Machine_Code;
+with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body Scheduler is
@@ -41,7 +43,6 @@ package body Scheduler is
       Is_Running : Boolean;
       Preference : Unsigned_8;
       FS         : Unsigned_64;
-      GS         : Unsigned_64;
       PageMap    : Virtual_Address; -- access to a Memory.Virtual.Page_Map.
       Stack      : Virtual_Address;
    end record;
@@ -101,7 +102,7 @@ package body Scheduler is
          Arch.Interrupts.Set_Interrupt_Flag (False);
          Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector, Hz, 20000);
          Arch.Interrupts.Set_Interrupt_Flag (True);
-         loop null; end loop;
+         loop Arch.Wrappers.HLT; end loop;
       end;
    end Idle_Core;
 
@@ -127,11 +128,14 @@ package body Scheduler is
          New_Stack : constant Stack_Acc := new Stack;
          Stack_Addr : constant Virtual_Address :=
             To_Integer (New_Stack.all'Address) + Stack_Size;
+         Map_Addr : constant System.Address :=
+            Memory.Virtual.Kernel_Map.all'Address;
       begin
          Thread_Pool (New_TID).Is_Present   := True;
          Thread_Pool (New_TID).Is_Banned    := False;
          Thread_Pool (New_TID).Is_Running   := False;
          Thread_Pool (New_TID).Preference   := 4;
+         Thread_Pool (New_TID).PageMap      := To_Integer (Map_Addr);
          Thread_Pool (New_TID).Stack        := Stack_Addr;
          Thread_Pool (New_TID).State.CS     := Arch.GDT.Kernel_Code64_Segment;
          Thread_Pool (New_TID).State.DS     := Arch.GDT.Kernel_Data64_Segment;
@@ -234,12 +238,14 @@ package body Scheduler is
       return;
 
    <<Found_TID>>
-      --  Assign the next TID as our current one.
+      --  Save state.
       if Current_TID /= 0 then
-         Thread_Pool (Current_TID).State      := State.all;
          Thread_Pool (Current_TID).Is_Running := False;
+         Thread_Pool (Current_TID).FS         := Arch.Wrappers.Read_FS;
+         Thread_Pool (Current_TID).State      := State.all;
       end if;
 
+      --  Assign the next TID as our current one.
       Core_Locals (Core).Current_TID    := Next_TID;
       Thread_Pool (Next_TID).Is_Running := True;
 
@@ -249,6 +255,13 @@ package body Scheduler is
       Arch.APIC.LAPIC_EOI;
 
       --  Reset state.
+      declare
+         Map : Memory.Virtual.Page_Map with Address =>
+            To_Address (Thread_Pool (Next_TID).PageMap);
+      begin
+         Memory.Virtual.Make_Active (Map);
+      end;
+      Arch.Wrappers.Write_FS (Thread_Pool (Next_TID).FS);
       Asm (
          "mov %0, %%rsp"   & LF & HT &
          "pop %%rax"       & LF & HT &
@@ -278,7 +291,7 @@ package body Scheduler is
          Clobber => "memory",
          Volatile => True
       );
-      loop null; end loop;
+      loop Arch.Wrappers.HLT; end loop;
    end Scheduler_ISR;
 
    function Is_Thread_Present (Thread : TID) return Boolean is
