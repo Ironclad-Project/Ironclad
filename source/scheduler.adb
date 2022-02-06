@@ -21,6 +21,7 @@ with Arch.IDT;
 with Arch.GDT;
 with Arch.Wrappers;
 with Lib.Synchronization;
+with Memory.Physical;
 with Memory.Virtual;
 with System.Machine_Code;     use System.Machine_Code;
 with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
@@ -112,16 +113,14 @@ package body Scheduler is
       New_TID : TID;
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex'Access);
-      for I in Thread_Pool'First .. Thread_Pool'Last loop
-         if not Thread_Pool (I).Is_Present then
-            New_TID := I;
-            goto Allocated_TID;
-         end if;
-      end loop;
-      Lib.Synchronization.Release (Scheduler_Mutex'Access);
-      return 0;
 
-   <<Allocated_TID>>
+      --  Find a new TID.
+      New_TID := Find_Free_TID;
+      if New_TID = 0 then
+         goto End_Return;
+      end if;
+
+      --  Initialize thread state.
       declare
          type Stack is array (1 .. Stack_Size) of Unsigned_8;
          type Stack_Acc is access Stack;
@@ -141,21 +140,93 @@ package body Scheduler is
          Thread_Pool (New_TID).State.DS     := Arch.GDT.Kernel_Data64_Segment;
          Thread_Pool (New_TID).State.ES     := Arch.GDT.Kernel_Data64_Segment;
          Thread_Pool (New_TID).State.SS     := Arch.GDT.Kernel_Data64_Segment;
-         Thread_Pool (New_TID).State.RFLAGS := 16#002#;
+         Thread_Pool (New_TID).State.RFLAGS := 16#202#;
          Thread_Pool (New_TID).State.RIP    := Unsigned_64 (Address);
          Thread_Pool (New_TID).State.RDI    := Argument;
          Thread_Pool (New_TID).State.RBP    := 0;
          Thread_Pool (New_TID).State.RSP    := Unsigned_64 (Stack_Addr);
-         Lib.Synchronization.Release (Scheduler_Mutex'Access);
-         return New_TID;
       end;
+
+   <<End_Return>>
+      Lib.Synchronization.Release (Scheduler_Mutex'Access);
+      return New_TID;
    end Create_Kernel_Thread;
 
+   function Create_User_Thread
+      (Address : Virtual_Address;
+       Args    : Arguments;
+       Env     : Environment) return TID is
+      New_TID : TID;
+   begin
+      Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+
+      --  Find a new TID.
+      New_TID := Find_Free_TID;
+      if New_TID = 0 then
+         goto End_Return;
+      end if;
+
+      --  Initialize thread state.
+      declare
+         type Stack is array (1 .. Stack_Size) of Unsigned_8;
+         type Stack_Acc is access Stack;
+         New_Stack : constant Stack_Acc := new Stack;
+         Stack_Addr : constant Virtual_Address :=
+            To_Integer (New_Stack.all'Address) + Stack_Size;
+         Map : access Memory.Virtual.Page_Map := Memory.Virtual.Fork_Map
+            (Memory.Virtual.Kernel_Map.all);
+         Map_Addr : constant System.Address := Map.all'Address;
+      begin
+         Thread_Pool (New_TID).Is_Present   := True;
+         Thread_Pool (New_TID).Is_Banned    := False;
+         Thread_Pool (New_TID).Is_Running   := False;
+         Thread_Pool (New_TID).Preference   := 4;
+         Thread_Pool (New_TID).PageMap      := To_Integer (Map_Addr);
+         Thread_Pool (New_TID).Stack        := Stack_Addr;
+         Thread_Pool (New_TID).State.CS     := Arch.GDT.User_Code64_Segment;
+         Thread_Pool (New_TID).State.DS     := Arch.GDT.User_Data64_Segment;
+         Thread_Pool (New_TID).State.ES     := Arch.GDT.User_Data64_Segment;
+         Thread_Pool (New_TID).State.SS     := Arch.GDT.User_Data64_Segment;
+         Thread_Pool (New_TID).State.RFLAGS := 16#202#;
+         Thread_Pool (New_TID).State.RIP    := Unsigned_64 (Address);
+         Thread_Pool (New_TID).State.RBP    := 0;
+         Thread_Pool (New_TID).State.RSP    := Unsigned_64 (Stack_Addr);
+
+         --  Map the stack.
+         for I in To_Integer (New_Stack.all'Address) .. Stack_Addr loop
+            Memory.Virtual.Map_Page
+               (Map.all,
+                16#C0000000000# + (I * Memory.Virtual.Page_Size),
+                To_Integer (New_Stack.all'Address) + (I * Memory.Virtual.Page_Size),
+                  (Present         => True,
+                   Read_Write      => True,
+                   User_Supervisor => True,
+                   Write_Through   => False,
+                   Cache_Disable   => False,
+                   Accessed        => False,
+                   Dirty           => False,
+                   PAT             => False,
+                   Global          => False), True);
+         end loop;
+      end;
+   <<End_Return>>
+      Lib.Synchronization.Release (Scheduler_Mutex'Access);
+      return New_TID;
+   end Create_User_Thread;
+
    procedure Delete_Thread (Thread : TID) is
+      Kernel_Map_Addr : constant System.Address :=
+         Memory.Virtual.Kernel_Map.all'Address;
    begin
       if Is_Thread_Present (Thread) then
          Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+
+         --  Mark it as not active and free structures if not needed.
          Thread_Pool (Thread).Is_Present := False;
+         if Thread_Pool (Thread).PageMap /= To_Integer (Kernel_Map_Addr) then
+            Memory.Physical.Free (Thread_Pool (Thread).PageMap);
+         end if;
+
          Lib.Synchronization.Release (Scheduler_Mutex'Access);
       end if;
    end Delete_Thread;
@@ -190,6 +261,16 @@ package body Scheduler is
       end if;
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
    end Yield;
+
+   function Find_Free_TID return TID is
+   begin
+      for I in Thread_Pool'First .. Thread_Pool'Last loop
+         if not Thread_Pool (I).Is_Present then
+            return I;
+         end if;
+      end loop;
+      return 0;
+   end Find_Free_TID;
 
    procedure Scheduler_ISR (State : access Arch.Interrupts.ISR_GPRs) is
       Core : constant Positive    := Arch.CPU.Get_Core_Number;

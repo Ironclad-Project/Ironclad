@@ -38,6 +38,15 @@ package Scheduler is
       (Address  : Virtual_Address;
        Argument : Unsigned_64) return TID;
 
+   --  Creates a userland thread, and queues it for execution.
+   --  Return thread ID or 0 on failure.
+   type Arguments   is array (Positive range <>) of String (1 .. 20);
+   type Environment is array (Positive range <>) of String (1 .. 20);
+   function Create_User_Thread
+      (Address : Virtual_Address;
+       Args    : Arguments;
+       Env     : Environment) return TID;
+
    --  Removes a thread, kernel or user, from existance (if it exists).
    procedure Delete_Thread (Thread : TID);
 
@@ -53,6 +62,7 @@ package Scheduler is
    procedure Yield;
 
 private
+   function Find_Free_TID return TID;
    procedure Scheduler_ISR (State : access Arch.Interrupts.ISR_GPRs);
    function Is_Thread_Present (Thread : TID) return Boolean;
 end Scheduler;

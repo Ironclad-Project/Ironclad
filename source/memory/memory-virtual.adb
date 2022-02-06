@@ -185,6 +185,17 @@ package body Memory.Virtual is
       Lib.Synchronization.Release (Map.Mutex'Access);
    end Change_Page_Flags;
 
+   function Fork_Map (Map : Page_Map) return access Page_Map is
+      Returned : Page_Map_Acc := new Page_Map;
+   begin
+      --  Copy the higher half mappings from the kernel map.
+      for I in 256 .. 512 loop
+         Returned.PML4_Level (I) := Map.PML4_Level (I);
+      end loop;
+      Lib.Synchronization.Release (Returned.Mutex'Access);
+      return Returned;
+   end Fork_Map;
+
    function Get_Address_Components
       (Virtual : Virtual_Address) return Address_Components is
       Addr   : constant Unsigned_64 := Unsigned_64 (Virtual);

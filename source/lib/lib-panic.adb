@@ -14,11 +14,15 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Arch.APIC;
+with Arch.CPU;
 with Arch.Interrupts;
 with Lib.Messages;
+with Lib.Synchronization;
 
 package body Lib.Panic is
    Already_Soft_Panicked : Boolean := False;
+   Panic_Mutex           : aliased Synchronization.Binary_Semaphore;
 
    procedure Soft_Panic (Message : String) is
    begin
@@ -34,11 +38,31 @@ package body Lib.Panic is
    end Soft_Panic;
 
    procedure Hard_Panic (Message : String) is
+      Current_Core : constant Positive := Arch.CPU.Get_Core_Number;
    begin
+      --  Ensure only this core panics.
+      Synchronization.Seize (Panic_Mutex'Access);
+
+      --  Tell the rest of the cores to go take a nap, forever.
+      for I in Arch.CPU.Core_LAPICs.all'First .. Arch.CPU.Core_LAPICs.all'Last
+      loop
+         if I /= Current_Core then
+            Arch.APIC.LAPIC_Send_IPI (Arch.CPU.Core_LAPICs (I), Panic_Vector);
+         end if;
+      end loop;
+
       --  Print the error and lights out.
       Lib.Messages.Put      ("Hard panic requested: ");
       Lib.Messages.Put_Line (Message);
       Arch.Interrupts.Set_Interrupt_Flag (False);
+
       loop null; end loop;
    end Hard_Panic;
+
+   procedure Panic_Handler is
+   begin
+      --  Put the callee to sleep.
+      Arch.Interrupts.Set_Interrupt_Flag (False);
+      loop null; end loop;
+   end Panic_Handler;
 end Lib.Panic;

@@ -140,9 +140,11 @@ package Memory.Virtual is
       (Map     : in out Page_Map;
        Virtual : Virtual_Address;
        Flags   : Page_Flags);
+   function Fork_Map (Map : Page_Map) return access Page_Map;
 
    --  Map meant to be used for all cores for kernel code.
-   Kernel_Map : access Page_Map;
+   type Page_Map_Acc is access Page_Map;
+   Kernel_Map : Page_Map_Acc;
 
 private
    type Address_Components is record

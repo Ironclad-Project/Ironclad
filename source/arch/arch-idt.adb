@@ -21,6 +21,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Arch.APIC;
 with Arch.GDT;
 with Arch.Interrupts;
+with Lib.Panic;
 
 package body Arch.IDT is
    --  Records for the GDT structure and its entries.
@@ -112,6 +113,9 @@ package body Arch.IDT is
       --  Some special entries for several hardcoded hardware.
       Load_ISR (APIC.LAPIC_Spurious_Entry,
                 Interrupts.Spurious_Handler'Address);
+
+      Load_ISR (Lib.Panic.Panic_Vector,
+                Lib.Panic.Panic_Handler'Address);
 
       --  Prepare the pointer and load the IDT.
       Global_Pointer := (Global_IDT'Size - 1, Global_IDT'Address);

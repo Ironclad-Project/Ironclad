@@ -20,6 +20,7 @@ package Arch.GDT is
    --  Indexes of the corresponding segments in the GDT.
    Kernel_Code64_Segment : constant := 16#28#;
    Kernel_Data64_Segment : constant := 16#30#;
+   User_Data64_Segment   : constant := 16#38#;
    User_Code64_Segment   : constant := 16#42#;
    TSS_Segment           : constant := 16#48#;
 
