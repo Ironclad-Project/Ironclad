@@ -34,7 +34,7 @@ package FS is
    type Root is record
       Name   : Root_Name; -- Name of the root.
       Data   : Root_Data; --  Instance-specific untouchable data.
-      Init   : access function return Root_Data; --  Initialize itself.
+      Init   : access function (Data : Root_Data) return Root_Data; --  Init.
       Unload : access procedure (Data : Root_Data); --  Deinitialize the root.
       Sync   : access procedure (Data : Root_Data); --  Commits all writes.
 
@@ -50,18 +50,18 @@ package FS is
       --  Close an object.
       Close : access procedure (Data : Root_Data; Obj : Object);
 
-      --  Read object, if obj = 0, read the root itself.
+      --  Read object, if object = 0, read the root itself.
       Read : access function
          (Data   : Root_Data;
-          Name   : String;
+          Obj    : Object;
           Offset : System.Address;
           Count  : Positive;
           Desto  : System.Address) return Natural;
 
-      --  Write object, if obj = 0, write the root itself.
+      --  Write object, if object = 0, write the root itself.
       Write : access function
          (Data     : Root_Data;
-          Name     : String;
+          Obj      : Object;
           Offset   : System.Address;
           Count    : Positive;
           To_Write : System.Address) return Natural;

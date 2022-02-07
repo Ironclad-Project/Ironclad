@@ -1,4 +1,4 @@
---  main.ads: Specification of the main function's package.
+--  devices-ramdev.ads: RAM device library.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,11 +14,25 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System;
+with FS; use FS;
 with Arch.Stivale2;
 
-package Main is
-   procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header) with
-      Export => True, Convention => C, External_Name => "kernel_main";
-   procedure Main_Thread (Modules : access Arch.Stivale2.Modules_Tag)
-      with Convention => C;
-end Main;
+package Devices.Ramdev is
+   --  Initialize a device given a stivale2 module to go off from, and whether
+   --  its a USTAR FS or not.
+   function Init_Module
+      (Module : Arch.Stivale2.Module;
+       Name   : Root_Name) return Root;
+
+private
+      function Ramdev_Init (Data : Root_Data) return Root_Data;
+      procedure Ramdev_Unload (Data : Root_Data);
+
+      function Ramdev_Read
+         (Data   : Root_Data;
+          Obj    : Object;
+          Offset : System.Address;
+          Count  : Positive;
+          Desto  : System.Address) return Natural;
+end Devices.Ramdev;

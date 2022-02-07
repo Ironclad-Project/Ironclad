@@ -25,6 +25,7 @@ package Arch.Stivale2 is
    Memmap_ID   : constant := 16#2187F79E8612DE07#;
    PMR_ID      : constant := 16#5DF266A64047B6BD#;
    SMP_ID      : constant := 16#34D1D96339647025#;
+   Modules_ID  : constant := 16#4B6fE466AADE04CE#;
 
    --  Stivale2 header passed by the bootloader to kernel.
    type Header is record
@@ -168,6 +169,29 @@ package Arch.Stivale2 is
       BSP_LAPIC_ID at 0 range 192 .. 223;
       Unused       at 0 range 224 .. 255;
       Count        at 0 range 256 .. 319;
+   end record;
+
+   --  Modules.
+   type Module is record
+      Begin_Address : System.Address;
+      End_Address   : System.Address;
+      Name          : String (1 .. 128);
+   end record;
+   for Module use record
+      Begin_Address at 0 range   0 ..   63;
+      End_Address   at 0 range  64 ..  127;
+      Name          at 0 range 128 .. 1151;
+   end record;
+   for Module'Size use 1152;
+
+   type Module_Entries is array (Natural range <>) of Module;
+   type Modules_Tag (Count : Natural) is record
+      TagInfo : Tag;
+      Entries : Module_Entries (1 .. Count);
+   end record;
+   for Modules_Tag use record
+      TagInfo at 0 range   0 .. 127;
+      Count   at 0 range 128 .. 191;
    end record;
 
    --  Find a header.

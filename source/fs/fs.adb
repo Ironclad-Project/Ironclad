@@ -51,7 +51,8 @@ package body FS is
             Roots (I).Contents      := R;
             Returned                := True;
             if Roots (I).Contents.Init /= null then
-               Roots (I).Contents.Data := Roots (I).Contents.Init.all;
+               Roots (I).Contents.Data :=
+                  Roots (I).Contents.Init.all (Roots (I).Contents.Data);
             end if;
             exit;
          end if;

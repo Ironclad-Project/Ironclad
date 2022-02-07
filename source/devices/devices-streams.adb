@@ -1,4 +1,4 @@
---  nulldev.adb: Null device driver.
+--  devices-streams.adb: Virtual stream devices.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -50,12 +50,12 @@ package body Devices.Streams is
    ----------------------------------------------------------------------------
    function Nulldev_Read
       (Data   : Root_Data;
-       Name   : String;
+       Obj    : Object;
        Offset : System.Address;
        Count  : Positive;
        Desto  : System.Address) return Natural is
       pragma Unreferenced (Data);
-      pragma Unreferenced (Name);
+      pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
       pragma Unreferenced (Count);
       pragma Unreferenced (Desto);
@@ -66,12 +66,12 @@ package body Devices.Streams is
 
    function Nulldev_Write
       (Data     : Root_Data;
-       Name     : String;
+       Obj      : Object;
        Offset   : System.Address;
        Count    : Positive;
        To_Write : System.Address) return Natural is
       pragma Unreferenced (Data);
-      pragma Unreferenced (Name);
+      pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
       pragma Unreferenced (To_Write);
    begin
@@ -81,13 +81,13 @@ package body Devices.Streams is
    ----------------------------------------------------------------------------
    function Zerodev_Read
       (Data   : Root_Data;
-       Name   : String;
+       Obj    : Object;
        Offset : System.Address;
        Count  : Positive;
        Desto  : System.Address) return Natural is
       Result : array (1 .. Count) of Unsigned_8 with Address => Desto;
       pragma Unreferenced (Data);
-      pragma Unreferenced (Name);
+      pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
    begin
       for I of Result loop
@@ -98,12 +98,12 @@ package body Devices.Streams is
 
    function Zerodev_Write
       (Data     : Root_Data;
-       Name     : String;
+       Obj      : Object;
        Offset   : System.Address;
        Count    : Positive;
        To_Write : System.Address) return Natural is
       pragma Unreferenced (Data);
-      pragma Unreferenced (Name);
+      pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
       pragma Unreferenced (To_Write);
    begin

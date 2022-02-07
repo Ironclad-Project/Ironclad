@@ -1,4 +1,4 @@
---  nulldev.ads: Null device driver specification.
+--  devices-streams.ads: Virtual stream device library specification.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -24,28 +24,28 @@ package Devices.Streams is
 private
    function Nulldev_Read
       (Data   : Root_Data;
-       Name   : String;
+       Obj    : Object;
        Offset : System.Address;
        Count  : Positive;
        Desto  : System.Address) return Natural;
 
    function Nulldev_Write
       (Data     : Root_Data;
-       Name     : String;
+       Obj      : Object;
        Offset   : System.Address;
        Count    : Positive;
        To_Write : System.Address) return Natural;
    ----------------------------------------------------------------------------
    function Zerodev_Read
       (Data   : Root_Data;
-       Name   : String;
+       Obj    : Object;
        Offset : System.Address;
        Count  : Positive;
        Desto  : System.Address) return Natural;
 
    function Zerodev_Write
       (Data     : Root_Data;
-       Name     : String;
+       Obj      : Object;
        Offset   : System.Address;
        Count    : Positive;
        To_Write : System.Address) return Natural;

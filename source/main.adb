@@ -24,6 +24,7 @@ with Arch.GDT;
 with Arch.HPET;
 with Arch.IDT;
 with Arch.PIT;
+with Devices.Ramdev;
 with Devices;
 with FS;
 with Lib.Messages;
@@ -42,6 +43,7 @@ package body Main is
       package C3 is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
       package C4 is new System.Address_To_Access_Conversions (ST.PMR_Tag);
       package C5 is new System.Address_To_Access_Conversions (ST.SMP_Tag);
+      package C6 is new System.Address_To_Access_Conversions (ST.Modules_Tag);
 
       RSDP : constant access ST.RSDP_Tag :=
          C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.RSDP_ID)));
@@ -53,6 +55,8 @@ package body Main is
          C4.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.PMR_ID)));
       SMP : constant access ST.SMP_Tag :=
          C5.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.SMP_ID)));
+      Modules : constant access ST.Modules_Tag :=
+         C6.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Modules_ID)));
 
       Total_Memory, Free_Memory, Used_Memory : Memory.Size;
    begin
@@ -122,7 +126,9 @@ package body Main is
       end if;
 
       Lib.Messages.Put_Line ("Bootstrap done, making kernel thread and idle");
-      if Scheduler.Create_Kernel_Thread (To_Integer (Main_Thread'Address), 0)
+      if Scheduler.Create_Kernel_Thread
+         (To_Integer (Main_Thread'Address),
+         Unsigned_64 (To_Integer (Modules.all'Address)))
          = 0
       then
          Lib.Panic.Hard_Panic ("Could not create main thread");
@@ -130,7 +136,7 @@ package body Main is
       Scheduler.Idle_Core;
    end Bootstrap_Main;
 
-   procedure Main_Thread is
+   procedure Main_Thread (Modules : access Arch.Stivale2.Modules_Tag) is
    begin
       Lib.Messages.Put_Line ("Initializing FS subsystem");
       FS.Init;
@@ -138,6 +144,22 @@ package body Main is
       Lib.Messages.Put_Line ("Initializing devices");
       Devices.Init;
 
+      Lib.Messages.Put_Line ("Mounting stivale2 modules as ramfs");
+      for I in Modules.Entries'First .. Modules.Entries'Last loop
+         declare
+            Name : FS.Root_Name;
+         begin
+            exit when I > 10;
+            Name (7) := Character'Val (I);
+            if not FS.Register_Root
+               (Devices.Ramdev.Init_Module (Modules.Entries (I), Name))
+            then
+               Lib.Panic.Hard_Panic ("Could not load ramfs");
+            end if;
+         end;
+      end loop;
+
+      Lib.Messages.Put_Line ("Yielding main thread");
       Scheduler.Yield;
       loop null; end loop;
    end Main_Thread;
