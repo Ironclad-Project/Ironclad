@@ -44,13 +44,14 @@ package body Scheduler is
       Is_Running : Boolean;
       Preference : Unsigned_8;
       FS         : Unsigned_64;
-      PageMap    : Virtual_Address; -- access to a Memory.Virtual.Page_Map.
+      PageMap    : access Memory.Virtual.Page_Map;
       Stack      : Virtual_Address;
    end record;
+   type Thread_Info_Arr is array (TID range 1 .. 256) of Thread_Info;
 
    --  Scheduler information.
    Scheduler_Mutex  : aliased Lib.Synchronization.Binary_Semaphore;
-   Thread_Pool      : array (TID range 1 .. 256) of Thread_Info;
+   Thread_Pool      : access Thread_Info_Arr;
    Scheduler_Vector : Arch.IDT.IDT_Index;
    Core_Locals      : Cores_Local_Info_Acc;
 
@@ -80,6 +81,7 @@ package body Scheduler is
 
       --  Allocate core locals and finishing touches.
       Core_Locals := new Cores_Local_Info (1 .. Arch.CPU.Core_Count);
+      Thread_Pool := new Thread_Info_Arr;
       Is_Initialized := True;
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
       return True;
@@ -127,14 +129,12 @@ package body Scheduler is
          New_Stack : constant Stack_Acc := new Stack;
          Stack_Addr : constant Virtual_Address :=
             To_Integer (New_Stack.all'Address) + Stack_Size;
-         Map_Addr : constant System.Address :=
-            Memory.Virtual.Kernel_Map.all'Address;
       begin
          Thread_Pool (New_TID).Is_Present   := True;
          Thread_Pool (New_TID).Is_Banned    := False;
          Thread_Pool (New_TID).Is_Running   := False;
          Thread_Pool (New_TID).Preference   := 4;
-         Thread_Pool (New_TID).PageMap      := To_Integer (Map_Addr);
+         Thread_Pool (New_TID).PageMap      := Memory.Virtual.Kernel_Map;
          Thread_Pool (New_TID).Stack        := Stack_Addr;
          Thread_Pool (New_TID).State.CS     := Arch.GDT.Kernel_Code64_Segment;
          Thread_Pool (New_TID).State.DS     := Arch.GDT.Kernel_Data64_Segment;
@@ -175,13 +175,12 @@ package body Scheduler is
             To_Integer (New_Stack.all'Address) + Stack_Size;
          Map : access Memory.Virtual.Page_Map := Memory.Virtual.Fork_Map
             (Memory.Virtual.Kernel_Map.all);
-         Map_Addr : constant System.Address := Map.all'Address;
       begin
          Thread_Pool (New_TID).Is_Present   := True;
          Thread_Pool (New_TID).Is_Banned    := False;
          Thread_Pool (New_TID).Is_Running   := False;
          Thread_Pool (New_TID).Preference   := 4;
-         Thread_Pool (New_TID).PageMap      := To_Integer (Map_Addr);
+         Thread_Pool (New_TID).PageMap      := Map;
          Thread_Pool (New_TID).Stack        := Stack_Addr;
          Thread_Pool (New_TID).State.CS     := Arch.GDT.User_Code64_Segment;
          Thread_Pool (New_TID).State.DS     := Arch.GDT.User_Data64_Segment;
@@ -197,7 +196,8 @@ package body Scheduler is
             Memory.Virtual.Map_Page
                (Map.all,
                 16#C0000000000# + (I * Memory.Virtual.Page_Size),
-                To_Integer (New_Stack.all'Address) + (I * Memory.Virtual.Page_Size),
+                To_Integer (New_Stack.all'Address) +
+                (I * Memory.Virtual.Page_Size),
                   (Present         => True,
                    Read_Write      => True,
                    User_Supervisor => True,
@@ -215,16 +215,15 @@ package body Scheduler is
    end Create_User_Thread;
 
    procedure Delete_Thread (Thread : TID) is
-      Kernel_Map_Addr : constant System.Address :=
-         Memory.Virtual.Kernel_Map.all'Address;
    begin
       if Is_Thread_Present (Thread) then
          Lib.Synchronization.Seize (Scheduler_Mutex'Access);
 
          --  Mark it as not active and free structures if not needed.
          Thread_Pool (Thread).Is_Present := False;
-         if Thread_Pool (Thread).PageMap /= To_Integer (Kernel_Map_Addr) then
-            Memory.Physical.Free (Thread_Pool (Thread).PageMap);
+         if Thread_Pool (Thread).PageMap /= Memory.Virtual.Kernel_Map then
+            Memory.Physical.Free
+               (To_Integer (Thread_Pool (Thread).PageMap.all'Address));
          end if;
 
          Lib.Synchronization.Release (Scheduler_Mutex'Access);
@@ -336,12 +335,7 @@ package body Scheduler is
       Arch.APIC.LAPIC_EOI;
 
       --  Reset state.
-      declare
-         Map : Memory.Virtual.Page_Map with Address =>
-            To_Address (Thread_Pool (Next_TID).PageMap);
-      begin
-         Memory.Virtual.Make_Active (Map);
-      end;
+      Memory.Virtual.Make_Active (Thread_Pool (Next_TID).PageMap.all);
       Arch.Wrappers.Write_FS (Thread_Pool (Next_TID).FS);
       Asm (
          "mov %0, %%rsp"   & LF & HT &

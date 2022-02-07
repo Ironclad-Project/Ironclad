@@ -24,6 +24,8 @@ with Arch.GDT;
 with Arch.HPET;
 with Arch.IDT;
 with Arch.PIT;
+with Devices;
+with FS;
 with Lib.Messages;
 with Lib.Panic;
 with Memory.Physical;
@@ -130,7 +132,12 @@ package body Main is
 
    procedure Main_Thread is
    begin
-      Lib.Messages.Put_Line ("Main thread reporting in!");
+      Lib.Messages.Put_Line ("Initializing FS subsystem");
+      FS.Init;
+
+      Lib.Messages.Put_Line ("Initializing devices");
+      Devices.Init;
+
       Scheduler.Yield;
       loop null; end loop;
    end Main_Thread;

@@ -1,4 +1,4 @@
---  pragmas.adc: Project pragmas.
+--  devices.ads: Device management library specification.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,9 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
---  Resource to check meaning: https://gcc.gnu.org/onlinedocs/gnat_rm.pdf
-
-pragma Restrictions (No_Obsolescent_Features);
-pragma Restrictions (No_Elaboration_Code);
-pragma Restrictions (No_Floating_Point);
-pragma Profile (Ravenscar);
+package Devices is
+   --  Initialize devices.
+   procedure Init;
+end Devices;

@@ -70,13 +70,15 @@ $(KERNEL): $(OBJ)
 
 %.o: %.adb
 	@echo "$(CMAGENTA)$(ADAC)$(CRESET) $<"
-	@$(ADAC) $(ADAHARDFLAGS) -I$(SOURCEDIR)/arch -I$(SOURCEDIR)/lib \
-		-I$(SOURCEDIR)/memory -I$(SOURCEDIR) -c $< -o $@
+	@$(ADAC) $(ADAHARDFLAGS) -I$(SOURCEDIR)/arch -I$(SOURCEDIR)/devices \
+		-I$(SOURCEDIR)/fs -I$(SOURCEDIR)/lib -I$(SOURCEDIR)/memory      \
+		-I$(SOURCEDIR) -c $< -o $@
 
 %.o: %.ads
 	@echo "$(CMAGENTA)$(ADAC)$(CRESET) $<"
-	@$(ADAC) $(ADAHARDFLAGS) -I$(SOURCEDIR)/arch -I$(SOURCEDIR)/lib \
-		-I$(SOURCEDIR)/memory -I$(SOURCEDIR) -c $< -o $@
+	@$(ADAC) $(ADAHARDFLAGS) -I$(SOURCEDIR)/arch -I$(SOURCEDIR)/devices \
+		-I$(SOURCEDIR)/fs -I$(SOURCEDIR)/lib -I$(SOURCEDIR)/memory      \
+		-I$(SOURCEDIR) -c $< -o $@
 
 %.o: %.S
 	@echo "$(CMAGENTA)$(AS)$(CRESET) $@"
