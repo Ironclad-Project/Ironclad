@@ -16,15 +16,15 @@
 
 with Interfaces; use Interfaces;
 with System; use System;
+with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
-with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with Memory.Physical;
 with Memory; use Memory;
 
 package body Devices.Ramdev is
    --  USTAR structures.
    type USTAR_Padding is array (Natural range <>) of Boolean with Pack;
-   USTAR_Signature : constant String := "ustar" & Ada.Characters.Latin_1.NUL;
+   USTAR_Signature : constant String := "ustar ";
    type USTAR_Header is record
       Name         : String (1 .. 100);
       Mode         : String (1 .. 8);
@@ -83,9 +83,9 @@ package body Devices.Ramdev is
 
    type Ramdev_Object is record
       Name  : String (1 .. 100);
-      Mode  : Integer;
+      Mode  : Natural;
       Start : System.Address;
-      Size  : Virtual_Address;
+      Size  : Natural;
    end record;
    type Ramdev_Object_Acc is access Ramdev_Object;
 
@@ -178,25 +178,25 @@ package body Devices.Ramdev is
 
       Result_Name  : String (1 .. 100);
       Result_Start : System.Address;
-      Result_Size  : Virtual_Address;
-      Result_Mode  : Integer;
+      Result_Size  : Natural;
+      Result_Mode  : Natural;
    begin
       --  Find the USTAR header corresponding with the name, if at all.
       --  TODO: Support GNU long names and symbolic links.
       loop
          declare
             Header : USTAR_Header with Address => Header_Address;
-            Size : constant Integer := Octal_To_Decimal (Header.Size);
-            Mode : constant Integer := Octal_To_Decimal (Header.Mode);
-            Jump :          Integer := Size;
+            Size : constant Natural := Octal_To_Decimal (Header.Size);
+            Mode : constant Natural := Octal_To_Decimal (Header.Mode);
+            Jump :          Natural := Size;
          begin
             exit when Header.Signature /= USTAR_Signature;
 
-            if Header.Name = Name then
+            if Header.Name (1 .. Name'Length) = Name then
                if Header.File_Type = USTAR_Regular_File then
                   Result_Name  := Header.Name;
                   Result_Start := Header'Address + Storage_Offset (Header_Sz);
-                  Result_Size  := Virtual_Address (Size);
+                  Result_Size  := Size;
                   Result_Mode  := Mode;
                else
                   Result_Start := System.Null_Address;
@@ -223,14 +223,14 @@ package body Devices.Ramdev is
 
       --  Allocate the final data and return.
       declare
-         Result_Data : Ramdev_Object_Acc := new Ramdev_Object'(
+         Result_Data : constant Ramdev_Object_Acc := new Ramdev_Object'(
             Name  => Result_Name,
             Start => Result_Start,
             Size  => Result_Size,
             Mode  => Result_Mode
          );
       begin
-         return Result_Data'Address;
+         return Result_Data.all'Address;
       end;
    end USTAR_Open;
 
@@ -249,11 +249,11 @@ package body Devices.Ramdev is
        Desto  : System.Address) return Natural is
       Obj2      : Ramdev_Object with Address => Obj;
       Data_Addr : constant System.Address  := Obj2.Start;
-      Data_Sz   : constant Natural         := Natural (Obj2.Size);
+      Data_Sz   : constant Natural         := Obj2.Size;
       Result    : array (1 .. Count)   of Unsigned_8 with Address => Desto;
       Real_Data : array (1 .. Data_Sz) of Unsigned_8 with Address => Data_Addr;
       Offset2   : constant Natural := Natural (To_Integer (Offset)) + Count;
-      To_Write  : Natural := Count;
+      To_Read  : Natural := Count;
       pragma Unreferenced (Data);
    begin
       --  Do not answer to device reads.
@@ -262,20 +262,21 @@ package body Devices.Ramdev is
       end if;
 
       if Offset2 > Data_Sz then
-         To_Write := To_Write - (Offset2 - Data_Sz);
+         To_Read := To_Read - (Offset2 - Data_Sz);
       end if;
 
-      for I in 1 .. To_Write loop
+      for I in 1 .. To_Read loop
          Result (I) := Real_Data (Natural (To_Integer (Offset)) + I);
       end loop;
 
-      return To_Write;
+      return To_Read;
    end USTAR_Read;
 
-   function Octal_To_Decimal (Octal : String) return Integer is
-      Result : Integer := 0;
+   function Octal_To_Decimal (Octal : String) return Natural is
+      Result : Natural := 0;
    begin
       for C of Octal loop
+         exit when C = Ada.Characters.Latin_1.NUL;
          Result := Result * 8;
          Result := Result + (Character'Pos (C) - Character'Pos ('0'));
       end loop;

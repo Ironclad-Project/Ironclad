@@ -23,7 +23,7 @@ package body FS.File is
       Is_Present    : Boolean;
       Root_Data     : FS.Root;
       Root_Object   : FS.Object;
-      Current_Index : Positive;
+      Current_Index : Natural;
       References    : Positive;
       Is_Error      : Boolean;
    end record;
@@ -61,10 +61,12 @@ package body FS.File is
       begin
          --  Fetch the root and object.
          if not FS.Get_Root (Root_Name, Fetched_Root) then
+            Returned_FD := Error_FD;
             goto Returning;
          end if;
          Fetched_Obj := Fetched_Root.Open.all (Fetched_Root.Data, Real_Name);
          if Fetched_Obj = System.Null_Address then
+            Returned_FD := Error_FD;
             goto Returning;
          end if;
       end;
@@ -74,7 +76,7 @@ package body FS.File is
          Is_Present    => True,
          Root_Data     => Fetched_Root,
          Root_Object   => Fetched_Obj,
-         Current_Index => 1,
+         Current_Index => 0,
          References    => 1,
          Is_Error      => False
       );
@@ -154,14 +156,14 @@ package body FS.File is
       return File_Info (ID).Is_Error;
    end Is_Error;
 
-   procedure Set_Index (ID : FD; Index : Positive) is
+   procedure Set_Index (ID : FD; Index : Natural) is
    begin
       File_Info (ID).Current_Index := Index;
    end Set_Index;
 
    procedure Reset (ID : FD) is
    begin
-      File_Info (ID).Current_Index := 1;
+      File_Info (ID).Current_Index := 0;
       File_Info (ID).Is_Error := False;
    end Reset;
 end FS.File;

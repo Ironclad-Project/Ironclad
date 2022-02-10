@@ -31,6 +31,6 @@ package FS.File is
    procedure Read (ID : FD; Count : Integer; Desto : System.Address);
    procedure Write (ID : FD; Count : Integer; Data : System.Address);
    function Is_Error (ID : FD) return Boolean;
-   procedure Set_Index (ID : FD; Index : Positive);
+   procedure Set_Index (ID : FD; Index : Natural);
    procedure Reset (ID : FD);
 end FS.File;

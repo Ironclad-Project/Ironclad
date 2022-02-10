@@ -45,5 +45,5 @@ private
           Count  : Positive;
           Desto  : System.Address) return Natural;
 
-      function Octal_To_Decimal (Octal : String) return Integer;
+      function Octal_To_Decimal (Octal : String) return Natural;
 end Devices.Ramdev;
