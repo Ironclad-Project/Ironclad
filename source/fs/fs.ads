@@ -29,7 +29,7 @@ package FS is
    --  it means for devices like disks or such that can be operated raw).
    subtype Root_Data is System.Address;
    subtype Object    is System.Address;
-   type Root_Name is new String (1 .. 7);
+   subtype Root_Name is String (1 .. 7);
    Error_Value : constant Root_Data := Root_Data (System'To_Address (0));
    type Root is record
       Name   : Root_Name; -- Name of the root.

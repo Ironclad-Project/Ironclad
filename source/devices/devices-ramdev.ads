@@ -28,11 +28,22 @@ package Devices.Ramdev is
 private
       function Ramdev_Init (Data : Root_Data) return Root_Data;
       procedure Ramdev_Unload (Data : Root_Data);
-
-      function Ramdev_Read
+      -------------------------------------------------------------------------
+      function Raw_Ramdev_Read
          (Data   : Root_Data;
           Obj    : Object;
           Offset : System.Address;
           Count  : Positive;
           Desto  : System.Address) return Natural;
+      -------------------------------------------------------------------------
+      function USTAR_Open (Data : Root_Data; Name : String) return Object;
+      procedure USTAR_Close (Data : Root_Data; Obj : Object);
+      function USTAR_Read
+         (Data   : Root_Data;
+          Obj    : Object;
+          Offset : System.Address;
+          Count  : Positive;
+          Desto  : System.Address) return Natural;
+
+      function Octal_To_Decimal (Octal : String) return Integer;
 end Devices.Ramdev;

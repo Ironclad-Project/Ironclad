@@ -97,7 +97,7 @@ package body FS is
    function List_Roots return Root_List_Acc is
       Returned       : Root_List_Acc;
       Root_Count     : Natural := 0;
-      Returned_Index : Natural := 0;
+      Returned_Index : Natural := 1;
    begin
       Lib.Synchronization.Seize (Roots_Mutex'Access);
 

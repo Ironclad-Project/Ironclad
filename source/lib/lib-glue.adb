@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
 with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 with Lib.Messages;
@@ -59,6 +60,18 @@ package body Lib.Glue is
    begin
       Print_Exception ("Divide by zero check failure", File, Line);
    end Divide_By_Zero_Check;
+
+   function MemCmp (S1, S2 : System.Address; Size : size_t) return int is
+      Str1 : array (0 .. Size) of Unsigned_8 with Address => S1;
+      Str2 : array (0 .. Size) of Unsigned_8 with Address => S2;
+   begin
+      for I in 0 .. Size loop
+         if Str1 (I) /= Str2 (I) then
+            if Str1 (I) < Str2 (I) then return -1; else return 1; end if;
+         end if;
+      end loop;
+      return 0;
+   end MemCmp;
 
    procedure Print_Exception
       (Message      : String;

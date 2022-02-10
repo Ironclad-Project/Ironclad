@@ -144,17 +144,17 @@ package body Main is
       Lib.Messages.Put_Line ("Initializing devices");
       Devices.Init;
 
-      Lib.Messages.Put_Line ("Mounting stivale2 modules as ramfs");
+      Lib.Messages.Put_Line ("Mounting stivale2 modules as ramdevs");
       for I in Modules.Entries'First .. Modules.Entries'Last loop
          declare
-            Name : FS.Root_Name;
+            Name : FS.Root_Name := "ramdev0";
          begin
             exit when I > 10;
-            Name (7) := Character'Val (I);
+            Name (7) := Character'Val (I + Character'Pos ('0'));
             if not FS.Register_Root
                (Devices.Ramdev.Init_Module (Modules.Entries (I), Name))
             then
-               Lib.Panic.Hard_Panic ("Could not load ramfs");
+               Lib.Panic.Hard_Panic ("Could not load a stivale2 ramdev");
             end if;
          end;
       end loop;
