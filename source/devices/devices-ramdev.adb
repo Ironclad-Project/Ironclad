@@ -94,7 +94,7 @@ package body Devices.Ramdev is
        Name   : Root_Name) return Root is
       Start : constant Virtual_Address := To_Integer (Module.Begin_Address);
       End2  : constant Virtual_Address := To_Integer (Module.End_Address);
-      Data : constant Ramdev_Data_Acc := new Ramdev_Data'(
+      Data  : constant Ramdev_Data_Acc := new Ramdev_Data'(
          Start_Address => To_Address (Start + Memory_Offset),
          Size          => End2 - Start,
          Is_USTAR      => False
@@ -172,9 +172,9 @@ package body Devices.Ramdev is
    end Raw_Ramdev_Read;
    ----------------------------------------------------------------------------
    function USTAR_Open (Data : Root_Data; Name : String) return Object is
-      Header_Sz : constant Integer := USTAR_Header'Size / 8;
-      Real_Data : Ramdev_Data with Address => Data;
-      Header_Offset : Storage_Offset := 0;
+      Real_Data      : Ramdev_Data with Address => Data;
+      Header_Address : System.Address := Real_Data.Start_Address;
+      Header_Sz      : constant Integer := USTAR_Header'Size / 8;
 
       Result_Name  : String (1 .. 100);
       Result_Start : System.Address;
@@ -185,10 +185,10 @@ package body Devices.Ramdev is
       --  TODO: Support GNU long names and symbolic links.
       loop
          declare
-            Header : USTAR_Header with Address =>
-               Real_Data.Start_Address + Header_Offset;
+            Header : USTAR_Header with Address => Header_Address;
             Size : constant Integer := Octal_To_Decimal (Header.Size);
             Mode : constant Integer := Octal_To_Decimal (Header.Mode);
+            Jump :          Integer := Size;
          begin
             exit when Header.Signature /= USTAR_Signature;
 
@@ -204,7 +204,13 @@ package body Devices.Ramdev is
                goto Found_File;
             end if;
 
-            Header_Offset := Header_Offset + Storage_Offset (512 + ((Size + 511) / 512 * 512));
+            --  Calculate where is the next header and add EOA empty record
+            if Jump mod Header_Sz /= 0 then
+               Jump := Jump + (Header_Sz - (Jump mod Header_Sz));
+            end if;
+            Jump := Jump + Header_Sz;
+
+            Header_Address := Header_Address + Storage_Offset (Jump);
          end;
       end loop;
       return System.Null_Address;
@@ -250,6 +256,11 @@ package body Devices.Ramdev is
       To_Write  : Natural := Count;
       pragma Unreferenced (Data);
    begin
+      --  Do not answer to device reads.
+      if Obj = System.Null_Address then
+         return 0;
+      end if;
+
       if Offset2 > Data_Sz then
          To_Write := To_Write - (Offset2 - Data_Sz);
       end if;

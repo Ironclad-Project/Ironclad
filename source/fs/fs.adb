@@ -16,6 +16,7 @@
 
 with System; use System;
 with Lib.Synchronization;
+with FS.File;
 
 package body FS is
    --  Registry of roots and lock for modifying such list.
@@ -31,6 +32,9 @@ package body FS is
    begin
       Roots := new Root_Container_Arr;
       Lib.Synchronization.Release (Roots_Mutex'Access);
+
+      --  Initialize the file registry.
+      FS.File.Init;
    end Init;
 
    function Register_Root (R : Root) return Boolean is

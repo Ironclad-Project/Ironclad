@@ -40,6 +40,8 @@ package Lib.Glue is
    ----------------------------------------------------------------------------
    function MemCmp (S1, S2 : System.Address; Size : size_t) return int
       with Export => True, Convention => C, External_Name => "memcmp";
+   procedure MemCpy (Desto, Source : System.Address; Size : size_t)
+      with Export => True, Convention => C, External_Name => "memcpy";
 private
    procedure Print_Exception
       (Message      : String;

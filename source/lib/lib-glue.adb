@@ -73,6 +73,15 @@ package body Lib.Glue is
       return 0;
    end MemCmp;
 
+   procedure MemCpy (Desto, Source : System.Address; Size : size_t) is
+      Dst : array (0 .. Size) of Unsigned_8 with Address => Desto;
+      Src : array (0 .. Size) of Unsigned_8 with Address => Source;
+   begin
+      for I in 0 .. Size loop
+         Dst (I) := Src (I);
+      end loop;
+   end MemCpy;
+
    procedure Print_Exception
       (Message      : String;
        File_Address : System.Address;
