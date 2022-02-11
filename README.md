@@ -26,6 +26,17 @@ A list of the tools needed for compilation and checked by `configure` is:
 - A standard linker and GAS assembler.
 - `xorriso` and QEMU for testing.
 
+## Documentation
+
+Under the [docs](docs) directory one can find a hefty ammount of documentation
+describing a number of OS-specific concepts. Note this documentation does
+not explain code or excuse the lack of comments in the code, but aims to shed
+light on higher-level design decisions and interface between userland and
+kernel, that are assumed in the implementation. Some useful links are:
+
+- [Kernel command line and values available](docs/cmdlineargs.md).
+- [VFS structure, roots, and object interaction](docs/vfs.md).
+
 ## Thanks to
 
 - [Mintsuki](https://github.com/mintsuki) et al - For the

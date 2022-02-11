@@ -19,6 +19,6 @@ with Arch.Stivale2;
 package Main is
    procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header) with
       Export => True, Convention => C, External_Name => "kernel_main";
-   procedure Main_Thread (Modules : access Arch.Stivale2.Modules_Tag)
+   procedure Main_Thread (Protocol : access Arch.Stivale2.Header)
       with Convention => C;
 end Main;

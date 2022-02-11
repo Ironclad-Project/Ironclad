@@ -27,6 +27,7 @@ with Arch.PIT;
 with Devices.Ramdev;
 with Devices;
 with FS;
+with Lib.Cmdline;
 with Lib.Messages;
 with Lib.Panic;
 with Memory.Physical;
@@ -43,7 +44,6 @@ package body Main is
       package C3 is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
       package C4 is new System.Address_To_Access_Conversions (ST.PMR_Tag);
       package C5 is new System.Address_To_Access_Conversions (ST.SMP_Tag);
-      package C6 is new System.Address_To_Access_Conversions (ST.Modules_Tag);
 
       RSDP : constant access ST.RSDP_Tag :=
          C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.RSDP_ID)));
@@ -55,8 +55,6 @@ package body Main is
          C4.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.PMR_ID)));
       SMP : constant access ST.SMP_Tag :=
          C5.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.SMP_ID)));
-      Modules : constant access ST.Modules_Tag :=
-         C6.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Modules_ID)));
 
       Total_Memory, Free_Memory, Used_Memory : Memory.Size;
    begin
@@ -128,7 +126,7 @@ package body Main is
       Lib.Messages.Put_Line ("Bootstrap done, making kernel thread and idle");
       if Scheduler.Create_Kernel_Thread
          (To_Integer (Main_Thread'Address),
-         Unsigned_64 (To_Integer (Modules.all'Address)))
+         Unsigned_64 (To_Integer (Protocol.all'Address)))
          = 0
       then
          Lib.Panic.Hard_Panic ("Could not create main thread");
@@ -136,7 +134,20 @@ package body Main is
       Scheduler.Idle_Core;
    end Bootstrap_Main;
 
-   procedure Main_Thread (Modules : access Arch.Stivale2.Modules_Tag) is
+   procedure Main_Thread (Protocol : access Arch.Stivale2.Header) is
+      package ST renames Arch.Stivale2;
+
+      package C1 is new System.Address_To_Access_Conversions (ST.Modules_Tag);
+      package C2 is new System.Address_To_Access_Conversions (ST.Cmdline_Tag);
+
+      Modules : constant access ST.Modules_Tag :=
+         C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Modules_ID)));
+      Cmdline : constant access ST.Cmdline_Tag :=
+         C2.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Cmdline_ID)));
+
+      Cmdline_Addr : constant System.Address :=
+         To_Address (To_Integer (Cmdline.Inner) + Memory.Memory_Offset);
+      Init_Value : access String;
    begin
       Lib.Messages.Put_Line ("Initializing FS subsystem");
       FS.Init;
@@ -158,6 +169,13 @@ package body Main is
             end if;
          end;
       end loop;
+
+      Lib.Messages.Put_Line ("Fetching kernel cmdline options");
+      Init_Value := Lib.Cmdline.Get_Parameter (Cmdline_Addr, "init");
+      if Init_Value /= null then
+         Lib.Messages.Put ("Booting init: ");
+         Lib.Messages.Put_Line (Init_Value.all);
+      end if;
 
       Lib.Messages.Put_Line ("Yielding main thread");
       Scheduler.Yield;

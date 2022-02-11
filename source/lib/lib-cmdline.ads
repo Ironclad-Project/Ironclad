@@ -1,4 +1,4 @@
---  pragmas.adc: Project pragmas.
+--  lib-messages.ads: Library for parsing command line options.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,10 +14,12 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
---  Resource to check meaning: https://gcc.gnu.org/onlinedocs/gnat_rm.pdf
+with System;
 
-pragma Restrictions (No_Obsolescent_Features);
-pragma Restrictions (No_Elaboration_Code);
-pragma Restrictions (No_Floating_Point);
-pragma Restrictions (No_Secondary_Stack);
-pragma Profile (Ravenscar);
+package Lib.Cmdline is
+   --  Get the value of a key from a C-style cmdline, and return it.
+   --  Returns null if not found.
+   function Get_Parameter
+      (Cmdline_Addr : System.Address;
+       Key          : String) return access String;
+end Lib.Cmdline;

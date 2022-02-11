@@ -26,6 +26,7 @@ package Arch.Stivale2 is
    PMR_ID      : constant := 16#5DF266A64047B6BD#;
    SMP_ID      : constant := 16#34D1D96339647025#;
    Modules_ID  : constant := 16#4B6fE466AADE04CE#;
+   Cmdline_ID  : constant := 16#E5E76A1B4597A781#;
 
    --  Stivale2 header passed by the bootloader to kernel.
    type Header is record
@@ -193,6 +194,17 @@ package Arch.Stivale2 is
       TagInfo at 0 range   0 .. 127;
       Count   at 0 range 128 .. 191;
    end record;
+
+   --  Command line tag.
+   type Cmdline_Tag is record
+      TagInfo : Tag;
+      Inner   : System.Address;
+   end record;
+   for Cmdline_Tag use record
+      TagInfo at 0 range   0 .. 127;
+      Inner   at 0 range 128 .. 191;
+   end record;
+   for Cmdline_Tag'Size use 192;
 
    --  Find a header.
    function Get_Tag

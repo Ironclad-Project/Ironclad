@@ -29,6 +29,7 @@ package Lib.Glue is
    procedure Large_Object_Check (File : System.Address; Line : Integer);
    procedure Invalid_Data_Check (File : System.Address; Line : Integer);
    procedure Divide_By_Zero_Check (File : System.Address; Line : Integer);
+   procedure Length_Check (File : System.Address; Line : Integer);
    pragma Export (C, Access_Check, "__gnat_rcheck_CE_Access_Check");
    pragma Export (C, Index_Check, "__gnat_rcheck_CE_Index_Check");
    pragma Export (C, Range_Check, "__gnat_rcheck_CE_Range_Check");
@@ -37,6 +38,7 @@ package Lib.Glue is
    pragma Export (C, Large_Object_Check, "__gnat_rcheck_SE_Object_Too_Large");
    pragma Export (C, Invalid_Data_Check, "__gnat_rcheck_CE_Invalid_Data");
    pragma Export (C, Divide_By_Zero_Check, "__gnat_rcheck_CE_Divide_By_Zero");
+   pragma Export (C, Length_Check, "__gnat_rcheck_CE_Length_Check");
    ----------------------------------------------------------------------------
    function MemCmp (S1, S2 : System.Address; Size : size_t) return int
       with Export => True, Convention => C, External_Name => "memcmp";
