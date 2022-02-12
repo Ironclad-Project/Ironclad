@@ -1,4 +1,4 @@
---  scheduler.ads: Specification of the scheduler.
+--  userland-scheduler.ads: Specification of the scheduler.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@ with Interfaces; use Interfaces;
 with Arch.Interrupts;
 with Memory; use Memory;
 
-package Scheduler is
+package Userland.Scheduler is
    --  True if the scheduler is initialized.
    Is_Initialized : Boolean with Volatile;
 
@@ -65,4 +65,4 @@ private
    function Find_Free_TID return TID;
    procedure Scheduler_ISR (State : access Arch.Interrupts.ISR_GPRs);
    function Is_Thread_Present (Thread : TID) return Boolean;
-end Scheduler;
+end Userland.Scheduler;

@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System; use System;
 with Interfaces; use Interfaces;
 with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
@@ -26,6 +27,7 @@ with Arch.IDT;
 with Arch.PIT;
 with Devices.Ramdev;
 with Devices;
+with FS.File; use FS.File;
 with FS;
 with Lib.Cmdline;
 with Lib.Messages;
@@ -33,7 +35,8 @@ with Lib.Panic;
 with Memory.Physical;
 with Memory.Virtual;
 with Config;
-with Scheduler; use Scheduler;
+with Userland.ELF;
+with Userland.Scheduler; use Userland.Scheduler;
 
 package body Main is
    procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header) is
@@ -119,19 +122,19 @@ package body Main is
       Lib.Messages.Put ("Initializing scheduler for ");
       Lib.Messages.Put (Arch.CPU.Core_Count);
       Lib.Messages.Put_Line (" cores");
-      if not Scheduler.Init then
+      if not Userland.Scheduler.Init then
          Lib.Panic.Hard_Panic ("Could not initialize the scheduler");
       end if;
 
       Lib.Messages.Put_Line ("Bootstrap done, making kernel thread and idle");
-      if Scheduler.Create_Kernel_Thread
+      if Userland.Scheduler.Create_Kernel_Thread
          (To_Integer (Main_Thread'Address),
          Unsigned_64 (To_Integer (Protocol.all'Address)))
          = 0
       then
          Lib.Panic.Hard_Panic ("Could not create main thread");
       end if;
-      Scheduler.Idle_Core;
+      Userland.Scheduler.Idle_Core;
    end Bootstrap_Main;
 
    procedure Main_Thread (Protocol : access Arch.Stivale2.Header) is
@@ -173,12 +176,26 @@ package body Main is
       Lib.Messages.Put_Line ("Fetching kernel cmdline options");
       Init_Value := Lib.Cmdline.Get_Parameter (Cmdline_Addr, "init");
       if Init_Value /= null then
-         Lib.Messages.Put ("Booting init: ");
+         Lib.Messages.Put ("Booting init ");
          Lib.Messages.Put_Line (Init_Value.all);
+
+         declare
+            FD : constant FS.File.FD := FS.File.Open
+               (Init_Value.all, FS.File.Access_R);
+            Parsed : Userland.ELF.Parsed_ELF;
+         begin
+            if FD = FS.File.Error_FD then
+               Lib.Panic.Hard_Panic ("Could not open init");
+            end if;
+            Parsed := Userland.ELF.Load_ELF (FD, Memory.Virtual.Kernel_Map.all);
+            if not Parsed.Was_Loaded then
+               Lib.Panic.Hard_Panic ("Could not parse init");
+            end if;
+         end;
       end if;
 
       Lib.Messages.Put_Line ("Yielding main thread");
-      Scheduler.Yield;
+      Userland.Scheduler.Yield;
       loop null; end loop;
    end Main_Thread;
 end Main;

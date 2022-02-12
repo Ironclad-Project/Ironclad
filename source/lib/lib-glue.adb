@@ -68,22 +68,26 @@ package body Lib.Glue is
    end Divide_By_Zero_Check;
 
    function MemCmp (S1, S2 : System.Address; Size : size_t) return int is
-      Str1 : array (0 .. Size) of Unsigned_8 with Address => S1;
-      Str2 : array (0 .. Size) of Unsigned_8 with Address => S2;
+      Str1 : array (1 .. Size) of Unsigned_8 with Address => S1;
+      Str2 : array (1 .. Size) of Unsigned_8 with Address => S2;
    begin
-      for I in 0 .. Size loop
+      for I in 1 .. Size loop
          if Str1 (I) /= Str2 (I) then
-            if Str1 (I) < Str2 (I) then return -1; else return 1; end if;
+            if Str1 (I) < Str2 (I) then
+               return -1;
+            else
+               return 1;
+            end if;
          end if;
       end loop;
       return 0;
    end MemCmp;
 
    procedure MemCpy (Desto, Source : System.Address; Size : size_t) is
-      Dst : array (0 .. Size) of Unsigned_8 with Address => Desto;
-      Src : array (0 .. Size) of Unsigned_8 with Address => Source;
+      Dst : array (1 .. Size) of Unsigned_8 with Address => Desto;
+      Src : array (1 .. Size) of Unsigned_8 with Address => Source;
    begin
-      for I in 0 .. Size loop
+      for I in 1 .. Size loop
          Dst (I) := Src (I);
       end loop;
    end MemCpy;

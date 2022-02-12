@@ -16,7 +16,6 @@
 
 with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
-with Lib.Messages;
 
 package body Lib.Cmdline is
    function Get_Parameter
@@ -45,7 +44,7 @@ package body Lib.Cmdline is
          --  makes it not match, I have absolutely no idea why.
          for I in 1 .. Cmdline_Length loop
             exit when Key'Length + I > Cmdline_Length;
-            if Key (1 .. 4) = Cmdline (I .. Key'Last + I - 1) then
+            if Key = Cmdline (I .. Key'Last + I - 1) then
                Value_Start := I + Key'Length + 1;
                for X in Value_Start .. Cmdline_Length loop
                   exit when Cmdline (X) = ' ';

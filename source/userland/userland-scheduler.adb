@@ -1,4 +1,4 @@
---  scheduler.adb: Scheduler.
+--  userland.scheduler.adb: Scheduler.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -27,7 +27,7 @@ with System.Machine_Code;     use System.Machine_Code;
 with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 
-package body Scheduler is
+package body Userland.Scheduler is
    --  Core locals.
    type Core_Local_Info is record
       LAPIC_Timer_Hz : Unsigned_64;
@@ -49,7 +49,7 @@ package body Scheduler is
    end record;
    type Thread_Info_Arr is array (TID range 1 .. 256) of Thread_Info;
 
-   --  Scheduler information.
+   --  Userland.Scheduler information.
    Scheduler_Mutex  : aliased Lib.Synchronization.Binary_Semaphore;
    Thread_Pool      : access Thread_Info_Arr;
    Scheduler_Vector : Arch.IDT.IDT_Index;
@@ -374,4 +374,4 @@ package body Scheduler is
       return Thread /= 0 and Thread <= TID (Thread_Pool'Last) and
          Thread_Pool (Thread).Is_Present;
    end Is_Thread_Present;
-end Scheduler;
+end Userland.Scheduler;
