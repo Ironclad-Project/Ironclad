@@ -16,9 +16,10 @@
 
 with Interfaces; use Interfaces;
 with Arch.Interrupts;
+with Memory.Virtual;
 with Memory; use Memory;
 
-package Userland.Scheduler is
+package Scheduler is
    --  True if the scheduler is initialized.
    Is_Initialized : Boolean with Volatile;
 
@@ -45,7 +46,8 @@ package Userland.Scheduler is
    function Create_User_Thread
       (Address : Virtual_Address;
        Args    : Arguments;
-       Env     : Environment) return TID;
+       Env     : Environment;
+       Map     : Memory.Virtual.Page_Map) return TID;
 
    --  Removes a thread, kernel or user, from existance (if it exists).
    procedure Delete_Thread (Thread : TID);
@@ -65,4 +67,4 @@ private
    function Find_Free_TID return TID;
    procedure Scheduler_ISR (State : access Arch.Interrupts.ISR_GPRs);
    function Is_Thread_Present (Thread : TID) return Boolean;
-end Userland.Scheduler;
+end Scheduler;

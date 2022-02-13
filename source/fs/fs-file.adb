@@ -56,15 +56,15 @@ package body FS.File is
 
    <<Found_File>>
       declare
-         Root_Name : constant String := Name (Name'First .. Name'First + 6);
-         Real_Name : constant String := Name (Name'First + 8 .. Name'Last);
+         Root_Nam : constant String := Name (Name'First + 1 .. Name'First + 7);
+         Real_Nam : constant String := Name (Name'First + 9 .. Name'Last);
       begin
          --  Fetch the root and object.
-         if not FS.Get_Root (Root_Name, Fetched_Root) then
+         if not FS.Get_Root (Root_Nam, Fetched_Root) then
             Returned_FD := Error_FD;
             goto Returning;
          end if;
-         Fetched_Obj := Fetched_Root.Open.all (Fetched_Root.Data, Real_Name);
+         Fetched_Obj := Fetched_Root.Open.all (Fetched_Root.Data, Real_Nam);
          if Fetched_Obj = System.Null_Address then
             Returned_FD := Error_FD;
             goto Returning;

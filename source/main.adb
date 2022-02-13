@@ -27,7 +27,6 @@ with Arch.IDT;
 with Arch.PIT;
 with Devices.Ramdev;
 with Devices;
-with FS.File; use FS.File;
 with FS;
 with Lib.Cmdline;
 with Lib.Messages;
@@ -35,8 +34,8 @@ with Lib.Panic;
 with Memory.Physical;
 with Memory.Virtual;
 with Config;
-with Userland.ELF;
-with Userland.Scheduler; use Userland.Scheduler;
+with Userland;
+with Scheduler; use Scheduler;
 
 package body Main is
    procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header) is
@@ -122,19 +121,19 @@ package body Main is
       Lib.Messages.Put ("Initializing scheduler for ");
       Lib.Messages.Put (Arch.CPU.Core_Count);
       Lib.Messages.Put_Line (" cores");
-      if not Userland.Scheduler.Init then
+      if not Scheduler.Init then
          Lib.Panic.Hard_Panic ("Could not initialize the scheduler");
       end if;
 
       Lib.Messages.Put_Line ("Bootstrap done, making kernel thread and idle");
-      if Userland.Scheduler.Create_Kernel_Thread
+      if Scheduler.Create_Kernel_Thread
          (To_Integer (Main_Thread'Address),
          Unsigned_64 (To_Integer (Protocol.all'Address)))
          = 0
       then
          Lib.Panic.Hard_Panic ("Could not create main thread");
       end if;
-      Userland.Scheduler.Idle_Core;
+      Scheduler.Idle_Core;
    end Bootstrap_Main;
 
    procedure Main_Thread (Protocol : access Arch.Stivale2.Header) is
@@ -150,7 +149,9 @@ package body Main is
 
       Cmdline_Addr : constant System.Address :=
          To_Address (To_Integer (Cmdline.Inner) + Memory.Memory_Offset);
-      Init_Value : access String;
+      Init_Value       : access String;
+      Init_Arguments   : Userland.Argument_Arr (1 .. 0);
+      Init_Environment : Userland.Environment_Arr (1 .. 0);
    begin
       Lib.Messages.Put_Line ("Initializing FS subsystem");
       FS.Init;
@@ -179,23 +180,15 @@ package body Main is
          Lib.Messages.Put ("Booting init ");
          Lib.Messages.Put_Line (Init_Value.all);
 
-         declare
-            FD : constant FS.File.FD := FS.File.Open
-               (Init_Value.all, FS.File.Access_R);
-            Parsed : Userland.ELF.Parsed_ELF;
-         begin
-            if FD = FS.File.Error_FD then
-               Lib.Panic.Hard_Panic ("Could not open init");
-            end if;
-            Parsed := Userland.ELF.Load_ELF (FD, Memory.Virtual.Kernel_Map.all);
-            if not Parsed.Was_Loaded then
-               Lib.Panic.Hard_Panic ("Could not parse init");
-            end if;
-         end;
+         if Userland.Start_User_ELF (Init_Value.all, Init_Arguments,
+            Init_Environment, "", "", "") = 0
+         then
+            Lib.Panic.Hard_Panic ("Could not start init");
+         end if;
       end if;
 
       Lib.Messages.Put_Line ("Yielding main thread");
-      Userland.Scheduler.Yield;
+      Scheduler.Yield;
       loop null; end loop;
    end Main_Thread;
 end Main;

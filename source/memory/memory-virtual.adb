@@ -42,7 +42,6 @@ package body Memory.Virtual is
       --  Map PMRs.
       for E of PMRs.Entries loop
          declare
-            I         : Physical_Address          := 0;
             Phys_Addr : constant Physical_Address := E.Base - Kernel_Offset;
             Virt_Addr : constant Virtual_Address  := E.Base;
             Flags     : Page_Flags :=
@@ -62,23 +61,18 @@ package body Memory.Virtual is
                Flags.Read_Write := False;
             end if;
 
-            while I < E.Length loop
-               Map_Page (Kernel_Map.all,
-                         Virt_Addr + I, Phys_Addr + I, Flags, Not_Execute);
-               I := I + Page_Size;
-            end loop;
+            Map_Range (Kernel_Map.all, Virt_Addr, Phys_Addr, E.Length,
+               Flags, Not_Execute);
          end;
       end loop;
 
       --  Map the first 2 GiB (except 0) to the window and identity mapped.
       --  This is done instead of following the pagemap to ensure that all
       --  I/O and memory tables that may not be in the memmap are mapped.
-      Index := Page_Size;
-      while Index < Hardcoded_Region loop
-         Map_Page (Kernel_Map.all, Index,                 Index, Flags, False);
-         Map_Page (Kernel_Map.all, Index + Memory_Offset, Index, Flags, False);
-         Index := Index + Page_Size;
-      end loop;
+      Map_Range (Kernel_Map.all, Page_Size, Page_Size,
+         Hardcoded_Region - Page_Size, Flags, False);
+      Map_Range (Kernel_Map.all, Page_Size + Memory_Offset, Page_Size,
+         Hardcoded_Region - Page_Size, Flags, False);
 
       --  Map the memmap memory (that is not kernel or already mapped)
       --  identity mapped and to the memory window.
@@ -142,6 +136,23 @@ package body Memory.Virtual is
 
       Lib.Synchronization.Release (Map.Mutex'Access);
    end Map_Page;
+
+   procedure Map_Range
+      (Map         : in out Page_Map;
+       Virtual     : Virtual_Address;
+       Physical    : Physical_Address;
+       Length      : Unsigned_64;
+       Flags       : Page_Flags;
+       Not_Execute : Boolean) is
+      PStart : constant Physical_Address := (Physical / Page_Size) * Page_Size;
+      VStart : constant Virtual_Address  := (Virtual  / Page_Size) * Page_Size;
+      I : Physical_Address := 0;
+   begin
+      while Unsigned_64 (I) < Length loop
+         Map_Page (Map, VStart + I, PStart + I, Flags, Not_Execute);
+         I := I + Page_Size;
+      end loop;
+   end Map_Range;
 
    procedure Unmap_Page (Map : in out Page_Map; Virtual : Virtual_Address) is
       Page_Address : Virtual_Address;

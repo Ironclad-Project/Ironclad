@@ -1,4 +1,4 @@
---  userland.scheduler.adb: Scheduler.
+--  scheduler.adb: Scheduler.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -21,13 +21,11 @@ with Arch.IDT;
 with Arch.GDT;
 with Arch.Wrappers;
 with Lib.Synchronization;
-with Memory.Physical;
-with Memory.Virtual;
 with System.Machine_Code;     use System.Machine_Code;
 with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 
-package body Userland.Scheduler is
+package body Scheduler is
    --  Core locals.
    type Core_Local_Info is record
       LAPIC_Timer_Hz : Unsigned_64;
@@ -44,12 +42,12 @@ package body Userland.Scheduler is
       Is_Running : Boolean;
       Preference : Unsigned_8;
       FS         : Unsigned_64;
-      PageMap    : access Memory.Virtual.Page_Map;
+      PageMap    : Memory.Virtual.Page_Map;
       Stack      : Virtual_Address;
    end record;
    type Thread_Info_Arr is array (TID range 1 .. 256) of Thread_Info;
 
-   --  Userland.Scheduler information.
+   --  Scheduler information.
    Scheduler_Mutex  : aliased Lib.Synchronization.Binary_Semaphore;
    Thread_Pool      : access Thread_Info_Arr;
    Scheduler_Vector : Arch.IDT.IDT_Index;
@@ -134,7 +132,7 @@ package body Userland.Scheduler is
          Thread_Pool (New_TID).Is_Banned    := False;
          Thread_Pool (New_TID).Is_Running   := False;
          Thread_Pool (New_TID).Preference   := 4;
-         Thread_Pool (New_TID).PageMap      := Memory.Virtual.Kernel_Map;
+         Thread_Pool (New_TID).PageMap      := Memory.Virtual.Kernel_Map.all;
          Thread_Pool (New_TID).Stack        := Stack_Addr;
          Thread_Pool (New_TID).State.CS     := Arch.GDT.Kernel_Code64_Segment;
          Thread_Pool (New_TID).State.DS     := Arch.GDT.Kernel_Data64_Segment;
@@ -155,7 +153,8 @@ package body Userland.Scheduler is
    function Create_User_Thread
       (Address : Virtual_Address;
        Args    : Arguments;
-       Env     : Environment) return TID is
+       Env     : Environment;
+       Map     : Memory.Virtual.Page_Map) return TID is
       New_TID : TID;
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex'Access);
@@ -173,8 +172,6 @@ package body Userland.Scheduler is
          New_Stack : constant Stack_Acc := new Stack;
          Stack_Addr : constant Virtual_Address :=
             To_Integer (New_Stack.all'Address) + Stack_Size;
-         Map : access Memory.Virtual.Page_Map := Memory.Virtual.Fork_Map
-            (Memory.Virtual.Kernel_Map.all);
       begin
          Thread_Pool (New_TID).Is_Present   := True;
          Thread_Pool (New_TID).Is_Banned    := False;
@@ -192,22 +189,21 @@ package body Userland.Scheduler is
          Thread_Pool (New_TID).State.RSP    := Unsigned_64 (Stack_Addr);
 
          --  Map the stack.
-         for I in To_Integer (New_Stack.all'Address) .. Stack_Addr loop
-            Memory.Virtual.Map_Page
-               (Map.all,
-                16#C0000000000# + (I * Memory.Virtual.Page_Size),
-                To_Integer (New_Stack.all'Address) +
-                (I * Memory.Virtual.Page_Size),
-                  (Present         => True,
-                   Read_Write      => True,
-                   User_Supervisor => True,
-                   Write_Through   => False,
-                   Cache_Disable   => False,
-                   Accessed        => False,
-                   Dirty           => False,
-                   PAT             => False,
-                   Global          => False), True);
-         end loop;
+         Memory.Virtual.Map_Range (
+            Thread_Pool (New_TID).PageMap,
+            16#C0000000000#,
+            To_Integer (New_Stack.all'Address) - Memory_Offset,
+            Stack_Size,
+            (Present         => True,
+             Read_Write      => True,
+             User_Supervisor => True,
+             Write_Through   => False,
+             Cache_Disable   => False,
+             Accessed        => False,
+             Dirty           => False,
+             PAT             => False,
+             Global          => False),
+            True);
       end;
    <<End_Return>>
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
@@ -218,14 +214,7 @@ package body Userland.Scheduler is
    begin
       if Is_Thread_Present (Thread) then
          Lib.Synchronization.Seize (Scheduler_Mutex'Access);
-
-         --  Mark it as not active and free structures if not needed.
          Thread_Pool (Thread).Is_Present := False;
-         if Thread_Pool (Thread).PageMap /= Memory.Virtual.Kernel_Map then
-            Memory.Physical.Free
-               (To_Integer (Thread_Pool (Thread).PageMap.all'Address));
-         end if;
-
          Lib.Synchronization.Release (Scheduler_Mutex'Access);
       end if;
    end Delete_Thread;
@@ -335,7 +324,7 @@ package body Userland.Scheduler is
       Arch.APIC.LAPIC_EOI;
 
       --  Reset state.
-      Memory.Virtual.Make_Active (Thread_Pool (Next_TID).PageMap.all);
+      Memory.Virtual.Make_Active (Thread_Pool (Next_TID).PageMap);
       Arch.Wrappers.Write_FS (Thread_Pool (Next_TID).FS);
       Asm (
          "mov %0, %%rsp"   & LF & HT &
@@ -374,4 +363,4 @@ package body Userland.Scheduler is
       return Thread /= 0 and Thread <= TID (Thread_Pool'Last) and
          Thread_Pool (Thread).Is_Present;
    end Is_Thread_Present;
-end Userland.Scheduler;
+end Scheduler;

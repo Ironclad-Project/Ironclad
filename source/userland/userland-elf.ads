@@ -15,12 +15,13 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
+with Interfaces; use Interfaces;
 with FS.File;
 with Memory.Virtual;
 
 package Userland.ELF is
-   --  Load an ELF from a file into memory, and map it into the passed map.
-   --  Return parsed info about the ELF.
+   --  Load an ELF from a file into memory with the passed base, and map it
+   --  into the passed map. Return parsed info about the ELF.
    type Parsed_ELF is record
       Was_Loaded  : Boolean;
       Entrypoint  : System.Address;
@@ -28,5 +29,6 @@ package Userland.ELF is
    end record;
    function Load_ELF
       (File_D : FS.File.FD;
-       Map    : in out Memory.Virtual.Page_Map) return Parsed_ELF;
+       Map    : in out Memory.Virtual.Page_Map;
+       Base   : Unsigned_64) return Parsed_ELF;
 end Userland.ELF;

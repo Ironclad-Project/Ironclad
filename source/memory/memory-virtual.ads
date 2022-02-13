@@ -135,6 +135,13 @@ package Memory.Virtual is
        Physical    : Physical_Address;
        Flags       : Page_Flags;
        Not_Execute : Boolean);
+   procedure Map_Range
+      (Map         : in out Page_Map;
+       Virtual     : Virtual_Address;
+       Physical    : Physical_Address;
+       Length      : Unsigned_64;
+       Flags       : Page_Flags;
+       Not_Execute : Boolean);
    procedure Unmap_Page (Map : in out Page_Map; Virtual : Virtual_Address);
    procedure Change_Page_Flags
       (Map     : in out Page_Map;

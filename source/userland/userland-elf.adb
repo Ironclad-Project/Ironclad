@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System.Storage_Elements; use System.Storage_Elements;
-with Interfaces; use Interfaces;
 with Memory.Physical;
 with Memory; use Memory;
 
@@ -100,34 +99,32 @@ package body Userland.ELF is
    procedure Load_Header
       (File_D : FS.File.FD;
        Header : Program_Header;
-       Map    : in out Memory.Virtual.Page_Map) is
+       Map    : in out Memory.Virtual.Page_Map;
+       Base   : Unsigned_64) is
       MisAlign : constant Unsigned_64 :=
          Header.Virt_Address and (Memory.Virtual.Page_Size - 1);
-      Load_Size : constant Memory.Size :=
-         Memory.Size (MisAlign + Header.Mem_Size_Bytes);
+      Load_Size : constant Unsigned_64 := MisAlign + Header.Mem_Size_Bytes;
       Load : array (1 .. Load_Size) of Unsigned_8
-         with Address => To_Address (Memory.Physical.Alloc (Load_Size));
+         with Address => To_Address (Memory.Physical.Alloc (Size (Load_Size)));
       ELF_Virtual : constant Virtual_Address :=
-         Virtual_Address (ELF_Base + Header.Virt_Address);
-      I : Virtual_Address := 0;
+         Virtual_Address (Base + Header.Virt_Address);
       Flags : constant Memory.Virtual.Page_Flags :=
          (Present => True, Read_Write => True, User_Supervisor => True,
           Write_Through => False, Cache_Disable => False,
           Accessed => False, Dirty => False, PAT => False,
           Global => False);
    begin
-      while Memory.Size (I) < Load_Size loop
-         Memory.Virtual.Map_Page
-            (Map, ELF_Virtual + I, ELF_Base + I, Flags, False);
-         I := I + Memory.Virtual.Page_Size;
-      end loop;
+      Memory.Virtual.Map_Range (Map, ELF_Virtual,
+         To_Integer (Load'Address) - Memory.Memory_Offset, Load_Size, Flags,
+         False);
       FS.File.Set_Index (File_D, Natural (Header.Offset));
       FS.File.Read (File_D, Header.File_Size_Bytes, Load'Address);
    end Load_Header;
 
    function Load_ELF
       (File_D : FS.File.FD;
-       Map    : in out Memory.Virtual.Page_Map) return Parsed_ELF is
+       Map    : in out Memory.Virtual.Page_Map;
+       Base   : Unsigned_64) return Parsed_ELF is
       Header : ELF_Header;
       Result : Parsed_ELF := (False, System.Null_Address, null);
    begin
@@ -157,14 +154,14 @@ package body Userland.ELF is
          for HDR of PHDRs loop
             case HDR.Segment_Type is
                when Program_Loadable_Segment =>
-                  Load_Header (File_D, HDR, Map);
+                  Load_Header (File_D, HDR, Map, Base);
                when Program_Interpreter_Segment =>
                   Result.Linker_Path := Get_Linker (File_D, HDR);
                when others =>
                   null;
             end case;
          end loop;
-      
+
          --  Return success.
          Result.Was_Loaded := True;
          return Result;

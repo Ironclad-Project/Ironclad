@@ -22,7 +22,7 @@ with Arch.Syscall;
 with Arch.Wrappers;
 with Lib.Synchronization;
 with Memory.Virtual;
-with Userland.Scheduler;
+with Scheduler;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body Arch.CPU is
@@ -86,7 +86,7 @@ package body Arch.CPU is
 
       --  Send the core to idle, waiting for the scheduler to tell it to do
       --  something, from here, we lose control. Fairwell, core.
-      Userland.Scheduler.Idle_Core;
+      Scheduler.Idle_Core;
    end Init_Core;
 
    --  The BSP already has some facilities initialized, so we have to take

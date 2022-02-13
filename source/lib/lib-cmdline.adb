@@ -40,8 +40,6 @@ package body Lib.Cmdline is
          Value_Start  : Natural := 0;
          Value_Length : Natural := 0;
       begin
-         --  TODO: For some reason using keys longer than 4, or using Key'Last,
-         --  makes it not match, I have absolutely no idea why.
          for I in 1 .. Cmdline_Length loop
             exit when Key'Length + I > Cmdline_Length;
             if Key = Cmdline (I .. Key'Last + I - 1) then
@@ -54,6 +52,7 @@ package body Lib.Cmdline is
             end if;
          end loop;
          return null;
+
       <<Found_Value>>
          return Ret : constant access String := new String (1 .. Value_Length)
          do

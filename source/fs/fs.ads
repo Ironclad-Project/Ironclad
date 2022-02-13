@@ -79,7 +79,7 @@ package FS is
    --  Unload the root that answers to the passed name.
    procedure Unload_Root (Name : Root_Name);
 
-   --  Get an allocated list of the active roots.
+   --  Get an allocated list of the active roots (without the leading @).
    type Root_List is array (Natural range <>) of Root_Name;
    type Root_List_Acc is access Root_List;
    function List_Roots return Root_List_Acc;

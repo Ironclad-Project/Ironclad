@@ -121,7 +121,7 @@ package Arch.Stivale2 is
 
    type PMR is record
       Base        : Physical_Address;
-      Length      : Physical_Address;
+      Length      : Unsigned_64;
       Permissions : Unsigned_64; --  Checked with the values above.
    end record;
    for PMR use record
