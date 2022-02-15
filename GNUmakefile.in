@@ -89,7 +89,7 @@ test: $(IMAGE)
 
 $(IMAGE): $(KERNEL) $(LIMINE_DIR)
 	@mkdir -p iso_root
-	@cp $(KERNEL) lol.tar $(TESTDIR)/limine.cfg $(LIMINE_DIR)/limine.sys \
+	@cp $(KERNEL) $(TESTDIR)/limine.cfg $(LIMINE_DIR)/limine.sys \
 		$(LIMINE_DIR)/limine-cd.bin $(LIMINE_DIR)/limine-eltorito-efi.bin iso_root/
 	@xorriso -as mkisofs -b limine-cd.bin -no-emul-boot -boot-load-size 4  \
 		-boot-info-table --efi-boot limine-eltorito-efi.bin -efi-boot-part \

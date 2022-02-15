@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System.Storage_Elements; use System.Storage_Elements;
+with FS.File; use FS.File;
 with Memory.Physical;
 with Memory; use Memory;
 
@@ -56,75 +57,11 @@ package body Userland.ELF is
    end record;
    for ELF_Header'Size use 512;
 
-   Program_Loadable_Segment    : constant := 1;
-   Program_Interpreter_Segment : constant := 3;
-   type Program_Header is record
-      Segment_Type    : Unsigned_32;
-      Flags           : Unsigned_32;
-      Offset          : Unsigned_64;
-      Virt_Address    : Unsigned_64;
-      Phys_Address    : System.Address;
-      File_Size_Bytes : Natural;
-      Mem_Size_Bytes  : Unsigned_64;
-      Alignment       : Unsigned_64;
-   end record;
-   for Program_Header use record
-      Segment_Type    at 0 range  0  ..  31;
-      Flags           at 0 range 32  ..  63;
-      Offset          at 0 range 64  .. 127;
-      Virt_Address    at 0 range 128 .. 191;
-      Phys_Address    at 0 range 192 .. 255;
-      File_Size_Bytes at 0 range 256 .. 319;
-      Mem_Size_Bytes  at 0 range 320 .. 383;
-      Alignment       at 0 range 384 .. 447;
-   end record;
-   for Program_Header'Size use 448;
-
-   --  Memory base to load all executables.
-   ELF_Base : constant := 16#40000000#;
-
-   --  Get the linker path string from a given interpreter program header.
-   function Get_Linker
-      (File_D : FS.File.FD;
-       Header : Program_Header) return access String is
-   begin
-      return Ret : access String := new String (1 .. Header.File_Size_Bytes)
-      do
-         FS.File.Set_Index (File_D, Natural (Header.Offset));
-         FS.File.Read (File_D, Header.File_Size_Bytes, Ret.all'Address);
-      end return;
-   end Get_Linker;
-
-   --  Load and map a loadable program header to memory.
-   procedure Load_Header
-      (File_D : FS.File.FD;
-       Header : Program_Header;
-       Map    : in out Memory.Virtual.Page_Map;
-       Base   : Unsigned_64) is
-      MisAlign : constant Unsigned_64 :=
-         Header.Virt_Address and (Memory.Virtual.Page_Size - 1);
-      Load_Size : constant Unsigned_64 := MisAlign + Header.Mem_Size_Bytes;
-      Load : array (1 .. Load_Size) of Unsigned_8
-         with Address => To_Address (Memory.Physical.Alloc (Size (Load_Size)));
-      ELF_Virtual : constant Virtual_Address :=
-         Virtual_Address (Base + Header.Virt_Address);
-      Flags : constant Memory.Virtual.Page_Flags :=
-         (Present => True, Read_Write => True, User_Supervisor => True,
-          Write_Through => False, Cache_Disable => False,
-          Accessed => False, Dirty => False, PAT => False,
-          Global => False);
-   begin
-      Memory.Virtual.Map_Range (Map, ELF_Virtual,
-         To_Integer (Load'Address) - Memory.Memory_Offset, Load_Size, Flags,
-         False);
-      FS.File.Set_Index (File_D, Natural (Header.Offset));
-      FS.File.Read (File_D, Header.File_Size_Bytes, Load'Address);
-   end Load_Header;
-
    function Load_ELF
       (File_D : FS.File.FD;
        Map    : in out Memory.Virtual.Page_Map;
-       Base   : Unsigned_64) return Parsed_ELF is
+       Base   : Unsigned_64) return Parsed_ELF
+   is
       Header : ELF_Header;
       Result : Parsed_ELF := (False, System.Null_Address, null);
    begin
@@ -138,7 +75,7 @@ package body Userland.ELF is
       end if;
 
       --  Assign the data we already know.
-      Result.Entrypoint := Header.Entrypoint + Storage_Offset (ELF_Base);
+      Result.Entrypoint := Header.Entrypoint + Storage_Offset (Base);
 
       --  Loop the program headers and either load them, or get info.
       declare
@@ -167,4 +104,69 @@ package body Userland.ELF is
          return Result;
       end;
    end Load_ELF;
+
+   function Open_And_Load_ELF
+      (Path : String;
+       Map  : in out Memory.Virtual.Page_Map;
+       Base : Unsigned_64) return Parsed_ELF
+   is
+      FD : constant FS.File.FD    := FS.File.Open (Path, FS.File.Access_R);
+      Loaded_ELF : ELF.Parsed_ELF := (False, System.Null_Address, null);
+   begin
+      if FD = FS.File.Error_FD then
+         return Loaded_ELF;
+      end if;
+
+      Loaded_ELF := ELF.Load_ELF (FD, Map, Base);
+      FS.File.Close (FD);
+      return Loaded_ELF;
+   end Open_And_Load_ELF;
+
+   --  Get the linker path string from a given interpreter program header.
+   function Get_Linker
+      (File_D : FS.File.FD;
+       Header : Program_Header) return access String is
+   begin
+      return Ret : access String := new String (1 .. Header.File_Size_Bytes)
+      do
+         FS.File.Set_Index (File_D, Natural (Header.Offset));
+         FS.File.Read (File_D, Header.File_Size_Bytes, Ret.all'Address);
+      end return;
+   end Get_Linker;
+
+   --  Load and map a loadable program header to memory.
+   procedure Load_Header
+      (File_D : FS.File.FD;
+       Header : Program_Header;
+       Map    : in out Memory.Virtual.Page_Map;
+       Base   : Unsigned_64)
+   is
+      MisAlign : constant Unsigned_64 :=
+         Header.Virt_Address and (Memory.Virtual.Page_Size - 1);
+      Load_Size : constant Unsigned_64 := MisAlign + Header.Mem_Size_Bytes;
+      Load : array (1 .. Load_Size) of Unsigned_8
+         with Address => To_Address (Memory.Physical.Alloc (Size (Load_Size)));
+      ELF_Virtual : constant Virtual_Address :=
+         Virtual_Address (Base + Header.Virt_Address);
+      Flags : constant Memory.Virtual.Page_Flags :=
+         (Present         => True,
+          Read_Write      => True,
+          User_Supervisor => True,
+          Write_Through   => False,
+          Cache_Disable   => False,
+          Accessed        => False,
+          Dirty           => False,
+          PAT             => False,
+          Global          => False);
+   begin
+      Memory.Virtual.Map_Range
+         (Map         => Map,
+          Virtual     => ELF_Virtual,
+          Physical    => To_Integer (Load'Address) - Memory.Memory_Offset,
+          Length      => Load_Size,
+          Flags       => Flags,
+          Not_Execute => False);
+      FS.File.Set_Index (File_D, Natural (Header.Offset));
+      FS.File.Read (File_D, Header.File_Size_Bytes, Load'Address);
+   end Load_Header;
 end Userland.ELF;

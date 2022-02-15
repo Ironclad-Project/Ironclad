@@ -86,7 +86,8 @@ package body Arch.APIC is
    procedure LAPIC_Timer_Oneshot
       (Vector       : IDT.IDT_Index;
        Hz           : Unsigned_64;
-       Microseconds : Unsigned_64) is
+       Microseconds : Unsigned_64)
+   is
       Ticks : constant Unsigned_64 := Microseconds * (Hz / 1000000);
    begin
       LAPIC_Timer_Stop;

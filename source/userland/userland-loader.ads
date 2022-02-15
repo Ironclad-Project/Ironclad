@@ -1,4 +1,4 @@
---  userland.ads: Specification of userland library.
+--  userland-loader.ads: Specification of the program loader.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,4 +14,18 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Userland is end Userland;
+with Scheduler;
+
+package Userland.Loader is
+   --  Load a file with an absolute path and set it up for execution.
+   --  Return the TID, or 0 if failure.
+   type Argument_Arr    is array (Positive range <>) of access String;
+   type Environment_Arr is array (Positive range <>) of access String;
+   function Start_User_ELF
+      (Path        : String;
+       Arguments   : Argument_Arr;
+       Environment : Environment_Arr;
+       StdIn       : String;
+       StdOut      : String;
+       StdErr      : String) return Scheduler.TID;
+end Userland.Loader;

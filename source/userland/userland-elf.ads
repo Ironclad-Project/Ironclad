@@ -20,15 +20,58 @@ with FS.File;
 with Memory.Virtual;
 
 package Userland.ELF is
-   --  Load an ELF from a file into memory with the passed base, and map it
-   --  into the passed map. Return parsed info about the ELF.
    type Parsed_ELF is record
       Was_Loaded  : Boolean;
       Entrypoint  : System.Address;
       Linker_Path : access String;
    end record;
+
+   --  Load an ELF from a file into memory with the passed base, and map it
+   --  into the passed map. Return parsed info about the ELF.
    function Load_ELF
       (File_D : FS.File.FD;
        Map    : in out Memory.Virtual.Page_Map;
        Base   : Unsigned_64) return Parsed_ELF;
+
+   --  Do the same as the one above but opens and closes the file for you.
+   function Open_And_Load_ELF
+      (Path : String;
+       Map  : in out Memory.Virtual.Page_Map;
+       Base : Unsigned_64) return Parsed_ELF;
+
+private
+
+   Program_Loadable_Segment    : constant := 1;
+   Program_Interpreter_Segment : constant := 3;
+   type Program_Header is record
+      Segment_Type    : Unsigned_32;
+      Flags           : Unsigned_32;
+      Offset          : Unsigned_64;
+      Virt_Address    : Unsigned_64;
+      Phys_Address    : System.Address;
+      File_Size_Bytes : Natural;
+      Mem_Size_Bytes  : Unsigned_64;
+      Alignment       : Unsigned_64;
+   end record;
+   for Program_Header use record
+      Segment_Type    at 0 range  0  ..  31;
+      Flags           at 0 range 32  ..  63;
+      Offset          at 0 range 64  .. 127;
+      Virt_Address    at 0 range 128 .. 191;
+      Phys_Address    at 0 range 192 .. 255;
+      File_Size_Bytes at 0 range 256 .. 319;
+      Mem_Size_Bytes  at 0 range 320 .. 383;
+      Alignment       at 0 range 384 .. 447;
+   end record;
+   for Program_Header'Size use 448;
+
+   function Get_Linker
+      (File_D : FS.File.FD;
+       Header : Program_Header) return access String;
+
+   procedure Load_Header
+      (File_D : FS.File.FD;
+       Header : Program_Header;
+       Map    : in out Memory.Virtual.Page_Map;
+       Base   : Unsigned_64);
 end Userland.ELF;

@@ -20,7 +20,8 @@ with System.Storage_Elements; use System.Storage_Elements;
 package body Lib.Cmdline is
    function Get_Parameter
       (Cmdline_Addr : System.Address;
-       Key          : String) return access String is
+       Key          : String) return access String
+   is
       Cmdline_Length : Natural := 0;
    begin
       --  Get the length of the C Cmdline.

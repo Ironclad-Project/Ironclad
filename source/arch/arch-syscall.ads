@@ -38,8 +38,8 @@ package Arch.Syscall is
       7 => Syscall_Sleep'Address,
       8 => Syscall_Sleep'Address,
       9 => Syscall_Sleep'Address
-   ) with Convention => C, Export => True, External_Name => "syscall_table";
+   ) with Export, Convention => C, External_Name => "syscall_table";
 
    procedure Syscall_Entry
-      with Import => True, External_Name => "syscall_entry";
+      with Import, External_Name => "syscall_entry";
 end Arch.Syscall;

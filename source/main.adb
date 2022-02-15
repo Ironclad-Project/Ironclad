@@ -34,7 +34,7 @@ with Lib.Panic;
 with Memory.Physical;
 with Memory.Virtual;
 with Config;
-with Userland;
+with Userland.Loader;
 with Scheduler; use Scheduler;
 
 package body Main is
@@ -150,8 +150,8 @@ package body Main is
       Cmdline_Addr : constant System.Address :=
          To_Address (To_Integer (Cmdline.Inner) + Memory.Memory_Offset);
       Init_Value       : access String;
-      Init_Arguments   : Userland.Argument_Arr (1 .. 0);
-      Init_Environment : Userland.Environment_Arr (1 .. 0);
+      Init_Arguments   : Userland.Loader.Argument_Arr (1 .. 0);
+      Init_Environment : Userland.Loader.Environment_Arr (1 .. 0);
    begin
       Lib.Messages.Put_Line ("Initializing FS subsystem");
       FS.Init;
@@ -180,7 +180,7 @@ package body Main is
          Lib.Messages.Put ("Booting init ");
          Lib.Messages.Put_Line (Init_Value.all);
 
-         if Userland.Start_User_ELF (Init_Value.all, Init_Arguments,
+         if Userland.Loader.Start_User_ELF (Init_Value.all, Init_Arguments,
             Init_Environment, "", "", "") = 0
          then
             Lib.Panic.Hard_Panic ("Could not start init");

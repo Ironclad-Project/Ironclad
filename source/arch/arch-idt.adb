@@ -72,10 +72,10 @@ package body Arch.IDT is
 
    --  Thunk list and the isr table, the thunk list containts a list of thunks
    --  to be loaded to the idt that directly call the elements in isr_table.
-   Thunk_List     : array (IDT_Index) of System.Address
-      with Import => True, External_Name => "interrupt_thunk_list";
-   ISR_Table      : array (IDT_Index) of System.Address
-      with Export => True, External_Name => "isr_table";
+   Thunk_List : array (IDT_Index) of System.Address
+      with Import, External_Name => "interrupt_thunk_list";
+   ISR_Table : array (IDT_Index) of System.Address
+      with Export, External_Name => "isr_table";
 
    procedure Init is
    begin

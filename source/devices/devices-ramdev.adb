@@ -91,7 +91,8 @@ package body Devices.Ramdev is
 
    function Init_Module
       (Module : Arch.Stivale2.Module;
-       Name   : Root_Name) return Root is
+       Name   : Root_Name) return Root
+   is
       Start : constant Virtual_Address := To_Integer (Module.Begin_Address);
       End2  : constant Virtual_Address := To_Integer (Module.End_Address);
       Data  : constant Ramdev_Data_Acc := new Ramdev_Data'(
@@ -150,7 +151,8 @@ package body Devices.Ramdev is
        Obj    : Object;
        Offset : System.Address;
        Count  : Positive;
-       Desto  : System.Address) return Natural is
+       Desto  : System.Address) return Natural
+   is
       Data2     : Ramdev_Data with Address => Data;
       Data_Addr : constant System.Address  := Data2.Start_Address;
       Data_Sz   : constant Natural         := Natural (Data2.Size);
@@ -246,7 +248,8 @@ package body Devices.Ramdev is
        Obj    : Object;
        Offset : System.Address;
        Count  : Positive;
-       Desto  : System.Address) return Natural is
+       Desto  : System.Address) return Natural
+   is
       Obj2      : Ramdev_Object with Address => Obj;
       Data_Addr : constant System.Address  := Obj2.Start;
       Data_Sz   : constant Natural         := Obj2.Size;

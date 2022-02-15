@@ -20,7 +20,7 @@ package body Devices.Streams is
    function Init return Boolean is
       Nulldev : constant Root := (
          Name   => "nulldev",
-         Data   => System'To_Address (0),
+         Data   => System.Null_Address,
          Init   => null,
          Unload => null,
          Sync   => null,
@@ -32,7 +32,7 @@ package body Devices.Streams is
       );
       Zerodev : constant Root := (
          Name   => "zerodev",
-         Data   => System'To_Address (0),
+         Data   => System.Null_Address,
          Init   => null,
          Unload => null,
          Sync   => null,
@@ -53,7 +53,8 @@ package body Devices.Streams is
        Obj    : Object;
        Offset : System.Address;
        Count  : Positive;
-       Desto  : System.Address) return Natural is
+       Desto  : System.Address) return Natural
+   is
       pragma Unreferenced (Data);
       pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
@@ -69,7 +70,8 @@ package body Devices.Streams is
        Obj      : Object;
        Offset   : System.Address;
        Count    : Positive;
-       To_Write : System.Address) return Natural is
+       To_Write : System.Address) return Natural
+   is
       pragma Unreferenced (Data);
       pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
@@ -84,7 +86,8 @@ package body Devices.Streams is
        Obj    : Object;
        Offset : System.Address;
        Count  : Positive;
-       Desto  : System.Address) return Natural is
+       Desto  : System.Address) return Natural
+   is
       Result : array (1 .. Count) of Unsigned_8 with Address => Desto;
       pragma Unreferenced (Data);
       pragma Unreferenced (Obj);
@@ -101,7 +104,8 @@ package body Devices.Streams is
        Obj      : Object;
        Offset   : System.Address;
        Count    : Positive;
-       To_Write : System.Address) return Natural is
+       To_Write : System.Address) return Natural
+   is
       pragma Unreferenced (Data);
       pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);

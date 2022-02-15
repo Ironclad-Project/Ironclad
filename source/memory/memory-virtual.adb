@@ -20,7 +20,8 @@ with Lib.Panic;
 package body Memory.Virtual is
    procedure Init
       (Memmap : access Arch.Stivale2.Memmap_Tag;
-       PMRs   : access Arch.Stivale2.PMR_Tag) is
+       PMRs   : access Arch.Stivale2.PMR_Tag)
+   is
       Index : Physical_Address := 0;
       Flags : constant Page_Flags :=
          (Present         => True,
@@ -119,7 +120,8 @@ package body Memory.Virtual is
        Virtual     : Virtual_Address;
        Physical    : Physical_Address;
        Flags       : Page_Flags;
-       Not_Execute : Boolean) is
+       Not_Execute : Boolean)
+   is
       Page_Address : Virtual_Address;
    begin
       Lib.Synchronization.Seize (Map.Mutex'Access);
@@ -143,7 +145,8 @@ package body Memory.Virtual is
        Physical    : Physical_Address;
        Length      : Unsigned_64;
        Flags       : Page_Flags;
-       Not_Execute : Boolean) is
+       Not_Execute : Boolean)
+   is
       PStart : constant Physical_Address := (Physical / Page_Size) * Page_Size;
       VStart : constant Virtual_Address  := (Virtual  / Page_Size) * Page_Size;
       I : Physical_Address := 0;

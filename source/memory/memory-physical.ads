@@ -25,10 +25,10 @@ package Memory.Physical is
    --  The malloc cannot return null, and the free cannot be passed null
    --  either. Those are Ada's rules.
    --  Allocated memory is always zero'ed out.
-   function Alloc (Size : Memory.Size) return Memory.Virtual_Address;
-   procedure Free (Address : Memory.Virtual_Address);
-   pragma Export (C, Alloc, "__gnat_malloc");
-   pragma Export (C, Free,  "__gnat_free");
+   function Alloc (Size : Memory.Size) return Memory.Virtual_Address
+      with Export, Convention => C, External_Name => "__gnat_malloc";
+   procedure Free (Address : Memory.Virtual_Address)
+      with Export, Convention => C, External_Name => "__gnat_free";
 
    --  Get statistics about the state of the memory allocator in bytes.
    procedure Get_Info (Total, Free, Used : out Memory.Size);

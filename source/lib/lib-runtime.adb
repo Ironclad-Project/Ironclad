@@ -1,4 +1,4 @@
---  lib-glue.adb: Calls generated for the compiler that we must fulfill.
+--  lib-runtime.adb: Functions needed by the compiler.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Lib.Messages;
 with Lib.Panic;
 
-package body Lib.Glue is
+package body Lib.Runtime is
    procedure Access_Check (File : System.Address; Line : Integer) is
    begin
       Print_Exception ("Access check failure", File, Line);
@@ -95,20 +95,20 @@ package body Lib.Glue is
    procedure Print_Exception
       (Message      : String;
        File_Address : System.Address;
-       Line_Number  : Integer) is
+       Line_Number  : Integer)
+   is
       File_Length : Integer := 0;
    begin
       --  Get length of the C string and turn it into Ada.
-      Find_Length :
       loop
          declare
             C : Character;
             for C'Address use File_Address + Storage_Offset (File_Length);
          begin
-            exit Find_Length when C = Ada.Characters.Latin_1.NUL;
+            exit when C = Ada.Characters.Latin_1.NUL;
             File_Length := File_Length + 1;
          end;
-      end loop Find_Length;
+      end loop;
 
       --  Declare the Ada string, print and panic.
       declare
@@ -123,4 +123,4 @@ package body Lib.Glue is
          Lib.Panic.Hard_Panic  (Message);
       end;
    end Print_Exception;
-end Lib.Glue;
+end Lib.Runtime;
