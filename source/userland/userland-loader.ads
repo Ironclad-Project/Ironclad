@@ -19,8 +19,6 @@ with Scheduler;
 package Userland.Loader is
    --  Load a file with an absolute path and set it up for execution.
    --  Return the TID, or 0 if failure.
-   type Argument_Arr    is array (Positive range <>) of access String;
-   type Environment_Arr is array (Positive range <>) of access String;
    function Start_User_ELF
       (Path        : String;
        Arguments   : Argument_Arr;

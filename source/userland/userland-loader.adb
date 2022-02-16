@@ -36,8 +36,6 @@ package body Userland.Loader is
       Loaded_ELF, LD_ELF : ELF.Parsed_ELF;
       Entrypoint : Virtual_Address;
       User_Map   : constant access Page_Map := Fork_Map (Kernel_Map.all);
-      Sched_Args : Scheduler.Arguments (1 .. 0);
-      Sched_Envp : Scheduler.Environment (1 .. 0);
    begin
       --  Create the pagemap and load the executable.
       Loaded_ELF := ELF.Open_And_Load_ELF (Path, User_Map.all, Program_Offset);
@@ -52,8 +50,8 @@ package body Userland.Loader is
 
       return Scheduler.Create_User_Thread
          (Address => Entrypoint,
-          Args    => Sched_Args,
-          Env     => Sched_Envp,
+          Args    => Arguments,
+          Env     => Environment,
           Map     => User_Map.all);
    end Start_User_ELF;
 end Userland.Loader;

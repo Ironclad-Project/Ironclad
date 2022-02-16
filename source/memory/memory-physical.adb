@@ -32,13 +32,16 @@ package body Memory.Physical is
    Bitmap_Address   : Virtual_Address := Null_Address;
    Bitmap_Last_Used : Unsigned_64     := 1;
 
-   Alloc_Mutex  : aliased Binary_Semaphore;
-   Free_Memory  : Memory.Size := 0;
-   Used_Memory  : Memory.Size := 0;
-   Total_Memory : Memory.Size := 0;
+   Alloc_Mutex : aliased Binary_Semaphore;
+   Is_Tracing  : Boolean;
+   Traced_Info : Allocator_Info;
 
    procedure Init_Allocator (Memmap : access Arch.Stivale2.Memmap_Tag) is
    begin
+      --  Initialize tracing.
+      Is_Tracing  := False;
+      Traced_Info := (0, 0, 0, 0, 0, 0);
+
       --  Count memory by just taking into account usable entries.
       --  We will also search for how big our bitmap must be, which is as big
       --  as the last usable memory entry.
@@ -46,17 +49,18 @@ package body Memory.Physical is
       --  reclaimable.
       for E of Memmap.Entries loop
          if E.EntryType = Arch.Stivale2.Memmap_Entry_Usable then
-            Free_Memory    := Free_Memory + E.Length;
-            Highest_Usable := Size (E.Base) + E.Length;
+            Traced_Info.Free_Memory := Traced_Info.Free_Memory + E.Length;
+            Highest_Usable          := Size (E.Base) + E.Length;
          else
-            Used_Memory := Used_Memory + E.Length;
+            Traced_Info.Used_Memory := Traced_Info.Used_Memory + E.Length;
          end if;
       end loop;
 
       --  The memmap is sorted, so total memory is the last entry's
       --  base + length.
-      Total_Memory := Size (Memmap.Entries (Memmap.Entries'Last).Base)
-                    + Memmap.Entries (Memmap.Entries'Last).Length;
+      Traced_Info.Total_Memory :=
+         Size (Memmap.Entries (Memmap.Entries'Last).Base)
+         + Memmap.Entries (Memmap.Entries'Last).Length;
 
       --  Calculate what we will need for the bitmap, and find a hole for it.
       Block_Count   := Unsigned_64 (Highest_Usable) / Block_Size;
@@ -70,8 +74,8 @@ package body Memory.Physical is
                Memmap.Entries (I).Length - Bitmap_Length;
             Memmap.Entries (I).Base   :=
                Memmap.Entries (I).Base   + Physical_Address (Bitmap_Length);
-            Free_Memory := Free_Memory - Bitmap_Length;
-            Used_Memory := Used_Memory + Bitmap_Length;
+            Traced_Info.Free_Memory := Traced_Info.Free_Memory - Bitmap_Length;
+            Traced_Info.Used_Memory := Traced_Info.Used_Memory + Bitmap_Length;
             exit;
          end if;
       end loop;
@@ -102,7 +106,7 @@ package body Memory.Physical is
          end loop;
       end;
 
-      --  Prepare the mutex.
+      --  Prepare the mutex and global default state.
       Lib.Synchronization.Release (Alloc_Mutex'Access);
    end Init_Allocator;
 
@@ -114,7 +118,7 @@ package body Memory.Physical is
       Blocks_To_Allocate : Memory.Size := Size / Block_Size;
    begin
       --  Check we can allocate at all.
-      if Size = 0 or Size > Free_Memory then
+      if Size = 0 or Size > Traced_Info.Free_Memory then
          goto Error_Return;
       end if;
 
@@ -162,9 +166,13 @@ package body Memory.Physical is
       Lib.Synchronization.Release (Alloc_Mutex'Access);
 
       --  Set statistic and global variables.
-      Bitmap_Last_Used := First_Found_Index;
-      Free_Memory      := Free_Memory - (Blocks_To_Allocate * Block_Size);
-      Used_Memory      := Used_Memory + (Blocks_To_Allocate * Block_Size);
+      Bitmap_Last_Used        := First_Found_Index;
+      Traced_Info.Free_Memory := Traced_Info.Free_Memory - Size;
+      Traced_Info.Used_Memory := Traced_Info.Used_Memory + Size;
+      if Is_Tracing then
+         Traced_Info.Total_Allocations := Traced_Info.Total_Allocations + 1;
+         Traced_Info.Still_To_Be_Freed := Traced_Info.Still_To_Be_Freed + 1;
+      end if;
 
       --  Zero out memory and return value.
       declare
@@ -193,15 +201,38 @@ package body Memory.Physical is
       --  first block. Blocks per address should be tracked and freed.
       Lib.Synchronization.Seize (Alloc_Mutex'Access);
       Bitmap_Body (Unsigned_64 (Index)) := Block_Free;
+
+      --  Set statistic variables
+      Traced_Info.Free_Memory := Traced_Info.Free_Memory + Block_Size;
+      Traced_Info.Used_Memory := Traced_Info.Used_Memory - Block_Size;
+      if Is_Tracing then
+         Traced_Info.Still_To_Be_Freed := Traced_Info.Still_To_Be_Freed - 1;
+      end if;
+
       Lib.Synchronization.Release (Alloc_Mutex'Access);
    end Free;
 
-   procedure Get_Info (Total, Free, Used : out Memory.Size) is
+   procedure Set_Tracing (Enable : Boolean) is
    begin
       Lib.Synchronization.Seize (Alloc_Mutex'Access);
-      Total := Total_Memory;
-      Free  := Free_Memory;
-      Used  := Used_Memory;
+      Is_Tracing := Enable;
+      Traced_Info := (
+         Total_Memory          => Traced_Info.Total_Memory,
+         Free_Memory           => Traced_Info.Free_Memory,
+         Used_Memory           => Traced_Info.Used_Memory,
+         Total_Allocations     => 0,
+         Still_To_Be_Freed     => 0,
+         Still_To_Be_Reclaimed => 0
+      );
       Lib.Synchronization.Release (Alloc_Mutex'Access);
+   end Set_Tracing;
+
+   function Get_Info return Allocator_Info is
+      Ret : Allocator_Info;
+   begin
+      Lib.Synchronization.Seize (Alloc_Mutex'Access);
+      Ret := Traced_Info;
+      Lib.Synchronization.Release (Alloc_Mutex'Access);
+      return Ret;
    end Get_Info;
 end Memory.Physical;

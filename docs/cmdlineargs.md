@@ -20,3 +20,4 @@ And must be passed as a NUL-terminated, C-style string.
 This are the keys and values the kernel takes, and under which circumstances:
 
 - `init=<path>`: Checked for an init program, if any.
+- `memtracking=enable`: Enables memory tracing at the expense of performance.

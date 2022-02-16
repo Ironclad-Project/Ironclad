@@ -35,6 +35,7 @@ with Memory.Physical;
 with Memory.Virtual;
 with Config;
 with Userland.Loader;
+with Userland;
 with Scheduler; use Scheduler;
 
 package body Main is
@@ -46,6 +47,7 @@ package body Main is
       package C3 is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
       package C4 is new System.Address_To_Access_Conversions (ST.PMR_Tag);
       package C5 is new System.Address_To_Access_Conversions (ST.SMP_Tag);
+      package C6 is new System.Address_To_Access_Conversions (ST.Cmdline_Tag);
 
       RSDP : constant access ST.RSDP_Tag :=
          C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.RSDP_ID)));
@@ -57,8 +59,13 @@ package body Main is
          C4.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.PMR_ID)));
       SMP : constant access ST.SMP_Tag :=
          C5.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.SMP_ID)));
+      Cmdline : constant access ST.Cmdline_Tag :=
+         C6.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Cmdline_ID)));
+      Cmdline_Addr : constant System.Address :=
+         To_Address (To_Integer (Cmdline.Inner) + Memory.Memory_Offset);
 
-      Total_Memory, Free_Memory, Used_Memory : Memory.Size;
+      Tracing_Value : access String;
+      Alloc_Info    : Memory.Physical.Allocator_Info;
    begin
       ST.Init_Terminal (Term);
       Lib.Messages.Put      (Config.Package_Name);
@@ -76,12 +83,12 @@ package body Main is
 
       Lib.Messages.Put_Line ("Initializing allocators");
       Memory.Physical.Init_Allocator (Memmap);
-      Memory.Physical.Get_Info (Total_Memory, Free_Memory, Used_Memory);
-      Lib.Messages.Put      (Unsigned_64 (Used_Memory));
+      Alloc_Info := Memory.Physical.Get_Info;
+      Lib.Messages.Put      (Unsigned_64 (Alloc_Info.Used_Memory));
       Lib.Messages.Put      (" used + ");
-      Lib.Messages.Put      (Unsigned_64 (Free_Memory));
+      Lib.Messages.Put      (Unsigned_64 (Alloc_Info.Free_Memory));
       Lib.Messages.Put      (" free / ");
-      Lib.Messages.Put      (Unsigned_64 (Total_Memory));
+      Lib.Messages.Put      (Unsigned_64 (Alloc_Info.Total_Memory));
       Lib.Messages.Put_Line (" memory used");
       for E of Memmap.Entries loop
          Lib.Messages.Put      ('[');
@@ -93,6 +100,12 @@ package body Main is
          Lib.Messages.Put_Line ("");
       end loop;
       Memory.Virtual.Init (Memmap, PMRs);
+
+      Tracing_Value := Lib.Cmdline.Get_Parameter (Cmdline_Addr, "memtracing");
+      if Tracing_Value /= null then
+         Lib.Messages.Put_Line ("Enabling memory tracing");
+         Memory.Physical.Set_Tracing (True);
+      end if;
 
       Lib.Messages.Put_Line ("Scanning ACPI tables");
       if not Arch.ACPI.ScanTables
@@ -150,8 +163,8 @@ package body Main is
       Cmdline_Addr : constant System.Address :=
          To_Address (To_Integer (Cmdline.Inner) + Memory.Memory_Offset);
       Init_Value       : access String;
-      Init_Arguments   : Userland.Loader.Argument_Arr (1 .. 0);
-      Init_Environment : Userland.Loader.Environment_Arr (1 .. 0);
+      Init_Arguments   : Userland.Argument_Arr (1 .. 0);
+      Init_Environment : Userland.Environment_Arr (1 .. 0);
    begin
       Lib.Messages.Put_Line ("Initializing FS subsystem");
       FS.Init;

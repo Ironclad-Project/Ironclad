@@ -14,4 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Userland is end Userland;
+package Userland is
+   --  Arguments passed to a program when created.
+   type Argument_Arr    is array (Positive range <>) of access String;
+   type Environment_Arr is array (Positive range <>) of access String;
+end Userland;

@@ -18,6 +18,7 @@ with Interfaces; use Interfaces;
 with Arch.Interrupts;
 with Memory.Virtual;
 with Memory; use Memory;
+with Userland;
 
 package Scheduler is
    --  True if the scheduler is initialized.
@@ -41,12 +42,10 @@ package Scheduler is
 
    --  Creates a userland thread, and queues it for execution.
    --  Return thread ID or 0 on failure.
-   type Arguments   is array (Positive range <>) of String (1 .. 20);
-   type Environment is array (Positive range <>) of String (1 .. 20);
    function Create_User_Thread
       (Address : Virtual_Address;
-       Args    : Arguments;
-       Env     : Environment;
+       Args    : Userland.Argument_Arr;
+       Env     : Userland.Environment_Arr;
        Map     : Memory.Virtual.Page_Map) return TID;
 
    --  Removes a thread, kernel or user, from existance (if it exists).

@@ -152,8 +152,8 @@ package body Scheduler is
 
    function Create_User_Thread
       (Address : Virtual_Address;
-       Args    : Arguments;
-       Env     : Environment;
+       Args    : Userland.Argument_Arr;
+       Env     : Userland.Environment_Arr;
        Map     : Memory.Virtual.Page_Map) return TID is
       New_TID : TID;
    begin
