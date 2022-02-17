@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Devices.Serial;
 with Devices.Streams;
 
 package body Devices is
@@ -22,5 +23,8 @@ package body Devices is
    begin
       --  Initialize virtual devices first.
       Discard := Streams.Init;
+
+      --  Initialize physical devices.
+      Discard := Serial.Init;
    end Init;
 end Devices;

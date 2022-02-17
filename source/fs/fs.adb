@@ -24,7 +24,7 @@ package body FS is
       Is_Present : Boolean;
       Contents   : Root;
    end record;
-   type Root_Container_Arr is array (1 .. 10) of Root_Container;
+   type Root_Container_Arr is array (1 .. 20) of Root_Container;
    Roots_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
    Roots       : access Root_Container_Arr;
 

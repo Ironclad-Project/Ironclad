@@ -42,7 +42,7 @@ package body FS.File is
    function Open (Name : String; Flags : Access_Mode) return FD is
       Returned_FD  : FD := Error_FD;
       Fetched_Root : FS.Root;
-      Fetched_Obj  : FS.Object;
+      Fetched_Obj  : FS.Object := System.Null_Address;
    begin
       --  Find an available file.
       Lib.Synchronization.Seize (File_Info_Lock'Access);
@@ -64,10 +64,12 @@ package body FS.File is
             Returned_FD := Error_FD;
             goto Returning;
          end if;
-         Fetched_Obj := Fetched_Root.Open.all (Fetched_Root.Data, Real_Nam);
-         if Fetched_Obj = System.Null_Address then
-            Returned_FD := Error_FD;
-            goto Returning;
+         if Real_Nam'Length /= 0 then
+            Fetched_Obj := Fetched_Root.Open.all (Fetched_Root.Data, Real_Nam);
+            if Fetched_Obj = System.Null_Address then
+               Returned_FD := Error_FD;
+               goto Returning;
+            end if;
          end if;
       end;
 
