@@ -37,13 +37,19 @@ package body Userland.Loader is
       Entrypoint : Virtual_Address;
       User_Map   : constant access Page_Map := Fork_Map (Kernel_Map.all);
    begin
-      --  Create the pagemap and load the executable.
+      --  Load the executable.
       Loaded_ELF := ELF.Open_And_Load_ELF (Path, User_Map.all, Program_Offset);
+      if not Loaded_ELF.Was_Loaded then
+         return 0;
+      end if;
 
       --  Load the interpreter if it's present, and set entrypoint.
       if Loaded_ELF.Linker_Path /= null then
          LD_ELF     := ELF.Open_And_Load_ELF (Path, User_Map.all, LD_Offset);
          Entrypoint := To_Integer (LD_ELF.Entrypoint);
+         if not LD_ELF.Was_Loaded then
+            return 0;
+         end if;
       else
          Entrypoint := To_Integer (Loaded_ELF.Entrypoint);
       end if;

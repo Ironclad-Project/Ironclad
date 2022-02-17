@@ -64,8 +64,8 @@ package body Main is
       Cmdline_Addr : constant System.Address :=
          To_Address (To_Integer (Cmdline.Inner) + Memory.Memory_Offset);
 
-      Tracing_Value : access String;
-      Alloc_Info    : Memory.Physical.Allocator_Info;
+      Is_Tracing : Boolean;
+      Alloc_Info : Memory.Physical.Allocator_Info;
    begin
       ST.Init_Terminal (Term);
       Lib.Messages.Put      (Config.Package_Name);
@@ -101,8 +101,8 @@ package body Main is
       end loop;
       Memory.Virtual.Init (Memmap, PMRs);
 
-      Tracing_Value := Lib.Cmdline.Get_Parameter (Cmdline_Addr, "memtracing");
-      if Tracing_Value /= null then
+      Is_Tracing := Lib.Cmdline.Is_Key_Present (Cmdline_Addr, "memtracing");
+      if Is_Tracing then
          Lib.Messages.Put_Line ("Enabling memory tracing");
          Memory.Physical.Set_Tracing (True);
       end if;

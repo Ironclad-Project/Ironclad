@@ -20,8 +20,8 @@ with Lib.Synchronization;
 package body Devices.Serial is
    --  COM ports, the first 2 ones are almost sure to be at that address, the
    --  rest are a bit spoty, so we must not forget to test all of them.
-   COM_Ports : constant array (1 .. 8) of Unsigned_16 :=
-      (16#3F8#, 16#2F8#, 16#3E8#, 16#2E8#, 16#5F8#, 16#4F8#, 16#5E8#, 16#4E8#);
+   COM_Ports : constant array (1 .. 4) of Unsigned_16 :=
+      (16#3F8#, 16#2F8#, 16#3E8#, 16#2E8#);
 
    --  Inner COM port root data.
    type COM_Root is record

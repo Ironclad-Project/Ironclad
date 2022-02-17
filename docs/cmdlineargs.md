@@ -7,17 +7,17 @@ bootloader.
 
 ## Format
 
-The format is the following:
+The format is a list of keys that can have arguments or not, as such:
 
 ```
-key1=value1 key2=value2 key3=value3
+key1=value1 key2 key3 ... keyN
 ```
 
-And must be passed as a NUL-terminated, C-style string.
+The list must be passed as a NUL-terminated, C-style string.
 
 ## Keys and values
 
 This are the keys and values the kernel takes, and under which circumstances:
 
 - `init=<path>`: Checked for an init program, if any.
-- `memtracking=enable`: Enables memory tracing at the expense of performance.
+- `memtracing`:  Enables memory tracing at the expense of performance.

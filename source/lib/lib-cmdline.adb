@@ -19,33 +19,20 @@ with System.Storage_Elements; use System.Storage_Elements;
 
 package body Lib.Cmdline is
    function Get_Parameter
-      (Cmdline_Addr : System.Address;
-       Key          : String) return access String
-   is
-      Cmdline_Length : Natural := 0;
+      (Address : System.Address;
+       Key     : String) return access String is
    begin
-      --  Get the length of the C Cmdline.
-      loop
-         declare
-            C : Character
-               with Address => Cmdline_Addr + Storage_Offset (Cmdline_Length);
-         begin
-            exit when C = Ada.Characters.Latin_1.NUL;
-            Cmdline_Length := Cmdline_Length + 1;
-         end;
-      end loop;
-
       --  Turn the C array to Ada and search for our key.
       declare
-         Cmdline : String (1 .. Cmdline_Length) with Address => Cmdline_Addr;
+         Cmdline : String (1 .. CStrlen (Address)) with Address => Address;
          Value_Start  : Natural := 0;
          Value_Length : Natural := 0;
       begin
-         for I in 1 .. Cmdline_Length loop
-            exit when Key'Length + I > Cmdline_Length;
+         for I in 1 .. Cmdline'Last loop
+            exit when Key'Length - 1 + I > Cmdline'Last;
             if Key = Cmdline (I .. Key'Last + I - 1) then
                Value_Start := I + Key'Length + 1;
-               for X in Value_Start .. Cmdline_Length loop
+               for X in Value_Start .. Cmdline'Last loop
                   exit when Cmdline (X) = ' ';
                   Value_Length := Value_Length + 1;
                end loop;
@@ -63,4 +50,36 @@ package body Lib.Cmdline is
          end return;
       end;
    end Get_Parameter;
+
+   function Is_Key_Present
+      (Address : System.Address;
+       Key     : String) return Boolean is
+   begin
+      --  Turn the C array to Ada and search for our key.
+      declare
+         Cmdline : String (1 .. CStrlen (Address)) with Address => Address;
+      begin
+         for I in 1 .. Cmdline'Last loop
+            exit when Key'Length - 1 + I > Cmdline'Last;
+            if Key = Cmdline (I .. Key'Last + I - 1) then
+               return True;
+            end if;
+         end loop;
+         return False;
+      end;
+   end Is_Key_Present;
+
+   function CStrlen (Address : System.Address) return Natural is
+      Length : Natural := 0;
+   begin
+      loop
+         declare
+            C : Character with Address => Address + Storage_Offset (Length);
+         begin
+            exit when C = Ada.Characters.Latin_1.NUL;
+            Length := Length + 1;
+         end;
+      end loop;
+      return Length;
+   end CStrlen;
 end Lib.Cmdline;
