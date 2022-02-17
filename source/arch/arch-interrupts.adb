@@ -17,30 +17,27 @@
 with System.Machine_Code;
 with Arch.APIC;
 with Lib.Panic;
+with Lib.Messages;
 
 package body Arch.Interrupts is
-   procedure DE_Handler is begin Lib.Panic.Hard_Panic ("#DE"); end DE_Handler;
-   procedure DB_Handler is begin Lib.Panic.Hard_Panic ("#DB"); end DB_Handler;
-   procedure BP_Handler is begin Lib.Panic.Hard_Panic ("#BP"); end BP_Handler;
-   procedure OF_Handler is begin Lib.Panic.Hard_Panic ("#OF"); end OF_Handler;
-   procedure BR_Handler is begin Lib.Panic.Hard_Panic ("#BR"); end BR_Handler;
-   procedure UD_Handler is begin Lib.Panic.Hard_Panic ("#UD"); end UD_Handler;
-   procedure NM_Handler is begin Lib.Panic.Hard_Panic ("#NM"); end NM_Handler;
-   procedure DF_Handler is begin Lib.Panic.Hard_Panic ("#DF"); end DF_Handler;
-   procedure TS_Handler is begin Lib.Panic.Hard_Panic ("#TS"); end TS_Handler;
-   procedure NP_Handler is begin Lib.Panic.Hard_Panic ("#NP"); end NP_Handler;
-   procedure SS_Handler is begin Lib.Panic.Hard_Panic ("#SS"); end SS_Handler;
-   procedure GP_Handler is begin Lib.Panic.Hard_Panic ("#GP"); end GP_Handler;
-   procedure PF_Handler is begin Lib.Panic.Hard_Panic ("#PF"); end PF_Handler;
-   procedure MF_Handler is begin Lib.Panic.Hard_Panic ("#MF"); end MF_Handler;
-   procedure AC_Handler is begin Lib.Panic.Hard_Panic ("#AC"); end AC_Handler;
-   procedure MC_Handler is begin Lib.Panic.Hard_Panic ("#MC"); end MC_Handler;
-   procedure XM_Handler is begin Lib.Panic.Hard_Panic ("#XM"); end XM_Handler;
-   procedure VE_Handler is begin Lib.Panic.Hard_Panic ("#VE"); end VE_Handler;
-   procedure CP_Handler is begin Lib.Panic.Hard_Panic ("#CP"); end CP_Handler;
-   procedure HV_Handler is begin Lib.Panic.Hard_Panic ("#HV"); end HV_Handler;
-   procedure VC_Handler is begin Lib.Panic.Hard_Panic ("#VC"); end VC_Handler;
-   procedure SX_Handler is begin Lib.Panic.Hard_Panic ("#SX"); end SX_Handler;
+   procedure Exception_Handler (Number : Integer; State : access ISR_GPRs) is
+      Exception_Text : constant array (0 .. 30) of String (1 .. 3) := (
+         0  => "#DE", 1  => "#DB", 2  => "???", 3  => "#BP",
+         4  => "#OF", 5  => "#BR", 6  => "#UD", 7  => "#NM",
+         8  => "#DF", 9  => "???", 10 => "#TS", 11 => "#NP",
+         12 => "#SS", 13 => "#GP", 14 => "#PF", 15 => "???",
+         16 => "#MF", 17 => "#AC", 18 => "#MC", 19 => "#XM",
+         20 => "#VE", 21 => "#CP", 22 .. 27 => "???",
+         28 => "#HV", 29 => "#VC", 30 => "#SX"
+      );
+   begin
+      if State.Error_Code /= 0 then
+         Lib.Messages.Put ("Error code: ");
+         Lib.Messages.Put (State.Error_Code, False, True);
+         Lib.Messages.Put_Line ("");
+      end if;
+      Lib.Panic.Hard_Panic (Exception_Text (Number));
+   end Exception_Handler;
 
    procedure Set_Interrupt_Flag (Enable : Boolean) is
       package SM renames System.Machine_Code;

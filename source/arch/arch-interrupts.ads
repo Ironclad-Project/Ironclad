@@ -72,29 +72,9 @@ package Arch.Interrupts is
    end record;
    for ISR_GPRs'Size use 1472;
 
-   --  Handlers for exceptions.
-   procedure DE_Handler;
-   procedure DB_Handler;
-   procedure BP_Handler;
-   procedure OF_Handler;
-   procedure BR_Handler;
-   procedure UD_Handler;
-   procedure NM_Handler;
-   procedure DF_Handler;
-   procedure TS_Handler;
-   procedure NP_Handler;
-   procedure SS_Handler;
-   procedure GP_Handler;
-   procedure PF_Handler;
-   procedure MF_Handler;
-   procedure AC_Handler;
-   procedure MC_Handler;
-   procedure XM_Handler;
-   procedure VE_Handler;
-   procedure CP_Handler;
-   procedure HV_Handler;
-   procedure VC_Handler;
-   procedure SX_Handler;
+   --  Generic handler for exceptions.
+   procedure Exception_Handler (Number : Integer; State : access ISR_GPRs)
+      with Convention => C;
 
    --  Enable or disable interrupts for the callee core.
    procedure Set_Interrupt_Flag (Enable : Boolean);

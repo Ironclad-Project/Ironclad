@@ -21,7 +21,6 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Arch.APIC;
 with Arch.GDT;
 with Arch.Interrupts;
-with Lib.Panic;
 
 package body Arch.IDT is
    --  Records for the GDT structure and its entries.
@@ -87,35 +86,13 @@ package body Arch.IDT is
       end loop;
 
       --  Load exceptions.
-      Load_ISR  (1, Interrupts.DE_Handler'Address);
-      Load_ISR  (2, Interrupts.DB_Handler'Address);
-      Load_ISR  (4, Interrupts.BP_Handler'Address);
-      Load_ISR  (5, Interrupts.OF_Handler'Address);
-      Load_ISR  (6, Interrupts.BR_Handler'Address);
-      Load_ISR  (7, Interrupts.UD_Handler'Address);
-      Load_ISR  (8, Interrupts.NM_Handler'Address);
-      Load_ISR  (9, Interrupts.DF_Handler'Address);
-      Load_ISR (11, Interrupts.TS_Handler'Address);
-      Load_ISR (12, Interrupts.NP_Handler'Address);
-      Load_ISR (13, Interrupts.SS_Handler'Address);
-      Load_ISR (14, Interrupts.GP_Handler'Address);
-      Load_ISR (15, Interrupts.PF_Handler'Address);
-      Load_ISR (17, Interrupts.MF_Handler'Address);
-      Load_ISR (18, Interrupts.AC_Handler'Address);
-      Load_ISR (19, Interrupts.MC_Handler'Address);
-      Load_ISR (20, Interrupts.XM_Handler'Address);
-      Load_ISR (21, Interrupts.VE_Handler'Address);
-      Load_ISR (22, Interrupts.CP_Handler'Address);
-      Load_ISR (29, Interrupts.HV_Handler'Address);
-      Load_ISR (30, Interrupts.VC_Handler'Address);
-      Load_ISR (31, Interrupts.SX_Handler'Address);
+      for I in IDT_Index (1) .. IDT_Index (31) loop
+         Load_ISR (I, Interrupts.Exception_Handler'Address);
+      end loop;
 
       --  Some special entries for several hardcoded hardware.
       Load_ISR (APIC.LAPIC_Spurious_Entry,
                 Interrupts.Spurious_Handler'Address);
-
-      Load_ISR (Lib.Panic.Panic_Vector,
-                Lib.Panic.Panic_Handler'Address);
 
       --  Prepare the pointer and load the IDT.
       Global_Pointer := (Global_IDT'Size - 1, Global_IDT'Address);
@@ -125,7 +102,7 @@ package body Arch.IDT is
    procedure Load_IDT is
    begin
       Asm ("lidt %0",
-           Inputs   => IDT_Pointer'Asm_Input ("m",  Global_Pointer),
+           Inputs   => IDT_Pointer'Asm_Input ("m", Global_Pointer),
            Clobber  => "memory",
            Volatile => True);
    end Load_IDT;

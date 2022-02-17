@@ -15,8 +15,9 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Lib.Panic is
-   --  Handler index to hardcode the panic handler to be to.
-   Panic_Vector : constant := 16#69#;
+   --  Initialize panic core propagation, by installing handlers and others.
+   --  Its not necessary to call this for enabling panicking.
+   procedure Enable_Panic_Propagation;
 
    --  Warns about a weird situation, but doesnt die like a hard panic would.
    procedure Soft_Panic (Message : String);
@@ -25,6 +26,7 @@ package Lib.Panic is
    procedure Hard_Panic (Message : String);
    pragma No_Return (Hard_Panic);
 
-   --  Handler to be installed at Panic_Vector.
+private
+
    procedure Panic_Handler;
 end Lib.Panic;

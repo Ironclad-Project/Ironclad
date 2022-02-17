@@ -16,13 +16,23 @@
 
 with Arch.APIC;
 with Arch.CPU;
+with Arch.IDT;
 with Arch.Interrupts;
 with Lib.Messages;
 with Lib.Synchronization;
 
 package body Lib.Panic is
    Already_Soft_Panicked : Boolean := False;
+   Is_Propagated         : Boolean := False;
+   Panic_Vector          : Arch.IDT.IRQ_Index;
    Panic_Mutex           : aliased Synchronization.Binary_Semaphore;
+
+   procedure Enable_Panic_Propagation is
+   begin
+      --  Set an interrupt for software IPIs to call for panic.
+      Is_Propagated := Arch.IDT.Load_ISR (Panic_Handler'Address, Panic_Vector);
+      Lib.Synchronization.Release (Panic_Mutex'Access);
+   end Enable_Panic_Propagation;
 
    procedure Soft_Panic (Message : String) is
    begin
@@ -38,18 +48,23 @@ package body Lib.Panic is
    end Soft_Panic;
 
    procedure Hard_Panic (Message : String) is
-      Current_Core : constant Positive := Arch.CPU.Get_Core_Number;
    begin
       --  Ensure only this core panics.
       Synchronization.Seize (Panic_Mutex'Access);
 
       --  Tell the rest of the cores to go take a nap, forever.
-      for I in Arch.CPU.Core_LAPICs.all'First .. Arch.CPU.Core_LAPICs.all'Last
-      loop
-         if I /= Current_Core then
-            Arch.APIC.LAPIC_Send_IPI (Arch.CPU.Core_LAPICs (I), Panic_Vector);
-         end if;
-      end loop;
+      if Is_Propagated then
+         declare
+            Current_Core : constant Positive := Arch.CPU.Get_Core_Number;
+         begin
+            for I in Arch.CPU.Core_LAPICs.all'Range loop
+               if I /= Current_Core then
+                  Arch.APIC.LAPIC_Send_IPI
+                     (Arch.CPU.Core_LAPICs (I), Panic_Vector);
+               end if;
+            end loop;
+         end;
+      end if;
 
       --  Print the error and lights out.
       Lib.Messages.Put      ("Hard panic requested: ");

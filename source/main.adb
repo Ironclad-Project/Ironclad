@@ -122,6 +122,7 @@ package body Main is
 
       Lib.Messages.Put_Line ("Initialize cores");
       Arch.CPU.Init_Cores (SMP);
+      Lib.Panic.Enable_Panic_Propagation;
 
       Lib.Messages.Put_Line ("Initializing timers");
       if not Arch.PIT.Init then
