@@ -148,6 +148,7 @@ package Memory.Virtual is
        Virtual : Virtual_Address;
        Flags   : Page_Flags);
    function Fork_Map (Map : Page_Map) return access Page_Map;
+   function Is_Loaded (Map : Page_Map) return Boolean;
 
    --  Map meant to be used for all cores for kernel code.
    type Page_Map_Acc is access Page_Map;

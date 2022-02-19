@@ -181,7 +181,7 @@ package body Memory.Physical is
          Pool : array (1 .. Unsigned_64 (Size)) of Unsigned_8;
          for Pool'Address use To_Address (Addr);
       begin
-         for I in Pool'First .. Pool'Last loop
+         for I in Pool'Range loop
             Pool (I) := 0;
          end loop;
          return Addr;

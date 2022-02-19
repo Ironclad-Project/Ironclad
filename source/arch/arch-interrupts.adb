@@ -36,6 +36,9 @@ package body Arch.Interrupts is
          Lib.Messages.Put (State.Error_Code, False, True);
          Lib.Messages.Put_Line ("");
       end if;
+      Lib.Messages.Put ("RIP: ");
+      Lib.Messages.Put (State.RIP, False, True);
+      Lib.Messages.Put_Line ("");
       Lib.Panic.Hard_Panic (Exception_Text (Number));
    end Exception_Handler;
 

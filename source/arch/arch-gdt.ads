@@ -14,7 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Memory; use Memory;
+with System;
+with Interfaces; use Interfaces;
 
 package Arch.GDT is
    --  Indexes of the corresponding segments in the GDT.
@@ -31,5 +32,39 @@ package Arch.GDT is
    procedure Load_GDT;
 
    --  Load an address on the active TSS of the GDT.
-   procedure Load_TSS (Address : Virtual_Address);
+   type TSS is record
+      Unused0     : Unsigned_32;
+      Stack_Ring0 : System.Address;
+      Stack_Ring1 : System.Address;
+      Stack_Ring2 : System.Address;
+      Unused1     : Unsigned_64;
+      IST1        : System.Address;
+      IST2        : System.Address;
+      IST3        : System.Address;
+      IST4        : System.Address;
+      IST5        : System.Address;
+      IST6        : System.Address;
+      IST7        : System.Address;
+      Unused2     : Unsigned_64;
+      IOPB        : Unsigned_32;
+   end record;
+   for TSS use record
+      Unused0     at 0 range   0 .. 31;
+      Stack_Ring0 at 0 range  32 .. 95;
+      Stack_Ring1 at 0 range  96 .. 159;
+      Stack_Ring2 at 0 range 160 .. 223;
+      Unused1     at 0 range 224 .. 287;
+      IST1        at 0 range 288 .. 351;
+      IST2        at 0 range 352 .. 415;
+      IST3        at 0 range 416 .. 479;
+      IST4        at 0 range 480 .. 543;
+      IST5        at 0 range 544 .. 607;
+      IST6        at 0 range 608 .. 671;
+      IST7        at 0 range 672 .. 735;
+      Unused2     at 0 range 736 .. 799;
+      IOPB        at 0 range 800 .. 831;
+   end record;
+   for TSS'Size use 832;
+
+   procedure Load_TSS (Address : System.Address);
 end Arch.GDT;

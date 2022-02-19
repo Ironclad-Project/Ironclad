@@ -14,9 +14,10 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces;             use Interfaces;
-with System.Machine_Code;    use System.Machine_Code;
-with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
+with System.Machine_Code;     use System.Machine_Code;
+with System.Storage_Elements; use System.Storage_Elements;
+with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
+with Lib.Synchronization;
 
 package body Arch.GDT is
    --  Records for the GDT structure and its entries.
@@ -87,6 +88,7 @@ package body Arch.GDT is
    --  Global variables for the GDT and its pointer.
    Global_GDT     : GDT;
    Global_Pointer : GDT_Pointer;
+   TSS_Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
 
    procedure Init is
    begin
@@ -108,6 +110,9 @@ package body Arch.GDT is
       --  Set GDT Pointer and load the GDT for the current core.
       Global_Pointer := (Global_GDT'Size - 1, Global_GDT'Address);
       Load_GDT;
+
+      --  Free the TSS lock.
+      Lib.Synchronization.Release (TSS_Mutex'Access);
    end Init;
 
    procedure Load_GDT is
@@ -132,13 +137,15 @@ package body Arch.GDT is
            Volatile => True);
    end Load_GDT;
 
-   procedure Load_TSS (Address : Virtual_Address) is
-      Addr  : constant Unsigned_64 := Unsigned_64 (Address);
+   procedure Load_TSS (Address : System.Address) is
+      Addr  : constant Unsigned_64 := Unsigned_64 (To_Integer (Address));
       Low16 : constant Unsigned_64 := Addr                   and 16#FFFF#;
       Mid8  : constant Unsigned_64 := Shift_Right (Addr, 16) and 16#FF#;
       High8 : constant Unsigned_64 := Shift_Right (Addr, 24) and 16#FF#;
       Up32  : constant Unsigned_64 := Shift_Right (Addr, 32) and 16#FFFFFFFF#;
    begin
+      Lib.Synchronization.Seize (TSS_Mutex'Access);
+
       Global_GDT.TSS := (
          Limit         => 103,
          Base_Low_16   => Unsigned_16 (Low16),
@@ -154,5 +161,7 @@ package body Arch.GDT is
            Inputs   => Unsigned_16'Asm_Input ("rm", TSS_Segment),
            Clobber  => "memory",
            Volatile => True);
+
+      Lib.Synchronization.Release (TSS_Mutex'Access);
    end Load_TSS;
 end Arch.GDT;

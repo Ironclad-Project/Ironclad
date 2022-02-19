@@ -30,20 +30,22 @@ package body Scheduler is
    type Core_Local_Info is record
       LAPIC_Timer_Hz : Unsigned_64;
       Current_TID    : TID;
+      Core_TSS       : Arch.GDT.TSS;
    end record;
    type Cores_Local_Info is array (Positive range <>) of Core_Local_Info;
    type Cores_Local_Info_Acc is access Cores_Local_Info;
 
    --  Thread information.
    type Thread_Info is record
-      State      : Arch.Interrupts.ISR_GPRs;
-      Is_Present : Boolean;
-      Is_Banned  : Boolean;
-      Is_Running : Boolean;
-      Preference : Unsigned_8;
-      FS         : Unsigned_64;
-      PageMap    : Memory.Virtual.Page_Map;
-      Stack      : Virtual_Address;
+      State        : Arch.Interrupts.ISR_GPRs;
+      Is_Present   : Boolean;
+      Is_Banned    : Boolean;
+      Is_Running   : Boolean;
+      Preference   : Unsigned_8;
+      FS           : Unsigned_64;
+      PageMap      : Memory.Virtual.Page_Map;
+      Stack        : Virtual_Address;
+      Kernel_Stack : Virtual_Address;
    end record;
    type Thread_Info_Arr is array (TID range 1 .. 256) of Thread_Info;
 
@@ -94,6 +96,7 @@ package body Scheduler is
       if Core_Locals (I).LAPIC_Timer_Hz = 0 then
          Core_Locals (I).LAPIC_Timer_Hz := Arch.APIC.LAPIC_Timer_Calibrate;
          Core_Locals (I).Current_TID    := 0;
+         Arch.GDT.Load_TSS (Core_Locals (I).Core_TSS'Address);
       end if;
 
       declare
@@ -169,9 +172,14 @@ package body Scheduler is
       declare
          type Stack is array (1 .. Stack_Size) of Unsigned_8;
          type Stack_Acc is access Stack;
-         New_Stack : constant Stack_Acc := new Stack;
+         New_Stack        : constant Stack_Acc := new Stack;
+         New_Kernel_Stack : constant Stack_Acc := new Stack;
          Stack_Addr : constant Virtual_Address :=
             To_Integer (New_Stack.all'Address) + Stack_Size;
+         KStack_Addr : constant Virtual_Address :=
+            To_Integer (New_Kernel_Stack.all'Address) + Stack_Size;
+         RSP_Val : constant Unsigned_64 :=
+            Unsigned_64 (Stack_Addr) - Memory_Offset;
       begin
          Thread_Pool (New_TID).Is_Present   := True;
          Thread_Pool (New_TID).Is_Banned    := False;
@@ -179,16 +187,17 @@ package body Scheduler is
          Thread_Pool (New_TID).Preference   := 4;
          Thread_Pool (New_TID).PageMap      := Map;
          Thread_Pool (New_TID).Stack        := Stack_Addr;
-         Thread_Pool (New_TID).State.CS     := Arch.GDT.User_Code64_Segment;
-         Thread_Pool (New_TID).State.DS     := Arch.GDT.User_Data64_Segment;
-         Thread_Pool (New_TID).State.ES     := Arch.GDT.User_Data64_Segment;
-         Thread_Pool (New_TID).State.SS     := Arch.GDT.User_Data64_Segment;
+         Thread_Pool (New_TID).Kernel_Stack := KStack_Addr;
+         Thread_Pool (New_TID).State.CS   := Arch.GDT.User_Code64_Segment or 3;
+         Thread_Pool (New_TID).State.DS   := Arch.GDT.User_Data64_Segment or 3;
+         Thread_Pool (New_TID).State.ES   := Arch.GDT.User_Data64_Segment or 3;
+         Thread_Pool (New_TID).State.SS   := Arch.GDT.User_Data64_Segment or 3;
          Thread_Pool (New_TID).State.RFLAGS := 16#202#;
          Thread_Pool (New_TID).State.RIP    := Unsigned_64 (Address);
          Thread_Pool (New_TID).State.RBP    := 0;
-         Thread_Pool (New_TID).State.RSP    := Unsigned_64 (Stack_Addr);
+         Thread_Pool (New_TID).State.RSP    := RSP_Val;
 
-         --  Map the stack.
+         --  Map the stacks.
          Memory.Virtual.Map_Range (
             Thread_Pool (New_TID).PageMap,
             16#C0000000000#,
@@ -260,13 +269,20 @@ package body Scheduler is
       return 0;
    end Find_Free_TID;
 
-   procedure Scheduler_ISR (State : access Arch.Interrupts.ISR_GPRs) is
+   procedure Scheduler_ISR
+      (Number : Unsigned_32;
+       State  : access Arch.Interrupts.ISR_GPRs)
+   is
       Core : constant Positive    := Arch.CPU.Get_Core_Number;
       Hz   : constant Unsigned_64 := Core_Locals (Core).LAPIC_Timer_Hz;
       Current_TID : TID;
       Next_TID    : TID;
+      pragma Unreferenced (Number);
    begin
       if Lib.Synchronization.Try_Seize (Scheduler_Mutex'Access) = False then
+         Arch.APIC.LAPIC_EOI;
+         Arch.APIC.LAPIC_Timer_Stop;
+         Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector, Hz, 20000);
          return;
       end if;
 
@@ -320,8 +336,13 @@ package body Scheduler is
 
       --  Rearm the timer for next tick.
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
-      Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector, Hz, 20000);
+      Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector, Hz,
+         Preference_Slices (Thread_Pool (Next_TID).Preference));
       Arch.APIC.LAPIC_EOI;
+
+      --  Load kernel stack in the TSS.
+      Core_Locals (Core).Core_TSS.Stack_Ring0 :=
+         To_Address (Thread_Pool (Next_TID).Kernel_Stack);
 
       --  Reset state.
       Memory.Virtual.Make_Active (Thread_Pool (Next_TID).PageMap);

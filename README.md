@@ -1,6 +1,8 @@
-# Ironclad
+<p align="center">
+    <img height="300" alt="Seal of approval" src="banner.png"/>
+</p>
 
-<img align="center" height="300" alt="Seal of approval" src="banner.png"/>
+# Ironclad
 
 Ironclad is a kernel for x86_64 devices exclusively (for now), written in Ada.
 

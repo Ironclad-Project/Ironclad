@@ -64,6 +64,8 @@ package Scheduler is
 
 private
    function Find_Free_TID return TID;
-   procedure Scheduler_ISR (State : access Arch.Interrupts.ISR_GPRs);
+   procedure Scheduler_ISR
+      (Number : Unsigned_32;
+       State  : access Arch.Interrupts.ISR_GPRs);
    function Is_Thread_Present (Thread : TID) return Boolean;
 end Scheduler;

@@ -18,6 +18,8 @@ with System.Machine_Code;     use System.Machine_Code;
 with System.Storage_Elements; use System.Storage_Elements;
 with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with System.Address_To_Access_Conversions;
+with Arch.Wrappers;
+with Memory.Virtual; use Memory.Virtual;
 
 package body Arch.Stivale2 is
 
@@ -61,7 +63,21 @@ package body Arch.Stivale2 is
 
    procedure Inner_Terminal (Message : System.Address; Length : Natural) is
    begin
-      if Terminal_Enabled then
+      if not Terminal_Enabled then
+         return;
+      end if;
+
+      declare
+         Current_CR3 : constant Unsigned_64 := Wrappers.Read_CR3;
+      begin
+         --  Ensure we are using the kernel pagemap, as the lower half needs
+         --  to be identity mapped, and only the kernel pagemap does that.
+         if Kernel_Map /= null and then
+            not Memory.Virtual.Is_Loaded (Kernel_Map.all)
+         then
+            Make_Active (Kernel_Map.all);
+         end if;
+
          Asm ("push %%rdi" & LF & HT &
               "push %%rsi" & LF & HT &
               "call *%0"   & LF & HT &
@@ -72,6 +88,12 @@ package body Arch.Stivale2 is
                          Natural'Asm_Input          ("S",  Length)),
               Clobber  => "rax, rdx, rcx, r8, r9, r10, r11, memory",
               Volatile => True);
-      end if;
+
+         if Kernel_Map /= null and then
+            not Memory.Virtual.Is_Loaded (Kernel_Map.all)
+         then
+            Wrappers.Write_CR3 (Current_CR3);
+         end if;
+      end;
    end Inner_Terminal;
 end Arch.Stivale2;

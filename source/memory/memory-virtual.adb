@@ -210,6 +210,13 @@ package body Memory.Virtual is
       return Returned;
    end Fork_Map;
 
+   function Is_Loaded (Map : Page_Map) return Boolean is
+      Current : constant Unsigned_64 := Arch.Wrappers.Read_CR3;
+      PAddr : constant Integer_Address := To_Integer (Map.PML4_Level'Address);
+   begin
+      return Current = Unsigned_64 (PAddr - Memory_Offset);
+   end Is_Loaded;
+
    function Get_Address_Components
       (Virtual : Virtual_Address) return Address_Components is
       Addr   : constant Unsigned_64 := Unsigned_64 (Virtual);

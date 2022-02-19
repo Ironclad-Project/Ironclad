@@ -82,6 +82,10 @@ package body Userland.ELF is
          PHDRs : array (1 .. Header.Program_Header_Count) of Program_Header;
          HSize : constant Natural := Natural (Header.Program_Header_Size);
       begin
+         if HSize = 0 or PHDRs'Length = 0 then
+            return Result;
+         end if;
+
          FS.File.Set_Index (File_D, Natural (Header.Program_Header_List));
          FS.File.Read (File_D, HSize * PHDRs'Length, PHDRs'Address);
          if FS.File.Is_Error (File_D) then

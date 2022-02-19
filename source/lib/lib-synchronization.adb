@@ -16,40 +16,53 @@
 
 with System;
 with System.Machine_Code; use System.Machine_Code;
+with Lib.Messages;
+with Lib.Panic;
 
 package body Lib.Synchronization is
-   Semaphore_Locked : constant Binary_Semaphore := True;
-   Semaphore_Free   : constant Binary_Semaphore := False;
+   Semaphore_Locked : constant Boolean := True;
+   Semaphore_Free   : constant Boolean := False;
 
    procedure Seize (Semaphore : access Binary_Semaphore) is
    begin
-      loop
-         exit when Try_Seize (Semaphore);
+      for I in 1 .. 50000000 loop
+         if Try_Seize (Semaphore) then
+            Semaphore.Caller := Get_Caller_Address (0);
+            return;
+         end if;
       end loop;
+
+      Lib.Messages.Put ("Deadlock at address: ");
+      Lib.Messages.Put (Semaphore.Caller);
+      Lib.Messages.Put_Line ("");
+      Lib.Panic.Hard_Panic ("Deadlocked!");
    end Seize;
 
    procedure Release (Semaphore : access Binary_Semaphore) is
-      Write_This : Binary_Semaphore := Semaphore_Free;
+      Write_This : Boolean := Semaphore_Free;
    begin
       Asm ("lock; xchg %1, %0",
-           Outputs  => Binary_Semaphore'Asm_Output ("+r", Write_This),
-           Inputs   => Binary_Semaphore'Asm_Input ("m", Semaphore.all),
+           Outputs  => Boolean'Asm_Output ("+r", Write_This),
+           Inputs   => Boolean'Asm_Input ("m", Semaphore.Is_Locked),
            Clobber  => "memory",
            Volatile => True);
    end Release;
 
    function Try_Seize (Semaphore : access Binary_Semaphore) return Boolean is
-      If_This    : Binary_Semaphore          := Semaphore_Free;
-      Write_This : constant Binary_Semaphore := Semaphore_Locked;
-      Did_Change : Boolean                   := False;
+      If_This    : Boolean          := Semaphore_Free;
+      Write_This : constant Boolean := Semaphore_Locked;
+      Did_Change : Boolean          := False;
    begin
       Asm ("lock; cmpxchg %3, %1; setz %2",
-           Outputs  => (Binary_Semaphore'Asm_Output ("+a", If_This),
-                        Binary_Semaphore'Asm_Output ("+m", Semaphore.all),
-                        Boolean'Asm_Output          ("=r", Did_Change)),
-           Inputs   => Binary_Semaphore'Asm_Input ("r",  Write_This),
+           Outputs  => (Boolean'Asm_Output ("+a", If_This),
+                        Boolean'Asm_Output ("+m", Semaphore.Is_Locked),
+                        Boolean'Asm_Output ("=r", Did_Change)),
+           Inputs   => Boolean'Asm_Input ("r",  Write_This),
            Clobber  => "memory, cc",
            Volatile => True);
+      if Did_Change then
+         Semaphore.Caller := Get_Caller_Address (0);
+      end if;
       return Did_Change;
    end Try_Seize;
 end Lib.Synchronization;

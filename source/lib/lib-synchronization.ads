@@ -14,10 +14,22 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System;
+with Interfaces; use Interfaces;
+
 package Lib.Synchronization is
    --  A simple binary semaphore.
-   type Binary_Semaphore is new Boolean with Volatile, Atomic;
+   type Binary_Semaphore is record
+      Is_Locked : Boolean;
+      Caller    : System.Address;
+   end record;
+
    procedure Seize (Semaphore : access Binary_Semaphore);
    procedure Release (Semaphore : access Binary_Semaphore);
    function Try_Seize (Semaphore : access Binary_Semaphore) return Boolean;
+
+private
+
+   function Get_Caller_Address (Depth : Unsigned_32) return System.Address;
+   pragma Import (Intrinsic, Get_Caller_Address, "__builtin_return_address");
 end Lib.Synchronization;
