@@ -92,7 +92,7 @@ package body Arch.IDT is
       end loop;
 
       --  Some special entries for several hardcoded hardware and syscalls.
-      Load_ISR (16#80#, Syscall.Syscall_Handler'Address);
+      Load_ISR (16#81#, Syscall.Syscall_Handler'Address, True);
       Load_ISR (APIC.LAPIC_Spurious_Entry,
                 Interrupts.Spurious_Handler'Address);
 
@@ -109,19 +109,29 @@ package body Arch.IDT is
            Volatile => True);
    end Load_IDT;
 
-   procedure Load_ISR (Index : IDT_Index; Address : System.Address) is
+   procedure Load_ISR
+      (Index      : IDT_Index;
+       Address    : System.Address;
+       Allow_User : Boolean := False) is
    begin
       ISR_Table (Index) := Address;
+      if Allow_User then
+         Global_IDT (Index).DPL := 3;
+      else
+         Global_IDT (Index).DPL := 0;
+      end if;
    end Load_ISR;
 
-   function Load_ISR (Address : System.Address;
-                      Index : out IRQ_Index) return Boolean is
+   function Load_ISR
+      (Address    : System.Address;
+       Index      : out IRQ_Index;
+       Allow_User : Boolean := False) return Boolean is
    begin
       --  Allocate an interrupt in the IRQ region.
       for I in IRQ_Index loop
          if ISR_Table (I) = Interrupts.Default_ISR_Handler'Address then
             Index := I;
-            Load_ISR (I, Address);
+            Load_ISR (I, Address, Allow_User);
             return True;
          end if;
       end loop;

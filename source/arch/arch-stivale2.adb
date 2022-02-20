@@ -68,8 +68,16 @@ package body Arch.Stivale2 is
       end if;
 
       declare
-         Current_CR3 : constant Unsigned_64 := Wrappers.Read_CR3;
+         Message_Str  : String (1 .. Length) with Address => Message;
+         Message_Copy : String (1 .. Length);
+         Current_CR3  : constant Unsigned_64 := Wrappers.Read_CR3;
       begin
+         --  Make a copy to avoid the issue of unmapping the memory when
+         --  switching pagemaps.
+         for I in 1 .. Length loop
+            Message_Copy (I) := Message_Str (I);
+         end loop;
+
          --  Ensure we are using the kernel pagemap, as the lower half needs
          --  to be identity mapped, and only the kernel pagemap does that.
          if Kernel_Map /= null and then
@@ -84,13 +92,13 @@ package body Arch.Stivale2 is
               "pop %%rsi"  & LF & HT &
               "pop %%rdi",
               Inputs => (Physical_Address'Asm_Input ("m", Terminal_Entrypoint),
-                         System.Address'Asm_Input   ("D",  Message),
-                         Natural'Asm_Input          ("S",  Length)),
+                         System.Address'Asm_Input ("D", Message_Copy'Address),
+                         Natural'Asm_Input        ("S", Length)),
               Clobber  => "rax, rdx, rcx, r8, r9, r10, r11, memory",
               Volatile => True);
 
          if Kernel_Map /= null and then
-            not Memory.Virtual.Is_Loaded (Kernel_Map.all)
+            Memory.Virtual.Is_Loaded (Kernel_Map.all)
          then
             Wrappers.Write_CR3 (Current_CR3);
          end if;
