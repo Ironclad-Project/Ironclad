@@ -16,6 +16,7 @@
 
 with System.Machine_Code;
 with Arch.APIC;
+with Arch.GDT;
 with Lib.Panic;
 with Lib.Messages;
 
@@ -39,6 +40,13 @@ package body Arch.Interrupts is
       Lib.Messages.Put ("RIP: ");
       Lib.Messages.Put (State.RIP, False, True);
       Lib.Messages.Put_Line ("");
+
+      if State.CS = (Arch.GDT.User_Code64_Segment or 3) then
+         --  TODO: Send a SIGSEGV.
+         Lib.Messages.Put_Line ("User space exception");
+      else
+         Lib.Messages.Put_Line ("Kernel space exception");
+      end if;
       Lib.Panic.Hard_Panic (Exception_Text (Number));
    end Exception_Handler;
 

@@ -44,6 +44,7 @@ package Arch.Wrappers is
    procedure Write_GS (Value : Unsigned_64);
    function Read_Kernel_GS return Unsigned_64;
    procedure Write_Kernel_GS (Value : Unsigned_64);
+   procedure Swap_GS;
    ----------------------------------------------------------------------------
    --  HLT.
    procedure HLT;

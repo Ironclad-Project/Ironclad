@@ -18,7 +18,6 @@
 with Arch.APIC;
 with Arch.GDT;
 with Arch.IDT;
-with Arch.Syscall;
 with Arch.Wrappers;
 with Lib.Synchronization;
 with Memory.Virtual;
@@ -93,34 +92,13 @@ package body Arch.CPU is
    --  that into account when compared with other cores.
    --  This function enables things common to BSP and other cores.
    procedure Init_Common is
-      EFER_MSR  : constant := 16#C0000080#; -- EFER.
-      STAR_MSR  : constant := 16#C0000081#; -- CS/DS + Legacy entry.
-      LSTAR_MSR : constant := 16#C0000082#; -- Long mode entry.
-      FMASK_MSR : constant := 16#C0000084#; -- syscall EFLAGS.
-
-      Syscall_Entry : constant Unsigned_64 :=
-         Unsigned_64 (To_Integer (Arch.Syscall.Syscall_Entry'Address));
-
-      Syscall_CS_DS : constant := Arch.GDT.User_Code64_Segment - 16;
-      Sysret_CS_DS  : constant := Arch.GDT.Kernel_Code64_Segment;
-      STAR_Value : constant Unsigned_64 := Shift_Left (Syscall_CS_DS, 48) or
-                                           Shift_Left (Sysret_CS_DS,  32);
-
-      CR0  : Unsigned_64 := Arch.Wrappers.Read_CR0;
-      CR4  : Unsigned_64 := Arch.Wrappers.Read_CR4;
-      EFER : Unsigned_64 := Arch.Wrappers.Read_MSR (EFER_MSR);
+      CR0 : Unsigned_64 := Arch.Wrappers.Read_CR0;
+      CR4 : Unsigned_64 := Arch.Wrappers.Read_CR4;
    begin
       --  Enable SSE/2.
       CR0 := (CR0 and (not Shift_Left (1, 2))) or Shift_Left (1, 1);
       CR4 := CR4 or Shift_Left (3, 9);
       Arch.Wrappers.Write_CR0 (CR0);
       Arch.Wrappers.Write_CR4 (CR4);
-
-      --  Enable syscall with a null entry address with bit 0 of EFER.
-      EFER := EFER or 1;
-      Arch.Wrappers.Write_MSR (EFER_MSR,  EFER);
-      Arch.Wrappers.Write_MSR (STAR_MSR,  STAR_Value);
-      Arch.Wrappers.Write_MSR (LSTAR_MSR, Syscall_Entry);
-      Arch.Wrappers.Write_MSR (FMASK_MSR, Unsigned_64 (not Unsigned_32 (2)));
    end Init_Common;
 end Arch.CPU;

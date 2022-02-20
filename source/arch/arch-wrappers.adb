@@ -157,6 +157,11 @@ package body Arch.Wrappers is
    begin
       Write_MSR (Kernel_GS_MSR, Value);
    end Write_Kernel_GS;
+
+   procedure Swap_GS is
+   begin
+      Asm ("swapgs", Volatile => True);
+   end Swap_GS;
    ----------------------------------------------------------------------------
    procedure HLT is
    begin

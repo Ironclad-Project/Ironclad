@@ -14,9 +14,57 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System; use System;
+with System.Storage_Elements; use System.Storage_Elements;
+with Ada.Characters.Latin_1;
+with Arch.Wrappers;
+with Lib.Messages;
+
 package body Arch.Syscall is
-   procedure Syscall_Sleep (MSec : Unsigned_32) is
+   --  Errno values, they are ABI and arbitrary.
+   Error_No_Error        : constant := 0;
+   Error_Not_Implemented : constant := 1051; -- ENOSYS.
+
+   procedure Syscall_Log (Address : Unsigned_64; Errno : out Unsigned_64) is
+      Length   : Natural := 0;
+      Int_Addr : constant Integer_Address := Integer_Address (Address);
+      Addr     : constant System.Address  := To_Address (Int_Addr);
    begin
-      null;
-   end Syscall_Sleep;
+      loop
+         declare
+            C : Character with Address => Addr + Storage_Offset (Length);
+         begin
+            exit when C = Ada.Characters.Latin_1.NUL;
+            Length := Length + 1;
+         end;
+      end loop;
+      declare
+         Cmdline : String (1 .. Length) with Address => Addr;
+      begin
+         Lib.Messages.Put_Line (Cmdline);
+         Errno := Error_No_Error;
+      end;
+   end Syscall_Log;
+
+   procedure Syscall_Handler (Number : Integer; State : access ISR_GPRs) is
+      Ret_Value : Unsigned_64 := 0;
+      Errno     : Unsigned_64 := Error_No_Error;
+      pragma Unreferenced (Number);
+   begin
+      --  Swap to kernel GS.
+      Wrappers.Swap_GS;
+
+      --  Call the inner syscall.
+      --  RAX is the return value, RDX is the returned errno.
+      --  Arguments can be RDI, RSI, RDX, RCX, and R8, in that order.
+      case State.RAX is
+         when 0 => Syscall_Log (State.RDI, Errno);
+         when others => Errno := Error_Not_Implemented;
+      end case;
+
+      --  Assign the return values and swap back to user GS.
+      State.RAX := Ret_Value;
+      State.RDX := Errno;
+      Wrappers.Swap_GS;
+   end Syscall_Handler;
 end Arch.Syscall;

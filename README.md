@@ -37,6 +37,7 @@ light on higher-level design decisions and interface between userland and
 kernel, that are assumed in the implementation. Some useful links are:
 
 - [Kernel command line and values available](docs/cmdlineargs.md).
+- [Syscall mechanism and list](docs/syscalls.md).
 - [VFS structure, roots, and object interaction](docs/vfs.md).
 
 ## Thanks to

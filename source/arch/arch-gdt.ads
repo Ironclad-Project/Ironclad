@@ -22,7 +22,7 @@ package Arch.GDT is
    Kernel_Code64_Segment : constant := 16#28#;
    Kernel_Data64_Segment : constant := 16#30#;
    User_Data64_Segment   : constant := 16#38#;
-   User_Code64_Segment   : constant := 16#42#;
+   User_Code64_Segment   : constant := 16#40#;
    TSS_Segment           : constant := 16#48#;
 
    --  Initialize the global GDT and load it on the callee core.

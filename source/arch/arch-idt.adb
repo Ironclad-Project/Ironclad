@@ -21,6 +21,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Arch.APIC;
 with Arch.GDT;
 with Arch.Interrupts;
+with Arch.Syscall;
 
 package body Arch.IDT is
    --  Records for the GDT structure and its entries.
@@ -90,7 +91,8 @@ package body Arch.IDT is
          Load_ISR (I, Interrupts.Exception_Handler'Address);
       end loop;
 
-      --  Some special entries for several hardcoded hardware.
+      --  Some special entries for several hardcoded hardware and syscalls.
+      Load_ISR (16#80#, Syscall.Syscall_Handler'Address);
       Load_ISR (APIC.LAPIC_Spurious_Entry,
                 Interrupts.Spurious_Handler'Address);
 
