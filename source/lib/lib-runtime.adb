@@ -83,14 +83,37 @@ package body Lib.Runtime is
       return 0;
    end MemCmp;
 
-   procedure MemCpy (Desto, Source : System.Address; Size : size_t) is
+   function MemCpy
+      (Desto, Source : System.Address; Size : size_t) return System.Address
+   is
       Dst : array (1 .. Size) of Unsigned_8 with Address => Desto;
       Src : array (1 .. Size) of Unsigned_8 with Address => Source;
    begin
       for I in 1 .. Size loop
          Dst (I) := Src (I);
       end loop;
+      return Desto;
    end MemCpy;
+
+   function MemMove
+      (Desto, Source : System.Address; Size : size_t) return System.Address
+   is
+      Dst : array (1 .. Size) of Unsigned_8 with Address => Desto;
+      Src : array (1 .. Size) of Unsigned_8 with Address => Source;
+      Desto_Int  : constant Integer_Address := To_Integer (Desto);
+      Source_Int : constant Integer_Address := To_Integer (Desto);
+   begin
+      if Desto_Int < Source_Int then
+         for I in 1 .. Size loop
+            Dst (I) := Src (I);
+         end loop;
+      elsif Desto_Int > Source_Int then
+         for I in reverse 1 .. Size loop
+            Dst (I) := Src (I);
+         end loop;
+      end if;
+      return Desto;
+   end MemMove;
 
    procedure Print_Exception
       (Message      : String;

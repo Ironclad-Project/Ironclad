@@ -16,7 +16,7 @@ int $0x80
 The index of the syscall is passed on `%rax`.
 
 The return value is returned on `%rax`, errno is returned on `%rdx`, arguments
-are passed over `rdi`, `rsi`, `rdx`, `rcx`, `r8`, and `r9`, following the
+are passed over `%rdi`, `%rsi`, `%rdx`, `%rcx`, `%r8`, and `%r9`, following the
 SysV ABI.
 
 ## Errno list

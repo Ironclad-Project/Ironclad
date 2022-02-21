@@ -44,8 +44,12 @@ package Lib.Runtime is
    ----------------------------------------------------------------------------
    function MemCmp (S1, S2 : System.Address; Size : size_t) return int
       with Export, Convention => C, External_Name => "memcmp";
-   procedure MemCpy (Desto, Source : System.Address; Size : size_t)
+   function MemCpy
+      (Desto, Source : System.Address; Size : size_t) return System.Address
       with Export, Convention => C, External_Name => "memcpy";
+   function MemMove
+      (Desto, Source : System.Address; Size : size_t) return System.Address
+      with Export, Convention => C, External_Name => "memmove";
 private
    procedure Print_Exception
       (Message      : String;

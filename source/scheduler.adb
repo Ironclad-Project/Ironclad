@@ -178,8 +178,6 @@ package body Scheduler is
             To_Integer (New_Stack.all'Address) + Stack_Size;
          KStack_Addr : constant Virtual_Address :=
             To_Integer (New_Kernel_Stack.all'Address) + Stack_Size;
-         RSP_Val : constant Unsigned_64 :=
-            Unsigned_64 (Stack_Addr) - Memory_Offset;
       begin
          Thread_Pool (New_TID).Is_Present   := True;
          Thread_Pool (New_TID).Is_Banned    := False;
@@ -195,7 +193,7 @@ package body Scheduler is
          Thread_Pool (New_TID).State.RFLAGS := 16#202#;
          Thread_Pool (New_TID).State.RIP    := Unsigned_64 (Address);
          Thread_Pool (New_TID).State.RBP    := 0;
-         Thread_Pool (New_TID).State.RSP    := RSP_Val;
+         Thread_Pool (New_TID).State.RSP    := 16#C0000000000# + Stack_Size;
 
          --  Map the stacks.
          Memory.Virtual.Map_Range (
