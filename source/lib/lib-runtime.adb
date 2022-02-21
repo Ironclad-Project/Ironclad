@@ -101,14 +101,14 @@ package body Lib.Runtime is
       Dst : array (1 .. Size) of Unsigned_8 with Address => Desto;
       Src : array (1 .. Size) of Unsigned_8 with Address => Source;
       Desto_Int  : constant Integer_Address := To_Integer (Desto);
-      Source_Int : constant Integer_Address := To_Integer (Desto);
+      Source_Int : constant Integer_Address := To_Integer (Source);
    begin
-      if Desto_Int < Source_Int then
-         for I in 1 .. Size loop
+      if Source_Int > Desto_Int then
+         for I in Dst'Range loop
             Dst (I) := Src (I);
          end loop;
-      elsif Desto_Int > Source_Int then
-         for I in reverse 1 .. Size loop
+      elsif Source_Int < Desto_Int then
+         for I in reverse Dst'Range loop
             Dst (I) := Src (I);
          end loop;
       end if;

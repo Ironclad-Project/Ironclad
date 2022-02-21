@@ -255,7 +255,17 @@ package body Scheduler is
          Arch.APIC.LAPIC_Send_IPI (Core_LAPIC, Scheduler_Vector);
       end if;
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
+      loop null; end loop;
    end Yield;
+
+   procedure Bail is
+      Core        : constant Positive    := Arch.CPU.Get_Core_Number;
+      Core_LAPIC  : constant Unsigned_32 := Arch.CPU.Core_LAPICs (Core);
+      Current_TID : constant TID         := Core_Locals (Core).Current_TID;
+   begin
+      Delete_Thread (Current_TID);
+      Yield;
+   end Bail;
 
    function Find_Free_TID return TID is
    begin

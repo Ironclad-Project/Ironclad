@@ -24,6 +24,9 @@ package Arch.Syscall is
    --  Print a C-style string to the kernel reporting.
    procedure Syscall_Log (Address : Unsigned_64; Errno : out Unsigned_64);
 
+   --  Exit the callee thread, flushing open files.
+   procedure Syscall_Exit (Error_Code : Integer; Errno : out Unsigned_64);
+
    --  Entrypoint of the syscall dispatcher.
    procedure Syscall_Handler (Number : Integer; State : access ISR_GPRs)
       with Convention => C;

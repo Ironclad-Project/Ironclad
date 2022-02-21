@@ -31,8 +31,9 @@ depth, this is the list of available values:
 
 ## Syscall list
 
-This are the syscalls and their prototypes.
+This are the syscalls, their prototypes, and a short description.
 
 | Syscall                 | Purpose                                               | Index |
 | ----------------------- | ----------------------------------------------------- | ----- |
 | `log(uint64_t address)` | Passes a C null-terminated string to kernel reporting | 0     |
+| `exit(int status)`      | Exists the process, closing opened FDs                | 1     |

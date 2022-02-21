@@ -202,7 +202,6 @@ package body Main is
       end if;
 
       Lib.Messages.Put_Line ("Yielding main thread");
-      Scheduler.Yield;
-      loop null; end loop;
+      Scheduler.Bail;
    end Main_Thread;
 end Main;

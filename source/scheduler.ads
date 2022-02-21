@@ -62,6 +62,9 @@ package Scheduler is
    --  Give up the rest of our execution time for some other process.
    procedure Yield;
 
+   --  Delete and yield the current thread.
+   procedure Bail;
+
 private
    function Find_Free_TID return TID;
    procedure Scheduler_ISR

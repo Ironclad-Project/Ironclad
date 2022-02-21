@@ -19,6 +19,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Ada.Characters.Latin_1;
 with Arch.Wrappers;
 with Lib.Messages;
+with Scheduler;
 
 package body Arch.Syscall is
    --  Errno values, they are ABI and arbitrary.
@@ -46,6 +47,13 @@ package body Arch.Syscall is
       end;
    end Syscall_Log;
 
+   procedure Syscall_Exit (Error_Code : Integer; Errno : out Unsigned_64) is
+      pragma Unreferenced (Error_Code);
+   begin
+      Errno := Error_No_Error;
+      Scheduler.Bail;
+   end Syscall_Exit;
+
    procedure Syscall_Handler (Number : Integer; State : access ISR_GPRs) is
       Ret_Value : Unsigned_64 := 0;
       Errno     : Unsigned_64 := Error_No_Error;
@@ -59,6 +67,7 @@ package body Arch.Syscall is
       --  Arguments can be RDI, RSI, RDX, RCX, and R8, in that order.
       case State.RAX is
          when 0 => Syscall_Log (State.RDI, Errno);
+         when 1 => Syscall_Exit (Integer (State.RDI), Errno);
          when others => Errno := Error_Not_Implemented;
       end case;
 
