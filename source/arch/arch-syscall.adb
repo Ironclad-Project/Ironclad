@@ -54,6 +54,12 @@ package body Arch.Syscall is
       Scheduler.Bail;
    end Syscall_Exit;
 
+   procedure Syscall_Set_TCB (Addr : Unsigned_64; Errno : out Unsigned_64) is
+   begin
+      Wrappers.Write_FS (Addr);
+      Errno := Error_No_Error;
+   end Syscall_Set_TCB;
+
    procedure Syscall_Handler (Number : Integer; State : access ISR_GPRs) is
       Ret_Value : Unsigned_64 := 0;
       Errno     : Unsigned_64 := Error_No_Error;
@@ -68,6 +74,7 @@ package body Arch.Syscall is
       case State.RAX is
          when 0 => Syscall_Log (State.RDI, Errno);
          when 1 => Syscall_Exit (Integer (State.RDI), Errno);
+         when 2 => Syscall_Set_TCB (State.RDI, Errno);
          when others => Errno := Error_Not_Implemented;
       end case;
 

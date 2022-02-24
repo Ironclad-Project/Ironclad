@@ -63,7 +63,16 @@ package body Userland.ELF is
        Base   : Unsigned_64) return Parsed_ELF
    is
       Header : ELF_Header;
-      Result : Parsed_ELF := (False, System.Null_Address, null);
+      Result : Parsed_ELF := (
+         Was_Loaded  => False,
+         Entrypoint  => System.Null_Address,
+         Linker_Path => null,
+         Vector => (
+            Entrypoint => 0,
+            Program_Headers => 0,
+            Program_Header_Count => 0,
+            Program_Header_Size => 0
+         ));
    begin
       --  Read and check the header.
       FS.File.Read (File_D, Header'Size / 8, Header'Address);
@@ -76,6 +85,10 @@ package body Userland.ELF is
 
       --  Assign the data we already know.
       Result.Entrypoint := Header.Entrypoint + Storage_Offset (Base);
+      Result.Vector.Entrypoint := Unsigned_64 (To_Integer (Result.Entrypoint));
+      Result.Vector.Program_Header_Size  := Program_Header'Size / 8;
+      Result.Vector.Program_Header_Count :=
+         Unsigned_64(Header.Program_Header_Count);
 
       --  Loop the program headers and either load them, or get info.
       declare
@@ -96,6 +109,8 @@ package body Userland.ELF is
             case HDR.Segment_Type is
                when Program_Loadable_Segment =>
                   Load_Header (File_D, HDR, Map, Base);
+               when Program_Header_Table_Segment =>
+                  Result.Vector.Program_Headers := Base + HDR.Virt_Address;
                when Program_Interpreter_Segment =>
                   Result.Linker_Path := Get_Linker (File_D, HDR);
                when others =>
@@ -114,8 +129,17 @@ package body Userland.ELF is
        Map  : in out Memory.Virtual.Page_Map;
        Base : Unsigned_64) return Parsed_ELF
    is
-      FD : constant FS.File.FD    := FS.File.Open (Path, FS.File.Access_R);
-      Loaded_ELF : ELF.Parsed_ELF := (False, System.Null_Address, null);
+      FD : constant FS.File.FD := FS.File.Open (Path, FS.File.Access_R);
+      Loaded_ELF : Parsed_ELF := (
+         Was_Loaded  => False,
+         Entrypoint  => System.Null_Address,
+         Linker_Path => null,
+         Vector => (
+            Entrypoint => 0,
+            Program_Headers => 0,
+            Program_Header_Count => 0,
+            Program_Header_Size => 0
+         ));
    begin
       if FD = FS.File.Error_FD then
          return Loaded_ELF;
@@ -150,6 +174,8 @@ package body Userland.ELF is
       Load_Size : constant Unsigned_64 := MisAlign + Header.Mem_Size_Bytes;
       Load : array (1 .. Load_Size) of Unsigned_8
          with Address => To_Address (Memory.Physical.Alloc (Size (Load_Size)));
+      Load_Addr : constant System.Address := Load'Address +
+         Storage_Offset (MisAlign);
       ELF_Virtual : constant Virtual_Address :=
          Virtual_Address (Base + Header.Virt_Address);
       Flags : constant Memory.Virtual.Page_Flags :=
@@ -171,6 +197,6 @@ package body Userland.ELF is
           Flags       => Flags,
           Not_Execute => False);
       FS.File.Set_Index (File_D, Natural (Header.Offset));
-      FS.File.Read (File_D, Header.File_Size_Bytes, Load'Address);
+      FS.File.Read (File_D, Header.File_Size_Bytes, Load_Addr);
    end Load_Header;
 end Userland.ELF;

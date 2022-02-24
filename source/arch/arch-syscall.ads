@@ -27,6 +27,9 @@ package Arch.Syscall is
    --  Exit the callee thread, flushing open files.
    procedure Syscall_Exit (Error_Code : Integer; Errno : out Unsigned_64);
 
+   --  Set an address to be thread-local storage.
+   procedure Syscall_Set_TCB (Addr : Unsigned_64; Errno : out Unsigned_64);
+
    --  Entrypoint of the syscall dispatcher.
    procedure Syscall_Handler (Number : Integer; State : access ISR_GPRs)
       with Convention => C;

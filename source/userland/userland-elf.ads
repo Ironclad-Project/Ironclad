@@ -20,10 +20,24 @@ with FS.File;
 with Memory.Virtual;
 
 package Userland.ELF is
+   --  Auxval values.
+   Auxval_Null            : constant := 0;
+   Auxval_Program_Headers : constant := 3;
+   Auxval_Header_Size     : constant := 4;
+   Auxval_Header_Count    : constant := 5;
+   Auxval_Entrypoint      : constant := 9;
+   type Auxval is record
+      Entrypoint           : Unsigned_64;
+      Program_Headers      : Unsigned_64;
+      Program_Header_Count : Unsigned_64;
+      Program_Header_Size  : Unsigned_64;
+   end record;
+
    type Parsed_ELF is record
       Was_Loaded  : Boolean;
       Entrypoint  : System.Address;
       Linker_Path : access String;
+      Vector      : Auxval;
    end record;
 
    --  Load an ELF from a file into memory with the passed base, and map it
@@ -41,8 +55,10 @@ package Userland.ELF is
 
 private
 
-   Program_Loadable_Segment    : constant := 1;
-   Program_Interpreter_Segment : constant := 3;
+   Program_Loadable_Segment     : constant := 1;
+   Program_Dynamic_Segment      : constant := 2;
+   Program_Interpreter_Segment  : constant := 3;
+   Program_Header_Table_Segment : constant := 6;
    type Program_Header is record
       Segment_Type    : Unsigned_32;
       Flags           : Unsigned_32;

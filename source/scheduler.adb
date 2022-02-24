@@ -157,7 +157,8 @@ package body Scheduler is
       (Address : Virtual_Address;
        Args    : Userland.Argument_Arr;
        Env     : Userland.Environment_Arr;
-       Map     : Memory.Virtual.Page_Map) return TID is
+       Map     : Memory.Virtual.Page_Map;
+       Vector  : Userland.ELF.Auxval) return TID is
       New_TID : TID;
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex'Access);
@@ -170,7 +171,7 @@ package body Scheduler is
 
       --  Initialize thread state.
       declare
-         type Stack is array (1 .. Stack_Size) of Unsigned_8;
+         type Stack is array (1 .. (Stack_Size / 8)) of Unsigned_64;
          type Stack_Acc is access Stack;
          New_Stack        : constant Stack_Acc := new Stack;
          New_Kernel_Stack : constant Stack_Acc := new Stack;
@@ -178,6 +179,7 @@ package body Scheduler is
             To_Integer (New_Stack.all'Address) + Stack_Size;
          KStack_Addr : constant Virtual_Address :=
             To_Integer (New_Kernel_Stack.all'Address) + Stack_Size;
+         User_Stack_Top : constant := 16#C0000000000#;
       begin
          Thread_Pool (New_TID).Is_Present   := True;
          Thread_Pool (New_TID).Is_Banned    := False;
@@ -193,24 +195,44 @@ package body Scheduler is
          Thread_Pool (New_TID).State.RFLAGS := 16#202#;
          Thread_Pool (New_TID).State.RIP    := Unsigned_64 (Address);
          Thread_Pool (New_TID).State.RBP    := 0;
-         Thread_Pool (New_TID).State.RSP    := 16#C0000000000# + Stack_Size;
 
          --  Map the stacks.
-         Memory.Virtual.Map_Range (
-            Thread_Pool (New_TID).PageMap,
-            16#C0000000000#,
-            To_Integer (New_Stack.all'Address) - Memory_Offset,
-            Stack_Size,
-            (Present         => True,
-             Read_Write      => True,
-             User_Supervisor => True,
-             Write_Through   => False,
-             Cache_Disable   => False,
-             Accessed        => False,
-             Dirty           => False,
-             PAT             => False,
-             Global          => False),
-            True);
+         Memory.Virtual.Map_Range
+            (Thread_Pool (New_TID).PageMap,
+             User_Stack_Top,
+             To_Integer (New_Stack.all'Address) - Memory_Offset,
+             Stack_Size + Memory.Virtual.Page_Size,
+             (Present         => True,
+              Read_Write      => True,
+              User_Supervisor => True,
+              Write_Through   => False,
+              Cache_Disable   => False,
+              Accessed        => False,
+              Dirty           => False,
+              PAT             => False,
+              Global          => False),
+             True);
+
+         --  Load auxval.
+         New_Stack (New_Stack'Last - 0) := 0;
+         New_Stack (New_Stack'Last - 1) := Userland.ELF.Auxval_Null;
+         New_Stack (New_Stack'Last - 2) := Vector.Entrypoint;
+         New_Stack (New_Stack'Last - 3) := Userland.ELF.Auxval_Entrypoint;
+         New_Stack (New_Stack'Last - 4) := Vector.Program_Headers;
+         New_Stack (New_Stack'Last - 5) := Userland.ELF.Auxval_Program_Headers;
+         New_Stack (New_Stack'Last - 6) := Vector.Program_Header_Count;
+         New_Stack (New_Stack'Last - 7) := Userland.ELF.Auxval_Header_Count;
+         New_Stack (New_Stack'Last - 8) := Vector.Program_Header_Size;
+         New_Stack (New_Stack'Last - 9) := Userland.ELF.Auxval_Header_Size;
+
+         --  TODO: Support arguments and envp.
+         New_Stack (New_Stack'Last - 10) := 0; -- Null at the end of envp.
+         New_Stack (New_Stack'Last - 11) := 0; -- Null at the end of argv.
+         New_Stack (New_Stack'Last - 12) := 0; -- argv[0] = NULL (Placeholder).
+         New_Stack (New_Stack'Last - 13) := 1; -- argc = 1;
+
+         Thread_Pool (New_TID).State.RSP :=
+            User_Stack_Top + Stack_Size - (14 * 8);
       end;
    <<End_Return>>
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
@@ -259,9 +281,8 @@ package body Scheduler is
    end Yield;
 
    procedure Bail is
-      Core        : constant Positive    := Arch.CPU.Get_Core_Number;
-      Core_LAPIC  : constant Unsigned_32 := Arch.CPU.Core_LAPICs (Core);
-      Current_TID : constant TID         := Core_Locals (Core).Current_TID;
+      Core        : constant Positive := Arch.CPU.Get_Core_Number;
+      Current_TID : constant TID      := Core_Locals (Core).Current_TID;
    begin
       Delete_Thread (Current_TID);
       Yield;

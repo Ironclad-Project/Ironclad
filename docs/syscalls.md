@@ -36,4 +36,5 @@ This are the syscalls, their prototypes, and a short description.
 | Syscall                 | Purpose                                               | Index |
 | ----------------------- | ----------------------------------------------------- | ----- |
 | `log(uint64_t address)` | Passes a C null-terminated string to kernel reporting | 0     |
-| `exit(int status)`      | Exists the process, closing opened FDs                | 1     |
+| `exit(int status)`      | Exits the process, closing opened FDs                 | 1     |
+| `set_tcb(void* ptr)`    | Set an address to be thread-local storage             | 2     |

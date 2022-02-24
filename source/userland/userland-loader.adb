@@ -67,6 +67,7 @@ package body Userland.Loader is
          (Address => Entrypoint,
           Args    => Arguments,
           Env     => Environment,
-          Map     => User_Map.all);
+          Map     => User_Map.all,
+          Vector  => Loaded_ELF.Vector);
    end Start_User_ELF;
 end Userland.Loader;

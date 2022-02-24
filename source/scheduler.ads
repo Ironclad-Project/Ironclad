@@ -19,6 +19,7 @@ with Arch.Interrupts;
 with Memory.Virtual;
 with Memory; use Memory;
 with Userland;
+with Userland.ELF;
 
 package Scheduler is
    --  True if the scheduler is initialized.
@@ -46,7 +47,8 @@ package Scheduler is
       (Address : Virtual_Address;
        Args    : Userland.Argument_Arr;
        Env     : Userland.Environment_Arr;
-       Map     : Memory.Virtual.Page_Map) return TID;
+       Map     : Memory.Virtual.Page_Map;
+       Vector  : Userland.ELF.Auxval) return TID;
 
    --  Removes a thread, kernel or user, from existance (if it exists).
    procedure Delete_Thread (Thread : TID);
