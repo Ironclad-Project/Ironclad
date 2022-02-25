@@ -16,9 +16,9 @@
 
 with System; use System;
 with System.Storage_Elements; use System.Storage_Elements;
-with Ada.Characters.Latin_1;
 with Arch.Wrappers;
 with Lib.Messages;
+with Lib;
 with Scheduler;
 
 package body Arch.Syscall is
@@ -27,24 +27,12 @@ package body Arch.Syscall is
    Error_Not_Implemented : constant := 1051; -- ENOSYS.
 
    procedure Syscall_Log (Address : Unsigned_64; Errno : out Unsigned_64) is
-      Length   : Natural := 0;
-      Int_Addr : constant Integer_Address := Integer_Address (Address);
-      Addr     : constant System.Address  := To_Address (Int_Addr);
+      Addr : constant System.Address := To_Address (Integer_Address (Address));
+      Message_Length : constant Natural := Lib.C_String_Length (Addr);
+      Message_String : String (1 .. Message_Length) with Address => Addr;
    begin
-      loop
-         declare
-            C : Character with Address => Addr + Storage_Offset (Length);
-         begin
-            exit when C = Ada.Characters.Latin_1.NUL;
-            Length := Length + 1;
-         end;
-      end loop;
-      declare
-         Cmdline : String (1 .. Length) with Address => Addr;
-      begin
-         Lib.Messages.Put_Line (Cmdline);
-         Errno := Error_No_Error;
-      end;
+      Lib.Messages.Put_Line (Message_String);
+      Errno := Error_No_Error;
    end Syscall_Log;
 
    procedure Syscall_Exit (Error_Code : Integer; Errno : out Unsigned_64) is

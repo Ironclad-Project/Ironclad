@@ -88,7 +88,7 @@ package body Userland.ELF is
       Result.Vector.Entrypoint := Unsigned_64 (To_Integer (Result.Entrypoint));
       Result.Vector.Program_Header_Size  := Program_Header'Size / 8;
       Result.Vector.Program_Header_Count :=
-         Unsigned_64(Header.Program_Header_Count);
+         Unsigned_64 (Header.Program_Header_Count);
 
       --  Loop the program headers and either load them, or get info.
       declare
@@ -108,7 +108,9 @@ package body Userland.ELF is
          for HDR of PHDRs loop
             case HDR.Segment_Type is
                when Program_Loadable_Segment =>
-                  Load_Header (File_D, HDR, Map, Base);
+                  if not Load_Header (File_D, HDR, Map, Base) then
+                     return Result;
+                  end if;
                when Program_Header_Table_Segment =>
                   Result.Vector.Program_Headers := Base + HDR.Virt_Address;
                when Program_Interpreter_Segment =>
@@ -163,11 +165,11 @@ package body Userland.ELF is
    end Get_Linker;
 
    --  Load and map a loadable program header to memory.
-   procedure Load_Header
+   function Load_Header
       (File_D : FS.File.FD;
        Header : Program_Header;
        Map    : in out Memory.Virtual.Page_Map;
-       Base   : Unsigned_64)
+       Base   : Unsigned_64) return Boolean
    is
       MisAlign : constant Unsigned_64 :=
          Header.Virt_Address and (Memory.Virtual.Page_Size - 1);
@@ -198,5 +200,6 @@ package body Userland.ELF is
           Not_Execute => False);
       FS.File.Set_Index (File_D, Natural (Header.Offset));
       FS.File.Read (File_D, Header.File_Size_Bytes, Load_Addr);
+      return not FS.File.Is_Error (File_D);
    end Load_Header;
 end Userland.ELF;

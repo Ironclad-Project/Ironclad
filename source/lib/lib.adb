@@ -1,4 +1,4 @@
---  lib-messages.ads: Library for parsing command line options.
+--  lib.ads: Generic library functions.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,17 +14,21 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
+with Ada.Characters.Latin_1;
+with System.Storage_Elements; use System.Storage_Elements;
 
-package Lib.Cmdline is
-   --  Get the value of a key from a C-style cmdline, and return it.
-   --  Returns null if not found.
-   function Get_Parameter
-      (Address : System.Address;
-       Key     : String) return access String;
-
-   --  Get whether an option is present on a C-style cmdline.
-   function Is_Key_Present
-      (Address : System.Address;
-       Key     : String) return Boolean;
-end Lib.Cmdline;
+package body Lib is
+   function C_String_Length (Address : System.Address) return Natural is
+      Length : Integer := 0;
+   begin
+      loop
+         declare
+            C : Character with Address => Address + Storage_Offset (Length);
+         begin
+            exit when C = Ada.Characters.Latin_1.NUL;
+            Length := Length + 1;
+         end;
+      end loop;
+      return Length;
+   end C_String_Length;
+end Lib;

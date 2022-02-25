@@ -65,7 +65,6 @@ package body Main is
          To_Address (To_Integer (Cmdline.Inner) + Memory.Memory_Offset);
 
       Is_Tracing : Boolean;
-      Alloc_Info : Memory.Physical.Allocator_Info;
    begin
       ST.Init_Terminal (Term);
       Lib.Messages.Put      (Config.Package_Name);
@@ -83,12 +82,11 @@ package body Main is
 
       Lib.Messages.Put_Line ("Initializing allocators");
       Memory.Physical.Init_Allocator (Memmap);
-      Alloc_Info := Memory.Physical.Get_Info;
-      Lib.Messages.Put      (Unsigned_64 (Alloc_Info.Used_Memory));
+      Lib.Messages.Put      (Unsigned_64 (Memory.Physical.Used_Memory));
       Lib.Messages.Put      (" used + ");
-      Lib.Messages.Put      (Unsigned_64 (Alloc_Info.Free_Memory));
+      Lib.Messages.Put      (Unsigned_64 (Memory.Physical.Free_Memory));
       Lib.Messages.Put      (" free / ");
-      Lib.Messages.Put      (Unsigned_64 (Alloc_Info.Total_Memory));
+      Lib.Messages.Put      (Unsigned_64 (Memory.Physical.Total_Memory));
       Lib.Messages.Put_Line (" memory used");
       for E of Memmap.Entries loop
          Lib.Messages.Put      ('[');
@@ -142,8 +140,7 @@ package body Main is
       Lib.Messages.Put_Line ("Bootstrap done, making kernel thread and idle");
       if Scheduler.Create_Kernel_Thread
          (To_Integer (Main_Thread'Address),
-         Unsigned_64 (To_Integer (Protocol.all'Address)))
-         = 0
+          Unsigned_64 (To_Integer (Protocol.all'Address))) = 0
       then
          Lib.Panic.Hard_Panic ("Could not create main thread");
       end if;
@@ -194,8 +191,8 @@ package body Main is
          Lib.Messages.Put ("Booting init ");
          Lib.Messages.Put_Line (Init_Value.all);
 
-         if Userland.Loader.Start_User_ELF (Init_Value.all, Init_Arguments,
-            Init_Environment, "", "", "") = 0
+         if Userland.Loader.Start_User_ELF
+            (Init_Value.all, Init_Arguments, Init_Environment, "", "", "") = 0
          then
             Lib.Panic.Hard_Panic ("Could not start init");
          end if;

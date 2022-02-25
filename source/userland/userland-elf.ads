@@ -85,9 +85,9 @@ private
       (File_D : FS.File.FD;
        Header : Program_Header) return access String;
 
-   procedure Load_Header
+   function Load_Header
       (File_D : FS.File.FD;
        Header : Program_Header;
        Map    : in out Memory.Virtual.Page_Map;
-       Base   : Unsigned_64);
+       Base   : Unsigned_64) return Boolean;
 end Userland.ELF;

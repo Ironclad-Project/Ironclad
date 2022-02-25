@@ -16,9 +16,9 @@
 
 with System.Machine_Code;
 with Arch.APIC;
-with Arch.GDT;
 with Lib.Panic;
 with Lib.Messages;
+with Scheduler;
 
 package body Arch.Interrupts is
    procedure Exception_Handler (Number : Integer; State : access ISR_GPRs) is
@@ -32,22 +32,23 @@ package body Arch.Interrupts is
          28 => "#HV", 29 => "#VC", 30 => "#SX"
       );
    begin
-      if State.Error_Code /= 0 then
-         Lib.Messages.Put ("Error code: ");
-         Lib.Messages.Put (State.Error_Code, False, True);
-         Lib.Messages.Put_Line ("");
-      end if;
-      Lib.Messages.Put ("RIP: ");
-      Lib.Messages.Put (State.RIP, False, True);
-      Lib.Messages.Put_Line ("");
-
-      if State.CS = (Arch.GDT.User_Code64_Segment or 3) then
-         --  TODO: Send a SIGSEGV.
-         Lib.Messages.Put_Line ("User space exception");
+      --  Check whether we have to panic or just exit the thread.
+      --  TODO: Send a SIGSEGV instead of just stopping execution for user.
+      --  We can only attribute #GP and #PF to programmer errors (13,14).
+      if Scheduler.Is_Userspace and (Number = 13 or Number = 14) then
+         Lib.Messages.Put_Line ("User space #GP/#PF, bailing");
+         Scheduler.Bail;
       else
-         Lib.Messages.Put_Line ("Kernel space exception");
+         if State.Error_Code /= 0 then
+            Lib.Messages.Put ("Error code: ");
+            Lib.Messages.Put (State.Error_Code, False, True);
+            Lib.Messages.Put_Line ("");
+         end if;
+         Lib.Messages.Put ("RIP: ");
+         Lib.Messages.Put (State.RIP, False, True);
+         Lib.Messages.Put_Line ("");
+         Lib.Panic.Hard_Panic (Exception_Text (Number));
       end if;
-      Lib.Panic.Hard_Panic (Exception_Text (Number));
    end Exception_Handler;
 
    procedure Set_Interrupt_Flag (Enable : Boolean) is

@@ -14,72 +14,53 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Ada.Characters.Latin_1;
-with System.Storage_Elements; use System.Storage_Elements;
+with Lib;
 
 package body Lib.Cmdline is
    function Get_Parameter
       (Address : System.Address;
-       Key     : String) return access String is
+       Key     : String) return access String
+   is
+      Value_Start  : Natural := 0;
+      Value_Length : Natural := 0;
+      Cmdline_Length : constant Natural := Lib.C_String_Length (Address);
+      Cmdline        : String (1 .. Cmdline_Length) with Address => Address;
    begin
-      --  Turn the C array to Ada and search for our key.
-      declare
-         Cmdline : String (1 .. CStrlen (Address)) with Address => Address;
-         Value_Start  : Natural := 0;
-         Value_Length : Natural := 0;
-      begin
-         for I in 1 .. Cmdline'Last loop
-            exit when Key'Length - 1 + I > Cmdline'Last;
-            if Key = Cmdline (I .. Key'Last + I - 1) then
-               Value_Start := I + Key'Length + 1;
-               for X in Value_Start .. Cmdline'Last loop
-                  exit when Cmdline (X) = ' ';
-                  Value_Length := Value_Length + 1;
-               end loop;
-               goto Found_Value;
-            end if;
-         end loop;
-         return null;
-
-      <<Found_Value>>
-         return Ret : constant access String := new String (1 .. Value_Length)
-         do
-            for I in 1 .. Value_Length loop
-               Ret.all (I) := Cmdline (Value_Start + I - 1);
+      for I in 1 .. Cmdline'Last loop
+         exit when Key'Length - 1 + I > Cmdline'Last;
+         if Key = Cmdline (I .. Key'Last + I - 1) then
+            Value_Start := I + Key'Length + 1;
+            for X in Value_Start .. Cmdline'Last loop
+               exit when Cmdline (X) = ' ';
+               Value_Length := Value_Length + 1;
             end loop;
-         end return;
-      end;
+            goto Found_Value;
+         end if;
+      end loop;
+      return null;
+
+   <<Found_Value>>
+      return Ret : constant access String := new String (1 .. Value_Length)
+      do
+         for I in 1 .. Value_Length loop
+            Ret.all (I) := Cmdline (Value_Start + I - 1);
+         end loop;
+      end return;
    end Get_Parameter;
 
    function Is_Key_Present
       (Address : System.Address;
-       Key     : String) return Boolean is
+       Key     : String) return Boolean
+   is
+      Cmdline_Length : constant Natural := Lib.C_String_Length (Address);
+      Cmdline        : String (1 .. Cmdline_Length) with Address => Address;
    begin
-      --  Turn the C array to Ada and search for our key.
-      declare
-         Cmdline : String (1 .. CStrlen (Address)) with Address => Address;
-      begin
-         for I in 1 .. Cmdline'Last loop
-            exit when Key'Length - 1 + I > Cmdline'Last;
-            if Key = Cmdline (I .. Key'Last + I - 1) then
-               return True;
-            end if;
-         end loop;
-         return False;
-      end;
-   end Is_Key_Present;
-
-   function CStrlen (Address : System.Address) return Natural is
-      Length : Natural := 0;
-   begin
-      loop
-         declare
-            C : Character with Address => Address + Storage_Offset (Length);
-         begin
-            exit when C = Ada.Characters.Latin_1.NUL;
-            Length := Length + 1;
-         end;
+      for I in 1 .. Cmdline'Last loop
+         exit when Key'Length - 1 + I > Cmdline'Last;
+         if Key = Cmdline (I .. Key'Last + I - 1) then
+            return True;
+         end if;
       end loop;
-      return Length;
-   end CStrlen;
+      return False;
+   end Is_Key_Present;
 end Lib.Cmdline;

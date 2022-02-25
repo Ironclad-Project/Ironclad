@@ -67,6 +67,9 @@ package Scheduler is
    --  Delete and yield the current thread.
    procedure Bail;
 
+   --  Returns whether the current thread is userspace.
+   function Is_Userspace return Boolean;
+
 private
    function Find_Free_TID return TID;
    procedure Scheduler_ISR

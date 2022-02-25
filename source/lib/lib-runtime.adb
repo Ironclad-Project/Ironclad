@@ -15,10 +15,10 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with Ada.Characters.Latin_1;
-with System.Storage_Elements; use System.Storage_Elements;
 with Lib.Messages;
 with Lib.Panic;
+with System.Storage_Elements; use System.Storage_Elements;
+with Lib;
 
 package body Lib.Runtime is
    procedure Access_Check (File : System.Address; Line : Integer) is
@@ -120,30 +120,15 @@ package body Lib.Runtime is
        File_Address : System.Address;
        Line_Number  : Integer)
    is
-      File_Length : Integer := 0;
+      File_Length : constant Natural := Lib.C_String_Length (File_Address);
+      File_String : String (1 .. File_Length) with Address => File_Address;
    begin
-      --  Get length of the C string and turn it into Ada.
-      loop
-         declare
-            C : Character;
-            for C'Address use File_Address + Storage_Offset (File_Length);
-         begin
-            exit when C = Ada.Characters.Latin_1.NUL;
-            File_Length := File_Length + 1;
-         end;
-      end loop;
-
-      --  Declare the Ada string, print and panic.
-      declare
-         File_String : String (1 .. File_Length) with Address => File_Address;
-      begin
-         Lib.Messages.Put_Line ("");
-         Lib.Messages.Put      ("Exception triggered at ");
-         Lib.Messages.Put      (File_String);
-         Lib.Messages.Put      (":");
-         Lib.Messages.Put      (Line_Number);
-         Lib.Messages.Put_Line ("");
-         Lib.Panic.Hard_Panic  (Message);
-      end;
+      Lib.Messages.Put_Line ("");
+      Lib.Messages.Put      ("Exception triggered at ");
+      Lib.Messages.Put      (File_String);
+      Lib.Messages.Put      (":");
+      Lib.Messages.Put      (Line_Number);
+      Lib.Messages.Put_Line ("");
+      Lib.Panic.Hard_Panic  (Message);
    end Print_Exception;
 end Lib.Runtime;

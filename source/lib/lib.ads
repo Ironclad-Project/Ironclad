@@ -1,4 +1,4 @@
---  lib.ads: Specification of the lib package.
+--  lib.ads: Specification of generic library functions.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,4 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Lib is end Lib;
+with System;
+
+package Lib is
+   --  Report the length of a NUL-Terminated C string.
+   function C_String_Length (Address : System.Address) return Natural;
+end Lib;

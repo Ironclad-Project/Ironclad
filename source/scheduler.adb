@@ -37,6 +37,7 @@ package body Scheduler is
 
    --  Thread information.
    type Thread_Info is record
+      Is_Userspace : Boolean;
       State        : Arch.Interrupts.ISR_GPRs;
       Is_Present   : Boolean;
       Is_Banned    : Boolean;
@@ -131,6 +132,7 @@ package body Scheduler is
          Stack_Addr : constant Virtual_Address :=
             To_Integer (New_Stack.all'Address) + Stack_Size;
       begin
+         Thread_Pool (New_TID).Is_Userspace := False;
          Thread_Pool (New_TID).Is_Present   := True;
          Thread_Pool (New_TID).Is_Banned    := False;
          Thread_Pool (New_TID).Is_Running   := False;
@@ -181,6 +183,7 @@ package body Scheduler is
             To_Integer (New_Kernel_Stack.all'Address) + Stack_Size;
          User_Stack_Top : constant := 16#C0000000000#;
       begin
+         Thread_Pool (New_TID).Is_Userspace := True;
          Thread_Pool (New_TID).Is_Present   := True;
          Thread_Pool (New_TID).Is_Banned    := False;
          Thread_Pool (New_TID).Is_Running   := False;
@@ -297,6 +300,19 @@ package body Scheduler is
       end loop;
       return 0;
    end Find_Free_TID;
+
+   function Is_Userspace return Boolean is
+      Core   : constant Positive := Arch.CPU.Get_Core_Number;
+      Thread : constant TID      := Core_Locals (Core).Current_TID;
+      Result : Boolean           := False;
+   begin
+      if Is_Initialized and Is_Thread_Present (Thread) then
+         Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+         Result := Thread_Pool (Thread).Is_Userspace;
+         Lib.Synchronization.Release (Scheduler_Mutex'Access);
+      end if;
+      return Result;
+   end Is_Userspace;
 
    procedure Scheduler_ISR
       (Number : Unsigned_32;

@@ -18,6 +18,16 @@ with Memory;
 with Arch.Stivale2;
 
 package Memory.Physical is
+   --  Information that the allocator keeps track of.
+   Total_Memory : Memory.Size;
+   Free_Memory  : Memory.Size;
+   Used_Memory  : Memory.Size;
+
+   --  Detailed information enabled with tracing.
+   Total_Allocations     : Natural;
+   Still_To_Be_Freed     : Natural;
+   Still_To_Be_Reclaimed : Natural;
+
    --  Initialize the allocator with a memmap.
    procedure Init_Allocator (Memmap : access Arch.Stivale2.Memmap_Tag);
 
@@ -30,23 +40,8 @@ package Memory.Physical is
    procedure Free (Address : Memory.Virtual_Address)
       with Export, Convention => C, External_Name => "__gnat_free";
 
-   --  Get statistics about the state of the kernel memory allocator.
-   type Allocator_Info is record
-      Total_Memory : Memory.Size;
-      Free_Memory  : Memory.Size;
-      Used_Memory  : Memory.Size;
-
-      --  Detailed information enabled with tracing.
-      Total_Allocations     : Natural;
-      Still_To_Be_Freed     : Natural;
-      Still_To_Be_Reclaimed : Natural;
-   end record;
-
    --  Set whether the allocator traces detailed information, at the expense
    --  of performance.
    --  Calling this function resets the detailed information.
    procedure Set_Tracing (Enable : Boolean);
-
-   --  Get the gathered information.
-   function Get_Info return Allocator_Info;
 end Memory.Physical;
