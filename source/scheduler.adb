@@ -156,11 +156,12 @@ package body Scheduler is
    end Create_Kernel_Thread;
 
    function Create_User_Thread
-      (Address : Virtual_Address;
-       Args    : Userland.Argument_Arr;
-       Env     : Userland.Environment_Arr;
-       Map     : Memory.Virtual.Page_Map;
-       Vector  : Userland.ELF.Auxval) return TID is
+      (Address   : Virtual_Address;
+       Args      : Userland.Argument_Arr;
+       Env       : Userland.Environment_Arr;
+       Map       : Memory.Virtual.Page_Map;
+       Vector    : Userland.ELF.Auxval;
+       Stack_Top : Unsigned_64) return TID is
       New_TID : TID;
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex'Access);
@@ -181,7 +182,6 @@ package body Scheduler is
             To_Integer (New_Stack.all'Address) + Stack_Size;
          KStack_Addr : constant Virtual_Address :=
             To_Integer (New_Kernel_Stack.all'Address) + Stack_Size;
-         User_Stack_Top : constant := 16#C0000000000#;
       begin
          Thread_Pool (New_TID).Is_Userspace := True;
          Thread_Pool (New_TID).Is_Present   := True;
@@ -202,7 +202,7 @@ package body Scheduler is
          --  Map the stacks.
          Memory.Virtual.Map_Range
             (Thread_Pool (New_TID).PageMap,
-             User_Stack_Top,
+             Virtual_Address (Stack_Top),
              To_Integer (New_Stack.all'Address) - Memory_Offset,
              Stack_Size + Memory.Virtual.Page_Size,
              (Present         => True,
@@ -234,8 +234,7 @@ package body Scheduler is
          New_Stack (New_Stack'Last - 12) := 0; -- argv[0] = NULL (Placeholder).
          New_Stack (New_Stack'Last - 13) := 1; -- argc = 1;
 
-         Thread_Pool (New_TID).State.RSP :=
-            User_Stack_Top + Stack_Size - (14 * 8);
+         Thread_Pool (New_TID).State.RSP := Stack_Top + Stack_Size - (14 * 8);
       end;
    <<End_Return>>
       Lib.Synchronization.Release (Scheduler_Mutex'Access);

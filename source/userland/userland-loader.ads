@@ -14,16 +14,16 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Scheduler;
+with Userland.Process; use Userland.Process;
 
 package Userland.Loader is
    --  Load a file with an absolute path and set it up for execution.
-   --  Return the TID, or 0 if failure.
+   --  Return the PID, or 0 if failure.
    function Start_User_ELF
       (Path        : String;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        StdIn       : String;
        StdOut      : String;
-       StdErr      : String) return Scheduler.TID;
+       StdErr      : String) return Userland.Process.PID;
 end Userland.Loader;

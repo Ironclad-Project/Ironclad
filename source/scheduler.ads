@@ -44,11 +44,12 @@ package Scheduler is
    --  Creates a userland thread, and queues it for execution.
    --  Return thread ID or 0 on failure.
    function Create_User_Thread
-      (Address : Virtual_Address;
-       Args    : Userland.Argument_Arr;
-       Env     : Userland.Environment_Arr;
-       Map     : Memory.Virtual.Page_Map;
-       Vector  : Userland.ELF.Auxval) return TID;
+      (Address   : Virtual_Address;
+       Args      : Userland.Argument_Arr;
+       Env       : Userland.Environment_Arr;
+       Map       : Memory.Virtual.Page_Map;
+       Vector    : Userland.ELF.Auxval;
+       Stack_Top : Unsigned_64) return TID;
 
    --  Removes a thread, kernel or user, from existance (if it exists).
    procedure Delete_Thread (Thread : TID);

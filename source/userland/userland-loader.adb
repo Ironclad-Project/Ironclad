@@ -19,6 +19,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Memory.Virtual; use Memory.Virtual;
 with Memory; use Memory;
 with Userland.ELF;
+with Scheduler; use Scheduler;
 
 package body Userland.Loader is
    --  Virtual offsets for different kinds of programs to load.
@@ -31,17 +32,26 @@ package body Userland.Loader is
        Environment : Environment_Arr;
        StdIn       : String;
        StdOut      : String;
-       StdErr      : String) return Scheduler.TID
+       StdErr      : String) return Process.PID
    is
       Loaded_ELF, LD_ELF : ELF.Parsed_ELF;
-      Entrypoint : Virtual_Address;
-      User_Map   : constant access Page_Map := Fork_Map (Kernel_Map.all);
-      LD_Path    : String (1 .. 100);
+      Entrypoint   : Virtual_Address;
+      Returned_PID : constant Process.PID := Process.Create_Process;
+      LD_Path      : String (1 .. 100);
    begin
+      --  Check if we created the PID and load memmap.
+      if Returned_PID = Process.Error_PID then
+         goto Error;
+      end if;
+      Process.Set_Memmap (Returned_PID, Fork_Map (Kernel_Map.all));
+
       --  Load the executable.
-      Loaded_ELF := ELF.Open_And_Load_ELF (Path, User_Map.all, Program_Offset);
+      Loaded_ELF := ELF.Open_And_Load_ELF
+         (Path,
+          Process.Get_Memmap (Returned_PID).all,
+          Program_Offset);
       if not Loaded_ELF.Was_Loaded then
-         return 0;
+         goto Error;
       end if;
 
       --  Load the interpreter if it's present, and set entrypoint.
@@ -54,20 +64,44 @@ package body Userland.Loader is
 
          LD_ELF := ELF.Open_And_Load_ELF
             (LD_Path (1 .. 6 + Loaded_ELF.Linker_Path.all'Length),
-             User_Map.all, LD_Offset);
+             Process.Get_Memmap (Returned_PID).all, LD_Offset);
          Entrypoint := To_Integer (LD_ELF.Entrypoint);
          if not LD_ELF.Was_Loaded then
-            return 0;
+            goto Error;
          end if;
       else
          Entrypoint := To_Integer (Loaded_ELF.Entrypoint);
       end if;
 
-      return Scheduler.Create_User_Thread
-         (Address => Entrypoint,
-          Args    => Arguments,
-          Env     => Environment,
-          Map     => User_Map.all,
-          Vector  => Loaded_ELF.Vector);
+      --  Create the main thread and load it to the process.
+      declare
+         Returned_TID : constant Scheduler.TID := Scheduler.Create_User_Thread
+            (Address   => Entrypoint,
+             Args      => Arguments,
+             Env       => Environment,
+             Map       => Process.Get_Memmap (Returned_PID).all,
+             Vector    => Loaded_ELF.Vector,
+             --  TODO: Do not hardcode stack size.
+             Stack_Top => Process.Bump_Stack (Returned_PID, 16#200000#));
+      begin
+         if Returned_TID = 0 then
+            goto Error_Process;
+         end if;
+
+         if not Process.Add_Thread (Returned_PID, Returned_TID) then
+            Scheduler.Delete_Thread (Returned_TID);
+            goto Error_Process;
+         end if;
+
+         Process.Set_Current_Root
+            (Returned_PID,
+             Path (Path'First .. Path'First + 6));
+         return Returned_PID;
+      end;
+
+   <<Error_Process>>
+      Process.Delete_Process (Returned_PID);
+   <<Error>>
+      return Error_PID;
    end Start_User_ELF;
 end Userland.Loader;

@@ -36,6 +36,7 @@ with Memory.Physical;
 with Memory.Virtual;
 with Config;
 with Userland.Loader;
+with Userland.Process; use Userland.Process;
 with Userland;
 with Scheduler; use Scheduler;
 
@@ -171,6 +172,9 @@ package body Main is
       Lib.Messages.Put_Line ("Initializing FS subsystem");
       FS.Init;
 
+      Lib.Messages.Put_Line ("Initializing processes");
+      Userland.Process.Init;
+
       Lib.Messages.Put_Line ("Initializing devices");
       Devices.Init;
 
@@ -195,7 +199,7 @@ package body Main is
          Lib.Messages.Put ("Booting init ");
          Lib.Messages.Put_Line (Init_Value.all);
          if Userland.Loader.Start_User_ELF
-            (Init_Value.all, Init_Arguments, Init_Environment, "", "", "") = 0
+            (Init_Value.all, Init_Arguments, Init_Environment, "", "", "") = Userland.Process.Error_PID
          then
             Lib.Panic.Soft_Panic ("Could not start init");
          end if;
