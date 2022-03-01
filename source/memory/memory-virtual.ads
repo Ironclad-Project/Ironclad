@@ -151,7 +151,7 @@ package Memory.Virtual is
    function Is_Loaded (Map : Page_Map) return Boolean;
 
    --  Map meant to be used for all cores for kernel code.
-   type Page_Map_Acc is access Page_Map;
+   type Page_Map_Acc is access all Page_Map;
    Kernel_Map : Page_Map_Acc;
 
 private

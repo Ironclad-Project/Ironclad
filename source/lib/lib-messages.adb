@@ -21,14 +21,13 @@ with Arch.Stivale2;
 with Lib.Synchronization;
 
 package body Lib.Messages is
-   New_Line       : constant String := "" & Ada.Characters.Latin_1.LF;
    Messages_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
 
    procedure Put_Line (Message : String) is
    begin
       Lib.Synchronization.Seize (Messages_Mutex'Access);
       Inner_Print (Message);
-      Inner_Print (New_Line);
+      Inner_Print (Ada.Characters.Latin_1.LF);
       Lib.Synchronization.Release (Messages_Mutex'Access);
    end Put_Line;
 

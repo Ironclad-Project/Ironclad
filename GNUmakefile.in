@@ -19,6 +19,7 @@ override KERNEL    := ironclad
 override IMAGE     := ironclad.iso
 override CMAGENTA  := $(shell tput setaf 5)
 override CRESET    := $(shell tput sgr0)
+override DOCSDIR   := docs
 override SOURCEDIR := source
 override TESTDIR   := test
 
@@ -111,13 +112,18 @@ distclean: clean
 maintainer-clean: distclean
 	@rm -rf configure install-sh autom4te* *'~'
 
-install: $(KERNEL)
-	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)"
-	@@INSTALL@ $(KERNEL) "$(DESTDIR)$(PREFIX)"
+install: $(KERNEL) install-doc
+	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)/share"
+	@@INSTALL@ $(KERNEL) "$(DESTDIR)$(PREFIX)/share"
 
-install-strip: $(KERNEL)
-	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)"
-	@@INSTALL@ -s $(KERNEL) "$(DESTDIR)$(PREFIX)"
+install-strip: $(KERNEL) install-doc
+	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)/share"
+	@@INSTALL@ -s $(KERNEL) "$(DESTDIR)$(PREFIX)/share"
+
+install-doc:
+	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
+	@@INSTALL@ $(DOCSDIR)/* "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
 
 uninstall:
-	@rm -rf "$(DESTDIR)$(PREFIX)/$(KERNEL)"
+	@rm -rf "$(DESTDIR)$(PREFIX)/share/$(KERNEL)"
+	@rm -rf "$(DESTDIR)$(PREFIX)/share/doc/ironclad"

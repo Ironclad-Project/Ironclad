@@ -16,6 +16,7 @@
 
 with System; use System;
 with Interfaces; use Interfaces;
+with Ada.Unchecked_Deallocation;
 with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.ACPI;
@@ -160,9 +161,12 @@ package body Main is
 
       Cmdline_Addr : constant System.Address :=
          To_Address (To_Integer (Cmdline.Inner) + Memory.Memory_Offset);
-      Init_Value       : access String;
       Init_Arguments   : Userland.Argument_Arr (1 .. 0);
       Init_Environment : Userland.Environment_Arr (1 .. 0);
+
+      type String_Acc is access all String;
+      Init_Value : String_Acc;
+      procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
    begin
       Lib.Messages.Put_Line ("Initializing FS subsystem");
       FS.Init;
@@ -190,12 +194,12 @@ package body Main is
       if Init_Value /= null then
          Lib.Messages.Put ("Booting init ");
          Lib.Messages.Put_Line (Init_Value.all);
-
          if Userland.Loader.Start_User_ELF
             (Init_Value.all, Init_Arguments, Init_Environment, "", "", "") = 0
          then
-            Lib.Panic.Hard_Panic ("Could not start init");
+            Lib.Panic.Soft_Panic ("Could not start init");
          end if;
+         Free (Init_Value);
       end if;
 
       Lib.Messages.Put_Line ("Bailing main thread");

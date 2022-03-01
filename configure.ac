@@ -39,9 +39,6 @@ test -z "$LDFLAGS" && LDFLAGS="-O2 -g"
 AC_CHECK_TOOL(QEMU, qemu-system-x86_64, qemu-system-x86_64)
 test -z "$QEMUFLAGS" && QEMUFLAGS="-m 2G -smp 4 -debugcon stdio -enable-kvm"
 
-# Put defaults for prefix and output dirs.
-AC_PREFIX_DEFAULT(/boot)
-
 # Replace the variables in the makefile.
 AC_CONFIG_FILES(GNUmakefile source/config.ads)
 AC_OUTPUT

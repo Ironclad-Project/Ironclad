@@ -27,14 +27,15 @@ depth, this is the list of available values:
 | Meaning         | C `errno.h` name | Value |
 | --------------- | ---------------- | ----- |
 | No Error        |                  | 0     |
+| Invalid Value   | `EINVAL`         | 1026  |
 | Not Implemented | `ENOSYS`         | 1051  |
 
 ## Syscall list
 
 This are the syscalls, their prototypes, and a short description.
 
-| Syscall                 | Purpose                                               | Index |
-| ----------------------- | ----------------------------------------------------- | ----- |
-| `log(uint64_t address)` | Passes a C null-terminated string to kernel reporting | 0     |
-| `exit(int status)`      | Exits the process, closing opened FDs                 | 1     |
-| `set_tcb(void* ptr)`    | Set an address to be thread-local storage             | 2     |
+| Syscall                        | Purpose              | Index |
+| ------------------------------ | -------------------- | ----- |
+| [log](syscalls/log.md)         | Message reporting    | 0     |
+| [exit](syscalls/exit.md)       | Code flow control    | 1     |
+| [set_tcb](syscalls/set_tcb.md) | Thread-local storage | 2     |

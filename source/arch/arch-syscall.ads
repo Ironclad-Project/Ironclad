@@ -21,16 +21,22 @@ package Arch.Syscall is
    --  Here lie the definitions of the kernel's syscalls and the entrypoint
    --  that dispatches them.
 
+   --  Entrypoint of the syscall dispatcher.
+   procedure Syscall_Handler (Number : Integer; State : access ISR_GPRs)
+      with Convention => C;
+
+private
+
    --  Print a C-style string to the kernel reporting.
-   procedure Syscall_Log (Address : Unsigned_64; Errno : out Unsigned_64);
+   function Syscall_Log
+      (Address : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64;
 
    --  Exit the callee thread, flushing open files.
    procedure Syscall_Exit (Error_Code : Integer; Errno : out Unsigned_64);
 
    --  Set an address to be thread-local storage.
-   procedure Syscall_Set_TCB (Addr : Unsigned_64; Errno : out Unsigned_64);
-
-   --  Entrypoint of the syscall dispatcher.
-   procedure Syscall_Handler (Number : Integer; State : access ISR_GPRs)
-      with Convention => C;
+   function Syscall_Set_TCB
+      (Address : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64;
 end Arch.Syscall;

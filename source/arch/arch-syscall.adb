@@ -24,15 +24,57 @@ with Scheduler;
 package body Arch.Syscall is
    --  Errno values, they are ABI and arbitrary.
    Error_No_Error        : constant := 0;
+   Error_Invalid_Value   : constant := 1026; -- EINVAL.
    Error_Not_Implemented : constant := 1051; -- ENOSYS.
 
-   procedure Syscall_Log (Address : Unsigned_64; Errno : out Unsigned_64) is
-      Addr : constant System.Address := To_Address (Integer_Address (Address));
-      Message_Length : constant Natural := Lib.C_String_Length (Addr);
-      Message_String : String (1 .. Message_Length) with Address => Addr;
+   procedure Syscall_Handler (Number : Integer; State : access ISR_GPRs) is
+      Returned : Unsigned_64 := Unsigned_64'Last;
+      Errno    : Unsigned_64 := Error_No_Error;
+      pragma Unreferenced (Number);
    begin
-      Lib.Messages.Put_Line (Message_String);
-      Errno := Error_No_Error;
+      --  Swap to kernel GS.
+      Wrappers.Swap_GS;
+
+      --  Call the inner syscall.
+      --  RAX is the return value, as well as the syscall number.
+      --  RDX is the returned errno.
+      --  Arguments can be RDI, RSI, RDX, RCX, R8, and R9, in that order.
+      case State.RAX is
+         when 0 =>
+            Returned := Syscall_Log (State.RDI, Errno);
+         when 1 =>
+            Syscall_Exit (Integer (State.RDI), Errno);
+         when 2 =>
+            Returned := Syscall_Set_TCB (State.RDI, Errno);
+         when others =>
+            Errno := Error_Not_Implemented;
+      end case;
+
+      --  Assign the return values and swap back to user GS.
+      State.RAX := Returned;
+      State.RDX := Errno;
+      Wrappers.Swap_GS;
+   end Syscall_Handler;
+
+   function Syscall_Log
+      (Address : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64
+   is
+      Addr : constant System.Address := To_Address (Integer_Address (Address));
+   begin
+      if Address = 0 then
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      else
+         declare
+            Message_Length : constant Natural := Lib.C_String_Length (Addr);
+            Message_String : String (1 .. Message_Length) with Address => Addr;
+         begin
+            Lib.Messages.Put_Line (Message_String);
+            Errno := Error_No_Error;
+            return 0;
+         end;
+      end if;
    end Syscall_Log;
 
    procedure Syscall_Exit (Error_Code : Integer; Errno : out Unsigned_64) is
@@ -42,33 +84,17 @@ package body Arch.Syscall is
       Scheduler.Bail;
    end Syscall_Exit;
 
-   procedure Syscall_Set_TCB (Addr : Unsigned_64; Errno : out Unsigned_64) is
+   function Syscall_Set_TCB
+      (Address : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64 is
    begin
-      Wrappers.Write_FS (Addr);
-      Errno := Error_No_Error;
+      if Address = 0 then
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      else
+         Wrappers.Write_FS (Address);
+         Errno := Error_No_Error;
+         return 0;
+      end if;
    end Syscall_Set_TCB;
-
-   procedure Syscall_Handler (Number : Integer; State : access ISR_GPRs) is
-      Ret_Value : Unsigned_64 := 0;
-      Errno     : Unsigned_64 := Error_No_Error;
-      pragma Unreferenced (Number);
-   begin
-      --  Swap to kernel GS.
-      Wrappers.Swap_GS;
-
-      --  Call the inner syscall.
-      --  RAX is the return value, RDX is the returned errno.
-      --  Arguments can be RDI, RSI, RDX, RCX, and R8, in that order.
-      case State.RAX is
-         when 0 => Syscall_Log (State.RDI, Errno);
-         when 1 => Syscall_Exit (Integer (State.RDI), Errno);
-         when 2 => Syscall_Set_TCB (State.RDI, Errno);
-         when others => Errno := Error_Not_Implemented;
-      end case;
-
-      --  Assign the return values and swap back to user GS.
-      State.RAX := Ret_Value;
-      State.RDX := Errno;
-      Wrappers.Swap_GS;
-   end Syscall_Handler;
 end Arch.Syscall;
