@@ -35,6 +35,9 @@ private
           Offset : System.Address;
           Count  : Positive;
           Desto  : System.Address) return Natural;
+      function Raw_Ramdev_Get_Size
+         (Data : Root_Data;
+          Obj  : Object) return Natural;
       -------------------------------------------------------------------------
       function USTAR_Open (Data : Root_Data; Name : String) return Object;
       procedure USTAR_Close (Data : Root_Data; Obj : Object);
@@ -44,6 +47,8 @@ private
           Offset : System.Address;
           Count  : Positive;
           Desto  : System.Address) return Natural;
-
+      function USTAR_Get_Size
+         (Data : Root_Data;
+          Obj  : Object) return Natural;
       function Octal_To_Decimal (Octal : String) return Natural;
 end Devices.Ramdev;

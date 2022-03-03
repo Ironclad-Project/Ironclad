@@ -105,29 +105,31 @@ package body Devices.Ramdev is
       --  Check if we are doing USTAR, and load the object accordingly.
       if First_Header.Signature = USTAR_Signature then
          return (
-            Name   => Name,
-            Data   => Data.all'Address,
-            Init   => Ramdev_Init'Access,
-            Unload => Ramdev_Unload'Access,
-            Sync   => null,
-            Create => null,
-            Open   => USTAR_Open'Access,
-            Close  => USTAR_Close'Access,
-            Read   => USTAR_Read'Access,
-            Write  => null
+            Name     => Name,
+            Data     => Data.all'Address,
+            Init     => Ramdev_Init'Access,
+            Unload   => Ramdev_Unload'Access,
+            Sync     => null,
+            Create   => null,
+            Open     => USTAR_Open'Access,
+            Close    => USTAR_Close'Access,
+            Read     => USTAR_Read'Access,
+            Write    => null,
+            Get_Size => USTAR_Get_Size'Access
          );
       else
          return (
-            Name   => Name,
-            Data   => Data.all'Address,
-            Init   => Ramdev_Init'Access,
-            Unload => Ramdev_Unload'Access,
-            Sync   => null,
-            Create => null,
-            Open   => null,
-            Close  => null,
-            Read   => Raw_Ramdev_Read'Access,
-            Write  => null
+            Name     => Name,
+            Data     => Data.all'Address,
+            Init     => Ramdev_Init'Access,
+            Unload   => Ramdev_Unload'Access,
+            Sync     => null,
+            Create   => null,
+            Open     => null,
+            Close    => null,
+            Read     => Raw_Ramdev_Read'Access,
+            Write    => null,
+            Get_Size => Raw_Ramdev_Get_Size'Access
          );
       end if;
    end Init_Module;
@@ -172,6 +174,15 @@ package body Devices.Ramdev is
 
       return To_Write;
    end Raw_Ramdev_Read;
+
+   function Raw_Ramdev_Get_Size
+      (Data : Root_Data;
+       Obj  : Object) return Natural is
+      Data2 : Ramdev_Data with Address => Data;
+      pragma Unreferenced (Obj);
+   begin
+      return Natural (Data2.Size);
+   end Raw_Ramdev_Get_Size;
    ----------------------------------------------------------------------------
    function USTAR_Open (Data : Root_Data; Name : String) return Object is
       Real_Data      : Ramdev_Data with Address => Data;
@@ -274,6 +285,19 @@ package body Devices.Ramdev is
 
       return To_Read;
    end USTAR_Read;
+
+   function USTAR_Get_Size
+      (Data : Root_Data;
+       Obj  : Object) return Natural is
+      Data2 : Ramdev_Data with Address => Data;
+      Obj2  : Ramdev_Object with Address => Obj;
+   begin
+      if Obj = System.Null_Address then
+         return Natural (Data2.Size);
+      else
+         return Obj2.Size;
+      end if;
+   end USTAR_Get_Size;
 
    function Octal_To_Decimal (Octal : String) return Natural is
       Result : Natural := 0;

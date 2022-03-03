@@ -65,6 +65,11 @@ package FS is
           Offset   : System.Address;
           Count    : Positive;
           To_Write : System.Address) return Natural;
+
+      --  Get the size of an object, if object = 0, return size of the root.
+      Get_Size : access function
+         (Data : Root_Data;
+          Obj  : Object) return Natural;
    end record;
 
    --  Initialize the FS registry.

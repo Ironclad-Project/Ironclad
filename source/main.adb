@@ -199,7 +199,8 @@ package body Main is
          Lib.Messages.Put ("Booting init ");
          Lib.Messages.Put_Line (Init_Value.all);
          if Userland.Loader.Start_User_ELF
-            (Init_Value.all, Init_Arguments, Init_Environment, "", "", "") = Userland.Process.Error_PID
+            (Init_Value.all, Init_Arguments, Init_Environment, "", "", "") =
+               Userland.Process.Error_PID
          then
             Lib.Panic.Soft_Panic ("Could not start init");
          end if;

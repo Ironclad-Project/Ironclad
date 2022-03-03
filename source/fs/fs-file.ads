@@ -28,9 +28,15 @@ package FS.File is
    type Access_Mode is (Access_R, Access_W, Access_RW);
    function Open (Name : String; Flags : Access_Mode) return FD;
    procedure Close (ID : FD);
-   procedure Read (ID : FD; Count : Integer; Desto : System.Address);
-   procedure Write (ID : FD; Count : Integer; Data : System.Address);
-   function Is_Error (ID : FD) return Boolean;
+   function Read
+      (ID    : FD;
+       Count : Integer;
+       Desto : System.Address) return Natural;
+   function Write
+      (ID    : FD;
+       Count : Integer;
+       Data  : System.Address) return Natural;
+   function Get_Size (ID : FD) return Natural;
    procedure Set_Index (ID : FD; Index : Natural);
    procedure Reset (ID : FD);
 end FS.File;

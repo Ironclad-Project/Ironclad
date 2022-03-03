@@ -122,7 +122,7 @@ install-strip: $(KERNEL) install-doc
 
 install-doc:
 	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
-	@@INSTALL@ $(DOCSDIR)/* "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
+	@cp -r $(DOCSDIR) "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
 
 uninstall:
 	@rm -rf "$(DESTDIR)$(PREFIX)/share/$(KERNEL)"

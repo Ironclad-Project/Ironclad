@@ -61,16 +61,17 @@ package body Devices.Serial is
             Data.Port := COM_Ports (I);
             Device_Name (7) := Character'Val (I + Character'Pos ('0'));
             Discard := Register_Root ((
-               Name   => Device_Name,
-               Data   => Data.all'Address,
-               Init   => null,
-               Unload => null,
-               Sync   => null,
-               Create => null,
-               Open   => null,
-               Close  => null,
-               Read   => Serial_Read'Access,
-               Write  => Serial_Write'Access
+               Name     => Device_Name,
+               Data     => Data.all'Address,
+               Init     => null,
+               Unload   => null,
+               Sync     => null,
+               Create   => null,
+               Open     => null,
+               Close    => null,
+               Read     => Serial_Read'Access,
+               Write    => Serial_Write'Access,
+               Get_Size => null
             ));
             Lib.Synchronization.Release (Data.Mutex'Access);
          end;

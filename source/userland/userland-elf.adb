@@ -73,10 +73,12 @@ package body Userland.ELF is
             Program_Header_Count => 0,
             Program_Header_Size => 0
          ));
+      Header_Bytes : constant Natural := ELF_Header'Size / 8;
    begin
       --  Read and check the header.
-      FS.File.Read (File_D, Header'Size / 8, Header'Address);
-      if FS.File.Is_Error (File_D) then
+
+      if FS.File.Read (File_D, Header_Bytes, Header'Address) /= Header_Bytes
+      then
          return Result;
       end if;
       if Header.Identifier (1 .. 4) /= ELF_Signature then
@@ -94,14 +96,15 @@ package body Userland.ELF is
       declare
          PHDRs : array (1 .. Header.Program_Header_Count) of Program_Header;
          HSize : constant Natural := Natural (Header.Program_Header_Size);
+         RSize : constant Natural := HSize * PHDRs'Length;
       begin
          if HSize = 0 or PHDRs'Length = 0 then
             return Result;
          end if;
 
          FS.File.Set_Index (File_D, Natural (Header.Program_Header_List));
-         FS.File.Read (File_D, HSize * PHDRs'Length, PHDRs'Address);
-         if FS.File.Is_Error (File_D) then
+
+         if FS.File.Read (File_D, RSize, PHDRs'Address) /= RSize then
             return Result;
          end if;
 
@@ -156,11 +159,13 @@ package body Userland.ELF is
    function Get_Linker
       (File_D : FS.File.FD;
        Header : Program_Header) return access String is
+      Discard : Natural;
    begin
       return Ret : access String := new String (1 .. Header.File_Size_Bytes)
       do
          FS.File.Set_Index (File_D, Natural (Header.Offset));
-         FS.File.Read (File_D, Header.File_Size_Bytes, Ret.all'Address);
+         Discard := FS.File.Read
+            (File_D, Header.File_Size_Bytes, Ret.all'Address);
       end return;
    end Get_Linker;
 
@@ -199,7 +204,7 @@ package body Userland.ELF is
           Flags       => Flags,
           Not_Execute => False);
       FS.File.Set_Index (File_D, Natural (Header.Offset));
-      FS.File.Read (File_D, Header.File_Size_Bytes, Load_Addr);
-      return not FS.File.Is_Error (File_D);
+      return FS.File.Read (File_D, Header.File_Size_Bytes, Load_Addr) /=
+             Header.File_Size_Bytes;
    end Load_Header;
 end Userland.ELF;

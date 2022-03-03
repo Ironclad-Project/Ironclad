@@ -26,6 +26,7 @@ package body FS.File is
       Current_Index : Natural;
       References    : Positive;
       Is_Error      : Boolean;
+      Mode          : Access_Mode;
    end record;
    type File_Data_Arr is array (FD range 1 .. 256) of File_Data;
    type File_Data_Acc is access File_Data_Arr;
@@ -80,7 +81,8 @@ package body FS.File is
          Root_Object   => Fetched_Obj,
          Current_Index => 0,
          References    => 1,
-         Is_Error      => False
+         Is_Error      => False,
+         Mode          => Flags
       );
 
    <<Returning>>
@@ -109,14 +111,18 @@ package body FS.File is
       Lib.Synchronization.Release (File_Info_Lock'Access);
    end Close;
 
-   procedure Read (ID : FD; Count : Integer; Desto : System.Address) is
-      Read_Count : Natural;
+   function Read
+      (ID    : FD;
+       Count : Integer;
+       Desto : System.Address) return Natural
+   is
+      Ret_Count : Natural;
    begin
-      if ID = Error_FD then
-         return;
+      if ID = Error_FD or else File_Info (ID).Mode = Access_W then
+         return 0;
       end if;
 
-      Read_Count := File_Info (ID).Root_Data.Read.all (
+      Ret_Count := File_Info (ID).Root_Data.Read.all (
          File_Info (ID).Root_Data.Data,
          File_Info (ID).Root_Object,
          System'To_Address (File_Info (ID).Current_Index),
@@ -124,21 +130,23 @@ package body FS.File is
          Desto
       );
 
-      if Read_Count = 0 then
-         File_Info (ID).Is_Error := True;
-      end if;
-      File_Info (ID).Current_Index :=
-         File_Info (ID).Current_Index + Read_Count;
+      File_Info (ID).Current_Index := File_Info (ID).Current_Index + Ret_Count;
+
+      return Ret_Count;
    end Read;
 
-   procedure Write (ID : FD; Count : Integer; Data : System.Address) is
-      Write_Count : Natural;
+   function Write
+      (ID    : FD;
+       Count : Integer;
+       Data  : System.Address) return Natural
+   is
+      Ret_Count : Natural;
    begin
-      if ID = Error_FD then
-         return;
+      if ID = Error_FD or else File_Info (ID).Mode = Access_R then
+         return 0;
       end if;
 
-      Write_Count := File_Info (ID).Root_Data.Write.all (
+      Ret_Count := File_Info (ID).Root_Data.Write.all (
          File_Info (ID).Root_Data.Data,
          File_Info (ID).Root_Object,
          System'To_Address (File_Info (ID).Current_Index),
@@ -146,17 +154,24 @@ package body FS.File is
          Data
       );
 
-      if Write_Count = 0 then
-         File_Info (ID).Is_Error := True;
-      end if;
-      File_Info (ID).Current_Index :=
-         File_Info (ID).Current_Index + Write_Count;
+      File_Info (ID).Current_Index := File_Info (ID).Current_Index + Ret_Count;
+      return Ret_Count;
    end Write;
 
-   function Is_Error (ID : FD) return Boolean is
+   function Get_Size (ID : FD) return Natural is
+      Ret_Size : Natural;
    begin
-      return File_Info (ID).Is_Error;
-   end Is_Error;
+      if ID = Error_FD then
+         return 0;
+      end if;
+
+      Ret_Size := File_Info (ID).Root_Data.Get_Size.all (
+         File_Info (ID).Root_Data.Data,
+         File_Info (ID).Root_Object
+      );
+
+      return Ret_Size;
+   end Get_Size;
 
    procedure Set_Index (ID : FD; Index : Natural) is
    begin

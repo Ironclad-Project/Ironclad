@@ -19,28 +19,30 @@ with Interfaces; use Interfaces;
 package body Devices.Streams is
    function Init return Boolean is
       Nulldev : constant Root := (
-         Name   => "nulldev",
-         Data   => System.Null_Address,
-         Init   => null,
-         Unload => null,
-         Sync   => null,
-         Create => null,
-         Open   => null,
-         Close  => null,
-         Read   => Nulldev_Read'Access,
-         Write  => Nulldev_Write'Access
+         Name     => "nulldev",
+         Data     => System.Null_Address,
+         Init     => null,
+         Unload   => null,
+         Sync     => null,
+         Create   => null,
+         Open     => null,
+         Close    => null,
+         Read     => Nulldev_Read'Access,
+         Write    => Nulldev_Write'Access,
+         Get_Size => null
       );
       Zerodev : constant Root := (
-         Name   => "zerodev",
-         Data   => System.Null_Address,
-         Init   => null,
-         Unload => null,
-         Sync   => null,
-         Create => null,
-         Open   => null,
-         Close  => null,
-         Read   => Zerodev_Read'Access,
-         Write  => Zerodev_Write'Access
+         Name     => "zerodev",
+         Data     => System.Null_Address,
+         Init     => null,
+         Unload   => null,
+         Sync     => null,
+         Create   => null,
+         Open     => null,
+         Close    => null,
+         Read     => Zerodev_Read'Access,
+         Write    => Zerodev_Write'Access,
+         Get_Size => null
       );
    begin
       if Register_Root (Nulldev) = False then return False; end if;
