@@ -71,6 +71,8 @@ package Scheduler is
    --  Returns whether the current thread is userspace.
    function Is_Userspace return Boolean;
 
+   --  Returns the current thread.
+   function Get_Current_Thread return TID;
 private
    function Find_Free_TID return TID;
    procedure Scheduler_ISR

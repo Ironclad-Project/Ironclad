@@ -141,6 +141,20 @@ package body Userland.Process is
       end if;
    end Remove_File;
 
+   function Contains_File (Process : PID; File : FS.File.FD) return Boolean is
+      Proc_Index : constant Natural := Natural (Process);
+   begin
+      if Is_Valid_Process (Process) then
+         for F of Process_List (Proc_Index).File_List loop
+            if F = File then
+               return True;
+            end if;
+         end loop;
+      end if;
+
+      return False;
+   end Contains_File;
+
    procedure Set_Current_Root (Process : PID; Root : FS.Root_Name) is
    begin
       if Is_Valid_Process (Process) then

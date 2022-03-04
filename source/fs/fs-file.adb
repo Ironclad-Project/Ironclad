@@ -178,6 +178,11 @@ package body FS.File is
       File_Info (ID).Current_Index := Index;
    end Set_Index;
 
+   function Get_Index (ID : FD) return Natural is
+   begin
+      return File_Info (ID).Current_Index;
+   end Get_Index;
+
    procedure Reset (ID : FD) is
    begin
       File_Info (ID).Current_Index := 0;

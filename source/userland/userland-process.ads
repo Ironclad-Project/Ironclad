@@ -42,6 +42,7 @@ package Userland.Process is
    procedure Remove_Thread (Process : PID; Thread : Scheduler.TID);
    function Add_File (Process : PID; File : FS.File.FD) return Boolean;
    procedure Remove_File (Process : PID; File : FS.File.FD);
+   function Contains_File (Process : PID; File : FS.File.FD) return Boolean;
 
    --  Get or set the current root of the process.
    procedure Set_Current_Root (Process : PID; Root : FS.Root_Name);

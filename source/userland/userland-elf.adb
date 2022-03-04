@@ -204,7 +204,7 @@ package body Userland.ELF is
           Flags       => Flags,
           Not_Execute => False);
       FS.File.Set_Index (File_D, Natural (Header.Offset));
-      return FS.File.Read (File_D, Header.File_Size_Bytes, Load_Addr) /=
+      return FS.File.Read (File_D, Header.File_Size_Bytes, Load_Addr) =
              Header.File_Size_Bytes;
    end Load_Header;
 end Userland.ELF;

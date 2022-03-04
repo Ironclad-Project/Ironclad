@@ -39,4 +39,44 @@ private
    function Syscall_Set_TCB
       (Address : Unsigned_64;
        Errno   : out Unsigned_64) return Unsigned_64;
+
+   --  Open a file.
+   O_RDONLY : constant := 2#0001#;
+   O_WRONLY : constant := 2#0010#;
+   O_RDWR   : constant := 2#0011#;
+   O_APPEND : constant := 2#0100#;
+   O_CREAT  : constant := 2#1000#;
+   function Syscall_Open
+      (Address : Unsigned_64;
+       Flags   : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64;
+
+   --  Close a file.
+   function Syscall_Close
+      (File_D : Unsigned_64;
+       Errno  : out Unsigned_64) return Unsigned_64;
+
+   --  Read from a file.
+   function Syscall_Read
+      (File_D : Unsigned_64;
+       Buffer : Unsigned_64;
+       Count  : Unsigned_64;
+       Errno  : out Unsigned_64) return Unsigned_64;
+
+   --  Write to a file.
+   function Syscall_Write
+      (File_D : Unsigned_64;
+       Buffer : Unsigned_64;
+       Count  : Unsigned_64;
+       Errno  : out Unsigned_64) return Unsigned_64;
+
+   --  Operate with the file offset.
+   SEEK_SET     : constant := 1;
+   SEEK_CURRENT : constant := 2;
+   SEEK_END     : constant := 4;
+   function Syscall_Seek
+      (File_D : Unsigned_64;
+       Offset : Unsigned_64;
+       Whence : Unsigned_64;
+       Errno  : out Unsigned_64) return Unsigned_64;
 end Arch.Syscall;

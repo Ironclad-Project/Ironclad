@@ -313,6 +313,13 @@ package body Scheduler is
       return Result;
    end Is_Userspace;
 
+   function Get_Current_Thread return TID is
+      Core   : constant Positive := Arch.CPU.Get_Core_Number;
+      Thread : constant TID      := Core_Locals (Core).Current_TID;
+   begin
+      return Thread;
+   end Get_Current_Thread;
+
    procedure Scheduler_ISR
       (Number : Unsigned_32;
        State  : access Arch.Interrupts.ISR_GPRs)

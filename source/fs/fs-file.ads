@@ -38,5 +38,6 @@ package FS.File is
        Data  : System.Address) return Natural;
    function Get_Size (ID : FD) return Natural;
    procedure Set_Index (ID : FD; Index : Natural);
+   function Get_Index (ID : FD) return Natural;
    procedure Reset (ID : FD);
 end FS.File;

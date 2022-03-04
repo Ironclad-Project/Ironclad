@@ -19,6 +19,8 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Wrappers;
 with Lib.Messages;
 with Lib;
+with Userland.Process;
+with FS.File; use FS.File;
 with Scheduler;
 
 package body Arch.Syscall is
@@ -26,6 +28,7 @@ package body Arch.Syscall is
    Error_No_Error        : constant := 0;
    Error_Invalid_Value   : constant := 1026; -- EINVAL.
    Error_Not_Implemented : constant := 1051; -- ENOSYS.
+   Error_Bad_File        : constant := 1081; -- EBADFD.
 
    procedure Syscall_Handler (Number : Integer; State : access ISR_GPRs) is
       Returned : Unsigned_64 := Unsigned_64'Last;
@@ -46,6 +49,16 @@ package body Arch.Syscall is
             Syscall_Exit (Integer (State.RDI), Errno);
          when 2 =>
             Returned := Syscall_Set_TCB (State.RDI, Errno);
+         when 3 =>
+            Returned := Syscall_Open (State.RDI, State.RSI, Errno);
+         when 4 =>
+            Returned := Syscall_Close (State.RDI, Errno);
+         when 5 =>
+            Returned := Syscall_Read (State.RDI, State.RSI, State.RDX, Errno);
+         when 6 =>
+            Returned := Syscall_Write (State.RDI, State.RSI, State.RDX, Errno);
+         when 7 =>
+            Returned := Syscall_Seek (State.RDI, State.RSI, State.RDX, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -97,4 +110,165 @@ package body Arch.Syscall is
          return 0;
       end if;
    end Syscall_Set_TCB;
+
+   function Syscall_Open
+      (Address : Unsigned_64;
+       Flags   : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64
+   is
+      Addr : constant System.Address := To_Address (Integer_Address (Address));
+   begin
+      if Address = 0 then
+         goto Error_Return;
+      end if;
+      declare
+         Path_Length  : constant Natural := Lib.C_String_Length (Addr);
+         Path_String  : String (1 .. Path_Length) with Address => Addr;
+         Current_Thre : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+         Current_Proc : constant Userland.Process.PID :=
+            Userland.Process.Get_Process_By_Thread (Current_Thre);
+         Open_Mode    : FS.File.Access_Mode;
+         Returned_FD  : FS.File.FD;
+      begin
+         --  Parse the mode.
+         if (Flags and O_RDWR) /= 0 then
+            Open_Mode := FS.File.Access_RW;
+         elsif (Flags and O_RDONLY) /= 0 then
+            Open_Mode := FS.File.Access_R;
+         elsif (Flags and O_WRONLY) /= 0 then
+            Open_Mode := FS.File.Access_W;
+         else
+            goto Error_Return;
+         end if;
+
+         --  Actually open the file.
+         Returned_FD := FS.File.Open (Path_String, Open_Mode);
+         if Returned_FD = FS.File.Error_FD then
+            goto Error_Return;
+         else
+            if not Userland.Process.Add_File (Current_Proc, Returned_FD) then
+               goto Error_Return;
+            else
+               Errno := Error_No_Error;
+               return Unsigned_64 (Returned_FD);
+            end if;
+         end if;
+      end;
+   <<Error_Return>>
+      Errno := Error_Invalid_Value;
+      return Unsigned_64'Last;
+   end Syscall_Open;
+
+   function Syscall_Close
+      (File_D : Unsigned_64;
+       Errno  : out Unsigned_64) return Unsigned_64
+   is
+      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Current_Process : constant Userland.Process.PID :=
+         Userland.Process.Get_Process_By_Thread (Current_Thread);
+      File            : constant FS.File.FD := FD (File_D);
+   begin
+      if File = FS.File.Error_FD or
+         not Userland.Process.Contains_File (Current_Process, File)
+      then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+
+      Userland.Process.Remove_File (Current_Process, File);
+      FS.File.Close (File);
+      Errno := Error_No_Error;
+      return 0;
+   end Syscall_Close;
+
+   function Syscall_Read
+      (File_D : Unsigned_64;
+       Buffer : Unsigned_64;
+       Count  : Unsigned_64;
+       Errno  : out Unsigned_64) return Unsigned_64
+   is
+      Buffer_Addr     : constant System.Address :=
+         To_Address (Integer_Address (Buffer));
+      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Current_Process : constant Userland.Process.PID :=
+         Userland.Process.Get_Process_By_Thread (Current_Thread);
+      File            : constant FS.File.FD := FD (File_D);
+   begin
+      if File = FS.File.Error_FD or
+         not Userland.Process.Contains_File (Current_Process, File)
+      then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+      if Buffer = 0 then
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      end if;
+
+      Errno := Error_No_Error;
+      return Unsigned_64 (FS.File.Read (File, Integer (Count), Buffer_Addr));
+   end Syscall_Read;
+
+   function Syscall_Write
+      (File_D : Unsigned_64;
+       Buffer : Unsigned_64;
+       Count  : Unsigned_64;
+       Errno  : out Unsigned_64) return Unsigned_64
+   is
+      Buffer_Addr     : constant System.Address :=
+         To_Address (Integer_Address (Buffer));
+      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Current_Process : constant Userland.Process.PID :=
+         Userland.Process.Get_Process_By_Thread (Current_Thread);
+      File            : constant FS.File.FD := FD (File_D);
+   begin
+      if File = FS.File.Error_FD or
+         not Userland.Process.Contains_File (Current_Process, File)
+      then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+      if Buffer = 0 then
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      end if;
+
+      Errno := Error_No_Error;
+      return Unsigned_64 (FS.File.Write (File, Integer (Count), Buffer_Addr));
+   end Syscall_Write;
+
+   function Syscall_Seek
+      (File_D : Unsigned_64;
+       Offset : Unsigned_64;
+       Whence : Unsigned_64;
+       Errno  : out Unsigned_64) return Unsigned_64
+   is
+      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Current_Process : constant Userland.Process.PID :=
+         Userland.Process.Get_Process_By_Thread (Current_Thread);
+      File            : constant FS.File.FD := FD (File_D);
+      Passed_Offset   : constant Natural    := Natural (Offset);
+   begin
+      if File = FS.File.Error_FD or
+         not Userland.Process.Contains_File (Current_Process, File)
+      then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+
+      case Whence is
+         when SEEK_SET =>
+            FS.File.Set_Index (File, Passed_Offset);
+         when SEEK_CURRENT =>
+            FS.File.Set_Index (File, FS.File.Get_Index (File) + Passed_Offset);
+         when SEEK_END =>
+            FS.File.Set_Index (File, FS.File.Get_Size (File) + Passed_Offset);
+         when others =>
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+      end case;
+
+      Errno := Error_No_Error;
+      return Unsigned_64 (FS.File.Get_Index (File));
+   end Syscall_Seek;
 end Arch.Syscall;

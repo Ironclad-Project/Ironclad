@@ -29,6 +29,7 @@ depth, this is the list of available values:
 | No Error        |                  | 0     |
 | Invalid Value   | `EINVAL`         | 1026  |
 | Not Implemented | `ENOSYS`         | 1051  |
+| Bad FD          | `EBADFD`         | 1081  |
 
 ## Syscall list
 
@@ -39,3 +40,8 @@ This are the syscalls, their prototypes, and a short description.
 | [log](syscalls/log.md)         | Message reporting    | 0     |
 | [exit](syscalls/exit.md)       | Code flow control    | 1     |
 | [set_tcb](syscalls/set_tcb.md) | Thread-local storage | 2     |
+| [open](syscalls/open.md)       | Synchronous File IO  | 3     |
+| [close](syscalls/close.md)     | Synchronous File IO  | 4     |
+| [read](syscalls/read.md)       | Synchronous File IO  | 5     |
+| [write](syscalls/write.md)     | Synchronous File IO  | 6     |
+| [seek](syscalls/seek.md)       | Synchronous File IO  | 7     |

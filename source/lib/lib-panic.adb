@@ -43,8 +43,8 @@ package body Lib.Panic is
 
       --  Print the error and try to recover.
       Already_Soft_Panicked := True;
-      Lib.Messages.Put ("Soft panic requested: ");
-      Lib.Messages.Put (Message);
+      Lib.Messages.Put      ("Soft panic requested: ");
+      Lib.Messages.Put_Line (Message);
    end Soft_Panic;
 
    procedure Hard_Panic (Message : String) is
