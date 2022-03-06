@@ -1,4 +1,4 @@
---  devices.adb: Device management.
+--  devices-tty.ads: Expose a TTY device.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,19 +14,19 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Devices.Serial;
-with Devices.Streams;
-with Devices.TTY;
+with System;
+with FS; use FS;
 
-package body Devices is
-   procedure Init is
-      Discard : Boolean;
-   begin
-      --  Initialize virtual devices first.
-      Discard := Streams.Init;
-      Discard := TTY.Init;
+package Devices.TTY is
+   --  Initialize the device.
+   function Init return Boolean;
 
-      --  Initialize physical devices.
-      Discard := Serial.Init;
-   end Init;
-end Devices;
+private
+
+   function TTY_Write
+      (Data     : Root_Data;
+       Obj      : Object;
+       Offset   : System.Address;
+       Count    : Positive;
+       To_Write : System.Address) return Natural;
+end Devices.TTY;

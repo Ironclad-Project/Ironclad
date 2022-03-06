@@ -81,9 +81,9 @@ package body Arch.Stivale2 is
          --  Ensure we are using the kernel pagemap, as the lower half needs
          --  to be identity mapped, and only the kernel pagemap does that.
          if Kernel_Map /= null and then
-            not Memory.Virtual.Is_Loaded (Kernel_Map.all)
+            not Memory.Virtual.Is_Loaded (Kernel_Map)
          then
-            Make_Active (Kernel_Map.all);
+            Make_Active (Kernel_Map);
          end if;
 
          Asm ("push %%rdi" & LF & HT &
@@ -98,7 +98,7 @@ package body Arch.Stivale2 is
               Volatile => True);
 
          if Kernel_Map /= null and then
-            Memory.Virtual.Is_Loaded (Kernel_Map.all)
+            Memory.Virtual.Is_Loaded (Kernel_Map)
          then
             Wrappers.Write_CR3 (Current_CR3);
          end if;

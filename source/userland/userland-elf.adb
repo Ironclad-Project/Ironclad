@@ -59,7 +59,7 @@ package body Userland.ELF is
 
    function Load_ELF
       (File_D : FS.File.FD;
-       Map    : in out Memory.Virtual.Page_Map;
+       Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Parsed_ELF
    is
       Header : ELF_Header;
@@ -131,7 +131,7 @@ package body Userland.ELF is
 
    function Open_And_Load_ELF
       (Path : String;
-       Map  : in out Memory.Virtual.Page_Map;
+       Map  : Memory.Virtual.Page_Map_Acc;
        Base : Unsigned_64) return Parsed_ELF
    is
       FD : constant FS.File.FD := FS.File.Open (Path, FS.File.Access_R);
@@ -173,7 +173,7 @@ package body Userland.ELF is
    function Load_Header
       (File_D : FS.File.FD;
        Header : Program_Header;
-       Map    : in out Memory.Virtual.Page_Map;
+       Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Boolean
    is
       MisAlign : constant Unsigned_64 :=

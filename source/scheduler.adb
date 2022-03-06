@@ -44,7 +44,7 @@ package body Scheduler is
       Is_Running   : Boolean;
       Preference   : Unsigned_8;
       FS           : Unsigned_64;
-      PageMap      : Memory.Virtual.Page_Map;
+      PageMap      : Memory.Virtual.Page_Map_Acc;
       Stack        : Virtual_Address;
       Kernel_Stack : Virtual_Address;
    end record;
@@ -137,7 +137,7 @@ package body Scheduler is
          Thread_Pool (New_TID).Is_Banned    := False;
          Thread_Pool (New_TID).Is_Running   := False;
          Thread_Pool (New_TID).Preference   := 4;
-         Thread_Pool (New_TID).PageMap      := Memory.Virtual.Kernel_Map.all;
+         Thread_Pool (New_TID).PageMap      := Memory.Virtual.Kernel_Map;
          Thread_Pool (New_TID).Stack        := Stack_Addr;
          Thread_Pool (New_TID).State.CS     := Arch.GDT.Kernel_Code64_Segment;
          Thread_Pool (New_TID).State.DS     := Arch.GDT.Kernel_Data64_Segment;
@@ -159,7 +159,7 @@ package body Scheduler is
       (Address   : Virtual_Address;
        Args      : Userland.Argument_Arr;
        Env       : Userland.Environment_Arr;
-       Map       : Memory.Virtual.Page_Map;
+       Map       : Memory.Virtual.Page_Map_Acc;
        Vector    : Userland.ELF.Auxval;
        Stack_Top : Unsigned_64) return TID is
       New_TID : TID;

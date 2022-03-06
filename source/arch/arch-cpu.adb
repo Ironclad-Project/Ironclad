@@ -72,7 +72,7 @@ package body Arch.CPU is
       --  Load the global GDT, IDT, mappings, and LAPIC.
       Arch.GDT.Load_GDT;
       Arch.IDT.Load_IDT;
-      Memory.Virtual.Make_Active (Memory.Virtual.Kernel_Map.all);
+      Memory.Virtual.Make_Active (Memory.Virtual.Kernel_Map);
       Arch.APIC.Init_LAPIC;
 
       --  Load several goodies.

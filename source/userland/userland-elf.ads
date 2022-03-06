@@ -44,13 +44,13 @@ package Userland.ELF is
    --  into the passed map. Return parsed info about the ELF.
    function Load_ELF
       (File_D : FS.File.FD;
-       Map    : in out Memory.Virtual.Page_Map;
+       Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Parsed_ELF;
 
    --  Do the same as the one above but opens and closes the file for you.
    function Open_And_Load_ELF
       (Path : String;
-       Map  : in out Memory.Virtual.Page_Map;
+       Map  : Memory.Virtual.Page_Map_Acc;
        Base : Unsigned_64) return Parsed_ELF;
 
 private
@@ -88,6 +88,6 @@ private
    function Load_Header
       (File_D : FS.File.FD;
        Header : Program_Header;
-       Map    : in out Memory.Virtual.Page_Map;
+       Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Boolean;
 end Userland.ELF;

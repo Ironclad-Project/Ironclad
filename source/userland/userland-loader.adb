@@ -43,12 +43,12 @@ package body Userland.Loader is
       if Returned_PID = Process.Error_PID then
          goto Error;
       end if;
-      Process.Set_Memmap (Returned_PID, Fork_Map (Kernel_Map.all));
+      Process.Set_Memmap (Returned_PID, Fork_Map (Kernel_Map));
 
       --  Load the executable.
       Loaded_ELF := ELF.Open_And_Load_ELF
          (Path,
-          Process.Get_Memmap (Returned_PID).all,
+          Process.Get_Memmap (Returned_PID),
           Program_Offset);
       if not Loaded_ELF.Was_Loaded then
          goto Error;
@@ -64,7 +64,7 @@ package body Userland.Loader is
 
          LD_ELF := ELF.Open_And_Load_ELF
             (LD_Path (1 .. 6 + Loaded_ELF.Linker_Path.all'Length),
-             Process.Get_Memmap (Returned_PID).all, LD_Offset);
+             Process.Get_Memmap (Returned_PID), LD_Offset);
          Entrypoint := To_Integer (LD_ELF.Entrypoint);
          if not LD_ELF.Was_Loaded then
             goto Error;
@@ -79,7 +79,7 @@ package body Userland.Loader is
             (Address   => Entrypoint,
              Args      => Arguments,
              Env       => Environment,
-             Map       => Process.Get_Memmap (Returned_PID).all,
+             Map       => Process.Get_Memmap (Returned_PID),
              Vector    => Loaded_ELF.Vector,
              --  TODO: Do not hardcode stack size.
              Stack_Top => Process.Bump_Stack (Returned_PID, 16#200000#));

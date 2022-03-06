@@ -62,7 +62,7 @@ package body Memory.Virtual is
                Flags.Read_Write := False;
             end if;
 
-            Map_Range (Kernel_Map.all, Virt_Addr, Phys_Addr, E.Length,
+            Map_Range (Kernel_Map, Virt_Addr, Phys_Addr, E.Length,
                Flags, Not_Execute);
          end;
       end loop;
@@ -70,9 +70,9 @@ package body Memory.Virtual is
       --  Map the first 2 GiB (except 0) to the window and identity mapped.
       --  This is done instead of following the pagemap to ensure that all
       --  I/O and memory tables that may not be in the memmap are mapped.
-      Map_Range (Kernel_Map.all, Page_Size, Page_Size,
+      Map_Range (Kernel_Map, Page_Size, Page_Size,
          Hardcoded_Region - Page_Size, Flags, False);
-      Map_Range (Kernel_Map.all, Page_Size + Memory_Offset, Page_Size,
+      Map_Range (Kernel_Map, Page_Size + Memory_Offset, Page_Size,
          Hardcoded_Region - Page_Size, Flags, False);
 
       --  Map the memmap memory (that is not kernel or already mapped)
@@ -88,8 +88,8 @@ package body Memory.Virtual is
                   KAddr : constant Virtual_Address := Addr + Memory_Offset;
                begin
                   if Addr >= Hardcoded_Region then
-                     Map_Page (Kernel_Map.all, Addr,  Addr, Flags, False);
-                     Map_Page (Kernel_Map.all, KAddr, Addr, Flags, False);
+                     Map_Page (Kernel_Map, Addr,  Addr, Flags, False);
+                     Map_Page (Kernel_Map, KAddr, Addr, Flags, False);
                   end if;
                   Index := Index + Page_Size;
                end;
@@ -99,10 +99,10 @@ package body Memory.Virtual is
       end loop;
 
       --  Make active.
-      Make_Active (Kernel_Map.all);
+      Make_Active (Kernel_Map);
    end Init;
 
-   procedure Make_Active (Map : in out Page_Map) is
+   procedure Make_Active (Map : Page_Map_Acc) is
       Addr : constant Unsigned_64 := Unsigned_64 (Physical_Address
          (To_Integer (Map.PML4_Level'Address) - Memory_Offset));
    begin
@@ -116,7 +116,7 @@ package body Memory.Virtual is
    end Make_Active;
 
    procedure Map_Page
-      (Map         : in out Page_Map;
+      (Map         : Page_Map_Acc;
        Virtual     : Virtual_Address;
        Physical    : Physical_Address;
        Flags       : Page_Flags;
@@ -140,7 +140,7 @@ package body Memory.Virtual is
    end Map_Page;
 
    procedure Map_Range
-      (Map         : in out Page_Map;
+      (Map         : Page_Map_Acc;
        Virtual     : Virtual_Address;
        Physical    : Physical_Address;
        Length      : Unsigned_64;
@@ -157,7 +157,7 @@ package body Memory.Virtual is
       end loop;
    end Map_Range;
 
-   procedure Unmap_Page (Map : in out Page_Map; Virtual : Virtual_Address) is
+   procedure Unmap_Page (Map : Page_Map_Acc; Virtual : Virtual_Address) is
       Page_Address : Virtual_Address;
       Addr4        : constant Physical_Address :=
          To_Integer (Map.PML4_Level'Address) - Memory_Offset;
@@ -181,7 +181,7 @@ package body Memory.Virtual is
    end Unmap_Page;
 
    procedure Change_Page_Flags
-      (Map     : in out Page_Map;
+      (Map     : Page_Map_Acc;
        Virtual : Virtual_Address;
        Flags   : Page_Flags) is
       Page_Address : Virtual_Address;
@@ -199,7 +199,7 @@ package body Memory.Virtual is
       Lib.Synchronization.Release (Map.Mutex'Access);
    end Change_Page_Flags;
 
-   function Fork_Map (Map : Page_Map) return access Page_Map is
+   function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc is
       Returned : Page_Map_Acc := new Page_Map;
    begin
       --  Copy the higher half mappings from the kernel map.
@@ -210,7 +210,7 @@ package body Memory.Virtual is
       return Returned;
    end Fork_Map;
 
-   function Is_Loaded (Map : Page_Map) return Boolean is
+   function Is_Loaded (Map : Page_Map_Acc) return Boolean is
       Current : constant Unsigned_64 := Arch.Wrappers.Read_CR3;
       PAddr : constant Integer_Address := To_Integer (Map.PML4_Level'Address);
    begin
@@ -260,7 +260,7 @@ package body Memory.Virtual is
    end Get_Next_Level;
 
    function Get_Page
-      (Map      : in out Page_Map;
+      (Map      : Page_Map_Acc;
        Virtual  : Virtual_Address;
        Allocate : Boolean) return Virtual_Address is
       Addr  : constant Address_Components := Get_Address_Components (Virtual);

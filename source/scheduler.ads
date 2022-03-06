@@ -47,7 +47,7 @@ package Scheduler is
       (Address   : Virtual_Address;
        Args      : Userland.Argument_Arr;
        Env       : Userland.Environment_Arr;
-       Map       : Memory.Virtual.Page_Map;
+       Map       : Memory.Virtual.Page_Map_Acc;
        Vector    : Userland.ELF.Auxval;
        Stack_Top : Unsigned_64) return TID;
 

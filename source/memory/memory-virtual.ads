@@ -126,32 +126,32 @@ package Memory.Virtual is
       Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
       PML4_Level : PML4;
    end record;
+   type Page_Map_Acc is access all Page_Map;
 
    --  Functions to manipulate pagemaps.
-   procedure Make_Active (Map : in out Page_Map);
+   procedure Make_Active (Map : Page_Map_Acc);
    procedure Map_Page
-      (Map         : in out Page_Map;
+      (Map         : Page_Map_Acc;
        Virtual     : Virtual_Address;
        Physical    : Physical_Address;
        Flags       : Page_Flags;
        Not_Execute : Boolean);
    procedure Map_Range
-      (Map         : in out Page_Map;
+      (Map         : Page_Map_Acc;
        Virtual     : Virtual_Address;
        Physical    : Physical_Address;
        Length      : Unsigned_64;
        Flags       : Page_Flags;
        Not_Execute : Boolean);
-   procedure Unmap_Page (Map : in out Page_Map; Virtual : Virtual_Address);
+   procedure Unmap_Page (Map : Page_Map_Acc; Virtual : Virtual_Address);
    procedure Change_Page_Flags
-      (Map     : in out Page_Map;
+      (Map     : Page_Map_Acc;
        Virtual : Virtual_Address;
        Flags   : Page_Flags);
-   function Fork_Map (Map : Page_Map) return access Page_Map;
-   function Is_Loaded (Map : Page_Map) return Boolean;
+   function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc;
+   function Is_Loaded (Map : Page_Map_Acc) return Boolean;
 
    --  Map meant to be used for all cores for kernel code.
-   type Page_Map_Acc is access all Page_Map;
    Kernel_Map : Page_Map_Acc;
 
 private
@@ -170,7 +170,7 @@ private
        Create_If_Not_Found : Boolean) return Physical_Address;
 
    function Get_Page
-      (Map      : in out Page_Map;
+      (Map      : Page_Map_Acc;
        Virtual  : Virtual_Address;
        Allocate : Boolean) return Virtual_Address;
 

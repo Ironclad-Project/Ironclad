@@ -15,8 +15,12 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Lib.Synchronization;
+with Ada.Unchecked_Deallocation;
 
 package body Userland.Process is
+   procedure Free is new Ada.Unchecked_Deallocation
+      (Memory.Virtual.Page_Map, Memory.Virtual.Page_Map_Acc);
+
    type Process_Data_Threads is array (1 .. 20) of Scheduler.TID;
    type Process_Data_Files   is array (1 .. 20) of FS.File.FD;
    type Process_Data is record
@@ -65,6 +69,7 @@ package body Userland.Process is
       if Is_Valid_Process (Process) then
          Lib.Synchronization.Seize (Process_List_Mutex'Access);
          Process_List (Natural (Process)).Is_Used := False;
+         Free (Process_List (Natural (Process)).Common_Map);
          Lib.Synchronization.Release (Process_List_Mutex'Access);
       end if;
    end Delete_Process;
