@@ -217,6 +217,23 @@ package body Memory.Virtual is
       return Current = Unsigned_64 (PAddr - Memory_Offset);
    end Is_Loaded;
 
+   function Virtual_To_Physical
+      (Map     : Page_Map_Acc;
+       Virtual : Virtual_Address) return Physical_Address
+   is
+      Result : Physical_Address;
+   begin
+      Lib.Synchronization.Seize (Map.Mutex'Access);
+      declare
+         Addr     : constant Virtual_Address := Get_Page (Map, Virtual, False);
+         Searched : Page with Address => To_Address (Addr);
+      begin
+         Result := Searched.Addr;
+      end;
+      Lib.Synchronization.Release (Map.Mutex'Access);
+      return Result;
+   end Virtual_To_Physical;
+
    function Get_Address_Components
       (Virtual : Virtual_Address) return Address_Components is
       Addr   : constant Unsigned_64 := Unsigned_64 (Virtual);

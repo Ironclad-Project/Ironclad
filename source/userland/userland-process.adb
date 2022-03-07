@@ -31,6 +31,7 @@ package body Userland.Process is
       File_List    : Process_Data_Files;
       Common_Map   : access Memory.Virtual.Page_Map;
       Stack_Base   : Unsigned_64;
+      Alloc_Base   : Unsigned_64;
    end record;
 
    type Process_Arr is array (1 .. 256) of Process_Data;
@@ -55,6 +56,7 @@ package body Userland.Process is
             Process_List (I).Is_Used    := False;
             Process_List (I).Parent     := Parent;
             Process_List (I).Stack_Base := 16#70000000000#;
+            Process_List (I).Alloc_Base := 16#80000000000#;
             Ret_PID := PID (I);
             exit;
          end if;
@@ -216,6 +218,22 @@ package body Userland.Process is
          return 0;
       end if;
    end Bump_Stack;
+
+   function Bump_Alloc (Process : PID; Val : Unsigned_64) return Unsigned_64 is
+      Proc_Index : constant Natural := Natural (Process);
+   begin
+      if Is_Valid_Process (Process) then
+         declare
+            Returned : constant Unsigned_64 :=
+               Process_List (Proc_Index).Alloc_Base;
+         begin
+            Process_List (Proc_Index).Alloc_Base := Returned + Val;
+            return Returned;
+         end;
+      else
+         return 0;
+      end if;
+   end Bump_Alloc;
 
    function Is_Valid_Process (Process : PID) return Boolean is
    begin

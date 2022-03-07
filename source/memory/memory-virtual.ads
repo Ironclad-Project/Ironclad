@@ -150,6 +150,9 @@ package Memory.Virtual is
        Flags   : Page_Flags);
    function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc;
    function Is_Loaded (Map : Page_Map_Acc) return Boolean;
+   function Virtual_To_Physical
+      (Map     : Page_Map_Acc;
+       Virtual : Virtual_Address) return Physical_Address;
 
    --  Map meant to be used for all cores for kernel code.
    Kernel_Map : Page_Map_Acc;

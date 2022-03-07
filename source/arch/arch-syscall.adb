@@ -22,6 +22,9 @@ with Lib;
 with Userland.Process;
 with FS.File; use FS.File;
 with Scheduler;
+with Memory.Virtual;
+with Memory.Physical;
+with Memory; use Memory;
 
 package body Arch.Syscall is
    --  Errno values, they are ABI and arbitrary.
@@ -46,7 +49,7 @@ package body Arch.Syscall is
          when 0 =>
             Returned := Syscall_Log (State.RDI, Errno);
          when 1 =>
-            Syscall_Exit (Integer (State.RDI), Errno);
+            Syscall_Exit (Integer (State.RDI));
          when 2 =>
             Returned := Syscall_Set_TCB (State.RDI, Errno);
          when 3 =>
@@ -59,6 +62,10 @@ package body Arch.Syscall is
             Returned := Syscall_Write (State.RDI, State.RSI, State.RDX, Errno);
          when 7 =>
             Returned := Syscall_Seek (State.RDI, State.RSI, State.RDX, Errno);
+         when 8 =>
+            Returned := Syscall_Alloc (State.RDI, Errno);
+         when 9 =>
+            Syscall_Free (State.RDI);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -90,10 +97,9 @@ package body Arch.Syscall is
       end if;
    end Syscall_Log;
 
-   procedure Syscall_Exit (Error_Code : Integer; Errno : out Unsigned_64) is
+   procedure Syscall_Exit (Error_Code : Integer) is
       pragma Unreferenced (Error_Code);
    begin
-      Errno := Error_No_Error;
       Scheduler.Bail;
    end Syscall_Exit;
 
@@ -271,4 +277,51 @@ package body Arch.Syscall is
       Errno := Error_No_Error;
       return Unsigned_64 (FS.File.Get_Index (File));
    end Syscall_Seek;
+
+   function Syscall_Alloc
+      (Count : Unsigned_64;
+       Errno : out Unsigned_64) return Unsigned_64
+   is
+      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Current_Process : constant Userland.Process.PID :=
+         Userland.Process.Get_Process_By_Thread (Current_Thread);
+      Map : constant Memory.Virtual.Page_Map_Acc :=
+         Userland.Process.Get_Memmap (Current_Process);
+      Allocated : constant Virtual_Address :=
+         Memory.Physical.Alloc (Size (Count));
+      Base : constant Unsigned_64 :=
+         Userland.Process.Bump_Alloc (Current_Process, Count);
+   begin
+      --  Map the memory.
+      Memory.Virtual.Map_Range
+         (Map,
+          Virtual_Address (Base),
+          Allocated,
+          Count,
+         (Present         => True,
+          Read_Write      => True,
+          User_Supervisor => True,
+          Write_Through   => False,
+          Cache_Disable   => False,
+          Accessed        => False,
+          Dirty           => False,
+          PAT             => False,
+          Global          => False),
+         False);
+      Errno := Error_No_Error;
+      return Base;
+   end Syscall_Alloc;
+
+   --  Free a block.
+   procedure Syscall_Free (Address : Unsigned_64) is
+      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Current_Process : constant Userland.Process.PID :=
+         Userland.Process.Get_Process_By_Thread (Current_Thread);
+      Map : constant Memory.Virtual.Page_Map_Acc :=
+         Userland.Process.Get_Memmap (Current_Process);
+      Addr : constant Physical_Address :=
+         Memory.Virtual.Virtual_To_Physical (Map, Virtual_Address (Address));
+   begin
+      Memory.Physical.Free (Addr);
+   end Syscall_Free;
 end Arch.Syscall;

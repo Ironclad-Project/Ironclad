@@ -33,7 +33,7 @@ private
        Errno   : out Unsigned_64) return Unsigned_64;
 
    --  Exit the callee thread, flushing open files.
-   procedure Syscall_Exit (Error_Code : Integer; Errno : out Unsigned_64);
+   procedure Syscall_Exit (Error_Code : Integer);
 
    --  Set an address to be thread-local storage.
    function Syscall_Set_TCB
@@ -79,4 +79,12 @@ private
        Offset : Unsigned_64;
        Whence : Unsigned_64;
        Errno  : out Unsigned_64) return Unsigned_64;
+
+   --  Allocate a block.
+   function Syscall_Alloc
+      (Count : Unsigned_64;
+       Errno : out Unsigned_64) return Unsigned_64;
+
+   --  Free a block.
+   procedure Syscall_Free (Address : Unsigned_64);
 end Arch.Syscall;

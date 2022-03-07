@@ -55,6 +55,9 @@ package Userland.Process is
 
    --  Get the stack base and increment it by the passed stack size.
    function Bump_Stack (Process : PID; Val : Unsigned_64) return Unsigned_64;
+
+   --  Get the allocation base and increment it by the passed size.
+   function Bump_Alloc (Process : PID; Val : Unsigned_64) return Unsigned_64;
 private
 
    function Is_Valid_Process (Process : PID) return Boolean;

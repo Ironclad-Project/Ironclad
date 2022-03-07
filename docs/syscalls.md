@@ -45,3 +45,5 @@ This are the syscalls, their prototypes, and a short description.
 | [read](syscalls/read.md)       | Synchronous File IO  | 5     |
 | [write](syscalls/write.md)     | Synchronous File IO  | 6     |
 | [seek](syscalls/seek.md)       | Synchronous File IO  | 7     |
+| [alloc](syscalls/alloc.md)     | Memory allocation    | 8     |
+| [free](syscalls/alloc.md)      | Memory allocation    | 9     |
