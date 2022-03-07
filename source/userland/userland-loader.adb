@@ -95,7 +95,7 @@ package body Userland.Loader is
 
          Process.Set_Current_Root
             (Returned_PID,
-             Path (Path'First .. Path'First + 6));
+             Path (Path'First + 1 .. Path'First + 7));
          return Returned_PID;
       end;
 

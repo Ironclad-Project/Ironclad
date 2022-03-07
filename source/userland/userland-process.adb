@@ -53,7 +53,7 @@ package body Userland.Process is
 
       for I in Process_List.all'Range loop
          if not Process_List (I).Is_Used then
-            Process_List (I).Is_Used    := False;
+            Process_List (I).Is_Used    := True;
             Process_List (I).Parent     := Parent;
             Process_List (I).Stack_Base := 16#70000000000#;
             Process_List (I).Alloc_Base := 16#80000000000#;

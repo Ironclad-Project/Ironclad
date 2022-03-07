@@ -144,11 +144,20 @@ package body Arch.Syscall is
          elsif (Flags and O_WRONLY) /= 0 then
             Open_Mode := FS.File.Access_W;
          else
-            goto Error_Return;
+            --  XXX: This should go to Error_Return, yet mlibc's dynamic linker
+            --  passes flags = 0 for no reason, so we will put a default.
+            --  This should not be the case, and it is to be fixed.
+            --  goto Error_Return;
+            Open_Mode := FS.File.Access_R;
          end if;
 
-         --  Actually open the file.
-         Returned_FD := FS.File.Open (Path_String, Open_Mode);
+         --  Open the file with an absolute path.
+         if Path_String'Length <= 2 then
+            goto Error_Return;
+         end if;
+   
+            --  Actually open the file.
+            Returned_FD := FS.File.Open (Path_String, Open_Mode);
          if Returned_FD = FS.File.Error_FD then
             goto Error_Return;
          else
@@ -296,7 +305,7 @@ package body Arch.Syscall is
       Memory.Virtual.Map_Range
          (Map,
           Virtual_Address (Base),
-          Allocated,
+          Allocated - Memory_Offset,
           Count,
          (Present         => True,
           Read_Write      => True,
