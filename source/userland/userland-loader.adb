@@ -20,6 +20,7 @@ with Memory.Virtual; use Memory.Virtual;
 with Memory; use Memory;
 with Userland.ELF;
 with Scheduler; use Scheduler;
+with FS.File;
 
 package body Userland.Loader is
    --  Virtual offsets for different kinds of programs to load.
@@ -38,6 +39,10 @@ package body Userland.Loader is
       Entrypoint   : Virtual_Address;
       Returned_PID : constant Process.PID := Process.Create_Process;
       LD_Path      : String (1 .. 100);
+
+      In_File  : FS.File.File_Acc := FS.File.Open (StdIn,  FS.File.Access_R);
+      Out_File : FS.File.File_Acc := FS.File.Open (StdOut, FS.File.Access_W);
+      Err_File : FS.File.File_Acc := FS.File.Open (StdErr, FS.File.Access_W);
    begin
       --  Check if we created the PID and load memmap.
       if Returned_PID = Process.Error_PID then
@@ -75,6 +80,7 @@ package body Userland.Loader is
 
       --  Create the main thread and load it to the process.
       declare
+         Discard : Natural;
          Returned_TID : constant Scheduler.TID := Scheduler.Create_User_Thread
             (Address   => Entrypoint,
              Args      => Arguments,
@@ -96,6 +102,13 @@ package body Userland.Loader is
          Process.Set_Current_Root
             (Returned_PID,
              Path (Path'First + 1 .. Path'First + 7));
+
+         if not Process.Add_File (Returned_PID, In_File,  Discard) or else
+            not Process.Add_File (Returned_PID, Out_File, Discard) or else
+            not Process.Add_File (Returned_PID, Err_File, Discard)
+         then
+            goto Error_Process;
+         end if;
          return Returned_PID;
       end;
 

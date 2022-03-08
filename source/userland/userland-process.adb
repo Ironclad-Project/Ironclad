@@ -20,15 +20,17 @@ with Ada.Unchecked_Deallocation;
 package body Userland.Process is
    procedure Free is new Ada.Unchecked_Deallocation
       (Memory.Virtual.Page_Map, Memory.Virtual.Page_Map_Acc);
+   procedure Free_File is new Ada.Unchecked_Deallocation
+      (FS.File.File, FS.File.File_Acc);
 
-   type Process_Data_Threads is array (1 .. 20) of Scheduler.TID;
-   type Process_Data_Files   is array (1 .. 20) of FS.File.FD;
+   type Process_Data_Threads is array (1 .. 20)  of Scheduler.TID;
+   type Process_File_Table   is array (1 .. 100) of FS.File.File_Acc;
    type Process_Data is record
       Is_Used      : Boolean;
       Parent       : PID;
       Current_Root : FS.Root_Name;
       Thread_List  : Process_Data_Threads;
-      File_List    : Process_Data_Files;
+      File_Table   : Process_File_Table;
       Common_Map   : access Memory.Virtual.Page_Map;
       Stack_Base   : Unsigned_64;
       Alloc_Base   : Unsigned_64;
@@ -120,47 +122,42 @@ package body Userland.Process is
       end if;
    end Remove_Thread;
 
-   function Add_File (Process : PID; File : FS.File.FD) return Boolean is
+   function Add_File
+      (Process : PID;
+       File    : FS.File.File_Acc;
+       FD      : out Natural) return Boolean
+   is
       Proc_Index : constant Natural := Natural (Process);
    begin
-      if not Is_Valid_Process (Process) then
-         return False;
-      else
-         for I in Process_List (Proc_Index).File_List'Range loop
-            if Process_List (Proc_Index).File_List (I) = 0 then
-               Process_List (Proc_Index).File_List (I) := File;
+      if Is_Valid_Process (Process) then
+         for I in Process_List (Proc_Index).File_Table'Range loop
+            if Process_List (Proc_Index).File_Table (I) = null then
+               Process_List (Proc_Index).File_Table (I) := File;
+               FD := I;
                return True;
             end if;
          end loop;
-         return False;
       end if;
+      FD := 0;
+      return False;
    end Add_File;
 
-   procedure Remove_File (Process : PID; File : FS.File.FD) is
-      Proc_Index : constant Natural := Natural (Process);
+   function Get_File (Process : PID; FD : Natural) return FS.File.File_Acc is
    begin
       if Is_Valid_Process (Process) then
-         for I in Process_List (Proc_Index).File_List'Range loop
-            if Process_List (Proc_Index).File_List (I) = File then
-               Process_List (Proc_Index).File_List (I) := 0;
-            end if;
-         end loop;
+         return Process_List (Natural (Process)).File_Table (FD);
+      end if;
+      return null;
+   end Get_File;
+
+   procedure Remove_File (Process : PID; FD : Natural) is
+   begin
+      if Is_Valid_Process (Process) then
+         FS.File.Close (Process_List (Natural (Process)).File_Table (FD));
+         Free_File (Process_List (Natural (Process)).File_Table (FD));
+         Process_List (Natural (Process)).File_Table (FD) := null;
       end if;
    end Remove_File;
-
-   function Contains_File (Process : PID; File : FS.File.FD) return Boolean is
-      Proc_Index : constant Natural := Natural (Process);
-   begin
-      if Is_Valid_Process (Process) then
-         for F of Process_List (Proc_Index).File_List loop
-            if F = File then
-               return True;
-            end if;
-         end loop;
-      end if;
-
-      return False;
-   end Contains_File;
 
    procedure Set_Current_Root (Process : PID; Root : FS.Root_Name) is
    begin

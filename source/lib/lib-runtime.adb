@@ -84,7 +84,8 @@ package body Lib.Runtime is
    end MemCmp;
 
    function MemCpy
-      (Desto, Source : System.Address; Size : size_t) return System.Address
+      (Desto, Source : System.Address;
+       Size          : size_t) return System.Address
    is
       Dst : array (1 .. Size) of Unsigned_8 with Address => Desto;
       Src : array (1 .. Size) of Unsigned_8 with Address => Source;
@@ -96,7 +97,8 @@ package body Lib.Runtime is
    end MemCpy;
 
    function MemMove
-      (Desto, Source : System.Address; Size : size_t) return System.Address
+      (Desto, Source : System.Address;
+       Size          : size_t) return System.Address
    is
       Dst : array (1 .. Size) of Unsigned_8 with Address => Desto;
       Src : array (1 .. Size) of Unsigned_8 with Address => Source;
@@ -114,6 +116,19 @@ package body Lib.Runtime is
       end if;
       return Desto;
    end MemMove;
+
+   function MemSet
+      (Desto : System.Address;
+       Value : Integer;
+       Size  : size_t) return System.Address
+   is
+      Dst : array (1 .. Size) of Unsigned_8 with Address => Desto;
+   begin
+      for I in Dst'Range loop
+         Dst (I) := Unsigned_8 (Value);
+      end loop;
+      return Desto;
+   end MemSet;
 
    procedure Print_Exception
       (Message      : String;

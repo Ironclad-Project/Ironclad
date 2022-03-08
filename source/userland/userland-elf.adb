@@ -18,8 +18,12 @@ with System.Storage_Elements; use System.Storage_Elements;
 with FS.File; use FS.File;
 with Memory.Physical;
 with Memory; use Memory;
+with Ada.Unchecked_Deallocation;
 
 package body Userland.ELF is
+   procedure Free_File is new Ada.Unchecked_Deallocation
+      (FS.File.File, FS.File.File_Acc);
+
    type ELF_ID_Field is array (Natural range <>) of Unsigned_8;
    ELF_Signature : constant ELF_ID_Field (1 .. 4) :=
       (16#7F#, Character'Pos ('E'), Character'Pos ('L'), Character'Pos ('F'));
@@ -58,7 +62,7 @@ package body Userland.ELF is
    for ELF_Header'Size use 512;
 
    function Load_ELF
-      (File_D : FS.File.FD;
+      (File_D : FS.File.File_Acc;
        Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Parsed_ELF
    is
@@ -102,7 +106,7 @@ package body Userland.ELF is
             return Result;
          end if;
 
-         FS.File.Set_Index (File_D, Natural (Header.Program_Header_List));
+         File_D.Index := Natural (Header.Program_Header_List);
 
          if FS.File.Read (File_D, RSize, PHDRs'Address) /= RSize then
             return Result;
@@ -134,7 +138,7 @@ package body Userland.ELF is
        Map  : Memory.Virtual.Page_Map_Acc;
        Base : Unsigned_64) return Parsed_ELF
    is
-      FD : constant FS.File.FD := FS.File.Open (Path, FS.File.Access_R);
+      FD : FS.File.File_Acc := FS.File.Open (Path, FS.File.Access_R);
       Loaded_ELF : Parsed_ELF := (
          Was_Loaded  => False,
          Entrypoint  => System.Null_Address,
@@ -146,24 +150,25 @@ package body Userland.ELF is
             Program_Header_Size => 0
          ));
    begin
-      if FD = FS.File.Error_FD then
+      if FD = null then
          return Loaded_ELF;
       end if;
 
       Loaded_ELF := ELF.Load_ELF (FD, Map, Base);
       FS.File.Close (FD);
+      Free_File (FD);
       return Loaded_ELF;
    end Open_And_Load_ELF;
 
    --  Get the linker path string from a given interpreter program header.
    function Get_Linker
-      (File_D : FS.File.FD;
+      (File_D : FS.File.File_Acc;
        Header : Program_Header) return access String is
       Discard : Natural;
    begin
       return Ret : access String := new String (1 .. Header.File_Size_Bytes)
       do
-         FS.File.Set_Index (File_D, Natural (Header.Offset));
+         File_D.Index := Natural (Header.Offset);
          Discard := FS.File.Read
             (File_D, Header.File_Size_Bytes, Ret.all'Address);
       end return;
@@ -171,7 +176,7 @@ package body Userland.ELF is
 
    --  Load and map a loadable program header to memory.
    function Load_Header
-      (File_D : FS.File.FD;
+      (File_D : FS.File.File_Acc;
        Header : Program_Header;
        Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Boolean
@@ -203,7 +208,7 @@ package body Userland.ELF is
           Length      => Load_Size,
           Flags       => Flags,
           Not_Execute => False);
-      FS.File.Set_Index (File_D, Natural (Header.Offset));
+      File_D.Index := Natural (Header.Offset);
       return FS.File.Read (File_D, Header.File_Size_Bytes, Load_Addr) =
              Header.File_Size_Bytes;
    end Load_Header;

@@ -43,7 +43,7 @@ package Userland.ELF is
    --  Load an ELF from a file into memory with the passed base, and map it
    --  into the passed map. Return parsed info about the ELF.
    function Load_ELF
-      (File_D : FS.File.FD;
+      (File_D : FS.File.File_Acc;
        Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Parsed_ELF;
 
@@ -82,11 +82,11 @@ private
    for Program_Header'Size use 448;
 
    function Get_Linker
-      (File_D : FS.File.FD;
+      (File_D : FS.File.File_Acc;
        Header : Program_Header) return access String;
 
    function Load_Header
-      (File_D : FS.File.FD;
+      (File_D : FS.File.File_Acc;
        Header : Program_Header;
        Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Boolean;

@@ -17,27 +17,33 @@
 with System;
 
 package FS.File is
-   --  File descriptor and notable values.
-   type FD is new Integer;
-   Error_FD : constant FD := 0;
-
-   --  Initialize the file registry.
-   procedure Init;
-
-   --  Functions to interact with files.
    type Access_Mode is (Access_R, Access_W, Access_RW);
-   function Open (Name : String; Flags : Access_Mode) return FD;
-   procedure Close (ID : FD);
+   type File is record
+      Root   : FS.Root;
+      Object : FS.Object;
+      Index  : Natural;
+      Flags  : Access_Mode;
+   end record;
+   type File_Acc is access all File;
+
+   --  Open a file with an absolute path, and return it, or null on failure.
+   function Open (Path : String; Access_Flags : Access_Mode) return File_Acc;
+
+   --  Close an opened file.
+   procedure Close (To_Close : File_Acc);
+
+   --  Read from a file, and return the read count.
    function Read
-      (ID    : FD;
-       Count : Integer;
-       Desto : System.Address) return Natural;
+      (To_Read     : File_Acc;
+       Count       : Natural;
+       Destination : System.Address) return Natural;
+
+   --  Write to a file, and return the written count.
    function Write
-      (ID    : FD;
-       Count : Integer;
-       Data  : System.Address) return Natural;
-   function Get_Size (ID : FD) return Natural;
-   procedure Set_Index (ID : FD; Index : Natural);
-   function Get_Index (ID : FD) return Natural;
-   procedure Reset (ID : FD);
+      (To_Write : File_Acc;
+       Count    : Natural;
+       Data     : System.Address) return Natural;
+
+   --  Get size of the file.
+   function Get_Size (F : File_Acc) return Natural;
 end FS.File;

@@ -134,7 +134,8 @@ package body Arch.Syscall is
          Current_Proc : constant Userland.Process.PID :=
             Userland.Process.Get_Process_By_Thread (Current_Thre);
          Open_Mode    : FS.File.Access_Mode;
-         Returned_FD  : FS.File.FD;
+         Opened_File  : FS.File.File_Acc;
+         Returned_FD  : Natural;
       begin
          --  Parse the mode.
          if (Flags and O_RDWR) /= 0 then
@@ -155,13 +156,15 @@ package body Arch.Syscall is
          if Path_String'Length <= 2 then
             goto Error_Return;
          end if;
-   
-            --  Actually open the file.
-            Returned_FD := FS.File.Open (Path_String, Open_Mode);
-         if Returned_FD = FS.File.Error_FD then
+
+         --  Actually open the file.
+         Opened_File := FS.File.Open (Path_String, Open_Mode);
+         if Opened_File = null then
             goto Error_Return;
          else
-            if not Userland.Process.Add_File (Current_Proc, Returned_FD) then
+            if not Userland.Process.Add_File
+               (Current_Proc, Opened_File, Returned_FD)
+            then
                goto Error_Return;
             else
                Errno := Error_No_Error;
@@ -181,17 +184,9 @@ package body Arch.Syscall is
       Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.PID :=
          Userland.Process.Get_Process_By_Thread (Current_Thread);
-      File            : constant FS.File.FD := FD (File_D);
+      File            : constant Natural := Natural (File_D);
    begin
-      if File = FS.File.Error_FD or
-         not Userland.Process.Contains_File (Current_Process, File)
-      then
-         Errno := Error_Bad_File;
-         return Unsigned_64'Last;
-      end if;
-
       Userland.Process.Remove_File (Current_Process, File);
-      FS.File.Close (File);
       Errno := Error_No_Error;
       return 0;
    end Syscall_Close;
@@ -207,11 +202,10 @@ package body Arch.Syscall is
       Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.PID :=
          Userland.Process.Get_Process_By_Thread (Current_Thread);
-      File            : constant FS.File.FD := FD (File_D);
+      File : constant FS.File.File_Acc :=
+         Userland.Process.Get_File (Current_Process, Natural (File_D));
    begin
-      if File = FS.File.Error_FD or
-         not Userland.Process.Contains_File (Current_Process, File)
-      then
+      if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
       end if;
@@ -235,11 +229,10 @@ package body Arch.Syscall is
       Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.PID :=
          Userland.Process.Get_Process_By_Thread (Current_Thread);
-      File            : constant FS.File.FD := FD (File_D);
+      File : constant FS.File.File_Acc :=
+         Userland.Process.Get_File (Current_Process, Natural (File_D));
    begin
-      if File = FS.File.Error_FD or
-         not Userland.Process.Contains_File (Current_Process, File)
-      then
+      if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
       end if;
@@ -261,30 +254,29 @@ package body Arch.Syscall is
       Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.PID :=
          Userland.Process.Get_Process_By_Thread (Current_Thread);
-      File            : constant FS.File.FD := FD (File_D);
-      Passed_Offset   : constant Natural    := Natural (Offset);
+      File : constant FS.File.File_Acc :=
+         Userland.Process.Get_File (Current_Process, Natural (File_D));
+      Passed_Offset : constant Natural := Natural (Offset);
    begin
-      if File = FS.File.Error_FD or
-         not Userland.Process.Contains_File (Current_Process, File)
-      then
+      if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
       end if;
 
       case Whence is
          when SEEK_SET =>
-            FS.File.Set_Index (File, Passed_Offset);
+            File.Index := Passed_Offset;
          when SEEK_CURRENT =>
-            FS.File.Set_Index (File, FS.File.Get_Index (File) + Passed_Offset);
+            File.Index := File.Index + Passed_Offset;
          when SEEK_END =>
-            FS.File.Set_Index (File, FS.File.Get_Size (File) + Passed_Offset);
+            File.Index := FS.File.Get_Size (File) + Passed_Offset;
          when others =>
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
       end case;
 
       Errno := Error_No_Error;
-      return Unsigned_64 (FS.File.Get_Index (File));
+      return Unsigned_64 (File.Index);
    end Syscall_Seek;
 
    function Syscall_Alloc

@@ -40,9 +40,14 @@ package Userland.Process is
    --  Add or remove an threads and files to a process.
    function Add_Thread (Process : PID; Threa : Scheduler.TID) return Boolean;
    procedure Remove_Thread (Process : PID; Thread : Scheduler.TID);
-   function Add_File (Process : PID; File : FS.File.FD) return Boolean;
-   procedure Remove_File (Process : PID; File : FS.File.FD);
-   function Contains_File (Process : PID; File : FS.File.FD) return Boolean;
+
+   --  Add and remove files to the process file descriptor table.
+   function Add_File
+      (Process : PID;
+       File    : FS.File.File_Acc;
+       FD      : out Natural) return Boolean;
+   function Get_File (Process : PID; FD : Natural) return FS.File.File_Acc;
+   procedure Remove_File (Process : PID; FD : Natural);
 
    --  Get or set the current root of the process.
    procedure Set_Current_Root (Process : PID; Root : FS.Root_Name);
