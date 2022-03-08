@@ -21,3 +21,5 @@ This are the keys and values the kernel takes, and under which circumstances:
 
 - `init=<path>`: Checked for an init program, if any.
 - `memtracing`:  Enables memory tracing at the expense of performance.
+- `syscalltracing`: Enables tracing syscalls and their arguments, really
+performance taxing, but essential for userland kernel debugging.

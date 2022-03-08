@@ -33,6 +33,14 @@ package body Arch.Syscall is
    Error_Not_Implemented : constant := 1051; -- ENOSYS.
    Error_Bad_File        : constant := 1081; -- EBADFD.
 
+   --  Whether we are to print syscall information.
+   Is_Tracing : Boolean := False;
+
+   procedure Set_Tracing (Value : Boolean) is
+   begin
+      Is_Tracing := Value;
+   end Set_Tracing;
+
    procedure Syscall_Handler (Number : Integer; State : access ISR_GPRs) is
       Returned : Unsigned_64 := Unsigned_64'Last;
       Errno    : Unsigned_64 := Error_No_Error;
@@ -98,8 +106,12 @@ package body Arch.Syscall is
    end Syscall_Log;
 
    procedure Syscall_Exit (Error_Code : Integer) is
-      pragma Unreferenced (Error_Code);
    begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall exit(");
+         Lib.Messages.Put (Error_Code);
+         Lib.Messages.Put_Line (")");
+      end if;
       Scheduler.Bail;
    end Syscall_Exit;
 
@@ -107,6 +119,11 @@ package body Arch.Syscall is
       (Address : Unsigned_64;
        Errno   : out Unsigned_64) return Unsigned_64 is
    begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall set_tcb(");
+         Lib.Messages.Put (Address);
+         Lib.Messages.Put_Line (")");
+      end if;
       if Address = 0 then
          Errno := Error_Invalid_Value;
          return Unsigned_64'Last;
@@ -125,6 +142,11 @@ package body Arch.Syscall is
       Addr : constant System.Address := To_Address (Integer_Address (Address));
    begin
       if Address = 0 then
+         if Is_Tracing then
+            Lib.Messages.Put ("syscall open(null, ");
+            Lib.Messages.Put (Flags);
+            Lib.Messages.Put_Line (")");
+         end if;
          goto Error_Return;
       end if;
       declare
@@ -137,6 +159,13 @@ package body Arch.Syscall is
          Opened_File  : FS.File.File_Acc;
          Returned_FD  : Natural;
       begin
+         if Is_Tracing then
+            Lib.Messages.Put ("syscall open(");
+            Lib.Messages.Put (Path_String);
+            Lib.Messages.Put (", ");
+            Lib.Messages.Put (Flags);
+            Lib.Messages.Put_Line (")");
+         end if;
          --  Parse the mode.
          if (Flags and O_RDWR) /= 0 then
             Open_Mode := FS.File.Access_RW;
@@ -186,6 +215,11 @@ package body Arch.Syscall is
          Userland.Process.Get_Process_By_Thread (Current_Thread);
       File            : constant Natural := Natural (File_D);
    begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall close(");
+         Lib.Messages.Put (File_D);
+         Lib.Messages.Put_Line (")");
+      end if;
       Userland.Process.Remove_File (Current_Process, File);
       Errno := Error_No_Error;
       return 0;
@@ -205,6 +239,15 @@ package body Arch.Syscall is
       File : constant FS.File.File_Acc :=
          Userland.Process.Get_File (Current_Process, Natural (File_D));
    begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall read(");
+         Lib.Messages.Put (File_D);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Buffer, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Count);
+         Lib.Messages.Put_Line (")");
+      end if;
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -232,6 +275,15 @@ package body Arch.Syscall is
       File : constant FS.File.File_Acc :=
          Userland.Process.Get_File (Current_Process, Natural (File_D));
    begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall write(");
+         Lib.Messages.Put (File_D);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Buffer, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Count);
+         Lib.Messages.Put_Line (")");
+      end if;
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -258,6 +310,15 @@ package body Arch.Syscall is
          Userland.Process.Get_File (Current_Process, Natural (File_D));
       Passed_Offset : constant Natural := Natural (Offset);
    begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall seek(");
+         Lib.Messages.Put (File_D);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Offset);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Whence);
+         Lib.Messages.Put_Line (")");
+      end if;
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -293,6 +354,11 @@ package body Arch.Syscall is
       Base : constant Unsigned_64 :=
          Userland.Process.Bump_Alloc (Current_Process, Count);
    begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall alloc(");
+         Lib.Messages.Put (Count);
+         Lib.Messages.Put_Line (")");
+      end if;
       --  Map the memory.
       Memory.Virtual.Map_Range
          (Map,
@@ -323,6 +389,11 @@ package body Arch.Syscall is
       Addr : constant Physical_Address :=
          Memory.Virtual.Virtual_To_Physical (Map, Virtual_Address (Address));
    begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall free(");
+         Lib.Messages.Put (Address, False, True);
+         Lib.Messages.Put_Line (")");
+      end if;
       Memory.Physical.Free (Addr);
    end Syscall_Free;
 end Arch.Syscall;

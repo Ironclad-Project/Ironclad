@@ -21,6 +21,9 @@ package Arch.Syscall is
    --  Here lie the definitions of the kernel's syscalls and the entrypoint
    --  that dispatches them.
 
+   --  Enable syscall tracing.
+   procedure Set_Tracing (Value : Boolean);
+
    --  Entrypoint of the syscall dispatcher.
    procedure Syscall_Handler (Number : Integer; State : access ISR_GPRs)
       with Convention => C;

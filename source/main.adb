@@ -26,6 +26,7 @@ with Arch.GDT;
 with Arch.HPET;
 with Arch.IDT;
 with Arch.PIT;
+with Arch.Syscall;
 with Devices.Ramdev;
 with Devices;
 with FS;
@@ -49,7 +50,6 @@ package body Main is
       package C3 is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
       package C4 is new System.Address_To_Access_Conversions (ST.PMR_Tag);
       package C5 is new System.Address_To_Access_Conversions (ST.SMP_Tag);
-      package C6 is new System.Address_To_Access_Conversions (ST.Cmdline_Tag);
 
       RSDP : constant access ST.RSDP_Tag :=
          C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.RSDP_ID)));
@@ -61,12 +61,6 @@ package body Main is
          C4.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.PMR_ID)));
       SMP : constant access ST.SMP_Tag :=
          C5.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.SMP_ID)));
-      Cmdline : constant access ST.Cmdline_Tag :=
-         C6.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Cmdline_ID)));
-      Cmdline_Addr : constant System.Address :=
-         To_Address (To_Integer (Cmdline.Inner) + Memory.Memory_Offset);
-
-      Is_Tracing : Boolean;
    begin
       ST.Init_Terminal (Term);
       Lib.Messages.Put      (Config.Package_Name);
@@ -100,12 +94,6 @@ package body Main is
          Lib.Messages.Put_Line ("");
       end loop;
       Memory.Virtual.Init (Memmap, PMRs);
-
-      Is_Tracing := Lib.Cmdline.Is_Key_Present (Cmdline_Addr, "memtracing");
-      if Is_Tracing then
-         Lib.Messages.Put_Line ("Enabling memory tracing");
-         Memory.Physical.Set_Tracing (True);
-      end if;
 
       Lib.Messages.Put_Line ("Scanning ACPI tables");
       if not Arch.ACPI.ScanTables
@@ -194,12 +182,17 @@ package body Main is
       end loop;
 
       Lib.Messages.Put_Line ("Fetching kernel cmdline options");
-      Init_Value := Lib.Cmdline.Get_Parameter (Cmdline_Addr, "init");
+      Init_Value  := Lib.Cmdline.Get_Parameter (Cmdline_Addr, "init");
+      Memory.Physical.Set_Tracing
+         (Lib.Cmdline.Is_Key_Present (Cmdline_Addr, "memtracing"));
+      Arch.Syscall.Set_Tracing
+         (Lib.Cmdline.Is_Key_Present (Cmdline_Addr, "syscalltracing"));
+
       if Init_Value /= null then
          Lib.Messages.Put ("Booting init ");
          Lib.Messages.Put_Line (Init_Value.all);
          if Userland.Loader.Start_User_ELF
-            (Init_Value.all, Init_Arguments, Init_Environment, "",
+            (Init_Value.all, Init_Arguments, Init_Environment, "@tty0dev",
              "@tty0dev", "@tty0dev") = Userland.Process.Error_PID
          then
             Lib.Panic.Soft_Panic ("Could not start init");
