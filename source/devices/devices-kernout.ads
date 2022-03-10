@@ -1,4 +1,4 @@
---  devices-tty.ads: Expose a TTY device.
+--  devices-kernout.ads: Expose a device for kernel error-reporting.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -17,16 +17,16 @@
 with System;
 with FS; use FS;
 
-package Devices.TTY is
+package Devices.KernOut is
    --  Initialize the device.
    function Init return Boolean;
 
 private
 
-   function TTY_Write
+   function Write
       (Data     : Root_Data;
        Obj      : Object;
        Offset   : System.Address;
        Count    : Positive;
        To_Write : System.Address) return Natural;
-end Devices.TTY;
+end Devices.KernOut;

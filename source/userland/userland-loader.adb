@@ -40,9 +40,12 @@ package body Userland.Loader is
       Returned_PID : constant Process.PID := Process.Create_Process;
       LD_Path      : String (1 .. 100);
 
-      In_File  : FS.File.File_Acc := FS.File.Open (StdIn,  FS.File.Access_R);
-      Out_File : FS.File.File_Acc := FS.File.Open (StdOut, FS.File.Access_W);
-      Err_File : FS.File.File_Acc := FS.File.Open (StdErr, FS.File.Access_W);
+      In_File  : constant FS.File.File_Acc :=
+         FS.File.Open (StdIn,  FS.File.Access_R);
+      Out_File : constant FS.File.File_Acc :=
+         FS.File.Open (StdOut, FS.File.Access_W);
+      Err_File : constant FS.File.File_Acc :=
+         FS.File.Open (StdErr, FS.File.Access_W);
    begin
       --  Check if we created the PID and load memmap.
       if Returned_PID = Process.Error_PID then

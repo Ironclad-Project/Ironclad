@@ -16,23 +16,55 @@
 
 with System; use System;
 with FS;
+with Userland.Process; use Userland.Process;
+with Scheduler; use Scheduler;
 
 package body FS.File is
    function Open (Path : String; Access_Flags : Access_Mode) return File_Acc is
-      Root_Path : constant String := Path (Path'First + 1 .. Path'First + 7);
-      Rest_Path : constant String := Path (Path'First + 9 .. Path'Last);
+      Is_Absolute  : constant Boolean := Path (Path'First) = '@';
       Fetched_Root : FS.Root;
       Fetched_Obj  : FS.Object := System.Null_Address;
    begin
-      --  Fetch the root and object.
-      if not FS.Get_Root (Root_Path, Fetched_Root) then
-         return null;
-      end if;
-      if Rest_Path'Length /= 0 then
-         Fetched_Obj := Fetched_Root.Open.all (Fetched_Root.Data, Rest_Path);
-         if Fetched_Obj = System.Null_Address then
-            return null;
-         end if;
+      --  Fetch the root and object for absolute paths, or build an absolute
+      --  path.
+      if Is_Absolute then
+         declare
+            Root  : constant String := Path (Path'First + 1 .. Path'First + 7);
+            RPath : constant String := Path (Path'First + 9 .. Path'Last);
+         begin
+            if not FS.Get_Root (Root, Fetched_Root) then
+               return null;
+            end if;
+            if RPath'Length /= 0 then
+               Fetched_Obj := Fetched_Root.Open.all (Fetched_Root.Data, RPath);
+               if Fetched_Obj = System.Null_Address then
+                  return null;
+               end if;
+            end if;
+         end;
+      else
+         declare
+            Thread    : constant TID := Get_Current_Thread;
+            Process   : constant PID := Get_Process_By_Thread (Thread);
+            New_Path  : String (1 .. Path'Length + FS.Root_Name'Length + 2);
+            Has_Slash : constant Boolean := Path (Path'First) = '/';
+         begin
+            if Process = Error_PID then
+               return null;
+            end if;
+            New_Path (1)      := '@';
+            New_Path (2 .. 8) := Get_Current_Root (Process);
+            New_Path (9)      := ':';
+            if Has_Slash then
+               New_Path (10 .. New_Path'Length - 1) :=
+                  Path (Path'First + 1 .. Path'Last);
+               return Open (New_Path (New_Path'First .. New_Path'Last - 1),
+                            Access_Flags);
+            else
+               New_Path (10 .. New_Path'Length) := Path;
+               return Open (New_Path, Access_Flags);
+            end if;
+         end;
       end if;
 
       --  Return the created file.
@@ -83,7 +115,7 @@ package body FS.File is
    is
       Written_Count : Natural;
    begin
-      if To_Write = null or else To_Write.Flags = Access_W then
+      if To_Write = null or else To_Write.Flags = Access_R then
          return 0;
       else
          Written_Count := To_Write.Root.Write.all (

@@ -17,6 +17,7 @@ string. The following roots will always be added by the system:
 
 - `@zerodev`: Equivalent to `/dev/zero` on a traditional Unix-like system.
 - `@nulldev`: Equivalent to `/dev/null` on a traditional Unix-like system.
+- `@kernout`: Used for kernel error-reporting.
 
 ## Path building
 

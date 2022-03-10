@@ -16,7 +16,7 @@
 
 with Devices.Serial;
 with Devices.Streams;
-with Devices.TTY;
+with Devices.KernOut;
 
 package body Devices is
    procedure Init is
@@ -24,7 +24,7 @@ package body Devices is
    begin
       --  Initialize virtual devices first.
       Discard := Streams.Init;
-      Discard := TTY.Init;
+      Discard := KernOut.Init;
 
       --  Initialize physical devices.
       Discard := Serial.Init;

@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Characters.Latin_1;
 with Arch.APIC;
 with Arch.CPU;
 with Arch.IDT;
@@ -26,6 +27,10 @@ package body Lib.Panic is
    Is_Propagated         : Boolean := False;
    Panic_Vector          : Arch.IDT.IRQ_Index;
    Panic_Mutex           : aliased Synchronization.Binary_Semaphore;
+
+   Soft_Panic_Color : constant String := Ada.Characters.Latin_1.ESC & "[35m";
+   Hard_Panic_Color : constant String := Ada.Characters.Latin_1.ESC & "[31m";
+   Reset_Color      : constant String := Ada.Characters.Latin_1.ESC & "[0m";
 
    procedure Enable_Panic_Propagation is
    begin
@@ -43,7 +48,9 @@ package body Lib.Panic is
 
       --  Print the error and try to recover.
       Already_Soft_Panicked := True;
+      Lib.Messages.Put      (Soft_Panic_Color);
       Lib.Messages.Put      ("Soft panic requested: ");
+      Lib.Messages.Put      (Reset_Color);
       Lib.Messages.Put_Line (Message);
    end Soft_Panic;
 
@@ -67,7 +74,9 @@ package body Lib.Panic is
       end if;
 
       --  Print the error and lights out.
+      Lib.Messages.Put      (Hard_Panic_Color);
       Lib.Messages.Put      ("Hard panic requested: ");
+      Lib.Messages.Put      (Reset_Color);
       Lib.Messages.Put_Line (Message);
       Arch.Interrupts.Set_Interrupt_Flag (False);
 
