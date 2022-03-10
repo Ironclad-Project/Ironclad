@@ -18,6 +18,16 @@ with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body Lib is
+   function Align_Up (Value, Alignment : Unsigned_64) return Unsigned_64 is
+   begin
+      return (Value + Alignment - 1) / Alignment * Alignment;
+   end Align_Up;
+
+   function Align_Down (Value, Alignment : Unsigned_64) return Unsigned_64 is
+   begin
+      return (Value / Alignment) * Alignment;
+   end Align_Down;
+   ----------------------------------------------------------------------------
    function C_String_Length (Address : System.Address) return Natural is
       Length : Integer := 0;
    begin

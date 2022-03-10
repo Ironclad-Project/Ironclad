@@ -369,7 +369,7 @@ package body Arch.Syscall is
          Global          => False
       );
 
-      Aligned_Hint : Unsigned_64 := (Hint   + Page_Size - 1) / Page_Size;
+      Aligned_Hint : Unsigned_64 := Lib.Align_Up (Hint, Page_Size);
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall mmap(");

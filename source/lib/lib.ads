@@ -15,8 +15,13 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
+with Interfaces; use Interfaces;
 
 package Lib is
+   --  Math alignment functions.
+   function Align_Up (Value, Alignment : Unsigned_64) return Unsigned_64;
+   function Align_Down (Value, Alignment : Unsigned_64) return Unsigned_64;
+   ----------------------------------------------------------------------------
    --  Report the length of a NUL-Terminated C string.
    function C_String_Length (Address : System.Address) return Natural;
 end Lib;
