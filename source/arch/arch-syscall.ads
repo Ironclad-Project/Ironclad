@@ -83,11 +83,23 @@ private
        Whence : Unsigned_64;
        Errno  : out Unsigned_64) return Unsigned_64;
 
-   --  Allocate a block.
-   function Syscall_Alloc
-      (Count : Unsigned_64;
-       Errno : out Unsigned_64) return Unsigned_64;
+   --  Mmap, the one and only.
+   Protection_Write   : constant := 2#010#;
+   Protection_Execute : constant := 2#100#;
+   Map_Fixed : constant := 2#0100#;
+   Map_Anon  : constant := 2#1000#;
+   function Syscall_Mmap
+      (Hint       : Unsigned_64;
+       Length     : Unsigned_64;
+       Protection : Unsigned_64;
+       Flags      : Unsigned_64;
+       File_D     : Unsigned_64;
+       Offset     : Unsigned_64;
+       Errno      : out Unsigned_64) return Unsigned_64;
 
-   --  Free a block.
-   procedure Syscall_Free (Address : Unsigned_64);
+   --  Mmap^-1
+   function Syscall_Munmap
+      (Address    : Unsigned_64;
+       Length     : Unsigned_64;
+       Errno      : out Unsigned_64) return Unsigned_64;
 end Arch.Syscall;

@@ -22,7 +22,7 @@ with Lib;
 with Userland.Process;
 with FS.File; use FS.File;
 with Scheduler;
-with Memory.Virtual;
+with Memory.Virtual; use Memory.Virtual;
 with Memory.Physical;
 with Memory; use Memory;
 
@@ -71,9 +71,10 @@ package body Arch.Syscall is
          when 7 =>
             Returned := Syscall_Seek (State.RDI, State.RSI, State.RDX, Errno);
          when 8 =>
-            Returned := Syscall_Alloc (State.RDI, Errno);
+            Returned := Syscall_Mmap (State.RDI, State.RSI, State.RDX,
+                                      State.RCX, State.R8, State.R9, Errno);
          when 9 =>
-            Syscall_Free (State.RDI);
+            Returned := Syscall_Munmap (State.RDI, State.RSI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -340,47 +341,106 @@ package body Arch.Syscall is
       return Unsigned_64 (File.Index);
    end Syscall_Seek;
 
-   function Syscall_Alloc
-      (Count : Unsigned_64;
-       Errno : out Unsigned_64) return Unsigned_64
+   function Syscall_Mmap
+      (Hint       : Unsigned_64;
+       Length     : Unsigned_64;
+       Protection : Unsigned_64;
+       Flags      : Unsigned_64;
+       File_D     : Unsigned_64;
+       Offset     : Unsigned_64;
+       Errno      : out Unsigned_64) return Unsigned_64
    is
       Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.PID :=
          Userland.Process.Get_Process_By_Thread (Current_Thread);
       Map : constant Memory.Virtual.Page_Map_Acc :=
          Userland.Process.Get_Memmap (Current_Process);
-      Allocated : constant Virtual_Address :=
-         Memory.Physical.Alloc (Size (Count));
-      Base : constant Unsigned_64 :=
-         Userland.Process.Bump_Alloc (Current_Process, Count);
+
+      Map_Execute : Boolean := False;
+      Map_Flags : Memory.Virtual.Page_Flags := (
+         Present         => True,
+         Read_Write      => False,
+         User_Supervisor => True,
+         Write_Through   => False,
+         Cache_Disable   => False,
+         Accessed        => False,
+         Dirty           => False,
+         PAT             => False,
+         Global          => False
+      );
+
+      Aligned_Hint : Unsigned_64 := (Hint   + Page_Size - 1) / Page_Size;
    begin
       if Is_Tracing then
-         Lib.Messages.Put ("syscall alloc(");
-         Lib.Messages.Put (Count);
+         Lib.Messages.Put ("syscall mmap(");
+         Lib.Messages.Put (Hint, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Length, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Protection, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Flags, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (File_D);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Offset, False, True);
          Lib.Messages.Put_Line (")");
       end if;
-      --  Map the memory.
-      Memory.Virtual.Map_Range
-         (Map,
-          Virtual_Address (Base),
-          Allocated - Memory_Offset,
-          Count,
-         (Present         => True,
-          Read_Write      => True,
-          User_Supervisor => True,
-          Write_Through   => False,
-          Cache_Disable   => False,
-          Accessed        => False,
-          Dirty           => False,
-          PAT             => False,
-          Global          => False),
-         False);
-      Errno := Error_No_Error;
-      return Base;
-   end Syscall_Alloc;
 
-   --  Free a block.
-   procedure Syscall_Free (Address : Unsigned_64) is
+      --  Check protection flags.
+      if (Protection and Protection_Write) /= 0 then
+         Map_Flags.Read_Write := True;
+      end if;
+      if (Protection and Protection_Execute) /= 0 then
+         Map_Execute := True;
+      end if;
+
+      --  Check that we got a length.
+      if Length = 0 then
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      end if;
+
+      --  Set our own hint if none was provided.
+      if Hint = 0 then
+         Aligned_Hint := Userland.Process.Bump_Alloc
+            (Current_Process, Length);
+      end if;
+
+      --  Check for fixed.
+      if (Flags and Map_Fixed) /= 0 and Aligned_Hint /= Hint then
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      end if;
+
+      --  We only support anonymous right now, so if its not anon, we cry.
+      if (Flags and Map_Anon) = 0 then
+         Errno := Error_Not_Implemented;
+         return Unsigned_64'Last;
+      end if;
+
+      --  Allocate the requested block and map it.
+      declare
+         A : constant Virtual_Address := Memory.Physical.Alloc (Size (Length));
+      begin
+         Memory.Virtual.Map_Range (
+            Map,
+            Virtual_Address (Aligned_Hint),
+            A - Memory_Offset,
+            Length,
+            Map_Flags,
+            Map_Execute
+         );
+         Errno := Error_No_Error;
+         return Aligned_Hint;
+      end;
+   end Syscall_Mmap;
+
+   function Syscall_Munmap
+      (Address    : Unsigned_64;
+       Length     : Unsigned_64;
+       Errno      : out Unsigned_64) return Unsigned_64
+   is
       Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.PID :=
          Userland.Process.Get_Process_By_Thread (Current_Thread);
@@ -390,10 +450,17 @@ package body Arch.Syscall is
          Memory.Virtual.Virtual_To_Physical (Map, Virtual_Address (Address));
    begin
       if Is_Tracing then
-         Lib.Messages.Put ("syscall free(");
+         Lib.Messages.Put ("syscall munmap(");
          Lib.Messages.Put (Address, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Length, False, True);
          Lib.Messages.Put_Line (")");
       end if;
+      --  We only support MAP_ANON and MAP_FIXED, so we can just assume we want
+      --  to free.
+      --  TODO: Actually unmap, not only free.
       Memory.Physical.Free (Addr);
-   end Syscall_Free;
+      Errno := Error_No_Error;
+      return 0;
+   end Syscall_Munmap;
 end Arch.Syscall;
