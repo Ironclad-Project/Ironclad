@@ -139,6 +139,7 @@ package body Userland.Process is
             end if;
          end loop;
       end if;
+      FD := 0;
       return False;
    end Add_File;
 

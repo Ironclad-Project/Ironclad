@@ -189,6 +189,18 @@ package body Scheduler is
 
          Stack_8_Index  : Natural := User_Stack_8'Last;
          Stack_64_Index : Natural := User_Stack_8'Last;
+
+         Map_Flags : constant Memory.Virtual.Page_Flags := (
+            Present         => True,
+            Read_Write      => True,
+            User_Supervisor => True,
+            Write_Through   => False,
+            Cache_Disable   => False,
+            Accessed        => False,
+            Dirty           => False,
+            PAT             => False,
+            Global          => False
+         );
       begin
          Thread_Pool (New_TID).Is_Userspace := True;
          Thread_Pool (New_TID).Is_Present   := True;
@@ -207,25 +219,20 @@ package body Scheduler is
          Thread_Pool (New_TID).State.RBP    := 0;
 
          --  Map the user stack.
-         Memory.Virtual.Map_Range
-            (Thread_Pool (New_TID).PageMap,
-             Virtual_Address (Stack_Top),
-             To_Integer (User_Stack_8.all'Address) - Memory_Offset,
-             Stack_Size + Memory.Virtual.Page_Size,
-             (Present         => True,
-              Read_Write      => True,
-              User_Supervisor => True,
-              Write_Through   => False,
-              Cache_Disable   => False,
-              Accessed        => False,
-              Dirty           => False,
-              PAT             => False,
-              Global          => False),
-             True);
+         Memory.Virtual.Map_Range (
+            Thread_Pool (New_TID).PageMap,
+            Virtual_Address (Stack_Top),
+            To_Integer (User_Stack_8.all'Address) - Memory_Offset,
+            Stack_Size + Memory.Virtual.Page_Size,
+            Map_Flags,
+            True
+         );
 
          --  Load env into the stack.
          for En of reverse Env loop
-            for C of En.all loop
+            User_Stack_8 (Stack_8_Index) := 0;
+            Stack_8_Index := Stack_8_Index - 1;
+            for C of reverse En.all loop
                User_Stack_8 (Stack_8_Index) := Character'Pos (C);
                Stack_8_Index := Stack_8_Index - 1;
             end loop;
@@ -235,16 +242,16 @@ package body Scheduler is
 
          --  Load argv into the stack.
          for Arg of reverse Args loop
-            for C of Arg.all loop
+            User_Stack_8 (Stack_8_Index) := 0;
+            Stack_8_Index := Stack_8_Index - 1;
+            for C of reverse Arg.all loop
                User_Stack_8 (Stack_8_Index) := Character'Pos (C);
                Stack_8_Index := Stack_8_Index - 1;
             end loop;
-            User_Stack_8 (Stack_8_Index) := 0;
-            Stack_8_Index := Stack_8_Index - 1;
          end loop;
 
          --  Get the equivalent 64-bit stack index and start loading.
-         Stack_64_Index := (Stack_8_Index + (8 - 1)) / 8;
+         Stack_64_Index := (Stack_8_Index / 8) - 1;
 
          --  Load auxval.
          User_Stack_64 (Stack_64_Index - 0) := 0;
@@ -264,8 +271,8 @@ package body Scheduler is
          User_Stack_64 (Stack_64_Index) := 0; --  Null at the end of envp.
          Stack_64_Index := Stack_64_Index - 1;
          for En of reverse Env loop
+            Stack_8_Index := Stack_8_Index - En.all'Length - 1;
             User_Stack_64 (Stack_64_Index) := Stack_Top + Unsigned_64 (Stack_8_Index);
-            Stack_8_Index := Stack_8_Index + En.all'Length + 1;
             Stack_64_Index := Stack_64_Index - 1;
          end loop;
 
@@ -273,8 +280,8 @@ package body Scheduler is
          User_Stack_64 (Stack_64_Index) := 0; --  Null at the end of argv.
          Stack_64_Index := Stack_64_Index - 1;
          for Arg of reverse Args loop
+            Stack_8_Index := Stack_8_Index - Arg.all'Length - 1;
             User_Stack_64 (Stack_64_Index) := Stack_Top + Unsigned_64 (Stack_8_Index);
-            Stack_8_Index := Stack_8_Index + Arg.all'Length + 1;
             Stack_64_Index := Stack_64_Index - 1;
          end loop;
 
