@@ -35,7 +35,7 @@ package body FS.File is
             if not FS.Get_Root (Root, Fetched_Root) then
                return null;
             end if;
-            if RPath'Length /= 0 then
+            if RPath'Length /= 0 and Fetched_Root.Open /= null then
                Fetched_Obj := Fetched_Root.Open.all (Fetched_Root.Data, RPath);
                if Fetched_Obj = System.Null_Address then
                   return null;
@@ -78,7 +78,7 @@ package body FS.File is
 
    procedure Close (To_Close : File_Acc) is
    begin
-      if To_Close /= null then
+      if To_Close /= null and then To_Close.Root.Close /= null then
          To_Close.Root.Close.all (
             To_Close.Root.Data,
             To_Close.Object
@@ -93,7 +93,9 @@ package body FS.File is
    is
       Read_Count : Natural;
    begin
-      if To_Read = null or else To_Read.Flags = Access_W then
+      if To_Read = null or else To_Read.Flags = Access_W or else
+         To_Read.Root.Read = null
+      then
          return 0;
       else
          Read_Count := To_Read.Root.Read.all (
@@ -115,7 +117,9 @@ package body FS.File is
    is
       Written_Count : Natural;
    begin
-      if To_Write = null or else To_Write.Flags = Access_R then
+      if To_Write = null or else To_Write.Flags = Access_R or else
+         To_Write.Root.Write = null
+      then
          return 0;
       else
          Written_Count := To_Write.Root.Write.all (
@@ -132,7 +136,7 @@ package body FS.File is
 
    function Get_Size (F : File_Acc) return Natural is
    begin
-      if F /= null then
+      if F /= null and then F.Root.Get_Size /= null then
          return F.Root.Get_Size.all (
             F.Root.Data,
             F.Object

@@ -41,9 +41,11 @@ This are the syscalls, their prototypes, and a short description.
 | [exit](syscalls/exit.md)       | Code flow control    | 1     |
 | [set_tcb](syscalls/set_tcb.md) | Thread-local storage | 2     |
 | [open](syscalls/open.md)       | Synchronous File IO  | 3     |
-| [close](syscalls/close.md)     | Synchronous File IO  | 4     |
+| [close](syscalls/open.md)      | Synchronous File IO  | 4     |
 | [read](syscalls/read.md)       | Synchronous File IO  | 5     |
-| [write](syscalls/write.md)     | Synchronous File IO  | 6     |
+| [write](syscalls/read.md)      | Synchronous File IO  | 6     |
 | [seek](syscalls/seek.md)       | Synchronous File IO  | 7     |
 | [mmap](syscalls/mmap.md)       | Memory mapping       | 8     |
 | [munmap](syscalls/mmap.md)     | Memory mapping       | 9     |
+| [getpid](syscalls/pid.md)      | Process management   | 10    |
+| [getppid](syscalls/pid.md)     | Process management   | 11    |

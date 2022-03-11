@@ -75,6 +75,10 @@ package body Arch.Syscall is
                                       State.RCX, State.R8, State.R9, Errno);
          when 9 =>
             Returned := Syscall_Munmap (State.RDI, State.RSI, Errno);
+         when 10 =>
+            Returned := Syscall_Get_PID;
+         when 11 =>
+            Returned := Syscall_Get_Parent_PID;
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -463,4 +467,22 @@ package body Arch.Syscall is
       Errno := Error_No_Error;
       return 0;
    end Syscall_Munmap;
+
+   function Syscall_Get_PID return Unsigned_64 is
+      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Current_Process : constant Userland.Process.PID :=
+         Userland.Process.Get_Process_By_Thread (Current_Thread);
+   begin
+      return Unsigned_64 (Current_Process);
+   end Syscall_Get_PID;
+
+   function Syscall_Get_Parent_PID return Unsigned_64 is
+      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Current_Process : constant Userland.Process.PID :=
+         Userland.Process.Get_Process_By_Thread (Current_Thread);
+      Parent_Process : constant Userland.Process.PID :=
+         Userland.Process.Get_Parent_Process (Current_Process);
+   begin
+      return Unsigned_64 (Parent_Process);
+   end Syscall_Get_Parent_PID;
 end Arch.Syscall;

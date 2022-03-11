@@ -102,4 +102,10 @@ private
       (Address    : Unsigned_64;
        Length     : Unsigned_64;
        Errno      : out Unsigned_64) return Unsigned_64;
+
+   --  Get the callee PID.
+   function Syscall_Get_PID return Unsigned_64;
+
+   --  Get the PID of the parent of the callee.
+   function Syscall_Get_Parent_PID return Unsigned_64;
 end Arch.Syscall;
