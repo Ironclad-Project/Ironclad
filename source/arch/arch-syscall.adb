@@ -356,7 +356,7 @@ package body Arch.Syscall is
       Map : constant Memory.Virtual.Page_Map_Acc :=
          Userland.Process.Get_Memmap (Current_Process);
 
-      Map_Execute : Boolean := False;
+      Map_Not_Execute : Boolean := True;
       Map_Flags : Memory.Virtual.Page_Flags := (
          Present         => True,
          Read_Write      => False,
@@ -392,7 +392,7 @@ package body Arch.Syscall is
          Map_Flags.Read_Write := True;
       end if;
       if (Protection and Protection_Execute) /= 0 then
-         Map_Execute := True;
+         Map_Not_Execute := False;
       end if;
 
       --  Check that we got a length.
@@ -429,7 +429,7 @@ package body Arch.Syscall is
             A - Memory_Offset,
             Length,
             Map_Flags,
-            Map_Execute
+            Map_Not_Execute
          );
          Errno := Error_No_Error;
          return Aligned_Hint;

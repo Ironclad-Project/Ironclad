@@ -150,7 +150,7 @@ package body Main is
 
       Cmdline_Addr : constant System.Address :=
          To_Address (To_Integer (Cmdline.Inner) + Memory.Memory_Offset);
-      Init_Arguments   : Userland.Argument_Arr (1 .. 0);
+      Init_Arguments   : Userland.Argument_Arr (1 .. 1);
       Init_Environment : Userland.Environment_Arr (1 .. 0);
 
       type String_Acc is access all String;
@@ -182,7 +182,7 @@ package body Main is
       end loop;
 
       Lib.Messages.Put_Line ("Fetching kernel cmdline options");
-      Init_Value  := Lib.Cmdline.Get_Parameter (Cmdline_Addr, "init");
+      Init_Value := Lib.Cmdline.Get_Parameter (Cmdline_Addr, "init");
       Memory.Physical.Set_Tracing
          (Lib.Cmdline.Is_Key_Present (Cmdline_Addr, "memtracing"));
       Arch.Syscall.Set_Tracing
@@ -191,6 +191,7 @@ package body Main is
       if Init_Value /= null then
          Lib.Messages.Put ("Booting init ");
          Lib.Messages.Put_Line (Init_Value.all);
+         Init_Arguments (1) := new String'(Init_Value.all);
          if Userland.Loader.Start_User_ELF
             (Init_Value.all, Init_Arguments, Init_Environment, "@kernout",
              "@kernout", "@kernout") = Userland.Process.Error_PID

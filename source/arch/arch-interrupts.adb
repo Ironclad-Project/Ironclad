@@ -32,22 +32,25 @@ package body Arch.Interrupts is
          28 => "#HV", 29 => "#VC", 30 => "#SX"
       );
    begin
+      if State.Error_Code /= 0 then
+         Lib.Messages.Put ("Error code: ");
+         Lib.Messages.Put (State.Error_Code, False, True);
+         Lib.Messages.Put_Line ("");
+      end if;
+      Lib.Messages.Put ("RIP: ");
+      Lib.Messages.Put (State.RIP, False, True);
+      Lib.Messages.Put_Line ("");
+
       --  Check whether we have to panic or just exit the thread.
       --  TODO: Send a SIGSEGV instead of just stopping execution for user.
       --  We can only attribute #GP and #PF to programmer errors (13,14).
       if Scheduler.Is_Userspace and (Number = 13 or Number = 14) then
-         Lib.Messages.Put_Line ("User space #GP/#PF, bailing");
+         Lib.Messages.Put_Line ("Userland " & Exception_Text (Number));
          Scheduler.Bail;
+      elsif Scheduler.Is_Userspace then
+         Lib.Panic.Hard_Panic ("Userland " & Exception_Text (Number));
       else
-         if State.Error_Code /= 0 then
-            Lib.Messages.Put ("Error code: ");
-            Lib.Messages.Put (State.Error_Code, False, True);
-            Lib.Messages.Put_Line ("");
-         end if;
-         Lib.Messages.Put ("RIP: ");
-         Lib.Messages.Put (State.RIP, False, True);
-         Lib.Messages.Put_Line ("");
-         Lib.Panic.Hard_Panic (Exception_Text (Number));
+         Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Number));
       end if;
    end Exception_Handler;
 

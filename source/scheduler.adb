@@ -174,14 +174,21 @@ package body Scheduler is
 
       --  Initialize thread state.
       declare
-         type Stack is array (1 .. (Stack_Size / 8)) of Unsigned_64;
-         type Stack_Acc is access Stack;
-         New_Stack        : constant Stack_Acc := new Stack;
-         New_Kernel_Stack : constant Stack_Acc := new Stack;
-         Stack_Addr : constant Virtual_Address :=
-            To_Integer (New_Stack.all'Address) + Stack_Size;
-         KStack_Addr : constant Virtual_Address :=
-            To_Integer (New_Kernel_Stack.all'Address) + Stack_Size;
+         type Stack8  is array (1 ..       Stack_Size) of Unsigned_8;
+         type Stack64 is array (1 .. (Stack_Size / 8)) of Unsigned_64;
+         type Stack_Acc is access Stack8;
+
+         User_Stack_8  : constant Stack_Acc := new Stack8;
+         User_Stack_64 : Stack64 with Address => User_Stack_8.all'Address;
+         User_Stack_Addr : constant Virtual_Address :=
+            To_Integer (User_Stack_8.all'Address) + Stack_Size;
+
+         Kernel_Stack : constant Stack_Acc := new Stack8;
+         Kernel_Stack_Addr : constant Virtual_Address :=
+            To_Integer (Kernel_Stack.all'Address) + Stack_Size;
+
+         Stack_8_Index  : Natural := User_Stack_8'Last;
+         Stack_64_Index : Natural := User_Stack_8'Last;
       begin
          Thread_Pool (New_TID).Is_Userspace := True;
          Thread_Pool (New_TID).Is_Present   := True;
@@ -189,8 +196,8 @@ package body Scheduler is
          Thread_Pool (New_TID).Is_Running   := False;
          Thread_Pool (New_TID).Preference   := 4;
          Thread_Pool (New_TID).PageMap      := Map;
-         Thread_Pool (New_TID).Stack        := Stack_Addr;
-         Thread_Pool (New_TID).Kernel_Stack := KStack_Addr;
+         Thread_Pool (New_TID).Stack        := User_Stack_Addr;
+         Thread_Pool (New_TID).Kernel_Stack := Kernel_Stack_Addr;
          Thread_Pool (New_TID).State.CS   := Arch.GDT.User_Code64_Segment or 3;
          Thread_Pool (New_TID).State.DS   := Arch.GDT.User_Data64_Segment or 3;
          Thread_Pool (New_TID).State.ES   := Arch.GDT.User_Data64_Segment or 3;
@@ -199,11 +206,11 @@ package body Scheduler is
          Thread_Pool (New_TID).State.RIP    := Unsigned_64 (Address);
          Thread_Pool (New_TID).State.RBP    := 0;
 
-         --  Map the stacks.
+         --  Map the user stack.
          Memory.Virtual.Map_Range
             (Thread_Pool (New_TID).PageMap,
              Virtual_Address (Stack_Top),
-             To_Integer (New_Stack.all'Address) - Memory_Offset,
+             To_Integer (User_Stack_8.all'Address) - Memory_Offset,
              Stack_Size + Memory.Virtual.Page_Size,
              (Present         => True,
               Read_Write      => True,
@@ -216,25 +223,65 @@ package body Scheduler is
               Global          => False),
              True);
 
+         --  Load env into the stack.
+         for En of reverse Env loop
+            for C of En.all loop
+               User_Stack_8 (Stack_8_Index) := Character'Pos (C);
+               Stack_8_Index := Stack_8_Index - 1;
+            end loop;
+            User_Stack_8 (Stack_8_Index) := 0;
+            Stack_8_Index := Stack_8_Index - 1;
+         end loop;
+
+         --  Load argv into the stack.
+         for Arg of reverse Args loop
+            for C of Arg.all loop
+               User_Stack_8 (Stack_8_Index) := Character'Pos (C);
+               Stack_8_Index := Stack_8_Index - 1;
+            end loop;
+            User_Stack_8 (Stack_8_Index) := 0;
+            Stack_8_Index := Stack_8_Index - 1;
+         end loop;
+
+         --  Get the equivalent 64-bit stack index and start loading.
+         Stack_64_Index := (Stack_8_Index + (8 - 1)) / 8;
+
          --  Load auxval.
-         New_Stack (New_Stack'Last - 0) := 0;
-         New_Stack (New_Stack'Last - 1) := Userland.ELF.Auxval_Null;
-         New_Stack (New_Stack'Last - 2) := Vector.Entrypoint;
-         New_Stack (New_Stack'Last - 3) := Userland.ELF.Auxval_Entrypoint;
-         New_Stack (New_Stack'Last - 4) := Vector.Program_Headers;
-         New_Stack (New_Stack'Last - 5) := Userland.ELF.Auxval_Program_Headers;
-         New_Stack (New_Stack'Last - 6) := Vector.Program_Header_Count;
-         New_Stack (New_Stack'Last - 7) := Userland.ELF.Auxval_Header_Count;
-         New_Stack (New_Stack'Last - 8) := Vector.Program_Header_Size;
-         New_Stack (New_Stack'Last - 9) := Userland.ELF.Auxval_Header_Size;
+         User_Stack_64 (Stack_64_Index - 0) := 0;
+         User_Stack_64 (Stack_64_Index - 1) := Userland.ELF.Auxval_Null;
+         User_Stack_64 (Stack_64_Index - 2) := Vector.Entrypoint;
+         User_Stack_64 (Stack_64_Index - 3) := Userland.ELF.Auxval_Entrypoint;
+         User_Stack_64 (Stack_64_Index - 4) := Vector.Program_Headers;
+         User_Stack_64 (Stack_64_Index - 5) := Userland.ELF.Auxval_Program_Headers;
+         User_Stack_64 (Stack_64_Index - 6) := Vector.Program_Header_Count;
+         User_Stack_64 (Stack_64_Index - 7) := Userland.ELF.Auxval_Header_Count;
+         User_Stack_64 (Stack_64_Index - 8) := Vector.Program_Header_Size;
+         User_Stack_64 (Stack_64_Index - 9) := Userland.ELF.Auxval_Header_Size;
+         Stack_64_Index := Stack_64_Index - 10;
 
-         --  TODO: Support arguments and envp.
-         New_Stack (New_Stack'Last - 10) := 0; -- Null at the end of envp.
-         New_Stack (New_Stack'Last - 11) := 0; -- Null at the end of argv.
-         New_Stack (New_Stack'Last - 12) := 0; -- argv[0] = NULL (Placeholder).
-         New_Stack (New_Stack'Last - 13) := 1; -- argc = 1;
+         --  Load envp taking into account the pointers at the beginning.
+         Stack_8_Index := User_Stack_8'Last;
+         User_Stack_64 (Stack_64_Index) := 0; --  Null at the end of envp.
+         Stack_64_Index := Stack_64_Index - 1;
+         for En of reverse Env loop
+            User_Stack_64 (Stack_64_Index) := Stack_Top + Unsigned_64 (Stack_8_Index);
+            Stack_8_Index := Stack_8_Index + En.all'Length + 1;
+            Stack_64_Index := Stack_64_Index - 1;
+         end loop;
 
-         Thread_Pool (New_TID).State.RSP := Stack_Top + Stack_Size - (14 * 8);
+         --  Load argv into the stack.
+         User_Stack_64 (Stack_64_Index) := 0; --  Null at the end of argv.
+         Stack_64_Index := Stack_64_Index - 1;
+         for Arg of reverse Args loop
+            User_Stack_64 (Stack_64_Index) := Stack_Top + Unsigned_64 (Stack_8_Index);
+            Stack_8_Index := Stack_8_Index + Arg.all'Length + 1;
+            Stack_64_Index := Stack_64_Index - 1;
+         end loop;
+
+         --  Write argc and we are done!
+         User_Stack_64 (Stack_64_Index) := Args'Length;
+         Stack_64_Index := Stack_64_Index - 1;
+         Thread_Pool (New_TID).State.RSP := Stack_Top + (Unsigned_64 (Stack_64_Index) * 8);
       end;
    <<End_Return>>
       Lib.Synchronization.Release (Scheduler_Mutex'Access);

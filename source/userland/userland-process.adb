@@ -23,8 +23,9 @@ package body Userland.Process is
    procedure Free_File is new Ada.Unchecked_Deallocation
       (FS.File.File, FS.File.File_Acc);
 
-   type Process_Data_Threads is array (1 .. 20)  of Scheduler.TID;
-   type Process_File_Table   is array (1 .. 100) of FS.File.File_Acc;
+   --  FDs start at 0 for userspace, while PIDs start at 1, 0 is error value.
+   type Process_Data_Threads is array (1 .. 20) of Scheduler.TID;
+   type Process_File_Table   is array (0 .. 99) of FS.File.File_Acc;
    type Process_Data is record
       Is_Used      : Boolean;
       Parent       : PID;
@@ -138,7 +139,6 @@ package body Userland.Process is
             end if;
          end loop;
       end if;
-      FD := 0;
       return False;
    end Add_File;
 
