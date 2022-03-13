@@ -61,7 +61,7 @@ override ASMSOURCE := $(shell find $(SOURCEDIR) -type f -name '*.S')
 override OBJ       := $(ADAOBJ) $(ASMSOURCE:.S=.o)
 
 # Where the fun begins!
-.PHONY: all test clean distclean maintainer-clean install install-strip uninstall
+.PHONY: all test clean dist distclean maintainer-clean install install-strip uninstall
 
 all: $(KERNEL)
 
@@ -105,6 +105,17 @@ $(LIMINE_DIR):
 clean:
 	@rm -rf $(OBJ) $(KERNEL) $(IMAGE)
 	@find $(SOURCEDIR) -name "*.ali" -type f -delete
+
+dist:
+	rm -rf "ironclad"
+	mkdir -p "ironclad"
+	cp -r .git "ironclad"/
+	cd "ironclad" && git checkout .
+	cd "ironclad" && NOCONFIGURE=yes ./autogen.sh
+	rm -rf "ironclad/.git"
+	rm -rf "ironclad/autom4te.cache"
+	tar -zcf "ironclad.tar.gz" "ironclad"
+	rm -rf "ironclad"
 
 distclean: clean
 	@rm -rf $(LIMINE_DIR) GNUmakefile config.log config.status $(SOURCEDIR)/config.ads
