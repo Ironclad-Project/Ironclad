@@ -42,7 +42,7 @@ package body Scheduler is
       Is_Present   : Boolean;
       Is_Banned    : Boolean;
       Is_Running   : Boolean;
-      Preference   : Unsigned_8;
+      Preference   : Positive;
       FS           : Unsigned_64;
       PageMap      : Memory.Virtual.Page_Map_Acc;
       Stack        : Virtual_Address;
@@ -58,7 +58,7 @@ package body Scheduler is
 
    --  Time slices assigned to each thread depending on preference.
    --  (In microseconds).
-   Preference_Slices : constant array (Unsigned_8 range 1 .. 8)
+   Preference_Slices : constant array (Positive range 1 .. 8)
       of Unsigned_64 := (
       1 =>  5000, -- Lowest, this should run as little as possible.
       2 =>  6000, -- Low, doesnt need to run for long.
@@ -313,11 +313,24 @@ package body Scheduler is
       end if;
    end Ban_Thread;
 
-   procedure Set_Thread_Preference (Thread : TID; Preference : Unsigned_8) is
+   function Get_Thread_Preference (Thread : TID) return Natural is
+   begin
+      if Is_Thread_Present (Thread) then
+         return Thread_Pool (Thread).Preference;
+      else
+         return 0;
+      end if;
+   end Get_Thread_Preference;
+
+   procedure Set_Thread_Preference (Thread : TID; Preference : Positive) is
    begin
       if Is_Thread_Present (Thread) then
          Lib.Synchronization.Seize (Scheduler_Mutex'Access);
-         Thread_Pool (Thread).Preference := Preference;
+         if Preference > Preference_Slices'Last then
+            Thread_Pool (Thread).Preference := Preference_Slices'Last;
+         else
+            Thread_Pool (Thread).Preference := Preference;
+         end if;
          Lib.Synchronization.Release (Scheduler_Mutex'Access);
       end if;
    end Set_Thread_Preference;

@@ -31,6 +31,7 @@ package body Arch.Syscall is
    Error_No_Error        : constant := 0;
    Error_Invalid_Value   : constant := 1026; -- EINVAL.
    Error_Not_Implemented : constant := 1051; -- ENOSYS.
+   Error_Not_Supported   : constant := 1057; -- ENOSUP.
    Error_Bad_File        : constant := 1081; -- EBADFD.
 
    --  Whether we are to print syscall information.
@@ -79,6 +80,8 @@ package body Arch.Syscall is
             Returned := Syscall_Get_PID;
          when 11 =>
             Returned := Syscall_Get_Parent_PID;
+         when 12 =>
+            Returned := Syscall_Thread_Preference (State.RDI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -473,6 +476,9 @@ package body Arch.Syscall is
       Current_Process : constant Userland.Process.PID :=
          Userland.Process.Get_Process_By_Thread (Current_Thread);
    begin
+      if Is_Tracing then
+         Lib.Messages.Put_Line ("syscall getpid()");
+      end if;
       return Unsigned_64 (Current_Process);
    end Syscall_Get_PID;
 
@@ -483,6 +489,50 @@ package body Arch.Syscall is
       Parent_Process : constant Userland.Process.PID :=
          Userland.Process.Get_Parent_Process (Current_Process);
    begin
+      if Is_Tracing then
+         Lib.Messages.Put_Line ("syscall getppid()");
+      end if;
       return Unsigned_64 (Parent_Process);
    end Syscall_Get_Parent_PID;
+
+   function Syscall_Thread_Preference
+      (Preference : Unsigned_64;
+       Errno      : out Unsigned_64) return Unsigned_64
+   is
+      Thread : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall thread_preference(");
+         Lib.Messages.Put (Preference);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      --  Check if we have a valid preference before doing anything with it.
+      if Preference > Unsigned_64 (Positive'Last) then
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      end if;
+
+      --  If 0, we have to return the current preference, else, we gotta set
+      --  it to the passed value.
+      if Preference = 0 then
+         declare
+            Pr : constant Natural := Scheduler.Get_Thread_Preference (Thread);
+         begin
+            --  If we got error preference, return that, even tho that should
+            --  be impossible.
+            if Pr = 0 then
+               Errno := Error_Not_Supported;
+               return Unsigned_64'Last;
+            else
+               Errno := Error_No_Error;
+               return Unsigned_64 (Pr);
+            end if;
+         end;
+      else
+         Scheduler.Set_Thread_Preference (Thread, Natural (Preference));
+         Errno := Error_No_Error;
+         return Unsigned_64 (Scheduler.Get_Thread_Preference (Thread));
+      end if;
+   end Syscall_Thread_Preference;
 end Arch.Syscall;

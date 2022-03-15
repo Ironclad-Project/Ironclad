@@ -29,23 +29,25 @@ depth, this is the list of available values:
 | No Error        |                  | 0     |
 | Invalid Value   | `EINVAL`         | 1026  |
 | Not Implemented | `ENOSYS`         | 1051  |
+| Not Supported   | `ENOSUP`         | 1057  |
 | Bad FD          | `EBADFD`         | 1081  |
 
 ## Syscall list
 
 This are the syscalls, their prototypes, and a short description.
 
-| Syscall                        | Purpose              | Index |
-| ------------------------------ | -------------------- | ----- |
-| [log](syscalls/log.md)         | Message reporting    | 0     |
-| [exit](syscalls/exit.md)       | Code flow control    | 1     |
-| [set_tcb](syscalls/set_tcb.md) | Thread-local storage | 2     |
-| [open](syscalls/open.md)       | Synchronous File IO  | 3     |
-| [close](syscalls/open.md)      | Synchronous File IO  | 4     |
-| [read](syscalls/read.md)       | Synchronous File IO  | 5     |
-| [write](syscalls/read.md)      | Synchronous File IO  | 6     |
-| [seek](syscalls/seek.md)       | Synchronous File IO  | 7     |
-| [mmap](syscalls/mmap.md)       | Memory mapping       | 8     |
-| [munmap](syscalls/mmap.md)     | Memory mapping       | 9     |
-| [getpid](syscalls/pid.md)      | Process management   | 10    |
-| [getppid](syscalls/pid.md)     | Process management   | 11    |
+| Syscall                                     | Purpose              | Index |
+| ------------------------------------------- | -------------------- | ----- |
+| [log](syscalls/log.md)                      | Message reporting    | 0     |
+| [exit](syscalls/exit.md)                    | Code flow control    | 1     |
+| [set_tcb](syscalls/set_tcb.md)              | Thread-local storage | 2     |
+| [open](syscalls/open.md)                    | Synchronous File IO  | 3     |
+| [close](syscalls/open.md)                   | Synchronous File IO  | 4     |
+| [read](syscalls/read.md)                    | Synchronous File IO  | 5     |
+| [write](syscalls/read.md)                   | Synchronous File IO  | 6     |
+| [seek](syscalls/seek.md)                    | Synchronous File IO  | 7     |
+| [mmap](syscalls/mmap.md)                    | Memory mapping       | 8     |
+| [munmap](syscalls/mmap.md)                  | Memory mapping       | 9     |
+| [getpid](syscalls/pid.md)                   | Process management   | 10    |
+| [getppid](syscalls/pid.md)                  | Process management   | 11    |
+| [thread_preference](syscalls/preference.md) | Process management   | 12    |

@@ -108,4 +108,9 @@ private
 
    --  Get the PID of the parent of the callee.
    function Syscall_Get_Parent_PID return Unsigned_64;
+
+   --  Set thread preference.
+   function Syscall_Thread_Preference
+      (Preference : Unsigned_64;
+       Errno      : out Unsigned_64) return Unsigned_64;
 end Arch.Syscall;
