@@ -19,27 +19,25 @@ with Arch.APIC;
 with Arch.GDT;
 with Arch.IDT;
 with Arch.Wrappers;
-with Lib.Synchronization;
 with Memory.Virtual;
 with Scheduler;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body Arch.CPU is
-   Count_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
-
    procedure Init_Cores (SMP_Info : access Arch.Stivale2.SMP_Tag) is
    begin
       --  Initialize the LAPIC list, and fill the BSP fields.
-      Core_Count := 1;
+      Core_Count  := SMP_Info.Entries'Length;
       Core_LAPICs := new LAPIC_Array (SMP_Info.Entries'Range);
       Core_LAPICs (1) := SMP_Info.BSP_LAPIC_ID;
 
-      Lib.Synchronization.Release (Count_Mutex'Access);
       Init_Common;
       Arch.Wrappers.Write_GS        (1);
       Arch.Wrappers.Write_Kernel_GS (1);
 
       --  Initialize the rest of cores.
+      --  Stivale2 guarantees that all the cores in its tag are alive, so
+      --  we dont need to check which are actually answering.
       for I in SMP_Info.Entries'Range loop
          declare
             Stack_Size : constant := 32768;
@@ -47,6 +45,7 @@ package body Arch.CPU is
             type Stack_Acc is access Stack;
             New_Stack : constant Stack_Acc := new Stack;
          begin
+            SMP_Info.Entries (I).Extra_Argument := Unsigned_64 (I);
             SMP_Info.Entries (I).Target_Stack :=
                To_Integer (New_Stack.all'Address);
             SMP_Info.Entries (I).Goto_Address :=
@@ -62,13 +61,7 @@ package body Arch.CPU is
    end Get_Core_Number;
 
    procedure Init_Core (Core_Info : access Arch.Stivale2.SMP_Core) is
-      Core_Number : Positive;
    begin
-      Lib.Synchronization.Seize (Count_Mutex'Access);
-      Core_Count  := Core_Count + 1;
-      Core_Number := Core_Count;
-      Lib.Synchronization.Release (Count_Mutex'Access);
-
       --  Load the global GDT, IDT, mappings, and LAPIC.
       Arch.GDT.Load_GDT;
       Arch.IDT.Load_IDT;
@@ -79,9 +72,9 @@ package body Arch.CPU is
       Init_Common;
 
       --  Initialize things depending on the core number.
-      Arch.Wrappers.Write_GS        (Unsigned_64 (Core_Number));
-      Arch.Wrappers.Write_Kernel_GS (Unsigned_64 (Core_Number));
-      Core_LAPICs (Core_Number) := Core_Info.LAPIC_ID;
+      Arch.Wrappers.Write_GS        (Core_Info.Extra_Argument);
+      Arch.Wrappers.Write_Kernel_GS (Core_Info.Extra_Argument);
+      Core_LAPICs (Integer (Core_Info.Extra_Argument)) := Core_Info.LAPIC_ID;
 
       --  Send the core to idle, waiting for the scheduler to tell it to do
       --  something, from here, we lose control. Fairwell, core.

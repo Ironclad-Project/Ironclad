@@ -40,5 +40,5 @@ AC_CHECK_TOOL(QEMU, qemu-system-x86_64, qemu-system-x86_64)
 test -z "$QEMUFLAGS" && QEMUFLAGS="-m 2G -smp 4 -debugcon stdio -enable-kvm"
 
 # Replace the variables in the makefile.
-AC_CONFIG_FILES(GNUmakefile source/config.ads)
+AC_CONFIG_FILES(GNUmakefile config.ads)
 AC_OUTPUT

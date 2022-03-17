@@ -19,9 +19,9 @@ override KERNEL    := ironclad
 override IMAGE     := ironclad.iso
 override CMAGENTA  := $(shell tput setaf 5)
 override CRESET    := $(shell tput sgr0)
-override DOCSDIR   := docs
-override SOURCEDIR := source
-override TESTDIR   := test
+override DOCSDIR   := @srcdir@/docs
+override SOURCEDIR := @srcdir@/source
+override TESTDIR   := @srcdir@/test
 
 # Limine.
 override LIMINE_URL  := https://github.com/limine-bootloader/limine.git
@@ -58,7 +58,7 @@ override ADABODIES := $(shell find $(SOURCEDIR) -type f -name '*.adb')
 override ADASPECS  := $(shell find $(SOURCEDIR) -type f -name '*.ads')
 override ADAOBJ    := $(shell comm -13 <(echo $(ADABODIES:.adb=.o)) <(echo $(ADASPECS:.ads=.o)))
 override ASMSOURCE := $(shell find $(SOURCEDIR) -type f -name '*.S')
-override OBJ       := $(ADAOBJ) $(ASMSOURCE:.S=.o)
+override OBJ       := $(ADAOBJ) $(ASMSOURCE:.S=.o) config.o
 
 # Where the fun begins!
 .PHONY: all test clean dist distclean maintainer-clean install install-strip uninstall
@@ -73,13 +73,13 @@ $(KERNEL): $(OBJ)
 	@echo "$(CMAGENTA)$(ADAC)$(CRESET) $<"
 	@$(ADAC) $(ADAHARDFLAGS) -I$(SOURCEDIR)/arch -I$(SOURCEDIR)/devices \
 		-I$(SOURCEDIR)/fs -I$(SOURCEDIR)/lib -I$(SOURCEDIR)/memory      \
-		-I$(SOURCEDIR)/userland -I$(SOURCEDIR) -c $< -o $@
+		-I$(SOURCEDIR)/userland -I$(SOURCEDIR) -I . -c $< -o $@
 
 %.o: %.ads
 	@echo "$(CMAGENTA)$(ADAC)$(CRESET) $<"
 	@$(ADAC) $(ADAHARDFLAGS) -I$(SOURCEDIR)/arch -I$(SOURCEDIR)/devices \
 		-I$(SOURCEDIR)/fs -I$(SOURCEDIR)/lib -I$(SOURCEDIR)/memory      \
-		-I$(SOURCEDIR)/userland -I$(SOURCEDIR) -c $< -o $@
+		-I$(SOURCEDIR)/userland -I$(SOURCEDIR) -I . -c $< -o $@
 
 %.o: %.S
 	@echo "$(CMAGENTA)$(AS)$(CRESET) $@"
@@ -103,13 +103,13 @@ $(LIMINE_DIR):
 	@make -C $(LIMINE_DIR)
 
 clean:
-	@rm -rf $(OBJ) $(KERNEL) $(IMAGE)
+	@rm -rf $(OBJ) $(KERNEL) $(IMAGE) *.ali
 	@find $(SOURCEDIR) -name "*.ali" -type f -delete
 
 dist:
 	rm -rf "ironclad"
 	mkdir -p "ironclad"
-	cp -r .git "ironclad"/
+	cp -r @srcdir@/.git "ironclad"/
 	cd "ironclad" && git checkout .
 	cd "ironclad" && NOCONFIGURE=yes ./autogen.sh
 	rm -rf "ironclad/.git"
@@ -118,7 +118,7 @@ dist:
 	rm -rf "ironclad"
 
 distclean: clean
-	@rm -rf $(LIMINE_DIR) GNUmakefile config.log config.status $(SOURCEDIR)/config.ads
+	@rm -rf $(LIMINE_DIR) GNUmakefile config.log config.status config.ads
 
 maintainer-clean: distclean
 	@rm -rf configure install-sh autom4te* *'~'
