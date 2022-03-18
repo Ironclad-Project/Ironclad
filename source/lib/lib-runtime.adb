@@ -137,9 +137,7 @@ package body Lib.Runtime is
       File_String : String (1 .. File_Length) with Address => File_Address;
    begin
       Lib.Messages.Put_Line ("");
-      Lib.Messages.Put      ("Exception triggered at ");
-      Lib.Messages.Put      (File_String);
-      Lib.Messages.Put      (":");
+      Lib.Messages.Put_Line ("Exception triggered at " & File_String & ":");
       Lib.Messages.Put      (Line_Number);
       Lib.Messages.Put_Line ("");
       Lib.Panic.Hard_Panic  (Message);

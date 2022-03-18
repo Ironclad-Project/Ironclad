@@ -58,8 +58,7 @@ package body Scheduler is
 
    --  Time slices assigned to each thread depending on preference.
    --  (In microseconds).
-   Preference_Slices : constant array (Positive range 1 .. 8)
-      of Unsigned_64 := (
+   Preference_Slices : constant array (1 .. 8) of Unsigned_64 := (
       1 =>  5000, -- Lowest, this should run as little as possible.
       2 =>  6000, -- Low, doesnt need to run for long.
       3 =>  8000, -- Low-ish, run a bit less than average.

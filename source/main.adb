@@ -189,8 +189,7 @@ package body Main is
          (Lib.Cmdline.Is_Key_Present (Cmdline_Addr, "syscalltracing"));
 
       if Init_Value /= null then
-         Lib.Messages.Put ("Booting init ");
-         Lib.Messages.Put_Line (Init_Value.all);
+         Lib.Messages.Put_Line ("Booting init " & Init_Value.all);
          Init_Arguments (1) := new String'(Init_Value.all);
          if Userland.Loader.Start_User_ELF
             (Init_Value.all, Init_Arguments, Init_Environment, "@kernout",

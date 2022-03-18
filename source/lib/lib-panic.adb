@@ -48,9 +48,7 @@ package body Lib.Panic is
 
       --  Print the error and try to recover.
       Already_Soft_Panicked := True;
-      Lib.Messages.Put      (Soft_Panic_Color);
-      Lib.Messages.Put      ("Soft panic requested: ");
-      Lib.Messages.Put      (Reset_Color);
+      Lib.Messages.Put      (Soft_Panic_Color & "Soft panic: " & Reset_Color);
       Lib.Messages.Put_Line (Message);
    end Soft_Panic;
 
@@ -74,12 +72,9 @@ package body Lib.Panic is
       end if;
 
       --  Print the error and lights out.
-      Lib.Messages.Put      (Hard_Panic_Color);
-      Lib.Messages.Put      ("Hard panic requested: ");
-      Lib.Messages.Put      (Reset_Color);
+      Lib.Messages.Put      (Hard_Panic_Color & "Hard panic: " & Reset_Color);
       Lib.Messages.Put_Line (Message);
       Arch.Interrupts.Set_Interrupt_Flag (False);
-
       loop null; end loop;
    end Hard_Panic;
 

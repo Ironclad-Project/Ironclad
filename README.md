@@ -48,8 +48,8 @@ and code reference.
 
 ## Licensing
 
-<img align="right" alt="License logo" src="https://www.gnu.org/graphics/gplv3-with-text-136x68.png"/>
+<img align="right" alt="License logo" src="https://www.gnu.org/graphics/gplv3-or-later.png"/>
 
-This project and its components are licensed under the GPLv3 license.
+This project and its components are licensed under the GPL-3.0-or-later license.
 The license in full is provided in `LICENSE.md`, and a little header is
 displayed on the pertinent source.
