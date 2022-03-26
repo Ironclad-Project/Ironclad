@@ -17,16 +17,21 @@
 with Devices.Serial;
 with Devices.Streams;
 with Devices.KernOut;
+with Lib.Panic;
 
 package body Devices is
    procedure Init is
       Discard : Boolean;
    begin
       --  Initialize virtual devices first.
-      Discard := Streams.Init;
-      Discard := KernOut.Init;
+      if not Streams.Init then goto Error; end if;
+      if not KernOut.Init then goto Error; end if;
 
       --  Initialize physical devices.
-      Discard := Serial.Init;
+      if not Serial.Init then goto Error; end if;
+      return;
+
+   <<Error>>
+      Lib.Panic.Soft_Panic ("Could not start devices");
    end Init;
 end Devices;

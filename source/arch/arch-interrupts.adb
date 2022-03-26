@@ -44,11 +44,9 @@ package body Arch.Interrupts is
       --  Check whether we have to panic or just exit the thread.
       --  TODO: Send a SIGSEGV instead of just stopping execution for user.
       --  We can only attribute #GP and #PF to programmer errors (13,14).
-      if Scheduler.Is_Userspace and (Number = 13 or Number = 14) then
+      if Scheduler.Is_Userspace then
          Lib.Messages.Put_Line ("Userland " & Exception_Text (Number));
          Scheduler.Bail;
-      elsif Scheduler.Is_Userspace then
-         Lib.Panic.Hard_Panic ("Userland " & Exception_Text (Number));
       else
          Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Number));
       end if;

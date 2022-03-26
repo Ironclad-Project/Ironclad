@@ -40,7 +40,8 @@ package body Memory.Virtual is
       Kernel_Map := new Page_Map;
       Lib.Synchronization.Release (Kernel_Map.Mutex'Access);
 
-      --  Map PMRs.
+      --  Map PMRs of the kernel.
+      --  This will always be mapped, so we can mark them global.
       for E of PMRs.Entries loop
          declare
             Phys_Addr : constant Physical_Address := E.Base - Kernel_Offset;
@@ -49,7 +50,7 @@ package body Memory.Virtual is
                (Present => True, Read_Write => True, User_Supervisor => False,
                 Write_Through => False, Cache_Disable => False,
                 Accessed => False, Dirty => False, PAT => False,
-                Global => False);
+                Global => True);
             Not_Execute : Boolean := True;
          begin
             if (E.Permissions and Arch.Stivale2.PMR_Executable_Mask) /= 0 then
