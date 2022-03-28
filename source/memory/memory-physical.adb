@@ -89,6 +89,10 @@ package body Memory.Physical is
          for Bitmap_Body'Address use To_Address (Bitmap_Address);
          I : Unsigned_64 := 0;
       begin
+         for I of Bitmap_Body loop
+            I := Block_Used;
+         end loop;
+
          for E of Memmap.Entries loop
             if E.EntryType = Arch.Stivale2.Memmap_Entry_Usable then
                while I < Unsigned_64 (E.Length) loop
