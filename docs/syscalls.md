@@ -38,16 +38,15 @@ This are the syscalls, their prototypes, and a short description.
 
 | Syscall                                     | Purpose              | Index |
 | ------------------------------------------- | -------------------- | ----- |
-| [log](syscalls/log.md)                      | Message reporting    | 0     |
-| [exit](syscalls/exit.md)                    | Code flow control    | 1     |
-| [set_tcb](syscalls/set_tcb.md)              | Thread-local storage | 2     |
-| [open](syscalls/open.md)                    | Synchronous File IO  | 3     |
-| [close](syscalls/open.md)                   | Synchronous File IO  | 4     |
-| [read](syscalls/read.md)                    | Synchronous File IO  | 5     |
-| [write](syscalls/read.md)                   | Synchronous File IO  | 6     |
-| [seek](syscalls/seek.md)                    | Synchronous File IO  | 7     |
-| [mmap](syscalls/mmap.md)                    | Memory mapping       | 8     |
-| [munmap](syscalls/mmap.md)                  | Memory mapping       | 9     |
-| [getpid](syscalls/pid.md)                   | Process management   | 10    |
-| [getppid](syscalls/pid.md)                  | Process management   | 11    |
-| [thread_preference](syscalls/preference.md) | Process management   | 12    |
+| [exit](syscalls/exit.md)                    | Code flow control    | 0     |
+| [set_tcb](syscalls/set_tcb.md)              | Thread-local storage | 1     |
+| [open](syscalls/open.md)                    | Synchronous File IO  | 2     |
+| [close](syscalls/open.md)                   | Synchronous File IO  | 3     |
+| [read](syscalls/read.md)                    | Synchronous File IO  | 4     |
+| [write](syscalls/read.md)                   | Synchronous File IO  | 5     |
+| [seek](syscalls/seek.md)                    | Synchronous File IO  | 6     |
+| [mmap](syscalls/mmap.md)                    | Memory mapping       | 7     |
+| [munmap](syscalls/mmap.md)                  | Memory mapping       | 8     |
+| [getpid](syscalls/pid.md)                   | Process management   | 9     |
+| [getppid](syscalls/pid.md)                  | Process management   | 10    |
+| [thread_preference](syscalls/preference.md) | Process management   | 11    |

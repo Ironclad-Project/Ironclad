@@ -30,11 +30,6 @@ package Arch.Syscall is
 
 private
 
-   --  Print a C-style string to the kernel reporting.
-   function Syscall_Log
-      (Address : Unsigned_64;
-       Errno   : out Unsigned_64) return Unsigned_64;
-
    --  Exit the callee thread, flushing open files.
    procedure Syscall_Exit (Error_Code : Integer);
 

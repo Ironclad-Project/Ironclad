@@ -1,4 +1,4 @@
---  devices-kernout.adb: Expose a device for kernel error-reporting.
+--  devices-tty.adb: Expose a TTY device.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -16,12 +16,12 @@
 
 with Arch.Stivale2;
 
-package body Devices.KernOut is
+package body Devices.TTY is
    --  Initialize the device.
    function Init return Boolean is
    begin
       return Register_Root ((
-         Name     => "kernout",
+         Name     => "ttydev1",
          Data     => System.Null_Address,
          Init     => null,
          Unload   => null,
@@ -50,4 +50,4 @@ package body Devices.KernOut is
       Arch.Stivale2.Print_Terminal (Message);
       return Count;
    end Write;
-end Devices.KernOut;
+end Devices.TTY;

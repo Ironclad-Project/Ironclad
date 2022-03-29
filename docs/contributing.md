@@ -9,7 +9,7 @@ easier.
 When configuring Ironclad for some development, a useful command to do so is
 
 ```bash
-./autogen.sh ADAFLAGS='-O2 -g -Wall -gnaty'
+./autogen.sh ADAFLAGS='-Og -g -Wall -gnaty'
 ```
 
 `-Wall` and `-gnaty` are good for general development and coding style errors,

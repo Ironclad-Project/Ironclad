@@ -16,7 +16,7 @@
 
 with Devices.Serial;
 with Devices.Streams;
-with Devices.KernOut;
+with Devices.TTY;
 with Lib.Panic;
 
 package body Devices is
@@ -25,7 +25,7 @@ package body Devices is
    begin
       --  Initialize virtual devices first.
       if not Streams.Init then goto Error; end if;
-      if not KernOut.Init then goto Error; end if;
+      if not TTY.Init     then goto Error; end if;
 
       --  Initialize physical devices.
       if not Serial.Init then goto Error; end if;

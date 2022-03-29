@@ -56,31 +56,29 @@ package body Arch.Syscall is
       --  Arguments can be RDI, RSI, RDX, RCX, R8, and R9, in that order.
       case State.RAX is
          when 0 =>
-            Returned := Syscall_Log (State.RDI, Errno);
-         when 1 =>
             Syscall_Exit (Integer (State.RDI));
-         when 2 =>
+         when 1 =>
             Returned := Syscall_Set_TCB (State.RDI, Errno);
-         when 3 =>
+         when 2 =>
             Returned := Syscall_Open (State.RDI, State.RSI, Errno);
-         when 4 =>
+         when 3 =>
             Returned := Syscall_Close (State.RDI, Errno);
-         when 5 =>
+         when 4 =>
             Returned := Syscall_Read (State.RDI, State.RSI, State.RDX, Errno);
-         when 6 =>
+         when 5 =>
             Returned := Syscall_Write (State.RDI, State.RSI, State.RDX, Errno);
-         when 7 =>
+         when 6 =>
             Returned := Syscall_Seek (State.RDI, State.RSI, State.RDX, Errno);
-         when 8 =>
+         when 7 =>
             Returned := Syscall_Mmap (State.RDI, State.RSI, State.RDX,
                                       State.RCX, State.R8, State.R9, Errno);
-         when 9 =>
+         when 8 =>
             Returned := Syscall_Munmap (State.RDI, State.RSI, Errno);
-         when 10 =>
+         when 9 =>
             Returned := Syscall_Get_PID;
-         when 11 =>
+         when 10 =>
             Returned := Syscall_Get_Parent_PID;
-         when 12 =>
+         when 11 =>
             Returned := Syscall_Thread_Preference (State.RDI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
@@ -91,27 +89,6 @@ package body Arch.Syscall is
       State.RDX := Errno;
       Wrappers.Swap_GS;
    end Syscall_Handler;
-
-   function Syscall_Log
-      (Address : Unsigned_64;
-       Errno   : out Unsigned_64) return Unsigned_64
-   is
-      Addr : constant System.Address := To_Address (Integer_Address (Address));
-   begin
-      if Address = 0 then
-         Errno := Error_Invalid_Value;
-         return Unsigned_64'Last;
-      else
-         declare
-            Message_Length : constant Natural := Lib.C_String_Length (Addr);
-            Message_String : String (1 .. Message_Length) with Address => Addr;
-         begin
-            Lib.Messages.Put_Line (Message_String);
-            Errno := Error_No_Error;
-            return 0;
-         end;
-      end if;
-   end Syscall_Log;
 
    procedure Syscall_Exit (Error_Code : Integer) is
    begin
