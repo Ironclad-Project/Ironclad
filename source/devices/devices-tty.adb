@@ -17,7 +17,6 @@
 with Arch.Stivale2;
 
 package body Devices.TTY is
-   --  Initialize the device.
    function Init return Boolean is
    begin
       return Register_Root ((

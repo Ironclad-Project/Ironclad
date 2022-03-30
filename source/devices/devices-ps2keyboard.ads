@@ -1,4 +1,4 @@
---  devices.adb: Device management.
+--  devices-ps2keyboard.ads: PS2 keyboard driver.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,26 +14,21 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Devices.PS2Keyboard;
-with Devices.Serial;
-with Devices.Streams;
-with Devices.TTY;
-with Lib.Panic;
+with System;
+with FS; use FS;
 
-package body Devices is
-   procedure Init is
-      Discard : Boolean;
-   begin
-      --  Initialize virtual devices first.
-      if not Streams.Init then goto Error; end if;
-      if not TTY.Init     then goto Error; end if;
+package Devices.PS2Keyboard is
+   --  Initialize the device.
+   function Init return Boolean;
 
-      --  Initialize physical devices.
-      if not PS2Keyboard.Init then goto Error; end if;
-      if not Serial.Init      then goto Error; end if;
-      return;
+private
 
-   <<Error>>
-      Lib.Panic.Soft_Panic ("Could not start devices");
-   end Init;
-end Devices;
+   function Read
+      (Data   : Root_Data;
+       Obj    : Object;
+       Offset : System.Address;
+       Count  : Positive;
+       Desto  : System.Address) return Natural;
+
+   procedure Keyboard_Handler;
+end Devices.PS2Keyboard;

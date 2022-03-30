@@ -17,6 +17,7 @@
 with System; use System;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Wrappers;
+with Arch.Interrupts;
 with Lib.Messages;
 with Lib;
 with Userland.Process;
@@ -47,7 +48,8 @@ package body Arch.Syscall is
       Errno    : Unsigned_64 := Error_No_Error;
       pragma Unreferenced (Number);
    begin
-      --  Swap to kernel GS.
+      --  Swap to kernel GS and enable interrupts.
+      Interrupts.Set_Interrupt_Flag (True);
       Wrappers.Swap_GS;
 
       --  Call the inner syscall.
@@ -304,6 +306,12 @@ package body Arch.Syscall is
          Lib.Messages.Put (Whence);
          Lib.Messages.Put_Line (")");
       end if;
+      --   ??????????????????????????????????????????????????????
+      if File_D = 0 or File_D = 1 or File_D = 2 then
+         Errno := 1069;
+         return Unsigned_64'Last;
+      end if;
+
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;

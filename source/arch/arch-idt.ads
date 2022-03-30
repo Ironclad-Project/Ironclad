@@ -38,5 +38,6 @@ package Arch.IDT is
    procedure Unload_ISR (Index : IDT_Index);
 
 private
+
    procedure Load_IDT_ISR (Index : IDT_Index; Address : System.Address);
 end Arch.IDT;
