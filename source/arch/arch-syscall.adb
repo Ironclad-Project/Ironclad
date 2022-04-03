@@ -33,6 +33,7 @@ package body Arch.Syscall is
    Error_Invalid_Value   : constant := 1026; -- EINVAL.
    Error_Not_Implemented : constant := 1051; -- ENOSYS.
    Error_Not_Supported   : constant := 1057; -- ENOSUP.
+   Error_Invalid_Seek    : constant := 1069; -- ESPIPE.
    Error_Bad_File        : constant := 1081; -- EBADFD.
 
    --  Whether we are to print syscall information.
@@ -306,9 +307,10 @@ package body Arch.Syscall is
          Lib.Messages.Put (Whence);
          Lib.Messages.Put_Line (")");
       end if;
-      --   ??????????????????????????????????????????????????????
+      --  TODO: If the FD is a pipe or tty we need to set this errno.
+      --  This is a quicky to be changed later for something more general.
       if File_D = 0 or File_D = 1 or File_D = 2 then
-         Errno := 1069;
+         Errno := Error_Invalid_Seek;
          return Unsigned_64'Last;
       end if;
 

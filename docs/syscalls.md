@@ -30,6 +30,7 @@ depth, this is the list of available values:
 | Invalid Value   | `EINVAL`         | 1026  |
 | Not Implemented | `ENOSYS`         | 1051  |
 | Not Supported   | `ENOSUP`         | 1057  |
+| Invalid seek    | `ESPIPE`         | 1069  |
 | Bad FD          | `EBADFD`         | 1081  |
 
 ## Syscall list

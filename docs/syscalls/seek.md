@@ -22,3 +22,4 @@ errno is to be set to:
 
 - `EBADF`: Bad file descriptor.
 - `EINVAL`: The whence is malformed or the resulting offset would be invalid.
+- `ESPIPE`: Seek called on a TTY or pipe.

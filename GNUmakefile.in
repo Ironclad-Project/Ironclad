@@ -26,7 +26,7 @@ override TESTDIR   := @srcdir@/test
 # Limine.
 override LIMINE_URL  := https://github.com/limine-bootloader/limine.git
 override LIMINE_DIR  := limine
-override LIMINE_VERS := latest-binary
+override LIMINE_VERS := v3.0-branch-binary
 
 # Directories for install.
 DESTDIR ?=
@@ -91,11 +91,11 @@ test: $(IMAGE)
 $(IMAGE): $(KERNEL) $(LIMINE_DIR)
 	@mkdir -p iso_root
 	@cp $(KERNEL) $(TESTDIR)/limine.cfg $(LIMINE_DIR)/limine.sys \
-		$(LIMINE_DIR)/limine-cd.bin $(LIMINE_DIR)/limine-eltorito-efi.bin iso_root/
+		$(LIMINE_DIR)/limine-cd.bin $(LIMINE_DIR)/limine-cd-efi.bin iso_root/
 	@xorriso -as mkisofs -b limine-cd.bin -no-emul-boot -boot-load-size 4  \
-		-boot-info-table --efi-boot limine-eltorito-efi.bin -efi-boot-part \
+		-boot-info-table --efi-boot limine-cd-efi.bin -efi-boot-part       \
 		--efi-boot-image iso_root --protective-msdos-label -o $(IMAGE)
-	@$(LIMINE_DIR)/limine-s2deploy $(IMAGE)
+	@$(LIMINE_DIR)/limine-deploy $(IMAGE)
 	@rm -rf iso_root
 
 $(LIMINE_DIR):
