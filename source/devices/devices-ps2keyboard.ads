@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
-with FS; use FS;
+with VFS; use VFS;
 
 package Devices.PS2Keyboard is
    --  Initialize the device.

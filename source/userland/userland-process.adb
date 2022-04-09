@@ -21,15 +21,15 @@ package body Userland.Process is
    procedure Free is new Ada.Unchecked_Deallocation
       (Memory.Virtual.Page_Map, Memory.Virtual.Page_Map_Acc);
    procedure Free_File is new Ada.Unchecked_Deallocation
-      (FS.File.File, FS.File.File_Acc);
+      (VFS.File.File, VFS.File.File_Acc);
 
    --  FDs start at 0 for userspace, while PIDs start at 1, 0 is error value.
    type Process_Data_Threads is array (1 .. 20) of Scheduler.TID;
-   type Process_File_Table   is array (0 .. 99) of FS.File.File_Acc;
+   type Process_File_Table   is array (0 .. 99) of VFS.File.File_Acc;
    type Process_Data is record
       Is_Used      : Boolean;
       Parent       : PID;
-      Current_Root : FS.Root_Name;
+      Current_Root : VFS.Root_Name;
       Thread_List  : Process_Data_Threads;
       File_Table   : Process_File_Table;
       Common_Map   : access Memory.Virtual.Page_Map;
@@ -125,7 +125,7 @@ package body Userland.Process is
 
    function Add_File
       (Process : PID;
-       File    : FS.File.File_Acc;
+       File    : VFS.File.File_Acc;
        FD      : out Natural) return Boolean
    is
       Proc_Index : constant Natural := Natural (Process);
@@ -143,7 +143,7 @@ package body Userland.Process is
       return False;
    end Add_File;
 
-   function Get_File (Process : PID; FD : Natural) return FS.File.File_Acc is
+   function Get_File (Process : PID; FD : Natural) return VFS.File.File_Acc is
    begin
       if Is_Valid_Process (Process) then
          return Process_List (Natural (Process)).File_Table (FD);
@@ -154,20 +154,20 @@ package body Userland.Process is
    procedure Remove_File (Process : PID; FD : Natural) is
    begin
       if Is_Valid_Process (Process) then
-         FS.File.Close (Process_List (Natural (Process)).File_Table (FD));
+         VFS.File.Close (Process_List (Natural (Process)).File_Table (FD));
          Free_File (Process_List (Natural (Process)).File_Table (FD));
          Process_List (Natural (Process)).File_Table (FD) := null;
       end if;
    end Remove_File;
 
-   procedure Set_Current_Root (Process : PID; Root : FS.Root_Name) is
+   procedure Set_Current_Root (Process : PID; Root : VFS.Root_Name) is
    begin
       if Is_Valid_Process (Process) then
          Process_List (Natural (Process)).Current_Root := Root;
       end if;
    end Set_Current_Root;
 
-   function Get_Current_Root (Process : PID) return FS.Root_Name is
+   function Get_Current_Root (Process : PID) return VFS.Root_Name is
    begin
       if Is_Valid_Process (Process) then
          return Process_List (Natural (Process)).Current_Root;

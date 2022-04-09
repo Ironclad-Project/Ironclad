@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 with System;
-with FS; use FS;
+with VFS; use VFS;
 
 package Devices.Serial is
    --  Initialize the serial devices.

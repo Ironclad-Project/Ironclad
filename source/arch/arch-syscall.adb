@@ -17,11 +17,10 @@
 with System; use System;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Wrappers;
-with Arch.Interrupts;
 with Lib.Messages;
 with Lib;
 with Userland.Process;
-with FS.File; use FS.File;
+with VFS.File; use VFS.File;
 with Scheduler;
 with Memory.Virtual; use Memory.Virtual;
 with Memory.Physical;
@@ -143,8 +142,8 @@ package body Arch.Syscall is
          Current_Thre : constant Scheduler.TID := Scheduler.Get_Current_Thread;
          Current_Proc : constant Userland.Process.PID :=
             Userland.Process.Get_Process_By_Thread (Current_Thre);
-         Open_Mode    : FS.File.Access_Mode;
-         Opened_File  : FS.File.File_Acc;
+         Open_Mode    : VFS.File.Access_Mode;
+         Opened_File  : VFS.File.File_Acc;
          Returned_FD  : Natural;
       begin
          if Is_Tracing then
@@ -156,17 +155,17 @@ package body Arch.Syscall is
          end if;
          --  Parse the mode.
          if (Flags and O_RDWR) /= 0 then
-            Open_Mode := FS.File.Access_RW;
+            Open_Mode := VFS.File.Access_RW;
          elsif (Flags and O_RDONLY) /= 0 then
-            Open_Mode := FS.File.Access_R;
+            Open_Mode := VFS.File.Access_R;
          elsif (Flags and O_WRONLY) /= 0 then
-            Open_Mode := FS.File.Access_W;
+            Open_Mode := VFS.File.Access_W;
          else
             --  XXX: This should go to Error_Return, yet mlibc's dynamic linker
             --  passes flags = 0 for no reason, so we will put a default.
             --  This should not be the case, and it is to be fixed.
             --  goto Error_Return;
-            Open_Mode := FS.File.Access_R;
+            Open_Mode := VFS.File.Access_R;
          end if;
 
          --  Open the file with an absolute path.
@@ -175,7 +174,7 @@ package body Arch.Syscall is
          end if;
 
          --  Actually open the file.
-         Opened_File := FS.File.Open (Path_String, Open_Mode);
+         Opened_File := VFS.File.Open (Path_String, Open_Mode);
          if Opened_File = null then
             goto Error_Return;
          else
@@ -224,7 +223,7 @@ package body Arch.Syscall is
       Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.PID :=
          Userland.Process.Get_Process_By_Thread (Current_Thread);
-      File : constant FS.File.File_Acc :=
+      File : constant VFS.File.File_Acc :=
          Userland.Process.Get_File (Current_Process, Natural (File_D));
    begin
       if Is_Tracing then
@@ -246,7 +245,7 @@ package body Arch.Syscall is
       end if;
 
       Errno := Error_No_Error;
-      return Unsigned_64 (FS.File.Read (File, Integer (Count), Buffer_Addr));
+      return Unsigned_64 (VFS.File.Read (File, Integer (Count), Buffer_Addr));
    end Syscall_Read;
 
    function Syscall_Write
@@ -260,7 +259,7 @@ package body Arch.Syscall is
       Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.PID :=
          Userland.Process.Get_Process_By_Thread (Current_Thread);
-      File : constant FS.File.File_Acc :=
+      File : constant VFS.File.File_Acc :=
          Userland.Process.Get_File (Current_Process, Natural (File_D));
    begin
       if Is_Tracing then
@@ -282,7 +281,7 @@ package body Arch.Syscall is
       end if;
 
       Errno := Error_No_Error;
-      return Unsigned_64 (FS.File.Write (File, Integer (Count), Buffer_Addr));
+      return Unsigned_64 (VFS.File.Write (File, Integer (Count), Buffer_Addr));
    end Syscall_Write;
 
    function Syscall_Seek
@@ -294,7 +293,7 @@ package body Arch.Syscall is
       Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.PID :=
          Userland.Process.Get_Process_By_Thread (Current_Thread);
-      File : constant FS.File.File_Acc :=
+      File : constant VFS.File.File_Acc :=
          Userland.Process.Get_File (Current_Process, Natural (File_D));
       Passed_Offset : constant Natural := Natural (Offset);
    begin
@@ -325,7 +324,7 @@ package body Arch.Syscall is
          when SEEK_CURRENT =>
             File.Index := File.Index + Passed_Offset;
          when SEEK_END =>
-            File.Index := FS.File.Get_Size (File) + Passed_Offset;
+            File.Index := VFS.File.Get_Size (File) + Passed_Offset;
          when others =>
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;

@@ -1,4 +1,4 @@
---  fs-file.ads: File creation and management.
+--  vfs-file.ads: File creation and management.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -16,11 +16,11 @@
 
 with System;
 
-package FS.File is
+package VFS.File is
    type Access_Mode is (Access_R, Access_W, Access_RW);
    type File is record
-      Root   : FS.Root;
-      Object : FS.Object;
+      Root   : VFS.Root;
+      Object : VFS.Object;
       Index  : Natural;
       Flags  : Access_Mode;
    end record;
@@ -46,4 +46,4 @@ package FS.File is
 
    --  Get size of the file.
    function Get_Size (F : File_Acc) return Natural;
-end FS.File;
+end VFS.File;

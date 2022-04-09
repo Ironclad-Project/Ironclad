@@ -14,8 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with FS.File; use FS.File;
-with FS;
+with VFS.File; use VFS.File;
+with VFS;
 with Memory.Virtual;
 with Scheduler; use Scheduler;
 with Interfaces; use Interfaces;
@@ -44,14 +44,14 @@ package Userland.Process is
    --  Add and remove files to the process file descriptor table.
    function Add_File
       (Process : PID;
-       File    : FS.File.File_Acc;
+       File    : VFS.File.File_Acc;
        FD      : out Natural) return Boolean;
-   function Get_File (Process : PID; FD : Natural) return FS.File.File_Acc;
+   function Get_File (Process : PID; FD : Natural) return VFS.File.File_Acc;
    procedure Remove_File (Process : PID; FD : Natural);
 
    --  Get or set the current root of the process.
-   procedure Set_Current_Root (Process : PID; Root : FS.Root_Name);
-   function Get_Current_Root (Process : PID) return FS.Root_Name;
+   procedure Set_Current_Root (Process : PID; Root : VFS.Root_Name);
+   function Get_Current_Root (Process : PID) return VFS.Root_Name;
 
    --  Get and set different properties of the process.
    function Get_Parent_Process (Process : PID) return PID;

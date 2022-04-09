@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
-with FS; use FS;
+with VFS; use VFS;
 with Arch.Stivale2;
 
 package Devices.Ramdev is

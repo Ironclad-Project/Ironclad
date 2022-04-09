@@ -1,4 +1,4 @@
---  fs.ads: FS registry and dispatching library specification.
+--  vfs.ads: FS registry and dispatching library specification.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 
 with System;
 
-package FS is
+package VFS is
    --  The VFS of Ironclad consists on a list of root devices that are mounted
    --  as their own root, instead of having a single root.
    --  Inside each of these roots, the layout of the several files and folders
@@ -88,4 +88,4 @@ package FS is
    type Root_List is array (Natural range <>) of Root_Name;
    type Root_List_Acc is access Root_List;
    function List_Roots return Root_List_Acc;
-end FS;
+end VFS;

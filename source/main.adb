@@ -29,7 +29,7 @@ with Arch.PIT;
 with Arch.Syscall;
 with Devices.Ramdev;
 with Devices;
-with FS;
+with VFS;
 with Lib.Cmdline;
 with Lib.Messages;
 with Lib.Panic;
@@ -158,7 +158,7 @@ package body Main is
       procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
    begin
       Lib.Messages.Put_Line ("Initializing FS subsystem");
-      FS.Init;
+      VFS.Init;
 
       Lib.Messages.Put_Line ("Initializing processes");
       Userland.Process.Init;
@@ -169,11 +169,11 @@ package body Main is
       Lib.Messages.Put_Line ("Mounting stivale2 modules as ramdevs");
       for I in Modules.Entries'First .. Modules.Entries'Last loop
          declare
-            Name : FS.Root_Name := "ramdev0";
+            Name : VFS.Root_Name := "ramdev0";
          begin
             exit when I > 10;
             Name (7) := Character'Val (I + Character'Pos ('0'));
-            if not FS.Register_Root
+            if not VFS.Register_Root
                (Devices.Ramdev.Init_Module (Modules.Entries (I), Name))
             then
                Lib.Panic.Hard_Panic ("Could not load a stivale2 ramdev");

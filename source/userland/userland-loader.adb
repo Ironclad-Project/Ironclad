@@ -20,7 +20,7 @@ with Memory.Virtual; use Memory.Virtual;
 with Memory; use Memory;
 with Userland.ELF;
 with Scheduler; use Scheduler;
-with FS.File;
+with VFS.File;
 
 package body Userland.Loader is
    --  Virtual offsets for different kinds of programs to load.
@@ -40,12 +40,12 @@ package body Userland.Loader is
       Returned_PID : constant Process.PID := Process.Create_Process;
       LD_Path      : String (1 .. 100);
 
-      In_File  : constant FS.File.File_Acc :=
-         FS.File.Open (StdIn,  FS.File.Access_R);
-      Out_File : constant FS.File.File_Acc :=
-         FS.File.Open (StdOut, FS.File.Access_W);
-      Err_File : constant FS.File.File_Acc :=
-         FS.File.Open (StdErr, FS.File.Access_W);
+      In_File  : constant VFS.File.File_Acc :=
+         VFS.File.Open (StdIn,  VFS.File.Access_R);
+      Out_File : constant VFS.File.File_Acc :=
+         VFS.File.Open (StdOut, VFS.File.Access_W);
+      Err_File : constant VFS.File.File_Acc :=
+         VFS.File.Open (StdErr, VFS.File.Access_W);
    begin
       --  Check if we created the PID and load memmap.
       if Returned_PID = Process.Error_PID then

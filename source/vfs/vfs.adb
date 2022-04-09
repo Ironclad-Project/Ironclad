@@ -1,4 +1,4 @@
---  fs.adb: FS registry and dispatching.
+--  vfs.adb: FS registry and dispatching.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 with System; use System;
 with Lib.Synchronization;
 
-package body FS is
+package body VFS is
    --  Registry of roots and lock for modifying such list.
    type Root_Container is record
       Is_Present : Boolean;
@@ -120,4 +120,4 @@ package body FS is
       Lib.Synchronization.Release (Roots_Mutex'Access);
       return Returned;
    end List_Roots;
-end FS;
+end VFS;

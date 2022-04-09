@@ -1,4 +1,4 @@
---  fs-file.adb: File creation and management.
+--  vfs-file.adb: File creation and management.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -15,15 +15,15 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System; use System;
-with FS;
+with VFS;
 with Userland.Process; use Userland.Process;
 with Scheduler; use Scheduler;
 
-package body FS.File is
+package body VFS.File is
    function Open (Path : String; Access_Flags : Access_Mode) return File_Acc is
       Is_Absolute  : constant Boolean := Path (Path'First) = '@';
-      Fetched_Root : FS.Root;
-      Fetched_Obj  : FS.Object := System.Null_Address;
+      Fetched_Root : VFS.Root;
+      Fetched_Obj  : VFS.Object := System.Null_Address;
    begin
       --  Fetch the root and object for absolute paths, or build an absolute
       --  path.
@@ -32,7 +32,7 @@ package body FS.File is
             Root  : constant String := Path (Path'First + 1 .. Path'First + 7);
             RPath : constant String := Path (Path'First + 9 .. Path'Last);
          begin
-            if not FS.Get_Root (Root, Fetched_Root) then
+            if not VFS.Get_Root (Root, Fetched_Root) then
                return null;
             end if;
             if RPath'Length /= 0 and Fetched_Root.Open /= null then
@@ -46,7 +46,7 @@ package body FS.File is
          declare
             Thread    : constant TID := Get_Current_Thread;
             Process   : constant PID := Get_Process_By_Thread (Thread);
-            New_Path  : String (1 .. Path'Length + FS.Root_Name'Length + 2);
+            New_Path  : String (1 .. Path'Length + VFS.Root_Name'Length + 2);
             Has_Slash : constant Boolean := Path (Path'First) = '/';
          begin
             if Process = Error_PID then
@@ -144,4 +144,4 @@ package body FS.File is
       end if;
       return 0;
    end Get_Size;
-end FS.File;
+end VFS.File;
