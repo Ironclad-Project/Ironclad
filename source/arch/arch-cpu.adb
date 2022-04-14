@@ -81,9 +81,10 @@ package body Arch.CPU is
    --  that into account when compared with other cores.
    --  This function enables things common to BSP and other cores.
    procedure Init_Common  (Core_Number : Unsigned_64) is
+      type Unsigned_64_Acc is access Unsigned_64;
       CR0 : Unsigned_64 := Arch.Wrappers.Read_CR0;
       CR4 : Unsigned_64 := Arch.Wrappers.Read_CR4;
-      Number_Acc  : access Unsigned_64;
+      Number_Acc  : Unsigned_64_Acc;
       Number_Addr : Unsigned_64;
    begin
       --  Enable SSE/2.

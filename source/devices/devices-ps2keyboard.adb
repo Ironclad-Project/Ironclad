@@ -28,7 +28,6 @@ package body Devices.PS2Keyboard is
    Is_Capslock_Active : Boolean;
    Is_Shift_Active    : Boolean;
    Is_Ctrl_Active     : Boolean;
-   Is_Alt_Active      : Boolean;
    Has_Extra_Code     : Boolean;
 
    --  Buffer to be filled by the handler.
@@ -39,8 +38,6 @@ package body Devices.PS2Keyboard is
    --  Special keys and notable values.
    Max_Code            : constant := 16#57#;
    Capslock_Press      : constant := 16#3A#;
-   Left_Alt_Press      : constant := 16#38#;
-   Left_Alt_Release    : constant := 16#B8#;
    Right_Shift_Press   : constant := 16#36#;
    Right_Shift_Release : constant := 16#B6#;
    Left_Shift_Press    : constant := 16#2A#;
@@ -59,22 +56,22 @@ package body Devices.PS2Keyboard is
    Shift_Mapping : constant array (0 .. 57) of Character := (
       NUL, ESC, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', BS,
       HT, 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', LF,
-      NUL, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', NUL, '|',
-      'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', NUL, NUL, NUL, ' '
+      NUL, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', NUL,
+      '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', NUL, NUL, NUL, ' '
    );
 
    Shift_Capslock_Mapping : constant array (0 .. 57) of Character := (
       NUL, ESC, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', BS,
       HT, 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '{', '}', LF,
-      NUL, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ':', '"', '~', NUL, '|',
-      'z', 'x', 'c', 'v', 'b', 'n', 'm', '<', '>', '?', NUL, NUL, NUL, ' '
+      NUL, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ':', '"', '~', NUL,
+      '|', 'z', 'x', 'c', 'v', 'b', 'n', 'm', '<', '>', '?', NUL, NUL, NUL, ' '
    );
 
    Normal_Mapping : constant array (0 .. 57) of Character := (
       NUL, ESC, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', BS,
       HT, 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', LF,
-      NUL, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', ''', '`', NUL, '\',
-      'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', NUL, NUL, NUL, ' '
+      NUL, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', ''', '`', NUL,
+      '\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', NUL, NUL, NUL, ' '
    );
 
    function Init return Boolean is
@@ -157,8 +154,6 @@ package body Devices.PS2Keyboard is
       end if;
 
       case Input is
-         when Left_Alt_Press      => Is_Alt_Active   := True;  goto EOI;
-         when Left_Alt_Release    => Is_Alt_Active   := False; goto EOI;
          when Left_Shift_Press    => Is_Shift_Active := True;  goto EOI;
          when Left_Shift_Release  => Is_Shift_Active := False; goto EOI;
          when Right_Shift_Press   => Is_Shift_Active := True;  goto EOI;
