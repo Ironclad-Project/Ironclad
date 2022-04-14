@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
+with System.Machine_Code; use System.Machine_Code;
 with Arch.APIC;
 with Arch.GDT;
 with Arch.IDT;
@@ -24,16 +24,12 @@ with Scheduler;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body Arch.CPU is
-   procedure Init_Cores (SMP_Info : access Arch.Stivale2.SMP_Tag) is
-   begin
+   procedure Init_Cores (SMP_Info : access Arch.Stivale2.SMP_Tag) is begin
       --  Initialize the LAPIC list, and fill the BSP fields.
       Core_Count  := SMP_Info.Entries'Length;
       Core_LAPICs := new LAPIC_Array (SMP_Info.Entries'Range);
       Core_LAPICs (1) := SMP_Info.BSP_LAPIC_ID;
-
-      Init_Common;
-      Arch.Wrappers.Write_GS        (1);
-      Arch.Wrappers.Write_Kernel_GS (1);
+      Init_Common (1);
 
       --  Initialize the rest of cores.
       --  Stivale2 guarantees that all the cores in its tag are alive, so
@@ -55,13 +51,15 @@ package body Arch.CPU is
    end Init_Cores;
 
    function Get_Core_Number return Positive is
+      Number : Unsigned_64;
    begin
-      --  We store the core number on kernel space in GS.
-      return Positive (Arch.Wrappers.Read_GS);
+      Asm ("mov %%gs:0, %0",
+           Outputs  => Unsigned_64'Asm_Output ("=a", Number),
+           Volatile => True);
+      return Positive (Number);
    end Get_Core_Number;
 
-   procedure Init_Core (Core_Info : access Arch.Stivale2.SMP_Core) is
-   begin
+   procedure Init_Core (Core_Info : access Arch.Stivale2.SMP_Core) is begin
       --  Load the global GDT, IDT, mappings, and LAPIC.
       Arch.GDT.Load_GDT;
       Arch.IDT.Load_IDT;
@@ -69,11 +67,9 @@ package body Arch.CPU is
       Arch.APIC.Init_LAPIC;
 
       --  Load several goodies.
-      Init_Common;
+      Init_Common (Core_Info.Extra_Argument);
 
-      --  Initialize things depending on the core number.
-      Arch.Wrappers.Write_GS        (Core_Info.Extra_Argument);
-      Arch.Wrappers.Write_Kernel_GS (Core_Info.Extra_Argument);
+      --  Store the LAPIC in the list.
       Core_LAPICs (Integer (Core_Info.Extra_Argument)) := Core_Info.LAPIC_ID;
 
       --  Send the core to idle, waiting for the scheduler to tell it to do
@@ -84,14 +80,24 @@ package body Arch.CPU is
    --  The BSP already has some facilities initialized, so we have to take
    --  that into account when compared with other cores.
    --  This function enables things common to BSP and other cores.
-   procedure Init_Common is
+   procedure Init_Common  (Core_Number : Unsigned_64) is
       CR0 : Unsigned_64 := Arch.Wrappers.Read_CR0;
       CR4 : Unsigned_64 := Arch.Wrappers.Read_CR4;
+      Number_Acc  : access Unsigned_64;
+      Number_Addr : Unsigned_64;
    begin
       --  Enable SSE/2.
       CR0 := (CR0 and (not Shift_Left (1, 2))) or Shift_Left (1, 1);
       CR4 := CR4 or Shift_Left (3, 9);
       Arch.Wrappers.Write_CR0 (CR0);
       Arch.Wrappers.Write_CR4 (CR4);
+
+      --  The CPU number is stored in GS for kernel space.
+      --  For reading the CPU number in GS, its faster to store a pointer to it
+      --  in GS and access it than reading the MSR.
+      Number_Acc  := new Unsigned_64'(Core_Number);
+      Number_Addr := Unsigned_64 (To_Integer (Number_Acc.all'Address));
+      Arch.Wrappers.Write_GS        (Number_Addr);
+      Arch.Wrappers.Write_Kernel_GS (Number_Addr);
    end Init_Common;
 end Arch.CPU;

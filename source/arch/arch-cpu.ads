@@ -35,5 +35,5 @@ package Arch.CPU is
 private
    procedure Init_Core (Core_Info : access Arch.Stivale2.SMP_Core)
       with Convention => C;
-   procedure Init_Common;
+   procedure Init_Common (Core_Number : Unsigned_64);
 end Arch.CPU;

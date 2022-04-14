@@ -345,7 +345,7 @@ package body Scheduler is
          Arch.APIC.LAPIC_Send_IPI (Core_LAPIC, Scheduler_Vector);
       end if;
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
-      loop null; end loop;
+      loop Arch.Wrappers.HLT; end loop;
    end Yield;
 
    procedure Bail is
