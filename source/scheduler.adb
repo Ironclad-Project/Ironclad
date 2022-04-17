@@ -300,6 +300,15 @@ package body Scheduler is
       if Is_Thread_Present (Thread) then
          Lib.Synchronization.Seize (Scheduler_Mutex'Access);
          Thread_Pool (Thread).Is_Present := False;
+         if Thread_Pool (Thread).Is_Running then
+            for I in Core_Locals'Range loop
+               if Core_Locals (I).Current_TID = Thread then
+                  Arch.APIC.LAPIC_Send_IPI
+                     (Arch.CPU.Core_LAPICs (I), Scheduler_Vector);
+                  exit;
+               end if;
+            end loop;
+         end if;
          Lib.Synchronization.Release (Scheduler_Mutex'Access);
       end if;
    end Delete_Thread;
@@ -343,9 +352,9 @@ package body Scheduler is
       Lib.Synchronization.Seize (Scheduler_Mutex'Access);
       --  Force rescheduling by calling the ISR vector directly.
       if Current_TID /= 0 then
+         Lib.Synchronization.Release (Scheduler_Mutex'Access);
          Arch.APIC.LAPIC_Send_IPI (Core_LAPIC, Scheduler_Vector);
       end if;
-      Lib.Synchronization.Release (Scheduler_Mutex'Access);
       loop Arch.Wrappers.HLT; end loop;
    end Yield;
 

@@ -15,15 +15,10 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System.Storage_Elements; use System.Storage_Elements;
-with VFS.File; use VFS.File;
 with Memory.Physical;
 with Memory; use Memory;
-with Ada.Unchecked_Deallocation;
 
 package body Userland.ELF is
-   procedure Free_File is new Ada.Unchecked_Deallocation
-      (VFS.File.File, VFS.File.File_Acc);
-
    type ELF_ID_Field is array (Natural range <>) of Unsigned_8;
    ELF_Signature : constant ELF_ID_Field (1 .. 4) :=
       (16#7F#, Character'Pos ('E'), Character'Pos ('L'), Character'Pos ('F'));
@@ -132,33 +127,6 @@ package body Userland.ELF is
          return Result;
       end;
    end Load_ELF;
-
-   function Open_And_Load_ELF
-      (Path : String;
-       Map  : Memory.Virtual.Page_Map_Acc;
-       Base : Unsigned_64) return Parsed_ELF
-   is
-      FD : VFS.File.File_Acc := VFS.File.Open (Path, VFS.File.Access_R);
-      Loaded_ELF : Parsed_ELF := (
-         Was_Loaded  => False,
-         Entrypoint  => System.Null_Address,
-         Linker_Path => null,
-         Vector => (
-            Entrypoint => 0,
-            Program_Headers => 0,
-            Program_Header_Count => 0,
-            Program_Header_Size => 0
-         ));
-   begin
-      if FD = null then
-         return Loaded_ELF;
-      end if;
-
-      Loaded_ELF := ELF.Load_ELF (FD, Map, Base);
-      VFS.File.Close (FD);
-      Free_File (FD);
-      return Loaded_ELF;
-   end Open_And_Load_ELF;
 
    --  Get the linker path string from a given interpreter program header.
    function Get_Linker

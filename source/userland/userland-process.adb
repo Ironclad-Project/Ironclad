@@ -123,6 +123,19 @@ package body Userland.Process is
       end if;
    end Remove_Thread;
 
+   procedure Flush_Threads (Process : PID) is
+      Proc_Index : constant Natural := Natural (Process);
+   begin
+      if Is_Valid_Process (Process) then
+         for Thread of Process_List (Proc_Index).Thread_List loop
+            if Thread /= 0 then
+               Scheduler.Delete_Thread (Thread);
+               Thread := 0;
+            end if;
+         end loop;
+      end if;
+   end Flush_Threads;
+
    function Add_File
       (Process : PID;
        File    : VFS.File.File_Acc;

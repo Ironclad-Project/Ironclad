@@ -40,6 +40,7 @@ package Userland.Process is
    --  Add or remove an threads and files to a process.
    function Add_Thread (Process : PID; Threa : Scheduler.TID) return Boolean;
    procedure Remove_Thread (Process : PID; Thread : Scheduler.TID);
+   procedure Flush_Threads (Process : PID);
 
    --  Add and remove files to the process file descriptor table.
    function Add_File

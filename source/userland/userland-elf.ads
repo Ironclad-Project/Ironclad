@@ -47,12 +47,6 @@ package Userland.ELF is
        Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Parsed_ELF;
 
-   --  Do the same as the one above but opens and closes the file for you.
-   function Open_And_Load_ELF
-      (Path : String;
-       Map  : Memory.Virtual.Page_Map_Acc;
-       Base : Unsigned_64) return Parsed_ELF;
-
 private
 
    Program_Loadable_Segment     : constant := 1;

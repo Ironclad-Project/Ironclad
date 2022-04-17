@@ -29,6 +29,7 @@ with Arch.PIT;
 with Arch.Syscall;
 with Devices.Ramdev;
 with Devices;
+with VFS.File; use VFS.File;
 with VFS;
 with Lib.Cmdline;
 with Lib.Messages;
@@ -155,7 +156,9 @@ package body Main is
 
       type String_Acc is access all String;
       Init_Value : String_Acc;
-      procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
+      Init_File  : File_Acc;
+      procedure Free_S is new Ada.Unchecked_Deallocation (String, String_Acc);
+      procedure Free_F is new Ada.Unchecked_Deallocation (File,   File_Acc);
    begin
       Lib.Messages.Put_Line ("Initializing FS subsystem");
       VFS.Init;
@@ -191,13 +194,15 @@ package body Main is
       if Init_Value /= null then
          Lib.Messages.Put_Line ("Booting init " & Init_Value.all);
          Init_Arguments (1) := new String'(Init_Value.all);
-         if Userland.Loader.Start_User_ELF
-            (Init_Value.all, Init_Arguments, Init_Environment, "@ps2keyb",
+         Init_File := Open (Init_Value.all, Access_R);
+         if Init_File = null or else Userland.Loader.Start_Program
+            (Init_File, Init_Arguments, Init_Environment, "@ps2keyb",
              "@ttydev1", "@ttydev1") = Userland.Process.Error_PID
          then
             Lib.Panic.Soft_Panic ("Could not start init");
          end if;
-         Free (Init_Value);
+         Free_S (Init_Value);
+         Free_F (Init_File);
       end if;
 
       Lib.Messages.Put_Line ("Bailing main thread");

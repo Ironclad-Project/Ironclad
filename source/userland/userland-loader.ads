@@ -15,15 +15,25 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Userland.Process; use Userland.Process;
+with VFS.File;         use VFS.File;
 
 package Userland.Loader is
-   --  Load a file with an absolute path and set it up for execution.
+   --  Start a program from a passed file, and create a process for it with
+   --  1 thread running it.
    --  Return the PID, or 0 if failure.
-   function Start_User_ELF
-      (Path        : String;
+   function Start_Program
+      (FD          : File_Acc;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       StdIn       : String;
-       StdOut      : String;
-       StdErr      : String) return Userland.Process.PID;
+       StdIn_Path  : String;
+       StdOut_Path : String;
+       StdErr_Path : String) return Userland.Process.PID;
+
+   --  Same as above but with an existing process instead.
+   --  Returns true on success, false on failure.
+   function Start_Program
+      (FD          : File_Acc;
+       Arguments   : Argument_Arr;
+       Environment : Environment_Arr;
+       Proc        : PID) return Boolean;
 end Userland.Loader;
