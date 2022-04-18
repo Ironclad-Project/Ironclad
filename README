@@ -1,0 +1,46 @@
+Ironclad is a kernel for x86_64 devices exclusively (for now), written in Ada.
+
+-- Building --
+
+If the project's configure has not been generated, there is a autogen.sh.
+The steps for a generated project are the usual:
+
+./configure
+make
+make test # If wanted.
+make install-strip
+
+Several flags and variables are available for tuning, ./configure --help will
+display and explain them.
+
+A list of the tools needed for compilation and checked by configure is:
+
+- autoconf 2.69 and automake.
+- An Ada compiler, preferably gcc.
+- A standard linker and GAS assembler.
+- xorriso and QEMU for testing.
+
+-- Documentation --
+
+Under the docs directory one can find a hefty ammount of documentation
+describing a number of OS-specific concepts. Note this documentation does
+not explain code or excuse the lack of comments in the code, but aims to shed
+light on higher-level design decisions and interface between userland and
+kernel, that are assumed in the implementation. Some useful links are:
+
+- Kernel command line and values available (docs/cmdlineargs.md).
+- Syscall mechanism and list (docs/syscalls.md).
+- VFS structure, roots, and object interaction (docs/vfs.md).
+- Contributing to the project (docs/contributing.md).
+
+-- Thanks to --
+
+- Mintsuki (https://github.com/mintsuki) et al - For the
+Limine (https://github.com/limine-bootloader/limine) project, used for testing
+and code reference.
+
+-- Licensing --
+
+This project and its components are licensed under the GPL-3.0-or-later license.
+The license in full is provided in COPYING, and a little header is
+displayed on the pertinent source.
