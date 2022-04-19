@@ -27,7 +27,9 @@ depth, this is the list of available values:
 | Meaning         | C `errno.h` name | Value |
 | --------------- | ---------------- | ----- |
 | No Error        |                  | 0     |
+| Bad Access      | `EACCES`         | 1002  |
 | Invalid Value   | `EINVAL`         | 1026  |
+| No entity       | `ENOENT`         | 1043  |
 | Not Implemented | `ENOSYS`         | 1051  |
 | Not Supported   | `ENOSUP`         | 1057  |
 | Invalid seek    | `ESPIPE`         | 1069  |
@@ -51,3 +53,4 @@ This are the syscalls, their prototypes, and a short description.
 | [getpid](syscalls/pid.md)                   | Process management   | 9     |
 | [getppid](syscalls/pid.md)                  | Process management   | 10    |
 | [thread_preference](syscalls/preference.md) | Process management   | 11    |
+| [exec](syscalls/exec.md)                    | Process management   | 12    |

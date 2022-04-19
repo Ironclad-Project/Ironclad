@@ -124,11 +124,12 @@ package body Userland.Process is
    end Remove_Thread;
 
    procedure Flush_Threads (Process : PID) is
-      Proc_Index : constant Natural := Natural (Process);
+      Proc_Index     : constant Natural := Natural (Process);
+      Current_Thread : constant TID     := Scheduler.Get_Current_Thread;
    begin
       if Is_Valid_Process (Process) then
          for Thread of Process_List (Proc_Index).Thread_List loop
-            if Thread /= 0 then
+            if Thread /= 0 and Thread /= Current_Thread then
                Scheduler.Delete_Thread (Thread);
                Thread := 0;
             end if;

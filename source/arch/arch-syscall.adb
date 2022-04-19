@@ -20,6 +20,7 @@ with Arch.Wrappers;
 with Lib.Messages;
 with Lib;
 with Userland.Process;
+with Userland.Loader;
 with VFS.File; use VFS.File;
 with Scheduler;
 with Memory.Virtual; use Memory.Virtual;
@@ -29,7 +30,9 @@ with Memory; use Memory;
 package body Arch.Syscall is
    --  Errno values, they are ABI and arbitrary.
    Error_No_Error        : constant := 0;
+   Error_Bad_Access      : constant := 1002; -- EACCES.
    Error_Invalid_Value   : constant := 1026; -- EINVAL.
+   Error_No_Entity       : constant := 1043; -- ENOENT.
    Error_Not_Implemented : constant := 1051; -- ENOSYS.
    Error_Not_Supported   : constant := 1057; -- ENOSUP.
    Error_Invalid_Seek    : constant := 1069; -- ESPIPE.
@@ -82,6 +85,8 @@ package body Arch.Syscall is
             Returned := Syscall_Get_Parent_PID;
          when 11 =>
             Returned := Syscall_Thread_Preference (State.RDI, Errno);
+         when 12 =>
+            Returned := Syscall_Exec (State.RDI, State.RSI, State.RDX, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -105,7 +110,7 @@ package body Arch.Syscall is
       Userland.Process.Flush_Threads  (Current_Process);
       Userland.Process.Flush_Files    (Current_Process);
       Userland.Process.Delete_Process (Current_Process);
-      Scheduler.Yield;
+      Scheduler.Bail;
    end Syscall_Exit;
 
    function Syscall_Set_TCB
@@ -527,4 +532,45 @@ package body Arch.Syscall is
          return Unsigned_64 (Scheduler.Get_Thread_Preference (Thread));
       end if;
    end Syscall_Thread_Preference;
+
+   function Syscall_Exec
+      (Address : Unsigned_64;
+       Argv    : Unsigned_64;
+       Envp    : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64
+   is
+      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Current_Process : constant Userland.Process.PID :=
+         Userland.Process.Get_Process_By_Thread (Current_Thread);
+      Addr : constant System.Address := To_Address (Integer_Address (Address));
+      Path_Length : constant Natural := Lib.C_String_Length (Addr);
+      Path_String : String (1 .. Path_Length) with Address => Addr;
+      Opened_File : constant File_Acc := Open (Path_String, Access_R);
+      Args        : Userland.Argument_Arr    (1 .. 1);
+      Env         : Userland.Environment_Arr (1 .. 0);
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall exec(" & Path_String & ")");
+      end if;
+
+      if Opened_File = null then
+         Errno := Error_No_Entity;
+         return Unsigned_64'Last;
+      end if;
+
+      --  TODO: Actually translate the arguments.
+      Args (1) := new String'(Path_String);
+
+      Userland.Process.Flush_Threads (Current_Process);
+      if not Userland.Loader.Start_Program
+         (Opened_File, Args, Env, Current_Process)
+      then
+         Errno := Error_Bad_Access;
+         return Unsigned_64'Last;
+      end if;
+
+      Scheduler.Bail;
+      Errno := Error_No_Error;
+      return 0;
+   end Syscall_Exec;
 end Arch.Syscall;

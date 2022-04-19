@@ -108,4 +108,11 @@ private
    function Syscall_Thread_Preference
       (Preference : Unsigned_64;
        Errno      : out Unsigned_64) return Unsigned_64;
+
+   --  Execute.
+   function Syscall_Exec
+      (Address : Unsigned_64;
+       Argv    : Unsigned_64;
+       Envp    : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64;
 end Arch.Syscall;
