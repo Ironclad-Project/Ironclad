@@ -173,6 +173,20 @@ package body Userland.Process is
       end if;
    end Remove_File;
 
+   procedure Flush_Files (Process : PID) is
+      Proc_Index : constant Natural := Natural (Process);
+   begin
+      if Is_Valid_Process (Process) then
+         for F of Process_List (Proc_Index).File_Table loop
+            if F /= null then
+               VFS.File.Close (F);
+               Free_File (F);
+               F := null;
+            end if;
+         end loop;
+      end if;
+   end Flush_Files;
+
    procedure Set_Current_Root (Process : PID; Root : VFS.Root_Name) is
    begin
       if Is_Valid_Process (Process) then

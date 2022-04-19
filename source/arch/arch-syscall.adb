@@ -58,7 +58,7 @@ package body Arch.Syscall is
       --  Arguments can be RDI, RSI, RDX, RCX, R8, and R9, in that order.
       case State.RAX is
          when 0 =>
-            Syscall_Exit (Integer (State.RDI));
+            Syscall_Exit (State.RDI);
          when 1 =>
             Returned := Syscall_Set_TCB (State.RDI, Errno);
          when 2 =>
@@ -92,14 +92,20 @@ package body Arch.Syscall is
       Wrappers.Swap_GS;
    end Syscall_Handler;
 
-   procedure Syscall_Exit (Error_Code : Integer) is
+   procedure Syscall_Exit (Error_Code : Unsigned_64) is
+      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Current_Process : constant Userland.Process.PID :=
+            Userland.Process.Get_Process_By_Thread (Current_Thread);
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall exit(");
          Lib.Messages.Put (Error_Code);
          Lib.Messages.Put_Line (")");
       end if;
-      Scheduler.Bail;
+      Userland.Process.Flush_Threads  (Current_Process);
+      Userland.Process.Flush_Files    (Current_Process);
+      Userland.Process.Delete_Process (Current_Process);
+      Scheduler.Yield;
    end Syscall_Exit;
 
    function Syscall_Set_TCB

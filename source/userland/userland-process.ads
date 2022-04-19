@@ -49,6 +49,7 @@ package Userland.Process is
        FD      : out Natural) return Boolean;
    function Get_File (Process : PID; FD : Natural) return VFS.File.File_Acc;
    procedure Remove_File (Process : PID; FD : Natural);
+   procedure Flush_Files (Process : PID);
 
    --  Get or set the current root of the process.
    procedure Set_Current_Root (Process : PID; Root : VFS.Root_Name);

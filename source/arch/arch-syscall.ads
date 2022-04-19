@@ -31,7 +31,7 @@ package Arch.Syscall is
 private
 
    --  Exit the callee thread, flushing open files.
-   procedure Syscall_Exit (Error_Code : Integer);
+   procedure Syscall_Exit (Error_Code : Unsigned_64);
 
    --  Set an address to be thread-local storage.
    function Syscall_Set_TCB
