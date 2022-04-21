@@ -174,7 +174,7 @@ package body Main is
          declare
             Name : VFS.Root_Name := "ramdev0";
          begin
-            exit when I > 10;
+            exit when I = 10;
             Name (7) := Character'Val (I + Character'Pos ('0'));
             if not VFS.Register_Root
                (Devices.Ramdev.Init_Module (Modules.Entries (I), Name))
