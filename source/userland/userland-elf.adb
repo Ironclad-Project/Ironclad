@@ -175,7 +175,8 @@ package body Userland.ELF is
           Physical    => To_Integer (Load'Address) - Memory.Memory_Offset,
           Length      => Load_Size,
           Flags       => Flags,
-          Not_Execute => False);
+          Not_Execute => False,
+          Register    => True);
       File_D.Index := Natural (Header.Offset);
       return VFS.File.Read (File_D, Header.File_Size_Bytes, Load_Addr) =
              Header.File_Size_Bytes;

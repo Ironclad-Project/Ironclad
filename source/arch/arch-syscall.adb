@@ -19,18 +19,20 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Wrappers;
 with Lib.Messages;
 with Lib;
-with Userland.Process;
+with Userland.Process; use Userland.Process;
 with Userland.Loader;
 with VFS.File; use VFS.File;
 with Scheduler;
 with Memory.Virtual; use Memory.Virtual;
 with Memory.Physical;
 with Memory; use Memory;
+with Ada.Unchecked_Deallocation;
 
 package body Arch.Syscall is
    --  Errno values, they are ABI and arbitrary.
    Error_No_Error        : constant := 0;
    Error_Bad_Access      : constant := 1002; -- EACCES.
+   Error_Would_Block     : constant := 1006; -- EAGAIN.
    Error_Invalid_Value   : constant := 1026; -- EINVAL.
    Error_No_Entity       : constant := 1043; -- ENOENT.
    Error_Not_Implemented : constant := 1051; -- ENOSYS.
@@ -40,6 +42,9 @@ package body Arch.Syscall is
 
    --  Whether we are to print syscall information.
    Is_Tracing : Boolean := False;
+
+   type String_Acc is access all String;
+   procedure Free_Str is new Ada.Unchecked_Deallocation (String, String_Acc);
 
    procedure Set_Tracing (Value : Boolean) is
    begin
@@ -87,6 +92,8 @@ package body Arch.Syscall is
             Returned := Syscall_Thread_Preference (State.RDI, Errno);
          when 12 =>
             Returned := Syscall_Exec (State.RDI, State.RSI, State.RDX, Errno);
+         when 13 =>
+            Returned := Syscall_Fork (State, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -433,7 +440,8 @@ package body Arch.Syscall is
             A - Memory_Offset,
             Length,
             Map_Flags,
-            Map_Not_Execute
+            Map_Not_Execute,
+            True
          );
          Errno := Error_No_Error;
          return Aligned_Hint;
@@ -569,8 +577,45 @@ package body Arch.Syscall is
          return Unsigned_64'Last;
       end if;
 
+      Free_Str (Args (1));
+
       Scheduler.Bail;
       Errno := Error_No_Error;
       return 0;
    end Syscall_Exec;
+
+   function Syscall_Fork
+      (State_To_Fork : access ISR_GPRs;
+       Errno         : out Unsigned_64) return Unsigned_64
+   is
+      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Current_Process : constant Userland.Process.PID :=
+         Userland.Process.Get_Process_By_Thread (Current_Thread);
+      Forked_Process : constant Userland.Process.PID :=
+         Userland.Process.Fork (Current_Process);
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put_Line ("syscall fork()");
+      end if;
+
+      --  Fork the process.
+      if Forked_Process = Userland.Process.Error_PID then
+         Errno := Error_Would_Block;
+         return Unsigned_64'Last;
+      end if;
+
+      --  Set a good memory map.
+      Set_Memmap (Forked_Process, Memory.Virtual.Clone_Space (Get_Memmap (Current_Process)));
+
+      --  Create a running thread cloning the caller.
+      if not Add_Thread (Forked_Process,
+         Scheduler.Create_User_Thread (State_To_Fork, Get_Memmap (Forked_Process)))
+      then
+         Errno := Error_Would_Block;
+         return Unsigned_64'Last;
+      end if;
+
+      Errno := Error_No_Error;
+      return Unsigned_64 (Forked_Process);
+   end Syscall_Fork;
 end Arch.Syscall;

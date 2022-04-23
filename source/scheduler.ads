@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with Arch.Interrupts;
+with Arch.Interrupts; use Arch.Interrupts;
 with Memory.Virtual;
 with Memory; use Memory;
 with Userland;
@@ -50,6 +50,11 @@ package Scheduler is
        Map       : Memory.Virtual.Page_Map_Acc;
        Vector    : Userland.ELF.Auxval;
        Stack_Top : Unsigned_64) return TID;
+
+   --  Create a user thread with a context.
+   function Create_User_Thread
+      (State : access ISR_GPRs;
+       Map   : Memory.Virtual.Page_Map_Acc) return TID;
 
    --  Removes a thread, kernel or user, from existance (if it exists).
    procedure Delete_Thread (Thread : TID);

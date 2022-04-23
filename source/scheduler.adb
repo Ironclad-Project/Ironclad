@@ -224,6 +224,7 @@ package body Scheduler is
             To_Integer (User_Stack_8.all'Address) - Memory_Offset,
             Stack_Size + Memory.Virtual.Page_Size,
             Map_Flags,
+            True,
             True
          );
 
@@ -295,6 +296,43 @@ package body Scheduler is
       return New_TID;
    end Create_User_Thread;
 
+   function Create_User_Thread
+      (State : access ISR_GPRs;
+       Map   : Memory.Virtual.Page_Map_Acc) return TID
+   is
+      type Stack8    is array (1 .. Stack_Size) of Unsigned_8;
+      type Stack_Acc is access Stack8;
+
+      New_TID           : TID := 0;
+      Kernel_Stack      : constant Stack_Acc := new Stack8;
+      Kernel_Stack_Addr : constant Virtual_Address :=
+            To_Integer (Kernel_Stack.all'Address) + Stack_Size;
+   begin
+      Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+
+      --  Find a new TID.
+      New_TID := Find_Free_TID;
+      if New_TID = 0 then
+         goto End_Return;
+      end if;
+
+      --  Copy the state.
+      Thread_Pool (New_TID).Is_Userspace := True;
+      Thread_Pool (New_TID).Is_Present   := True;
+      Thread_Pool (New_TID).Is_Banned    := False;
+      Thread_Pool (New_TID).Is_Running   := False;
+      Thread_Pool (New_TID).PageMap      := Map;
+      Thread_Pool (New_TID).Preference   := 4;
+      Thread_Pool (New_TID).Kernel_Stack := Kernel_Stack_Addr;
+      Thread_Pool (New_TID).FS           := Arch.Wrappers.Read_FS;
+      Thread_Pool (New_TID).State        := State.all;
+      Thread_Pool (New_TID).State.RAX    := 0;
+
+   <<End_Return>>
+      Lib.Synchronization.Release (Scheduler_Mutex'Access);
+      return New_TID;
+   end Create_User_Thread;
+
    procedure Delete_Thread (Thread : TID) is
    begin
       if Is_Thread_Present (Thread) then
@@ -349,10 +387,8 @@ package body Scheduler is
       Core_LAPIC  : constant Unsigned_32 := Arch.CPU.Core_LAPICs (Core);
       Current_TID : constant TID         := Core_Locals (Core).Current_TID;
    begin
-      Lib.Synchronization.Seize (Scheduler_Mutex'Access);
       --  Force rescheduling by calling the ISR vector directly.
       if Current_TID /= 0 then
-         Lib.Synchronization.Release (Scheduler_Mutex'Access);
          Arch.APIC.LAPIC_Send_IPI (Core_LAPIC, Scheduler_Vector);
       end if;
       loop Arch.Wrappers.HLT; end loop;
@@ -408,28 +444,24 @@ package body Scheduler is
    begin
       if Lib.Synchronization.Try_Seize (Scheduler_Mutex'Access) = False then
          Arch.APIC.LAPIC_EOI;
-         Arch.APIC.LAPIC_Timer_Stop;
          Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector, Hz, 20000);
          return;
       end if;
 
-      Arch.APIC.LAPIC_Timer_Stop;
-      Arch.Interrupts.Set_Interrupt_Flag (False);
-
       --  Get the next thread for execution.
       Current_TID := Core_Locals (Core).Current_TID;
       Next_TID    := 0;
-      for I in Current_TID + 1 .. TID (Thread_Pool'Last) loop
+      for I in Current_TID + 1 .. Thread_Pool'Last loop
          if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Banned and
-            not Thread_Pool (I).Is_Running
+            not Thread_Pool (I).Is_Running and I /= Current_TID
          then
             Next_TID := I;
             goto Found_TID;
          end if;
       end loop;
-      for I in 1 .. Current_TID loop
+      for I in Thread_Pool'First .. Current_TID loop
          if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Banned and
-            not Thread_Pool (I).Is_Running
+            not Thread_Pool (I).Is_Running and I /= Current_TID
          then
             Next_TID := I;
             goto Found_TID;

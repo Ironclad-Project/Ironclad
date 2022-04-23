@@ -64,7 +64,7 @@ package body Memory.Virtual is
             end if;
 
             Map_Range (Kernel_Map, Virt_Addr, Phys_Addr, E.Length,
-               Flags, Not_Execute);
+               Flags, Not_Execute, False);
          end;
       end loop;
 
@@ -72,9 +72,9 @@ package body Memory.Virtual is
       --  This is done instead of following the pagemap to ensure that all
       --  I/O and memory tables that may not be in the memmap are mapped.
       Map_Range (Kernel_Map, Page_Size, Page_Size,
-         Hardcoded_Region - Page_Size, Flags, False);
+         Hardcoded_Region - Page_Size, Flags, False, False);
       Map_Range (Kernel_Map, Page_Size + Memory_Offset, Page_Size,
-         Hardcoded_Region - Page_Size, Flags, False);
+         Hardcoded_Region - Page_Size, Flags, False, False);
 
       --  Map the memmap memory (that is not kernel or already mapped)
       --  identity mapped and to the memory window.
@@ -146,7 +146,8 @@ package body Memory.Virtual is
        Physical    : Physical_Address;
        Length      : Unsigned_64;
        Flags       : Page_Flags;
-       Not_Execute : Boolean)
+       Not_Execute : Boolean;
+       Register    : Boolean)
    is
       PStart : constant Physical_Address := (Physical / Page_Size) * Page_Size;
       VStart : constant Virtual_Address  := (Virtual  / Page_Size) * Page_Size;
@@ -156,6 +157,24 @@ package body Memory.Virtual is
          Map_Page (Map, VStart + I, PStart + I, Flags, Not_Execute);
          I := I + Page_Size;
       end loop;
+
+      if Register then
+         Lib.Synchronization.Seize (Map.Mutex'Access);
+         for Mapping of Map.Map_Ranges loop
+            if not Mapping.Is_Present then
+               Mapping := (
+                  Is_Present     => True,
+                  Virtual_Start  => Virtual,
+                  Physical_Start => Physical,
+                  Length         => Length,
+                  Flags          => Flags,
+                  Not_Execute    => Not_Execute
+               );
+               exit;
+            end if;
+         end loop;
+         Lib.Synchronization.Release (Map.Mutex'Access);
+      end if;
    end Map_Range;
 
    procedure Unmap_Page (Map : Page_Map_Acc; Virtual : Virtual_Address) is
@@ -210,6 +229,40 @@ package body Memory.Virtual is
       Lib.Synchronization.Release (Returned.Mutex'Access);
       return Returned;
    end Fork_Map;
+
+   function Clone_Space (Map : Page_Map_Acc) return Page_Map_Acc is
+      type Page_Data     is array (Unsigned_64 range <>) of Unsigned_8;
+      type Page_Data_Acc is access Page_Data;
+
+      Cloned : constant Page_Map_Acc := Fork_Map (Map);
+   begin
+      for Mapping of Map.Map_Ranges loop
+         if Mapping.Is_Present then
+            declare
+               New_Data      : Page_Data_Acc with Volatile;
+               Original_Data : Page_Data (1 .. Mapping.Length) with
+               --  FIXME: How is this + 0x10 a fix for anything? How does this even work?
+               Address => To_Address (Mapping.Physical_Start + Memory_Offset + 16#10#);
+            begin
+               New_Data := new Page_Data (1 .. Mapping.Length);
+               for O in 1 .. Mapping.Length loop
+                  New_Data (O) := Original_Data (O);
+               end loop;
+
+               Map_Range (
+                  Cloned,
+                  Mapping.Virtual_Start,
+                  To_Integer (New_Data.all'Address) - Memory_Offset,
+                  Mapping.Length,
+                  Mapping.Flags,
+                  Mapping.Not_Execute,
+                  True
+               );
+            end;
+         end if;
+      end loop;
+      return Cloned;
+   end Clone_Space;
 
    function Is_Loaded (Map : Page_Map_Acc) return Boolean is
       Current : constant Unsigned_64 := Arch.Wrappers.Read_CR3;
@@ -290,16 +343,23 @@ package body Memory.Virtual is
    begin
       --  Find the entries.
       Addr3 := Get_Next_Level (Addr4, Addr.PML4_Entry, Allocate);
+      if not Allocate and then Addr3 = Null_Address then
+         goto Error_Return;
+      end if;
       Addr2 := Get_Next_Level (Addr3, Addr.PML3_Entry, Allocate);
+      if not Allocate and then Addr2 = Null_Address then
+         goto Error_Return;
+      end if;
       Addr1 := Get_Next_Level (Addr2, Addr.PML2_Entry, Allocate);
-      if not Allocate and (Addr3 = Null_Address or Addr2 = Null_Address or
-         Addr1 = Null_Address)
-      then
-         Lib.Panic.Soft_Panic ("Address could not be unmapped");
-         return Null_Address;
+      if not Allocate and then Addr1 = Null_Address then
+         goto Error_Return;
       end if;
 
       return Addr1 + Memory_Offset + Physical_Address (Addr.PML1_Entry) * 8;
+
+   <<Error_Return>>
+      Lib.Panic.Soft_Panic ("Address could not be found");
+      return Null_Address;
    end Get_Page;
 
    function Chomp_Flags (Address : Physical_Address) return Physical_Address is

@@ -37,6 +37,10 @@ package Userland.Process is
    procedure Delete_Process (Process : PID);
    function Get_Process_By_Thread (Thread : Scheduler.TID) return PID;
 
+   --  Fork a process.
+   --  This clones a process in all regards, but without running threads.
+   function Fork (Parent : PID) return PID;
+
    --  Add or remove an threads and files to a process.
    function Add_Thread (Process : PID; Threa : Scheduler.TID) return Boolean;
    procedure Remove_Thread (Process : PID; Thread : Scheduler.TID);

@@ -46,6 +46,7 @@ depth, this is the list of available values:
 | --------------- | ---------------- | ----- |
 | No Error        |                  | 0     |
 | Bad Access      | `EACCES`         | 1002  |
+| Not available   | `EAGAIN`         | 1006  |
 | Invalid Value   | `EINVAL`         | 1026  |
 | No entity       | `ENOENT`         | 1043  |
 | Not Implemented | `ENOSYS`         | 1051  |
@@ -72,3 +73,4 @@ This are the syscalls, their prototypes, and a short description.
 | [getppid](syscalls/pid.md)                  | Process management   | 10    |
 | [thread_preference](syscalls/preference.md) | Process management   | 11    |
 | [exec](syscalls/exec.md)                    | Process management   | 12    |
+| [fork](syscalls/fork.md)                    | Process management   | 13    |

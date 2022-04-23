@@ -95,6 +95,29 @@ package body Userland.Process is
       return Error_PID;
    end Get_Process_By_Thread;
 
+   function Fork (Parent : PID) return PID is
+      Forked       : constant PID     := Create_Process (Parent);
+      Forked_Index : constant Natural := Natural (Forked);
+      Parent_Index : constant Natural := Natural (Parent);
+   begin
+      if Forked = Error_PID then
+         return Error_PID;
+      end if;
+
+      --  Assign all data.
+      Process_List (Forked_Index) := Process_List (Parent_Index);
+
+      --  Clone the file table.
+      for I in Process_List (Parent_Index).File_Table'Range loop
+         if Process_List (Parent_Index).File_Table (I) /= null then
+            Process_List (Forked_Index).File_Table (I) :=
+               new File'(Process_List (Parent_Index).File_Table (I).all);
+         end if;
+      end loop;
+
+      return Forked;
+   end Fork;
+
    function Add_Thread (Process : PID; Threa : Scheduler.TID) return Boolean is
       Proc_Index : constant Natural := Natural (Process);
    begin

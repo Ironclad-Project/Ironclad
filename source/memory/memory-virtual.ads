@@ -122,9 +122,20 @@ package Memory.Virtual is
    type PML1 is array (1 .. Table_Length) of Page
       with Alignment => Page_Size, Size => Table_Length * 64;
 
+   --  Page maps.
+   type Mapping_Range is record
+      Is_Present     : Boolean;
+      Virtual_Start  : Virtual_Address;
+      Physical_Start : Physical_Address;
+      Length         : Unsigned_64;
+      Flags          : Page_Flags;
+      Not_Execute    : Boolean;
+   end record;
+   type Mapping_Range_Arr is array (Natural range <>) of Mapping_Range;
    type Page_Map is record
       Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
       PML4_Level : PML4;
+      Map_Ranges : Mapping_Range_Arr (1 .. 100);
    end record;
    type Page_Map_Acc is access all Page_Map;
 
@@ -142,13 +153,15 @@ package Memory.Virtual is
        Physical    : Physical_Address;
        Length      : Unsigned_64;
        Flags       : Page_Flags;
-       Not_Execute : Boolean);
+       Not_Execute : Boolean;
+       Register    : Boolean);
    procedure Unmap_Page (Map : Page_Map_Acc; Virtual : Virtual_Address);
    procedure Change_Page_Flags
       (Map     : Page_Map_Acc;
        Virtual : Virtual_Address;
        Flags   : Page_Flags);
    function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc;
+   function Clone_Space (Map : Page_Map_Acc) return Page_Map_Acc;
    function Is_Loaded (Map : Page_Map_Acc) return Boolean;
    function Virtual_To_Physical
       (Map     : Page_Map_Acc;

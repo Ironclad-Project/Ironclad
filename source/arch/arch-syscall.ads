@@ -115,4 +115,9 @@ private
        Argv    : Unsigned_64;
        Envp    : Unsigned_64;
        Errno   : out Unsigned_64) return Unsigned_64;
+
+   --  Fork.
+   function Syscall_Fork
+      (State_To_Fork : access ISR_GPRs;
+       Errno         : out Unsigned_64) return Unsigned_64;
 end Arch.Syscall;
