@@ -399,12 +399,8 @@ package body Arch.Syscall is
       end if;
 
       --  Check protection flags.
-      if (Protection and Protection_Write) /= 0 then
-         Map_Flags.Read_Write := True;
-      end if;
-      if (Protection and Protection_Execute) /= 0 then
-         Map_Not_Execute := False;
-      end if;
+      Map_Flags.Read_Write := (Protection and Protection_Write)  /= 0;
+      Map_Not_Execute      := (Protection and Protection_Execute) = 0;
 
       --  Check that we got a length.
       if Length = 0 then

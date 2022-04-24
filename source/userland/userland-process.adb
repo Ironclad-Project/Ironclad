@@ -107,6 +107,11 @@ package body Userland.Process is
       --  Assign all data.
       Process_List (Forked_Index) := Process_List (Parent_Index);
 
+      --  Clear threads.
+      for T of Process_List (Forked_Index).Thread_List loop
+         T := 0;
+      end loop;
+
       --  Clone the file table.
       for I in Process_List (Parent_Index).File_Table'Range loop
          if Process_List (Parent_Index).File_Table (I) /= null then
@@ -272,11 +277,13 @@ package body Userland.Process is
       Proc_Index : constant Natural := Natural (Process);
    begin
       if Is_Valid_Process (Process) then
+         Lib.Synchronization.Seize (Process_List_Mutex'Access);
          declare
             Returned : constant Unsigned_64 :=
                Process_List (Proc_Index).Alloc_Base;
          begin
             Process_List (Proc_Index).Alloc_Base := Returned + Val;
+            Lib.Synchronization.Release (Process_List_Mutex'Access);
             return Returned;
          end;
       else

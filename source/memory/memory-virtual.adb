@@ -343,19 +343,19 @@ package body Memory.Virtual is
    begin
       --  Find the entries.
       Addr3 := Get_Next_Level (Addr4, Addr.PML4_Entry, Allocate);
-      if not Allocate and then Addr3 = Null_Address then
+      if Addr3 = Null_Address then
          goto Error_Return;
       end if;
       Addr2 := Get_Next_Level (Addr3, Addr.PML3_Entry, Allocate);
-      if not Allocate and then Addr2 = Null_Address then
+      if Addr2 = Null_Address then
          goto Error_Return;
       end if;
       Addr1 := Get_Next_Level (Addr2, Addr.PML2_Entry, Allocate);
-      if not Allocate and then Addr1 = Null_Address then
+      if Addr1 = Null_Address then
          goto Error_Return;
       end if;
 
-      return Addr1 + Memory_Offset + Physical_Address (Addr.PML1_Entry) * 8;
+      return Addr1 + Memory_Offset + (Physical_Address (Addr.PML1_Entry) * 8);
 
    <<Error_Return>>
       Lib.Panic.Soft_Panic ("Address could not be found");

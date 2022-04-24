@@ -224,7 +224,7 @@ package body Scheduler is
             To_Integer (User_Stack_8.all'Address) - Memory_Offset,
             Stack_Size + Memory.Virtual.Page_Size,
             Map_Flags,
-            True,
+            False,
             True
          );
 
