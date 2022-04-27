@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Unchecked_Deallocation;
+with Interfaces; use Interfaces;
 with System;
 with System.Storage_Elements; use System.Storage_Elements;
 with Memory.Virtual; use Memory.Virtual;
@@ -35,19 +36,19 @@ package body Userland.Loader is
        Environment : Environment_Arr;
        StdIn_Path  : String;
        StdOut_Path : String;
-       StdErr_Path : String) return Process.PID
+       StdErr_Path : String) return Process_Data_Acc
    is
-      Returned_PID : constant PID      := Process.Create_Process;
+      Returned_PID : constant Process_Data_Acc := Process.Create_Process;
       Stdin        : constant File_Acc := Open (StdIn_Path,  Access_R);
       StdOut       : constant File_Acc := Open (StdOut_Path, Access_W);
       StdErr       : constant File_Acc := Open (StdErr_Path, Access_W);
       Discard      : Natural;
    begin
-      if Returned_PID = Error_PID then
+      if Returned_PID = null then
          goto Error;
       end if;
-      Process.Set_Memmap (Returned_PID, Fork_Map (Kernel_Map));
-      Process.Set_Current_Root (Returned_PID, FD.Root.Name);
+      Returned_PID.Common_Map   := Fork_Map (Kernel_Map);
+      Returned_PID.Current_Root := FD.Root.Name;
 
       if not Start_Program (FD, Arguments, Environment, Returned_PID) then
          goto Error_Process;
@@ -64,14 +65,14 @@ package body Userland.Loader is
    <<Error_Process>>
       Process.Delete_Process (Returned_PID);
    <<Error>>
-      return Error_PID;
+      return null;
    end Start_Program;
 
    function Start_Program
       (FD          : File_Acc;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       Proc        : PID) return Boolean
+       Proc        : Process_Data_Acc) return Boolean
    is
       Loaded_ELF, LD_ELF : ELF.Parsed_ELF;
       Entrypoint   : Virtual_Address;
@@ -79,10 +80,7 @@ package body Userland.Loader is
       LD_File : File_Acc;
    begin
       --  Load the executable.
-      Loaded_ELF := ELF.Load_ELF
-         (FD,
-          Process.Get_Memmap (Proc),
-          Program_Offset);
+      Loaded_ELF := ELF.Load_ELF (FD, Proc.Common_Map, Program_Offset);
       if not Loaded_ELF.Was_Loaded then
          goto Error;
       end if;
@@ -100,9 +98,7 @@ package body Userland.Loader is
          if LD_File = null then
             goto Error;
          end if;
-         LD_ELF := ELF.Load_ELF
-            (LD_File,
-             Process.Get_Memmap (Proc), Dynamic_Linker_Offset);
+         LD_ELF := ELF.Load_ELF (LD_File, Proc.Common_Map, Dynamic_Linker_Offset);
          Entrypoint := To_Integer (LD_ELF.Entrypoint);
          if not LD_ELF.Was_Loaded then
             goto Error;
@@ -118,11 +114,12 @@ package body Userland.Loader is
             (Address   => Entrypoint,
              Args      => Arguments,
              Env       => Environment,
-             Map       => Process.Get_Memmap (Proc),
+             Map       => Proc.Common_Map,
              Vector    => Loaded_ELF.Vector,
              --  TODO: Do not hardcode stack size.
-             Stack_Top => Process.Bump_Stack (Proc, 16#200000#));
+             Stack_Top => Proc.Stack_Base);
       begin
+         Proc.Stack_Base := Proc.Stack_Base + 16#200000#;
          if Returned_TID = 0 then
             goto Error;
          end if;
@@ -132,7 +129,7 @@ package body Userland.Loader is
             goto Error;
          end if;
 
-         Process.Set_Current_Root (Proc, FD.Root.Name);
+         Proc.Current_Root := FD.Root.Name;
          return True;
       end;
 

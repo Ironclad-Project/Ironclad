@@ -44,16 +44,16 @@ package body VFS.File is
          end;
       else
          declare
-            Thread    : constant TID := Get_Current_Thread;
-            Process   : constant PID := Get_Process_By_Thread (Thread);
+            Thread    : constant TID              := Get_Current_Thread;
+            Process   : constant Process_Data_Acc := Get_By_Thread (Thread);
             New_Path  : String (1 .. Path'Length + VFS.Root_Name'Length + 2);
             Has_Slash : constant Boolean := Path (Path'First) = '/';
          begin
-            if Process = Error_PID then
+            if Process = null then
                return null;
             end if;
             New_Path (1)      := '@';
-            New_Path (2 .. 8) := Get_Current_Root (Process);
+            New_Path (2 .. 8) := Process.Current_Root;
             New_Path (9)      := ':';
             if Has_Slash then
                New_Path (10 .. New_Path'Length - 1) :=

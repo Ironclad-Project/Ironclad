@@ -27,7 +27,7 @@ package Userland.Loader is
        Environment : Environment_Arr;
        StdIn_Path  : String;
        StdOut_Path : String;
-       StdErr_Path : String) return Userland.Process.PID;
+       StdErr_Path : String) return Process_Data_Acc;
 
    --  Same as above but with an existing process instead.
    --  Returns true on success, false on failure.
@@ -35,5 +35,5 @@ package Userland.Loader is
       (FD          : File_Acc;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       Proc        : PID) return Boolean;
+       Proc        : Process_Data_Acc) return Boolean;
 end Userland.Loader;

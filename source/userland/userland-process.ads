@@ -25,51 +25,48 @@ package Userland.Process is
    --  their shared resources, like memory map, and open files.
    --  It is the main unit of program handling. When a program is opened, a
    --  process will be created for it.
-   --  A process is identified by an integer, 0 is reserved for error.
-   type PID is new Natural;
-   Error_PID : constant PID := 0;
+   --  Userland will know the process by a PID, a parent PID of 0 means no
+   --  parent.
+   type Process_Data_Threads is array (1 .. 20) of Scheduler.TID;
+   type Process_File_Table   is array (0 .. 99) of VFS.File.File_Acc;
+   type Process_Data is record
+      Process_PID  : Positive;
+      Parent_PID   : Natural;
+      Current_Root : VFS.Root_Name;
+      Thread_List  : Process_Data_Threads;
+      File_Table   : Process_File_Table;
+      Common_Map   : access Memory.Virtual.Page_Map;
+      Stack_Base   : Unsigned_64;
+      Alloc_Base   : Unsigned_64;
+   end record;
+   type Process_Data_Acc is access Process_Data;
 
    --  Initialize the process registry.
    procedure Init;
 
    --  Created a vanilla process, or remove a process, or fetch processes.
-   function Create_Process (Parent : PID := Error_PID) return PID;
-   procedure Delete_Process (Process : PID);
-   function Get_Process_By_Thread (Thread : Scheduler.TID) return PID;
+   function Create_Process (Parent : Natural := 0) return Process_Data_Acc;
+   procedure Delete_Process (Process : Process_Data_Acc);
+   function Get_By_PID (Process : Positive) return Process_Data_Acc;
+   function Get_By_Thread (Thread : Scheduler.TID) return Process_Data_Acc;
 
    --  Fork a process.
    --  This clones a process in all regards, but without running threads.
-   function Fork (Parent : PID) return PID;
+   function Fork (Parent : Process_Data_Acc) return Process_Data_Acc;
 
-   --  Add or remove an threads and files to a process.
-   function Add_Thread (Process : PID; Threa : Scheduler.TID) return Boolean;
-   procedure Remove_Thread (Process : PID; Thread : Scheduler.TID);
-   procedure Flush_Threads (Process : PID);
+   --  From here on, these are convenience functions for handling data in the
+   --  process record.
 
-   --  Add and remove files to the process file descriptor table.
+   --  Add or remove an threads and files to a process, or remove them all.
+   function Add_Thread (Process : Process_Data_Acc; Threa : Scheduler.TID) return Boolean;
+   procedure Remove_Thread (Process : Process_Data_Acc; Thread : Scheduler.TID);
+   procedure Flush_Threads (Process : Process_Data_Acc);
+
+   --  Add and remove files to the process file table, or remove them all.
    function Add_File
-      (Process : PID;
+      (Process : Process_Data_Acc;
        File    : VFS.File.File_Acc;
        FD      : out Natural) return Boolean;
-   function Get_File (Process : PID; FD : Natural) return VFS.File.File_Acc;
-   procedure Remove_File (Process : PID; FD : Natural);
-   procedure Flush_Files (Process : PID);
-
-   --  Get or set the current root of the process.
-   procedure Set_Current_Root (Process : PID; Root : VFS.Root_Name);
-   function Get_Current_Root (Process : PID) return VFS.Root_Name;
-
-   --  Get and set different properties of the process.
-   function Get_Parent_Process (Process : PID) return PID;
-   procedure Set_Memmap (Process : PID; Map : Memory.Virtual.Page_Map_Acc);
-   function Get_Memmap (Process : PID) return Memory.Virtual.Page_Map_Acc;
-
-   --  Get the stack base and increment it by the passed stack size.
-   function Bump_Stack (Process : PID; Val : Unsigned_64) return Unsigned_64;
-
-   --  Get the allocation base and increment it by the passed size.
-   function Bump_Alloc (Process : PID; Val : Unsigned_64) return Unsigned_64;
-private
-
-   function Is_Valid_Process (Process : PID) return Boolean;
+   procedure Remove_File (Process : Process_Data_Acc; FD : Natural);
+   procedure Flush_Files (Process : Process_Data_Acc);
 end Userland.Process;
