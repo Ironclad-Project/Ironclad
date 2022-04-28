@@ -70,7 +70,7 @@ package body Userland.Process is
 
    function Get_By_Thread (Thread : Scheduler.TID) return Process_Data_Acc is
    begin
-      for I in Process_List.all'Range loop
+      for I in Process_List'Range loop
          if Process_List (I) /= null then
             for T of Process_List (I).Thread_List loop
                if T = Thread then
@@ -84,43 +84,54 @@ package body Userland.Process is
    end Get_By_Thread;
 
    function Fork (Parent : Process_Data_Acc) return Process_Data_Acc is
-      Forked : constant Process_Data_Acc := Create_Process (Parent.Process_PID);
+      Child : constant Process_Data_Acc := Create_Process (Parent.Process_PID);
    begin
-      if Forked = null then
+      if Child = null then
          return null;
       end if;
 
-      --  Assign all data.
-      Forked.all := Parent.all;
+      declare
+         Child_PID : constant Positive := Child.Process_PID;
+      begin
+         --  Assign all data.
+         Child.all := Parent.all;
 
-      --  Clear threads for the forked process.
-      for T of Forked.Thread_List loop
-         T := 0;
-      end loop;
+         --  Reassign PIDs.
+         Child.Process_PID := Child_PID;
+         Child.Parent_PID  := Parent.Process_PID;
 
-      --  Clone the file table.
-      for I in Parent.File_Table'Range loop
-         if Parent.File_Table (I) /= null then
-            Parent.File_Table (I) := new File'(Parent.File_Table (I).all);
-         end if;
-      end loop;
+         --  Clear threads for the forked process.
+         for T of Child.Thread_List loop
+            T := 0;
+         end loop;
 
-      return Forked;
+         --  Clone the file table.
+         for I in Parent.File_Table'Range loop
+            if Parent.File_Table (I) /= null then
+               Child.File_Table (I) := new File'(Parent.File_Table (I).all);
+            end if;
+         end loop;
+      end;
+
+      return Child;
    end Fork;
 
-   --  Add or remove an threads and files to a process.
-   function Add_Thread (Process : Process_Data_Acc; Threa : Scheduler.TID) return Boolean is
+   function Add_Thread
+      (Process : Process_Data_Acc;
+       Thread  : Scheduler.TID) return Boolean is
    begin
       for I in Process.Thread_List'Range loop
          if Process.Thread_List (I) = 0 then
-            Process.Thread_List (I) := Threa;
+            Process.Thread_List (I) := Thread;
             return True;
          end if;
       end loop;
       return False;
    end Add_Thread;
 
-   procedure Remove_Thread (Process : Process_Data_Acc; Thread : Scheduler.TID) is
+   procedure Remove_Thread
+      (Process : Process_Data_Acc;
+       Thread  : Scheduler.TID) is
    begin
       for I in Process.Thread_List'Range loop
          if Process.Thread_List (I) = Thread then
@@ -133,10 +144,11 @@ package body Userland.Process is
       Current_Thread : constant TID := Scheduler.Get_Current_Thread;
    begin
       for Thread of Process.Thread_List loop
-         if Thread /= 0 and Thread /= Current_Thread then
+         if Thread /= Current_Thread then
             Scheduler.Delete_Thread (Thread);
-            Thread := 0;
          end if;
+
+         Thread := 0;
       end loop;
    end Flush_Threads;
 

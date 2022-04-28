@@ -114,6 +114,7 @@ package body Arch.Syscall is
          Lib.Messages.Put (Error_Code);
          Lib.Messages.Put_Line (")");
       end if;
+
       Userland.Process.Flush_Threads  (Current_Process);
       Userland.Process.Flush_Files    (Current_Process);
       Userland.Process.Delete_Process (Current_Process);
@@ -277,7 +278,7 @@ package body Arch.Syscall is
       Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
          Userland.Process.Get_By_Thread (Current_Thread);
-      File : constant VFS.File.File_Acc :=
+      File : constant File_Acc :=
          Current_Process.File_Table (Natural (File_D));
    begin
       if Is_Tracing then
@@ -289,6 +290,7 @@ package body Arch.Syscall is
          Lib.Messages.Put (Count);
          Lib.Messages.Put_Line (")");
       end if;
+
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -572,6 +574,7 @@ package body Arch.Syscall is
 
       Free_Str (Args (1));
 
+      Userland.Process.Remove_Thread (Current_Process, Current_Thread);
       Scheduler.Bail;
       Errno := Error_No_Error;
       return 0;

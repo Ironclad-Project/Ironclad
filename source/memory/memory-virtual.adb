@@ -241,8 +241,9 @@ package body Memory.Virtual is
             declare
                New_Data      : Page_Data_Acc with Volatile;
                Original_Data : Page_Data (1 .. Mapping.Length) with
-               --  FIXME: How is this + 0x10 a fix for anything? How does this even work?
-               Address => To_Address (Mapping.Physical_Start + Memory_Offset + 16#10#);
+               --  FIXME: How is this + 0x10 a fix? How does this even work?
+               Address =>
+                  To_Address (Mapping.Physical_Start + Memory_Offset + 16#10#);
             begin
                New_Data := new Page_Data (1 .. Mapping.Length);
                for O in 1 .. Mapping.Length loop

@@ -58,8 +58,12 @@ package Userland.Process is
    --  process record.
 
    --  Add or remove an threads and files to a process, or remove them all.
-   function Add_Thread (Process : Process_Data_Acc; Threa : Scheduler.TID) return Boolean;
-   procedure Remove_Thread (Process : Process_Data_Acc; Thread : Scheduler.TID);
+   function Add_Thread
+      (Process : Process_Data_Acc;
+       Thread  : Scheduler.TID) return Boolean;
+   procedure Remove_Thread
+      (Process : Process_Data_Acc;
+       Thread  : Scheduler.TID);
    procedure Flush_Threads (Process : Process_Data_Acc);
 
    --  Add and remove files to the process file table, or remove them all.

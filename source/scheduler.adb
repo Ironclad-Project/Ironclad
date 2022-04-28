@@ -389,6 +389,7 @@ package body Scheduler is
    begin
       --  Force rescheduling by calling the ISR vector directly.
       if Current_TID /= 0 then
+         Core_Locals (Core).Current_TID := 0;
          Arch.APIC.LAPIC_Send_IPI (Core_LAPIC, Scheduler_Vector);
       end if;
       loop Arch.Wrappers.HLT; end loop;
@@ -540,7 +541,7 @@ package body Scheduler is
 
    function Is_Thread_Present (Thread : TID) return Boolean is
    begin
-      return Thread /= 0 and Thread <= TID (Thread_Pool'Last) and
+      return Thread /= 0 and then Thread <= TID (Thread_Pool'Last) and then
          Thread_Pool (Thread).Is_Present;
    end Is_Thread_Present;
 end Scheduler;

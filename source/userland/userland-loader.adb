@@ -98,7 +98,8 @@ package body Userland.Loader is
          if LD_File = null then
             goto Error;
          end if;
-         LD_ELF := ELF.Load_ELF (LD_File, Proc.Common_Map, Dynamic_Linker_Offset);
+         LD_ELF := ELF.Load_ELF (LD_File, Proc.Common_Map,
+                                 Dynamic_Linker_Offset);
          Entrypoint := To_Integer (LD_ELF.Entrypoint);
          if not LD_ELF.Was_Loaded then
             goto Error;
@@ -116,10 +117,11 @@ package body Userland.Loader is
              Env       => Environment,
              Map       => Proc.Common_Map,
              Vector    => Loaded_ELF.Vector,
-             --  TODO: Do not hardcode stack size.
              Stack_Top => Proc.Stack_Base);
       begin
+         --  TODO: Do not hardcode stack size.
          Proc.Stack_Base := Proc.Stack_Base + 16#200000#;
+
          if Returned_TID = 0 then
             goto Error;
          end if;
