@@ -542,15 +542,22 @@ package body Arch.Syscall is
        Envp    : Unsigned_64;
        Errno   : out Unsigned_64) return Unsigned_64
    is
+      --  FIXME: This type should be dynamic ideally and not have a maximum.
+      type Arg_Arr is array (1 .. 40) of Unsigned_64;
+
       Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
          Userland.Process.Get_By_Thread (Current_Thread);
+
       Addr : constant System.Address := To_Address (Integer_Address (Address));
       Path_Length : constant Natural := Lib.C_String_Length (Addr);
       Path_String : String (1 .. Path_Length) with Address => Addr;
       Opened_File : constant File_Acc := Open (Path_String, Access_R);
-      Args        : Userland.Argument_Arr    (1 .. 1);
-      Env         : Userland.Environment_Arr (1 .. 0);
+
+      Args_Raw : Arg_Arr with Address => To_Address (Integer_Address (Argv));
+      Env_Raw  : Arg_Arr with Address => To_Address (Integer_Address (Envp));
+      Args_Count : Natural := 0;
+      Env_Count  : Natural := 0;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall exec(" & Path_String & ")");
@@ -561,23 +568,61 @@ package body Arch.Syscall is
          return Unsigned_64'Last;
       end if;
 
-      --  TODO: Actually translate the arguments.
-      Args (1) := new String'(Path_String);
+      --  Count the args and envp we have, and copy them to Ada arrays.
+      for I in Args_Raw'Range loop
+         exit when Args_Raw (I) = 0;
+         Args_Count := Args_Count + 1;
+      end loop;
+      for I in Env_Raw'Range loop
+         exit when Env_Raw (I) = 0;
+         Env_Count := Env_Count + 1;
+      end loop;
 
-      Userland.Process.Flush_Threads (Current_Process);
-      if not Userland.Loader.Start_Program
-         (Opened_File, Args, Env, Current_Process)
-      then
-         Errno := Error_Bad_Access;
-         return Unsigned_64'Last;
-      end if;
+      declare
+         Args : Userland.Argument_Arr    (1 .. Args_Count);
+         Env  : Userland.Environment_Arr (1 .. Env_Count);
+      begin
+         for I in 1 .. Args_Count loop
+            declare
+               Addr : constant System.Address :=
+                  To_Address (Integer_Address (Args_Raw (I)));
+               Arg_Length : constant Natural := Lib.C_String_Length (Addr);
+               Arg_String : String (1 .. Arg_Length) with Address => Addr;
+            begin
+               Args (I) := new String'(Arg_String);
+            end;
+         end loop;
+         for I in 1 .. Env_Count loop
+            declare
+               Addr : constant System.Address :=
+                  To_Address (Integer_Address (Env_Raw (I)));
+               Arg_Length : constant Natural := Lib.C_String_Length (Addr);
+               Arg_String : String (1 .. Arg_Length) with Address => Addr;
+            begin
+               Env (I) := new String'(Arg_String);
+            end;
+         end loop;
 
-      Free_Str (Args (1));
+         Userland.Process.Flush_Threads (Current_Process);
+         if not Userland.Loader.Start_Program
+            (Opened_File, Args, Env, Current_Process)
+         then
+            Errno := Error_Bad_Access;
+            return Unsigned_64'Last;
+         end if;
 
-      Userland.Process.Remove_Thread (Current_Process, Current_Thread);
-      Scheduler.Bail;
-      Errno := Error_No_Error;
-      return 0;
+         for Arg of Args loop
+            Free_Str (Arg);
+         end loop;
+         for En of Env loop
+            Free_Str (En);
+         end loop;
+
+         Userland.Process.Remove_Thread (Current_Process, Current_Thread);
+         Scheduler.Bail;
+         Errno := Error_No_Error;
+         return 0;
+      end;
    end Syscall_Exec;
 
    function Syscall_Fork

@@ -36,8 +36,8 @@ package body Scheduler is
    type Cores_Local_Info_Acc is access Cores_Local_Info;
 
    --  Thread information.
+   type FP_Region_Arr is array (1 .. 512) of Unsigned_8;
    type Thread_Info is record
-      Is_Userspace : Boolean;
       State        : Arch.Interrupts.ISR_GPRs;
       Is_Present   : Boolean;
       Is_Banned    : Boolean;
@@ -47,6 +47,7 @@ package body Scheduler is
       PageMap      : Memory.Virtual.Page_Map_Acc;
       Stack        : Virtual_Address;
       Kernel_Stack : Virtual_Address;
+      FP_Region    : FP_Region_Arr;
    end record;
    type Thread_Info_Arr is array (TID range 1 .. 256) of Thread_Info;
 
@@ -131,7 +132,6 @@ package body Scheduler is
          Stack_Addr : constant Virtual_Address :=
             To_Integer (New_Stack.all'Address) + Stack_Size;
       begin
-         Thread_Pool (New_TID).Is_Userspace := False;
          Thread_Pool (New_TID).Is_Present   := True;
          Thread_Pool (New_TID).Is_Banned    := False;
          Thread_Pool (New_TID).Is_Running   := False;
@@ -201,7 +201,6 @@ package body Scheduler is
             Global          => False
          );
       begin
-         Thread_Pool (New_TID).Is_Userspace := True;
          Thread_Pool (New_TID).Is_Present   := True;
          Thread_Pool (New_TID).Is_Banned    := False;
          Thread_Pool (New_TID).Is_Running   := False;
@@ -228,6 +227,12 @@ package body Scheduler is
             True
          );
 
+         --  Set up FPU control word and MXCSR as defined by SysV.
+         Arch.Wrappers.FP_Restore (Thread_Pool (New_TID).FP_Region'Address);
+         Arch.Wrappers.Load_x87_Control_Word (2#1100111111#);
+         Arch.Wrappers.Load_MXCSR (2#1111110000000#);
+         Arch.Wrappers.FP_Save (Thread_Pool (New_TID).FP_Region'Address);
+
          --  Load env into the stack.
          for En of reverse Env loop
             User_Stack_8 (Index_8) := 0;
@@ -236,8 +241,6 @@ package body Scheduler is
                User_Stack_8 (Index_8) := Character'Pos (C);
                Index_8 := Index_8 - 1;
             end loop;
-            User_Stack_8 (Index_8) := 0;
-            Index_8 := Index_8 - 1;
          end loop;
 
          --  Load argv into the stack.
@@ -249,6 +252,9 @@ package body Scheduler is
                Index_8 := Index_8 - 1;
             end loop;
          end loop;
+
+         --  Align the stack to 16.
+         Index_8 := Index_8 - (Index_8 mod 2);
 
          --  Get the equivalent 64-bit stack index and start loading.
          Index_64 := (Index_8 / 8) - 1;
@@ -271,7 +277,7 @@ package body Scheduler is
          User_Stack_64 (Index_64) := 0; --  Null at the end of envp.
          Index_64 := Index_64 - 1;
          for En of reverse Env loop
-            Index_8 := Index_8 - En.all'Length - 1;
+            Index_8 := (Index_8 - En.all'Length) - 1;
             User_Stack_64 (Index_64) := Stack_Top + Unsigned_64 (Index_8);
             Index_64 := Index_64 - 1;
          end loop;
@@ -280,7 +286,7 @@ package body Scheduler is
          User_Stack_64 (Index_64) := 0; --  Null at the end of argv.
          Index_64 := Index_64 - 1;
          for Arg of reverse Args loop
-            Index_8 := Index_8 - Arg.all'Length - 1;
+            Index_8 := (Index_8 - Arg.all'Length) - 1;
             User_Stack_64 (Index_64) := Stack_Top + Unsigned_64 (Index_8);
             Index_64 := Index_64 - 1;
          end loop;
@@ -291,6 +297,7 @@ package body Scheduler is
          Thread_Pool (New_TID).State.RSP :=
             Stack_Top + (Unsigned_64 (Index_64) * 8);
       end;
+
    <<End_Return>>
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
       return New_TID;
@@ -317,7 +324,6 @@ package body Scheduler is
       end if;
 
       --  Copy the state.
-      Thread_Pool (New_TID).Is_Userspace := True;
       Thread_Pool (New_TID).Is_Present   := True;
       Thread_Pool (New_TID).Is_Banned    := False;
       Thread_Pool (New_TID).Is_Running   := False;
@@ -413,19 +419,6 @@ package body Scheduler is
       return 0;
    end Find_Free_TID;
 
-   function Is_Userspace return Boolean is
-      Core   : constant Positive := Arch.CPU.Get_Core_Number;
-      Thread : constant TID      := Core_Locals (Core).Current_TID;
-      Result : Boolean           := False;
-   begin
-      if Is_Initialized and Is_Thread_Present (Thread) then
-         Lib.Synchronization.Seize (Scheduler_Mutex'Access);
-         Result := Thread_Pool (Thread).Is_Userspace;
-         Lib.Synchronization.Release (Scheduler_Mutex'Access);
-      end if;
-      return Result;
-   end Is_Userspace;
-
    function Get_Current_Thread return TID is
       Core   : constant Positive := Arch.CPU.Get_Core_Number;
       Thread : constant TID      := Core_Locals (Core).Current_TID;
@@ -488,6 +481,7 @@ package body Scheduler is
          Thread_Pool (Current_TID).Is_Running := False;
          Thread_Pool (Current_TID).FS         := Arch.Wrappers.Read_FS;
          Thread_Pool (Current_TID).State      := State.all;
+         Arch.Wrappers.FP_Save (Thread_Pool (Current_TID).FP_Region'Address);
       end if;
 
       --  Assign the next TID as our current one.
@@ -507,6 +501,7 @@ package body Scheduler is
       --  Reset state.
       Memory.Virtual.Make_Active (Thread_Pool (Next_TID).PageMap);
       Arch.Wrappers.Write_FS (Thread_Pool (Next_TID).FS);
+      Arch.Wrappers.FP_Restore (Thread_Pool (Next_TID).FP_Region'Address);
       Asm (
          "mov %0, %%rsp"   & LF & HT &
          "pop %%rax"       & LF & HT &

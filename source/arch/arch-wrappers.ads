@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System;
 with Interfaces; use Interfaces;
 with Memory; use Memory;
 
@@ -48,4 +49,10 @@ package Arch.Wrappers is
    ----------------------------------------------------------------------------
    --  HLT.
    procedure HLT;
+   ----------------------------------------------------------------------------
+   --  Manage FP state.
+   procedure FP_Save (Region : System.Address);
+   procedure FP_Restore (Region : System.Address);
+   procedure Load_x87_Control_Word (Value : Unsigned_32);
+   procedure Load_MXCSR (Value : Unsigned_64);
 end Arch.Wrappers;

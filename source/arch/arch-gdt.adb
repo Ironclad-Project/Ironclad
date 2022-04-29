@@ -117,6 +117,9 @@ package body Arch.GDT is
 
    procedure Load_GDT is
    begin
+      --  FS and GS have to be user ones because else when going from ring 0 to
+      --  3 they will be zero'd out. This is a quirk of x86, so we make them
+      --  user now and we just stop worrying.
       Asm ("lgdt %0"               & LF & HT &
            "push %%rax"            & LF & HT &
            "push %2"               & LF & HT &
@@ -127,12 +130,13 @@ package body Arch.GDT is
            "pop %%rax"             & LF & HT &
            "mov %1, %%ds"          & LF & HT &
            "mov %1, %%es"          & LF & HT &
-           "mov %1, %%fs"          & LF & HT &
-           "mov %1, %%gs"          & LF & HT &
+           "mov %3, %%fs"          & LF & HT &
+           "mov %3, %%gs"          & LF & HT &
            "mov %1, %%ss"          & LF & HT,
            Inputs   => (GDT_Pointer'Asm_Input ("m",  Global_Pointer),
                         Unsigned_16'Asm_Input ("rm", Kernel_Data64_Segment),
-                        Unsigned_16'Asm_Input ("i",  Kernel_Code64_Segment)),
+                        Unsigned_16'Asm_Input ("i",  Kernel_Code64_Segment),
+                        Unsigned_16'Asm_Input ("rm", User_Data64_Segment)),
            Clobber  => "memory",
            Volatile => True);
    end Load_GDT;

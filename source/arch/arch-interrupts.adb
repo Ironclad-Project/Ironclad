@@ -16,6 +16,7 @@
 
 with System.Machine_Code;
 with Arch.APIC;
+with Arch.GDT;
 with Lib.Panic;
 with Lib.Messages;
 with Scheduler;
@@ -42,9 +43,10 @@ package body Arch.Interrupts is
       Lib.Messages.Put_Line ("");
 
       --  Check whether we have to panic or just exit the thread.
+      --  We can check we are in userland by checking whether the passed CS
+      --  is our user code segment or'ed by 3.
       --  TODO: Send a SIGSEGV instead of just stopping execution for user.
-      --  We can only attribute #GP and #PF to programmer errors (13,14).
-      if Scheduler.Is_Userspace then
+      if State.CS = (GDT.User_Code64_Segment or 3) then
          Lib.Messages.Put_Line ("Userland " & Exception_Text (Number));
          Scheduler.Bail;
       else

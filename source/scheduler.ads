@@ -77,9 +77,6 @@ package Scheduler is
    --  Delete and yield the current thread.
    procedure Bail;
 
-   --  Returns whether the current thread is userspace.
-   function Is_Userspace return Boolean;
-
    --  Returns the current thread.
    function Get_Current_Thread return TID;
 private
