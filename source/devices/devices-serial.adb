@@ -16,6 +16,7 @@
 
 with Arch.Wrappers;
 with Lib.Synchronization;
+with Scheduler;
 
 package body Devices.Serial is
    --  COM ports, the first 2 ones are almost sure to be at that address, the
@@ -85,17 +86,22 @@ package body Devices.Serial is
        Obj    : Object;
        Offset : System.Address;
        Count  : Positive;
-       Desto  : System.Address) return Natural is
+       Desto  : System.Address) return Natural
+   is
       COM    : COM_Root with Address => Data;
       Result : array (1 .. Count) of Unsigned_8 with Address => Desto;
       pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
    begin
-      Lib.Synchronization.Seize (COM.Mutex'Access);
+      while not Lib.Synchronization.Try_Seize (COM.Mutex'Access) loop
+         Scheduler.Yield;
+      end loop;
+
       for I of Result loop
          while not Is_Data_Received (COM.Port) loop null; end loop;
          I := Arch.Wrappers.Port_In (COM.Port);
       end loop;
+
       Lib.Synchronization.Release (COM.Mutex'Access);
       return Count;
    end Serial_Read;
@@ -105,13 +111,17 @@ package body Devices.Serial is
        Obj      : Object;
        Offset   : System.Address;
        Count    : Positive;
-       To_Write : System.Address) return Natural is
+       To_Write : System.Address) return Natural
+   is
       COM        : COM_Root with Address => Data;
       Write_Data : array (1 .. Count) of Unsigned_8 with Address => To_Write;
       pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
    begin
-      Lib.Synchronization.Seize (COM.Mutex'Access);
+      while not Lib.Synchronization.Try_Seize (COM.Mutex'Access) loop
+         Scheduler.Yield;
+      end loop;
+
       for I of Write_Data loop
          while not Is_Transmitter_Empty (COM.Port) loop null; end loop;
          Arch.Wrappers.Port_Out (COM.Port, I);

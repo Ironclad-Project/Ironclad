@@ -23,6 +23,13 @@ package Devices.TTY is
 
 private
 
+   function Read
+      (Data     : Root_Data;
+       Obj      : Object;
+       Offset   : System.Address;
+       Count    : Positive;
+       To_Write : System.Address) return Natural;
+
    function Write
       (Data     : Root_Data;
        Obj      : Object;

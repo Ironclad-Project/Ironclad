@@ -196,7 +196,7 @@ package body Main is
          Init_Arguments (1) := new String'(Init_Value.all);
          Init_File := Open (Init_Value.all, Access_R);
          if Init_File = null or else Userland.Loader.Start_Program
-            (Init_File, Init_Arguments, Init_Environment, "@ps2keyb",
+            (Init_File, Init_Arguments, Init_Environment, "@ttydev1",
              "@ttydev1", "@ttydev1") = null
          then
             Lib.Panic.Soft_Panic ("Could not start init");

@@ -22,15 +22,14 @@ with Lib.Panic;
 
 package body Devices is
    procedure Init is
-      Discard : Boolean;
    begin
-      --  Initialize virtual devices first.
-      if not Streams.Init then goto Error; end if;
-      if not TTY.Init     then goto Error; end if;
-
       --  Initialize physical devices.
       if not PS2Keyboard.Init then goto Error; end if;
       if not Serial.Init      then goto Error; end if;
+
+      --  Initialize virtual devices.
+      if not Streams.Init then goto Error; end if;
+      if not TTY.Init     then goto Error; end if;
       return;
 
    <<Error>>

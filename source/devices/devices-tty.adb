@@ -15,24 +15,45 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Stivale2;
+with VFS.File; use VFS.File;
+with System.Address_To_Access_Conversions;
 
 package body Devices.TTY is
+   package Conv is new System.Address_To_Access_Conversions (VFS.File.File);
+
    function Init return Boolean is
+      File_Addr : constant System.Address :=
+         Conv.To_Address (Open ("@ps2keyb", Access_R).all'Access);
    begin
       return Register_Root ((
          Name     => "ttydev1",
-         Data     => System.Null_Address,
+         Data     => File_Addr,
          Init     => null,
          Unload   => null,
          Sync     => null,
          Create   => null,
          Open     => null,
          Close    => null,
-         Read     => null,
+         Read     => Read'Access,
          Write    => Write'Access,
          Get_Size => null
       ));
    end Init;
+
+   function Read
+      (Data     : Root_Data;
+       Obj      : Object;
+       Offset   : System.Address;
+       Count    : Positive;
+       To_Write : System.Address) return Natural
+   is
+      pragma Unreferenced (Obj);
+      pragma Unreferenced (Offset);
+
+      PS2_File_Acc : constant File_Acc := File_Acc (Conv.To_Pointer (Data));
+   begin
+      return VFS.File.Read (PS2_File_Acc, Count, To_Write);
+   end Read;
 
    function Write
       (Data     : Root_Data;

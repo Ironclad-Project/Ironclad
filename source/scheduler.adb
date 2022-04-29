@@ -389,24 +389,19 @@ package body Scheduler is
    end Set_Thread_Preference;
 
    procedure Yield is
-      Core        : constant Positive    := Arch.CPU.Get_Core_Number;
-      Core_LAPIC  : constant Unsigned_32 := Arch.CPU.Core_LAPICs (Core);
-      Current_TID : constant TID         := Core_Locals (Core).Current_TID;
+      Core       : constant Positive    := Arch.CPU.Get_Core_Number;
+      Core_LAPIC : constant Unsigned_32 := Arch.CPU.Core_LAPICs (Core);
    begin
       --  Force rescheduling by calling the ISR vector directly.
-      if Current_TID /= 0 then
-         Core_Locals (Core).Current_TID := 0;
-         Arch.APIC.LAPIC_Send_IPI (Core_LAPIC, Scheduler_Vector);
-      end if;
-      loop Arch.Wrappers.HLT; end loop;
+      Arch.APIC.LAPIC_Send_IPI (Core_LAPIC, Scheduler_Vector);
    end Yield;
 
    procedure Bail is
-      Core        : constant Positive := Arch.CPU.Get_Core_Number;
-      Current_TID : constant TID      := Core_Locals (Core).Current_TID;
+      Core : constant Positive := Arch.CPU.Get_Core_Number;
    begin
-      Delete_Thread (Current_TID);
-      Yield;
+      Delete_Thread (Core_Locals (Core).Current_TID);
+      Core_Locals (Core).Current_TID := 0;
+      Idle_Core;
    end Bail;
 
    function Find_Free_TID return TID is
