@@ -120,4 +120,11 @@ private
    function Syscall_Fork
       (State_To_Fork : access ISR_GPRs;
        Errno         : out Unsigned_64) return Unsigned_64;
+
+   --  Wait.
+   function Syscall_Wait
+      (Waited_PID : Unsigned_64;
+       Exit_Addr  : Unsigned_64;
+       Options    : Unsigned_64;
+       Errno      : out Unsigned_64) return Unsigned_64;
 end Arch.Syscall;

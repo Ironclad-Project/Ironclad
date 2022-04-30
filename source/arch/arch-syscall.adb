@@ -33,6 +33,7 @@ package body Arch.Syscall is
    Error_No_Error        : constant := 0;
    Error_Bad_Access      : constant := 1002; -- EACCES.
    Error_Would_Block     : constant := 1006; -- EAGAIN.
+   Error_Child           : constant := 1012; -- ECHILD.
    Error_Invalid_Value   : constant := 1026; -- EINVAL.
    Error_No_Entity       : constant := 1043; -- ENOENT.
    Error_Not_Implemented : constant := 1051; -- ENOSYS.
@@ -94,6 +95,8 @@ package body Arch.Syscall is
             Returned := Syscall_Exec (State.RDI, State.RSI, State.RDX, Errno);
          when 13 =>
             Returned := Syscall_Fork (State, Errno);
+         when 14 =>
+            Returned := Syscall_Wait (State.RDI, State.RSI, State.RDX, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -115,9 +118,12 @@ package body Arch.Syscall is
          Lib.Messages.Put_Line (")");
       end if;
 
+      --  Remove all state but the return value and keep the zombie around
+      --  until we are waited.
       Userland.Process.Flush_Threads  (Current_Process);
       Userland.Process.Flush_Files    (Current_Process);
-      Userland.Process.Delete_Process (Current_Process);
+      Current_Process.Exit_Code := Unsigned_8 (Error_Code);
+      Current_Process.Did_Exit  := True;
       Scheduler.Bail;
    end Syscall_Exit;
 
@@ -646,11 +652,12 @@ package body Arch.Syscall is
       end if;
 
       --  Set a good memory map.
-      Forked_Process.Common_Map := Memory.Virtual.Clone_Space (Current_Process.Common_Map);
+      Forked_Process.Common_Map := Clone_Space (Current_Process.Common_Map);
 
       --  Create a running thread cloning the caller.
       if not Add_Thread (Forked_Process,
-         Scheduler.Create_User_Thread (State_To_Fork, Forked_Process.Common_Map))
+         Scheduler.Create_User_Thread
+            (State_To_Fork, Forked_Process.Common_Map))
       then
          Errno := Error_Would_Block;
          return Unsigned_64'Last;
@@ -659,4 +666,71 @@ package body Arch.Syscall is
       Errno := Error_No_Error;
       return Unsigned_64 (Forked_Process.Process_PID);
    end Syscall_Fork;
+
+   function Syscall_Wait
+      (Waited_PID : Unsigned_64;
+       Exit_Addr  : Unsigned_64;
+       Options    : Unsigned_64;
+       Errno      : out Unsigned_64) return Unsigned_64
+   is
+      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Current_Process : constant Userland.Process.Process_Data_Acc :=
+         Userland.Process.Get_By_Thread (Current_Thread);
+      Exit_Value : Unsigned_32
+         with Address => To_Address (Integer_Address (Exit_Addr));
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall wait(");
+         Lib.Messages.Put      (Waited_PID);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Exit_Addr, False, True);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Options, False, True);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      --  Fail on having to wait on the process group, we dont support that.
+      if Waited_PID = 0 then
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      end if;
+
+      --  If -1, we have to wait for any of the children.
+      --  TODO: Do not hardcode this to the first child.
+      if Waited_PID = Unsigned_64 (Unsigned_32'Last) then
+         return Syscall_Wait
+            (Unsigned_64 (Current_Process.Children (1)),
+             Exit_Addr, Options, Errno);
+      end if;
+
+      --  Check the callee is actually the parent, else we are doing something
+      --  weird.
+      for PID_Item of Current_Process.Children loop
+         if Natural (Waited_PID) = PID_Item then
+            goto Is_Parent;
+         end if;
+      end loop;
+
+      Errno := Error_Child;
+      return Unsigned_64'Last;
+
+   <<Is_Parent>>
+      declare
+         Waited_Process : constant Userland.Process.Process_Data_Acc :=
+            Userland.Process.Get_By_PID (Natural (Waited_PID));
+      begin
+         --  Actually wait.
+         while not Waited_Process.Did_Exit loop
+            Scheduler.Yield;
+         end loop;
+
+         --  Set the return value.
+         Exit_Value := Unsigned_32 (Waited_Process.Exit_Code);
+
+         --  Now that we got the exit code, finally allow the process to die.
+         Userland.Process.Delete_Process (Waited_Process);
+         Errno := Error_No_Error;
+         return Waited_PID;
+      end;
+   end Syscall_Wait;
 end Arch.Syscall;

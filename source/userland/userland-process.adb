@@ -43,11 +43,28 @@ package body Userland.Process is
 
       for I in Process_List.all'Range loop
          if Process_List (I) = null then
+            if Parent /= 0 then
+               declare
+                  Parent_Process : constant Process_Data_Acc :=
+                     Get_By_PID (Parent);
+               begin
+                  if Parent_Process /= null then
+                     for PID of Parent_Process.Children loop
+                        if PID = 0 then
+                           PID := I;
+                           exit;
+                        end if;
+                     end loop;
+                  end if;
+               end;
+            end if;
+
             Process_List (I) := new Process_Data;
             Process_List (I).Process_PID := I;
             Process_List (I).Parent_PID  := Parent;
             Process_List (I).Stack_Base  := 16#70000000000#;
             Process_List (I).Alloc_Base  := 16#80000000000#;
+            Process_List (I).Exit_Code   := 0;
             Returned := Process_List (I);
             exit;
          end if;
@@ -59,8 +76,28 @@ package body Userland.Process is
 
    procedure Delete_Process (Process : Process_Data_Acc) is
    begin
+      Lib.Synchronization.Seize (Process_List_Mutex'Access);
+
+      if Process.Parent_PID /= 0 then
+         declare
+            Parent_Process : constant Process_Data_Acc :=
+               Get_By_PID (Process.Parent_PID);
+         begin
+            if Parent_Process /= null then
+               for PID of Parent_Process.Children loop
+                  if PID = Process.Process_PID then
+                     PID := 0;
+                     exit;
+                  end if;
+               end loop;
+            end if;
+         end;
+      end if;
+
       Free_Proc (Process_List (Process.Process_PID));
       Process_List (Process.Process_PID) := null;
+
+      Lib.Synchronization.Release (Process_List_Mutex'Access);
    end Delete_Process;
 
    function Get_By_PID (Process : Positive) return Process_Data_Acc is
