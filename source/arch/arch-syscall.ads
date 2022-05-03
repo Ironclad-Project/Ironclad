@@ -127,4 +127,17 @@ private
        Exit_Addr  : Unsigned_64;
        Options    : Unsigned_64;
        Errno      : out Unsigned_64) return Unsigned_64;
+
+   --  uname.
+   type UTS_Name is record
+      System_Name : String (1 .. 64);
+      Node_Name   : String (1 .. 64);
+      Release     : String (1 .. 64);
+      Version     : String (1 .. 64);
+      Machine     : String (1 .. 64);
+      Domain      : String (1 .. 64);
+   end record;
+   function Syscall_Uname
+      (Address : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64;
 end Arch.Syscall;

@@ -14,6 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Characters.Latin_1;
+with Config;
 with System; use System;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Wrappers;
@@ -34,6 +36,7 @@ package body Arch.Syscall is
    Error_Bad_Access      : constant := 1002; -- EACCES.
    Error_Would_Block     : constant := 1006; -- EAGAIN.
    Error_Child           : constant := 1012; -- ECHILD.
+   Error_Would_Fault     : constant := 1020; -- EFAULT.
    Error_Invalid_Value   : constant := 1026; -- EINVAL.
    Error_No_Entity       : constant := 1043; -- ENOENT.
    Error_Not_Implemented : constant := 1051; -- ENOSYS.
@@ -733,4 +736,28 @@ package body Arch.Syscall is
          return Waited_PID;
       end;
    end Syscall_Wait;
+
+
+   function Syscall_Uname
+      (Address : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64
+   is
+      Addr : constant System.Address := To_Address (Integer_Address (Address));
+      UTS  : UTS_Name with Address => Addr;
+   begin
+      if Addr = System.Null_Address then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      end if;
+
+      UTS.System_Name (1 .. Config.Package_Name'Length + 1) :=
+         Config.Package_Name & Ada.Characters.Latin_1.NUL;
+
+      UTS.Release (1 .. Config.Package_Version'Length + 1) :=
+         Config.Package_Version & Ada.Characters.Latin_1.NUL;
+
+      UTS.Machine (1 .. 7) := "x86_64" & Ada.Characters.Latin_1.NUL;
+      Errno := Error_No_Error;
+      return 0;
+   end Syscall_Uname;
 end Arch.Syscall;

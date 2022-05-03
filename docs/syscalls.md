@@ -48,6 +48,7 @@ depth, this is the list of available values:
 | Bad Access      | `EACCES`         | 1002  |
 | Not available   | `EAGAIN`         | 1006  |
 | Child process   | `ECHILD`         | 1012  |
+| Would fault     | `EFAULT`         | 1020  |
 | Invalid Value   | `EINVAL`         | 1026  |
 | No entity       | `ENOENT`         | 1043  |
 | Not Implemented | `ENOSYS`         | 1051  |
@@ -76,3 +77,4 @@ This are the syscalls, their prototypes, and a short description.
 | [exec](syscalls/exec.md)                    | Process management   | 12    |
 | [fork](syscalls/fork.md)                    | Process management   | 13    |
 | [wait](syscalls/wait.md)                    | Process management   | 14    |
+| [uname](syscalls/uname.md)                  | System information   | 15    |
