@@ -1,5 +1,5 @@
 <!---
-uname.md: uname syscall.
+hostname.md: hostname-related syscalls.
 Copyright (C) 2021 streaksu
 
 This program is free software: you can redistribute it and/or modify
@@ -16,27 +16,20 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 
-# `uname`
+# `sethostname`
 
 ## Prototype
 
 ```c
-struct utsname {
-   char sysname[65];  // Kernel name (e.g., "Ironclad")
-   char nodename[65]; // Hostname of the machine.
-   char release[65];  // Kernel release (e.g., "2.6.28")
-   char version[65];  // Kernel build information.
-   char machine[65];  // Hardware identifier (e.g., "x86")
-};
-
-int uname(struct utsname *name);
+int sethostname(const char *buffer, size_t length);
 ```
 
 ## Description
 
-This syscall reports kernel information, like version, name, and hostname.
+This syscall sets the kernel hostname to the passed string.
 
 ## Return values and errno
 
-This syscall returns `0` on success, and `-1` on failure, with the only errno
-being `EFAULT` if the passed pointer is in an invalid address.
+`0` is returned on success and `-1` on failure, with the following errno:
+- `EFAULT`: The passed buffer points to an invalid address.
+- `EINVAL`: The passed length is bigger than the kernel can handle or 0.

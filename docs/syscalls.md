@@ -78,3 +78,4 @@ This are the syscalls, their prototypes, and a short description.
 | [fork](syscalls/fork.md)                    | Process management   | 13    |
 | [wait](syscalls/wait.md)                    | Process management   | 14    |
 | [uname](syscalls/uname.md)                  | System information   | 15    |
+| [sethostname](syscalls/hostname.md)         | Basic networking     | 16    |

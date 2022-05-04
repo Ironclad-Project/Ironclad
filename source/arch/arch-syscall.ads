@@ -130,14 +130,18 @@ private
 
    --  uname.
    type UTS_Name is record
-      System_Name : String (1 .. 64);
-      Node_Name   : String (1 .. 64);
-      Release     : String (1 .. 64);
-      Version     : String (1 .. 64);
-      Machine     : String (1 .. 64);
-      Domain      : String (1 .. 64);
+      System_Name : String (1 .. 65);
+      Node_Name   : String (1 .. 65);
+      Release     : String (1 .. 65);
+      Version     : String (1 .. 65);
+      Machine     : String (1 .. 65);
    end record;
    function Syscall_Uname
       (Address : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64;
+
+   function Syscall_Set_Hostname
+      (Address : Unsigned_64;
+       Length  : Unsigned_64;
        Errno   : out Unsigned_64) return Unsigned_64;
 end Arch.Syscall;

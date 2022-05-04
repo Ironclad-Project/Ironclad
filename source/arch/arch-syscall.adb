@@ -21,6 +21,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Wrappers;
 with Lib.Messages;
 with Lib;
+with Networking;
 with Userland.Process; use Userland.Process;
 with Userland.Loader;
 with VFS.File; use VFS.File;
@@ -100,6 +101,10 @@ package body Arch.Syscall is
             Returned := Syscall_Fork (State, Errno);
          when 14 =>
             Returned := Syscall_Wait (State.RDI, State.RSI, State.RDX, Errno);
+         when 15 =>
+            Returned := Syscall_Uname (State.RDI, Errno);
+         when 16 =>
+            Returned := Syscall_Set_Hostname (State.RDI, State.RSI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -752,12 +757,38 @@ package body Arch.Syscall is
 
       UTS.System_Name (1 .. Config.Package_Name'Length + 1) :=
          Config.Package_Name & Ada.Characters.Latin_1.NUL;
-
+      UTS.Node_Name (1 .. Networking.Hostname_Length) :=
+         Networking.Hostname_Buffer (1 .. Networking.Hostname_Length);
+      UTS.Node_Name (Networking.Hostname_Length + 1) :=
+         Ada.Characters.Latin_1.NUL;
       UTS.Release (1 .. Config.Package_Version'Length + 1) :=
          Config.Package_Version & Ada.Characters.Latin_1.NUL;
-
+      UTS.Version (1) := Ada.Characters.Latin_1.NUL;
       UTS.Machine (1 .. 7) := "x86_64" & Ada.Characters.Latin_1.NUL;
       Errno := Error_No_Error;
       return 0;
    end Syscall_Uname;
+
+   function Syscall_Set_Hostname
+      (Address : Unsigned_64;
+       Length  : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64
+   is
+      Len  : constant Natural := Natural (Length);
+      Addr : constant System.Address := To_Address (Integer_Address (Address));
+      Name : String (1 .. Len) with Address => Addr;
+   begin
+      if Addr = System.Null_Address then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      elsif Len = 0 or Len > Networking.Hostname_Buffer'Length then
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      else
+         Networking.Hostname_Length := Len;
+         Networking.Hostname_Buffer (1 .. Len) := Name;
+         Errno := Error_No_Error;
+         return 0;
+      end if;
+   end Syscall_Set_Hostname;
 end Arch.Syscall;
