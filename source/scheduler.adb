@@ -253,11 +253,9 @@ package body Scheduler is
             end loop;
          end loop;
 
-         --  Align the stack to 16.
-         Index_8 := Index_8 - (Index_8 mod 2);
-
-         --  Get the equivalent 64-bit stack index and start loading.
-         Index_64 := (Index_8 / 8) - 1;
+         --  Get the equivalent 64-bit stack index and align it to 16 bytes.
+         Index_64 := (Index_8 / 8) - ((Index_8 / 8) mod 16);
+         Index_64 := Index_64 - ((Args'Length + Env'Length + 3) mod 2);
 
          --  Load auxval.
          User_Stack_64 (Index_64 - 0) := 0;
