@@ -105,6 +105,10 @@ package body Arch.Syscall is
             Returned := Syscall_Uname (State.RDI, Errno);
          when 16 =>
             Returned := Syscall_Set_Hostname (State.RDI, State.RSI, Errno);
+         when 17 =>
+            Returned := Syscall_FStat (State.RDI, State.RSI, Errno);
+         when 18 =>
+            Returned := Syscall_LStat (State.RDI, State.RSI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -330,6 +334,7 @@ package body Arch.Syscall is
       File : constant VFS.File.File_Acc :=
          Current_Process.File_Table (Natural (File_D));
       Passed_Offset : constant Natural := Natural (Offset);
+      Stat_Val : VFS.File_Stat;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall seek(");
@@ -340,30 +345,25 @@ package body Arch.Syscall is
          Lib.Messages.Put (Whence);
          Lib.Messages.Put_Line (")");
       end if;
-      --  TODO: If the FD is a pipe or tty we need to set this errno.
-      --  This is a quicky to be changed later for something more general.
-      if File_D = 0 or File_D = 1 or File_D = 2 then
-         Errno := Error_Invalid_Seek;
-         return Unsigned_64'Last;
-      end if;
-
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
       end if;
-
+      if not VFS.File.Stat (File, Stat_Val) then
+         Errno := Error_Invalid_Seek;
+         return Unsigned_64'Last;
+      end if;
       case Whence is
          when SEEK_SET =>
             File.Index := Passed_Offset;
          when SEEK_CURRENT =>
             File.Index := File.Index + Passed_Offset;
          when SEEK_END =>
-            File.Index := VFS.File.Get_Size (File) + Passed_Offset;
+            File.Index := Natural (Stat_Val.Byte_Size) + Passed_Offset;
          when others =>
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
       end case;
-
       Errno := Error_No_Error;
       return Unsigned_64 (File.Index);
    end Syscall_Seek;
@@ -791,4 +791,109 @@ package body Arch.Syscall is
          return 0;
       end if;
    end Syscall_Set_Hostname;
+
+   function Inner_Stat
+      (F       : VFS.File.File_Acc;
+       Address : Unsigned_64) return Boolean
+   is
+      Stat_Val : VFS.File_Stat;
+      Stat_Buf : Stat with Address => To_Address (Integer_Address (Address));
+   begin
+      if VFS.File.Stat (F, Stat_Val) then
+         Stat_Buf := (
+            Device_Number => 1,
+            Inode_Number  => Stat_Val.Unique_Identifier,
+            Mode          => Stat_Val.Mode,
+            Number_Links  => Unsigned_32 (Stat_Val.Hard_Link_Count),
+            UID           => 0,
+            GID           => 0,
+            Inner_Device  => 0,
+            File_Size     => Stat_Val.Byte_Size,
+            Access_Time   => (Seconds => 0, Nanoseconds => 0),
+            Modify_Time   => (Seconds => 0, Nanoseconds => 0),
+            Create_Time   => (Seconds => 0, Nanoseconds => 0),
+            Block_Size    => Unsigned_64 (Stat_Val.IO_Block_Size),
+            Block_Count   => Stat_Val.IO_Block_Count
+         );
+
+         return True;
+      else
+         --  TODO: Once our VFS can handle better '.', '..', and '/', remove
+         --  this fallback.
+         Stat_Buf.Device_Number := 0;
+         Stat_Buf.Inode_Number  := 0;
+         Stat_Buf.Number_Links  := 1;
+         Stat_Buf.File_Size     := 512;
+         Stat_Buf.Block_Size    := 512;
+         Stat_Buf.Block_Count   := 1;
+
+         return True;
+      end if;
+   end Inner_Stat;
+
+   function Syscall_FStat
+      (File_D  : Unsigned_64;
+       Address : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64
+   is
+      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Current_Process : constant Userland.Process.Process_Data_Acc :=
+         Userland.Process.Get_By_Thread (Current_Thread);
+      File : constant VFS.File.File_Acc :=
+         Current_Process.File_Table (Natural (File_D));
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall fstat(");
+         Lib.Messages.Put (File_D);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Address, False, True);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if Address = 0 then
+         Errno := Error_Would_Fault;
+         return 0;
+      end if;
+
+      if Inner_Stat (File, Address) then
+         Errno := Error_No_Error;
+         return 0;
+      else
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+   end Syscall_FStat;
+
+   function Syscall_LStat
+      (Path    : Unsigned_64;
+       Address : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64
+   is
+      Addr : constant System.Address := To_Address (Integer_Address (Path));
+      Path_Length  : constant Natural := Lib.C_String_Length (Addr);
+      Path_String  : String (1 .. Path_Length) with Address => Addr;
+      File : constant VFS.File.File_Acc :=
+         VFS.File.Open (Path_String, VFS.File.Access_R);
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall lstat(");
+         Lib.Messages.Put (Path_String);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Address, False, True);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if Address = 0 then
+         Errno := Error_Would_Fault;
+         return 0;
+      end if;
+
+      if Inner_Stat (File, Address) then
+         Errno := Error_No_Error;
+         return 0;
+      else
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+   end Syscall_LStat;
 end Arch.Syscall;

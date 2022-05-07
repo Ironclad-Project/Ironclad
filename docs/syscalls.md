@@ -79,3 +79,5 @@ This are the syscalls, their prototypes, and a short description.
 | [wait](syscalls/wait.md)                    | Process management   | 14    |
 | [uname](syscalls/uname.md)                  | System information   | 15    |
 | [sethostname](syscalls/hostname.md)         | Basic networking     | 16    |
+| [fstat](syscalls/stat.md)                   | Synchronous File IO  | 17    |
+| [lstat](syscalls/stat.md)                   | Synchronous File IO  | 18    |

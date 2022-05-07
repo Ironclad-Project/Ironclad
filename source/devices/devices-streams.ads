@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
 with System;
 with VFS; use VFS;
 
@@ -26,28 +27,28 @@ private
    function Nulldev_Read
       (Data   : Root_Data;
        Obj    : Object;
-       Offset : System.Address;
+       Offset : Unsigned_64;
        Count  : Positive;
        Desto  : System.Address) return Natural;
 
    function Nulldev_Write
       (Data     : Root_Data;
        Obj      : Object;
-       Offset   : System.Address;
+       Offset   : Unsigned_64;
        Count    : Positive;
        To_Write : System.Address) return Natural;
    ----------------------------------------------------------------------------
    function Zerodev_Read
       (Data   : Root_Data;
        Obj    : Object;
-       Offset : System.Address;
+       Offset : Unsigned_64;
        Count  : Positive;
        Desto  : System.Address) return Natural;
 
    function Zerodev_Write
       (Data     : Root_Data;
        Obj      : Object;
-       Offset   : System.Address;
+       Offset   : Unsigned_64;
        Count    : Positive;
        To_Write : System.Address) return Natural;
 end Devices.Streams;

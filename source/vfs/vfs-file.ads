@@ -44,6 +44,6 @@ package VFS.File is
        Count    : Natural;
        Data     : System.Address) return Natural;
 
-   --  Get size of the file.
-   function Get_Size (F : File_Acc) return Natural;
+   --  Get the stat of the file.
+   function Stat (F : File_Acc; S : out VFS.File_Stat) return Boolean;
 end VFS.File;

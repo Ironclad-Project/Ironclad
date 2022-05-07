@@ -20,6 +20,7 @@ with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with System.Address_To_Access_Conversions;
 with Arch.Wrappers;
 with Memory.Virtual; use Memory.Virtual;
+with Arch.Interrupts;
 
 package body Arch.Stivale2 is
 
@@ -86,6 +87,8 @@ package body Arch.Stivale2 is
             Make_Active (Kernel_Map);
          end if;
 
+         Interrupts.Set_Interrupt_Flag (False);
+
          Asm ("push %%rdi" & LF & HT &
               "push %%rsi" & LF & HT &
               "call *%0"   & LF & HT &
@@ -96,6 +99,8 @@ package body Arch.Stivale2 is
                          Natural'Asm_Input        ("S", Length)),
               Clobber  => "rax, rdx, rcx, r8, r9, r10, r11, memory",
               Volatile => True);
+
+         Interrupts.Set_Interrupt_Flag (True);
 
          if Kernel_Map /= null and then
             Memory.Virtual.Is_Loaded (Kernel_Map)

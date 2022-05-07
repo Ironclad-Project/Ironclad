@@ -101,7 +101,7 @@ package body VFS.File is
          Read_Count := To_Read.Root.Read.all (
             To_Read.Root.Data,
             To_Read.Object,
-            System'To_Address (To_Read.Index),
+            Unsigned_64 (To_Read.Index),
             Count,
             Destination
          );
@@ -125,7 +125,7 @@ package body VFS.File is
          Written_Count := To_Write.Root.Write.all (
             To_Write.Root.Data,
             To_Write.Object,
-            System'To_Address (To_Write.Index),
+            Unsigned_64 (To_Write.Index),
             Count,
             Data
          );
@@ -134,14 +134,12 @@ package body VFS.File is
       end if;
    end Write;
 
-   function Get_Size (F : File_Acc) return Natural is
+   function Stat (F : File_Acc; S : out VFS.File_Stat) return Boolean is
    begin
-      if F /= null and then F.Root.Get_Size /= null then
-         return F.Root.Get_Size.all (
-            F.Root.Data,
-            F.Object
-         );
+      if F = null or else F.Root.Stat = null then
+         return False;
+      else
+         return F.Root.Stat.all (F.Root.Data, F.Object, S);
       end if;
-      return 0;
-   end Get_Size;
+   end Stat;
 end VFS.File;

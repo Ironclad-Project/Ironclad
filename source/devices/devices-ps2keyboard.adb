@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
 with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
 with Arch.IDT;
 with Arch.APIC;
@@ -93,24 +92,24 @@ package body Devices.PS2Keyboard is
       end loop;
 
       return Register_Root ((
-         Name     => "ps2keyb",
-         Data     => System.Null_Address,
-         Init     => null,
-         Unload   => null,
-         Sync     => null,
-         Create   => null,
-         Open     => null,
-         Close    => null,
-         Read     => Read'Access,
-         Write    => null,
-         Get_Size => null
+         Name   => "ps2keyb",
+         Data   => System.Null_Address,
+         Init   => null,
+         Unload => null,
+         Sync   => null,
+         Create => null,
+         Open   => null,
+         Close  => null,
+         Read   => Read'Access,
+         Write  => null,
+         Stat   => null
       ));
    end Init;
 
    function Read
       (Data   : Root_Data;
        Obj    : Object;
-       Offset : System.Address;
+       Offset : Unsigned_64;
        Count  : Positive;
        Desto  : System.Address) return Natural
    is

@@ -16,6 +16,7 @@
 
 with System;
 with VFS; use VFS;
+with Interfaces; use Interfaces;
 
 package Devices.PS2Keyboard is
    --  Initialize the device.
@@ -26,7 +27,7 @@ private
    function Read
       (Data   : Root_Data;
        Obj    : Object;
-       Offset : System.Address;
+       Offset : Unsigned_64;
        Count  : Positive;
        Desto  : System.Address) return Natural;
 

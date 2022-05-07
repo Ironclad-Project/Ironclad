@@ -14,35 +14,33 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
-
 package body Devices.Streams is
    function Init return Boolean is
       Nulldev : constant Root := (
-         Name     => "nulldev",
-         Data     => System.Null_Address,
-         Init     => null,
-         Unload   => null,
-         Sync     => null,
-         Create   => null,
-         Open     => null,
-         Close    => null,
-         Read     => Nulldev_Read'Access,
-         Write    => Nulldev_Write'Access,
-         Get_Size => null
+         Name   => "nulldev",
+         Data   => System.Null_Address,
+         Init   => null,
+         Unload => null,
+         Sync   => null,
+         Create => null,
+         Open   => null,
+         Close  => null,
+         Read   => Nulldev_Read'Access,
+         Write  => Nulldev_Write'Access,
+         Stat   => null
       );
       Zerodev : constant Root := (
-         Name     => "zerodev",
-         Data     => System.Null_Address,
-         Init     => null,
-         Unload   => null,
-         Sync     => null,
-         Create   => null,
-         Open     => null,
-         Close    => null,
-         Read     => Zerodev_Read'Access,
-         Write    => Zerodev_Write'Access,
-         Get_Size => null
+         Name   => "zerodev",
+         Data   => System.Null_Address,
+         Init   => null,
+         Unload => null,
+         Sync   => null,
+         Create => null,
+         Open   => null,
+         Close  => null,
+         Read   => Zerodev_Read'Access,
+         Write  => Zerodev_Write'Access,
+         Stat   => null
       );
    begin
       if Register_Root (Nulldev) = False then return False; end if;
@@ -53,7 +51,7 @@ package body Devices.Streams is
    function Nulldev_Read
       (Data   : Root_Data;
        Obj    : Object;
-       Offset : System.Address;
+       Offset : Unsigned_64;
        Count  : Positive;
        Desto  : System.Address) return Natural
    is
@@ -70,7 +68,7 @@ package body Devices.Streams is
    function Nulldev_Write
       (Data     : Root_Data;
        Obj      : Object;
-       Offset   : System.Address;
+       Offset   : Unsigned_64;
        Count    : Positive;
        To_Write : System.Address) return Natural
    is
@@ -86,7 +84,7 @@ package body Devices.Streams is
    function Zerodev_Read
       (Data   : Root_Data;
        Obj    : Object;
-       Offset : System.Address;
+       Offset : Unsigned_64;
        Count  : Positive;
        Desto  : System.Address) return Natural
    is
@@ -104,7 +102,7 @@ package body Devices.Streams is
    function Zerodev_Write
       (Data     : Root_Data;
        Obj      : Object;
-       Offset   : System.Address;
+       Offset   : Unsigned_64;
        Count    : Positive;
        To_Write : System.Address) return Natural
    is

@@ -144,4 +144,51 @@ private
       (Address : Unsigned_64;
        Length  : Unsigned_64;
        Errno   : out Unsigned_64) return Unsigned_64;
+
+   --  File descriptor Stat.
+   type Time_Spec is record
+      Seconds     : Unsigned_64;
+      Nanoseconds : Unsigned_64;
+   end record;
+   type Stat is record
+      Device_Number : Unsigned_64;
+      Inode_Number  : Unsigned_64;
+      Mode          : Unsigned_32;
+      Number_Links  : Unsigned_32;
+      UID           : Unsigned_32;
+      GID           : Unsigned_32;
+      Inner_Device  : Unsigned_64;
+      File_Size     : Unsigned_64;
+      Access_Time   : Time_Spec;
+      Modify_Time   : Time_Spec;
+      Create_Time   : Time_Spec;
+      Block_Size    : Unsigned_64;
+      Block_Count   : Unsigned_64;
+   end record;
+   for Stat use record
+      Device_Number at 0 range   0 ..  63;
+      Inode_Number  at 0 range  64 .. 127;
+      Mode          at 0 range 128 .. 159;
+      Number_Links  at 0 range 160 .. 191;
+      UID           at 0 range 192 .. 223;
+      GID           at 0 range 224 .. 255;
+      Inner_Device  at 0 range 256 .. 319;
+      File_Size     at 0 range 320 .. 383;
+      Access_Time   at 0 range 384 .. 511;
+      Modify_Time   at 0 range 512 .. 639;
+      Create_Time   at 0 range 640 .. 767;
+      Block_Size    at 0 range 768 .. 831;
+      Block_Count   at 0 range 832 .. 895;
+   end record;
+   for Stat'Size use 896;
+   function Syscall_FStat
+      (File_D  : Unsigned_64;
+       Address : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64;
+
+   --  Path stat.
+   function Syscall_LStat
+      (Path    : Unsigned_64;
+       Address : Unsigned_64;
+       Errno   : out Unsigned_64) return Unsigned_64;
 end Arch.Syscall;

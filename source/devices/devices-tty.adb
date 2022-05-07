@@ -26,24 +26,24 @@ package body Devices.TTY is
          Conv.To_Address (Open ("@ps2keyb", Access_R).all'Access);
    begin
       return Register_Root ((
-         Name     => "ttydev1",
-         Data     => File_Addr,
-         Init     => null,
-         Unload   => null,
-         Sync     => null,
-         Create   => null,
-         Open     => null,
-         Close    => null,
-         Read     => Read'Access,
-         Write    => Write'Access,
-         Get_Size => null
+         Name   => "ttydev1",
+         Data   => File_Addr,
+         Init   => null,
+         Unload => null,
+         Sync   => null,
+         Create => null,
+         Open   => null,
+         Close  => null,
+         Read   => Read'Access,
+         Write  => Write'Access,
+         Stat   => null
       ));
    end Init;
 
    function Read
       (Data     : Root_Data;
        Obj      : Object;
-       Offset   : System.Address;
+       Offset   : Unsigned_64;
        Count    : Positive;
        To_Write : System.Address) return Natural
    is
@@ -58,7 +58,7 @@ package body Devices.TTY is
    function Write
       (Data     : Root_Data;
        Obj      : Object;
-       Offset   : System.Address;
+       Offset   : Unsigned_64;
        Count    : Positive;
        To_Write : System.Address) return Natural
    is

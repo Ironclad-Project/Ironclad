@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
 with System; use System;
 with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
@@ -105,31 +104,31 @@ package body Devices.Ramdev is
       --  Check if we are doing USTAR, and load the object accordingly.
       if First_Header.Signature = USTAR_Signature then
          return (
-            Name     => Name,
-            Data     => Data.all'Address,
-            Init     => Ramdev_Init'Access,
-            Unload   => Ramdev_Unload'Access,
-            Sync     => null,
-            Create   => null,
-            Open     => USTAR_Open'Access,
-            Close    => USTAR_Close'Access,
-            Read     => USTAR_Read'Access,
-            Write    => null,
-            Get_Size => USTAR_Get_Size'Access
+            Name   => Name,
+            Data   => Data.all'Address,
+            Init   => Ramdev_Init'Access,
+            Unload => Ramdev_Unload'Access,
+            Sync   => null,
+            Create => null,
+            Open   => USTAR_Open'Access,
+            Close  => USTAR_Close'Access,
+            Read   => USTAR_Read'Access,
+            Write  => null,
+            Stat   => USTAR_Stat'Access
          );
       else
          return (
-            Name     => Name,
-            Data     => Data.all'Address,
-            Init     => Ramdev_Init'Access,
-            Unload   => Ramdev_Unload'Access,
-            Sync     => null,
-            Create   => null,
-            Open     => null,
-            Close    => null,
-            Read     => Raw_Ramdev_Read'Access,
-            Write    => null,
-            Get_Size => Raw_Ramdev_Get_Size'Access
+            Name   => Name,
+            Data   => Data.all'Address,
+            Init   => Ramdev_Init'Access,
+            Unload => Ramdev_Unload'Access,
+            Sync   => null,
+            Create => null,
+            Open   => null,
+            Close  => null,
+            Read   => Raw_Ramdev_Read'Access,
+            Write  => null,
+            Stat   => Raw_Ramdev_Stat'Access
          );
       end if;
    end Init_Module;
@@ -151,7 +150,7 @@ package body Devices.Ramdev is
    function Raw_Ramdev_Read
       (Data   : Root_Data;
        Obj    : Object;
-       Offset : System.Address;
+       Offset : Unsigned_64;
        Count  : Positive;
        Desto  : System.Address) return Natural
    is
@@ -160,7 +159,7 @@ package body Devices.Ramdev is
       Data_Sz   : constant Natural         := Natural (Data2.Size);
       Result    : array (1 .. Count)   of Unsigned_8 with Address => Desto;
       Real_Data : array (1 .. Data_Sz) of Unsigned_8 with Address => Data_Addr;
-      Offset2   : constant Natural := Natural (To_Integer (Offset)) + Count;
+      Offset2   : constant Natural := Natural (Offset) + Count;
       To_Write  : Natural := Count;
       pragma Unreferenced (Obj);
    begin
@@ -169,20 +168,35 @@ package body Devices.Ramdev is
       end if;
 
       for I in 1 .. To_Write loop
-         Result (I) := Real_Data (Natural (To_Integer (Offset)) + I);
+         Result (I) := Real_Data (Natural (Offset) + I);
       end loop;
 
       return To_Write;
    end Raw_Ramdev_Read;
 
-   function Raw_Ramdev_Get_Size
+   function Raw_Ramdev_Stat
       (Data : Root_Data;
-       Obj  : Object) return Natural is
+       Obj  : Object;
+       S    : out File_Stat) return Boolean
+   is
       Data2 : Ramdev_Data with Address => Data;
-      pragma Unreferenced (Obj);
    begin
-      return Natural (Data2.Size);
-   end Raw_Ramdev_Get_Size;
+      if Obj /= System.Null_Address then
+         return False;
+      end if;
+
+      S := (
+         Unique_Identifier => 0,
+         Mode              => 8#660#,
+         Hard_Link_Count   => 1,
+         Byte_Size         => Unsigned_64 (Data2.Size),
+         IO_Block_Size     => 512,
+         IO_Block_Count    => (Unsigned_64 (Data2.Size) + 512 - 1) / 512
+      );
+
+      return True;
+
+   end Raw_Ramdev_Stat;
    ----------------------------------------------------------------------------
    function USTAR_Open (Data : Root_Data; Name : String) return Object is
       Real_Data      : Ramdev_Data with Address => Data;
@@ -257,7 +271,7 @@ package body Devices.Ramdev is
    function USTAR_Read
       (Data   : Root_Data;
        Obj    : Object;
-       Offset : System.Address;
+       Offset : Unsigned_64;
        Count  : Positive;
        Desto  : System.Address) return Natural
    is
@@ -266,7 +280,7 @@ package body Devices.Ramdev is
       Data_Sz   : constant Natural         := Obj2.Size;
       Result    : array (1 .. Count)   of Unsigned_8 with Address => Desto;
       Real_Data : array (1 .. Data_Sz) of Unsigned_8 with Address => Data_Addr;
-      Offset2   : constant Natural := Natural (To_Integer (Offset)) + Count;
+      Offset2   : constant Natural := Natural (Offset) + Count;
       To_Read  : Natural := Count;
       pragma Unreferenced (Data);
    begin
@@ -280,24 +294,42 @@ package body Devices.Ramdev is
       end if;
 
       for I in 1 .. To_Read loop
-         Result (I) := Real_Data (Natural (To_Integer (Offset)) + I);
+         Result (I) := Real_Data (Natural (Offset) + I);
       end loop;
 
       return To_Read;
    end USTAR_Read;
 
-   function USTAR_Get_Size
+   function USTAR_Stat
       (Data : Root_Data;
-       Obj  : Object) return Natural is
-      Data2 : Ramdev_Data with Address => Data;
+       Obj  : Object;
+       S    : out File_Stat) return Boolean
+   is
+      Data2 : Ramdev_Data   with Address => Data;
       Obj2  : Ramdev_Object with Address => Obj;
    begin
       if Obj = System.Null_Address then
-         return Natural (Data2.Size);
+         S := (
+            Unique_Identifier => 0,
+            Mode              => 8#600#,
+            Hard_Link_Count   => 1,
+            Byte_Size         => Unsigned_64 (Data2.Size),
+            IO_Block_Size     => 512,
+            IO_Block_Count    => (Unsigned_64 (Data2.Size) + 512 - 1) / 512
+         );
       else
-         return Obj2.Size;
+         S := (
+            Unique_Identifier => Unsigned_64 (To_Integer (Obj2.Start)),
+            Mode              => Unsigned_32 (Obj2.Mode),
+            Hard_Link_Count   => 1,
+            Byte_Size         => Unsigned_64 (Obj2.Size),
+            IO_Block_Size     => 512,
+            IO_Block_Count    => (Unsigned_64 (Obj2.Size) + 512 - 1) / 512
+         );
       end if;
-   end USTAR_Get_Size;
+
+      return True;
+   end USTAR_Stat;
 
    function Octal_To_Decimal (Octal : String) return Natural is
       Result : Natural := 0;

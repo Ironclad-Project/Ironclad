@@ -62,17 +62,17 @@ package body Devices.Serial is
             Data.Port := COM_Ports (I);
             Device_Name (7) := Character'Val (I + Character'Pos ('0'));
             Discard := Register_Root ((
-               Name     => Device_Name,
-               Data     => Data.all'Address,
-               Init     => null,
-               Unload   => null,
-               Sync     => null,
-               Create   => null,
-               Open     => null,
-               Close    => null,
-               Read     => Serial_Read'Access,
-               Write    => Serial_Write'Access,
-               Get_Size => null
+               Name   => Device_Name,
+               Data   => Data.all'Address,
+               Init   => null,
+               Unload => null,
+               Sync   => null,
+               Create => null,
+               Open   => null,
+               Close  => null,
+               Read   => Serial_Read'Access,
+               Write  => Serial_Write'Access,
+               Stat   => null
             ));
             Lib.Synchronization.Release (Data.Mutex'Access);
          end;
@@ -84,7 +84,7 @@ package body Devices.Serial is
    function Serial_Read
       (Data   : Root_Data;
        Obj    : Object;
-       Offset : System.Address;
+       Offset : Unsigned_64;
        Count  : Positive;
        Desto  : System.Address) return Natural
    is
@@ -109,7 +109,7 @@ package body Devices.Serial is
    function Serial_Write
       (Data     : Root_Data;
        Obj      : Object;
-       Offset   : System.Address;
+       Offset   : Unsigned_64;
        Count    : Positive;
        To_Write : System.Address) return Natural
    is

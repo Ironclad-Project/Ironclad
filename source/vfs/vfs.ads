@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
+with Interfaces; use Interfaces;
 
 package VFS is
    --  The VFS of Ironclad consists on a list of root devices that are mounted
@@ -31,6 +32,16 @@ package VFS is
    subtype Object    is System.Address;
    subtype Root_Name is String (1 .. 7);
    Error_Value : constant Root_Data := Root_Data (System'To_Address (0));
+
+   type File_Stat is record
+      Unique_Identifier : Unsigned_64;
+      Mode              : Unsigned_32;
+      Hard_Link_Count   : Positive;
+      Byte_Size         : Unsigned_64;
+      IO_Block_Size     : Natural;
+      IO_Block_Count    : Unsigned_64;
+   end record;
+
    type Root is record
       Name   : Root_Name; -- Name of the root.
       Data   : Root_Data; --  Instance-specific untouchable data.
@@ -54,7 +65,7 @@ package VFS is
       Read : access function
          (Data   : Root_Data;
           Obj    : Object;
-          Offset : System.Address;
+          Offset : Unsigned_64;
           Count  : Positive;
           Desto  : System.Address) return Natural;
 
@@ -62,14 +73,15 @@ package VFS is
       Write : access function
          (Data     : Root_Data;
           Obj      : Object;
-          Offset   : System.Address;
+          Offset   : Unsigned_64;
           Count    : Positive;
           To_Write : System.Address) return Natural;
 
-      --  Get the size of an object, if object = 0, return size of the root.
-      Get_Size : access function
+      --  Get the stat of an object, if object = 0, return stat of the root.
+      Stat : access function
          (Data : Root_Data;
-          Obj  : Object) return Natural;
+          Obj  : Object;
+          S    : out File_Stat) return Boolean;
    end record;
 
    --  Initialize the FS registry.

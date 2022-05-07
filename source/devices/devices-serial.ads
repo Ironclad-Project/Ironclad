@@ -27,14 +27,14 @@ private
    function Serial_Read
       (Data   : Root_Data;
        Obj    : Object;
-       Offset : System.Address;
+       Offset : Unsigned_64;
        Count  : Positive;
        Desto  : System.Address) return Natural;
 
    function Serial_Write
       (Data     : Root_Data;
        Obj      : Object;
-       Offset   : System.Address;
+       Offset   : Unsigned_64;
        Count    : Positive;
        To_Write : System.Address) return Natural;
 

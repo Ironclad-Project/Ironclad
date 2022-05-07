@@ -17,6 +17,7 @@
 with System;
 with VFS; use VFS;
 with Arch.Stivale2;
+with Interfaces; use Interfaces;
 
 package Devices.Ramdev is
    --  Initialize a device given a stivale2 module to go off from, and whether
@@ -32,23 +33,25 @@ private
       function Raw_Ramdev_Read
          (Data   : Root_Data;
           Obj    : Object;
-          Offset : System.Address;
+          Offset : Unsigned_64;
           Count  : Positive;
           Desto  : System.Address) return Natural;
-      function Raw_Ramdev_Get_Size
+      function Raw_Ramdev_Stat
          (Data : Root_Data;
-          Obj  : Object) return Natural;
+          Obj  : Object;
+          S    : out File_Stat) return Boolean;
       -------------------------------------------------------------------------
       function USTAR_Open (Data : Root_Data; Name : String) return Object;
       procedure USTAR_Close (Data : Root_Data; Obj : Object);
       function USTAR_Read
          (Data   : Root_Data;
           Obj    : Object;
-          Offset : System.Address;
+          Offset : Unsigned_64;
           Count  : Positive;
           Desto  : System.Address) return Natural;
-      function USTAR_Get_Size
+      function USTAR_Stat
          (Data : Root_Data;
-          Obj  : Object) return Natural;
+          Obj  : Object;
+          S    : out File_Stat) return Boolean;
       function Octal_To_Decimal (Octal : String) return Natural;
 end Devices.Ramdev;
