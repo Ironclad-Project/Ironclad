@@ -41,6 +41,8 @@ package Lib.Runtime is
       with Export, External_Name => "__gnat_rcheck_CE_Divide_By_Zero";
    procedure Length_Check (File : System.Address; Line : Integer)
       with Export, External_Name => "__gnat_rcheck_CE_Length_Check";
+   procedure Assert_Failure (Message : String)
+      with Export, External_Name => "system__assertions__raise_assert_failure";
    ----------------------------------------------------------------------------
    function MemCmp (S1, S2 : System.Address; Size : size_t) return int
       with Export, Convention => C, External_Name => "memcmp";

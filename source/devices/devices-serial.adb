@@ -17,6 +17,7 @@
 with Arch.Wrappers;
 with Lib.Synchronization;
 with Scheduler;
+with VFS.Device;
 
 package body Devices.Serial is
    --  COM ports, the first 2 ones are almost sure to be at that address, the
@@ -55,25 +56,22 @@ package body Devices.Serial is
 
          --  Add the device.
          declare
-            Data        : COM_Root_Acc := new COM_Root;
-            Device_Name : Root_Name    := "serial0";
-            Discard     : Boolean      := False;
+            Data        : COM_Root_Acc           := new COM_Root;
+            Device_Name : VFS.Device.Device_Name := "serial0";
+            Discard     : Boolean                := False;
+            Device      : VFS.Device.Device_Data;
          begin
-            Data.Port := COM_Ports (I);
             Device_Name (7) := Character'Val (I + Character'Pos ('0'));
-            Discard := Register_Root ((
-               Name   => Device_Name,
-               Data   => Data.all'Address,
-               Init   => null,
-               Unload => null,
-               Sync   => null,
-               Create => null,
-               Open   => null,
-               Close  => null,
-               Read   => Serial_Read'Access,
-               Write  => Serial_Write'Access,
-               Stat   => null
-            ));
+            Data.Port := COM_Ports (I);
+
+            Device.Name              := Device_Name;
+            Device.Data              := Data.all'Address;
+            Device.Stat.Type_Of_File := VFS.File_Character_Device;
+            Device.Stat.Mode         := 8#660#;
+            Device.Read              := Serial_Read'Access;
+            Device.Write             := Serial_Write'Access;
+
+            Discard := VFS.Device.Register (Device);
             Lib.Synchronization.Release (Data.Mutex'Access);
          end;
       <<End_Port>>
@@ -82,15 +80,13 @@ package body Devices.Serial is
    end Init;
 
    function Serial_Read
-      (Data   : Root_Data;
-       Obj    : Object;
+      (Data   : System.Address;
        Offset : Unsigned_64;
-       Count  : Positive;
-       Desto  : System.Address) return Natural
+       Count  : Unsigned_64;
+       Desto  : System.Address) return Unsigned_64
    is
       COM    : COM_Root with Address => Data;
       Result : array (1 .. Count) of Unsigned_8 with Address => Desto;
-      pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
    begin
       while not Lib.Synchronization.Try_Seize (COM.Mutex'Access) loop
@@ -107,15 +103,13 @@ package body Devices.Serial is
    end Serial_Read;
 
    function Serial_Write
-      (Data     : Root_Data;
-       Obj      : Object;
+      (Data     : System.Address;
        Offset   : Unsigned_64;
-       Count    : Positive;
-       To_Write : System.Address) return Natural
+       Count    : Unsigned_64;
+       To_Write : System.Address) return Unsigned_64
    is
       COM        : COM_Root with Address => Data;
       Write_Data : array (1 .. Count) of Unsigned_8 with Address => To_Write;
-      pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
    begin
       while not Lib.Synchronization.Try_Seize (COM.Mutex'Access) loop

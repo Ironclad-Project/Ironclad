@@ -45,13 +45,16 @@ depth, this is the list of available values:
 | Meaning         | C `errno.h` name | Value |
 | --------------- | ---------------- | ----- |
 | No Error        |                  | 0     |
+| Not big enough  | `ERANGE`         | 3     |
 | Bad Access      | `EACCES`         | 1002  |
 | Not available   | `EAGAIN`         | 1006  |
 | Child process   | `ECHILD`         | 1012  |
 | Would fault     | `EFAULT`         | 1020  |
 | Invalid Value   | `EINVAL`         | 1026  |
+| String too long | `ENAMETOOLONG`   | 1036  |
 | No entity       | `ENOENT`         | 1043  |
 | Not Implemented | `ENOSYS`         | 1051  |
+| Not a directory | `ENOTDIR`        | 1053  |
 | Not Supported   | `ENOSUP`         | 1057  |
 | Invalid seek    | `ESPIPE`         | 1069  |
 | Bad FD          | `EBADFD`         | 1081  |
@@ -81,3 +84,5 @@ This are the syscalls, their prototypes, and a short description.
 | [sethostname](syscalls/hostname.md)         | Basic networking     | 16    |
 | [fstat](syscalls/stat.md)                   | Synchronous File IO  | 17    |
 | [lstat](syscalls/stat.md)                   | Synchronous File IO  | 18    |
+| [getcwd](syscalls/cwd.md)                   | Process management   | 19    |
+| [chdir](syscalls/cwd.md)                    | Process management   | 20    |

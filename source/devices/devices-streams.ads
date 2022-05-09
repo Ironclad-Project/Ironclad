@@ -25,30 +25,26 @@ package Devices.Streams is
 private
 
    function Nulldev_Read
-      (Data   : Root_Data;
-       Obj    : Object;
+      (Data   : System.Address;
        Offset : Unsigned_64;
-       Count  : Positive;
-       Desto  : System.Address) return Natural;
+       Count  : Unsigned_64;
+       Desto  : System.Address) return Unsigned_64;
 
    function Nulldev_Write
-      (Data     : Root_Data;
-       Obj      : Object;
+      (Data     : System.Address;
        Offset   : Unsigned_64;
-       Count    : Positive;
-       To_Write : System.Address) return Natural;
+       Count    : Unsigned_64;
+       To_Write : System.Address) return Unsigned_64;
    ----------------------------------------------------------------------------
    function Zerodev_Read
-      (Data   : Root_Data;
-       Obj    : Object;
+      (Data   : System.Address;
        Offset : Unsigned_64;
-       Count  : Positive;
-       Desto  : System.Address) return Natural;
+       Count  : Unsigned_64;
+       Desto  : System.Address) return Unsigned_64;
 
    function Zerodev_Write
-      (Data     : Root_Data;
-       Obj      : Object;
+      (Data     : System.Address;
        Offset   : Unsigned_64;
-       Count    : Positive;
-       To_Write : System.Address) return Natural;
+       Count    : Unsigned_64;
+       To_Write : System.Address) return Unsigned_64;
 end Devices.Streams;

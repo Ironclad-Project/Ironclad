@@ -1,4 +1,4 @@
---  devices-serial.ads: Serial driver specification.
+--  vfs-ustar.ads: USTAR FS driver.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,27 +14,30 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
+with VFS.Device;
+
 with System;
 
-package Devices.Serial is
-   --  Initialize the serial devices.
-   function Init return Boolean;
+package VFS.USTAR is
+   --  Probe for a USTAR FS in the passed device.
+   --  Return opaque FS data on success, or Null_Address on failure.
+   function Probe (Dev : Device.Device_Data) return System.Address;
 
-private
-
-   function Serial_Read
+   --  Basic file operations.
+   function Open (FS : System.Address; Path : String) return System.Address;
+   procedure Close (FS : System.Address; File_Ptr : System.Address);
+   function Read
       (Data   : System.Address;
+       Obj    : System.Address;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;
+   function Stat
+      (Data : System.Address;
+       Obj  : System.Address;
+       S    : out File_Stat) return Boolean;
 
-   function Serial_Write
-      (Data     : System.Address;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64;
+private
 
-   function Is_Transmitter_Empty (Port : Unsigned_16) return Boolean;
-   function Is_Data_Received (Port : Unsigned_16) return Boolean;
-end Devices.Serial;
+   function Octal_To_Decimal (Octal : String) return Natural;
+end VFS.USTAR;

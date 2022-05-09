@@ -150,6 +150,9 @@ private
       Seconds     : Unsigned_64;
       Nanoseconds : Unsigned_64;
    end record;
+   Stat_IFREG : constant := 16#08000#;
+   Stat_IFCHR : constant := 16#02000#;
+   Stat_IFBLK : constant := 16#06000#;
    type Stat is record
       Device_Number : Unsigned_64;
       Inode_Number  : Unsigned_64;
@@ -191,4 +194,15 @@ private
       (Path    : Unsigned_64;
        Address : Unsigned_64;
        Errno   : out Unsigned_64) return Unsigned_64;
+
+   --  Get current working directory.
+   function Syscall_Get_CWD
+      (Buffer : Unsigned_64;
+       Length : Unsigned_64;
+       Errno  : out Unsigned_64) return Unsigned_64;
+
+   --  Get current working directory.
+   function Syscall_Chdir
+      (Path  : Unsigned_64;
+       Errno : out Unsigned_64) return Unsigned_64;
 end Arch.Syscall;

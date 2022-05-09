@@ -20,6 +20,7 @@ with Arch.APIC;
 with Arch.CPU;
 with Arch.Wrappers;
 with Arch.Stivale2;
+with VFS.Device;
 
 package body Devices.PS2Keyboard is
    --  There can only be 1 PS2 keyboard, so we can store the private data here
@@ -77,6 +78,7 @@ package body Devices.PS2Keyboard is
       BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_LAPICs (1);
       Index     : Arch.IDT.IRQ_Index;
       Unused    : Unsigned_8;
+      Dev       : VFS.Device.Device_Data;
    begin
       --  Set the interrupt up, which is always the 34 (we are 1 based).
       if not Arch.IDT.Load_ISR (Keyboard_Handler'Address, Index) then
@@ -91,43 +93,37 @@ package body Devices.PS2Keyboard is
          Unused := Arch.Wrappers.Port_In (16#60#);
       end loop;
 
-      return Register_Root ((
-         Name   => "ps2keyb",
-         Data   => System.Null_Address,
-         Init   => null,
-         Unload => null,
-         Sync   => null,
-         Create => null,
-         Open   => null,
-         Close  => null,
-         Read   => Read'Access,
-         Write  => null,
-         Stat   => null
-      ));
+      Dev.Name              := "ps2keyb";
+      Dev.Data              := System.Null_Address;
+      Dev.Stat.Type_Of_File := VFS.File_Character_Device;
+      Dev.Stat.Mode         := 8#660#;
+      Dev.Sync              := null;
+      Dev.Read              := Read'Access;
+      Dev.Write             := null;
+      Dev.IO_Control        := null;
+      return VFS.Device.Register (Dev);
    end Init;
 
    function Read
-      (Data   : Root_Data;
-       Obj    : Object;
+      (Data   : System.Address;
        Offset : Unsigned_64;
-       Count  : Positive;
-       Desto  : System.Address) return Natural
+       Count  : Unsigned_64;
+       Desto  : System.Address) return Unsigned_64
    is
       pragma Unreferenced (Data);
-      pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
-      To_Write : String (1 .. Count) with Address => Desto;
+      To_Write : String (1 .. Natural (Count)) with Address => Desto;
    begin
       --  Set the info for the buffer.
       Buffer_Length := 0;
 
       --  Set that we are reading, and wait until done.
       Is_Reading := True;
-      while Buffer_Length /= Count loop null; end loop;
+      while Buffer_Length /= Natural (Count) loop null; end loop;
 
       --  Copy back.
       Is_Reading := False;
-      To_Write := Key_Buffer (1 .. Count);
+      To_Write := Key_Buffer (1 .. Natural (Count));
       return Count;
    end Read;
 

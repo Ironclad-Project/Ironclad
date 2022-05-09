@@ -47,8 +47,9 @@ package body Userland.Loader is
       if Returned_PID = null then
          goto Error;
       end if;
-      Returned_PID.Common_Map   := Fork_Map (Kernel_Map);
-      Returned_PID.Current_Root := FD.Root.Name;
+      Returned_PID.Common_Map      := Fork_Map (Kernel_Map);
+      Returned_PID.Current_Dir_Len := 1;
+      Returned_PID.Current_Dir (1) := '/';
 
       if not Start_Program (FD, Arguments, Environment, Returned_PID) then
          goto Error_Process;
@@ -89,12 +90,10 @@ package body Userland.Loader is
       if Loaded_ELF.Linker_Path /= null then
          --  Interpreter paths are relative, so we build an absolute one on
          --  the spot using Path, which is absolute.
-         LD_Path (1) := '@';
-         LD_Path (2 .. 8) := FD.Root.Name;
          LD_Path (9 .. Loaded_ELF.Linker_Path.all'Length + 8) :=
             Loaded_ELF.Linker_Path (1 .. Loaded_ELF.Linker_Path.all'Length);
          LD_File := Open
-            (LD_Path (1 .. 6 + Loaded_ELF.Linker_Path.all'Length), Access_R);
+            (LD_Path (9 .. 7 + Loaded_ELF.Linker_Path.all'Length), Access_R);
          if LD_File = null then
             goto Error;
          end if;
@@ -131,7 +130,8 @@ package body Userland.Loader is
             goto Error;
          end if;
 
-         Proc.Current_Root := FD.Root.Name;
+         Proc.Current_Dir_Len := 1;
+         Proc.Current_Dir (1) := '/';
          return True;
       end;
 

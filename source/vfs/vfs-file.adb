@@ -16,73 +16,58 @@
 
 with System; use System;
 with VFS;
-with Userland.Process; use Userland.Process;
-with Scheduler; use Scheduler;
+with VFS.Path;
+with VFS.USTAR;
 
 package body VFS.File is
    function Open (Path : String; Access_Flags : Access_Mode) return File_Acc is
-      Is_Absolute  : constant Boolean := Path (Path'First) = '@';
-      Fetched_Root : VFS.Root;
-      Fetched_Obj  : VFS.Object := System.Null_Address;
+      Fetched_Dev  : VFS.Device.Device_Data;
+      Fetched_Type : VFS.Device.FS_Type := VFS.Device.FS_USTAR;
+      Fetched_FS   : System.Address     := System.Null_Address;
+      Fetched_File : System.Address     := System.Null_Address;
    begin
-      --  Fetch the root and object for absolute paths, or build an absolute
-      --  path.
-      if Is_Absolute then
-         declare
-            Root  : constant String := Path (Path'First + 1 .. Path'First + 7);
-            RPath : constant String := Path (Path'First + 9 .. Path'Last);
-         begin
-            if not VFS.Get_Root (Root, Fetched_Root) then
-               return null;
-            end if;
-            if RPath'Length /= 0 and Fetched_Root.Open /= null then
-               Fetched_Obj := Fetched_Root.Open.all (Fetched_Root.Data, RPath);
-               if Fetched_Obj = System.Null_Address then
+      if Path'Length >= 12 and then
+         Path (Path'First .. Path'First + 4) = "/dev/"
+      then
+         if not VFS.Device.Fetch
+            (Path (Path'First + 5 .. Path'First + 11), Fetched_Dev)
+         then
+            return null;
+         end if;
+      elsif VFS.Path.Is_Absolute (Path) then
+         Fetched_FS := VFS.Device.Get_Mount ("/", Fetched_Type);
+         if Fetched_FS = Null_Address then
+            return null;
+         end if;
+
+         case Fetched_Type is
+            when VFS.Device.FS_USTAR =>
+               Fetched_File :=
+                  USTAR.Open (Fetched_FS, Path (Path'First + 1 .. Path'Last));
+               if Fetched_File = Null_Address then
                   return null;
                end if;
-            end if;
-         end;
+         end case;
       else
-         declare
-            Thread    : constant TID              := Get_Current_Thread;
-            Process   : constant Process_Data_Acc := Get_By_Thread (Thread);
-            New_Path  : String (1 .. Path'Length + VFS.Root_Name'Length + 2);
-            Has_Slash : constant Boolean := Path (Path'First) = '/';
-         begin
-            if Process = null then
-               return null;
-            end if;
-            New_Path (1)      := '@';
-            New_Path (2 .. 8) := Process.Current_Root;
-            New_Path (9)      := ':';
-            if Has_Slash then
-               New_Path (10 .. New_Path'Length - 1) :=
-                  Path (Path'First + 1 .. Path'Last);
-               return Open (New_Path (New_Path'First .. New_Path'Last - 1),
-                            Access_Flags);
-            else
-               New_Path (10 .. New_Path'Length) := Path;
-               return Open (New_Path, Access_Flags);
-            end if;
-         end;
+         --  TODO: Do relative opening, at all.
+         return null;
       end if;
 
       --  Return the created file.
       return new File'(
-         Root   => Fetched_Root,
-         Object => Fetched_Obj,
-         Index  => 0,
-         Flags  => Access_Flags
+         Dev_Data  => Fetched_Dev,
+         FS_Data   => Fetched_FS,
+         File_Data => Fetched_File,
+         FS_Type   => Fetched_Type,
+         Index     => 0,
+         Flags     => Access_Flags
       );
    end Open;
 
    procedure Close (To_Close : File_Acc) is
    begin
-      if To_Close /= null and then To_Close.Root.Close /= null then
-         To_Close.Root.Close.all (
-            To_Close.Root.Data,
-            To_Close.Object
-         );
+      if To_Close /= null and then To_Close.FS_Data /= System.Null_Address then
+         USTAR.Close (To_Close.FS_Data, To_Close.File_Data);
       end if;
    end Close;
 
@@ -93,20 +78,33 @@ package body VFS.File is
    is
       Read_Count : Natural;
    begin
-      if To_Read = null or else To_Read.Flags = Access_W or else
-         To_Read.Root.Read = null
-      then
+      if To_Read = null or else To_Read.Flags = Access_W then
          return 0;
-      else
-         Read_Count := To_Read.Root.Read.all (
-            To_Read.Root.Data,
-            To_Read.Object,
+      end if;
+
+      if To_Read.FS_Data /= System.Null_Address
+         and To_Read.File_Data /= System.Null_Address
+      then
+         Read_Count := Integer (USTAR.Read (
+            To_Read.FS_Data,
+            To_Read.File_Data,
             Unsigned_64 (To_Read.Index),
-            Count,
+            Unsigned_64 (Count),
             Destination
-         );
+         ));
          To_Read.Index := To_Read.Index + Read_Count;
          return Read_Count;
+      elsif To_Read.Dev_Data.Read /= null then
+         Read_Count := Integer (To_Read.Dev_Data.Read (
+            To_Read.Dev_Data.Data,
+            Unsigned_64 (To_Read.Index),
+            Unsigned_64 (Count),
+            Destination
+         ));
+         To_Read.Index := To_Read.Index + Read_Count;
+         return Read_Count;
+      else
+         return 0;
       end if;
    end Read;
 
@@ -115,31 +113,39 @@ package body VFS.File is
        Count    : Natural;
        Data     : System.Address) return Natural
    is
-      Written_Count : Natural;
+      Write_Count : Natural;
    begin
-      if To_Write = null or else To_Write.Flags = Access_R or else
-         To_Write.Root.Write = null
+      if To_Write = null or else To_Write.Flags = Access_R then
+         return 0;
+      end if;
+      if To_Write.FS_Data /= System.Null_Address and
+         To_Write.File_Data /= System.Null_Address
       then
          return 0;
       else
-         Written_Count := To_Write.Root.Write.all (
-            To_Write.Root.Data,
-            To_Write.Object,
+         Write_Count := Integer (To_Write.Dev_Data.Write (
+            To_Write.Dev_Data.Data,
             Unsigned_64 (To_Write.Index),
-            Count,
+            Unsigned_64 (Count),
             Data
-         );
-         To_Write.Index := To_Write.Index + Written_Count;
-         return Written_Count;
+         ));
+         To_Write.Index := To_Write.Index + Write_Count;
+         return Write_Count;
       end if;
    end Write;
 
    function Stat (F : File_Acc; S : out VFS.File_Stat) return Boolean is
    begin
-      if F = null or else F.Root.Stat = null then
+      if F = null then
          return False;
+      end if;
+      if F.FS_Data /= System.Null_Address and
+         F.File_Data /= System.Null_Address
+      then
+         return USTAR.Stat (F.FS_Data, F.File_Data, S);
       else
-         return F.Root.Stat.all (F.Root.Data, F.Object, S);
+         S := F.Dev_Data.Stat;
+         return True;
       end if;
    end Stat;
 end VFS.File;

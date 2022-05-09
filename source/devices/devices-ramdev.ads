@@ -16,6 +16,7 @@
 
 with System;
 with VFS; use VFS;
+with VFS.Device;
 with Arch.Stivale2;
 with Interfaces; use Interfaces;
 
@@ -24,34 +25,13 @@ package Devices.Ramdev is
    --  its a USTAR FS or not.
    function Init_Module
       (Module : Arch.Stivale2.Module;
-       Name   : Root_Name) return Root;
+       Name   : VFS.Device.Device_Name) return VFS.Device.Device_Data;
 
 private
-      function Ramdev_Init (Data : Root_Data) return Root_Data;
-      procedure Ramdev_Unload (Data : Root_Data);
-      -------------------------------------------------------------------------
-      function Raw_Ramdev_Read
-         (Data   : Root_Data;
-          Obj    : Object;
-          Offset : Unsigned_64;
-          Count  : Positive;
-          Desto  : System.Address) return Natural;
-      function Raw_Ramdev_Stat
-         (Data : Root_Data;
-          Obj  : Object;
-          S    : out File_Stat) return Boolean;
-      -------------------------------------------------------------------------
-      function USTAR_Open (Data : Root_Data; Name : String) return Object;
-      procedure USTAR_Close (Data : Root_Data; Obj : Object);
-      function USTAR_Read
-         (Data   : Root_Data;
-          Obj    : Object;
-          Offset : Unsigned_64;
-          Count  : Positive;
-          Desto  : System.Address) return Natural;
-      function USTAR_Stat
-         (Data : Root_Data;
-          Obj  : Object;
-          S    : out File_Stat) return Boolean;
-      function Octal_To_Decimal (Octal : String) return Natural;
+
+   function Read
+      (Data   : System.Address;
+       Offset : Unsigned_64;
+       Count  : Unsigned_64;
+       Desto  : System.Address) return Unsigned_64;
 end Devices.Ramdev;

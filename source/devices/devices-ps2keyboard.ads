@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
-with VFS; use VFS;
 with Interfaces; use Interfaces;
 
 package Devices.PS2Keyboard is
@@ -25,11 +24,10 @@ package Devices.PS2Keyboard is
 private
 
    function Read
-      (Data   : Root_Data;
-       Obj    : Object;
+      (Data   : System.Address;
        Offset : Unsigned_64;
-       Count  : Positive;
-       Desto  : System.Address) return Natural;
+       Count  : Unsigned_64;
+       Desto  : System.Address) return Unsigned_64;
 
    procedure Keyboard_Handler;
 end Devices.PS2Keyboard;

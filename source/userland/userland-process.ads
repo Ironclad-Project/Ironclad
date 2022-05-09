@@ -31,15 +31,16 @@ package Userland.Process is
    type Process_File_Table     is array (0 .. 99) of VFS.File.File_Acc;
    type Process_Children_Table is array (1 .. 10) of Natural;
    type Process_Data is record
-      Process_PID  : Positive;
-      Parent_PID   : Natural;
-      Children     : Process_Children_Table;
-      Current_Root : VFS.Root_Name;
-      Thread_List  : Process_Data_Threads;
-      File_Table   : Process_File_Table;
-      Common_Map   : access Memory.Virtual.Page_Map;
-      Stack_Base   : Unsigned_64;
-      Alloc_Base   : Unsigned_64;
+      Process_PID     : Positive;
+      Parent_PID      : Natural;
+      Children        : Process_Children_Table;
+      Current_Dir_Len : Natural;
+      Current_Dir     : String (1 .. 100);
+      Thread_List     : Process_Data_Threads;
+      File_Table      : Process_File_Table;
+      Common_Map      : access Memory.Virtual.Page_Map;
+      Stack_Base      : Unsigned_64;
+      Alloc_Base      : Unsigned_64;
 
       --  Returns for waiting.
       Did_Exit  : Boolean    with Volatile;

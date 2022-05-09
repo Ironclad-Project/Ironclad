@@ -16,7 +16,6 @@
 
 with Interfaces; use Interfaces;
 with System;
-with VFS; use VFS;
 
 package Devices.TTY is
    --  Initialize the device.
@@ -25,16 +24,14 @@ package Devices.TTY is
 private
 
    function Read
-      (Data     : Root_Data;
-       Obj      : Object;
+      (Data     : System.Address;
        Offset   : Unsigned_64;
-       Count    : Positive;
-       To_Write : System.Address) return Natural;
+       Count    : Unsigned_64;
+       To_Write : System.Address) return Unsigned_64;
 
    function Write
-      (Data     : Root_Data;
-       Obj      : Object;
+      (Data     : System.Address;
        Offset   : Unsigned_64;
-       Count    : Positive;
-       To_Write : System.Address) return Natural;
+       Count    : Unsigned_64;
+       To_Write : System.Address) return Unsigned_64;
 end Devices.TTY;

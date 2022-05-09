@@ -20,6 +20,9 @@ A list of the tools needed for compilation and checked by configure is:
 - A standard linker and GAS assembler.
 - xorriso and QEMU for testing.
 
+Good sets of flags for make for release are:
+make ADAFLAGS='-flto -gnaty -gnata -Wall -O2 -g' LDFLAGS='-flto -O2' LD=gcc
+
 -- Documentation --
 
 Under the docs directory one can find a hefty ammount of documentation

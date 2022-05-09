@@ -14,49 +14,37 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with VFS.Device;
+
 package body Devices.Streams is
    function Init return Boolean is
-      Nulldev : constant Root := (
-         Name   => "nulldev",
-         Data   => System.Null_Address,
-         Init   => null,
-         Unload => null,
-         Sync   => null,
-         Create => null,
-         Open   => null,
-         Close  => null,
-         Read   => Nulldev_Read'Access,
-         Write  => Nulldev_Write'Access,
-         Stat   => null
-      );
-      Zerodev : constant Root := (
-         Name   => "zerodev",
-         Data   => System.Null_Address,
-         Init   => null,
-         Unload => null,
-         Sync   => null,
-         Create => null,
-         Open   => null,
-         Close  => null,
-         Read   => Zerodev_Read'Access,
-         Write  => Zerodev_Write'Access,
-         Stat   => null
-      );
+      Nulldev : VFS.Device.Device_Data;
+      Zerodev : VFS.Device.Device_Data;
    begin
-      if Register_Root (Nulldev) = False then return False; end if;
-      if Register_Root (Zerodev) = False then return False; end if;
+      Nulldev.Name              := "nulldev";
+      Nulldev.Stat.Type_Of_File := VFS.File_Character_Device;
+      Nulldev.Stat.Mode         := 8#660#;
+      Nulldev.Read              := Nulldev_Read'Access;
+      Nulldev.Write             := Nulldev_Write'Access;
+
+      Zerodev.Name              := "zerodev";
+      Zerodev.Stat.Type_Of_File := VFS.File_Character_Device;
+      Zerodev.Stat.Mode         := 8#660#;
+      Zerodev.Read              := Zerodev_Read'Access;
+      Zerodev.Write             := Zerodev_Write'Access;
+
+      if not VFS.Device.Register (Nulldev) then return False; end if;
+      if not VFS.Device.Register (Zerodev) then return False; end if;
       return True;
    end Init;
    ----------------------------------------------------------------------------
    function Nulldev_Read
-      (Data   : Root_Data;
-       Obj    : Object;
+      (Data   : System.Address;
        Offset : Unsigned_64;
-       Count  : Positive;
-       Desto  : System.Address) return Natural
+       Count  : Unsigned_64;
+       Desto  : System.Address) return Unsigned_64
    is
       pragma Unreferenced (Data);
-      pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
       pragma Unreferenced (Count);
       pragma Unreferenced (Desto);
@@ -66,14 +54,12 @@ package body Devices.Streams is
    end Nulldev_Read;
 
    function Nulldev_Write
-      (Data     : Root_Data;
-       Obj      : Object;
+      (Data     : System.Address;
        Offset   : Unsigned_64;
-       Count    : Positive;
-       To_Write : System.Address) return Natural
+       Count    : Unsigned_64;
+       To_Write : System.Address) return Unsigned_64
    is
       pragma Unreferenced (Data);
-      pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
       pragma Unreferenced (To_Write);
    begin
@@ -82,15 +68,13 @@ package body Devices.Streams is
    end Nulldev_Write;
    ----------------------------------------------------------------------------
    function Zerodev_Read
-      (Data   : Root_Data;
-       Obj    : Object;
+      (Data   : System.Address;
        Offset : Unsigned_64;
-       Count  : Positive;
-       Desto  : System.Address) return Natural
+       Count  : Unsigned_64;
+       Desto  : System.Address) return Unsigned_64
    is
       Result : array (1 .. Count) of Unsigned_8 with Address => Desto;
       pragma Unreferenced (Data);
-      pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
    begin
       for I of Result loop
@@ -100,14 +84,12 @@ package body Devices.Streams is
    end Zerodev_Read;
 
    function Zerodev_Write
-      (Data     : Root_Data;
-       Obj      : Object;
+      (Data     : System.Address;
        Offset   : Unsigned_64;
-       Count    : Positive;
-       To_Write : System.Address) return Natural
+       Count    : Unsigned_64;
+       To_Write : System.Address) return Unsigned_64
    is
       pragma Unreferenced (Data);
-      pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
       pragma Unreferenced (To_Write);
    begin

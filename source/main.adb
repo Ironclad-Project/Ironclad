@@ -31,6 +31,7 @@ with Devices.Ramdev;
 with Devices;
 with VFS.File; use VFS.File;
 with VFS;
+with VFS.Device;
 with Lib.Cmdline;
 with Lib.Messages;
 with Lib.Panic;
@@ -155,13 +156,14 @@ package body Main is
       Init_Environment : Userland.Environment_Arr (1 .. 0);
 
       type String_Acc is access all String;
+      Root_Value : String_Acc;
       Init_Value : String_Acc;
       Init_File  : File_Acc;
       procedure Free_S is new Ada.Unchecked_Deallocation (String, String_Acc);
       procedure Free_F is new Ada.Unchecked_Deallocation (File,   File_Acc);
    begin
       Lib.Messages.Put_Line ("Initializing FS subsystem");
-      VFS.Init;
+      VFS.Device.Init_Registry;
 
       Lib.Messages.Put_Line ("Initializing processes");
       Userland.Process.Init;
@@ -172,11 +174,11 @@ package body Main is
       Lib.Messages.Put_Line ("Mounting stivale2 modules as ramdevs");
       for I in Modules.Entries'First .. Modules.Entries'Last loop
          declare
-            Name : VFS.Root_Name := "ramdev0";
+            Name : VFS.Device.Device_Name := "ramdev0";
          begin
             exit when I = 10;
             Name (7) := Character'Val (I + Character'Pos ('0'));
-            if not VFS.Register_Root
+            if not VFS.Device.Register
                (Devices.Ramdev.Init_Module (Modules.Entries (I), Name))
             then
                Lib.Panic.Hard_Panic ("Could not load a stivale2 ramdev");
@@ -185,19 +187,29 @@ package body Main is
       end loop;
 
       Lib.Messages.Put_Line ("Fetching kernel cmdline options");
+      Root_Value := Lib.Cmdline.Get_Parameter (Cmdline_Addr, "root");
       Init_Value := Lib.Cmdline.Get_Parameter (Cmdline_Addr, "init");
+
       Memory.Physical.Set_Tracing
          (Lib.Cmdline.Is_Key_Present (Cmdline_Addr, "memtracing"));
       Arch.Syscall.Set_Tracing
          (Lib.Cmdline.Is_Key_Present (Cmdline_Addr, "syscalltracing"));
+
+      if Root_Value /= null then
+         if not VFS.Device.Mount (Root_Value.all, "/", VFS.Device.FS_USTAR)
+         then
+            Lib.Panic.Soft_Panic ("Could not mount " & Root_Value.all & " /");
+         end if;
+         Free_S (Root_Value);
+      end if;
 
       if Init_Value /= null then
          Lib.Messages.Put_Line ("Booting init " & Init_Value.all);
          Init_Arguments (1) := new String'(Init_Value.all);
          Init_File := Open (Init_Value.all, Access_R);
          if Init_File = null or else Userland.Loader.Start_Program
-            (Init_File, Init_Arguments, Init_Environment, "@ttydev1",
-             "@ttydev1", "@ttydev1") = null
+            (Init_File, Init_Arguments, Init_Environment, "/dev/ttydev1",
+             "/dev/ttydev1", "/dev/ttydev1") = null
          then
             Lib.Panic.Soft_Panic ("Could not start init");
          end if;

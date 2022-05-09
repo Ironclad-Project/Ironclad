@@ -15,14 +15,17 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
+with VFS.Device;
 
 package VFS.File is
    type Access_Mode is (Access_R, Access_W, Access_RW);
    type File is record
-      Root   : VFS.Root;
-      Object : VFS.Object;
-      Index  : Natural;
-      Flags  : Access_Mode;
+      Dev_Data  : VFS.Device.Device_Data;
+      FS_Data   : System.Address;
+      File_Data : System.Address;
+      FS_Type   : VFS.Device.FS_Type;
+      Index     : Natural;
+      Flags     : Access_Mode;
    end record;
    type File_Acc is access all File;
 

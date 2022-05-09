@@ -37,6 +37,7 @@ The list must be passed as a NUL-terminated, C-style string.
 
 This are the keys and values the kernel takes, and under which circumstances:
 
+- `root=<device>`: Device to mount as root, if any.
 - `init=<path>`: Checked for an init program, if any.
 - `memtracing`:  Enables memory tracing at the expense of performance.
 - `syscalltracing`: Enables tracing syscalls and their arguments, really

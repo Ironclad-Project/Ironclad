@@ -25,6 +25,7 @@ with Networking;
 with Userland.Process; use Userland.Process;
 with Userland.Loader;
 with VFS.File; use VFS.File;
+with VFS;
 with Scheduler;
 with Memory.Virtual; use Memory.Virtual;
 with Memory.Physical;
@@ -34,13 +35,16 @@ with Ada.Unchecked_Deallocation;
 package body Arch.Syscall is
    --  Errno values, they are ABI and arbitrary.
    Error_No_Error        : constant := 0;
+   Error_Not_Big_Enough  : constant := 3;    -- ERANGE.
    Error_Bad_Access      : constant := 1002; -- EACCES.
    Error_Would_Block     : constant := 1006; -- EAGAIN.
    Error_Child           : constant := 1012; -- ECHILD.
    Error_Would_Fault     : constant := 1020; -- EFAULT.
    Error_Invalid_Value   : constant := 1026; -- EINVAL.
+   Error_String_Too_Long : constant := 1036; -- ENAMETOOLONG
    Error_No_Entity       : constant := 1043; -- ENOENT.
    Error_Not_Implemented : constant := 1051; -- ENOSYS.
+   Error_Not_A_Directory : constant := 1053; -- ENOTDIR.
    Error_Not_Supported   : constant := 1057; -- ENOSUP.
    Error_Invalid_Seek    : constant := 1069; -- ESPIPE.
    Error_Bad_File        : constant := 1081; -- EBADFD.
@@ -109,6 +113,10 @@ package body Arch.Syscall is
             Returned := Syscall_FStat (State.RDI, State.RSI, Errno);
          when 18 =>
             Returned := Syscall_LStat (State.RDI, State.RSI, Errno);
+         when 19 =>
+            Returned := Syscall_Get_CWD (State.RDI, State.RSI, Errno);
+         when 20 =>
+            Returned := Syscall_Chdir (State.RDI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -280,7 +288,6 @@ package body Arch.Syscall is
          Errno := Error_Invalid_Value;
          return Unsigned_64'Last;
       end if;
-
       Errno := Error_No_Error;
       return Unsigned_64 (VFS.File.Read (File, Integer (Count), Buffer_Addr));
    end Syscall_Read;
@@ -308,7 +315,6 @@ package body Arch.Syscall is
          Lib.Messages.Put (Count);
          Lib.Messages.Put_Line (")");
       end if;
-
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -317,7 +323,6 @@ package body Arch.Syscall is
          Errno := Error_Invalid_Value;
          return Unsigned_64'Last;
       end if;
-
       Errno := Error_No_Error;
       return Unsigned_64 (VFS.File.Write (File, Integer (Count), Buffer_Addr));
    end Syscall_Write;
@@ -333,7 +338,6 @@ package body Arch.Syscall is
          Userland.Process.Get_By_Thread (Current_Thread);
       File : constant VFS.File.File_Acc :=
          Current_Process.File_Table (Natural (File_D));
-      Passed_Offset : constant Natural := Natural (Offset);
       Stat_Val : VFS.File_Stat;
    begin
       if Is_Tracing then
@@ -345,6 +349,7 @@ package body Arch.Syscall is
          Lib.Messages.Put (Whence);
          Lib.Messages.Put_Line (")");
       end if;
+
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -355,15 +360,16 @@ package body Arch.Syscall is
       end if;
       case Whence is
          when SEEK_SET =>
-            File.Index := Passed_Offset;
+            File.Index := Natural (Offset);
          when SEEK_CURRENT =>
-            File.Index := File.Index + Passed_Offset;
+            File.Index := Natural (Unsigned_64 (File.Index) + Offset);
          when SEEK_END =>
-            File.Index := Natural (Stat_Val.Byte_Size) + Passed_Offset;
+            File.Index := Natural (Stat_Val.Byte_Size + Offset);
          when others =>
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
       end case;
+
       Errno := Error_No_Error;
       return Unsigned_64 (File.Index);
    end Syscall_Seek;
@@ -816,6 +822,16 @@ package body Arch.Syscall is
             Block_Count   => Stat_Val.IO_Block_Count
          );
 
+         --  Set the access part of mode.
+         case Stat_Val.Type_Of_File is
+            when VFS.File_Regular =>
+               Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFREG;
+            when VFS.File_Character_Device =>
+               Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFCHR;
+            when VFS.File_Block_Device =>
+               Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFBLK;
+         end case;
+
          return True;
       else
          --  TODO: Once our VFS can handle better '.', '..', and '/', remove
@@ -896,4 +912,83 @@ package body Arch.Syscall is
          return Unsigned_64'Last;
       end if;
    end Syscall_LStat;
+
+   function Syscall_Get_CWD
+      (Buffer : Unsigned_64;
+       Length : Unsigned_64;
+       Errno  : out Unsigned_64) return Unsigned_64
+   is
+      Addr : constant System.Address := To_Address (Integer_Address (Buffer));
+      Len  : constant Natural := Natural (Length);
+      Path : String (1 .. Len) with Address => Addr;
+
+      Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Process : constant Userland.Process.Process_Data_Acc :=
+         Userland.Process.Get_By_Thread (Thread);
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall getcwd(");
+         Lib.Messages.Put (Buffer, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Length);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if Buffer = 0 then
+         Errno := Error_Would_Fault;
+         return 0;
+      end if;
+      if Len = 0 then
+         Errno := Error_Invalid_Value;
+         return 0;
+      end if;
+      if Len < Process.Current_Dir_Len then
+         Errno := Error_Not_Big_Enough;
+         return 0;
+      end if;
+
+      Path (1 .. Process.Current_Dir_Len) :=
+         Process.Current_Dir (1 .. Process.Current_Dir_Len);
+      Errno := Error_No_Error;
+      return Buffer;
+   end Syscall_Get_CWD;
+
+   function Syscall_Chdir
+      (Path  : Unsigned_64;
+       Errno : out Unsigned_64) return Unsigned_64
+   is
+      Addr    : constant System.Address := To_Address (Integer_Address (Path));
+      Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Process : constant Userland.Process.Process_Data_Acc :=
+         Userland.Process.Get_By_Thread (Thread);
+   begin
+      if Path = 0 then
+         if Is_Tracing then
+            Lib.Messages.Put_Line ("syscall chdir(0)");
+         end if;
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      end if;
+
+      declare
+         Path_Length : constant Natural := Lib.C_String_Length (Addr);
+         Path_String : String (1 .. Path_Length) with Address => Addr;
+      begin
+         if Is_Tracing then
+            Lib.Messages.Put ("syscall chdir(");
+            Lib.Messages.Put (Path_String);
+            Lib.Messages.Put_Line (")");
+         end if;
+
+         if Path_Length > Process.Current_Dir'Length then
+            Errno := Error_String_Too_Long;
+            return Unsigned_64'Last;
+         end if;
+
+         Process.Current_Dir_Len := Path_Length;
+         Process.Current_Dir (1 .. Path_Length) := Path_String;
+         Errno := Error_No_Error;
+         return 0;
+      end;
+   end Syscall_Chdir;
 end Arch.Syscall;

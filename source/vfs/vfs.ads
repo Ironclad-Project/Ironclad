@@ -14,90 +14,22 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
 with Interfaces; use Interfaces;
 
 package VFS is
-   --  The VFS of Ironclad consists on a list of root devices that are mounted
-   --  as their own root, instead of having a single root.
-   --  Inside each of these roots, the layout of the several files and folders
-   --  is entirely dependant on said root, along with the operations supported.
-   --  The functions below are a skelleton, different root implementations are
-   --  free to implement A R B I T R A R Y behaviour, and they may be null for
-   --  non-implemented functions.
-   --
-   --  (When in the functions below it is mentioned to read or write the root,
-   --  it means for devices like disks or such that can be operated raw).
-   subtype Root_Data is System.Address;
-   subtype Object    is System.Address;
-   subtype Root_Name is String (1 .. 7);
-   Error_Value : constant Root_Data := Root_Data (System'To_Address (0));
+   type File_Type is (
+      File_Regular,
+      File_Character_Device,
+      File_Block_Device
+   );
 
    type File_Stat is record
       Unique_Identifier : Unsigned_64;
+      Type_Of_File      : File_Type;
       Mode              : Unsigned_32;
       Hard_Link_Count   : Positive;
       Byte_Size         : Unsigned_64;
       IO_Block_Size     : Natural;
       IO_Block_Count    : Unsigned_64;
    end record;
-
-   type Root is record
-      Name   : Root_Name; -- Name of the root.
-      Data   : Root_Data; --  Instance-specific untouchable data.
-      Init   : access function (Data : Root_Data) return Root_Data; --  Init.
-      Unload : access procedure (Data : Root_Data); --  Deinitialize the root.
-      Sync   : access procedure (Data : Root_Data); --  Commits all writes.
-
-      --  Create an object on the root, and return it.
-      Create : access function
-         (Data  : Root_Data;
-          Name  : String;
-          Flags : Positive) return Boolean;
-
-      --  Open an object.
-      Open : access function (Data : Root_Data; Name : String) return Object;
-
-      --  Close an object.
-      Close : access procedure (Data : Root_Data; Obj : Object);
-
-      --  Read object, if object = 0, read the root itself.
-      Read : access function
-         (Data   : Root_Data;
-          Obj    : Object;
-          Offset : Unsigned_64;
-          Count  : Positive;
-          Desto  : System.Address) return Natural;
-
-      --  Write object, if object = 0, write the root itself.
-      Write : access function
-         (Data     : Root_Data;
-          Obj      : Object;
-          Offset   : Unsigned_64;
-          Count    : Positive;
-          To_Write : System.Address) return Natural;
-
-      --  Get the stat of an object, if object = 0, return stat of the root.
-      Stat : access function
-         (Data : Root_Data;
-          Obj  : Object;
-          S    : out File_Stat) return Boolean;
-   end record;
-
-   --  Initialize the FS registry.
-   procedure Init;
-
-   --  Register a root, and display it to the user, and return success.
-   function Register_Root (R : Root) return Boolean;
-
-   --  Get the root structure, and return success.
-   function Get_Root (Name : Root_Name; Result : out Root) return Boolean;
-
-   --  Unload the root that answers to the passed name.
-   procedure Unload_Root (Name : Root_Name);
-
-   --  Get an allocated list of the active roots (without the leading @).
-   type Root_List is array (Natural range <>) of Root_Name;
-   type Root_List_Acc is access Root_List;
-   function List_Roots return Root_List_Acc;
 end VFS;

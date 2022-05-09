@@ -65,6 +65,11 @@ package body Lib.Runtime is
       Print_Exception ("Divide by zero check failure", File, Line);
    end Divide_By_Zero_Check;
 
+   procedure Assert_Failure (Message : String) is
+   begin
+      Lib.Panic.Hard_Panic (Message);
+   end Assert_Failure;
+
    function MemCmp (S1, S2 : System.Address; Size : size_t) return int is
       Str1 : array (1 .. Size) of Unsigned_8 with Address => S1;
       Str2 : array (1 .. Size) of Unsigned_8 with Address => S2;

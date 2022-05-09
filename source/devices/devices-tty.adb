@@ -16,56 +16,49 @@
 
 with Arch.Stivale2;
 with VFS.File; use VFS.File;
+with VFS.Device;
 with System.Address_To_Access_Conversions;
 
 package body Devices.TTY is
    package Conv is new System.Address_To_Access_Conversions (VFS.File.File);
 
    function Init return Boolean is
+      Dev : VFS.Device.Device_Data;
       File_Addr : constant System.Address :=
-         Conv.To_Address (Open ("@ps2keyb", Access_R).all'Access);
+         Conv.To_Address (Open ("/dev/ps2keyb", Access_R).all'Access);
    begin
-      return Register_Root ((
-         Name   => "ttydev1",
-         Data   => File_Addr,
-         Init   => null,
-         Unload => null,
-         Sync   => null,
-         Create => null,
-         Open   => null,
-         Close  => null,
-         Read   => Read'Access,
-         Write  => Write'Access,
-         Stat   => null
-      ));
+      Dev.Name              := "ttydev1";
+      Dev.Data              := File_Addr;
+      Dev.Stat.Type_Of_File := VFS.File_Character_Device;
+      Dev.Stat.Mode         := 8#660#;
+      Dev.Sync              := null;
+      Dev.Read              := Read'Access;
+      Dev.Write             := Write'Access;
+      Dev.IO_Control        := null;
+      return VFS.Device.Register (Dev);
    end Init;
 
    function Read
-      (Data     : Root_Data;
-       Obj      : Object;
+      (Data     : System.Address;
        Offset   : Unsigned_64;
-       Count    : Positive;
-       To_Write : System.Address) return Natural
+       Count    : Unsigned_64;
+       To_Write : System.Address) return Unsigned_64
    is
-      pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
-
       PS2_File_Acc : constant File_Acc := File_Acc (Conv.To_Pointer (Data));
    begin
-      return VFS.File.Read (PS2_File_Acc, Count, To_Write);
+      return Unsigned_64 (VFS.File.Read (PS2_File_Acc, Natural (Count), To_Write));
    end Read;
 
    function Write
-      (Data     : Root_Data;
-       Obj      : Object;
+      (Data     : System.Address;
        Offset   : Unsigned_64;
-       Count    : Positive;
-       To_Write : System.Address) return Natural
+       Count    : Unsigned_64;
+       To_Write : System.Address) return Unsigned_64
    is
       pragma Unreferenced (Data);
-      pragma Unreferenced (Obj);
       pragma Unreferenced (Offset);
-      Message : String (1 .. Count) with Address => To_Write;
+      Message : String (1 .. Natural (Count)) with Address => To_Write;
    begin
       Arch.Stivale2.Print_Terminal (Message);
       return Count;
