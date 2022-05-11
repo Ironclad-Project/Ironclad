@@ -21,12 +21,13 @@ package body VFS.Path is
    end Is_Absolute;
 
    function Build_Path (CWD, Path : String) return Str_Acc is
-      Length   : constant Natural := CWD'Length + 1 + Path'Length;
+      Length   : constant Natural := 1 + CWD'Length + 1 + Path'Length;
       New_Path : constant Str_Acc := new String (1 .. Length);
    begin
-      New_Path (1 .. CWD'Length)          := CWD;
-      New_Path (CWD'Length + 1)           := '/';
-      New_Path (CWD'Length + 2 .. Length) := Path;
+      New_Path (1)                        := '/';
+      New_Path (2 .. CWD'Length + 1)      := CWD;
+      New_Path (CWD'Length + 2)           := '/';
+      New_Path (CWD'Length + 3 .. Length) := Path;
       return New_Path;
    end Build_Path;
 

@@ -16,7 +16,6 @@
 
 with Interfaces; use Interfaces;
 with System;
-with VFS; use VFS;
 
 package Devices.Streams is
    --  Initialize the device.

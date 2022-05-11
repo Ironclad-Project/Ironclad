@@ -28,7 +28,7 @@ AC_ARG_VAR(ASFLAGS, [Assembler flags [-O2 -g]])
 AC_ARG_VAR(LD, [Linker command [ld]])
 AC_ARG_VAR(LDFLAGS, [Linker flags [-O2 -g]])
 AC_ARG_VAR(QEMU, [QEMU emulator command [qemu-system-x86_64]])
-AC_ARG_VAR(QEMUFLAGS, [QEMU emulator flags [-m 2G -smp 4 -debugcon stdio -enable-kvm]])
+AC_ARG_VAR(QEMUFLAGS, [QEMU emulator flags [-m 2G -smp 4 -debugcon stdio]])
 
 AC_CHECK_TOOL(ADAC, gcc, gcc)
 test -z "$ADAFLAGS" && ADAFLAGS="-O2 -g"
@@ -37,7 +37,7 @@ test -z "$ASFLAGS" && ASFLAGS="-O2 -g"
 AC_CHECK_TOOL(LD, ld, ld)
 test -z "$LDFLAGS" && LDFLAGS="-O2 -g"
 AC_CHECK_TOOL(QEMU, qemu-system-x86_64, qemu-system-x86_64)
-test -z "$QEMUFLAGS" && QEMUFLAGS="-m 2G -smp 4 -debugcon stdio -enable-kvm"
+test -z "$QEMUFLAGS" && QEMUFLAGS="-m 2G -smp 4 -debugcon stdio"
 
 # Replace the variables in the makefile.
 AC_CONFIG_FILES(GNUmakefile config.ads)

@@ -39,11 +39,12 @@ private
        Errno   : out Unsigned_64) return Unsigned_64;
 
    --  Open a file.
-   O_RDONLY : constant := 2#0001#;
-   O_WRONLY : constant := 2#0010#;
-   O_RDWR   : constant := 2#0011#;
-   O_APPEND : constant := 2#0100#;
-   O_CREAT  : constant := 2#1000#;
+   O_RDONLY   : constant := 2#000000001#;
+   O_WRONLY   : constant := 2#000000010#;
+   O_RDWR     : constant := 2#000000011#;
+   O_APPEND   : constant := 2#000000100#;
+   O_CREAT    : constant := 2#000001000#;
+   O_NOFOLLOW : constant := 2#100000000#;
    function Syscall_Open
       (Address : Unsigned_64;
        Flags   : Unsigned_64;
@@ -150,9 +151,11 @@ private
       Seconds     : Unsigned_64;
       Nanoseconds : Unsigned_64;
    end record;
-   Stat_IFREG : constant := 16#08000#;
    Stat_IFCHR : constant := 16#02000#;
+   Stat_IFDIR : constant := 16#04000#;
    Stat_IFBLK : constant := 16#06000#;
+   Stat_IFREG : constant := 16#08000#;
+   Stat_IFLNK : constant := 16#0A000#;
    type Stat is record
       Device_Number : Unsigned_64;
       Inode_Number  : Unsigned_64;

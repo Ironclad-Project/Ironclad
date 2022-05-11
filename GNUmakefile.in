@@ -130,12 +130,14 @@ install: $(KERNEL) install-doc
 	@@INSTALL@ $(KERNEL) "$(DESTDIR)$(PREFIX)/share"
 
 install-strip: $(KERNEL) install-doc
-	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)/share"
-	@@INSTALL@ -s $(KERNEL) "$(DESTDIR)$(PREFIX)/share"
+	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)/share/ironclad"
+	@@INSTALL@ -s $(KERNEL) "$(DESTDIR)$(PREFIX)/share/ironclad"
 
 install-doc:
 	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
-	@cp -r $(DOCSDIR) "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
+	@cp -r README "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
+	@cp -r COPYING "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
+	@cp -r $(DOCSDIR)/* "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
 
 uninstall:
 	@rm -rf "$(DESTDIR)$(PREFIX)/share/$(KERNEL)"

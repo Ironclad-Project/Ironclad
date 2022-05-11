@@ -19,6 +19,8 @@ with Interfaces; use Interfaces;
 package VFS is
    type File_Type is (
       File_Regular,
+      File_Directory,
+      File_Symbolic_Link,
       File_Character_Device,
       File_Block_Device
    );

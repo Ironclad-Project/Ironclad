@@ -29,6 +29,6 @@ package Lib.Synchronization is
 
 private
 
-   function Get_Caller_Address (Depth : Unsigned_32) return System.Address;
+   function Get_Caller_Address (Depth : Natural) return System.Address;
    pragma Import (Intrinsic, Get_Caller_Address, "__builtin_return_address");
 end Lib.Synchronization;

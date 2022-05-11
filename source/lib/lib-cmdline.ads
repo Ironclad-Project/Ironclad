@@ -14,8 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
-
 package Lib.Cmdline is
    --  Get the value of a key from a C-style cmdline, and return it.
    --  Returns null if not found.

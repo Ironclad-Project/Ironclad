@@ -25,7 +25,7 @@ with Networking;
 with Userland.Process; use Userland.Process;
 with Userland.Loader;
 with VFS.File; use VFS.File;
-with VFS;
+with VFS; use VFS;
 with Scheduler;
 with Memory.Virtual; use Memory.Virtual;
 with Memory.Physical;
@@ -54,6 +54,8 @@ package body Arch.Syscall is
 
    type String_Acc is access all String;
    procedure Free_Str is new Ada.Unchecked_Deallocation (String, String_Acc);
+   procedure Free_File is new Ada.Unchecked_Deallocation
+      (VFS.File.File, VFS.File.File_Acc);
 
    procedure Set_Tracing (Value : Boolean) is
    begin
@@ -190,6 +192,9 @@ package body Arch.Syscall is
          Open_Mode    : VFS.File.Access_Mode;
          Opened_File  : VFS.File.File_Acc;
          Returned_FD  : Natural;
+         Opened_Stat  : VFS.File_Stat;
+         Symlink_Len  : Natural;
+         Symlink_Buf  : String (1 .. 100);
       begin
          if Is_Tracing then
             Lib.Messages.Put ("syscall open(");
@@ -198,6 +203,7 @@ package body Arch.Syscall is
             Lib.Messages.Put (Flags);
             Lib.Messages.Put_Line (")");
          end if;
+
          --  Parse the mode.
          if (Flags and O_RDWR) /= 0 then
             Open_Mode := VFS.File.Access_RW;
@@ -213,24 +219,37 @@ package body Arch.Syscall is
             Open_Mode := VFS.File.Access_R;
          end if;
 
-         --  Open the file with an absolute path.
-         if Path_String'Length <= 2 then
-            goto Error_Return;
-         end if;
-
          --  Actually open the file.
          Opened_File := VFS.File.Open (Path_String, Open_Mode);
+
+         --  Check if we gotta follow symlinks or not.
+         if (Flags and O_NOFOLLOW) /= 0 then
+            goto Add_File;
+         end if;
+
+         --  Check and follow the symlink.
+         if not VFS.File.Stat (Opened_File, Opened_Stat) then
+            goto Error_Return;
+         end if;
+         if Opened_Stat.Type_Of_File = VFS.File_Symbolic_Link then
+            Symlink_Len := VFS.File.Read
+               (Opened_File, Symlink_Buf'Length, Symlink_Buf'Address);
+            VFS.File.Close (Opened_File);
+            Free_File (Opened_File);
+            Opened_File := VFS.File.Open (Symlink_Buf (1 .. Symlink_Len), Open_Mode);
+         end if;
+
+   <<Add_File>>
          if Opened_File = null then
             goto Error_Return;
-         else
-            if not Userland.Process.Add_File
+         end if;
+         if not Userland.Process.Add_File
                (Current_Proc, Opened_File, Returned_FD)
-            then
-               goto Error_Return;
-            else
-               Errno := Error_No_Error;
-               return Unsigned_64 (Returned_FD);
-            end if;
+         then
+            goto Error_Return;
+         else
+            Errno := Error_No_Error;
+            return Unsigned_64 (Returned_FD);
          end if;
       end;
    <<Error_Return>>
@@ -826,6 +845,10 @@ package body Arch.Syscall is
          case Stat_Val.Type_Of_File is
             when VFS.File_Regular =>
                Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFREG;
+            when VFS.File_Directory =>
+               Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFDIR;
+            when VFS.File_Symbolic_Link =>
+               Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFLNK;
             when VFS.File_Character_Device =>
                Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFCHR;
             when VFS.File_Block_Device =>

@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with VFS.Device;
+with VFS;
 
 package body Devices.Streams is
    function Init return Boolean is

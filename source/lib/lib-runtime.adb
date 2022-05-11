@@ -17,7 +17,6 @@
 with Lib.Messages;
 with Lib.Panic;
 with System.Storage_Elements; use System.Storage_Elements;
-with Lib;
 
 package body Lib.Runtime is
    procedure Access_Check (File : System.Address; Line : Integer) is

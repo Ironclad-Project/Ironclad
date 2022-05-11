@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with Memory; use Memory;
 with Arch.Stivale2;
 with Lib.Synchronization;
 

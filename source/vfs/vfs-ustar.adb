@@ -59,13 +59,14 @@ package body VFS.USTAR is
       Unused       at 0 range 3744 .. 4095;
    end record;
    for USTAR_Header'Size use 4096; -- Padding.
+
    --  USTAR file types.
    USTAR_Regular_File  : constant := 16#30#;
    --  USTAR_Hard_Link     : constant := 16#31#;
-   --  USTAR_Symbolic_Link : constant := 16#32#;
+   USTAR_Symbolic_Link : constant := 16#32#;
    --  USTAR_Char_Device   : constant := 16#33#;
    --  USTAR_Block_Device  : constant := 16#34#;
-   --  USTAR_Directory     : constant := 16#35#;
+   USTAR_Directory     : constant := 16#35#;
    --  USTAR_FIFO          : constant := 16#36#;
    --  USTAR_GNU_Long_Path : constant := 16#4C#;
 
@@ -75,10 +76,11 @@ package body VFS.USTAR is
    type USTAR_Data_Acc is access USTAR_Data;
 
    type USTAR_File is record
-      Name  : String (1 .. 100);
-      Mode  : Natural;
-      Start : Unsigned_64;
-      Size  : Natural;
+      Name      : String (1 .. 100);
+      Mode      : Natural;
+      Start     : Unsigned_64;
+      Size      : Natural;
+      File_Type : Unsigned_8;
    end record;
    type USTAR_File_Acc is access USTAR_File;
 
@@ -106,13 +108,8 @@ package body VFS.USTAR is
       Header       : USTAR_Header;
       Header_Index : Unsigned_64 := 0;
       Byte_Size    : constant Unsigned_64 := Header'Size / 8;
-      Result_Name  : String (1 .. 100);
-      Result_Index : Unsigned_64;
-      Result_Size  : Natural;
-      Result_Mode  : Natural;
    begin
       --  Find the USTAR header corresponding with the name, if at all.
-      --  TODO: Support GNU long names and symbolic links.
       loop
          if FS_Data.Dev.Read.all (FS_Data.Dev.Data, Header_Index, Byte_Size,
             Header'Address) /= Byte_Size
@@ -127,16 +124,24 @@ package body VFS.USTAR is
          begin
             exit when Header.Signature /= USTAR_Signature;
             if Header.Name (1 .. Path'Length) = Path then
-               if Header.File_Type = USTAR_Regular_File then
-                  Result_Name  := Header.Name;
-                  Result_Index := Header_Index + Byte_Size;
-                  Result_Size  := Size;
-                  Result_Mode  := Mode;
-               else
-                  Result_Index := 0;
-               end if;
-               goto Found_File;
+               case Header.File_Type is
+                  when USTAR_Regular_File | USTAR_Symbolic_Link | USTAR_Directory =>
+                     declare
+                        Result : constant USTAR_File_Acc := new USTAR_File'(
+                           Name      => Header.Name,
+                           Start     => Header_Index + Byte_Size,
+                           Size      => Size,
+                           File_Type => Header.File_Type,
+                           Mode      => Mode
+                        );
+                     begin
+                        return Result.all'Address;
+                     end;
+                  when others =>
+                     return System.Null_Address;
+               end case;
             end if;
+
             --  Calculate where is the next header and add EOA empty record
             if Jump mod Natural (Byte_Size) /= 0 then
                Jump := Jump + (Natural (Byte_Size) -
@@ -146,24 +151,8 @@ package body VFS.USTAR is
             Header_Index := Header_Index + Unsigned_64 (Jump);
          end;
       end loop;
-      return System.Null_Address;
 
-   <<Found_File>>
-      --  Found it, but it's not a file we can open, so we fail.
-      if Result_Index = 0 then
-         return System.Null_Address;
-      end if;
-      --  Allocate the final data and return.
-      declare
-         Result_Data : constant USTAR_File_Acc := new USTAR_File'(
-            Name  => Result_Name,
-            Start => Result_Index,
-            Size  => Result_Size,
-            Mode  => Result_Mode
-         );
-      begin
-         return Result_Data.all'Address;
-      end;
+      return System.Null_Address;
    end Open;
 
    procedure Close (FS : System.Address; File_Ptr : System.Address) is
@@ -211,6 +200,14 @@ package body VFS.USTAR is
          IO_Block_Size     => 512,
          IO_Block_Count    => (Unsigned_64 (File_Data.Size) + 512 - 1) / 512
       );
+
+      case File_Data.File_Type is
+         when USTAR_Regular_File  => S.Type_Of_File := File_Regular;
+         when USTAR_Symbolic_Link => S.Type_Of_File := File_Symbolic_Link;
+         when USTAR_Directory     => S.Type_Of_File := File_Directory;
+         when others              => null;
+      end case;
+
       return True;
    end Stat;
 
