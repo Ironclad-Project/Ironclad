@@ -18,6 +18,7 @@ A list of the tools needed for compilation and checked by configure is:
 - autoconf 2.69 and automake.
 - An Ada compiler, preferably gcc.
 - A standard linker and GAS assembler.
+- GNU Info for building the documentation.
 - xorriso and QEMU for testing.
 
 A good set of flags for a release build is:

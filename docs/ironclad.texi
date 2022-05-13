@@ -1,0 +1,586 @@
+\input texinfo
+@setfilename ironclad.info
+@documentencoding UTF-8
+@settitle Kernel interfaces
+
+@copying
+Copyright @copyright{} 2022 streaksu
+
+@quotation
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, no Front-Cover Texts, and no Back-Cover Texts.  A
+copy of the license is included in the section entitled ``GNU Free
+Documentation License''.
+@end quotation
+@end copying
+
+@titlepage
+@title Ironclad kernel and userland interface
+@subtitle Methods to interface with the kernel from boot-time and userland.
+@author streaksu
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+@contents
+
+@ifnottex
+@node Top
+@top Ironclad
+@insertcopying
+@end ifnottex
+
+This document describes several mechamisms and methods to interface with the
+kernel from boot-time and userland.
+
+@menu
+* Boot-time command-line options::   Command-line options
+* Syscalls::                         The main method of userland to interface
+* GNU Free Documentation License::   Copying and sharing this manual
+
+@detailmenu
+--- The Detailed Node Listing ---
+
+Boot-time command-line options
+
+* Format::                 Description of the format.
+* List::                   List of all the available cmdline arguments.
+
+Syscalls
+
+* x86_64::                 x86_64 syscall ABI.
+* Errno::                  Error conditions and their values.
+* Table of syscalls::      Table of all syscalls.
+* exit::                   Exit the callee process.
+* set_tcb::                Thread-local storage configuration.
+* open/close::             Opening and closing a file.
+* read/write::             Read and write from an already opened file.
+* seek::                   Modify and fetch file offsets.
+* mmap/munmap::            Memory mapping and requesting.
+* getpid/getppid::         Get the PIDs of the caller.
+* thread_preference::      Thread preference and scheduling priority.
+* exec::                   Launching new programs.
+* fork::                   Forking current state into a new process.
+* wait::                   Waiting for execution of a child to finish.
+* uname::                  Fetch basic system information.
+* sethostname::            Hostname setting.
+* fstat/lstat::            Fetch file information.
+* getcwd/chdir::           Current working directory manipulation.
+
+@end detailmenu
+@end menu
+
+@node Boot-time command-line options
+@chapter Boot-time command-line options
+
+Ironclad takes, as part of its boot protocol, a series of options and values.
+The parsing of this options is architecture and platform independent, while the
+ability to modify said options and values is entirely up to the platform and
+bootloader.
+
+@node Format
+@section Format
+
+The format is a list of keys that can have arguments or not in a C-style
+NUL-terminted string, as such:
+
+@example
+key1=value1 key2 key3 ... keyN
+@end example
+
+@node List
+@section List
+
+This are the keys and values the kernel takes, and under which circumstances:
+
+@table @code
+@item root=<device>
+Device to mount as root, if any.
+
+@item init=<path>
+Checked for an init program, if any.
+
+@item memtracing
+Enables memory tracing at the expense of performance.
+
+@item syscalltracing
+Enables tracing syscalls and their arguments, really performance taxing, but
+essential for userland kernel debugging.
+@end table
+
+@node Syscalls
+@chapter Syscalls
+
+Syscalls in Ironclad have an architecture-dependent ABI, here is a list of the
+supported architectures and the ABI for each of them.
+
+@node x86_64
+@section x86_64
+
+Syscalls are invoked in Ironclad by triggering an interrupt to vector 80
+in hex, as such:
+
+@example
+int $0x80
+@end example
+
+The index of the syscall is passed on @code{%rax}, while the return value is
+returned on @code{%rax}, errno is returned on @code{%rdx}, arguments are passed
+over @code{%rdi}, @code{%rsi}, @code{%rdx}, @code{%rcx}, @code{%r8}, and
+@code{%r9}, following the SysV ABI.
+
+@node Errno
+@section Errno
+
+Errno are values returned by the kernel to detail the nature of an error in
+depth. When a syscall does not error out, it returns the value 0 on the errno
+field. Here is a table of all the possible errno and its values and meaning:
+
+@table @code
+@item ERANGE (3)
+The passed value was not big enough.
+
+@item EACCES (1002)
+The passed access for a variable points to bad memory.
+
+@item EAGAIN (1006)
+The requested resource is not available at the moment.
+
+@item ECHILD (1012)
+The passed value is not a child process.
+
+@item EFAULT (1020)
+The passed value would make the program fault.
+
+@item EINVAL (1026)
+The passed value is not valid for the called syscall.
+
+@item ENAMETOOLONG (1036)
+The passed value is too big for the syscall.
+
+@item ENOENT (1043)
+No such file or directory.
+
+@item ENOSYS (1051)
+The requested syscall or flag is not implemented.
+
+@item ENOTDIR (1053)
+Not a directory.
+
+@item ENOTSUP (1057)
+Operation not supported.
+
+@item ESPIPE (1069)
+A seek was issued to an invalid device.
+
+@item ESPIPE (1081)
+The passed FD is in a bad state.
+@end table
+
+@node Table of syscalls
+@section Table of syscalls
+
+A
+
+@node exit
+@section exit
+
+@example
+void exit(uint64_t status);
+@end example
+
+This syscall terminates the calling process "immediately".
+Any open file descriptors belonging to the process to be closed, and any
+threads of execution are terminated.
+
+This syscall does not return, thus, it has no return value or errno.
+
+@node set_tcb
+@section set_tcb
+
+@example
+int set_tcb(size_t address);
+@end example
+
+This syscall enables a region in memory pointed by the passed address to be
+thread-local storage.
+
+This syscall returns @code{0} on success, and non-zero on failure.
+errno is to be set to @code{EINVAL} if the address is @code{0}.
+
+@node open/close
+@section open/close
+
+@example
+int open(char *path, int flags);
+int close(int fd);
+@end example
+
+@code{open} opens the passed file, depending on the flags passed, it may create 
+it if not present. By default, the file descriptor will remain open accross an 
+@code{exec}, and the file offset is set to the beggining.
+
+The flags can be an OR'd field of the following elements:
+
+@table @code
+@item O_RDONLY (0b0001)
+Makes the file read-only.
+
+@item O_WRONLY (0b0010)
+Makes the file write-only.
+
+@item O_RDWR (0b0011)
+Makes the file read/write.
+
+@item O_APPEND (0b0100)
+Makes the file be opened at the end of the file, instead of the beggining.
+
+@item O_CREAT (0b1000)
+Create the file if it does not exist.
+@end table
+
+@code{close} closes an open file descriptor. Once no open references exist of a 
+file descriptor, its resources are freed, and the file deleted if needed.
+
+@code{open} returns the opened file descriptor or @code{-1} on error.
+@code{close} returns 0 on success and -1 in failure.
+
+errno is set according to the conditions for both functions:
+
+@itemize @bullet
+@item
+@code{EINVAL}: The flags are inconsistent, or the path is invalid.
+
+@item
+@code{EBADF}: The passed file to @code{close} is not valid.
+@end itemize
+
+@node read/write
+@section read/write
+
+@example
+ssize_t read(int fd, void *buffer, size_t count);
+ssize_t write(int fd, void *buffer, size_t count);
+@end example
+
+These syscalls attempts to read or write up to passed count from the passed file descriptor.
+
+On files that support seeking, the operation commences at the file offset, and
+the file offset is incremented by the number of bytes read or written. If the
+file offset is at or past the end of file, no bytes are read or written, and
+the operation returns zero.
+
+These syscalls returns the number of bytes operated on, or @code{-1} on
+failure. errno is to be set to:
+
+@itemize @bullet
+@item
+@code{EBADF}: Bad file descriptor.
+
+@item
+@code{EINVAL}: The passed buffer is not accessible.
+@end itemize
+
+@node seek
+@section seek
+
+@example
+off_t seek(int fd, off_t offset, int whence);
+@end example
+
+This syscall repositions the file offset of the passed file description to the
+passed offset according to the directive whence as follows:
+
+@itemize @bullet
+@item
+@code{SEEK_SET} (1): Set to the passed offset.
+
+@code{SEEK_CUR} (2): Set to the current offset plus the passed offset.
+
+@code{SEEK_END} (4): Set to the size of the file plus the passed offset.
+@end itemize
+
+This syscall returns the resulting offset, or @code{-1} on failure. errno is to
+be set to:
+
+@itemize @bullet
+@item
+@code{EBADF}: Bad file descriptor.
+
+@item
+@code{EINVAL}: The whence is malformed or the resulting offset would be invalid.
+
+@item
+@code{ESPIPE}: @code{seek} was called on a TTY or a pipe.
+@end itemize
+
+@node mmap/munmap
+@section mmap/munmap
+
+@example
+void *mmap(void *hint, size_t length, int protection, int flags, int fd, off_t offset);
+int munmap(void *address, size_t length);
+@end example
+
+@code{mmap} creates a new mapping in the virtual address space of the calling
+process. An address can be passed, if it is @code{null}, then the kernel gets
+to choose the address, else, it is taken as a hint about where to place the
+mapping.
+
+@code{protection} and @code{flags} are a bitfield of the following flags:
+
+@itemize @bullet
+@item
+@code{PROT_NONE} (0b0000): No specific protection.
+
+@item
+@code{PROT_READ} (0b0001): Read permissions.
+
+@item
+@code{PROT_WRITE} (0b0010): Write permissions.
+
+@item
+@code{MAP_FIXED} (0b0100): Use hint as a hard requirement.
+
+@item
+@code{MAP_ANON} (0b1000): Mapping is not backed by any file.
+@end itemize
+
+@code{mmap} returns a pointer to the allocated area, or @code{-1} on failure.
+@code{munmap} returns @code{0} on success, @code{-1} on failure. Both functions
+set @code{EINVAL} for bad hints or parameters.
+
+@node getpid/getppid
+@section getpid/getppid
+
+@example
+int getpid();
+int getppid();
+@end example
+
+@code{getpid} returns the process ID (PID) of the calling process.
+@code{getppid} does the same but it returns the one of the parent, which is the
+process that created the callee by a myriad of ways.
+
+This functions are always successful.
+
+@node thread_preference
+@section thread_preference
+
+@example
+int thread_preference(int new_value);
+@end example
+
+This syscall returns or set the preference of the callee core.
+
+Preference is a metric for how much execution time will be assigned a given
+thread, in Ironclad, its represented with a value from 1 to value, with the
+higher the value, the more time will be spent on the thread.
+
+The actual maximum value of preference is not set, but it is always guaranteed
+that it starts at 1, and higher means relatively greater.
+
+When passed 0, the current thread preference will be returned, else, it sets
+it to the passed value, and returns the new value. Values higher than the
+maximum preference will just represent the maximum preference.
+
+In error, @code{-1} will be returned, and the following errno will be set:
+
+@itemize @bullet
+@item
+@code{EINVAL}: The argument is not valid.
+
+@item
+@code{ENOTSUP}: The operation could not be completed.
+@end itemize
+
+@node exec
+@section exec
+
+@example
+int exec(const char *path, char *const argv[], char *const envp[]);
+@end example
+
+This syscall executes the program passed with the passed argv and evp, closing
+all the threads of the callee process and putting a single one in place for
+the new program. Other process-specific elements like file descriptors are
+untouched.
+
+This syscall only returns in failure with @code{-1} with the following errno:
+
+@itemize @bullet
+@item
+@code{ENOENT}: The file passed in path doesnt exist.
+
+@item
+@code{EACCES}: The file couldn't be launched out of a permission error.
+@end itemize
+
+@node fork
+@section fork
+
+@example
+pid_t fork(void);
+@end example
+
+This syscall creates a new process by duplicating the calling process. The new
+process is referred to as the child process.The calling process is referred to
+as the parent process. The processes run on copied memory, and at the time of
+cloning have the same file descriptors open and memory mappings.
+
+This syscall returns @code{0} on success for the child, and the children PID to
+the parent, in failure, the parent gets @code{-1} with the following errno:
+
+@itemize @bullet
+@item
+@code{EAGAIN}: The system could not fork right now, try again later.
+@end itemize
+
+@node wait
+@section wait
+
+@example
+pid_t wait(pid_t pid, int *status, int options);
+@end example
+
+This syscall suspends execution until the passed pid exits, to then store the
+exit code in @code{status}.
+
+@code{pid} can be a PID the callee is a parent of, or @code{-1} to wait on all
+the PIDs the callee has as children. @code{0}, which waits on all the children
+of a process group, is not implemented yet.
+
+This syscall returns the PID waited on or @code{-1} on failure, along with the
+following errno:
+
+@itemize @bullet
+@item
+@code{ECHILD}: The passed PID does not exist.
+
+@item
+@code{EINVAL}: The passed options are not correct or the passed PID is @code{0}
+@end itemize
+
+@node uname
+@section uname
+
+@example
+struct utsname @{
+   char sysname[65];  // Kernel name (e.g., "Ironclad")
+   char nodename[65]; // Hostname of the machine.
+   char release[65];  // Kernel release (e.g., "2.6.28")
+   char version[65];  // Kernel build information.
+   char machine[65];  // Hardware identifier (e.g., "x86")
+@};
+
+int uname(struct utsname *name);
+@end example
+
+This syscall reports kernel information, like version, name, and hostname.
+It returns @code{0} on success, and @code{-1} on failure, with the only errno
+being @code{EFAULT} if the passed pointer is in an invalid address.
+
+@node sethostname
+@section sethostname
+
+@example
+int sethostname(const char *buffer, size_t length);
+@end example
+
+This syscall sets the kernel hostname to the passed string. @code{0} is
+returned on success and @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: The passed buffer points to an invalid address.
+
+@item
+@code{EINVAL}: The passed length is bigger than the kernel can handle or 0.
+@end itemize
+
+@node fstat/lstat
+@section fstat/lstat
+
+@example
+struct stat @{
+	dev_t st_dev;
+	ino_t st_ino;
+	mode_t st_mode;
+	nlink_t st_nlink;
+	uid_t st_uid;
+	gid_t st_gid;
+	dev_t st_rdev;
+	off_t st_size;
+	struct timespec st_atim;
+	struct timespec st_mtim;
+	struct timespec st_ctim;
+	blksize_t st_blksize;
+	blkcnt_t st_blocks;
+@};
+
+int fstat(int fd, struct stat *statbuf);
+int lstat(const char *pathname, struct stat *statbuf);
+@end example
+
+This syscalls return information about a file. No permissions are required
+for fetching the file information, but they are required for the containing
+directories.
+
+@code{0} is returned on success, @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EBADF}: The passed path or file descriptor is not valid.
+
+@item
+@code{EFAULT}: The passed address for the path or stat buffer is not valid.
+@end itemize
+
+@node getcwd/chdir
+@section getcwd/chdir
+
+@example
+char *getcwd(char *buf, size_t size);
+int chdir(const char *path);
+@end example
+
+This syscalls manage the current working directory of the callee process.
+@code{getcwd} will fetch it as an absolute path, while chdir will set it with
+a C-style string.
+
+@code{getcwd} returns a pointer to the string passed, or @code{NULL} if the
+string is not big enough, including @code{NUL}, and sets the following errno:
+
+@itemize @bullet
+@item
+@code{EINVAL}: The passed length is 0.
+
+@item
+@code{ERANGE}: The passed buffer + size is not big enough for the path, and it
+is safe to reallocate and try again.
+
+@item
+@code{EFAULT}: The passed buffer has a bad address.
+@end itemize
+
+@code{chdir} returns @code{0} on success and @code{-1} on failure, with the
+following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: The passed path points to a bad address.
+
+@item
+@code{ENAMETOOLONG}: The passed path is too long.
+
+@item
+@code{ENOTDIR}: The passed path is not a directory or has 0 length.
+@end itemize
+
+@node GNU Free Documentation License
+@appendix GNU Free Documentation License
+@include fdl.texi
+
+@bye

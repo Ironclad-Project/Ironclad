@@ -61,7 +61,7 @@ override ASMSOURCE := $(shell find $(SOURCEDIR) -type f -name '*.S')
 override OBJ       := $(ADAOBJ) $(ASMSOURCE:.S=.o) config.o
 
 # Where the fun begins!
-.PHONY: all test clean dist distclean maintainer-clean install install-strip uninstall
+.PHONY: all info pdf test clean dist distclean maintainer-clean install install-info install-pdf install-strip uninstall
 
 all: $(KERNEL)
 
@@ -87,6 +87,12 @@ $(KERNEL): $(OBJ)
 	@echo "$(CMAGENTA)$(AS)$(CRESET) $@"
 	@$(AS) $(ASHARDFLAGS) -I$(SOURCEDIR) -c $< -o $@
 
+info:
+	@makeinfo $(DOCSDIR)/ironclad.texi
+
+pdf:
+	@makeinfo --pdf $(DOCSDIR)/ironclad.texi
+
 test: $(IMAGE)
 	@$(QEMU) $(QEMUHARDFLAGS) -hda $(IMAGE)
 
@@ -105,7 +111,7 @@ $(LIMINE_DIR):
 	@make -C $(LIMINE_DIR)
 
 clean:
-	@rm -rf $(OBJ) $(KERNEL) $(IMAGE) *.ali
+	@rm -rf $(OBJ) $(KERNEL) $(IMAGE) *.ali ironclad.info
 	@find $(SOURCEDIR) -name "*.ali" -type f -delete
 
 dist:
@@ -125,20 +131,23 @@ distclean: clean
 maintainer-clean: distclean
 	@rm -rf configure install-sh autom4te* *'~'
 
-install: $(KERNEL) install-doc
-	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)/share"
-	@@INSTALL@ $(KERNEL) "$(DESTDIR)$(PREFIX)/share"
+install: $(KERNEL) install-info
+	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)/share/ironclad"
+	@@INSTALL@ $(KERNEL) "$(DESTDIR)$(PREFIX)/share/ironclad"
 
-install-strip: $(KERNEL) install-doc
+install-info: info
+	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)/share/info"
+	@cp ironclad.info "$(DESTDIR)$(PREFIX)/share/info/ironclad"
+
+install-pdf: pdf
+	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)/share/docs/ironclad"
+	@cp ironclad.pdf "$(DESTDIR)$(PREFIX)/share/docs/ironclad"
+
+install-strip: $(KERNEL) install-info
 	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)/share/ironclad"
 	@@INSTALL@ -s $(KERNEL) "$(DESTDIR)$(PREFIX)/share/ironclad"
 
-install-doc:
-	@@INSTALL@ -d "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
-	@cp -r README "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
-	@cp -r COPYING "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
-	@cp -r $(DOCSDIR)/* "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
-
 uninstall:
-	@rm -rf "$(DESTDIR)$(PREFIX)/share/$(KERNEL)"
-	@rm -rf "$(DESTDIR)$(PREFIX)/share/doc/ironclad"
+	@rm -rf "$(DESTDIR)$(PREFIX)/share/ironclad"
+	@rm -rf "$(DESTDIR)$(PREFIX)/share/info/ironclad"
+	@rm -rf "$(DESTDIR)$(PREFIX)/share/docs/ironclad"
