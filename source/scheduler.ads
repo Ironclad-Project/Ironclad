@@ -49,12 +49,14 @@ package Scheduler is
        Env       : Userland.Environment_Arr;
        Map       : Memory.Virtual.Page_Map_Acc;
        Vector    : Userland.ELF.Auxval;
-       Stack_Top : Unsigned_64) return TID;
+       Stack_Top : Unsigned_64;
+       PID       : Natural) return TID;
 
    --  Create a user thread with a context.
    function Create_User_Thread
       (State : access ISR_GPRs;
-       Map   : Memory.Virtual.Page_Map_Acc) return TID;
+       Map   : Memory.Virtual.Page_Map_Acc;
+       PID   : Natural) return TID;
 
    --  Removes a thread, kernel or user, from existance (if it exists).
    procedure Delete_Thread (Thread : TID);
@@ -77,9 +79,8 @@ package Scheduler is
    --  Delete and yield the current thread.
    procedure Bail;
 
-   --  Returns the current thread.
-   function Get_Current_Thread return TID;
 private
+
    function Find_Free_TID return TID;
    procedure Scheduler_ISR
       (Number : Unsigned_32;

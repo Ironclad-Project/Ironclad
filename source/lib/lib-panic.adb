@@ -60,12 +60,12 @@ package body Lib.Panic is
       --  Tell the rest of the cores to go take a nap, forever.
       if Is_Propagated then
          declare
-            Current_Core : constant Positive := Arch.CPU.Get_Core_Number;
+            Current_Core : constant Positive := Arch.CPU.Get_Local.Number;
          begin
-            for I in Arch.CPU.Core_LAPICs.all'Range loop
+            for I in Arch.CPU.Core_Locals.all'Range loop
                if I /= Current_Core then
                   Arch.APIC.LAPIC_Send_IPI
-                     (Arch.CPU.Core_LAPICs (I), Panic_Vector);
+                     (Arch.CPU.Core_Locals (I).LAPIC_ID, Panic_Vector);
                end if;
             end loop;
          end;

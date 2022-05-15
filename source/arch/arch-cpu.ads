@@ -16,24 +16,39 @@
 
 with Interfaces; use Interfaces;
 with Arch.Stivale2;
+with Userland.Process;
+with Scheduler;
+with Arch.GDT;
 
 package Arch.CPU is
-   --  Core count, always equal or larger than 1.
-   Core_Count : Positive;
+   --  Core-local data, that each core holds an own version of.
+   type Core_Local;
+   type Core_Local_Acc is access all Core_Local;
+   type Core_Local is record
+      Self            : Core_Local_Acc; --  Here for performance reasons.
+      Number          : Positive;       --  Core number, 1 based.
+      LAPIC_ID        : Unsigned_32;    --  LAPIC ID of the core.
+      LAPIC_Timer_Hz  : Unsigned_64;
+      Core_TSS        : Arch.GDT.TSS;
+      Current_Thread  : Scheduler.TID;
+      Current_Process : Userland.Process.Process_Data_Acc;
+   end record;
 
-   --  Array of LAPIC IDs, the index is the core owning said LAPIC (1-based).
-   type LAPIC_Array is array (Positive range <>) of Unsigned_32;
-   type LAPIC_Arr_Acc is access LAPIC_Array;
-   Core_LAPICs : LAPIC_Arr_Acc;
+   --  Core locals and the number of cores, used as an index for the former.
+   type Core_Local_Arr is array (Positive range <>) of aliased Core_Local;
+   type Core_Local_Arr_Acc is access Core_Local_Arr;
+   Core_Count  : Positive;
+   Core_Locals : Core_Local_Arr_Acc;
 
    --  Init the cores and BSP.
    procedure Init_Cores (SMP_Info : access Arch.Stivale2.SMP_Tag);
 
-   --  Get core number (1 based) for array indexes on modules or reporting.
-   function Get_Core_Number return Positive;
+   --  Get the core local structure of the passed core.
+   function Get_Local return Core_Local_Acc;
 
 private
+
    procedure Init_Core (Core_Info : access Arch.Stivale2.SMP_Core)
       with Convention => C;
-   procedure Init_Common (Core_Number : Unsigned_64);
+   procedure Init_Common (Core_Number : Positive; LAPIC : Unsigned_32);
 end Arch.CPU;

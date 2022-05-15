@@ -16,61 +16,51 @@
 
 with System.Machine_Code; use System.Machine_Code;
 with Arch.APIC;
-with Arch.GDT;
 with Arch.IDT;
 with Arch.Wrappers;
 with Memory.Virtual;
-with Scheduler;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body Arch.CPU is
-   procedure Init_Cores (SMP_Info : access Arch.Stivale2.SMP_Tag) is begin
-      --  Initialize the LAPIC list, and fill the BSP fields.
+   procedure Init_Cores (SMP_Info : access Arch.Stivale2.SMP_Tag) is
+      type Stack is array (1 .. 32768) of Unsigned_8;
+      type Stack_Acc is access Stack;
+      New_Stk : Stack_Acc;
+   begin
+      --  Initialize the locals list, and fill the BSP fields.
       Core_Count  := SMP_Info.Entries'Length;
-      Core_LAPICs := new LAPIC_Array (SMP_Info.Entries'Range);
-      Core_LAPICs (1) := SMP_Info.BSP_LAPIC_ID;
-      Init_Common (1);
+      Core_Locals := new Core_Local_Arr (SMP_Info.Entries'Range);
+      Init_Common (1, SMP_Info.BSP_LAPIC_ID);
 
       --  Initialize the rest of cores.
       --  Stivale2 guarantees that all the cores in its tag are alive, so
       --  we dont need to check which are actually answering.
       for I in SMP_Info.Entries'Range loop
-         declare
-            Stack_Size : constant := 32768;
-            type Stack is array (1 .. Stack_Size) of Unsigned_8;
-            type Stack_Acc is access Stack;
-            New_Stack : constant Stack_Acc := new Stack;
-         begin
-            SMP_Info.Entries (I).Extra_Argument := Unsigned_64 (I);
-            SMP_Info.Entries (I).Target_Stack :=
-               To_Integer (New_Stack.all'Address);
-            SMP_Info.Entries (I).Goto_Address :=
-               To_Integer (Init_Core'Address);
-         end;
+         New_Stk := new Stack;
+         SMP_Info.Entries (I).Extra_Argument := Unsigned_64 (I);
+         SMP_Info.Entries (I).Target_Stack   := New_Stk (New_Stk'Last)'Address;
+         SMP_Info.Entries (I).Goto_Address   := Init_Core'Address;
       end loop;
    end Init_Cores;
 
-   function Get_Core_Number return Positive is
-      Number : Unsigned_64;
+   function Get_Local return Core_Local_Acc is
+      Locals : Core_Local_Acc;
    begin
       Asm ("mov %%gs:0, %0",
-           Outputs  => Unsigned_64'Asm_Output ("=a", Number),
+           Outputs  => Core_Local_Acc'Asm_Output ("=a", Locals),
            Volatile => True);
-      return Positive (Number);
-   end Get_Core_Number;
+      return Locals;
+   end Get_Local;
 
    procedure Init_Core (Core_Info : access Arch.Stivale2.SMP_Core) is begin
       --  Load the global GDT, IDT, mappings, and LAPIC.
-      Arch.GDT.Load_GDT;
-      Arch.IDT.Load_IDT;
+      GDT.Load_GDT;
+      IDT.Load_IDT;
       Memory.Virtual.Make_Active (Memory.Virtual.Kernel_Map);
-      Arch.APIC.Init_LAPIC;
+      APIC.Init_LAPIC;
 
       --  Load several goodies.
-      Init_Common (Core_Info.Extra_Argument);
-
-      --  Store the LAPIC in the list.
-      Core_LAPICs (Integer (Core_Info.Extra_Argument)) := Core_Info.LAPIC_ID;
+      Init_Common (Positive (Core_Info.Extra_Argument), Core_Info.LAPIC_ID);
 
       --  Send the core to idle, waiting for the scheduler to tell it to do
       --  something, from here, we lose control. Fairwell, core.
@@ -80,25 +70,27 @@ package body Arch.CPU is
    --  The BSP already has some facilities initialized, so we have to take
    --  that into account when compared with other cores.
    --  This function enables things common to BSP and other cores.
-   procedure Init_Common  (Core_Number : Unsigned_64) is
-      type Unsigned_64_Acc is access Unsigned_64;
-      CR0 : Unsigned_64 := Arch.Wrappers.Read_CR0;
-      CR4 : Unsigned_64 := Arch.Wrappers.Read_CR4;
-      Number_Acc  : Unsigned_64_Acc;
-      Number_Addr : Unsigned_64;
+   procedure Init_Common (Core_Number : Positive; LAPIC : Unsigned_32) is
+      CR0 : Unsigned_64 := Wrappers.Read_CR0;
+      CR4 : Unsigned_64 := Wrappers.Read_CR4;
+      Locals_Addr : constant Unsigned_64 :=
+         Unsigned_64 (To_Integer (Core_Locals (Core_Number)'Address));
    begin
       --  Enable SSE/2.
       CR0 := (CR0 and (not Shift_Left (1, 2))) or Shift_Left (1, 1);
       CR4 := CR4 or Shift_Left (3, 9);
-      Arch.Wrappers.Write_CR0 (CR0);
-      Arch.Wrappers.Write_CR4 (CR4);
+      Wrappers.Write_CR0 (CR0);
+      Wrappers.Write_CR4 (CR4);
 
-      --  The CPU number is stored in GS for kernel space.
-      --  For reading the CPU number in GS, its faster to store a pointer to it
-      --  in GS and access it than reading the MSR.
-      Number_Acc  := new Unsigned_64'(Core_Number);
-      Number_Addr := Unsigned_64 (To_Integer (Number_Acc.all'Address));
-      Arch.Wrappers.Write_GS        (Number_Addr);
-      Arch.Wrappers.Write_Kernel_GS (Number_Addr);
+      --  Prepare the core local structure and set it in GS.
+      Core_Locals (Core_Number).Self     := Core_Locals (Core_Number)'Access;
+      Core_Locals (Core_Number).Number   := Core_Number;
+      Core_Locals (Core_Number).LAPIC_ID := LAPIC;
+      Wrappers.Write_GS        (Locals_Addr);
+      Wrappers.Write_Kernel_GS (Locals_Addr);
+
+      --  Load the TSS and calculate the Hz of the LAPIC timer.
+      Core_Locals (Core_Number).LAPIC_Timer_Hz := APIC.LAPIC_Timer_Calibrate;
+      GDT.Load_TSS (Core_Locals (Core_Number).Core_TSS'Address);
    end Init_Common;
 end Arch.CPU;

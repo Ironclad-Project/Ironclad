@@ -52,7 +52,8 @@ package Userland.Process is
    procedure Init;
 
    --  Created a vanilla process, or remove a process, or fetch processes.
-   function Create_Process (Parent : Natural := 0) return Process_Data_Acc;
+   function Create_Process
+      (Parent : Process_Data_Acc := null) return Process_Data_Acc;
    procedure Delete_Process (Process : Process_Data_Acc);
    function Get_By_PID (Process : Positive) return Process_Data_Acc;
    function Get_By_Thread (Thread : Scheduler.TID) return Process_Data_Acc;

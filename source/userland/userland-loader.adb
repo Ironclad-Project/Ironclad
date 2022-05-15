@@ -116,7 +116,8 @@ package body Userland.Loader is
              Env       => Environment,
              Map       => Proc.Common_Map,
              Vector    => Loaded_ELF.Vector,
-             Stack_Top => Proc.Stack_Base);
+             Stack_Top => Proc.Stack_Base,
+             PID       => Proc.Process_PID);
       begin
          --  TODO: Do not hardcode stack size.
          Proc.Stack_Base := Proc.Stack_Base + 16#200000#;

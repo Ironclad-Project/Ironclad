@@ -24,19 +24,11 @@ with Lib.Synchronization;
 with System.Machine_Code;     use System.Machine_Code;
 with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
+with Userland.Process;
 
 package body Scheduler is
-   --  Core locals.
-   type Core_Local_Info is record
-      LAPIC_Timer_Hz : Unsigned_64;
-      Current_TID    : TID;
-      Core_TSS       : Arch.GDT.TSS;
-   end record;
-   type Cores_Local_Info is array (Positive range <>) of Core_Local_Info;
-   type Cores_Local_Info_Acc is access Cores_Local_Info;
-
    --  Thread information.
-   type FP_Region_Arr is array (1 .. 512) of Unsigned_8;
+   type FP_Region_Arr is array (1 .. 512) of Unsigned_8 with Alignment => 16;
    type Thread_Info is record
       State        : Arch.Interrupts.ISR_GPRs;
       Is_Present   : Boolean;
@@ -48,6 +40,7 @@ package body Scheduler is
       Stack        : Virtual_Address;
       Kernel_Stack : Virtual_Address;
       FP_Region    : FP_Region_Arr;
+      Process      : Userland.Process.Process_Data_Acc;
    end record;
    type Thread_Info_Arr is array (TID range 1 .. 256) of Thread_Info;
 
@@ -55,7 +48,6 @@ package body Scheduler is
    Scheduler_Mutex  : aliased Lib.Synchronization.Binary_Semaphore;
    Thread_Pool      : access Thread_Info_Arr;
    Scheduler_Vector : Arch.IDT.IDT_Index;
-   Core_Locals      : Cores_Local_Info_Acc;
 
    --  Time slices assigned to each thread depending on preference.
    --  (In microseconds).
@@ -81,7 +73,6 @@ package body Scheduler is
       end if;
 
       --  Allocate core locals and finishing touches.
-      Core_Locals := new Cores_Local_Info (1 .. Arch.CPU.Core_Count);
       Thread_Pool := new Thread_Info_Arr;
       Is_Initialized := True;
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
@@ -89,19 +80,12 @@ package body Scheduler is
    end Init;
 
    procedure Idle_Core is
-      I : constant Positive := Arch.CPU.Get_Core_Number;
    begin
       --  Check we are initialized and have all the data.
       while not Is_Initialized loop null; end loop;
 
-      if Core_Locals (I).LAPIC_Timer_Hz = 0 then
-         Core_Locals (I).LAPIC_Timer_Hz := Arch.APIC.LAPIC_Timer_Calibrate;
-         Core_Locals (I).Current_TID    := 0;
-         Arch.GDT.Load_TSS (Core_Locals (I).Core_TSS'Address);
-      end if;
-
       declare
-         Hz : constant Unsigned_64 := Core_Locals (I).LAPIC_Timer_Hz;
+         Hz : constant Unsigned_64 := Arch.CPU.Get_Local.LAPIC_Timer_Hz;
       begin
          --  Arm for Scheduler_ISR to do the rest of the job from us.
          Arch.Interrupts.Set_Interrupt_Flag (False);
@@ -160,7 +144,9 @@ package body Scheduler is
        Env       : Userland.Environment_Arr;
        Map       : Memory.Virtual.Page_Map_Acc;
        Vector    : Userland.ELF.Auxval;
-       Stack_Top : Unsigned_64) return TID is
+       Stack_Top : Unsigned_64;
+       PID       : Natural) return TID
+   is
       New_TID : TID;
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex'Access);
@@ -215,6 +201,7 @@ package body Scheduler is
          Thread_Pool (New_TID).State.RFLAGS := 16#202#;
          Thread_Pool (New_TID).State.RIP    := Unsigned_64 (Address);
          Thread_Pool (New_TID).State.RBP    := 0;
+         Thread_Pool (New_TID).Process    := Userland.Process.Get_By_PID (PID);
 
          --  Map the user stack.
          Memory.Virtual.Map_Range (
@@ -303,7 +290,8 @@ package body Scheduler is
 
    function Create_User_Thread
       (State : access ISR_GPRs;
-       Map   : Memory.Virtual.Page_Map_Acc) return TID
+       Map   : Memory.Virtual.Page_Map_Acc;
+       PID   : Natural) return TID
    is
       type Stack8    is array (1 .. Stack_Size) of Unsigned_8;
       type Stack_Acc is access Stack8;
@@ -331,6 +319,7 @@ package body Scheduler is
       Thread_Pool (New_TID).FS           := Arch.Wrappers.Read_FS;
       Thread_Pool (New_TID).State        := State.all;
       Thread_Pool (New_TID).State.RAX    := 0;
+      Thread_Pool (New_TID).Process      := Userland.Process.Get_By_PID (PID);
 
    <<End_Return>>
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
@@ -343,10 +332,10 @@ package body Scheduler is
          Lib.Synchronization.Seize (Scheduler_Mutex'Access);
          Thread_Pool (Thread).Is_Present := False;
          if Thread_Pool (Thread).Is_Running then
-            for I in Core_Locals'Range loop
-               if Core_Locals (I).Current_TID = Thread then
+            for I in Arch.CPU.Core_Locals'Range loop
+               if Arch.CPU.Core_Locals (I).Current_Thread = Thread then
                   Arch.APIC.LAPIC_Send_IPI
-                     (Arch.CPU.Core_LAPICs (I), Scheduler_Vector);
+                     (Arch.CPU.Core_Locals (I).LAPIC_ID, Scheduler_Vector);
                   exit;
                end if;
             end loop;
@@ -387,18 +376,16 @@ package body Scheduler is
    end Set_Thread_Preference;
 
    procedure Yield is
-      Core       : constant Positive    := Arch.CPU.Get_Core_Number;
-      Core_LAPIC : constant Unsigned_32 := Arch.CPU.Core_LAPICs (Core);
+      Core_LAPIC : constant Unsigned_32 := Arch.CPU.Get_Local.LAPIC_ID;
    begin
       --  Force rescheduling by calling the ISR vector directly.
       Arch.APIC.LAPIC_Send_IPI (Core_LAPIC, Scheduler_Vector);
    end Yield;
 
    procedure Bail is
-      Core : constant Positive := Arch.CPU.Get_Core_Number;
    begin
-      Delete_Thread (Core_Locals (Core).Current_TID);
-      Core_Locals (Core).Current_TID := 0;
+      Delete_Thread (Arch.CPU.Get_Local.Current_Thread);
+      Arch.CPU.Get_Local.Current_Thread := 0;
       Idle_Core;
    end Bail;
 
@@ -412,19 +399,11 @@ package body Scheduler is
       return 0;
    end Find_Free_TID;
 
-   function Get_Current_Thread return TID is
-      Core   : constant Positive := Arch.CPU.Get_Core_Number;
-      Thread : constant TID      := Core_Locals (Core).Current_TID;
-   begin
-      return Thread;
-   end Get_Current_Thread;
-
    procedure Scheduler_ISR
       (Number : Unsigned_32;
        State  : access Arch.Interrupts.ISR_GPRs)
    is
-      Core : constant Positive    := Arch.CPU.Get_Core_Number;
-      Hz   : constant Unsigned_64 := Core_Locals (Core).LAPIC_Timer_Hz;
+      Hz : constant Unsigned_64 := Arch.CPU.Get_Local.LAPIC_Timer_Hz;
       Current_TID : TID;
       Next_TID    : TID;
       pragma Unreferenced (Number);
@@ -436,7 +415,7 @@ package body Scheduler is
       end if;
 
       --  Get the next thread for execution.
-      Current_TID := Core_Locals (Core).Current_TID;
+      Current_TID := Arch.CPU.Get_Local.Current_Thread;
       Next_TID    := 0;
       for I in Current_TID + 1 .. Thread_Pool'Last loop
          if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Banned and
@@ -478,7 +457,7 @@ package body Scheduler is
       end if;
 
       --  Assign the next TID as our current one.
-      Core_Locals (Core).Current_TID    := Next_TID;
+      Arch.CPU.Get_Local.Current_Thread := Next_TID;
       Thread_Pool (Next_TID).Is_Running := True;
 
       --  Rearm the timer for next tick.
@@ -488,8 +467,9 @@ package body Scheduler is
       Arch.APIC.LAPIC_EOI;
 
       --  Load kernel stack in the TSS.
-      Core_Locals (Core).Core_TSS.Stack_Ring0 :=
+      Arch.CPU.Get_Local.Core_TSS.Stack_Ring0 :=
          To_Address (Thread_Pool (Next_TID).Kernel_Stack);
+      Arch.CPU.Get_Local.Current_Process := Thread_Pool (Next_TID).Process;
 
       --  Reset state.
       Memory.Virtual.Make_Active (Thread_Pool (Next_TID).PageMap);

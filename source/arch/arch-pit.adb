@@ -36,7 +36,7 @@ package body Arch.PIT is
       Low8  : constant Unsigned_8 := Unsigned_8 (New_Divisor and 16#FF#);
       High8 : constant Unsigned_8 := Unsigned_8 (Low_Divisor and 16#FF#);
 
-      BSP_LAPIC_ID : constant Unsigned_32 := Arch.CPU.Core_LAPICs (1);
+      BSP_LAPIC_ID : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
    begin
       --  Setup the PIT.
       Arch.Wrappers.Port_Out (PIT_Command_Port,  16#36#);

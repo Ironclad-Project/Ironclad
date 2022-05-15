@@ -20,6 +20,8 @@ with VFS.File;
 with Memory.Virtual;
 
 package Userland.ELF is
+   type String_Acc is access String;
+
    --  Auxval values.
    Auxval_Null            : constant := 0;
    Auxval_Program_Headers : constant := 3;
@@ -77,7 +79,7 @@ private
 
    function Get_Linker
       (File_D : VFS.File.File_Acc;
-       Header : Program_Header) return access String;
+       Header : Program_Header) return String_Acc;
 
    function Load_Header
       (File_D : VFS.File.File_Acc;

@@ -131,10 +131,11 @@ package body Userland.ELF is
    --  Get the linker path string from a given interpreter program header.
    function Get_Linker
       (File_D : VFS.File.File_Acc;
-       Header : Program_Header) return access String is
+       Header : Program_Header) return String_Acc is
       Discard : Natural;
    begin
-      return Ret : access String := new String (1 .. Header.File_Size_Bytes)
+      return Ret : constant String_Acc :=
+         new String (1 .. Header.File_Size_Bytes)
       do
          File_D.Index := Natural (Header.Offset);
          Discard := VFS.File.Read

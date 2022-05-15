@@ -33,15 +33,6 @@ package body Arch.Interrupts is
          28 => "#HV", 29 => "#VC", 30 => "#SX"
       );
    begin
-      if State.Error_Code /= 0 then
-         Lib.Messages.Put ("Error code: ");
-         Lib.Messages.Put (State.Error_Code, False, True);
-         Lib.Messages.Put_Line ("");
-      end if;
-      Lib.Messages.Put ("RIP: ");
-      Lib.Messages.Put (State.RIP, False, True);
-      Lib.Messages.Put_Line ("");
-
       --  Check whether we have to panic or just exit the thread.
       --  We can check we are in userland by checking whether the passed CS
       --  is our user code segment or'ed by 3.
@@ -50,6 +41,14 @@ package body Arch.Interrupts is
          Lib.Messages.Put_Line ("Userland " & Exception_Text (Number));
          Scheduler.Bail;
       else
+         if State.Error_Code /= 0 then
+            Lib.Messages.Put ("Error code: ");
+            Lib.Messages.Put (State.Error_Code, False, True);
+            Lib.Messages.Put_Line ("");
+         end if;
+         Lib.Messages.Put ("RIP: ");
+         Lib.Messages.Put (State.RIP, False, True);
+         Lib.Messages.Put_Line ("");
          Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Number));
       end if;
    end Exception_Handler;

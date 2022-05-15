@@ -144,8 +144,8 @@ package Arch.Stivale2 is
    type SMP_Core is record
       Processor_ID   : Unsigned_32;
       LAPIC_ID       : Unsigned_32;
-      Target_Stack   : Virtual_Address;
-      Goto_Address   : Virtual_Address;
+      Target_Stack   : System.Address;
+      Goto_Address   : System.Address;
       Extra_Argument : Unsigned_64;
    end record;
    for SMP_Core use record

@@ -16,6 +16,7 @@
 
 with Lib.Synchronization;
 with Ada.Unchecked_Deallocation;
+with Arch.CPU;
 
 package body Userland.Process is
    procedure Free_Proc is new Ada.Unchecked_Deallocation
@@ -36,35 +37,37 @@ package body Userland.Process is
       Lib.Synchronization.Release (Process_List_Mutex'Access);
    end Init;
 
-   function Create_Process (Parent : Natural := 0) return Process_Data_Acc is
+   function Create_Process
+      (Parent : Process_Data_Acc := null) return Process_Data_Acc
+   is
       Returned : Process_Data_Acc := null;
    begin
       Lib.Synchronization.Seize (Process_List_Mutex'Access);
 
       for I in Process_List.all'Range loop
          if Process_List (I) = null then
-            if Parent /= 0 then
-               declare
-                  Parent_Process : constant Process_Data_Acc :=
-                     Get_By_PID (Parent);
-               begin
-                  if Parent_Process /= null then
-                     for PID of Parent_Process.Children loop
-                        if PID = 0 then
-                           PID := I;
-                           exit;
-                        end if;
-                     end loop;
-                  end if;
-               end;
-            end if;
-
             Process_List (I) := new Process_Data;
             Process_List (I).Process_PID := I;
-            Process_List (I).Parent_PID  := Parent;
-            Process_List (I).Stack_Base  := 16#70000000000#;
-            Process_List (I).Alloc_Base  := 16#80000000000#;
             Process_List (I).Exit_Code   := 0;
+
+            --  If we have a parent, set ourselves as a child and fetch data.
+            if Parent /= null then
+               for PID of Parent.Children loop
+                  if PID = 0 then
+                     PID := I;
+                     exit;
+                  end if;
+               end loop;
+
+               Process_List (I).Parent_PID := Parent.Process_PID;
+               Process_List (I).Stack_Base := Parent.Stack_Base;
+               Process_List (I).Alloc_Base := Parent.Alloc_Base;
+            else
+               Process_List (I).Parent_PID := 0;
+               Process_List (I).Stack_Base := 16#70000000000#;
+               Process_List (I).Alloc_Base := 16#80000000000#;
+            end if;
+
             Returned := Process_List (I);
             exit;
          end if;
@@ -121,7 +124,7 @@ package body Userland.Process is
    end Get_By_Thread;
 
    function Fork (Parent : Process_Data_Acc) return Process_Data_Acc is
-      Child : constant Process_Data_Acc := Create_Process (Parent.Process_PID);
+      Child : constant Process_Data_Acc := Create_Process (Parent);
    begin
       if Child = null then
          return null;
@@ -178,7 +181,7 @@ package body Userland.Process is
    end Remove_Thread;
 
    procedure Flush_Threads (Process : Process_Data_Acc) is
-      Current_Thread : constant TID := Scheduler.Get_Current_Thread;
+      Current_Thread : constant TID := Arch.CPU.Get_Local.Current_Thread;
    begin
       for Thread of Process.Thread_List loop
          if Thread /= Current_Thread then

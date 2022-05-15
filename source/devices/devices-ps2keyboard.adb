@@ -75,7 +75,7 @@ package body Devices.PS2Keyboard is
    );
 
    function Init return Boolean is
-      BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_LAPICs (1);
+      BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
       Index     : Arch.IDT.IRQ_Index;
       Unused    : Unsigned_8;
       Dev       : VFS.Device.Device_Data;

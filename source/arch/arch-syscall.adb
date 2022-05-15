@@ -19,6 +19,7 @@ with Config;
 with System; use System;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Wrappers;
+with Arch.CPU;
 with Lib.Messages;
 with Lib;
 with Networking;
@@ -130,9 +131,8 @@ package body Arch.Syscall is
    end Syscall_Handler;
 
    procedure Syscall_Exit (Error_Code : Unsigned_64) is
-      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Userland.Process.Get_By_Thread (Current_Thread);
+         Arch.CPU.Get_Local.Current_Process;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall exit(");
@@ -186,9 +186,8 @@ package body Arch.Syscall is
       declare
          Path_Length  : constant Natural := Lib.C_String_Length (Addr);
          Path_String  : String (1 .. Path_Length) with Address => Addr;
-         Current_Thre : constant Scheduler.TID := Scheduler.Get_Current_Thread;
          Current_Proc : constant Userland.Process.Process_Data_Acc :=
-            Userland.Process.Get_By_Thread (Current_Thre);
+            Arch.CPU.Get_Local.Current_Process;
          Open_Mode    : VFS.File.Access_Mode;
          Opened_File  : VFS.File.File_Acc;
          Returned_FD  : Natural;
@@ -261,9 +260,8 @@ package body Arch.Syscall is
       (File_D : Unsigned_64;
        Errno  : out Unsigned_64) return Unsigned_64
    is
-      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_Thread (Current_Thread);
+         Arch.CPU.Get_Local.Current_Process;
       File            : constant Natural := Natural (File_D);
    begin
       if Is_Tracing then
@@ -284,9 +282,8 @@ package body Arch.Syscall is
    is
       Buffer_Addr     : constant System.Address :=
          To_Address (Integer_Address (Buffer));
-      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_Thread (Current_Thread);
+            Arch.CPU.Get_Local.Current_Process;
       File : constant VFS.File.File_Acc :=
          Current_Process.File_Table (Natural (File_D));
    begin
@@ -319,9 +316,8 @@ package body Arch.Syscall is
    is
       Buffer_Addr     : constant System.Address :=
          To_Address (Integer_Address (Buffer));
-      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_Thread (Current_Thread);
+            Arch.CPU.Get_Local.Current_Process;
       File : constant File_Acc :=
          Current_Process.File_Table (Natural (File_D));
    begin
@@ -352,9 +348,8 @@ package body Arch.Syscall is
        Whence : Unsigned_64;
        Errno  : out Unsigned_64) return Unsigned_64
    is
-      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_Thread (Current_Thread);
+            Arch.CPU.Get_Local.Current_Process;
       File : constant VFS.File.File_Acc :=
          Current_Process.File_Table (Natural (File_D));
       Stat_Val : VFS.File_Stat;
@@ -402,9 +397,8 @@ package body Arch.Syscall is
        Offset     : Unsigned_64;
        Errno      : out Unsigned_64) return Unsigned_64
    is
-      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_Thread (Current_Thread);
+            Arch.CPU.Get_Local.Current_Process;
       Map : constant Memory.Virtual.Page_Map_Acc := Current_Process.Common_Map;
 
       Map_Not_Execute : Boolean := True;
@@ -489,9 +483,8 @@ package body Arch.Syscall is
        Length     : Unsigned_64;
        Errno      : out Unsigned_64) return Unsigned_64
    is
-      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_Thread (Current_Thread);
+            Arch.CPU.Get_Local.Current_Process;
       Map : constant Memory.Virtual.Page_Map_Acc := Current_Process.Common_Map;
       Addr : constant Physical_Address :=
          Memory.Virtual.Virtual_To_Physical (Map, Virtual_Address (Address));
@@ -512,9 +505,8 @@ package body Arch.Syscall is
    end Syscall_Munmap;
 
    function Syscall_Get_PID return Unsigned_64 is
-      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_Thread (Current_Thread);
+            Arch.CPU.Get_Local.Current_Process;
    begin
       if Is_Tracing then
          Lib.Messages.Put_Line ("syscall getpid()");
@@ -523,9 +515,8 @@ package body Arch.Syscall is
    end Syscall_Get_PID;
 
    function Syscall_Get_Parent_PID return Unsigned_64 is
-      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_Thread (Current_Thread);
+            Arch.CPU.Get_Local.Current_Process;
       Parent_Process : constant Natural := Current_Process.Parent_PID;
    begin
       if Is_Tracing then
@@ -538,7 +529,7 @@ package body Arch.Syscall is
       (Preference : Unsigned_64;
        Errno      : out Unsigned_64) return Unsigned_64
    is
-      Thread : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Thread : constant Scheduler.TID := Arch.CPU.Get_Local.Current_Thread;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall thread_preference(");
@@ -584,9 +575,9 @@ package body Arch.Syscall is
       --  FIXME: This type should be dynamic ideally and not have a maximum.
       type Arg_Arr is array (1 .. 40) of Unsigned_64;
 
-      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
+      Current_Thread  : constant Scheduler.TID := Arch.CPU.Get_Local.Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_Thread (Current_Thread);
+            Arch.CPU.Get_Local.Current_Process;
 
       Addr : constant System.Address := To_Address (Integer_Address (Address));
       Path_Length : constant Natural := Lib.C_String_Length (Addr);
@@ -668,9 +659,8 @@ package body Arch.Syscall is
       (State_To_Fork : access ISR_GPRs;
        Errno         : out Unsigned_64) return Unsigned_64
    is
-      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_Thread (Current_Thread);
+            Arch.CPU.Get_Local.Current_Process;
       Forked_Process : constant Userland.Process.Process_Data_Acc :=
          Userland.Process.Fork (Current_Process);
    begin
@@ -690,7 +680,7 @@ package body Arch.Syscall is
       --  Create a running thread cloning the caller.
       if not Add_Thread (Forked_Process,
          Scheduler.Create_User_Thread
-            (State_To_Fork, Forked_Process.Common_Map))
+            (State_To_Fork, Forked_Process.Common_Map, Forked_Process.Process_PID))
       then
          Errno := Error_Would_Block;
          return Unsigned_64'Last;
@@ -706,9 +696,8 @@ package body Arch.Syscall is
        Options    : Unsigned_64;
        Errno      : out Unsigned_64) return Unsigned_64
    is
-      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_Thread (Current_Thread);
+            Arch.CPU.Get_Local.Current_Process;
       Exit_Value : Unsigned_32
          with Address => To_Address (Integer_Address (Exit_Addr));
    begin
@@ -875,9 +864,8 @@ package body Arch.Syscall is
        Address : Unsigned_64;
        Errno   : out Unsigned_64) return Unsigned_64
    is
-      Current_Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_Thread (Current_Thread);
+            Arch.CPU.Get_Local.Current_Process;
       File : constant VFS.File.File_Acc :=
          Current_Process.File_Table (Natural (File_D));
    begin
@@ -945,9 +933,8 @@ package body Arch.Syscall is
       Len  : constant Natural := Natural (Length);
       Path : String (1 .. Len) with Address => Addr;
 
-      Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_Thread (Thread);
+            Arch.CPU.Get_Local.Current_Process;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall getcwd(");
@@ -981,9 +968,8 @@ package body Arch.Syscall is
        Errno : out Unsigned_64) return Unsigned_64
    is
       Addr    : constant System.Address := To_Address (Integer_Address (Path));
-      Thread  : constant Scheduler.TID := Scheduler.Get_Current_Thread;
       Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_Thread (Thread);
+            Arch.CPU.Get_Local.Current_Process;
    begin
       if Path = 0 then
          if Is_Tracing then
