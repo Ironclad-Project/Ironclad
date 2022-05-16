@@ -18,6 +18,7 @@ with System;
 with System.Machine_Code; use System.Machine_Code;
 with Lib.Messages;
 with Lib.Panic;
+with Arch.Wrappers;
 
 package body Lib.Synchronization is
    Semaphore_Locked : constant Boolean := True;
@@ -30,6 +31,7 @@ package body Lib.Synchronization is
             Semaphore.Caller := Get_Caller_Address (0);
             return;
          end if;
+         Arch.Wrappers.Pause;
       end loop;
 
       Lib.Messages.Put ("Deadlock at address: ");

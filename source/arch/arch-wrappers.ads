@@ -27,8 +27,8 @@ package Arch.Wrappers is
    procedure Invalidate_Page (Value : Virtual_Address);
    ----------------------------------------------------------------------------
    --  Read an write MSRs.
-   function Read_MSR (MSRNumber : Unsigned_32) return Unsigned_64;
-   procedure Write_MSR (MSRNumber : Unsigned_32; Value : Unsigned_64);
+   function Read_MSR (MSR : Unsigned_32) return Unsigned_64;
+   procedure Write_MSR (MSR : Unsigned_32; Value : Unsigned_64);
    ----------------------------------------------------------------------------
    --  Read and write control registers.
    function Read_CR0 return Unsigned_64;
@@ -49,6 +49,8 @@ package Arch.Wrappers is
    ----------------------------------------------------------------------------
    --  HLT.
    procedure HLT;
+   --  Pause
+   procedure Pause;
    ----------------------------------------------------------------------------
    --  Manage FP state.
    procedure FP_Save (Region : System.Address);

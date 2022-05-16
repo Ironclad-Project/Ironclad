@@ -28,7 +28,7 @@ PHDRS
 }
 
 SECTIONS {
-    . = 0xFFFFFFFF80000000;
+    . = 0xFFFFFFFF80000000 + 1M;
 
     /* Actual kernel. */
     .text : {

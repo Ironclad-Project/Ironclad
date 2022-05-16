@@ -20,11 +20,9 @@ with Arch.HPET;
 with Arch.PIT;
 with Arch.Wrappers;
 with Arch.Interrupts;
+with Lib.Panic;
 
 package body Arch.APIC is
-   --  TODO: Allocate the LAPIC base in a core-specific way instead of fetching
-   --  it each time.
-
    LAPIC_MSR                         : constant := 16#01B#;
    LAPIC_EOI_Register                : constant := 16#0B0#;
    LAPIC_Spurious_Register           : constant := 16#0F0#;
@@ -35,14 +33,24 @@ package body Arch.APIC is
    LAPIC_Timer_Curr_Counter_Register : constant := 16#390#;
    LAPIC_Timer_Divisor_Register      : constant := 16#3E0#;
 
+   LAPIC_Base : constant := 16#FEE00000#;
+
    LAPIC_Timer_2_Divisor : constant := 0;
 
    procedure Init_LAPIC is
-      Value    : constant Unsigned_32 := LAPIC_Read (LAPIC_Spurious_Register);
-      To_Write : constant Unsigned_32 := Value or (LAPIC_Spurious_Entry - 1);
+      MSR_Read : constant Unsigned_64 := Arch.Wrappers.Read_MSR (LAPIC_MSR);
+      Value, To_Write : Unsigned_32;
    begin
+      --  We assume the LAPIC base for performance reasons.
+      --  Check the assumption is right tho.
+      if (MSR_Read and 16#FFFFF000#) /= LAPIC_Base then
+         Lib.Panic.Hard_Panic ("Odd LAPIC base encountered");
+      end if;
+
       --  Enable the LAPIC by setting the spurious interrupt vector and
       --  ORing the enable bit.
+      Value    := LAPIC_Read (LAPIC_Spurious_Register);
+      To_Write := Value or (LAPIC_Spurious_Entry - 1);
       LAPIC_Write (LAPIC_Spurious_Register, To_Write or Shift_Left (1, 8));
    end Init_LAPIC;
 
@@ -102,9 +110,10 @@ package body Arch.APIC is
    end LAPIC_EOI;
 
    function Get_LAPIC_Base return Virtual_Address is
-      MSR_Read : constant Unsigned_64 := Arch.Wrappers.Read_MSR (LAPIC_MSR);
    begin
-      return Virtual_Address ((MSR_Read and 16#FFFFF000#) + Memory_Offset);
+      --  We assume the LAPIC base for performance reasons.
+      --  This assumption is checked correct at initialization.
+      return Virtual_Address (Memory_Offset + LAPIC_Base);
    end Get_LAPIC_Base;
 
    function LAPIC_Read (Register : Unsigned_32) return Unsigned_32 is

@@ -119,7 +119,9 @@ package body Devices.PS2Keyboard is
 
       --  Set that we are reading, and wait until done.
       Is_Reading := True;
-      while Buffer_Length /= Natural (Count) loop null; end loop;
+      while Buffer_Length /= Natural (Count) loop
+         Arch.Wrappers.HLT;
+      end loop;
 
       --  Copy back.
       Is_Reading := False;

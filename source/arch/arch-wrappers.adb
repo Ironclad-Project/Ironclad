@@ -45,27 +45,27 @@ package body Arch.Wrappers is
            Volatile => True);
    end Invalidate_Page;
    ----------------------------------------------------------------------------
-   function Read_MSR (MSRNumber : Unsigned_32) return Unsigned_64 is
+   function Read_MSR (MSR : Unsigned_32) return Unsigned_64 is
       Res_High : Unsigned_32;
       Res_Low  : Unsigned_32;
    begin
       Asm ("rdmsr",
            Outputs  => (Unsigned_32'Asm_Output ("=a", Res_Low),
                         Unsigned_32'Asm_Output ("=d", Res_High)),
-           Inputs   => Unsigned_32'Asm_Input  ("c", MSRNumber),
+           Inputs   => Unsigned_32'Asm_Input  ("c", MSR),
            Clobber  => "memory",
            Volatile => True);
       return Shift_Left (Unsigned_64 (Res_High), 32) or Unsigned_64 (Res_Low);
    end Read_MSR;
 
-   procedure Write_MSR (MSRNumber : Unsigned_32; Value : Unsigned_64) is
+   procedure Write_MSR (MSR : Unsigned_32; Value : Unsigned_64) is
       Value_Hi : constant Unsigned_32 := Unsigned_32 (Shift_Right (Value, 32));
       Value_Lo : constant Unsigned_32 := Unsigned_32 (Value and 16#FFFFFFFF#);
    begin
       Asm ("wrmsr",
            Inputs   => (Unsigned_32'Asm_Input ("a", Value_Lo),
                         Unsigned_32'Asm_Input ("d", Value_Hi),
-                        Unsigned_32'Asm_Input ("c", MSRNumber)),
+                        Unsigned_32'Asm_Input ("c", MSR)),
            Clobber  => "memory",
            Volatile => True);
    end Write_MSR;
@@ -167,6 +167,11 @@ package body Arch.Wrappers is
    begin
       Asm ("hlt", Volatile => True);
    end HLT;
+
+   procedure Pause is
+   begin
+      Asm ("pause", Volatile => True);
+   end Pause;
    ----------------------------------------------------------------------------
    procedure FP_Save (Region : System.Address) is
    begin
