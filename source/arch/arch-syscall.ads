@@ -208,4 +208,11 @@ private
    function Syscall_Chdir
       (Path  : Unsigned_64;
        Errno : out Unsigned_64) return Unsigned_64;
+
+   --  IO control.
+   function Syscall_IOCTL
+      (FD       : Unsigned_64;
+       Request  : Unsigned_64;
+       Argument : Unsigned_64;
+       Errno    : out Unsigned_64) return Unsigned_64;
 end Arch.Syscall;

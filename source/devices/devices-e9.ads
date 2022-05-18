@@ -1,4 +1,4 @@
---  devices.ads: Device management library specification.
+--  devices-e9.ads: E9 driver.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,9 +14,18 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Stivale2;
+with Interfaces; use Interfaces;
+with System;
 
-package Devices is
-   --  Initialize devices.
-   procedure Init (Fb : access Arch.Stivale2.Framebuffer_Tag);
-end Devices;
+package Devices.E9 is
+   --  Initialize the device.
+   function Init return Boolean;
+
+private
+
+   function Write
+      (Data     : System.Address;
+       Offset   : Unsigned_64;
+       Count    : Unsigned_64;
+       To_Write : System.Address) return Unsigned_64;
+end Devices.E9;

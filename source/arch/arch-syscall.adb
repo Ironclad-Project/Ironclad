@@ -120,6 +120,8 @@ package body Arch.Syscall is
             Returned := Syscall_Get_CWD (State.RDI, State.RSI, Errno);
          when 20 =>
             Returned := Syscall_Chdir (State.RDI, Errno);
+         when 21 =>
+            Returned := Syscall_IOCTL (State.RDI, State.RSI, State.RDX, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -1009,4 +1011,48 @@ package body Arch.Syscall is
          return 0;
       end;
    end Syscall_Chdir;
+
+   function Syscall_IOCTL
+      (FD       : Unsigned_64;
+       Request  : Unsigned_64;
+       Argument : Unsigned_64;
+       Errno    : out Unsigned_64) return Unsigned_64
+   is
+      Arg : constant System.Address := To_Address (Integer_Address (Argument));
+      Current_Process : constant Userland.Process.Process_Data_Acc :=
+         Arch.CPU.Get_Local.Current_Process;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall ioctl(");
+         Lib.Messages.Put      (FD);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Request);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Argument);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if FD > Current_Process.File_Table'Length then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+
+      declare
+         File : constant VFS.File.File_Acc :=
+            Current_Process.File_Table (Natural (FD));
+      begin
+         if Argument = 0 then
+            Errno := Error_Would_Fault;
+            return Unsigned_64'Last;
+         end if;
+
+         if VFS.File.IO_Control (File, Request, Arg) then
+            Errno := Error_No_Error;
+            return 0;
+         else
+            Errno := Error_Bad_File;
+            return Unsigned_64'Last;
+         end if;
+      end;
+   end Syscall_IOCTL;
 end Arch.Syscall;

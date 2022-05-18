@@ -20,14 +20,16 @@ header:
     .quad 0                   # Alternative entrypoint, 0 is none.
     .quad stack_top           # Stack to be loaded for the kernel.
     .quad (1 << 2) | (1 << 4) # Flags to request PMRs.
-    .quad any_video_tag       # Start of tags.
+    .quad framebuffer_tag     # Start of tags.
 
 .section .data
 
-any_video_tag:
-    .quad 0xc75c9fa92a44c4db # Identifier of the tag.
+framebuffer_tag:
+    .quad 0x3ecc1bc43d0f7971 # Identifier of the tag.
     .quad terminal_tag       # Next in line.
-    .word 0                  # Prefered.
+    .word 0                  # Prefered width, 0 for default.
+    .word 0                  # Ditto.
+    .word 0                  # Ditto.
 
 terminal_tag:
     .quad 0xa85d499b1823be72 # Identifier of the tag.

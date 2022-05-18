@@ -49,4 +49,10 @@ package VFS.File is
 
    --  Get the stat of the file.
    function Stat (F : File_Acc; S : out VFS.File_Stat) return Boolean;
+
+   --  IOCTL.
+   function IO_Control
+      (F        : File_Acc;
+       Request  : Unsigned_64;
+       Argument : System.Address) return Boolean;
 end VFS.File;

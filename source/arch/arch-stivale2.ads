@@ -20,13 +20,14 @@ with Memory;     use Memory;
 
 package Arch.Stivale2 is
    --  IDs of several tags.
-   RSDP_ID     : constant := 16#9E1786930A375E78#;
-   Terminal_ID : constant := 16#C2B3F4C3233B0974#;
-   Memmap_ID   : constant := 16#2187F79E8612DE07#;
-   PMR_ID      : constant := 16#5DF266A64047B6BD#;
-   SMP_ID      : constant := 16#34D1D96339647025#;
-   Modules_ID  : constant := 16#4B6fE466AADE04CE#;
-   Cmdline_ID  : constant := 16#E5E76A1B4597A781#;
+   RSDP_ID        : constant := 16#9E1786930A375E78#;
+   Terminal_ID    : constant := 16#C2B3F4C3233B0974#;
+   Memmap_ID      : constant := 16#2187F79E8612DE07#;
+   PMR_ID         : constant := 16#5DF266A64047B6BD#;
+   SMP_ID         : constant := 16#34D1D96339647025#;
+   Modules_ID     : constant := 16#4B6fE466AADE04CE#;
+   Cmdline_ID     : constant := 16#E5E76A1B4597A781#;
+   Framebuffer_ID : constant := 16#506461D2950408FA#;
 
    --  Stivale2 header passed by the bootloader to kernel.
    type Header is record
@@ -205,6 +206,24 @@ package Arch.Stivale2 is
       Inner   at 0 range 128 .. 191;
    end record;
    for Cmdline_Tag'Size use 192;
+
+   --  Framebuffer tag.
+   type Framebuffer_Tag is record
+      TagInfo          : Tag;
+      Address          : System.Address;
+      Width            : Unsigned_16;
+      Height           : Unsigned_16;
+      Pitch            : Unsigned_16;
+      BPP              : Unsigned_16;
+      Memory_Model     : Unsigned_8;
+      Red_Mask_Size    : Unsigned_8;
+      Red_Mask_Shift   : Unsigned_8;
+      Green_Mask_Size  : Unsigned_8;
+      Green_Mask_Shift : Unsigned_8;
+      Blue_Mask_Size   : Unsigned_8;
+      Blue_Mask_Shift  : Unsigned_8;
+      Unused           : Unsigned_8;
+   end record;
 
    --  Find a header.
    function Get_Tag

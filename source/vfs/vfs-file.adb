@@ -147,4 +147,29 @@ package body VFS.File is
          return True;
       end if;
    end Stat;
+
+   function IO_Control
+      (F        : File_Acc;
+       Request  : Unsigned_64;
+       Argument : System.Address) return Boolean
+   is
+   begin
+      if F = null then
+         return False;
+      end if;
+      if F.FS_Data /= System.Null_Address and
+         F.File_Data /= System.Null_Address
+      then
+         --  Support USTAR IOCTL.
+         return False;
+      elsif F.Dev_Data.IO_Control /= null then
+         return F.Dev_Data.IO_Control (
+            F.Dev_Data.Data,
+            Request,
+            Argument
+         );
+      else
+         return False;
+      end if;
+   end IO_Control;
 end VFS.File;

@@ -67,6 +67,7 @@ Syscalls
 * sethostname::            Hostname setting.
 * fstat/lstat::            Fetch file information.
 * getcwd/chdir::           Current working directory manipulation.
+* ioctl::                  IO multiplexer.
 
 @end detailmenu
 @end menu
@@ -574,6 +575,27 @@ following errno:
 
 @item
 @code{ENOTDIR}: The passed path is not a directory or has 0 length.
+@end itemize
+
+@node ioctl
+@section ioctl
+
+@example
+int ioctl(int fd, unsigned long request, void *argument);
+@end example
+
+This syscall manipulates the underlying device parameters of special files. It
+allows a device-dependent API for fetching and setting several modes.
+
+@code{ioctl} returns @code{0} on success and @code{-1} on failure, and sets the
+following errno:
+
+@itemize @bullet
+@item
+@code{EBADF}: The passed file does not exist or does not have ioctl available.
+
+@item
+@code{EFAULT}: The passed argument is in non-accesible mmeory
 @end itemize
 
 @node GNU Free Documentation License

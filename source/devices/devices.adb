@@ -14,6 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Devices.BootMFB;
+with Devices.E9;
 with Devices.PS2Keyboard;
 with Devices.Serial;
 with Devices.Streams;
@@ -21,11 +23,13 @@ with Devices.TTY;
 with Lib.Panic;
 
 package body Devices is
-   procedure Init is
+   procedure Init (Fb : access Arch.Stivale2.Framebuffer_Tag) is
    begin
       --  Initialize physical devices.
-      if not PS2Keyboard.Init then goto Error; end if;
-      if not Serial.Init      then goto Error; end if;
+      if not BootMFB.Init (Fb) then goto Error; end if;
+      if not E9.Init           then goto Error; end if;
+      if not PS2Keyboard.Init  then goto Error; end if;
+      if not Serial.Init       then goto Error; end if;
 
       --  Initialize virtual devices.
       if not Streams.Init then goto Error; end if;

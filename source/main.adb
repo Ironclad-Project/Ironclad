@@ -144,11 +144,14 @@ package body Main is
 
       package C1 is new System.Address_To_Access_Conversions (ST.Modules_Tag);
       package C2 is new System.Address_To_Access_Conversions (ST.Cmdline_Tag);
+      package C3 is new System.Address_To_Access_Conversions (ST.Framebuffer_Tag);
 
       Modules : constant access ST.Modules_Tag :=
          C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Modules_ID)));
       Cmdline : constant access ST.Cmdline_Tag :=
          C2.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Cmdline_ID)));
+      Framebuffer : constant access ST.Framebuffer_Tag :=
+         C3.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Framebuffer_ID)));
 
       Cmdline_Addr : constant System.Address :=
          To_Address (To_Integer (Cmdline.Inner) + Memory.Memory_Offset);
@@ -169,7 +172,7 @@ package body Main is
       Userland.Process.Init;
 
       Lib.Messages.Put_Line ("Initializing devices");
-      Devices.Init;
+      Devices.Init (Framebuffer);
 
       Lib.Messages.Put_Line ("Mounting stivale2 modules as ramdevs");
       for I in Modules.Entries'First .. Modules.Entries'Last loop
