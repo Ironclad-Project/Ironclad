@@ -690,16 +690,19 @@ package body Arch.Syscall is
       return Unsigned_64 (Forked_Process.Process_PID);
    end Syscall_Fork;
 
+   Wait_WNOHANG : constant := 2#000010#;
    function Syscall_Wait
-      (Waited_PID : Unsigned_64;
-       Exit_Addr  : Unsigned_64;
-       Options    : Unsigned_64;
-       Errno      : out Unsigned_64) return Unsigned_64
+      (Waited_PID, Exit_Addr, Options : Unsigned_64;
+       Errno                          : out Unsigned_64) return Unsigned_64
    is
+      --  TODO: Support things like WCONTINUE once signals work.
+
       Current_Process : constant Userland.Process.Process_Data_Acc :=
             Arch.CPU.Get_Local.Current_Process;
       Exit_Value : Unsigned_32
          with Address => To_Address (Integer_Address (Exit_Addr));
+
+      Dont_Hang : constant Boolean := (Options and Wait_WNOHANG) /= 0;
    begin
       if Is_Tracing then
          Lib.Messages.Put      ("syscall wait(");
@@ -741,13 +744,20 @@ package body Arch.Syscall is
          Waited_Process : constant Userland.Process.Process_Data_Acc :=
             Userland.Process.Get_By_PID (Natural (Waited_PID));
       begin
-         --  Actually wait.
-         while not Waited_Process.Did_Exit loop
-            Scheduler.Yield;
-         end loop;
+         --  Actually wait if we are to.
+         if Dont_Hang and then Waited_Process.Did_Exit then
+            Errno := Error_No_Error;
+            return 0;
+         else
+            while not Waited_Process.Did_Exit loop
+               Scheduler.Yield;
+            end loop;
+         end if;
 
-         --  Set the return value.
-         Exit_Value := Unsigned_32 (Waited_Process.Exit_Code);
+         --  Set the return value if we are to.
+         if Exit_Value'Address /= System.Null_Address then
+            Exit_Value := Unsigned_32 (Waited_Process.Exit_Code);
+         end if;
 
          --  Now that we got the exit code, finally allow the process to die.
          Userland.Process.Delete_Process (Waited_Process);
@@ -755,7 +765,6 @@ package body Arch.Syscall is
          return Waited_PID;
       end;
    end Syscall_Wait;
-
 
    function Syscall_Uname
       (Address : Unsigned_64;

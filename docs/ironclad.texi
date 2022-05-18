@@ -52,7 +52,6 @@ Syscalls
 
 * x86_64::                 x86_64 syscall ABI.
 * Errno::                  Error conditions and their values.
-* Table of syscalls::      Table of all syscalls.
 * exit::                   Exit the callee process.
 * set_tcb::                Thread-local storage configuration.
 * open/close::             Opening and closing a file.
@@ -178,11 +177,6 @@ A seek was issued to an invalid device.
 @item ESPIPE (1081)
 The passed FD is in a bad state.
 @end table
-
-@node Table of syscalls
-@section Table of syscalls
-
-A
 
 @node exit
 @section exit
@@ -447,6 +441,9 @@ pid_t wait(pid_t pid, int *status, int options);
 
 This syscall suspends execution until the passed pid exits, to then store the
 exit code in @code{status}.
+
+@code{wait} allows the option @code{WNOHANG(0b000010)} for non-blocking
+waiting, if the process has not finished yet, @code{0} will be returned.
 
 @code{pid} can be a PID the callee is a parent of, or @code{-1} to wait on all
 the PIDs the callee has as children. @code{0}, which waits on all the children
