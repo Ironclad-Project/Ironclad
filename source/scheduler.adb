@@ -84,15 +84,18 @@ package body Scheduler is
       --  Check we are initialized and have all the data.
       while not Is_Initialized loop null; end loop;
 
-      declare
-         Hz : constant Unsigned_64 := Arch.CPU.Get_Local.LAPIC_Timer_Hz;
-      begin
-         --  Arm for Scheduler_ISR to do the rest of the job from us.
-         Arch.Interrupts.Set_Interrupt_Flag (False);
-         Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector, Hz, 20000);
-         Arch.Interrupts.Set_Interrupt_Flag (True);
-         loop Arch.Wrappers.HLT; end loop;
-      end;
+      --  Get the LAPIC timer hz that we couldn't get earlier because circular
+      --  dependency on the LAPIC timer <-> PIT <-> HPET.
+      if Arch.CPU.Get_Local.LAPIC_Timer_Hz = 0 then
+         Arch.CPU.Get_Local.LAPIC_Timer_Hz := Arch.APIC.LAPIC_Timer_Calibrate;
+      end if;
+
+      --  Arm for Scheduler_ISR to do the rest of the job from us.
+      Arch.Interrupts.Set_Interrupt_Flag (False);
+      Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector,
+         Arch.CPU.Get_Local.LAPIC_Timer_Hz, 20000);
+      Arch.Interrupts.Set_Interrupt_Flag (True);
+      loop Arch.Wrappers.HLT; end loop;
    end Idle_Core;
 
    function Create_Kernel_Thread

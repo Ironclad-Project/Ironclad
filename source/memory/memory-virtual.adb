@@ -177,6 +177,22 @@ package body Memory.Virtual is
       end if;
    end Map_Range;
 
+   procedure Remap_Range
+      (Map         : Page_Map_Acc;
+       Virtual     : Virtual_Address;
+       Length      : Unsigned_64;
+       Flags       : Page_Flags;
+       Not_Execute : Boolean)
+   is
+      VStart : constant Virtual_Address  := (Virtual / Page_Size) * Page_Size;
+      I      : Physical_Address := 0;
+   begin
+      while Unsigned_64 (I) < Length loop
+         Change_Page_Flags (Map, VStart + I, Flags, Not_Execute);
+         I := I + Page_Size;
+      end loop;
+   end Remap_Range;
+
    procedure Unmap_Page (Map : Page_Map_Acc; Virtual : Virtual_Address) is
       Page_Address : Virtual_Address;
       Addr4        : constant Physical_Address :=
@@ -201,9 +217,11 @@ package body Memory.Virtual is
    end Unmap_Page;
 
    procedure Change_Page_Flags
-      (Map     : Page_Map_Acc;
-       Virtual : Virtual_Address;
-       Flags   : Page_Flags) is
+      (Map         : Page_Map_Acc;
+       Virtual     : Virtual_Address;
+       Flags       : Page_Flags;
+       Not_Execute : Boolean)
+   is
       Page_Address : Virtual_Address;
    begin
       Lib.Synchronization.Seize (Map.Mutex'Access);
@@ -214,6 +232,7 @@ package body Memory.Virtual is
          Entry_Body : Page with Address => To_Address (Page_Address);
       begin
          Entry_Body.Flags := Flags;
+         Entry_Body.NX    := Not_Execute;
       end;
 
       Lib.Synchronization.Release (Map.Mutex'Access);

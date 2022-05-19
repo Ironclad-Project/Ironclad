@@ -34,7 +34,7 @@ package body Devices.Ramdev is
       Start : constant Virtual_Address := To_Integer (Module.Begin_Address);
       End2  : constant Virtual_Address := To_Integer (Module.End_Address);
       Data  : constant Ramdev_Data_Acc := new Ramdev_Data'(
-         Start_Address => To_Address (Start + Memory_Offset),
+         Start_Address => Module.Begin_Address,
          Size          => End2 - Start
       );
    begin

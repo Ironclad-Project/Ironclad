@@ -18,14 +18,47 @@ with System; use System;
 with VFS.Device;
 with VFS;
 with Memory; use Memory;
+with Memory.Virtual;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body Devices.BootMFB is
    type FB_Arr is array (Unsigned_32 range <>) of Unsigned_32;
 
    function Init (Fb : access Arch.Stivale2.Framebuffer_Tag) return Boolean is
-      Dev : VFS.Device.Device_Data;
+      Dev  : VFS.Device.Device_Data;
+      Addr : constant Integer_Address := To_Integer (Fb.Address);
+      Fb_Flags : constant Memory.Virtual.Page_Flags := (
+         Present         => True,
+         Read_Write      => True,
+         User_Supervisor => False,
+         Write_Through   => True,
+         Cache_Disable   => False,
+         Accessed        => False,
+         Dirty           => False,
+         PAT             => True,
+         Global          => True
+      );
    begin
+      --  Map the framebuffer write-combining in the higher-half
+      --  (also in the lower half because stivale2 might use it).
+      --  We only have to map it in the kernel map lower half because we
+      --  always switch to it when calling the terminal (PERFORMANCE died).
+      Memory.Virtual.Remap_Range (
+         Map         => Memory.Virtual.Kernel_Map,
+         Virtual     => Memory.Virtual_Address (Addr),
+         Length      => Unsigned_64 (Fb.Height) * 4 * Unsigned_64 (Fb.Pitch),
+         Flags       => Fb_Flags,
+         Not_Execute => False
+      );
+      Memory.Virtual.Remap_Range (
+         Map         => Memory.Virtual.Kernel_Map,
+         Virtual     => Memory.Virtual_Address (Addr - Memory.Memory_Offset),
+         Length      => Unsigned_64 (Fb.Height) * 4 * Unsigned_64 (Fb.Pitch),
+         Flags       => Fb_Flags,
+         Not_Execute => False
+      );
+
+      --  Register the device.
       Dev.Name              := "bootmfb";
       Dev.Data              := Fb.all'Address;
       Dev.Stat.Type_Of_File := VFS.File_Character_Device;
@@ -42,15 +75,13 @@ package body Devices.BootMFB is
        To_Read : System.Address) return Unsigned_64
    is
       Dev_Data : Arch.Stivale2.Framebuffer_Tag with Address => Data;
-      Dev_Y     : constant Unsigned_32     := Unsigned_32 (Dev_Data.Height);
-      Dev_X     : constant Unsigned_32     := Unsigned_32 (Dev_Data.Pitch) / 4;
-      Dev_Addr  : constant Integer_Address := To_Integer (Dev_Data.Address);
-      Offset2   : constant Unsigned_32     := Unsigned_32 (Offset);
-      Count2    : constant Unsigned_32     := Unsigned_32 (Count);
+      Dev_Y    : constant Unsigned_32     := Unsigned_32 (Dev_Data.Height);
+      Dev_X    : constant Unsigned_32     := Unsigned_32 (Dev_Data.Pitch) / 4;
+      Offset2  : constant Unsigned_32     := Unsigned_32 (Offset);
+      Count2   : constant Unsigned_32     := Unsigned_32 (Count);
 
-      Read_Data : FB_Arr (1 .. Count2) with Address => To_Read;
-      Window : FB_Arr (1 .. Dev_X * Dev_Y)
-         with Address => To_Address (Memory_Offset + Dev_Addr);
+      Read_Data : FB_Arr (1 .. Count2)        with Address => To_Read;
+      Window    : FB_Arr (1 .. Dev_X * Dev_Y) with Address => Dev_Data.Address;
    begin
       Read_Data := Window (Offset2 .. Offset2 + Count2 - 1);
       return Count;
@@ -63,15 +94,13 @@ package body Devices.BootMFB is
        To_Write : System.Address) return Unsigned_64
    is
       Dev_Data : Arch.Stivale2.Framebuffer_Tag with Address => Data;
-      Dev_Y     : constant Unsigned_32     := Unsigned_32 (Dev_Data.Height);
-      Dev_X     : constant Unsigned_32     := Unsigned_32 (Dev_Data.Pitch) / 4;
-      Dev_Addr  : constant Integer_Address := To_Integer (Dev_Data.Address);
-      Offset2   : constant Unsigned_32     := Unsigned_32 (Offset);
-      Count2    : constant Unsigned_32     := Unsigned_32 (Count);
+      Dev_Y    : constant Unsigned_32     := Unsigned_32 (Dev_Data.Height);
+      Dev_X    : constant Unsigned_32     := Unsigned_32 (Dev_Data.Pitch) / 4;
+      Offset2  : constant Unsigned_32     := Unsigned_32 (Offset);
+      Count2   : constant Unsigned_32     := Unsigned_32 (Count);
 
-      Write_Data : FB_Arr (1 .. Count2) with Address => To_Write;
-      Window : FB_Arr (1 .. Dev_X * Dev_Y)
-         with Address => To_Address (Memory_Offset + Dev_Addr);
+      Write_Data : FB_Arr (1 .. Count2)       with Address => To_Write;
+      Window    : FB_Arr (1 .. Dev_X * Dev_Y) with Address => Dev_Data.Address;
    begin
       Window (Offset2 + 1 .. Offset2 + Count2) := Write_Data;
       return Count;

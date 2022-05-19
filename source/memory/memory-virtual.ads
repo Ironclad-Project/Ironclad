@@ -154,11 +154,18 @@ package Memory.Virtual is
        Flags       : Page_Flags;
        Not_Execute : Boolean;
        Register    : Boolean);
+   procedure Remap_Range
+      (Map         : Page_Map_Acc;
+       Virtual     : Virtual_Address;
+       Length      : Unsigned_64;
+       Flags       : Page_Flags;
+       Not_Execute : Boolean);
    procedure Unmap_Page (Map : Page_Map_Acc; Virtual : Virtual_Address);
    procedure Change_Page_Flags
-      (Map     : Page_Map_Acc;
-       Virtual : Virtual_Address;
-       Flags   : Page_Flags);
+      (Map         : Page_Map_Acc;
+       Virtual     : Virtual_Address;
+       Flags       : Page_Flags;
+       Not_Execute : Boolean);
    function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc;
    function Clone_Space (Map : Page_Map_Acc) return Page_Map_Acc;
    function Is_Loaded (Map : Page_Map_Acc) return Boolean;

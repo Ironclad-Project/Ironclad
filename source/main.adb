@@ -98,9 +98,7 @@ package body Main is
       Memory.Virtual.Init (Memmap, PMRs);
 
       Lib.Messages.Put_Line ("Scanning ACPI tables");
-      if not Arch.ACPI.ScanTables
-         (RSDP.RSDP_Address + Memory.Memory_Offset)
-      then
+      if not Arch.ACPI.ScanTables (RSDP.RSDP_Address) then
          Lib.Panic.Hard_Panic ("ACPI tables not found");
       end if;
 
@@ -153,8 +151,6 @@ package body Main is
       Framebuffer : constant access ST.Framebuffer_Tag :=
          C3.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Framebuffer_ID)));
 
-      Cmdline_Addr : constant System.Address :=
-         To_Address (To_Integer (Cmdline.Inner) + Memory.Memory_Offset);
       Init_Arguments   : Userland.Argument_Arr (1 .. 1);
       Init_Environment : Userland.Environment_Arr (1 .. 0);
 
@@ -190,13 +186,13 @@ package body Main is
       end loop;
 
       Lib.Messages.Put_Line ("Fetching kernel cmdline options");
-      Root_Value := Lib.Cmdline.Get_Parameter (Cmdline_Addr, "root");
-      Init_Value := Lib.Cmdline.Get_Parameter (Cmdline_Addr, "init");
+      Root_Value := Lib.Cmdline.Get_Parameter (Cmdline.Inner, "root");
+      Init_Value := Lib.Cmdline.Get_Parameter (Cmdline.Inner, "init");
 
       Memory.Physical.Set_Tracing
-         (Lib.Cmdline.Is_Key_Present (Cmdline_Addr, "memtracing"));
+         (Lib.Cmdline.Is_Key_Present (Cmdline.Inner, "memtracing"));
       Arch.Syscall.Set_Tracing
-         (Lib.Cmdline.Is_Key_Present (Cmdline_Addr, "syscalltracing"));
+         (Lib.Cmdline.Is_Key_Present (Cmdline.Inner, "syscalltracing"));
 
       if Root_Value /= null then
          if not VFS.Device.Mount (Root_Value.all, "/", VFS.Device.FS_USTAR)
