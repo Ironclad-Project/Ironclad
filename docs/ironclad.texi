@@ -50,24 +50,25 @@ Boot-time command-line options
 
 Syscalls
 
-* x86_64::                 x86_64 syscall ABI.
-* Errno::                  Error conditions and their values.
-* exit::                   Exit the callee process.
-* set_tcb::                Thread-local storage configuration.
-* open/close::             Opening and closing a file.
-* read/write::             Read and write from an already opened file.
-* seek::                   Modify and fetch file offsets.
-* mmap/munmap::            Memory mapping and requesting.
-* getpid/getppid::         Get the PIDs of the caller.
-* thread_preference::      Thread preference and scheduling priority.
-* exec::                   Launching new programs.
-* fork::                   Forking current state into a new process.
-* wait::                   Waiting for execution of a child to finish.
-* uname::                  Fetch basic system information.
-* sethostname::            Hostname setting.
-* fstat/lstat::            Fetch file information.
-* getcwd/chdir::           Current working directory manipulation.
-* ioctl::                  IO multiplexer.
+* x86_64::                  x86_64 syscall ABI.
+* Errno::                   Error conditions and their values.
+* exit::                    Exit the callee process.
+* set_tcb::                 Thread-local storage configuration.
+* open/close::              Opening and closing a file.
+* read/write::              Read and write from an already opened file.
+* seek::                    Modify and fetch file offsets.
+* mmap/munmap::             Memory mapping and requesting.
+* getpid/getppid::          Get the PIDs of the caller.
+* exec::                    Launching new programs.
+* fork::                    Forking current state into a new process.
+* wait::                    Waiting for execution of a child to finish.
+* uname::                   Fetch basic system information.
+* sethostname::             Hostname setting.
+* fstat/lstat::             Fetch file information.
+* getcwd/chdir::            Current working directory manipulation.
+* ioctl::                   IO multiplexer.
+* sched_yield::             Relinquish CPU time.
+* getpriority/setpriority:: Manage scheduler priorities for processes.
 
 @end detailmenu
 @end menu
@@ -166,14 +167,11 @@ No such file or directory.
 @item ENOSYS (1051)
 The requested syscall or flag is not implemented.
 
-@item ENOTDIR (1053)
-Not a directory.
-
-@item ENOTSUP (1057)
-Operation not supported.
-
 @item ESPIPE (1069)
 A seek was issued to an invalid device.
+
+@item ESRCH (1070)
+The passed item could not be found after a search.
 
 @item ESPIPE (1081)
 The passed FD is in a bad state.
@@ -360,36 +358,6 @@ int getppid();
 process that created the callee by a myriad of ways.
 
 This functions are always successful.
-
-@node thread_preference
-@section thread_preference
-
-@example
-int thread_preference(int new_value);
-@end example
-
-This syscall returns or set the preference of the callee core.
-
-Preference is a metric for how much execution time will be assigned a given
-thread, in Ironclad, its represented with a value from 1 to value, with the
-higher the value, the more time will be spent on the thread.
-
-The actual maximum value of preference is not set, but it is always guaranteed
-that it starts at 1, and higher means relatively greater.
-
-When passed 0, the current thread preference will be returned, else, it sets
-it to the passed value, and returns the new value. Values higher than the
-maximum preference will just represent the maximum preference.
-
-In error, @code{-1} will be returned, and the following errno will be set:
-
-@itemize @bullet
-@item
-@code{EINVAL}: The argument is not valid.
-
-@item
-@code{ENOTSUP}: The operation could not be completed.
-@end itemize
 
 @node exec
 @section exec
@@ -596,6 +564,55 @@ following errno:
 
 @item
 @code{EFAULT}: The passed argument is in non-accesible mmeory
+@end itemize
+
+@node sched_yield
+@section sched_yield
+
+@example
+int sched_yield(void);
+@end example
+
+This syscall relinquishes execution of the caller thread.
+Its up for the kernel how far in the queue of execution this thread will go.
+
+This syscall returns @code{0} always, as it never fails, this is done for
+compatibility with POSIX instead of having a @code{void} return type.
+
+@node getpriority/setpriority
+@section getpriority/setpriority
+
+@example
+int getpriority(int which, id_t who);
+int setpriority(int which, id_t who, int prio);
+@end example
+
+This syscalls manage scheduler priority. @code{which} is a selector for the
+kind of entity we are fetching and setting information for, right now only
+@code{PRIO_PROCESS(1)} is supported.
+
+Priority is a value in the range -20 to 19, with -20 being the highest priority
+and 19 being the lowest priority. Attempts to set a priority outside this
+range are silently clamped to the range. The default priority is 0; lower
+values give a process a higher scheduling priority.
+
+The @code{getpriority} call returns the highest priority (lowest numerical
+value) enjoyed by any of the threads. @code{setpriority} sets the priorities of
+all of the threads of the specified process to the passed value.
+
+@code{getpriority} returns the priority in success or @code{-1} in failure,
+note that @code{-1} is a valid return value, so @code{errno} must be cleared.
+@code{setpriority} returns @code{0} on success and @code{-1} on failure.
+
+Both syscalls set the following errno on failure:
+
+@itemize @bullet
+@item
+@code{ENOSYS}: Any value different than @code{PRIO_PROCESS} was passed for
+@code{which}
+
+@item
+@code{ESRCH}: The passed process could not be found.
 @end itemize
 
 @node GNU Free Documentation License

@@ -34,7 +34,7 @@ package body Scheduler is
       Is_Present   : Boolean;
       Is_Banned    : Boolean;
       Is_Running   : Boolean;
-      Preference   : Positive;
+      Priority     : Integer;
       FS           : Unsigned_64;
       PageMap      : Memory.Virtual.Page_Map_Acc;
       Stack        : Virtual_Address;
@@ -51,15 +51,14 @@ package body Scheduler is
 
    --  Time slices assigned to each thread depending on preference.
    --  (In microseconds).
-   Preference_Slices : constant array (1 .. 8) of Unsigned_64 := (
-      1 =>  5000, -- Lowest, this should run as little as possible.
-      2 =>  6000, -- Low, doesnt need to run for long.
-      3 =>  8000, -- Low-ish, run a bit less than average.
-      4 => 10000, -- Average.
-      5 => 15000, -- High preference, will run for a bit.
-      6 => 20000, -- Highest preference,will run a lot more than average.
-      7 => 25000, -- Urgent, needs to run a fair while.
-      8 => 30000  -- Critical, this MUST run.
+   Priority_Slices : constant array (-20 .. 19) of Unsigned_64 := (
+      -20 .. -15 => 30000, -- Critical, this MUST run.
+      -14 .. -10 => 20000, -- High priority.
+       -9 ..  -1 => 15000, -- Highish priority, will run for a bit.
+               0 => 10000, -- Average.
+        1 ..   9 =>  8000, -- Lowish priority.
+       10 ..  15 =>  6000, -- Low priority.
+       16 ..  19 =>  5000  -- Piss priority.
    );
 
    --  Stack size of new threads.
@@ -122,7 +121,7 @@ package body Scheduler is
          Thread_Pool (New_TID).Is_Present   := True;
          Thread_Pool (New_TID).Is_Banned    := False;
          Thread_Pool (New_TID).Is_Running   := False;
-         Thread_Pool (New_TID).Preference   := 4;
+         Thread_Pool (New_TID).Priority     := 0;
          Thread_Pool (New_TID).PageMap      := Memory.Virtual.Kernel_Map;
          Thread_Pool (New_TID).Stack        := Stack_Addr;
          Thread_Pool (New_TID).State.CS     := Arch.GDT.Kernel_Code64_Segment;
@@ -193,7 +192,7 @@ package body Scheduler is
          Thread_Pool (New_TID).Is_Present   := True;
          Thread_Pool (New_TID).Is_Banned    := False;
          Thread_Pool (New_TID).Is_Running   := False;
-         Thread_Pool (New_TID).Preference   := 4;
+         Thread_Pool (New_TID).Priority     := 0;
          Thread_Pool (New_TID).PageMap      := Map;
          Thread_Pool (New_TID).Stack        := User_Stack_Addr;
          Thread_Pool (New_TID).Kernel_Stack := Kernel_Stack_Addr;
@@ -317,7 +316,7 @@ package body Scheduler is
       Thread_Pool (New_TID).Is_Banned    := False;
       Thread_Pool (New_TID).Is_Running   := False;
       Thread_Pool (New_TID).PageMap      := Map;
-      Thread_Pool (New_TID).Preference   := 4;
+      Thread_Pool (New_TID).Priority     := 0;
       Thread_Pool (New_TID).Kernel_Stack := Kernel_Stack_Addr;
       Thread_Pool (New_TID).FS           := Arch.Wrappers.Read_FS;
       Thread_Pool (New_TID).State        := State.all;
@@ -356,27 +355,29 @@ package body Scheduler is
       end if;
    end Ban_Thread;
 
-   function Get_Thread_Preference (Thread : TID) return Natural is
+   function Get_Thread_Priority (Thread : TID) return Integer is
    begin
       if Is_Thread_Present (Thread) then
-         return Thread_Pool (Thread).Preference;
+         return Thread_Pool (Thread).Priority;
       else
-         return 0;
+         return -1;
       end if;
-   end Get_Thread_Preference;
+   end Get_Thread_Priority;
 
-   procedure Set_Thread_Preference (Thread : TID; Preference : Positive) is
+   procedure Set_Thread_Priority (Thread : TID; Priority : Integer) is
    begin
       if Is_Thread_Present (Thread) then
          Lib.Synchronization.Seize (Scheduler_Mutex'Access);
-         if Preference > Preference_Slices'Last then
-            Thread_Pool (Thread).Preference := Preference_Slices'Last;
+         if Priority > Priority_Slices'Last then
+            Thread_Pool (Thread).Priority := Priority_Slices'Last;
+         elsif Priority < Priority_Slices'First then
+            Thread_Pool (Thread).Priority := Priority_Slices'First;
          else
-            Thread_Pool (Thread).Preference := Preference;
+            Thread_Pool (Thread).Priority := Priority;
          end if;
          Lib.Synchronization.Release (Scheduler_Mutex'Access);
       end if;
-   end Set_Thread_Preference;
+   end Set_Thread_Priority;
 
    procedure Yield is
       Core_LAPIC : constant Unsigned_32 := Arch.CPU.Get_Local.LAPIC_ID;
@@ -443,10 +444,10 @@ package body Scheduler is
       Arch.APIC.LAPIC_EOI;
       if Current_TID /= 0 then
          Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector, Hz,
-            Preference_Slices (Thread_Pool (Current_TID).Preference));
+            Priority_Slices (Thread_Pool (Current_TID).Priority));
       else
          Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector, Hz,
-            Preference_Slices (4));
+            Priority_Slices (0));
       end if;
       return;
 
@@ -466,7 +467,7 @@ package body Scheduler is
       --  Rearm the timer for next tick.
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
       Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector, Hz,
-         Preference_Slices (Thread_Pool (Next_TID).Preference));
+         Priority_Slices (Thread_Pool (Next_TID).Priority));
       Arch.APIC.LAPIC_EOI;
 
       --  Load kernel stack in the TSS.

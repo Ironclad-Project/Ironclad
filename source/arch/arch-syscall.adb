@@ -27,11 +27,12 @@ with Userland.Process; use Userland.Process;
 with Userland.Loader;
 with VFS.File; use VFS.File;
 with VFS; use VFS;
-with Scheduler;
+with Scheduler; use Scheduler;
 with Memory.Virtual; use Memory.Virtual;
 with Memory.Physical;
 with Memory; use Memory;
 with Ada.Unchecked_Deallocation;
+with Ada.Unchecked_Conversion;
 
 package body Arch.Syscall is
    --  Errno values, they are ABI and arbitrary.
@@ -45,9 +46,8 @@ package body Arch.Syscall is
    Error_String_Too_Long : constant := 1036; -- ENAMETOOLONG
    Error_No_Entity       : constant := 1043; -- ENOENT.
    Error_Not_Implemented : constant := 1051; -- ENOSYS.
-   Error_Not_A_Directory : constant := 1053; -- ENOTDIR.
-   Error_Not_Supported   : constant := 1057; -- ENOSUP.
    Error_Invalid_Seek    : constant := 1069; -- ESPIPE.
+   Error_Bad_Search      : constant := 1070; -- ESRCH.
    Error_Bad_File        : constant := 1081; -- EBADFD.
 
    --  Whether we are to print syscall information.
@@ -101,27 +101,33 @@ package body Arch.Syscall is
          when 10 =>
             Returned := Syscall_Get_Parent_PID;
          when 11 =>
-            Returned := Syscall_Thread_Preference (State.RDI, Errno);
-         when 12 =>
             Returned := Syscall_Exec (State.RDI, State.RSI, State.RDX, Errno);
-         when 13 =>
+         when 12 =>
             Returned := Syscall_Fork (State, Errno);
-         when 14 =>
+         when 13 =>
             Returned := Syscall_Wait (State.RDI, State.RSI, State.RDX, Errno);
-         when 15 =>
+         when 14 =>
             Returned := Syscall_Uname (State.RDI, Errno);
-         when 16 =>
+         when 15 =>
             Returned := Syscall_Set_Hostname (State.RDI, State.RSI, Errno);
-         when 17 =>
+         when 16 =>
             Returned := Syscall_FStat (State.RDI, State.RSI, Errno);
-         when 18 =>
+         when 17 =>
             Returned := Syscall_LStat (State.RDI, State.RSI, Errno);
-         when 19 =>
+         when 18 =>
             Returned := Syscall_Get_CWD (State.RDI, State.RSI, Errno);
-         when 20 =>
+         when 29 =>
             Returned := Syscall_Chdir (State.RDI, Errno);
-         when 21 =>
+         when 20 =>
             Returned := Syscall_IOCTL (State.RDI, State.RSI, State.RDX, Errno);
+         when 21 =>
+            Syscall_Sched_Yield;
+            Returned := 0;
+         when 22 =>
+            Returned := Syscall_Get_Priority (State.RDI, State.RSI, Errno);
+         when 23 =>
+            Returned := Syscall_Set_Priority (State.RDI, State.RSI, State.RDX,
+                                              Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -526,47 +532,6 @@ package body Arch.Syscall is
       end if;
       return Unsigned_64 (Parent_Process);
    end Syscall_Get_Parent_PID;
-
-   function Syscall_Thread_Preference
-      (Preference : Unsigned_64;
-       Errno      : out Unsigned_64) return Unsigned_64
-   is
-      Thread : constant Scheduler.TID := Arch.CPU.Get_Local.Current_Thread;
-   begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall thread_preference(");
-         Lib.Messages.Put (Preference);
-         Lib.Messages.Put_Line (")");
-      end if;
-
-      --  Check if we have a valid preference before doing anything with it.
-      if Preference > Unsigned_64 (Positive'Last) then
-         Errno := Error_Invalid_Value;
-         return Unsigned_64'Last;
-      end if;
-
-      --  If 0, we have to return the current preference, else, we gotta set
-      --  it to the passed value.
-      if Preference = 0 then
-         declare
-            Pr : constant Natural := Scheduler.Get_Thread_Preference (Thread);
-         begin
-            --  If we got error preference, return that, even tho that should
-            --  be impossible.
-            if Pr = 0 then
-               Errno := Error_Not_Supported;
-               return Unsigned_64'Last;
-            else
-               Errno := Error_No_Error;
-               return Unsigned_64 (Pr);
-            end if;
-         end;
-      else
-         Scheduler.Set_Thread_Preference (Thread, Natural (Preference));
-         Errno := Error_No_Error;
-         return Unsigned_64 (Scheduler.Get_Thread_Preference (Thread));
-      end if;
-   end Syscall_Thread_Preference;
 
    function Syscall_Exec
       (Address : Unsigned_64;
@@ -1055,4 +1020,89 @@ package body Arch.Syscall is
          end if;
       end;
    end Syscall_IOCTL;
+
+   procedure Syscall_Sched_Yield is
+   begin
+      Scheduler.Yield;
+   end Syscall_Sched_Yield;
+
+   function Unsigned_64_To_Integer is
+      new Ada.Unchecked_Conversion (Unsigned_64, Integer);
+   function Integer_To_Unsigned_64 is
+      new Ada.Unchecked_Conversion (Integer, Unsigned_64);
+
+   function Syscall_Get_Priority
+      (Which, Who : Unsigned_64;
+       Errno      : out Unsigned_64) return Unsigned_64
+   is
+      Highest_Priority : Integer := 0;
+      Proc : constant Userland.Process.Process_Data_Acc :=
+         Userland.Process.Get_By_PID (Natural (Who));
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall getpriority(");
+         Lib.Messages.Put      (Which);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Who);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      --  Check we didnt get asked for anything weird and that we found it.
+      if Which /= Which_Process then
+         Errno := Error_Not_Implemented;
+         return Unsigned_64'Last;
+      end if;
+      if Proc = null then
+         Errno := Error_Bad_Search;
+         return Unsigned_64'Last;
+      end if;
+
+      --  Return the highest priority.
+      for T of Proc.Thread_List loop
+         if T /= 0 and then Highest_Priority > Get_Thread_Priority (T) then
+            Highest_Priority := Get_Thread_Priority (T);
+         end if;
+      end loop;
+
+      Errno := Error_No_Error;
+      return Integer_To_Unsigned_64 (Highest_Priority);
+   end Syscall_Get_Priority;
+
+   function Syscall_Set_Priority
+      (Which, Who, Prio : Unsigned_64;
+       Errno            : out Unsigned_64) return Unsigned_64
+   is
+      Proc : constant Userland.Process.Process_Data_Acc :=
+         Userland.Process.Get_By_PID (Natural (Who));
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall setpriority(");
+         Lib.Messages.Put      (Which);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Who);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Prio);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      --  Check we didnt get asked for anything weird and that we found it.
+      if Which /= Which_Process then
+         Errno := Error_Not_Implemented;
+         return Unsigned_64'Last;
+      end if;
+      if Proc = null then
+         Errno := Error_Bad_Search;
+         return Unsigned_64'Last;
+      end if;
+
+      --  Set the priority to all the children.
+      for T of Proc.Thread_List loop
+         if T /= 0 then
+            Set_Thread_Priority (T, Unsigned_64_To_Integer (Prio));
+         end if;
+      end loop;
+
+      Errno := Error_No_Error;
+      return 0;
+   end Syscall_Set_Priority;
 end Arch.Syscall;

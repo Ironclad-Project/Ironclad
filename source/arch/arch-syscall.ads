@@ -105,11 +105,6 @@ private
    --  Get the PID of the parent of the callee.
    function Syscall_Get_Parent_PID return Unsigned_64;
 
-   --  Set thread preference.
-   function Syscall_Thread_Preference
-      (Preference : Unsigned_64;
-       Errno      : out Unsigned_64) return Unsigned_64;
-
    --  Execute.
    function Syscall_Exec
       (Address : Unsigned_64;
@@ -215,4 +210,18 @@ private
        Request  : Unsigned_64;
        Argument : Unsigned_64;
        Errno    : out Unsigned_64) return Unsigned_64;
+
+   --  Yield.
+   procedure Syscall_Sched_Yield;
+
+   --  Get thread priority.
+   Which_Process : constant := 1;
+   function Syscall_Get_Priority
+      (Which, Who : Unsigned_64;
+       Errno      : out Unsigned_64) return Unsigned_64;
+
+   --  Set thread priority.
+   function Syscall_Set_Priority
+      (Which, Who, Prio : Unsigned_64;
+       Errno            : out Unsigned_64) return Unsigned_64;
 end Arch.Syscall;

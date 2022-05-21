@@ -71,9 +71,11 @@ package body Arch.CPU is
    --  that into account when compared with other cores.
    --  This function enables things common to BSP and other cores.
    procedure Init_Common (Core_Number : Positive; LAPIC : Unsigned_32) is
-      CR0     : Unsigned_64 := Wrappers.Read_CR0;
-      CR4     : Unsigned_64 := Wrappers.Read_CR4;
-      PAT_MSR : Unsigned_64 := Wrappers.Read_MSR (16#277#);
+      PAT_MSR : constant := 16#277#;
+
+      CR0 : Unsigned_64 := Wrappers.Read_CR0;
+      CR4 : Unsigned_64 := Wrappers.Read_CR4;
+      PAT : Unsigned_64 := Wrappers.Read_MSR (PAT_MSR);
 
       Locals_Addr : constant Unsigned_64 :=
          Unsigned_64 (To_Integer (Core_Locals (Core_Number)'Address));
@@ -92,9 +94,9 @@ package body Arch.CPU is
       Wrappers.Write_Kernel_GS (Locals_Addr);
 
       --  Initialise the PAT (write-protect / write-combining).
-      PAT_MSR := PAT_MSR and (16#FFFFFFFF#);
-      PAT_MSR := PAT_MSR or  Shift_Left (Unsigned_64 (16#0105#), 32);
-      Wrappers.Write_MSR (16#277#, PAT_MSR);
+      PAT := PAT and (16#FFFFFFFF#);
+      PAT := PAT or  Shift_Left (Unsigned_64 (16#0105#), 32);
+      Wrappers.Write_MSR (PAT_MSR, PAT);
 
       --  Load the TSS.
       GDT.Load_TSS (Core_Locals (Core_Number).Core_TSS'Address);

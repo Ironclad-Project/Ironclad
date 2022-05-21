@@ -64,14 +64,9 @@ package Scheduler is
    --  Sets whether a thread is allowed to execute or not (if it exists).
    procedure Ban_Thread (Thread : TID; Is_Banned : Boolean);
 
-   --  Get the preference for the thread.
-   --  Returns 0 on failure, else, the preference.
-   function Get_Thread_Preference (Thread : TID) return Natural;
-
-   --  Set the preference for the thread to run, the higher the value, the
-   --  more preference.
-   --  Values higher than accepted will be colapsed.
-   procedure Set_Thread_Preference (Thread : TID; Preference : Positive);
+   --  Get and set the priority of a thread.
+   function Get_Thread_Priority (Thread : TID) return Integer;
+   procedure Set_Thread_Priority (Thread : TID; Priority : Integer);
 
    --  Give up the rest of our execution time for some other process.
    procedure Yield;
