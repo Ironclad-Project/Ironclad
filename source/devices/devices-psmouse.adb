@@ -1,0 +1,188 @@
+--  devices-psmouse.adb: PS2 mouse driver.
+--  Copyright (C) 2021 streaksu
+--
+--  This program is free software: you can redistribute it and/or modify
+--  it under the terms of the GNU General Public License as published by
+--  the Free Software Foundation, either version 3 of the License, or
+--  (at your option) any later version.
+--
+--  This program is distributed in the hope that it will be useful,
+--  but WITHOUT ANY WARRANTY; without even the implied warranty of
+--  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+--  GNU General Public License for more details.
+--
+--  You should have received a copy of the GNU General Public License
+--  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+with Arch.IDT;
+with Arch.APIC;
+with Arch.CPU;
+with Arch.Wrappers;
+with VFS.Device;
+with Ada.Unchecked_Conversion;
+
+package body Devices.PSMouse is
+   --  For return.
+   type Mouse_Data is record
+      X_Variation    : Integer;
+      Y_Variation    : Integer;
+      Is_Left_Click  : Boolean;
+      Is_Right_Click : Boolean;
+   end record;
+   Has_Returned : Boolean    with Volatile;
+   Return_Data  : Mouse_Data with Volatile;
+
+   --  Data used for mouse operation.
+   type Signed_8 is range -128 .. 127 with Size => 8;
+   function To_Signed is
+      new Ada.Unchecked_Conversion (Unsigned_8, Signed_8);
+   type PS2_Mouse_Data is record
+      X_Variation : Unsigned_8;
+      Y_Variation : Unsigned_8;
+      Flags       : Unsigned_8;
+   end record;
+
+   Current_Cycle_Data  : PS2_Mouse_Data;
+   Current_Mouse_Cycle : Integer range 1 .. 3 := 1;
+
+   function Init return Boolean is
+      BSP_LAPIC    : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
+      Index        : Arch.IDT.IRQ_Index;
+      Data, Unused : Unsigned_8;
+      Dev          : VFS.Device.Device_Data;
+   begin
+      --  Set the interrupt up, which is always the 45 (we are 1 based).
+      if not Arch.IDT.Load_ISR (Mouse_Handler'Address, Index) then
+         return False;
+      end if;
+      if not Arch.APIC.IOAPIC_Set_Redirect (BSP_LAPIC, 45, Index, True) then
+         return False;
+      end if;
+
+      --  Init the mouse.
+      Mouse_Wait_Write;
+      Arch.Wrappers.Port_Out (16#64#, 16#A8#);
+      Mouse_Wait_Write;
+      Arch.Wrappers.Port_Out (16#64#, 16#20#);
+      Data   := Mouse_Read;
+      Unused := Mouse_Read;
+      Data   := Data or  Shift_Left (1, 1);
+      Data   := Data and (not Shift_Left (1, 5));
+      Mouse_Wait_Write;
+      Arch.Wrappers.Port_Out (16#64#, 16#60#);
+      Mouse_Wait_Write;
+      Arch.Wrappers.Port_Out (16#60#, Data);
+      Unused := Mouse_Read;
+      Mouse_Write (16#F6#);
+      Unused := Mouse_Read;
+      Mouse_Write (16#F4#);
+      Unused := Mouse_Read;
+
+      Dev.Name              := "psmouse";
+      Dev.Data              := System.Null_Address;
+      Dev.Stat.Type_Of_File := VFS.File_Character_Device;
+      Dev.Stat.Mode         := 8#660#;
+      Dev.Sync              := null;
+      Dev.Read              := Read'Access;
+      Dev.Write             := null;
+      Dev.IO_Control        := null;
+      return VFS.Device.Register (Dev);
+   end Init;
+
+   function Read
+      (Data   : System.Address;
+       Offset : Unsigned_64;
+       Count  : Unsigned_64;
+       Desto  : System.Address) return Unsigned_64
+   is
+      pragma Unreferenced (Data);
+      pragma Unreferenced (Offset);
+      pragma Unreferenced (Count);
+      Data2 : Mouse_Data with Address => Desto;
+   begin
+      Has_Returned := False;
+      while not Has_Returned loop
+         Arch.Wrappers.HLT;
+      end loop;
+
+      Data2 := Return_Data;
+      return Return_Data'Size / 8;
+   end Read;
+
+   procedure Mouse_Handler is
+   begin
+      case Current_Mouse_Cycle is
+         when 1 =>
+            Current_Cycle_Data.Flags := Arch.Wrappers.Port_In (16#60#);
+            if (Current_Cycle_Data.Flags and Shift_Left (1, 3)) /= 0 and
+               (Current_Cycle_Data.Flags and Shift_Left (1, 6))  = 0 and
+               (Current_Cycle_Data.Flags and Shift_Left (1, 7))  = 0
+            then
+               Current_Mouse_Cycle := 2;
+            end if;
+         when 2 =>
+            Current_Cycle_Data.X_Variation := Arch.Wrappers.Port_In (16#60#);
+            Current_Mouse_Cycle            := 3;
+         when 3 =>
+            Current_Cycle_Data.Y_Variation := Arch.Wrappers.Port_In (16#60#);
+            Current_Mouse_Cycle            := 1;
+
+            --  Apply the flags and convert format.
+            if (Current_Cycle_Data.Flags and Shift_Left (1, 0)) /= 0 then
+               Return_Data.Is_Left_Click := True;
+            end if;
+            if (Current_Cycle_Data.Flags and Shift_Left (1, 1)) /= 0 then
+               Return_Data.Is_Right_Click := True;
+            end if;
+            if (Current_Cycle_Data.Flags and Shift_Left (1, 4)) /= 0 then
+               Return_Data.X_Variation :=
+                  Integer (To_Signed (Current_Cycle_Data.X_Variation));
+            else
+               Return_Data.X_Variation :=
+                  Integer (Current_Cycle_Data.X_Variation);
+            end if;
+            if (Current_Cycle_Data.Flags and Shift_Left (1, 5)) /= 0 then
+               Return_Data.Y_Variation :=
+                  -Integer (To_Signed (Current_Cycle_Data.Y_Variation));
+            else
+               Return_Data.Y_Variation :=
+                  -Integer (Current_Cycle_Data.Y_Variation);
+            end if;
+            Has_Returned := True;
+      end case;
+
+      Arch.APIC.LAPIC_EOI;
+   end Mouse_Handler;
+
+   procedure Mouse_Wait_Read is
+      Timeout : Natural := 100_000;
+   begin
+      while (Timeout /= 0) loop
+         exit when (Arch.Wrappers.Port_In (16#64#) and Shift_Left (1, 0)) /= 0;
+         Timeout := Timeout - 1;
+      end loop;
+   end Mouse_Wait_Read;
+
+   procedure Mouse_Wait_Write is
+      Timeout : Natural := 100_000;
+   begin
+      while (Timeout /= 0) loop
+         exit when (Arch.Wrappers.Port_In (16#64#) and Shift_Left (1, 1)) = 0;
+         Timeout := Timeout - 1;
+      end loop;
+   end Mouse_Wait_Write;
+
+   function Mouse_Read return Unsigned_8 is
+   begin
+      Mouse_Wait_Read;
+      return Arch.Wrappers.Port_In (16#60#);
+   end Mouse_Read;
+
+   procedure Mouse_Write (Data : Unsigned_8) is
+   begin
+      Mouse_Wait_Write;
+      Arch.Wrappers.Port_Out (16#64#, 16#D4#);
+      Mouse_Wait_Write;
+      Arch.Wrappers.Port_Out (16#60#, Data);
+   end Mouse_Write;
+end Devices.PSMouse;

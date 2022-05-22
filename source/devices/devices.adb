@@ -17,6 +17,7 @@
 with Devices.BootMFB;
 with Devices.E9;
 with Devices.PS2Keyboard;
+with Devices.PSMouse;
 with Devices.Serial;
 with Devices.Streams;
 with Devices.TTY;
@@ -28,6 +29,7 @@ package body Devices is
       --  Initialize physical devices.
       if not BootMFB.Init (Fb) then goto Error; end if;
       if not E9.Init           then goto Error; end if;
+      if not PSMouse.Init      then goto Error; end if;
       if not PS2Keyboard.Init  then goto Error; end if;
       if not Serial.Init       then goto Error; end if;
 
