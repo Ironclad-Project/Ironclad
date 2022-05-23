@@ -63,6 +63,7 @@ package body Devices.BootMFB is
       Dev.Data              := Fb.all'Address;
       Dev.Stat.Type_Of_File := VFS.File_Character_Device;
       Dev.Stat.Mode         := 8#660#;
+      Dev.Read              := Read'Access;
       Dev.Write             := Write'Access;
       Dev.IO_Control        := IO_Control'Access;
       return VFS.Device.Register (Dev);
@@ -83,7 +84,7 @@ package body Devices.BootMFB is
       Read_Data : FB_Arr (1 .. Count2)        with Address => To_Read;
       Window    : FB_Arr (1 .. Dev_X * Dev_Y) with Address => Dev_Data.Address;
    begin
-      Read_Data := Window (Offset2 .. Offset2 + Count2 - 1);
+      Read_Data := Window (Offset2 + 1 .. Offset2 + Count2);
       return Count;
    end Read;
 

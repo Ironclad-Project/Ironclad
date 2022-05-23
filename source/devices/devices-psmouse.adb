@@ -130,9 +130,13 @@ package body Devices.PSMouse is
             --  Apply the flags and convert format.
             if (Current_Cycle_Data.Flags and Shift_Left (1, 0)) /= 0 then
                Return_Data.Is_Left_Click := True;
+            else
+               Return_Data.Is_Left_Click := False;
             end if;
             if (Current_Cycle_Data.Flags and Shift_Left (1, 1)) /= 0 then
                Return_Data.Is_Right_Click := True;
+            else
+               Return_Data.Is_Right_Click := False;
             end if;
             if (Current_Cycle_Data.Flags and Shift_Left (1, 4)) /= 0 then
                Return_Data.X_Variation :=
