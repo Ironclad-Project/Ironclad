@@ -167,11 +167,6 @@ package body Arch.Wrappers is
    begin
       Asm ("hlt", Volatile => True);
    end HLT;
-
-   procedure Pause is
-   begin
-      Asm ("pause", Volatile => True);
-   end Pause;
    ----------------------------------------------------------------------------
    procedure FP_Save (Region : System.Address) is
    begin

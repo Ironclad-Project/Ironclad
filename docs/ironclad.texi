@@ -32,10 +32,8 @@ Documentation License''.
 @insertcopying
 @end ifnottex
 
-This document describes several mechamisms and methods to interface with the
-kernel from boot-time and userland.
-
 @menu
+* General information::              General information about the project
 * Boot-time command-line options::   Command-line options
 * Syscalls::                         The main method of userland to interface
 * Devices and their properties::     Devices exposed by the kernel
@@ -43,6 +41,13 @@ kernel from boot-time and userland.
 
 @detailmenu
 --- The Detailed Node Listing ---
+
+General information
+
+* What is Ironclad?::       Basic information about the project.
+* How to contribute::       How to contribute code to the kernel.
+* Error reporting::         How to report issues with the kernel.
+* Navigating the source::   Structure of the project.
 
 Boot-time command-line options
 
@@ -83,6 +88,83 @@ Devices and their properties
 
 @end detailmenu
 @end menu
+
+@node General information
+@chapter General information
+
+This section approaches essential information about Ironclad, along with
+general guidelines for reporting issues, colaborating, and other meta things
+of the project.
+
+@node What is Ironclad?
+@section What is Ironclad?
+
+As the README of the project states, Ironclad is a kernel for x86_64 devices
+exclusively (for now), written in Ada. The goal of the project is to create
+a POSIX kernel for hobbyist fun, maybe one day for real life use. Ironclad has
+a lot of features one would expect on a modern system, and the list only
+continues to grow, like support for desktop environments, true multitasking, a
+good memory manager, and a fully functional userland with dynamic linking and
+ELF loading.
+
+@node How to contribute
+@section How to contribute
+
+Thanks for considering contributing to Ironclad, it means a lot. Information
+on how to contribute is detailed on the @code{CONTRIBUTING.md} file in the
+root directory of the project, which is hosted as of right now in this
+@uref{https://github.com/streaksu/Ironclad, git repository}. Else, if you
+want to contribute but you are more into userland work, there is a distribution
+of the Ironclad kernel with a GNU userland that can also do with some help, in
+this @uref{https://github.com/streaksu/Gloire, other git repository}.
+
+@node Error reporting
+@section Error reporting
+
+Ironclad is a hobby project at the end of the day, so things are prone to fail.
+Once the issue arises, one can open a bug report on the kernel's
+@uref{https://github.com/streaksu/Ironclad, git repository}, Ironclad itself
+prints the address as well when booting.
+
+@node Navigating the source
+@section Navigating the source
+
+The source of Ironclad can be found on its repository under the @code{source}
+directory. It has several subdirectories with the following meanings:
+
+@table @code
+@item arch
+Architecture-dependent code, right now, only x86_64 code is held here.
+
+@item devices
+Several device drivers, physical and virtual.
+
+@item lib
+Functions and libraries for utilities used in the rest of the kernel.
+
+@item memory
+Memory management, physical as well as virtual.
+
+@item networking
+Networking drivers and data.
+
+@item userland
+Userland code for loaders, processes, and such.
+
+@item vfs
+VFS structure and FS drivers.
+@end table
+
+Apart of those subdirectories, @code{source} itself contains the
+@code{main.adb} of the kernel, @code{pragmas.adc} containing the pragmas used
+for the rest of the kernel code, and some other files and drivers that do
+not fit on the former subdirectories.
+
+Keep in mind that as Ironclad is only available right now for x86_64 platforms,
+the architecture-specific separation of @code{arch} and the rest of the kernel
+is very loose and not that strictly enforced, still, it is nice to keep it in
+mind. As an example, x86-specific PS2 devices on the @code{devices} directory
+instead of @code{arch}.
 
 @node Boot-time command-line options
 @chapter Boot-time command-line options
@@ -479,19 +561,19 @@ returned on success and @code{-1} on failure, with the following errno:
 
 @example
 struct stat @{
-	dev_t st_dev;
-	ino_t st_ino;
-	mode_t st_mode;
-	nlink_t st_nlink;
-	uid_t st_uid;
-	gid_t st_gid;
-	dev_t st_rdev;
-	off_t st_size;
-	struct timespec st_atim;
-	struct timespec st_mtim;
-	struct timespec st_ctim;
-	blksize_t st_blksize;
-	blkcnt_t st_blocks;
+	 dev_t st_dev;
+	 ino_t st_ino;
+	 mode_t st_mode;
+	 nlink_t st_nlink;
+	 uid_t st_uid;
+	 gid_t st_gid;
+	 dev_t st_rdev;
+	 off_t st_size;
+	 struct timespec st_atim;
+	 struct timespec st_mtim;
+	 struct timespec st_ctim;
+	 blksize_t st_blksize;
+	 blkcnt_t st_blocks;
 @};
 
 int fstat(int fd, struct stat *statbuf);

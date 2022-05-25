@@ -49,8 +49,6 @@ package Arch.Wrappers is
    ----------------------------------------------------------------------------
    --  HLT.
    procedure HLT;
-   --  Pause
-   procedure Pause;
    ----------------------------------------------------------------------------
    --  Manage FP state.
    procedure FP_Save (Region : System.Address);

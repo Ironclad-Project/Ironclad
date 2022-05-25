@@ -14,24 +14,24 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
-with System.Machine_Code; use System.Machine_Code;
 with Lib.Messages;
 with Lib.Panic;
-with Arch.Wrappers;
 
 package body Lib.Synchronization is
-   Semaphore_Locked : constant Boolean := True;
-   Semaphore_Free   : constant Boolean := False;
-
-   procedure Seize (Semaphore : access Binary_Semaphore) is
+   procedure Seize (Semaphore : not null access Binary_Semaphore) is
    begin
+<<Retry_Lock>>
+      if Try_Seize (Semaphore) then
+         return;
+      end if;
+
+      --  Do a rough wait until the lock is free for cache-locality.
+      --  https://en.wikipedia.org/wiki/Test_and_test-and-set
       for I in 1 .. 50000000 loop
-         if Try_Seize (Semaphore) then
-            Semaphore.Caller := Get_Caller_Address (0);
-            return;
+         if Atomic_Load (Semaphore.Is_Locked'Address, Mem_Relaxed) = 0 then
+            goto Retry_Lock;
          end if;
-         Arch.Wrappers.Pause;
+         Pause;
       end loop;
 
       Lib.Messages.Put ("Deadlock at address: ");
@@ -40,31 +40,19 @@ package body Lib.Synchronization is
       Lib.Panic.Hard_Panic ("Deadlocked!");
    end Seize;
 
-   procedure Release (Semaphore : access Binary_Semaphore) is
-      Write_This : Boolean := Semaphore_Free;
+   procedure Release (Semaphore : not null access Binary_Semaphore) is
    begin
-      Asm ("lock; xchg %1, %0",
-           Outputs  => Boolean'Asm_Output ("+r", Write_This),
-           Inputs   => Boolean'Asm_Input ("m", Semaphore.Is_Locked),
-           Clobber  => "memory",
-           Volatile => True);
+      Atomic_Clear (Semaphore.Is_Locked'Address, Mem_Release);
    end Release;
 
-   function Try_Seize (Semaphore : access Binary_Semaphore) return Boolean is
-      If_This    : Boolean          := Semaphore_Free;
-      Write_This : constant Boolean := Semaphore_Locked;
-      Did_Change : Boolean          := False;
+   function Try_Seize
+      (Semaphore : not null access Binary_Semaphore) return Boolean is
    begin
-      Asm ("lock; cmpxchg %3, %1; setz %2",
-           Outputs  => (Boolean'Asm_Output ("+a", If_This),
-                        Boolean'Asm_Output ("+m", Semaphore.Is_Locked),
-                        Boolean'Asm_Output ("=r", Did_Change)),
-           Inputs   => Boolean'Asm_Input ("r",  Write_This),
-           Clobber  => "memory, cc",
-           Volatile => True);
-      if Did_Change then
+      if Atomic_Test_And_Set (Semaphore.Is_Locked'Address, Mem_Acquire) then
+         return False;
+      else
          Semaphore.Caller := Get_Caller_Address (0);
+         return True;
       end if;
-      return Did_Change;
    end Try_Seize;
 end Lib.Synchronization;

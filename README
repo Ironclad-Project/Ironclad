@@ -27,16 +27,18 @@ make ADAFLAGS='-flto -gnaty -Wall -O2 -g' LDFLAGS='-flto -O2' LD=gcc
 
 -- Documentation --
 
-Under the docs directory one can find a hefty ammount of documentation
-describing a number of OS-specific concepts. Note this documentation does
-not explain code or excuse the lack of comments in the code, but aims to shed
-light on higher-level design decisions and interface between userland and
-kernel, that are assumed in the implementation. Some useful links are:
+The makefile of the project features targets for generating info and PDF files
+from the texinfo in the docs subdirectory, the targets are:
 
-- Kernel command line and values available (docs/cmdlineargs.md).
-- Syscall mechanism and list (docs/syscalls.md).
-- VFS structure, roots, and object interaction (docs/vfs.md).
-- Contributing to the project (docs/contributing.md).
+make info
+make pdf
+make install-info
+make install-pdf
+
+The generated documentation features information about a lot of kernel-specific
+concepts along with syscall listings and project information. Apart of that,
+there is this README and a CONTRIBUTING.md with contributing guidelines in the
+root directory of the project.
 
 -- Thanks to --
 
