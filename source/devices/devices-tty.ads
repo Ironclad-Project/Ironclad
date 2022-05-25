@@ -34,4 +34,9 @@ private
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64;
+
+   function IO_Control
+      (Data     : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address) return Boolean;
 end Devices.TTY;

@@ -38,6 +38,7 @@ kernel from boot-time and userland.
 @menu
 * Boot-time command-line options::   Command-line options
 * Syscalls::                         The main method of userland to interface
+* Devices and their properties::     Devices exposed by the kernel
 * GNU Free Documentation License::   Copying and sharing this manual
 
 @detailmenu
@@ -69,6 +70,16 @@ Syscalls
 * ioctl::                   IO multiplexer.
 * sched_yield::             Relinquish CPU time.
 * getpriority/setpriority:: Manage scheduler priorities for processes.
+
+Devices and their properties
+
+* bootmfb::
+* e9debug::
+* ps2keyb/psmouse::
+* serial::
+* nulldev/zerodev::
+* ttydev::
+* ramdev::
 
 @end detailmenu
 @end menu
@@ -102,9 +113,6 @@ Device to mount as root, if any.
 
 @item init=<path>
 Checked for an init program, if any.
-
-@item memtracing
-Enables memory tracing at the expense of performance.
 
 @item syscalltracing
 Enables tracing syscalls and their arguments, really performance taxing, but
@@ -614,6 +622,100 @@ Both syscalls set the following errno on failure:
 @item
 @code{ESRCH}: The passed process could not be found.
 @end itemize
+
+@node Devices and their properties
+@chapter Devices and their properties
+
+Ironclad exposes a number of devices, physical and virtual, to userland. All
+of them are exposed under the @code{/dev} location, all of them have a
+7-character name.
+
+@node bootmfb
+@section bootmfb
+
+The @code{bootmfb} device exposes the framebuffer passed as part of the
+boot-protocol, when present. The device is accessible by normal @code{read} and
+@code{write} calls, where each pixel counts as a byte.
+
+The @code{bootmfb} device has a special @code{ioctl} call, which has an
+argument with the following structure:
+
+@example
+IOCTL_FB_DIMENSIONS = 1;
+
+struct fb_dimensions @{
+   uint16_t width;
+   uint16_t height;
+   uint16_t pitch;
+   uint16_t bpp;
+   uint8_t  red_mask_size;
+   uint8_t  red_mask_shift;
+   uint8_t  green_mask_size;
+   uint8_t  green_mask_shift;
+   uint8_t  blue_mask_size;
+   uint8_t  blue_mask_shift;
+@};
+@end example
+
+@node e9debug
+@section e9debug
+
+The device @code{e9debug} exposes QEMU's e9-based debug output as a character
+device, and is accessible with normal file operations.
+
+@node ps2keyb/psmouse
+@section ps2keyb/psmouse
+
+The devices @code{ps2keyb} and @code{psmouse} exposes x86's native PS2
+interfaces, @code{ps2keyb} is a normal character device, while @code{ps2mouse}
+is a character device that returns mouse packets under the structure:
+
+@example
+struct mouse_data @{
+   uint32_t x_variation;
+   uint32_t y_variation;
+   uint8_t  is_left_click;
+   uint8_t  is_right_click;
+@};
+@end example
+
+@node serial
+@section serial
+
+The devices starting by @code{serial} represent the several character devices
+used for each present serial port, they are read/write.
+
+@node nulldev/zerodev
+@section nulldev/zerodev
+
+@code{nulldev} and @code{zerodev} are the equivalent of the @code{null} and
+@code{zero} devices for platforms like Linux.
+
+@node ttydev
+@section ttydev
+
+The devices starting by @code{ttydev} are virtual devices that put together
+an output and input device, along with some special ioctls, which are:
+
+@itemize @bullet
+@item
+@code{tiocgwinsz(0x5413)}: Sets a structure passed as an argument as such:
+@example
+struct window_size @{
+	uint16_t ws_row;
+	uint16_t ws_col;
+	uint16_t ws_xpixel;
+	uint16_t ws_ypixel;
+@};
+@end example
+@end itemize
+
+@node ramdev
+@section ramdev
+
+The devices starting by @code{ramdev} are virtual devices representing the
+RAM driver passed by some boot protocols, an FS can be mounted to them, usually
+USTAR.
 
 @node GNU Free Documentation License
 @appendix GNU Free Documentation License

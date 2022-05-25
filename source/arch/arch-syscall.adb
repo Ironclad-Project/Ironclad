@@ -53,8 +53,8 @@ package body Arch.Syscall is
    --  Whether we are to print syscall information.
    Is_Tracing : Boolean := False;
 
-   type String_Acc is access all String;
-   procedure Free_Str is new Ada.Unchecked_Deallocation (String, String_Acc);
+   procedure Free_Str is new Ada.Unchecked_Deallocation
+      (String, Userland.String_Acc);
    procedure Free_File is new Ada.Unchecked_Deallocation
       (VFS.File.File, VFS.File.File_Acc);
 
@@ -116,7 +116,7 @@ package body Arch.Syscall is
             Returned := Syscall_LStat (State.RDI, State.RSI, Errno);
          when 18 =>
             Returned := Syscall_Get_CWD (State.RDI, State.RSI, Errno);
-         when 29 =>
+         when 19 =>
             Returned := Syscall_Chdir (State.RDI, Errno);
          when 20 =>
             Returned := Syscall_IOCTL (State.RDI, State.RSI, State.RDX, Errno);
@@ -243,7 +243,8 @@ package body Arch.Syscall is
                (Opened_File, Symlink_Buf'Length, Symlink_Buf'Address);
             VFS.File.Close (Opened_File);
             Free_File (Opened_File);
-            Opened_File := VFS.File.Open (Symlink_Buf (1 .. Symlink_Len), Open_Mode);
+            Opened_File := VFS.File.Open
+               (Symlink_Buf (1 .. Symlink_Len), Open_Mode);
          end if;
 
    <<Add_File>>
@@ -542,9 +543,10 @@ package body Arch.Syscall is
       --  FIXME: This type should be dynamic ideally and not have a maximum.
       type Arg_Arr is array (1 .. 40) of Unsigned_64;
 
-      Current_Thread  : constant Scheduler.TID := Arch.CPU.Get_Local.Current_Thread;
+      Current_Thread  : constant Scheduler.TID :=
+         Arch.CPU.Get_Local.Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.CPU.Get_Local.Current_Process;
+         Arch.CPU.Get_Local.Current_Process;
 
       Addr : constant System.Address := To_Address (Integer_Address (Address));
       Path_Length : constant Natural := Lib.C_String_Length (Addr);
@@ -647,7 +649,8 @@ package body Arch.Syscall is
       --  Create a running thread cloning the caller.
       if not Add_Thread (Forked_Process,
          Scheduler.Create_User_Thread
-            (State_To_Fork, Forked_Process.Common_Map, Forked_Process.Process_PID))
+            (State_To_Fork, Forked_Process.Common_Map,
+             Forked_Process.Process_PID))
       then
          Errno := Error_Would_Block;
          return Unsigned_64'Last;

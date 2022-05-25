@@ -18,14 +18,7 @@ with Arch.Stivale2;
 
 package Memory.Physical is
    --  Information that the allocator keeps track of.
-   Total_Memory : Memory.Size;
-   Free_Memory  : Memory.Size;
-   Used_Memory  : Memory.Size;
-
-   --  Detailed information enabled with tracing.
-   Total_Allocations     : Natural;
-   Still_To_Be_Freed     : Natural;
-   Still_To_Be_Reclaimed : Natural;
+   Total_Memory, Free_Memory, Used_Memory : Memory.Size;
 
    --  Initialize the allocator with a memmap.
    procedure Init_Allocator (Memmap : access Arch.Stivale2.Memmap_Tag);
@@ -38,9 +31,4 @@ package Memory.Physical is
       with Export, Convention => C, External_Name => "__gnat_malloc";
    procedure Free (Address : Memory.Virtual_Address)
       with Export, Convention => C, External_Name => "__gnat_free";
-
-   --  Set whether the allocator traces detailed information, at the expense
-   --  of performance.
-   --  Calling this function resets the detailed information.
-   procedure Set_Tracing (Enable : Boolean);
 end Memory.Physical;

@@ -189,8 +189,6 @@ package body Main is
       Root_Value := Lib.Cmdline.Get_Parameter (Cmdline.Inner, "root");
       Init_Value := Lib.Cmdline.Get_Parameter (Cmdline.Inner, "init");
 
-      Memory.Physical.Set_Tracing
-         (Lib.Cmdline.Is_Key_Present (Cmdline.Inner, "memtracing"));
       Arch.Syscall.Set_Tracing
          (Lib.Cmdline.Is_Key_Present (Cmdline.Inner, "syscalltracing"));
 

@@ -111,7 +111,7 @@ $(LIMINE_DIR):
 	@make -C $(LIMINE_DIR)
 
 clean:
-	@rm -rf $(OBJ) $(KERNEL) $(IMAGE) *.ali ironclad.info
+	@rm -rf $(OBJ) $(KERNEL) $(IMAGE) *.ali ironclad.info ironclad.aux ironclad.pdf ironclad.log ironclad.toc
 	@find $(SOURCEDIR) -name "*.ali" -type f -delete
 
 dist:

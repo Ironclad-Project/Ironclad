@@ -63,4 +63,37 @@ package body Devices.TTY is
       Arch.Stivale2.Print_Terminal (Message);
       return Count;
    end Write;
+
+   IO_Control_TIOCGWINSZ : constant := 16#5413#;
+   function IO_Control
+      (Data     : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address) return Boolean
+   is
+      type Window_Size is record
+         Rows     : Unsigned_16;
+         Columns  : Unsigned_16;
+         X_Pixels : Unsigned_16;
+         Y_Pixels : Unsigned_16;
+      end record;
+      pragma Unreferenced (Data);
+   begin
+      case Request is
+         when IO_Control_TIOCGWINSZ =>
+            declare
+               Requested_Data : Window_Size with Address => Argument;
+            begin
+               --  TODO: This is hardcoded data assuming a 16x8 font.
+               Requested_Data := (
+                  Rows     => 25,
+                  Columns  => 80,
+                  X_Pixels => 80 * 8,
+                  Y_Pixels => 25 * 16
+               );
+               return True;
+            end;
+         when others =>
+            return False;
+      end case;
+   end IO_Control;
 end Devices.TTY;

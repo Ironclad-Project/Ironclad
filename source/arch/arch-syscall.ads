@@ -16,6 +16,7 @@
 
 with Interfaces;      use Interfaces;
 with Arch.Interrupts; use Arch.Interrupts;
+with VFS.File;
 
 package Arch.Syscall is
    --  Here lie the definitions of the kernel's syscalls and the entrypoint
@@ -224,4 +225,8 @@ private
    function Syscall_Set_Priority
       (Which, Who, Prio : Unsigned_64;
        Errno            : out Unsigned_64) return Unsigned_64;
+
+   function Inner_Stat
+      (F       : VFS.File.File_Acc;
+       Address : Unsigned_64) return Boolean;
 end Arch.Syscall;

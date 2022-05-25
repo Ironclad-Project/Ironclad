@@ -30,18 +30,10 @@ package body Memory.Physical is
    Bitmap_Length    : Memory.Size     := 0;
    Bitmap_Address   : Virtual_Address := Null_Address;
    Bitmap_Last_Used : Unsigned_64     := 1;
-
-   Alloc_Mutex : aliased Binary_Semaphore;
-   Is_Tracing  : Boolean;
+   Alloc_Mutex      : aliased Binary_Semaphore;
 
    procedure Init_Allocator (Memmap : access Arch.Stivale2.Memmap_Tag) is
    begin
-      --  Initialize traced information.
-      Is_Tracing   := False;
-      Total_Memory := 0;
-      Free_Memory  := 0;
-      Used_Memory  := 0;
-
       --  Count memory by just taking into account usable entries.
       --  We will also search for how big our bitmap must be, which is as big
       --  as the last usable memory entry.
@@ -172,10 +164,6 @@ package body Memory.Physical is
       Bitmap_Last_Used := First_Found_Index;
       Free_Memory      := Free_Memory - Size;
       Used_Memory      := Used_Memory + Size;
-      if Is_Tracing then
-         Total_Allocations := Total_Allocations + 1;
-         Still_To_Be_Freed := Still_To_Be_Freed + 1;
-      end if;
 
       --  Zero out memory and return value.
       declare
@@ -208,20 +196,7 @@ package body Memory.Physical is
       --  Set statistic variables
       Free_Memory := Free_Memory + Block_Size;
       Used_Memory := Used_Memory - Block_Size;
-      if Is_Tracing then
-         Still_To_Be_Freed := Still_To_Be_Freed - 1;
-      end if;
 
       Lib.Synchronization.Release (Alloc_Mutex'Access);
    end Free;
-
-   procedure Set_Tracing (Enable : Boolean) is
-   begin
-      Lib.Synchronization.Seize (Alloc_Mutex'Access);
-      Is_Tracing := Enable;
-      Total_Allocations     := 0;
-      Still_To_Be_Freed     := 0;
-      Still_To_Be_Reclaimed := 0;
-      Lib.Synchronization.Release (Alloc_Mutex'Access);
-   end Set_Tracing;
 end Memory.Physical;

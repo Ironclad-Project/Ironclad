@@ -16,6 +16,7 @@
 
 package Userland is
    --  Arguments passed to a program when created.
-   type Argument_Arr    is array (Positive range <>) of access String;
-   type Environment_Arr is array (Positive range <>) of access String;
+   type String_Acc is access all String;
+   type Argument_Arr    is array (Positive range <>) of String_Acc;
+   type Environment_Arr is array (Positive range <>) of String_Acc;
 end Userland;
