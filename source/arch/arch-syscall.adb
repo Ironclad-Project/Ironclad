@@ -756,7 +756,8 @@ package body Arch.Syscall is
          Ada.Characters.Latin_1.NUL;
       UTS.Release (1 .. Config.Package_Version'Length + 1) :=
          Config.Package_Version & Ada.Characters.Latin_1.NUL;
-      UTS.Version (1) := Ada.Characters.Latin_1.NUL;
+      UTS.Version (1 .. Config.Package_Config_Date'Length + 1) :=
+         Config.Package_Config_Date & Ada.Characters.Latin_1.NUL;
       UTS.Machine (1 .. 7) := "x86_64" & Ada.Characters.Latin_1.NUL;
       Errno := Error_No_Error;
       return 0;
@@ -800,7 +801,7 @@ package body Arch.Syscall is
             Number_Links  => Unsigned_32 (Stat_Val.Hard_Link_Count),
             UID           => 0,
             GID           => 0,
-            Inner_Device  => 0,
+            Inner_Device  => F.Dev_Data.Stat.Unique_Identifier,
             File_Size     => Stat_Val.Byte_Size,
             Access_Time   => (Seconds => 0, Nanoseconds => 0),
             Modify_Time   => (Seconds => 0, Nanoseconds => 0),

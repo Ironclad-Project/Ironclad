@@ -78,11 +78,11 @@ Syscalls
 
 Devices and their properties
 
-* bootmfb::
+* bootfb::
 * e9debug::
-* ps2keyb/psmouse::
+* ps2keyboard/ps2mouse::
 * serial::
-* nulldev/zerodev::
+* null/zero::
 * ttydev::
 * ramdev::
 
@@ -524,11 +524,11 @@ following errno:
 
 @example
 struct utsname @{
-   char sysname[65];  // Kernel name (e.g., "Ironclad")
-   char nodename[65]; // Hostname of the machine.
-   char release[65];  // Kernel release (e.g., "2.6.28")
-   char version[65];  // Kernel build information.
-   char machine[65];  // Hardware identifier (e.g., "x86")
+    char sysname[65];  // Kernel name (e.g., "Ironclad")
+    char nodename[65]; // Hostname of the machine.
+    char release[65];  // Kernel release (e.g., "2.6.28")
+    char version[65];  // Kernel configuration date for debug purposes.
+    char machine[65];  // Hardware identifier (e.g., "x86")
 @};
 
 int uname(struct utsname *name);
@@ -561,19 +561,19 @@ returned on success and @code{-1} on failure, with the following errno:
 
 @example
 struct stat @{
-	 dev_t st_dev;
-	 ino_t st_ino;
-	 mode_t st_mode;
-	 nlink_t st_nlink;
-	 uid_t st_uid;
-	 gid_t st_gid;
-	 dev_t st_rdev;
-	 off_t st_size;
-	 struct timespec st_atim;
-	 struct timespec st_mtim;
-	 struct timespec st_ctim;
-	 blksize_t st_blksize;
-	 blkcnt_t st_blocks;
+    dev_t st_dev;
+    ino_t st_ino;
+    mode_t st_mode;
+    nlink_t st_nlink;
+    uid_t st_uid;
+    gid_t st_gid;
+    dev_t st_rdev;
+    off_t st_size;
+    struct timespec st_atim;
+    struct timespec st_mtim;
+    struct timespec st_ctim;
+    blksize_t st_blksize;
+    blkcnt_t st_blocks;
 @};
 
 int fstat(int fd, struct stat *statbuf);
@@ -712,14 +712,14 @@ Ironclad exposes a number of devices, physical and virtual, to userland. All
 of them are exposed under the @code{/dev} location, all of them have a
 7-character name.
 
-@node bootmfb
-@section bootmfb
+@node bootfb
+@section bootfb
 
-The @code{bootmfb} device exposes the framebuffer passed as part of the
+The @code{bootfb} device exposes the framebuffer passed as part of the
 boot-protocol, when present. The device is accessible by normal @code{read} and
 @code{write} calls, where each pixel counts as a byte.
 
-The @code{bootmfb} device has a special @code{ioctl} call, which has an
+The @code{bootfb} device has a special @code{ioctl} call, which has an
 argument with the following structure:
 
 @example
@@ -745,12 +745,13 @@ struct fb_dimensions @{
 The device @code{e9debug} exposes QEMU's e9-based debug output as a character
 device, and is accessible with normal file operations.
 
-@node ps2keyb/psmouse
-@section ps2keyb/psmouse
+@node ps2keyboard/ps2mouse
+@section ps2keyboard/ps2mouse
 
-The devices @code{ps2keyb} and @code{psmouse} exposes x86's native PS2
-interfaces, @code{ps2keyb} is a normal character device, while @code{ps2mouse}
-is a character device that returns mouse packets under the structure:
+The devices @code{ps2keyboard} and @code{ps2mouse} exposes x86's native PS2
+interfaces, @code{ps2keyboard} is a normal character device, while
+@code{ps2mouse} is a character device that returns mouse packets under the
+structure:
 
 @example
 struct mouse_data @{
@@ -767,10 +768,10 @@ struct mouse_data @{
 The devices starting by @code{serial} represent the several character devices
 used for each present serial port, they are read/write.
 
-@node nulldev/zerodev
-@section nulldev/zerodev
+@node null/zero
+@section null/zero
 
-@code{nulldev} and @code{zerodev} are the equivalent of the @code{null} and
+@code{null} and @code{zero} are the equivalent of the @code{null} and
 @code{zero} devices for platforms like Linux.
 
 @node ttydev

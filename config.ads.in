@@ -21,4 +21,6 @@ package Config is
       "@PACKAGE_VERSION@";
    Package_BugReport : constant String :=
       "@PACKAGE_BUGREPORT@";
+   Package_Config_Date : constant String :=
+      "@PACKAGE_CONFIG_DATE@";
 end Config;

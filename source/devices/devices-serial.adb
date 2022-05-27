@@ -57,19 +57,23 @@ package body Devices.Serial is
          --  Add the device.
          declare
             Data        : COM_Root_Acc           := new COM_Root;
-            Device_Name : VFS.Device.Device_Name := "serial0";
+            Device_Name : String (1 .. 7)        := "serial0";
             Discard     : Boolean                := False;
             Device      : VFS.Device.Device_Data;
          begin
             Device_Name (7) := Character'Val (I + Character'Pos ('0'));
             Data.Port := COM_Ports (I);
 
-            Device.Name              := Device_Name;
-            Device.Data              := Data.all'Address;
-            Device.Stat.Type_Of_File := VFS.File_Character_Device;
-            Device.Stat.Mode         := 8#660#;
-            Device.Read              := Serial_Read'Access;
-            Device.Write             := Serial_Write'Access;
+            Device.Name (1 .. 7)       := Device_Name;
+            Device.Name_Len            := 7;
+            Device.Data                := Data.all'Address;
+            Device.Stat.Type_Of_File   := VFS.File_Character_Device;
+            Device.Stat.Mode           := 8#660#;
+            Device.Stat.Byte_Size      := 0;
+            Device.Stat.IO_Block_Size  := 4096;
+            Device.Stat.IO_Block_Count := 0;
+            Device.Read                := Serial_Read'Access;
+            Device.Write               := Serial_Write'Access;
 
             Discard := VFS.Device.Register (Device);
             Lib.Synchronization.Release (Data.Mutex'Access);

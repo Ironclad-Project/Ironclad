@@ -25,16 +25,18 @@ package body Devices.TTY is
    function Init return Boolean is
       Dev : VFS.Device.Device_Data;
       File_Addr : constant System.Address :=
-         Conv.To_Address (Open ("/dev/ps2keyb", Access_R).all'Access);
+         Conv.To_Address (Open ("/dev/ps2keyboard", Access_R).all'Access);
    begin
-      Dev.Name              := "ttydev1";
-      Dev.Data              := File_Addr;
-      Dev.Stat.Type_Of_File := VFS.File_Character_Device;
-      Dev.Stat.Mode         := 8#660#;
-      Dev.Sync              := null;
-      Dev.Read              := Read'Access;
-      Dev.Write             := Write'Access;
-      Dev.IO_Control        := null;
+      Dev.Name (1 .. 6)       := "ttydev";
+      Dev.Name_Len            := 6;
+      Dev.Data                := File_Addr;
+      Dev.Stat.Type_Of_File   := VFS.File_Character_Device;
+      Dev.Stat.Mode           := 8#660#;
+      Dev.Stat.Byte_Size      := 0;
+      Dev.Stat.IO_Block_Size  := 4096;
+      Dev.Stat.IO_Block_Count := 0;
+      Dev.Read                := Read'Access;
+      Dev.Write               := Write'Access;
       return VFS.Device.Register (Dev);
    end Init;
 

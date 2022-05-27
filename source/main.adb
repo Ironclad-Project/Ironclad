@@ -173,7 +173,7 @@ package body Main is
       Lib.Messages.Put_Line ("Mounting stivale2 modules as ramdevs");
       for I in Modules.Entries'First .. Modules.Entries'Last loop
          declare
-            Name : VFS.Device.Device_Name := "ramdev0";
+            Name : String := "ramdev0";
          begin
             exit when I = 10;
             Name (7) := Character'Val (I + Character'Pos ('0'));
@@ -205,8 +205,8 @@ package body Main is
          Init_Arguments (1) := new String'(Init_Value.all);
          Init_File := Open (Init_Value.all, Access_R);
          if Init_File = null or else Userland.Loader.Start_Program
-            (Init_File, Init_Arguments, Init_Environment, "/dev/ttydev1",
-             "/dev/ttydev1", "/dev/ttydev1") = null
+            (Init_File, Init_Arguments, Init_Environment, "/dev/ttydev",
+             "/dev/ttydev", "/dev/ttydev") = null
          then
             Lib.Panic.Soft_Panic ("Could not start init");
          end if;

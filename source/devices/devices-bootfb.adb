@@ -21,7 +21,7 @@ with Memory; use Memory;
 with Memory.Virtual;
 with System.Storage_Elements; use System.Storage_Elements;
 
-package body Devices.BootMFB is
+package body Devices.BootFB is
    type FB_Arr is array (Unsigned_32 range <>) of Unsigned_32;
 
    function Init (Fb : access Arch.Stivale2.Framebuffer_Tag) return Boolean is
@@ -59,13 +59,17 @@ package body Devices.BootMFB is
       );
 
       --  Register the device.
-      Dev.Name              := "bootmfb";
-      Dev.Data              := Fb.all'Address;
-      Dev.Stat.Type_Of_File := VFS.File_Character_Device;
-      Dev.Stat.Mode         := 8#660#;
-      Dev.Read              := Read'Access;
-      Dev.Write             := Write'Access;
-      Dev.IO_Control        := IO_Control'Access;
+      Dev.Name (1 .. 6)       := "bootfb";
+      Dev.Name_Len            := 6;
+      Dev.Data                := Fb.all'Address;
+      Dev.Stat.Type_Of_File   := VFS.File_Character_Device;
+      Dev.Stat.Mode           := 8#660#;
+      Dev.Stat.Byte_Size      := 0;
+      Dev.Stat.IO_Block_Size  := 4096;
+      Dev.Stat.IO_Block_Count := 0;
+      Dev.Read                := Read'Access;
+      Dev.Write               := Write'Access;
+      Dev.IO_Control          := IO_Control'Access;
       return VFS.Device.Register (Dev);
    end Init;
 
@@ -151,4 +155,4 @@ package body Devices.BootMFB is
             return False;
       end case;
    end IO_Control;
-end Devices.BootMFB;
+end Devices.BootFB;

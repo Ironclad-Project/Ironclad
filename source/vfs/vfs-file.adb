@@ -25,11 +25,11 @@ package body VFS.File is
       Fetched_FS   : System.Address     := System.Null_Address;
       Fetched_File : System.Address     := System.Null_Address;
    begin
-      if Path'Length >= 12 and then
+      if Path'Length >= 5 and then
          Path (Path'First .. Path'First + 4) = "/dev/"
       then
          if not VFS.Device.Fetch
-            (Path (Path'First + 5 .. Path'First + 11), Fetched_Dev)
+            (Path (Path'First + 5 .. Path'Last), Fetched_Dev)
          then
             return null;
          end if;

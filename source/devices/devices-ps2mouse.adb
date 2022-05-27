@@ -1,4 +1,4 @@
---  devices-psmouse.adb: PS2 mouse driver.
+--  devices-ps2mouse.adb: PS2 mouse driver.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -21,7 +21,7 @@ with Arch.Wrappers;
 with VFS.Device;
 with Ada.Unchecked_Conversion;
 
-package body Devices.PSMouse is
+package body Devices.PS2Mouse is
    --  For return.
    type Mouse_Data is record
       X_Variation    : Integer;
@@ -46,6 +46,7 @@ package body Devices.PSMouse is
    Current_Mouse_Cycle : Integer range 1 .. 3 := 1;
 
    function Init return Boolean is
+      Dev_Name     : constant String      := "ps2mouse";
       BSP_LAPIC    : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
       Index        : Arch.IDT.IRQ_Index;
       Data, Unused : Unsigned_8;
@@ -78,14 +79,15 @@ package body Devices.PSMouse is
       Mouse_Write (16#F4#);
       Unused := Mouse_Read;
 
-      Dev.Name              := "psmouse";
-      Dev.Data              := System.Null_Address;
-      Dev.Stat.Type_Of_File := VFS.File_Character_Device;
-      Dev.Stat.Mode         := 8#660#;
-      Dev.Sync              := null;
-      Dev.Read              := Read'Access;
-      Dev.Write             := null;
-      Dev.IO_Control        := null;
+      Dev.Name (1 .. Dev_Name'Length) := "ps2mouse";
+      Dev.Name_Len                    := Dev_Name'Length;
+      Dev.Data                        := System.Null_Address;
+      Dev.Stat.Type_Of_File           := VFS.File_Character_Device;
+      Dev.Stat.Mode                   := 8#660#;
+      Dev.Stat.Byte_Size              := 0;
+      Dev.Stat.IO_Block_Size          := 4096;
+      Dev.Stat.IO_Block_Count         := 0;
+      Dev.Read                        := Read'Access;
       return VFS.Device.Register (Dev);
    end Init;
 
@@ -189,4 +191,4 @@ package body Devices.PSMouse is
       Mouse_Wait_Write;
       Arch.Wrappers.Port_Out (16#60#, Data);
    end Mouse_Write;
-end Devices.PSMouse;
+end Devices.PS2Mouse;

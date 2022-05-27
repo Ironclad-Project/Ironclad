@@ -28,7 +28,7 @@ package body Devices.Ramdev is
 
    function Init_Module
       (Module : Arch.Stivale2.Module;
-       Name   : VFS.Device.Device_Name) return VFS.Device.Device_Data
+       Name   : String) return VFS.Device.Device_Data
    is
       Dev   : VFS.Device.Device_Data;
       Start : constant Virtual_Address := To_Integer (Module.Begin_Address);
@@ -38,14 +38,15 @@ package body Devices.Ramdev is
          Size          => End2 - Start
       );
    begin
-      Dev.Name              := Name;
-      Dev.Data              := Data.all'Address;
-      Dev.Stat.Type_Of_File := VFS.File_Block_Device;
-      Dev.Stat.Mode         := 8#660#;
-      Dev.Sync              := null;
-      Dev.Read              := Read'Access;
-      Dev.Write             := null;
-      Dev.IO_Control        := null;
+      Dev.Name (1 .. Name'Length) := Name;
+      Dev.Name_Len                := Name'Length;
+      Dev.Data                    := Data.all'Address;
+      Dev.Stat.Type_Of_File       := VFS.File_Block_Device;
+      Dev.Stat.Mode               := 8#660#;
+      Dev.Stat.Byte_Size          := 0;
+      Dev.Stat.IO_Block_Size      := 4096;
+      Dev.Stat.IO_Block_Count     := 0;
+      Dev.Read                    := Read'Access;
       return Dev;
    end Init_Module;
 

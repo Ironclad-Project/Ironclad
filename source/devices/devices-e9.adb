@@ -22,10 +22,14 @@ package body Devices.E9 is
    function Init return Boolean is
       Dev : VFS.Device.Device_Data;
    begin
-      Dev.Name              := "e9debug";
-      Dev.Stat.Type_Of_File := VFS.File_Character_Device;
-      Dev.Stat.Mode         := 8#660#;
-      Dev.Write             := Write'Access;
+      Dev.Name (1 .. 7)       := "e9debug";
+      Dev.Name_Len            := 7;
+      Dev.Stat.Type_Of_File   := VFS.File_Character_Device;
+      Dev.Stat.Mode           := 8#660#;
+      Dev.Stat.Byte_Size      := 0;
+      Dev.Stat.IO_Block_Size  := 4096;
+      Dev.Stat.IO_Block_Count := 0;
+      Dev.Write               := Write'Access;
       return VFS.Device.Register (Dev);
    end Init;
 

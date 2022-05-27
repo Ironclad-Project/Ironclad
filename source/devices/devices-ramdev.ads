@@ -25,7 +25,7 @@ package Devices.Ramdev is
    --  its a USTAR FS or not.
    function Init_Module
       (Module : Arch.Stivale2.Module;
-       Name   : VFS.Device.Device_Name) return VFS.Device.Device_Data;
+       Name   : String) return VFS.Device.Device_Data;
 
 private
 

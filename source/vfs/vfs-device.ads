@@ -21,11 +21,11 @@ package VFS.Device is
    --  The user sees them as inside a dir in the root called /dev, but this is
    --  just a facade, there is no devfs.
    --  All devices have 7-character names.
-   subtype Device_Name is String (1 .. 7);
    type Device_Data is record
-      Name : Device_Name;
-      Data : System.Address;
-      Stat : VFS.File_Stat;
+      Name     : String (1 .. 64);
+      Name_Len : Natural;
+      Data     : System.Address;
+      Stat     : VFS.File_Stat;
 
       Sync : access procedure (Data : System.Address);
       Read : access function
@@ -49,12 +49,12 @@ package VFS.Device is
 
    --  Register and fetch devices, identified by a unique name.
    function Register (Dev : Device_Data) return Boolean;
-   function Fetch (Name : Device_Name; Dev : out Device_Data) return Boolean;
+   function Fetch (Name : String; Dev : out Device_Data) return Boolean;
 
    --  Mount or unmount an FS, along with getting devices based on their FS.
    type FS_Type is (FS_USTAR);
    function Mount
-      (Name : Device_Name;
+      (Name : String;
        Path : String;
        FS   : FS_Type) return Boolean;
    function Get_Mount (Path : String; FS : out FS_Type) return System.Address;

@@ -1,4 +1,4 @@
---  devices-bootmfb.ads: Boot-time memory framebuffer driver.
+--  devices-bootfb.ads: Boot-time memory framebuffer driver.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@ with Interfaces; use Interfaces;
 with System;
 with Arch.Stivale2;
 
-package Devices.BootMFB is
+package Devices.BootFB is
    --  Initialize the device.
    function Init (Fb : access Arch.Stivale2.Framebuffer_Tag) return Boolean;
 
@@ -40,4 +40,4 @@ private
       (Data     : System.Address;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
-end Devices.BootMFB;
+end Devices.BootFB;

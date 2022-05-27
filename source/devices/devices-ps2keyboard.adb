@@ -75,6 +75,7 @@ package body Devices.PS2Keyboard is
    );
 
    function Init return Boolean is
+      Dev_Name  : constant String      := "ps2keyboard";
       BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
       Index     : Arch.IDT.IRQ_Index;
       Unused    : Unsigned_8;
@@ -93,14 +94,15 @@ package body Devices.PS2Keyboard is
          Unused := Arch.Wrappers.Port_In (16#60#);
       end loop;
 
-      Dev.Name              := "ps2keyb";
-      Dev.Data              := System.Null_Address;
-      Dev.Stat.Type_Of_File := VFS.File_Character_Device;
-      Dev.Stat.Mode         := 8#660#;
-      Dev.Sync              := null;
-      Dev.Read              := Read'Access;
-      Dev.Write             := null;
-      Dev.IO_Control        := null;
+      Dev.Name (1 .. Dev_Name'Length) := Dev_Name;
+      Dev.Name_Len                    := Dev_Name'Length;
+      Dev.Data                        := System.Null_Address;
+      Dev.Stat.Type_Of_File           := VFS.File_Character_Device;
+      Dev.Stat.Mode                   := 8#660#;
+      Dev.Stat.Byte_Size              := 0;
+      Dev.Stat.IO_Block_Size          := 4096;
+      Dev.Stat.IO_Block_Count         := 0;
+      Dev.Read                        := Read'Access;
       return VFS.Device.Register (Dev);
    end Init;
 

@@ -39,19 +39,23 @@ package body VFS.Device is
    begin
       --  Search if the name is already taken.
       for E of Devices.all loop
-         if E.Is_Present and E.Contents.Name = Dev.Name then
+         if E.Is_Present and
+            E.Contents.Name (1 .. E.Contents.Name_Len) =
+            Dev.Name (1 .. Dev.Name_Len)
+         then
             return False;
          end if;
       end loop;
 
       --  Allocate.
-      for E of Devices.all loop
-         if not E.Is_Present then
-            E.Is_Present  := True;
-            E.Contents    := Dev;
-            E.Is_Mounted  := False;
-            E.FS_Data     := System.Null_Address;
-            E.Path_Length := 0;
+      for I in Devices'Range loop
+         if not Devices (I).Is_Present then
+            Devices (I).Is_Present                      := True;
+            Devices (I).Contents                        := Dev;
+            Devices (I).Contents.Stat.Unique_Identifier := Unsigned_64 (I);
+            Devices (I).Is_Mounted                      := False;
+            Devices (I).FS_Data                         := System.Null_Address;
+            Devices (I).Path_Length                     := 0;
             return True;
          end if;
       end loop;
@@ -59,10 +63,12 @@ package body VFS.Device is
       return False;
    end Register;
 
-   function Fetch (Name : Device_Name; Dev : out Device_Data) return Boolean is
+   function Fetch (Name : String; Dev : out Device_Data) return Boolean is
    begin
       for E of Devices.all loop
-         if E.Is_Present and E.Contents.Name = Name then
+         if E.Is_Present and
+            E.Contents.Name (1 .. E.Contents.Name_Len) = Name
+         then
             Dev := E.Contents;
             return True;
          end if;
@@ -71,14 +77,16 @@ package body VFS.Device is
    end Fetch;
 
    function Mount
-      (Name : Device_Name;
+      (Name : String;
        Path : String;
        FS : FS_Type) return Boolean
    is
       FS_Data : System.Address := System.Null_Address;
    begin
       for E of Devices.all loop
-         if E.Is_Present and E.Contents.Name = Name then
+         if E.Is_Present and
+            E.Contents.Name (1 .. E.Contents.Name_Len) = Name
+         then
             case FS is
                when FS_USTAR =>
                   FS_Data := USTAR.Probe (E.Contents);

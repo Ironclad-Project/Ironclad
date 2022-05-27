@@ -1,4 +1,4 @@
---  devices-psmouse.ads: PS2 mouse driver.
+--  devices-ps2mouse.ads: PS2 mouse driver.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 with System;
 with Interfaces; use Interfaces;
 
-package Devices.PSMouse is
+package Devices.PS2Mouse is
    --  Initialize the device.
    function Init return Boolean;
 
@@ -35,4 +35,4 @@ private
    procedure Mouse_Wait_Write;
    function Mouse_Read return Unsigned_8;
    procedure Mouse_Write (Data : Unsigned_8);
-end Devices.PSMouse;
+end Devices.PS2Mouse;

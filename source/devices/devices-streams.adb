@@ -22,17 +22,25 @@ package body Devices.Streams is
       Nulldev : VFS.Device.Device_Data;
       Zerodev : VFS.Device.Device_Data;
    begin
-      Nulldev.Name              := "nulldev";
-      Nulldev.Stat.Type_Of_File := VFS.File_Character_Device;
-      Nulldev.Stat.Mode         := 8#660#;
-      Nulldev.Read              := Nulldev_Read'Access;
-      Nulldev.Write             := Nulldev_Write'Access;
+      Nulldev.Name (1 .. 4)       := "null";
+      Nulldev.Name_Len            := 4;
+      Nulldev.Stat.Type_Of_File   := VFS.File_Character_Device;
+      Nulldev.Stat.Mode           := 8#660#;
+      Nulldev.Stat.Byte_Size      := 0;
+      Nulldev.Stat.IO_Block_Size  := 4096;
+      Nulldev.Stat.IO_Block_Count := 0;
+      Nulldev.Read                := Nulldev_Read'Access;
+      Nulldev.Write               := Nulldev_Write'Access;
 
-      Zerodev.Name              := "zerodev";
-      Zerodev.Stat.Type_Of_File := VFS.File_Character_Device;
-      Zerodev.Stat.Mode         := 8#660#;
-      Zerodev.Read              := Zerodev_Read'Access;
-      Zerodev.Write             := Zerodev_Write'Access;
+      Zerodev.Name (1 .. 4)       := "zero";
+      Zerodev.Name_Len            := 4;
+      Zerodev.Stat.Type_Of_File   := VFS.File_Character_Device;
+      Zerodev.Stat.Mode           := 8#660#;
+      Zerodev.Stat.Byte_Size      := 0;
+      Zerodev.Stat.IO_Block_Size  := 4096;
+      Zerodev.Stat.IO_Block_Count := 0;
+      Zerodev.Read                := Zerodev_Read'Access;
+      Zerodev.Write               := Zerodev_Write'Access;
 
       if not VFS.Device.Register (Nulldev) then return False; end if;
       if not VFS.Device.Register (Zerodev) then return False; end if;
