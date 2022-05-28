@@ -16,6 +16,7 @@
 
 with System;
 with VFS.Device;
+with Memory;
 
 package VFS.File is
    type Access_Mode is (Access_R, Access_W, Access_RW);
@@ -55,4 +56,13 @@ package VFS.File is
       (F        : File_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
+
+   --  Mmap.
+   function Mmap
+      (F           : File_Acc;
+       Address     : Memory.Virtual_Address;
+       Length      : Unsigned_64;
+       Map_Read    : Boolean;
+       Map_Write   : Boolean;
+       Map_Execute : Boolean) return Boolean;
 end VFS.File;

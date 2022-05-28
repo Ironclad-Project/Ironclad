@@ -17,6 +17,7 @@
 with Interfaces; use Interfaces;
 with System;
 with Arch.Stivale2;
+with Memory;
 
 package Devices.BootFB is
    --  Initialize the device.
@@ -40,4 +41,12 @@ private
       (Data     : System.Address;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
+
+   function Mmap
+      (Data        : System.Address;
+       Address     : Memory.Virtual_Address;
+       Length      : Unsigned_64;
+       Map_Read    : Boolean;
+       Map_Write   : Boolean;
+       Map_Execute : Boolean) return Boolean;
 end Devices.BootFB;

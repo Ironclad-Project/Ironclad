@@ -29,8 +29,12 @@ private
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;
 
-   procedure Mouse_Handler;
+   function IO_Control
+      (Data     : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address) return Boolean;
 
+   procedure Mouse_Handler;
    procedure Mouse_Wait_Read;
    procedure Mouse_Wait_Write;
    function Mouse_Read return Unsigned_8;

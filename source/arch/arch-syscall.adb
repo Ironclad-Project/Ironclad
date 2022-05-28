@@ -463,20 +463,12 @@ package body Arch.Syscall is
          return Unsigned_64'Last;
       end if;
 
-      --  We only support anonymous right now, so if its not anon, we cry.
-      if (Flags and Map_Anon) = 0 then
-         Errno := Error_Not_Implemented;
-         return Unsigned_64'Last;
-      end if;
-
-      --  Allocate the requested block and map it.
-      declare
-         A : constant Virtual_Address := Memory.Physical.Alloc (Size (Length));
-      begin
+      --  Do mmap anon or pass it to the VFS.
+      if (Flags and Map_Anon) /= 0 then
          Memory.Virtual.Map_Range (
             Map,
             Virtual_Address (Aligned_Hint),
-            A - Memory_Offset,
+            Memory.Physical.Alloc (Size (Length)) - Memory_Offset,
             Length,
             Map_Flags,
             Map_Not_Execute,
@@ -484,7 +476,28 @@ package body Arch.Syscall is
          );
          Errno := Error_No_Error;
          return Aligned_Hint;
-      end;
+      else
+         declare
+            File : constant VFS.File.File_Acc :=
+               Current_Process.File_Table (Natural (File_D));
+            Did_Map : constant Boolean := VFS.File.Mmap (
+               F           => File,
+               Address     => Virtual_Address (Aligned_Hint),
+               Length      => Length,
+               Map_Read    => True,
+               Map_Write   => Map_Flags.Read_Write,
+               Map_Execute => not Map_Not_Execute
+            );
+         begin
+            if Did_Map then
+               Errno := Error_No_Error;
+               return Aligned_Hint;
+            else
+               Errno := Error_Bad_File;
+               return Unsigned_64'Last;
+            end if;
+         end;
+      end if;
    end Syscall_Mmap;
 
    function Syscall_Munmap

@@ -22,6 +22,9 @@ with VFS.Device;
 with Ada.Unchecked_Conversion;
 
 package body Devices.PS2Mouse is
+   procedure Pause;
+   pragma Import (Intrinsic, Pause, "__builtin_ia32_pause");
+
    --  For return.
    type Mouse_Data is record
       X_Variation    : Integer;
@@ -88,6 +91,7 @@ package body Devices.PS2Mouse is
       Dev.Stat.IO_Block_Size          := 4096;
       Dev.Stat.IO_Block_Count         := 0;
       Dev.Read                        := Read'Access;
+      Dev.IO_Control                  := IO_Control'Access;
       return VFS.Device.Register (Dev);
    end Init;
 
@@ -104,12 +108,63 @@ package body Devices.PS2Mouse is
    begin
       Has_Returned := False;
       while not Has_Returned loop
-         Arch.Wrappers.HLT;
+         Pause;
       end loop;
 
       Data2 := Return_Data;
       return Return_Data'Size / 8;
    end Read;
+
+   function IO_Control
+      (Data     : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address) return Boolean
+   is
+      pragma Unreferenced (Data);
+
+      function To_Integer is
+         new Ada.Unchecked_Conversion (System.Address, Unsigned_64);
+
+      IOCTL_Enable_2_1_Scaling : constant := 1;
+      IOCTL_Enable_1_1_Scaling : constant := 2;
+      IOCTL_Set_Resolution     : constant := 3;
+      IOCTL_Set_Sample_Rate    : constant := 4;
+
+      Argument_Integer : constant Unsigned_64 := To_Integer (Argument);
+      Unused : Unsigned_8;
+   begin
+      case Request is
+         when IOCTL_Enable_2_1_Scaling =>
+            Mouse_Write (16#E7#);
+            Unused := Mouse_Read;
+         when IOCTL_Enable_1_1_Scaling =>
+            Mouse_Write (16#E6#);
+            Unused := Mouse_Read;
+         when IOCTL_Set_Resolution =>
+            if Argument_Integer <= 3 then
+               Mouse_Write (16#E8#);
+               Unused := Mouse_Read;
+               Mouse_Write (Unsigned_8 (Argument_Integer));
+               Unused := Mouse_Read;
+            else
+               return False;
+            end if;
+         when IOCTL_Set_Sample_Rate =>
+            if Argument_Integer <= 200 then
+               Mouse_Write (16#F3#);
+               Unused := Mouse_Read;
+               Mouse_Write (Unsigned_8 (Argument_Integer));
+               Unused := Mouse_Read;
+            else
+               return False;
+            end if;
+         when others =>
+            return False;
+      end case;
+
+      Current_Mouse_Cycle := 1;
+      return True;
+   end IO_Control;
 
    procedure Mouse_Handler is
    begin
@@ -166,6 +221,7 @@ package body Devices.PS2Mouse is
       while (Timeout /= 0) loop
          exit when (Arch.Wrappers.Port_In (16#64#) and Shift_Left (1, 0)) /= 0;
          Timeout := Timeout - 1;
+         Pause;
       end loop;
    end Mouse_Wait_Read;
 
@@ -175,6 +231,7 @@ package body Devices.PS2Mouse is
       while (Timeout /= 0) loop
          exit when (Arch.Wrappers.Port_In (16#64#) and Shift_Left (1, 1)) = 0;
          Timeout := Timeout - 1;
+         Pause;
       end loop;
    end Mouse_Wait_Write;
 

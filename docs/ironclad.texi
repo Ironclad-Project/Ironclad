@@ -723,8 +723,7 @@ The @code{bootfb} device has a special @code{ioctl} call, which has an
 argument with the following structure:
 
 @example
-IOCTL_FB_DIMENSIONS = 1;
-
+FB_DIMENSIONS = 1
 struct fb_dimensions @{
    uint16_t width;
    uint16_t height;
@@ -737,6 +736,8 @@ struct fb_dimensions @{
    uint8_t  blue_mask_size;
    uint8_t  blue_mask_shift;
 @};
+
+ioctl(fb, FB_DIMENTIONS, pointer_to_fb_dimensions)
 @end example
 
 @node e9debug
@@ -762,6 +763,28 @@ struct mouse_data @{
 @};
 @end example
 
+@code{ps2mouse} supports a series of @code{ioctl} calls for setting different
+modes and talking directly with the PS2 controller:
+
+@example
+PS2MOUSE_2_1_SCALING     = 1
+PS2MOUSE_1_1_SCALING     = 2
+PS2MOUSE_SET_RES         = 3
+PS2MOUSE_SET_SAMPLE_RATE = 4
+
+ioctl(mouse, PS2MOUSE_2_1_SCALING, (ignored));      // Enable 2:1 scaling.
+ioctl(mouse, PS2MOUSE_1_1_SCALING, (ignored));      // Enable 1:1 scaling.
+ioctl(mouse, PS2MOUSE_SET_RES, resolution);         // Set resolution.
+ioctl(mouse, PS2MOUSE_SET_SAMPLE_RATE, resolution); // Set sample rate.
+@end example
+
+Valid resolutions and sample rates are values for the PS2 controller, else
+the call is ignored. For valid values refer to
+@uref{https://isdaman.com/alsos/hardware/mouse/ps2interface.htm, this website}.
+
+A summary is, for resolution, from 0 to 3, for sample rate, 0, 20, 40, 60, 80,
+100, and 200.
+
 @node serial
 @section serial
 
@@ -785,10 +808,10 @@ an output and input device, along with some special ioctls, which are:
 @code{tiocgwinsz(0x5413)}: Sets a structure passed as an argument as such:
 @example
 struct window_size @{
-	uint16_t ws_row;
-	uint16_t ws_col;
-	uint16_t ws_xpixel;
-	uint16_t ws_ypixel;
+    uint16_t ws_row;
+    uint16_t ws_col;
+    uint16_t ws_xpixel;
+    uint16_t ws_ypixel;
 @};
 @end example
 @end itemize

@@ -172,4 +172,33 @@ package body VFS.File is
          return False;
       end if;
    end IO_Control;
+
+   function Mmap
+      (F           : File_Acc;
+       Address     : Memory.Virtual_Address;
+       Length      : Unsigned_64;
+       Map_Read    : Boolean;
+       Map_Write   : Boolean;
+       Map_Execute : Boolean) return Boolean
+   is
+   begin
+      if F = null then
+         return False;
+      end if;
+      if F.FS_Data = System.Null_Address and F.File_Data = System.Null_Address
+         and F.Dev_Data.IO_Control /= null
+      then
+         return F.Dev_Data.Mmap (
+            F.Dev_Data.Data,
+            Address,
+            Length,
+            Map_Read,
+            Map_Write,
+            Map_Execute
+         );
+      else
+         --  TODO: Support mmaping a non-device.
+         return False;
+      end if;
+   end Mmap;
 end VFS.File;

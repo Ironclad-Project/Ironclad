@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
+with Memory;
 
 package VFS.Device is
    --  Devices are nodes held by the system with some basic operations.
@@ -42,6 +43,13 @@ package VFS.Device is
          (Data     : System.Address;
           Request  : Unsigned_64;
           Argument : System.Address) return Boolean;
+      Mmap : access function
+         (Data        : System.Address;
+          Address     : Memory.Virtual_Address;
+          Length      : Unsigned_64;
+          Map_Read    : Boolean;
+          Map_Write   : Boolean;
+          Map_Execute : Boolean) return Boolean;
    end record;
 
    --  Initialize the device registry.

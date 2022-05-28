@@ -20,6 +20,8 @@ with VFS;
 with Memory; use Memory;
 with Memory.Virtual;
 with System.Storage_Elements; use System.Storage_Elements;
+with Arch.CPU;
+with Userland.Process;
 
 package body Devices.BootFB is
    type FB_Arr is array (Unsigned_32 range <>) of Unsigned_32;
@@ -70,6 +72,7 @@ package body Devices.BootFB is
       Dev.Read                := Read'Access;
       Dev.Write               := Write'Access;
       Dev.IO_Control          := IO_Control'Access;
+      Dev.Mmap                := Mmap'Access;
       return VFS.Device.Register (Dev);
    end Init;
 
@@ -155,4 +158,42 @@ package body Devices.BootFB is
             return False;
       end case;
    end IO_Control;
+
+   function Mmap
+      (Data        : System.Address;
+       Address     : Memory.Virtual_Address;
+       Length      : Unsigned_64;
+       Map_Read    : Boolean;
+       Map_Write   : Boolean;
+       Map_Execute : Boolean) return Boolean
+   is
+      pragma Unreferenced (Map_Read); --  We cannot really map not read lol.
+
+      Dev_Data : Arch.Stivale2.Framebuffer_Tag with Address => Data;
+      Addr     : constant Integer_Address := To_Integer (Dev_Data.Address);
+      Process  : constant Userland.Process.Process_Data_Acc :=
+            Arch.CPU.Get_Local.Current_Process;
+      Fb_Flags : constant Memory.Virtual.Page_Flags := (
+         Present         => True,
+         Read_Write      => Map_Write,
+         User_Supervisor => True,
+         Write_Through   => True,
+         Cache_Disable   => False,
+         Accessed        => False,
+         Dirty           => False,
+         PAT             => True,
+         Global          => False
+      );
+   begin
+      Memory.Virtual.Map_Range (
+         Map         => Process.Common_Map,
+         Virtual     => Address,
+         Physical    => Memory.Virtual_Address (Addr - Memory.Memory_Offset),
+         Length      => Length,
+         Flags       => Fb_Flags,
+         Not_Execute => not Map_Execute,
+         Register    => True
+      );
+      return True;
+   end Mmap;
 end Devices.BootFB;
