@@ -55,4 +55,7 @@ package Arch.Wrappers is
    procedure FP_Restore (Region : System.Address);
    procedure Load_x87_Control_Word (Value : Unsigned_32);
    procedure Load_MXCSR (Value : Unsigned_64);
+   ----------------------------------------------------------------------------
+   procedure Pause;
+   pragma Import (Intrinsic, Pause, "__builtin_ia32_pause");
 end Arch.Wrappers;

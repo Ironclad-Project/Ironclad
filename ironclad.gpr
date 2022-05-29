@@ -1,0 +1,56 @@
+--  ironclad.gpr: Project's building script.
+--  Copyright (C) 2021 streaksu
+--
+--  This program is free software: you can redistribute it and/or modify
+--  it under the terms of the GNU General Public License as published by
+--  the Free Software Foundation, either version 3 of the License, or
+--  (at your option) any later version.
+--
+--  This program is distributed in the hope that it will be useful,
+--  but WITHOUT ANY WARRANTY; without even the implied warranty of
+--  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+--  GNU General Public License for more details.
+--
+--  You should have received a copy of the GNU General Public License
+--  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+project Ironclad is
+   --  Set directories and files.
+   for Source_Dirs use (
+      "source", "source/arch", "source/devices", "source/lib", "source/memory",
+      "source/networking", "source/userland", "source/vfs", "."
+   );
+   for Object_Dir use "obj";
+   for Exec_Dir use ".";
+   for Main use ("main.adb");
+   for Languages use ("ada", "c");
+
+   --  Get command-line options for flags.
+   Ada_Flags    := External ("ADAFLAGS", "-O2 -g");
+   C_Flags      := External ("CFLAGS",   "-O2 -g");
+   Linker_Flags := External ("LDFLAGS",  "-O2 -g");
+
+   package Builder is
+      for Default_Switches ("Ada") use Split (Ada_Flags, " ");
+      for Default_Switches ("C")   use Split (C_Flags,   " ");
+      for Executable ("main.adb") use "ironclad";
+   end Builder;
+
+   package Compiler is
+      for Default_Switches ("Ada") use (
+         "-fpie", "-mno-sse", "-mno-sse2", "-mno-red-zone",
+         "-fno-stack-protector", "-fno-stack-check", "-gnaty", "-Wall"
+      );
+      for Default_Switches ("C") use ("-xassembler", "-fpie");
+      for Local_Configuration_Pragmas use "source/pragmas.adc";
+   end Compiler;
+
+   -- To reduce size of final binary.
+   package Linker is
+      for Default_Switches ("Ada") use Split (Linker_Flags, " ") & (
+         "-T../source/linker.ld", "-nostdlib", "-pie",
+         "-zmax-page-size=0x1000",
+         "-Wl,-gc-sections,--undefined=stivale2hdr,-zmuldefs"
+      );
+   end Linker;
+end Ironclad;

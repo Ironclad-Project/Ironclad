@@ -22,7 +22,6 @@ srcdir="$(dirname "$0")"
 test -z "$srcdir" && srcdir=.
 
 cd "$srcdir"
-cp "$(automake --print-libdir)/install-sh" .
 autoconf
 
 if test -z "$NOCONFIGURE"; then

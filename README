@@ -2,24 +2,29 @@ Ironclad is a kernel for x86_64 devices exclusively (for now), written in Ada.
 
 -- Building --
 
-If the project's configure has not been generated, there is a autogen.sh.
-The steps for a generated project are the usual:
+If the project's configure has not been generated, there is a autogen.sh for
+that purpose. The steps for a generated project using gprbuild are:
 
-./configure
-make
-make test # If wanted.
-make install-strip
+./configure                  # Configure.
+gprbuild -r ironclad.gpr -j4 # Build the kernel.
+./install.sh                 # Install.
 
-Several flags and variables are available for tuning, ./configure --help will
-display and explain them.
+To run the formal proofing framework, which is not necessary, one can run:
+
+gnatprove -P ironclad.gpr  -U --prover=cvc4,altergo,z3
+
+Several flags and variables are available for tuning:
+
+- ADAFLAGS, ASMFLAGS, and LDFLAGS, passed as environment variables to gprbuild.
+- DESTDIR and PREFIX for ./install.sh.
+- Pass 'strip' as the only argument to ./install.sh for stripped binaries.
 
 A list of the tools needed for compilation and checked by configure is:
 
-- autoconf 2.69 and automake.
-- An Ada compiler, preferably gcc.
-- A standard linker and GAS assembler.
-- GNU Info for building the documentation.
-- xorriso and QEMU for testing.
+- autoconf 2.69.
+- gprbuild and a compatible Ada and C compilers.
+- gnatprove for formal proofing if desired.
+- GNU Info for building the documentation with Info and PDF support.
 
 A good set of flags for a release build is:
 
@@ -27,13 +32,9 @@ make ADAFLAGS='-flto -gnaty -Wall -O2 -g' LDFLAGS='-flto -O2' LD=gcc
 
 -- Documentation --
 
-The makefile of the project features targets for generating info and PDF files
-from the texinfo in the docs subdirectory, the targets are:
-
-make info
-make pdf
-make install-info
-make install-pdf
+The project features info and PDF files generated from the texinfo source in
+the docs subdirectory, and they are generated and installed automatically when
+running ./install.sh.
 
 The generated documentation features information about a lot of kernel-specific
 concepts along with syscall listings and project information. Apart of that,

@@ -1,4 +1,4 @@
---  main.ads: Specification of the main function's package.
+--  entrypoint.ads: Specification of the main function's package.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -16,10 +16,10 @@
 
 with Arch.Stivale2;
 
-package Main is
+package Entrypoint is
    procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header)
       with Export, Convention => C, External_Name => "kernel_main";
 
    procedure Main_Thread (Protocol : access Arch.Stivale2.Header)
       with Convention => C;
-end Main;
+end Entrypoint;

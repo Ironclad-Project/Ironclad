@@ -17,30 +17,8 @@
 AC_PREREQ(2.69)
 AC_INIT(Ironclad, 0.0.1, https://github.com/streaksu/ironclad/issues, ironclad)
 
-# Search for some programs.
-AC_PROG_INSTALL
-
-# Add configure flags for Ada and other needed programs, and put defaults.
-AC_ARG_VAR(ADAC, [Ada compiler command [gcc]])
-AC_ARG_VAR(ADAFLAGS, [Ada compiler flags [-O2 -g]])
-AC_ARG_VAR(AS, [Assembler command [as]])
-AC_ARG_VAR(ASFLAGS, [Assembler flags [-O2 -g]])
-AC_ARG_VAR(LD, [Linker command [ld]])
-AC_ARG_VAR(LDFLAGS, [Linker flags [-O2 -g]])
-AC_ARG_VAR(QEMU, [QEMU emulator command [qemu-system-x86_64]])
-AC_ARG_VAR(QEMUFLAGS, [QEMU emulator flags [-m 2G -smp 4 -debugcon stdio]])
-
-AC_CHECK_TOOL(ADAC, gcc, gcc)
-test -z "$ADAFLAGS" && ADAFLAGS="-O2 -g"
-AC_CHECK_TOOL(AS, as, as)
-test -z "$ASFLAGS" && ASFLAGS="-O2 -g"
-AC_CHECK_TOOL(LD, ld, ld)
-test -z "$LDFLAGS" && LDFLAGS="-O2 -g"
-AC_CHECK_TOOL(QEMU, qemu-system-x86_64, qemu-system-x86_64)
-test -z "$QEMUFLAGS" && QEMUFLAGS="-m 2G -smp 4 -debugcon stdio"
-
-# Replace the variables in the makefile.
+# Replace the variables in config.
 CONFIG_DATE="$(date -R)"
 AC_SUBST([PACKAGE_CONFIG_DATE], [$CONFIG_DATE])
-AC_CONFIG_FILES(GNUmakefile config.ads)
+AC_CONFIG_FILES(config.ads)
 AC_OUTPUT

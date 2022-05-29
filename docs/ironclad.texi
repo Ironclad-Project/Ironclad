@@ -772,18 +772,15 @@ PS2MOUSE_1_1_SCALING     = 2
 PS2MOUSE_SET_RES         = 3
 PS2MOUSE_SET_SAMPLE_RATE = 4
 
-ioctl(mouse, PS2MOUSE_2_1_SCALING, (ignored));      // Enable 2:1 scaling.
-ioctl(mouse, PS2MOUSE_1_1_SCALING, (ignored));      // Enable 1:1 scaling.
-ioctl(mouse, PS2MOUSE_SET_RES, resolution);         // Set resolution.
-ioctl(mouse, PS2MOUSE_SET_SAMPLE_RATE, resolution); // Set sample rate.
+ioctl(mouse, PS2MOUSE_2_1_SCALING, ignored);  // Enable 2:1 scaling.
+ioctl(mouse, PS2MOUSE_1_1_SCALING, ignored);  // Enable 1:1 scaling.
+ioctl(mouse, PS2MOUSE_SET_RES, resolution);   // Set resolution (0 - 3).
+ioctl(mouse, PS2MOUSE_SET_SAMPLE_RATE, rate); // Set sample rate (0 - 200).
 @end example
 
 Valid resolutions and sample rates are values for the PS2 controller, else
-the call is ignored. For valid values refer to
+the call is ignored. For valid values and their meaning refer to
 @uref{https://isdaman.com/alsos/hardware/mouse/ps2interface.htm, this website}.
-
-A summary is, for resolution, from 0 to 3, for sample rate, 0, 20, 40, 60, 80,
-100, and 200.
 
 @node serial
 @section serial

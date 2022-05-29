@@ -1,4 +1,5 @@
-# .gitignore: Ignore some git files.
+#!/bin/sh
+# install.sh: Install script for ironclad and docs.
 # Copyright (C) 2021 streaksu
 #
 # This program is free software: you can redistribute it and/or modify
@@ -14,22 +15,24 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+if [ -z "$PREFIX" ]; then
+    PREFIX="/usr/local"
+fi
 
-*.o
-*.ali
-configure
-GNUmakefile
-config.log
-config.status
-autom4te*
-ironclad
-ironclad.iso
-limine
-config.ads
-install-sh
-ironclad.info
-ironclad.aux
-ironclad.pdf
-ironclad.log
-ironclad.toc
-obj
+# Build documentation.
+makeinfo docs/ironclad.texi
+makeinfo --pdf docs/ironclad.texi
+
+# Install info.
+install -d "$DESTDIR$PREFIX"/share/info
+install -d "$DESTDIR$PREFIX"/share/docs
+install ironclad.info "$DESTDIR$PREFIX"/share/info/ironclad
+install ironclad.pdf  "$DESTDIR$PREFIX"/share/docs/
+
+# Install the executable.
+install -d "$DESTDIR$PREFIX"/share/ironclad
+if [ "$1" = "strip" ]; then
+    install -s ironclad "$DESTDIR$PREFIX"/share/ironclad/
+else
+    install ironclad "$DESTDIR$PREFIX"/share/ironclad/
+fi

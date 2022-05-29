@@ -21,8 +21,6 @@ with Interfaces.C; use Interfaces.C;
 --  Most of them are for error-reporting, and the names are preset.
 
 package Lib.Runtime is
-   pragma Obsolescent (Message => "Do not use runtime glue explicitly!");
-
    procedure Access_Check (File : System.Address; Line : Integer)
       with Export, External_Name => "__gnat_rcheck_CE_Access_Check";
    procedure Index_Check (File : System.Address; Line : Integer)

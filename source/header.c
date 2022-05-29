@@ -15,8 +15,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 .section ".stivale2hdr", "aw", @progbits
-
-header:
+.globl stivale2hdr
+stivale2hdr:
     .quad 0                              # Alternative entrypoint, 0 is none.
     .quad stack_top                      # Stack to be loaded for the kernel.
     .quad (1 << 1) | (1 << 2) | (1 << 4) # Flags to request offset mem + PMRs.

@@ -22,9 +22,6 @@ with VFS.Device;
 with Ada.Unchecked_Conversion;
 
 package body Devices.PS2Mouse is
-   procedure Pause;
-   pragma Import (Intrinsic, Pause, "__builtin_ia32_pause");
-
    --  For return.
    type Mouse_Data is record
       X_Variation    : Integer;
@@ -108,7 +105,7 @@ package body Devices.PS2Mouse is
    begin
       Has_Returned := False;
       while not Has_Returned loop
-         Pause;
+         Arch.Wrappers.HLT;
       end loop;
 
       Data2 := Return_Data;
@@ -216,22 +213,18 @@ package body Devices.PS2Mouse is
    end Mouse_Handler;
 
    procedure Mouse_Wait_Read is
-      Timeout : Natural := 100_000;
    begin
-      while (Timeout /= 0) loop
+      for I in 1 .. 100_000 loop
          exit when (Arch.Wrappers.Port_In (16#64#) and Shift_Left (1, 0)) /= 0;
-         Timeout := Timeout - 1;
-         Pause;
+         Arch.Wrappers.Pause;
       end loop;
    end Mouse_Wait_Read;
 
    procedure Mouse_Wait_Write is
-      Timeout : Natural := 100_000;
    begin
-      while (Timeout /= 0) loop
+      for I in 1 .. 100_000 loop
          exit when (Arch.Wrappers.Port_In (16#64#) and Shift_Left (1, 1)) = 0;
-         Timeout := Timeout - 1;
-         Pause;
+         Arch.Wrappers.Pause;
       end loop;
    end Mouse_Wait_Write;
 

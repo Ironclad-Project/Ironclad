@@ -16,6 +16,8 @@
 
 with Lib.Messages;
 with Lib.Panic;
+with Lib.Atomic; use Lib.Atomic;
+with Arch.Wrappers;
 
 package body Lib.Synchronization is
    procedure Seize (Semaphore : not null access Binary_Semaphore) is
@@ -28,10 +30,10 @@ package body Lib.Synchronization is
       --  Do a rough wait until the lock is free for cache-locality.
       --  https://en.wikipedia.org/wiki/Test_and_test-and-set
       for I in 1 .. 50000000 loop
-         if Atomic_Load (Semaphore.Is_Locked'Address, Mem_Relaxed) = 0 then
+         if Atomic_Load_8 (Semaphore.Is_Locked'Address, Mem_Relaxed) = 0 then
             goto Retry_Lock;
          end if;
-         Pause;
+         Arch.Wrappers.Pause;
       end loop;
 
       Lib.Messages.Put ("Deadlock at address: ");
