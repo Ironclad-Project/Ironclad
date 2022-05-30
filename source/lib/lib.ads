@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
+with System; use System;
 with Interfaces; use Interfaces;
 
 package Lib with SPARK_Mode, Pure is
@@ -28,5 +28,6 @@ package Lib with SPARK_Mode, Pure is
            Post => Align_Down'Result rem Alignment = 0;
    ----------------------------------------------------------------------------
    --  Report the length of a NUL-Terminated C string.
-   function C_String_Length (Address : System.Address) return Natural;
+   function C_String_Length (Addr : Address) return Natural
+      with Pre => Addr /= System.Null_Address;
 end Lib;

@@ -15,21 +15,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-*.o
-*.ali
-configure
-GNUmakefile
-config.log
-config.status
-autom4te*
-ironclad
-ironclad.iso
-limine
-config.ads
-install-sh
+obj
+gnatprove
 ironclad.info
 ironclad.aux
 ironclad.pdf
 ironclad.log
 ironclad.toc
-obj
+ironclad

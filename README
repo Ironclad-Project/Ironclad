@@ -11,7 +11,7 @@ gprbuild -r ironclad.gpr -j4 # Build the kernel.
 
 To run the formal proofing framework, which is not necessary, one can run:
 
-gnatprove -P ironclad.gpr  -U --prover=cvc4,altergo,z3
+gnatprove -P ironclad.gpr -U --prover=cvc4,altergo,z3
 
 Several flags and variables are available for tuning:
 
@@ -21,14 +21,13 @@ Several flags and variables are available for tuning:
 
 A list of the tools needed for compilation and checked by configure is:
 
-- autoconf 2.69.
 - gprbuild and a compatible Ada and C compilers.
 - gnatprove for formal proofing if desired.
 - GNU Info for building the documentation with Info and PDF support.
 
 A good set of flags for a release build is:
 
-make ADAFLAGS='-flto -gnaty -Wall -O2 -g' LDFLAGS='-flto -O2' LD=gcc
+ADAFLAGS='-flto -O2' CFLAGS='-flto -O2' LDFLAGS='-flto -O2'
 
 -- Documentation --
 

@@ -18,7 +18,7 @@ project Ironclad is
    --  Set directories and files.
    for Source_Dirs use (
       "source", "source/arch", "source/devices", "source/lib", "source/memory",
-      "source/networking", "source/userland", "source/vfs", "."
+      "source/networking", "source/userland", "source/vfs"
    );
    for Object_Dir use "obj";
    for Exec_Dir use ".";
@@ -31,21 +31,20 @@ project Ironclad is
    Linker_Flags := External ("LDFLAGS",  "-O2 -g");
 
    package Builder is
-      for Default_Switches ("Ada") use Split (Ada_Flags, " ");
-      for Default_Switches ("C")   use Split (C_Flags,   " ");
       for Executable ("main.adb") use "ironclad";
    end Builder;
 
    package Compiler is
-      for Default_Switches ("Ada") use (
+      for Default_Switches ("Ada") use Split (Ada_Flags, " ") & (
          "-fpie", "-mno-sse", "-mno-sse2", "-mno-red-zone",
          "-fno-stack-protector", "-fno-stack-check", "-gnaty", "-Wall"
       );
-      for Default_Switches ("C") use ("-xassembler", "-fpie");
+      for Default_Switches ("C") use Split (C_Flags, " ") & (
+         "-xassembler", "-fpie"
+      );
       for Local_Configuration_Pragmas use "source/pragmas.adc";
    end Compiler;
 
-   -- To reduce size of final binary.
    package Linker is
       for Default_Switches ("Ada") use Split (Linker_Flags, " ") & (
          "-T../source/linker.ld", "-nostdlib", "-pie",

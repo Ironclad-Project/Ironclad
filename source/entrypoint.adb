@@ -65,15 +65,11 @@ package body Entrypoint is
          C5.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.SMP_ID)));
    begin
       ST.Init_Terminal (Term);
-      Lib.Messages.Put      (Config.Package_Name);
-      Lib.Messages.Put      (" ");
-      Lib.Messages.Put      (Config.Package_Version);
-      Lib.Messages.Put      (" booted by ");
-      Lib.Messages.Put      (Protocol.BootloaderBrand);
-      Lib.Messages.Put      (" ");
+      Lib.Messages.Put (Config.Name & " " & Config.Version & " booted by ");
+      Lib.Messages.Put (Protocol.BootloaderBrand & " ");
       Lib.Messages.Put_Line (Protocol.BootloaderVersion);
-      Lib.Messages.Put      ("Please report errors and issues to ");
-      Lib.Messages.Put_Line (Config.Package_BugReport);
+      Lib.Messages.Put ("Please report errors and issues to ");
+      Lib.Messages.Put_Line (Config.Bug_Site);
 
       Arch.GDT.Init;
       Arch.IDT.Init;

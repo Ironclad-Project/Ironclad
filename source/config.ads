@@ -1,4 +1,4 @@
---  config.ads.in: Specification of the config values.
+--  config.ads: Specification of the config values.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -15,12 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Config is
-   Package_Name      : constant String :=
-      "@PACKAGE_NAME@";
-   Package_Version   : constant String :=
-      "@PACKAGE_VERSION@";
-   Package_BugReport : constant String :=
-      "@PACKAGE_BUGREPORT@";
-   Package_Config_Date : constant String :=
-      "@PACKAGE_CONFIG_DATE@";
+   Name     : constant String := "Ironclad";
+   Version  : constant String := "0.0.1";
+   Bug_Site : constant String := "https://github.com/streaksu/ironclad/issues";
 end Config;

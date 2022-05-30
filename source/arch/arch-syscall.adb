@@ -761,17 +761,18 @@ package body Arch.Syscall is
          return Unsigned_64'Last;
       end if;
 
-      UTS.System_Name (1 .. Config.Package_Name'Length + 1) :=
-         Config.Package_Name & Ada.Characters.Latin_1.NUL;
+      UTS.System_Name (1 .. Config.Name'Length + 1) :=
+         Config.Name & Ada.Characters.Latin_1.NUL;
       UTS.Node_Name (1 .. Networking.Hostname_Length) :=
          Networking.Hostname_Buffer (1 .. Networking.Hostname_Length);
       UTS.Node_Name (Networking.Hostname_Length + 1) :=
          Ada.Characters.Latin_1.NUL;
-      UTS.Release (1 .. Config.Package_Version'Length + 1) :=
-         Config.Package_Version & Ada.Characters.Latin_1.NUL;
-      UTS.Version (1 .. Config.Package_Config_Date'Length + 1) :=
-         Config.Package_Config_Date & Ada.Characters.Latin_1.NUL;
+      UTS.Release (1 .. Config.Version'Length + 1) :=
+         Config.Version & Ada.Characters.Latin_1.NUL;
+      UTS.Version (1 .. Config.Version'Length + 1) :=
+         Config.Version & Ada.Characters.Latin_1.NUL;
       UTS.Machine (1 .. 7) := "x86_64" & Ada.Characters.Latin_1.NUL;
+
       Errno := Error_No_Error;
       return 0;
    end Syscall_Uname;
