@@ -21,8 +21,6 @@ with Arch.CPU;
 package body Userland.Process is
    procedure Free_Proc is new Ada.Unchecked_Deallocation
       (Process_Data, Process_Data_Acc);
-procedure Free_File is new Ada.Unchecked_Deallocation
-      (VFS.File.File, VFS.File.File_Acc);
 
    --  Process registry and its lock, the index happens to do as PID as well.
    type Process_Arr is array (1 .. 256) of Process_Data_Acc;
@@ -151,9 +149,7 @@ procedure Free_File is new Ada.Unchecked_Deallocation
 
          --  Clone the file table.
          for I in Parent.File_Table'Range loop
-            if Parent.File_Table (I) /= null then
-               Child.File_Table (I) := new File'(Parent.File_Table (I).all);
-            end if;
+            Child.File_Table (I) := Duplicate (Parent.File_Table (I));
          end loop;
       end;
 
@@ -213,10 +209,25 @@ procedure Free_File is new Ada.Unchecked_Deallocation
       return False;
    end Add_File;
 
+   function Replace_File
+      (Process : Process_Data_Acc;
+       File    : VFS.File.File_Acc;
+       Old_FD  : Natural) return Boolean
+   is
+   begin
+      if Old_FD >= Process.File_Table'Last then
+         return False;
+      end if;
+      if Process.File_Table (Old_FD) /= null then
+         Remove_File (Process, Old_FD);
+      end if;
+      Process.File_Table (Old_FD) := File;
+      return True;
+   end Replace_File;
+
    procedure Remove_File (Process : Process_Data_Acc; FD : Natural) is
    begin
       VFS.File.Close (Process.File_Table (FD));
-      Free_File (Process.File_Table (FD));
       Process.File_Table (FD) := null;
    end Remove_File;
 
@@ -225,7 +236,6 @@ procedure Free_File is new Ada.Unchecked_Deallocation
       for F of Process.File_Table loop
          if F /= null then
             VFS.File.Close (F);
-            Free_File (F);
             F := null;
          end if;
       end loop;

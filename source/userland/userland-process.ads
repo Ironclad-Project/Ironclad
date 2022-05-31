@@ -79,6 +79,10 @@ package Userland.Process is
       (Process : Process_Data_Acc;
        File    : VFS.File.File_Acc;
        FD      : out Natural) return Boolean;
+   function Replace_File
+      (Process : Process_Data_Acc;
+       File    : VFS.File.File_Acc;
+       Old_FD  : Natural) return Boolean;
    procedure Remove_File (Process : Process_Data_Acc; FD : Natural);
    procedure Flush_Files (Process : Process_Data_Acc);
 end Userland.Process;

@@ -43,6 +43,7 @@ package body Arch.Syscall is
    Error_Child           : constant := 1012; -- ECHILD.
    Error_Would_Fault     : constant := 1020; -- EFAULT.
    Error_Invalid_Value   : constant := 1026; -- EINVAL.
+   Error_Too_Many_Files  : constant := 1031; -- EMFILE.
    Error_String_Too_Long : constant := 1036; -- ENAMETOOLONG
    Error_No_Entity       : constant := 1043; -- ENOENT.
    Error_Not_Implemented : constant := 1051; -- ENOSYS.
@@ -128,6 +129,12 @@ package body Arch.Syscall is
          when 23 =>
             Returned := Syscall_Set_Priority (State.RDI, State.RSI, State.RDX,
                                               Errno);
+         when 24 =>
+            Returned := Syscall_Dup (State.RDI, Errno);
+         when 25 =>
+            Returned := Syscall_Dup2 (State.RDI, State.RSI, Errno);
+         when 26 =>
+            Returned := Syscall_Dup3 (State.RDI, State.RSI, State.RDX, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -1123,4 +1130,113 @@ package body Arch.Syscall is
       Errno := Error_No_Error;
       return 0;
    end Syscall_Set_Priority;
+
+   function Syscall_Dup
+      (Old_FD : Unsigned_64;
+       Errno  : out Unsigned_64) return Unsigned_64
+   is
+      Process : constant Userland.Process.Process_Data_Acc :=
+         Arch.CPU.Get_Local.Current_Process;
+      New_FD    : VFS.File.File_Acc;
+      Result_FD : Natural;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall dup(");
+         Lib.Messages.Put      (Old_FD);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if Old_FD > Unsigned_64 (Process.File_Table'Last) or else
+         Process.File_Table (Natural (Old_FD)) = null
+      then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+
+      New_FD := VFS.File.Duplicate (Process.File_Table (Natural (Old_FD)));
+      if New_FD = null then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      elsif not Userland.Process.Add_File (Process, New_FD, Result_FD) then
+         Errno := Error_Too_Many_Files;
+         return Unsigned_64'Last;
+      else
+         Errno := Error_No_Error;
+         return Unsigned_64 (Result_FD);
+      end if;
+   end Syscall_Dup;
+
+   function Syscall_Dup2
+      (Old_FD, New_FD : Unsigned_64;
+       Errno          : out Unsigned_64) return Unsigned_64
+   is
+      Process : constant Userland.Process.Process_Data_Acc :=
+         Arch.CPU.Get_Local.Current_Process;
+      New_File : VFS.File.File_Acc;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall dup2(");
+         Lib.Messages.Put      (Old_FD);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (New_FD);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if Old_FD > Unsigned_64 (Process.File_Table'Last) or else
+         Process.File_Table (Natural (Old_FD)) = null
+      then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+
+      New_File := VFS.File.Duplicate (Process.File_Table (Natural (Old_FD)));
+      if New_File = null or else
+         not Userland.Process.Replace_File (Process, New_File, Natural (Old_FD))
+      then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      else
+         Errno := Error_No_Error;
+         return New_FD;
+      end if;
+   end Syscall_Dup2;
+
+   function Syscall_Dup3
+      (Old_FD, New_FD : Unsigned_64;
+       Flags          : Unsigned_64;
+       Errno          : out Unsigned_64) return Unsigned_64
+   is
+      Process : constant Userland.Process.Process_Data_Acc :=
+         Arch.CPU.Get_Local.Current_Process;
+      New_File : VFS.File.File_Acc;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall dup3(");
+         Lib.Messages.Put      (Old_FD);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (New_FD);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Flags);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if Old_FD > Unsigned_64 (Process.File_Table'Last) or else
+         Process.File_Table (Natural (Old_FD)) = null
+      then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+
+      New_File := VFS.File.Duplicate (Process.File_Table (Natural (Old_FD)));
+      if New_File = null or else
+         not Userland.Process.Replace_File (Process, New_File, Natural (Old_FD))
+      then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      else
+         --  TODO: Update the flags.
+         Errno := Error_No_Error;
+         return New_FD;
+      end if;
+   end Syscall_Dup3;
 end Arch.Syscall;

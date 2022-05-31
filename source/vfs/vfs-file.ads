@@ -35,8 +35,11 @@ package VFS.File is
    --  Open a file with an absolute path, and return it, or null on failure.
    function Open (Path : String; Access_Flags : Access_Mode) return File_Acc;
 
+   --  Duplicate an opened file.
+   function Duplicate (To_Duplicate : File_Acc) return File_Acc;
+
    --  Close an opened file.
-   procedure Close (To_Close : File_Acc);
+   procedure Close (To_Close : in out File_Acc);
 
    --  Read from a file, and return the read count.
    function Read

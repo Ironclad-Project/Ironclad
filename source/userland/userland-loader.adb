@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Ada.Unchecked_Deallocation;
 with Ada.Characters.Latin_1;
 with Interfaces; use Interfaces;
 with System;
@@ -25,8 +24,6 @@ with Userland.ELF;
 with Scheduler; use Scheduler;
 
 package body Userland.Loader is
-   procedure Free_File is new Ada.Unchecked_Deallocation (File, File_Acc);
-
    --  Virtual offsets for different kinds of programs to load.
    Program_Offset        : constant := 16#00000000#;
    Dynamic_Linker_Offset : constant := 16#40000000#;
@@ -120,7 +117,6 @@ package body Userland.Loader is
             goto Error;
          end if;
          Close (LD_File);
-         Free_File (LD_File);
       else
          Entrypoint := To_Integer (Loaded_ELF.Entrypoint);
       end if;

@@ -14,11 +14,15 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Unchecked_Deallocation;
 with System; use System;
 with VFS.Path;
 with VFS.USTAR;
 
 package body VFS.File is
+   procedure Free_Str  is new Ada.Unchecked_Deallocation (String, String_Acc);
+   procedure Free_File is new Ada.Unchecked_Deallocation (File, File_Acc);
+
    function Open (Path : String; Access_Flags : Access_Mode) return File_Acc is
       Fetched_Dev  : VFS.Device.Device_Data;
       Fetched_Type : VFS.Device.FS_Type := VFS.Device.FS_USTAR;
@@ -64,10 +68,29 @@ package body VFS.File is
       );
    end Open;
 
-   procedure Close (To_Close : File_Acc) is
+   function Duplicate (To_Duplicate : File_Acc) return File_Acc is
+   begin
+      if To_Duplicate = null then
+         return null;
+      end if;
+
+      return new File'(
+         Full_Path => new String'(To_Duplicate.Full_Path.all),
+         Dev_Data  => To_Duplicate.Dev_Data,
+         FS_Data   => To_Duplicate.FS_Data,
+         File_Data => To_Duplicate.File_Data,
+         FS_Type   => To_Duplicate.FS_Type,
+         Index     => To_Duplicate.Index,
+         Flags     => To_Duplicate.Flags
+      );
+   end Duplicate;
+
+   procedure Close (To_Close : in out File_Acc) is
    begin
       if To_Close /= null and then To_Close.FS_Data /= System.Null_Address then
          USTAR.Close (To_Close.FS_Data, To_Close.File_Data);
+         Free_Str (To_Close.Full_Path);
+         Free_File (To_Close);
       end if;
    end Close;
 

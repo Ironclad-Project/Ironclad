@@ -75,6 +75,7 @@ Syscalls
 * ioctl::                   IO multiplexer.
 * sched_yield::             Relinquish CPU time.
 * getpriority/setpriority:: Manage scheduler priorities for processes.
+* dup/dup2/dup3::           Duplicate file descriptors.
 
 Devices and their properties
 
@@ -247,6 +248,9 @@ The passed value would make the program fault.
 
 @item EINVAL (1026)
 The passed value is not valid for the called syscall.
+
+@item EMFILE (1031)
+Too many files were opened by the process.
 
 @item ENAMETOOLONG (1036)
 The passed value is too big for the syscall.
@@ -703,6 +707,32 @@ Both syscalls set the following errno on failure:
 
 @item
 @code{ESRCH}: The passed process could not be found.
+@end itemize
+
+@node dup/dup2/dup3
+@section dup/dup2/dup3
+
+@example
+int dup(int oldfd);
+int dup2(int oldfd, int newfd);
+int dup3(int oldfd, int newfd, int flags);
+@end example
+
+This syscalls allocate new file descriptors pointing to the same file as the
+passed file descriptor. @code{dup} chooses a descriptor itself, while
+@code{dup2} and @code{dup3} will replace @code{newfd} with the new descriptor,
+closing it if necessary. @code{dup3} allows to change the flags of the
+descriptor as well in the same format as @code{open}.
+
+All of these 3 syscalls return the new fd on success and @code{-1} on failure.
+The errno codes set on failure are:
+
+@itemize @bullet
+@item
+@code{EBADF}: The passed file descriptor is not owned by the process.
+
+@item
+@code{EMFILE}: Too many files have already been opened by the process.
 @end itemize
 
 @node Devices and their properties

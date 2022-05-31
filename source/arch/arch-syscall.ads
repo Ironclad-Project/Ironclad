@@ -226,6 +226,18 @@ private
       (Which, Who, Prio : Unsigned_64;
        Errno            : out Unsigned_64) return Unsigned_64;
 
+   --  Dup functions.
+   function Syscall_Dup
+      (Old_FD : Unsigned_64;
+       Errno  : out Unsigned_64) return Unsigned_64;
+   function Syscall_Dup2
+      (Old_FD, New_FD : Unsigned_64;
+       Errno          : out Unsigned_64) return Unsigned_64;
+   function Syscall_Dup3
+      (Old_FD, New_FD : Unsigned_64;
+       Flags          : Unsigned_64;
+       Errno          : out Unsigned_64) return Unsigned_64;
+
    function Inner_Stat
       (F       : VFS.File.File_Acc;
        Address : Unsigned_64) return Boolean;
