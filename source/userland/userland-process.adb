@@ -21,7 +21,7 @@ with Arch.CPU;
 package body Userland.Process is
    procedure Free_Proc is new Ada.Unchecked_Deallocation
       (Process_Data, Process_Data_Acc);
-   procedure Free_File is new Ada.Unchecked_Deallocation
+procedure Free_File is new Ada.Unchecked_Deallocation
       (VFS.File.File, VFS.File.File_Acc);
 
    --  Process registry and its lock, the index happens to do as PID as well.
@@ -59,13 +59,17 @@ package body Userland.Process is
                   end if;
                end loop;
 
-               Process_List (I).Parent_PID := Parent.Process_PID;
-               Process_List (I).Stack_Base := Parent.Stack_Base;
-               Process_List (I).Alloc_Base := Parent.Alloc_Base;
+               Process_List (I).Parent_PID      := Parent.Process_PID;
+               Process_List (I).Stack_Base      := Parent.Stack_Base;
+               Process_List (I).Alloc_Base      := Parent.Alloc_Base;
+               Process_List (I).Current_Dir_Len := Parent.Current_Dir_Len;
+               Process_List (I).Current_Dir     := Parent.Current_Dir;
             else
-               Process_List (I).Parent_PID := 0;
-               Process_List (I).Stack_Base := 16#70000000000#;
-               Process_List (I).Alloc_Base := 16#80000000000#;
+               Process_List (I).Parent_PID      := 0;
+               Process_List (I).Stack_Base      := 16#70000000000#;
+               Process_List (I).Alloc_Base      := 16#80000000000#;
+               Process_List (I).Current_Dir_Len := 1;
+               Process_List (I).Current_Dir (1) := '/';
             end if;
 
             Returned := Process_List (I);

@@ -20,7 +20,9 @@ with Memory;
 
 package VFS.File is
    type Access_Mode is (Access_R, Access_W, Access_RW);
+   type String_Acc is access String;
    type File is record
+      Full_Path : String_Acc;
       Dev_Data  : VFS.Device.Device_Data;
       FS_Data   : System.Address;
       File_Data : System.Address;

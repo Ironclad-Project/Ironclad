@@ -20,6 +20,7 @@ with VFS.File;         use VFS.File;
 package Userland.Loader is
    --  Start a program from a passed file, and create a process for it with
    --  1 thread running it.
+   --  The format of the file is guessed.
    --  Return the PID, or 0 if failure.
    function Start_Program
       (FD          : File_Acc;
@@ -32,6 +33,20 @@ package Userland.Loader is
    --  Same as above but with an existing process instead.
    --  Returns true on success, false on failure.
    function Start_Program
+      (FD          : File_Acc;
+       Arguments   : Argument_Arr;
+       Environment : Environment_Arr;
+       Proc        : Process_Data_Acc) return Boolean;
+
+   --  Start specifically an ELF file.
+   function Start_ELF
+      (FD          : File_Acc;
+       Arguments   : Argument_Arr;
+       Environment : Environment_Arr;
+       Proc        : Process_Data_Acc) return Boolean;
+
+   --  Start specifically a shebang.
+   function Start_Shebang
       (FD          : File_Acc;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;

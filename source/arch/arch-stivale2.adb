@@ -19,6 +19,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with System.Address_To_Access_Conversions;
 with Arch.Wrappers;
+with Arch.Interrupts;
 with Memory.Virtual; use Memory.Virtual;
 with Lib.Synchronization;
 
@@ -69,6 +70,7 @@ package body Arch.Stivale2 is
          return;
       end if;
 
+      Interrupts.Set_Interrupt_Flag (False);
       declare
          Message_Str  : String (1 .. Length) with Address => Message;
          Message_Copy : String (1 .. Length);
@@ -109,5 +111,7 @@ package body Arch.Stivale2 is
             Wrappers.Write_CR3 (Current_CR3);
          end if;
       end;
+
+      Interrupts.Set_Interrupt_Flag (True);
    end Inner_Terminal;
 end Arch.Stivale2;

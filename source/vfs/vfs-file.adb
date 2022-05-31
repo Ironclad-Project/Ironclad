@@ -54,6 +54,7 @@ package body VFS.File is
 
       --  Return the created file.
       return new File'(
+         Full_Path => new String'(Path),
          Dev_Data  => Fetched_Dev,
          FS_Data   => Fetched_FS,
          File_Data => Fetched_File,
