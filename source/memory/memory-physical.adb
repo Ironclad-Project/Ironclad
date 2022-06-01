@@ -183,17 +183,21 @@ package body Memory.Physical is
    end Alloc;
 
    procedure Free (Address : Virtual_Address) is
-      Real_Address : constant Virtual_Address := (Address - Memory_Offset);
-      Index        : constant Virtual_Address := Real_Address / Block_Size;
-      Bitmap_Body : Bitmap (1 .. Block_Count);
-      for Bitmap_Body'Address use To_Address (Bitmap_Address);
+      Real_Address : Virtual_Address;
+      Bitmap_Body  : Bitmap (1 .. Block_Count)
+         with Address => To_Address (Bitmap_Address);
    begin
+      if Address > Memory_Offset then
+         Real_Address := Address - Memory_Offset;
+      else
+         Real_Address := Address;
+      end if;
+
+      Lib.Synchronization.Seize (Alloc_Mutex'Access);
+
       --  TODO: This is basically a placeholder free that will free only the
       --  first block. Blocks per address should be tracked and freed.
-      Lib.Synchronization.Seize (Alloc_Mutex'Access);
-      Bitmap_Body (Unsigned_64 (Index)) := Block_Free;
-
-      --  Set statistic variables
+      Bitmap_Body (Unsigned_64 (Real_Address / Block_Size)) := Block_Free;
       Free_Memory := Free_Memory + Block_Size;
       Used_Memory := Used_Memory - Block_Size;
 

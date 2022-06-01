@@ -38,6 +38,10 @@ concepts along with syscall listings and project information. Apart of that,
 there is this README and a CONTRIBUTING.md with contributing guidelines in the
 root directory of the project.
 
+Generated documentation is hosted and updated regularly online at:
+https://streaks.lol/ironclad/index.html - HTML format.
+https://streaks.lol/ironclad/ironclad.pdf - PDF format.
+
 -- Thanks to --
 
 - Mintsuki (https://github.com/mintsuki) et al - For the

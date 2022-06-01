@@ -37,6 +37,7 @@ package body Devices.TTY is
       Dev.Stat.IO_Block_Count := 0;
       Dev.Read                := Read'Access;
       Dev.Write               := Write'Access;
+      Dev.IO_Control          := IO_Control'Access;
       return VFS.Device.Register (Dev);
    end Init;
 
