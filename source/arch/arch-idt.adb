@@ -26,6 +26,7 @@ with Arch.Syscall;
 package body Arch.IDT is
    --  Records for the GDT structure and its entries.
    Gate_Type_Interrupt : constant := 16#E#;
+   Gate_Type_Trap      : constant := 16#F#;
 
    type Gate_Value is mod 2 ** 4;
    type DPL_Value  is mod 2 ** 2;
@@ -92,7 +93,7 @@ package body Arch.IDT is
       end loop;
 
       --  Some special entries for several hardcoded hardware and syscalls.
-      Load_ISR (16#81#, Syscall.Syscall_Handler'Address, True);
+      Load_ISR (16#81#, Syscall.Syscall_Handler'Address, Gate_Trap, True);
       Load_ISR (APIC.LAPIC_Spurious_Entry,
                 Interrupts.Spurious_Handler'Address);
 
@@ -112,9 +113,18 @@ package body Arch.IDT is
    procedure Load_ISR
       (Index      : IDT_Index;
        Address    : System.Address;
+       Gate_Type  : Gate := Gate_Interrupt;
        Allow_User : Boolean := False) is
    begin
       ISR_Table (Index) := Address;
+
+      case Gate_Type is
+         when Gate_Trap =>
+            Global_IDT (Index).Gate_Type := Gate_Type_Trap;
+         when Gate_Interrupt =>
+            Global_IDT (Index).Gate_Type := Gate_Type_Interrupt;
+      end case;
+
       if Allow_User then
          Global_IDT (Index).DPL := 3;
       else
@@ -125,13 +135,14 @@ package body Arch.IDT is
    function Load_ISR
       (Address    : System.Address;
        Index      : out IRQ_Index;
+       Gate_Type  : Gate := Gate_Interrupt;
        Allow_User : Boolean := False) return Boolean is
    begin
       --  Allocate an interrupt in the IRQ region.
       for I in IRQ_Index loop
          if ISR_Table (I) = Interrupts.Default_ISR_Handler'Address then
             Index := I;
-            Load_ISR (I, Address, Allow_User);
+            Load_ISR (I, Address, Gate_Type, Allow_User);
             return True;
          end if;
       end loop;

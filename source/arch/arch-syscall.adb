@@ -69,8 +69,6 @@ package body Arch.Syscall is
       Errno    : Unsigned_64 := Error_No_Error;
       pragma Unreferenced (Number);
    begin
-      --  Swap to kernel GS and enable interrupts.
-      Interrupts.Set_Interrupt_Flag (True);
       Wrappers.Swap_GS;
 
       --  Call the inner syscall.

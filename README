@@ -2,11 +2,9 @@ Ironclad is a kernel for x86_64 devices exclusively (for now), written in Ada.
 
 -- Building --
 
-If the project's configure has not been generated, there is a autogen.sh for
-that purpose. The steps for a generated project using gprbuild are:
+The steps for building using gprbuild are:
 
-./configure                  # Configure.
-gprbuild -r ironclad.gpr -j4 # Build the kernel.
+gprbuild -p ironclad.gpr -j4 # Build the kernel.
 ./install.sh                 # Install.
 
 To run the formal proofing framework, which is not necessary, one can run:
