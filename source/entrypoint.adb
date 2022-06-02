@@ -31,7 +31,6 @@ with Devices.Ramdev;
 with Devices;
 with VFS.File; use VFS.File;
 with VFS;
-with VFS.Device;
 with Lib.Cmdline;
 with Lib.Messages;
 with Lib.Panic;
@@ -136,9 +135,12 @@ package body Entrypoint is
    procedure Main_Thread (Protocol : access Arch.Stivale2.Header) is
       package ST renames Arch.Stivale2;
 
-      package C1 is new System.Address_To_Access_Conversions (ST.Modules_Tag);
-      package C2 is new System.Address_To_Access_Conversions (ST.Cmdline_Tag);
-      package C3 is new System.Address_To_Access_Conversions (ST.Framebuffer_Tag);
+      package C1 is new
+         System.Address_To_Access_Conversions (ST.Modules_Tag);
+      package C2 is new
+         System.Address_To_Access_Conversions (ST.Cmdline_Tag);
+      package C3 is new
+         System.Address_To_Access_Conversions (ST.Framebuffer_Tag);
 
       Modules : constant access ST.Modules_Tag :=
          C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Modules_ID)));
@@ -157,8 +159,8 @@ package body Entrypoint is
       procedure Free_S is new Ada.Unchecked_Deallocation (String, String_Acc);
       procedure Free_F is new Ada.Unchecked_Deallocation (File,   File_Acc);
    begin
-      Lib.Messages.Put_Line ("Initializing FS subsystem");
-      VFS.Device.Init_Registry;
+      Lib.Messages.Put_Line ("Initializing VFS subsystem");
+      VFS.Init;
 
       Lib.Messages.Put_Line ("Initializing processes");
       Userland.Process.Init;
@@ -173,7 +175,7 @@ package body Entrypoint is
          begin
             exit when I = 10;
             Name (7) := Character'Val (I + Character'Pos ('0'));
-            if not VFS.Device.Register
+            if not VFS.Register
                (Devices.Ramdev.Init_Module (Modules.Entries (I), Name))
             then
                Lib.Panic.Hard_Panic ("Could not load a stivale2 ramdev");
@@ -189,8 +191,7 @@ package body Entrypoint is
          (Lib.Cmdline.Is_Key_Present (Cmdline.Inner, "syscalltracing"));
 
       if Root_Value /= null then
-         if not VFS.Device.Mount (Root_Value.all, "/", VFS.Device.FS_USTAR)
-         then
+         if not VFS.Mount (Root_Value.all, "/", VFS.FS_USTAR) then
             Lib.Panic.Soft_Panic ("Could not mount " & Root_Value.all & " /");
          end if;
          Free_S (Root_Value);

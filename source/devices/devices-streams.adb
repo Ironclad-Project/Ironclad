@@ -14,13 +14,12 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with VFS.Device;
 with VFS;
 
 package body Devices.Streams is
    function Init return Boolean is
-      Nulldev : VFS.Device.Device_Data;
-      Zerodev : VFS.Device.Device_Data;
+      Nulldev : VFS.Device_Data;
+      Zerodev : VFS.Device_Data;
    begin
       Nulldev.Name (1 .. 4)       := "null";
       Nulldev.Name_Len            := 4;
@@ -42,8 +41,8 @@ package body Devices.Streams is
       Zerodev.Read                := Zerodev_Read'Access;
       Zerodev.Write               := Zerodev_Write'Access;
 
-      if not VFS.Device.Register (Nulldev) then return False; end if;
-      if not VFS.Device.Register (Zerodev) then return False; end if;
+      if not VFS.Register (Nulldev) then return False; end if;
+      if not VFS.Register (Zerodev) then return False; end if;
       return True;
    end Init;
    ----------------------------------------------------------------------------

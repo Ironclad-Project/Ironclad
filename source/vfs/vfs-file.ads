@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
-with VFS.Device;
 with Memory;
 
 package VFS.File is
@@ -23,14 +22,17 @@ package VFS.File is
    type String_Acc is access String;
    type File is record
       Full_Path : String_Acc;
-      Dev_Data  : VFS.Device.Device_Data;
+      Dev_Data  : Device_Data;
+      FS_Type   : VFS.FS_Type;
       FS_Data   : System.Address;
       File_Data : System.Address;
-      FS_Type   : VFS.Device.FS_Type;
-      Index     : Natural;
+      Index     : Unsigned_64;
       Flags     : Access_Mode;
    end record;
    type File_Acc is access all File;
+
+   --  Check if a path is absolute.
+   function Is_Absolute (Path : String) return Boolean;
 
    --  Open a file with an absolute path, and return it, or null on failure.
    function Open (Path : String; Access_Flags : Access_Mode) return File_Acc;
@@ -44,14 +46,14 @@ package VFS.File is
    --  Read from a file, and return the read count.
    function Read
       (To_Read     : File_Acc;
-       Count       : Natural;
-       Destination : System.Address) return Natural;
+       Count       : Unsigned_64;
+       Destination : System.Address) return Unsigned_64;
 
    --  Write to a file, and return the written count.
    function Write
       (To_Write : File_Acc;
-       Count    : Natural;
-       Data     : System.Address) return Natural;
+       Count    : Unsigned_64;
+       Data     : System.Address) return Unsigned_64;
 
    --  Get the stat of the file.
    function Stat (F : File_Acc; S : out VFS.File_Stat) return Boolean;

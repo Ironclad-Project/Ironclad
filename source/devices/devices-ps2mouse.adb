@@ -18,7 +18,7 @@ with Arch.IDT;
 with Arch.APIC;
 with Arch.CPU;
 with Arch.Wrappers;
-with VFS.Device;
+with VFS;
 with Ada.Unchecked_Conversion;
 
 package body Devices.PS2Mouse is
@@ -50,7 +50,7 @@ package body Devices.PS2Mouse is
       BSP_LAPIC    : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
       Index        : Arch.IDT.IRQ_Index;
       Data, Unused : Unsigned_8;
-      Dev          : VFS.Device.Device_Data;
+      Dev          : VFS.Device_Data;
    begin
       --  Set the interrupt up, which is always the 45 (we are 1 based).
       if not Arch.IDT.Load_ISR (Mouse_Handler'Address, Index) then
@@ -89,7 +89,7 @@ package body Devices.PS2Mouse is
       Dev.Stat.IO_Block_Count         := 0;
       Dev.Read                        := Read'Access;
       Dev.IO_Control                  := IO_Control'Access;
-      return VFS.Device.Register (Dev);
+      return VFS.Register (Dev);
    end Init;
 
    function Read

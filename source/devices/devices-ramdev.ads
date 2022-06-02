@@ -16,7 +16,6 @@
 
 with System;
 with VFS; use VFS;
-with VFS.Device;
 with Arch.Stivale2;
 with Interfaces; use Interfaces;
 
@@ -25,7 +24,7 @@ package Devices.Ramdev is
    --  its a USTAR FS or not.
    function Init_Module
       (Module : Arch.Stivale2.Module;
-       Name   : String) return VFS.Device.Device_Data;
+       Name   : String) return VFS.Device_Data;
 
 private
 

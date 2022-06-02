@@ -16,14 +16,14 @@
 
 with Arch.Stivale2;
 with VFS.File; use VFS.File;
-with VFS.Device;
+with VFS;
 with System.Address_To_Access_Conversions;
 
 package body Devices.TTY is
    package Conv is new System.Address_To_Access_Conversions (VFS.File.File);
 
    function Init return Boolean is
-      Dev : VFS.Device.Device_Data;
+      Dev : VFS.Device_Data;
       File_Addr : constant System.Address :=
          Conv.To_Address (Open ("/dev/ps2keyboard", Access_R).all'Access);
    begin
@@ -38,7 +38,7 @@ package body Devices.TTY is
       Dev.Read                := Read'Access;
       Dev.Write               := Write'Access;
       Dev.IO_Control          := IO_Control'Access;
-      return VFS.Device.Register (Dev);
+      return VFS.Register (Dev);
    end Init;
 
    function Read
@@ -50,7 +50,7 @@ package body Devices.TTY is
       pragma Unreferenced (Offset);
       PS2_File_Acc : constant File_Acc := File_Acc (Conv.To_Pointer (Data));
    begin
-      return Unsigned_64 (VFS.File.Read (PS2_File_Acc, Natural (Count), To_Write));
+      return VFS.File.Read (PS2_File_Acc, Count, To_Write);
    end Read;
 
    function Write

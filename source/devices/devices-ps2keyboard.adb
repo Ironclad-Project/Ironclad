@@ -20,7 +20,7 @@ with Arch.APIC;
 with Arch.CPU;
 with Arch.Wrappers;
 with Arch.Stivale2;
-with VFS.Device;
+with VFS;
 
 package body Devices.PS2Keyboard is
    --  There can only be 1 PS2 keyboard, so we can store the private data here
@@ -79,7 +79,7 @@ package body Devices.PS2Keyboard is
       BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
       Index     : Arch.IDT.IRQ_Index;
       Unused    : Unsigned_8;
-      Dev       : VFS.Device.Device_Data;
+      Dev       : VFS.Device_Data;
    begin
       --  Set the interrupt up, which is always the 34 (we are 1 based).
       if not Arch.IDT.Load_ISR (Keyboard_Handler'Address, Index) then
@@ -103,7 +103,7 @@ package body Devices.PS2Keyboard is
       Dev.Stat.IO_Block_Size          := 4096;
       Dev.Stat.IO_Block_Count         := 0;
       Dev.Read                        := Read'Access;
-      return VFS.Device.Register (Dev);
+      return VFS.Register (Dev);
    end Init;
 
    function Read

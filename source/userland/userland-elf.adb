@@ -72,7 +72,7 @@ package body Userland.ELF is
             Program_Header_Count => 0,
             Program_Header_Size => 0
          ));
-      Header_Bytes : constant Natural := ELF_Header'Size / 8;
+      Header_Bytes : constant Unsigned_64 := ELF_Header'Size / 8;
    begin
       --  Read and check the header.
 
@@ -94,14 +94,15 @@ package body Userland.ELF is
       --  Loop the program headers and either load them, or get info.
       declare
          PHDRs : array (1 .. Header.Program_Header_Count) of Program_Header;
-         HSize : constant Natural := Natural (Header.Program_Header_Size);
-         RSize : constant Natural := HSize * PHDRs'Length;
+         HSize : constant Unsigned_64 :=
+            Unsigned_64 (Header.Program_Header_Size);
+         RSize : constant Unsigned_64 := HSize * PHDRs'Length;
       begin
          if HSize = 0 or PHDRs'Length = 0 then
             return Result;
          end if;
 
-         File_D.Index := Natural (Header.Program_Header_List);
+         File_D.Index := Header.Program_Header_List;
 
          if VFS.File.Read (File_D, RSize, PHDRs'Address) /= RSize then
             return Result;
@@ -131,15 +132,16 @@ package body Userland.ELF is
    --  Get the linker path string from a given interpreter program header.
    function Get_Linker
       (File_D : VFS.File.File_Acc;
-       Header : Program_Header) return String_Acc is
-      Discard : Natural;
+       Header : Program_Header) return String_Acc
+   is
+      Discard : Unsigned_64;
    begin
       return Ret : constant String_Acc :=
          new String (1 .. Header.File_Size_Bytes)
       do
-         File_D.Index := Natural (Header.Offset);
+         File_D.Index := Header.Offset;
          Discard := VFS.File.Read
-            (File_D, Header.File_Size_Bytes, Ret.all'Address);
+            (File_D, Unsigned_64 (Header.File_Size_Bytes), Ret.all'Address);
       end return;
    end Get_Linker;
 
@@ -178,8 +180,11 @@ package body Userland.ELF is
           Flags       => Flags,
           Not_Execute => False,
           Register    => True);
-      File_D.Index := Natural (Header.Offset);
-      return VFS.File.Read (File_D, Header.File_Size_Bytes, Load_Addr) =
-             Header.File_Size_Bytes;
+      File_D.Index := Header.Offset;
+      return VFS.File.Read (
+         File_D,
+         Unsigned_64 (Header.File_Size_Bytes),
+         Load_Addr
+      ) = Unsigned_64 (Header.File_Size_Bytes);
    end Load_Header;
 end Userland.ELF;

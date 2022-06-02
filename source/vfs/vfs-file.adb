@@ -16,35 +16,37 @@
 
 with Ada.Unchecked_Deallocation;
 with System; use System;
-with VFS.Path;
 with VFS.USTAR;
 
 package body VFS.File is
    procedure Free_Str  is new Ada.Unchecked_Deallocation (String, String_Acc);
    procedure Free_File is new Ada.Unchecked_Deallocation (File, File_Acc);
 
+   function Is_Absolute (Path : String) return Boolean is
+   begin
+      return Path'Length >= 1 and then Path (Path'First) = '/';
+   end Is_Absolute;
+
    function Open (Path : String; Access_Flags : Access_Mode) return File_Acc is
-      Fetched_Dev  : VFS.Device.Device_Data;
-      Fetched_Type : VFS.Device.FS_Type := VFS.Device.FS_USTAR;
-      Fetched_FS   : System.Address     := System.Null_Address;
-      Fetched_File : System.Address     := System.Null_Address;
+      Fetched_Dev  : Device_Data;
+      Fetched_Type : FS_Type        := FS_USTAR;
+      Fetched_FS   : System.Address := System.Null_Address;
+      Fetched_File : System.Address := System.Null_Address;
    begin
       if Path'Length >= 5 and then
          Path (Path'First .. Path'First + 4) = "/dev/"
       then
-         if not VFS.Device.Fetch
-            (Path (Path'First + 5 .. Path'Last), Fetched_Dev)
-         then
+         if not Fetch (Path (Path'First + 5 .. Path'Last), Fetched_Dev) then
             return null;
          end if;
-      elsif VFS.Path.Is_Absolute (Path) then
-         Fetched_FS := VFS.Device.Get_Mount ("/", Fetched_Type);
+      elsif Is_Absolute (Path) then
+         Fetched_FS := Get_Mount ("/", Fetched_Type);
          if Fetched_FS = Null_Address then
             return null;
          end if;
 
          case Fetched_Type is
-            when VFS.Device.FS_USTAR =>
+            when FS_USTAR =>
                Fetched_File :=
                   USTAR.Open (Fetched_FS, Path (Path'First + 1 .. Path'Last));
                if Fetched_File = Null_Address then
@@ -60,26 +62,39 @@ package body VFS.File is
       return new File'(
          Full_Path => new String'(Path),
          Dev_Data  => Fetched_Dev,
+         FS_Type   => Fetched_Type,
          FS_Data   => Fetched_FS,
          File_Data => Fetched_File,
-         FS_Type   => Fetched_Type,
          Index     => 0,
          Flags     => Access_Flags
       );
    end Open;
 
    function Duplicate (To_Duplicate : File_Acc) return File_Acc is
+      Duplicated_Data : System.Address := Null_Address;
    begin
       if To_Duplicate = null then
          return null;
       end if;
 
+      --  Communicate to the FS that we are opening another handle.
+      if To_Duplicate.FS_Data /= Null_Address then
+         Duplicated_Data := USTAR.Open (
+            To_Duplicate.FS_Data,
+            To_Duplicate.Full_Path (To_Duplicate.Full_Path'First + 1 ..
+                                    To_Duplicate.Full_Path'Last)
+         );
+         if Duplicated_Data = Null_Address then
+            return null;
+         end if;
+      end if;
+
       return new File'(
          Full_Path => new String'(To_Duplicate.Full_Path.all),
          Dev_Data  => To_Duplicate.Dev_Data,
-         FS_Data   => To_Duplicate.FS_Data,
-         File_Data => To_Duplicate.File_Data,
          FS_Type   => To_Duplicate.FS_Type,
+         FS_Data   => To_Duplicate.FS_Data,
+         File_Data => Duplicated_Data,
          Index     => To_Duplicate.Index,
          Flags     => To_Duplicate.Flags
       );
@@ -96,10 +111,10 @@ package body VFS.File is
 
    function Read
       (To_Read     : File_Acc;
-       Count       : Natural;
-       Destination : System.Address) return Natural
+       Count       : Unsigned_64;
+       Destination : System.Address) return Unsigned_64
    is
-      Read_Count : Natural;
+      Read_Count : Unsigned_64;
    begin
       if To_Read = null or else To_Read.Flags = Access_W then
          return 0;
@@ -108,22 +123,22 @@ package body VFS.File is
       if To_Read.FS_Data /= System.Null_Address
          and To_Read.File_Data /= System.Null_Address
       then
-         Read_Count := Integer (USTAR.Read (
+         Read_Count := USTAR.Read (
             To_Read.FS_Data,
             To_Read.File_Data,
-            Unsigned_64 (To_Read.Index),
-            Unsigned_64 (Count),
+            To_Read.Index,
+            Count,
             Destination
-         ));
+         );
          To_Read.Index := To_Read.Index + Read_Count;
          return Read_Count;
       elsif To_Read.Dev_Data.Read /= null then
-         Read_Count := Integer (To_Read.Dev_Data.Read (
+         Read_Count := To_Read.Dev_Data.Read (
             To_Read.Dev_Data.Data,
-            Unsigned_64 (To_Read.Index),
-            Unsigned_64 (Count),
+            To_Read.Index,
+            Count,
             Destination
-         ));
+         );
          To_Read.Index := To_Read.Index + Read_Count;
          return Read_Count;
       else
@@ -133,10 +148,10 @@ package body VFS.File is
 
    function Write
       (To_Write : File_Acc;
-       Count    : Natural;
-       Data     : System.Address) return Natural
+       Count    : Unsigned_64;
+       Data     : System.Address) return Unsigned_64
    is
-      Write_Count : Natural;
+      Write_Count : Unsigned_64;
    begin
       if To_Write = null or else To_Write.Flags = Access_R then
          return 0;
@@ -146,12 +161,12 @@ package body VFS.File is
       then
          return 0;
       else
-         Write_Count := Integer (To_Write.Dev_Data.Write (
+         Write_Count := To_Write.Dev_Data.Write (
             To_Write.Dev_Data.Data,
-            Unsigned_64 (To_Write.Index),
-            Unsigned_64 (Count),
+            To_Write.Index,
+            Count,
             Data
-         ));
+         );
          To_Write.Index := To_Write.Index + Write_Count;
          return Write_Count;
       end if;

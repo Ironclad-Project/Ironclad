@@ -188,7 +188,8 @@ package body Userland.Loader is
 
    <<Return_Shebang>>
       declare
-         New_Args : Argument_Arr (1 .. Arguments'Length + (if Arg_Len = 0 then 1 else 2));
+         Arg_Diff : constant Natural := (if Arg_Len = 0 then 1 else 2);
+         New_Args : Argument_Arr (1 .. Arguments'Length + Arg_Diff);
          I        : Positive := 1;
       begin
          New_Args (I) := new String'(Path (1 .. Path_Len));
@@ -199,7 +200,12 @@ package body Userland.Loader is
          end if;
          New_Args (I .. New_Args'Length) := Arguments;
          New_Args (I) := FD.Full_Path.all'Access;
-         return Start_Program (Open (Path (1 .. Path_Len), Access_R), New_Args, Environment, Proc);
+         return Start_Program (
+            Open (Path (1 .. Path_Len), Access_R),
+            New_Args,
+            Environment,
+            Proc
+         );
       end;
    end Start_Shebang;
 end Userland.Loader;

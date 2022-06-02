@@ -17,7 +17,7 @@
 with Arch.Wrappers;
 with Lib.Synchronization;
 with Scheduler;
-with VFS.Device;
+with VFS;
 
 package body Devices.Serial is
    --  COM ports, the first 2 ones are almost sure to be at that address, the
@@ -59,7 +59,7 @@ package body Devices.Serial is
             Data        : COM_Root_Acc           := new COM_Root;
             Device_Name : String (1 .. 7)        := "serial0";
             Discard     : Boolean                := False;
-            Device      : VFS.Device.Device_Data;
+            Device      : VFS.Device_Data;
          begin
             Device_Name (7) := Character'Val (I + Character'Pos ('0'));
             Data.Port := COM_Ports (I);
@@ -75,7 +75,7 @@ package body Devices.Serial is
             Device.Read                := Serial_Read'Access;
             Device.Write               := Serial_Write'Access;
 
-            Discard := VFS.Device.Register (Device);
+            Discard := VFS.Register (Device);
             Lib.Synchronization.Release (Data.Mutex'Access);
          end;
       <<End_Port>>

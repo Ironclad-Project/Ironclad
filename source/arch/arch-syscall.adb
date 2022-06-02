@@ -244,8 +244,8 @@ package body Arch.Syscall is
             goto Error_Return;
          end if;
          if Opened_Stat.Type_Of_File = VFS.File_Symbolic_Link then
-            Symlink_Len := VFS.File.Read
-               (Opened_File, Symlink_Buf'Length, Symlink_Buf'Address);
+            Symlink_Len := Natural (VFS.File.Read
+               (Opened_File, Symlink_Buf'Length, Symlink_Buf'Address));
             VFS.File.Close (Opened_File);
             Free_File (Opened_File);
             Opened_File := VFS.File.Open
@@ -319,7 +319,7 @@ package body Arch.Syscall is
          return Unsigned_64'Last;
       end if;
       Errno := Error_No_Error;
-      return Unsigned_64 (VFS.File.Read (File, Integer (Count), Buffer_Addr));
+      return VFS.File.Read (File, Count, Buffer_Addr);
    end Syscall_Read;
 
    function Syscall_Write
@@ -353,7 +353,7 @@ package body Arch.Syscall is
          return Unsigned_64'Last;
       end if;
       Errno := Error_No_Error;
-      return Unsigned_64 (VFS.File.Write (File, Integer (Count), Buffer_Addr));
+      return VFS.File.Write (File, Count, Buffer_Addr);
    end Syscall_Write;
 
    function Syscall_Seek
@@ -388,18 +388,18 @@ package body Arch.Syscall is
       end if;
       case Whence is
          when SEEK_SET =>
-            File.Index := Natural (Offset);
+            File.Index := Offset;
          when SEEK_CURRENT =>
-            File.Index := Natural (Unsigned_64 (File.Index) + Offset);
+            File.Index := File.Index + Offset;
          when SEEK_END =>
-            File.Index := Natural (Stat_Val.Byte_Size + Offset);
+            File.Index := Stat_Val.Byte_Size + Offset;
          when others =>
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
       end case;
 
       Errno := Error_No_Error;
-      return Unsigned_64 (File.Index);
+      return File.Index;
    end Syscall_Seek;
 
    function Syscall_Mmap
@@ -1189,7 +1189,8 @@ package body Arch.Syscall is
 
       New_File := VFS.File.Duplicate (Process.File_Table (Natural (Old_FD)));
       if New_File = null or else
-         not Userland.Process.Replace_File (Process, New_File, Natural (Old_FD))
+         not Userland.Process.Replace_File
+            (Process, New_File, Natural (Old_FD))
       then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -1227,7 +1228,8 @@ package body Arch.Syscall is
 
       New_File := VFS.File.Duplicate (Process.File_Table (Natural (Old_FD)));
       if New_File = null or else
-         not Userland.Process.Replace_File (Process, New_File, Natural (Old_FD))
+         not Userland.Process.Replace_File
+            (Process, New_File, Natural (Old_FD))
       then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;

@@ -71,12 +71,13 @@ package body VFS.USTAR is
    --  USTAR_GNU_Long_Path : constant := 16#4C#;
 
    type USTAR_Data is record
-      Dev : VFS.Device.Device_Data;
+      Dev : VFS.Device_Data;
    end record;
    type USTAR_Data_Acc is access USTAR_Data;
 
    type USTAR_File is record
       Name      : String (1 .. 100);
+      Name_Len  : Natural;
       Mode      : Natural;
       Start     : Unsigned_64;
       Size      : Natural;
@@ -84,7 +85,7 @@ package body VFS.USTAR is
    end record;
    type USTAR_File_Acc is access USTAR_File;
 
-   function Probe (Dev : Device.Device_Data) return System.Address is
+   function Probe (Dev : Device_Data) return System.Address is
       First_Header : USTAR_Header;
       Byte_Size    : constant Unsigned_64 := First_Header'Size / 8;
       Data : constant USTAR_Data_Acc := new USTAR_Data'(Dev => Dev);
@@ -125,10 +126,12 @@ package body VFS.USTAR is
             exit when Header.Signature /= USTAR_Signature;
             if Header.Name (1 .. Path'Length) = Path then
                case Header.File_Type is
-                  when USTAR_Regular_File | USTAR_Symbolic_Link | USTAR_Directory =>
+                  when USTAR_Regular_File | USTAR_Symbolic_Link
+                     | USTAR_Directory =>
                      declare
                         Result : constant USTAR_File_Acc := new USTAR_File'(
                            Name      => Header.Name,
+                           Name_Len  => Path'Length,
                            Start     => Header_Index + Byte_Size,
                            Size      => Size,
                            File_Type => Header.File_Type,

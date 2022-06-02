@@ -14,14 +14,12 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with VFS.Device;
-
 with System;
 
 package VFS.USTAR is
    --  Probe for a USTAR FS in the passed device.
    --  Return opaque FS data on success, or Null_Address on failure.
-   function Probe (Dev : Device.Device_Data) return System.Address;
+   function Probe (Dev : Device_Data) return System.Address;
 
    --  Basic file operations.
    function Open (FS : System.Address; Path : String) return System.Address;
@@ -36,7 +34,6 @@ package VFS.USTAR is
       (Data : System.Address;
        Obj  : System.Address;
        S    : out File_Stat) return Boolean;
-
 private
 
    function Octal_To_Decimal (Octal : String) return Natural;

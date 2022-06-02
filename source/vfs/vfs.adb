@@ -1,4 +1,4 @@
---  vfs-device.adb: Device management.
+--  vfs.adb: FS and register dispatching.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 with System; use System;
 with VFS.USTAR;
 
-package body VFS.Device is
+package body VFS is
    type Device_Container is record
       Is_Present  : Boolean;
       Contents    : Device_Data;
@@ -30,10 +30,10 @@ package body VFS.Device is
    type Device_Container_Arr is array (1 .. 20) of Device_Container;
    Devices : access Device_Container_Arr;
 
-   procedure Init_Registry is
+   procedure Init is
    begin
       Devices := new Device_Container_Arr;
-   end Init_Registry;
+   end Init;
 
    function Register (Dev : Device_Data) return Boolean is
    begin
@@ -136,4 +136,4 @@ package body VFS.Device is
          end if;
       end loop;
    end Unmount;
-end VFS.Device;
+end VFS;

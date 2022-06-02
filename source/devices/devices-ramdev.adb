@@ -28,9 +28,9 @@ package body Devices.Ramdev is
 
    function Init_Module
       (Module : Arch.Stivale2.Module;
-       Name   : String) return VFS.Device.Device_Data
+       Name   : String) return VFS.Device_Data
    is
-      Dev   : VFS.Device.Device_Data;
+      Dev   : VFS.Device_Data;
       Start : constant Virtual_Address := To_Integer (Module.Begin_Address);
       End2  : constant Virtual_Address := To_Integer (Module.End_Address);
       Data  : constant Ramdev_Data_Acc := new Ramdev_Data'(

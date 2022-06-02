@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System; use System;
-with VFS.Device;
 with VFS;
 with Memory; use Memory;
 with Memory.Virtual;
@@ -27,7 +26,7 @@ package body Devices.BootFB is
    type FB_Arr is array (Unsigned_32 range <>) of Unsigned_32;
 
    function Init (Fb : access Arch.Stivale2.Framebuffer_Tag) return Boolean is
-      Dev  : VFS.Device.Device_Data;
+      Dev  : VFS.Device_Data;
       Addr : constant Integer_Address := To_Integer (Fb.Address);
       Fb_Flags : constant Memory.Virtual.Page_Flags := (
          Present         => True,
@@ -73,7 +72,7 @@ package body Devices.BootFB is
       Dev.Write               := Write'Access;
       Dev.IO_Control          := IO_Control'Access;
       Dev.Mmap                := Mmap'Access;
-      return VFS.Device.Register (Dev);
+      return VFS.Register (Dev);
    end Init;
 
    function Read

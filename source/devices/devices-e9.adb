@@ -14,13 +14,12 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with VFS.Device;
 with VFS;
 with Arch.Wrappers;
 
 package body Devices.E9 is
    function Init return Boolean is
-      Dev : VFS.Device.Device_Data;
+      Dev : VFS.Device_Data;
    begin
       Dev.Name (1 .. 7)       := "e9debug";
       Dev.Name_Len            := 7;
@@ -30,7 +29,7 @@ package body Devices.E9 is
       Dev.Stat.IO_Block_Size  := 4096;
       Dev.Stat.IO_Block_Count := 0;
       Dev.Write               := Write'Access;
-      return VFS.Device.Register (Dev);
+      return VFS.Register (Dev);
    end Init;
 
    function Write
