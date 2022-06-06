@@ -44,7 +44,7 @@ Documentation License''.
 
 General information
 
-* What is Ironclad?::       Basic information about the project.
+* Audience::                The people for whom this manual is written.
 * How to contribute::       How to contribute code to the kernel.
 * Error reporting::         How to report issues with the kernel.
 * Navigating the source::   Structure of the project.
@@ -93,13 +93,6 @@ Devices and their properties
 @node General information
 @chapter General information
 
-This section approaches essential information about Ironclad, along with
-general guidelines for reporting issues, colaborating, and other meta things
-of the project.
-
-@node What is Ironclad?
-@section What is Ironclad?
-
 As the README of the project states, Ironclad is a kernel for x86_64 devices
 exclusively (for now), written in Ada. The goal of the project is to create
 a POSIX kernel for hobbyist fun, maybe one day for real life use. Ironclad has
@@ -107,6 +100,14 @@ a lot of features one would expect on a modern system, and the list only
 continues to grow, like support for desktop environments, true multitasking, a
 good memory manager, and a fully functional userland with dynamic linking and
 ELF loading.
+
+@node Audience
+@section Audience
+
+This manual is designed to document and give information about the several
+interfaces and devices Ironclad exposes, so developers of userland applications
+and other programmers can read inner details of how to interface with the
+kernel without having to navigate the (often cryptic and scary Ada) code.
 
 @node How to contribute
 @section How to contribute
@@ -739,8 +740,10 @@ The errno codes set on failure are:
 @chapter Devices and their properties
 
 Ironclad exposes a number of devices, physical and virtual, to userland. All
-of them are exposed under the @code{/dev} location, all of them have a
-7-character name.
+of them are exposed under the @code{/dev} location, and support a series of
+standard operations, like being manipulated by the usual file-related
+syscalls like @code{read} or @code{write}, while sporting device-specific
+interfaces in the form of device-specific @code{ioctl} requests.
 
 @node bootfb
 @section bootfb
@@ -769,6 +772,10 @@ struct fb_dimensions @{
 
 ioctl(fb, FB_DIMENTIONS, pointer_to_fb_dimensions)
 @end example
+
+@code{bootfb} also supports special routines for being @code{mmap}'d to memory
+windows for increased performance, instead of having to issue costly syscalls
+for partial updates and refreshes.
 
 @node e9debug
 @section e9debug
@@ -831,6 +838,31 @@ The devices starting by @code{ttydev} are virtual devices that put together
 an output and input device, along with some special ioctls, which are:
 
 @itemize @bullet
+@item
+@code{tcgets(0x5401)}/@code{tcsets(0x5402)}/@code{tcgetsw(0x5403)}/@code{tcsetsf(0x5404)}:
+Sets or gets the @code{termios} structure passed as an argument.
+@example
+struct termios @{
+    tcflag_t c_iflag;
+    tcflag_t c_oflag;
+    tcflag_t c_cflag;
+    tcflag_t c_lflag;
+    cc_t c_cc[11];
+    speed_t ibaud;
+    speed_t obaud;
+@};
+@end example
+
+@code{termios} is a complex interface with a lot of fields and options, a
+lot of them not supported in Ironclad, for a complete @code{termios} reference,
+please read
+@uref{https://www.man7.org/linux/man-pages/man3/termios.3.html, this linux-specific site}.
+
+While Ironclad accepts the @code{sets}, @code{getsw}, and @code{setsf}
+requests, they all result in the same behaviour of @code{tcsets}, and may be
+used interchangeably. This might change in the future, so standard use is
+recommended, despite the gap in functionality of @code{getsw} and @code{setsf}.
+
 @item
 @code{tiocgwinsz(0x5413)}: Sets a structure passed as an argument as such:
 @example

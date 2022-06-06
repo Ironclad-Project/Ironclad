@@ -16,7 +16,7 @@
 
 with System;
 
-package Lib.Atomic with Pure is
+package Lib.Atomic is
    --  Values from libgnat/s-atopri.ads for memory ordering.
    Mem_Relaxed : constant := 0; --  Implies no ordering constraints.
    Mem_Consume : constant := 1; --  Implemented right now as acquire.

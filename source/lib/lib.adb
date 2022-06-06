@@ -27,15 +27,20 @@ package body Lib with SPARK_Mode is
    begin
       return Value and not (Alignment - 1);
    end Align_Down;
+
+   function Div_Round_Up (LHS, RHS : Unsigned_64) return Unsigned_64 is
+   begin
+      return (LHS + (RHS - 1)) / LHS;
+   end Div_Round_Up;
    ----------------------------------------------------------------------------
    function C_String_Length (Addr : Address) return Natural is
-      Length : Integer := 0;
+      Length : Natural := 0;
    begin
       loop
          declare
             C : Character with Address => Addr + Storage_Offset (Length);
          begin
-            exit when C = Ada.Characters.Latin_1.NUL;
+            exit when C = Ada.Characters.Latin_1.NUL or Length = Natural'Last;
             Length := Length + 1;
          end;
       end loop;

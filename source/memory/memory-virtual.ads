@@ -140,12 +140,6 @@ package Memory.Virtual is
 
    --  Functions to manipulate pagemaps.
    procedure Make_Active (Map : Page_Map_Acc);
-   procedure Map_Page
-      (Map         : Page_Map_Acc;
-       Virtual     : Virtual_Address;
-       Physical    : Physical_Address;
-       Flags       : Page_Flags;
-       Not_Execute : Boolean);
    procedure Map_Range
       (Map         : Page_Map_Acc;
        Virtual     : Virtual_Address;
@@ -160,12 +154,6 @@ package Memory.Virtual is
        Length      : Unsigned_64;
        Flags       : Page_Flags;
        Not_Execute : Boolean);
-   procedure Unmap_Page (Map : Page_Map_Acc; Virtual : Virtual_Address);
-   procedure Change_Page_Flags
-      (Map         : Page_Map_Acc;
-       Virtual     : Virtual_Address;
-       Flags       : Page_Flags;
-       Not_Execute : Boolean);
    function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc;
    function Clone_Space (Map : Page_Map_Acc) return Page_Map_Acc;
    function Is_Loaded (Map : Page_Map_Acc) return Boolean;
@@ -177,6 +165,7 @@ package Memory.Virtual is
    Kernel_Map : Page_Map_Acc;
 
 private
+
    type Address_Components is record
       PML4_Entry : Unsigned_64;
       PML3_Entry : Unsigned_64;
@@ -195,6 +184,21 @@ private
       (Map      : Page_Map_Acc;
        Virtual  : Virtual_Address;
        Allocate : Boolean) return Virtual_Address;
+
+   procedure Map_Page
+      (Map         : Page_Map_Acc;
+       Virtual     : Virtual_Address;
+       Physical    : Physical_Address;
+       Flags       : Page_Flags;
+       Not_Execute : Boolean);
+
+   procedure Unmap_Page (Map : Page_Map_Acc; Virtual : Virtual_Address);
+
+   procedure Change_Page_Flags
+      (Map         : Page_Map_Acc;
+       Virtual     : Virtual_Address;
+       Flags       : Page_Flags;
+       Not_Execute : Boolean);
 
    function Chomp_Flags (Address : Physical_Address) return Physical_Address;
    function Add_Flags (Address : Physical_Address) return Physical_Address;

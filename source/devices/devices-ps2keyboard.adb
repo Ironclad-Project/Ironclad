@@ -19,7 +19,6 @@ with Arch.IDT;
 with Arch.APIC;
 with Arch.CPU;
 with Arch.Wrappers;
-with Arch.Stivale2;
 with VFS;
 
 package body Devices.PS2Keyboard is
@@ -178,7 +177,6 @@ package body Devices.PS2Keyboard is
             C := Normal_Mapping (Integer (Input));
          end if;
 
-         Arch.Stivale2.Print_Terminal (C);
          Buffer_Length := Buffer_Length + 1;
          Key_Buffer (Buffer_Length) := C;
       end if;

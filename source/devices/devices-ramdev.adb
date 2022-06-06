@@ -17,6 +17,7 @@
 with System; use System;
 with System.Storage_Elements; use System.Storage_Elements;
 with Memory; use Memory;
+with Lib;
 
 package body Devices.Ramdev is
    --  Ramdev data.
@@ -33,9 +34,10 @@ package body Devices.Ramdev is
       Dev   : VFS.Device_Data;
       Start : constant Virtual_Address := To_Integer (Module.Begin_Address);
       End2  : constant Virtual_Address := To_Integer (Module.End_Address);
+      Size  : constant Unsigned_64     := Unsigned_64 (End2 - Start);
       Data  : constant Ramdev_Data_Acc := new Ramdev_Data'(
          Start_Address => Module.Begin_Address,
-         Size          => End2 - Start
+         Size          => Virtual_Address (Size)
       );
    begin
       Dev.Name (1 .. Name'Length) := Name;
@@ -43,9 +45,9 @@ package body Devices.Ramdev is
       Dev.Data                    := Data.all'Address;
       Dev.Stat.Type_Of_File       := VFS.File_Block_Device;
       Dev.Stat.Mode               := 8#660#;
-      Dev.Stat.Byte_Size          := 0;
+      Dev.Stat.Byte_Size          := Unsigned_64 (Data.Size);
       Dev.Stat.IO_Block_Size      := 4096;
-      Dev.Stat.IO_Block_Count     := 0;
+      Dev.Stat.IO_Block_Count     := Lib.Div_Round_Up (Size, 4096);
       Dev.Read                    := Read'Access;
       return Dev;
    end Init_Module;

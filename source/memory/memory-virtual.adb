@@ -123,21 +123,12 @@ package body Memory.Virtual is
        Flags       : Page_Flags;
        Not_Execute : Boolean)
    is
-      Page_Address : Virtual_Address;
+      Page_Address : constant Virtual_Address := Get_Page (Map, Virtual, True);
+      Entry_Body   : Page with Address => To_Address (Page_Address);
    begin
-      Lib.Synchronization.Seize (Map.Mutex'Access);
-
-      Page_Address := Get_Page (Map, Virtual, True);
-
-      declare
-         Entry_Body : Page with Address => To_Address (Page_Address);
-      begin
-         Entry_Body.Addr  := Chomp_Flags (Physical);
-         Entry_Body.Flags := Flags;
-         Entry_Body.NX    := Not_Execute;
-      end;
-
-      Lib.Synchronization.Release (Map.Mutex'Access);
+      Entry_Body.Addr  := Chomp_Flags (Physical);
+      Entry_Body.Flags := Flags;
+      Entry_Body.NX    := Not_Execute;
    end Map_Page;
 
    procedure Map_Range
@@ -153,13 +144,14 @@ package body Memory.Virtual is
       VStart : constant Virtual_Address  := (Virtual  / Page_Size) * Page_Size;
       I : Physical_Address := 0;
    begin
+      Lib.Synchronization.Seize (Map.Mutex'Access);
+
       while Unsigned_64 (I) < Length loop
          Map_Page (Map, VStart + I, PStart + I, Flags, Not_Execute);
          I := I + Page_Size;
       end loop;
 
       if Register then
-         Lib.Synchronization.Seize (Map.Mutex'Access);
          for Mapping of Map.Map_Ranges loop
             if not Mapping.Is_Present then
                Mapping := (
@@ -173,8 +165,9 @@ package body Memory.Virtual is
                exit;
             end if;
          end loop;
-         Lib.Synchronization.Release (Map.Mutex'Access);
       end if;
+
+      Lib.Synchronization.Release (Map.Mutex'Access);
    end Map_Range;
 
    procedure Remap_Range
@@ -187,33 +180,23 @@ package body Memory.Virtual is
       VStart : constant Virtual_Address  := (Virtual / Page_Size) * Page_Size;
       I      : Physical_Address := 0;
    begin
+      Lib.Synchronization.Seize (Map.Mutex'Access);
       while Unsigned_64 (I) < Length loop
          Change_Page_Flags (Map, VStart + I, Flags, Not_Execute);
          I := I + Page_Size;
       end loop;
+      Lib.Synchronization.Release (Map.Mutex'Access);
    end Remap_Range;
 
    procedure Unmap_Page (Map : Page_Map_Acc; Virtual : Virtual_Address) is
-      Page_Address : Virtual_Address;
-      Addr4        : constant Physical_Address :=
-         To_Integer (Map.PML4_Level'Address) - Memory_Offset;
+      Map_Loaded   : constant Boolean         := Is_Loaded (Map);
+      Page_Address : constant Virtual_Address := Get_Page (Map, Virtual, True);
+      Entry_Body   : Page with Address => To_Address (Page_Address);
    begin
-      Lib.Synchronization.Seize (Map.Mutex'Access);
-
-      Page_Address := Get_Page (Map, Virtual, True);
-
-      declare
-         Entry_Body : Page with Address => To_Address (Page_Address);
-      begin
-         Entry_Body.Flags.Present := False;
-      end;
-
-      --  Check whether we have to invalidate.
-      if Arch.Wrappers.Read_CR3 = Unsigned_64 (Addr4) then
+      Entry_Body.Flags.Present := False;
+      if Map_Loaded then
          Arch.Wrappers.Invalidate_Page (Virtual);
       end if;
-
-      Lib.Synchronization.Release (Map.Mutex'Access);
    end Unmap_Page;
 
    procedure Change_Page_Flags
@@ -222,20 +205,15 @@ package body Memory.Virtual is
        Flags       : Page_Flags;
        Not_Execute : Boolean)
    is
-      Page_Address : Virtual_Address;
+      Map_Loaded   : constant Boolean         := Is_Loaded (Map);
+      Page_Address : constant Virtual_Address := Get_Page (Map, Virtual, True);
+      Entry_Body   : Page with Address => To_Address (Page_Address);
    begin
-      Lib.Synchronization.Seize (Map.Mutex'Access);
-
-      Page_Address := Get_Page (Map, Virtual, True);
-
-      declare
-         Entry_Body : Page with Address => To_Address (Page_Address);
-      begin
-         Entry_Body.Flags := Flags;
-         Entry_Body.NX    := Not_Execute;
-      end;
-
-      Lib.Synchronization.Release (Map.Mutex'Access);
+      Entry_Body.Flags := Flags;
+      Entry_Body.NX    := Not_Execute;
+      if Map_Loaded then
+         Arch.Wrappers.Invalidate_Page (Virtual);
+      end if;
    end Change_Page_Flags;
 
    function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc is
