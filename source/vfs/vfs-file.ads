@@ -37,6 +37,14 @@ package VFS.File is
    --  Open a file with an absolute path, and return it, or null on failure.
    function Open (Path : String; Access_Flags : Access_Mode) return File_Acc;
 
+   --  Check permissions for a file, in average its faster than opening a file.
+   function Check_Permissions
+      (Path      : String;
+       Exists    : Boolean;
+       Can_Read  : Boolean;
+       Can_Write : Boolean;
+       Can_Exec  : Boolean) return Boolean;
+
    --  Duplicate an opened file.
    function Duplicate (To_Duplicate : File_Acc) return File_Acc;
 
@@ -72,4 +80,13 @@ package VFS.File is
        Map_Read    : Boolean;
        Map_Write   : Boolean;
        Map_Execute : Boolean) return Boolean;
+
+private
+
+   function Resolve_File
+      (Path         : String;
+       Is_Dev       : out Boolean;
+       Fetched_Dev  : out Device_Data;
+       Fetched_Type : out VFS.FS_Type;
+       Fetched_FS   : out System.Address) return System.Address;
 end VFS.File;

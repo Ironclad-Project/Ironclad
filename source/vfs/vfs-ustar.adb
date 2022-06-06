@@ -17,6 +17,7 @@
 with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 with Memory.Physical;
+with System; use System;
 
 package body VFS.USTAR is
    --  USTAR structures.
@@ -157,6 +158,32 @@ package body VFS.USTAR is
 
       return System.Null_Address;
    end Open;
+
+   function Check_Permissions
+      (FS        : System.Address;
+       Path      : String;
+       Exists    : Boolean;
+       Can_Read  : Boolean;
+       Can_Write : Boolean;
+       Can_Exec  : Boolean) return Boolean
+   is
+      pragma Unreferenced (Can_Read);
+      pragma Unreferenced (Can_Exec);
+
+      Opened : constant System.Address := Open (FS, Path);
+   begin
+      if Can_Write then
+         return False;
+      end if;
+
+      if Opened = System.Null_Address and not Exists then
+         return True;
+      elsif Opened = System.Null_Address then
+         return False;
+      else
+         return True;
+      end if;
+   end Check_Permissions;
 
    procedure Close (FS : System.Address; File_Ptr : System.Address) is
       pragma Unreferenced (FS);

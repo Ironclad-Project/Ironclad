@@ -133,6 +133,8 @@ package body Arch.Syscall is
             Returned := Syscall_Dup2 (State.RDI, State.RSI, Errno);
          when 26 =>
             Returned := Syscall_Dup3 (State.RDI, State.RSI, State.RDX, Errno);
+         when 27 =>
+            Returned := Syscall_Access (State.RDI, State.RSI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
@@ -1014,9 +1016,9 @@ package body Arch.Syscall is
          Lib.Messages.Put      ("syscall ioctl(");
          Lib.Messages.Put      (FD);
          Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Request);
+         Lib.Messages.Put      (Request, False, True);
          Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Argument);
+         Lib.Messages.Put      (Argument, False, True);
          Lib.Messages.Put_Line (")");
       end if;
 
@@ -1239,4 +1241,55 @@ package body Arch.Syscall is
          return New_FD;
       end if;
    end Syscall_Dup3;
+
+   function Syscall_Access
+      (Path, Mode : Unsigned_64;
+       Errno      : out Unsigned_64) return Unsigned_64
+   is
+      Addr : constant System.Address := To_Address (Integer_Address (Path));
+   begin
+      if Path = 0 then
+         if Is_Tracing then
+            Lib.Messages.Put ("syscall access(null, ");
+            Lib.Messages.Put (Mode);
+            Lib.Messages.Put_Line (")");
+         end if;
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      end if;
+      if Mode = 0 then
+         if Is_Tracing then
+            Lib.Messages.Put_Line ("syscall access(..., 0)");
+         end if;
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      end if;
+      declare
+         Path_Length : constant Natural := Lib.C_String_Length (Addr);
+         Path_String : String (1 .. Path_Length) with Address => Addr;
+      begin
+         if Is_Tracing then
+            Lib.Messages.Put ("syscall access(");
+            Lib.Messages.Put (Path_String);
+            Lib.Messages.Put (", ");
+            Lib.Messages.Put (Mode, False, True);
+            Lib.Messages.Put_Line (")");
+         end if;
+
+         if VFS.File.Check_Permissions (
+               Path      => Path_String,
+               Exists    => (Mode and Access_Exists)    /= 0,
+               Can_Read  => (Mode and Access_Can_Read)  /= 0,
+               Can_Write => (Mode and Access_Can_Write) /= 0,
+               Can_Exec  => (Mode and Access_Can_Exec)  /= 0
+         )
+         then
+            Errno := Error_No_Error;
+            return 0;
+         else
+            Errno := Error_No_Entity;
+            return Unsigned_64'Last;
+         end if;
+      end;
+   end Syscall_Access;
 end Arch.Syscall;

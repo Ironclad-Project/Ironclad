@@ -238,6 +238,14 @@ private
        Flags          : Unsigned_64;
        Errno          : out Unsigned_64) return Unsigned_64;
 
+   Access_Exists    : constant := 2#0001#;
+   Access_Can_Read  : constant := 2#0010#;
+   Access_Can_Write : constant := 2#0100#;
+   Access_Can_Exec  : constant := 2#1000#;
+   function Syscall_Access
+      (Path, Mode : Unsigned_64;
+       Errno      : out Unsigned_64) return Unsigned_64;
+
    function Inner_Stat
       (F       : VFS.File.File_Acc;
        Address : Unsigned_64) return Boolean;

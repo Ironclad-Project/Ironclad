@@ -27,22 +27,31 @@ package body VFS.File is
       return Path'Length >= 1 and then Path (Path'First) = '/';
    end Is_Absolute;
 
-   function Open (Path : String; Access_Flags : Access_Mode) return File_Acc is
-      Fetched_Dev  : Device_Data;
-      Fetched_Type : FS_Type        := FS_USTAR;
-      Fetched_FS   : System.Address := System.Null_Address;
+   function Resolve_File
+      (Path         : String;
+       Is_Dev       : out Boolean;
+       Fetched_Dev  : out Device_Data;
+       Fetched_Type : out VFS.FS_Type;
+       Fetched_FS   : out System.Address) return System.Address
+   is
       Fetched_File : System.Address := System.Null_Address;
    begin
+      Is_Dev       := False;
+      Fetched_Type := FS_USTAR;
+      Fetched_FS   := System.Null_Address;
+
       if Path'Length >= 5 and then
          Path (Path'First .. Path'First + 4) = "/dev/"
       then
          if not Fetch (Path (Path'First + 5 .. Path'Last), Fetched_Dev) then
-            return null;
+            return System.Null_Address;
+         else
+            Is_Dev := True;
          end if;
       elsif Is_Absolute (Path) then
          Fetched_FS := Get_Mount ("/", Fetched_Type);
          if Fetched_FS = Null_Address then
-            return null;
+            return System.Null_Address;
          end if;
 
          case Fetched_Type is
@@ -50,25 +59,81 @@ package body VFS.File is
                Fetched_File :=
                   USTAR.Open (Fetched_FS, Path (Path'First + 1 .. Path'Last));
                if Fetched_File = Null_Address then
-                  return null;
+                  return System.Null_Address;
                end if;
          end case;
       else
          --  TODO: Do relative opening, at all.
-         return null;
+         return System.Null_Address;
       end if;
 
-      --  Return the created file.
-      return new File'(
-         Full_Path => new String'(Path),
-         Dev_Data  => Fetched_Dev,
-         FS_Type   => Fetched_Type,
-         FS_Data   => Fetched_FS,
-         File_Data => Fetched_File,
-         Index     => 0,
-         Flags     => Access_Flags
+      return Fetched_File;
+   end Resolve_File;
+
+   function Open (Path : String; Access_Flags : Access_Mode) return File_Acc is
+      Is_Device    : Boolean;
+      Fetched_Dev  : Device_Data;
+      Fetched_Type : FS_Type;
+      Fetched_FS   : System.Address;
+      Fetched_File : System.Address;
+   begin
+      Fetched_File := Resolve_File (
+         Path,
+         Is_Device,
+         Fetched_Dev,
+         Fetched_Type,
+         Fetched_FS
       );
+      if Fetched_File = System.Null_Address and not Is_Device then
+         return null;
+      else
+         return new File'(
+            Full_Path => new String'(Path),
+            Dev_Data  => Fetched_Dev,
+            FS_Type   => Fetched_Type,
+            FS_Data   => Fetched_FS,
+            File_Data => Fetched_File,
+            Index     => 0,
+            Flags     => Access_Flags
+         );
+      end if;
    end Open;
+
+   function Check_Permissions
+      (Path      : String;
+       Exists    : Boolean;
+       Can_Read  : Boolean;
+       Can_Write : Boolean;
+       Can_Exec  : Boolean) return Boolean
+   is
+      Is_Device    : Boolean;
+      Fetched_Dev  : Device_Data;
+      Fetched_Type : FS_Type;
+      Fetched_FS   : System.Address;
+      Discard      : System.Address;
+   begin
+      Discard := Resolve_File (
+         Path,
+         Is_Device,
+         Fetched_Dev,
+         Fetched_Type,
+         Fetched_FS
+      );
+      if Is_Device and Exists and not Can_Exec then
+         return True;
+      elsif Fetched_FS /= System.Null_Address then
+         return USTAR.Check_Permissions (
+            Fetched_FS,
+            Path,
+            Exists,
+            Can_Read,
+            Can_Write,
+            Can_Exec
+         );
+      else
+         return False;
+      end if;
+   end Check_Permissions;
 
    function Duplicate (To_Duplicate : File_Acc) return File_Acc is
       Duplicated_Data : System.Address := Null_Address;

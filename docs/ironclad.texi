@@ -76,6 +76,7 @@ Syscalls
 * sched_yield::             Relinquish CPU time.
 * getpriority/setpriority:: Manage scheduler priorities for processes.
 * dup/dup2/dup3::           Duplicate file descriptors.
+* access::                  Testing file permissions.
 
 Devices and their properties
 
@@ -734,6 +735,45 @@ The errno codes set on failure are:
 
 @item
 @code{EMFILE}: Too many files have already been opened by the process.
+@end itemize
+
+@node access
+@section access
+
+@example
+int access(const char *path, int mode);
+@end example
+
+This syscalls tests for file permissions and access without opening it.
+@code{path} will be checked for a set of options or'd in @code{mode}, the
+options are:
+
+@itemize @bullet
+@item
+@code{F_OK (0b0001)}: The existance of the file is checked.
+
+@item
+@code{R_OK (0b0010)}: Being able to read the file is checked.
+
+@item
+@code{W_OK (0b0100)}: Being able to write to the file is checked.
+
+@item
+@code{X_OK (0b1000)}: The file being executable is checked.
+@end itemize
+
+The syscall returns @code{0} on success of checking the passed conditions
+and @code{-1} on failure. The errno codes set on failure are:
+
+@itemize @bullet
+@item
+@code{EFAULT}: The passed path points to invalid memory.
+
+@item
+@code{EINVAL}: The passed @code{mode} is not valid.
+
+@item
+@code{ENOENT}: The requested path to check does not exist.
 @end itemize
 
 @node Devices and their properties
