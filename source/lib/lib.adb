@@ -27,11 +27,6 @@ package body Lib with SPARK_Mode is
    begin
       return Value and not (Alignment - 1);
    end Align_Down;
-
-   function Div_Round_Up (LHS, RHS : Unsigned_64) return Unsigned_64 is
-   begin
-      return (LHS + (RHS - 1)) / LHS;
-   end Div_Round_Up;
    ----------------------------------------------------------------------------
    function C_String_Length (Addr : Address) return Natural is
       Length : Natural := 0;

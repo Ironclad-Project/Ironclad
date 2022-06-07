@@ -17,7 +17,7 @@
 package body Lib.Cmdline is
    function Get_Parameter
       (Address : System.Address;
-       Key     : String) return access String
+       Key     : String) return String_Acc
    is
       Value_Start  : Natural := 0;
       Value_Length : Natural := 0;
@@ -38,7 +38,7 @@ package body Lib.Cmdline is
       return null;
 
    <<Found_Value>>
-      return Ret : constant access String := new String (1 .. Value_Length)
+      return Ret : constant String_Acc := new String (1 .. Value_Length)
       do
          for I in 1 .. Value_Length loop
             Ret.all (I) := Cmdline (Value_Start + I - 1);

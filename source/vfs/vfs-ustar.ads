@@ -42,6 +42,20 @@ package VFS.USTAR is
        Obj  : System.Address;
        S    : out File_Stat) return Boolean;
 private
+   type USTAR_File is record
+      Name      : String (1 .. 100);
+      Name_Len  : Natural;
+      Mode      : Natural;
+      Start     : Unsigned_64;
+      Size      : Natural;
+      File_Type : Unsigned_8;
+   end record;
+   type USTAR_File_Acc is access USTAR_File;
+
+   function Fetch_Header
+      (FS   : System.Address;
+       Path : String;
+       Data : out USTAR_File) return Boolean;
 
    function Octal_To_Decimal (Octal : String) return Natural;
 end VFS.USTAR;

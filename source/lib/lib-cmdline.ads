@@ -15,11 +15,13 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Lib.Cmdline is
+   type String_Acc is access String;
+
    --  Get the value of a key from a C-style cmdline, and return it.
    --  Returns null if not found.
    function Get_Parameter
       (Address : System.Address;
-       Key     : String) return access String;
+       Key     : String) return String_Acc;
 
    --  Get whether an option is present on a C-style cmdline.
    function Is_Key_Present

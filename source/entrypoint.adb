@@ -31,7 +31,7 @@ with Devices.Ramdev;
 with Devices;
 with VFS.File; use VFS.File;
 with VFS;
-with Lib.Cmdline;
+with Lib.Cmdline; use Lib.Cmdline;
 with Lib.Messages;
 with Lib.Panic;
 with Memory.Physical;
@@ -152,12 +152,13 @@ package body Entrypoint is
       Init_Arguments   : Userland.Argument_Arr (1 .. 1);
       Init_Environment : Userland.Environment_Arr (1 .. 0);
 
-      type String_Acc is access all String;
-      Root_Value : String_Acc;
-      Init_Value : String_Acc;
+      Root_Value : Lib.Cmdline.String_Acc;
+      Init_Value : Lib.Cmdline.String_Acc;
       Init_File  : File_Acc;
-      procedure Free_S is new Ada.Unchecked_Deallocation (String, String_Acc);
-      procedure Free_F is new Ada.Unchecked_Deallocation (File,   File_Acc);
+
+      procedure Free_F is new Ada.Unchecked_Deallocation (File, File_Acc);
+      procedure Free_S is new Ada.Unchecked_Deallocation
+         (String, Lib.Cmdline.String_Acc);
    begin
       Lib.Messages.Put_Line ("Initializing VFS subsystem");
       VFS.Init;
