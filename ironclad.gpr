@@ -15,20 +15,28 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 project Ironclad is
+   --  Get command-line options for flags and boards.
+   type Target_Name is ("standard", "embedded");
+   Target : Target_Name := External ("TARGET", "standard");
+
+   Ada_Flags    := External ("ADAFLAGS", "-O2 -g -gnaty -Wall");
+   C_Flags      := External ("CFLAGS",   "-O2 -g -Wall");
+   Linker_Flags := External ("LDFLAGS",  "-O2 -g -Wl,-gc-sections");
+
    --  Set directories and files.
-   for Source_Dirs use (
-      "source", "source/arch", "source/devices", "source/lib", "source/memory",
-      "source/networking", "source/userland", "source/vfs"
+   Basic_Dirs := (
+      "source", "source/devices", "source/lib", "source/memory",
+      "source/networking", "source/userland", "source/vfs",
+      "source/arch"
    );
+   case Target is
+      when "standard" => for Source_Dirs use Basic_Dirs & ("source/standard");
+      when "embedded" => for Source_Dirs use Basic_Dirs & ("source/embedded");
+   end case;
    for Object_Dir use "obj";
    for Exec_Dir use ".";
    for Main use ("main.adb");
    for Languages use ("ada", "c");
-
-   --  Get command-line options for flags.
-   Ada_Flags    := External ("ADAFLAGS", "-O2 -g");
-   C_Flags      := External ("CFLAGS",   "-O2 -g");
-   Linker_Flags := External ("LDFLAGS",  "-O2 -g");
 
    package Builder is
       for Executable ("main.adb") use "ironclad";
@@ -37,7 +45,7 @@ project Ironclad is
    package Compiler is
       for Default_Switches ("Ada") use Split (Ada_Flags, " ") & (
          "-fpie", "-mno-sse", "-mno-sse2", "-mno-red-zone",
-         "-fno-stack-protector", "-fno-stack-check", "-gnaty", "-Wall"
+         "-fno-stack-protector", "-fno-stack-check"
       );
       for Default_Switches ("C") use Split (C_Flags, " ") & (
          "-xassembler", "-fpie"

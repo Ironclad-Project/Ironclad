@@ -1,4 +1,4 @@
---  lib-messages.ads: Specification of the messages package.
+--  lib-innerprint.ads: Inner printing interface.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,17 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
-
-package Lib.Messages is
-   --  Prints and adds a newline.
-   procedure Put_Line (Message : String);
-
-   --  Prints a message of different types.
-   procedure Put (Message : String);
-   procedure Put (Message : Character);
-   procedure Put (Message : Integer;     Pad, Use_Hex : Boolean := False);
-   procedure Put (Message : Integer_64;  Pad, Use_Hex : Boolean := False);
-   procedure Put (Message : Unsigned_64; Pad, Use_Hex : Boolean := False);
-   procedure Put (Message : System.Address; Pad : Boolean := False);
-end Lib.Messages;
+package Lib.InnerPrint is
+   procedure Inner_Print (Message : String);
+   procedure Inner_Print (Message : Character);
+end Lib.InnerPrint;

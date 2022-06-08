@@ -1,4 +1,4 @@
---  lib-messages.ads: Specification of the messages package.
+--  devices.adb: Device management.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,17 +14,24 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
+with Devices.E9;
+with Devices.Serial;
+with Devices.Streams;
+with Lib.Panic;
 
-package Lib.Messages is
-   --  Prints and adds a newline.
-   procedure Put_Line (Message : String);
+package body Devices is
+   procedure Init (Fb : access Arch.Stivale2.Framebuffer_Tag) is
+      pragma Unreferenced (Fb);
+   begin
+      --  Initialize physical devices.
+      if not E9.Init     then goto Error; end if;
+      if not Serial.Init then goto Error; end if;
 
-   --  Prints a message of different types.
-   procedure Put (Message : String);
-   procedure Put (Message : Character);
-   procedure Put (Message : Integer;     Pad, Use_Hex : Boolean := False);
-   procedure Put (Message : Integer_64;  Pad, Use_Hex : Boolean := False);
-   procedure Put (Message : Unsigned_64; Pad, Use_Hex : Boolean := False);
-   procedure Put (Message : System.Address; Pad : Boolean := False);
-end Lib.Messages;
+      --  Initialize virtual devices.
+      if not Streams.Init then goto Error; end if;
+      return;
+
+   <<Error>>
+      Lib.Panic.Soft_Panic ("Could not start devices");
+   end Init;
+end Devices;

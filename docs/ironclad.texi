@@ -34,6 +34,7 @@ Documentation License''.
 
 @menu
 * General information::              General information about the project
+* Embedded kernels::                 Differences between embedded and standard
 * Boot-time command-line options::   Command-line options
 * Syscalls::                         The main method of userland to interface
 * Devices and their properties::     Devices exposed by the kernel
@@ -48,6 +49,10 @@ General information
 * How to contribute::       How to contribute code to the kernel.
 * Error reporting::         How to report issues with the kernel.
 * Navigating the source::   Structure of the project.
+
+Embedded kernels
+
+* RTC and verification limitations::    RT and verification information.
 
 Boot-time command-line options
 
@@ -168,6 +173,26 @@ the architecture-specific separation of @code{arch} and the rest of the kernel
 is very loose and not that strictly enforced, still, it is nice to keep it in
 mind. As an example, x86-specific PS2 devices on the @code{devices} directory
 instead of @code{arch}.
+
+@node Embedded kernels
+@chapter Embedded kernels
+
+Ironclad supports embedded configurations, this section approaches what
+to expect from those configurations.
+
+When building an embedded kernel, the goal moves from providing the
+best algorithms and most complete set of drivers to building a real-time, small
+footprint kernel, with minimal support for the target architecture without most
+non-essential devices.
+
+@node RTC and verification limitations
+@section RTC and verification limitations
+
+Ironclad is a really young kernel, as such, most of the real-time and formal
+verifications parts are not completed yet, or even started. Progress and
+features will be added to this document as they are implemented.
+
+As of right now, no real-time deadlines can be assured.
 
 @node Boot-time command-line options
 @chapter Boot-time command-line options

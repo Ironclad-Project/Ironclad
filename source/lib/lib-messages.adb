@@ -16,9 +16,8 @@
 
 with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
-with Arch.Debug;
-with Arch.Stivale2;
 with Lib.Synchronization;
+with Lib.InnerPrint;
 
 package body Lib.Messages is
    Messages_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
@@ -26,22 +25,22 @@ package body Lib.Messages is
    procedure Put_Line (Message : String) is
    begin
       Lib.Synchronization.Seize (Messages_Mutex'Access);
-      Inner_Print (Message);
-      Inner_Print (Ada.Characters.Latin_1.LF);
+      InnerPrint.Inner_Print (Message);
+      InnerPrint.Inner_Print (Ada.Characters.Latin_1.LF);
       Lib.Synchronization.Release (Messages_Mutex'Access);
    end Put_Line;
 
    procedure Put (Message : String) is
    begin
       Lib.Synchronization.Seize (Messages_Mutex'Access);
-      Inner_Print (Message);
+      InnerPrint.Inner_Print (Message);
       Lib.Synchronization.Release (Messages_Mutex'Access);
    end Put;
 
    procedure Put (Message : Character) is
    begin
       Lib.Synchronization.Seize (Messages_Mutex'Access);
-      Inner_Print (Message);
+      InnerPrint.Inner_Print (Message);
       Lib.Synchronization.Release (Messages_Mutex'Access);
    end Put;
 
@@ -67,12 +66,12 @@ package body Lib.Messages is
    begin
       Lib.Synchronization.Seize (Messages_Mutex'Access);
       if Use_Hex then
-         Inner_Print ("0x");
+         InnerPrint.Inner_Print ("0x");
          Base := 16;
       end if;
 
       if Message = 0 and not Pad then
-         Inner_Print ("0");
+         InnerPrint.Inner_Print ("0");
          Lib.Synchronization.Release (Messages_Mutex'Access);
          return;
       end if;
@@ -88,12 +87,12 @@ package body Lib.Messages is
 
       if Pad then
          for I in Written .. Result'Length loop
-            Inner_Print ('0');
+            InnerPrint.Inner_Print ('0');
          end loop;
       end if;
 
       for I in reverse 1 .. Written loop
-         Inner_Print (Result (I));
+         InnerPrint.Inner_Print (Result (I));
       end loop;
       Lib.Synchronization.Release (Messages_Mutex'Access);
    end Put;
@@ -102,16 +101,4 @@ package body Lib.Messages is
    begin
       Put (Unsigned_64 (To_Integer (Message)), Pad, True);
    end Put;
-
-   procedure Inner_Print (Message : String) is
-   begin
-      Arch.Debug.Print (Message);
-      Arch.Stivale2.Print_Terminal (Message);
-   end Inner_Print;
-
-   procedure Inner_Print (Message : Character) is
-   begin
-      Arch.Debug.Print (Message);
-      Arch.Stivale2.Print_Terminal (Message);
-   end Inner_Print;
 end Lib.Messages;
