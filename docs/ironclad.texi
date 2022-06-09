@@ -147,6 +147,9 @@ Architecture-dependent code, right now, only x86_64 code is held here.
 @item devices
 Several device drivers, physical and virtual.
 
+@item embedded
+Modules for embedded kernels.
+
 @item lib
 Functions and libraries for utilities used in the rest of the kernel.
 
@@ -155,6 +158,9 @@ Memory management, physical as well as virtual.
 
 @item networking
 Networking drivers and data.
+
+@item standard
+Modules for standard kernels.
 
 @item userland
 Userland code for loaders, processes, and such.

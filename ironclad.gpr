@@ -16,7 +16,9 @@
 
 project Ironclad is
    --  Get command-line options for flags and boards.
+   type Arch_Name   is ("x86_64-stivale2");
    type Target_Name is ("standard", "embedded");
+   Arch   : Arch_Name   := External ("ARCH",   "x86_64-stivale2");
    Target : Target_Name := External ("TARGET", "standard");
 
    Ada_Flags    := External ("ADAFLAGS", "-O2 -g -gnaty -Wall");
@@ -24,14 +26,14 @@ project Ironclad is
    Linker_Flags := External ("LDFLAGS",  "-O2 -g -Wl,-gc-sections");
 
    --  Set directories and files.
-   Basic_Dirs := (
+   Base_Dirs := (
       "source", "source/devices", "source/lib", "source/memory",
       "source/networking", "source/userland", "source/vfs",
-      "source/arch"
+      "source/arch", "source/arch/" & Arch
    );
    case Target is
-      when "standard" => for Source_Dirs use Basic_Dirs & ("source/standard");
-      when "embedded" => for Source_Dirs use Basic_Dirs & ("source/embedded");
+      when "standard" => for Source_Dirs use Base_Dirs & ("source/standard");
+      when "embedded" => for Source_Dirs use Base_Dirs & ("source/embedded");
    end case;
    for Object_Dir use "obj";
    for Exec_Dir use ".";
@@ -43,21 +45,37 @@ project Ironclad is
    end Builder;
 
    package Compiler is
-      for Default_Switches ("Ada") use Split (Ada_Flags, " ") & (
-         "-fpie", "-mno-sse", "-mno-sse2", "-mno-red-zone",
+      Base_Ada_Switches := Split (Ada_Flags, " ") & (
          "-fno-stack-protector", "-fno-stack-check"
       );
-      for Default_Switches ("C") use Split (C_Flags, " ") & (
-         "-xassembler", "-fpie"
+      Base_C_Switches := Split (C_Flags, " ") & (
+         "-xassembler"
       );
+
+      case Arch is
+         when "x86_64-stivale2" =>
+            for Default_Switches ("Ada") use Base_Ada_Switches & (
+               "-fpie", "-mno-sse", "-mno-sse2", "-mno-red-zone"
+            );
+            for Default_Switches ("C") use Base_C_Switches & (
+               "-fpie"
+            );
+      end case;
+
       for Local_Configuration_Pragmas use "source/pragmas.adc";
    end Compiler;
 
    package Linker is
-      for Default_Switches ("Ada") use Split (Linker_Flags, " ") & (
-         "-T../source/linker.ld", "-nostdlib", "-pie",
-         "-zmax-page-size=0x1000",
-         "-Wl,-gc-sections,--undefined=stivale2hdr,-zmuldefs"
+      Base_Link_Switches := Split (Linker_Flags, " ") & (
+         "-T../source/arch/" & Arch & "/linker.ld", "-nostdlib"
       );
+
+      case Arch is
+         when "x86_64-stivale2" =>
+            for Default_Switches ("Ada") use Base_Link_Switches & (
+               "-pie", "-zmax-page-size=0x1000",
+               "-Wl,--undefined=stivale2hdr,-zmuldefs"
+            );
+      end case;
    end Linker;
 end Ironclad;

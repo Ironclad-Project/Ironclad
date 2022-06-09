@@ -14,6 +14,7 @@ gnatprove -P ironclad.gpr -U --prover=cvc4,altergo,z3
 
 Several flags and variables are available for tuning:
 
+- ARCH, right now only "x86_64-stivale2" is available.
 - TARGET, visited in the "Standard and embedded targets" section.
 - ADAFLAGS, ASMFLAGS, and LDFLAGS, passed as environment variables to gprbuild.
 - DESTDIR and PREFIX for ./install.sh.
