@@ -46,6 +46,7 @@ package body Userland.Process is
          if Process_List (I) = null then
             Process_List (I) := new Process_Data;
             Process_List (I).Process_PID := I;
+            Process_List (I).Did_Exit    := False;
             Process_List (I).Exit_Code   := 0;
 
             --  If we have a parent, set ourselves as a child and fetch data.
@@ -132,26 +133,11 @@ package body Userland.Process is
          return null;
       end if;
 
-      declare
-         Child_PID : constant Positive := Child.Process_PID;
-      begin
-         --  Assign all data.
-         Child.all := Parent.all;
+      Child.Common_Map := Memory.Virtual.Fork_Map (Parent.Common_Map);
 
-         --  Reassign PIDs.
-         Child.Process_PID := Child_PID;
-         Child.Parent_PID  := Parent.Process_PID;
-
-         --  Clear threads for the forked process.
-         for T of Child.Thread_List loop
-            T := 0;
-         end loop;
-
-         --  Clone the file table.
-         for I in Parent.File_Table'Range loop
-            Child.File_Table (I) := Duplicate (Parent.File_Table (I));
-         end loop;
-      end;
+      for I in Parent.File_Table'Range loop
+         Child.File_Table (I) := Duplicate (Parent.File_Table (I));
+      end loop;
 
       return Child;
    end Fork;

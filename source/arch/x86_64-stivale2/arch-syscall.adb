@@ -663,9 +663,6 @@ package body Arch.Syscall is
          return Unsigned_64'Last;
       end if;
 
-      --  Set a good memory map.
-      Forked_Process.Common_Map := Clone_Space (Current_Process.Common_Map);
-
       --  Create a running thread cloning the caller.
       if not Add_Thread (Forked_Process,
          Scheduler.Create_User_Thread

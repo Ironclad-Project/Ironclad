@@ -216,22 +216,22 @@ package body Memory.Virtual is
       end if;
    end Change_Page_Flags;
 
-   function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc is
+   function New_Map return Page_Map_Acc is
       Returned : Page_Map_Acc := new Page_Map;
    begin
       --  Copy the higher half mappings from the kernel map.
       for I in 256 .. 512 loop
-         Returned.PML4_Level (I) := Map.PML4_Level (I);
+         Returned.PML4_Level (I) := Kernel_Map.PML4_Level (I);
       end loop;
       Lib.Synchronization.Release (Returned.Mutex'Access);
       return Returned;
-   end Fork_Map;
+   end New_Map;
 
-   function Clone_Space (Map : Page_Map_Acc) return Page_Map_Acc is
+   function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc is
       type Page_Data     is array (Unsigned_64 range <>) of Unsigned_8;
       type Page_Data_Acc is access Page_Data;
 
-      Cloned : constant Page_Map_Acc := Fork_Map (Map);
+      Forked : constant Page_Map_Acc := New_Map;
    begin
       for Mapping of Map.Map_Ranges loop
          if Mapping.Is_Present then
@@ -248,7 +248,7 @@ package body Memory.Virtual is
                end loop;
 
                Map_Range (
-                  Cloned,
+                  Forked,
                   Mapping.Virtual_Start,
                   To_Integer (New_Data.all'Address) - Memory_Offset,
                   Mapping.Length,
@@ -259,8 +259,8 @@ package body Memory.Virtual is
             end;
          end if;
       end loop;
-      return Cloned;
-   end Clone_Space;
+      return Forked;
+   end Fork_Map;
 
    function Is_Loaded (Map : Page_Map_Acc) return Boolean is
       Current : constant Unsigned_64 := Arch.Wrappers.Read_CR3;

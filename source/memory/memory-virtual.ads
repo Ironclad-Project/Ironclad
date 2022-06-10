@@ -154,8 +154,8 @@ package Memory.Virtual is
        Length      : Unsigned_64;
        Flags       : Page_Flags;
        Not_Execute : Boolean);
+   function New_Map return Page_Map_Acc;
    function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc;
-   function Clone_Space (Map : Page_Map_Acc) return Page_Map_Acc;
    function Is_Loaded (Map : Page_Map_Acc) return Boolean;
    function Virtual_To_Physical
       (Map     : Page_Map_Acc;

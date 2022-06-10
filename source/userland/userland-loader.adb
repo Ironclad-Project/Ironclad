@@ -18,7 +18,7 @@ with Ada.Characters.Latin_1;
 with Interfaces; use Interfaces;
 with System;
 with System.Storage_Elements; use System.Storage_Elements;
-with Memory.Virtual; use Memory.Virtual;
+with Memory.Virtual;
 with Memory; use Memory;
 with Userland.ELF;
 with Scheduler; use Scheduler;
@@ -45,7 +45,7 @@ package body Userland.Loader is
       if Returned_PID = null then
          goto Error;
       end if;
-      Returned_PID.Common_Map := Fork_Map (Kernel_Map);
+      Returned_PID.Common_Map := Memory.Virtual.New_Map;
 
       if not Start_Program (FD, Arguments, Environment, Returned_PID) then
          goto Error_Process;
