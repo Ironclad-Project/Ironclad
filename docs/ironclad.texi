@@ -64,7 +64,7 @@ Syscalls
 * x86_64::                  x86_64 syscall ABI.
 * Errno::                   Error conditions and their values.
 * exit::                    Exit the callee process.
-* set_tcb::                 Thread-local storage configuration.
+* arch_prctl::              Interacting with architectural thread-local data.
 * open/close::              Opening and closing a file.
 * read/write::              Read and write from an already opened file.
 * seek::                    Modify and fetch file offsets.
@@ -317,18 +317,40 @@ threads of execution are terminated.
 
 This syscall does not return, thus, it has no return value or errno.
 
-@node set_tcb
-@section set_tcb
+@node arch_prctl
+@section arch_prctl
 
 @example
-int set_tcb(size_t address);
+int arch_prctl(int code, uint64_t argument);
 @end example
 
-This syscall enables a region in memory pointed by the passed address to be
-thread-local storage.
+This syscall interacts with architecture-specific thread-local storage. For
+x86_64, these are the available codes:
 
-This syscall returns @code{0} on success, and non-zero on failure.
-errno is to be set to @code{EINVAL} if the address is @code{0}.
+@table @code
+@item ARCH_SET_FS (1)
+Sets @code{argument} as the current thread's FS.
+
+@item ARCH_GET_FS (2)
+Stores the current thread's FS into the variable pointed to by @code{argument}.
+
+@item ARCH_SET_GS (3)
+Sets @code{argument} as the current thread's FS.
+
+@item ARCH_GET_GS (4)
+Stores the current thread's GS into the variable pointed to by @code{argument}.
+@end table
+
+This syscall returns @code{0} on success, and @code{-1} on failure.
+errno is to be set to the following values on failure:
+
+@itemize @bullet
+@item
+@code{EINVAL}: @code{code} is not valid.
+
+@item
+@code{EFAULT}: @code{argument} is outside the available address space.
+@end itemize
 
 @node open/close
 @section open/close

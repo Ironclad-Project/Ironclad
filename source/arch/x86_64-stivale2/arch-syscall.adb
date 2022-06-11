@@ -80,7 +80,7 @@ package body Arch.Syscall is
          when 0 =>
             Syscall_Exit (State.RDI);
          when 1 =>
-            Returned := Syscall_Set_TCB (State.RDI, Errno);
+            Returned := Syscall_Arch_PRCtl (State.RDI, State.RSI, Errno);
          when 2 =>
             Returned := Syscall_Open (State.RDI, State.RSI, Errno);
          when 3 =>
@@ -165,24 +165,43 @@ package body Arch.Syscall is
       Scheduler.Bail;
    end Syscall_Exit;
 
-   function Syscall_Set_TCB
-      (Address : Unsigned_64;
-       Errno   : out Unsigned_64) return Unsigned_64 is
+   function Syscall_Arch_PRCtl
+      (Code     : Unsigned_64;
+       Argument : Unsigned_64;
+       Errno    : out Unsigned_64) return Unsigned_64
+   is
+      A : Unsigned_64 with Address => To_Address (Integer_Address (Argument));
    begin
       if Is_Tracing then
-         Lib.Messages.Put ("syscall set_tcb(");
-         Lib.Messages.Put (Address);
+         Lib.Messages.Put ("syscall arch_prctl(");
+         Lib.Messages.Put (Code);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Argument, False, True);
          Lib.Messages.Put_Line (")");
       end if;
-      if Address = 0 then
-         Errno := Error_Invalid_Value;
+
+      if Argument = 0 then
+         Errno := Error_Would_Fault;
          return Unsigned_64'Last;
-      else
-         Wrappers.Write_FS (Address);
-         Errno := Error_No_Error;
-         return 0;
       end if;
-   end Syscall_Set_TCB;
+
+      case Code is
+         when Arch_Set_FS =>
+            Wrappers.Write_FS (Argument);
+         when Arch_Get_FS =>
+            A := Wrappers.Read_FS;
+         when Arch_Set_GS =>
+            Wrappers.Write_GS (Argument);
+         when Arch_Get_GS =>
+            A := Wrappers.Read_GS;
+         when others =>
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+      end case;
+
+      Errno := Error_No_Error;
+      return 0;
+   end Syscall_Arch_PRCtl;
 
    function Syscall_Open
       (Address : Unsigned_64;

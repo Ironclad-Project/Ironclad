@@ -34,10 +34,15 @@ private
    --  Exit the callee thread, flushing open files.
    procedure Syscall_Exit (Error_Code : Unsigned_64);
 
-   --  Set an address to be thread-local storage.
-   function Syscall_Set_TCB
-      (Address : Unsigned_64;
-       Errno   : out Unsigned_64) return Unsigned_64;
+   --  Set arch-specific thread state.
+   Arch_Set_FS : constant := 1;
+   Arch_Get_FS : constant := 2;
+   Arch_Set_GS : constant := 3;
+   Arch_Get_GS : constant := 4;
+   function Syscall_Arch_PRCtl
+      (Code     : Unsigned_64;
+       Argument : Unsigned_64;
+       Errno    : out Unsigned_64) return Unsigned_64;
 
    --  Open a file.
    O_RDONLY   : constant := 2#000000001#;
