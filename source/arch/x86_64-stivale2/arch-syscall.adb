@@ -47,6 +47,7 @@ package body Arch.Syscall is
    Error_String_Too_Long : constant := 1036; -- ENAMETOOLONG
    Error_No_Entity       : constant := 1043; -- ENOENT.
    Error_Not_Implemented : constant := 1051; -- ENOSYS.
+   Error_Not_A_TTY       : constant := 1058; -- ENOTTY.
    Error_Invalid_Seek    : constant := 1069; -- ESPIPE.
    Error_Bad_Search      : constant := 1070; -- ESRCH.
    Error_Bad_File        : constant := 1081; -- EBADFD.
@@ -312,16 +313,20 @@ package body Arch.Syscall is
          Lib.Messages.Put (Count);
          Lib.Messages.Put_Line (")");
       end if;
+
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
-      end if;
-      if Buffer = 0 then
+      elsif Buffer = 0 then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      elsif File.Flags /= Access_R and File.Flags /= Access_RW then
          Errno := Error_Invalid_Value;
          return Unsigned_64'Last;
+      else
+         Errno := Error_No_Error;
+         return VFS.File.Read (File, Count, Buffer_Addr);
       end if;
-      Errno := Error_No_Error;
-      return VFS.File.Read (File, Count, Buffer_Addr);
    end Syscall_Read;
 
    function Syscall_Write
@@ -346,16 +351,20 @@ package body Arch.Syscall is
          Lib.Messages.Put (Count);
          Lib.Messages.Put_Line (")");
       end if;
+
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
-      end if;
-      if Buffer = 0 then
+      elsif Buffer = 0 then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      elsif File.Flags /= Access_W and File.Flags /= Access_RW then
          Errno := Error_Invalid_Value;
          return Unsigned_64'Last;
+      else
+         Errno := Error_No_Error;
+         return VFS.File.Write (File, Count, Buffer_Addr);
       end if;
-      Errno := Error_No_Error;
-      return VFS.File.Write (File, Count, Buffer_Addr);
    end Syscall_Write;
 
    function Syscall_Seek
@@ -1037,7 +1046,7 @@ package body Arch.Syscall is
             Errno := Error_No_Error;
             return 0;
          else
-            Errno := Error_Bad_File;
+            Errno := Error_Not_A_TTY;
             return Unsigned_64'Last;
          end if;
       end;
