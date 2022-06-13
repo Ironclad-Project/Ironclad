@@ -54,6 +54,7 @@ private
    function Syscall_Open
       (Address : Unsigned_64;
        Flags   : Unsigned_64;
+       Mode    : Unsigned_64;
        Errno   : out Unsigned_64) return Unsigned_64;
 
    --  Close a file.

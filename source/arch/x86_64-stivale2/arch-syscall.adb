@@ -82,7 +82,7 @@ package body Arch.Syscall is
          when 1 =>
             Returned := Syscall_Arch_PRCtl (State.RDI, State.RSI, Errno);
          when 2 =>
-            Returned := Syscall_Open (State.RDI, State.RSI, Errno);
+            Returned := Syscall_Open (State.RDI, State.RSI, State.RDX, Errno);
          when 3 =>
             Returned := Syscall_Close (State.RDI, Errno);
          when 4 =>
@@ -206,8 +206,10 @@ package body Arch.Syscall is
    function Syscall_Open
       (Address : Unsigned_64;
        Flags   : Unsigned_64;
+       Mode    : Unsigned_64;
        Errno   : out Unsigned_64) return Unsigned_64
    is
+      pragma Unreferenced (Mode);
       Addr : constant System.Address := To_Address (Integer_Address (Address));
    begin
       if Address = 0 then
@@ -216,7 +218,8 @@ package body Arch.Syscall is
             Lib.Messages.Put (Flags);
             Lib.Messages.Put_Line (")");
          end if;
-         goto Error_Return;
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
       end if;
       declare
          Path_Length  : constant Natural := Lib.C_String_Length (Addr);
@@ -226,9 +229,6 @@ package body Arch.Syscall is
          Open_Mode    : VFS.File.Access_Mode;
          Opened_File  : VFS.File.File_Acc;
          Returned_FD  : Natural;
-         Opened_Stat  : VFS.File_Stat;
-         Symlink_Len  : Natural;
-         Symlink_Buf  : String (1 .. 100);
       begin
          if Is_Tracing then
             Lib.Messages.Put ("syscall open(");
@@ -256,40 +256,20 @@ package body Arch.Syscall is
          --  Actually open the file.
          Opened_File := VFS.File.Open (Path_String, Open_Mode);
 
-         --  Check if we gotta follow symlinks or not.
-         if (Flags and O_NOFOLLOW) /= 0 then
-            goto Add_File;
-         end if;
-
-         --  Check and follow the symlink.
-         if not VFS.File.Stat (Opened_File, Opened_Stat) then
-            goto Error_Return;
-         end if;
-         if Opened_Stat.Type_Of_File = VFS.File_Symbolic_Link then
-            Symlink_Len := Natural (VFS.File.Read
-               (Opened_File, Symlink_Buf'Length, Symlink_Buf'Address));
-            VFS.File.Close (Opened_File);
-            Free_File (Opened_File);
-            Opened_File := VFS.File.Open
-               (Symlink_Buf (1 .. Symlink_Len), Open_Mode);
-         end if;
-
-   <<Add_File>>
          if Opened_File = null then
-            goto Error_Return;
-         end if;
-         if not Userland.Process.Add_File
-               (Current_Proc, Opened_File, Returned_FD)
+            Errno := Error_No_Entity;
+            return Unsigned_64'Last;
+         elsif not Userland.Process.Add_File
+            (Current_Proc, Opened_File, Returned_FD)
          then
-            goto Error_Return;
+            Free_File (Opened_File);
+            Errno := Error_Too_Many_Files;
+            return Unsigned_64'Last;
          else
             Errno := Error_No_Error;
             return Unsigned_64 (Returned_FD);
          end if;
       end;
-   <<Error_Return>>
-      Errno := Error_Invalid_Value;
-      return Unsigned_64'Last;
    end Syscall_Open;
 
    function Syscall_Close
@@ -872,16 +852,7 @@ package body Arch.Syscall is
 
          return True;
       else
-         --  TODO: Once our VFS can handle better '.', '..', and '/', remove
-         --  this fallback.
-         Stat_Buf.Device_Number := 0;
-         Stat_Buf.Inode_Number  := 0;
-         Stat_Buf.Number_Links  := 1;
-         Stat_Buf.File_Size     := 512;
-         Stat_Buf.Block_Size    := 512;
-         Stat_Buf.Block_Count   := 1;
-
-         return True;
+         return False;
       end if;
    end Inner_Stat;
 

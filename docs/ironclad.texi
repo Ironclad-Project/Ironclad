@@ -356,13 +356,14 @@ errno is to be set to the following values on failure:
 @section open/close
 
 @example
-int open(char *path, int flags);
+int open(char *path, int flags, mode_t mode);
 int close(int fd);
 @end example
 
 @code{open} opens the passed file, depending on the flags passed, it may create 
 it if not present. By default, the file descriptor will remain open accross an 
-@code{exec}, and the file offset is set to the beggining.
+@code{exec}, and the file offset is set to the beggining. @code{mode} is used
+when creating the file.
 
 The flags can be an OR'd field of the following elements:
 
@@ -393,7 +394,13 @@ errno is set according to the conditions for both functions:
 
 @itemize @bullet
 @item
-@code{EINVAL}: The flags are inconsistent, or the path is invalid.
+@code{ENOENT}: The referenced file for @code{open} does not exist.
+
+@item
+@code{EMFILE}: Too many files are already owned by the process.
+
+@item
+@code{EFAULT}: The passed path is outside the available address space.
 
 @item
 @code{EBADF}: The passed file to @code{close} is not valid.
