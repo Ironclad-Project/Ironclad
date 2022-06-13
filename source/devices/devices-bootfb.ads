@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with VFS;
 with Interfaces; use Interfaces;
 with System;
 with Arch.Stivale2;
@@ -26,24 +27,24 @@ package Devices.BootFB is
 private
 
    function Read
-      (Data    : System.Address;
+      (Data    : VFS.Resource_Acc;
        Offset  : Unsigned_64;
        Count   : Unsigned_64;
        To_Read : System.Address) return Unsigned_64;
 
    function Write
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64;
 
    function IO_Control
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
 
    function Mmap
-      (Data        : System.Address;
+      (Data        : VFS.Resource_Acc;
        Address     : Memory.Virtual_Address;
        Length      : Unsigned_64;
        Map_Read    : Boolean;

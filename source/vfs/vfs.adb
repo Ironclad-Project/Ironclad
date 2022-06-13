@@ -20,7 +20,9 @@ with VFS.USTAR;
 package body VFS is
    type Device_Container is record
       Is_Present  : Boolean;
-      Contents    : Device_Data;
+      Name        : String (1 .. 64);
+      Name_Len    : Natural;
+      Contents    : aliased Resource;
       Is_Mounted  : Boolean;
       Mounted_FS  : FS_Type;
       FS_Data     : System.Address;
@@ -35,14 +37,11 @@ package body VFS is
       Devices := new Device_Container_Arr;
    end Init;
 
-   function Register (Dev : Device_Data) return Boolean is
+   function Register (Dev : Resource; Name : String) return Boolean is
    begin
       --  Search if the name is already taken.
       for E of Devices.all loop
-         if E.Is_Present and
-            E.Contents.Name (1 .. E.Contents.Name_Len) =
-            Dev.Name (1 .. Dev.Name_Len)
-         then
+         if E.Is_Present and then E.Name (1 .. E.Name_Len) = Name then
             return False;
          end if;
       end loop;
@@ -51,6 +50,8 @@ package body VFS is
       for I in Devices'Range loop
          if not Devices (I).Is_Present then
             Devices (I).Is_Present                      := True;
+            Devices (I).Name (1 .. Name'Length)         := Name;
+            Devices (I).Name_Len                        := Name'Length;
             Devices (I).Contents                        := Dev;
             Devices (I).Contents.Stat.Unique_Identifier := Unsigned_64 (I);
             Devices (I).Is_Mounted                      := False;
@@ -63,17 +64,14 @@ package body VFS is
       return False;
    end Register;
 
-   function Fetch (Name : String; Dev : out Device_Data) return Boolean is
+   function Fetch (Name : String) return Resource_Acc is
    begin
       for E of Devices.all loop
-         if E.Is_Present and
-            E.Contents.Name (1 .. E.Contents.Name_Len) = Name
-         then
-            Dev := E.Contents;
-            return True;
+         if E.Is_Present and then E.Name (1 .. E.Name_Len) = Name then
+            return E.Contents'Access;
          end if;
       end loop;
-      return False;
+      return null;
    end Fetch;
 
    function Mount
@@ -84,12 +82,10 @@ package body VFS is
       FS_Data : System.Address := System.Null_Address;
    begin
       for E of Devices.all loop
-         if E.Is_Present and
-            E.Contents.Name (1 .. E.Contents.Name_Len) = Name
-         then
+         if E.Is_Present and then E.Name (1 .. E.Name_Len) = Name then
             case FS is
                when FS_USTAR =>
-                  FS_Data := USTAR.Probe (E.Contents);
+                  FS_Data := USTAR.Probe (E.Contents'Access);
                   if FS_Data /= System.Null_Address then
                      E.Is_Mounted  := True;
                      E.Mounted_FS  := FS;
@@ -108,13 +104,15 @@ package body VFS is
 
    function Get_Mount
       (Path : String;
-       FS   : out FS_Type) return System.Address
+       FS   : out FS_Type;
+       Dev  : out Resource_Acc) return System.Address
    is
    begin
       for E of Devices.all loop
          if E.Is_Present and E.Is_Mounted then
             if Path = E.Path_Buffer (1 .. E.Path_Length) then
-               FS := E.Mounted_FS;
+               FS  := E.Mounted_FS;
+               Dev := E.Contents'Access;
                return E.FS_Data;
             end if;
          end if;
@@ -129,7 +127,7 @@ package body VFS is
          if E.Is_Present and E.Is_Mounted then
             if Path = E.Path_Buffer (1 .. E.Path_Length) then
                if E.Contents.Sync /= null then
-                  E.Contents.Sync.all (E.Contents.Data);
+                  E.Contents.Sync.all (E.Contents'Access);
                end if;
                E.Is_Mounted := False;
             end if;

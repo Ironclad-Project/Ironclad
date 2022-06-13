@@ -14,40 +14,53 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with VFS;
-
 package body Devices.Streams is
    function Init return Boolean is
-      Nulldev : VFS.Device_Data;
-      Zerodev : VFS.Device_Data;
+      Stat    : VFS.File_Stat;
+      Nulldev : VFS.Resource;
+      Zerodev : VFS.Resource;
    begin
-      Nulldev.Name (1 .. 4)       := "null";
-      Nulldev.Name_Len            := 4;
-      Nulldev.Stat.Type_Of_File   := VFS.File_Character_Device;
-      Nulldev.Stat.Mode           := 8#660#;
-      Nulldev.Stat.Byte_Size      := 0;
-      Nulldev.Stat.IO_Block_Size  := 4096;
-      Nulldev.Stat.IO_Block_Count := 0;
-      Nulldev.Read                := Nulldev_Read'Access;
-      Nulldev.Write               := Nulldev_Write'Access;
+      Stat := (
+         Unique_Identifier => 0,
+         Type_Of_File      => VFS.File_Character_Device,
+         Mode              => 8#660#,
+         Hard_Link_Count   => 1,
+         Byte_Size         => 0,
+         IO_Block_Size     => 4096,
+         IO_Block_Count    => 0
+      );
 
-      Zerodev.Name (1 .. 4)       := "zero";
-      Zerodev.Name_Len            := 4;
-      Zerodev.Stat.Type_Of_File   := VFS.File_Character_Device;
-      Zerodev.Stat.Mode           := 8#660#;
-      Zerodev.Stat.Byte_Size      := 0;
-      Zerodev.Stat.IO_Block_Size  := 4096;
-      Zerodev.Stat.IO_Block_Count := 0;
-      Zerodev.Read                := Zerodev_Read'Access;
-      Zerodev.Write               := Zerodev_Write'Access;
+      Nulldev := (
+         Data       => System.Null_Address,
+         Mutex      => (others => <>),
+         Stat       => Stat,
+         Sync       => null,
+         Read       => Nulldev_Read'Access,
+         Write      => Nulldev_Write'Access,
+         IO_Control => null,
+         Mmap       => null,
+         Munmap     => null
+      );
 
-      if not VFS.Register (Nulldev) then return False; end if;
-      if not VFS.Register (Zerodev) then return False; end if;
+      Zerodev := (
+         Data       => System.Null_Address,
+         Mutex      => (others => <>),
+         Stat       => Stat,
+         Sync       => null,
+         Read       => Zerodev_Read'Access,
+         Write      => Zerodev_Write'Access,
+         IO_Control => null,
+         Mmap       => null,
+         Munmap     => null
+      );
+
+      if not VFS.Register (Nulldev, "null") then return False; end if;
+      if not VFS.Register (Zerodev, "zero") then return False; end if;
       return True;
    end Init;
    ----------------------------------------------------------------------------
    function Nulldev_Read
-      (Data   : System.Address;
+      (Data   : VFS.Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
@@ -62,7 +75,7 @@ package body Devices.Streams is
    end Nulldev_Read;
 
    function Nulldev_Write
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
@@ -76,7 +89,7 @@ package body Devices.Streams is
    end Nulldev_Write;
    ----------------------------------------------------------------------------
    function Zerodev_Read
-      (Data   : System.Address;
+      (Data   : VFS.Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
@@ -92,7 +105,7 @@ package body Devices.Streams is
    end Zerodev_Read;
 
    function Zerodev_Write
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64

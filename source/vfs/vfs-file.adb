@@ -30,7 +30,7 @@ package body VFS.File is
    function Resolve_File
       (Path         : String;
        Is_Dev       : out Boolean;
-       Fetched_Dev  : out Device_Data;
+       Fetched_Dev  : out Resource_Acc;
        Fetched_Type : out VFS.FS_Type;
        Fetched_FS   : out System.Address) return System.Address
    is
@@ -43,13 +43,14 @@ package body VFS.File is
       if Path'Length >= 5 and then
          Path (Path'First .. Path'First + 4) = "/dev/"
       then
-         if not Fetch (Path (Path'First + 5 .. Path'Last), Fetched_Dev) then
+         Fetched_Dev := Fetch (Path (Path'First + 5 .. Path'Last));
+         if Fetched_Dev = null then
             return System.Null_Address;
          else
             Is_Dev := True;
          end if;
       elsif Is_Absolute (Path) then
-         Fetched_FS := Get_Mount ("/", Fetched_Type);
+         Fetched_FS := Get_Mount ("/", Fetched_Type, Fetched_Dev);
          if Fetched_FS = Null_Address then
             return System.Null_Address;
          end if;
@@ -72,7 +73,7 @@ package body VFS.File is
 
    function Open (Path : String; Access_Flags : Access_Mode) return File_Acc is
       Is_Device    : Boolean;
-      Fetched_Dev  : Device_Data;
+      Fetched_Dev  : Resource_Acc;
       Fetched_Type : FS_Type;
       Fetched_FS   : System.Address;
       Fetched_File : System.Address;
@@ -107,7 +108,7 @@ package body VFS.File is
        Can_Exec  : Boolean) return Boolean
    is
       Is_Device    : Boolean;
-      Fetched_Dev  : Device_Data;
+      Fetched_Dev  : Resource_Acc;
       Fetched_Type : FS_Type;
       Fetched_FS   : System.Address;
       Discard      : System.Address;
@@ -199,7 +200,7 @@ package body VFS.File is
          return Read_Count;
       elsif To_Read.Dev_Data.Read /= null then
          Read_Count := To_Read.Dev_Data.Read (
-            To_Read.Dev_Data.Data,
+            To_Read.Dev_Data,
             To_Read.Index,
             Count,
             Destination
@@ -227,7 +228,7 @@ package body VFS.File is
          return 0;
       else
          Write_Count := To_Write.Dev_Data.Write (
-            To_Write.Dev_Data.Data,
+            To_Write.Dev_Data,
             To_Write.Index,
             Count,
             Data
@@ -267,11 +268,7 @@ package body VFS.File is
          --  Support USTAR IOCTL.
          return False;
       elsif F.Dev_Data.IO_Control /= null then
-         return F.Dev_Data.IO_Control (
-            F.Dev_Data.Data,
-            Request,
-            Argument
-         );
+         return F.Dev_Data.IO_Control (F.Dev_Data, Request, Argument);
       else
          return False;
       end if;
@@ -290,10 +287,10 @@ package body VFS.File is
          return False;
       end if;
       if F.FS_Data = System.Null_Address and F.File_Data = System.Null_Address
-         and F.Dev_Data.IO_Control /= null
+         and F.Dev_Data.Mmap /= null
       then
          return F.Dev_Data.Mmap (
-            F.Dev_Data.Data,
+            F.Dev_Data,
             Address,
             Length,
             Map_Read,
@@ -305,4 +302,23 @@ package body VFS.File is
          return False;
       end if;
    end Mmap;
+
+   function Munmap
+      (F       : File_Acc;
+       Address : Memory.Virtual_Address;
+       Length  : Unsigned_64) return Boolean
+   is
+   begin
+      if F = null then
+         return False;
+      end if;
+      if F.FS_Data = System.Null_Address and F.File_Data = System.Null_Address
+         and F.Dev_Data.Munmap /= null
+      then
+         return F.Dev_Data.Munmap (F.Dev_Data, Address, Length);
+      else
+         --  TODO: Support mmaping a non-device.
+         return False;
+      end if;
+   end Munmap;
 end VFS.File;

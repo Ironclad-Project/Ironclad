@@ -71,16 +71,16 @@ package body VFS.USTAR is
    --  USTAR_GNU_Long_Path : constant := 16#4C#;
 
    type USTAR_Data is record
-      Dev : VFS.Device_Data;
+      Dev : VFS.Resource_Acc;
    end record;
    type USTAR_Data_Acc is access USTAR_Data;
 
-   function Probe (Dev : Device_Data) return System.Address is
+   function Probe (Dev : Resource_Acc) return System.Address is
       First_Header : USTAR_Header;
       Byte_Size    : constant Unsigned_64 := First_Header'Size / 8;
       Data : constant USTAR_Data_Acc := new USTAR_Data'(Dev => Dev);
    begin
-      if Dev.Read.all (Dev.Data, 0, Byte_Size, First_Header'Address) /=
+      if Dev.Read.all (Dev, 0, Byte_Size, First_Header'Address) /=
          Byte_Size
       then
          return System.Null_Address;
@@ -150,7 +150,7 @@ package body VFS.USTAR is
          Real_Count := Unsigned_64 (File_Data.Size) - Offset;
       end if;
       return FS_Data.Dev.Read.all (
-         FS_Data.Dev.Data,
+         FS_Data.Dev,
          File_Data.Start + Offset,
          Real_Count,
          Desto
@@ -203,7 +203,7 @@ package body VFS.USTAR is
    begin
       --  Loop until we find the header or run out of USTAR data.
       loop
-         if FS_Data.Dev.Read.all (FS_Data.Dev.Data, Header_Index, Byte_Size_64,
+         if FS_Data.Dev.Read.all (FS_Data.Dev, Header_Index, Byte_Size_64,
             Header'Address) /= Byte_Size_64
             or else Header.Signature /= USTAR_Signature
          then

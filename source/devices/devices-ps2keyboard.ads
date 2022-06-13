@@ -16,6 +16,7 @@
 
 with System;
 with Interfaces; use Interfaces;
+with VFS;
 
 package Devices.PS2Keyboard is
    --  Initialize the device.
@@ -24,7 +25,7 @@ package Devices.PS2Keyboard is
 private
 
    function Read
-      (Data   : System.Address;
+      (Data   : VFS.Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;

@@ -177,7 +177,7 @@ package body Entrypoint is
             exit when I = 10;
             Name (7) := Character'Val (I + Character'Pos ('0'));
             if not VFS.Register
-               (Devices.Ramdev.Init_Module (Modules.Entries (I), Name))
+               (Devices.Ramdev.Init_Module (Modules.Entries (I)), Name)
             then
                Lib.Panic.Hard_Panic ("Could not load a stivale2 ramdev");
             end if;

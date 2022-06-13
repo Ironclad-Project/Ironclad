@@ -16,6 +16,7 @@
 
 with Interfaces; use Interfaces;
 with System;
+with VFS;
 
 package Devices.Serial is
    --  Initialize the serial devices.
@@ -24,13 +25,13 @@ package Devices.Serial is
 private
 
    function Serial_Read
-      (Data   : System.Address;
+      (Data   : VFS.Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;
 
    function Serial_Write
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64;

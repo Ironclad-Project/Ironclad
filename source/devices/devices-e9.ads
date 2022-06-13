@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with VFS;
 with Interfaces; use Interfaces;
 with System;
 
@@ -24,7 +25,7 @@ package Devices.E9 is
 private
 
    function Write
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64;

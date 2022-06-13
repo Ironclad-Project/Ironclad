@@ -16,6 +16,7 @@
 
 with System;
 with Interfaces; use Interfaces;
+with VFS;
 
 package Devices.PS2Mouse is
    --  Initialize the device.
@@ -24,13 +25,13 @@ package Devices.PS2Mouse is
 private
 
    function Read
-      (Data   : System.Address;
+      (Data   : VFS.Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;
 
    function IO_Control
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
 

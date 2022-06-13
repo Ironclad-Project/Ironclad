@@ -14,26 +14,40 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with VFS;
 with Arch.Wrappers;
 
 package body Devices.E9 is
    function Init return Boolean is
-      Dev : VFS.Device_Data;
+      Stat   : VFS.File_Stat;
+      Device : VFS.Resource;
    begin
-      Dev.Name (1 .. 7)       := "e9debug";
-      Dev.Name_Len            := 7;
-      Dev.Stat.Type_Of_File   := VFS.File_Character_Device;
-      Dev.Stat.Mode           := 8#660#;
-      Dev.Stat.Byte_Size      := 0;
-      Dev.Stat.IO_Block_Size  := 4096;
-      Dev.Stat.IO_Block_Count := 0;
-      Dev.Write               := Write'Access;
-      return VFS.Register (Dev);
+      Stat := (
+         Unique_Identifier => 0,
+         Type_Of_File      => VFS.File_Character_Device,
+         Mode              => 8#660#,
+         Hard_Link_Count   => 1,
+         Byte_Size         => 0,
+         IO_Block_Size     => 4096,
+         IO_Block_Count    => 0
+      );
+
+      Device := (
+         Data       => System.Null_Address,
+         Mutex      => (others => <>),
+         Stat       => Stat,
+         Sync       => null,
+         Read       => null,
+         Write      => Write'Access,
+         IO_Control => null,
+         Mmap       => null,
+         Munmap     => null
+      );
+
+      return VFS.Register (Device, "e9debug");
    end Init;
 
    function Write
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64

@@ -17,6 +17,7 @@
 with System;
 with Interfaces; use Interfaces;
 with Memory;
+with Lib.Synchronization;
 
 package VFS is
    type File_Type is (
@@ -37,45 +38,47 @@ package VFS is
       IO_Block_Count    : Unsigned_64;
    end record;
 
-   --  Devices are nodes held by the system with some basic operations.
-   --  The user sees them as inside a dir in the root called /dev, but this is
-   --  just a facade, there is no devfs.
-   type Device_Data is record
-      Name     : String (1 .. 64);
-      Name_Len : Natural;
-      Data     : System.Address;
-      Stat     : VFS.File_Stat;
+   type Resource;
+   type Resource_Acc is access all Resource;
+   type Resource is record
+      Mutex : aliased Lib.Synchronization.Binary_Semaphore; -- Driver-owned.
+      Data  : System.Address;
+      Stat  : VFS.File_Stat;
 
-      Sync : access procedure (Data : System.Address);
+      Sync : access procedure (Data : Resource_Acc);
       Read : access function
-         (Data   : System.Address;
+         (Data   : Resource_Acc;
           Offset : Unsigned_64;
           Count  : Unsigned_64;
           Desto  : System.Address) return Unsigned_64;
       Write : access function
-         (Data     : System.Address;
+         (Data     : Resource_Acc;
           Offset   : Unsigned_64;
           Count    : Unsigned_64;
           To_Write : System.Address) return Unsigned_64;
       IO_Control : access function
-         (Data     : System.Address;
+         (Data     : Resource_Acc;
           Request  : Unsigned_64;
           Argument : System.Address) return Boolean;
       Mmap : access function
-         (Data        : System.Address;
+         (Data        : Resource_Acc;
           Address     : Memory.Virtual_Address;
           Length      : Unsigned_64;
           Map_Read    : Boolean;
           Map_Write   : Boolean;
           Map_Execute : Boolean) return Boolean;
+      Munmap : access function
+         (Data    : Resource_Acc;
+          Address : Memory.Virtual_Address;
+          Length  : Unsigned_64) return Boolean;
    end record;
 
    --  Initialize the device registry.
    procedure Init;
 
    --  Register and fetch devices, identified by a unique name.
-   function Register (Dev : Device_Data) return Boolean;
-   function Fetch (Name : String; Dev : out Device_Data) return Boolean;
+   function Register (Dev : Resource; Name : String) return Boolean;
+   function Fetch (Name : String) return Resource_Acc;
 
    --  Mount or unmount an FS, along with getting devices based on their FS.
    type FS_Type is (FS_USTAR);
@@ -83,6 +86,9 @@ package VFS is
       (Name : String;
        Path : String;
        FS   : FS_Type) return Boolean;
-   function Get_Mount (Path : String; FS : out FS_Type) return System.Address;
+   function Get_Mount
+      (Path : String;
+       FS   : out FS_Type;
+       Dev  : out Resource_Acc) return System.Address;
    procedure Unmount (Path : String);
 end VFS;

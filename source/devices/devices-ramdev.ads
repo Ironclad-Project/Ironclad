@@ -22,14 +22,12 @@ with Interfaces; use Interfaces;
 package Devices.Ramdev is
    --  Initialize a device given a stivale2 module to go off from, and whether
    --  its a USTAR FS or not.
-   function Init_Module
-      (Module : Arch.Stivale2.Module;
-       Name   : String) return VFS.Device_Data;
+   function Init_Module (Module : Arch.Stivale2.Module) return VFS.Resource;
 
 private
 
    function Read
-      (Data   : System.Address;
+      (Data   : VFS.Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;

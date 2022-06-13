@@ -61,35 +61,47 @@ package body Devices.TTY is
    type Terminal_Data_Acc is access Terminal_Data;
 
    function Init return Boolean is
-      Dev  : VFS.Device_Data;
-      Data : constant Terminal_Data_Acc := new Terminal_Data;
+      Stat   : VFS.File_Stat;
+      Device : VFS.Resource;
+      Data   : constant Terminal_Data_Acc := new Terminal_Data;
    begin
       Data.Terminal_Settings.Local_Modes.Canonical_Mode := True;
       Data.Terminal_Settings.Local_Modes.Echo_Input     := True;
       Data.Keyboard_File := Open ("/dev/ps2keyboard", Access_R);
 
-      Dev.Name (1 .. 6)       := "ttydev";
-      Dev.Name_Len            := 6;
-      Dev.Data                := Data.all'Address;
-      Dev.Stat.Type_Of_File   := VFS.File_Character_Device;
-      Dev.Stat.Mode           := 8#660#;
-      Dev.Stat.Byte_Size      := 0;
-      Dev.Stat.IO_Block_Size  := 4096;
-      Dev.Stat.IO_Block_Count := 0;
-      Dev.Read                := Read'Access;
-      Dev.Write               := Write'Access;
-      Dev.IO_Control          := IO_Control'Access;
-      return VFS.Register (Dev);
+      Stat := (
+         Unique_Identifier => 0,
+         Type_Of_File      => VFS.File_Character_Device,
+         Mode              => 8#660#,
+         Hard_Link_Count   => 1,
+         Byte_Size         => 0,
+         IO_Block_Size     => 4096,
+         IO_Block_Count    => 0
+      );
+
+      Device := (
+         Data       => Data.all'Address,
+         Mutex      => (others => <>),
+         Stat       => Stat,
+         Sync       => null,
+         Read       => Read'Access,
+         Write      => Write'Access,
+         IO_Control => IO_Control'Access,
+         Mmap       => null,
+         Munmap     => null
+      );
+
+      return VFS.Register (Device, "ttydev");
    end Init;
 
    function Read
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
    is
       pragma Unreferenced (Offset);
-      Term : Terminal_Data with Address => Data, Import;
+      Term : Terminal_Data with Address => Data.Data, Import;
       Read_Count : Unsigned_64;
    begin
       if Term.Terminal_Settings.Local_Modes.Canonical_Mode then
@@ -135,7 +147,7 @@ package body Devices.TTY is
    end Read;
 
    function Write
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
@@ -155,7 +167,7 @@ package body Devices.TTY is
    IO_Control_TIOCGWINSZ : constant := 16#5413#;
 
    function IO_Control
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is
@@ -166,7 +178,7 @@ package body Devices.TTY is
          Y_Pixels : Unsigned_16;
       end record;
 
-      Term : Terminal_Data with Address => Data, Import;
+      Term : Terminal_Data with Address => Data.Data, Import;
       Requested_Termios : Termios     with Address => Argument, Import;
       Requested_Window  : Window_Size with Address => Argument, Import;
    begin

@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System; use System;
-with VFS;
 with Memory; use Memory;
 with Memory.Virtual;
 with System.Storage_Elements; use System.Storage_Elements;
@@ -26,8 +25,9 @@ package body Devices.BootFB is
    type FB_Arr is array (Unsigned_32 range <>) of Unsigned_32;
 
    function Init (Fb : access Arch.Stivale2.Framebuffer_Tag) return Boolean is
-      Dev  : VFS.Device_Data;
-      Addr : constant Integer_Address := To_Integer (Fb.Address);
+      Stat   : VFS.File_Stat;
+      Device : VFS.Resource;
+      Addr   : constant Integer_Address := To_Integer (Fb.Address);
       Fb_Flags : constant Memory.Virtual.Page_Flags := (
          Present         => True,
          Read_Write      => True,
@@ -60,28 +60,38 @@ package body Devices.BootFB is
       );
 
       --  Register the device.
-      Dev.Name (1 .. 6)       := "bootfb";
-      Dev.Name_Len            := 6;
-      Dev.Data                := Fb.all'Address;
-      Dev.Stat.Type_Of_File   := VFS.File_Character_Device;
-      Dev.Stat.Mode           := 8#660#;
-      Dev.Stat.Byte_Size      := 0;
-      Dev.Stat.IO_Block_Size  := 4096;
-      Dev.Stat.IO_Block_Count := 0;
-      Dev.Read                := Read'Access;
-      Dev.Write               := Write'Access;
-      Dev.IO_Control          := IO_Control'Access;
-      Dev.Mmap                := Mmap'Access;
-      return VFS.Register (Dev);
+      Stat := (
+         Unique_Identifier => 0,
+         Type_Of_File      => VFS.File_Character_Device,
+         Mode              => 8#660#,
+         Hard_Link_Count   => 1,
+         Byte_Size         => 0,
+         IO_Block_Size     => 4096,
+         IO_Block_Count    => 0
+      );
+
+      Device := (
+         Data       => Fb.all'Address,
+         Mutex      => (others => <>),
+         Stat       => Stat,
+         Sync       => null,
+         Read       => Read'Access,
+         Write      => Write'Access,
+         IO_Control => IO_Control'Access,
+         Mmap       => Mmap'Access,
+         Munmap     => null
+      );
+
+      return VFS.Register (Device, "bootfb");
    end Init;
 
    function Read
-      (Data    : System.Address;
+      (Data    : VFS.Resource_Acc;
        Offset  : Unsigned_64;
        Count   : Unsigned_64;
        To_Read : System.Address) return Unsigned_64
    is
-      Dev_Data : Arch.Stivale2.Framebuffer_Tag with Address => Data;
+      Dev_Data : Arch.Stivale2.Framebuffer_Tag with Address => Data.Data;
       Dev_Y    : constant Unsigned_32     := Unsigned_32 (Dev_Data.Height);
       Dev_X    : constant Unsigned_32     := Unsigned_32 (Dev_Data.Pitch) / 4;
       Offset2  : constant Unsigned_32     := Unsigned_32 (Offset);
@@ -95,12 +105,12 @@ package body Devices.BootFB is
    end Read;
 
    function Write
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
    is
-      Dev_Data : Arch.Stivale2.Framebuffer_Tag with Address => Data;
+      Dev_Data : Arch.Stivale2.Framebuffer_Tag with Address => Data.Data;
       Dev_Y    : constant Unsigned_32     := Unsigned_32 (Dev_Data.Height);
       Dev_X    : constant Unsigned_32     := Unsigned_32 (Dev_Data.Pitch) / 4;
       Offset2  : constant Unsigned_32     := Unsigned_32 (Offset);
@@ -115,7 +125,7 @@ package body Devices.BootFB is
 
    IO_Control_Report_Dimensions : constant := 1;
    function IO_Control
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is
@@ -132,7 +142,7 @@ package body Devices.BootFB is
          Blue_Mask_Shift  : Unsigned_8;
       end record;
 
-      Dev_Data : Arch.Stivale2.Framebuffer_Tag with Address => Data;
+      Dev_Data : Arch.Stivale2.Framebuffer_Tag with Address => Data.Data;
    begin
       case Request is
          when IO_Control_Report_Dimensions =>
@@ -159,7 +169,7 @@ package body Devices.BootFB is
    end IO_Control;
 
    function Mmap
-      (Data        : System.Address;
+      (Data        : VFS.Resource_Acc;
        Address     : Memory.Virtual_Address;
        Length      : Unsigned_64;
        Map_Read    : Boolean;
@@ -168,7 +178,7 @@ package body Devices.BootFB is
    is
       pragma Unreferenced (Map_Read); --  We cannot really map not read lol.
 
-      Dev_Data : Arch.Stivale2.Framebuffer_Tag with Address => Data;
+      Dev_Data : Arch.Stivale2.Framebuffer_Tag with Address => Data.Data;
       Addr     : constant Integer_Address := To_Integer (Dev_Data.Address);
       Process  : constant Userland.Process.Process_Data_Acc :=
             Arch.CPU.Get_Local.Current_Process;

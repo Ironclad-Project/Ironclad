@@ -17,7 +17,6 @@
 with Arch.Wrappers;
 with Lib.Synchronization;
 with Scheduler;
-with VFS;
 
 package body Devices.Serial is
    --  COM ports, the first 2 ones are almost sure to be at that address, the
@@ -27,8 +26,7 @@ package body Devices.Serial is
 
    --  Inner COM port root data.
    type COM_Root is record
-      Mutex : aliased Lib.Synchronization.Binary_Semaphore;
-      Port  : Unsigned_16;
+      Port : Unsigned_16;
    end record;
    type COM_Root_Acc is access COM_Root;
 
@@ -56,27 +54,39 @@ package body Devices.Serial is
 
          --  Add the device.
          declare
-            Data        : COM_Root_Acc           := new COM_Root;
-            Device_Name : String (1 .. 7)        := "serial0";
-            Discard     : Boolean                := False;
-            Device      : VFS.Device_Data;
+            Data        : constant COM_Root_Acc := new COM_Root;
+            Device_Name : String (1 .. 7)       := "serial0";
+            Discard     : Boolean               := False;
+            Stat        : VFS.File_Stat;
+            Device      : VFS.Resource;
          begin
             Device_Name (7) := Character'Val (I + Character'Pos ('0'));
             Data.Port := COM_Ports (I);
 
-            Device.Name (1 .. 7)       := Device_Name;
-            Device.Name_Len            := 7;
-            Device.Data                := Data.all'Address;
-            Device.Stat.Type_Of_File   := VFS.File_Character_Device;
-            Device.Stat.Mode           := 8#660#;
-            Device.Stat.Byte_Size      := 0;
-            Device.Stat.IO_Block_Size  := 4096;
-            Device.Stat.IO_Block_Count := 0;
-            Device.Read                := Serial_Read'Access;
-            Device.Write               := Serial_Write'Access;
+            Stat := (
+               Unique_Identifier => 0,
+               Type_Of_File      => VFS.File_Character_Device,
+               Mode              => 8#660#,
+               Hard_Link_Count   => 1,
+               Byte_Size         => 0,
+               IO_Block_Size     => 4096,
+               IO_Block_Count    => 0
+            );
 
-            Discard := VFS.Register (Device);
-            Lib.Synchronization.Release (Data.Mutex'Access);
+            Device := (
+               Data       => Data.all'Address,
+               Mutex      => (others => <>),
+               Stat       => Stat,
+               Sync       => null,
+               Read       => Serial_Read'Access,
+               Write      => Serial_Write'Access,
+               IO_Control => null,
+               Mmap       => null,
+               Munmap     => null
+            );
+
+            Discard := VFS.Register (Device, Device_Name);
+            Lib.Synchronization.Release (Device.Mutex'Access);
          end;
       <<End_Port>>
       end loop;
@@ -84,16 +94,16 @@ package body Devices.Serial is
    end Init;
 
    function Serial_Read
-      (Data   : System.Address;
+      (Data   : VFS.Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
    is
-      COM    : COM_Root with Address => Data;
+      COM    : COM_Root with Address => Data.Data;
       Result : array (1 .. Count) of Unsigned_8 with Address => Desto;
       pragma Unreferenced (Offset);
    begin
-      while not Lib.Synchronization.Try_Seize (COM.Mutex'Access) loop
+      while not Lib.Synchronization.Try_Seize (Data.Mutex'Access) loop
          Scheduler.Yield;
       end loop;
 
@@ -102,21 +112,21 @@ package body Devices.Serial is
          I := Arch.Wrappers.Port_In (COM.Port);
       end loop;
 
-      Lib.Synchronization.Release (COM.Mutex'Access);
+      Lib.Synchronization.Release (Data.Mutex'Access);
       return Count;
    end Serial_Read;
 
    function Serial_Write
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
    is
-      COM        : COM_Root with Address => Data;
+      COM        : COM_Root with Address => Data.Data;
       Write_Data : array (1 .. Count) of Unsigned_8 with Address => To_Write;
       pragma Unreferenced (Offset);
    begin
-      while not Lib.Synchronization.Try_Seize (COM.Mutex'Access) loop
+      while not Lib.Synchronization.Try_Seize (Data.Mutex'Access) loop
          Scheduler.Yield;
       end loop;
 
@@ -124,7 +134,7 @@ package body Devices.Serial is
          while not Is_Transmitter_Empty (COM.Port) loop null; end loop;
          Arch.Wrappers.Port_Out (COM.Port, I);
       end loop;
-      Lib.Synchronization.Release (COM.Mutex'Access);
+      Lib.Synchronization.Release (Data.Mutex'Access);
       return Count;
    end Serial_Write;
 

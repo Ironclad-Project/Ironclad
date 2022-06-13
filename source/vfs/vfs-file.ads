@@ -22,7 +22,7 @@ package VFS.File is
    type String_Acc is access String;
    type File is record
       Full_Path : String_Acc;
-      Dev_Data  : Device_Data;
+      Dev_Data  : Resource_Acc;
       FS_Type   : VFS.FS_Type;
       FS_Data   : System.Address;
       File_Data : System.Address;
@@ -81,12 +81,18 @@ package VFS.File is
        Map_Write   : Boolean;
        Map_Execute : Boolean) return Boolean;
 
+   --  Munmap.
+   function Munmap
+      (F       : File_Acc;
+       Address : Memory.Virtual_Address;
+       Length  : Unsigned_64) return Boolean;
+
 private
 
    function Resolve_File
       (Path         : String;
        Is_Dev       : out Boolean;
-       Fetched_Dev  : out Device_Data;
+       Fetched_Dev  : out Resource_Acc;
        Fetched_Type : out VFS.FS_Type;
        Fetched_FS   : out System.Address) return System.Address;
 end VFS.File;

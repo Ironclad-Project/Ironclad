@@ -26,38 +26,49 @@ package body Devices.Ramdev is
    end record;
    type Ramdev_Data_Acc is access Ramdev_Data;
 
-   function Init_Module
-      (Module : Arch.Stivale2.Module;
-       Name   : String) return VFS.Device_Data
-   is
-      Dev   : VFS.Device_Data;
-      Start : constant Virtual_Address := To_Integer (Module.Begin_Address);
-      End2  : constant Virtual_Address := To_Integer (Module.End_Address);
-      Size  : constant Unsigned_64     := Unsigned_64 (End2 - Start);
-      Data  : constant Ramdev_Data_Acc := new Ramdev_Data'(
+   function Init_Module (Module : Arch.Stivale2.Module) return VFS.Resource is
+      Stat   : VFS.File_Stat;
+      Device : VFS.Resource;
+      Start  : constant Virtual_Address := To_Integer (Module.Begin_Address);
+      End2   : constant Virtual_Address := To_Integer (Module.End_Address);
+      Size   : constant Unsigned_64     := Unsigned_64 (End2 - Start);
+      Data   : constant Ramdev_Data_Acc := new Ramdev_Data'(
          Start_Address => Module.Begin_Address,
          Size          => Virtual_Address (Size)
       );
    begin
-      Dev.Name (1 .. Name'Length) := Name;
-      Dev.Name_Len                := Name'Length;
-      Dev.Data                    := Data.all'Address;
-      Dev.Stat.Type_Of_File       := VFS.File_Block_Device;
-      Dev.Stat.Mode               := 8#660#;
-      Dev.Stat.Byte_Size          := Unsigned_64 (Data.Size);
-      Dev.Stat.IO_Block_Size      := 4096;
-      Dev.Stat.IO_Block_Count     := (Size + 4096 - 1) / 4096;
-      Dev.Read                    := Read'Access;
-      return Dev;
+      Stat := (
+         Unique_Identifier => 0,
+         Type_Of_File      => VFS.File_Block_Device,
+         Mode              => 8#660#,
+         Hard_Link_Count   => 1,
+         Byte_Size         => Unsigned_64 (Data.Size),
+         IO_Block_Size     => 4096,
+         IO_Block_Count    => (Size + 4096 - 1) / 4096
+      );
+
+      Device := (
+         Data       => Data.all'Address,
+         Mutex      => (others => <>),
+         Stat       => Stat,
+         Sync       => null,
+         Read       => Read'Access,
+         Write      => null,
+         IO_Control => null,
+         Mmap       => null,
+         Munmap     => null
+      );
+
+      return Device;
    end Init_Module;
 
    function Read
-      (Data   : System.Address;
+      (Data   : VFS.Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
    is
-      Data2     : Ramdev_Data with Address => Data;
+      Data2     : Ramdev_Data with Address => Data.Data;
       Data_Addr : constant System.Address  := Data2.Start_Address;
       Data_Sz   : constant Natural         := Natural (Data2.Size);
       Result    : array (1 .. Natural (Count)) of Unsigned_8

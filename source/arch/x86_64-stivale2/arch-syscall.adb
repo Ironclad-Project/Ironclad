@@ -841,7 +841,7 @@ package body Arch.Syscall is
    begin
       if VFS.File.Stat (F, Stat_Val) then
          Stat_Buf := (
-            Device_Number => 1,
+            Device_Number => F.Dev_Data.Stat.Unique_Identifier,
             Inode_Number  => Stat_Val.Unique_Identifier,
             Mode          => Stat_Val.Mode,
             Number_Links  => Unsigned_32 (Stat_Val.Hard_Link_Count),

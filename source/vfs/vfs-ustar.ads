@@ -19,7 +19,7 @@ with System;
 package VFS.USTAR is
    --  Probe for a USTAR FS in the passed device.
    --  Return opaque FS data on success, or Null_Address on failure.
-   function Probe (Dev : Device_Data) return System.Address;
+   function Probe (Dev : Resource_Acc) return System.Address;
 
    --  Basic file operations.
    function Open (FS : System.Address; Path : String) return System.Address;

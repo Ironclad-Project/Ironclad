@@ -18,7 +18,6 @@ with Arch.IDT;
 with Arch.APIC;
 with Arch.CPU;
 with Arch.Wrappers;
-with VFS;
 with Ada.Unchecked_Conversion;
 
 package body Devices.PS2Mouse is
@@ -46,11 +45,11 @@ package body Devices.PS2Mouse is
    Current_Mouse_Cycle : Integer range 1 .. 3 := 1;
 
    function Init return Boolean is
-      Dev_Name     : constant String      := "ps2mouse";
       BSP_LAPIC    : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
       Index        : Arch.IDT.IRQ_Index;
       Data, Unused : Unsigned_8;
-      Dev          : VFS.Device_Data;
+      Stat         : VFS.File_Stat;
+      Device       : VFS.Resource;
    begin
       --  Set the interrupt up, which is always the 45 (we are 1 based).
       if not Arch.IDT.Load_ISR (Mouse_Handler'Address, Index) then
@@ -79,21 +78,33 @@ package body Devices.PS2Mouse is
       Mouse_Write (16#F4#);
       Unused := Mouse_Read;
 
-      Dev.Name (1 .. Dev_Name'Length) := "ps2mouse";
-      Dev.Name_Len                    := Dev_Name'Length;
-      Dev.Data                        := System.Null_Address;
-      Dev.Stat.Type_Of_File           := VFS.File_Character_Device;
-      Dev.Stat.Mode                   := 8#660#;
-      Dev.Stat.Byte_Size              := 0;
-      Dev.Stat.IO_Block_Size          := 4096;
-      Dev.Stat.IO_Block_Count         := 0;
-      Dev.Read                        := Read'Access;
-      Dev.IO_Control                  := IO_Control'Access;
-      return VFS.Register (Dev);
+      Stat := (
+         Unique_Identifier => 0,
+         Type_Of_File      => VFS.File_Character_Device,
+         Mode              => 8#660#,
+         Hard_Link_Count   => 1,
+         Byte_Size         => 0,
+         IO_Block_Size     => 4096,
+         IO_Block_Count    => 0
+      );
+
+      Device := (
+         Data       => System.Null_Address,
+         Mutex      => (others => <>),
+         Stat       => Stat,
+         Sync       => null,
+         Read       => Read'Access,
+         Write      => null,
+         IO_Control => IO_Control'Access,
+         Mmap       => null,
+         Munmap     => null
+      );
+
+      return VFS.Register (Device, "ps2mouse");
    end Init;
 
    function Read
-      (Data   : System.Address;
+      (Data   : VFS.Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
@@ -113,7 +124,7 @@ package body Devices.PS2Mouse is
    end Read;
 
    function IO_Control
-      (Data     : System.Address;
+      (Data     : VFS.Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is
