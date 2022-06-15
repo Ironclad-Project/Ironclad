@@ -1,4 +1,4 @@
---  devices-e9.adb: E9 driver.
+--  devices-debugdev.adb: Driver for debug utilities.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,9 +14,10 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Wrappers;
+with Arch;
+with Lib.Synchronization;
 
-package body Devices.E9 is
+package body Devices.Debug is
    function Init return Boolean is
       Stat   : VFS.File_Stat;
       Device : VFS.Resource;
@@ -43,7 +44,8 @@ package body Devices.E9 is
          Munmap     => null
       );
 
-      return VFS.Register (Device, "e9debug");
+      Lib.Synchronization.Release (Device.Mutex'Access);
+      return VFS.Register (Device, "debug");
    end Init;
 
    function Write
@@ -52,13 +54,12 @@ package body Devices.E9 is
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
    is
-      pragma Unreferenced (Data);
       pragma Unreferenced (Offset);
-      Buff : array (1 .. Count) of Unsigned_8 with Address => To_Write;
+      Buff : String (1 .. Natural (Count)) with Address => To_Write;
    begin
-      for C of Buff loop
-         Arch.Wrappers.Port_Out (16#E9#, C);
-      end loop;
+      Lib.Synchronization.Seize (Data.Mutex'Access);
+      Arch.Debug_Print (Buff);
+      Lib.Synchronization.Release (Data.Mutex'Access);
       return Count;
    end Write;
-end Devices.E9;
+end Devices.Debug;

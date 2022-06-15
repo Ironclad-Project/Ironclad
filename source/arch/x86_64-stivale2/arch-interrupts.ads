@@ -76,9 +76,6 @@ package Arch.Interrupts is
    procedure Exception_Handler (Number : Integer; State : access ISR_GPRs)
       with Convention => C;
 
-   --  Enable or disable interrupts for the callee core.
-   procedure Set_Interrupt_Flag (Enable : Boolean);
-
    --  Default ISR handler.
    procedure Default_ISR_Handler;
 

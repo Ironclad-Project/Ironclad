@@ -225,6 +225,8 @@ package Arch.Stivale2 is
       Unused           : Unsigned_8;
    end record;
 
+   Stivale_Tag : access Header;
+
    --  Find a header.
    function Get_Tag
       (Proto     : access Header;

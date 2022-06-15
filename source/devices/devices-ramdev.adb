@@ -26,15 +26,12 @@ package body Devices.Ramdev is
    end record;
    type Ramdev_Data_Acc is access Ramdev_Data;
 
-   function Init_Module (Module : Arch.Stivale2.Module) return VFS.Resource is
+   function Init_Module (Module : Arch.Boot_RAM_File) return VFS.Resource is
       Stat   : VFS.File_Stat;
       Device : VFS.Resource;
-      Start  : constant Virtual_Address := To_Integer (Module.Begin_Address);
-      End2   : constant Virtual_Address := To_Integer (Module.End_Address);
-      Size   : constant Unsigned_64     := Unsigned_64 (End2 - Start);
       Data   : constant Ramdev_Data_Acc := new Ramdev_Data'(
-         Start_Address => Module.Begin_Address,
-         Size          => Virtual_Address (Size)
+         Start_Address => Module.Start,
+         Size          => Virtual_Address (To_Integer (Module.Length))
       );
    begin
       Stat := (
@@ -44,7 +41,7 @@ package body Devices.Ramdev is
          Hard_Link_Count   => 1,
          Byte_Size         => Unsigned_64 (Data.Size),
          IO_Block_Size     => 4096,
-         IO_Block_Count    => (Size + 4096 - 1) / 4096
+         IO_Block_Count    => (Unsigned_64 (Data.Size) + 4096 - 1) / 4096
       );
 
       Device := (

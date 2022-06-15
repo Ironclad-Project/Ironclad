@@ -17,9 +17,7 @@
 with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 with Lib.Synchronization;
-with Config;
-with Arch.Debug;
-with Arch.Stivale2;
+with Arch;
 
 package body Lib.Messages is
    Messages_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
@@ -106,17 +104,11 @@ package body Lib.Messages is
 
    procedure Inner_Put (Message : String) is
    begin
-      if not Config.Is_Embedded then
-         Arch.Stivale2.Print_Terminal (Message);
-      end if;
-      Arch.Debug.Print (Message);
+      Arch.Debug_Print (Message);
    end Inner_Put;
 
    procedure Inner_Put (Message : Character) is
    begin
-      if not Config.Is_Embedded then
-         Arch.Stivale2.Print_Terminal (Message);
-      end if;
-      Arch.Debug.Print (Message);
+      Arch.Debug_Print (Message);
    end Inner_Put;
 end Lib.Messages;

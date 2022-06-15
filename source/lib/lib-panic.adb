@@ -18,7 +18,7 @@ with Ada.Characters.Latin_1;
 with Arch.APIC;
 with Arch.CPU;
 with Arch.IDT;
-with Arch.Interrupts;
+with Arch;
 with Lib.Messages;
 with Lib.Synchronization;
 
@@ -74,14 +74,14 @@ package body Lib.Panic is
       --  Print the error and lights out.
       Lib.Messages.Put      (Hard_Panic_Color & "Hard panic: " & Reset_Color);
       Lib.Messages.Put_Line (Message);
-      Arch.Interrupts.Set_Interrupt_Flag (False);
+      Arch.Disable_Interrupts;
       loop null; end loop;
    end Hard_Panic;
 
    procedure Panic_Handler is
    begin
       --  Put the callee to sleep.
-      Arch.Interrupts.Set_Interrupt_Flag (False);
+      Arch.Disable_Interrupts;
       loop null; end loop;
    end Panic_Handler;
 end Lib.Panic;

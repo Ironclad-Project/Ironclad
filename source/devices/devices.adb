@@ -14,30 +14,26 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Devices.BootFB;
-with Devices.E9;
-with Devices.PS2Keyboard;
-with Devices.PS2Mouse;
-with Devices.Serial;
 with Devices.Streams;
 with Devices.TTY;
+with Devices.Debug;
 with Lib.Panic;
 with Config;
+with Arch;
 
 package body Devices is
-   procedure Init (Fb : access Arch.Stivale2.Framebuffer_Tag) is
+   procedure Init is
    begin
+      --  Initialize architectural devices.
+      Arch.Devices_Hook;
+
       --  Initialize non-embedded devices.
       if not Config.Is_Embedded then
-         if not BootFB.Init (Fb) then goto Error; end if;
-         if not PS2Mouse.Init    then goto Error; end if;
-         if not PS2Keyboard.Init then goto Error; end if;
-         if not TTY.Init         then goto Error; end if;
+         if not TTY.Init then goto Error; end if;
       end if;
 
       --  Initialize common devices.
-      if not E9.Init      then goto Error; end if;
-      if not Serial.Init  then goto Error; end if;
+      if not Debug.Init   then goto Error; end if;
       if not Streams.Init then goto Error; end if;
       return;
 

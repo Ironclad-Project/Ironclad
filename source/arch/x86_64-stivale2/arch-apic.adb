@@ -19,7 +19,6 @@ with Arch.ACPI;
 with Arch.HPET;
 with Arch.PIT;
 with Arch.Wrappers;
-with Arch.Interrupts;
 with Lib.Panic;
 
 package body Arch.APIC is
@@ -74,9 +73,9 @@ package body Arch.APIC is
          Arch.HPET.USleep (1000);
          Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
       else
-         Arch.Interrupts.Set_Interrupt_Flag (True);
+         Enable_Interrupts;
          Arch.PIT.Sleep (1);
-         Arch.Interrupts.Set_Interrupt_Flag (False);
+         Disable_Interrupts;
          Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
       end if;
 

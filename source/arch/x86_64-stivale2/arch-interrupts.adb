@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System.Machine_Code;
 with Arch.APIC;
 with Arch.GDT;
 with Lib.Panic;
@@ -53,16 +52,6 @@ package body Arch.Interrupts is
          Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Number));
       end if;
    end Exception_Handler;
-
-   procedure Set_Interrupt_Flag (Enable : Boolean) is
-      package SM renames System.Machine_Code;
-   begin
-      if Enable then
-         SM.Asm ("sti", Clobber  => "memory", Volatile => True);
-      else
-         SM.Asm ("cli", Clobber  => "memory", Volatile => True);
-      end if;
-   end Set_Interrupt_Flag;
 
    procedure Default_ISR_Handler is
    begin

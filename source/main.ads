@@ -1,4 +1,4 @@
---  entrypoint.ads: Specification of the main function's package.
+--  main.ads: Main function of the freestanding kernel.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,12 +14,4 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Stivale2;
-
-package Entrypoint is
-   procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header)
-      with Export, Convention => C, External_Name => "kernel_main";
-
-   procedure Main_Thread (Protocol : access Arch.Stivale2.Header)
-      with Convention => C;
-end Entrypoint;
+procedure Main;

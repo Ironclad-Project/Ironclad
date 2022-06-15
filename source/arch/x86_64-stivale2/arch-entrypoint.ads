@@ -1,4 +1,4 @@
---  devices-e9.ads: E9 driver.
+--  entrypoint.ads: Specification of the main function's package.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,19 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with VFS;
-with Interfaces; use Interfaces;
-with System;
+with Arch.Stivale2;
 
-package Devices.E9 is
-   --  Initialize the device.
-   function Init return Boolean;
-
-private
-
-   function Write
-      (Data     : VFS.Resource_Acc;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64;
-end Devices.E9;
+package Arch.Entrypoint is
+   procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header)
+      with Export, Convention => C, External_Name => "kernel_main";
+end Arch.Entrypoint;

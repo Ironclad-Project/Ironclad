@@ -16,7 +16,6 @@
 
 with System; use System;
 with Interfaces; use Interfaces;
-with Ada.Unchecked_Deallocation;
 with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.ACPI;
@@ -26,33 +25,28 @@ with Arch.GDT;
 with Arch.HPET;
 with Arch.IDT;
 with Arch.PIT;
-with Arch.Syscall;
-with Devices.Ramdev;
-with Devices;
-with VFS.File; use VFS.File;
-with VFS;
-with Lib.Cmdline; use Lib.Cmdline;
 with Lib.Messages;
 with Lib.Panic;
 with Memory.Physical;
 with Memory.Virtual;
 with Config;
-with Userland.Loader;
-with Userland.Process; use Userland.Process;
-with Userland;
 with Scheduler; use Scheduler;
+with Main;
 
-package body Entrypoint is
+package body Arch.Entrypoint is
    procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header) is
       package ST renames Arch.Stivale2;
 
       package C1 is new System.Address_To_Access_Conversions (ST.RSDP_Tag);
+      package C2 is new System.Address_To_Access_Conversions (ST.Terminal_Tag);
       package C3 is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
       package C4 is new System.Address_To_Access_Conversions (ST.PMR_Tag);
       package C5 is new System.Address_To_Access_Conversions (ST.SMP_Tag);
 
       RSDP : constant access ST.RSDP_Tag :=
          C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.RSDP_ID)));
+      Term : constant access ST.Terminal_Tag :=
+         C2.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Terminal_ID)));
       Memmap : constant access ST.Memmap_Tag :=
          C3.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Memmap_ID)));
       PMRs : constant access ST.PMR_Tag :=
@@ -60,6 +54,8 @@ package body Entrypoint is
       SMP : constant access ST.SMP_Tag :=
          C5.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.SMP_ID)));
    begin
+      Arch.Stivale2.Stivale_Tag := Protocol;
+      ST.Init_Terminal (Term);
       Lib.Messages.Put (Config.Name & " " & Config.Version & " booted by ");
       Lib.Messages.Put (Protocol.BootloaderBrand & " ");
       Lib.Messages.Put_Line (Protocol.BootloaderVersion);
@@ -119,96 +115,10 @@ package body Entrypoint is
       end if;
 
       Lib.Messages.Put_Line ("Bootstrap done, making kernel thread and idle");
-      if Scheduler.Create_Kernel_Thread
-         (To_Integer (Main_Thread'Address),
-          Unsigned_64 (To_Integer (Protocol.all'Address))) = 0
+      if Scheduler.Create_Kernel_Thread (To_Integer (Main'Address), 0) = 0
       then
          Lib.Panic.Hard_Panic ("Could not create main thread");
       end if;
       Scheduler.Idle_Core;
    end Bootstrap_Main;
-
-   procedure Main_Thread (Protocol : access Arch.Stivale2.Header) is
-      package ST renames Arch.Stivale2;
-      package C1 is new System.Address_To_Access_Conversions (ST.Modules_Tag);
-      package C2 is new System.Address_To_Access_Conversions (ST.Cmdline_Tag);
-
-      Modules : constant access ST.Modules_Tag :=
-         C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Modules_ID)));
-      Cmdline : constant access ST.Cmdline_Tag :=
-         C2.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Cmdline_ID)));
-
-      Init_Arguments   : Userland.Argument_Arr (1 .. 1);
-      Init_Environment : Userland.Environment_Arr (1 .. 0);
-
-      Root_Value : Lib.Cmdline.String_Acc;
-      Init_Value : Lib.Cmdline.String_Acc;
-      Init_File  : File_Acc;
-
-      Init_Stdin : constant String :=
-         (if Config.Is_Embedded then "/dev/null" else "/dev/ttydev");
-      Init_Stdout : constant String :=
-         (if Config.Is_Embedded then "/dev/e9debug" else "/dev/ttydev");
-      Init_Stderr : constant String :=
-         (if Config.Is_Embedded then "/dev/e9debug" else "/dev/ttydev");
-
-      procedure Free_F is new Ada.Unchecked_Deallocation (File, File_Acc);
-      procedure Free_S is new Ada.Unchecked_Deallocation
-         (String, Lib.Cmdline.String_Acc);
-   begin
-      Lib.Messages.Put_Line ("Initializing VFS subsystem");
-      VFS.Init;
-
-      Lib.Messages.Put_Line ("Initializing processes");
-      Userland.Process.Init;
-
-      Lib.Messages.Put_Line ("Initializing devices");
-      Devices.Init (null);
-
-      Lib.Messages.Put_Line ("Mounting stivale2 modules as ramdevs");
-      for I in Modules.Entries'First .. Modules.Entries'Last loop
-         declare
-            Name : String := "ramdev0";
-         begin
-            exit when I = 10;
-            Name (7) := Character'Val (I + Character'Pos ('0'));
-            if not VFS.Register
-               (Devices.Ramdev.Init_Module (Modules.Entries (I)), Name)
-            then
-               Lib.Panic.Hard_Panic ("Could not load a stivale2 ramdev");
-            end if;
-         end;
-      end loop;
-
-      Lib.Messages.Put_Line ("Fetching kernel cmdline options");
-      Root_Value := Lib.Cmdline.Get_Parameter (Cmdline.Inner, "root");
-      Init_Value := Lib.Cmdline.Get_Parameter (Cmdline.Inner, "init");
-
-      Arch.Syscall.Set_Tracing
-         (Lib.Cmdline.Is_Key_Present (Cmdline.Inner, "syscalltracing"));
-
-      if Root_Value /= null then
-         if not VFS.Mount (Root_Value.all, "/", VFS.FS_USTAR) then
-            Lib.Panic.Soft_Panic ("Could not mount " & Root_Value.all & " /");
-         end if;
-         Free_S (Root_Value);
-      end if;
-
-      if Init_Value /= null then
-         Lib.Messages.Put_Line ("Booting init " & Init_Value.all);
-         Init_Arguments (1) := new String'(Init_Value.all);
-         Init_File := Open (Init_Value.all, Access_R);
-         if Init_File = null or else Userland.Loader.Start_Program
-            (Init_File, Init_Arguments, Init_Environment, Init_Stdin,
-             Init_Stdout, Init_Stderr) = null
-         then
-            Lib.Panic.Soft_Panic ("Could not start init");
-         end if;
-         Free_S (Init_Value);
-         Free_F (Init_File);
-      end if;
-
-      Lib.Messages.Put_Line ("Bailing main thread");
-      Scheduler.Bail;
-   end Main_Thread;
-end Entrypoint;
+end Arch.Entrypoint;

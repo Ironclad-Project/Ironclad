@@ -16,13 +16,13 @@
 
 with System;
 with VFS; use VFS;
-with Arch.Stivale2;
 with Interfaces; use Interfaces;
+with Arch;
 
 package Devices.Ramdev is
    --  Initialize a device given a stivale2 module to go off from, and whether
    --  its a USTAR FS or not.
-   function Init_Module (Module : Arch.Stivale2.Module) return VFS.Resource;
+   function Init_Module (Module : Arch.Boot_RAM_File) return VFS.Resource;
 
 private
 

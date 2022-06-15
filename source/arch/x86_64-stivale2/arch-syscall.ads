@@ -35,10 +35,6 @@ private
    procedure Syscall_Exit (Error_Code : Unsigned_64);
 
    --  Set arch-specific thread state.
-   Arch_Set_FS : constant := 1;
-   Arch_Get_FS : constant := 2;
-   Arch_Set_GS : constant := 3;
-   Arch_Get_GS : constant := 4;
    function Syscall_Arch_PRCtl
       (Code     : Unsigned_64;
        Argument : Unsigned_64;

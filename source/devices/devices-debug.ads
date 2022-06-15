@@ -1,4 +1,4 @@
---  arch-debug.ads: Specification of the arch-specific debug utilities.
+--  devices-debugdev.ads: Expose a device with the arch-specific debug.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,8 +14,19 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Arch.Debug is
-   --  Print a message using an architecture-specific debug output.
-   procedure Print (Message : String);
-   procedure Print (Message : Character);
-end Arch.Debug;
+with Interfaces; use Interfaces;
+with System;
+with VFS;
+
+package Devices.Debug is
+   --  Initialize the device.
+   function Init return Boolean;
+
+private
+
+   function Write
+      (Data     : VFS.Resource_Acc;
+       Offset   : Unsigned_64;
+       Count    : Unsigned_64;
+       To_Write : System.Address) return Unsigned_64;
+end Devices.Debug;

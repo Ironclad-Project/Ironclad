@@ -170,7 +170,6 @@ package body Arch.Syscall is
        Argument : Unsigned_64;
        Errno    : out Unsigned_64) return Unsigned_64
    is
-      A : Unsigned_64 with Address => To_Address (Integer_Address (Argument));
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall arch_prctl(");
@@ -185,22 +184,16 @@ package body Arch.Syscall is
          return Unsigned_64'Last;
       end if;
 
-      case Code is
-         when Arch_Set_FS =>
-            Wrappers.Write_FS (Argument);
-         when Arch_Get_FS =>
-            A := Wrappers.Read_FS;
-         when Arch_Set_GS =>
-            Wrappers.Write_GS (Argument);
-         when Arch_Get_GS =>
-            A := Wrappers.Read_GS;
-         when others =>
-            Errno := Error_Invalid_Value;
-            return Unsigned_64'Last;
-      end case;
-
-      Errno := Error_No_Error;
-      return 0;
+      if not Arch.PRCTL_Hook
+         (Natural (Code),
+          To_Address (Integer_Address (Argument)))
+      then
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      else
+         Errno := Error_No_Error;
+         return 0;
+      end if;
    end Syscall_Arch_PRCtl;
 
    function Syscall_Open

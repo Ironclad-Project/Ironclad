@@ -25,6 +25,7 @@ with System.Machine_Code;     use System.Machine_Code;
 with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 with Userland.Process;
+with Arch;
 
 package body Scheduler is
    --  Thread information.
@@ -90,10 +91,10 @@ package body Scheduler is
       end if;
 
       --  Arm for Scheduler_ISR to do the rest of the job from us.
-      Arch.Interrupts.Set_Interrupt_Flag (False);
+      Arch.Disable_Interrupts;
       Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector,
          Arch.CPU.Get_Local.LAPIC_Timer_Hz, 20000);
-      Arch.Interrupts.Set_Interrupt_Flag (True);
+      Arch.Enable_Interrupts;
       loop Arch.Wrappers.HLT; end loop;
    end Idle_Core;
 

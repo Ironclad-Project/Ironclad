@@ -16,7 +16,7 @@
 
 project Ironclad is
    --  Get command-line options for flags and boards.
-   type Arch_Name   is ("x86_64-stivale2");
+   type Arch_Name   is ("x86_64-stivale2", "aarch64-virt");
    type Target_Name is ("standard", "embedded");
    Arch   : Arch_Name   := External ("ARCH",   "x86_64-stivale2");
    Target : Target_Name := External ("TARGET", "standard");
@@ -26,15 +26,11 @@ project Ironclad is
    Linker_Flags := External ("LDFLAGS",  "-O2 -g -Wl,-gc-sections");
 
    --  Set directories and files.
-   Base_Dirs := (
+   for Source_Dirs use (
       "source", "source/devices", "source/lib", "source/memory",
       "source/networking", "source/userland", "source/vfs",
-      "source/arch", "source/arch/" & Arch
+      "source/arch", "source/arch/" & Arch, "source/" & Target
    );
-   case Target is
-      when "standard" => for Source_Dirs use Base_Dirs & ("source/standard");
-      when "embedded" => for Source_Dirs use Base_Dirs & ("source/embedded");
-   end case;
    for Object_Dir use "obj";
    for Exec_Dir use ".";
    for Main use ("main.adb");
@@ -60,6 +56,11 @@ project Ironclad is
             for Default_Switches ("C") use Base_C_Switches & (
                "-fpie"
             );
+         when "aarch64-virt" =>
+            for Default_Switches ("Ada") use Base_Ada_Switches & (
+               "-mgeneral-regs-only"
+            );
+            for Default_Switches ("C") use Base_C_Switches;
       end case;
 
       for Local_Configuration_Pragmas use "source/pragmas.adc";
@@ -75,6 +76,10 @@ project Ironclad is
             for Default_Switches ("Ada") use Base_Link_Switches & (
                "-pie", "-zmax-page-size=0x1000",
                "-Wl,--undefined=stivale2hdr,-zmuldefs"
+            );
+         when "aarch64-virt" =>
+            for Default_Switches ("Ada") use Base_Link_Switches & (
+               "-zmax-page-size=0x1000"
             );
       end case;
    end Linker;

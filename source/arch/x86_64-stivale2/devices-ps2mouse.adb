@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Arch;
 with Arch.IDT;
 with Arch.APIC;
 with Arch.CPU;
@@ -227,7 +228,7 @@ package body Devices.PS2Mouse is
    begin
       for I in 1 .. 100_000 loop
          exit when (Arch.Wrappers.Port_In (16#64#) and Shift_Left (1, 0)) /= 0;
-         Arch.Wrappers.Pause;
+         Arch.Pause;
       end loop;
    end Mouse_Wait_Read;
 
@@ -235,7 +236,7 @@ package body Devices.PS2Mouse is
    begin
       for I in 1 .. 100_000 loop
          exit when (Arch.Wrappers.Port_In (16#64#) and Shift_Left (1, 1)) = 0;
-         Arch.Wrappers.Pause;
+         Arch.Pause;
       end loop;
    end Mouse_Wait_Write;
 

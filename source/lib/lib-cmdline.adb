@@ -15,14 +15,9 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Lib.Cmdline is
-   function Get_Parameter
-      (Address : System.Address;
-       Key     : String) return String_Acc
-   is
+   function Get_Parameter (Cmdline, Key : String) return String_Acc is
       Value_Start  : Natural := 0;
       Value_Length : Natural := 0;
-      Cmdline_Length : constant Natural := Lib.C_String_Length (Address);
-      Cmdline        : String (1 .. Cmdline_Length) with Address => Address;
    begin
       for I in 1 .. Cmdline'Last loop
          exit when Key'Length - 1 + I > Cmdline'Last;
@@ -46,12 +41,7 @@ package body Lib.Cmdline is
       end return;
    end Get_Parameter;
 
-   function Is_Key_Present
-      (Address : System.Address;
-       Key     : String) return Boolean
-   is
-      Cmdline_Length : constant Natural := Lib.C_String_Length (Address);
-      Cmdline        : String (1 .. Cmdline_Length) with Address => Address;
+   function Is_Key_Present (Cmdline, Key : String) return Boolean is
    begin
       for I in 1 .. Cmdline'Last loop
          exit when Key'Length - 1 + I > Cmdline'Last;
