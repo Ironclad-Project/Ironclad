@@ -145,6 +145,13 @@ package body Entrypoint is
       Init_Value : Lib.Cmdline.String_Acc;
       Init_File  : File_Acc;
 
+      Init_Stdin : constant String :=
+         (if Config.Is_Embedded then "/dev/null" else "/dev/ttydev");
+      Init_Stdout : constant String :=
+         (if Config.Is_Embedded then "/dev/e9debug" else "/dev/ttydev");
+      Init_Stderr : constant String :=
+         (if Config.Is_Embedded then "/dev/e9debug" else "/dev/ttydev");
+
       procedure Free_F is new Ada.Unchecked_Deallocation (File, File_Acc);
       procedure Free_S is new Ada.Unchecked_Deallocation
          (String, Lib.Cmdline.String_Acc);
@@ -192,8 +199,8 @@ package body Entrypoint is
          Init_Arguments (1) := new String'(Init_Value.all);
          Init_File := Open (Init_Value.all, Access_R);
          if Init_File = null or else Userland.Loader.Start_Program
-            (Init_File, Init_Arguments, Init_Environment, "/dev/null",
-             "/dev/e9debug", "/dev/e9debug") = null
+            (Init_File, Init_Arguments, Init_Environment, Init_Stdin,
+             Init_Stdout, Init_Stderr) = null
          then
             Lib.Panic.Soft_Panic ("Could not start init");
          end if;

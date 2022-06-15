@@ -14,8 +14,11 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with TargetConfig;
+
 package Config is
    Name     : constant String := "Ironclad";
    Version  : constant String := "0.0.1";
    Bug_Site : constant String := "https://github.com/streaksu/ironclad/issues";
+   Is_Embedded : constant Boolean := TargetConfig.Is_Embedded;
 end Config;

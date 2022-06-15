@@ -1,4 +1,4 @@
---  lib-innerprint.adb: Inner printing interface.
+--  targetconfig.ads: Target-specific config values.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,16 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Debug;
-
-package body Lib.InnerPrint is
-   procedure Inner_Print (Message : String) is
-   begin
-      Arch.Debug.Print (Message);
-   end Inner_Print;
-
-   procedure Inner_Print (Message : Character) is
-   begin
-      Arch.Debug.Print (Message);
-   end Inner_Print;
-end Lib.InnerPrint;
+package TargetConfig is
+   Is_Embedded : constant Boolean := True;
+end TargetConfig;
