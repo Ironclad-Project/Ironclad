@@ -14,8 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces;              use Interfaces;
-with System.Storage_Elements; use System.Storage_Elements;
+with Interfaces; use Interfaces;
 
 package body Arch.ACPI is
    --  RSDP table in memory, and its 2.0 version.

@@ -19,7 +19,6 @@ with Arch.APIC;
 with Arch.IDT;
 with Arch.Wrappers;
 with Memory.Virtual;
-with System.Storage_Elements; use System.Storage_Elements;
 
 package body Arch.CPU is
    procedure Init_Cores (SMP_Info : access Arch.Stivale2.SMP_Tag) is

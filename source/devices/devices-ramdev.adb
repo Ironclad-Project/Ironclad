@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System; use System;
-with System.Storage_Elements; use System.Storage_Elements;
 with Memory; use Memory;
 
 package body Devices.Ramdev is
@@ -31,7 +30,7 @@ package body Devices.Ramdev is
       Device : VFS.Resource;
       Data   : constant Ramdev_Data_Acc := new Ramdev_Data'(
          Start_Address => Module.Start,
-         Size          => Virtual_Address (To_Integer (Module.Length))
+         Size          => Virtual_Address (Module.Length)
       );
    begin
       Stat := (

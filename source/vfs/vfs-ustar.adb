@@ -18,6 +18,7 @@ with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 with Memory.Physical;
 with System; use System;
+with Interfaces.C;
 
 package body VFS.USTAR is
    type USTAR_Padding is array (Natural range <>) of Boolean with Pack;
@@ -132,7 +133,7 @@ package body VFS.USTAR is
    procedure Close (FS : System.Address; File_Ptr : System.Address) is
       pragma Unreferenced (FS);
    begin
-      Memory.Physical.Free (To_Integer (File_Ptr));
+      Memory.Physical.Free (Interfaces.C.size_t (To_Integer (File_Ptr)));
    end Close;
 
    function Read

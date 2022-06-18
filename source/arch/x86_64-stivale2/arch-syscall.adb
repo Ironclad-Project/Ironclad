@@ -17,7 +17,6 @@
 with Ada.Characters.Latin_1;
 with Config;
 with System; use System;
-with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Wrappers;
 with Arch.CPU;
 with Lib.Messages;
@@ -33,6 +32,7 @@ with Memory.Physical;
 with Memory; use Memory;
 with Ada.Unchecked_Deallocation;
 with Ada.Unchecked_Conversion;
+with Interfaces.C;
 
 package body Arch.Syscall is
    --  Errno values, they are ABI and arbitrary.
@@ -476,7 +476,8 @@ package body Arch.Syscall is
          Memory.Virtual.Map_Range (
             Map,
             Virtual_Address (Aligned_Hint),
-            Memory.Physical.Alloc (Size (Length)) - Memory_Offset,
+            Memory.Physical.Alloc (Interfaces.C.size_t (Length)) -
+                                   Memory_Offset,
             Length,
             Map_Flags,
             Map_Not_Execute,
@@ -529,7 +530,7 @@ package body Arch.Syscall is
       --  We only support MAP_ANON and MAP_FIXED, so we can just assume we want
       --  to free.
       --  TODO: Actually unmap, not only free.
-      Memory.Physical.Free (Addr);
+      Memory.Physical.Free (Interfaces.C.size_t (Addr));
       Errno := Error_No_Error;
       return 0;
    end Syscall_Munmap;

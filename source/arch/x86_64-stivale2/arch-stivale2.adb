@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System.Machine_Code;     use System.Machine_Code;
-with System.Storage_Elements; use System.Storage_Elements;
 with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with System.Address_To_Access_Conversions;
 with Arch.Wrappers;

@@ -17,7 +17,6 @@
 with System; use System;
 with Interfaces; use Interfaces;
 with System.Address_To_Access_Conversions;
-with System.Storage_Elements; use System.Storage_Elements;
 with Arch.ACPI;
 with Arch.APIC;
 with Arch.CPU;
@@ -53,6 +52,8 @@ package body Arch.Entrypoint is
          C4.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.PMR_ID)));
       SMP : constant access ST.SMP_Tag :=
          C5.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.SMP_ID)));
+
+      Info : Boot_Information;
    begin
       Arch.Stivale2.Stivale_Tag := Protocol;
       ST.Init_Terminal (Term);
@@ -66,7 +67,8 @@ package body Arch.Entrypoint is
       Arch.IDT.Init;
 
       Lib.Messages.Put_Line ("Initializing allocators");
-      Memory.Physical.Init_Allocator (Memmap);
+      Info := Get_Info;
+      Memory.Physical.Init_Allocator (Info.Memmap (1 .. Info.Memmap_Len));
       Lib.Messages.Put      (Unsigned_64 (Memory.Physical.Used_Memory));
       Lib.Messages.Put      (" used + ");
       Lib.Messages.Put      (Unsigned_64 (Memory.Physical.Free_Memory));

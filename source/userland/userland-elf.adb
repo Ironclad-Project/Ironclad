@@ -17,6 +17,7 @@
 with System.Storage_Elements; use System.Storage_Elements;
 with Memory.Physical;
 with Memory; use Memory;
+with Interfaces.C;
 
 package body Userland.ELF is
    type ELF_ID_Field is array (Natural range <>) of Unsigned_8;
@@ -156,7 +157,8 @@ package body Userland.ELF is
          Header.Virt_Address and (Memory.Virtual.Page_Size - 1);
       Load_Size : constant Unsigned_64 := MisAlign + Header.Mem_Size_Bytes;
       Load : array (1 .. Load_Size) of Unsigned_8
-         with Address => To_Address (Memory.Physical.Alloc (Size (Load_Size)));
+         with Address => To_Address (Memory.Physical.Alloc
+            (Interfaces.C.size_t (Load_Size)));
       Load_Addr : constant System.Address := Load'Address +
          Storage_Offset (MisAlign);
       ELF_Virtual : constant Virtual_Address :=

@@ -35,8 +35,8 @@ bootstrap_main:
     b.lo 1b
 
     // Load some goodies and jump to the Ada kernel.
-	ldr x1, =stack_top
-	mov sp, x1
+    ldr x1, =stack_top
+    mov sp, x1
     // bl kernel_main
 
     // In case it returns, lock up.

@@ -17,7 +17,6 @@
 with Interfaces;              use Interfaces;
 with System;                  use System;
 with System.Machine_Code;     use System.Machine_Code;
-with System.Storage_Elements; use System.Storage_Elements;
 with Arch.APIC;
 with Arch.GDT;
 with Arch.Interrupts;

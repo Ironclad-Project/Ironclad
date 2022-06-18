@@ -15,29 +15,32 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
+with System.Storage_Elements; use System.Storage_Elements;
 
 package Arch is
    --  Boot information for the freestanding kernel to use.
+   --  The memory map is not necessarily sorted, or may have overlapping
+   --  sections, or may have gaps.
    type Boot_Memory_Region is record
       Start   : System.Address;
-      Length  : System.Address;
+      Length  : Storage_Count;
       Is_Free : Boolean;
    end record;
    type Boot_Memory_Map is array (Natural range <>) of Boot_Memory_Region;
 
    type Boot_RAM_File is record
       Start  : System.Address;
-      Length : System.Address;
+      Length : Storage_Count;
    end record;
    type Boot_RAM_Files is array (Natural range <>) of Boot_RAM_File;
 
    type Boot_Information is record
       Cmdline       : String (1 .. 256);
       Cmdline_Len   : Natural range 0 .. 256;
-      Memmap        : Boot_Memory_Map (1 .. 24);
-      Memmap_Len    : Natural range 0 .. 24;
-      RAM_Files     : Boot_RAM_Files (1 .. 5);
-      RAM_Files_Len : Natural range 0 .. 5;
+      Memmap        : Boot_Memory_Map (1 .. 64);
+      Memmap_Len    : Natural range 0 .. 64;
+      RAM_Files     : Boot_RAM_Files (1 .. 4);
+      RAM_Files_Len : Natural range 0 .. 4;
    end record;
 
    function Get_Info return Boot_Information;
@@ -67,7 +70,7 @@ package Arch is
    procedure Debug_Print (Message : String);
    ----------------------------------------------------------------------------
    --  Hooks for architecture-specific facilities initialized by the
-   --  freestanding.
+   --  freestanding side.
 
    --  Register architecture-specific devices.
    procedure Devices_Hook;

@@ -14,21 +14,22 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Stivale2;
+with Arch;
+with Interfaces.C;
 
 package Memory.Physical is
    --  Information that the allocator keeps track of.
    Total_Memory, Free_Memory, Used_Memory : Memory.Size;
 
    --  Initialize the allocator with a memmap.
-   procedure Init_Allocator (Memmap : access Arch.Stivale2.Memmap_Tag);
+   procedure Init_Allocator (Memmap : in out Arch.Boot_Memory_Map);
 
    --  Kernel's malloc and free, also called by ada internally.
    --  The malloc cannot return null, and the free cannot be passed null
    --  either. Those are Ada's rules.
    --  Allocated memory is always zero'ed out.
-   function Alloc (Size : Memory.Size) return Memory.Virtual_Address
+   function Alloc (Sz : Interfaces.C.size_t) return Memory.Virtual_Address
       with Export, Convention => C, External_Name => "__gnat_malloc";
-   procedure Free (Address : Memory.Virtual_Address)
+   procedure Free (Address : Interfaces.C.size_t)
       with Export, Convention => C, External_Name => "__gnat_free";
 end Memory.Physical;
