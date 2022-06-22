@@ -929,13 +929,20 @@ the call is ignored. For valid values and their meaning refer to
 @section serial
 
 The devices starting by @code{serial} represent the several character devices
-used for each present serial port, they are read/write.
+used for each present serial port, they support read/write operations, but no
+TTY interface is exposed, they are raw byte streams.
 
 @node null/zero
 @section null/zero
 
 @code{null} and @code{zero} are the equivalent of the @code{null} and
 @code{zero} devices for platforms like Linux.
+
+@code{null} returns @code{EOF} whenever read, and all the write operations are
+discarded.
+
+@code{zero} returns exclusively a stream of zeros when read, and all write
+operations are discarded.
 
 @node ttydev
 @section ttydev
@@ -987,6 +994,8 @@ struct window_size @{
 The devices starting by @code{ramdev} are virtual devices representing the
 RAM driver passed by some boot protocols, an FS can be mounted to them, usually
 USTAR.
+
+This RAM devices are exclusively read-only.
 
 @node GNU Free Documentation License
 @appendix GNU Free Documentation License

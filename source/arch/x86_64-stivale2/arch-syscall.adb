@@ -418,17 +418,11 @@ package body Arch.Syscall is
             Arch.CPU.Get_Local.Current_Process;
       Map : constant Memory.Virtual.Page_Map_Acc := Current_Process.Common_Map;
 
-      Map_Not_Execute : Boolean := True;
-      Map_Flags : Memory.Virtual.Page_Flags := (
-         Present         => True,
-         Read_Write      => False,
-         User_Supervisor => True,
-         Write_Through   => False,
-         Cache_Disable   => False,
-         Accessed        => False,
-         Dirty           => False,
-         PAT             => False,
-         Global          => False
+      Map_Flags : Arch.Page_Permissions := (
+         User_Accesible => True,
+         Read_Only      => True,
+         Executable     => False,
+         Global         => False
       );
 
       Aligned_Hint : Unsigned_64 := Lib.Align_Up (Hint, Page_Size);
@@ -450,8 +444,8 @@ package body Arch.Syscall is
       end if;
 
       --  Check protection flags.
-      Map_Flags.Read_Write := (Protection and Protection_Write)  /= 0;
-      Map_Not_Execute      := (Protection and Protection_Execute) = 0;
+      Map_Flags.Read_Only  := (Protection and Protection_Write)    = 0;
+      Map_Flags.Executable := (Protection and Protection_Execute) /= 0;
 
       --  Check that we got a length.
       if Length = 0 then
@@ -479,9 +473,7 @@ package body Arch.Syscall is
             Memory.Physical.Alloc (Interfaces.C.size_t (Length)) -
                                    Memory_Offset,
             Length,
-            Map_Flags,
-            Map_Not_Execute,
-            True
+            Map_Flags
          );
          Errno := Error_No_Error;
          return Aligned_Hint;
@@ -494,8 +486,8 @@ package body Arch.Syscall is
                Address     => Virtual_Address (Aligned_Hint),
                Length      => Length,
                Map_Read    => True,
-               Map_Write   => Map_Flags.Read_Write,
-               Map_Execute => not Map_Not_Execute
+               Map_Write   => not Map_Flags.Read_Only,
+               Map_Execute => Map_Flags.Executable
             );
          begin
             if Did_Map then

@@ -18,6 +18,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Memory.Physical;
 with Memory; use Memory;
 with Interfaces.C;
+with Arch;
 
 package body Userland.ELF is
    type ELF_ID_Field is array (Natural range <>) of Unsigned_8;
@@ -163,25 +164,19 @@ package body Userland.ELF is
          Storage_Offset (MisAlign);
       ELF_Virtual : constant Virtual_Address :=
          Virtual_Address (Base + Header.Virt_Address);
-      Flags : constant Memory.Virtual.Page_Flags :=
-         (Present         => True,
-          Read_Write      => True,
-          User_Supervisor => True,
-          Write_Through   => False,
-          Cache_Disable   => False,
-          Accessed        => False,
-          Dirty           => False,
-          PAT             => False,
-          Global          => False);
+      Flags : constant Arch.Page_Permissions := (
+         User_Accesible => True,
+         Read_Only      => False,
+         Executable     => True,
+         Global         => False
+      );
    begin
       Memory.Virtual.Map_Range
-         (Map         => Map,
-          Virtual     => ELF_Virtual,
-          Physical    => To_Integer (Load'Address) - Memory.Memory_Offset,
-          Length      => Load_Size,
-          Flags       => Flags,
-          Not_Execute => False,
-          Register    => True);
+         (Map      => Map,
+          Virtual  => ELF_Virtual,
+          Physical => To_Integer (Load'Address) - Memory.Memory_Offset,
+          Length   => Load_Size,
+          Flags    => Flags);
       File_D.Index := Header.Offset;
       return VFS.File.Read (
          File_D,

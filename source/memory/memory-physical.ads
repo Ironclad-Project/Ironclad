@@ -18,9 +18,6 @@ with Arch;
 with Interfaces.C;
 
 package Memory.Physical is
-   --  Information that the allocator keeps track of.
-   Total_Memory, Free_Memory, Used_Memory : Memory.Size;
-
    --  Initialize the allocator with a memmap.
    procedure Init_Allocator (Memmap : in out Arch.Boot_Memory_Map);
 
@@ -32,4 +29,12 @@ package Memory.Physical is
       with Export, Convention => C, External_Name => "__gnat_malloc";
    procedure Free (Address : Interfaces.C.size_t)
       with Export, Convention => C, External_Name => "__gnat_free";
+
+   --  Fetch physical memory statistics.
+   type Statistics is record
+      Total_Memory : Memory.Size;
+      Free_Memory  : Memory.Size;
+      Used_Memory  : Memory.Size;
+   end record;
+   function Get_Statistics return Statistics;
 end Memory.Physical;

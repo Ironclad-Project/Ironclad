@@ -24,6 +24,9 @@ package body Memory.Physical is
    type Bitmap is array (Unsigned_64 range <>) of Boolean;
    pragma Pack (Bitmap);
 
+   --  Information that the allocator keeps track of.
+   Total_Memory, Free_Memory, Used_Memory : Memory.Size;
+
    Block_Size       : constant        := 16#1000#;
    Block_Count      : Unsigned_64     := 0;
    Bitmap_Length    : Memory.Size     := 0;
@@ -190,4 +193,13 @@ package body Memory.Physical is
 
       Lib.Synchronization.Release (Alloc_Mutex'Access);
    end Free;
+
+   function Get_Statistics return Statistics is
+   begin
+      return (
+         Total_Memory => Total_Memory,
+         Free_Memory  => Free_Memory,
+         Used_Memory  => Used_Memory
+      );
+   end Get_Statistics;
 end Memory.Physical;

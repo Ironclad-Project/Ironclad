@@ -178,16 +178,11 @@ package body Scheduler is
          Index_8  : Natural := User_Stack_8'Last;
          Index_64 : Natural := User_Stack_8'Last;
 
-         Map_Flags : constant Memory.Virtual.Page_Flags := (
-            Present         => True,
-            Read_Write      => True,
-            User_Supervisor => True,
-            Write_Through   => False,
-            Cache_Disable   => False,
-            Accessed        => False,
-            Dirty           => False,
-            PAT             => False,
-            Global          => False
+         Map_Flags : constant Arch.Page_Permissions := (
+            User_Accesible => True,
+            Read_Only      => False,
+            Executable     => True,
+            Global         => False
          );
       begin
          Thread_Pool (New_TID).Is_Present   := True;
@@ -212,9 +207,7 @@ package body Scheduler is
             Virtual_Address (Stack_Top),
             To_Integer (User_Stack_8.all'Address) - Memory_Offset,
             Stack_Size + Memory.Virtual.Page_Size,
-            Map_Flags,
-            False,
-            True
+            Map_Flags
          );
 
          --  Set up FPU control word and MXCSR as defined by SysV.

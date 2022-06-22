@@ -19,6 +19,7 @@ with System.Machine_Code;
 with Arch.Wrappers;
 with Arch.Stivale2;
 with Arch.Entrypoint;
+with Arch.Paging;
 pragma Unreferenced (Arch.Entrypoint);
 with Lib;
 with Devices.BootFB;
@@ -157,4 +158,141 @@ package body Arch is
       end case;
       return True;
    end PRCTL_Hook;
+   ----------------------------------------------------------------------------
+   package Conv is new System.Address_To_Access_Conversions (Paging.Page_Map);
+
+   function Create_Table return Page_Table is
+      Map : constant Paging.Page_Map_Acc := Paging.New_Map;
+   begin
+      return Page_Table (Conv.To_Address (Conv.Object_Pointer (Map)));
+   end Create_Table;
+
+   function Destroy_Table return Boolean is
+   begin
+      return True;
+   end Destroy_Table;
+
+   function Make_Active (Map : Page_Table) return Boolean is
+      Table : constant Paging.Page_Map_Acc :=
+         Paging.Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+   begin
+      Paging.Make_Active (Table);
+      return True;
+   end Make_Active;
+
+   function Is_Active (Map : Page_Table) return Boolean is
+      Table : constant Paging.Page_Map_Acc :=
+         Paging.Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+   begin
+      return Paging.Is_Loaded (Table);
+   end Is_Active;
+
+   function Translate_Address
+      (Map     : Page_Table;
+       Virtual : System.Address) return System.Address
+   is
+      Table : constant Paging.Page_Map_Acc :=
+         Paging.Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+      Addr : constant Integer_Address := To_Integer (Virtual);
+   begin
+      return To_Address (Paging.Virtual_To_Physical (Table, Addr));
+   end Translate_Address;
+
+   function Map_Range
+      (Map            : Page_Table;
+       Physical_Start : System.Address;
+       Virtual_Start  : System.Address;
+       Length         : Storage_Count;
+       Permissions    : Page_Permissions) return Boolean
+   is
+      Table : constant Paging.Page_Map_Acc :=
+         Paging.Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+   begin
+      Paging.Map_Range (
+         Table,
+         To_Integer (Virtual_Start),
+         To_Integer (Physical_Start),
+         Unsigned_64 (Length),
+         (
+            Present         => True,
+            Read_Write      => not Permissions.Read_Only,
+            User_Supervisor => Permissions.User_Accesible,
+            Write_Through   => False,
+            Cache_Disable   => False,
+            Accessed        => False,
+            Dirty           => False,
+            PAT             => False,
+            Global          => Permissions.Global
+         ),
+         not Permissions.Executable
+      );
+      return True;
+   end Map_Range;
+
+   function Remap_Range
+      (Map           : Page_Table;
+       Virtual_Start : System.Address;
+       Length        : Storage_Count;
+       Permissions   : Page_Permissions) return Boolean
+   is
+      Table : constant Paging.Page_Map_Acc :=
+         Paging.Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+   begin
+      Paging.Remap_Range (
+         Table,
+         To_Integer (Virtual_Start),
+         Unsigned_64 (Length),
+         (
+            Present         => True,
+            Read_Write      => not Permissions.Read_Only,
+            User_Supervisor => Permissions.User_Accesible,
+            Write_Through   => False,
+            Cache_Disable   => False,
+            Accessed        => False,
+            Dirty           => False,
+            PAT             => False,
+            Global          => Permissions.Global
+         ),
+         not Permissions.Executable
+      );
+      return True;
+   end Remap_Range;
+
+   function Unmap_Range
+      (Map           : Page_Table;
+       Virtual_Start : System.Address;
+       Length        : Storage_Count) return Boolean
+   is
+      Table : constant Paging.Page_Map_Acc :=
+         Paging.Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+   begin
+      Paging.Unmap_Range (
+         Table,
+         To_Integer (Virtual_Start),
+         Unsigned_64 (Length)
+      );
+      return True;
+   end Unmap_Range;
+
+   --  TODO: Code this 4 bad boys once the VMM makes use of them.
+
+   procedure Flush_Local_TLB (Addr : System.Address) is
+   begin
+      null;
+   end Flush_Local_TLB;
+
+   procedure Flush_Local_TLB (Addr : System.Address; Len : Storage_Count) is
+   begin
+      null;
+   end Flush_Local_TLB;
+
+   procedure Flush_Global_TLBs (Addr : System.Address) is
+   begin
+      null;
+   end Flush_Global_TLBs;
+
+   procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count) is
+   begin
+      null;
+   end Flush_Global_TLBs;
 end Arch;

@@ -24,13 +24,14 @@ with Arch.GDT;
 with Arch.HPET;
 with Arch.IDT;
 with Arch.PIT;
+with Arch.Paging;
 with Lib.Messages;
 with Lib.Panic;
 with Memory.Physical;
-with Memory.Virtual;
 with Config;
 with Scheduler; use Scheduler;
 with Main;
+with Memory.Virtual;
 
 package body Arch.Entrypoint is
    procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header) is
@@ -53,7 +54,8 @@ package body Arch.Entrypoint is
       SMP : constant access ST.SMP_Tag :=
          C5.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.SMP_ID)));
 
-      Info : Boot_Information;
+      Info           : Boot_Information;
+      Mem_Statistics : Memory.Physical.Statistics;
    begin
       Arch.Stivale2.Stivale_Tag := Protocol;
       ST.Init_Terminal (Term);
@@ -69,11 +71,12 @@ package body Arch.Entrypoint is
       Lib.Messages.Put_Line ("Initializing allocators");
       Info := Get_Info;
       Memory.Physical.Init_Allocator (Info.Memmap (1 .. Info.Memmap_Len));
-      Lib.Messages.Put      (Unsigned_64 (Memory.Physical.Used_Memory));
+      Mem_Statistics := Memory.Physical.Get_Statistics;
+      Lib.Messages.Put      (Unsigned_64 (Mem_Statistics.Used_Memory));
       Lib.Messages.Put      (" used + ");
-      Lib.Messages.Put      (Unsigned_64 (Memory.Physical.Free_Memory));
+      Lib.Messages.Put      (Unsigned_64 (Mem_Statistics.Free_Memory));
       Lib.Messages.Put      (" free / ");
-      Lib.Messages.Put      (Unsigned_64 (Memory.Physical.Total_Memory));
+      Lib.Messages.Put      (Unsigned_64 (Mem_Statistics.Total_Memory));
       Lib.Messages.Put_Line (" memory used");
       for E of Memmap.Entries loop
          Lib.Messages.Put      ('[');
@@ -84,7 +87,8 @@ package body Arch.Entrypoint is
          Lib.Messages.Put      (Integer (E.EntryType), False, True);
          Lib.Messages.Put_Line ("");
       end loop;
-      Memory.Virtual.Init (Memmap, PMRs);
+      Arch.Paging.Init (Memmap, PMRs);
+      Memory.Virtual.Init;
 
       Lib.Messages.Put_Line ("Scanning ACPI tables");
       if not Arch.ACPI.ScanTables (RSDP.RSDP_Address) then
