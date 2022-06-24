@@ -17,7 +17,7 @@
 with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 with Lib.Synchronization;
-with Arch;
+with Arch.Debug;
 
 package body Lib.Messages is
    Messages_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
@@ -104,11 +104,11 @@ package body Lib.Messages is
 
    procedure Inner_Put (Message : String) is
    begin
-      Arch.Debug_Print (Message);
+      Arch.Debug.Print (Message);
    end Inner_Put;
 
    procedure Inner_Put (Message : Character) is
    begin
-      Arch.Debug_Print (Message);
+      Arch.Debug.Print (Message);
    end Inner_Put;
 end Lib.Messages;

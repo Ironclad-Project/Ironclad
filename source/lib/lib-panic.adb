@@ -15,17 +15,14 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Characters.Latin_1;
-with Arch.APIC;
-with Arch.CPU;
-with Arch.IDT;
-with Arch;
+with Arch.Hooks;
+with Arch.Snippets;
 with Lib.Messages;
 with Lib.Synchronization;
 
 package body Lib.Panic is
    Already_Soft_Panicked : Boolean := False;
    Is_Propagated         : Boolean := False;
-   Panic_Vector          : Arch.IDT.IRQ_Index;
    Panic_Mutex           : aliased Synchronization.Binary_Semaphore;
 
    Soft_Panic_Color : constant String := Ada.Characters.Latin_1.ESC & "[35m";
@@ -35,7 +32,7 @@ package body Lib.Panic is
    procedure Enable_Panic_Propagation is
    begin
       --  Set an interrupt for software IPIs to call for panic.
-      Is_Propagated := Arch.IDT.Load_ISR (Panic_Handler'Address, Panic_Vector);
+      Is_Propagated := Arch.Hooks.Panic_Prepare_Hook (Panic_Handler'Address);
       Lib.Synchronization.Release (Panic_Mutex'Access);
    end Enable_Panic_Propagation;
 
@@ -59,29 +56,20 @@ package body Lib.Panic is
 
       --  Tell the rest of the cores to go take a nap, forever.
       if Is_Propagated then
-         declare
-            Current_Core : constant Positive := Arch.CPU.Get_Local.Number;
-         begin
-            for I in Arch.CPU.Core_Locals.all'Range loop
-               if I /= Current_Core then
-                  Arch.APIC.LAPIC_Send_IPI
-                     (Arch.CPU.Core_Locals (I).LAPIC_ID, Panic_Vector);
-               end if;
-            end loop;
-         end;
+         Arch.Hooks.Panic_Hook;
       end if;
 
       --  Print the error and lights out.
       Lib.Messages.Put      (Hard_Panic_Color & "Hard panic: " & Reset_Color);
       Lib.Messages.Put_Line (Message);
-      Arch.Disable_Interrupts;
+      Arch.Snippets.Disable_Interrupts;
       loop null; end loop;
    end Hard_Panic;
 
    procedure Panic_Handler is
    begin
       --  Put the callee to sleep.
-      Arch.Disable_Interrupts;
+      Arch.Snippets.Disable_Interrupts;
       loop null; end loop;
    end Panic_Handler;
 end Lib.Panic;

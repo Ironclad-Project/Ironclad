@@ -18,6 +18,7 @@ with Lib.Messages;
 with Lib.Panic;
 with Lib.Atomic; use Lib.Atomic;
 with Arch;
+with Arch.Snippets;
 
 package body Lib.Synchronization is
    procedure Seize (Semaphore : not null access Binary_Semaphore) is
@@ -33,7 +34,7 @@ package body Lib.Synchronization is
          if Atomic_Load_8 (Semaphore.Is_Locked'Address, Mem_Relaxed) = 0 then
             goto Retry_Lock;
          end if;
-         Arch.Pause;
+         Arch.Snippets.Pause;
       end loop;
 
       Lib.Messages.Put ("Deadlock at address: ");

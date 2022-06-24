@@ -68,7 +68,8 @@ project Ironclad is
 
    package Linker is
       Base_Link_Switches := Split (Linker_Flags, " ") & (
-         "-T../source/arch/" & Arch & "/linker.ld", "-nostdlib"
+         "-T../source/arch/" & Arch & "/linker.ld", "-nostdlib",
+         "-znoexecstack"
       );
 
       case Arch is

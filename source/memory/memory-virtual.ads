@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 with Lib.Synchronization;
-with Arch; use Arch;
+with Arch.MMU; use Arch.MMU;
 
 package Memory.Virtual is
    --  Initialize the manager using the architectural interface.
@@ -30,12 +30,12 @@ package Memory.Virtual is
       Virtual_Start  : Virtual_Address;
       Physical_Start : Physical_Address;
       Length         : Unsigned_64;
-      Flags          : Arch.Page_Permissions;
+      Flags          : Arch.MMU.Page_Permissions;
    end record;
    type Mapping_Range_Arr is array (Natural range <>) of Mapping_Range;
    type Page_Map is record
       Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
-      Inner      : Arch.Page_Table;
+      Inner      : Arch.MMU.Page_Table;
       Map_Ranges : Mapping_Range_Arr (1 .. 100);
    end record;
    type Page_Map_Acc is access all Page_Map;
@@ -47,12 +47,16 @@ package Memory.Virtual is
        Virtual  : Virtual_Address;
        Physical : Physical_Address;
        Length   : Unsigned_64;
-       Flags    : Arch.Page_Permissions);
+       Flags    : Arch.MMU.Page_Permissions);
    procedure Remap_Range
       (Map     : Page_Map_Acc;
        Virtual : Virtual_Address;
        Length  : Unsigned_64;
-       Flags   : Arch.Page_Permissions);
+       Flags   : Arch.MMU.Page_Permissions);
+   procedure Unmap_Range
+      (Map     : Page_Map_Acc;
+       Virtual : Virtual_Address;
+       Length  : Unsigned_64);
    function New_Map return Page_Map_Acc;
    function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc;
    function Is_Loaded (Map : Page_Map_Acc) return Boolean;

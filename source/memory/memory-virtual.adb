@@ -19,7 +19,7 @@ package body Memory.Virtual is
    begin
       --  Initialize the kernel pagemap.
       Kernel_Map := new Page_Map;
-      Kernel_Map.Inner := Arch.Kernel_Table;
+      Kernel_Map.Inner := Arch.MMU.Kernel_Table;
       Lib.Synchronization.Release (Kernel_Map.Mutex'Access);
       Make_Active (Kernel_Map);
    end Init;
@@ -30,8 +30,8 @@ package body Memory.Virtual is
       --  Make the pagemap active on the callee core by writing the top-level
       --  address to CR3.
       Lib.Synchronization.Seize (Map.Mutex'Access);
-      if not Arch.Is_Active (Map.Inner) then
-         Discard := Arch.Make_Active (Map.Inner);
+      if not Arch.MMU.Is_Active (Map.Inner) then
+         Discard := Arch.MMU.Make_Active (Map.Inner);
       end if;
       Lib.Synchronization.Release (Map.Mutex'Access);
    end Make_Active;
@@ -41,13 +41,13 @@ package body Memory.Virtual is
        Virtual  : Virtual_Address;
        Physical : Physical_Address;
        Length   : Unsigned_64;
-       Flags    : Arch.Page_Permissions)
+       Flags    : Arch.MMU.Page_Permissions)
    is
       Discard : Boolean;
    begin
       Lib.Synchronization.Seize (Map.Mutex'Access);
 
-      Discard := Arch.Map_Range (
+      Discard := Arch.MMU.Map_Range (
          Map.Inner,
          To_Address (Physical),
          To_Address (Virtual),
@@ -75,25 +75,63 @@ package body Memory.Virtual is
       (Map     : Page_Map_Acc;
        Virtual : Virtual_Address;
        Length  : Unsigned_64;
-       Flags   : Arch.Page_Permissions)
+       Flags   : Arch.MMU.Page_Permissions)
    is
       Discard : Boolean;
    begin
       Lib.Synchronization.Seize (Map.Mutex'Access);
-      Discard := Arch.Remap_Range (
+
+      Discard := Arch.MMU.Remap_Range (
          Map.Inner,
          To_Address (Virtual),
          Storage_Count (Length),
          Flags
       );
+
+      for Mapping of Map.Map_Ranges loop
+         if Mapping.Is_Present and then Mapping.Virtual_Start = Virtual then
+            Mapping.Flags := Flags;
+            exit;
+         end if;
+      end loop;
+
+      --  TODO: Invalidate global TLBs if needed.
+
       Lib.Synchronization.Release (Map.Mutex'Access);
    end Remap_Range;
 
+   procedure Unmap_Range
+      (Map     : Page_Map_Acc;
+       Virtual : Virtual_Address;
+       Length  : Unsigned_64)
+   is
+      Discard : Boolean;
+   begin
+      Lib.Synchronization.Seize (Map.Mutex'Access);
+
+      Discard := Arch.MMU.Unmap_Range (
+         Map.Inner,
+         To_Address (Virtual),
+         Storage_Count (Length)
+      );
+
+      for Mapping of Map.Map_Ranges loop
+         if Mapping.Is_Present and then Mapping.Virtual_Start = Virtual then
+            Mapping.Is_Present := False;
+            exit;
+         end if;
+      end loop;
+
+      --  TODO: Invalidate global TLBs if needed.
+
+      Lib.Synchronization.Release (Map.Mutex'Access);
+   end Unmap_Range;
+
    function New_Map return Page_Map_Acc is
-      Inner   : constant Arch.Page_Table := Arch.Create_Table;
+      Inner   : constant Arch.MMU.Page_Table := Arch.MMU.Create_Table;
       New_Map : Page_Map_Acc;
    begin
-      if Inner /= Arch.Page_Table (System.Null_Address) then
+      if Inner /= Arch.MMU.Page_Table (System.Null_Address) then
          New_Map := new Page_Map;
          New_Map.Inner := Inner;
          Lib.Synchronization.Release (New_Map.Mutex'Access);
@@ -138,7 +176,7 @@ package body Memory.Virtual is
 
    function Is_Loaded (Map : Page_Map_Acc) return Boolean is
    begin
-      return Arch.Is_Active (Map.Inner);
+      return Arch.MMU.Is_Active (Map.Inner);
    end Is_Loaded;
 
    function Virtual_To_Physical
@@ -149,7 +187,7 @@ package body Memory.Virtual is
       Result : Physical_Address;
    begin
       Lib.Synchronization.Seize (Map.Mutex'Access);
-      Result := To_Integer (Arch.Translate_Address (Map.Inner, Addr));
+      Result := To_Integer (Arch.MMU.Translate_Address (Map.Inner, Addr));
       Lib.Synchronization.Release (Map.Mutex'Access);
       return Result;
    end Virtual_To_Physical;

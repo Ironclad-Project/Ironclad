@@ -20,6 +20,7 @@ with System.Address_To_Access_Conversions;
 with Arch.Wrappers;
 with Memory.Virtual; use Memory.Virtual;
 with Lib.Synchronization;
+with Arch.Snippets;
 
 package body Arch.Stivale2 is
    Terminal_Enabled    : Boolean          := False;
@@ -68,7 +69,7 @@ package body Arch.Stivale2 is
          return;
       end if;
 
-      Disable_Interrupts;
+      Snippets.Disable_Interrupts;
       declare
          Message_Str  : String (1 .. Length) with Address => Message;
          Message_Copy : String (1 .. Length);
@@ -110,6 +111,6 @@ package body Arch.Stivale2 is
          end if;
       end;
 
-      Enable_Interrupts;
+      Snippets.Enable_Interrupts;
    end Inner_Terminal;
 end Arch.Stivale2;

@@ -18,7 +18,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Memory.Physical;
 with Memory; use Memory;
 with Interfaces.C;
-with Arch;
+with Arch.MMU;
 
 package body Userland.ELF is
    type ELF_ID_Field is array (Natural range <>) of Unsigned_8;
@@ -164,7 +164,7 @@ package body Userland.ELF is
          Storage_Offset (MisAlign);
       ELF_Virtual : constant Virtual_Address :=
          Virtual_Address (Base + Header.Virt_Address);
-      Flags : constant Arch.Page_Permissions := (
+      Flags : constant Arch.MMU.Page_Permissions := (
          User_Accesible => True,
          Read_Only      => False,
          Executable     => True,

@@ -1,4 +1,4 @@
---  devices.adb: Device management.
+--  arch-snippets.ads: Architecture-specific bits.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,30 +14,19 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Devices.Streams;
-with Devices.TTY;
-with Devices.Debug;
-with Lib.Panic;
-with Config;
-with Arch.Hooks;
+package Arch.Snippets is
+   --  Drive the execution thread to an irrecoverable state.
+   --  (Halt and Catch Fire).
+   procedure HCF with Inline_Always;
 
-package body Devices is
-   procedure Init is
-   begin
-      --  Initialize architectural devices.
-      Arch.Hooks.Devices_Hook;
+   --  Enable and disable external interrupts.
+   procedure Enable_Interrupts with Inline_Always;
+   procedure Disable_Interrupts with Inline_Always;
 
-      --  Initialize non-embedded devices.
-      if not Config.Is_Embedded then
-         if not TTY.Init then goto Error; end if;
-      end if;
+   --  Processor hint for waiting for interrupts in an energy-efficient state.
+   procedure Wait_For_Interrupt with Inline_Always;
 
-      --  Initialize common devices.
-      if not Debug.Init   then goto Error; end if;
-      if not Streams.Init then goto Error; end if;
-      return;
-
-   <<Error>>
-      Lib.Panic.Soft_Panic ("Could not start devices");
-   end Init;
-end Devices;
+   --  Processor hint for optimizing spinlocks and another cache-intensitive
+   --  situations.
+   procedure Pause with Inline_Always;
+end Arch.Snippets;

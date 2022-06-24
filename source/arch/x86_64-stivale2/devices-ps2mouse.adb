@@ -20,6 +20,7 @@ with Arch.APIC;
 with Arch.CPU;
 with Arch.Wrappers;
 with Ada.Unchecked_Conversion;
+with Arch.Snippets;
 
 package body Devices.PS2Mouse is
    --  For return.
@@ -228,7 +229,7 @@ package body Devices.PS2Mouse is
    begin
       for I in 1 .. 100_000 loop
          exit when (Arch.Wrappers.Port_In (16#64#) and Shift_Left (1, 0)) /= 0;
-         Arch.Pause;
+         Arch.Snippets.Pause;
       end loop;
    end Mouse_Wait_Read;
 
@@ -236,7 +237,7 @@ package body Devices.PS2Mouse is
    begin
       for I in 1 .. 100_000 loop
          exit when (Arch.Wrappers.Port_In (16#64#) and Shift_Left (1, 1)) = 0;
-         Arch.Pause;
+         Arch.Snippets.Pause;
       end loop;
    end Mouse_Wait_Write;
 

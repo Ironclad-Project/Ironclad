@@ -26,6 +26,8 @@ with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 with Userland.Process;
 with Arch;
+with Arch.Snippets;
+with Arch.MMU;
 
 package body Scheduler is
    --  Thread information.
@@ -91,10 +93,10 @@ package body Scheduler is
       end if;
 
       --  Arm for Scheduler_ISR to do the rest of the job from us.
-      Arch.Disable_Interrupts;
+      Arch.Snippets.Disable_Interrupts;
       Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector,
          Arch.CPU.Get_Local.LAPIC_Timer_Hz, 20000);
-      Arch.Enable_Interrupts;
+      Arch.Snippets.Enable_Interrupts;
       loop Arch.Wrappers.HLT; end loop;
    end Idle_Core;
 
@@ -178,7 +180,7 @@ package body Scheduler is
          Index_8  : Natural := User_Stack_8'Last;
          Index_64 : Natural := User_Stack_8'Last;
 
-         Map_Flags : constant Arch.Page_Permissions := (
+         Map_Flags : constant Arch.MMU.Page_Permissions := (
             User_Accesible => True,
             Read_Only      => False,
             Executable     => True,

@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch;
+with Arch.Debug;
 with Lib.Synchronization;
 
 package body Devices.Debug is
@@ -58,7 +58,7 @@ package body Devices.Debug is
       Buff : String (1 .. Natural (Count)) with Address => To_Write;
    begin
       Lib.Synchronization.Seize (Data.Mutex'Access);
-      Arch.Debug_Print (Buff);
+      Arch.Debug.Print (Buff);
       Lib.Synchronization.Release (Data.Mutex'Access);
       return Count;
    end Write;

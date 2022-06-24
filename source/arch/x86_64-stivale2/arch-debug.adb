@@ -1,4 +1,4 @@
---  devices.adb: Device management.
+--  arch-debug.adb: Architecture-specific debug channels.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,30 +14,23 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Devices.Streams;
-with Devices.TTY;
-with Devices.Debug;
-with Lib.Panic;
+with Arch.Wrappers;
+with Arch.Stivale2;
 with Config;
-with Arch.Hooks;
 
-package body Devices is
-   procedure Init is
+package body Arch.Debug is
+   procedure Print (Message : Character) is
    begin
-      --  Initialize architectural devices.
-      Arch.Hooks.Devices_Hook;
-
-      --  Initialize non-embedded devices.
+      Wrappers.Port_Out (16#E9#, Character'Pos (Message));
       if not Config.Is_Embedded then
-         if not TTY.Init then goto Error; end if;
+         Arch.Stivale2.Print_Terminal (Message);
       end if;
+   end Print;
 
-      --  Initialize common devices.
-      if not Debug.Init   then goto Error; end if;
-      if not Streams.Init then goto Error; end if;
-      return;
-
-   <<Error>>
-      Lib.Panic.Soft_Panic ("Could not start devices");
-   end Init;
-end Devices;
+   procedure Print (Message : String) is
+   begin
+      for C of Message loop
+         Print (C);
+      end loop;
+   end Print;
+end Arch.Debug;

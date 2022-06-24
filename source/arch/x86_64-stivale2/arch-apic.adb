@@ -19,6 +19,7 @@ with Arch.HPET;
 with Arch.PIT;
 with Arch.Wrappers;
 with Lib.Panic;
+with Arch.Snippets;
 
 package body Arch.APIC is
    LAPIC_MSR                         : constant := 16#01B#;
@@ -72,9 +73,9 @@ package body Arch.APIC is
          Arch.HPET.USleep (1000);
          Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
       else
-         Enable_Interrupts;
+         Snippets.Enable_Interrupts;
          Arch.PIT.Sleep (1);
-         Disable_Interrupts;
+         Snippets.Disable_Interrupts;
          Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
       end if;
 

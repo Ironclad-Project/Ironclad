@@ -40,7 +40,6 @@ bootstrap_main:
     // bl kernel_main
 
     // In case it returns, lock up.
-    cpsid if
     wfi
 2:
-    2b
+    b 2b

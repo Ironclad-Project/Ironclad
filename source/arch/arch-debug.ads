@@ -1,4 +1,4 @@
---  devices.adb: Device management.
+--  arch-debug.ads: Architecture-specific debug channels.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,30 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Devices.Streams;
-with Devices.TTY;
-with Devices.Debug;
-with Lib.Panic;
-with Config;
-with Arch.Hooks;
-
-package body Devices is
-   procedure Init is
-   begin
-      --  Initialize architectural devices.
-      Arch.Hooks.Devices_Hook;
-
-      --  Initialize non-embedded devices.
-      if not Config.Is_Embedded then
-         if not TTY.Init then goto Error; end if;
-      end if;
-
-      --  Initialize common devices.
-      if not Debug.Init   then goto Error; end if;
-      if not Streams.Init then goto Error; end if;
-      return;
-
-   <<Error>>
-      Lib.Panic.Soft_Panic ("Could not start devices");
-   end Init;
-end Devices;
+package Arch.Debug is
+   procedure Print (Message : Character);
+   procedure Print (Message : String);
+end Arch.Debug;

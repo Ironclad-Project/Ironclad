@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Unchecked_Deallocation;
-with Arch.Syscall;
 with Arch;
 with Devices.Ramdev;
 with Devices;
@@ -31,6 +30,7 @@ with Scheduler;
 with Lib.Runtime;
 pragma Unreferenced (Lib.Runtime);
 with Config;
+with Userland.Syscall;
 
 procedure Main is
    Init_Arguments   : Userland.Argument_Arr (1 .. 1);
@@ -81,7 +81,7 @@ begin
    Root_Value := Lib.Cmdline.Get_Parameter (Cmdline, "root");
    Init_Value := Lib.Cmdline.Get_Parameter (Cmdline, "init");
 
-   Arch.Syscall.Set_Tracing
+   Userland.Syscall.Set_Tracing
       (Lib.Cmdline.Is_Key_Present (Cmdline, "syscalltracing"));
 
    if Root_Value /= null then

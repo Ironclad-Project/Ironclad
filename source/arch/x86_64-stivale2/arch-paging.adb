@@ -16,6 +16,7 @@
 
 with Arch.Wrappers;
 with Lib.Panic;
+with Arch.MMU;
 
 package body Arch.Paging is
    procedure Init
@@ -102,7 +103,7 @@ package body Arch.Paging is
       Make_Active (Kernel_Map);
 
       --  Assign the architectural interface map to the actual map.
-      Kernel_Table := Arch.Page_Table (Kernel_Map.all'Address);
+      MMU.Kernel_Table := MMU.Page_Table (Kernel_Map.all'Address);
    end Init;
 
    procedure Make_Active (Map : Page_Map_Acc) is

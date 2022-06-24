@@ -18,6 +18,7 @@ with System; use System;
 with Memory; use Memory;
 with Arch.Paging;
 with System.Storage_Elements; use System.Storage_Elements;
+with Arch.MMU;
 with Arch.CPU;
 with Userland.Process;
 with Memory.Virtual;
@@ -187,7 +188,7 @@ package body Devices.BootFB is
       Addr     : constant Integer_Address := To_Integer (Dev_Data.Address);
       Process  : constant Userland.Process.Process_Data_Acc :=
             Arch.CPU.Get_Local.Current_Process;
-      Fb_Flags : constant Arch.Page_Permissions := (
+      Fb_Flags : constant Arch.MMU.Page_Permissions := (
          User_Accesible => True,
          Read_Only      => not Map_Write,
          Executable     => Map_Execute,
