@@ -1,4 +1,4 @@
---  arch.adb: Architecture-specific package.
+--  arch-snippets.adb: Architecture-specific bits.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,13 +14,34 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Entrypoint;
-pragma Unreferenced (Arch.Entrypoint);
+with System.Machine_Code;
 
-package body Arch is
-   function Get_Info return Boot_Information is
-      Ret : Boot_Information;
+package body Arch.Snippets is
+   procedure HCF is
    begin
-      return Ret;
-   end Get_Info;
-end Arch;
+      Disable_Interrupts;
+      loop
+         Wait_For_Interrupt;
+      end loop;
+   end HCF;
+
+   procedure Enable_Interrupts is
+   begin
+      return;
+   end Enable_Interrupts;
+
+   procedure Disable_Interrupts is
+   begin
+      return;
+   end Disable_Interrupts;
+
+   procedure Wait_For_Interrupt is
+   begin
+      System.Machine_Code.Asm ("wfi", Volatile => True);
+   end Wait_For_Interrupt;
+
+   procedure Pause is
+   begin
+      System.Machine_Code.Asm ("wfe", Volatile => True);
+   end Pause;
+end Arch.Snippets;

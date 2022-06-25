@@ -1,4 +1,4 @@
---  arch.adb: Architecture-specific package.
+--  entrypoint.ads: Specification of the main function's package.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,13 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Entrypoint;
-pragma Unreferenced (Arch.Entrypoint);
+with System;
 
-package body Arch is
-   function Get_Info return Boot_Information is
-      Ret : Boot_Information;
-   begin
-      return Ret;
-   end Get_Info;
-end Arch;
+package Arch.Entrypoint is
+   procedure Bootstrap_Main (Tree : System.Address)
+      with Export, Convention => C, External_Name => "kernel_main";
+end Arch.Entrypoint;

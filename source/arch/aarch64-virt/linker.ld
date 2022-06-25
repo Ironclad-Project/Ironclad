@@ -16,16 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-ENTRY(bootstrap_main)
+ENTRY(entrypoint_main)
 
 SECTIONS {
     . = 0x40000000;
 
     /DISCARD/ : {
-        *libgnat.a:*(*)
+        *libgnat-12.so(*)
     }
 
-    //  Ensure the start code is at the beggining.
+    /*  Ensure the start code is at the beggining. */
     .startup : ALIGN(0x1000) {
         arch-bootstrap.o(.text)
     }

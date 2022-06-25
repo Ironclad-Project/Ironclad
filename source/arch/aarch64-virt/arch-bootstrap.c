@@ -24,8 +24,8 @@ stack_bottom:
 stack_top:
 
 .section .text
-.global bootstrap_main
-bootstrap_main:
+.global entrypoint_main
+entrypoint_main:
     // Clear BSS, the symbols are declared in the linker file.
     ldr x5, =bss_start
     ldr x6, =bss_end
@@ -37,7 +37,7 @@ bootstrap_main:
     // Load some goodies and jump to the Ada kernel.
     ldr x1, =stack_top
     mov sp, x1
-    // bl kernel_main
+    bl kernel_main
 
     // In case it returns, lock up.
     wfi

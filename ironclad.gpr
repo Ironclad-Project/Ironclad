@@ -58,7 +58,7 @@ project Ironclad is
             );
          when "aarch64-virt" =>
             for Default_Switches ("Ada") use Base_Ada_Switches & (
-               "-mgeneral-regs-only"
+               "-mgeneral-regs-only", "-static"
             );
             for Default_Switches ("C") use Base_C_Switches;
       end case;
@@ -69,7 +69,7 @@ project Ironclad is
    package Linker is
       Base_Link_Switches := Split (Linker_Flags, " ") & (
          "-T../source/arch/" & Arch & "/linker.ld", "-nostdlib",
-         "-znoexecstack"
+         "-znoexecstack", "-lgcc"
       );
 
       case Arch is
@@ -80,7 +80,7 @@ project Ironclad is
             );
          when "aarch64-virt" =>
             for Default_Switches ("Ada") use Base_Link_Switches & (
-               "-zmax-page-size=0x1000"
+               "-zmax-page-size=0x1000", "-static", "-Wl,-zmuldefs"
             );
       end case;
    end Linker;

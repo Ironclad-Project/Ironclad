@@ -18,7 +18,6 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Ada.Characters.Latin_1;
 with Config;
 with System; use System;
-with Arch.CPU;
 with Lib.Messages;
 with Lib;
 with Networking;
@@ -35,6 +34,7 @@ with Ada.Unchecked_Conversion;
 with Interfaces.C;
 with Arch.Hooks;
 with Arch.MMU;
+with Arch.Local;
 
 package body Userland.Syscall is
    --  Whether we are to print syscall information.
@@ -52,7 +52,7 @@ package body Userland.Syscall is
 
    procedure Syscall_Exit (Error_Code : Unsigned_64) is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Arch.CPU.Get_Local.Current_Process;
+         Arch.Local.Get_Current_Process;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall exit(");
@@ -122,7 +122,7 @@ package body Userland.Syscall is
          Path_Length  : constant Natural := Lib.C_String_Length (Addr);
          Path_String  : String (1 .. Path_Length) with Address => Addr;
          Current_Proc : constant Userland.Process.Process_Data_Acc :=
-            Arch.CPU.Get_Local.Current_Process;
+            Arch.Local.Get_Current_Process;
          Open_Mode    : VFS.File.Access_Mode;
          Opened_File  : VFS.File.File_Acc;
          Returned_FD  : Natural;
@@ -174,7 +174,7 @@ package body Userland.Syscall is
        Errno  : out Errno_Value) return Unsigned_64
    is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Arch.CPU.Get_Local.Current_Process;
+         Arch.Local.Get_Current_Process;
       File            : constant Natural := Natural (File_D);
    begin
       if Is_Tracing then
@@ -196,7 +196,7 @@ package body Userland.Syscall is
       Buffer_Addr     : constant System.Address :=
          To_Address (Integer_Address (Buffer));
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.CPU.Get_Local.Current_Process;
+            Arch.Local.Get_Current_Process;
       File : constant VFS.File.File_Acc :=
          Current_Process.File_Table (Natural (File_D));
    begin
@@ -234,7 +234,7 @@ package body Userland.Syscall is
       Buffer_Addr     : constant System.Address :=
          To_Address (Integer_Address (Buffer));
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.CPU.Get_Local.Current_Process;
+            Arch.Local.Get_Current_Process;
       File : constant File_Acc :=
          Current_Process.File_Table (Natural (File_D));
    begin
@@ -270,7 +270,7 @@ package body Userland.Syscall is
        Errno  : out Errno_Value) return Unsigned_64
    is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.CPU.Get_Local.Current_Process;
+            Arch.Local.Get_Current_Process;
       File : constant VFS.File.File_Acc :=
          Current_Process.File_Table (Natural (File_D));
       Stat_Val : VFS.File_Stat;
@@ -319,7 +319,7 @@ package body Userland.Syscall is
        Errno      : out Errno_Value) return Unsigned_64
    is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.CPU.Get_Local.Current_Process;
+            Arch.Local.Get_Current_Process;
       Map : constant Memory.Virtual.Page_Map_Acc := Current_Process.Common_Map;
 
       Map_Flags : Arch.MMU.Page_Permissions := (
@@ -411,7 +411,7 @@ package body Userland.Syscall is
        Errno      : out Errno_Value) return Unsigned_64
    is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.CPU.Get_Local.Current_Process;
+            Arch.Local.Get_Current_Process;
       Map : constant Memory.Virtual.Page_Map_Acc := Current_Process.Common_Map;
       Addr : constant Physical_Address :=
          Memory.Virtual.Virtual_To_Physical (Map, Virtual_Address (Address));
@@ -433,7 +433,7 @@ package body Userland.Syscall is
 
    function Syscall_Get_PID return Unsigned_64 is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.CPU.Get_Local.Current_Process;
+            Arch.Local.Get_Current_Process;
    begin
       if Is_Tracing then
          Lib.Messages.Put_Line ("syscall getpid()");
@@ -443,7 +443,7 @@ package body Userland.Syscall is
 
    function Syscall_Get_Parent_PID return Unsigned_64 is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.CPU.Get_Local.Current_Process;
+            Arch.Local.Get_Current_Process;
       Parent_Process : constant Natural := Current_Process.Parent_PID;
    begin
       if Is_Tracing then
@@ -462,9 +462,9 @@ package body Userland.Syscall is
       type Arg_Arr is array (1 .. 40) of Unsigned_64;
 
       Current_Thread  : constant Scheduler.TID :=
-         Arch.CPU.Get_Local.Current_Thread;
+         Arch.Local.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Arch.CPU.Get_Local.Current_Process;
+         Arch.Local.Get_Current_Process;
 
       Addr : constant System.Address := To_Address (Integer_Address (Address));
       Path_Length : constant Natural := Lib.C_String_Length (Addr);
@@ -547,7 +547,7 @@ package body Userland.Syscall is
        Errno         : out Errno_Value) return Unsigned_64
    is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.CPU.Get_Local.Current_Process;
+            Arch.Local.Get_Current_Process;
       Forked_Process : constant Userland.Process.Process_Data_Acc :=
          Userland.Process.Fork (Current_Process);
    begin
@@ -583,7 +583,7 @@ package body Userland.Syscall is
       --  TODO: Support things like WCONTINUE once signals work.
 
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.CPU.Get_Local.Current_Process;
+            Arch.Local.Get_Current_Process;
       Exit_Value : Unsigned_32
          with Address => To_Address (Integer_Address (Exit_Addr));
 
@@ -752,7 +752,7 @@ package body Userland.Syscall is
        Errno   : out Errno_Value) return Unsigned_64
    is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.CPU.Get_Local.Current_Process;
+            Arch.Local.Get_Current_Process;
       File : constant VFS.File.File_Acc :=
          Current_Process.File_Table (Natural (File_D));
    begin
@@ -821,7 +821,7 @@ package body Userland.Syscall is
       Path : String (1 .. Len) with Address => Addr;
 
       Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.CPU.Get_Local.Current_Process;
+            Arch.Local.Get_Current_Process;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall getcwd(");
@@ -856,7 +856,7 @@ package body Userland.Syscall is
    is
       Addr    : constant System.Address := To_Address (Integer_Address (Path));
       Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.CPU.Get_Local.Current_Process;
+            Arch.Local.Get_Current_Process;
    begin
       if Path = 0 then
          if Is_Tracing then
@@ -896,7 +896,7 @@ package body Userland.Syscall is
    is
       Arg : constant System.Address := To_Address (Integer_Address (Argument));
       Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Arch.CPU.Get_Local.Current_Process;
+         Arch.Local.Get_Current_Process;
    begin
       if Is_Tracing then
          Lib.Messages.Put      ("syscall ioctl(");
@@ -1022,7 +1022,7 @@ package body Userland.Syscall is
        Errno  : out Errno_Value) return Unsigned_64
    is
       Process : constant Userland.Process.Process_Data_Acc :=
-         Arch.CPU.Get_Local.Current_Process;
+         Arch.Local.Get_Current_Process;
       New_FD    : VFS.File.File_Acc;
       Result_FD : Natural;
    begin
@@ -1057,7 +1057,7 @@ package body Userland.Syscall is
        Errno          : out Errno_Value) return Unsigned_64
    is
       Process : constant Userland.Process.Process_Data_Acc :=
-         Arch.CPU.Get_Local.Current_Process;
+         Arch.Local.Get_Current_Process;
       New_File : VFS.File.File_Acc;
    begin
       if Is_Tracing then
@@ -1094,7 +1094,7 @@ package body Userland.Syscall is
        Errno          : out Errno_Value) return Unsigned_64
    is
       Process : constant Userland.Process.Process_Data_Acc :=
-         Arch.CPU.Get_Local.Current_Process;
+         Arch.Local.Get_Current_Process;
       New_File : VFS.File.File_Acc;
    begin
       if Is_Tracing then

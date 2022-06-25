@@ -15,10 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System.Address_To_Access_Conversions;
-with Arch.Wrappers;
 with Arch.Stivale2;
 with Arch.Entrypoint;
-with Arch.Paging;
 pragma Unreferenced (Arch.Entrypoint);
 with Lib;
 with Interfaces; use Interfaces;

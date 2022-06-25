@@ -16,7 +16,7 @@
 
 with Lib.Synchronization;
 with Ada.Unchecked_Deallocation;
-with Arch.CPU;
+with Arch.Local;
 
 package body Userland.Process is
    procedure Free_Proc is new Ada.Unchecked_Deallocation
@@ -167,7 +167,7 @@ package body Userland.Process is
    end Remove_Thread;
 
    procedure Flush_Threads (Process : Process_Data_Acc) is
-      Current_Thread : constant TID := Arch.CPU.Get_Local.Current_Thread;
+      Current_Thread : constant TID := Arch.Local.Get_Current_Thread;
    begin
       for Thread of Process.Thread_List loop
          if Thread /= Current_Thread then

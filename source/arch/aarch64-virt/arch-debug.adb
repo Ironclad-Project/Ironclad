@@ -1,4 +1,4 @@
---  arch.adb: Architecture-specific package.
+--  arch-debug.adb: Architecture-specific debug channels.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,13 +14,17 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Entrypoint;
-pragma Unreferenced (Arch.Entrypoint);
-
-package body Arch is
-   function Get_Info return Boot_Information is
-      Ret : Boot_Information;
+package body Arch.Debug is
+   procedure Print (Message : Character) is
+      UART : Character with Address => To_Address (16#9000000#), Volatile;
    begin
-      return Ret;
-   end Get_Info;
-end Arch;
+      UART := Message;
+   end Print;
+
+   procedure Print (Message : String) is
+   begin
+      for C of Message loop
+         Print (C);
+      end loop;
+   end Print;
+end Arch.Debug;

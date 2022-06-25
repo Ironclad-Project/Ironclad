@@ -62,26 +62,30 @@ jobs:
                 gprbuild --target=x86_64-linux-gnu -p -XARCH=x86_64-stivale2 -XTARGET=standard
             working-directory: src/
 
-# Commented out because it doesnt compile yet :p
-#    build-aarch64-virt:
-#        name: Build aarch64-virt
-#        runs-on: ubuntu-22.04
-#        steps:
-#          - name: Install prerequisites
-#            run: 'sudo apt-get install gnat-12-aarch64-linux-gnu gcc-12-aarch64-linux-gnu gprbuild texinfo texlive'
-#          - name: Prepare directories
-#            run: 'mkdir src'
-#          - name: Checkout
-#            uses: actions/checkout@v2
-#            with:
-#              path: src/
-#          - name: Build embedded
-#            run: |
-#                gprclean
-#                gprbuild --target=aarch64-linux-gnu -p -XARCH=aarch64-virt -XTARGET=embedded
-#            working-directory: src/
-#          - name: Build standard
-#            run: |
-#                gprclean
-#                gprbuild --target=aarch64-linux-gnu -p -XARCH=aarch64-virt -XTARGET=standard
-#            working-directory: src/
+    build-aarch64-virt:
+        name: Build aarch64-virt
+        runs-on: ubuntu-22.04
+        steps:
+          - name: Install prerequisites
+            run: 'sudo apt-get install gnat-12-aarch64-linux-gnu gcc-12-aarch64-linux-gnu gprbuild texinfo texlive'
+          - name: Prepare directories
+            run: 'mkdir src'
+          - name: Checkout
+            uses: actions/checkout@v2
+            with:
+              path: src/
+
+          # Debian-based distros in their cross toolchains do not get their libgnat.so detected, so we
+          # create that ourselve and put it in the path, we dont even use it so it can be empty.
+          - name: Build embedded
+            run: |
+                touch libgnat12.a
+                gprclean
+                LDFLAGS="-O2 -g -Wl,-gc-sections -L." gprbuild --target=aarch64-linux-gnu -p -XARCH=aarch64-virt -XTARGET=embedded
+            working-directory: src/
+          - name: Build standard
+            run: |
+                touch libgnat12.a
+                gprclean
+                LDFLAGS="-O2 -g -Wl,-gc-sections -L." gprbuild --target=aarch64-linux-gnu -p -XARCH=aarch64-virt -XTARGET=standard
+            working-directory: src/

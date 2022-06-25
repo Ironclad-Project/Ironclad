@@ -1,4 +1,4 @@
---  arch.adb: Architecture-specific package.
+--  arch-exceptions.ads: Specification of interrupt utilities.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,13 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Entrypoint;
-pragma Unreferenced (Arch.Entrypoint);
-
-package body Arch is
-   function Get_Info return Boot_Information is
-      Ret : Boot_Information;
-   begin
-      return Ret;
-   end Get_Info;
-end Arch;
+package Arch.Interrupts is
+   --  Passed to every interrupt called ever as an access.
+   type ISR_GPRs is record
+      Placeholder : Integer;
+   end record with Convention => C;
+end Arch.Interrupts;

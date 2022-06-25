@@ -1,4 +1,4 @@
---  arch.adb: Architecture-specific package.
+--  arch-hooks.adb: Architecture-specific hooks for several utilities.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,13 +14,27 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Entrypoint;
-pragma Unreferenced (Arch.Entrypoint);
-
-package body Arch is
-   function Get_Info return Boot_Information is
-      Ret : Boot_Information;
+package body Arch.Hooks is
+   procedure Devices_Hook is
    begin
-      return Ret;
-   end Get_Info;
-end Arch;
+      return;
+   end Devices_Hook;
+
+   function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean is
+      pragma Unreferenced (Code);
+      pragma Unreferenced (Arg);
+   begin
+      return False;
+   end PRCTL_Hook;
+
+   function Panic_Prepare_Hook (Addr : System.Address) return Boolean is
+      pragma Unreferenced (Addr);
+   begin
+      return False;
+   end Panic_Prepare_Hook;
+
+   procedure Panic_Hook is
+   begin
+      return;
+   end Panic_Hook;
+end Arch.Hooks;

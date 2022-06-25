@@ -1,4 +1,4 @@
---  arch.adb: Architecture-specific package.
+--  arch-local.ads: Architecture-specific CPU-local storage.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,13 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Entrypoint;
-pragma Unreferenced (Arch.Entrypoint);
+with Scheduler;
+with Userland.Process;
 
-package body Arch is
-   function Get_Info return Boot_Information is
-      Ret : Boot_Information;
-   begin
-      return Ret;
-   end Get_Info;
-end Arch;
+package Arch.Local is
+   --  Fetch and set the current thread and process.
+   function Get_Current_Thread return Scheduler.TID;
+   function Get_Current_Process return Userland.Process.Process_Data_Acc;
+   procedure Set_Current_Thread (Thread : Scheduler.TID);
+   procedure Set_Current_Process (Proc : Userland.Process.Process_Data_Acc);
+end Arch.Local;

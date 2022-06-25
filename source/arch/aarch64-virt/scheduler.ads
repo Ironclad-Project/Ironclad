@@ -1,4 +1,4 @@
---  userland-scheduler.ads: Specification of the scheduler.
+--  scheduler.ads: Specification of the scheduler.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -73,12 +73,4 @@ package Scheduler is
 
    --  Delete and yield the current thread.
    procedure Bail;
-
-private
-
-   function Find_Free_TID return TID;
-   procedure Scheduler_ISR
-      (Number : Unsigned_32;
-       State  : access Arch.Interrupts.ISR_GPRs);
-   function Is_Thread_Present (Thread : TID) return Boolean;
 end Scheduler;
