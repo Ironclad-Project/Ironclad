@@ -27,12 +27,12 @@ package body Arch.Snippets is
 
    procedure Enable_Interrupts is
    begin
-      return;
+      System.Machine_Code.Asm ("msr daifclr, #0xf", Volatile => True);
    end Enable_Interrupts;
 
    procedure Disable_Interrupts is
    begin
-      return;
+      System.Machine_Code.Asm ("msr daifset, #0xf", Volatile => True);
    end Disable_Interrupts;
 
    procedure Wait_For_Interrupt is
@@ -42,6 +42,6 @@ package body Arch.Snippets is
 
    procedure Pause is
    begin
-      System.Machine_Code.Asm ("wfe", Volatile => True);
+      System.Machine_Code.Asm ("yield", Volatile => True);
    end Pause;
 end Arch.Snippets;

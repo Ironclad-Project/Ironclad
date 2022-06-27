@@ -20,7 +20,6 @@ with System.Machine_Code;     use System.Machine_Code;
 with Arch.APIC;
 with Arch.GDT;
 with Arch.Interrupts;
-with Arch.Syscall;
 
 package body Arch.IDT is
    --  Records for the GDT structure and its entries.
@@ -92,7 +91,7 @@ package body Arch.IDT is
       end loop;
 
       --  Some special entries for several hardcoded hardware and syscalls.
-      Load_ISR (16#81#, Syscall.Syscall_Handler'Address, Gate_Trap, True);
+      Load_ISR (16#81#, Interrupts.Syscall_Handler'Address, Gate_Trap, True);
       Load_ISR (APIC.LAPIC_Spurious_Entry,
                 Interrupts.Spurious_Handler'Address);
 

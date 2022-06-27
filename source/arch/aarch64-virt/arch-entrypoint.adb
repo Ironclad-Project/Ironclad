@@ -14,19 +14,37 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
 with Lib.Messages;
+with Lib.Panic;
 with Config;
 
 package body Arch.Entrypoint is
-   procedure Bootstrap_Main (Tree : System.Address) is
+   procedure Bootstrap_Main (Blob : DTB.Header_Acc) is
+      Reservation_Addr : System.Address;
    begin
       Lib.Messages.Put      (Config.Name & " " & Config.Version & " ");
       Lib.Messages.Put_Line ("booted from aarch64-virt");
       Lib.Messages.Put      ("Please report errors and issues to ");
       Lib.Messages.Put_Line (Config.Bug_Site);
 
-      Lib.Messages.Put      ("Device tree at ");
-      Lib.Messages.Put      (Tree);
-      Lib.Messages.Put_Line ("");
+      if not DTB.Is_Valid (Blob) then
+         Lib.Panic.Hard_Panic ("The passed DTB is not valid");
+      end if;
+
+      Reservation_Addr := DTB.Get_Memory_Reservation (Blob);
+      loop
+         declare
+            Reservation : DTB.Reservation with Address => Reservation_Addr;
+         begin
+            exit when Reservation.Size = 0 and Reservation.Address = 0;
+            Lib.Messages.Put (Reservation.Address, False, True);
+            Lib.Messages.Put ("+");
+            Lib.Messages.Put (Reservation.Size, False, True);
+            Reservation_Addr := Reservation_Addr + DTB.Reservation'Size / 8;
+         end;
+      end loop;
+
+      Lib.Panic.Hard_Panic ("End of kernel");
    end Bootstrap_Main;
 end Arch.Entrypoint;

@@ -14,9 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
+with Arch.DTB;
 
 package Arch.Entrypoint is
-   procedure Bootstrap_Main (Tree : System.Address)
+   procedure Bootstrap_Main (Blob : DTB.Header_Acc)
       with Export, Convention => C, External_Name => "kernel_main";
 end Arch.Entrypoint;

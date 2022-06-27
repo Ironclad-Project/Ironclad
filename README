@@ -1,5 +1,5 @@
-Ironclad is a kernel for x86_64 devices exclusively (for now) supporting
-general-purpose and embedded modes, written in Ada.
+Ironclad is a kernel for several architectures, supporting general-purpose and
+embedded modes, written in Ada.
 
 -- Building --
 
@@ -14,7 +14,7 @@ gnatprove -P ironclad.gpr -U --prover=cvc4,altergo,z3
 
 Several flags and variables are available for tuning:
 
-- ARCH, right now only "x86_64-stivale2" is available.
+- ARCH, right now "x86_64-stivale2" and "aarch64-virt" are available.
 - TARGET, visited in the "Standard and embedded targets" section.
 - ADAFLAGS, ASMFLAGS, and LDFLAGS, passed as environment variables to gprbuild.
 - DESTDIR and PREFIX for ./install.sh.
@@ -39,7 +39,8 @@ variable, which depending on the value will take the following meanings:
 usecases. No specific optimizations or algorithms will be chosen, and all
 devices will be enabled.
 
-- TARGET="embedded": The kernel will be built with the goal of providing an RT kernel with a small footprint, disabling extra devices and favoring algorithms
+- TARGET="embedded": The kernel will be built with the goal of providing a RT
+kernel with a small footprint, disabling extra devices and favoring algorithms
 that help reach the goal. Formal verification efforts center on this option.
 
 "standard" is the default for the flag.

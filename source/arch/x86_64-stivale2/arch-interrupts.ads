@@ -76,6 +76,10 @@ package Arch.Interrupts is
    procedure Exception_Handler (Number : Integer; State : access ISR_GPRs)
       with Convention => C;
 
+   --  Entrypoint of the syscall dispatcher.
+   procedure Syscall_Handler (Number : Integer; State : access ISR_GPRs)
+      with Convention => C;
+
    --  Default ISR handler.
    procedure Default_ISR_Handler;
 
