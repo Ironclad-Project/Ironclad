@@ -326,7 +326,8 @@ package body Userland.Syscall is
          User_Accesible => True,
          Read_Only      => True,
          Executable     => False,
-         Global         => False
+         Global         => False,
+         Write_Through  => False
       );
 
       Aligned_Hint : Unsigned_64 := Lib.Align_Up (Hint, Page_Size);

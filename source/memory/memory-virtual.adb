@@ -15,13 +15,17 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Memory.Virtual is
-   procedure Init is
+   function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
    begin
-      --  Initialize the kernel pagemap.
-      Kernel_Map := new Page_Map;
-      Kernel_Map.Inner := Arch.MMU.Kernel_Table;
-      Lib.Synchronization.Release (Kernel_Map.Mutex'Access);
-      Make_Active (Kernel_Map);
+      if not Arch.MMU.Init (Memmap) then
+         return False;
+      else
+         Kernel_Map := new Page_Map;
+         Kernel_Map.Inner := Arch.MMU.Kernel_Table;
+         Lib.Synchronization.Release (Kernel_Map.Mutex'Access);
+         Make_Active (Kernel_Map);
+         return True;
+      end if;
    end Init;
 
    procedure Make_Active (Map : Page_Map_Acc) is

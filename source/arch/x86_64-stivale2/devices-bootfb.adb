@@ -16,13 +16,11 @@
 
 with System; use System;
 with Memory; use Memory;
-with Arch.Paging;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.MMU;
 with Arch.CPU;
 with Userland.Process;
 with Memory.Virtual;
-with System.Address_To_Access_Conversions;
 
 package body Devices.BootFB is
    type FB_Arr is array (Unsigned_32 range <>) of Unsigned_32;
@@ -31,35 +29,29 @@ package body Devices.BootFB is
       Stat   : VFS.File_Stat;
       Device : VFS.Resource;
       Addr   : constant Integer_Address := To_Integer (Fb.Address);
-      Fb_Flags : constant Arch.Paging.Page_Flags := (
-         Present         => True,
-         Read_Write      => True,
-         User_Supervisor => False,
-         Write_Through   => True,
-         Cache_Disable   => False,
-         Accessed        => False,
-         Dirty           => False,
-         PAT             => True,
-         Global          => True
+      Fb_Flags : constant Arch.MMU.Page_Permissions := (
+         User_Accesible => False,
+         Read_Only      => False,
+         Executable     => False,
+         Global         => False,
+         Write_Through  => True
       );
    begin
       --  Map the framebuffer write-combining in the higher-half
       --  (also in the lower half because stivale2 might use it).
       --  We only have to map it in the kernel map lower half because we
       --  always switch to it when calling the terminal (PERFORMANCE died).
-      Arch.Paging.Remap_Range (
-         Map         => Arch.Paging.Kernel_Map,
-         Virtual     => Memory.Virtual_Address (Addr),
-         Length      => Unsigned_64 (Fb.Height) * 4 * Unsigned_64 (Fb.Pitch),
-         Flags       => Fb_Flags,
-         Not_Execute => False
+      Memory.Virtual.Remap_Range (
+         Map     => Memory.Virtual.Kernel_Map,
+         Virtual => Memory.Virtual_Address (Addr),
+         Length  => Unsigned_64 (Fb.Height) * 4 * Unsigned_64 (Fb.Pitch),
+         Flags   => Fb_Flags
       );
-      Arch.Paging.Remap_Range (
-         Map         => Arch.Paging.Kernel_Map,
-         Virtual     => Memory.Virtual_Address (Addr - Memory.Memory_Offset),
-         Length      => Unsigned_64 (Fb.Height) * 4 * Unsigned_64 (Fb.Pitch),
-         Flags       => Fb_Flags,
-         Not_Execute => False
+      Memory.Virtual.Remap_Range (
+         Map     => Memory.Virtual.Kernel_Map,
+         Virtual => Memory.Virtual_Address (Addr - Memory.Memory_Offset),
+         Length  => Unsigned_64 (Fb.Height) * 4 * Unsigned_64 (Fb.Pitch),
+         Flags   => Fb_Flags
       );
 
       --  Register the device.
@@ -171,9 +163,6 @@ package body Devices.BootFB is
       end case;
    end IO_Control;
 
-   package Conv is new System.Address_To_Access_Conversions
-      (Arch.Paging.Page_Map);
-
    function Mmap
       (Data        : VFS.Resource_Acc;
        Address     : Memory.Virtual_Address;
@@ -192,23 +181,9 @@ package body Devices.BootFB is
          User_Accesible => True,
          Read_Only      => not Map_Write,
          Executable     => Map_Execute,
-         Global         => False
+         Global         => False,
+         Write_Through  => True
       );
-      Inner_Fb_Flags : constant Arch.Paging.Page_Flags := (
-         Present         => True,
-         Read_Write      => Map_Write,
-         User_Supervisor => True,
-         Write_Through   => True,
-         Cache_Disable   => False,
-         Accessed        => False,
-         Dirty           => False,
-         PAT             => True,
-         Global          => False
-      );
-
-      Table : constant Arch.Paging.Page_Map_Acc :=
-         Arch.Paging.Page_Map_Acc (Conv.To_Pointer
-         (System.Address (Process.Common_Map.Inner)));
    begin
       Memory.Virtual.Map_Range (
          Map      => Process.Common_Map,
@@ -216,16 +191,6 @@ package body Devices.BootFB is
          Physical => Memory.Virtual_Address (Addr - Memory.Memory_Offset),
          Length   => Length,
          Flags    => Fb_Flags
-      );
-
-      --  Touch the mappings a bit in architecture-specific ways for
-      --  performance.
-      Arch.Paging.Remap_Range (
-         Map         => Table,
-         Virtual     => Address,
-         Length      => Length,
-         Flags       => Inner_Fb_Flags,
-         Not_Execute => not Map_Execute
       );
       return True;
    end Mmap;

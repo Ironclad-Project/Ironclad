@@ -20,7 +20,7 @@ with Arch.MMU; use Arch.MMU;
 
 package Memory.Virtual is
    --  Initialize the manager using the architectural interface.
-   procedure Init;
+   function Init (Memmap : Arch.Boot_Memory_Map) return Boolean;
 
    Page_Size : constant := 16#1000#;
 

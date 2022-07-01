@@ -24,7 +24,6 @@ with Arch.GDT;
 with Arch.HPET;
 with Arch.IDT;
 with Arch.PIT;
-with Arch.Paging;
 with Lib.Messages;
 with Lib.Panic;
 with Memory.Physical;
@@ -40,8 +39,7 @@ package body Arch.Entrypoint is
       package C1 is new System.Address_To_Access_Conversions (ST.RSDP_Tag);
       package C2 is new System.Address_To_Access_Conversions (ST.Terminal_Tag);
       package C3 is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
-      package C4 is new System.Address_To_Access_Conversions (ST.PMR_Tag);
-      package C5 is new System.Address_To_Access_Conversions (ST.SMP_Tag);
+      package C4 is new System.Address_To_Access_Conversions (ST.SMP_Tag);
 
       RSDP : constant access ST.RSDP_Tag :=
          C1.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.RSDP_ID)));
@@ -49,10 +47,8 @@ package body Arch.Entrypoint is
          C2.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Terminal_ID)));
       Memmap : constant access ST.Memmap_Tag :=
          C3.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.Memmap_ID)));
-      PMRs : constant access ST.PMR_Tag :=
-         C4.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.PMR_ID)));
       SMP : constant access ST.SMP_Tag :=
-         C5.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.SMP_ID)));
+         C4.To_Pointer (To_Address (ST.Get_Tag (Protocol, ST.SMP_ID)));
 
       Info           : Boot_Information;
       Mem_Statistics : Memory.Physical.Statistics;
@@ -87,8 +83,9 @@ package body Arch.Entrypoint is
          Lib.Messages.Put      (Integer (E.EntryType), False, True);
          Lib.Messages.Put_Line ("");
       end loop;
-      Arch.Paging.Init (Memmap, PMRs);
-      Memory.Virtual.Init;
+      if not Memory.Virtual.Init (Info.Memmap (1 .. Info.Memmap_Len)) then
+         Lib.Panic.Hard_Panic ("The VMM could not be initialized");
+      end if;
 
       Lib.Messages.Put_Line ("Scanning ACPI tables");
       if not Arch.ACPI.ScanTables (RSDP.RSDP_Address) then

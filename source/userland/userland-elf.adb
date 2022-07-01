@@ -168,7 +168,8 @@ package body Userland.ELF is
          User_Accesible => True,
          Read_Only      => False,
          Executable     => True,
-         Global         => False
+         Global         => False,
+         Write_Through  => False
       );
    begin
       Memory.Virtual.Map_Range

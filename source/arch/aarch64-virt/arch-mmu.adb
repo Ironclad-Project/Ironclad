@@ -14,7 +14,61 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System.Machine_Code; use System.Machine_Code;
+
 package body Arch.MMU is
+   function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
+      pragma Unreferenced (Memmap);
+      type Unsigned_4 is mod 2 ** 4;
+      type AA64MMFR0 is record
+         PA_Range    : Unsigned_4;
+         ASID_Bits   : Unsigned_4;
+         Big_End     : Unsigned_4;
+         SNS_Mem     : Unsigned_4;
+         Big_End_EL0 : Unsigned_4;
+         TGran_16    : Unsigned_4;
+         TGran_64    : Unsigned_4;
+         TGran_4     : Unsigned_4;
+         TGran16_2   : Unsigned_4;
+         TGran64_2   : Unsigned_4;
+         TGran4_2    : Unsigned_4;
+         ExS         : Unsigned_4;
+         FGT         : Unsigned_4;
+         ECV         : Unsigned_4;
+      end record;
+      for AA64MMFR0 use record
+         PA_Range    at 0 range 0 .. 3;
+         ASID_Bits   at 0 range 4 .. 7;
+         Big_End     at 1 range 0 .. 3;
+         SNS_Mem     at 1 range 4 .. 7;
+         Big_End_EL0 at 2 range 0 .. 3;
+         TGran_16    at 2 range 4 .. 7;
+         TGran_64    at 3 range 0 .. 3;
+         TGran_4     at 3 range 4 .. 7;
+         TGran16_2   at 4 range 0 .. 3;
+         TGran64_2   at 4 range 4 .. 7;
+         TGran4_2    at 5 range 0 .. 3;
+         ExS         at 5 range 4 .. 7;
+         FGT         at 6 range 0 .. 3;
+         ECV         at 6 range 4 .. 7;
+      end record;
+      for AA64MMFR0'Size use 64;
+
+      Value : AA64MMFR0;
+   begin
+      --  Check capabilities.
+      Asm ("mrs %0, id_aa64mmfr0_el1",
+           Outputs  => AA64MMFR0'Asm_Output ("=r", Value),
+           Clobber  => "memory",
+           Volatile => True);
+
+      if Value.TGran_4 /= 0 then
+         return False;
+      end if;
+
+      return True;
+   end Init;
+
    function Create_Table return Page_Table is
    begin
       return Page_Table (System.Null_Address);

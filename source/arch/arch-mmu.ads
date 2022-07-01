@@ -21,6 +21,8 @@ package Arch.MMU is
    --  Kernel map, which is used by the freestanding kernel when called.
    Kernel_Table : Page_Table;
 
+   function Init (Memmap : Arch.Boot_Memory_Map) return Boolean;
+
    --  Create or destroy maps, return Null_Address or False on failure.
    function Create_Table return Page_Table;
    function Destroy_Table return Boolean;
@@ -36,10 +38,11 @@ package Arch.MMU is
 
    --  Map, remap, or unmap a range, will return False on failure.
    type Page_Permissions is record
-      User_Accesible : Boolean; --  The user can operate on the range.
-      Read_Only      : Boolean; --  The range is read only or r/w.
-      Executable     : Boolean; --  The range is executable.
-      Global         : Boolean; --  The range is global (TLB optimization).
+      User_Accesible : Boolean; --  User accesible.
+      Read_Only      : Boolean; --  Read only or RW.
+      Executable     : Boolean; --  Will store executable code.
+      Global         : Boolean; --  Hint for global (TLB optimization).
+      Write_Through  : Boolean; --  Hint for write-combining + write-through.
    end record;
    function Map_Range
       (Map            : Page_Table;

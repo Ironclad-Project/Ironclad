@@ -184,7 +184,8 @@ package body Scheduler is
             User_Accesible => True,
             Read_Only      => False,
             Executable     => True,
-            Global         => False
+            Global         => False,
+            Write_Through  => False
          );
       begin
          Thread_Pool (New_TID).Is_Present   := True;
