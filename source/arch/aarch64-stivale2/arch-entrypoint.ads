@@ -14,9 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.DTB;
+with Arch.Stivale2;
 
 package Arch.Entrypoint is
-   procedure Bootstrap_Main (Blob : DTB.Header_Acc)
+   procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header)
       with Export, Convention => C, External_Name => "kernel_main";
 end Arch.Entrypoint;

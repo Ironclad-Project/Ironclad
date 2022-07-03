@@ -16,7 +16,7 @@
 
 project Ironclad is
    --  Get command-line options for flags and boards.
-   type Arch_Name   is ("x86_64-stivale2", "aarch64-virt");
+   type Arch_Name   is ("x86_64-stivale2", "aarch64-stivale2");
    type Target_Name is ("standard", "embedded");
    Arch   : Arch_Name   := External ("ARCH",   "x86_64-stivale2");
    Target : Target_Name := External ("TARGET", "standard");
@@ -56,9 +56,9 @@ project Ironclad is
             for Default_Switches ("C") use Base_C_Switches & (
                "-fpie"
             );
-         when "aarch64-virt" =>
+         when "aarch64-stivale2" =>
             for Default_Switches ("Ada") use Base_Ada_Switches & (
-               "-mgeneral-regs-only", "-static"
+               "-mgeneral-regs-only", "-static", "-fno-pie", "-fno-pic"
             );
             for Default_Switches ("C") use Base_C_Switches;
       end case;
@@ -78,9 +78,10 @@ project Ironclad is
                "-pie", "-zmax-page-size=0x1000",
                "-Wl,--undefined=stivale2hdr,-zmuldefs"
             );
-         when "aarch64-virt" =>
+         when "aarch64-stivale2" =>
             for Default_Switches ("Ada") use Base_Link_Switches & (
-               "-zmax-page-size=0x1000", "-static", "-Wl,-zmuldefs"
+               "-zmax-page-size=0x1000", "-static", "-Wl,-zmuldefs",
+               "-fno-pie", "-fno-pic"
             );
       end case;
    end Linker;

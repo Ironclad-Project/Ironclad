@@ -1,41 +1,44 @@
-/*
- * arch-bootstrap.ld: Bootstrap code of the port.
- * Copyright (C) 2021 streaksu
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+# header.S: Stivale2 header.
+# Copyright (C) 2021 streaksu
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+.section ".stivale2hdr", "aw", @progbits
+.globl stivale2hdr
+stivale2hdr:
+    .quad entrypoint_main                // Alternative entrypoint, 0 is none.
+    .quad stack_top                      // Stack to be loaded for the kernel.
+    .quad (1 << 1) | (1 << 2) | (1 << 4) // Flags to request offset mem + PMRs.
+    .quad smp_tag                        // Start of tags.
+
+.section .data
+
+smp_tag:
+    .quad 0x1ab015085f3273df // Identifier of the tag.
+    .quad 0                  // Next one in line, 0 is none.
+    .quad 0                  // Flags, we dont need anything in particular.
 
 .section .bss
 .align 16
-// Stack for the bootstrap.
-stack_bottom:
+
+stack:
     .space 32768
 stack_top:
 
 .section .text
 .global entrypoint_main
 entrypoint_main:
-    // x0: DTB pointer.
-
-    // Clear BSS, the symbols are declared in the linker file.
-    ldr x5, =bss_start
-    ldr x6, =bss_end
-1:
-    str	xzr, [x5], #8
-    cmp	x5, x6
-    b.lo 1b
-
     // Disable interrupts.
     msr daifset, #0xf
 

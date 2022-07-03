@@ -14,36 +14,30 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
 with Lib.Messages;
 with Lib.Panic;
 with Config;
+with Memory.Physical;
+with Memory.Virtual;
 
 package body Arch.Entrypoint is
-   procedure Bootstrap_Main (Blob : DTB.Header_Acc) is
-      Reservation_Addr : System.Address;
+   procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header) is
+      --  TODO: This is a placeholder because I am lazy to read the DTB.
+      --  This sucks, and is only for testing purposes, please fix this asap.
+      Memory_Map : Boot_Memory_Map (1 .. 1) := (
+         1 => (System'To_Address (16#45000000#), 16#15000000#, True)
+      );
    begin
-      Lib.Messages.Put      (Config.Name & " " & Config.Version & " ");
-      Lib.Messages.Put_Line ("booted from aarch64-virt");
-      Lib.Messages.Put      ("Please report errors and issues to ");
+      Lib.Messages.Put (Config.Name & " " & Config.Version & " booted by ");
+      Lib.Messages.Put (Protocol.BootloaderBrand & " ");
+      Lib.Messages.Put_Line (Protocol.BootloaderVersion);
+      Lib.Messages.Put ("Please report errors and issues to ");
       Lib.Messages.Put_Line (Config.Bug_Site);
 
-      if not DTB.Is_Valid (Blob) then
-         Lib.Panic.Hard_Panic ("The passed DTB is not valid");
+      Memory.Physical.Init_Allocator (Memory_Map);
+      if not Memory.Virtual.Init (Memory_Map) then
+         Lib.Panic.Hard_Panic ("Could not start the VMM");
       end if;
-
-      Reservation_Addr := DTB.Get_Memory_Reservation (Blob);
-      loop
-         declare
-            Reservation : DTB.Reservation with Address => Reservation_Addr;
-         begin
-            exit when Reservation.Size = 0 and Reservation.Address = 0;
-            Lib.Messages.Put (Reservation.Address, False, True);
-            Lib.Messages.Put ("+");
-            Lib.Messages.Put (Reservation.Size, False, True);
-            Reservation_Addr := Reservation_Addr + DTB.Reservation'Size / 8;
-         end;
-      end loop;
 
       Lib.Panic.Hard_Panic ("End of kernel");
    end Bootstrap_Main;

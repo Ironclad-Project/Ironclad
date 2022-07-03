@@ -14,9 +14,37 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System; use System;
+with System.Address_To_Access_Conversions;
+with Interfaces; use Interfaces;
 with System.Machine_Code; use System.Machine_Code;
+with Lib.Panic;
 
 package body Arch.MMU is
+   --  The page size the kernel will use for both its ttbrs.
+   type Page_Size is (
+      Pages_4K,
+      Pages_16K,
+      Pages_64K
+   );
+   for Page_Size use (
+      Pages_4K  => 16#1000#,
+      Pages_16K => 16#4000#,
+      Pages_64K => 16#10000#
+   );
+   Used_Size : Page_Size;
+
+   --  Page structure.
+   type Page_Level is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
+   type Page_Map is record
+      TTBR0 : Page_Level;
+      TTBR1 : Page_Level;
+   end record;
+   type Page_Map_Acc is access all Page_Map;
+   Kernel_Map : Page_Map_Acc;
+
+   package Conv is new System.Address_To_Access_Conversions (Page_Map);
+
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
       pragma Unreferenced (Memmap);
       type Unsigned_4 is mod 2 ** 4;
@@ -33,6 +61,8 @@ package body Arch.MMU is
          TGran64_2   : Unsigned_4;
          TGran4_2    : Unsigned_4;
          ExS         : Unsigned_4;
+         Reserved_1  : Unsigned_4;
+         Reserved_2  : Unsigned_4;
          FGT         : Unsigned_4;
          ECV         : Unsigned_4;
       end record;
@@ -49,29 +79,82 @@ package body Arch.MMU is
          TGran64_2   at 4 range 4 .. 7;
          TGran4_2    at 5 range 0 .. 3;
          ExS         at 5 range 4 .. 7;
-         FGT         at 6 range 0 .. 3;
-         ECV         at 6 range 4 .. 7;
+         Reserved_1  at 6 range 0 .. 3;
+         Reserved_2  at 6 range 4 .. 7;
+         FGT         at 7 range 0 .. 3;
+         ECV         at 7 range 4 .. 7;
       end record;
       for AA64MMFR0'Size use 64;
 
-      Value : AA64MMFR0;
+      type MAIR_EL1 is record
+         Attr0 : Unsigned_8;
+         Attr1 : Unsigned_8;
+         Attr2 : Unsigned_8;
+         Attr3 : Unsigned_8;
+         Attr4 : Unsigned_8;
+         Attr5 : Unsigned_8;
+         Attr6 : Unsigned_8;
+         Attr7 : Unsigned_8;
+      end record;
+      for MAIR_EL1 use record
+         Attr0 at 0 range 0 .. 7;
+         Attr1 at 1 range 0 .. 7;
+         Attr2 at 2 range 0 .. 7;
+         Attr3 at 3 range 0 .. 7;
+         Attr4 at 4 range 0 .. 7;
+         Attr5 at 5 range 0 .. 7;
+         Attr6 at 6 range 0 .. 7;
+         Attr7 at 7 range 0 .. 7;
+      end record;
+      for MAIR_EL1'Size use 64;
+
+      AA64MMFR : AA64MMFR0;
+      MAIR : constant MAIR_EL1 := (
+         Attr0 => 2#11111111#, --  Normal, Write-back RW-Allocate non-transient
+         Attr1 => 2#00000000#, --  Device, nGnRnE
+         Attr2 => 2#00000000#, --  Ditto
+         Attr3 => 2#00000000#, --  Ditto
+         Attr4 => 2#00000000#, --  Ditto
+         Attr5 => 2#00000000#, --  Ditto
+         Attr6 => 2#00000000#, --  Ditto
+         Attr7 => 2#00000000#  --  Ditto
+      );
    begin
-      --  Check capabilities.
+      --  Check for the page size, default to biggest.
       Asm ("mrs %0, id_aa64mmfr0_el1",
-           Outputs  => AA64MMFR0'Asm_Output ("=r", Value),
+           Outputs  => AA64MMFR0'Asm_Output ("=r", AA64MMFR),
            Clobber  => "memory",
            Volatile => True);
 
-      if Value.TGran_4 /= 0 then
+      if AA64MMFR.TGran_4 = 0 then
+         Used_Size := Pages_4K;
+      elsif AA64MMFR.TGran_64 = 0 then
+         Used_Size := Pages_64K;
+      elsif AA64MMFR.TGran16_2 /= 1 and AA64MMFR.TGran16_2 /= 0 then
+         Used_Size := Pages_16K;
+      else
+         Lib.Panic.Soft_Panic ("MMU page size could not be found");
          return False;
       end if;
 
-      return True;
+      --  Set MMU state.
+      Asm ("msr mair_el1, %0",
+           Inputs   => MAIR_EL1'Asm_Input ("r", MAIR),
+           Clobber  => "memory",
+           Volatile => True);
+
+      --  Create the kernel map.
+      Kernel_Map   := new Page_Map;
+      Kernel_Table := Page_Table (Kernel_Map.all'Address);
+
+      return False;
    end Init;
 
    function Create_Table return Page_Table is
+      Map : constant Page_Map_Acc := new Page_Map;
    begin
-      return Page_Table (System.Null_Address);
+      Map.TTBR1 := Kernel_Map.TTBR1;
+      return Page_Table (Conv.To_Address (Conv.Object_Pointer (Map)));
    end Create_Table;
 
    function Destroy_Table return Boolean is
@@ -80,15 +163,29 @@ package body Arch.MMU is
    end Destroy_Table;
 
    function Make_Active (Map : Page_Table) return Boolean is
-      pragma Unreferenced (Map);
+      Table : constant Page_Map_Acc :=
+         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
    begin
-      return False;
+      Asm ("msr ttbr0_el1, %0; msr ttbr1_el1, %1; dsb st; isb sy",
+           Inputs   => (System.Address'Asm_Input ("r", Table.TTBR0'Address),
+                        System.Address'Asm_Input ("r", Table.TTBR1'Address)),
+           Clobber  => "memory",
+           Volatile => True);
+      return True;
    end Make_Active;
 
    function Is_Active (Map : Page_Table) return Boolean is
-      pragma Unreferenced (Map);
+      Table : constant Page_Map_Acc :=
+         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+
+      TTBR0, TTBR1 : System.Address;
    begin
-      return False;
+      Asm ("mrs %0, ttbr0_el1; mrs %1, ttbr1_el1",
+           Outputs  => (System.Address'Asm_Output ("=r", TTBR0),
+                        System.Address'Asm_Output ("=r", TTBR1)),
+           Clobber  => "memory",
+           Volatile => True);
+      return Table.TTBR0'Address = TTBR0 and Table.TTBR1'Address = TTBR1;
    end Is_Active;
 
    --  Do translation for a single address, this function does not fail.

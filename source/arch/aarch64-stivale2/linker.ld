@@ -18,31 +18,52 @@
 
 ENTRY(entrypoint_main)
 
+PHDRS
+{
+    text    PT_LOAD    FLAGS((1 << 0) | (1 << 2)) ; /* Execute + Read  */
+    rodata  PT_LOAD    FLAGS((1 << 2)) ;            /* Read only       */
+    data    PT_LOAD    FLAGS((1 << 1) | (1 << 2)) ; /* Write + Read    */
+}
+
 SECTIONS {
-    . = 0x40000000;
+    . = 0xFFFFFFFF80000000 + 1M;
 
     /DISCARD/ : {
-        *libgnat-12.so(*)
+        *libgnat.a:*(*)
     }
 
-    /*  Ensure the start code is at the beggining. */
-    .startup : ALIGN(0x1000) {
-        arch-bootstrap.o(.text)
-    }
+    . = ALIGN(64K);
 
-    .text : ALIGN(0x1000) {
-        *(.text)
-    }
+    /* Actual kernel. */
+    .text : {
+        *(.text .text.*)
+    } :text
 
-    .data : ALIGN(0x1000) {
-        *(.data)
-    }
+    . = ALIGN(64K);
 
-    .bss : ALIGN(0x1000) {
-        bss_start = .;
+    /* Name required by spec. */
+    .stivale2hdr : {
+        KEEP(*(.stivale2hdr))
+    } :rodata
+
+    .rodata : {
+        *(.rodata .rodata.*)
+        *(.note.gnu.build-id)
+    } :rodata
+
+    . = ALIGN(64K);
+
+    .data : {
+        *(.data .data.*)
+    } :data
+
+    .bss : {
         *(.bss .bss.*)
         *(COMMON)
-        . = ALIGN(8);
-        bss_end = .;
+    } :data
+
+    /DISCARD/ : {
+      *a:*(*)
+      *o(*)
     }
 }

@@ -47,6 +47,7 @@ SECTIONS {
 
     .rodata : {
         *(.rodata .rodata.*)
+        *(.note.gnu.build-id)
     } :rodata
 
     . += CONSTANT(MAXPAGESIZE);
@@ -63,4 +64,9 @@ SECTIONS {
         *(.bss .bss.*)
         *(COMMON)
     } :data
+
+    /DISCARD/ : {
+      *a:*(*)
+      *o(*)
+    }
 }
