@@ -20,6 +20,7 @@ with Config;
 with System; use System;
 with Lib.Messages;
 with Lib;
+with Lib.Alignment;
 with Networking;
 with Userland.Process; use Userland.Process;
 with Userland.Loader;
@@ -62,8 +63,10 @@ package body Userland.Syscall is
 
       --  Remove all state but the return value and keep the zombie around
       --  until we are waited.
-      Userland.Process.Flush_Threads  (Current_Process);
-      Userland.Process.Flush_Files    (Current_Process);
+      Userland.Process.Flush_Threads (Current_Process);
+      Userland.Process.Flush_Files   (Current_Process);
+      Memory.Virtual.Delete_Map      (Current_Process.Common_Map);
+
       Current_Process.Exit_Code := Unsigned_8 (Error_Code);
       Current_Process.Did_Exit  := True;
       Scheduler.Bail;
@@ -330,7 +333,8 @@ package body Userland.Syscall is
          Write_Through  => False
       );
 
-      Aligned_Hint : Unsigned_64 := Lib.Align_Up (Hint, Page_Size);
+      package Align is new Lib.Alignment (Unsigned_64);
+      Aligned_Hint : Unsigned_64 := Align.Align_Up (Hint, Page_Size);
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall mmap(");
@@ -372,16 +376,22 @@ package body Userland.Syscall is
 
       --  Do mmap anon or pass it to the VFS.
       if (Flags and Map_Anon) /= 0 then
-         Memory.Virtual.Map_Range (
+         if not Memory.Virtual.Map_Range (
             Map,
             Virtual_Address (Aligned_Hint),
             Memory.Physical.Alloc (Interfaces.C.size_t (Length)) -
                                    Memory_Offset,
             Length,
             Map_Flags
-         );
-         Errno := Error_No_Error;
-         return Aligned_Hint;
+         )
+         then
+            --  I dont really know what to return in this case.
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+         else
+            Errno := Error_No_Error;
+            return Aligned_Hint;
+         end if;
       else
          declare
             File : constant VFS.File.File_Acc :=

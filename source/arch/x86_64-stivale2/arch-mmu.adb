@@ -14,12 +14,14 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Unchecked_Deallocation;
 with System.Address_To_Access_Conversions;
 with Interfaces; use Interfaces;
 with Arch.Wrappers;
 with Arch.Stivale2;
 with Memory; use Memory;
 with Lib.Panic;
+with Lib.Alignment;
 
 package body Arch.MMU is
    --  Page table entries consist of an address padded to 4K, which frees
@@ -282,15 +284,14 @@ package body Arch.MMU is
    package Conv is new System.Address_To_Access_Conversions (Page_Map);
 
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
-      pragma Unreferenced (Memmap);
       package ST renames Stivale2;
       package C1 is new System.Address_To_Access_Conversions (ST.PMR_Tag);
-      package C2 is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
+
+      package Ali1 is new Lib.Alignment (Integer_Address);
+      package Ali2 is new Lib.Alignment (Unsigned_64);
 
       PMRs : constant access ST.PMR_Tag :=
-      C1.To_Pointer (To_Address (ST.Get_Tag (ST.Stivale_Tag, ST.PMR_ID)));
-      Memma : constant access ST.Memmap_Tag :=
-      C2.To_Pointer (To_Address (ST.Get_Tag (ST.Stivale_Tag, ST.Memmap_ID)));
+         C1.To_Pointer (To_Address (ST.Get_Tag (ST.Stivale_Tag, ST.PMR_ID)));
       Flags : constant Page_Permissions := (
          User_Accesible => False,
          Read_Only      => False,
@@ -298,22 +299,69 @@ package body Arch.MMU is
          Global         => True,
          Write_Through  => False
       );
-      Page_Size        : constant := 16#1000#;
-      Hardcoded_Region : constant := 16#100000000#;
-      Discard          : Boolean;
+      Hardcoded_Region   : constant := 16#100000000#;
+      Success1, Success2 : Boolean;
+      Aligned_Addr       : Integer_Address;
+      Aligned_Len        : Unsigned_64;
    begin
       --  Initialize the kernel pagemap.
       Kernel_Map   := new Page_Map;
       Kernel_Table := Page_Table (Kernel_Map.all'Address);
 
+      --  Map the first 2 GiB (except 0) to the window and identity mapped.
+      --  This is done instead of following the pagemap to ensure that all
+      --  I/O and memory tables that may not be in the memmap are mapped.
+      Success1 := Map_Range (
+         Map            => Kernel_Table,
+         Physical_Start => To_Address (Page_Size),
+         Virtual_Start  => To_Address (Page_Size),
+         Length         => Hardcoded_Region - Page_Size,
+         Permissions    => Flags
+      );
+      Success2 := Map_Range (
+         Map            => Kernel_Table,
+         Physical_Start => To_Address (Page_Size),
+         Virtual_Start  => To_Address (Page_Size + Memory_Offset),
+         Length         => Hardcoded_Region - Page_Size,
+         Permissions    => Flags
+      );
+      if not Success1 or not Success2 then
+         return False;
+      end if;
+
+      --  Map the memmap memory to the memory window.
+      for E of Memmap loop
+         Aligned_Addr := Ali1.Align_Down (To_Integer  (E.Start),  Page_Size);
+         Aligned_Len  := Ali2.Align_Down (Unsigned_64 (E.Length), Page_Size);
+         Success1     := Map_Range (
+            Map            => Kernel_Table,
+            Physical_Start => To_Address (Aligned_Addr),
+            Virtual_Start  => To_Address (Aligned_Addr),
+            Length         => Storage_Offset (Aligned_Len),
+            Permissions    => Flags
+         );
+         Success2 := Map_Range (
+            Map            => Kernel_Table,
+            Physical_Start => To_Address (Aligned_Addr),
+            Virtual_Start  => To_Address (Aligned_Addr + Memory_Offset),
+            Length         => Storage_Offset (Aligned_Len),
+            Permissions    => Flags
+         );
+         if not Success1 or not Success2 then
+            return False;
+         end if;
+      end loop;
+
       --  Map PMRs of the kernel.
       --  This will always be mapped, so we can mark them global.
       for E of PMRs.Entries loop
-         Discard := Map_Range (
+         Aligned_Addr := Ali1.Align_Down (E.Base,  Page_Size);
+         Aligned_Len  := Ali2.Align_Down (E.Length, Page_Size);
+         Success1     := Map_Range (
             Map            => Kernel_Table,
-            Physical_Start => To_Address (E.Base - Kernel_Offset),
-            Virtual_Start  => To_Address (E.Base),
-            Length         => Storage_Offset (E.Length),
+            Physical_Start => To_Address (Aligned_Addr - Kernel_Offset),
+            Virtual_Start  => To_Address (Aligned_Addr),
+            Length         => Storage_Offset (Aligned_Len),
             Permissions    => (
                False,
                (E.Permissions and Arch.Stivale2.PMR_Writable_Mask)    = 0,
@@ -322,47 +370,10 @@ package body Arch.MMU is
                False
             )
          );
-      end loop;
-
-      --  Map the first 2 GiB (except 0) to the window and identity mapped.
-      --  This is done instead of following the pagemap to ensure that all
-      --  I/O and memory tables that may not be in the memmap are mapped.
-      Discard := Map_Range (
-         Map            => Kernel_Table,
-         Physical_Start => To_Address (Page_Size),
-         Virtual_Start  => To_Address (Page_Size),
-         Length         => Hardcoded_Region - Page_Size,
-         Permissions    => Flags
-      );
-      Discard := Map_Range (
-         Map            => Kernel_Table,
-         Physical_Start => To_Address (Page_Size),
-         Virtual_Start  => To_Address (Page_Size + Memory_Offset),
-         Length         => Hardcoded_Region - Page_Size,
-         Permissions    => Flags
-      );
-
-      --  Map the memmap memory identity mapped and to the memory window.
-      for E of Memma.Entries loop
-         --  We already mapped the kernel.
-         if E.EntryType /= Arch.Stivale2.Memmap_Entry_Kernel_And_Modules then
-            Discard := Map_Range (
-               Map            => Kernel_Table,
-               Physical_Start => To_Address (E.Base),
-               Virtual_Start  => To_Address (E.Base),
-               Length         => Storage_Offset (E.Length),
-               Permissions    => Flags
-            );
-            Discard := Map_Range (
-               Map            => Kernel_Table,
-               Physical_Start => To_Address (E.Base),
-               Virtual_Start  => To_Address (E.Base + Memory_Offset),
-               Length         => Storage_Offset (E.Length),
-               Permissions    => Flags
-            );
+         if not Success1 then
+            return False;
          end if;
       end loop;
-
       return True;
    end Init;
 
@@ -375,9 +386,15 @@ package body Arch.MMU is
       return Page_Table (Conv.To_Address (Conv.Object_Pointer (Map)));
    end Create_Table;
 
-   function Destroy_Table return Boolean is
+   procedure Destroy_Table (Map : in out Page_Table) is
+      procedure F is new Ada.Unchecked_Deallocation (Page_Map, Page_Map_Acc);
+
+      Table : Page_Map_Acc :=
+         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
    begin
-      return True;
+      --  TODO: Free the tables themselves.
+      F (Table);
+      Map := Page_Table (System.Null_Address);
    end Destroy_Table;
 
    function Make_Active (Map : Page_Table) return Boolean is
@@ -428,19 +445,26 @@ package body Arch.MMU is
    is
       Table : constant Page_Map_Acc :=
          Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
-      Physical : constant Integer_Address := To_Integer (Physical_Start);
-      Virtual  : constant Integer_Address := To_Integer (Virtual_Start);
-      Len      : constant Unsigned_64     := Unsigned_64 (Length);
-      PStart : constant Physical_Address := (Physical / Page_Size) * Page_Size;
-      VStart : constant Virtual_Address  := (Virtual  / Page_Size) * Page_Size;
-      I : Physical_Address := 0;
-      Flags   : constant Page_Flags := Convert_Permissions (Permissions);
-      Not_Execute : constant Boolean := not Permissions.Executable;
+      Flags       : constant Page_Flags := Convert_Permissions (Permissions);
+      Not_Execute : constant Boolean    := not Permissions.Executable;
    begin
-      while Unsigned_64 (I) < Len loop
-         Map_Page (Table, VStart + I, PStart + I, Flags, Not_Execute);
-         I := I + Page_Size;
+      if To_Integer (Physical_Start) mod Page_Size /= 0 or
+         To_Integer (Virtual_Start)  mod Page_Size /= 0 or
+         Length                      mod Page_Size /= 0
+      then
+         return False;
+      end if;
+
+      for I in 0 .. (Length / 16#1000#) loop
+         Map_Page (
+            Map         => Table,
+            Virtual     => To_Integer (Virtual_Start  + (Page_Size * I)),
+            Physical    => To_Integer (Physical_Start + (Page_Size * I)),
+            Flags       => Flags,
+            Not_Execute => Not_Execute
+         );
       end loop;
+
       return True;
    end Map_Range;
 
@@ -452,17 +476,24 @@ package body Arch.MMU is
    is
       Table : constant Page_Map_Acc :=
          Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
-      Virtual : constant Integer_Address := To_Integer (Virtual_Start);
-      Len     : constant Unsigned_64     := Unsigned_64 (Length);
-      VStart  : constant Virtual_Address := (Virtual / Page_Size) * Page_Size;
-      I       : Physical_Address := 0;
-      Flags   : constant Page_Flags := Convert_Permissions (Permissions);
+      Flags       : constant Page_Flags := Convert_Permissions (Permissions);
       Not_Execute : constant Boolean := not Permissions.Executable;
    begin
-      while Unsigned_64 (I) < Len loop
-         Change_Page_Flags (Table, VStart + I, Flags, Not_Execute);
-         I := I + Page_Size;
+      if To_Integer (Virtual_Start) mod Page_Size /= 0 or
+         Length                     mod Page_Size /= 0
+      then
+         return False;
+      end if;
+
+      for I in 0 .. (Length / 16#1000#) loop
+         Change_Page_Flags (
+            Map         => Table,
+            Virtual     => To_Integer (Virtual_Start + (Page_Size * I)),
+            Flags       => Flags,
+            Not_Execute => Not_Execute
+         );
       end loop;
+
       return True;
    end Remap_Range;
 
@@ -473,15 +504,20 @@ package body Arch.MMU is
    is
       Table : constant Page_Map_Acc :=
          Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
-      Virtual : constant Integer_Address := To_Integer (Virtual_Start);
-      Len     : constant Unsigned_64     := Unsigned_64 (Length);
-      VStart : constant Virtual_Address  := (Virtual / Page_Size) * Page_Size;
-      I      : Physical_Address := 0;
    begin
-      while Unsigned_64 (I) < Len loop
-         Unmap_Page (Table, VStart + I);
-         I := I + Page_Size;
+      if To_Integer (Virtual_Start) mod Page_Size /= 0 or
+         Length                     mod Page_Size /= 0
+      then
+         return False;
+      end if;
+
+      for I in 0 .. (Length / 16#1000#) loop
+         Unmap_Page (
+            Map     => Table,
+            Virtual => To_Integer (Virtual_Start + (Page_Size * I))
+         );
       end loop;
+
       return True;
    end Unmap_Range;
 

@@ -1,4 +1,4 @@
---  lib.ads: Generic library functions.
+--  lib-alignment.adb: Generic alignment functions.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,21 +14,20 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 
-package body Lib with SPARK_Mode is
-   function C_String_Length (Addr : Address) return Natural is
-      Length : Natural := 0;
+package body Lib.Alignment is
+   function Align_Up (Value, Alignment : T) return T is
+      Value2 : constant Integer_Address := Integer_Address (Value);
+      Align2 : constant Integer_Address := Integer_Address (Alignment);
    begin
-      loop
-         declare
-            C : Character with Address => Addr + Storage_Offset (Length);
-         begin
-            exit when C = Ada.Characters.Latin_1.NUL or Length = Natural'Last;
-            Length := Length + 1;
-         end;
-      end loop;
-      return Length;
-   end C_String_Length;
-end Lib;
+      return T ((Value2 + Align2 - 1) and not (Align2 - 1));
+   end Align_Up;
+
+   function Align_Down (Value, Alignment : T) return T is
+      Value2 : constant Integer_Address := Integer_Address (Value);
+      Align2 : constant Integer_Address := Integer_Address (Alignment);
+   begin
+      return T (Value2 and not (Align2 - 1));
+   end Align_Down;
+end Lib.Alignment;

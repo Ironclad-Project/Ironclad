@@ -1,4 +1,4 @@
---  lib.ads: Specification of generic library functions.
+--  lib-alignment.ads: Generic alignment functions.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,11 +14,17 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System; use System;
-with Interfaces; use Interfaces;
+--  This functions are designed to be used with pow 2 alignments.
+--  They will fail else.
 
-package Lib with SPARK_Mode, Pure is
-   --  Report the length of a NUL-Terminated C string.
-   function C_String_Length (Addr : Address) return Natural
-      with Pre => Addr /= System.Null_Address;
-end Lib;
+generic
+   type T is mod <>;
+package Lib.Alignment with SPARK_Mode, Pure is
+   function Align_Up (Value, Alignment : T) return T
+      with Pre  => Alignment /= 0 and (Alignment and (Alignment - 1)) = 0,
+           Post => Align_Up'Result rem Alignment = 0;
+
+   function Align_Down (Value, Alignment : T) return T
+      with Pre  => Alignment /= 0 and (Alignment and (Alignment - 1)) = 0,
+           Post => Align_Down'Result rem Alignment = 0;
+end Lib.Alignment;

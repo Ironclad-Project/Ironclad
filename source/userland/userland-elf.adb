@@ -172,12 +172,16 @@ package body Userland.ELF is
          Write_Through  => False
       );
    begin
-      Memory.Virtual.Map_Range
+      if not Memory.Virtual.Map_Range
          (Map      => Map,
           Virtual  => ELF_Virtual,
           Physical => To_Integer (Load'Address) - Memory.Memory_Offset,
           Length   => Load_Size,
-          Flags    => Flags);
+          Flags    => Flags)
+      then
+         return False;
+      end if;
+
       File_D.Index := Header.Offset;
       return VFS.File.Read (
          File_D,

@@ -61,7 +61,7 @@ jobs:
                 gprbuild --target=x86_64-linux-gnu -p -XARCH=x86_64-stivale2 -XTARGET=standard
 
     build-aarch64-virt:
-        name: Build aarch64-virt
+        name: Build aarch64-stivale2
         runs-on: ubuntu-latest
         container: debian:sid
         steps:
@@ -77,10 +77,10 @@ jobs:
             run: |
                 touch libgnat-12.a
                 gprclean
-                LDFLAGS="-O2 -g -Wl,-gc-sections -L." gprbuild --target=aarch64-linux-gnu -p -XARCH=aarch64-virt -XTARGET=embedded
+                LDFLAGS="-O2 -g -Wl,-gc-sections -L." gprbuild --target=aarch64-linux-gnu -p -XARCH=aarch64-stivale2 -XTARGET=embedded
 
           - name: Build standard
             run: |
                 touch libgnat-12.a
                 gprclean
-                LDFLAGS="-O2 -g -Wl,-gc-sections -L." gprbuild --target=aarch64-linux-gnu -p -XARCH=aarch64-virt -XTARGET=standard
+                LDFLAGS="-O2 -g -Wl,-gc-sections -L." gprbuild --target=aarch64-linux-gnu -p -XARCH=aarch64-stivale2 -XTARGET=standard

@@ -26,9 +26,9 @@ package body Devices.BootFB is
    type FB_Arr is array (Unsigned_32 range <>) of Unsigned_32;
 
    function Init (Fb : access Arch.Stivale2.Framebuffer_Tag) return Boolean is
-      Stat   : VFS.File_Stat;
-      Device : VFS.Resource;
-      Addr   : constant Integer_Address := To_Integer (Fb.Address);
+      Stat     : VFS.File_Stat;
+      Device   : VFS.Resource;
+      Addr     : constant Integer_Address := To_Integer (Fb.Address);
       Fb_Flags : constant Arch.MMU.Page_Permissions := (
          User_Accesible => False,
          Read_Only      => False,
@@ -41,18 +41,21 @@ package body Devices.BootFB is
       --  (also in the lower half because stivale2 might use it).
       --  We only have to map it in the kernel map lower half because we
       --  always switch to it when calling the terminal (PERFORMANCE died).
-      Memory.Virtual.Remap_Range (
+      if not Memory.Virtual.Remap_Range (
          Map     => Memory.Virtual.Kernel_Map,
          Virtual => Memory.Virtual_Address (Addr),
          Length  => Unsigned_64 (Fb.Height) * 4 * Unsigned_64 (Fb.Pitch),
          Flags   => Fb_Flags
-      );
-      Memory.Virtual.Remap_Range (
+      ) or
+      not Memory.Virtual.Remap_Range (
          Map     => Memory.Virtual.Kernel_Map,
          Virtual => Memory.Virtual_Address (Addr - Memory.Memory_Offset),
          Length  => Unsigned_64 (Fb.Height) * 4 * Unsigned_64 (Fb.Pitch),
          Flags   => Fb_Flags
-      );
+      )
+      then
+         return False;
+      end if;
 
       --  Register the device.
       Stat := (
@@ -185,13 +188,12 @@ package body Devices.BootFB is
          Write_Through  => True
       );
    begin
-      Memory.Virtual.Map_Range (
+      return Memory.Virtual.Map_Range (
          Map      => Process.Common_Map,
          Virtual  => Address,
          Physical => Memory.Virtual_Address (Addr - Memory.Memory_Offset),
          Length   => Length,
          Flags    => Fb_Flags
       );
-      return True;
    end Mmap;
 end Devices.BootFB;

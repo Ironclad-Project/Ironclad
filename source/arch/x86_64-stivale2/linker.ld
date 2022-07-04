@@ -56,6 +56,14 @@ SECTIONS {
         *(.data .data.*)
     } :data
 
+    .got : {
+        *(.got .got.*)
+    } :data
+
+    .rela : {
+        *(.rela .rela.*)
+    } :data
+
     .dynamic : {
         *(.dynamic)
     } :data :dynamic

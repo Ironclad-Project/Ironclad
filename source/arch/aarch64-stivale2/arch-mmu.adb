@@ -157,9 +157,10 @@ package body Arch.MMU is
       return Page_Table (Conv.To_Address (Conv.Object_Pointer (Map)));
    end Create_Table;
 
-   function Destroy_Table return Boolean is
+   procedure Destroy_Table (Map : in out Page_Table) is
+      pragma Unreferenced (Map);
    begin
-      return False;
+      null;
    end Destroy_Table;
 
    function Make_Active (Map : Page_Table) return Boolean is

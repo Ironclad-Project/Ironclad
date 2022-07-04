@@ -64,6 +64,7 @@ package body Arch.Stivale2 is
    end Print_Terminal;
 
    procedure Inner_Terminal (Message : System.Address; Length : Natural) is
+      Discard : Boolean;
    begin
       if not Terminal_Enabled then
          return;
@@ -86,7 +87,7 @@ package body Arch.Stivale2 is
          if Kernel_Map /= null and then
             not Memory.Virtual.Is_Loaded (Kernel_Map)
          then
-            Make_Active (Kernel_Map);
+            Discard := Make_Active (Kernel_Map);
          end if;
 
          --  The terminal doesn't have internal locking so we need to lock it

@@ -14,7 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Unchecked_Deallocation;
+with Lib.Alignment;
+
 package body Memory.Virtual is
+   package Align1 is new Lib.Alignment (Integer_Address);
+   package Align2 is new Lib.Alignment (Unsigned_64);
+
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
    begin
       if not Arch.MMU.Init (Memmap) then
@@ -23,41 +29,45 @@ package body Memory.Virtual is
          Kernel_Map := new Page_Map;
          Kernel_Map.Inner := Arch.MMU.Kernel_Table;
          Lib.Synchronization.Release (Kernel_Map.Mutex'Access);
-         Make_Active (Kernel_Map);
-         return True;
+         return Make_Active (Kernel_Map);
       end if;
    end Init;
 
-   procedure Make_Active (Map : Page_Map_Acc) is
-      Discard : Boolean;
+   function Make_Active (Map : Page_Map_Acc) return Boolean is
+      Success : Boolean := True;
    begin
       --  Make the pagemap active on the callee core by writing the top-level
       --  address to CR3.
       Lib.Synchronization.Seize (Map.Mutex'Access);
       if not Arch.MMU.Is_Active (Map.Inner) then
-         Discard := Arch.MMU.Make_Active (Map.Inner);
+         Success := Arch.MMU.Make_Active (Map.Inner);
       end if;
       Lib.Synchronization.Release (Map.Mutex'Access);
+      return Success;
    end Make_Active;
 
-   procedure Map_Range
+   function Map_Range
       (Map      : Page_Map_Acc;
        Virtual  : Virtual_Address;
        Physical : Physical_Address;
        Length   : Unsigned_64;
-       Flags    : Arch.MMU.Page_Permissions)
+       Flags    : Arch.MMU.Page_Permissions) return Boolean
    is
-      Discard : Boolean;
+      Success : Boolean;
    begin
       Lib.Synchronization.Seize (Map.Mutex'Access);
 
-      Discard := Arch.MMU.Map_Range (
+      Success := Arch.MMU.Map_Range (
          Map.Inner,
-         To_Address (Physical),
-         To_Address (Virtual),
-         Storage_Offset (Length),
+         To_Address     (Align1.Align_Down (Physical, Page_Size)),
+         To_Address     (Align1.Align_Down (Virtual,  Page_Size)),
+         Storage_Offset (Align2.Align_Up   (Length,   Page_Size)),
          Flags
       );
+
+      if not Success then
+         goto Ret;
+      end if;
 
       for Mapping of Map.Map_Ranges loop
          if not Mapping.Is_Present then
@@ -72,25 +82,31 @@ package body Memory.Virtual is
          end if;
       end loop;
 
+   <<Ret>>
       Lib.Synchronization.Release (Map.Mutex'Access);
+      return Success;
    end Map_Range;
 
-   procedure Remap_Range
+   function Remap_Range
       (Map     : Page_Map_Acc;
        Virtual : Virtual_Address;
        Length  : Unsigned_64;
-       Flags   : Arch.MMU.Page_Permissions)
+       Flags   : Arch.MMU.Page_Permissions) return Boolean
    is
-      Discard : Boolean;
+      Success : Boolean;
    begin
       Lib.Synchronization.Seize (Map.Mutex'Access);
 
-      Discard := Arch.MMU.Remap_Range (
+      Success := Arch.MMU.Remap_Range (
          Map.Inner,
-         To_Address (Virtual),
-         Storage_Count (Length),
+         To_Address    (Align1.Align_Down (Virtual, Page_Size)),
+         Storage_Count (Align2.Align_Up   (Length,  Page_Size)),
          Flags
       );
+
+      if not Success then
+         goto Ret;
+      end if;
 
       for Mapping of Map.Map_Ranges loop
          if Mapping.Is_Present and then Mapping.Virtual_Start = Virtual then
@@ -101,23 +117,29 @@ package body Memory.Virtual is
 
       --  TODO: Invalidate global TLBs if needed.
 
+   <<Ret>>
       Lib.Synchronization.Release (Map.Mutex'Access);
+      return Success;
    end Remap_Range;
 
-   procedure Unmap_Range
+   function Unmap_Range
       (Map     : Page_Map_Acc;
        Virtual : Virtual_Address;
-       Length  : Unsigned_64)
+       Length  : Unsigned_64) return Boolean
    is
-      Discard : Boolean;
+      Success : Boolean;
    begin
       Lib.Synchronization.Seize (Map.Mutex'Access);
 
-      Discard := Arch.MMU.Unmap_Range (
+      Success := Arch.MMU.Unmap_Range (
          Map.Inner,
-         To_Address (Virtual),
-         Storage_Count (Length)
+         To_Address    (Align1.Align_Down (Virtual, Page_Size)),
+         Storage_Count (Align2.Align_Up   (Length,  Page_Size))
       );
+
+      if not Success then
+         goto Ret;
+      end if;
 
       for Mapping of Map.Map_Ranges loop
          if Mapping.Is_Present and then Mapping.Virtual_Start = Virtual then
@@ -128,7 +150,9 @@ package body Memory.Virtual is
 
       --  TODO: Invalidate global TLBs if needed.
 
+   <<Ret>>
       Lib.Synchronization.Release (Map.Mutex'Access);
+      return Success;
    end Unmap_Range;
 
    function New_Map return Page_Map_Acc is
@@ -145,11 +169,21 @@ package body Memory.Virtual is
       end if;
    end New_Map;
 
+   procedure Delete_Map (Map : in out Page_Map_Acc) is
+      procedure F is new Ada.Unchecked_Deallocation (Page_Map, Page_Map_Acc);
+   begin
+      Lib.Synchronization.Seize (Map.Mutex'Access);
+      Arch.MMU.Destroy_Table (Map.Inner);
+      F (Map);
+      Map := null;
+   end Delete_Map;
+
    function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc is
       type Page_Data     is array (Unsigned_64 range <>) of Unsigned_8;
       type Page_Data_Acc is access Page_Data;
 
-      Forked : constant Page_Map_Acc := New_Map;
+      Discard : Boolean;
+      Forked  : constant Page_Map_Acc := New_Map;
    begin
       for Mapping of Map.Map_Ranges loop
          if Mapping.Is_Present then
@@ -165,7 +199,7 @@ package body Memory.Virtual is
                   New_Data (O) := Original_Data (O);
                end loop;
 
-               Map_Range (
+               Discard := Map_Range (
                   Forked,
                   Mapping.Virtual_Start,
                   To_Integer (New_Data.all'Address) - Memory_Offset,

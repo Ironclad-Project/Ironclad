@@ -40,24 +40,25 @@ package Memory.Virtual is
    end record;
    type Page_Map_Acc is access all Page_Map;
 
-   --  Functions to manipulate pagemaps.
-   procedure Make_Active (Map : Page_Map_Acc);
-   procedure Map_Range
+   --  Functions to manipulate pagemaps, False on return means failure.
+   function Make_Active (Map : Page_Map_Acc) return Boolean;
+   function Map_Range
       (Map      : Page_Map_Acc;
        Virtual  : Virtual_Address;
        Physical : Physical_Address;
        Length   : Unsigned_64;
-       Flags    : Arch.MMU.Page_Permissions);
-   procedure Remap_Range
+       Flags    : Arch.MMU.Page_Permissions) return Boolean;
+   function Remap_Range
       (Map     : Page_Map_Acc;
        Virtual : Virtual_Address;
        Length  : Unsigned_64;
-       Flags   : Arch.MMU.Page_Permissions);
-   procedure Unmap_Range
+       Flags   : Arch.MMU.Page_Permissions) return Boolean;
+   function Unmap_Range
       (Map     : Page_Map_Acc;
        Virtual : Virtual_Address;
-       Length  : Unsigned_64);
+       Length  : Unsigned_64) return Boolean;
    function New_Map return Page_Map_Acc;
+   procedure Delete_Map (Map : in out Page_Map_Acc);
    function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc;
    function Is_Loaded (Map : Page_Map_Acc) return Boolean;
    function Virtual_To_Physical

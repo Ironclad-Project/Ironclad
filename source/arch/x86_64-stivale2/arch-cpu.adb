@@ -51,11 +51,13 @@ package body Arch.CPU is
       return Locals;
    end Get_Local;
 
-   procedure Init_Core (Core_Info : access Arch.Stivale2.SMP_Core) is begin
+   procedure Init_Core (Core_Info : access Arch.Stivale2.SMP_Core) is
+      Discard : Boolean;
+   begin
       --  Load the global GDT, IDT, mappings, and LAPIC.
       GDT.Load_GDT;
       IDT.Load_IDT;
-      Memory.Virtual.Make_Active (Memory.Virtual.Kernel_Map);
+      Discard := Memory.Virtual.Make_Active (Memory.Virtual.Kernel_Map);
       APIC.Init_LAPIC;
 
       --  Load several goodies.

@@ -21,6 +21,7 @@ with Arch.IDT;
 with Arch.GDT;
 with Arch.Wrappers;
 with Lib.Synchronization;
+with Lib.Panic;
 with System.Machine_Code;     use System.Machine_Code;
 with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
@@ -205,13 +206,16 @@ package body Scheduler is
          Thread_Pool (New_TID).Process    := Userland.Process.Get_By_PID (PID);
 
          --  Map the user stack.
-         Memory.Virtual.Map_Range (
+         if not Memory.Virtual.Map_Range (
             Thread_Pool (New_TID).PageMap,
             Virtual_Address (Stack_Top),
             To_Integer (User_Stack_8.all'Address) - Memory_Offset,
             Stack_Size + Memory.Virtual.Page_Size,
             Map_Flags
-         );
+         )
+         then
+            Lib.Panic.Soft_Panic ("Could not map a TID stack");
+         end if;
 
          --  Set up FPU control word and MXCSR as defined by SysV.
          Arch.Wrappers.FP_Restore (Thread_Pool (New_TID).FP_Region'Address);
@@ -473,7 +477,9 @@ package body Scheduler is
       Arch.CPU.Get_Local.Current_Process := Thread_Pool (Next_TID).Process;
 
       --  Reset state.
-      Memory.Virtual.Make_Active (Thread_Pool (Next_TID).PageMap);
+      if not Memory.Virtual.Make_Active (Thread_Pool (Next_TID).PageMap) then
+         Lib.Panic.Soft_Panic ("Could not make reschedule map active");
+      end if;
       Arch.Wrappers.Write_FS (Thread_Pool (Next_TID).FS);
       Arch.Wrappers.FP_Restore (Thread_Pool (Next_TID).FP_Region'Address);
       Asm (

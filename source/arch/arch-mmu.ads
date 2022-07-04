@@ -25,7 +25,7 @@ package Arch.MMU is
 
    --  Create or destroy maps, return Null_Address or False on failure.
    function Create_Table return Page_Table;
-   function Destroy_Table return Boolean;
+   procedure Destroy_Table (Map : in out Page_Table);
 
    --  Make the passed map active, will return False on failure.
    function Make_Active (Map : Page_Table) return Boolean;
