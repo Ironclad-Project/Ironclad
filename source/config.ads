@@ -18,7 +18,7 @@ with TargetConfig;
 
 package Config is
    Name     : constant String := "Ironclad";
-   Version  : constant String := "0.0.1";
-   Bug_Site : constant String := "https://github.com/streaksu/ironclad/issues";
+   Version  : constant String := "0.0.1prealpha";
+   Bug_Site : constant String := "https://savannah.nongnu.org/bugs/?group=ironclad";
    Is_Embedded : constant Boolean := TargetConfig.Is_Embedded;
 end Config;
