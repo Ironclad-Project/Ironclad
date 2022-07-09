@@ -70,8 +70,8 @@ package body Lib.Runtime is
    end Assert_Failure;
 
    function MemCmp (S1, S2 : System.Address; Size : size_t) return int is
-      Str1 : array (1 .. Size) of Unsigned_8 with Address => S1;
-      Str2 : array (1 .. Size) of Unsigned_8 with Address => S2;
+      Str1 : array (1 .. Size) of Unsigned_8 with Address => S1, Import;
+      Str2 : array (1 .. Size) of Unsigned_8 with Address => S2, Import;
    begin
       for I in 1 .. Size loop
          if Str1 (I) /= Str2 (I) then
@@ -89,8 +89,8 @@ package body Lib.Runtime is
       (Desto, Source : System.Address;
        Size          : size_t) return System.Address
    is
-      Dst : array (1 .. Size) of Unsigned_8 with Address => Desto;
-      Src : array (1 .. Size) of Unsigned_8 with Address => Source;
+      Dst : array (1 .. Size) of Unsigned_8 with Address => Desto,  Import;
+      Src : array (1 .. Size) of Unsigned_8 with Address => Source, Import;
    begin
       for I in 1 .. Size loop
          Dst (I) := Src (I);
@@ -102,8 +102,8 @@ package body Lib.Runtime is
       (Desto, Source : System.Address;
        Size          : size_t) return System.Address
    is
-      Dst : array (1 .. Size) of Unsigned_8 with Address => Desto;
-      Src : array (1 .. Size) of Unsigned_8 with Address => Source;
+      Dst : array (1 .. Size) of Unsigned_8 with Address => Desto,  Import;
+      Src : array (1 .. Size) of Unsigned_8 with Address => Source, Import;
       Desto_Int  : constant Integer_Address := To_Integer (Desto);
       Source_Int : constant Integer_Address := To_Integer (Source);
    begin
@@ -124,10 +124,11 @@ package body Lib.Runtime is
        Value : Integer;
        Size  : size_t) return System.Address
    is
-      Dst : array (1 .. Size) of Unsigned_8 with Address => Desto;
+      Val : constant Unsigned_8 := Unsigned_8 (Value);
+      Dst : array (1 .. Size) of Unsigned_8 with Address => Desto, Import;
    begin
-      for I in Dst'Range loop
-         Dst (I) := Unsigned_8 (Value);
+      for C of Dst loop
+         C := Val;
       end loop;
       return Desto;
    end MemSet;
@@ -138,7 +139,8 @@ package body Lib.Runtime is
        Line_Number  : Integer)
    is
       File_Length : constant Natural := Lib.C_String_Length (File_Address);
-      File_String : String (1 .. File_Length) with Address => File_Address;
+      File_String : String (1 .. File_Length)
+         with Address => File_Address, Import;
    begin
       Lib.Messages.Put_Line ("");
       Lib.Messages.Put      ("Exception triggered at " & File_String & ": ");

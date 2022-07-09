@@ -21,12 +21,17 @@ package Memory.Physical is
    --  Initialize the allocator with a memmap.
    procedure Init_Allocator (Memmap : in out Arch.Boot_Memory_Map);
 
-   --  Kernel's malloc and free, also called by ada internally.
-   --  The malloc cannot return null, and the free cannot be passed null
-   --  either. Those are Ada's rules.
-   --  Allocated memory is always zero'ed out.
+   --  Called when doing 'new'. Ada adds the semantics of erroring out
+   --  unconditionally when Sz is size_t'Last, and 0 allocates a small block.
+   --  It returns memory that is:
+   --  - Always zero'ed out for security reasons, this is a kernel after all.
+   --  - Always aligned to 4K.
+   --  - Never null, errors are handled internally, this includes OOM.
    function Alloc (Sz : Interfaces.C.size_t) return Memory.Virtual_Address
       with Export, Convention => C, External_Name => "__gnat_malloc";
+
+   --  Called by Unchecked_Deallocation, it deallocates a previously allocated
+   --  block, apart of that, it has no special Ada semantics.
    procedure Free (Address : Interfaces.C.size_t)
       with Export, Convention => C, External_Name => "__gnat_free";
 

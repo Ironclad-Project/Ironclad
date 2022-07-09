@@ -17,6 +17,7 @@
 with Interfaces; use Interfaces;
 with Lib.Panic;
 with Lib.Synchronization; use Lib.Synchronization;
+with Lib.Alignment;
 
 package body Memory.Physical is
    Block_Free : constant Boolean := True;
@@ -72,7 +73,7 @@ package body Memory.Physical is
 
       --  Initialize and fill the bitmap.
       declare
-         Bitmap_Body : Bitmap (1 .. Block_Count);
+         Bitmap_Body : Bitmap (1 .. Block_Count) with Import;
          for Bitmap_Body'Address use To_Address (Bitmap_Address);
          Index : Unsigned_64 := 0;
          Block_Value : Boolean;
@@ -97,65 +98,61 @@ package body Memory.Physical is
    end Init_Allocator;
 
    function Alloc (Sz : Interfaces.C.size_t) return Virtual_Address is
-      Bitmap_Body : Bitmap (1 .. Block_Count);
+      package Align is new Lib.Alignment (Memory.Size);
+
+      Bitmap_Body : Bitmap (1 .. Block_Count) with Import;
       for Bitmap_Body'Address use To_Address (Bitmap_Address);
+
       First_Found_Index  : Unsigned_64 := 0;
       Found_Count        : Unsigned_64 := 0;
-      Size               : constant Memory.Size := Memory.Size (Sz);
-      Blocks_To_Allocate : Memory.Size := Size / Block_Size;
+      Size               : Memory.Size := Memory.Size (Sz);
+      Blocks_To_Allocate : Memory.Size;
    begin
-      --  Check we can allocate at all.
-      if Size = 0 or Size > Free_Memory then
-         goto Error_Return;
+      --  Check the specific GNAT semantics.
+      if Size = Memory.Size (Interfaces.C.size_t'Last) then
+         Lib.Panic.Hard_Panic ("Storage error (size_t'Last passed)");
+      elsif Size = 0 then
+         Size := 1;
       end if;
 
-      --  Adjust the block count.
-      if Blocks_To_Allocate = 0 then
-         Blocks_To_Allocate := 1;
-      end if;
+      Blocks_To_Allocate := Align.Align_Up (Size, Block_Size) / Block_Size;
 
       --  Search for contiguous blocks, as many as needed.
       Lib.Synchronization.Seize (Alloc_Mutex'Access);
    <<Search_Blocks>>
       for I in Bitmap_Last_Used .. Block_Count loop
-         if Bitmap_Body (I) = Block_Free and First_Found_Index = 0 then
-            First_Found_Index := I;
-            Found_Count       := 1;
-         elsif Bitmap_Body (I) = Block_Free then
-            if I /= First_Found_Index + Found_Count then
+         if Bitmap_Body (I) = Block_Free then
+            if First_Found_Index = 0 or I /= First_Found_Index + Found_Count
+            then
                First_Found_Index := I;
                Found_Count       := 1;
             else
                Found_Count := Found_Count + 1;
             end if;
+
+            if Blocks_To_Allocate = Memory.Size (Found_Count) then
+               goto Fill_Bitmap;
+            end if;
          end if;
-         exit when Blocks_To_Allocate = Memory.Size (Found_Count);
       end loop;
 
-      if Blocks_To_Allocate /= Memory.Size (Found_Count) and
-         Bitmap_Last_Used   /= 1
-      then
+      if Bitmap_Last_Used /= 1 then
          Bitmap_Last_Used := 1;
          goto Search_Blocks;
+      else
+         Lib.Panic.Hard_Panic ("Exhausted memory (OOM)");
       end if;
 
-      if Blocks_To_Allocate /= Memory.Size (Found_Count) and
-         Bitmap_Last_Used = 1
-      then
-         Lib.Synchronization.Release (Alloc_Mutex'Access);
-         goto Error_Return;
-      end if;
-
-      --  Mark the block of memory as used.
+   <<Fill_Bitmap>>
       for I in 0 .. Blocks_To_Allocate loop
          Bitmap_Body (First_Found_Index + Unsigned_64 (I)) := Block_Used;
       end loop;
-      Lib.Synchronization.Release (Alloc_Mutex'Access);
 
       --  Set statistic and global variables.
       Bitmap_Last_Used := First_Found_Index;
       Free_Memory      := Free_Memory - Size;
       Used_Memory      := Used_Memory + Size;
+      Lib.Synchronization.Release (Alloc_Mutex'Access);
 
       --  Zero out memory and return value.
       declare
@@ -164,21 +161,17 @@ package body Memory.Physical is
          Pool : array (1 .. Unsigned_64 (Size)) of Unsigned_8;
          for Pool'Address use To_Address (Addr);
       begin
-         for I in Pool'Range loop
-            Pool (I) := 0;
-         end loop;
+         Pool (1 .. Unsigned_64 (Size)) := (others => 0);
          return Addr;
       end;
-
-   <<Error_Return>>
-      Lib.Panic.Hard_Panic ("Could not allocate block");
    end Alloc;
 
    procedure Free (Address : Interfaces.C.size_t) is
       Real_Address : Virtual_Address := Virtual_Address (Address);
       Bitmap_Body  : Bitmap (1 .. Block_Count)
-         with Address => To_Address (Bitmap_Address);
+         with Address => To_Address (Bitmap_Address), Import;
    begin
+      --  Ensure the address is in the lower half.
       if Real_Address > Memory_Offset then
          Real_Address := Real_Address - Memory_Offset;
       end if;

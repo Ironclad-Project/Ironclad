@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
+with Interfaces; use Interfaces;
 
 package Lib.Messages is
    --  Prints and adds a newline.

@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System; use System;
-with Interfaces; use Interfaces;
 
 package Lib with SPARK_Mode, Pure is
    --  Report the length of a NUL-Terminated C string.
