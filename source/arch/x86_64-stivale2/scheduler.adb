@@ -210,7 +210,7 @@ package body Scheduler is
             Thread_Pool (New_TID).PageMap,
             Virtual_Address (Stack_Top),
             To_Integer (User_Stack_8.all'Address) - Memory_Offset,
-            Stack_Size + Memory.Virtual.Page_Size,
+            Stack_Size,
             Map_Flags
          )
          then

@@ -144,8 +144,8 @@ package body Memory.Physical is
       end if;
 
    <<Fill_Bitmap>>
-      for I in 0 .. Blocks_To_Allocate loop
-         Bitmap_Body (First_Found_Index + Unsigned_64 (I)) := Block_Used;
+      for I in 1 .. Blocks_To_Allocate loop
+         Bitmap_Body (First_Found_Index + Unsigned_64 (I - 1)) := Block_Used;
       end loop;
 
       --  Set statistic and global variables.
@@ -161,7 +161,7 @@ package body Memory.Physical is
          Pool : array (1 .. Unsigned_64 (Size)) of Unsigned_8;
          for Pool'Address use To_Address (Addr);
       begin
-         Pool (1 .. Unsigned_64 (Size)) := (others => 0);
+         Pool := (others => 0);
          return Addr;
       end;
    end Alloc;

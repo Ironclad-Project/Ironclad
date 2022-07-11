@@ -24,96 +24,12 @@ with Lib.Panic;
 with Lib.Alignment;
 
 package body Arch.MMU is
-   --  Page table entries consist of an address padded to 4K, which frees
-   --  the lower 12 bits for flags, those flags are described below.
-
-   --  Page table flags, shared by all entries except the final page ones.
-   type Page_Table_Flags is record
-      Present         : Boolean; --  Whether the entry is present.
-      Read_Write      : Boolean; --  True for R/W, false for R.
-      User_Supervisor : Boolean; --  Whether the user can access, or only root.
-      Write_Through   : Boolean; --  Whether write through is enabled.
-      Cache_Disable   : Boolean; --  Whether caching is disabled.
-      Accessed        : Boolean; --  Whether a PDE or PTE was read.
-      Dirty           : Boolean; --  Whether the page has been written to.
-      Table_End       : Boolean; --  Whether its a big page or it continues on.
-   end record;
-   for Page_Table_Flags use record
-      Present         at 0 range 0 .. 0;
-      Read_Write      at 0 range 1 .. 1;
-      User_Supervisor at 0 range 2 .. 2;
-      Write_Through   at 0 range 3 .. 3;
-      Cache_Disable   at 0 range 4 .. 4;
-      Accessed        at 0 range 5 .. 5;
-      Dirty           at 0 range 6 .. 6;
-      Table_End       at 0 range 7 .. 7;
-   end record;
-   for Page_Table_Flags'Size use 8;
-
-   --  Flags of a PML1 page.
-   type Page_Flags is record
-      Present         : Boolean; --  Whether the entry is present.
-      Read_Write      : Boolean; --  True for R/W, false for R.
-      User_Supervisor : Boolean; --  Whether the user can access, or only root.
-      Write_Through   : Boolean; --  Whether write through is enabled.
-      Cache_Disable   : Boolean; --  Whether caching is disabled.
-      Accessed        : Boolean; --  Whether a PDE or PTE was read.
-      Dirty           : Boolean; --  Whether the page has been written to.
-      PAT             : Boolean; --  PAT.
-      Global          : Boolean; --  Whether the page TLB should be flushed.
-   end record;
-   for Page_Flags use record
-      Present         at 0 range 0 .. 0;
-      Read_Write      at 0 range 1 .. 1;
-      User_Supervisor at 0 range 2 .. 2;
-      Write_Through   at 0 range 3 .. 3;
-      Cache_Disable   at 0 range 4 .. 4;
-      Accessed        at 0 range 5 .. 5;
-      Dirty           at 0 range 6 .. 6;
-      PAT             at 0 range 7 .. 7;
-      Global          at 0 range 8 .. 8;
-   end record;
-   for Page_Flags'Size use 9;
-
-   --  Entries of the PML4, 3, and 2.
-   --  This bad boys always exist in arrays of 512.
-   --  Each entry points to a 512-long entry list of the lower level, or some
-   --  might stop to be a big page.
-   type Page_Table_Entry is record
-      Flags    : Page_Table_Flags;
-      Ignored  : Boolean;
-      Addr     : Physical_Address;
-      NX       : Boolean;
-   end record;
-   for Page_Table_Entry use record
-      Flags    at 0 range  0 ..  7;
-      Ignored  at 0 range  8 .. 11;
-      Addr     at 0 range 12 .. 62;
-      NX       at 0 range 63 .. 63;
-   end record;
-   for Page_Table_Entry'Size use 64;
-
-   --  Each entry represents a 4KiB memory block in the final level of the
-   --  paging chain.
-   type Page is record
-      Flags   : Page_Flags;
-      Ignored : Boolean;
-      Addr    : Physical_Address;
-      NX      : Boolean;
-   end record;
-   for Page use record
-      Flags    at 0 range  0 ..  8;
-      Ignored  at 0 range  9 .. 11;
-      Addr     at 0 range 12 .. 62;
-      NX       at 0 range 63 .. 63;
-   end record;
-   for Page'Size use 64;
-
    --  Object to represent a page map.
-   Page_Size    : constant := 16#1000#;
-   Table_Length : constant := 512;
-   type PML4 is array (1 .. Table_Length) of Page_Table_Entry
-      with Alignment => Page_Size, Size => Table_Length * 64;
+   Page_Size_4K : constant := 16#001000#;
+   Page_Size_2M : constant := 16#200000#;
+   type PML4 is array (1 .. 512) of Unsigned_64
+      with Alignment => Page_Size_4K, Size => 512 * 64;
+   type PML4_Acc is access all PML4;
 
    --  Page maps.
    type Page_Map is record
@@ -129,9 +45,9 @@ package body Arch.MMU is
       PML2_Entry : Unsigned_64;
       PML1_Entry : Unsigned_64;
    end record;
-
    function Get_Address_Components
-      (Virtual : Virtual_Address) return Address_Components is
+      (Virtual : Virtual_Address) return Address_Components
+   is
       Addr   : constant Unsigned_64 := Unsigned_64 (Virtual);
       PML4_E : constant Unsigned_64 := Addr and Shift_Left (16#1FF#, 39);
       PML3_E : constant Unsigned_64 := Addr and Shift_Left (16#1FF#, 30);
@@ -144,56 +60,47 @@ package body Arch.MMU is
               PML1_Entry => Shift_Right (PML1_E, 12));
    end Get_Address_Components;
 
-   function Chomp_Flags (Address : Physical_Address) return Physical_Address is
-      Addr_Int : constant Unsigned_64 := Unsigned_64 (Address);
+   function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address is
+      Addr : constant Unsigned_64 := Entry_Body and not 16#FFF#;
    begin
-      return Physical_Address (Shift_Right (Addr_Int, 12));
-   end Chomp_Flags;
-
-   function Add_Flags (Address : Physical_Address) return Physical_Address is
-      Addr_Int : constant Unsigned_64 := Unsigned_64 (Address);
-   begin
-      return Physical_Address (Shift_Left (Addr_Int, 12));
-   end Add_Flags;
+      return Physical_Address (Addr and not Shift_Left (1, 63));
+   end Clean_Entry;
 
    function Get_Next_Level
       (Current_Level       : Physical_Address;
        Index               : Unsigned_64;
-       Create_If_Not_Found : Boolean) return Physical_Address is
+       Create_If_Not_Found : Boolean) return Physical_Address
+   is
       Entry_Addr : constant Virtual_Address :=
          Current_Level + Memory_Offset + Physical_Address (Index * 8);
-      Entry_Body : Page_Table_Entry with Address => To_Address (Entry_Addr);
+      Entry_Body : Unsigned_64 with Address => To_Address (Entry_Addr), Import;
    begin
-      if Entry_Body.Flags.Present then
-         return Add_Flags (Entry_Body.Addr);
+      --  Check whether the entry is present.
+      if (Entry_Body and 1) /= 0 then
+         return Clean_Entry (Entry_Body);
       elsif Create_If_Not_Found then
          --  Allocate and put some default flags.
          declare
-            type PML4_Acc is access PML4;
             New_Entry      : constant PML4_Acc := new PML4;
             New_Entry_Addr : constant Physical_Address :=
                To_Integer (New_Entry.all'Address) - Memory_Offset;
          begin
-            Entry_Body.Addr := Chomp_Flags (New_Entry_Addr);
-            Entry_Body.Flags.Present    := True;
-            Entry_Body.Flags.Read_Write := True;
-            Entry_Body.Flags.User_Supervisor := True;
+            Entry_Body := Unsigned_64 (New_Entry_Addr) or 2#111#;
             return New_Entry_Addr;
          end;
       end if;
       return Null_Address;
    end Get_Next_Level;
 
-   function Get_Page
+   function Get_Page_4K
       (Map      : Page_Map_Acc;
        Virtual  : Virtual_Address;
-       Allocate : Boolean) return Virtual_Address is
+       Allocate : Boolean) return Virtual_Address
+   is
       Addr  : constant Address_Components := Get_Address_Components (Virtual);
       Addr4 : constant Physical_Address :=
          To_Integer (Map.PML4_Level'Address) - Memory_Offset;
-      Addr3 : Physical_Address := Null_Address;
-      Addr2 : Physical_Address := Null_Address;
-      Addr1 : Physical_Address := Null_Address;
+      Addr3, Addr2, Addr1 : Physical_Address := Null_Address;
    begin
       --  Find the entries.
       Addr3 := Get_Next_Level (Addr4, Addr.PML4_Entry, Allocate);
@@ -214,22 +121,34 @@ package body Arch.MMU is
    <<Error_Return>>
       Lib.Panic.Soft_Panic ("Address could not be found");
       return Null_Address;
-   end Get_Page;
+   end Get_Page_4K;
 
-   procedure Map_Page
-      (Map         : Page_Map_Acc;
-       Virtual     : Virtual_Address;
-       Physical    : Physical_Address;
-       Flags       : Page_Flags;
-       Not_Execute : Boolean)
+   function Get_Page_2M
+      (Map      : Page_Map_Acc;
+       Virtual  : Virtual_Address;
+       Allocate : Boolean) return Virtual_Address
    is
-      Page_Address : constant Virtual_Address := Get_Page (Map, Virtual, True);
-      Entry_Body   : Page with Address => To_Address (Page_Address);
+      Addr  : constant Address_Components := Get_Address_Components (Virtual);
+      Addr4 : constant Physical_Address :=
+         To_Integer (Map.PML4_Level'Address) - Memory_Offset;
+      Addr3, Addr2 : Physical_Address := Null_Address;
    begin
-      Entry_Body.Addr  := Chomp_Flags (Physical);
-      Entry_Body.Flags := Flags;
-      Entry_Body.NX    := Not_Execute;
-   end Map_Page;
+      --  Find the entries.
+      Addr3 := Get_Next_Level (Addr4, Addr.PML4_Entry, Allocate);
+      if Addr3 = Null_Address then
+         goto Error_Return;
+      end if;
+      Addr2 := Get_Next_Level (Addr3, Addr.PML3_Entry, Allocate);
+      if Addr2 = Null_Address then
+         goto Error_Return;
+      end if;
+
+      return Addr2 + Memory_Offset + (Physical_Address (Addr.PML2_Entry) * 8);
+
+   <<Error_Return>>
+      Lib.Panic.Soft_Panic ("Address could not be found");
+      return Null_Address;
+   end Get_Page_2M;
 
    function Is_Loaded (Map : Page_Map_Acc) return Boolean is
       Current : constant Unsigned_64 := Arch.Wrappers.Read_CR3;
@@ -238,48 +157,19 @@ package body Arch.MMU is
       return Current = Unsigned_64 (PAddr - Memory_Offset);
    end Is_Loaded;
 
-   procedure Unmap_Page (Map : Page_Map_Acc; Virtual : Virtual_Address) is
-      Map_Loaded   : constant Boolean         := Is_Loaded (Map);
-      Page_Address : constant Virtual_Address := Get_Page (Map, Virtual, True);
-      Entry_Body   : Page with Address => To_Address (Page_Address);
+   function Flags_To_Bitmap (Perm : Page_Permissions) return Unsigned_16 is
+      RW  : constant Unsigned_16 := (if not Perm.Read_Only  then 1 else 0);
+      U   : constant Unsigned_16 := (if Perm.User_Accesible then 1 else 0);
+      PWT : constant Unsigned_16 := (if Perm.Write_Through  then 1 else 0);
+      G   : constant Unsigned_16 := (if Perm.Global         then 1 else 0);
    begin
-      Entry_Body.Flags.Present := False;
-      if Map_Loaded then
-         Arch.Wrappers.Invalidate_Page (Virtual);
-      end if;
-   end Unmap_Page;
-
-   procedure Change_Page_Flags
-      (Map         : Page_Map_Acc;
-       Virtual     : Virtual_Address;
-       Flags       : Page_Flags;
-       Not_Execute : Boolean)
-   is
-      Map_Loaded   : constant Boolean         := Is_Loaded (Map);
-      Page_Address : constant Virtual_Address := Get_Page (Map, Virtual, True);
-      Entry_Body   : Page with Address => To_Address (Page_Address);
-   begin
-      Entry_Body.Flags := Flags;
-      Entry_Body.NX    := Not_Execute;
-      if Map_Loaded then
-         Arch.Wrappers.Invalidate_Page (Virtual);
-      end if;
-   end Change_Page_Flags;
-
-   function Convert_Permissions (Perm : Page_Permissions) return Page_Flags is
-   begin
-      return (
-         Present         => True,
-         Read_Write      => not Perm.Read_Only,
-         User_Supervisor => Perm.User_Accesible,
-         Write_Through   => Perm.Write_Through,
-         Cache_Disable   => False,
-         Accessed        => False,
-         Dirty           => False,
-         PAT             => Perm.Write_Through,
-         Global          => Perm.Global
-      );
-   end Convert_Permissions;
+      return Shift_Left (G,   8) or
+             Shift_Left (PWT, 7) or --  PAT.
+             Shift_Left (PWT, 3) or --  Cache disable.
+             Shift_Left (U,   2) or
+             Shift_Left (RW,  1) or
+             1;                     --  Present bit.
+   end Flags_To_Bitmap;
 
    package Conv is new System.Address_To_Access_Conversions (Page_Map);
 
@@ -313,16 +203,16 @@ package body Arch.MMU is
       --  I/O and memory tables that may not be in the memmap are mapped.
       Success1 := Map_Range (
          Map            => Kernel_Table,
-         Physical_Start => To_Address (Page_Size),
-         Virtual_Start  => To_Address (Page_Size),
-         Length         => Hardcoded_Region - Page_Size,
+         Physical_Start => To_Address (Page_Size_4K),
+         Virtual_Start  => To_Address (Page_Size_4K),
+         Length         => Hardcoded_Region - Page_Size_4K,
          Permissions    => Flags
       );
       Success2 := Map_Range (
          Map            => Kernel_Table,
-         Physical_Start => To_Address (Page_Size),
-         Virtual_Start  => To_Address (Page_Size + Memory_Offset),
-         Length         => Hardcoded_Region - Page_Size,
+         Physical_Start => To_Address (Page_Size_4K),
+         Virtual_Start  => To_Address (Page_Size_4K + Memory_Offset),
+         Length         => Hardcoded_Region - Page_Size_4K,
          Permissions    => Flags
       );
       if not Success1 or not Success2 then
@@ -331,8 +221,8 @@ package body Arch.MMU is
 
       --  Map the memmap memory to the memory window.
       for E of Memmap loop
-         Aligned_Addr := Ali1.Align_Down (To_Integer  (E.Start),  Page_Size);
-         Aligned_Len  := Ali2.Align_Down (Unsigned_64 (E.Length), Page_Size);
+         Aligned_Addr := Ali1.Align_Down (To_Integer (E.Start), Page_Size_4K);
+         Aligned_Len  := Ali2.Align_Up (Unsigned_64 (E.Length), Page_Size_4K);
          Success1     := Map_Range (
             Map            => Kernel_Table,
             Physical_Start => To_Address (Aligned_Addr),
@@ -355,8 +245,8 @@ package body Arch.MMU is
       --  Map PMRs of the kernel.
       --  This will always be mapped, so we can mark them global.
       for E of PMRs.Entries loop
-         Aligned_Addr := Ali1.Align_Down (E.Base,  Page_Size);
-         Aligned_Len  := Ali2.Align_Down (E.Length, Page_Size);
+         Aligned_Addr := Ali1.Align_Down (E.Base,   Page_Size_4K);
+         Aligned_Len  := Ali2.Align_Up   (E.Length, Page_Size_4K);
          Success1     := Map_Range (
             Map            => Kernel_Table,
             Physical_Start => To_Address (Aligned_Addr - Kernel_Offset),
@@ -380,9 +270,7 @@ package body Arch.MMU is
    function Create_Table return Page_Table is
       Map : constant Page_Map_Acc := new Page_Map;
    begin
-      for I in 256 .. 512 loop
-         Map.PML4_Level (I) := Kernel_Map.PML4_Level (I);
-      end loop;
+      Map.PML4_Level (256 .. 512) := Kernel_Map.PML4_Level (256 .. 512);
       return Page_Table (Conv.To_Address (Conv.Object_Pointer (Map)));
    end Create_Table;
 
@@ -422,18 +310,19 @@ package body Arch.MMU is
       (Map     : Page_Table;
        Virtual : System.Address) return System.Address
    is
-      Result : Physical_Address;
       Table  : constant Page_Map_Acc :=
          Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
       Addr  : constant Integer_Address := To_Integer (Virtual);
+      Addr1 : constant Virtual_Address := Get_Page_2M (Table, Addr, False);
+      Addr2 : constant Virtual_Address := Get_Page_4K (Table, Addr, False);
+      Searched1 : Unsigned_64 with Address => To_Address (Addr1), Import;
+      Searched2 : Unsigned_64 with Address => To_Address (Addr2), Import;
    begin
-      declare
-         Addr2 : constant Virtual_Address := Get_Page (Table, Addr, False);
-         Searched : Page with Address => To_Address (Addr2);
-      begin
-         Result := Searched.Addr;
-      end;
-      return To_Address (Result);
+      if (Shift_Right (Unsigned_64 (Addr1), 7) and 1) /= 0 then
+         return To_Address (Clean_Entry (Searched1));
+      else
+         return To_Address (Clean_Entry (Searched2));
+      end if;
    end Translate_Address;
 
    function Map_Range
@@ -445,24 +334,50 @@ package body Arch.MMU is
    is
       Table : constant Page_Map_Acc :=
          Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
-      Flags       : constant Page_Flags := Convert_Permissions (Permissions);
-      Not_Execute : constant Boolean    := not Permissions.Executable;
+      Flags       : constant Unsigned_16 := Flags_To_Bitmap (Permissions);
+      Not_Execute : constant Unsigned_64 :=
+         (if not Permissions.Executable then 1 else 0);
+      PWT : constant Unsigned_64 :=
+         (if Permissions.Write_Through then 1 else 0);
+
+      Virt       : Virtual_Address          := To_Integer (Virtual_Start);
+      Phys       : Virtual_Address          := To_Integer (Physical_Start);
+      Final_Addr : constant Virtual_Address := Virt + Virtual_Address (Length);
    begin
-      if To_Integer (Physical_Start) mod Page_Size /= 0 or
-         To_Integer (Virtual_Start)  mod Page_Size /= 0 or
-         Length                      mod Page_Size /= 0
+      if To_Integer (Physical_Start) mod Page_Size_4K /= 0 or
+         To_Integer (Virtual_Start)  mod Page_Size_4K /= 0 or
+         Length                      mod Page_Size_4K /= 0
       then
          return False;
       end if;
 
-      for I in 0 .. (Length / 16#1000#) loop
-         Map_Page (
-            Map         => Table,
-            Virtual     => To_Integer (Virtual_Start  + (Page_Size * I)),
-            Physical    => To_Integer (Physical_Start + (Page_Size * I)),
-            Flags       => Flags,
-            Not_Execute => Not_Execute
-         );
+      while (Virt mod Page_Size_2M /= 0 or Phys mod Page_Size_2M /= 0) and
+             Virt /= Final_Addr
+      loop
+         declare
+            Addr : constant Virtual_Address := Get_Page_4K (Table, Virt, True);
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            Entry_Body := Unsigned_64 (Phys)  or
+                          Unsigned_64 (Flags) or
+                          Shift_Left (Not_Execute, 63);
+         end;
+         Virt := Virt + Page_Size_4K;
+         Phys := Phys + Page_Size_4K;
+      end loop;
+      while Virt < Final_Addr loop
+         declare
+            Addr : constant Virtual_Address := Get_Page_2M (Table, Virt, True);
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            Entry_Body := Unsigned_64 (Phys)           or
+                          Unsigned_64 (Flags)          or
+                          Shift_Left (Not_Execute, 63) or
+                          Shift_Left (PWT, 12)         or
+                          Shift_Left (1, 7);
+         end;
+         Virt := Virt + Page_Size_2M;
+         Phys := Phys + Page_Size_2M;
       end loop;
 
       return True;
@@ -476,23 +391,49 @@ package body Arch.MMU is
    is
       Table : constant Page_Map_Acc :=
          Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
-      Flags       : constant Page_Flags := Convert_Permissions (Permissions);
-      Not_Execute : constant Boolean := not Permissions.Executable;
+      Flags       : constant Unsigned_16 := Flags_To_Bitmap (Permissions);
+      Not_Execute : constant Unsigned_64 :=
+         (if not Permissions.Executable then 1 else 0);
+      PWT : constant Unsigned_64 :=
+         (if Permissions.Write_Through then 1 else 0);
+
+      Virt : Virtual_Address                := To_Integer (Virtual_Start);
+      Final_Addr : constant Virtual_Address := Virt + Virtual_Address (Length);
    begin
-      if To_Integer (Virtual_Start) mod Page_Size /= 0 or
-         Length                     mod Page_Size /= 0
+      if To_Integer (Virtual_Start) mod Page_Size_4K /= 0 or
+         Length                     mod Page_Size_4K /= 0
       then
          return False;
       end if;
 
-      for I in 0 .. (Length / 16#1000#) loop
-         Change_Page_Flags (
-            Map         => Table,
-            Virtual     => To_Integer (Virtual_Start + (Page_Size * I)),
-            Flags       => Flags,
-            Not_Execute => Not_Execute
-         );
+      while Virt mod Page_Size_2M /= 0 and Virt /= Final_Addr loop
+         declare
+            Addr : constant Virtual_Address := Get_Page_4K (Table, Virt, True);
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            Entry_Body := Entry_Body          or
+                          Unsigned_64 (Flags) or
+                          Shift_Left (Not_Execute, 63);
+         end;
+         Virt := Virt + Page_Size_4K;
       end loop;
+      while Virt < Final_Addr loop
+         declare
+            Addr : constant Virtual_Address := Get_Page_2M (Table, Virt, True);
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            Entry_Body := Entry_Body                   or
+                          Unsigned_64 (Flags)          or
+                          Shift_Left (Not_Execute, 63) or
+                          Shift_Left (PWT, 12)         or
+                          Shift_Left (1, 7);
+         end;
+         Virt := Virt + Page_Size_2M;
+      end loop;
+
+      if Is_Loaded (Table) then
+         Flush_Local_TLB (Virtual_Start, Length);
+      end if;
 
       return True;
    end Remap_Range;
@@ -504,19 +445,38 @@ package body Arch.MMU is
    is
       Table : constant Page_Map_Acc :=
          Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+
+      Virt       : Virtual_Address          := To_Integer (Virtual_Start);
+      Final_Addr : constant Virtual_Address := Virt + Virtual_Address (Length);
    begin
-      if To_Integer (Virtual_Start) mod Page_Size /= 0 or
-         Length                     mod Page_Size /= 0
+      if To_Integer (Virtual_Start) mod Page_Size_4K /= 0 or
+         Length                     mod Page_Size_4K /= 0
       then
          return False;
       end if;
 
-      for I in 0 .. (Length / 16#1000#) loop
-         Unmap_Page (
-            Map     => Table,
-            Virtual => To_Integer (Virtual_Start + (Page_Size * I))
-         );
+      while Virt mod Page_Size_2M /= 0 and Virt /= Final_Addr loop
+         declare
+            Addr : constant Virtual_Address := Get_Page_4K (Table, Virt, True);
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            Entry_Body := Entry_Body and 0;
+         end;
+         Virt := Virt + Page_Size_4K;
       end loop;
+      while Virt < Final_Addr loop
+         declare
+            Addr : constant Virtual_Address := Get_Page_2M (Table, Virt, True);
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            Entry_Body := Entry_Body and 0;
+         end;
+         Virt := Virt + Page_Size_2M;
+      end loop;
+
+      if Is_Loaded (Table) then
+         Flush_Local_TLB (Virtual_Start, Length);
+      end if;
 
       return True;
    end Unmap_Range;
@@ -531,7 +491,7 @@ package body Arch.MMU is
    begin
       while Curr < Len loop
          Wrappers.Invalidate_Page (To_Integer (Addr + Curr));
-         Curr := Curr + Page_Size;
+         Curr := Curr + Page_Size_4K;
       end loop;
    end Flush_Local_TLB;
 

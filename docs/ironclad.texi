@@ -500,6 +500,10 @@ mapping.
 @code{MAP_ANON} (0b1000): Mapping is not backed by any file.
 @end itemize
 
+@code{munmap} will unmap a range for the virtual address space of the calling
+process, this values must be the same as passed and returned by @code{mmap},
+partial unmapping is not allowed.
+
 @code{mmap} returns a pointer to the allocated area, or @code{-1} on failure.
 @code{munmap} returns @code{0} on success, @code{-1} on failure. Both functions
 set @code{EINVAL} for bad hints or parameters.
