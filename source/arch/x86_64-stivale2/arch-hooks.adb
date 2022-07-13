@@ -37,7 +37,7 @@ package body Arch.Hooks with SPARK_Mode => Off is
       Fb : constant access ST.Framebuffer_Tag := C.To_Pointer
          (To_Address (ST.Get_Tag (ST.Stivale_Tag, ST.Framebuffer_ID)));
    begin
-      if not Config.Is_Embedded then
+      if not Config.Is_Small then
          if not Devices.BootFB.Init (Fb) then goto Error; end if;
          if not Devices.PS2Mouse.Init    then goto Error; end if;
          if not Devices.PS2Keyboard.Init then goto Error; end if;

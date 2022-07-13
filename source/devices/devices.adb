@@ -28,7 +28,7 @@ package body Devices with SPARK_Mode => Off is
       Arch.Hooks.Devices_Hook;
 
       --  Initialize non-embedded devices.
-      if not Config.Is_Embedded then
+      if not Config.Is_Small then
          if not TTY.Init then goto Error; end if;
       end if;
 

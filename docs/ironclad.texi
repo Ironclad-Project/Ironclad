@@ -34,7 +34,7 @@ Documentation License''.
 
 @menu
 * General information::              General information about the project
-* Embedded kernels::                 Differences between embedded and standard
+* Embedded facilities and RTC::      Features and interfaces for embedded work
 * Boot-time command-line options::   Command-line options
 * Syscalls::                         The main method of userland to interface
 * Devices and their properties::     Devices exposed by the kernel
@@ -49,10 +49,11 @@ General information
 * How to contribute::       How to contribute code to the kernel.
 * Error reporting::         How to report issues with the kernel.
 * Navigating the source::   Structure of the project.
+* Formal verification::     Current state of the formal verification effort.
 
-Embedded kernels
+Embedded facilities and RTC
 
-* RTC and verification limitations::    RT and verification information.
+* Scheduling and priorities::   Scheduling guarantees and priority management.
 
 Boot-time command-line options
 
@@ -118,21 +119,18 @@ kernel without having to navigate the (often cryptic and scary Ada) code.
 @node How to contribute
 @section How to contribute
 
-Thanks for considering contributing to Ironclad, it means a lot. Information
-on how to contribute is detailed on the @code{CONTRIBUTING.md} file in the
-root directory of the project, which is hosted as of right now in this
-@uref{https://github.com/streaksu/Ironclad, git repository}. Else, if you
-want to contribute but you are more into userland work, there is a distribution
-of the Ironclad kernel with a GNU userland that can also do with some help, in
-this @uref{https://github.com/streaksu/Gloire, other git repository}.
+Thanks for considering contributing to Ironclad, it means a lot. Please visit
+the @url{https://savannah.nongnu.org/git/?group=ironclad, development repository}
+for the code and read carefully @url{https://git.savannah.nongnu.org/cgit/ironclad.git/tree/CONTRIBUTING?h=main, CONTRIBUTING}
+for some concrete guidelines and advices on how to get started.
 
 @node Error reporting
 @section Error reporting
 
-Ironclad is a hobby project at the end of the day, so things are prone to fail.
-Once the issue arises, one can open a bug report on the kernel's
-@uref{https://github.com/streaksu/Ironclad, git repository}, Ironclad itself
-prints the address as well when booting.
+Ironclad is a really new project at the end of the day, so things are prone to
+fail. Once an issue arises, one can open a bug report on the kernel's
+@uref{https://savannah.nongnu.org/bugs/?group=ironclad, bug items}, the URL
+is printed as well when booting.
 
 @node Navigating the source
 @section Navigating the source
@@ -147,9 +145,6 @@ Architecture-dependent code, right now, only x86_64 code is held here.
 @item devices
 Several device drivers, physical and virtual.
 
-@item embedded
-Modules for embedded kernels.
-
 @item lib
 Functions and libraries for utilities used in the rest of the kernel.
 
@@ -158,9 +153,6 @@ Memory management, physical as well as virtual.
 
 @item networking
 Networking drivers and data.
-
-@item standard
-Modules for standard kernels.
 
 @item userland
 Userland code for loaders, processes, and such.
@@ -180,25 +172,54 @@ is very loose and not that strictly enforced, still, it is nice to keep it in
 mind. As an example, x86-specific PS2 devices on the @code{devices} directory
 instead of @code{arch}.
 
-@node Embedded kernels
-@chapter Embedded kernels
+@node Formal verification
+@section Formal verification
 
-Ironclad supports embedded configurations, this section approaches what
-to expect from those configurations.
+Right now the source of Ironclad is ongoing a process to raise its verification
+status to @url{https://docs.adacore.com/spark2014-docs/html/ug/en/usage_scenarios.html#levels-of-spark-use, a mix of silver and gold level}.
+This is done with the goal of ensure the absence of errors in a crucial system
+component like the kernel, and for ensuring the suitability of Ironclad for
+embedded and mission critical tasks.
 
-When building an embedded kernel, the goal moves from providing the
-best algorithms and most complete set of drivers to building a real-time, small
-footprint kernel, with minimal support for the target architecture without most
-non-essential devices.
+@node Embedded facilities and RTC
+@chapter Embedded facilities and RTC
 
-@node RTC and verification limitations
-@section RTC and verification limitations
+Ironclad supports several features geared towards embedded and real time work,
+this section approaches what to expect and how to interact with the features.
 
-Ironclad is a really young kernel, as such, most of the real-time and formal
-verifications parts are not completed yet, or even started. Progress and
-features will be added to this document as they are implemented.
+@node Scheduling and priorities
+@section Scheduling and priorities
 
-As of right now, no real-time deadlines can be assured.
+Scheduling in Ironclad is hardcoded to be done by a round robin (RR) with the
+addition of priorities which rule how much time the process will be run for.
+The amount of time each priority corresponds to is fixed, with the goal
+of predictable outcome. Priorities can be modified for the running process
+using @xref{getpriority/setpriority}.
+
+Priorities map to execution times using the following table.
+
+@table @code
+@item -20 .. -15
+30000ns
+
+@item -14 .. -10
+20000ns
+
+@item -9 .. -1
+15000ns
+
+@item 0 (Default)
+10000ns
+
+@item 1 .. 9
+8000ns
+
+@item 10 .. 15
+6000ns
+
+@item 16 .. 19
+5000ns
+@end table
 
 @node Boot-time command-line options
 @chapter Boot-time command-line options

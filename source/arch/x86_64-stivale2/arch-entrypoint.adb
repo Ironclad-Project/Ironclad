@@ -54,7 +54,7 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
       Mem_Statistics : Memory.Physical.Statistics;
    begin
       Arch.Stivale2.Stivale_Tag := Protocol;
-      if not Config.Is_Embedded then
+      if not Config.Is_Small then
          ST.Init_Terminal (Term);
       end if;
       Lib.Messages.Put (Config.Name & " " & Config.Version & " booted by ");

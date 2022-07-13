@@ -43,11 +43,11 @@ procedure Main is
    Init_File  : File_Acc;
 
    Init_Stdin  : constant String :=
-      (if Config.Is_Embedded then "/dev/null" else "/dev/ttydev");
+      (if Config.Is_Small then "/dev/null" else "/dev/ttydev");
    Init_Stdout : constant String :=
-      (if Config.Is_Embedded then "/dev/debug" else "/dev/ttydev");
+      (if Config.Is_Small then "/dev/debug" else "/dev/ttydev");
    Init_Stderr : constant String :=
-      (if Config.Is_Embedded then "/dev/debug" else "/dev/ttydev");
+      (if Config.Is_Small then "/dev/debug" else "/dev/ttydev");
 
    procedure Free_F is new Ada.Unchecked_Deallocation (File, File_Acc);
    procedure Free_S is new Ada.Unchecked_Deallocation

@@ -1,6 +1,8 @@
 Ironclad is a kernel for several architectures, supporting general-purpose and
 embedded modes, written in Ada.
 
+For more information about the project, check https://nongnu.org/ironclad
+
 -- Building --
 
 The steps for building using gprbuild are:
@@ -15,7 +17,7 @@ gnatprove -P ironclad.gpr -U --prover=cvc4,altergo,z3 --mode=all -j4
 Several flags and variables are available for tuning:
 
 - ARCH, right now "x86_64-stivale2" and "aarch64-stivale2" are available.
-- TARGET, visited in the "Standard and embedded targets" section.
+- TARGET, visited in the "Big and small targets" section.
 - ADAFLAGS, ASMFLAGS, and LDFLAGS, passed as environment variables to gprbuild.
 - DESTDIR and PREFIX for ./install.sh.
 - Pass 'strip' as the only argument to ./install.sh for stripped binaries.
@@ -30,20 +32,18 @@ A good set of flags for a release build is:
 
 ADAFLAGS='-flto -O2' CFLAGS='-flto -O2' LDFLAGS='-flto -O2'
 
--- Standard and embedded targets --
+-- Big and small targets --
 
 Ironclad supports two main build-time configurations, ruled by the TARGET
 variable, which depending on the value will take the following meanings:
 
-- TARGET="standard": Normal configuration of the kernel for general-purpose
-usecases. No specific optimizations or algorithms will be chosen, and all
-devices will be enabled.
+- TARGET="big": Normal configuration of the kernel for general-purpose
+usecases. All drivers will be cooked in regardless of system footprint.
 
-- TARGET="embedded": The kernel will be built with the goal of providing a RT
-kernel with a small footprint, disabling extra devices and favoring algorithms
-that help reach the goal. Formal verification efforts center on this option.
+- TARGET="small": Superfluous drivers will be left out, building a minimal yet
+lightweight system.
 
-"standard" is the default for the flag.
+"big" is the default for the flag.
 
 -- Documentation --
 

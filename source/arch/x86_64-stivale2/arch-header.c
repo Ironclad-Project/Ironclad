@@ -20,10 +20,15 @@ stivale2hdr:
     .quad 0                              # Alternative entrypoint, 0 is none.
     .quad stack_top                      # Stack to be loaded for the kernel.
     .quad (1 << 1) | (1 << 2) | (1 << 4) # Flags to request offset mem + PMRs.
-    .quad framebuffer_tag                # Start of tags.
+#ifdef SMALL
+    .quad smp_tag                        # Start of tags.
+#else
+    .quad framebuffer_tag
+#endif
 
 .section .data
 
+#ifndef SMALL
 framebuffer_tag:
     .quad 0x3ecc1bc43d0f7971 # Identifier of the tag.
     .quad terminal_tag       # Next in line.
@@ -35,6 +40,7 @@ terminal_tag:
     .quad 0xa85d499b1823be72 # Identifier of the tag.
     .quad smp_tag            # Next in line.
     .quad 0                  # Flags.
+#endif
 
 smp_tag:
     .quad 0x1ab015085f3273df # Identifier of the tag.
@@ -45,5 +51,5 @@ smp_tag:
 .align 16
 
 stack:
-    .space 32768
+    .space 0x4000
 stack_top:
