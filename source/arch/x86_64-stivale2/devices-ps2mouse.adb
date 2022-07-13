@@ -22,7 +22,7 @@ with Arch.Wrappers;
 with Ada.Unchecked_Conversion;
 with Arch.Snippets;
 
-package body Devices.PS2Mouse is
+package body Devices.PS2Mouse with SPARK_Mode => Off is
    --  For return.
    type Mouse_Data is record
       X_Variation    : Integer;

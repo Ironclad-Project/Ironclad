@@ -16,7 +16,7 @@
 
 with System;
 
-package VFS.USTAR is
+package VFS.USTAR with SPARK_Mode => Off is
    --  Probe for a USTAR FS in the passed device.
    --  Return opaque FS data on success, or Null_Address on failure.
    function Probe (Dev : Resource_Acc) return System.Address;

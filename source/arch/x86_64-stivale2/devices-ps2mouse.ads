@@ -18,7 +18,7 @@ with System;
 with Interfaces; use Interfaces;
 with VFS;
 
-package Devices.PS2Mouse is
+package Devices.PS2Mouse with SPARK_Mode => Off is
    --  Initialize the device.
    function Init return Boolean;
 

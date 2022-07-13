@@ -17,7 +17,7 @@
 with System; use System;
 with VFS.USTAR;
 
-package body VFS is
+package body VFS with SPARK_Mode => Off is
    type Device_Container is record
       Is_Present  : Boolean;
       Name        : String (1 .. 64);

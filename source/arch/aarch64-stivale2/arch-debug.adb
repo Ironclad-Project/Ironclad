@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package body Arch.Debug is
+package body Arch.Debug with SPARK_Mode => Off is
    procedure Print (Message : Character) is
       UART : Character with Address => To_Address (16#9000000#), Volatile;
    begin

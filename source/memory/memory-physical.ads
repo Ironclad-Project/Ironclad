@@ -17,7 +17,7 @@
 with Arch;
 with Interfaces.C;
 
-package Memory.Physical is
+package Memory.Physical with SPARK_Mode => Off is
    --  Initialize the allocator with a memmap.
    procedure Init_Allocator (Memmap : in out Arch.Boot_Memory_Map);
 

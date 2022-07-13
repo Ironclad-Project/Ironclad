@@ -21,7 +21,7 @@ pragma Unreferenced (Arch.Entrypoint);
 with Lib;
 with Interfaces; use Interfaces;
 
-package body Arch is
+package body Arch with SPARK_Mode => Off is
    function Get_Info return Boot_Information is
       package ST renames Stivale2;
       package C1 is new System.Address_To_Access_Conversions (ST.Cmdline_Tag);

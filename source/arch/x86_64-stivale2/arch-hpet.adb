@@ -18,7 +18,7 @@ with Interfaces; use Interfaces;
 with Memory;     use Memory;
 with Arch.ACPI;
 
-package body Arch.HPET is
+package body Arch.HPET with SPARK_Mode => Off is
    HPET_Contents : Virtual_Address;
    HPET_Period   : Unsigned_64; --  Time in femtoseconds to increment by 1.
 

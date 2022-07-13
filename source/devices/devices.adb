@@ -21,7 +21,7 @@ with Lib.Panic;
 with Config;
 with Arch.Hooks;
 
-package body Devices is
+package body Devices with SPARK_Mode => Off is
    procedure Init is
    begin
       --  Initialize architectural devices.

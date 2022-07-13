@@ -33,6 +33,8 @@ with Config;
 with Userland.Syscall;
 
 procedure Main is
+   pragma SPARK_Mode (Off);
+
    Init_Arguments   : Userland.Argument_Arr (1 .. 1);
    Init_Environment : Userland.Environment_Arr (1 .. 0);
 

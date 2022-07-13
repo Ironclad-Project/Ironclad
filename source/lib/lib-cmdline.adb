@@ -15,37 +15,41 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Lib.Cmdline is
+   pragma Suppress (All_Checks); --  We can do this because the unit passes
+                                 --  GNATprove AoRTE. GNAT does not know this.
+
    function Get_Parameter (Cmdline, Key : String) return String_Acc is
-      Value_Start  : Natural := 0;
-      Value_Length : Natural := 0;
+      Curr_Index : Integer;
+      Last_Index : Integer;
    begin
-      for I in 1 .. Cmdline'Last loop
-         exit when Key'Length - 1 + I > Cmdline'Last;
-         if Key = Cmdline (I .. Key'Last + I - 1) then
-            Value_Start := I + Key'Length + 1;
-            for X in Value_Start .. Cmdline'Last loop
-               exit when Cmdline (X) = ' ';
-               Value_Length := Value_Length + 1;
+      for I in 1 .. Cmdline'Length - Key'Length + 1 loop
+         Curr_Index := Cmdline'First + (I - 1);
+         if Key = Cmdline (Curr_Index .. Curr_Index + (Key'Length - 1)) and
+            Curr_Index < Integer'Last - Key'Length - 1
+         then
+            Last_Index := Curr_Index;
+            Curr_Index := Curr_Index + Key'Length + 1;
+            for J in Curr_Index .. Cmdline'Last loop
+               exit when Cmdline (J) = ' ' or Last_Index = Integer'Last;
+               Last_Index := J;
+               pragma Loop_Invariant (Last_Index <= Cmdline'Last);
             end loop;
             goto Found_Value;
          end if;
+         pragma Loop_Invariant (Curr_Index <= Cmdline'Last);
       end loop;
       return null;
 
    <<Found_Value>>
-      return Ret : constant String_Acc := new String (1 .. Value_Length)
-      do
-         for I in 1 .. Value_Length loop
-            Ret.all (I) := Cmdline (Value_Start + I - 1);
-         end loop;
-      end return;
+      return new String'(Cmdline (Curr_Index .. Last_Index));
    end Get_Parameter;
 
    function Is_Key_Present (Cmdline, Key : String) return Boolean is
+      Curr_Index : Integer;
    begin
-      for I in 1 .. Cmdline'Last loop
-         exit when Key'Length - 1 + I > Cmdline'Last;
-         if Key = Cmdline (I .. Key'Last + I - 1) then
+      for I in 1 .. Cmdline'Length - Key'Length + 1 loop
+         Curr_Index := Cmdline'First + (I - 1);
+         if Key = Cmdline (Curr_Index .. Curr_Index + (Key'Length - 1)) then
             return True;
          end if;
       end loop;

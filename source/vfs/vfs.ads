@@ -19,7 +19,7 @@ with Interfaces; use Interfaces;
 with Memory;
 with Lib.Synchronization;
 
-package VFS is
+package VFS with SPARK_Mode => Off is
    type File_Type is (
       File_Regular,
       File_Directory,

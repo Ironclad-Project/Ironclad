@@ -20,7 +20,7 @@ with Lib.Atomic; use Lib.Atomic;
 with Arch;
 with Arch.Snippets;
 
-package body Lib.Synchronization is
+package body Lib.Synchronization with SPARK_Mode => Off is
    procedure Seize (Semaphore : not null access Binary_Semaphore) is
    begin
 <<Retry_Lock>>

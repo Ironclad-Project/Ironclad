@@ -20,7 +20,7 @@ with Interfaces; use Interfaces;
 with System.Machine_Code; use System.Machine_Code;
 with Lib.Panic;
 
-package body Arch.MMU is
+package body Arch.MMU with SPARK_Mode => Off is
    --  The page size the kernel will use for both its ttbrs.
    type Page_Size is (
       Pages_4K,

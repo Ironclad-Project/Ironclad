@@ -20,7 +20,7 @@ with Arch.APIC;
 with Arch.CPU;
 with Arch.Wrappers;
 
-package body Devices.PS2Keyboard is
+package body Devices.PS2Keyboard with SPARK_Mode => Off is
    --  There can only be 1 PS2 keyboard, so we can store the private data here
    --  to avoid the indirection of having it in the root object.
    Is_Capslock_Active : Boolean;

@@ -17,7 +17,7 @@
 with Arch.Debug;
 with Lib.Synchronization;
 
-package body Devices.Debug is
+package body Devices.Debug with SPARK_Mode => Off is
    function Init return Boolean is
       Stat   : VFS.File_Stat;
       Device : VFS.Resource;

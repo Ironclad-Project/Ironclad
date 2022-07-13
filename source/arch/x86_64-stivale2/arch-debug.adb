@@ -18,7 +18,7 @@ with Arch.Wrappers;
 with Arch.Stivale2;
 with Config;
 
-package body Arch.Debug is
+package body Arch.Debug with SPARK_Mode => Off is
    procedure Print (Message : Character) is
    begin
       Wrappers.Port_Out (16#E9#, Character'Pos (Message));

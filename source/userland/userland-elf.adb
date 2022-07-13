@@ -20,7 +20,7 @@ with Memory; use Memory;
 with Interfaces.C;
 with Arch.MMU;
 
-package body Userland.ELF is
+package body Userland.ELF with SPARK_Mode => Off is
    type ELF_ID_Field is array (Natural range <>) of Unsigned_8;
    ELF_Signature : constant ELF_ID_Field (1 .. 4) :=
       (16#7F#, Character'Pos ('E'), Character'Pos ('L'), Character'Pos ('F'));

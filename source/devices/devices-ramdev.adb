@@ -17,7 +17,7 @@
 with System; use System;
 with Memory; use Memory;
 
-package body Devices.Ramdev is
+package body Devices.Ramdev with SPARK_Mode => Off is
    --  Ramdev data.
    type Ramdev_Data is record
       Start_Address : System.Address;

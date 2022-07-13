@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 
-package Arch.PIT is
+package Arch.PIT with SPARK_Mode => Off is
    --  The total uptime kept by the PIT.
    Uptime : Unsigned_64 with Volatile;
    pragma Atomic (Uptime);

@@ -16,7 +16,7 @@
 
 with System.Machine_Code; use System.Machine_Code;
 
-package body Arch.Wrappers is
+package body Arch.Wrappers with SPARK_Mode => Off is
    procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) is
    begin
       Asm ("outb %0, %1",

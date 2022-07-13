@@ -18,7 +18,7 @@ with Lib.Synchronization;
 with Ada.Unchecked_Deallocation;
 with Arch.Local;
 
-package body Userland.Process is
+package body Userland.Process with SPARK_Mode => Off is
    procedure Free_Proc is new Ada.Unchecked_Deallocation
       (Process_Data, Process_Data_Acc);
 

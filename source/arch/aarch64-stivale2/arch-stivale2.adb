@@ -16,7 +16,7 @@
 
 with System.Address_To_Access_Conversions;
 
-package body Arch.Stivale2 is
+package body Arch.Stivale2 with SPARK_Mode => Off is
    function Get_Tag
      (Proto     : access Header;
      Identifier : Unsigned_64) return Virtual_Address

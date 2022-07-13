@@ -18,7 +18,7 @@ with System;
 with Interfaces; use Interfaces;
 with Memory;     use Memory;
 
-package Arch.Stivale2 is
+package Arch.Stivale2 with SPARK_Mode => Off is
    --  IDs of several tags.
    RSDP_ID        : constant := 16#9E1786930A375E78#;
    Memmap_ID      : constant := 16#2187F79E8612DE07#;

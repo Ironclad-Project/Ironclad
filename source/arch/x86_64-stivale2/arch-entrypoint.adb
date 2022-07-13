@@ -32,7 +32,7 @@ with Scheduler; use Scheduler;
 with Main;
 with Memory.Virtual;
 
-package body Arch.Entrypoint is
+package body Arch.Entrypoint with SPARK_Mode => Off is
    procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header) is
       package ST renames Arch.Stivale2;
 
@@ -54,7 +54,9 @@ package body Arch.Entrypoint is
       Mem_Statistics : Memory.Physical.Statistics;
    begin
       Arch.Stivale2.Stivale_Tag := Protocol;
-      ST.Init_Terminal (Term);
+      if not Config.Is_Embedded then
+         ST.Init_Terminal (Term);
+      end if;
       Lib.Messages.Put (Config.Name & " " & Config.Version & " booted by ");
       Lib.Messages.Put (Protocol.BootloaderBrand & " ");
       Lib.Messages.Put_Line (Protocol.BootloaderVersion);

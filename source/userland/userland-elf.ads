@@ -19,7 +19,7 @@ with Interfaces; use Interfaces;
 with VFS.File;
 with Memory.Virtual;
 
-package Userland.ELF is
+package Userland.ELF with SPARK_Mode => Off is
    type String_Acc is access String;
 
    --  Auxval values.

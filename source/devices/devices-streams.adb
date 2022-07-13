@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package body Devices.Streams is
+package body Devices.Streams with SPARK_Mode => Off is
    function Init return Boolean is
       Stat    : VFS.File_Stat;
       Nulldev : VFS.Resource;

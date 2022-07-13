@@ -18,7 +18,7 @@ with Interfaces; use Interfaces;
 with System;
 with VFS;
 
-package Devices.Streams is
+package Devices.Streams with SPARK_Mode => Off is
    --  Initialize the device.
    function Init return Boolean;
 

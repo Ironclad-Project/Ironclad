@@ -17,7 +17,7 @@
 with Arch.Entrypoint;
 pragma Unreferenced (Arch.Entrypoint);
 
-package body Arch is
+package body Arch with SPARK_Mode => Off is
    function Get_Info return Boot_Information is
       Ret : Boot_Information;
    begin

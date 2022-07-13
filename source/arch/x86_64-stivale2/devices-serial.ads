@@ -18,7 +18,7 @@ with Interfaces; use Interfaces;
 with System;
 with VFS;
 
-package Devices.Serial is
+package Devices.Serial with SPARK_Mode => Off is
    --  Initialize the serial devices.
    function Init return Boolean;
 

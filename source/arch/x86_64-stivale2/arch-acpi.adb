@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 
-package body Arch.ACPI is
+package body Arch.ACPI with SPARK_Mode => Off is
    --  RSDP table in memory, and its 2.0 version.
    type RSDP_Padding is array (1 .. 3) of Unsigned_8;
    type RSDP is record

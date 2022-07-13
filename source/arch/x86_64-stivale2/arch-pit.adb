@@ -19,7 +19,7 @@ with Arch.CPU;
 with Arch.IDT;
 with Arch.Wrappers;
 
-package body Arch.PIT is
+package body Arch.PIT with SPARK_Mode => Off is
    PIT_IRQ           : constant := 33;
    PIT_Divisor       : constant := 1193180;
    PIT_Frequency     : constant := 1000;

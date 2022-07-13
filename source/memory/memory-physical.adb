@@ -19,7 +19,7 @@ with Lib.Panic;
 with Lib.Synchronization; use Lib.Synchronization;
 with Lib.Alignment;
 
-package body Memory.Physical is
+package body Memory.Physical with SPARK_Mode => Off is
    Block_Free : constant Boolean := True;
    Block_Used : constant Boolean := False;
    type Bitmap is array (Unsigned_64 range <>) of Boolean;
@@ -158,7 +158,7 @@ package body Memory.Physical is
       declare
          Addr : constant Virtual_Address :=
             Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
-         Pool : array (1 .. Unsigned_64 (Size)) of Unsigned_8;
+         Pool : array (1 .. Unsigned_64 (Size)) of Unsigned_8 with Import;
          for Pool'Address use To_Address (Addr);
       begin
          Pool := (others => 0);

@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Arch.Snippets is
+package Arch.Snippets with SPARK_Mode => Off is
    --  Drive the execution thread to an irrecoverable state.
    --  (Halt and Catch Fire).
    procedure HCF with Inline_Always;

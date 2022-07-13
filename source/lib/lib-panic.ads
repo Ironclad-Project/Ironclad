@@ -23,8 +23,7 @@ package Lib.Panic is
    procedure Soft_Panic (Message : String);
 
    --  Panics for good, for cases when soft reboot is risky.
-   procedure Hard_Panic (Message : String);
-   pragma No_Return (Hard_Panic);
+   procedure Hard_Panic (Message : String) with No_Return;
 
 private
 

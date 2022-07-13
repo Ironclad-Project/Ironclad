@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Networking is
+package Networking with SPARK_Mode => Off is
    --  Name of the computer to be used on several networks.
    Hostname_Length : Positive := 4;
    Hostname_Buffer : String (1 .. 24) := "none                    ";

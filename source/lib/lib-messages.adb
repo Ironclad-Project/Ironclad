@@ -19,7 +19,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Lib.Synchronization;
 with Arch.Debug;
 
-package body Lib.Messages is
+package body Lib.Messages with SPARK_Mode => Off is
    Messages_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
 
    procedure Put_Line (Message : String) is

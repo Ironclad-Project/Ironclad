@@ -28,7 +28,7 @@ with Arch.Stivale2;
 with Config;
 with Interfaces; use Interfaces;
 
-package body Arch.Hooks is
+package body Arch.Hooks with SPARK_Mode => Off is
    procedure Devices_Hook is
       package ST renames Stivale2;
       package C is new

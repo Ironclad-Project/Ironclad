@@ -16,7 +16,7 @@
 
 with Arch.Stivale2;
 
-package Arch.Entrypoint is
+package Arch.Entrypoint with SPARK_Mode => Off is
    procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header)
       with Export, Convention => C, External_Name => "kernel_main";
 end Arch.Entrypoint;

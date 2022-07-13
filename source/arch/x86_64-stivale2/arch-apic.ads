@@ -18,7 +18,7 @@ with Interfaces; use Interfaces;
 with Arch.IDT;
 with Memory; use Memory;
 
-package Arch.APIC is
+package Arch.APIC with SPARK_Mode => Off is
    --  Entry of the IDT for LAPIC spurious fires.
    LAPIC_Spurious_Entry : constant := 255;
 

@@ -18,7 +18,7 @@ with System;
 with Interfaces; use Interfaces;
 with Memory; use Memory;
 
-package Arch.Wrappers is
+package Arch.Wrappers with SPARK_Mode => Off is
    --  IO port wrappers.
    procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8);
    function  Port_In  (Port : Unsigned_16) return Unsigned_8;

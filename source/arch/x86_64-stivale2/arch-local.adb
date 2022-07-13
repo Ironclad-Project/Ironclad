@@ -16,7 +16,7 @@
 
 with Arch.CPU;
 
-package body Arch.Local is
+package body Arch.Local with SPARK_Mode => Off is
    function Get_Current_Thread return Scheduler.TID is
    begin
       return CPU.Get_Local.Current_Thread;

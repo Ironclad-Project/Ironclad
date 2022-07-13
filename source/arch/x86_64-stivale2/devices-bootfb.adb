@@ -22,7 +22,7 @@ with Arch.CPU;
 with Userland.Process;
 with Memory.Virtual;
 
-package body Devices.BootFB is
+package body Devices.BootFB with SPARK_Mode => Off is
    type FB_Arr is array (Unsigned_32 range <>) of Unsigned_32;
 
    function Init (Fb : access Arch.Stivale2.Framebuffer_Tag) return Boolean is

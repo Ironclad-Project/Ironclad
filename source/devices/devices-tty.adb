@@ -19,7 +19,7 @@ with Arch.Debug;
 with VFS.File; use VFS.File;
 with VFS;
 
-package body Devices.TTY is
+package body Devices.TTY with SPARK_Mode => Off is
    type Termios_Special_Characters is array (1 .. 11) of Unsigned_32;
    type Termios_Local_Modes is record
       Echo_Input         : Boolean;

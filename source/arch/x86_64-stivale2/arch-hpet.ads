@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Arch.HPET is
+package Arch.HPET with SPARK_Mode => Off is
    --  True if initialized.
    Is_Initialized : Boolean;
 

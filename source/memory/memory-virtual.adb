@@ -17,7 +17,7 @@
 with Ada.Unchecked_Deallocation;
 with Lib.Alignment;
 
-package body Memory.Virtual is
+package body Memory.Virtual with SPARK_Mode => Off is
    package Align1 is new Lib.Alignment (Integer_Address);
    package Align2 is new Lib.Alignment (Unsigned_64);
 

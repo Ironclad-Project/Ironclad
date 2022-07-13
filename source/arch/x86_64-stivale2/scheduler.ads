@@ -21,7 +21,7 @@ with Memory; use Memory;
 with Userland;
 with Userland.ELF;
 
-package Scheduler is
+package Scheduler with SPARK_Mode => Off is
    --  True if the scheduler is initialized.
    Is_Initialized : Boolean with Volatile;
 

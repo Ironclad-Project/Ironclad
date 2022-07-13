@@ -20,7 +20,7 @@ with Arch.IDT;
 with Arch.Wrappers;
 with Memory.Virtual;
 
-package body Arch.CPU is
+package body Arch.CPU with SPARK_Mode => Off is
    procedure Init_Cores (SMP_Info : access Arch.Stivale2.SMP_Tag) is
       type Stack is array (1 .. 32768) of Unsigned_8;
       type Stack_Acc is access Stack;

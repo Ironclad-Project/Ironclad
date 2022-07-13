@@ -22,7 +22,7 @@ with Scheduler;
 with Userland.Syscall; use Userland.Syscall;
 with Arch.Wrappers;
 
-package body Arch.Interrupts is
+package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Exception_Handler (Number : Integer; State : access ISR_GPRs) is
       Exception_Text : constant array (0 .. 30) of String (1 .. 3) := (
          0  => "#DE", 1  => "#DB", 2  => "???", 3  => "#BP",

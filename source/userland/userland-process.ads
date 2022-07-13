@@ -20,7 +20,7 @@ with Memory.Virtual;
 with Scheduler; use Scheduler;
 with Interfaces; use Interfaces;
 
-package Userland.Process is
+package Userland.Process with SPARK_Mode => Off is
    --  A process is a collection of threads (handled by the scheduler) and
    --  their shared resources, like memory map, and open files.
    --  It is the main unit of program handling. When a program is opened, a

@@ -18,7 +18,7 @@ with System;
 with Interfaces; use Interfaces;
 with VFS;
 
-package Devices.PS2Keyboard is
+package Devices.PS2Keyboard with SPARK_Mode => Off is
    --  Initialize the device.
    function Init return Boolean;
 

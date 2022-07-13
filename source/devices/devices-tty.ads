@@ -18,7 +18,7 @@ with Interfaces; use Interfaces;
 with System;
 with VFS;
 
-package Devices.TTY is
+package Devices.TTY with SPARK_Mode => Off is
    --  Initialize the device.
    function Init return Boolean;
 

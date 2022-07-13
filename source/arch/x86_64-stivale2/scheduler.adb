@@ -30,7 +30,7 @@ with Arch;
 with Arch.Snippets;
 with Arch.MMU;
 
-package body Scheduler is
+package body Scheduler with SPARK_Mode => Off is
    --  Thread information.
    type FP_Region_Arr is array (1 .. 512) of Unsigned_8 with Alignment => 16;
    type Thread_Info is record

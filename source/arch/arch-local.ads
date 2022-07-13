@@ -17,7 +17,7 @@
 with Scheduler;
 with Userland.Process;
 
-package Arch.Local is
+package Arch.Local with SPARK_Mode => Off is
    --  Fetch and set the current thread and process.
    function Get_Current_Thread return Scheduler.TID;
    function Get_Current_Process return Userland.Process.Process_Data_Acc;

@@ -10,7 +10,7 @@ gprbuild -p ironclad.gpr -j4 # Build the kernel.
 
 To run the formal proofing framework, which is not necessary, one can run:
 
-gnatprove -P ironclad.gpr -U --prover=cvc4,altergo,z3
+gnatprove -P ironclad.gpr -U --prover=cvc4,altergo,z3 --mode=all -j4
 
 Several flags and variables are available for tuning:
 

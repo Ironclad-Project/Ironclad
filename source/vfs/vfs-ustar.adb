@@ -20,7 +20,7 @@ with Memory.Physical;
 with System; use System;
 with Interfaces.C;
 
-package body VFS.USTAR is
+package body VFS.USTAR with SPARK_Mode => Off is
    type USTAR_Padding is array (Natural range <>) of Boolean with Pack;
    USTAR_Signature : constant String := "ustar ";
    type USTAR_Header is record

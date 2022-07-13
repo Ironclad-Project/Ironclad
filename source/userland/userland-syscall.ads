@@ -18,7 +18,7 @@ with Interfaces; use Interfaces;
 with VFS.File;
 with Arch.Interrupts; use Arch.Interrupts;
 
-package Userland.Syscall is
+package Userland.Syscall with SPARK_Mode => Off is
    --  Error conditions for syscalls.
    --  The representation values are arbitrary.
    type Errno_Value is (

@@ -23,7 +23,7 @@ with Memory; use Memory;
 with Lib.Panic;
 with Lib.Alignment;
 
-package body Arch.MMU is
+package body Arch.MMU with SPARK_Mode => Off is
    --  Object to represent a page map.
    Page_Size_4K : constant := 16#001000#;
    Page_Size_2M : constant := 16#200000#;

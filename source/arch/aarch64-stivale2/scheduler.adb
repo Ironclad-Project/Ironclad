@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package body Scheduler is
+package body Scheduler with SPARK_Mode => Off is
    function Init return Boolean is
    begin
       return False;

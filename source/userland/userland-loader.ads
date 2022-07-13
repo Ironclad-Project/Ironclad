@@ -17,7 +17,7 @@
 with Userland.Process; use Userland.Process;
 with VFS.File;         use VFS.File;
 
-package Userland.Loader is
+package Userland.Loader with SPARK_Mode => Off is
    --  Start a program from a passed file, and create a process for it with
    --  1 thread running it.
    --  The format of the file is guessed.

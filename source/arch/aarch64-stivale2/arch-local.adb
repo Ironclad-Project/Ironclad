@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package body Arch.Local is
+package body Arch.Local with SPARK_Mode => Off is
    function Get_Current_Thread return Scheduler.TID is
    begin
       return 0;

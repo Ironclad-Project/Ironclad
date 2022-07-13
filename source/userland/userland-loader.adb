@@ -23,7 +23,7 @@ with Memory; use Memory;
 with Userland.ELF;
 with Scheduler; use Scheduler;
 
-package body Userland.Loader is
+package body Userland.Loader with SPARK_Mode => Off is
    --  Virtual offsets for different kinds of programs to load.
    Program_Offset        : constant := 16#00000000#;
    Dynamic_Linker_Offset : constant := 16#40000000#;

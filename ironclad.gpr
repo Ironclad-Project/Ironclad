@@ -21,7 +21,7 @@ project Ironclad is
    Arch   : Arch_Name   := External ("ARCH",   "x86_64-stivale2");
    Target : Target_Name := External ("TARGET", "standard");
 
-   Ada_Flags    := External ("ADAFLAGS", "-O2 -g -gnaty -Wall");
+   Ada_Flags    := External ("ADAFLAGS", "-O2 -g -gnaty -Wall -fdata-sections");
    C_Flags      := External ("CFLAGS",   "-O2 -g -Wall");
    Linker_Flags := External ("LDFLAGS",  "-O2 -g -Wl,-gc-sections");
 

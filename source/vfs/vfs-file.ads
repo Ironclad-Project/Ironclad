@@ -17,7 +17,7 @@
 with System;
 with Memory;
 
-package VFS.File is
+package VFS.File with SPARK_Mode => Off is
    type Access_Mode is (Access_R, Access_W, Access_RW);
    type String_Acc is access String;
    type File is record

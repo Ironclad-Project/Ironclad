@@ -18,7 +18,10 @@ with Lib.Messages;
 with Lib.Panic;
 with System.Storage_Elements; use System.Storage_Elements;
 
-package body Lib.Runtime is
+package body Lib.Runtime with SPARK_Mode => Off is
+   pragma Suppress (All_Checks); --  Failing a check here would just make
+                                 --  it recursive, we are already panicking.
+
    procedure Access_Check (File : System.Address; Line : Integer) is
    begin
       Print_Exception ("Access check failure", File, Line);

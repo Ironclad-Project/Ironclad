@@ -17,13 +17,21 @@
 with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 
-package body Lib with SPARK_Mode is
+package body Lib is
+   pragma Warnings (
+      GNATprove,
+      Off,
+      "indirect writes to ""C"" through a potential alias are ignored",
+      Reason => "No alias are taken"
+   );
+
    function C_String_Length (Addr : Address) return Natural is
       Length : Natural := 0;
    begin
       loop
          declare
-            C : Character with Address => Addr + Storage_Offset (Length);
+            C : constant Character
+               with Address => Addr + Storage_Offset (Length), Import;
          begin
             exit when C = Ada.Characters.Latin_1.NUL or Length = Natural'Last;
             Length := Length + 1;

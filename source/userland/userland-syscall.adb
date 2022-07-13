@@ -37,7 +37,7 @@ with Arch.Hooks;
 with Arch.MMU;
 with Arch.Local;
 
-package body Userland.Syscall is
+package body Userland.Syscall with SPARK_Mode => Off is
    --  Whether we are to print syscall information.
    Is_Tracing : Boolean := False;
 

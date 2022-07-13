@@ -22,7 +22,7 @@ with Memory.Virtual; use Memory.Virtual;
 with Lib.Synchronization;
 with Arch.Snippets;
 
-package body Arch.Stivale2 is
+package body Arch.Stivale2 with SPARK_Mode => Off is
    Terminal_Enabled    : Boolean          := False;
    Terminal_Entrypoint : Physical_Address := Null_Address;
    Terminal_Mutex      : aliased Lib.Synchronization.Binary_Semaphore;

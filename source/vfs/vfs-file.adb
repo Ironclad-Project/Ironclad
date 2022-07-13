@@ -18,7 +18,7 @@ with Ada.Unchecked_Deallocation;
 with System; use System;
 with VFS.USTAR;
 
-package body VFS.File is
+package body VFS.File with SPARK_Mode => Off is
    procedure Free_Str  is new Ada.Unchecked_Deallocation (String, String_Acc);
    procedure Free_File is new Ada.Unchecked_Deallocation (File, File_Acc);
 

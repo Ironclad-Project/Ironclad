@@ -18,7 +18,7 @@ with Arch.Wrappers;
 with Lib.Synchronization;
 with Scheduler;
 
-package body Devices.Serial is
+package body Devices.Serial with SPARK_Mode => Off is
    --  COM ports, the first 2 ones are almost sure to be at that address, the
    --  rest are a bit spoty, so we must not forget to test all of them.
    COM_Ports : constant array (1 .. 4) of Unsigned_16 :=

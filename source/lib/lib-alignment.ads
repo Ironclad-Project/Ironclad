@@ -19,7 +19,7 @@
 
 generic
    type T is mod <>;
-package Lib.Alignment with SPARK_Mode, Pure is
+package Lib.Alignment with Pure is
    function Align_Up (Value, Alignment : T) return T
       with Pre  => Alignment /= 0 and (Alignment and (Alignment - 1)) = 0,
            Post => Align_Up'Result rem Alignment = 0;

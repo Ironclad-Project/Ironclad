@@ -20,7 +20,7 @@ with Arch.Snippets;
 with Lib.Messages;
 with Lib.Synchronization;
 
-package body Lib.Panic is
+package body Lib.Panic with SPARK_Mode => Off is
    Already_Soft_Panicked : Boolean := False;
    Is_Propagated         : Boolean := False;
    Panic_Mutex           : aliased Synchronization.Binary_Semaphore;

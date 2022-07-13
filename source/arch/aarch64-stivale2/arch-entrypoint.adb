@@ -20,7 +20,7 @@ with Config;
 with Memory.Physical;
 with Memory.Virtual;
 
-package body Arch.Entrypoint is
+package body Arch.Entrypoint with SPARK_Mode => Off is
    procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header) is
       --  TODO: This is a placeholder because I am lazy to read the DTB.
       --  This sucks, and is only for testing purposes, please fix this asap.

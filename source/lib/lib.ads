@@ -16,7 +16,7 @@
 
 with System; use System;
 
-package Lib with SPARK_Mode, Pure is
+package Lib with Pure is
    --  Report the length of a NUL-Terminated C string.
    function C_String_Length (Addr : Address) return Natural
       with Pre => Addr /= System.Null_Address;

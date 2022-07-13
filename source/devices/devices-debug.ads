@@ -18,7 +18,7 @@ with Interfaces; use Interfaces;
 with System;
 with VFS;
 
-package Devices.Debug is
+package Devices.Debug with SPARK_Mode => Off is
    --  Initialize the device.
    function Init return Boolean;
 

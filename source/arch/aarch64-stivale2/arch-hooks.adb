@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package body Arch.Hooks is
+package body Arch.Hooks with SPARK_Mode => Off is
    procedure Devices_Hook is
    begin
       return;

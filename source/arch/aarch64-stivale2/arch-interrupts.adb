@@ -17,7 +17,7 @@
 with Lib.Messages;
 with Lib.Panic;
 
-package body Arch.Interrupts is
+package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Exception_Handler
       (Interrupt     : Interrupt_Type;
        Syndrome      : Unsigned_64;

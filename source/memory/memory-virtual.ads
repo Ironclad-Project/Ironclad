@@ -18,7 +18,7 @@ with Interfaces; use Interfaces;
 with Lib.Synchronization;
 with Arch.MMU; use Arch.MMU;
 
-package Memory.Virtual is
+package Memory.Virtual with SPARK_Mode => Off is
    --  Initialize the manager using the architectural interface.
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean;
 

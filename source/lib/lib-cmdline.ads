@@ -19,8 +19,10 @@ package Lib.Cmdline is
 
    --  Get the value of a key from a C-style cmdline, and return it.
    --  Returns null if not found.
-   function Get_Parameter (Cmdline, Key : String) return String_Acc;
+   function Get_Parameter (Cmdline, Key : String) return String_Acc
+      with Pre => Cmdline'Length /= 0 and Key'Length /= 0;
 
    --  Get whether an option is present on a C-style cmdline.
-   function Is_Key_Present (Cmdline, Key : String) return Boolean;
+   function Is_Key_Present (Cmdline, Key : String) return Boolean
+      with Pre => Cmdline'Length /= 0 and Key'Length /= 0;
 end Lib.Cmdline;

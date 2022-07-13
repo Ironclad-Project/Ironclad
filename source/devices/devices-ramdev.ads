@@ -19,7 +19,7 @@ with VFS; use VFS;
 with Interfaces; use Interfaces;
 with Arch;
 
-package Devices.Ramdev is
+package Devices.Ramdev with SPARK_Mode => Off is
    --  Initialize a device given a stivale2 module to go off from, and whether
    --  its a USTAR FS or not.
    function Init_Module (Module : Arch.Boot_RAM_File) return VFS.Resource;

@@ -21,7 +21,7 @@ with Arch.Wrappers;
 with Lib.Panic;
 with Arch.Snippets;
 
-package body Arch.APIC is
+package body Arch.APIC with SPARK_Mode => Off is
    LAPIC_MSR                         : constant := 16#01B#;
    LAPIC_EOI_Register                : constant := 16#0B0#;
    LAPIC_Spurious_Register           : constant := 16#0F0#;

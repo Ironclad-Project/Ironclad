@@ -17,7 +17,7 @@
 with System;
 with Interfaces; use Interfaces;
 
-package Lib.Synchronization is
+package Lib.Synchronization with SPARK_Mode => Off is
    --  A simple binary semaphore.
    type Binary_Semaphore is record
       Caller    : System.Address;
