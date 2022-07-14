@@ -53,7 +53,7 @@ General information
 
 Embedded facilities and RTC
 
-* Scheduling and priorities::   Scheduling guarantees and priority management.
+* Real time and monothreaded scheduling:: RT and monothreads.
 
 Boot-time command-line options
 
@@ -83,6 +83,7 @@ Syscalls
 * getpriority/setpriority:: Manage scheduler priorities for processes.
 * dup/dup2/dup3::           Duplicate file descriptors.
 * access::                  Testing file permissions.
+* thread_sched::            Manage scheduler-related thread permissions.
 
 Devices and their properties
 
@@ -187,39 +188,40 @@ embedded and mission critical tasks.
 Ironclad supports several features geared towards embedded and real time work,
 this section approaches what to expect and how to interact with the features.
 
-@node Scheduling and priorities
-@section Scheduling and priorities
+@node Real time and monothreaded scheduling
+@section Real time and monothreaded scheduling
 
-Scheduling in Ironclad is hardcoded to be done by a round robin (RR) with the
-addition of priorities which rule how much time the process will be run for.
-The amount of time each priority corresponds to is fixed, with the goal
-of predictable outcome. Priorities can be modified for the running process
-using @xref{getpriority/setpriority}.
+Scheduling in Ironclad supports two special, embedded-oriented modes, which
+can be enabled or disabled using @xref{thread_sched} with @code{THREAD_RT} and
+@code{THREAD_MONO}.
 
-Priorities map to execution times using the following table.
+@itemize @bullet
+@item
+@code{THREAD_RT}: This flag enables real-time (RT) scheduling.
 
-@table @code
-@item -20 .. -15
-30000ns
+Under this mode, the kernel ensures that the thread will not be preemted by
+non-RT threads. When preemted by another RT thread, the default semantics of
+priority using POSIX's @xref{getpriority/setpriority} apply.
 
-@item -14 .. -10
-20000ns
+@item
+@code{THREAD_MONO}: This flag will make the scheduler not preemt at all from
+the thread once execution has already been engaged.
 
-@item -9 .. -1
-15000ns
+This flag can be used for enforcing critical sections backed by the kernel in
+single-core systems, or for keeping a sensor-polling service running constantly
+for low latency, constant readings on important variables.
 
-@item 0 (Default)
-10000ns
+Using @xref{sched_yield} or relinquishing execution in any other similar way
+will not reset the flag, but it will allow the system to search for another,
+non-monothreaded, thread.
 
-@item 1 .. 9
-8000ns
+Notice that this flag does not imply the system runs only 1 thread, the kernel
+will attempt to leverage SMP for example to run several threads at once if
+possible, it only ensures the thread does not get interrupted.
 
-@item 10 .. 15
-6000ns
-
-@item 16 .. 19
-5000ns
-@end table
+The use of this flag can and will easily cause deadlocks and spawn hell on
+earth when used carelessly, so attention has to be paid to its use.
+@end itemize
 
 @node Boot-time command-line options
 @chapter Boot-time command-line options
@@ -866,6 +868,40 @@ and @code{-1} on failure. The errno codes set on failure are:
 @item
 @code{ENOENT}: The requested path to check does not exist.
 @end itemize
+
+@node thread_sched
+@section thread_sched
+
+@example
+int get_thread_sched(void);
+int set_thread_sched(int flags);
+@end example
+
+This syscalls manage scheduling properties of the callee thread. Both functions
+operate on a bitmap with the following bits
+
+@itemize @bullet
+@item
+@code{THREAD_RT (0b0001)}: Marks whether the thread is a real time thread, see
+@xref{Real time and monothreaded scheduling} for details.
+
+@item
+@code{THREAD_MONO (0b0010)}: Marks whether the thread is a monothread, see
+@xref{Real time and monothreaded scheduling} for details.
+
+@item
+@code{THREAD_MLOCK (0b0100)}: An mlock'ed thread will not allow its memory to
+be swapped from memory, or altered by the kernel outside its control. This does
+not include previously configured shared memory.
+
+@item
+@code{THREAD_BANNED (0b1000)}: A banned thread will get dequed permanently once
+its execution slice is over, without being deleted. If set when calling
+@code{set_thread_sched}, the thread will be dequed effective immediately.
+@end itemize
+
+These two syscalls do not fail, @code{get_thread_sched} returns the flags, and
+@code{set_thread_sched} always returns 0, both syscalls return no @code{errno}.
 
 @node Devices and their properties
 @chapter Devices and their properties

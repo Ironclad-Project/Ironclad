@@ -1189,4 +1189,52 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end;
    end Syscall_Access;
+
+   function Syscall_Get_Thread_Sched
+      (Errno : out Errno_Value) return Unsigned_64
+   is
+      Ret  : Unsigned_64            := 0;
+      Curr : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put_Line ("syscall get_thread_sched()");
+      end if;
+
+      if Scheduler.Is_RT_Thread (Curr) then
+         Ret := Ret and Thread_RT;
+      end if;
+      if Scheduler.Is_Mono_Thread (Curr) then
+         Ret := Ret and Thread_MONO;
+      end if;
+
+      --  A thread is always MLOCK'd because we dont swap, and it cannot be
+      --  banned if it is calling this.
+      Ret := Ret and Thread_MLOCK;
+
+      Errno := Error_No_Error;
+      return 0;
+   end Syscall_Get_Thread_Sched;
+
+   function Syscall_Set_Thread_Sched
+      (Flags : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64
+   is
+      Curr : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall set_thread_sched(");
+         Lib.Messages.Put      (Flags);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      Scheduler.Set_RT_Thread   (Curr, (Flags and Thread_RT)     /= 0);
+      Scheduler.Set_Mono_Thread (Curr, (Flags and Thread_MONO)   /= 0);
+      Scheduler.Ban_Thread      (Curr, (Flags and Thread_BANNED) /= 0);
+      if (Flags and Thread_BANNED) /= 0 then
+         Scheduler.Bail;
+      end if;
+
+      Errno := Error_No_Error;
+      return 0;
+   end Syscall_Set_Thread_Sched;
 end Userland.Syscall;

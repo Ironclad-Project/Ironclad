@@ -276,6 +276,19 @@ package Userland.Syscall with SPARK_Mode => Off is
       (Path, Mode : Unsigned_64;
        Errno      : out Errno_Value) return Unsigned_64;
 
+   --  Managing scheduling of a thread.
+   Thread_RT     : constant := 2#0001#;
+   Thread_MONO   : constant := 2#0010#;
+   Thread_MLOCK  : constant := 2#0100#;
+   Thread_BANNED : constant := 2#1000#;
+   function Syscall_Get_Thread_Sched
+      (Errno : out Errno_Value) return Unsigned_64;
+   function Syscall_Set_Thread_Sched
+      (Flags : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64;
+
+private
+
    function Inner_Stat
       (F       : VFS.File.File_Acc;
        Address : Unsigned_64) return Boolean;

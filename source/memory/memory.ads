@@ -16,7 +16,7 @@
 
 with System.Storage_Elements; use System.Storage_Elements;
 
-package Memory with SPARK_Mode => Off is
+package Memory is
    type Size is mod 2 ** Standard'Address_Size; --  Any object in bytes.
 
    --  Some notable memory locations.

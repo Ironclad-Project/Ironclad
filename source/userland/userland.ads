@@ -14,9 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Userland with SPARK_Mode => Off is
+package Userland is
    --  Arguments passed to a program when created.
-   type String_Acc is access all String;
+   type String_Acc is access String;
    type Argument_Arr    is array (Positive range <>) of String_Acc;
    type Environment_Arr is array (Positive range <>) of String_Acc;
 end Userland;

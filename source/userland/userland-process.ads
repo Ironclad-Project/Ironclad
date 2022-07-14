@@ -38,7 +38,7 @@ package Userland.Process with SPARK_Mode => Off is
       Current_Dir     : String (1 .. 100);
       Thread_List     : Process_Data_Threads;
       File_Table      : Process_File_Table;
-      Common_Map      : access Memory.Virtual.Page_Map;
+      Common_Map      : Memory.Virtual.Page_Map_Acc;
       Stack_Base      : Unsigned_64;
       Alloc_Base      : Unsigned_64;
 

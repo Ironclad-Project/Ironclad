@@ -129,6 +129,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := Syscall_Dup3 (State.RDI, State.RSI, State.RDX, Errno);
          when 27 =>
             Returned := Syscall_Access (State.RDI, State.RSI, Errno);
+         when 28 =>
+            Returned := Syscall_Get_Thread_Sched (Errno);
+         when 29 =>
+            Returned := Syscall_Set_Thread_Sched (State.RDI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;

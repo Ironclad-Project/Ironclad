@@ -34,17 +34,19 @@ package body Scheduler with SPARK_Mode => Off is
    --  Thread information.
    type FP_Region_Arr is array (1 .. 512) of Unsigned_8 with Alignment => 16;
    type Thread_Info is record
-      State        : Arch.Interrupts.ISR_GPRs;
-      Is_Present   : Boolean;
-      Is_Banned    : Boolean;
-      Is_Running   : Boolean;
-      Priority     : Integer;
-      FS           : Unsigned_64;
-      PageMap      : Memory.Virtual.Page_Map_Acc;
-      Stack        : Virtual_Address;
-      Kernel_Stack : Virtual_Address;
-      FP_Region    : FP_Region_Arr;
-      Process      : Userland.Process.Process_Data_Acc;
+      State         : Arch.Interrupts.ISR_GPRs;
+      Is_Present    : Boolean;
+      Is_Banned     : Boolean;
+      Is_Running    : Boolean;
+      Is_Monothread : Boolean;
+      Is_Real_Time  : Boolean;
+      Priority      : Integer;
+      FS            : Unsigned_64;
+      PageMap       : Memory.Virtual.Page_Map_Acc;
+      Stack         : Virtual_Address;
+      Kernel_Stack  : Virtual_Address;
+      FP_Region     : FP_Region_Arr;
+      Process       : Userland.Process.Process_Data_Acc;
    end record;
    type Thread_Info_Arr is array (TID range 1 .. 256) of Thread_Info;
 
@@ -380,6 +382,46 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
    end Set_Thread_Priority;
 
+   function Is_Mono_Thread (Thread : TID) return Boolean is
+      Ret : Boolean := False;
+   begin
+      if Is_Thread_Present (Thread) then
+         Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+         Ret := Thread_Pool (Thread).Is_Monothread;
+         Lib.Synchronization.Release (Scheduler_Mutex'Access);
+      end if;
+      return Ret;
+   end Is_Mono_Thread;
+
+   procedure Set_Mono_Thread (Thread : TID; Is_Mono : Boolean) is
+   begin
+      if Is_Thread_Present (Thread) then
+         Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+         Thread_Pool (Thread).Is_Monothread := Is_Mono;
+         Lib.Synchronization.Release (Scheduler_Mutex'Access);
+      end if;
+   end Set_Mono_Thread;
+
+   function Is_RT_Thread (Thread : TID) return Boolean is
+      Ret : Boolean := False;
+   begin
+      if Is_Thread_Present (Thread) then
+         Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+         Ret := Thread_Pool (Thread).Is_Real_Time;
+         Lib.Synchronization.Release (Scheduler_Mutex'Access);
+      end if;
+      return Ret;
+   end Is_RT_Thread;
+
+   procedure Set_RT_Thread (Thread : TID; Is_RT : Boolean) is
+   begin
+      if Is_Thread_Present (Thread) then
+         Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+         Thread_Pool (Thread).Is_Real_Time := Is_RT;
+         Lib.Synchronization.Release (Scheduler_Mutex'Access);
+      end if;
+   end Set_RT_Thread;
+
    procedure Yield is
       Core_LAPIC : constant Unsigned_32 := Arch.CPU.Get_Local.LAPIC_ID;
    begin
@@ -421,7 +463,16 @@ package body Scheduler with SPARK_Mode => Off is
 
       --  Get the next thread for execution.
       Current_TID := Arch.CPU.Get_Local.Current_Thread;
-      Next_TID    := 0;
+
+      --  Check whether we are running a monothread, if so, dont switch.
+      if Thread_Pool (Current_TID).Is_Monothread then
+         Lib.Synchronization.Release (Scheduler_Mutex'Access);
+         Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector, Hz,
+            Priority_Slices (Thread_Pool (Current_TID).Priority));
+         return;
+      end if;
+
+      Next_TID := 0;
       for I in Current_TID + 1 .. Thread_Pool'Last loop
          if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Banned and
             not Thread_Pool (I).Is_Running and I /= Current_TID

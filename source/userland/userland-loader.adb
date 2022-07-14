@@ -22,6 +22,7 @@ with Memory.Virtual;
 with Memory; use Memory;
 with Userland.ELF;
 with Scheduler; use Scheduler;
+with Ada.Unchecked_Conversion;
 
 package body Userland.Loader with SPARK_Mode => Off is
    --  Virtual offsets for different kinds of programs to load.
@@ -155,6 +156,9 @@ package body Userland.Loader with SPARK_Mode => Off is
        Environment : Environment_Arr;
        Proc        : Process_Data_Acc) return Boolean
    is
+      function Conv is new Ada.Unchecked_Conversion
+         (Target => Userland.String_Acc, Source => VFS.File.String_Acc);
+
       Path_Len : Natural := 0;
       Arg_Len  : Natural := 0;
       Path     : String (1 .. 100);
@@ -199,7 +203,7 @@ package body Userland.Loader with SPARK_Mode => Off is
             I := I + 1;
          end if;
          New_Args (I .. New_Args'Length) := Arguments;
-         New_Args (I) := FD.Full_Path.all'Access;
+         New_Args (I) := Conv (FD.Full_Path);
          return Start_Program (
             Open (Path (1 .. Path_Len), Access_R),
             New_Args,

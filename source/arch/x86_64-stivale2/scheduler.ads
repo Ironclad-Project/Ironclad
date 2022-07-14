@@ -68,6 +68,13 @@ package Scheduler with SPARK_Mode => Off is
    function Get_Thread_Priority (Thread : TID) return Integer;
    procedure Set_Thread_Priority (Thread : TID; Priority : Integer);
 
+   --  Set whether a thread is real time or not, along with monothreading.
+   --  Real time thread semantics are described in the documentation.
+   function Is_Mono_Thread (Thread : TID) return Boolean;
+   procedure Set_Mono_Thread (Thread : TID; Is_Mono : Boolean);
+   function Is_RT_Thread (Thread : TID) return Boolean;
+   procedure Set_RT_Thread (Thread : TID; Is_RT : Boolean);
+
    --  Give up the rest of our execution time for some other process.
    procedure Yield;
 
