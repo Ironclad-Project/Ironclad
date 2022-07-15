@@ -53,7 +53,9 @@ General information
 
 Embedded facilities and RTC
 
+* Ticks and other interruptions::         Thread interruptions to expect.
 * Real time and monothreaded scheduling:: RT and monothreads.
+* Entering a real-time state::            Example for making RT-friendly state.
 
 Boot-time command-line options
 
@@ -188,6 +190,19 @@ embedded and mission critical tasks.
 Ironclad supports several features geared towards embedded and real time work,
 this section approaches what to expect and how to interact with the features.
 
+@node Ticks and other interruptions
+@section Ticks and other interruptions
+
+Ironclad will not interrupt your running thread for timer or heartbeats, in
+that way, ironclad is tickless.
+
+However, Ironclad can interrupt a process for scheduling-related stops, this
+is totally normal and can introduce substantial delays on systems with a lot
+of processes, or introduce jitter on systems that desire absolutely 0 stops.
+
+For how to get around scheduling-related ticks,
+@xref{Real time and monothreaded scheduling}.
+
 @node Real time and monothreaded scheduling
 @section Real time and monothreaded scheduling
 
@@ -205,7 +220,8 @@ priority using POSIX's @xref{getpriority/setpriority} apply.
 
 @item
 @code{THREAD_MONO}: This flag will make the scheduler not preemt at all from
-the thread once execution has already been engaged.
+the thread once execution has already been engaged, effectively starting
+cooperative multitasking.
 
 This flag can be used for enforcing critical sections backed by the kernel in
 single-core systems, or for keeping a sensor-polling service running constantly
@@ -216,12 +232,35 @@ will not reset the flag, but it will allow the system to search for another,
 non-monothreaded, thread.
 
 Notice that this flag does not imply the system runs only 1 thread, the kernel
-will attempt to leverage SMP for example to run several threads at once if
-possible, it only ensures the thread does not get interrupted.
-
-The use of this flag can and will easily cause deadlocks and spawn hell on
-earth when used carelessly, so attention has to be paid to its use.
+will attempt to leverage other hardware cores for example to run several
+threads at once if possible, it only ensures the given thread does not get
+interrupted at all, and does not stop running until it says so.
 @end itemize
+
+@node Entering a real-time state
+@section Entering a real-time state
+
+Taking into account all the previous information, an appropiate sequence for
+entering a real-time friendly state would be
+
+@example
+int main(void) @{
+    // Set the running thread as RT/MLOCK.
+    int sched_flags = get_thread_sched();
+    if (set_thread_sched(sched_flags | THREAD_RT | THREAD_MLOCK) != 0) @{
+        return -1;
+    @}
+
+    // Changes are effective next reschedule, else we cannot ensure the
+    // scheduler will not interrupt us, the timer is already armed.
+    sched_yield();
+
+    // Welcome to RT land!
+
+    // One can do anything here, this snippet will just exit.
+    exit(0);
+@}
+@end example
 
 @node Boot-time command-line options
 @chapter Boot-time command-line options

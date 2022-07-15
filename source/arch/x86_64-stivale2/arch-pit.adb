@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
 with Arch.APIC;
 with Arch.CPU;
 with Arch.IDT;
@@ -28,6 +29,10 @@ package body Arch.PIT with SPARK_Mode => Off is
 
    PIT_Enabled   : Boolean  := False;
    Handler_Index : IDT.IDT_Index;
+   BSP_LAPIC_ID  : Unsigned_32;
+
+   Uptime : Unsigned_64 with Volatile;
+   pragma Atomic (Uptime);
 
    function Init return Boolean is
       New_Divisor : constant Unsigned_32 := PIT_Divisor / PIT_Frequency;
@@ -35,36 +40,41 @@ package body Arch.PIT with SPARK_Mode => Off is
 
       Low8  : constant Unsigned_8 := Unsigned_8 (New_Divisor and 16#FF#);
       High8 : constant Unsigned_8 := Unsigned_8 (Low_Divisor and 16#FF#);
-
-      BSP_LAPIC_ID : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
    begin
       --  Setup the PIT.
       Arch.Wrappers.Port_Out (PIT_Command_Port,  16#36#);
       Arch.Wrappers.Port_Out (PIT_Channel0_Port, Low8);
       Arch.Wrappers.Port_Out (PIT_Channel0_Port, High8);
 
-      --  Prepare the uptime and register the interrupt only for the BSP.
-      Uptime := 0;
+      --  Prepare the uptime, BSP, and interrupt routine.
+      Uptime       := 0;
+      BSP_LAPIC_ID := Arch.CPU.Core_Locals (1).LAPIC_ID;
+      PIT_Enabled  := True;
       if not Arch.IDT.Load_ISR (IRQ_Handler'Address, Handler_Index) then
          return False;
       end if;
-      if not Arch.APIC.IOAPIC_Set_Redirect
-         (BSP_LAPIC_ID, PIT_IRQ, Handler_Index, True)
-      then
-         return False;
-      end if;
-      PIT_Enabled := True;
-      return True;
+
+      --  Mask the interrupt and return.
+      return Arch.APIC.IOAPIC_Set_Redirect
+          (BSP_LAPIC_ID, PIT_IRQ, Handler_Index, False);
    end Init;
 
    procedure Sleep (Milliseconds : Positive) is
-      Target : constant Unsigned_64 := Uptime + Unsigned_64 (Milliseconds);
+      Target  : constant Unsigned_64 := Uptime + Unsigned_64 (Milliseconds);
+      Discard : Boolean;
    begin
-      if not PIT_Enabled then
+      --  Check for enabling and unmasking, we dont have a contantly ticking
+      --  clock.
+      if not PIT_Enabled or else
+         Arch.APIC.IOAPIC_Set_Redirect
+            (BSP_LAPIC_ID, PIT_IRQ, Handler_Index, True)
+      then
          return;
       end if;
 
       while Target > Uptime loop null; end loop;
+      Discard := Arch.APIC.IOAPIC_Set_Redirect
+          (BSP_LAPIC_ID, PIT_IRQ, Handler_Index, False);
    end Sleep;
 
    procedure IRQ_Handler is

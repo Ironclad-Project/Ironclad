@@ -14,13 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
-
 package Arch.PIT with SPARK_Mode => Off is
-   --  The total uptime kept by the PIT.
-   Uptime : Unsigned_64 with Volatile;
-   pragma Atomic (Uptime);
-
    --  Initialize by doing a first configure of the PIT, true on success.
    function Init return Boolean;
 

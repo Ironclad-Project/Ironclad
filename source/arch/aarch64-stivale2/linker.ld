@@ -48,8 +48,11 @@ SECTIONS {
 
     .rodata : {
         *(.rodata .rodata.*)
-        *(.note.gnu.build-id)
     } :rodata
+
+    .note : {
+        *(.note.gnu.build-id)
+    } : rodata
 
     . = ALIGN(64K);
 

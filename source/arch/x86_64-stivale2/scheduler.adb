@@ -464,14 +464,6 @@ package body Scheduler with SPARK_Mode => Off is
       --  Get the next thread for execution.
       Current_TID := Arch.CPU.Get_Local.Current_Thread;
 
-      --  Check whether we are running a monothread, if so, dont switch.
-      if Thread_Pool (Current_TID).Is_Monothread then
-         Lib.Synchronization.Release (Scheduler_Mutex'Access);
-         Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector, Hz,
-            Priority_Slices (Thread_Pool (Current_TID).Priority));
-         return;
-      end if;
-
       Next_TID := 0;
       for I in Current_TID + 1 .. Thread_Pool'Last loop
          if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Banned and
@@ -516,10 +508,12 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.CPU.Get_Local.Current_Thread := Next_TID;
       Thread_Pool (Next_TID).Is_Running := True;
 
-      --  Rearm the timer for next tick.
+      --  Rearm the timer for next tick if we are not doing a monothread.
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
-      Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector, Hz,
-         Priority_Slices (Thread_Pool (Next_TID).Priority));
+      if not Thread_Pool (Next_TID).Is_Monothread then
+         Arch.APIC.LAPIC_Timer_Oneshot (Scheduler_Vector, Hz,
+            Priority_Slices (Thread_Pool (Next_TID).Priority));
+      end if;
       Arch.APIC.LAPIC_EOI;
 
       --  Load kernel stack in the TSS.

@@ -74,7 +74,7 @@ begin
          if not VFS.Register
             (Devices.Ramdev.Init_Module (Proto.RAM_Files (I)), Name)
          then
-            Lib.Panic.Hard_Panic ("Could not load a stivale2 ramdev");
+            Lib.Panic.Hard_Panic ("Could not load a boot ramdev");
          end if;
       end;
    end loop;
