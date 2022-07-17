@@ -20,6 +20,9 @@
 generic
    type T is mod <>;
 package Lib.Alignment with Pure is
+   --  This functions are meant for powers of 2, using this for non powers of
+   --  two is bogus, and broken.
+
    function Align_Up (Value, Alignment : T) return T
       with Pre  => Alignment /= 0 and (Alignment and (Alignment - 1)) = 0,
            Post => Align_Up'Result rem Alignment = 0;

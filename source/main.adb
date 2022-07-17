@@ -79,6 +79,11 @@ begin
       end;
    end loop;
 
+   Lib.Messages.Put_Line ("Initializing scheduler");
+   if not Scheduler.Init then
+      Lib.Panic.Hard_Panic ("Could not initialize the scheduler");
+   end if;
+
    Lib.Messages.Put_Line ("Fetching kernel cmdline options");
    Root_Value := Lib.Cmdline.Get_Parameter (Cmdline, "root");
    Init_Value := Lib.Cmdline.Get_Parameter (Cmdline, "init");
@@ -107,6 +112,6 @@ begin
       Free_F (Init_File);
    end if;
 
-   Lib.Messages.Put_Line ("Bailing main thread");
-   Scheduler.Bail;
+   Lib.Messages.Put_Line ("Idling main thread");
+   Scheduler.Idle_Core;
 end Main;

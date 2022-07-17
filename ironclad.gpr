@@ -16,10 +16,12 @@
 
 project Ironclad is
    --  Get command-line options for flags and boards.
-   type Arch_Name   is ("x86_64-stivale2", "aarch64-stivale2");
-   type Target_Name is ("big", "small");
-   Arch   : Arch_Name   := External ("ARCH",   "x86_64-stivale2");
-   Target : Target_Name := External ("TARGET", "big");
+   type Arch_Name    is ("x86_64-stivale2", "aarch64-stivale2");
+   type Target_Name  is ("big", "small");
+   type Alloc_Scheme is ("standard", "alloconly");
+   Arch   : Arch_Name    := External ("ARCH",   "x86_64-stivale2");
+   Target : Target_Name  := External ("TARGET", "big");
+   Alloc  : Alloc_Scheme := External ("ALLOC_SCHEME", "standard");
 
    Ada_Flags    := External ("ADAFLAGS", "-O2 -g -gnaty -Wall -fdata-sections");
    C_Flags      := External ("CFLAGS",   "-O2 -g -Wall");
@@ -29,7 +31,7 @@ project Ironclad is
    for Source_Dirs use (
       "source", "source/devices", "source/lib", "source/memory",
       "source/networking", "source/userland", "source/vfs",
-      "source/arch", "source/arch/" & Arch
+      "source/arch", "source/arch/" & Arch, "source/memory/" & Alloc
    );
    for Object_Dir use "obj";
    for Exec_Dir use ".";
@@ -49,7 +51,7 @@ project Ironclad is
          "-xassembler-with-cpp"
       );
       case Target is
-         when "big"   =>
+         when "big" =>
             Base_Ada_Switches := Base_Ada_Switches & ("-gnateDIsSmall=False");
          when "small" =>
             Base_Ada_Switches := Base_Ada_Switches & ("-gnateDIsSmall=True");

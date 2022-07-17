@@ -18,6 +18,7 @@ Several flags and variables are available for tuning:
 
 - ARCH, right now "x86_64-stivale2" and "aarch64-stivale2" are available.
 - TARGET, visited in the "Big and small targets" section.
+- ALLOC_SCHEME, visited in the "Allocation schemes" section.
 - ADAFLAGS, ASMFLAGS, and LDFLAGS, passed as environment variables to gprbuild.
 - DESTDIR and PREFIX for ./install.sh.
 - Pass 'strip' as the only argument to ./install.sh for stripped binaries.
@@ -44,6 +45,17 @@ usecases. All drivers will be cooked in regardless of system footprint.
 lightweight system.
 
 "big" is the default for the flag.
+
+-- Allocation schemes --
+
+Two memory allocation schemes are supported, deep information about them is
+given on the documentation, but this are the options and a short description:
+
+- ALLOC_SCHEME="standard": General-purpose allocation algorithm that supports
+freeing memory.
+
+- ALLOC_SCHEME="alloconly": More efficient allocator, which uses less memory
+and is faster but cannot free.
 
 -- Documentation --
 

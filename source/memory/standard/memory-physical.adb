@@ -188,11 +188,15 @@ package body Memory.Physical with SPARK_Mode => Off is
    end Free;
 
    function Get_Statistics return Statistics is
+      Ret : Statistics;
    begin
-      return (
+      Lib.Synchronization.Seize (Alloc_Mutex'Access);
+      Ret := (
          Total_Memory => Total_Memory,
          Free_Memory  => Free_Memory,
          Used_Memory  => Used_Memory
       );
+      Lib.Synchronization.Release (Alloc_Mutex'Access);
+      return Ret;
    end Get_Statistics;
 end Memory.Physical;

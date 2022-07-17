@@ -32,17 +32,9 @@ package Scheduler with SPARK_Mode => Off is
    --  Doubles as the function to initialize core locals.
    procedure Idle_Core;
 
-   --  Creates a kernel thread, and queues it for execution.
-   --  Allows to pass an argument to the thread, that will be loaded to RDI.
-   --  (C calling convention).
-   --  Return thread ID or 0 on failure.
-   type TID is new Natural;
-   function Create_Kernel_Thread
-      (Address  : Virtual_Address;
-       Argument : Unsigned_64) return TID;
-
    --  Creates a userland thread, and queues it for execution.
    --  Return thread ID or 0 on failure.
+   type TID is new Natural;
    function Create_User_Thread
       (Address   : Virtual_Address;
        Args      : Userland.Argument_Arr;

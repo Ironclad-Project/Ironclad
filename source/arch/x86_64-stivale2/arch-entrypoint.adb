@@ -28,7 +28,6 @@ with Lib.Messages;
 with Lib.Panic;
 with Memory.Physical;
 with Config;
-with Scheduler; use Scheduler;
 with Main;
 with Memory.Virtual;
 
@@ -112,18 +111,7 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
          Lib.Messages.Put_Line ("HPET found");
       end if;
 
-      Lib.Messages.Put ("Initializing scheduler for ");
-      Lib.Messages.Put (Arch.CPU.Core_Count);
-      Lib.Messages.Put_Line (" cores");
-      if not Scheduler.Init then
-         Lib.Panic.Hard_Panic ("Could not initialize the scheduler");
-      end if;
-
-      Lib.Messages.Put_Line ("Bootstrap done, making kernel thread and idle");
-      if Scheduler.Create_Kernel_Thread (To_Integer (Main'Address), 0) = 0
-      then
-         Lib.Panic.Hard_Panic ("Could not create main thread");
-      end if;
-      Scheduler.Idle_Core;
+      Lib.Messages.Put_Line ("Jump to main");
+      Main;
    end Bootstrap_Main;
 end Arch.Entrypoint;

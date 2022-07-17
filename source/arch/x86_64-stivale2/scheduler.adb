@@ -103,49 +103,6 @@ package body Scheduler with SPARK_Mode => Off is
       loop Arch.Wrappers.HLT; end loop;
    end Idle_Core;
 
-   function Create_Kernel_Thread
-      (Address  : Virtual_Address;
-       Argument : Unsigned_64) return TID is
-      New_TID : TID;
-   begin
-      Lib.Synchronization.Seize (Scheduler_Mutex'Access);
-
-      --  Find a new TID.
-      New_TID := Find_Free_TID;
-      if New_TID = 0 then
-         goto End_Return;
-      end if;
-
-      --  Initialize thread state.
-      declare
-         type Stack is array (1 .. Stack_Size) of Unsigned_8;
-         type Stack_Acc is access Stack;
-         New_Stack : constant Stack_Acc := new Stack;
-         Stack_Addr : constant Virtual_Address :=
-            To_Integer (New_Stack.all'Address) + Stack_Size;
-      begin
-         Thread_Pool (New_TID).Is_Present   := True;
-         Thread_Pool (New_TID).Is_Banned    := False;
-         Thread_Pool (New_TID).Is_Running   := False;
-         Thread_Pool (New_TID).Priority     := 0;
-         Thread_Pool (New_TID).PageMap      := Memory.Virtual.Kernel_Map;
-         Thread_Pool (New_TID).Stack        := Stack_Addr;
-         Thread_Pool (New_TID).State.CS     := Arch.GDT.Kernel_Code64_Segment;
-         Thread_Pool (New_TID).State.DS     := Arch.GDT.Kernel_Data64_Segment;
-         Thread_Pool (New_TID).State.ES     := Arch.GDT.Kernel_Data64_Segment;
-         Thread_Pool (New_TID).State.SS     := Arch.GDT.Kernel_Data64_Segment;
-         Thread_Pool (New_TID).State.RFLAGS := 16#202#;
-         Thread_Pool (New_TID).State.RIP    := Unsigned_64 (Address);
-         Thread_Pool (New_TID).State.RDI    := Argument;
-         Thread_Pool (New_TID).State.RBP    := 0;
-         Thread_Pool (New_TID).State.RSP    := Unsigned_64 (Stack_Addr);
-      end;
-
-   <<End_Return>>
-      Lib.Synchronization.Release (Scheduler_Mutex'Access);
-      return New_TID;
-   end Create_Kernel_Thread;
-
    function Create_User_Thread
       (Address   : Virtual_Address;
        Args      : Userland.Argument_Arr;
@@ -191,13 +148,15 @@ package body Scheduler with SPARK_Mode => Off is
             Write_Through  => False
          );
       begin
-         Thread_Pool (New_TID).Is_Present   := True;
-         Thread_Pool (New_TID).Is_Banned    := False;
-         Thread_Pool (New_TID).Is_Running   := False;
-         Thread_Pool (New_TID).Priority     := 0;
-         Thread_Pool (New_TID).PageMap      := Map;
-         Thread_Pool (New_TID).Stack        := User_Stack_Addr;
-         Thread_Pool (New_TID).Kernel_Stack := Kernel_Stack_Addr;
+         Thread_Pool (New_TID).Is_Present    := True;
+         Thread_Pool (New_TID).Is_Banned     := False;
+         Thread_Pool (New_TID).Is_Running    := False;
+         Thread_Pool (New_TID).Is_Monothread := False;
+         Thread_Pool (New_TID).Is_Real_Time  := False;
+         Thread_Pool (New_TID).Priority      := 0;
+         Thread_Pool (New_TID).PageMap       := Map;
+         Thread_Pool (New_TID).Stack         := User_Stack_Addr;
+         Thread_Pool (New_TID).Kernel_Stack  := Kernel_Stack_Addr;
          Thread_Pool (New_TID).State.CS   := Arch.GDT.User_Code64_Segment or 3;
          Thread_Pool (New_TID).State.DS   := Arch.GDT.User_Data64_Segment or 3;
          Thread_Pool (New_TID).State.ES   := Arch.GDT.User_Data64_Segment or 3;
@@ -315,16 +274,18 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       --  Copy the state.
-      Thread_Pool (New_TID).Is_Present   := True;
-      Thread_Pool (New_TID).Is_Banned    := False;
-      Thread_Pool (New_TID).Is_Running   := False;
-      Thread_Pool (New_TID).PageMap      := Map;
-      Thread_Pool (New_TID).Priority     := 0;
-      Thread_Pool (New_TID).Kernel_Stack := Kernel_Stack_Addr;
-      Thread_Pool (New_TID).FS           := Arch.Wrappers.Read_FS;
-      Thread_Pool (New_TID).State        := State.all;
-      Thread_Pool (New_TID).State.RAX    := 0;
-      Thread_Pool (New_TID).Process      := Userland.Process.Get_By_PID (PID);
+      Thread_Pool (New_TID).Is_Present    := True;
+      Thread_Pool (New_TID).Is_Banned     := False;
+      Thread_Pool (New_TID).Is_Running    := False;
+      Thread_Pool (New_TID).Is_Monothread := False;
+      Thread_Pool (New_TID).Is_Real_Time  := False;
+      Thread_Pool (New_TID).PageMap       := Map;
+      Thread_Pool (New_TID).Priority      := 0;
+      Thread_Pool (New_TID).Kernel_Stack  := Kernel_Stack_Addr;
+      Thread_Pool (New_TID).FS            := Arch.Wrappers.Read_FS;
+      Thread_Pool (New_TID).State         := State.all;
+      Thread_Pool (New_TID).State.RAX     := 0;
+      Thread_Pool (New_TID).Process       := Userland.Process.Get_By_PID (PID);
 
    <<End_Return>>
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
