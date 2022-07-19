@@ -167,36 +167,4 @@ package body Arch.Wrappers with SPARK_Mode => Off is
    begin
       Asm ("hlt", Volatile => True);
    end HLT;
-   ----------------------------------------------------------------------------
-   procedure FP_Save (Region : System.Address) is
-   begin
-      Asm ("fxsave (%0)",
-           Inputs   => System.Address'Asm_Input ("r", Region),
-           Clobber  => "memory",
-           Volatile => True);
-   end FP_Save;
-
-   procedure FP_Restore (Region : System.Address) is
-   begin
-      Asm ("fxrstor (%0)",
-           Inputs   => System.Address'Asm_Input ("r", Region),
-           Clobber  => "memory",
-           Volatile => True);
-   end FP_Restore;
-
-   procedure Load_x87_Control_Word (Value : Unsigned_32) is
-   begin
-      Asm ("fldcw %0",
-           Inputs   => Unsigned_32'Asm_Input ("m", Value),
-           Clobber  => "memory",
-           Volatile => True);
-   end Load_x87_Control_Word;
-
-   procedure Load_MXCSR (Value : Unsigned_64) is
-   begin
-      Asm ("ldmxcsr %0",
-           Inputs   => Unsigned_64'Asm_Input ("m", Value),
-           Clobber  => "memory",
-           Volatile => True);
-   end Load_MXCSR;
 end Arch.Wrappers;

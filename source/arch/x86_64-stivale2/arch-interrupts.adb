@@ -16,6 +16,7 @@
 
 with Arch.APIC;
 with Arch.GDT;
+with Arch.Context;
 with Lib.Panic;
 with Lib.Messages;
 with Scheduler;
@@ -55,7 +56,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       end if;
    end Exception_Handler;
 
-   procedure Syscall_Handler (Number : Integer; State : access ISR_GPRs) is
+   procedure Syscall_Handler (Number : Integer; State : ISR_GPRs_Acc) is
       Returned : Unsigned_64 := Unsigned_64'Last;
       Errno    : Errno_Value := Error_No_Error;
       pragma Unreferenced (Number);
@@ -96,7 +97,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 11 =>
             Returned := Syscall_Exec (State.RDI, State.RSI, State.RDX, Errno);
          when 12 =>
-            Returned := Syscall_Fork (State, Errno);
+            Returned := Syscall_Fork (Context.GP_Context_Acc (State), Errno);
          when 13 =>
             Returned := Syscall_Wait (State.RDI, State.RSI, State.RDX, Errno);
          when 14 =>
@@ -142,6 +143,13 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       State.RDX := Unsigned_64 (Errno_Value'Enum_Rep (Errno));
       Wrappers.Swap_GS;
    end Syscall_Handler;
+
+   procedure Scheduler_Handler (Number : Integer; State : ISR_GPRs_Acc) is
+      pragma Unreferenced (Number);
+   begin
+      Arch.APIC.LAPIC_EOI;
+      Scheduler.Scheduler_ISR (Context.GP_Context_Acc (State));
+   end Scheduler_Handler;
 
    procedure Default_ISR_Handler is
    begin

@@ -14,10 +14,22 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Scheduler;
+with Scheduler; use Scheduler;
 with Userland.Process;
 
 package Arch.Local with SPARK_Mode => Off is
+   --  Forcing reschedules using architecture-specific methods.
+   procedure Reschedule_In (Nanoseconds : Natural);
+   procedure Reschedule_ASAP;
+   procedure Reschedule_Cores_ASAP (Thread : Scheduler.TID);
+
+   --  Save and restore TCB pointer local storage.
+   function Fetch_TCB return System.Address;
+   procedure Load_TCB (TCB : System.Address);
+
+   --  Set the kernel stack for return from userland.
+   procedure Set_Kernel_Stack (Stack : System.Address);
+
    --  Fetch and set the current thread and process.
    function Get_Current_Thread return Scheduler.TID;
    function Get_Current_Process return Userland.Process.Process_Data_Acc;

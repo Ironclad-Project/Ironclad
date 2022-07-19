@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 with VFS.File;
-with Arch.Interrupts; use Arch.Interrupts;
+with Arch.Context;
 
 package Userland.Syscall with SPARK_Mode => Off is
    --  Error conditions for syscalls.
@@ -145,7 +145,7 @@ package Userland.Syscall with SPARK_Mode => Off is
 
    --  Fork.
    function Syscall_Fork
-      (State_To_Fork : access ISR_GPRs;
+      (State_To_Fork : Arch.Context.GP_Context_Acc;
        Errno         : out Errno_Value) return Unsigned_64;
 
    --  Wait.

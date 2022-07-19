@@ -15,11 +15,11 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with Arch.Interrupts; use Arch.Interrupts;
 with Memory.Virtual;
 with Memory; use Memory;
 with Userland;
 with Userland.ELF;
+with Arch.Context;
 
 package Scheduler with SPARK_Mode => Off is
    --  True if the scheduler is initialized.
@@ -32,17 +32,9 @@ package Scheduler with SPARK_Mode => Off is
    --  Doubles as the function to initialize core locals.
    procedure Idle_Core;
 
-   --  Creates a kernel thread, and queues it for execution.
-   --  Allows to pass an argument to the thread, that will be loaded to RDI.
-   --  (C calling convention).
-   --  Return thread ID or 0 on failure.
-   type TID is new Natural;
-   function Create_Kernel_Thread
-      (Address  : Virtual_Address;
-       Argument : Unsigned_64) return TID;
-
    --  Creates a userland thread, and queues it for execution.
    --  Return thread ID or 0 on failure.
+   type TID is new Natural;
    function Create_User_Thread
       (Address   : Virtual_Address;
        Args      : Userland.Argument_Arr;
@@ -54,7 +46,7 @@ package Scheduler with SPARK_Mode => Off is
 
    --  Create a user thread with a context.
    function Create_User_Thread
-      (State : access ISR_GPRs;
+      (State : Arch.Context.GP_Context_Acc;
        Map   : Memory.Virtual.Page_Map_Acc;
        PID   : Natural) return TID;
 
@@ -68,9 +60,25 @@ package Scheduler with SPARK_Mode => Off is
    function Get_Thread_Priority (Thread : TID) return Integer;
    procedure Set_Thread_Priority (Thread : TID; Priority : Integer);
 
+   --  Set whether a thread is real time or not, along with monothreading.
+   --  Real time thread semantics are described in the documentation.
+   function Is_Mono_Thread (Thread : TID) return Boolean;
+   procedure Set_Mono_Thread (Thread : TID; Is_Mono : Boolean);
+   function Is_RT_Thread (Thread : TID) return Boolean;
+   procedure Set_RT_Thread (Thread : TID; Is_RT : Boolean);
+
    --  Give up the rest of our execution time for some other process.
    procedure Yield;
 
    --  Delete and yield the current thread.
    procedure Bail;
+
+   --  Hook to be called by the architecture for reescheduling of the callee
+   --  core.
+   procedure Scheduler_ISR (State : Arch.Context.GP_Context_Acc);
+
+private
+
+   function Find_Free_TID return TID;
+   function Is_Thread_Present (Thread : TID) return Boolean;
 end Scheduler;

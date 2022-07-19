@@ -554,7 +554,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Syscall_Exec;
 
    function Syscall_Fork
-      (State_To_Fork : access ISR_GPRs;
+      (State_To_Fork : Arch.Context.GP_Context_Acc;
        Errno         : out Errno_Value) return Unsigned_64
    is
       Current_Process : constant Userland.Process.Process_Data_Acc :=

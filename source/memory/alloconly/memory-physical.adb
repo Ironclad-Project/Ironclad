@@ -120,6 +120,12 @@ package body Memory.Physical with SPARK_Mode => Off is
       Used_Memory := Used_Memory + Memory.Size (Size);
       Region.Alloc_Address := To_Address (Region_Needed + Size);
       Lib.Synchronization.Release (Alloc_Mutex'Access);
+      declare
+         Pool : array (1 .. Size) of Unsigned_8 with Import;
+         for Pool'Address use To_Address (Region_Needed);
+      begin
+         Pool := (others => 0);
+      end;
       return Region_Needed;
    end Alloc;
 

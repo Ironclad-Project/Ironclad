@@ -92,6 +92,8 @@ package body Arch.IDT with SPARK_Mode => Off is
 
       --  Some special entries for several hardcoded hardware and syscalls.
       Load_ISR (16#81#, Interrupts.Syscall_Handler'Address, Gate_Trap, True);
+      Load_ISR (Interrupts.Scheduler_Interrupt,
+                Interrupts.Scheduler_Handler'Address);
       Load_ISR (APIC.LAPIC_Spurious_Entry,
                 Interrupts.Spurious_Handler'Address);
 
