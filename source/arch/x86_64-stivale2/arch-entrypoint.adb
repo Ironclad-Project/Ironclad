@@ -99,10 +99,6 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
          Lib.Panic.Hard_Panic ("Could not start IOAPIC");
       end if;
 
-      Lib.Messages.Put_Line ("Initialize cores");
-      Arch.CPU.Init_Cores (SMP);
-      Lib.Panic.Enable_Panic_Propagation;
-
       Lib.Messages.Put_Line ("Initializing timers");
       if not Arch.PIT.Init then
          Lib.Panic.Hard_Panic ("Could not start PIT");
@@ -110,6 +106,10 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
       if Arch.HPET.Init then
          Lib.Messages.Put_Line ("HPET found");
       end if;
+
+      Lib.Messages.Put_Line ("Initialize cores");
+      Arch.CPU.Init_Cores (SMP);
+      Lib.Panic.Enable_Panic_Propagation;
 
       Lib.Messages.Put_Line ("Jump to main");
       Main;

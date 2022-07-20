@@ -14,25 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
-with Arch.APIC;
-with Arch.CPU;
-with Arch.IDT;
 with Arch.Wrappers;
 
 package body Arch.PIT with SPARK_Mode => Off is
-   PIT_IRQ           : constant := 33;
    PIT_Divisor       : constant := 1193180;
    PIT_Frequency     : constant := 1000;
    PIT_Channel0_Port : constant := 16#40#;
    PIT_Command_Port  : constant := 16#43#;
-
-   PIT_Enabled   : Boolean  := False;
-   Handler_Index : IDT.IDT_Index;
-   BSP_LAPIC_ID  : Unsigned_32;
-
-   Uptime : Unsigned_64 with Volatile;
-   pragma Atomic (Uptime);
 
    function Init return Boolean is
       New_Divisor : constant Unsigned_32 := PIT_Divisor / PIT_Frequency;
@@ -45,41 +33,34 @@ package body Arch.PIT with SPARK_Mode => Off is
       Arch.Wrappers.Port_Out (PIT_Command_Port,  16#36#);
       Arch.Wrappers.Port_Out (PIT_Channel0_Port, Low8);
       Arch.Wrappers.Port_Out (PIT_Channel0_Port, High8);
-
-      --  Prepare the uptime, BSP, and interrupt routine.
-      Uptime       := 0;
-      BSP_LAPIC_ID := Arch.CPU.Core_Locals (1).LAPIC_ID;
-      PIT_Enabled  := True;
-      if not Arch.IDT.Load_ISR (IRQ_Handler'Address, Handler_Index) then
-         return False;
-      end if;
-
-      --  Mask the interrupt and return.
-      return Arch.APIC.IOAPIC_Set_Redirect
-          (BSP_LAPIC_ID, PIT_IRQ, Handler_Index, False);
+      return True;
    end Init;
 
-   procedure Sleep (Milliseconds : Positive) is
-      Target  : constant Unsigned_64 := Uptime + Unsigned_64 (Milliseconds);
-      Discard : Boolean;
+   function Get_Current_Count return Unsigned_16 is
+      Low_8, High_8 : Unsigned_8;
    begin
-      --  Check for enabling and unmasking, we dont have a contantly ticking
-      --  clock.
-      if not PIT_Enabled or else
-         Arch.APIC.IOAPIC_Set_Redirect
-            (BSP_LAPIC_ID, PIT_IRQ, Handler_Index, True)
-      then
-         return;
-      end if;
+      Arch.Wrappers.Port_Out (PIT_Command_Port, 0);
+      Low_8 := Arch.Wrappers.Port_In (PIT_Channel0_Port);
+      High_8 := Arch.Wrappers.Port_In (PIT_Channel0_Port);
+      return Unsigned_16 (Shift_Left (High_8, 8)) or Unsigned_16 (Low_8);
+   end Get_Current_Count;
 
-      while Target > Uptime loop null; end loop;
-      Discard := Arch.APIC.IOAPIC_Set_Redirect
-          (BSP_LAPIC_ID, PIT_IRQ, Handler_Index, False);
-   end Sleep;
-
-   procedure IRQ_Handler is
+   procedure Set_Current_Count (Value : Unsigned_16) is
+      Low_8  : constant Unsigned_16 := Value and 16#FF#;
+      High_8 : constant Unsigned_16 := Shift_Right (Value, 8) and 16#FF#;
    begin
-      Uptime := Uptime + 1;
-      Arch.APIC.LAPIC_EOI;
-   end IRQ_Handler;
+      Arch.Wrappers.Port_Out (PIT_Command_Port, 16#34#);
+      Arch.Wrappers.Port_Out (PIT_Channel0_Port, Unsigned_8 (Low_8));
+      Arch.Wrappers.Port_Out (PIT_Channel0_Port, Unsigned_8 (High_8));
+   end Set_Current_Count;
+
+   procedure Sleep_1MS is
+      Value : Unsigned_16 with Volatile;
+   begin
+      Set_Current_Count (Unsigned_16 (PIT_Divisor / PIT_Frequency));
+      loop
+         Value := Get_Current_Count;
+         exit when Value = 0;
+      end loop;
+   end Sleep_1MS;
 end Arch.PIT;

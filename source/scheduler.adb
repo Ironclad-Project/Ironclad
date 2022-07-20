@@ -15,8 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
-with Arch.APIC;
-with Arch.CPU;
 with Lib.Synchronization;
 with Lib.Panic;
 with System.Storage_Elements; use System.Storage_Elements;
@@ -75,20 +73,8 @@ package body Scheduler with SPARK_Mode => Off is
 
    procedure Idle_Core is
    begin
-      --  Check we are initialized and have all the data.
       while not Is_Initialized loop null; end loop;
-
-      --  TODO: This is the only non-architecture-independent part of the
-      --  scheduler, please, this has to be fixed for when aarch64 needs it.
-      --  Get the LAPIC timer hz that we couldn't get earlier because circular
-      --  dependency on the LAPIC timer <-> PIT <-> HPET.
-      if Arch.CPU.Get_Local.LAPIC_Timer_Hz = 0 then
-         Arch.CPU.Get_Local.LAPIC_Timer_Hz := Arch.APIC.LAPIC_Timer_Calibrate;
-      end if;
-
-      --  Arm for Scheduler_ISR to do the rest of the job from us.
-      Arch.Snippets.Disable_Interrupts;
-      Arch.Local.Reschedule_In (20000);
+      Arch.Local.Reschedule_In (Priority_Slices (0));
       Arch.Snippets.Enable_Interrupts;
       loop Arch.Snippets.Wait_For_Interrupt; end loop;
    end Idle_Core;
@@ -272,6 +258,7 @@ package body Scheduler with SPARK_Mode => Off is
       Thread_Pool (New_TID).State         := State.all;
       Thread_Pool (New_TID).State.RAX     := 0;
       Thread_Pool (New_TID).Process       := Userland.Process.Get_By_PID (PID);
+      Arch.Context.Save_FP_Context (Thread_Pool (New_TID).FP_Region'Access);
 
    <<End_Return>>
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
@@ -370,8 +357,8 @@ package body Scheduler with SPARK_Mode => Off is
 
    procedure Bail is
    begin
-      Delete_Thread (Arch.CPU.Get_Local.Current_Thread);
-      Arch.CPU.Get_Local.Current_Thread := 0;
+      Delete_Thread (Arch.Local.Get_Current_Thread);
+      Arch.Local.Set_Current_Thread (0);
       Idle_Core;
    end Bail;
 
@@ -387,42 +374,38 @@ package body Scheduler with SPARK_Mode => Off is
 
    procedure Scheduler_ISR (State : Arch.Context.GP_Context_Acc) is
       Current_TID, Next_TID : TID;
+      Rearm_Period : Natural := Priority_Slices (0);
    begin
       if Lib.Synchronization.Try_Seize (Scheduler_Mutex'Access) = False then
-         Arch.Local.Reschedule_In (1000);
+         Arch.Local.Reschedule_In (Rearm_Period);
          return;
       end if;
 
       --  Get the next thread for execution.
-      Current_TID := Arch.CPU.Get_Local.Current_Thread;
+      Current_TID := Arch.Local.Get_Current_Thread;
+      Next_TID    := Current_TID;
+      loop
+         Next_TID := Next_TID + 1;
 
-      Next_TID := 0;
-      for I in Current_TID + 1 .. Thread_Pool'Last loop
-         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Banned and
-            not Thread_Pool (I).Is_Running and I /= Current_TID
-         then
-            Next_TID := I;
-            goto Found_TID;
+         if Next_TID > Thread_Pool'Last then
+            Next_TID := Thread_Pool'First;
          end if;
-      end loop;
-      for I in Thread_Pool'First .. Current_TID loop
-         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Banned and
-            not Thread_Pool (I).Is_Running and I /= Current_TID
+         exit when Next_TID = Current_TID;
+
+         if Thread_Pool (Next_TID).Is_Present    and
+            not Thread_Pool (Next_TID).Is_Banned and
+            not Thread_Pool (Next_TID).Is_Running
          then
-            Next_TID := I;
             goto Found_TID;
          end if;
       end loop;
 
-      --  Handle what to do if we didnt find a valid TID to switch, either keep
-      --  executing, or arm and wait for an eventual thread.
+      --  Rearm for the next attempt.
       Lib.Synchronization.Release (Scheduler_Mutex'Access);
       if Current_TID /= 0 then
-         Arch.Local.Reschedule_In
-            (Priority_Slices (Thread_Pool (Current_TID).Priority));
-      else
-         Arch.Local.Reschedule_In (Priority_Slices (0));
+         Rearm_Period := Priority_Slices (Thread_Pool (Current_TID).Priority);
       end if;
+      Arch.Local.Reschedule_In (Rearm_Period);
       return;
 
    <<Found_TID>>
@@ -436,7 +419,7 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       --  Assign the next TID as our current one.
-      Arch.CPU.Get_Local.Current_Thread := Next_TID;
+      Arch.Local.Set_Current_Thread (Next_TID);
       Thread_Pool (Next_TID).Is_Running := True;
 
       --  Rearm the timer for next tick if we are not doing a monothread.
@@ -446,15 +429,13 @@ package body Scheduler with SPARK_Mode => Off is
             (Priority_Slices (Thread_Pool (Next_TID).Priority));
       end if;
 
-      --  Load kernel stack in the TSS.
-      Arch.Local.Set_Kernel_Stack
-         (To_Address (Thread_Pool (Next_TID).Kernel_Stack));
-      Arch.CPU.Get_Local.Current_Process := Thread_Pool (Next_TID).Process;
-
       --  Reset state.
       if not Memory.Virtual.Make_Active (Thread_Pool (Next_TID).PageMap) then
          Lib.Panic.Soft_Panic ("Could not make reschedule map active");
       end if;
+      Arch.Local.Set_Current_Process (Thread_Pool (Next_TID).Process);
+      Arch.Local.Set_Kernel_Stack
+         (To_Address (Thread_Pool (Next_TID).Kernel_Stack));
       Arch.Local.Load_TCB (Thread_Pool (Next_TID).TCB_Pointer);
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_Region'Access);
       Arch.Context.Load_GP_Context (Thread_Pool (Next_TID).State'Access);

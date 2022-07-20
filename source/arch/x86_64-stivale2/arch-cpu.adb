@@ -91,6 +91,8 @@ package body Arch.CPU with SPARK_Mode => Off is
       Core_Locals (Core_Number).Self     := Core_Locals (Core_Number)'Access;
       Core_Locals (Core_Number).Number   := Core_Number;
       Core_Locals (Core_Number).LAPIC_ID := LAPIC;
+      Core_Locals (Core_Number).LAPIC_Timer_Hz :=
+         Arch.APIC.LAPIC_Timer_Calibrate;
       Wrappers.Write_GS        (Locals_Addr);
       Wrappers.Write_Kernel_GS (Locals_Addr);
 

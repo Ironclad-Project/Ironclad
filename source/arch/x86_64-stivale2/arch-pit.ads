@@ -14,13 +14,17 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
+
 package Arch.PIT with SPARK_Mode => Off is
    --  Initialize by doing a first configure of the PIT, true on success.
    function Init return Boolean;
 
-   --  Loop for the passed ms.
-   procedure Sleep (Milliseconds : Positive);
+   --  Manage interrupt-free PIT counters.
+   --  Just set a value and it goes down until 0.
+   function Get_Current_Count return Unsigned_16;
+   procedure Set_Current_Count (Value : Unsigned_16);
 
-private
-   procedure IRQ_Handler;
+   --  Interrupt-less sleep.
+   procedure Sleep_1MS;
 end Arch.PIT;
