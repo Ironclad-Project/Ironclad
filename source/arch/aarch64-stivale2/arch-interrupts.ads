@@ -19,7 +19,7 @@ with Interfaces; use Interfaces;
 package Arch.Interrupts with SPARK_Mode => Off is
    --  Passed to every interrupt called ever as an access.
    type ISR_GPRs is record
-      Placeholder : Integer;
+      RAX : Integer;
    end record with Convention => C;
 
    type Interrupt_Type is (

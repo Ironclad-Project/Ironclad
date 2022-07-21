@@ -14,11 +14,23 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
+with Arch.Snippets;
+
 package body Arch.Debug with SPARK_Mode => Off is
+   --  PL011-compatible serial registers.
+   PL011_Data   : Unsigned_32 with Import, Volatile;
+   PL011_Status : Unsigned_32 with Import, Volatile;
+
+   for PL011_Data'Address   use To_Address (16#9000000#);
+   for PL011_Status'Address use To_Address (16#9000018#);
+
    procedure Print (Message : Character) is
-      UART : Character with Address => To_Address (16#9000000#), Volatile;
    begin
-      UART := Message;
+      while (PL011_Status and 16#100000#) /= 0 loop
+         Snippets.Pause;
+      end loop;
+      PL011_Data := Character'Pos (Message);
    end Print;
 
    procedure Print (Message : String) is

@@ -22,11 +22,7 @@ with Memory.Virtual;
 
 package body Arch.Entrypoint with SPARK_Mode => Off is
    procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header) is
-      --  TODO: This is a placeholder because I am lazy to read the DTB.
-      --  This sucks, and is only for testing purposes, please fix this asap.
-      Memory_Map : Boot_Memory_Map (1 .. 1) := (
-         1 => (System'To_Address (16#45000000#), 16#15000000#, True)
-      );
+      Info : Boot_Information;
    begin
       Lib.Messages.Put (Config.Name & " " & Config.Version & " booted by ");
       Lib.Messages.Put (Protocol.BootloaderBrand & " ");
@@ -34,8 +30,10 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
       Lib.Messages.Put ("Please report errors and issues to ");
       Lib.Messages.Put_Line (Config.Bug_Site);
 
-      Memory.Physical.Init_Allocator (Memory_Map);
-      if not Memory.Virtual.Init (Memory_Map) then
+      Arch.Stivale2.Stivale_Tag := Protocol;
+      Info := Get_Info;
+      Memory.Physical.Init_Allocator (Info.Memmap (1 .. Info.Memmap_Len));
+      if not Memory.Virtual.Init (Info.Memmap (1 .. Info.Memmap_Len)) then
          Lib.Panic.Hard_Panic ("Could not start the VMM");
       end if;
 

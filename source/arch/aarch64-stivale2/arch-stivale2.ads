@@ -20,11 +20,9 @@ with Memory;     use Memory;
 
 package Arch.Stivale2 with SPARK_Mode => Off is
    --  IDs of several tags.
-   RSDP_ID        : constant := 16#9E1786930A375E78#;
-   Memmap_ID      : constant := 16#2187F79E8612DE07#;
-   SMP_ID         : constant := 16#34D1D96339647025#;
-   Cmdline_ID     : constant := 16#E5E76A1B4597A781#;
-   Framebuffer_ID : constant := 16#506461D2950408FA#;
+   RSDP_ID   : constant := 16#9E1786930A375E78#;
+   Memmap_ID : constant := 16#2187F79E8612DE07#;
+   SMP_ID    : constant := 16#34D1D96339647025#;
 
    --  Stivale2 header passed by the bootloader to kernel.
    type Header is record
@@ -123,35 +121,6 @@ package Arch.Stivale2 with SPARK_Mode => Off is
       BSP_LAPIC_ID at 0 range 192 .. 223;
       Unused       at 0 range 224 .. 255;
       Count        at 0 range 256 .. 319;
-   end record;
-
-   --  Command line tag.
-   type Cmdline_Tag is record
-      TagInfo : Tag;
-      Inner   : System.Address;
-   end record;
-   for Cmdline_Tag use record
-      TagInfo at 0 range   0 .. 127;
-      Inner   at 0 range 128 .. 191;
-   end record;
-   for Cmdline_Tag'Size use 192;
-
-   --  Framebuffer tag.
-   type Framebuffer_Tag is record
-      TagInfo          : Tag;
-      Address          : System.Address;
-      Width            : Unsigned_16;
-      Height           : Unsigned_16;
-      Pitch            : Unsigned_16;
-      BPP              : Unsigned_16;
-      Memory_Model     : Unsigned_8;
-      Red_Mask_Size    : Unsigned_8;
-      Red_Mask_Shift   : Unsigned_8;
-      Green_Mask_Size  : Unsigned_8;
-      Green_Mask_Shift : Unsigned_8;
-      Blue_Mask_Size   : Unsigned_8;
-      Blue_Mask_Shift  : Unsigned_8;
-      Unused           : Unsigned_8;
    end record;
 
    Stivale_Tag : access Header;

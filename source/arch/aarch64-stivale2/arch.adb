@@ -14,13 +14,41 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System.Address_To_Access_Conversions;
+with Arch.Stivale2;
 with Arch.Entrypoint;
 pragma Unreferenced (Arch.Entrypoint);
+with Interfaces; use Interfaces;
 
 package body Arch with SPARK_Mode => Off is
    function Get_Info return Boot_Information is
+      package ST renames Stivale2;
+      package C is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
+
+      Memmap : constant access ST.Memmap_Tag :=
+         C.To_Pointer (To_Address (ST.Get_Tag (ST.Stivale_Tag, ST.Memmap_ID)));
+
       Ret : Boot_Information;
    begin
+      Ret.Memmap_Len := 0;
+      for I in Memmap.Entries'First .. Memmap.Entries'Last loop
+         exit when I > Ret.Memmap'Length;
+         if Memmap.Entries (I).Base = 0 then
+            Memmap.Entries (I).Base := 16#1000#;
+         end if;
+
+         Ret.Memmap (Ret.Memmap_Len + 1) := (
+            Start   => To_Address (Integer_Address (Memmap.Entries (I).Base)),
+            Length  => Storage_Count (Memmap.Entries (I).Length),
+            Is_Free => Memmap.Entries (I).EntryType = ST.Memmap_Entry_Usable
+         );
+         Ret.Memmap_Len := Ret.Memmap_Len + 1;
+      end loop;
+
+      --  No module or cmdline support.
+      Ret.Cmdline_Len   := 0;
+      Ret.RAM_Files_Len := 0;
+
       return Ret;
    end Get_Info;
 end Arch;

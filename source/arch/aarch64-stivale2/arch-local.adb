@@ -15,6 +15,40 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Arch.Local with SPARK_Mode => Off is
+   procedure Reschedule_In (Nanoseconds : Natural) is
+      pragma Unreferenced (Nanoseconds);
+   begin
+      return;
+   end Reschedule_In;
+
+   procedure Reschedule_ASAP is
+   begin
+      return;
+   end Reschedule_ASAP;
+
+   procedure Reschedule_Cores_ASAP (Thread : Scheduler.TID) is
+      pragma Unreferenced (Thread);
+   begin
+      return;
+   end Reschedule_Cores_ASAP;
+
+   function Fetch_TCB return System.Address is
+   begin
+      return System.Null_Address;
+   end Fetch_TCB;
+
+   procedure Load_TCB (TCB : System.Address) is
+      pragma Unreferenced (TCB);
+   begin
+      return;
+   end Load_TCB;
+
+   procedure Set_Kernel_Stack (Stack : System.Address) is
+      pragma Unreferenced (Stack);
+   begin
+      return;
+   end Set_Kernel_Stack;
+
    function Get_Current_Thread return Scheduler.TID is
    begin
       return 0;
