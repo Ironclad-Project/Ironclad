@@ -33,15 +33,13 @@ package body Arch with SPARK_Mode => Off is
       Ret.Memmap_Len := 0;
       for I in Memmap.Entries'First .. Memmap.Entries'Last loop
          exit when I > Ret.Memmap'Length;
-         if Memmap.Entries (I).Base = 0 then
-            Memmap.Entries (I).Base := 16#1000#;
-         end if;
 
          Ret.Memmap (Ret.Memmap_Len + 1) := (
             Start   => To_Address (Integer_Address (Memmap.Entries (I).Base)),
             Length  => Storage_Count (Memmap.Entries (I).Length),
             Is_Free => Memmap.Entries (I).EntryType = ST.Memmap_Entry_Usable
          );
+
          Ret.Memmap_Len := Ret.Memmap_Len + 1;
       end loop;
 

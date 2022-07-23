@@ -19,23 +19,28 @@ with System.Address_To_Access_Conversions;
 with Interfaces; use Interfaces;
 with System.Machine_Code; use System.Machine_Code;
 with Lib.Panic;
+with Memory;
 
 package body Arch.MMU with SPARK_Mode => Off is
-   --  The page size the kernel will use for both its ttbrs.
-   type Page_Size is (
-      Pages_4K,
-      Pages_16K,
-      Pages_64K
-   );
-   for Page_Size use (
-      Pages_4K  => 16#1000#,
-      Pages_16K => 16#4000#,
-      Pages_64K => 16#10000#
-   );
-   Used_Size : Page_Size;
+   --  Page attributes.
+   Page_RO      : constant Unsigned_64 := Shift_Left (1, 7);
+   Page_PXN     : constant Unsigned_64 := Shift_Left (1, 53);
+   Page_UXN     : constant Unsigned_64 := Shift_Left (1, 54);
+   Page_nG      : constant Unsigned_64 := Shift_Left (1, 11);
+   Page_nGnRnE  : constant Unsigned_64 := Shift_Left (2, 2);
+   Page_OuterSh : constant Unsigned_64 := Shift_Left (2, 8);
+   Page_WB      : constant Unsigned_64 := Shift_Left (0, 2);
+   Page_InnerSh : constant Unsigned_64 := Shift_Left (3, 8);
+   Page_Access  : constant Unsigned_64 := Shift_Left (1, 10);
+   Page_Valid   : constant Unsigned_64 := Shift_Left (1, 0);
+   Page_L3      : constant Unsigned_64 := Shift_Left (1, 1);
 
    --  Page structure.
+   Higher_Half : constant := 16#FFFF000000000000#;
+   Page_Size   : constant := 16#1000#;
+
    type Page_Level is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
+   type Page_Level_Acc is access Page_Level;
    type Page_Map is record
       TTBR0 : Page_Level;
       TTBR1 : Page_Level;
@@ -47,6 +52,7 @@ package body Arch.MMU with SPARK_Mode => Off is
 
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
       pragma Unreferenced (Memmap);
+
       type Unsigned_4 is mod 2 ** 4;
       type AA64MMFR0 is record
          PA_Range    : Unsigned_4;
@@ -111,14 +117,25 @@ package body Arch.MMU with SPARK_Mode => Off is
       AA64MMFR : AA64MMFR0;
       MAIR : constant MAIR_EL1 := (
          Attr0 => 2#11111111#, --  Normal, Write-back RW-Allocate non-transient
-         Attr1 => 2#00000000#, --  Device, nGnRnE
-         Attr2 => 2#00000000#, --  Ditto
-         Attr3 => 2#00000000#, --  Ditto
-         Attr4 => 2#00000000#, --  Ditto
-         Attr5 => 2#00000000#, --  Ditto
-         Attr6 => 2#00000000#, --  Ditto
-         Attr7 => 2#00000000#  --  Ditto
+         Attr1 => 2#00001100#, --  Device, GRE
+         Attr2 => 2#00000000#, --  Device, nGnRnE
+         Attr3 => 2#00000100#, --  Device, nGnRE
+         Attr4 => 2#01000100#, --  Normal Non-cachable
+         Attr5 => 2#00000000#, --  Device, nGnRnE
+         Attr6 => 2#00000000#, --  Device, nGnRnE
+         Attr7 => 2#00000000#  --  Device, nGnRnE
       );
+
+      Flags : constant Page_Permissions := (
+         User_Accesible => False,
+         Read_Only      => False,
+         Executable     => True,
+         Global         => True,
+         Write_Through  => False
+      );
+
+      PA_Range, TCR : Unsigned_64;
+      Success : Boolean;
    begin
       --  Check for the page size, default to biggest.
       Asm ("mrs %0, id_aa64mmfr0_el1",
@@ -126,14 +143,8 @@ package body Arch.MMU with SPARK_Mode => Off is
            Clobber  => "memory",
            Volatile => True);
 
-      if AA64MMFR.TGran_4 = 0 then
-         Used_Size := Pages_4K;
-      elsif AA64MMFR.TGran_64 = 0 then
-         Used_Size := Pages_64K;
-      elsif AA64MMFR.TGran16_2 /= 1 and AA64MMFR.TGran16_2 /= 0 then
-         Used_Size := Pages_16K;
-      else
-         Lib.Panic.Soft_Panic ("MMU page size could not be found");
+      if AA64MMFR.TGran_4 /= 0 then
+         Lib.Panic.Soft_Panic ("MMU does not support 4K pages");
          return False;
       end if;
 
@@ -143,11 +154,46 @@ package body Arch.MMU with SPARK_Mode => Off is
            Clobber  => "memory",
            Volatile => True);
 
+      PA_Range := Unsigned_64
+         ((if AA64MMFR.PA_Range < 5 then AA64MMFR.PA_Range else 5));
+      TCR := Shift_Left (16, 0) or Shift_Left (16, 16) or Shift_Left (1, 8)  or
+             Shift_Left (1, 10) or Shift_Left (1, 24)  or Shift_Left (1, 26) or
+             Shift_Left (2, 12) or Shift_Left (2, 28)  or Shift_Left (2, 30) or
+             Shift_Left (PA_Range, 32);
+      Asm ("msr tcr_el1, %0",
+           Inputs   => Unsigned_64'Asm_Input ("r", TCR),
+           Clobber  => "memory",
+           Volatile => True);
+
       --  Create the kernel map.
       Kernel_Map   := new Page_Map;
       Kernel_Table := Page_Table (Kernel_Map.all'Address);
 
-      return False;
+      --  Map kernel.
+      Success := Map_Range (
+         Map            => Kernel_Table,
+         Physical_Start => To_Address (16#40118000#),
+         Virtual_Start  => To_Address (Memory.Kernel_Offset + 16#100000#),
+         Length         => 16#F0000#,
+         Permissions    => Flags
+      );
+      if not Success then
+         return False;
+      end if;
+
+      --  Map into the memory window.
+      Success := Map_Range (
+         Map            => Kernel_Table,
+         Physical_Start => To_Address (0),
+         Virtual_Start  => To_Address (Memory.Memory_Offset),
+         Length         => 16#9001000#,
+         Permissions    => Flags
+      );
+      if not Success then
+         return False;
+      end if;
+
+      return True;
    end Init;
 
    function Create_Table return Page_Table is
@@ -166,10 +212,14 @@ package body Arch.MMU with SPARK_Mode => Off is
    function Make_Active (Map : Page_Table) return Boolean is
       Table : constant Page_Map_Acc :=
          Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+      Addr0 : constant Integer_Address :=
+         To_Integer (Table.TTBR0'Address) - Memory.Memory_Offset;
+      Addr1 : constant Integer_Address :=
+         To_Integer (Table.TTBR1'Address) - Memory.Memory_Offset;
    begin
-      Asm ("msr ttbr0_el1, %0; msr ttbr1_el1, %1; dsb st; isb sy",
-           Inputs   => (System.Address'Asm_Input ("r", Table.TTBR0'Address),
-                        System.Address'Asm_Input ("r", Table.TTBR1'Address)),
+      Asm ("msr ttbr0_el1, %0; msr ttbr1_el1, %1; dsb st; isb",
+           Inputs   => (Integer_Address'Asm_Input ("r", Addr0),
+                        Integer_Address'Asm_Input ("r", Addr1)),
            Clobber  => "memory",
            Volatile => True);
       return True;
@@ -179,25 +229,151 @@ package body Arch.MMU with SPARK_Mode => Off is
       Table : constant Page_Map_Acc :=
          Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
 
-      TTBR0, TTBR1 : System.Address;
+      TTBR0, TTBR1 : Integer_Address;
    begin
       Asm ("mrs %0, ttbr0_el1; mrs %1, ttbr1_el1",
-           Outputs  => (System.Address'Asm_Output ("=r", TTBR0),
-                        System.Address'Asm_Output ("=r", TTBR1)),
+           Outputs  => (Integer_Address'Asm_Output ("=r", TTBR0),
+                        Integer_Address'Asm_Output ("=r", TTBR1)),
            Clobber  => "memory",
            Volatile => True);
-      return Table.TTBR0'Address = TTBR0 and Table.TTBR1'Address = TTBR1;
+
+      TTBR0 := TTBR0 + Memory.Memory_Offset;
+      TTBR1 := TTBR1 + Memory.Memory_Offset;
+
+      return Table.TTBR0'Address = To_Address (TTBR0) and
+             Table.TTBR1'Address = To_Address (TTBR1);
    end Is_Active;
 
-   --  Do translation for a single address, this function does not fail.
+   function Get_Bits (Permissions : Page_Permissions) return Unsigned_64 is
+      Bits : Unsigned_64 := 0;
+   begin
+      --  Handle permissions.
+      if Permissions.Read_Only then
+         Bits := Bits or Page_RO;
+      end if;
+      if not Permissions.Executable then
+         Bits := Bits or Page_PXN or Page_UXN;
+      end if;
+      if not Permissions.Global then
+         Bits := Bits or Page_nG;
+      end if;
+
+      --  Caching.
+      if Permissions.Write_Through then
+         Bits := Bits or Page_nGnRnE or Page_OuterSh;
+      else
+         Bits := Bits or Page_WB or Page_InnerSh;
+      end if;
+      return Bits or Page_Access or Page_Valid or Page_L3;
+   end Get_Bits;
+
+   function Get_Addr_From_Entry (Entry_B : Unsigned_64) return Unsigned_64 is
+   begin
+      return Entry_B and 16#FFFFFFFFF000#;
+   end Get_Addr_From_Entry;
+
+   type Address_Components is record
+      Level0_Entry : Unsigned_64;
+      Level1_Entry : Unsigned_64;
+      Level2_Entry : Unsigned_64;
+      Level3_Entry : Unsigned_64;
+   end record;
+   function Get_Components (Add : Integer_Address) return Address_Components is
+      Addr : constant Unsigned_64 := Unsigned_64 (Add);
+      L0_E : constant Unsigned_64 := Addr and Shift_Left (16#1FF#, 39);
+      L1_E : constant Unsigned_64 := Addr and Shift_Left (16#1FF#, 30);
+      L2_E : constant Unsigned_64 := Addr and Shift_Left (16#1FF#, 21);
+      L3_E : constant Unsigned_64 := Addr and Shift_Left (16#1FF#, 12);
+   begin
+      return (Level0_Entry => Shift_Right (L0_E, 39),
+              Level1_Entry => Shift_Right (L1_E, 30),
+              Level2_Entry => Shift_Right (L2_E, 21),
+              Level3_Entry => Shift_Right (L3_E, 12));
+   end Get_Components;
+
+   function Get_Next_Level
+      (Current_Level       : Integer_Address;
+       Index               : Unsigned_64;
+       Create_If_Not_Found : Boolean) return Integer_Address
+   is
+      Entry_Addr : constant Integer_Address :=
+         Current_Level + Memory.Memory_Offset + Integer_Address (Index * 8);
+      Entry_Body : Unsigned_64 with Address => To_Address (Entry_Addr), Import;
+   begin
+      --  Check whether the entry is present.
+      if (Entry_Body and Page_Valid) /= 0 then
+         return Integer_Address (Get_Addr_From_Entry (Entry_Body));
+      elsif Create_If_Not_Found then
+         --  Allocate and put some default flags.
+         declare
+            New_Entry : constant Page_Level_Acc := new Page_Level;
+            New_Addr  : constant Integer_Address :=
+               To_Integer (New_Entry.all'Address) - Memory.Memory_Offset;
+         begin
+            Entry_Body := Unsigned_64 (New_Addr) or Page_Valid or Page_L3;
+            return New_Addr;
+         end;
+      else
+         return 0;
+      end if;
+   end Get_Next_Level;
+
+   function Get_Page
+      (Root_Lvl : System.Address;
+       Virtual  : Integer_Address;
+       Allocate : Boolean) return Integer_Address
+   is
+      Addr  : constant Address_Components := Get_Components (Virtual);
+      Addr4 : constant Integer_Address :=
+         To_Integer (Root_Lvl) - Memory.Memory_Offset;
+      Addr3, Addr2, Addr1 : Integer_Address := 0;
+   begin
+      --  Find the entries.
+      Addr3 := Get_Next_Level (Addr4, Addr.Level0_Entry, Allocate);
+      if Addr3 = 0 then
+         goto Error_Return;
+      end if;
+      Addr2 := Get_Next_Level (Addr3, Addr.Level1_Entry, Allocate);
+      if Addr2 = 0 then
+         goto Error_Return;
+      end if;
+      Addr1 := Get_Next_Level (Addr2, Addr.Level2_Entry, Allocate);
+      if Addr1 = 0 then
+         goto Error_Return;
+      end if;
+
+      return Addr1 + Memory.Memory_Offset +
+             (Integer_Address (Addr.Level3_Entry) * 8);
+
+   <<Error_Return>>
+      Lib.Panic.Soft_Panic ("Address could not be found");
+      return 0;
+   end Get_Page;
+   pragma Inline_Always (Get_Page);
+   --  FIXME: If not inlined, paging does not work. I do not know why, at all.
+
    function Translate_Address
       (Map     : Page_Table;
        Virtual : System.Address) return System.Address
    is
-      pragma Unreferenced (Map);
-      pragma Unreferenced (Virtual);
+      Table : constant Page_Map_Acc :=
+         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+      Virt : Integer_Address := To_Integer (Virtual);
+      TTBR : System.Address  := System.Null_Address;
    begin
-      return System.Null_Address;
+      if (Virt and Higher_Half) /= 0 then
+         Virt       := Virt and not Higher_Half;
+         TTBR       := Table.TTBR1'Address;
+      else
+         TTBR := Table.TTBR0'Address;
+      end if;
+
+      declare
+         Addr : constant Integer_Address := Get_Page (TTBR, Virt, True);
+         Entry_B : Unsigned_64 with Address => To_Address (Addr), Import;
+      begin
+         return To_Address (Integer_Address (Get_Addr_From_Entry (Entry_B)));
+      end;
    end Translate_Address;
 
    function Map_Range
@@ -207,13 +383,41 @@ package body Arch.MMU with SPARK_Mode => Off is
        Length         : Storage_Count;
        Permissions    : Page_Permissions) return Boolean
    is
-      pragma Unreferenced (Map);
-      pragma Unreferenced (Physical_Start);
-      pragma Unreferenced (Virtual_Start);
-      pragma Unreferenced (Length);
-      pragma Unreferenced (Permissions);
+      Table : constant Page_Map_Acc :=
+         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+
+      Virt       : Integer_Address := To_Integer (Virtual_Start);
+      Phys       : Integer_Address := To_Integer (Physical_Start);
+      Final_Virt : Integer_Address := Virt + Integer_Address (Length);
+      TTBR       : System.Address  := System.Null_Address;
+      Perm_Mask : constant Unsigned_64 := Get_Bits (Permissions);
    begin
-      return False;
+      if Virt   mod Page_Size /= 0 or Phys mod Page_Size /= 0 or
+         Length mod Page_Size /= 0
+      then
+         return False;
+      end if;
+
+      if (Virt and Higher_Half) /= 0 then
+         Virt       := Virt       and not Higher_Half;
+         Final_Virt := Final_Virt and not Higher_Half;
+         TTBR       := Table.TTBR1'Address;
+      else
+         TTBR := Table.TTBR0'Address;
+      end if;
+
+      while Virt < Final_Virt loop
+         declare
+            Addr : constant Integer_Address := Get_Page (TTBR, Virt, True);
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            Entry_Body := Unsigned_64 (Phys) or Perm_Mask;
+         end;
+         Virt := Virt + Page_Size;
+         Phys := Phys + Page_Size;
+      end loop;
+
+      return True;
    end Map_Range;
 
    function Remap_Range
@@ -222,12 +426,38 @@ package body Arch.MMU with SPARK_Mode => Off is
        Length        : Storage_Count;
        Permissions   : Page_Permissions) return Boolean
    is
-      pragma Unreferenced (Map);
-      pragma Unreferenced (Virtual_Start);
-      pragma Unreferenced (Length);
-      pragma Unreferenced (Permissions);
+      Table : constant Page_Map_Acc :=
+         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+
+      Virt       : Integer_Address := To_Integer (Virtual_Start);
+      Final_Virt : Integer_Address := Virt + Integer_Address (Length);
+      TTBR       : System.Address  := System.Null_Address;
+      Perm_Mask : constant Unsigned_64 := Get_Bits (Permissions);
    begin
-      return False;
+      if Virt mod Page_Size /= 0 or Length mod Page_Size /= 0 then
+         return False;
+      end if;
+
+      if (Virt and Higher_Half) /= 0 then
+         Virt       := Virt       and not Higher_Half;
+         Final_Virt := Final_Virt and not Higher_Half;
+         TTBR       := Table.TTBR1'Address;
+      else
+         TTBR := Table.TTBR0'Address;
+      end if;
+
+      while Virt < Final_Virt loop
+         declare
+            Addr : constant Integer_Address := Get_Page (TTBR, Virt, False);
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            Entry_Body := Get_Addr_From_Entry (Entry_Body) or Perm_Mask;
+            Flush_Local_TLB (To_Address (Virt));
+         end;
+         Virt := Virt + Page_Size;
+      end loop;
+
+      return True;
    end Remap_Range;
 
    function Unmap_Range
@@ -235,25 +465,58 @@ package body Arch.MMU with SPARK_Mode => Off is
        Virtual_Start : System.Address;
        Length        : Storage_Count) return Boolean
    is
-      pragma Unreferenced (Map);
-      pragma Unreferenced (Virtual_Start);
-      pragma Unreferenced (Length);
+      Table : constant Page_Map_Acc :=
+         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+
+      Virt       : Integer_Address := To_Integer (Virtual_Start);
+      Final_Virt : Integer_Address := Virt + Integer_Address (Length);
+      TTBR       : System.Address  := System.Null_Address;
    begin
-      return False;
+      if Virt mod Page_Size /= 0 or Length mod Page_Size /= 0 then
+         return False;
+      end if;
+
+      if (Virt and Higher_Half) /= 0 then
+         Virt       := Virt       and not Higher_Half;
+         Final_Virt := Final_Virt and not Higher_Half;
+         TTBR       := Table.TTBR1'Address;
+      else
+         TTBR := Table.TTBR0'Address;
+      end if;
+
+      while Virt < Final_Virt loop
+         declare
+            Addr : constant Integer_Address := Get_Page (TTBR, Virt, False);
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            Entry_Body := Entry_Body xor Page_Valid;
+            Flush_Local_TLB (To_Address (Virt));
+         end;
+         Virt := Virt + Page_Size;
+      end loop;
+
+      return True;
    end Unmap_Range;
 
    procedure Flush_Local_TLB (Addr : System.Address) is
-      pragma Unreferenced (Addr);
+      Ad : constant Unsigned_64 := Unsigned_64 (To_Integer (Addr));
    begin
-      return;
+      Asm ("dsb st; tlbi vale1, %0; dsb sy; isb",
+           Inputs   => Unsigned_64'Asm_Input ("r", Shift_Right (Ad, 12)),
+           Clobber  => "memory",
+           Volatile => True);
    end Flush_Local_TLB;
 
    procedure Flush_Local_TLB (Addr : System.Address; Len : Storage_Count) is
-      pragma Unreferenced (Addr);
-      pragma Unreferenced (Len);
+      Curr : Storage_Count := 0;
    begin
-      return;
+      while Curr < Len loop
+         Flush_Local_TLB (Addr + Curr);
+         Curr := Curr + Page_Size;
+      end loop;
    end Flush_Local_TLB;
+
+   --  TODO: Code this 2 bad boys once the VMM makes use of them.
 
    procedure Flush_Global_TLBs (Addr : System.Address) is
       pragma Unreferenced (Addr);

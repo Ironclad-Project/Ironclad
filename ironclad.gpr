@@ -76,8 +76,10 @@ project Ironclad is
             --  This following lines are needed on my system, but they are not
             --  required on others like debian, however it should not hurt.
             for Switches ("Asm") use Base_Asm_Switches;
-            for Driver ("asm") use "GCC";
-            for Leading_Required_Switches ("asm") use ("-xassembler-with-cpp");
+            for Driver ("asm") use "aarch64-linux-gnu-gcc";
+            for Leading_Required_Switches ("asm") use (
+               "-xassembler-with-cpp", "-c"
+            );
       end case;
 
       for Local_Configuration_Pragmas use "source/pragmas.adc";

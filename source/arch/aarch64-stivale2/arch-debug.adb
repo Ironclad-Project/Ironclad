@@ -16,14 +16,15 @@
 
 with Interfaces; use Interfaces;
 with Arch.Snippets;
+with Memory; use Memory;
 
 package body Arch.Debug with SPARK_Mode => Off is
    --  PL011-compatible serial registers.
    PL011_Data   : Unsigned_32 with Import, Volatile;
    PL011_Status : Unsigned_32 with Import, Volatile;
 
-   for PL011_Data'Address   use To_Address (16#9000000#);
-   for PL011_Status'Address use To_Address (16#9000018#);
+   for PL011_Data'Address   use To_Address (Memory_Offset + 16#9000000#);
+   for PL011_Status'Address use To_Address (Memory_Offset + 16#9000018#);
 
    procedure Print (Message : Character) is
    begin
