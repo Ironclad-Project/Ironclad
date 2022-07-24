@@ -191,21 +191,14 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
       for E of Memmap loop
          Aligned_Addr := Ali1.Align_Down (To_Integer (E.Start), Page_Size_4K);
          Aligned_Len  := Ali2.Align_Up (Unsigned_64 (E.Length), Page_Size_4K);
-         Success1     := Map_Range (
-            Map            => MMU.Kernel_Table,
-            Physical_Start => To_Address (Aligned_Addr),
-            Virtual_Start  => To_Address (Aligned_Addr),
-            Length         => Storage_Offset (Aligned_Len),
-            Permissions    => Flags
-         );
-         Success2 := Map_Range (
+         Success1 := Map_Range (
             Map            => MMU.Kernel_Table,
             Physical_Start => To_Address (Aligned_Addr),
             Virtual_Start  => To_Address (Aligned_Addr + Memory_Offset),
             Length         => Storage_Offset (Aligned_Len),
             Permissions    => Flags
          );
-         if not Success1 or not Success2 then
+         if not Success1 then
             return False;
          end if;
       end loop;

@@ -383,19 +383,20 @@ package body Scheduler with SPARK_Mode => Off is
 
       --  Get the next thread for execution.
       Current_TID := Arch.Local.Get_Current_Thread;
-      Next_TID    := Current_TID;
-      loop
-         Next_TID := Next_TID + 1;
-
-         if Next_TID > Thread_Pool'Last then
-            Next_TID := Thread_Pool'First;
-         end if;
-         exit when Next_TID = Current_TID;
-
-         if Thread_Pool (Next_TID).Is_Present    and
-            not Thread_Pool (Next_TID).Is_Banned and
-            not Thread_Pool (Next_TID).Is_Running
+      Next_TID    := 0;
+      for I in Current_TID + 1 .. Thread_Pool'Last loop
+         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Banned and
+            not Thread_Pool (I).Is_Running and I /= Current_TID
          then
+            Next_TID := I;
+            goto Found_TID;
+         end if;
+      end loop;
+      for I in Thread_Pool'First .. Current_TID loop
+         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Banned and
+            not Thread_Pool (I).Is_Running and I /= Current_TID
+         then
+            Next_TID := I;
             goto Found_TID;
          end if;
       end loop;

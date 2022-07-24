@@ -37,7 +37,8 @@ package body Arch.Context with SPARK_Mode => Off is
          RFLAGS => 16#202#,
          RIP    => Unsigned_64 (To_Integer (Start_Addr)),
          RSP    => Unsigned_64 (To_Integer (Stack)),
-         others => 0
+         RBP    => 0,
+         others => <>
       );
    end Init_GP_Context;
 
