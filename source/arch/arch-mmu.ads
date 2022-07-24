@@ -14,56 +14,66 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Arch.InnerMMU;
+
 package Arch.MMU is
    --  Opaque object for keeping track of data, not locked.
-   type Page_Table is new System.Address;
+   subtype Page_Table       is InnerMMU.Page_Map;
+   subtype Page_Table_Acc   is InnerMMU.Page_Map_Acc;
+   subtype Page_Permissions is InnerMMU.Page_Permissions;
 
    --  Kernel map, which is used by the freestanding kernel when called.
-   Kernel_Table : Page_Table;
+   Kernel_Table : Page_Table_Acc;
 
-   function Init (Memmap : Arch.Boot_Memory_Map) return Boolean;
+   function Init (Memmap : Arch.Boot_Memory_Map) return Boolean
+      renames InnerMMU.Init;
 
    --  Create or destroy maps, return Null_Address or False on failure.
-   function Create_Table return Page_Table;
-   procedure Destroy_Table (Map : in out Page_Table);
+   function Create_Table return Page_Table_Acc
+      renames InnerMMU.Create_Table;
+   procedure Destroy_Table (Map : in out Page_Table_Acc)
+      renames InnerMMU.Destroy_Table;
 
    --  Make the passed map active, will return False on failure.
-   function Make_Active (Map : Page_Table) return Boolean;
-   function Is_Active (Map : Page_Table) return Boolean;
+   function Make_Active (Map : Page_Table_Acc) return Boolean
+      renames InnerMMU.Make_Active;
+   function Is_Active (Map : Page_Table_Acc) return Boolean
+      renames InnerMMU.Is_Active;
 
    --  Do translation for a single address, this function does not fail.
    function Translate_Address
-      (Map     : Page_Table;
-       Virtual : System.Address) return System.Address;
+      (Map     : Page_Table_Acc;
+       Virtual : System.Address) return System.Address
+      renames InnerMMU.Translate_Address;
 
    --  Map, remap, or unmap a range, will return False on failure.
-   type Page_Permissions is record
-      User_Accesible : Boolean; --  User accesible.
-      Read_Only      : Boolean; --  Read only or RW.
-      Executable     : Boolean; --  Will store executable code.
-      Global         : Boolean; --  Hint for global (TLB optimization).
-      Write_Through  : Boolean; --  Hint for write-combining + write-through.
-   end record;
    function Map_Range
-      (Map            : Page_Table;
+      (Map            : Page_Table_Acc;
        Physical_Start : System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
-       Permissions    : Page_Permissions) return Boolean;
+       Permissions    : Page_Permissions) return Boolean
+      renames InnerMMU.Map_Range;
    function Remap_Range
-      (Map           : Page_Table;
+      (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count;
-       Permissions   : Page_Permissions) return Boolean;
+       Permissions   : Page_Permissions) return Boolean
+      renames InnerMMU.Remap_Range;
    function Unmap_Range
-      (Map           : Page_Table;
+      (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
-       Length        : Storage_Count) return Boolean;
+       Length        : Storage_Count) return Boolean
+      renames InnerMMU.Unmap_Range;
 
    --  Issue TLB flushes apart of the ones natural to the mapping process.
    --  Example: Several CPUs run the same pagemap, etc.
-   procedure Flush_Local_TLB (Addr : System.Address);
-   procedure Flush_Local_TLB (Addr : System.Address; Len : Storage_Count);
-   procedure Flush_Global_TLBs (Addr : System.Address);
-   procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count);
+   procedure Flush_Local_TLB (Addr : System.Address)
+      renames InnerMMU.Flush_Local_TLB;
+   procedure Flush_Local_TLB (Addr : System.Address; Len : Storage_Count)
+      renames InnerMMU.Flush_Local_TLB;
+   procedure Flush_Global_TLBs (Addr : System.Address)
+      renames InnerMMU.Flush_Global_TLBs;
+   procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count)
+      renames InnerMMU.Flush_Global_TLBs;
 end Arch.MMU;

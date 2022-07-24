@@ -1,4 +1,4 @@
---  arch-mmu.adb: Architecture-specific MMU code.
+--  arch-innermmu.adb: Architecture-specific MMU code.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -16,35 +16,13 @@
 
 with Ada.Unchecked_Deallocation;
 with System.Address_To_Access_Conversions;
-with Interfaces; use Interfaces;
 with Arch.Wrappers;
 with Arch.Stivale2;
-with Memory; use Memory;
 with Lib.Panic;
 with Lib.Alignment;
+with Arch.MMU;
 
-package body Arch.MMU with SPARK_Mode => Off is
-   --  Object to represent a page map.
-   Page_Size_4K : constant := 16#001000#;
-   Page_Size_2M : constant := 16#200000#;
-   type PML4 is array (1 .. 512) of Unsigned_64
-      with Alignment => Page_Size_4K, Size => 512 * 64;
-   type PML4_Acc is access all PML4;
-
-   --  Page maps.
-   type Page_Map is record
-      PML4_Level : PML4;
-   end record;
-   type Page_Map_Acc is access all Page_Map;
-
-   Kernel_Map : Page_Map_Acc;
-
-   type Address_Components is record
-      PML4_Entry : Unsigned_64;
-      PML3_Entry : Unsigned_64;
-      PML2_Entry : Unsigned_64;
-      PML1_Entry : Unsigned_64;
-   end record;
+package body Arch.InnerMMU with SPARK_Mode => Off is
    function Get_Address_Components
       (Virtual : Virtual_Address) return Address_Components
    is
@@ -150,13 +128,6 @@ package body Arch.MMU with SPARK_Mode => Off is
       return Null_Address;
    end Get_Page_2M;
 
-   function Is_Loaded (Map : Page_Map_Acc) return Boolean is
-      Current : constant Unsigned_64 := Arch.Wrappers.Read_CR3;
-      PAddr : constant Integer_Address := To_Integer (Map.PML4_Level'Address);
-   begin
-      return Current = Unsigned_64 (PAddr - Memory_Offset);
-   end Is_Loaded;
-
    function Flags_To_Bitmap (Perm : Page_Permissions) return Unsigned_16 is
       RW  : constant Unsigned_16 := (if not Perm.Read_Only  then 1 else 0);
       U   : constant Unsigned_16 := (if Perm.User_Accesible then 1 else 0);
@@ -170,8 +141,6 @@ package body Arch.MMU with SPARK_Mode => Off is
              Shift_Left (RW,  1) or
              1;                     --  Present bit.
    end Flags_To_Bitmap;
-
-   package Conv is new System.Address_To_Access_Conversions (Page_Map);
 
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
       package ST renames Stivale2;
@@ -195,21 +164,20 @@ package body Arch.MMU with SPARK_Mode => Off is
       Aligned_Len        : Unsigned_64;
    begin
       --  Initialize the kernel pagemap.
-      Kernel_Map   := new Page_Map;
-      Kernel_Table := Page_Table (Kernel_Map.all'Address);
+      MMU.Kernel_Table := new Page_Map;
 
       --  Map the first 2 GiB (except 0) to the window and identity mapped.
       --  This is done instead of following the pagemap to ensure that all
       --  I/O and memory tables that may not be in the memmap are mapped.
       Success1 := Map_Range (
-         Map            => Kernel_Table,
+         Map            => MMU.Kernel_Table,
          Physical_Start => To_Address (Page_Size_4K),
          Virtual_Start  => To_Address (Page_Size_4K),
          Length         => Hardcoded_Region - Page_Size_4K,
          Permissions    => Flags
       );
       Success2 := Map_Range (
-         Map            => Kernel_Table,
+         Map            => MMU.Kernel_Table,
          Physical_Start => To_Address (Page_Size_4K),
          Virtual_Start  => To_Address (Page_Size_4K + Memory_Offset),
          Length         => Hardcoded_Region - Page_Size_4K,
@@ -224,14 +192,14 @@ package body Arch.MMU with SPARK_Mode => Off is
          Aligned_Addr := Ali1.Align_Down (To_Integer (E.Start), Page_Size_4K);
          Aligned_Len  := Ali2.Align_Up (Unsigned_64 (E.Length), Page_Size_4K);
          Success1     := Map_Range (
-            Map            => Kernel_Table,
+            Map            => MMU.Kernel_Table,
             Physical_Start => To_Address (Aligned_Addr),
             Virtual_Start  => To_Address (Aligned_Addr),
             Length         => Storage_Offset (Aligned_Len),
             Permissions    => Flags
          );
          Success2 := Map_Range (
-            Map            => Kernel_Table,
+            Map            => MMU.Kernel_Table,
             Physical_Start => To_Address (Aligned_Addr),
             Virtual_Start  => To_Address (Aligned_Addr + Memory_Offset),
             Length         => Storage_Offset (Aligned_Len),
@@ -248,7 +216,7 @@ package body Arch.MMU with SPARK_Mode => Off is
          Aligned_Addr := Ali1.Align_Down (E.Base,   Page_Size_4K);
          Aligned_Len  := Ali2.Align_Up   (E.Length, Page_Size_4K);
          Success1     := Map_Range (
-            Map            => Kernel_Table,
+            Map            => MMU.Kernel_Table,
             Physical_Start => To_Address (Aligned_Addr - Kernel_Offset),
             Virtual_Start  => To_Address (Aligned_Addr),
             Length         => Storage_Offset (Aligned_Len),
@@ -267,29 +235,24 @@ package body Arch.MMU with SPARK_Mode => Off is
       return True;
    end Init;
 
-   function Create_Table return Page_Table is
+   function Create_Table return Page_Map_Acc is
       Map : constant Page_Map_Acc := new Page_Map;
    begin
-      Map.PML4_Level (256 .. 512) := Kernel_Map.PML4_Level (256 .. 512);
-      return Page_Table (Conv.To_Address (Conv.Object_Pointer (Map)));
+      Map.PML4_Level (256 .. 512) := MMU.Kernel_Table.PML4_Level (256 .. 512);
+      return Map;
    end Create_Table;
 
-   procedure Destroy_Table (Map : in out Page_Table) is
+   procedure Destroy_Table (Map : in out Page_Map_Acc) is
       procedure F is new Ada.Unchecked_Deallocation (Page_Map, Page_Map_Acc);
-
-      Table : Page_Map_Acc :=
-         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
    begin
       --  TODO: Free the tables themselves.
-      F (Table);
-      Map := Page_Table (System.Null_Address);
+      F (Map);
+      Map := null;
    end Destroy_Table;
 
-   function Make_Active (Map : Page_Table) return Boolean is
-      Table : constant Page_Map_Acc :=
-         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+   function Make_Active (Map : Page_Map_Acc) return Boolean is
       Addr : constant Unsigned_64 := Unsigned_64 (Physical_Address
-         (To_Integer (Table.PML4_Level'Address) - Memory_Offset));
+         (To_Integer (Map.PML4_Level'Address) - Memory_Offset));
    begin
       --  Make the pagemap active on the callee core by writing the top-level
       --  address to CR3.
@@ -299,22 +262,20 @@ package body Arch.MMU with SPARK_Mode => Off is
       return True;
    end Make_Active;
 
-   function Is_Active (Map : Page_Table) return Boolean is
-      Table : constant Page_Map_Acc :=
-         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+   function Is_Active (Map : Page_Map_Acc) return Boolean is
+      Current : constant Unsigned_64 := Arch.Wrappers.Read_CR3;
+      PAddr : constant Integer_Address := To_Integer (Map.PML4_Level'Address);
    begin
-      return Is_Loaded (Table);
+      return Current = Unsigned_64 (PAddr - Memory_Offset);
    end Is_Active;
 
    function Translate_Address
-      (Map     : Page_Table;
+      (Map     : Page_Map_Acc;
        Virtual : System.Address) return System.Address
    is
-      Table  : constant Page_Map_Acc :=
-         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
       Addr  : constant Integer_Address := To_Integer (Virtual);
-      Addr1 : constant Virtual_Address := Get_Page_2M (Table, Addr, False);
-      Addr2 : constant Virtual_Address := Get_Page_4K (Table, Addr, False);
+      Addr1 : constant Virtual_Address := Get_Page_2M (Map, Addr, False);
+      Addr2 : constant Virtual_Address := Get_Page_4K (Map, Addr, False);
       Searched1 : Unsigned_64 with Address => To_Address (Addr1), Import;
       Searched2 : Unsigned_64 with Address => To_Address (Addr2), Import;
    begin
@@ -326,14 +287,12 @@ package body Arch.MMU with SPARK_Mode => Off is
    end Translate_Address;
 
    function Map_Range
-      (Map            : Page_Table;
+      (Map            : Page_Map_Acc;
        Physical_Start : System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
        Permissions    : Page_Permissions) return Boolean
    is
-      Table : constant Page_Map_Acc :=
-         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
       Flags       : constant Unsigned_16 := Flags_To_Bitmap (Permissions);
       Not_Execute : constant Unsigned_64 :=
          (if not Permissions.Executable then 1 else 0);
@@ -355,7 +314,7 @@ package body Arch.MMU with SPARK_Mode => Off is
              Virt /= Final_Addr
       loop
          declare
-            Addr : constant Virtual_Address := Get_Page_4K (Table, Virt, True);
+            Addr : constant Virtual_Address := Get_Page_4K (Map, Virt, True);
             Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
          begin
             Entry_Body := Unsigned_64 (Phys)  or
@@ -367,7 +326,7 @@ package body Arch.MMU with SPARK_Mode => Off is
       end loop;
       while Virt < Final_Addr loop
          declare
-            Addr : constant Virtual_Address := Get_Page_2M (Table, Virt, True);
+            Addr : constant Virtual_Address := Get_Page_2M (Map, Virt, True);
             Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
          begin
             Entry_Body := Unsigned_64 (Phys)           or
@@ -384,13 +343,11 @@ package body Arch.MMU with SPARK_Mode => Off is
    end Map_Range;
 
    function Remap_Range
-      (Map           : Page_Table;
+      (Map           : Page_Map_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count;
        Permissions   : Page_Permissions) return Boolean
    is
-      Table : constant Page_Map_Acc :=
-         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
       Flags       : constant Unsigned_16 := Flags_To_Bitmap (Permissions);
       Not_Execute : constant Unsigned_64 :=
          (if not Permissions.Executable then 1 else 0);
@@ -408,7 +365,7 @@ package body Arch.MMU with SPARK_Mode => Off is
 
       while Virt mod Page_Size_2M /= 0 and Virt /= Final_Addr loop
          declare
-            Addr : constant Virtual_Address := Get_Page_4K (Table, Virt, True);
+            Addr : constant Virtual_Address := Get_Page_4K (Map, Virt, True);
             Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
          begin
             Entry_Body := Entry_Body          or
@@ -419,7 +376,7 @@ package body Arch.MMU with SPARK_Mode => Off is
       end loop;
       while Virt < Final_Addr loop
          declare
-            Addr : constant Virtual_Address := Get_Page_2M (Table, Virt, True);
+            Addr : constant Virtual_Address := Get_Page_2M (Map, Virt, True);
             Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
          begin
             Entry_Body := Entry_Body                   or
@@ -431,7 +388,7 @@ package body Arch.MMU with SPARK_Mode => Off is
          Virt := Virt + Page_Size_2M;
       end loop;
 
-      if Is_Loaded (Table) then
+      if Is_Active (Map) then
          Flush_Local_TLB (Virtual_Start, Length);
       end if;
 
@@ -439,13 +396,10 @@ package body Arch.MMU with SPARK_Mode => Off is
    end Remap_Range;
 
    function Unmap_Range
-      (Map           : Page_Table;
+      (Map           : Page_Map_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count) return Boolean
    is
-      Table : constant Page_Map_Acc :=
-         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
-
       Virt       : Virtual_Address          := To_Integer (Virtual_Start);
       Final_Addr : constant Virtual_Address := Virt + Virtual_Address (Length);
    begin
@@ -457,7 +411,7 @@ package body Arch.MMU with SPARK_Mode => Off is
 
       while Virt mod Page_Size_2M /= 0 and Virt /= Final_Addr loop
          declare
-            Addr : constant Virtual_Address := Get_Page_4K (Table, Virt, True);
+            Addr : constant Virtual_Address := Get_Page_4K (Map, Virt, True);
             Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
          begin
             Entry_Body := Entry_Body and 0;
@@ -466,7 +420,7 @@ package body Arch.MMU with SPARK_Mode => Off is
       end loop;
       while Virt < Final_Addr loop
          declare
-            Addr : constant Virtual_Address := Get_Page_2M (Table, Virt, True);
+            Addr : constant Virtual_Address := Get_Page_2M (Map, Virt, True);
             Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
          begin
             Entry_Body := Entry_Body and 0;
@@ -474,7 +428,7 @@ package body Arch.MMU with SPARK_Mode => Off is
          Virt := Virt + Page_Size_2M;
       end loop;
 
-      if Is_Loaded (Table) then
+      if Is_Active (Map) then
          Flush_Local_TLB (Virtual_Start, Length);
       end if;
 
@@ -506,4 +460,4 @@ package body Arch.MMU with SPARK_Mode => Off is
    begin
       null;
    end Flush_Global_TLBs;
-end Arch.MMU;
+end Arch.InnerMMU;

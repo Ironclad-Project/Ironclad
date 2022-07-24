@@ -16,6 +16,7 @@
 
 with Ada.Unchecked_Deallocation;
 with Lib.Alignment;
+with Arch.InnerMMU; use Arch.InnerMMU;
 
 package body Memory.Virtual with SPARK_Mode => Off is
    package Align1 is new Lib.Alignment (Integer_Address);
@@ -156,10 +157,10 @@ package body Memory.Virtual with SPARK_Mode => Off is
    end Unmap_Range;
 
    function New_Map return Page_Map_Acc is
-      Inner   : constant Arch.MMU.Page_Table := Arch.MMU.Create_Table;
+      Inner   : constant Arch.MMU.Page_Table_Acc := Arch.MMU.Create_Table;
       New_Map : Page_Map_Acc;
    begin
-      if Inner /= Arch.MMU.Page_Table (System.Null_Address) then
+      if Inner /= null then
          New_Map := new Page_Map;
          New_Map.Inner := Inner;
          Lib.Synchronization.Release (New_Map.Mutex'Access);

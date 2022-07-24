@@ -1,4 +1,4 @@
---  arch-mmu.adb: Architecture-specific MMU code.
+--  arch-innermmu.adb: Architecture-specific MMU code.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,14 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System; use System;
-with System.Address_To_Access_Conversions;
-with Interfaces; use Interfaces;
+with Ada.Unchecked_Deallocation;
+with Arch.MMU;
 with System.Machine_Code; use System.Machine_Code;
 with Lib.Panic;
 with Memory;
 
-package body Arch.MMU with SPARK_Mode => Off is
+package body Arch.InnerMMU with SPARK_Mode => Off is
    --  Page attributes.
    Page_RO      : constant Unsigned_64 := Shift_Left (1, 7);
    Page_PXN     : constant Unsigned_64 := Shift_Left (1, 53);
@@ -34,21 +33,6 @@ package body Arch.MMU with SPARK_Mode => Off is
    Page_Access  : constant Unsigned_64 := Shift_Left (1, 10);
    Page_Valid   : constant Unsigned_64 := Shift_Left (1, 0);
    Page_L3      : constant Unsigned_64 := Shift_Left (1, 1);
-
-   --  Page structure.
-   Higher_Half : constant := 16#FFFF000000000000#;
-   Page_Size   : constant := 16#1000#;
-
-   type Page_Level is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
-   type Page_Level_Acc is access Page_Level;
-   type Page_Map is record
-      TTBR0 : Page_Level;
-      TTBR1 : Page_Level;
-   end record;
-   type Page_Map_Acc is access all Page_Map;
-   Kernel_Map : Page_Map_Acc;
-
-   package Conv is new System.Address_To_Access_Conversions (Page_Map);
 
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
       pragma Unreferenced (Memmap);
@@ -166,12 +150,11 @@ package body Arch.MMU with SPARK_Mode => Off is
            Volatile => True);
 
       --  Create the kernel map.
-      Kernel_Map   := new Page_Map;
-      Kernel_Table := Page_Table (Kernel_Map.all'Address);
+      MMU.Kernel_Table := new Page_Map;
 
       --  Map kernel.
       Success := Map_Range (
-         Map            => Kernel_Table,
+         Map            => MMU.Kernel_Table,
          Physical_Start => To_Address (16#40118000#),
          Virtual_Start  => To_Address (Memory.Kernel_Offset + 16#100000#),
          Length         => 16#F0000#,
@@ -183,7 +166,7 @@ package body Arch.MMU with SPARK_Mode => Off is
 
       --  Map into the memory window.
       Success := Map_Range (
-         Map            => Kernel_Table,
+         Map            => MMU.Kernel_Table,
          Physical_Start => To_Address (0),
          Virtual_Start  => To_Address (Memory.Memory_Offset),
          Length         => 16#9001000#,
@@ -196,26 +179,26 @@ package body Arch.MMU with SPARK_Mode => Off is
       return True;
    end Init;
 
-   function Create_Table return Page_Table is
+   function Create_Table return Page_Map_Acc is
       Map : constant Page_Map_Acc := new Page_Map;
    begin
-      Map.TTBR1 := Kernel_Map.TTBR1;
-      return Page_Table (Conv.To_Address (Conv.Object_Pointer (Map)));
+      Map.TTBR1 := MMU.Kernel_Table.TTBR1;
+      return Map;
    end Create_Table;
 
-   procedure Destroy_Table (Map : in out Page_Table) is
-      pragma Unreferenced (Map);
+   procedure Destroy_Table (Map : in out Page_Map_Acc) is
+      procedure F is new Ada.Unchecked_Deallocation (Page_Map, Page_Map_Acc);
    begin
-      null;
+      --  TODO: Free the tables themselves.
+      F (Map);
+      Map := null;
    end Destroy_Table;
 
-   function Make_Active (Map : Page_Table) return Boolean is
-      Table : constant Page_Map_Acc :=
-         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
+   function Make_Active (Map : Page_Map_Acc) return Boolean is
       Addr0 : constant Integer_Address :=
-         To_Integer (Table.TTBR0'Address) - Memory.Memory_Offset;
+         To_Integer (Map.TTBR0'Address) - Memory.Memory_Offset;
       Addr1 : constant Integer_Address :=
-         To_Integer (Table.TTBR1'Address) - Memory.Memory_Offset;
+         To_Integer (Map.TTBR1'Address) - Memory.Memory_Offset;
    begin
       Asm ("msr ttbr0_el1, %0; msr ttbr1_el1, %1; dsb st; isb",
            Inputs   => (Integer_Address'Asm_Input ("r", Addr0),
@@ -225,10 +208,7 @@ package body Arch.MMU with SPARK_Mode => Off is
       return True;
    end Make_Active;
 
-   function Is_Active (Map : Page_Table) return Boolean is
-      Table : constant Page_Map_Acc :=
-         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
-
+   function Is_Active (Map : Page_Map_Acc) return Boolean is
       TTBR0, TTBR1 : Integer_Address;
    begin
       Asm ("mrs %0, ttbr0_el1; mrs %1, ttbr1_el1",
@@ -240,8 +220,8 @@ package body Arch.MMU with SPARK_Mode => Off is
       TTBR0 := TTBR0 + Memory.Memory_Offset;
       TTBR1 := TTBR1 + Memory.Memory_Offset;
 
-      return Table.TTBR0'Address = To_Address (TTBR0) and
-             Table.TTBR1'Address = To_Address (TTBR1);
+      return Map.TTBR0'Address = To_Address (TTBR0) and
+             Map.TTBR1'Address = To_Address (TTBR1);
    end Is_Active;
 
    function Get_Bits (Permissions : Page_Permissions) return Unsigned_64 is
@@ -272,12 +252,6 @@ package body Arch.MMU with SPARK_Mode => Off is
       return Entry_B and 16#FFFFFFFFF000#;
    end Get_Addr_From_Entry;
 
-   type Address_Components is record
-      Level0_Entry : Unsigned_64;
-      Level1_Entry : Unsigned_64;
-      Level2_Entry : Unsigned_64;
-      Level3_Entry : Unsigned_64;
-   end record;
    function Get_Components (Add : Integer_Address) return Address_Components is
       Addr : constant Unsigned_64 := Unsigned_64 (Add);
       L0_E : constant Unsigned_64 := Addr and Shift_Left (16#1FF#, 39);
@@ -349,23 +323,19 @@ package body Arch.MMU with SPARK_Mode => Off is
       Lib.Panic.Soft_Panic ("Address could not be found");
       return 0;
    end Get_Page;
-   pragma Inline_Always (Get_Page);
-   --  FIXME: If not inlined, paging does not work. I do not know why, at all.
 
    function Translate_Address
-      (Map     : Page_Table;
+      (Map     : Page_Map_Acc;
        Virtual : System.Address) return System.Address
    is
-      Table : constant Page_Map_Acc :=
-         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
       Virt : Integer_Address := To_Integer (Virtual);
       TTBR : System.Address  := System.Null_Address;
    begin
       if (Virt and Higher_Half) /= 0 then
          Virt       := Virt and not Higher_Half;
-         TTBR       := Table.TTBR1'Address;
+         TTBR       := Map.TTBR1'Address;
       else
-         TTBR := Table.TTBR0'Address;
+         TTBR := Map.TTBR0'Address;
       end if;
 
       declare
@@ -377,15 +347,12 @@ package body Arch.MMU with SPARK_Mode => Off is
    end Translate_Address;
 
    function Map_Range
-      (Map            : Page_Table;
+      (Map            : Page_Map_Acc;
        Physical_Start : System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
        Permissions    : Page_Permissions) return Boolean
    is
-      Table : constant Page_Map_Acc :=
-         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
-
       Virt       : Integer_Address := To_Integer (Virtual_Start);
       Phys       : Integer_Address := To_Integer (Physical_Start);
       Final_Virt : Integer_Address := Virt + Integer_Address (Length);
@@ -401,9 +368,9 @@ package body Arch.MMU with SPARK_Mode => Off is
       if (Virt and Higher_Half) /= 0 then
          Virt       := Virt       and not Higher_Half;
          Final_Virt := Final_Virt and not Higher_Half;
-         TTBR       := Table.TTBR1'Address;
+         TTBR       := Map.TTBR1'Address;
       else
-         TTBR := Table.TTBR0'Address;
+         TTBR := Map.TTBR0'Address;
       end if;
 
       while Virt < Final_Virt loop
@@ -421,14 +388,11 @@ package body Arch.MMU with SPARK_Mode => Off is
    end Map_Range;
 
    function Remap_Range
-      (Map           : Page_Table;
+      (Map           : Page_Map_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count;
        Permissions   : Page_Permissions) return Boolean
    is
-      Table : constant Page_Map_Acc :=
-         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
-
       Virt       : Integer_Address := To_Integer (Virtual_Start);
       Final_Virt : Integer_Address := Virt + Integer_Address (Length);
       TTBR       : System.Address  := System.Null_Address;
@@ -441,9 +405,9 @@ package body Arch.MMU with SPARK_Mode => Off is
       if (Virt and Higher_Half) /= 0 then
          Virt       := Virt       and not Higher_Half;
          Final_Virt := Final_Virt and not Higher_Half;
-         TTBR       := Table.TTBR1'Address;
+         TTBR       := Map.TTBR1'Address;
       else
-         TTBR := Table.TTBR0'Address;
+         TTBR := Map.TTBR0'Address;
       end if;
 
       while Virt < Final_Virt loop
@@ -461,13 +425,10 @@ package body Arch.MMU with SPARK_Mode => Off is
    end Remap_Range;
 
    function Unmap_Range
-      (Map           : Page_Table;
+      (Map           : Page_Map_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count) return Boolean
    is
-      Table : constant Page_Map_Acc :=
-         Page_Map_Acc (Conv.To_Pointer (System.Address (Map)));
-
       Virt       : Integer_Address := To_Integer (Virtual_Start);
       Final_Virt : Integer_Address := Virt + Integer_Address (Length);
       TTBR       : System.Address  := System.Null_Address;
@@ -479,9 +440,9 @@ package body Arch.MMU with SPARK_Mode => Off is
       if (Virt and Higher_Half) /= 0 then
          Virt       := Virt       and not Higher_Half;
          Final_Virt := Final_Virt and not Higher_Half;
-         TTBR       := Table.TTBR1'Address;
+         TTBR       := Map.TTBR1'Address;
       else
-         TTBR := Table.TTBR0'Address;
+         TTBR := Map.TTBR0'Address;
       end if;
 
       while Virt < Final_Virt loop
@@ -530,4 +491,4 @@ package body Arch.MMU with SPARK_Mode => Off is
    begin
       return;
    end Flush_Global_TLBs;
-end Arch.MMU;
+end Arch.InnerMMU;

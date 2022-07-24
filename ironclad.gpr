@@ -51,7 +51,9 @@ project Ironclad is
       Base_Ada_Switches := Split (Ada_Flags, " ") & (
          "-fno-stack-protector", "-fno-stack-check"
       );
-      Base_Asm_Switches := Split (Asm_Flags, " ");
+      Base_Asm_Switches := Split (Asm_Flags, " ") & (
+         "-xassembler-with-cpp"
+      );
       case Target is
          when "big" =>
             Base_Ada_Switches := Base_Ada_Switches & ("-gnateDIsSmall=False");
@@ -77,9 +79,7 @@ project Ironclad is
             --  required on others like debian, however it should not hurt.
             for Switches ("Asm") use Base_Asm_Switches;
             for Driver ("asm") use "aarch64-linux-gnu-gcc";
-            for Leading_Required_Switches ("asm") use (
-               "-xassembler-with-cpp", "-c"
-            );
+            for Leading_Required_Switches ("asm") use ("-c");
       end case;
 
       for Local_Configuration_Pragmas use "source/pragmas.adc";

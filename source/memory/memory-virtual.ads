@@ -35,7 +35,7 @@ package Memory.Virtual with SPARK_Mode => Off is
    type Mapping_Range_Arr is array (Natural range <>) of Mapping_Range;
    type Page_Map is record
       Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
-      Inner      : Arch.MMU.Page_Table;
+      Inner      : Arch.MMU.Page_Table_Acc;
       Map_Ranges : Mapping_Range_Arr (1 .. 100);
    end record;
    type Page_Map_Acc is access all Page_Map;
