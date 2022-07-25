@@ -18,22 +18,30 @@ with System;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package Arch is
-   --  Boot information for the freestanding kernel to use.
-   --  The memory map is not necessarily sorted, or may have overlapping
-   --  sections, or may have gaps.
+   --  Boot information passed to the freestanding parts of the kernel.
+
+   --  Memory map for the kernel, it is not necessarily sorted, and may have
+   --  overlapping sections, or may have gaps.
+   type Boot_Memory_Type is (
+      Memory_Free,     --  Memory free for use by the allocators.
+      Memory_Reserved, --  MMIO addresses or memory tables.
+      Memory_Kernel    --  Memory occupied by the kernel or RAM files.
+   );
    type Boot_Memory_Region is record
       Start   : System.Address;
       Length  : Storage_Count;
-      Is_Free : Boolean;
+      MemType : Boot_Memory_Type;
    end record;
    type Boot_Memory_Map is array (Natural range <>) of Boot_Memory_Region;
 
+   --  Some targets may provide RAM files for roots or other purposes.
    type Boot_RAM_File is record
       Start  : System.Address;
       Length : Storage_Count;
    end record;
    type Boot_RAM_Files is array (Natural range <>) of Boot_RAM_File;
 
+   --  Struct to wrap it all together, along with cmdline information.
    type Boot_Information is record
       Cmdline       : String (1 .. 256);
       Cmdline_Len   : Natural range 0 .. 256;

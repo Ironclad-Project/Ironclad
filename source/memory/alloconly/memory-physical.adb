@@ -55,7 +55,9 @@ package body Memory.Physical with SPARK_Mode => Off is
       Free_Memory  := 0;
       Used_Memory  := 0;
       for E of Memmap loop
-         if E.Is_Free and Integer_Address (E.Length) > Region_Info_Sz then
+         if E.MemType = Arch.Memory_Free and
+            Integer_Address (E.Length) > Region_Info_Sz
+         then
             Region_Start := To_Integer (E.Start) + Memory_Offset;
             Region_Size  := Integer_Address (E.Length) - Region_Info_Sz;
 

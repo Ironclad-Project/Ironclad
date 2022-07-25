@@ -19,7 +19,6 @@ with Arch.Stivale2;
 with Arch.Entrypoint;
 pragma Unreferenced (Arch.Entrypoint);
 with Lib;
-with Interfaces; use Interfaces;
 
 package body Arch with SPARK_Mode => Off is
    function Get_Info return Boot_Information is
@@ -49,8 +48,18 @@ package body Arch with SPARK_Mode => Off is
          Ret.Memmap (Ret.Memmap_Len + 1) := (
             Start   => To_Address (Integer_Address (Memmap.Entries (I).Base)),
             Length  => Storage_Count (Memmap.Entries (I).Length),
-            Is_Free => Memmap.Entries (I).EntryType = ST.Memmap_Entry_Usable
+            others  => <>
          );
+
+         case Memmap.Entries (I).EntryType is
+            when ST.Memmap_Entry_Usable =>
+               Ret.Memmap (Ret.Memmap_Len + 1).MemType := Memory_Free;
+            when ST.Memmap_Entry_Kernel_And_Modules =>
+               Ret.Memmap (Ret.Memmap_Len + 1).MemType := Memory_Kernel;
+            when others =>
+               Ret.Memmap (Ret.Memmap_Len + 1).MemType := Memory_Reserved;
+         end case;
+
          Ret.Memmap_Len := Ret.Memmap_Len + 1;
       end loop;
 

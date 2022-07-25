@@ -43,7 +43,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       --  XXX: Take into account unordered memory maps, or overlapping entries.
       --  Count memory and get the total memory size.
       for E of Memmap loop
-         if E.Is_Free then
+         if E.MemType = Arch.Memory_Free then
             Free_Memory := Free_Memory + Size (E.Length);
          else
             Used_Memory := Used_Memory + Size (E.Length);
@@ -60,7 +60,9 @@ package body Memory.Physical with SPARK_Mode => Off is
       Block_Count   := Unsigned_64 (Total_Memory) / Block_Size;
       Bitmap_Length := Size (Block_Count) / 8;
       for E of Memmap loop
-         if E.Is_Free and Size (E.Length) > Bitmap_Length then
+         if E.MemType = Arch.Memory_Free and
+            Size (E.Length) > Bitmap_Length
+         then
             Bitmap_Address :=
                Virtual_Address (To_Integer (E.Start) + Memory_Offset);
             E.Length := E.Length - Storage_Count (Bitmap_Length);
@@ -87,7 +89,11 @@ package body Memory.Physical with SPARK_Mode => Off is
          end loop;
 
          for E of Memmap loop
-            Block_Value := (if E.Is_Free then Block_Free else Block_Used);
+            if E.MemType = Arch.Memory_Free then
+               Block_Value := Block_Free;
+            else
+               Block_Value := Block_Used;
+            end if;
             Block_Start := Unsigned_64 (To_Integer (E.Start));
             while Index < Unsigned_64 (E.Length) loop
                Bitmap_Body ((Block_Start + Index) / Block_Size) := Block_Value;

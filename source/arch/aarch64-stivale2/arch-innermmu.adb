@@ -18,7 +18,8 @@ with Ada.Unchecked_Deallocation;
 with Arch.MMU;
 with System.Machine_Code; use System.Machine_Code;
 with Lib.Panic;
-with Memory;
+with Memory; use Memory;
+with Lib.Messages;
 
 package body Arch.InnerMMU with SPARK_Mode => Off is
    --  Page attributes.
@@ -35,8 +36,6 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
    Page_L3      : constant Unsigned_64 := Shift_Left (1, 1);
 
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
-      pragma Unreferenced (Memmap);
-
       type Unsigned_4 is mod 2 ** 4;
       type AA64MMFR0 is record
          PA_Range    : Unsigned_4;
@@ -152,17 +151,24 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
       --  Create the kernel map.
       MMU.Kernel_Table := new Page_Map;
 
-      --  Map kernel.
-      Success := Map_Range (
-         Map            => MMU.Kernel_Table,
-         Physical_Start => To_Address (16#40118000#),
-         Virtual_Start  => To_Address (Memory.Kernel_Offset + 16#100000#),
-         Length         => 16#F0000#,
-         Permissions    => Flags
-      );
-      if not Success then
-         return False;
-      end if;
+      --  Search for kernel entries and map them.
+      for E of Memmap loop
+         --Lib.Messages.Put (E.Start, False);
+         --Lib.Messages.Put_Line ("");
+         if E.MemType = Arch.Memory_Kernel then
+            Success := Map_Range (
+               Map            => MMU.Kernel_Table,
+               Physical_Start => E.Start,
+               Virtual_Start  => To_Address (Kernel_Offset + 16#100000#),
+               Length         => E.Length,
+               Permissions    => Flags
+            );
+            if not Success then
+               return False;
+            end if;
+            exit;
+         end if;
+      end loop;
 
       --  Map into the memory window.
       Success := Map_Range (
@@ -200,11 +206,13 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
       Addr1 : constant Integer_Address :=
          To_Integer (Map.TTBR1'Address) - Memory.Memory_Offset;
    begin
-      Asm ("msr ttbr0_el1, %0; msr ttbr1_el1, %1; dsb st; isb",
-           Inputs   => (Integer_Address'Asm_Input ("r", Addr0),
-                        Integer_Address'Asm_Input ("r", Addr1)),
-           Clobber  => "memory",
-           Volatile => True);
+      if not Is_Active (Map) then
+         Asm ("msr ttbr0_el1, %0; msr ttbr1_el1, %1; dsb nsh",
+              Inputs   => (Integer_Address'Asm_Input ("r", Addr0),
+                           Integer_Address'Asm_Input ("r", Addr1)),
+              Clobber  => "memory",
+              Volatile => True);
+      end if;
       return True;
    end Make_Active;
 
