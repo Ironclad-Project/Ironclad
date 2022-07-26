@@ -150,7 +150,7 @@ directory. It has several subdirectories with the following meanings:
 
 @table @code
 @item arch
-Architecture-dependent code, right now, only x86_64 code is held here.
+Architecture-dependent code, including aarch64 and x86_64 code.
 
 @item devices
 Several device drivers, physical and virtual.
@@ -175,12 +175,6 @@ Apart of those subdirectories, @code{source} itself contains the
 @code{main.adb} of the kernel, @code{pragmas.adc} containing the pragmas used
 for the rest of the kernel code, and some other files and drivers that do
 not fit on the former subdirectories.
-
-Keep in mind that as Ironclad is only available right now for x86_64 platforms,
-the architecture-specific separation of @code{arch} and the rest of the kernel
-is very loose and not that strictly enforced, still, it is nice to keep it in
-mind. As an example, x86-specific PS2 devices on the @code{devices} directory
-instead of @code{arch}.
 
 @node Formal verification
 @section Formal verification
@@ -922,8 +916,12 @@ int dup3(int oldfd, int newfd, int flags);
 This syscalls allocate new file descriptors pointing to the same file as the
 passed file descriptor. @code{dup} chooses a descriptor itself, while
 @code{dup2} and @code{dup3} will replace @code{newfd} with the new descriptor,
-closing it if necessary. @code{dup3} allows to change the flags of the
-descriptor as well in the same format as @code{open}.
+closing the old one if necessary.
+
+The flags of the duplicated file descriptor are reset, this means
+@code{O_CLOEXEC}, and other flags like @code{O_NONBLOCK} are not inherited. One
+can use @code{dup3} to set those flags for the duplicated file descriptor using
+the @code{flags} field.
 
 All of these 3 syscalls return the new fd on success and @code{-1} on failure.
 The errno codes set on failure are:
@@ -934,6 +932,10 @@ The errno codes set on failure are:
 
 @item
 @code{EMFILE}: Too many files have already been opened by the process.
+
+@item
+@code{EINVAL}: For @code{dup3}, @code{oldfd} and @code{newfd} are the same, or
+flags are not @code{0} or @code{O_CLOEXEC}
 @end itemize
 
 @node access
@@ -1008,6 +1010,43 @@ its execution slice is over, without being deleted. If set when calling
 
 These two syscalls do not fail, @code{get_thread_sched} returns the flags, and
 @code{set_thread_sched} always returns 0, both syscalls return no @code{errno}.
+
+@node fcntl
+@section fcntl
+
+@example
+int fcntl(int fd, int cmd, int arg);
+@end example
+
+This syscall is a multiplexed syscall that performs the operations described
+below on the open file descriptor @code{fd}. The operation is determined by
+@code{cmd} and may take an optional argument @code{arg}.
+
+The syscall's return value will depend on the requested @code{cmd}, and is
+detailed along the operations below.
+
+The valid operations are:
+
+@itemize @bullet
+@item
+@code{F_GETFD (3)}: The flags used for @code{fd} will be returned, right now
+only @code{FD_CLOEXEC} is supported. The syscall will return the flags on
+success.
+
+@item
+@code{F_SETFD (4)}: The flags for @code{fd} will be set with @code{arg}. The
+syscall will return @code{0} on sucess.
+@end itemize
+
+On failure, the syscall returns @code{-1}. The returned @code{errno} are:
+
+@itemize @bullet
+@item
+@code{EINVAL}: The passed @code{cmd} is not implemented by the kernel.
+
+@item
+@code{EBADF}: The passed @code{fd} is not opened.
+@end itemize
 
 @node Devices and their properties
 @chapter Devices and their properties

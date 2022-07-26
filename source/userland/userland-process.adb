@@ -136,7 +136,10 @@ package body Userland.Process with SPARK_Mode => Off is
       Child.Common_Map := Memory.Virtual.Fork_Map (Parent.Common_Map);
 
       for I in Parent.File_Table'Range loop
-         Child.File_Table (I) := Duplicate (Parent.File_Table (I));
+         Child.File_Table (I) := (
+            Close_On_Exec => Parent.File_Table (I).Close_On_Exec,
+            Inner         => Duplicate (Parent.File_Table (I).Inner)
+         );
       end loop;
 
       return Child;
@@ -178,15 +181,40 @@ package body Userland.Process with SPARK_Mode => Off is
       end loop;
    end Flush_Threads;
 
-   --  Add and remove files to the process file descriptor table.
-   function Add_File
+   function Is_Valid_File
       (Process : Process_Data_Acc;
-       File    : VFS.File.File_Acc;
-       FD      : out Natural) return Boolean is
+       FD      : Unsigned_64) return Boolean
+   is
+   begin
+      return FD <= Unsigned_64 (Process_File_Table'Last) and then
+             Process.File_Table (Natural (FD)).Inner /= null;
+   end Is_Valid_File;
+
+   function Get_File
+      (Process : Process_Data_Acc;
+       FD      : Unsigned_64) return VFS.File.File_Acc
+   is
+   begin
+      if FD > Unsigned_64 (Process_File_Table'Last) then
+         return null;
+      else
+         return Process.File_Table (Natural (FD)).Inner;
+      end if;
+   end Get_File;
+
+   function Add_File
+      (Process       : Process_Data_Acc;
+       File          : VFS.File.File_Acc;
+       FD            : out Natural;
+       Close_On_Exec : Boolean := False) return Boolean
+   is
    begin
       for I in Process.File_Table'Range loop
-         if Process.File_Table (I) = null then
-            Process.File_Table (I) := File;
+         if Process.File_Table (I).Inner = null then
+            Process.File_Table (I) := (
+               Close_On_Exec => Close_On_Exec,
+               Inner         => File
+            );
             FD := I;
             return True;
          end if;
@@ -196,34 +224,48 @@ package body Userland.Process with SPARK_Mode => Off is
    end Add_File;
 
    function Replace_File
-      (Process : Process_Data_Acc;
-       File    : VFS.File.File_Acc;
-       Old_FD  : Natural) return Boolean
+      (Process       : Process_Data_Acc;
+       File          : VFS.File.File_Acc;
+       Old_FD        : Natural;
+       Close_On_Exec : Boolean := False) return Boolean
    is
    begin
-      if Old_FD >= Process.File_Table'Last then
+      if Old_FD > Process.File_Table'Last or File = null then
          return False;
       end if;
-      if Process.File_Table (Old_FD) /= null then
-         Remove_File (Process, Old_FD);
+      if Process.File_Table (Old_FD).Inner /= null then
+         VFS.File.Close (Process.File_Table (Old_FD).Inner);
       end if;
-      Process.File_Table (Old_FD) := File;
+      Process.File_Table (Old_FD) := (
+         Close_On_Exec => Close_On_Exec,
+         Inner         => File
+      );
       return True;
    end Replace_File;
 
    procedure Remove_File (Process : Process_Data_Acc; FD : Natural) is
    begin
-      VFS.File.Close (Process.File_Table (FD));
-      Process.File_Table (FD) := null;
+      VFS.File.Close (Process.File_Table (FD).Inner);
+      Process.File_Table (FD).Inner := null;
    end Remove_File;
 
    procedure Flush_Files (Process : Process_Data_Acc) is
    begin
       for F of Process.File_Table loop
-         if F /= null then
-            VFS.File.Close (F);
-            F := null;
+         if F.Inner /= null then
+            VFS.File.Close (F.Inner);
+            F.Inner := null;
          end if;
       end loop;
    end Flush_Files;
+
+   procedure Flush_Exec_Files (Process : Process_Data_Acc) is
+   begin
+      for F of Process.File_Table loop
+         if F.Inner /= null and F.Close_On_Exec then
+            VFS.File.Close (F.Inner);
+            F.Inner := null;
+         end if;
+      end loop;
+   end Flush_Exec_Files;
 end Userland.Process;

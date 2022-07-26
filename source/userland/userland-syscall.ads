@@ -74,6 +74,7 @@ package Userland.Syscall with SPARK_Mode => Off is
    O_RDWR     : constant := 2#000000011#;
    O_APPEND   : constant := 2#000000100#;
    O_CREAT    : constant := 2#000001000#;
+   O_CLOEXEC  : constant := 2#000010000#;
    O_NOFOLLOW : constant := 2#100000000#;
    function Syscall_Open
       (Address : Unsigned_64;
@@ -286,6 +287,16 @@ package Userland.Syscall with SPARK_Mode => Off is
    function Syscall_Set_Thread_Sched
       (Flags : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
+
+   --  Multiplexed operation for files.
+   F_GETFD    : constant := 3;
+   F_SETFD    : constant := 4;
+   FD_CLOEXEC : constant := 1;
+   function Syscall_Fcntl
+      (FD       : Unsigned_64;
+       Command  : Unsigned_64;
+       Argument : Unsigned_64;
+       Errno    : out Errno_Value) return Unsigned_64;
 
 private
 

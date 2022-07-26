@@ -27,8 +27,12 @@ package Userland.Process with SPARK_Mode => Off is
    --  process will be created for it.
    --  Userland will know the process by a PID, a parent PID of 0 means no
    --  parent.
+   type Process_File is record
+      Close_On_Exec : Boolean;
+      Inner         : VFS.File.File_Acc;
+   end record;
    type Process_Data_Threads   is array (1 .. 20) of Scheduler.TID;
-   type Process_File_Table     is array (0 .. 99) of VFS.File.File_Acc;
+   type Process_File_Table     is array (0 .. 99) of Process_File;
    type Process_Children_Table is array (1 .. 10) of Natural;
    type Process_Data is record
       Process_PID     : Positive;
@@ -75,14 +79,23 @@ package Userland.Process with SPARK_Mode => Off is
    procedure Flush_Threads (Process : Process_Data_Acc);
 
    --  Add and remove files to the process file table, or remove them all.
+   function Is_Valid_File
+      (Process : Process_Data_Acc;
+       FD      : Unsigned_64) return Boolean;
+   function Get_File
+      (Process : Process_Data_Acc;
+       FD      : Unsigned_64) return VFS.File.File_Acc;
    function Add_File
-      (Process : Process_Data_Acc;
-       File    : VFS.File.File_Acc;
-       FD      : out Natural) return Boolean;
+      (Process       : Process_Data_Acc;
+       File          : VFS.File.File_Acc;
+       FD            : out Natural;
+       Close_On_Exec : Boolean := False) return Boolean;
    function Replace_File
-      (Process : Process_Data_Acc;
-       File    : VFS.File.File_Acc;
-       Old_FD  : Natural) return Boolean;
+      (Process       : Process_Data_Acc;
+       File          : VFS.File.File_Acc;
+       Old_FD        : Natural;
+       Close_On_Exec : Boolean := False) return Boolean;
    procedure Remove_File (Process : Process_Data_Acc; FD : Natural);
    procedure Flush_Files (Process : Process_Data_Acc);
+   procedure Flush_Exec_Files (Process : Process_Data_Acc);
 end Userland.Process;

@@ -129,6 +129,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Open_Mode    : VFS.File.Access_Mode;
          Opened_File  : VFS.File.File_Acc;
          Returned_FD  : Natural;
+         Close_On_Exec : constant Boolean := (Flags and O_CLOEXEC) /= 0;
       begin
          if Is_Tracing then
             Lib.Messages.Put ("syscall open(");
@@ -160,7 +161,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Errno := Error_No_Entity;
             return Unsigned_64'Last;
          elsif not Userland.Process.Add_File
-            (Current_Proc, Opened_File, Returned_FD)
+            (Current_Proc, Opened_File, Returned_FD, Close_On_Exec)
          then
             Free_File (Opened_File);
             Errno := Error_Too_Many_Files;
@@ -178,14 +179,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
          Arch.Local.Get_Current_Process;
-      File            : constant Natural := Natural (File_D);
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall close(");
          Lib.Messages.Put (File_D);
          Lib.Messages.Put_Line (")");
       end if;
-      Userland.Process.Remove_File (Current_Process, File);
+
+      if not Userland.Process.Is_Valid_File (Current_Process, File_D) then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+
+      Userland.Process.Remove_File (Current_Process, Natural (File_D));
       Errno := Error_No_Error;
       return 0;
    end Syscall_Close;
@@ -196,12 +202,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Count  : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64
    is
-      Buffer_Addr     : constant System.Address :=
+      Buffer_Addr : constant System.Address :=
          To_Address (Integer_Address (Buffer));
       Current_Process : constant Userland.Process.Process_Data_Acc :=
             Arch.Local.Get_Current_Process;
       File : constant VFS.File.File_Acc :=
-         Current_Process.File_Table (Natural (File_D));
+         Userland.Process.Get_File (Current_Process, File_D);
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall read(");
@@ -239,7 +245,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
             Arch.Local.Get_Current_Process;
       File : constant File_Acc :=
-         Current_Process.File_Table (Natural (File_D));
+         Userland.Process.Get_File (Current_Process, File_D);
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall write(");
@@ -275,7 +281,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
             Arch.Local.Get_Current_Process;
       File : constant VFS.File.File_Acc :=
-         Current_Process.File_Table (Natural (File_D));
+         Userland.Process.Get_File (Current_Process, File_D);
       Stat_Val : VFS.File_Stat;
    begin
       if Is_Tracing then
@@ -395,7 +401,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       else
          declare
             File : constant VFS.File.File_Acc :=
-               Current_Process.File_Table (Natural (File_D));
+               Userland.Process.Get_File (Current_Process, File_D);
             Did_Map : constant Boolean := VFS.File.Mmap (
                F           => File,
                Address     => Virtual_Address (Aligned_Hint),
@@ -532,6 +538,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end loop;
 
          Userland.Process.Flush_Threads (Current_Process);
+         Userland.Process.Flush_Exec_Files (Current_Process);
          if not Userland.Loader.Start_Program
             (Opened_File, Args, Env, Current_Process)
          then
@@ -762,10 +769,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Address : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64
    is
-      Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.Local.Get_Current_Process;
+      Proc : constant Userland.Process.Process_Data_Acc :=
+         Arch.Local.Get_Current_Process;
       File : constant VFS.File.File_Acc :=
-         Current_Process.File_Table (Natural (File_D));
+         Userland.Process.Get_File (Proc, File_D);
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall fstat(");
@@ -775,9 +782,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      if Address = 0 then
+      if File = null then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      elsif Address = 0 then
          Errno := Error_Would_Fault;
-         return 0;
+         return Unsigned_64'Last;
       end if;
 
       if Inner_Stat (File, Address) then
@@ -908,6 +918,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Arg : constant System.Address := To_Address (Integer_Address (Argument));
       Current_Process : constant Userland.Process.Process_Data_Acc :=
          Arch.Local.Get_Current_Process;
+      File : constant VFS.File.File_Acc :=
+         Userland.Process.Get_File (Current_Process, FD);
    begin
       if Is_Tracing then
          Lib.Messages.Put      ("syscall ioctl(");
@@ -919,28 +931,21 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      if FD > Current_Process.File_Table'Length then
+      if File = null then
          Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      elsif Argument = 0 then
+         Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       end if;
 
-      declare
-         File : constant VFS.File.File_Acc :=
-            Current_Process.File_Table (Natural (FD));
-      begin
-         if Argument = 0 then
-            Errno := Error_Would_Fault;
-            return Unsigned_64'Last;
-         end if;
-
-         if VFS.File.IO_Control (File, Request, Arg) then
-            Errno := Error_No_Error;
-            return 0;
-         else
-            Errno := Error_Not_A_TTY;
-            return Unsigned_64'Last;
-         end if;
-      end;
+      if VFS.File.IO_Control (File, Request, Arg) then
+         Errno := Error_No_Error;
+         return 0;
+      else
+         Errno := Error_Not_A_TTY;
+         return Unsigned_64'Last;
+      end if;
    end Syscall_IOCTL;
 
    procedure Syscall_Sched_Yield is
@@ -1034,6 +1039,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Process : constant Userland.Process.Process_Data_Acc :=
          Arch.Local.Get_Current_Process;
+      Old_File  : constant VFS.File.File_Acc :=
+         Userland.Process.Get_File (Process, Old_FD);
       New_FD    : VFS.File.File_Acc;
       Result_FD : Natural;
    begin
@@ -1043,14 +1050,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      if Old_FD > Unsigned_64 (Process.File_Table'Last) or else
-         Process.File_Table (Natural (Old_FD)) = null
-      then
+      if Old_File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
       end if;
 
-      New_FD := VFS.File.Duplicate (Process.File_Table (Natural (Old_FD)));
+      New_FD := VFS.File.Duplicate (Old_File);
       if New_FD = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -1069,6 +1074,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Process : constant Userland.Process.Process_Data_Acc :=
          Arch.Local.Get_Current_Process;
+      Old_File : constant VFS.File.File_Acc :=
+         Userland.Process.Get_File (Process, Old_FD);
       New_File : VFS.File.File_Acc;
    begin
       if Is_Tracing then
@@ -1079,17 +1086,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      if Old_FD > Unsigned_64 (Process.File_Table'Last) or else
-         Process.File_Table (Natural (Old_FD)) = null
-      then
+      if Old_File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
       end if;
 
-      New_File := VFS.File.Duplicate (Process.File_Table (Natural (Old_FD)));
+      New_File := VFS.File.Duplicate (Old_File);
       if New_File = null or else
          not Userland.Process.Replace_File
-            (Process, New_File, Natural (Old_FD))
+            (Process, New_File, Natural (New_FD))
       then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -1106,7 +1111,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Process : constant Userland.Process.Process_Data_Acc :=
          Arch.Local.Get_Current_Process;
+      Old_File  : constant VFS.File.File_Acc :=
+         Userland.Process.Get_File (Process, Old_FD);
       New_File : VFS.File.File_Acc;
+      Close_On_Exec : constant Boolean := (Flags and O_CLOEXEC) /= 0;
    begin
       if Is_Tracing then
          Lib.Messages.Put      ("syscall dup3(");
@@ -1118,22 +1126,22 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      if Old_FD > Unsigned_64 (Process.File_Table'Last) or else
-         Process.File_Table (Natural (Old_FD)) = null
-      then
+      if Old_FD = New_FD or Flags /= 0 or Flags /= O_CLOEXEC then
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      elsif Old_File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
       end if;
 
-      New_File := VFS.File.Duplicate (Process.File_Table (Natural (Old_FD)));
+      New_File := VFS.File.Duplicate (Old_File);
       if New_File = null or else
          not Userland.Process.Replace_File
-            (Process, New_File, Natural (Old_FD))
+            (Process, New_File, Natural (New_FD), Close_On_Exec)
       then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
       else
-         --  TODO: Update the flags.
          Errno := Error_No_Error;
          return New_FD;
       end if;
@@ -1212,7 +1220,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Ret := Ret and Thread_MLOCK;
 
       Errno := Error_No_Error;
-      return 0;
+      return Ret;
    end Syscall_Get_Thread_Sched;
 
    function Syscall_Set_Thread_Sched
@@ -1237,4 +1245,49 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno := Error_No_Error;
       return 0;
    end Syscall_Set_Thread_Sched;
+
+   function Syscall_Fcntl
+      (FD       : Unsigned_64;
+       Command  : Unsigned_64;
+       Argument : Unsigned_64;
+       Errno    : out Errno_Value) return Unsigned_64
+   is
+      Current_Process : constant Userland.Process.Process_Data_Acc :=
+         Arch.Local.Get_Current_Process;
+      Returned : Unsigned_64 := 0;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall fcntl(");
+         Lib.Messages.Put      (FD);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Command);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Argument);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if not Userland.Process.Is_Valid_File (Current_Process, FD) then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+
+      case Command is
+         --  Set and get the file descriptor flags, so far only O_CLOEXEC is
+         --  supported.
+         when F_GETFD =>
+            if Current_Process.File_Table (Natural (FD)).Close_On_Exec then
+               Returned := O_CLOEXEC;
+            end if;
+         when F_SETFD =>
+            if (Argument and O_CLOEXEC) /= 0 then
+               Current_Process.File_Table (Natural (FD)).Close_On_Exec := True;
+            end if;
+         when others =>
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+      end case;
+
+      Errno := Error_No_Error;
+      return Returned;
+   end Syscall_Fcntl;
 end Userland.Syscall;
