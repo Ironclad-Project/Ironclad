@@ -44,4 +44,14 @@ package body Arch.Snippets with SPARK_Mode => Off is
    begin
       System.Machine_Code.Asm ("yield", Volatile => True);
    end Pause;
+
+   function Read_Cycles return Unsigned_64 is
+      Value : Unsigned_64;
+   begin
+      System.Machine_Code.Asm
+         ("mrs %0, PMCCNTR_EL0",
+          Outputs  => Unsigned_64'Asm_Output ("=r", Value),
+          Volatile => True);
+      return Value;
+   end Read_Cycles;
 end Arch.Snippets;

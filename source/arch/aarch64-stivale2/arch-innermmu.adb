@@ -19,7 +19,6 @@ with Arch.MMU;
 with System.Machine_Code; use System.Machine_Code;
 with Lib.Panic;
 with Memory; use Memory;
-with Lib.Messages;
 
 package body Arch.InnerMMU with SPARK_Mode => Off is
    --  Page attributes.
@@ -153,8 +152,6 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
 
       --  Search for kernel entries and map them.
       for E of Memmap loop
-         --Lib.Messages.Put (E.Start, False);
-         --Lib.Messages.Put_Line ("");
          if E.MemType = Arch.Memory_Kernel then
             Success := Map_Range (
                Map            => MMU.Kernel_Table,

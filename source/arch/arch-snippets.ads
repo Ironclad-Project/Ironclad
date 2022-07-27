@@ -14,6 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
+
 package Arch.Snippets with SPARK_Mode => Off is
    --  Drive the execution thread to an irrecoverable state.
    --  (Halt and Catch Fire).
@@ -29,4 +31,9 @@ package Arch.Snippets with SPARK_Mode => Off is
    --  Processor hint for optimizing spinlocks and another cache-intensitive
    --  situations.
    procedure Pause with Inline_Always;
+
+   --  Get a rough value of the number of cycles the system has gone thru.
+   --  The value is not guaranteed to be linear, or even changing, it is only
+   --  to be used for statistical or entropy purposes.
+   function Read_Cycles return Unsigned_64;
 end Arch.Snippets;

@@ -46,4 +46,17 @@ package body Arch.Snippets with SPARK_Mode => Off is
    begin
       System.Machine_Code.Asm ("pause", Volatile => True);
    end Pause;
+
+   function Read_Cycles return Unsigned_64 is
+      High : Unsigned_32;
+      Low  : Unsigned_32;
+   begin
+      --  Use the TSC since that doesnt need checking unlike rdrand.
+      System.Machine_Code.Asm
+         ("rdtsc",
+          Outputs => (Unsigned_32'Asm_Output ("=d", High),
+                      Unsigned_32'Asm_Output ("=a", Low)),
+          Volatile => True);
+      return Unsigned_64 (Shift_Left (High, 32) or Low);
+   end Read_Cycles;
 end Arch.Snippets;

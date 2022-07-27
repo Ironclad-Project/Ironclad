@@ -82,28 +82,30 @@ package body Userland.Process with SPARK_Mode => Off is
 
    procedure Delete_Process (Process : Process_Data_Acc) is
    begin
-      Lib.Synchronization.Seize (Process_List_Mutex'Access);
+      if Process /= null then
+         Lib.Synchronization.Seize (Process_List_Mutex'Access);
 
-      if Process.Parent_PID /= 0 then
-         declare
-            Parent_Process : constant Process_Data_Acc :=
-               Get_By_PID (Process.Parent_PID);
-         begin
-            if Parent_Process /= null then
-               for PID of Parent_Process.Children loop
-                  if PID = Process.Process_PID then
-                     PID := 0;
-                     exit;
-                  end if;
-               end loop;
-            end if;
-         end;
+         if Process.Parent_PID /= 0 then
+            declare
+               Parent_Process : constant Process_Data_Acc :=
+                  Get_By_PID (Process.Parent_PID);
+            begin
+               if Parent_Process /= null then
+                  for PID of Parent_Process.Children loop
+                     if PID = Process.Process_PID then
+                        PID := 0;
+                        exit;
+                     end if;
+                  end loop;
+               end if;
+            end;
+         end if;
+
+         Free_Proc (Process_List (Process.Process_PID));
+         Process_List (Process.Process_PID) := null;
+
+         Lib.Synchronization.Release (Process_List_Mutex'Access);
       end if;
-
-      Free_Proc (Process_List (Process.Process_PID));
-      Process_List (Process.Process_PID) := null;
-
-      Lib.Synchronization.Release (Process_List_Mutex'Access);
    end Delete_Process;
 
    function Get_By_PID (Process : Positive) return Process_Data_Acc is
@@ -149,12 +151,14 @@ package body Userland.Process with SPARK_Mode => Off is
       (Process : Process_Data_Acc;
        Thread  : Scheduler.TID) return Boolean is
    begin
-      for I in Process.Thread_List'Range loop
-         if Process.Thread_List (I) = 0 then
-            Process.Thread_List (I) := Thread;
-            return True;
-         end if;
-      end loop;
+      if Process /= null then
+         for I in Process.Thread_List'Range loop
+            if Process.Thread_List (I) = 0 then
+               Process.Thread_List (I) := Thread;
+               return True;
+            end if;
+         end loop;
+      end if;
       return False;
    end Add_Thread;
 
@@ -162,23 +166,27 @@ package body Userland.Process with SPARK_Mode => Off is
       (Process : Process_Data_Acc;
        Thread  : Scheduler.TID) is
    begin
-      for I in Process.Thread_List'Range loop
-         if Process.Thread_List (I) = Thread then
-            Process.Thread_List (I) := 0;
-         end if;
-      end loop;
+      if Process /= null then
+         for I in Process.Thread_List'Range loop
+            if Process.Thread_List (I) = Thread then
+               Process.Thread_List (I) := 0;
+            end if;
+         end loop;
+      end if;
    end Remove_Thread;
 
    procedure Flush_Threads (Process : Process_Data_Acc) is
       Current_Thread : constant TID := Arch.Local.Get_Current_Thread;
    begin
-      for Thread of Process.Thread_List loop
-         if Thread /= Current_Thread then
-            Scheduler.Delete_Thread (Thread);
-         end if;
+      if Process /= null then
+         for Thread of Process.Thread_List loop
+            if Thread /= Current_Thread then
+               Scheduler.Delete_Thread (Thread);
+            end if;
 
-         Thread := 0;
-      end loop;
+            Thread := 0;
+         end loop;
+      end if;
    end Flush_Threads;
 
    function Is_Valid_File
@@ -186,7 +194,8 @@ package body Userland.Process with SPARK_Mode => Off is
        FD      : Unsigned_64) return Boolean
    is
    begin
-      return FD <= Unsigned_64 (Process_File_Table'Last) and then
+      return Process /= null                             and then
+             FD <= Unsigned_64 (Process_File_Table'Last) and then
              Process.File_Table (Natural (FD)).Inner /= null;
    end Is_Valid_File;
 
@@ -195,7 +204,7 @@ package body Userland.Process with SPARK_Mode => Off is
        FD      : Unsigned_64) return VFS.File.File_Acc
    is
    begin
-      if FD > Unsigned_64 (Process_File_Table'Last) then
+      if Process = null or FD > Unsigned_64 (Process_File_Table'Last) then
          return null;
       else
          return Process.File_Table (Natural (FD)).Inner;
@@ -209,16 +218,18 @@ package body Userland.Process with SPARK_Mode => Off is
        Close_On_Exec : Boolean := False) return Boolean
    is
    begin
-      for I in Process.File_Table'Range loop
-         if Process.File_Table (I).Inner = null then
-            Process.File_Table (I) := (
-               Close_On_Exec => Close_On_Exec,
-               Inner         => File
-            );
-            FD := I;
-            return True;
-         end if;
-      end loop;
+      if Process /= null then
+         for I in Process.File_Table'Range loop
+            if Process.File_Table (I).Inner = null then
+               Process.File_Table (I) := (
+                  Close_On_Exec => Close_On_Exec,
+                  Inner         => File
+               );
+               FD := I;
+               return True;
+            end if;
+         end loop;
+      end if;
       FD := 0;
       return False;
    end Add_File;
@@ -230,7 +241,7 @@ package body Userland.Process with SPARK_Mode => Off is
        Close_On_Exec : Boolean := False) return Boolean
    is
    begin
-      if Old_FD > Process.File_Table'Last or File = null then
+      if Process = null or Old_FD > Process_File_Table'Last or File = null then
          return False;
       end if;
       if Process.File_Table (Old_FD).Inner /= null then
@@ -245,27 +256,33 @@ package body Userland.Process with SPARK_Mode => Off is
 
    procedure Remove_File (Process : Process_Data_Acc; FD : Natural) is
    begin
-      VFS.File.Close (Process.File_Table (FD).Inner);
-      Process.File_Table (FD).Inner := null;
+      if Process /= null then
+         VFS.File.Close (Process.File_Table (FD).Inner);
+         Process.File_Table (FD).Inner := null;
+      end if;
    end Remove_File;
 
    procedure Flush_Files (Process : Process_Data_Acc) is
    begin
-      for F of Process.File_Table loop
-         if F.Inner /= null then
-            VFS.File.Close (F.Inner);
-            F.Inner := null;
-         end if;
-      end loop;
+      if Process /= null then
+         for F of Process.File_Table loop
+            if F.Inner /= null then
+               VFS.File.Close (F.Inner);
+               F.Inner := null;
+            end if;
+         end loop;
+      end if;
    end Flush_Files;
 
    procedure Flush_Exec_Files (Process : Process_Data_Acc) is
    begin
-      for F of Process.File_Table loop
-         if F.Inner /= null and F.Close_On_Exec then
-            VFS.File.Close (F.Inner);
-            F.Inner := null;
-         end if;
-      end loop;
+      if Process /= null then
+         for F of Process.File_Table loop
+            if F.Inner /= null and F.Close_On_Exec then
+               VFS.File.Close (F.Inner);
+               F.Inner := null;
+            end if;
+         end loop;
+      end if;
    end Flush_Exec_Files;
 end Userland.Process;

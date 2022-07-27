@@ -1272,14 +1272,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       case Command is
-         --  Set and get the file descriptor flags, so far only O_CLOEXEC is
+         --  Set and get the file descriptor flags, so far only FD_CLOEXEC is
          --  supported.
          when F_GETFD =>
             if Current_Process.File_Table (Natural (FD)).Close_On_Exec then
-               Returned := O_CLOEXEC;
+               Returned := FD_CLOEXEC;
             end if;
          when F_SETFD =>
-            if (Argument and O_CLOEXEC) /= 0 then
+            if (Argument and FD_CLOEXEC) /= 0 then
                Current_Process.File_Table (Natural (FD)).Close_On_Exec := True;
             end if;
          when others =>

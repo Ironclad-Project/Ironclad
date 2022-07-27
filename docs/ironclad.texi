@@ -103,6 +103,7 @@ Devices and their properties
 * null/zero::
 * ttydev::
 * ramdev::
+* random::
 
 @end detailmenu
 @end menu
@@ -1202,6 +1203,14 @@ RAM driver passed by some boot protocols, an FS can be mounted to them, usually
 USTAR.
 
 This RAM devices are exclusively read-only.
+
+@node random
+@section random
+
+The device @code{random} is equivalent to the one featured in other unix-like
+kernels. Keep in mind that Ironclad has limited sources of entropy, so the
+quality of this random numbers is a bit limited. Writing to the source is not
+allowed, unlike other systems.
 
 @node GNU Free Documentation License
 @appendix GNU Free Documentation License

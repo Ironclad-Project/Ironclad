@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Devices.Random;
 with Devices.Streams;
 with Devices.TTY;
 with Devices.Debug;
@@ -33,8 +34,9 @@ package body Devices with SPARK_Mode => Off is
       end if;
 
       --  Initialize common devices.
-      if not Debug.Init   then goto Error; end if;
-      if not Streams.Init then goto Error; end if;
+      if not Random.Init or not Debug.Init or not Streams.Init then
+         goto Error;
+      end if;
       return;
 
    <<Error>>

@@ -44,7 +44,7 @@ package Arch.CPU with SPARK_Mode => Off is
    procedure Init_Cores (SMP_Info : access Arch.Stivale2.SMP_Tag);
 
    --  Get the core local structure of the passed core.
-   function Get_Local return Core_Local_Acc;
+   function Get_Local return not null Core_Local_Acc;
 
 private
 

@@ -54,9 +54,7 @@ package body Devices.Streams with SPARK_Mode => Off is
          Munmap     => null
       );
 
-      if not VFS.Register (Nulldev, "null") then return False; end if;
-      if not VFS.Register (Zerodev, "zero") then return False; end if;
-      return True;
+      return VFS.Register (Nulldev, "null") and VFS.Register (Zerodev, "zero");
    end Init;
    ----------------------------------------------------------------------------
    function Nulldev_Read

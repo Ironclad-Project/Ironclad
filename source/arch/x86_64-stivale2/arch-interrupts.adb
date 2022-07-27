@@ -24,7 +24,8 @@ with Userland.Syscall; use Userland.Syscall;
 with Arch.Wrappers;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
-   procedure Exception_Handler (Number : Integer; State : access ISR_GPRs) is
+   procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
+   is
       Exception_Text : constant array (0 .. 30) of String (1 .. 3) := (
          0  => "#DE", 1  => "#DB", 2  => "???", 3  => "#BP",
          4  => "#OF", 5  => "#BR", 6  => "#UD", 7  => "#NM",
@@ -49,17 +50,17 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       --  is our user code segment or'ed by 3.
       --  TODO: Send a SIGSEGV instead of just stopping execution for user.
       if State.CS = (GDT.User_Code64_Segment or 3) then
-         Lib.Messages.Put_Line ("Userland " & Exception_Text (Number));
+         Lib.Messages.Put_Line ("Userland " & Exception_Text (Num));
          Scheduler.Bail;
       else
-         Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Number));
+         Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Num));
       end if;
    end Exception_Handler;
 
-   procedure Syscall_Handler (Number : Integer; State : ISR_GPRs_Acc) is
+   procedure Syscall_Handler (Num : Integer; State : not null ISR_GPRs_Acc) is
       Returned : Unsigned_64 := Unsigned_64'Last;
       Errno    : Errno_Value := Error_No_Error;
-      pragma Unreferenced (Number);
+      pragma Unreferenced (Num);
    begin
       Wrappers.Swap_GS;
 
@@ -146,8 +147,9 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       Wrappers.Swap_GS;
    end Syscall_Handler;
 
-   procedure Scheduler_Handler (Number : Integer; State : ISR_GPRs_Acc) is
-      pragma Unreferenced (Number);
+   procedure Scheduler_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
+   is
+      pragma Unreferenced (Num);
    begin
       Arch.APIC.LAPIC_EOI;
       Scheduler.Scheduler_ISR (Context.GP_Context_Acc (State));

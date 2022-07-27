@@ -42,9 +42,11 @@ package body Arch.CPU with SPARK_Mode => Off is
       end loop;
    end Init_Cores;
 
-   function Get_Local return Core_Local_Acc is
+   function Get_Local return not null Core_Local_Acc is
       Locals : Core_Local_Acc;
    begin
+      --  XXX: We are making the guarantee this can never be null, which it
+      --  can if the scheduler does not swap gs correctly.
       Asm ("mov %%gs:0, %0",
            Outputs  => Core_Local_Acc'Asm_Output ("=a", Locals),
            Volatile => True);

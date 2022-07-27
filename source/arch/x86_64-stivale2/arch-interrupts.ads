@@ -74,16 +74,16 @@ package Arch.Interrupts with SPARK_Mode => Off is
    type ISR_GPRs_Acc is access ISR_GPRs;
 
    --  Generic handler for exceptions.
-   procedure Exception_Handler (Number : Integer; State : access ISR_GPRs)
+   procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
       with Convention => C;
 
    --  Entrypoint of the syscall dispatcher.
-   procedure Syscall_Handler (Number : Integer; State : ISR_GPRs_Acc)
+   procedure Syscall_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
       with Convention => C;
 
    --  Entrypoint for the scheduler handler.
    Scheduler_Interrupt : constant := 16#82#;
-   procedure Scheduler_Handler (Number : Integer; State : ISR_GPRs_Acc);
+   procedure Scheduler_Handler (Num : Integer; State : not null ISR_GPRs_Acc);
 
    --  Default ISR handler.
    procedure Default_ISR_Handler;

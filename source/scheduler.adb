@@ -372,7 +372,7 @@ package body Scheduler with SPARK_Mode => Off is
       return 0;
    end Find_Free_TID;
 
-   procedure Scheduler_ISR (State : Arch.Context.GP_Context_Acc) is
+   procedure Scheduler_ISR (State : not null Arch.Context.GP_Context_Acc) is
       Current_TID, Next_TID : TID;
       Rearm_Period : Natural := Priority_Slices (0);
    begin
