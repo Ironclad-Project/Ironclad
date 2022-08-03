@@ -56,16 +56,16 @@ procedure Main is
    Proto   : constant Arch.Boot_Information := Arch.Get_Info;
    Cmdline : constant String := Proto.Cmdline (1 .. Proto.Cmdline_Len);
 begin
-   Lib.Messages.Put_Line ("Initializing VFS subsystem");
+   Lib.Messages.Put_Line (Config.Name & " version " & Config.Version);
+   Lib.Messages.Put_Line ("Please report bugs/issues at " & Config.Bug_Site);
+   Lib.Messages.Put_Line ("Command line: '" & Cmdline & "'");
+
+   --  Initialize several subsystems.
    VFS.Init;
-
-   Lib.Messages.Put_Line ("Initializing processes");
    Userland.Process.Init;
-
-   Lib.Messages.Put_Line ("Initializing devices");
    Devices.Init;
 
-   Lib.Messages.Put_Line ("Mounting boot modules as ramdevs");
+   --  Load RAM files.
    for I in 1 .. Proto.RAM_Files_Len loop
       declare
          Name : String := "ramdev0";
@@ -79,15 +79,14 @@ begin
       end;
    end loop;
 
-   Lib.Messages.Put_Line ("Initializing scheduler");
+   --  Initialize the scheduler.
    if not Scheduler.Init then
       Lib.Panic.Hard_Panic ("Could not initialize the scheduler");
    end if;
 
-   Lib.Messages.Put_Line ("Fetching kernel cmdline options");
+   --  Fetch commandline parameters, and load the specified root and init.
    Root_Value := Lib.Cmdline.Get_Parameter (Cmdline, "root");
    Init_Value := Lib.Cmdline.Get_Parameter (Cmdline, "init");
-
    Userland.Syscall.Set_Tracing
       (Lib.Cmdline.Is_Key_Present (Cmdline, "syscalltracing"));
 
@@ -112,6 +111,6 @@ begin
       Free_F (Init_File);
    end if;
 
-   Lib.Messages.Put_Line ("Idling main thread");
+   --  Going idle into the scheduler.
    Scheduler.Idle_Core;
 end Main;

@@ -23,10 +23,18 @@ package Lib.Alignment with Pure is
    --  This functions are meant for powers of 2, using this for non powers of
    --  two is bogus, and broken.
 
+   --  Align up a value.
+   --  @param Value The value to align to the passed alignment
+   --  @param Alignment Power-of-2 alignment to align to.
+   --  @return The aligned value.
    function Align_Up (Value, Alignment : T) return T
       with Pre  => Alignment /= 0 and (Alignment and (Alignment - 1)) = 0,
            Post => Align_Up'Result rem Alignment = 0;
 
+   --  Align down a value.
+   --  @param Value The value to align to the passed alignment
+   --  @param Alignment Power-of-2 alignment to align to.
+   --  @return The aligned value.
    function Align_Down (Value, Alignment : T) return T
       with Pre  => Alignment /= 0 and (Alignment and (Alignment - 1)) = 0,
            Post => Align_Down'Result rem Alignment = 0;

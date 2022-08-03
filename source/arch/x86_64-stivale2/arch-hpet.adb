@@ -22,12 +22,13 @@ package body Arch.HPET with SPARK_Mode => Off is
    HPET_Contents : Virtual_Address;
    HPET_Period   : Unsigned_64; --  Time in femtoseconds to increment by 1.
 
-   function Init return Boolean is
+   procedure Init is
       ACPI_Address : Virtual_Address;
    begin
       ACPI_Address := ACPI.FindTable (ACPI.HPET_Signature);
       if ACPI_Address = Null_Address then
-         return False;
+         Is_Initialized := False;
+         return;
       end if;
 
       declare
@@ -49,7 +50,6 @@ package body Arch.HPET with SPARK_Mode => Off is
          HPET.General_Configuration := 1;
       end;
       Is_Initialized := True;
-      return True;
    end Init;
 
    procedure USleep (Microseconds : Positive) is

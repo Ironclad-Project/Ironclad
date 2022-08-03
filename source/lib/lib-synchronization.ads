@@ -24,8 +24,17 @@ package Lib.Synchronization with SPARK_Mode => Off is
       Is_Locked : Unsigned_8;
    end record;
 
+   --  Lock a semaphore, and not return until locked.
+   --  @param Semaphore Semaphore to lock.
    procedure Seize (Semaphore : not null access Binary_Semaphore);
+
+   --  Release a semaphore unconditionally.
+   --  @param Semaphore Semaphore to release.
    procedure Release (Semaphore : not null access Binary_Semaphore);
+
+   --  Try to lock a semaphore, and return success in locking.
+   --  @param Semaphore Semaphore to lock.
+   --  @return True if locked, False if not locked.
    function Try_Seize
       (Semaphore : not null access Binary_Semaphore) return Boolean;
 

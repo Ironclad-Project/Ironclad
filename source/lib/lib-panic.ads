@@ -15,14 +15,15 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Lib.Panic with SPARK_Mode => Off is
-   --  Initialize panic core propagation, by installing handlers and others.
-   --  Its not necessary to call this for enabling panicking.
+   --  Enable architecture-specific utilities for core propagation of panics.
    procedure Enable_Panic_Propagation;
 
-   --  Warns about a weird situation, but doesnt die like a hard panic would.
+   --  Warns about a runtime issue, it does not panic or lock up the system the
+   --  first time its called, the second one will be upgraded to a Hard_Panic.
    procedure Soft_Panic (Message : String);
 
-   --  Panics for good, for cases when soft reboot is risky.
+   --  Will report the issue and then lock up the system, for situations that
+   --  are too risky or unrecoverable.
    procedure Hard_Panic (Message : String) with No_Return;
 
 private

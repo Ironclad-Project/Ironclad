@@ -23,6 +23,7 @@ with Interfaces;   use Interfaces;
 
 --  This doesnt need to be SPARK.
 package Lib.Runtime with SPARK_Mode => Off is
+   --  These functions are called for runtime checks.
    procedure Access_Check (File : System.Address; Line : Integer)
       with Export, External_Name => "__gnat_rcheck_CE_Access_Check";
    procedure Index_Check (File : System.Address; Line : Integer)
@@ -44,6 +45,7 @@ package Lib.Runtime with SPARK_Mode => Off is
    procedure Assert_Failure (Message : String)
       with Export, External_Name => "system__assertions__raise_assert_failure";
    ----------------------------------------------------------------------------
+   --  These functions are called for memory moves and copying primitives.
    function MemCmp (S1, S2 : System.Address; Size : size_t) return int
       with Export, Convention => C, External_Name => "memcmp";
    function MemCpy

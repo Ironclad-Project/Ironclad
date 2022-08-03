@@ -16,9 +16,7 @@
 
 with System.Address_To_Access_Conversions;
 with Arch.SMP;
-with Lib.Messages;
 with Lib.Panic;
-with Config;
 with Memory.Physical;
 with Memory.Virtual;
 with Memory; use Memory;
@@ -32,12 +30,6 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
       SMP_Addr : Integer_Address := ST.Get_Tag (Protocol, ST.SMP_ID);
       Info     : Boot_Information;
    begin
-      Lib.Messages.Put (Config.Name & " " & Config.Version & " booted by ");
-      Lib.Messages.Put (Protocol.BootloaderBrand & " ");
-      Lib.Messages.Put_Line (Protocol.BootloaderVersion);
-      Lib.Messages.Put ("Please report errors and issues to ");
-      Lib.Messages.Put_Line (Config.Bug_Site);
-
       --  Initialize memory allocators and virtual mappings.
       Arch.Stivale2.Stivale_Tag := Protocol;
       Info := Get_Info;

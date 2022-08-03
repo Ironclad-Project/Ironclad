@@ -18,8 +18,8 @@ package Arch.HPET with SPARK_Mode => Off is
    --  True if initialized.
    Is_Initialized : Boolean;
 
-   --  Initialize the HPET, returns true on success or false on failure.
-   function Init return Boolean;
+   --  Initialize the HPET, if found.
+   procedure Init;
 
    --  Loop for the passed microseconds.
    procedure USleep (Microseconds : Positive);

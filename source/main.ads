@@ -14,4 +14,11 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+--  The main function of the freestanding kernel, this will usually be called
+--  by entrypoint functions from source/arch. The state assumed when calling
+--  this function is:
+--  - A valid virtual mapping, with the PMM and VMM already initialized.
+--    The PMM and VMM are started with Init_Allocator and Init respectively.
+--  - Cores apart of this one having called Idle_Core in the scheduler, and
+--    with common global state loaded, basically ready to go.
 procedure Main;

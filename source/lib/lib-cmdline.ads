@@ -17,12 +17,17 @@
 package Lib.Cmdline is
    type String_Acc is access String;
 
-   --  Get the value of a key from a C-style cmdline, and return it.
-   --  Returns null if not found.
+   --  Get the value of a key.
+   --  @param Cmdline Command line to search in.
+   --  @param Key Key to search for.
+   --  @return An allocated string pointer, or null in failure.
    function Get_Parameter (Cmdline, Key : String) return String_Acc
       with Pre => Cmdline'Length /= 0 and Key'Length /= 0;
 
-   --  Get whether an option is present on a C-style cmdline.
+   --  Check whether an option is present.
+   --  @param Cmdline Command line to search in.
+   --  @param Key Key to search for.
+   --  @return True if found, or False if not found.
    function Is_Key_Present (Cmdline, Key : String) return Boolean
       with Pre => Cmdline'Length /= 0 and Key'Length /= 0;
 end Lib.Cmdline;
