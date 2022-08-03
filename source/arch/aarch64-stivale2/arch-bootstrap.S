@@ -17,10 +17,10 @@
 .section ".stivale2hdr", "aw", @progbits
 .globl stivale2hdr
 stivale2hdr:
-    .quad entrypoint_main                // Alternative entrypoint, 0 is none.
-    .quad stack_top                      // Stack to be loaded for the kernel.
-    .quad (1 << 1) | (1 << 2) | (1 << 4) // Flags to request offset mem + PMRs.
-    .quad smp_tag                        // Start of tags.
+    .quad entrypoint_main // Alternative entrypoint, 0 is none.
+    .quad stack_top       // Stack to be loaded for the kernel.
+    .quad 0               // Flags to request, we need nothing.
+    .quad smp_tag         // Start of tags.
 
 .section .data
 

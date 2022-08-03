@@ -14,15 +14,23 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System.Address_To_Access_Conversions;
+with Arch.SMP;
 with Lib.Messages;
 with Lib.Panic;
 with Config;
 with Memory.Physical;
 with Memory.Virtual;
+with Memory; use Memory;
+with Main;
 
 package body Arch.Entrypoint with SPARK_Mode => Off is
    procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header) is
-      Info : Boot_Information;
+      package ST renames Arch.Stivale2;
+      package C is new System.Address_To_Access_Conversions (ST.SMP_Tag);
+
+      SMP_Addr : Integer_Address := ST.Get_Tag (Protocol, ST.SMP_ID);
+      Info     : Boot_Information;
    begin
       Lib.Messages.Put (Config.Name & " " & Config.Version & " booted by ");
       Lib.Messages.Put (Protocol.BootloaderBrand & " ");
@@ -30,6 +38,7 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
       Lib.Messages.Put ("Please report errors and issues to ");
       Lib.Messages.Put_Line (Config.Bug_Site);
 
+      --  Initialize memory allocators and virtual mappings.
       Arch.Stivale2.Stivale_Tag := Protocol;
       Info := Get_Info;
       Memory.Physical.Init_Allocator (Info.Memmap (1 .. Info.Memmap_Len));
@@ -37,6 +46,13 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
          Lib.Panic.Hard_Panic ("Could not start the VMM");
       end if;
 
-      Lib.Panic.Hard_Panic ("End of kernel");
+      --  Initialize the rest of cores and core locals.
+      if SMP_Addr /= 0 then
+         SMP_Addr := Memory_Offset + SMP_Addr;
+      end if;
+      Arch.SMP.Init_Cores (C.To_Pointer (To_Address (SMP_Addr)));
+
+      --  Jump to main.
+      Main;
    end Bootstrap_Main;
 end Arch.Entrypoint;

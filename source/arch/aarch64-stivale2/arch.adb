@@ -15,47 +15,52 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System.Address_To_Access_Conversions;
-with Arch.Stivale2;
+with Arch.Stivale2; use Arch.Stivale2;
 with Arch.Entrypoint;
 pragma Unreferenced (Arch.Entrypoint);
 
 package body Arch with SPARK_Mode => Off is
+   --  Cache parsing.
+   Did_Cache   : Boolean := False;
+   Cached_Info : Boot_Information;
+
    function Get_Info return Boot_Information is
-      package ST renames Stivale2;
-      package C is new System.Address_To_Access_Conversions (ST.Memmap_Tag);
+      package C is new System.Address_To_Access_Conversions (Memmap_Tag);
 
-      Memmap : constant access ST.Memmap_Tag :=
-         C.To_Pointer (To_Address (ST.Get_Tag (ST.Stivale_Tag, ST.Memmap_ID)));
-
-      Ret : Boot_Information;
+      Mmap : access Memmap_Tag;
    begin
-      Ret.Memmap_Len := 0;
-      for I in Memmap.Entries'First .. Memmap.Entries'Last loop
-         exit when I > Ret.Memmap'Length;
+      if Did_Cache then
+         return Cached_Info;
+      end if;
 
-         Ret.Memmap (Ret.Memmap_Len + 1) := (
-            Start   => To_Address (Integer_Address (Memmap.Entries (I).Base)),
-            Length  => Storage_Count (Memmap.Entries (I).Length),
-            others  => <>
+      Mmap := C.To_Pointer (To_Address (Get_Tag (Stivale_Tag, Memmap_ID)));
+
+      for I in Mmap.Entries'Range loop
+         exit when I > Cached_Info.Memmap'Length;
+
+         Cached_Info.Memmap (I) := (
+            Start  => To_Address (Integer_Address (Mmap.Entries (I).Base)),
+            Length => Storage_Count (Mmap.Entries (I).Length),
+            others => <>
          );
 
-         case Memmap.Entries (I).EntryType is
-            when ST.Memmap_Entry_Usable |
-                 ST.Memmap_Entry_Bootloader_Reclaimable =>
-               Ret.Memmap (Ret.Memmap_Len + 1).MemType := Memory_Free;
-            when ST.Memmap_Entry_Kernel_And_Modules =>
-               Ret.Memmap (Ret.Memmap_Len + 1).MemType := Memory_Kernel;
+         case Mmap.Entries (I).EntryType is
+            when Memmap_Entry_Usable =>
+               Cached_Info.Memmap (I).MemType := Memory_Free;
+            when Memmap_Entry_Kernel_And_Modules =>
+               Cached_Info.Memmap (I).MemType := Memory_Kernel;
             when others =>
-               Ret.Memmap (Ret.Memmap_Len + 1).MemType := Memory_Reserved;
+               Cached_Info.Memmap (I).MemType := Memory_Reserved;
          end case;
 
-         Ret.Memmap_Len := Ret.Memmap_Len + 1;
+         Cached_Info.Memmap_Len := I;
       end loop;
 
       --  No module or cmdline support.
-      Ret.Cmdline_Len   := 0;
-      Ret.RAM_Files_Len := 0;
+      Cached_Info.Cmdline_Len   := 0;
+      Cached_Info.RAM_Files_Len := 0;
 
-      return Ret;
+      Did_Cache := True;
+      return Cached_Info;
    end Get_Info;
 end Arch;

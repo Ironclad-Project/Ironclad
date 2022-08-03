@@ -78,6 +78,14 @@ https://www.nongnu.org/ironclad/manual/ironclad.pdf - PDF format.
 Limine (https://github.com/limine-bootloader/limine) project, used for testing
 and code reference.
 
+- The managarm project (https://github.com/managarm), used for code
+reference for the aarch64 port, and Qookie, one of the maintainers, for help
+debugging.
+
+- The FlorenceOS project (https://github.com/FlorenceOS) for code reference
+for the aarch64 MMU, and N00byEdge, one of the maintainers, for help
+debugging the obscure and esoteric issues.
+
 ========================================================================
 
 Copyright (C) 2022 streaksu, Inc.

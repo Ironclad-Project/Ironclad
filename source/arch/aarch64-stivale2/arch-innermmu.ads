@@ -36,13 +36,16 @@ package Arch.InnerMMU with SPARK_Mode => Off is
       TTBR0 : Page_Level;
       TTBR1 : Page_Level;
    end record;
-   type Page_Map_Acc is access all Page_Map;
+   type Page_Map_Acc is access Page_Map;
 
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean;
    function Create_Table return Page_Map_Acc;
    procedure Destroy_Table (Map : in out Page_Map_Acc);
    function Make_Active (Map : Page_Map_Acc) return Boolean;
    function Is_Active (Map : Page_Map_Acc) return Boolean;
+
+   --  Setup MMU state necesary for the kernel maps to work.
+   procedure Set_MMU_State;
 
    function Translate_Address
       (Map     : Page_Map_Acc;
@@ -93,8 +96,6 @@ private
       (Root_Lvl : System.Address;
        Virtual  : Integer_Address;
        Allocate : Boolean) return Integer_Address;
-   pragma Inline_Always (Get_Page);
-   --  FIXME: If not inlined, paging does not work. I do not know why, at all.
 
    function Get_Bits (Permissions : Page_Permissions) return Unsigned_64;
    function Get_Addr_From_Entry (Entry_B : Unsigned_64) return Unsigned_64;

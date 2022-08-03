@@ -32,14 +32,14 @@ SECTIONS {
         *libgnat.a:*(*)
     }
 
-    . = ALIGN(64K);
+    . = ALIGN(4K);
 
     /* Actual kernel. */
     .text : {
         *(.text .text.*)
     } :text
 
-    . = ALIGN(64K);
+    . = ALIGN(4K);
 
     /* Name required by spec. */
     .stivale2hdr : {
@@ -54,7 +54,7 @@ SECTIONS {
         *(.note.gnu.build-id)
     } : rodata
 
-    . = ALIGN(64K);
+    . = ALIGN(4K);
 
     .data : {
         *(.data .data.*)
