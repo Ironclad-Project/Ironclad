@@ -98,7 +98,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 11 =>
             Returned := Syscall_Exec (State.RDI, State.RSI, State.RDX, Errno);
          when 12 =>
-            Returned := Syscall_Fork (Context.GP_Context_Acc (State), Errno);
+            Returned := Syscall_Clone (Context.GP_Context_Acc (State),
+                                       State.RDI, Errno);
          when 13 =>
             Returned := Syscall_Wait (State.RDI, State.RSI, State.RDX, Errno);
          when 14 =>

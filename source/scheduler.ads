@@ -36,13 +36,14 @@ package Scheduler with SPARK_Mode => Off is
    --  Return thread ID or 0 on failure.
    type TID is new Natural;
    function Create_User_Thread
-      (Address   : Virtual_Address;
-       Args      : Userland.Argument_Arr;
-       Env       : Userland.Environment_Arr;
-       Map       : Memory.Virtual.Page_Map_Acc;
-       Vector    : Userland.ELF.Auxval;
-       Stack_Top : Unsigned_64;
-       PID       : Natural) return TID;
+      (Address    : Virtual_Address;
+       Args       : Userland.Argument_Arr;
+       Env        : Userland.Environment_Arr;
+       Map        : Memory.Virtual.Page_Map_Acc;
+       Vector     : Userland.ELF.Auxval;
+       Stack_Top  : Unsigned_64;
+       PID        : Natural;
+       Exec_Stack : Boolean := True) return TID;
 
    --  Create a user thread with a context.
    function Create_User_Thread

@@ -144,12 +144,18 @@ package Userland.Syscall with SPARK_Mode => Off is
        Envp    : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64;
 
-   --  Fork.
-   function Syscall_Fork
+   --  A versatile generic process and thread creation syscall.
+   CLONE_VM                : constant := 2#000001#;
+   CLONE_VFORK             : constant := 2#000010#;
+   CLONE_CLEAR_NOSTD_FILES : constant := 2#000100#;
+   CLONE_CLEAR_FILES       : constant := 2#001000#;
+   function Syscall_Clone
       (State_To_Fork : Arch.Context.GP_Context_Acc;
+       Flags         : Unsigned_64;
        Errno         : out Errno_Value) return Unsigned_64;
 
    --  Wait.
+   Wait_WNOHANG : constant := 2#000010#;
    function Syscall_Wait
       (Waited_PID : Unsigned_64;
        Exit_Addr  : Unsigned_64;
@@ -303,37 +309,4 @@ private
    function Inner_Stat
       (F       : VFS.File.File_Acc;
        Address : Unsigned_64) return Boolean;
-
-   --  Syscall table.
-   --  type Syscall_Arr is array (Natural range <>) of System.Address;
-   --  Syscall_Table : constant Syscall_Arr := (
-   --      0 => Syscall_Exit'Address,
-   --      1 => Syscall_Arch_PRCtl'Address,
-   --      2 => Syscall_Open'Address,
-   --      3 => Syscall_Close'Address,
-   --      4 => Syscall_Read'Address,
-   --      5 => Syscall_Write'Address,
-   --      6 => Syscall_Seek'Address,
-   --      7 => Syscall_Mmap'Address,
-   --      8 => Syscall_Munmap'Address,
-   --      9 => Syscall_Get_PID'Address,
-   --     10 => Syscall_Get_Parent_PID'Address,
-   --     11 => Syscall_Exec'Address,
-   --     12 => Syscall_Fork'Address,
-   --     13 => Syscall_Wait'Address,
-   --     14 => Syscall_Uname'Address,
-   --     15 => Syscall_Set_Hostname'Address,
-   --     16 => Syscall_FStat'Address,
-   --     17 => Syscall_LStat'Address,
-   --     18 => Syscall_Get_CWD'Address,
-   --     19 => Syscall_Chdir'Address,
-   --     20 => Syscall_IOCTL'Address,
-   --     21 => Syscall_Sched_Yield'Address,
-   --     22 => Syscall_Get_Priority'Address,
-   --     23 => Syscall_Set_Priority'Address,
-   --     24 => Syscall_Dup'Address,
-   --     25 => Syscall_Dup2'Address,
-   --     26 => Syscall_Dup3'Address,
-   --     27 => Syscall_Access'Address
-   --  );
 end Userland.Syscall;

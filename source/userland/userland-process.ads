@@ -62,10 +62,6 @@ package Userland.Process with SPARK_Mode => Off is
    function Get_By_PID (Process : Positive) return Process_Data_Acc;
    function Get_By_Thread (Thread : Scheduler.TID) return Process_Data_Acc;
 
-   --  Fork a process.
-   --  This clones a process in all regards, but without running threads.
-   function Fork (Parent : Process_Data_Acc) return Process_Data_Acc;
-
    --  From here on, these are convenience functions for handling data in the
    --  process record.
 

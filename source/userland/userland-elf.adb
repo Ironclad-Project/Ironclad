@@ -73,7 +73,9 @@ package body Userland.ELF with SPARK_Mode => Off is
             Program_Headers => 0,
             Program_Header_Count => 0,
             Program_Header_Size => 0
-         ));
+         ),
+         Exec_Stack => True
+      );
       Header_Bytes : constant Unsigned_64 := ELF_Header'Size / 8;
    begin
       --  Read and check the header.
@@ -120,6 +122,8 @@ package body Userland.ELF with SPARK_Mode => Off is
                   Result.Vector.Program_Headers := Base + HDR.Virt_Address;
                when Program_Interpreter_Segment =>
                   Result.Linker_Path := Get_Linker (File_D, HDR);
+               when Program_GNU_Stack =>
+                  Result.Exec_Stack := False;
                when others =>
                   null;
             end case;

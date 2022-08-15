@@ -40,6 +40,7 @@ package Userland.ELF with SPARK_Mode => Off is
       Entrypoint  : System.Address;
       Linker_Path : access String;
       Vector      : Auxval;
+      Exec_Stack  : Boolean;
    end record;
 
    --  Load an ELF from a file into memory with the passed base, and map it
@@ -55,6 +56,7 @@ private
    Program_Dynamic_Segment      : constant := 2;
    Program_Interpreter_Segment  : constant := 3;
    Program_Header_Table_Segment : constant := 6;
+   Program_GNU_Stack            : constant := 16#6474E551#;
    type Program_Header is record
       Segment_Type    : Unsigned_32;
       Flags           : Unsigned_32;

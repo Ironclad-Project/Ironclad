@@ -128,25 +128,6 @@ package body Userland.Process with SPARK_Mode => Off is
       return null;
    end Get_By_Thread;
 
-   function Fork (Parent : Process_Data_Acc) return Process_Data_Acc is
-      Child : constant Process_Data_Acc := Create_Process (Parent);
-   begin
-      if Child = null then
-         return null;
-      end if;
-
-      Child.Common_Map := Memory.Virtual.Fork_Map (Parent.Common_Map);
-
-      for I in Parent.File_Table'Range loop
-         Child.File_Table (I) := (
-            Close_On_Exec => Parent.File_Table (I).Close_On_Exec,
-            Inner         => Duplicate (Parent.File_Table (I).Inner)
-         );
-      end loop;
-
-      return Child;
-   end Fork;
-
    function Add_Thread
       (Process : Process_Data_Acc;
        Thread  : Scheduler.TID) return Boolean is

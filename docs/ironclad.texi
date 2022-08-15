@@ -71,7 +71,7 @@ Memory allocation algorithms
 
 Syscalls
 
-* x86_64::                  x86_64 syscall ABI.
+* x86_64::                  x86_64 syscall ABI and table.
 * Errno::                   Error conditions and their values.
 * exit::                    Exit the callee process.
 * arch_prctl::              Interacting with architectural thread-local data.
@@ -81,7 +81,7 @@ Syscalls
 * mmap/munmap::             Memory mapping and requesting.
 * getpid/getppid::          Get the PIDs of the caller.
 * exec::                    Launching new programs.
-* fork::                    Forking current state into a new process.
+* clone::                   Fork current state into a new process.
 * wait::                    Waiting for execution of a child to finish.
 * uname::                   Fetch basic system information.
 * sethostname::             Hostname setting.
@@ -93,6 +93,7 @@ Syscalls
 * dup/dup2/dup3::           Duplicate file descriptors.
 * access::                  Testing file permissions.
 * thread_sched::            Manage scheduler-related thread permissions.
+* fcntl::                   Multiplexed operations for files.
 
 Devices and their properties
 
@@ -368,17 +369,80 @@ supported architectures and the ABI for each of them.
 @node x86_64
 @section x86_64
 
-Syscalls are invoked in Ironclad by triggering an interrupt to vector 80
-in hex, as such:
-
-@example
-int $0x80
-@end example
+Syscalls are invoked in Ironclad by triggering an interrupt to vector
+@code{0x80}.
 
 The index of the syscall is passed on @code{%rax}, while the return value is
 returned on @code{%rax}, errno is returned on @code{%rdx}, arguments are passed
 over @code{%rdi}, @code{%rsi}, @code{%rdx}, @code{%rcx}, @code{%r8}, and
 @code{%r9}, following the SysV ABI.
+
+The list of syscalls ordered by their index in @code{rax} for the platform is:
+
+@enumerate 0
+@item
+@xref{exit}.
+@item
+@xref{arch_prctl}.
+@item
+@xref{open/close, open}.
+@item
+@xref{open/close, close}.
+@item
+@xref{read/write, read}.
+@item
+@xref{read/write, write}.
+@item
+@xref{seek}.
+@item
+@xref{mmap/munmap, mmap}.
+@item
+@xref{mmap/munmap, munmap}.
+@item
+@xref{getpid/getppid, getpid}.
+@item
+@xref{getpid/getppid, getppid}.
+@item
+@xref{exec}.
+@item
+@xref{clone}.
+@item
+@xref{wait}.
+@item
+@xref{uname}.
+@item
+@xref{sethostname}.
+@item
+@xref{fstat/lstat, fstat}.
+@item
+@pxref{fstat/lstat, lstat}.
+@item
+@xref{getcwd/chdir, getcwd}.
+@item
+@xref{getcwd/chdir, chdir}.
+@item
+@xref{ioctl}.
+@item
+@xref{sched_yield}.
+@item
+@xref{getpriority/setpriority, getpriority}.
+@item
+@pxref{getpriority/setpriority, setpriority}.
+@item
+@xref{dup/dup2/dup3, dup}.
+@item
+@xref{dup/dup2/dup3, dup2}.
+@item
+@pxref{dup/dup2/dup3, dup3}.
+@item
+@xref{access}.
+@item
+@xref{thread_sched, get_thread_sched}.
+@item
+@xref{thread_sched, set_thread_sched}.
+@item
+@xref{fcntl}
+@end enumerate
 
 @node Errno
 @section Errno
@@ -484,8 +548,8 @@ int open(char *path, int flags, mode_t mode);
 int close(int fd);
 @end example
 
-@code{open} opens the passed file, depending on the flags passed, it may create 
-it if not present. By default, the file descriptor will remain open accross an 
+@code{open} opens the passed file, depending on the flags passed, it may create
+it if not present. By default, the file descriptor will remain open accross an
 @code{exec}, and the file offset is set to the beggining. @code{mode} is used
 when creating the file.
 
@@ -508,7 +572,7 @@ Makes the file be opened at the end of the file, instead of the beggining.
 Create the file if it does not exist.
 @end table
 
-@code{close} closes an open file descriptor. Once no open references exist of a 
+@code{close} closes an open file descriptor. Once no open references exist of a
 file descriptor, its resources are freed, and the file deleted if needed.
 
 @code{open} returns the opened file descriptor or @code{-1} on error.
@@ -668,17 +732,44 @@ This syscall only returns in failure with @code{-1} with the following errno:
 @code{EACCES}: The file couldn't be launched out of a permission error.
 @end itemize
 
-@node fork
-@section fork
+@node clone
+@section clone
 
 @example
-pid_t fork(void);
+pid_t clone(int flags);
 @end example
 
 This syscall creates a new process by duplicating the calling process. The new
-process is referred to as the child process.The calling process is referred to
-as the parent process. The processes run on copied memory, and at the time of
-cloning have the same file descriptors open and memory mappings.
+process is referred to as the child, while the calling process is referred to
+as the parent.
+
+The child will only have the callee thread cloned.
+
+The behaviour of the cloning can be tuned by the following flags:
+
+@itemize @bullet
+@item
+@code{CLONE_VM} (0b0001): If set, the address space of the parent will not be
+cloned, and the child will run on the same address space, so reads and writes
+will be shared. This is akin to the workings of @code{vfork} or similar
+facilities.
+
+If not set, the address space will be cloned, and the reads and writes of the
+processes will not affect each other.
+
+@item
+@code{CLONE_VFORK} (0b0010): If set, the parent will be halted until the
+child exists.
+
+@item
+@code{CLONE_CLEAR_NOSTD_FILES} (0b0100): If set, the children process will
+only inherit the standard file descriptors 0, 1, and 2. @code{CLONE_CLEAR_FILES}
+takes precedence over this flag.
+
+@item
+@code{CLONE_CLEAR_FILES} (0b1000): If set, the children will not inherit any
+opened file descriptors from the parent.
+@end itemize
 
 This syscall returns @code{0} on success for the child, and the children PID to
 the parent, in failure, the parent gets @code{-1} with the following errno:
@@ -686,6 +777,10 @@ the parent, in failure, the parent gets @code{-1} with the following errno:
 @itemize @bullet
 @item
 @code{EAGAIN}: The system could not fork right now, try again later.
+
+@item
+@code{ENOSYS}: The passed flags are not implemented on the kernel, this can
+happen if @code{CLONE_VM} is called on a system without MMU for example.
 @end itemize
 
 @node wait

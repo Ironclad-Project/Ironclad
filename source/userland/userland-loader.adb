@@ -124,13 +124,14 @@ package body Userland.Loader with SPARK_Mode => Off is
 
       declare
          Returned_TID : constant Scheduler.TID := Scheduler.Create_User_Thread
-            (Address   => Entrypoint,
-             Args      => Arguments,
-             Env       => Environment,
-             Map       => Proc.Common_Map,
-             Vector    => Loaded_ELF.Vector,
-             Stack_Top => Proc.Stack_Base,
-             PID       => Proc.Process_PID);
+            (Address    => Entrypoint,
+             Args       => Arguments,
+             Env        => Environment,
+             Map        => Proc.Common_Map,
+             Vector     => Loaded_ELF.Vector,
+             Stack_Top  => Proc.Stack_Base,
+             PID        => Proc.Process_PID,
+             Exec_Stack => Loaded_ELF.Exec_Stack);
       begin
          --  TODO: Do not hardcode stack size.
          Proc.Stack_Base := Proc.Stack_Base + 16#200000#;

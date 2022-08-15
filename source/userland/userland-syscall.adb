@@ -560,40 +560,61 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end;
    end Syscall_Exec;
 
-   function Syscall_Fork
+   function Syscall_Clone
       (State_To_Fork : Arch.Context.GP_Context_Acc;
+       Flags         : Unsigned_64;
        Errno         : out Errno_Value) return Unsigned_64
    is
-      Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.Local.Get_Current_Process;
-      Forked_Process : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Fork (Current_Process);
+      Parent : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Child  : constant Process_Data_Acc := Create_Process (Parent);
+      File_Copy_End : Natural := Parent.File_Table'Last;
    begin
       if Is_Tracing then
-         Lib.Messages.Put_Line ("syscall fork()");
+         Lib.Messages.Put      ("syscall clone(");
+         Lib.Messages.Put      (Flags, False, True);
+         Lib.Messages.Put_Line ("");
       end if;
-
-      --  Fork the process.
-      if Forked_Process = null then
+      if Child = null then
          Errno := Error_Would_Block;
          return Unsigned_64'Last;
       end if;
 
+      --  Check if we have to copy the address space.
+      if (Flags and CLONE_VM) = 0 then
+         Child.Common_Map := Memory.Virtual.Fork_Map (Parent.Common_Map);
+      else
+         Child.Common_Map := Parent.Common_Map;
+      end if;
+
+      --  Copy files depending on the passed policy.
+      if (Flags and CLONE_CLEAR_FILES) = 0 then
+         if (Flags and CLONE_CLEAR_NOSTD_FILES) /= 0 then
+            File_Copy_End := 2;
+         end if;
+         for I in Parent.File_Table'First .. File_Copy_End loop
+            Child.File_Table (I) := (
+               Close_On_Exec => Parent.File_Table (I).Close_On_Exec,
+               Inner         => Duplicate (Parent.File_Table (I).Inner)
+            );
+         end loop;
+      end if;
+
+      --  TODO: Act on CHILD_VFORK, else we are risking memory integrity in
+      --  multithreaded platforms.
+
       --  Create a running thread cloning the caller.
-      if not Add_Thread (Forked_Process,
+      if not Add_Thread (Child,
          Scheduler.Create_User_Thread
-            (State_To_Fork, Forked_Process.Common_Map,
-             Forked_Process.Process_PID))
+            (State_To_Fork, Child.Common_Map, Child.Process_PID))
       then
          Errno := Error_Would_Block;
          return Unsigned_64'Last;
       end if;
 
       Errno := Error_No_Error;
-      return Unsigned_64 (Forked_Process.Process_PID);
-   end Syscall_Fork;
+      return Unsigned_64 (Child.Process_PID);
+   end Syscall_Clone;
 
-   Wait_WNOHANG : constant := 2#000010#;
    function Syscall_Wait
       (Waited_PID, Exit_Addr, Options : Unsigned_64;
        Errno                          : out Errno_Value) return Unsigned_64

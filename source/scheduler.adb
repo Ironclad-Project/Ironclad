@@ -80,13 +80,14 @@ package body Scheduler with SPARK_Mode => Off is
    end Idle_Core;
 
    function Create_User_Thread
-      (Address   : Virtual_Address;
-       Args      : Userland.Argument_Arr;
-       Env       : Userland.Environment_Arr;
-       Map       : Memory.Virtual.Page_Map_Acc;
-       Vector    : Userland.ELF.Auxval;
-       Stack_Top : Unsigned_64;
-       PID       : Natural) return TID
+      (Address    : Virtual_Address;
+       Args       : Userland.Argument_Arr;
+       Env        : Userland.Environment_Arr;
+       Map        : Memory.Virtual.Page_Map_Acc;
+       Vector     : Userland.ELF.Auxval;
+       Stack_Top  : Unsigned_64;
+       PID        : Natural;
+       Exec_Stack : Boolean := True) return TID
    is
       New_TID : TID;
    begin
@@ -116,10 +117,10 @@ package body Scheduler with SPARK_Mode => Off is
          Index_8  : Natural := User_Stack_8'Last;
          Index_64 : Natural := User_Stack_8'Last;
 
-         Map_Flags : constant Arch.MMU.Page_Permissions := (
+         Stack_Permissions : constant Arch.MMU.Page_Permissions := (
             User_Accesible => True,
             Read_Only      => False,
-            Executable     => True,
+            Executable     => Exec_Stack,
             Global         => False,
             Write_Through  => False
          );
@@ -141,7 +142,7 @@ package body Scheduler with SPARK_Mode => Off is
             Virtual_Address (Stack_Top),
             To_Integer (User_Stack_8.all'Address) - Memory_Offset,
             Stack_Size,
-            Map_Flags
+            Stack_Permissions
          )
          then
             Lib.Panic.Soft_Panic ("Could not map a TID stack");
