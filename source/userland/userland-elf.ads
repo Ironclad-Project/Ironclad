@@ -52,11 +52,17 @@ package Userland.ELF with SPARK_Mode => Off is
 
 private
 
+   --  Segment types.
    Program_Loadable_Segment     : constant := 1;
    Program_Dynamic_Segment      : constant := 2;
    Program_Interpreter_Segment  : constant := 3;
    Program_Header_Table_Segment : constant := 6;
    Program_GNU_Stack            : constant := 16#6474E551#;
+
+   --  Masks for the flags field.
+   Flags_Executable : constant := 1;
+   Flags_Write      : constant := 2;
+   Flags_Read       : constant := 4;
    type Program_Header is record
       Segment_Type    : Unsigned_32;
       Flags           : Unsigned_32;

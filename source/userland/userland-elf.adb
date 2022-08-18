@@ -123,7 +123,7 @@ package body Userland.ELF with SPARK_Mode => Off is
                when Program_Interpreter_Segment =>
                   Result.Linker_Path := Get_Linker (File_D, HDR);
                when Program_GNU_Stack =>
-                  Result.Exec_Stack := False;
+                  Result.Exec_Stack := (HDR.Flags and Flags_Executable) /= 0;
                when others =>
                   null;
             end case;
@@ -170,8 +170,8 @@ package body Userland.ELF with SPARK_Mode => Off is
          Virtual_Address (Base + Header.Virt_Address);
       Flags : constant Arch.MMU.Page_Permissions := (
          User_Accesible => True,
-         Read_Only      => False,
-         Executable     => True,
+         Read_Only      => (Header.Flags and Flags_Write)       = 0,
+         Executable     => (Header.Flags and Flags_Executable) /= 0,
          Global         => False,
          Write_Through  => False
       );
