@@ -29,7 +29,7 @@ package body Memory.Virtual with SPARK_Mode => Off is
       else
          Kernel_Map := new Page_Map;
          Kernel_Map.Inner := Arch.MMU.Kernel_Table;
-         Lib.Synchronization.Release (Kernel_Map.Mutex'Access);
+         Lib.Synchronization.Release (Kernel_Map.Mutex);
          return Make_Active (Kernel_Map);
       end if;
    end Init;
@@ -39,11 +39,11 @@ package body Memory.Virtual with SPARK_Mode => Off is
    begin
       --  Make the pagemap active on the callee core by writing the top-level
       --  address to CR3.
-      Lib.Synchronization.Seize (Map.Mutex'Access);
+      Lib.Synchronization.Seize (Map.Mutex);
       if not Arch.MMU.Is_Active (Map.Inner) then
          Success := Arch.MMU.Make_Active (Map.Inner);
       end if;
-      Lib.Synchronization.Release (Map.Mutex'Access);
+      Lib.Synchronization.Release (Map.Mutex);
       return Success;
    end Make_Active;
 
@@ -56,7 +56,7 @@ package body Memory.Virtual with SPARK_Mode => Off is
    is
       Success : Boolean;
    begin
-      Lib.Synchronization.Seize (Map.Mutex'Access);
+      Lib.Synchronization.Seize (Map.Mutex);
 
       Success := Arch.MMU.Map_Range (
          Map.Inner,
@@ -84,7 +84,7 @@ package body Memory.Virtual with SPARK_Mode => Off is
       end loop;
 
    <<Ret>>
-      Lib.Synchronization.Release (Map.Mutex'Access);
+      Lib.Synchronization.Release (Map.Mutex);
       return Success;
    end Map_Range;
 
@@ -96,7 +96,7 @@ package body Memory.Virtual with SPARK_Mode => Off is
    is
       Success : Boolean;
    begin
-      Lib.Synchronization.Seize (Map.Mutex'Access);
+      Lib.Synchronization.Seize (Map.Mutex);
 
       Success := Arch.MMU.Remap_Range (
          Map.Inner,
@@ -119,7 +119,7 @@ package body Memory.Virtual with SPARK_Mode => Off is
       --  TODO: Invalidate global TLBs if needed.
 
    <<Ret>>
-      Lib.Synchronization.Release (Map.Mutex'Access);
+      Lib.Synchronization.Release (Map.Mutex);
       return Success;
    end Remap_Range;
 
@@ -130,7 +130,7 @@ package body Memory.Virtual with SPARK_Mode => Off is
    is
       Success : Boolean;
    begin
-      Lib.Synchronization.Seize (Map.Mutex'Access);
+      Lib.Synchronization.Seize (Map.Mutex);
 
       Success := Arch.MMU.Unmap_Range (
          Map.Inner,
@@ -152,7 +152,7 @@ package body Memory.Virtual with SPARK_Mode => Off is
       --  TODO: Invalidate global TLBs if needed.
 
    <<Ret>>
-      Lib.Synchronization.Release (Map.Mutex'Access);
+      Lib.Synchronization.Release (Map.Mutex);
       return Success;
    end Unmap_Range;
 
@@ -163,7 +163,7 @@ package body Memory.Virtual with SPARK_Mode => Off is
       if Inner /= null then
          New_Map := new Page_Map;
          New_Map.Inner := Inner;
-         Lib.Synchronization.Release (New_Map.Mutex'Access);
+         Lib.Synchronization.Release (New_Map.Mutex);
          return New_Map;
       else
          return null;
@@ -173,7 +173,7 @@ package body Memory.Virtual with SPARK_Mode => Off is
    procedure Delete_Map (Map : in out Page_Map_Acc) is
       procedure F is new Ada.Unchecked_Deallocation (Page_Map, Page_Map_Acc);
    begin
-      Lib.Synchronization.Seize (Map.Mutex'Access);
+      Lib.Synchronization.Seize (Map.Mutex);
       Arch.MMU.Destroy_Table (Map.Inner);
       F (Map);
       Map := null;
@@ -225,9 +225,9 @@ package body Memory.Virtual with SPARK_Mode => Off is
       Addr   : constant System.Address := To_Address (Virtual);
       Result : Physical_Address;
    begin
-      Lib.Synchronization.Seize (Map.Mutex'Access);
+      Lib.Synchronization.Seize (Map.Mutex);
       Result := To_Integer (Arch.MMU.Translate_Address (Map.Inner, Addr));
-      Lib.Synchronization.Release (Map.Mutex'Access);
+      Lib.Synchronization.Release (Map.Mutex);
       return Result;
    end Virtual_To_Physical;
 end Memory.Virtual;

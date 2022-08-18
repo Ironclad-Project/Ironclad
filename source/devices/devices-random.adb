@@ -50,7 +50,7 @@ package body Devices.Random with SPARK_Mode => Off is
       );
       Random_Res : VFS.Resource := (
          Data       => Conv.To_Address (Conv.Object_Pointer (Random_Dat)),
-         Mutex      => (others => <>),
+         Mutex      => <>,
          Stat       => Stat,
          Sync       => null,
          Read       => Random_Read'Access,
@@ -66,7 +66,7 @@ package body Devices.Random with SPARK_Mode => Off is
          Random_Dat.Seed3,
          Random_Dat.Seed4
       );
-      Lib.Synchronization.Release (Random_Res.Mutex'Access);
+      Lib.Synchronization.Release (Random_Res.Mutex);
       return VFS.Register (Random_Res, "random");
    end Init;
 
@@ -87,7 +87,7 @@ package body Devices.Random with SPARK_Mode => Off is
          return 0;
       end if;
 
-      Lib.Synchronization.Seize (Data.Mutex'Access);
+      Lib.Synchronization.Seize (Data.Mutex);
 
       --  Adjust reseeds and bytes since reseed.
       if Dat.Since_Reseed >= Reseed_Limit then
@@ -109,7 +109,7 @@ package body Devices.Random with SPARK_Mode => Off is
          Val := Dat.Seed1 xor Dat.Seed2 xor Dat.Seed3 xor Dat.Seed4;
       end loop;
 
-      Lib.Synchronization.Release (Data.Mutex'Access);
+      Lib.Synchronization.Release (Data.Mutex);
       return Count;
    end Random_Read;
 

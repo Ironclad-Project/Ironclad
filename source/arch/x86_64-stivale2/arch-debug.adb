@@ -19,9 +19,11 @@ with Arch.Stivale2;
 with Config;
 
 package body Arch.Debug with SPARK_Mode => Off is
+   QEMU_DebugCon : constant := 16#E9#;
+
    procedure Print (Message : Character) is
    begin
-      Wrappers.Port_Out (16#E9#, Character'Pos (Message));
+      Wrappers.Port_Out (QEMU_DebugCon, Character'Pos (Message));
       if not Config.Is_Small then
          Arch.Stivale2.Print_Terminal (Message);
       end if;
@@ -30,7 +32,10 @@ package body Arch.Debug with SPARK_Mode => Off is
    procedure Print (Message : String) is
    begin
       for C of Message loop
-         Print (C);
+         Wrappers.Port_Out (QEMU_DebugCon, Character'Pos (C));
       end loop;
+      if not Config.Is_Small then
+         Arch.Stivale2.Print_Terminal (Message);
+      end if;
    end Print;
 end Arch.Debug;

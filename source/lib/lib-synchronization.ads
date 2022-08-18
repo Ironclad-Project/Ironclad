@@ -17,28 +17,37 @@
 with System;
 with Interfaces; use Interfaces;
 
-package Lib.Synchronization with SPARK_Mode => Off is
+package Lib.Synchronization is
    --  A simple binary semaphore.
-   type Binary_Semaphore is record
-      Caller    : System.Address;
-      Is_Locked : Unsigned_8;
-   end record;
+   type Binary_Semaphore is private;
+
+   --  Check if a lock is available or locked.
+   --  @param Semaphore Semaphore to test.
+   --  @return True if locked, False if not locked.
+   function Is_Locked (Semaphore : aliased Binary_Semaphore) return Boolean;
 
    --  Lock a semaphore, and not return until locked.
    --  @param Semaphore Semaphore to lock.
-   procedure Seize (Semaphore : not null access Binary_Semaphore);
+   procedure Seize (Semaphore : aliased in out Binary_Semaphore)
+      with Pre  => not Is_Locked (Semaphore),
+           Post => Is_Locked (Semaphore);
 
    --  Release a semaphore unconditionally.
    --  @param Semaphore Semaphore to release.
-   procedure Release (Semaphore : not null access Binary_Semaphore);
+   procedure Release (Semaphore : aliased in out Binary_Semaphore)
+      with Pre  => Is_Locked (Semaphore),
+           Post => not Is_Locked (Semaphore);
 
-   --  Try to lock a semaphore, and return success in locking.
-   --  @param Semaphore Semaphore to lock.
-   --  @return True if locked, False if not locked.
-   function Try_Seize
-      (Semaphore : not null access Binary_Semaphore) return Boolean;
+   procedure Try_Seize
+      (Semaphore : aliased in out Binary_Semaphore;
+       Did_Lock  : out Boolean);
 
 private
+
+   type Binary_Semaphore is record
+      Caller    : System.Address;
+      Is_Locked : Unsigned_32;
+   end record;
 
    function Get_Caller_Address (Depth : Natural) return System.Address;
    pragma Import (Intrinsic, Get_Caller_Address, "__builtin_return_address");

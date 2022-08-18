@@ -111,7 +111,7 @@ package body Arch.GDT with SPARK_Mode => Off is
       Load_GDT;
 
       --  Free the TSS lock.
-      Lib.Synchronization.Release (TSS_Mutex'Access);
+      Lib.Synchronization.Release (TSS_Mutex);
    end Init;
 
    procedure Load_GDT is
@@ -147,7 +147,7 @@ package body Arch.GDT with SPARK_Mode => Off is
       High8 : constant Unsigned_64 := Shift_Right (Addr, 24) and 16#FF#;
       Up32  : constant Unsigned_64 := Shift_Right (Addr, 32) and 16#FFFFFFFF#;
    begin
-      Lib.Synchronization.Seize (TSS_Mutex'Access);
+      Lib.Synchronization.Seize (TSS_Mutex);
 
       Global_GDT.TSS := (
          Limit         => 103,
@@ -165,6 +165,6 @@ package body Arch.GDT with SPARK_Mode => Off is
            Clobber  => "memory",
            Volatile => True);
 
-      Lib.Synchronization.Release (TSS_Mutex'Access);
+      Lib.Synchronization.Release (TSS_Mutex);
    end Load_TSS;
 end Arch.GDT;

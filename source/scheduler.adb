@@ -67,7 +67,7 @@ package body Scheduler with SPARK_Mode => Off is
       --  Allocate core locals and finishing touches.
       Thread_Pool := new Thread_Info_Arr;
       Is_Initialized := True;
-      Lib.Synchronization.Release (Scheduler_Mutex'Access);
+      Lib.Synchronization.Release (Scheduler_Mutex);
       return True;
    end Init;
 
@@ -91,7 +91,7 @@ package body Scheduler with SPARK_Mode => Off is
    is
       New_TID : TID;
    begin
-      Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+      Lib.Synchronization.Seize (Scheduler_Mutex);
 
       --  Find a new TID.
       New_TID := Find_Free_TID;
@@ -221,7 +221,7 @@ package body Scheduler with SPARK_Mode => Off is
       end;
 
    <<End_Return>>
-      Lib.Synchronization.Release (Scheduler_Mutex'Access);
+      Lib.Synchronization.Release (Scheduler_Mutex);
       return New_TID;
    end Create_User_Thread;
 
@@ -238,7 +238,7 @@ package body Scheduler with SPARK_Mode => Off is
       Kernel_Stack_Addr : constant Virtual_Address :=
             To_Integer (Kernel_Stack.all'Address) + Stack_Size;
    begin
-      Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+      Lib.Synchronization.Seize (Scheduler_Mutex);
 
       --  Find a new TID.
       New_TID := Find_Free_TID;
@@ -262,28 +262,28 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Context.Save_FP_Context (Thread_Pool (New_TID).FP_Region'Access);
 
    <<End_Return>>
-      Lib.Synchronization.Release (Scheduler_Mutex'Access);
+      Lib.Synchronization.Release (Scheduler_Mutex);
       return New_TID;
    end Create_User_Thread;
 
    procedure Delete_Thread (Thread : TID) is
    begin
       if Is_Thread_Present (Thread) then
-         Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+         Lib.Synchronization.Seize (Scheduler_Mutex);
          Thread_Pool (Thread).Is_Present := False;
          if Thread_Pool (Thread).Is_Running then
             Arch.Local.Reschedule_Cores_ASAP (Thread);
          end if;
-         Lib.Synchronization.Release (Scheduler_Mutex'Access);
+         Lib.Synchronization.Release (Scheduler_Mutex);
       end if;
    end Delete_Thread;
 
    procedure Ban_Thread (Thread : TID; Is_Banned : Boolean) is
    begin
       if Is_Thread_Present (Thread) then
-         Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+         Lib.Synchronization.Seize (Scheduler_Mutex);
          Thread_Pool (Thread).Is_Banned := Is_Banned;
-         Lib.Synchronization.Release (Scheduler_Mutex'Access);
+         Lib.Synchronization.Release (Scheduler_Mutex);
       end if;
    end Ban_Thread;
 
@@ -299,7 +299,7 @@ package body Scheduler with SPARK_Mode => Off is
    procedure Set_Thread_Priority (Thread : TID; Priority : Integer) is
    begin
       if Is_Thread_Present (Thread) then
-         Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+         Lib.Synchronization.Seize (Scheduler_Mutex);
          if Priority > Priority_Slices'Last then
             Thread_Pool (Thread).Priority := Priority_Slices'Last;
          elsif Priority < Priority_Slices'First then
@@ -307,7 +307,7 @@ package body Scheduler with SPARK_Mode => Off is
          else
             Thread_Pool (Thread).Priority := Priority;
          end if;
-         Lib.Synchronization.Release (Scheduler_Mutex'Access);
+         Lib.Synchronization.Release (Scheduler_Mutex);
       end if;
    end Set_Thread_Priority;
 
@@ -315,9 +315,9 @@ package body Scheduler with SPARK_Mode => Off is
       Ret : Boolean := False;
    begin
       if Is_Thread_Present (Thread) then
-         Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+         Lib.Synchronization.Seize (Scheduler_Mutex);
          Ret := Thread_Pool (Thread).Is_Monothread;
-         Lib.Synchronization.Release (Scheduler_Mutex'Access);
+         Lib.Synchronization.Release (Scheduler_Mutex);
       end if;
       return Ret;
    end Is_Mono_Thread;
@@ -325,9 +325,9 @@ package body Scheduler with SPARK_Mode => Off is
    procedure Set_Mono_Thread (Thread : TID; Is_Mono : Boolean) is
    begin
       if Is_Thread_Present (Thread) then
-         Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+         Lib.Synchronization.Seize (Scheduler_Mutex);
          Thread_Pool (Thread).Is_Monothread := Is_Mono;
-         Lib.Synchronization.Release (Scheduler_Mutex'Access);
+         Lib.Synchronization.Release (Scheduler_Mutex);
       end if;
    end Set_Mono_Thread;
 
@@ -335,9 +335,9 @@ package body Scheduler with SPARK_Mode => Off is
       Ret : Boolean := False;
    begin
       if Is_Thread_Present (Thread) then
-         Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+         Lib.Synchronization.Seize (Scheduler_Mutex);
          Ret := Thread_Pool (Thread).Is_Real_Time;
-         Lib.Synchronization.Release (Scheduler_Mutex'Access);
+         Lib.Synchronization.Release (Scheduler_Mutex);
       end if;
       return Ret;
    end Is_RT_Thread;
@@ -345,9 +345,9 @@ package body Scheduler with SPARK_Mode => Off is
    procedure Set_RT_Thread (Thread : TID; Is_RT : Boolean) is
    begin
       if Is_Thread_Present (Thread) then
-         Lib.Synchronization.Seize (Scheduler_Mutex'Access);
+         Lib.Synchronization.Seize (Scheduler_Mutex);
          Thread_Pool (Thread).Is_Real_Time := Is_RT;
-         Lib.Synchronization.Release (Scheduler_Mutex'Access);
+         Lib.Synchronization.Release (Scheduler_Mutex);
       end if;
    end Set_RT_Thread;
 
@@ -374,10 +374,12 @@ package body Scheduler with SPARK_Mode => Off is
    end Find_Free_TID;
 
    procedure Scheduler_ISR (State : not null Arch.Context.GP_Context_Acc) is
+      Did_Seize : Boolean;
       Current_TID, Next_TID : TID;
       Rearm_Period : Natural := Priority_Slices (0);
    begin
-      if Lib.Synchronization.Try_Seize (Scheduler_Mutex'Access) = False then
+      Lib.Synchronization.Try_Seize (Scheduler_Mutex, Did_Seize);
+      if Did_Seize then
          Arch.Local.Reschedule_In (Rearm_Period);
          return;
       end if;
@@ -403,7 +405,7 @@ package body Scheduler with SPARK_Mode => Off is
       end loop;
 
       --  Rearm for the next attempt.
-      Lib.Synchronization.Release (Scheduler_Mutex'Access);
+      Lib.Synchronization.Release (Scheduler_Mutex);
       if Current_TID /= 0 then
          Rearm_Period := Priority_Slices (Thread_Pool (Current_TID).Priority);
       end if;
@@ -425,7 +427,7 @@ package body Scheduler with SPARK_Mode => Off is
       Thread_Pool (Next_TID).Is_Running := True;
 
       --  Rearm the timer for next tick if we are not doing a monothread.
-      Lib.Synchronization.Release (Scheduler_Mutex'Access);
+      Lib.Synchronization.Release (Scheduler_Mutex);
       if not Thread_Pool (Next_TID).Is_Monothread then
          Arch.Local.Reschedule_In
             (Priority_Slices (Thread_Pool (Next_TID).Priority));

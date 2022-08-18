@@ -44,9 +44,10 @@ package body Memory.Physical with SPARK_Mode => Off is
    );
 
    procedure Init_Allocator (Memmap : in out Arch.Boot_Memory_Map) is
+      use Arch;
+
       Region_Info_Sz : constant Integer_Address := Region_Info'Size / 8;
       Current_Region : access Region_Info_Acc   := First_Region'Access;
-
       Region_Start : Integer_Address;
       Region_Size  : Integer_Address;
    begin
@@ -80,7 +81,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       if First_Region = null then
          Lib.Panic.Hard_Panic ("No memory for the system");
       end if;
-      Lib.Synchronization.Release (Alloc_Mutex'Access);
+      Lib.Synchronization.Release (Alloc_Mutex);
    end Init_Allocator;
 
    function Alloc (Sz : Interfaces.C.size_t) return Virtual_Address is
@@ -101,7 +102,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       --  XXX: Requiring 4K decreases the efficiency of this allocator by
       --  quite a bit, but thats required by the API.
       --  Maybe lift that requirement?
-      Lib.Synchronization.Seize (Alloc_Mutex'Access);
+      Lib.Synchronization.Seize (Alloc_Mutex);
       while Region /= null loop
          Region_Needed := A.Align_Up (
             To_Integer (Region.Alloc_Address), 16#1000#
@@ -121,7 +122,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       Free_Memory := Free_Memory - Memory.Size (Size);
       Used_Memory := Used_Memory + Memory.Size (Size);
       Region.Alloc_Address := To_Address (Region_Needed + Size);
-      Lib.Synchronization.Release (Alloc_Mutex'Access);
+      Lib.Synchronization.Release (Alloc_Mutex);
       declare
          Pool : array (1 .. Size) of Unsigned_8 with Import;
          for Pool'Address use To_Address (Region_Needed);
@@ -140,13 +141,13 @@ package body Memory.Physical with SPARK_Mode => Off is
    function Get_Statistics return Statistics is
       Ret : Statistics;
    begin
-      Lib.Synchronization.Seize (Alloc_Mutex'Access);
+      Lib.Synchronization.Seize (Alloc_Mutex);
       Ret := (
          Total_Memory => Total_Memory,
          Free_Memory  => Free_Memory,
          Used_Memory  => Used_Memory
       );
-      Lib.Synchronization.Release (Alloc_Mutex'Access);
+      Lib.Synchronization.Release (Alloc_Mutex);
       return Ret;
    end Get_Statistics;
 end Memory.Physical;

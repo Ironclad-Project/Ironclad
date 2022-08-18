@@ -75,7 +75,7 @@ package body Devices.Serial with SPARK_Mode => Off is
 
             Device := (
                Data       => Data.all'Address,
-               Mutex      => (others => <>),
+               Mutex      => <>,
                Stat       => Stat,
                Sync       => null,
                Read       => Serial_Read'Access,
@@ -86,7 +86,7 @@ package body Devices.Serial with SPARK_Mode => Off is
             );
 
             Discard := VFS.Register (Device, Device_Name);
-            Lib.Synchronization.Release (Device.Mutex'Access);
+            Lib.Synchronization.Release (Device.Mutex);
          end;
       <<End_Port>>
       end loop;
@@ -99,11 +99,14 @@ package body Devices.Serial with SPARK_Mode => Off is
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
    is
+      Did_Seize : Boolean;
       COM    : COM_Root with Address => Data.Data;
       Result : array (1 .. Count) of Unsigned_8 with Address => Desto;
       pragma Unreferenced (Offset);
    begin
-      while not Lib.Synchronization.Try_Seize (Data.Mutex'Access) loop
+      loop
+         Lib.Synchronization.Try_Seize (Data.Mutex, Did_Seize);
+         exit when Did_Seize;
          Scheduler.Yield;
       end loop;
 
@@ -112,7 +115,7 @@ package body Devices.Serial with SPARK_Mode => Off is
          I := Arch.Wrappers.Port_In (COM.Port);
       end loop;
 
-      Lib.Synchronization.Release (Data.Mutex'Access);
+      Lib.Synchronization.Release (Data.Mutex);
       return Count;
    end Serial_Read;
 
@@ -122,11 +125,14 @@ package body Devices.Serial with SPARK_Mode => Off is
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
    is
+      Did_Seize  : Boolean;
       COM        : COM_Root with Address => Data.Data;
       Write_Data : array (1 .. Count) of Unsigned_8 with Address => To_Write;
       pragma Unreferenced (Offset);
    begin
-      while not Lib.Synchronization.Try_Seize (Data.Mutex'Access) loop
+      loop
+         Lib.Synchronization.Try_Seize (Data.Mutex, Did_Seize);
+         exit when Did_Seize;
          Scheduler.Yield;
       end loop;
 
@@ -134,7 +140,7 @@ package body Devices.Serial with SPARK_Mode => Off is
          while not Is_Transmitter_Empty (COM.Port) loop null; end loop;
          Arch.Wrappers.Port_Out (COM.Port, I);
       end loop;
-      Lib.Synchronization.Release (Data.Mutex'Access);
+      Lib.Synchronization.Release (Data.Mutex);
       return Count;
    end Serial_Write;
 

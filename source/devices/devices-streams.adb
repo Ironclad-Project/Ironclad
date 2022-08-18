@@ -32,7 +32,7 @@ package body Devices.Streams with SPARK_Mode => Off is
 
       Nulldev := (
          Data       => System.Null_Address,
-         Mutex      => (others => <>),
+         Mutex      => <>,
          Stat       => Stat,
          Sync       => null,
          Read       => Nulldev_Read'Access,
@@ -44,7 +44,7 @@ package body Devices.Streams with SPARK_Mode => Off is
 
       Zerodev := (
          Data       => System.Null_Address,
-         Mutex      => (others => <>),
+         Mutex      => <>,
          Stat       => Stat,
          Sync       => null,
          Read       => Zerodev_Read'Access,

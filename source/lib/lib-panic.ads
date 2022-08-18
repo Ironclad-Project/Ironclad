@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Lib.Panic with SPARK_Mode => Off is
+package Lib.Panic is
    --  Enable architecture-specific utilities for core propagation of panics.
    procedure Enable_Panic_Propagation;
 

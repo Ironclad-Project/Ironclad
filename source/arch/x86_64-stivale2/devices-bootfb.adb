@@ -70,7 +70,7 @@ package body Devices.BootFB with SPARK_Mode => Off is
 
       Device := (
          Data       => Fb.all'Address,
-         Mutex      => (others => <>),
+         Mutex      => <>,
          Stat       => Stat,
          Sync       => null,
          Read       => Read'Access,

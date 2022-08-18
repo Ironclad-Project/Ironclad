@@ -162,9 +162,4 @@ package body Arch.Wrappers with SPARK_Mode => Off is
    begin
       Asm ("swapgs", Volatile => True);
    end Swap_GS;
-   ----------------------------------------------------------------------------
-   procedure HLT is
-   begin
-      Asm ("hlt", Volatile => True);
-   end HLT;
 end Arch.Wrappers;

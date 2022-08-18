@@ -14,11 +14,12 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch; use Arch;
+with Arch;
 with Interfaces.C;
 
-package Memory.Physical with SPARK_Mode => Off is
+package Memory.Physical is
    --  Initialize the allocator with a memmap.
+   --  @param Memmap Memory map to use to initialize the allocator.
    procedure Init_Allocator (Memmap : in out Arch.Boot_Memory_Map);
 
    --  Called when doing 'new'. Ada adds the semantics of erroring out
@@ -27,19 +28,28 @@ package Memory.Physical with SPARK_Mode => Off is
    --  - Always zero'ed out for security reasons, this is a kernel after all.
    --  - Always aligned to 4K.
    --  - Never null, errors are handled internally, this includes OOM.
+   --  @param Sz Size to allocate in bytes.
+   --  @return Address of the allocated object in the higher half.
    function Alloc (Sz : Interfaces.C.size_t) return Memory.Virtual_Address
       with Export, Convention => C, External_Name => "__gnat_malloc";
 
    --  Called by Unchecked_Deallocation, it deallocates a previously allocated
    --  block, apart of that, it has no special Ada semantics.
+   --  @param Address Address of the object to free, higher half or not.
    procedure Free (Address : Interfaces.C.size_t)
       with Export, Convention => C, External_Name => "__gnat_free";
 
-   --  Fetch physical memory statistics.
+   --  Memory statistics.
+   --  @field Total_Memory Total physical memory of the system.
+   --  @field Free_Memory Memory available for allocation in the system.
+   --  @field Used_Memory Memory not available for allocation.
    type Statistics is record
       Total_Memory : Memory.Size;
       Free_Memory  : Memory.Size;
       Used_Memory  : Memory.Size;
    end record;
+
+   --  Fetch memory statistics.
+   --  @return Statistics.
    function Get_Statistics return Statistics;
 end Memory.Physical;

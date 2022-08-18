@@ -32,7 +32,7 @@ package body Userland.Process with SPARK_Mode => Off is
    procedure Init is
    begin
       Process_List := new Process_Arr;
-      Lib.Synchronization.Release (Process_List_Mutex'Access);
+      Lib.Synchronization.Release (Process_List_Mutex);
    end Init;
 
    function Create_Process
@@ -40,7 +40,7 @@ package body Userland.Process with SPARK_Mode => Off is
    is
       Returned : Process_Data_Acc := null;
    begin
-      Lib.Synchronization.Seize (Process_List_Mutex'Access);
+      Lib.Synchronization.Seize (Process_List_Mutex);
 
       for I in Process_List.all'Range loop
          if Process_List (I) = null then
@@ -76,14 +76,14 @@ package body Userland.Process with SPARK_Mode => Off is
          end if;
       end loop;
 
-      Lib.Synchronization.Release (Process_List_Mutex'Access);
+      Lib.Synchronization.Release (Process_List_Mutex);
       return Returned;
    end Create_Process;
 
    procedure Delete_Process (Process : Process_Data_Acc) is
    begin
       if Process /= null then
-         Lib.Synchronization.Seize (Process_List_Mutex'Access);
+         Lib.Synchronization.Seize (Process_List_Mutex);
 
          if Process.Parent_PID /= 0 then
             declare
@@ -104,7 +104,7 @@ package body Userland.Process with SPARK_Mode => Off is
          Free_Proc (Process_List (Process.Process_PID));
          Process_List (Process.Process_PID) := null;
 
-         Lib.Synchronization.Release (Process_List_Mutex'Access);
+         Lib.Synchronization.Release (Process_List_Mutex);
       end if;
    end Delete_Process;
 

@@ -33,7 +33,7 @@ package body Lib.Panic with SPARK_Mode => Off is
    begin
       --  Set an interrupt for software IPIs to call for panic.
       Is_Propagated := Arch.Hooks.Panic_Prepare_Hook (Panic_Handler'Address);
-      Lib.Synchronization.Release (Panic_Mutex'Access);
+      Lib.Synchronization.Release (Panic_Mutex);
    end Enable_Panic_Propagation;
 
    procedure Soft_Panic (Message : String) is
@@ -52,7 +52,7 @@ package body Lib.Panic with SPARK_Mode => Off is
    procedure Hard_Panic (Message : String) is
    begin
       --  Ensure only this core panics.
-      Synchronization.Seize (Panic_Mutex'Access);
+      Synchronization.Seize (Panic_Mutex);
 
       --  Tell the rest of the cores to go take a nap, forever.
       if Is_Propagated then

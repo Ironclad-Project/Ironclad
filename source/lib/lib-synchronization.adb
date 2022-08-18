@@ -21,10 +21,17 @@ with Arch;
 with Arch.Snippets;
 
 package body Lib.Synchronization with SPARK_Mode => Off is
-   procedure Seize (Semaphore : not null access Binary_Semaphore) is
+   function Is_Locked (Semaphore : aliased Binary_Semaphore) return Boolean is
+   begin
+      return Atomic_Load_8 (Semaphore.Is_Locked'Address, Mem_Seq_Cst) /= 0;
+   end Is_Locked;
+
+   procedure Seize (Semaphore : aliased in out Binary_Semaphore) is
+      Did_Seize : Boolean;
    begin
 <<Retry_Lock>>
-      if Try_Seize (Semaphore) then
+      Try_Seize (Semaphore, Did_Seize);
+      if Did_Seize then
          return;
       end if;
 
@@ -43,19 +50,21 @@ package body Lib.Synchronization with SPARK_Mode => Off is
       Lib.Panic.Hard_Panic ("Deadlocked!");
    end Seize;
 
-   procedure Release (Semaphore : not null access Binary_Semaphore) is
+   procedure Release (Semaphore : aliased in out Binary_Semaphore) is
    begin
       Atomic_Clear (Semaphore.Is_Locked'Address, Mem_Release);
    end Release;
 
-   function Try_Seize
-      (Semaphore : not null access Binary_Semaphore) return Boolean is
+   procedure Try_Seize
+      (Semaphore : aliased in out Binary_Semaphore;
+       Did_Lock  : out Boolean)
+   is
    begin
       if Atomic_Test_And_Set (Semaphore.Is_Locked'Address, Mem_Acquire) then
-         return False;
+         Did_Lock := False;
       else
          Semaphore.Caller := Get_Caller_Address (0);
-         return True;
+         Did_Lock := True;
       end if;
    end Try_Seize;
 end Lib.Synchronization;

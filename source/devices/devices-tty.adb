@@ -81,7 +81,7 @@ package body Devices.TTY with SPARK_Mode => Off is
 
       Device := (
          Data       => Data.all'Address,
-         Mutex      => (others => <>),
+         Mutex      => <>,
          Stat       => Stat,
          Sync       => null,
          Read       => Read'Access,

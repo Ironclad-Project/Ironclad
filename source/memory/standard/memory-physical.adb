@@ -39,6 +39,7 @@ package body Memory.Physical with SPARK_Mode => Off is
    Alloc_Mutex      : aliased Binary_Semaphore;
 
    procedure Init_Allocator (Memmap : in out Arch.Boot_Memory_Map) is
+      use Arch;
    begin
       --  XXX: Take into account unordered memory maps, or overlapping entries.
       --  Count memory and get the total memory size.
@@ -103,7 +104,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       end;
 
       --  Prepare the mutex.
-      Lib.Synchronization.Release (Alloc_Mutex'Access);
+      Lib.Synchronization.Release (Alloc_Mutex);
    end Init_Allocator;
 
    function Alloc (Sz : Interfaces.C.size_t) return Virtual_Address is
@@ -127,7 +128,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       Blocks_To_Allocate := Align.Align_Up (Size, Block_Size) / Block_Size;
 
       --  Search for contiguous blocks, as many as needed.
-      Lib.Synchronization.Seize (Alloc_Mutex'Access);
+      Lib.Synchronization.Seize (Alloc_Mutex);
    <<Search_Blocks>>
       for I in Bitmap_Last_Used .. Block_Count loop
          if Bitmap_Body (I) = Block_Free then
@@ -161,7 +162,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       Bitmap_Last_Used := First_Found_Index;
       Free_Memory      := Free_Memory - Size;
       Used_Memory      := Used_Memory + Size;
-      Lib.Synchronization.Release (Alloc_Mutex'Access);
+      Lib.Synchronization.Release (Alloc_Mutex);
 
       --  Zero out memory and return value.
       declare
@@ -185,7 +186,7 @@ package body Memory.Physical with SPARK_Mode => Off is
          Real_Address := Real_Address - Memory_Offset;
       end if;
 
-      Lib.Synchronization.Seize (Alloc_Mutex'Access);
+      Lib.Synchronization.Seize (Alloc_Mutex);
 
       --  TODO: This is basically a placeholder free that will free only the
       --  first block. Blocks per address should be tracked and freed.
@@ -193,19 +194,19 @@ package body Memory.Physical with SPARK_Mode => Off is
       Free_Memory := Free_Memory + Block_Size;
       Used_Memory := Used_Memory - Block_Size;
 
-      Lib.Synchronization.Release (Alloc_Mutex'Access);
+      Lib.Synchronization.Release (Alloc_Mutex);
    end Free;
 
    function Get_Statistics return Statistics is
       Ret : Statistics;
    begin
-      Lib.Synchronization.Seize (Alloc_Mutex'Access);
+      Lib.Synchronization.Seize (Alloc_Mutex);
       Ret := (
          Total_Memory => Total_Memory,
          Free_Memory  => Free_Memory,
          Used_Memory  => Used_Memory
       );
-      Lib.Synchronization.Release (Alloc_Mutex'Access);
+      Lib.Synchronization.Release (Alloc_Mutex);
       return Ret;
    end Get_Statistics;
 end Memory.Physical;

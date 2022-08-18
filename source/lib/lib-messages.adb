@@ -24,24 +24,24 @@ package body Lib.Messages with SPARK_Mode => Off is
 
    procedure Put_Line (Message : String) is
    begin
-      Lib.Synchronization.Seize (Messages_Mutex'Access);
+      Lib.Synchronization.Seize (Messages_Mutex);
       Inner_Put (Message);
       Inner_Put (Ada.Characters.Latin_1.LF);
-      Lib.Synchronization.Release (Messages_Mutex'Access);
+      Lib.Synchronization.Release (Messages_Mutex);
    end Put_Line;
 
    procedure Put (Message : String) is
    begin
-      Lib.Synchronization.Seize (Messages_Mutex'Access);
+      Lib.Synchronization.Seize (Messages_Mutex);
       Inner_Put (Message);
-      Lib.Synchronization.Release (Messages_Mutex'Access);
+      Lib.Synchronization.Release (Messages_Mutex);
    end Put;
 
    procedure Put (Message : Character) is
    begin
-      Lib.Synchronization.Seize (Messages_Mutex'Access);
+      Lib.Synchronization.Seize (Messages_Mutex);
       Inner_Put (Message);
-      Lib.Synchronization.Release (Messages_Mutex'Access);
+      Lib.Synchronization.Release (Messages_Mutex);
    end Put;
 
    procedure Put (Message : Integer; Pad, Use_Hex : Boolean := False) is
@@ -64,7 +64,7 @@ package body Lib.Messages with SPARK_Mode => Off is
       Written          : Integer              := 0;
       Result           : String (1 .. 20);
    begin
-      Lib.Synchronization.Seize (Messages_Mutex'Access);
+      Lib.Synchronization.Seize (Messages_Mutex);
       if Use_Hex then
          Inner_Put ("0x");
          Base := 16;
@@ -72,7 +72,7 @@ package body Lib.Messages with SPARK_Mode => Off is
 
       if Message = 0 and not Pad then
          Inner_Put ("0");
-         Lib.Synchronization.Release (Messages_Mutex'Access);
+         Lib.Synchronization.Release (Messages_Mutex);
          return;
       end if;
 
@@ -94,7 +94,7 @@ package body Lib.Messages with SPARK_Mode => Off is
       for I in reverse 1 .. Written loop
          Inner_Put (Result (I));
       end loop;
-      Lib.Synchronization.Release (Messages_Mutex'Access);
+      Lib.Synchronization.Release (Messages_Mutex);
    end Put;
 
    procedure Put (Message : System.Address; Pad : Boolean := False) is

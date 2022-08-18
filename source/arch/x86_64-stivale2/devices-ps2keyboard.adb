@@ -19,6 +19,7 @@ with Arch.IDT;
 with Arch.APIC;
 with Arch.CPU;
 with Arch.Wrappers;
+with Arch.Snippets;
 
 package body Devices.PS2Keyboard with SPARK_Mode => Off is
    --  There can only be 1 PS2 keyboard, so we can store the private data here
@@ -104,7 +105,7 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
 
       Device := (
          Data       => System.Null_Address,
-         Mutex      => (others => <>),
+         Mutex      => <>,
          Stat       => Stat,
          Sync       => null,
          Read       => Read'Access,
@@ -133,7 +134,7 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
       --  Set that we are reading, and wait until done.
       Is_Reading := True;
       while Buffer_Length /= Natural (Count) loop
-         Arch.Wrappers.HLT;
+         Arch.Snippets.Wait_For_Interrupt;
       end loop;
 
       --  Copy back.

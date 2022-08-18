@@ -19,11 +19,13 @@ with Memory; use Memory;
 
 package Arch.Wrappers with SPARK_Mode => Off is
    --  IO port wrappers.
-   procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8);
-   function  Port_In  (Port : Unsigned_16) return Unsigned_8;
+   procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8)
+      with Inline_Always;
+   function  Port_In (Port : Unsigned_16) return Unsigned_8
+      with Inline_Always;
    ----------------------------------------------------------------------------
    --  Invalidate page.
-   procedure Invalidate_Page (Value : Virtual_Address);
+   procedure Invalidate_Page (Value : Virtual_Address) with Inline_Always;
    ----------------------------------------------------------------------------
    --  Read an write MSRs.
    function Read_MSR (MSR : Unsigned_32) return Unsigned_64;
@@ -45,7 +47,4 @@ package Arch.Wrappers with SPARK_Mode => Off is
    function Read_Kernel_GS return Unsigned_64;
    procedure Write_Kernel_GS (Value : Unsigned_64);
    procedure Swap_GS;
-   ----------------------------------------------------------------------------
-   --  HLT.
-   procedure HLT;
 end Arch.Wrappers;

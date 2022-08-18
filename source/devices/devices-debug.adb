@@ -34,7 +34,7 @@ package body Devices.Debug with SPARK_Mode => Off is
 
       Device := (
          Data       => System.Null_Address,
-         Mutex      => (others => <>),
+         Mutex      => <>,
          Stat       => Stat,
          Sync       => null,
          Read       => null,
@@ -44,7 +44,7 @@ package body Devices.Debug with SPARK_Mode => Off is
          Munmap     => null
       );
 
-      Lib.Synchronization.Release (Device.Mutex'Access);
+      Lib.Synchronization.Release (Device.Mutex);
       return VFS.Register (Device, "debug");
    end Init;
 
@@ -57,9 +57,9 @@ package body Devices.Debug with SPARK_Mode => Off is
       pragma Unreferenced (Offset);
       Buff : String (1 .. Natural (Count)) with Address => To_Write;
    begin
-      Lib.Synchronization.Seize (Data.Mutex'Access);
+      Lib.Synchronization.Seize (Data.Mutex);
       Arch.Debug.Print (Buff);
-      Lib.Synchronization.Release (Data.Mutex'Access);
+      Lib.Synchronization.Release (Data.Mutex);
       return Count;
    end Write;
 end Devices.Debug;

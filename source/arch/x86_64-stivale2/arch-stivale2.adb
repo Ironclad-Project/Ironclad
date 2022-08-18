@@ -50,7 +50,7 @@ package body Arch.Stivale2 with SPARK_Mode => Off is
    begin
       Terminal_Enabled    := True;
       Terminal_Entrypoint := Terminal.TermWrite;
-      Lib.Synchronization.Release (Terminal_Mutex'Access);
+      Lib.Synchronization.Release (Terminal_Mutex);
    end Init_Terminal;
 
    procedure Print_Terminal (Message : String) is
@@ -92,7 +92,7 @@ package body Arch.Stivale2 with SPARK_Mode => Off is
 
          --  The terminal doesn't have internal locking so we need to lock it
          --  ourselves.
-         Lib.Synchronization.Seize (Terminal_Mutex'Access);
+         Lib.Synchronization.Seize (Terminal_Mutex);
          Asm ("push %%rdi" & LF & HT &
               "push %%rsi" & LF & HT &
               "call *%0"   & LF & HT &
@@ -103,7 +103,7 @@ package body Arch.Stivale2 with SPARK_Mode => Off is
                          Natural'Asm_Input        ("S", Length)),
               Clobber  => "rax, rdx, rcx, r8, r9, r10, r11, memory",
               Volatile => True);
-         Lib.Synchronization.Release (Terminal_Mutex'Access);
+         Lib.Synchronization.Release (Terminal_Mutex);
 
          if Kernel_Map /= null and then
             Memory.Virtual.Is_Loaded (Kernel_Map)

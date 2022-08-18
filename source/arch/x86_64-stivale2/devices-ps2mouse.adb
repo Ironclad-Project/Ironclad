@@ -92,7 +92,7 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
 
       Device := (
          Data       => System.Null_Address,
-         Mutex      => (others => <>),
+         Mutex      => <>,
          Stat       => Stat,
          Sync       => null,
          Read       => Read'Access,
@@ -118,7 +118,7 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
    begin
       Has_Returned := False;
       while not Has_Returned loop
-         Arch.Wrappers.HLT;
+         Arch.Snippets.Wait_For_Interrupt;
       end loop;
 
       Data2 := Return_Data;

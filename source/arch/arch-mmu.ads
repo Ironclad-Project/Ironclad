@@ -16,7 +16,7 @@
 
 with Arch.InnerMMU;
 
-package Arch.MMU is
+package Arch.MMU with SPARK_Mode => Off is
    --  Opaque object for keeping track of data, not locked.
    subtype Page_Table       is InnerMMU.Page_Map;
    subtype Page_Table_Acc   is InnerMMU.Page_Map_Acc;
