@@ -37,13 +37,7 @@ package body Memory.Physical with SPARK_Mode => Off is
    Alloc_Mutex  : aliased Binary_Semaphore;
    First_Region : aliased Region_Info_Acc;
 
-   pragma Warnings (
-      Off,
-      "formal parameter ""Memmap"" is not modified",
-      Reason => "Forced by API"
-   );
-
-   procedure Init_Allocator (Memmap : in out Arch.Boot_Memory_Map) is
+   procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map) is
       use Arch;
 
       Region_Info_Sz : constant Integer_Address := Region_Info'Size / 8;

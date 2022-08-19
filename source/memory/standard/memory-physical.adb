@@ -38,11 +38,13 @@ package body Memory.Physical with SPARK_Mode => Off is
    Bitmap_Last_Used : Unsigned_64     := 1;
    Alloc_Mutex      : aliased Binary_Semaphore;
 
-   procedure Init_Allocator (Memmap : in out Arch.Boot_Memory_Map) is
+   procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map) is
       use Arch;
+      use System;
+
+      Adjusted_Length : Storage_Count  := 0;
+      Adjusted_Start  : System.Address := System.Null_Address;
    begin
-      --  XXX: Take into account unordered memory maps, or overlapping entries.
-      --  Count memory and get the total memory size.
       for E of Memmap loop
          if E.MemType = Arch.Memory_Free then
             Free_Memory := Free_Memory + Size (E.Length);
@@ -61,13 +63,11 @@ package body Memory.Physical with SPARK_Mode => Off is
       Block_Count   := Unsigned_64 (Total_Memory) / Block_Size;
       Bitmap_Length := Size (Block_Count) / 8;
       for E of Memmap loop
-         if E.MemType = Arch.Memory_Free and
-            Size (E.Length) > Bitmap_Length
+         if E.MemType = Arch.Memory_Free and Size (E.Length) > Bitmap_Length
          then
-            Bitmap_Address :=
-               Virtual_Address (To_Integer (E.Start) + Memory_Offset);
-            E.Length := E.Length - Storage_Count (Bitmap_Length);
-            E.Start  := E.Start + Storage_Count (Bitmap_Length);
+            Bitmap_Address  := To_Integer (E.Start) + Memory_Offset;
+            Adjusted_Length := E.Length - Storage_Count (Bitmap_Length);
+            Adjusted_Start  := E.Start + Storage_Count (Bitmap_Length);
             Free_Memory := Free_Memory - Bitmap_Length;
             Used_Memory := Used_Memory + Bitmap_Length;
             exit;
@@ -83,7 +83,7 @@ package body Memory.Physical with SPARK_Mode => Off is
          for Bitmap_Body'Address use To_Address (Bitmap_Address);
          Index : Unsigned_64 := 0;
          Block_Value : Boolean;
-         Block_Start : Unsigned_64;
+         Block_Start, Block_Length : Unsigned_64;
       begin
          for Item of Bitmap_Body loop
             Item := Block_Used;
@@ -95,8 +95,16 @@ package body Memory.Physical with SPARK_Mode => Off is
             else
                Block_Value := Block_Used;
             end if;
-            Block_Start := Unsigned_64 (To_Integer (E.Start));
-            while Index < Unsigned_64 (E.Length) loop
+
+            if E.Start = To_Address (Bitmap_Address - Memory_Offset) then
+               Block_Start  := Unsigned_64 (To_Integer (Adjusted_Start));
+               Block_Length := Unsigned_64 (Adjusted_Length);
+            else
+               Block_Start  := Unsigned_64 (To_Integer (E.Start));
+               Block_Length := Unsigned_64 (E.Length);
+            end if;
+
+            while Index < Block_Length loop
                Bitmap_Body ((Block_Start + Index) / Block_Size) := Block_Value;
                Index := Index + Block_Size;
             end loop;

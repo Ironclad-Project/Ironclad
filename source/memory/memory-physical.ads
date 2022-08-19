@@ -20,7 +20,7 @@ with Interfaces.C;
 package Memory.Physical is
    --  Initialize the allocator with a memmap.
    --  @param Memmap Memory map to use to initialize the allocator.
-   procedure Init_Allocator (Memmap : in out Arch.Boot_Memory_Map);
+   procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map);
 
    --  Called when doing 'new'. Ada adds the semantics of erroring out
    --  unconditionally when Sz is size_t'Last, and 0 allocates a small block.
