@@ -60,16 +60,23 @@ package body Lib.Panic with SPARK_Mode => Off is
       end if;
 
       --  Print the error and lights out.
+      Lib.Messages.Put_Line ("                   --:::-+*.            ");
+      Lib.Messages.Put_Line ("  ....             =%%%%%%:++==..:+#:   ");
+      Lib.Messages.Put_Line ("+*+++++**++=-.      +:%%%%%=+%%%:.-%%.  ");
+      Lib.Messages.Put_Line ("--=+++=-----=**+.   .+:%%%%*-%%%:.-%%   ");
+      Lib.Messages.Put_Line ("-=++++++----#@@=#-   -:=%%%%:%%%-.:%%:  ");
+      Lib.Messages.Put_Line ("++++++++*@@==%%-+#=   +.%%%#:%%%-.:%%#  ");
+      Lib.Messages.Put_Line ("+++++++--+==*%%**-#   .+*-   *%%=..#%%+ ");
+      Lib.Messages.Put_Line ("+++++++=----====-=%    -:            .- ");
+      Lib.Messages.Put_Line ("++++++++=---=+++++%     +               ");
       Lib.Messages.Put      (Hard_Panic_Color & "Hard panic: " & Reset_Color);
       Lib.Messages.Put_Line (Message);
-      Arch.Snippets.Disable_Interrupts;
-      loop null; end loop;
+      Arch.Snippets.HCF;
    end Hard_Panic;
 
    procedure Panic_Handler is
    begin
       --  Put the callee to sleep.
-      Arch.Snippets.Disable_Interrupts;
-      loop null; end loop;
+      Arch.Snippets.HCF;
    end Panic_Handler;
 end Lib.Panic;

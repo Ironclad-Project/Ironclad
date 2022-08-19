@@ -17,9 +17,13 @@
 with Interfaces; use Interfaces;
 
 package Arch.Snippets with SPARK_Mode => Off is
+   --  All of these are always inlined because they usually are 3 or 4
+   --  instructions tops, and used in hot execution paths.
+   --  Inline instead of Always_Inline seems to never inline at all.
+
    --  Drive the execution thread to an irrecoverable state.
    --  (Halt and Catch Fire).
-   procedure HCF with Inline_Always;
+   procedure HCF with Inline_Always, No_Return;
 
    --  Enable and disable external interrupts.
    procedure Enable_Interrupts with Inline_Always;
@@ -35,5 +39,5 @@ package Arch.Snippets with SPARK_Mode => Off is
    --  Get a rough value of the number of cycles the system has gone thru.
    --  The value is not guaranteed to be linear, or even changing, it is only
    --  to be used for statistical or entropy purposes.
-   function Read_Cycles return Unsigned_64;
+   function Read_Cycles return Unsigned_64 with Inline_Always;
 end Arch.Snippets;

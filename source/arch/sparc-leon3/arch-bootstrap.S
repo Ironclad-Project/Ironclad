@@ -1,5 +1,5 @@
-# .gitignore: Ignore some git files.
-# Copyright (C) 2021 streaksu
+# arch-bootstrap.S: Setup a kernel environment.
+# Copyright (C) 2022 streaksu
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,13 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+.section .text
 
-obj
-gnatprove
-ironclad.info
-ironclad.aux
-ironclad.pdf
-ironclad.log
-ironclad.toc
-ironclad
-libdl.a
+.globl bootstrap
+bootstrap:
+    # Jump to Ada using the preexisting stack.
+    call kernel_main
+    nop

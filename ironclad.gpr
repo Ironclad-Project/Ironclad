@@ -16,16 +16,16 @@
 
 project Ironclad is
    --  Get command-line options for flags and boards.
-   type Arch_Name    is ("x86_64-stivale2", "aarch64-stivale2");
+   type Arch_Name    is ("aarch64-stivale2", "sparc-leon3", "x86_64-stivale2");
    type Target_Name  is ("big", "small");
    type Alloc_Scheme is ("standard", "alloconly");
    Arch   : Arch_Name    := External ("ARCH",   "x86_64-stivale2");
    Target : Target_Name  := External ("TARGET", "big");
    Alloc  : Alloc_Scheme := External ("ALLOC_SCHEME", "standard");
 
-   Ada_Flags    := External ("ADAFLAGS", "-O2 -g -gnaty -Wall -fdata-sections");
-   Asm_Flags    := External ("ASMFLAGS", "-O2 -g -Wall");
-   Linker_Flags := External ("LDFLAGS",  "-O2 -g -Wl,-gc-sections");
+   Ada_Flags := External ("ADAFLAGS", "-O2 -g -gnaty -Wall -fdata-sections");
+   Asm_Flags := External ("ASMFLAGS", "-O2 -g -Wall");
+   Linker_Flags := External ("LDFLAGS", "-O2 -g -Wl,-gc-sections");
 
    --  Set directories and files.
    for Source_Dirs use (
@@ -36,12 +36,8 @@ project Ironclad is
    for Object_Dir use "obj";
    for Exec_Dir use ".";
    for Main use ("main.adb");
-   for Languages use ("ada", "asm");
+   for Languages use ("Ada", "Asm_Cpp");
    for Create_Missing_Dirs use "True";
-
-   package Naming is
-      for Body_Suffix ("asm") use ".S";
-   end Naming;
 
    package Builder is
       for Executable ("main.adb") use "ironclad";
@@ -49,11 +45,9 @@ project Ironclad is
 
    package Compiler is
       Base_Ada_Switches := Split (Ada_Flags, " ") & (
-         "-fno-stack-protector", "-fno-stack-check"
+         "-fno-stack-protector", "-fno-stack-check", "-mgeneral-regs-only"
       );
-      Base_Asm_Switches := Split (Asm_Flags, " ") & (
-         "-xassembler-with-cpp"
-      );
+      Base_Asm_Switches := Split (Asm_Flags, " ");
       case Target is
          when "big" =>
             Base_Ada_Switches := Base_Ada_Switches & ("-gnateDIsSmall=False");
@@ -63,23 +57,21 @@ project Ironclad is
       end case;
 
       case Arch is
-         when "x86_64-stivale2" =>
-            for Switches ("Ada") use Base_Ada_Switches & (
-               "-fpie", "-mno-sse", "-mno-sse2", "-mno-red-zone"
-            );
-            for Switches ("Asm") use Base_Asm_Switches & (
-               "-fpie"
-            );
          when "aarch64-stivale2" =>
             for Switches ("Ada") use Base_Ada_Switches & (
-               "-mgeneral-regs-only", "-static", "-fno-pie", "-fno-pic"
+               "-static", "-fno-pie", "-fno-pic"
             );
-
-            --  This following lines are needed on my system, but they are not
-            --  required on others like debian, however it should not hurt.
-            for Switches ("Asm") use Base_Asm_Switches;
-            for Driver ("asm") use "aarch64-linux-gnu-gcc";
-            for Leading_Required_Switches ("asm") use ("-c");
+            for Switches ("Asm_Cpp") use Base_Asm_Switches;
+         when "sparc-leon3" =>
+            for Switches ("Ada") use Base_Ada_Switches & (
+               "-mcpu=leon3", "-static", "-fno-pie", "-fno-pic"
+            );
+            for Switches ("Asm_Cpp") use Base_Asm_Switches & ("-mcpu=leon3");
+         when "x86_64-stivale2" =>
+            for Switches ("Ada") use Base_Ada_Switches & (
+               "-fpie", "-mno-red-zone"
+            );
+            for Switches ("Asm_Cpp") use Base_Asm_Switches & ("-fpie");
       end case;
 
       for Local_Configuration_Pragmas use "source/pragmas.adc";
@@ -87,20 +79,24 @@ project Ironclad is
 
    package Linker is
       Base_Link_Switches := Split (Linker_Flags, " ") & (
-         "-T../source/arch/" & Arch & "/linker.ld", "-nostdlib",
-         "-znoexecstack", "-lgcc"
+         "-T../source/arch/" & Arch & "/linker.ld", "-nostdlib", "-lgcc"
       );
 
       case Arch is
-         when "x86_64-stivale2" =>
-            for Switches ("Ada") use Base_Link_Switches & (
-               "-pie", "-zmax-page-size=0x1000",
-               "-Wl,--undefined=stivale2hdr,-zmuldefs"
-            );
          when "aarch64-stivale2" =>
             for Switches ("Ada") use Base_Link_Switches & (
                "-zmax-page-size=0x1000", "-static", "-Wl,-zmuldefs",
                "-fno-pie", "-fno-pic"
+            );
+         when "sparc-leon3" =>
+            for Switches ("Ada") use Base_Link_Switches & (
+               "-zmax-page-size=0x1000", "-static", "-Wl,-zmuldefs",
+               "-fno-pie", "-fno-pic"
+            );
+         when "x86_64-stivale2" =>
+            for Switches ("Ada") use Base_Link_Switches & (
+               "-pie", "-zmax-page-size=0x1000",
+               "-Wl,--undefined=stivale2hdr,-zmuldefs"
             );
       end case;
    end Linker;
