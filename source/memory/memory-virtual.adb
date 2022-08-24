@@ -195,12 +195,8 @@ package body Memory.Virtual with SPARK_Mode => Off is
                Address =>
                   To_Address (Mapping.Physical_Start + Memory_Offset + 16#10#);
             begin
-               New_Data := new Page_Data (1 .. Mapping.Length);
-               for O in 1 .. Mapping.Length loop
-                  New_Data (O) := Original_Data (O);
-               end loop;
-
-               Discard := Map_Range (
+               New_Data := new Page_Data'(Original_Data);
+               Discard  := Map_Range (
                   Forked,
                   Mapping.Virtual_Start,
                   To_Integer (New_Data.all'Address) - Memory_Offset,

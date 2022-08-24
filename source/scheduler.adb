@@ -41,7 +41,7 @@ package body Scheduler with SPARK_Mode => Off is
       FP_Region     : aliased Arch.Context.FP_Context;
       Process       : Userland.Process.Process_Data_Acc;
    end record;
-   type Thread_Info_Arr is array (TID range 1 .. 256) of Thread_Info;
+   type Thread_Info_Arr is array (TID range 1 .. 50) of Thread_Info;
 
    --  Scheduler information.
    Scheduler_Mutex : aliased Lib.Synchronization.Binary_Semaphore;

@@ -189,8 +189,10 @@ package body Memory.Physical with SPARK_Mode => Off is
       Bitmap_Body  : Bitmap (1 .. Block_Count)
          with Address => To_Address (Bitmap_Address), Import;
    begin
-      --  Ensure the address is in the lower half.
-      if Real_Address > Memory_Offset then
+      --  Ensure the address is in the lower half and not null.
+      if Real_Address = 0 then
+         return;
+      elsif Real_Address > Memory_Offset then
          Real_Address := Real_Address - Memory_Offset;
       end if;
 

@@ -45,7 +45,8 @@ project Ironclad is
 
    package Compiler is
       Base_Ada_Switches := Split (Ada_Flags, " ") & (
-         "-fno-stack-protector", "-fno-stack-check", "-mgeneral-regs-only"
+         "-fno-stack-protector", "-fno-stack-check", "-mgeneral-regs-only",
+         "-gnateDArchName=""" & Arch & """"
       );
       Base_Asm_Switches := Split (Asm_Flags, " ");
       case Target is

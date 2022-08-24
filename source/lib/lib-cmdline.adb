@@ -15,8 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Lib.Cmdline is
-   pragma Suppress (All_Checks); --  We can do this because the unit passes
-                                 --  GNATprove AoRTE. GNAT does not know this.
+   --  Unit passes GNATprove AoRTE, GNAT does not know this.
+   pragma Suppress (All_Checks);
 
    function Get_Parameter (Cmdline, Key : String) return String_Acc is
       Curr_Index : Integer;

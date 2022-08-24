@@ -29,14 +29,12 @@ package Lib.Synchronization is
    --  Lock a semaphore, and not return until locked.
    --  @param Semaphore Semaphore to lock.
    procedure Seize (Semaphore : aliased in out Binary_Semaphore)
-      with Pre  => not Is_Locked (Semaphore),
-           Post => Is_Locked (Semaphore);
+      with Post => Is_Locked (Semaphore);
 
    --  Release a semaphore unconditionally.
    --  @param Semaphore Semaphore to release.
    procedure Release (Semaphore : aliased in out Binary_Semaphore)
-      with Pre  => Is_Locked (Semaphore),
-           Post => not Is_Locked (Semaphore);
+      with Post => not Is_Locked (Semaphore);
 
    procedure Try_Seize
       (Semaphore : aliased in out Binary_Semaphore;

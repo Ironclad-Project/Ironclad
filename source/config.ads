@@ -15,10 +15,11 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Config is
-   --  Project name and contact.
-   Name     : constant String := "Ironclad";
-   Version  : constant String := "0.0.1prealpha";
-   Bug_Site : constant String :=
+   --  Project name, contact, and basic information.
+   Name      : constant String := "Ironclad";
+   Version   : constant String := "0.0.1prealpha";
+   Arch_Name : constant String := $ArchName;
+   Bug_Site  : constant String :=
       "https://savannah.nongnu.org/bugs/?group=ironclad";
 
    --  Configuration for system internals.

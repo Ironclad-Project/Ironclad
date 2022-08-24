@@ -696,23 +696,24 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Addr : constant System.Address := To_Address (Integer_Address (Address));
       UTS  : UTS_Name with Address => Addr;
+      Host_Len : Networking.Hostname_Len;
    begin
       if Addr = System.Null_Address then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       end if;
 
+      Networking.Get_Hostname (UTS.Node_Name, Host_Len);
+      UTS.Node_Name (Host_Len + 1) := Ada.Characters.Latin_1.NUL;
+
       UTS.System_Name (1 .. Config.Name'Length + 1) :=
          Config.Name & Ada.Characters.Latin_1.NUL;
-      UTS.Node_Name (1 .. Networking.Hostname_Length) :=
-         Networking.Hostname_Buffer (1 .. Networking.Hostname_Length);
-      UTS.Node_Name (Networking.Hostname_Length + 1) :=
-         Ada.Characters.Latin_1.NUL;
       UTS.Release (1 .. Config.Version'Length + 1) :=
          Config.Version & Ada.Characters.Latin_1.NUL;
       UTS.Version (1 .. Config.Version'Length + 1) :=
          Config.Version & Ada.Characters.Latin_1.NUL;
-      UTS.Machine (1 .. 7) := "x86_64" & Ada.Characters.Latin_1.NUL;
+      UTS.Machine (1 .. Config.Arch_Name'Length + 1) :=
+         Config.Arch_Name & Ada.Characters.Latin_1.NUL;
 
       Errno := Error_No_Error;
       return 0;
@@ -726,16 +727,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Len  : constant Natural := Natural (Length);
       Addr : constant System.Address := To_Address (Integer_Address (Address));
       Name : String (1 .. Len) with Address => Addr;
+      Success : Boolean;
    begin
       if Addr = System.Null_Address then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
-      elsif Len = 0 or Len > Networking.Hostname_Buffer'Length then
+      end if;
+
+      Networking.Set_Hostname (Name, Success);
+
+      if not Success then
          Errno := Error_Invalid_Value;
          return Unsigned_64'Last;
       else
-         Networking.Hostname_Length := Len;
-         Networking.Hostname_Buffer (1 .. Len) := Name;
          Errno := Error_No_Error;
          return 0;
       end if;

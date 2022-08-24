@@ -15,7 +15,19 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Networking is
-   --  Name of the computer to be used on several networks.
-   Hostname_Length : Positive := 4;
-   Hostname_Buffer : String (1 .. 24) := "none                    ";
+   --  Maximum length of a hostname
+   Hostname_Max_Len : constant := 24;
+   subtype Hostname_Len is Integer range 0 .. Hostname_Max_Len;
+
+   --  Fetch the system's hostname.
+   --  @param Name Hostname.
+   --  @param Length Length of the hostname.
+   procedure Get_Hostname (Name : out String; Length : out Hostname_Len)
+      with Pre => Name'Last <= Integer'Last - Hostname_Max_Len and
+                  Name'Length <= Hostname_Max_Len;
+
+   --  Set the system's hostname.
+   --  @param Name Hostname to set;
+   --  @return True on success, False on failure.
+   procedure Set_Hostname (Name : String; Success : out Boolean);
 end Networking;
