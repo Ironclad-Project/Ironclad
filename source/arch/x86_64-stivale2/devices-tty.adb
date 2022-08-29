@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
-with Arch.Debug;
+with Arch.Stivale2;
 with VFS.File; use VFS.File;
 with VFS;
 
@@ -91,7 +91,7 @@ package body Devices.TTY with SPARK_Mode => Off is
          Munmap     => null
       );
 
-      return VFS.Register (Device, "ttydev");
+      return VFS.Register (Device, "stivale2tty");
    end Init;
 
    function Read
@@ -127,7 +127,7 @@ package body Devices.TTY with SPARK_Mode => Off is
                      Buffer_Index := Buffer_Index + 1;
                end case;
                if Term.Terminal_Settings.Local_Modes.Echo_Input then
-                  Arch.Debug.Print (C);
+                  Arch.Stivale2.Print_Terminal (C);
                end if;
             end loop;
             Destination (1 .. Buffer_Index) := Buffer (1 .. Buffer_Index);
@@ -139,7 +139,7 @@ package body Devices.TTY with SPARK_Mode => Off is
             declare
                S : String (1 .. Natural (Read_Count)) with Address => To_Write;
             begin
-               Arch.Debug.Print (S);
+               Arch.Stivale2.Print_Terminal (S);
             end;
          end if;
          return Read_Count;
@@ -156,7 +156,7 @@ package body Devices.TTY with SPARK_Mode => Off is
       pragma Unreferenced (Offset);
       Message : String (1 .. Natural (Count)) with Address => To_Write;
    begin
-      Arch.Debug.Print (Message);
+      Arch.Stivale2.Print_Terminal (Message);
       return Count;
    end Write;
 

@@ -61,13 +61,15 @@ package body Lib.Messages with SPARK_Mode => Off is
       Conversion_Table : constant String      := "0123456789ABCDEF";
       To_Convert       : Unsigned_64          := Message;
       Base             : Unsigned_64          := 10;
+      Char_Limit       : Natural              := 20;
       Written          : Integer              := 0;
       Result           : String (1 .. 20);
    begin
       Lib.Synchronization.Seize (Messages_Mutex);
       if Use_Hex then
          Inner_Put ("0x");
-         Base := 16;
+         Base       := 16;
+         Char_Limit := 15;
       end if;
 
       if Message = 0 and not Pad then
@@ -86,7 +88,7 @@ package body Lib.Messages with SPARK_Mode => Off is
       end if;
 
       if Pad then
-         for I in Written .. Result'Length loop
+         for I in Written .. Char_Limit loop
             Inner_Put ('0');
          end loop;
       end if;

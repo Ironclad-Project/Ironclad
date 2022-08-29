@@ -166,7 +166,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Map;
 
-      --  Map the first 2 GiB (except 0) to the window and identity mapped.
+      --  Map the first 4 GiB (except 0) to the window and identity mapped.
       --  This is done instead of following the pagemap to ensure that all
       --  I/O and memory tables that may not be in the memmap are mapped.
       Success1 := Map_Range (
@@ -187,7 +187,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
          return False;
       end if;
 
-      --  Map the memmap memory to the memory window.
+      --  Map the memmap memory to the memory window and identity
       for E of Memmap loop
          Aligned_Addr := Ali1.Align_Down (To_Integer (E.Start), Page_Size_4K);
          Aligned_Len  := Ali2.Align_Up (Unsigned_64 (E.Length), Page_Size_4K);
@@ -198,7 +198,14 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
             Length         => Storage_Offset (Aligned_Len),
             Permissions    => Flags
          );
-         if not Success1 then
+         Success2 := Map_Range (
+            Map            => MMU.Kernel_Table,
+            Physical_Start => To_Address (Aligned_Addr),
+            Virtual_Start  => To_Address (Aligned_Addr),
+            Length         => Storage_Offset (Aligned_Len),
+            Permissions    => Flags
+         );
+         if not Success1 or not Success2 then
             return False;
          end if;
       end loop;
@@ -244,11 +251,9 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
    end Destroy_Table;
 
    function Make_Active (Map : Page_Map_Acc) return Boolean is
-      Addr : constant Unsigned_64 := Unsigned_64 (Physical_Address
-         (To_Integer (Map.PML4_Level'Address) - Memory_Offset));
+      Addr : constant Unsigned_64 :=
+         Unsigned_64 (To_Integer (Map.PML4_Level'Address) - Memory_Offset);
    begin
-      --  Make the pagemap active on the callee core by writing the top-level
-      --  address to CR3.
       if Arch.Wrappers.Read_CR3 /= Addr then
          Arch.Wrappers.Write_CR3 (Addr);
       end if;

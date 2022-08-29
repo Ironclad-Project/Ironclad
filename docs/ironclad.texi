@@ -97,14 +97,10 @@ Syscalls
 
 Devices and their properties
 
-* bootfb::
-* e9debug::
-* ps2keyboard/ps2mouse::
-* serial::
-* null/zero::
-* ttydev::
-* ramdev::
-* random::
+* Common devices::           Devices common to all architectures and targets.
+* aarch64-stivale2 devices:: Devices specific to aarch64-stivale2.
+* sparc-leon3 devices::      Devices specific to sparc-leon3.
+* x86_64-stivale2 devices::  Devices specific to x86_64-stivale2.
 
 @end detailmenu
 @end menu
@@ -215,7 +211,9 @@ This are the keys and values the kernel takes, and under which circumstances:
 Device to mount as root, if any.
 
 @item init=<path>
-Checked for an init program, if any.
+Path to a program that will be booted by the kernel when finished loading.
+The program will be started with @code{stdin} set to @code{/dev/null}, and
+@code{stdout} and @code{stderr} set to @code{/dev/debug}.
 
 @item syscalltracing
 Enables tracing syscalls and their arguments, really performance taxing, but
@@ -1153,8 +1151,57 @@ standard operations, like being manipulated by the usual file-related
 syscalls like @code{read} or @code{write}, while sporting device-specific
 interfaces in the form of device-specific @code{ioctl} requests.
 
-@node bootfb
-@section bootfb
+The devices detailed in this chapter are divided in "Common devices", which
+are devices featured regardless of the architecture running Ironclad, and
+architecture-specific devices.
+
+@node Common devices
+@section Common devices
+
+@subsection debug
+
+@code {/dev/debug} wraps architecture-specific debug output channels for use
+with file operations. For x86-based targets, this is QEMU's E9, for arm-based
+and sparc-based targets, this is UART.
+
+@subsection ramdev
+
+The devices starting by @code{ramdev} are virtual devices representing the
+RAM driver passed by some boot protocols, an FS can be mounted to them, usually
+USTAR. These RAM devices are exclusively read-only.
+
+@subsection random
+
+The device @code{random} is equivalent to the one featured in other unix-like
+kernels. Keep in mind that Ironclad has limited sources of entropy, so the
+quality of this random numbers is a bit limited. Writing to the source is not
+allowed, unlike other systems.
+
+@subsection null/zero
+
+@code{null} and @code{zero} are the equivalent of the @code{null} and
+@code{zero} devices for platforms like Linux.
+
+@code{null} returns @code{EOF} whenever read, and all the write operations are
+discarded.
+
+@code{zero} returns exclusively a stream of zeros when read, and all write
+operations are discarded.
+
+@node aarch64-stivale2 devices
+@section aarch64-stivale2 devices
+
+This target has no special devices.
+
+@node sparc-leon3 devices
+@section sparc-leon3 devices
+
+This target has no special devices.
+
+@node x86_64-stivale2 devices
+@section x86_64-stivale2 devices
+
+@subsection bootfb
 
 The @code{bootfb} device exposes the framebuffer passed as part of the
 boot-protocol, when present. The device is accessible by normal @code{read} and
@@ -1185,14 +1232,7 @@ ioctl(fb, FB_DIMENTIONS, pointer_to_fb_dimensions)
 windows for increased performance, instead of having to issue costly syscalls
 for partial updates and refreshes.
 
-@node e9debug
-@section e9debug
-
-The device @code{e9debug} exposes QEMU's e9-based debug output as a character
-device, and is accessible with normal file operations.
-
-@node ps2keyboard/ps2mouse
-@section ps2keyboard/ps2mouse
+@subsection ps2keyboard/ps2mouse
 
 The devices @code{ps2keyboard} and @code{ps2mouse} exposes x86's native PS2
 interfaces, @code{ps2keyboard} is a normal character device, while
@@ -1227,30 +1267,16 @@ Valid resolutions and sample rates are values for the PS2 controller, else
 the call is ignored. For valid values and their meaning refer to
 @uref{https://isdaman.com/alsos/hardware/mouse/ps2interface.htm, this website}.
 
-@node serial
-@section serial
+@subsection serial
 
 The devices starting by @code{serial} represent the several character devices
 used for each present serial port, they support read/write operations, but no
 TTY interface is exposed, they are raw byte streams.
 
-@node null/zero
-@section null/zero
+@subsection stivale2tty
 
-@code{null} and @code{zero} are the equivalent of the @code{null} and
-@code{zero} devices for platforms like Linux.
-
-@code{null} returns @code{EOF} whenever read, and all the write operations are
-discarded.
-
-@code{zero} returns exclusively a stream of zeros when read, and all write
-operations are discarded.
-
-@node ttydev
-@section ttydev
-
-The devices starting by @code{ttydev} are virtual devices that put together
-an output and input device, along with some special ioctls, which are:
+@code{stivale2tty} wraps the Stivale2 protocol's terminal for output with
+@code{ps2keyboard} for input, along with some special ioctls, which are:
 
 @itemize @bullet
 @item
@@ -1289,23 +1315,6 @@ struct window_size @{
 @};
 @end example
 @end itemize
-
-@node ramdev
-@section ramdev
-
-The devices starting by @code{ramdev} are virtual devices representing the
-RAM driver passed by some boot protocols, an FS can be mounted to them, usually
-USTAR.
-
-This RAM devices are exclusively read-only.
-
-@node random
-@section random
-
-The device @code{random} is equivalent to the one featured in other unix-like
-kernels. Keep in mind that Ironclad has limited sources of entropy, so the
-quality of this random numbers is a bit limited. Writing to the source is not
-allowed, unlike other systems.
 
 @node GNU Free Documentation License
 @appendix GNU Free Documentation License

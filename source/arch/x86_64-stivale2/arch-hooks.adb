@@ -19,6 +19,7 @@ with Devices.BootFB;
 with Devices.PS2Mouse;
 with Devices.PS2Keyboard;
 with Devices.Serial;
+with Devices.TTY;
 with Arch.Wrappers;
 with Arch.IDT;
 with Arch.CPU;
@@ -38,12 +39,16 @@ package body Arch.Hooks with SPARK_Mode => Off is
          (To_Address (ST.Get_Tag (ST.Stivale_Tag, ST.Framebuffer_ID)));
    begin
       if not Config.Is_Small then
-         if not Devices.BootFB.Init (Fb) then goto Error; end if;
-         if not Devices.PS2Mouse.Init    then goto Error; end if;
-         if not Devices.PS2Keyboard.Init then goto Error; end if;
+         if not Devices.BootFB.Init (Fb) or not Devices.PS2Mouse.Init or
+            not Devices.PS2Keyboard.Init or not Devices.TTY.Init
+         then
+            goto Error;
+         end if;
       end if;
 
-      if not Devices.Serial.Init then goto Error; end if;
+      if not Devices.Serial.Init then
+         goto Error;
+      end if;
       return;
 
    <<Error>>

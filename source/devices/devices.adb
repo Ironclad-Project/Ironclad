@@ -16,10 +16,8 @@
 
 with Devices.Random;
 with Devices.Streams;
-with Devices.TTY;
 with Devices.Debug;
 with Lib.Panic;
-with Config;
 with Arch.Hooks;
 
 package body Devices with SPARK_Mode => Off is
@@ -27,11 +25,6 @@ package body Devices with SPARK_Mode => Off is
    begin
       --  Initialize architectural devices.
       Arch.Hooks.Devices_Hook;
-
-      --  Initialize non-embedded devices.
-      if not Config.Is_Small then
-         if not TTY.Init then goto Error; end if;
-      end if;
 
       --  Initialize common devices.
       if not Random.Init or not Debug.Init or not Streams.Init then

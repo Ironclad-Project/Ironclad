@@ -25,7 +25,7 @@ package body Arch.Debug with SPARK_Mode => Off is
    begin
       Wrappers.Port_Out (QEMU_DebugCon, Character'Pos (Message));
       if not Config.Is_Small then
-         Arch.Stivale2.Print_Terminal (Message);
+         Stivale2.Print_Terminal (Message);
       end if;
    end Print;
 
@@ -35,7 +35,7 @@ package body Arch.Debug with SPARK_Mode => Off is
          Wrappers.Port_Out (QEMU_DebugCon, Character'Pos (C));
       end loop;
       if not Config.Is_Small then
-         Arch.Stivale2.Print_Terminal (Message);
+         Stivale2.Print_Terminal (Message);
       end if;
    end Print;
 end Arch.Debug;
