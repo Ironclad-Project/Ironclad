@@ -541,16 +541,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Userland.Process.Flush_Exec_Files (Current_Process);
 
          --  Create a new map for the process.
-         if Current_Process.Parent_PID /= 0 then
-            declare
-               Parent : constant Userland.Process.Process_Data_Acc :=
-                  Userland.Process.Get_By_PID (Current_Process.Parent_PID);
-            begin
-               if Current_Process.Common_Map /= Parent.Common_Map then
-                  Memory.Virtual.Delete_Map (Current_Process.Common_Map);
-               end if;
-            end;
-         end if;
+         Memory.Virtual.Delete_Map (Current_Process.Common_Map);
          Current_Process.Common_Map := Memory.Virtual.New_Map;
 
          --  Start the actual program.
@@ -575,47 +566,29 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end;
    end Syscall_Exec;
 
-   function Syscall_Clone
+   function Syscall_Fork
       (State_To_Fork : Arch.Context.GP_Context_Acc;
-       Flags         : Unsigned_64;
        Errno         : out Errno_Value) return Unsigned_64
    is
       Parent : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Child  : constant Process_Data_Acc := Create_Process (Parent);
-      File_Copy_End : Natural := Parent.File_Table'Last;
    begin
       if Is_Tracing then
-         Lib.Messages.Put      ("syscall clone(");
-         Lib.Messages.Put      (Flags, False, True);
-         Lib.Messages.Put_Line (")");
+         Lib.Messages.Put_Line ("syscall fork()");
       end if;
       if Child = null then
          Errno := Error_Would_Block;
          return Unsigned_64'Last;
       end if;
 
-      --  Check if we have to copy the address space.
-      if (Flags and CLONE_VM) = 0 then
-         Child.Common_Map := Memory.Virtual.Fork_Map (Parent.Common_Map);
-      else
-         Child.Common_Map := Parent.Common_Map;
-      end if;
-
-      --  Copy files depending on the passed policy.
-      if (Flags and CLONE_CLEAR_FILES) = 0 then
-         if (Flags and CLONE_CLEAR_NOSTD_FILES) /= 0 then
-            File_Copy_End := 2;
-         end if;
-         for I in Parent.File_Table'First .. File_Copy_End loop
-            Child.File_Table (I) := (
-               Close_On_Exec => Parent.File_Table (I).Close_On_Exec,
-               Inner         => Duplicate (Parent.File_Table (I).Inner)
-            );
-         end loop;
-      end if;
-
-      --  TODO: Act on CHILD_VFORK, else we are risking memory integrity in
-      --  multithreaded platforms.
+      --  Fork the child state.
+      Child.Common_Map := Memory.Virtual.Fork_Map (Parent.Common_Map);
+      for I in Parent.File_Table'Range loop
+         Child.File_Table (I) := (
+            Close_On_Exec => Parent.File_Table (I).Close_On_Exec,
+            Inner         => Duplicate (Parent.File_Table (I).Inner)
+         );
+      end loop;
 
       --  Create a running thread cloning the caller.
       if not Add_Thread (Child,
@@ -628,7 +601,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       Errno := Error_No_Error;
       return Unsigned_64 (Child.Process_PID);
-   end Syscall_Clone;
+   end Syscall_Fork;
 
    function Syscall_Wait
       (Waited_PID, Exit_Addr, Options : Unsigned_64;
@@ -1332,4 +1305,100 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno := Error_No_Error;
       return Returned;
    end Syscall_Fcntl;
+
+   function Syscall_Spawn
+      (Address : Unsigned_64;
+       Argv    : Unsigned_64;
+       Envp    : Unsigned_64;
+       Errno   : out Errno_Value) return Unsigned_64
+   is
+      --  FIXME: This type should be dynamic ideally and not have a maximum.
+      type Arg_Arr is array (1 .. 40) of Unsigned_64;
+
+      Current_Process : constant Userland.Process.Process_Data_Acc :=
+         Arch.Local.Get_Current_Process;
+      Child : constant Process_Data_Acc := Create_Process (Current_Process);
+
+      Addr : constant System.Address := To_Address (Integer_Address (Address));
+      Path_Length : constant Natural := Lib.C_String_Length (Addr);
+      Path_String : String (1 .. Path_Length) with Address => Addr;
+      Opened_File : constant File_Acc := Open (Path_String, Access_R);
+
+      Args_Raw : Arg_Arr with Address => To_Address (Integer_Address (Argv));
+      Env_Raw  : Arg_Arr with Address => To_Address (Integer_Address (Envp));
+      Args_Count : Natural := 0;
+      Env_Count  : Natural := 0;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall spawn(" & Path_String & ")");
+      end if;
+
+      if Opened_File = null then
+         Errno := Error_No_Entity;
+         return Unsigned_64'Last;
+      end if;
+
+      if Child = null then
+         Errno := Error_Would_Block;
+         return Unsigned_64'Last;
+      end if;
+
+      --  Count the args and envp we have.
+      for I in Args_Raw'Range loop
+         exit when Args_Raw (I) = 0;
+         Args_Count := Args_Count + 1;
+      end loop;
+      for I in Env_Raw'Range loop
+         exit when Env_Raw (I) = 0;
+         Env_Count := Env_Count + 1;
+      end loop;
+
+      --  Copy the argv and envp to Ada arrays and boot the process.
+      declare
+         Args  : Userland.Argument_Arr    (1 .. Args_Count);
+         Env   : Userland.Environment_Arr (1 .. Env_Count);
+      begin
+         for I in 1 .. Args_Count loop
+            declare
+               Addr : constant System.Address :=
+                  To_Address (Integer_Address (Args_Raw (I)));
+               Arg_Length : constant Natural := Lib.C_String_Length (Addr);
+               Arg_String : String (1 .. Arg_Length) with Address => Addr;
+            begin
+               Args (I) := new String'(Arg_String);
+            end;
+         end loop;
+         for I in 1 .. Env_Count loop
+            declare
+               Addr : constant System.Address :=
+                  To_Address (Integer_Address (Env_Raw (I)));
+               Arg_Length : constant Natural := Lib.C_String_Length (Addr);
+               Arg_String : String (1 .. Arg_Length) with Address => Addr;
+            begin
+               Env (I) := new String'(Arg_String);
+            end;
+         end loop;
+
+         Child.Common_Map := Memory.Virtual.New_Map;
+         if not Loader.Start_Program (Opened_File, Args, Env, Child) then
+            Errno := Error_Bad_Access;
+            return Unsigned_64'Last;
+         end if;
+         Child.File_Table (0 .. 2) := (
+            (False, Duplicate (Current_Process.File_Table (0).Inner)),
+            (False, Duplicate (Current_Process.File_Table (1).Inner)),
+            (False, Duplicate (Current_Process.File_Table (2).Inner))
+         );
+
+         for Arg of Args loop
+            Free_Str (Arg);
+         end loop;
+         for En of Env loop
+            Free_Str (En);
+         end loop;
+
+         Errno := Error_No_Error;
+         return Unsigned_64 (Child.Process_PID);
+      end;
+   end Syscall_Spawn;
 end Userland.Syscall;

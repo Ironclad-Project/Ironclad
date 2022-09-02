@@ -107,7 +107,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       --  is our user code segment or'ed by 3.
       --  TODO: Send a SIGSEGV instead of just stopping execution for user.
       if State.CS = (GDT.User_Code64_Segment or 3) then
-         Lib.Panic.Hard_Panic ("Userland " & Exception_Text (Num));
+         Lib.Messages.Put_Line ("Userland " & Exception_Text (Num));
          Scheduler.Bail;
       else
          Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Num));
@@ -153,8 +153,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 11 =>
             Returned := Syscall_Exec (State.RDI, State.RSI, State.RDX, Errno);
          when 12 =>
-            Returned := Syscall_Clone (Context.GP_Context_Acc (State),
-                                       State.RDI, Errno);
+            Returned := Syscall_Fork (Context.GP_Context_Acc (State), Errno);
          when 13 =>
             Returned := Syscall_Wait (State.RDI, State.RSI, State.RDX, Errno);
          when 14 =>
@@ -193,6 +192,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := Syscall_Set_Thread_Sched (State.RDI, Errno);
          when 30 =>
             Returned := Syscall_Fcntl (State.RDI, State.RSI, State.RDX, Errno);
+         when 31 =>
+            Returned := Syscall_Spawn (State.RDI, State.RSI, State.RDX, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;

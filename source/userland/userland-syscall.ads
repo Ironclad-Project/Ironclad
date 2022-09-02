@@ -144,14 +144,9 @@ package Userland.Syscall with SPARK_Mode => Off is
        Envp    : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64;
 
-   --  A versatile generic process and thread creation syscall.
-   CLONE_VM                : constant := 2#000001#;
-   CLONE_VFORK             : constant := 2#000010#;
-   CLONE_CLEAR_NOSTD_FILES : constant := 2#000100#;
-   CLONE_CLEAR_FILES       : constant := 2#001000#;
-   function Syscall_Clone
+   --  Fork the callee process.
+   function Syscall_Fork
       (State_To_Fork : Arch.Context.GP_Context_Acc;
-       Flags         : Unsigned_64;
        Errno         : out Errno_Value) return Unsigned_64;
 
    --  Wait.
@@ -303,6 +298,13 @@ package Userland.Syscall with SPARK_Mode => Off is
        Command  : Unsigned_64;
        Argument : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64;
+
+   --  "posix_spawn"-like utility.
+   function Syscall_Spawn
+      (Address : Unsigned_64;
+       Argv    : Unsigned_64;
+       Envp    : Unsigned_64;
+       Errno   : out Errno_Value) return Unsigned_64;
 
 private
 

@@ -81,7 +81,7 @@ Syscalls
 * mmap/munmap::             Memory mapping and requesting.
 * getpid/getppid::          Get the PIDs of the caller.
 * exec::                    Launching new programs.
-* clone::                   Fork current state into a new process.
+* fork::                    Fork current state into a new process.
 * wait::                    Waiting for execution of a child to finish.
 * uname::                   Fetch basic system information.
 * sethostname::             Hostname setting.
@@ -94,6 +94,7 @@ Syscalls
 * access::                  Testing file permissions.
 * thread_sched::            Manage scheduler-related thread permissions.
 * fcntl::                   Multiplexed operations for files.
+* spawn::                   Start separate programs by path.
 
 Devices and their properties
 
@@ -403,7 +404,7 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{exec}.
 @item
-@xref{clone}.
+@xref{fork}.
 @item
 @xref{wait}.
 @item
@@ -440,6 +441,8 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @xref{thread_sched, set_thread_sched}.
 @item
 @xref{fcntl}
+@item
+@xref{spawn}
 @end enumerate
 
 @node Errno
@@ -724,50 +727,29 @@ This syscall only returns in failure with @code{-1} with the following errno:
 
 @itemize @bullet
 @item
+@code{EINVAL}: One of the passed strings or arrays is not valid.
+
+@item
 @code{ENOENT}: The file passed in path doesnt exist.
 
 @item
 @code{EACCES}: The file couldn't be launched out of a permission error.
 @end itemize
 
-@node clone
-@section clone
+@node fork
+@section fork
 
 @example
-pid_t clone(int flags);
+pid_t fork(void);
 @end example
 
-This syscall creates a new process by duplicating the calling process. The new
-process is referred to as the child, while the calling process is referred to
-as the parent.
+This syscall creates a new process by duplicating the calling process. The
+process is referred to as the child process.The calling process is referred to
+as the parent process. The processes run on copied memory, and at the time of
+cloning have the same file descriptors open and memory mappings.
 
-The child will only have the callee thread cloned.
-
-The behaviour of the cloning can be tuned by the following flags:
-
-@itemize @bullet
-@item
-@code{CLONE_VM} (0b0001): If set, the address space of the parent will not be
-cloned, and the child will run on the same address space, so reads and writes
-will be shared. This is akin to the workings of @code{vfork} or similar
-facilities.
-
-If not set, the address space will be cloned, and the reads and writes of the
-processes will not affect each other.
-
-@item
-@code{CLONE_VFORK} (0b0010): If set, the parent will be halted until the
-child exists.
-
-@item
-@code{CLONE_CLEAR_NOSTD_FILES} (0b0100): If set, the children process will
-only inherit the standard file descriptors 0, 1, and 2. @code{CLONE_CLEAR_FILES}
-takes precedence over this flag.
-
-@item
-@code{CLONE_CLEAR_FILES} (0b1000): If set, the children will not inherit any
-opened file descriptors from the parent.
-@end itemize
+The child will only have the callee thread cloned. The other threads, if any,
+are not cloned.
 
 This syscall returns @code{0} on success for the child, and the children PID to
 the parent, in failure, the parent gets @code{-1} with the following errno:
@@ -775,10 +757,6 @@ the parent, in failure, the parent gets @code{-1} with the following errno:
 @itemize @bullet
 @item
 @code{EAGAIN}: The system could not fork right now, try again later.
-
-@item
-@code{ENOSYS}: The passed flags are not implemented on the kernel, this can
-happen if @code{CLONE_VM} is called on a system without MMU for example.
 @end itemize
 
 @node wait
@@ -1139,7 +1117,40 @@ On failure, the syscall returns @code{-1}. The returned @code{errno} are:
 @code{EINVAL}: The passed @code{cmd} is not implemented by the kernel.
 
 @item
-@code{EBADF}: The passed @code{fd} is not opened.
+@code{EBADF}: The passed @code{fd} is not open.
+@end itemize
+
+@node spawn
+@section spawn
+
+@example
+pid_t spawn(const char *path, char *const argv[], char *const envp[]);
+@end example
+
+This syscall creates a new process and executes the program located at
+@code{path}, passing it @code{argv} and @code{envp}. The new process inherits
+nothing from the parent except duplicating its @code{stdin}, @code{stdout}, and
+@code{stderr} for itself.
+
+@code{spawn} is intended as a replacement for the @code{fork}/@code{exec}
+idiom, while requiring no MMU support or intermediary address space copies,
+making it more portable and faster.
+
+The syscall returns the pid of the created process or @code{-1} on failure, and
+sets the following errno:
+
+@itemize @bullet
+@item
+@code{EINVAL}: One of the passed strings or arrays is not valid.
+
+@item
+@code{ENOENT}: The file pointed by @code{path} does not exist.
+
+@item
+@code{EAGAIN}: The process could not be created, please try again later.
+
+@item
+@code{EACCES}: The file couldn't be launched out of a permission error.
 @end itemize
 
 @node Devices and their properties
