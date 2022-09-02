@@ -41,8 +41,65 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          Lib.Messages.Put (State.Error_Code, False, True);
          Lib.Messages.Put_Line ("");
       end if;
+
+      Lib.Messages.Put ("RAX: ");
+      Lib.Messages.Put (State.RAX, True, True);
+      Lib.Messages.Put (" ");
+      Lib.Messages.Put ("RBX: ");
+      Lib.Messages.Put (State.RBX, True, True);
+      Lib.Messages.Put (" ");
+      Lib.Messages.Put ("RCX: ");
+      Lib.Messages.Put (State.RCX, True, True);
+      Lib.Messages.Put_Line ("");
+
+      Lib.Messages.Put ("RDX: ");
+      Lib.Messages.Put (State.RDX, True, True);
+      Lib.Messages.Put (" ");
+      Lib.Messages.Put ("RSI: ");
+      Lib.Messages.Put (State.RSI, True, True);
+      Lib.Messages.Put (" ");
+      Lib.Messages.Put ("RDI: ");
+      Lib.Messages.Put (State.RDI, True, True);
+      Lib.Messages.Put_Line ("");
+
+      Lib.Messages.Put ("RBP: ");
+      Lib.Messages.Put (State.RBP, True, True);
+      Lib.Messages.Put (" ");
+      Lib.Messages.Put (" R8: ");
+      Lib.Messages.Put (State.R8, True, True);
+      Lib.Messages.Put (" ");
+      Lib.Messages.Put (" R9: ");
+      Lib.Messages.Put (State.R9, True, True);
+      Lib.Messages.Put_Line ("");
+
+      Lib.Messages.Put ("R10: ");
+      Lib.Messages.Put (State.R10, True, True);
+      Lib.Messages.Put (" ");
+      Lib.Messages.Put ("R11: ");
+      Lib.Messages.Put (State.R11, True, True);
+      Lib.Messages.Put (" ");
+      Lib.Messages.Put ("R12: ");
+      Lib.Messages.Put (State.R12, True, True);
+      Lib.Messages.Put_Line ("");
+
+      Lib.Messages.Put ("R13: ");
+      Lib.Messages.Put (State.R13, True, True);
+      Lib.Messages.Put (" ");
+      Lib.Messages.Put ("R14: ");
+      Lib.Messages.Put (State.R14, True, True);
+      Lib.Messages.Put (" ");
+      Lib.Messages.Put ("R15: ");
+      Lib.Messages.Put (State.R15, True, True);
+      Lib.Messages.Put_Line ("");
+
       Lib.Messages.Put ("RIP: ");
-      Lib.Messages.Put (State.RIP, False, True);
+      Lib.Messages.Put (State.RIP, True, True);
+      Lib.Messages.Put (" ");
+      Lib.Messages.Put ("RSP: ");
+      Lib.Messages.Put (State.RSP, True, True);
+      Lib.Messages.Put (" ");
+      Lib.Messages.Put ("CR2: ");
+      Lib.Messages.Put (Wrappers.Read_CR2, True, True);
       Lib.Messages.Put_Line ("");
 
       --  Check whether we have to panic or just exit the thread.
@@ -50,7 +107,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       --  is our user code segment or'ed by 3.
       --  TODO: Send a SIGSEGV instead of just stopping execution for user.
       if State.CS = (GDT.User_Code64_Segment or 3) then
-         Lib.Messages.Put_Line ("Userland " & Exception_Text (Num));
+         Lib.Panic.Hard_Panic ("Userland " & Exception_Text (Num));
          Scheduler.Bail;
       else
          Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Num));
@@ -62,8 +119,6 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       Errno    : Errno_Value := Error_No_Error;
       pragma Unreferenced (Num);
    begin
-      Wrappers.Swap_GS;
-
       --  Call the inner syscall.
       --  RAX is the return value, as well as the syscall number.
       --  RDX is the returned errno.
@@ -145,7 +200,6 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       --  Assign the return values and swap back to user GS.
       State.RAX := Returned;
       State.RDX := Unsigned_64 (Errno_Value'Enum_Rep (Errno));
-      Wrappers.Swap_GS;
    end Syscall_Handler;
 
    procedure Scheduler_Handler (Num : Integer; State : not null ISR_GPRs_Acc)

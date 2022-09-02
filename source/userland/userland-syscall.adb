@@ -65,7 +65,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       --  until we are waited.
       Userland.Process.Flush_Threads (Current_Process);
       Userland.Process.Flush_Files   (Current_Process);
-      Memory.Virtual.Delete_Map      (Current_Process.Common_Map);
 
       Current_Process.Exit_Code := Unsigned_8 (Error_Code);
       Current_Process.Did_Exit  := True;
@@ -537,8 +536,24 @@ package body Userland.Syscall with SPARK_Mode => Off is
             end;
          end loop;
 
+         --  Free state.
          Userland.Process.Flush_Threads (Current_Process);
          Userland.Process.Flush_Exec_Files (Current_Process);
+
+         --  Create a new map for the process.
+         if Current_Process.Parent_PID /= 0 then
+            declare
+               Parent : constant Userland.Process.Process_Data_Acc :=
+                  Userland.Process.Get_By_PID (Current_Process.Parent_PID);
+            begin
+               if Current_Process.Common_Map /= Parent.Common_Map then
+                  Memory.Virtual.Delete_Map (Current_Process.Common_Map);
+               end if;
+            end;
+         end if;
+         Current_Process.Common_Map := Memory.Virtual.New_Map;
+
+         --  Start the actual program.
          if not Userland.Loader.Start_Program
             (Opened_File, Args, Env, Current_Process)
          then
@@ -572,7 +587,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       if Is_Tracing then
          Lib.Messages.Put      ("syscall clone(");
          Lib.Messages.Put      (Flags, False, True);
-         Lib.Messages.Put_Line ("");
+         Lib.Messages.Put_Line (")");
       end if;
       if Child = null then
          Errno := Error_Would_Block;
@@ -669,7 +684,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Userland.Process.Get_By_PID (Natural (Waited_PID));
       begin
          --  Actually wait if we are to.
-         if Dont_Hang and then Waited_Process.Did_Exit then
+         if Dont_Hang and then not Waited_Process.Did_Exit then
             Errno := Error_No_Error;
             return 0;
          else
@@ -684,6 +699,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
 
          --  Now that we got the exit code, finally allow the process to die.
+         --  TODO: Deleting the map here deadlocks down the road, check why.
+         --  Memory.Virtual.Delete_Map       (Waited_Process.Common_Map);
          Userland.Process.Delete_Process (Waited_Process);
          Errno := Error_No_Error;
          return Waited_PID;
@@ -1264,7 +1281,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Scheduler.Set_Mono_Thread (Curr, (Flags and Thread_MONO)   /= 0);
       Scheduler.Ban_Thread      (Curr, (Flags and Thread_BANNED) /= 0);
       if (Flags and Thread_BANNED) /= 0 then
-         Scheduler.Bail;
+         Scheduler.Yield;
       end if;
 
       Errno := Error_No_Error;

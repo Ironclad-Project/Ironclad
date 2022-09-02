@@ -77,7 +77,7 @@ SECTIONS {
     } :data
 
     /DISCARD/ : {
-      *a:*(*)
-      *o(*)
+        *(.eh_frame)
+        *(.note .note.*)
     }
 }

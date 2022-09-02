@@ -27,11 +27,11 @@ package body Lib.Synchronization with SPARK_Mode => Off is
    end Is_Locked;
 
    procedure Seize (Semaphore : aliased in out Binary_Semaphore) is
-      Did_Seize : Boolean;
    begin
 <<Retry_Lock>>
-      Try_Seize (Semaphore, Did_Seize);
-      if Did_Seize then
+      if not Atomic_Test_And_Set (Semaphore.Is_Locked'Address, Mem_Acquire)
+      then
+         Semaphore.Caller := Get_Caller_Address (0);
          return;
       end if;
 

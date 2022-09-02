@@ -44,7 +44,7 @@ private
 
    type Binary_Semaphore is record
       Caller    : System.Address;
-      Is_Locked : Unsigned_32;
+      Is_Locked : Unsigned_8;
    end record;
 
    function Get_Caller_Address (Depth : Natural) return System.Address;

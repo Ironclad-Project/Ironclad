@@ -88,6 +88,16 @@ package body Arch.Wrappers with SPARK_Mode => Off is
            Volatile => True);
    end Write_CR0;
 
+   function Read_CR2 return Unsigned_64 is
+      Value : Unsigned_64;
+   begin
+      Asm ("mov %%cr2, %0",
+           Outputs  => Unsigned_64'Asm_Output ("=r", Value),
+           Clobber  => "memory",
+           Volatile => True);
+      return Value;
+   end Read_CR2;
+
    function Read_CR3 return Unsigned_64 is
       Value : Unsigned_64;
    begin

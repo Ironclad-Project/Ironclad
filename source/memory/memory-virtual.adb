@@ -17,6 +17,8 @@
 with Ada.Unchecked_Deallocation;
 with Lib.Alignment;
 with Arch.InnerMMU; use Arch.InnerMMU;
+with Memory.Physical;
+with Interfaces.C;
 
 package body Memory.Virtual with SPARK_Mode => Off is
    package Align1 is new Lib.Alignment (Integer_Address);
@@ -39,11 +41,9 @@ package body Memory.Virtual with SPARK_Mode => Off is
    begin
       --  Make the pagemap active on the callee core by writing the top-level
       --  address to CR3.
-      Lib.Synchronization.Seize (Map.Mutex);
       if not Arch.MMU.Is_Active (Map.Inner) then
          Success := Arch.MMU.Make_Active (Map.Inner);
       end if;
-      Lib.Synchronization.Release (Map.Mutex);
       return Success;
    end Make_Active;
 
@@ -176,36 +176,43 @@ package body Memory.Virtual with SPARK_Mode => Off is
       Lib.Synchronization.Seize (Map.Mutex);
       Arch.MMU.Destroy_Table (Map.Inner);
       F (Map);
-      Map := null;
    end Delete_Map;
 
    function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc is
-      type Page_Data     is array (Unsigned_64 range <>) of Unsigned_8;
-      type Page_Data_Acc is access Page_Data;
+      type Page_Data is array (Unsigned_64 range <>) of Unsigned_8;
 
       Discard : Boolean;
       Forked  : constant Page_Map_Acc := New_Map;
    begin
+      Lib.Synchronization.Seize (Map.Mutex);
+
       for Mapping of Map.Map_Ranges loop
          if Mapping.Is_Present then
             declare
-               New_Data      : Page_Data_Acc with Volatile;
-               Original_Data : Page_Data (1 .. Mapping.Length) with
-               --  FIXME: How is this + 0x10 a fix? How does this even work?
-               Address =>
-                  To_Address (Mapping.Physical_Start + Memory_Offset + 16#10#);
+               --  FIXME: This has to be done this ugly way because an array
+               --  like "access Page_Data" makes Ada allocate 16 bytes of data
+               --  in front of the block, which is more than problematic when
+               --  we care about exact copies with the same alignment.
+               New_Data_Addr : constant Integer_Address :=
+                  Memory.Physical.Alloc (Interfaces.C.size_t (Mapping.Length));
+               New_Data      : Page_Data (1 .. Mapping.Length) with Import,
+               Address => To_Address (New_Data_Addr);
+               Original_Data : Page_Data (1 .. Mapping.Length) with Import,
+               Address => To_Address (Mapping.Physical_Start + Memory_Offset);
             begin
-               New_Data := new Page_Data'(Original_Data);
+               New_Data := Original_Data;
                Discard  := Map_Range (
                   Forked,
                   Mapping.Virtual_Start,
-                  To_Integer (New_Data.all'Address) - Memory_Offset,
+                  New_Data_Addr - Memory_Offset,
                   Mapping.Length,
                   Mapping.Flags
                );
             end;
          end if;
       end loop;
+
+      Lib.Synchronization.Release (Map.Mutex);
       return Forked;
    end Fork_Map;
 

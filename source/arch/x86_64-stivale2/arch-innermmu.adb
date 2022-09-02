@@ -189,6 +189,12 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
 
       --  Map the memmap memory to the memory window and identity
       for E of Memmap loop
+         --  Sometimes one gets a memory entry at 0 with stivale, which is
+         --  always unusable and reserved. We want to keep it unmapped.
+         if To_Integer (E.Start) = 0 then
+            goto SKIP;
+         end if;
+
          Aligned_Addr := Ali1.Align_Down (To_Integer (E.Start), Page_Size_4K);
          Aligned_Len  := Ali2.Align_Up (Unsigned_64 (E.Length), Page_Size_4K);
          Success1 := Map_Range (
@@ -208,6 +214,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
          if not Success1 or not Success2 then
             return False;
          end if;
+      <<SKIP>>
       end loop;
 
       --  Map PMRs of the kernel.

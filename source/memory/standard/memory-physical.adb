@@ -79,7 +79,7 @@ package body Memory.Physical with SPARK_Mode => Off is
 
       --  Initialize and fill the bitmap.
       declare
-         Bitmap_Body : Bitmap (1 .. Block_Count) with Import;
+         Bitmap_Body : Bitmap (0 .. Block_Count - 1) with Import;
          for Bitmap_Body'Address use To_Address (Bitmap_Address);
          Index : Unsigned_64 := 0;
          Block_Value : Boolean;
@@ -118,7 +118,7 @@ package body Memory.Physical with SPARK_Mode => Off is
    function Alloc (Sz : Interfaces.C.size_t) return Virtual_Address is
       package Align is new Lib.Alignment (Memory.Size);
 
-      Bitmap_Body : Bitmap (1 .. Block_Count) with Import;
+      Bitmap_Body : Bitmap (0 .. Block_Count - 1) with Import;
       for Bitmap_Body'Address use To_Address (Bitmap_Address);
 
       First_Found_Index  : Unsigned_64 := 0;
@@ -138,7 +138,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       --  Search for contiguous blocks, as many as needed.
       Lib.Synchronization.Seize (Alloc_Mutex);
    <<Search_Blocks>>
-      for I in Bitmap_Last_Used .. Block_Count loop
+      for I in Bitmap_Last_Used .. Block_Count - 1 loop
          if Bitmap_Body (I) = Block_Free then
             if First_Found_Index = 0 or I /= First_Found_Index + Found_Count
             then
@@ -186,7 +186,7 @@ package body Memory.Physical with SPARK_Mode => Off is
 
    procedure Free (Address : Interfaces.C.size_t) is
       Real_Address : Virtual_Address := Virtual_Address (Address);
-      Bitmap_Body  : Bitmap (1 .. Block_Count)
+      Bitmap_Body  : Bitmap (0 .. Block_Count - 1)
          with Address => To_Address (Bitmap_Address), Import;
    begin
       --  Ensure the address is in the lower half and not null.

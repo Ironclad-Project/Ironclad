@@ -34,6 +34,7 @@ package Arch.Wrappers with SPARK_Mode => Off is
    --  Read and write control registers.
    function Read_CR0 return Unsigned_64;
    procedure Write_CR0 (Value : Unsigned_64);
+   function Read_CR2 return Unsigned_64;
    function Read_CR3 return Unsigned_64;
    procedure Write_CR3 (Value : Unsigned_64);
    function Read_CR4 return Unsigned_64;
