@@ -673,7 +673,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
          --  Now that we got the exit code, finally allow the process to die.
          --  TODO: Deleting the map here deadlocks down the road, check why.
-         --  Memory.Virtual.Delete_Map       (Waited_Process.Common_Map);
+         Memory.Virtual.Delete_Map       (Waited_Process.Common_Map);
          Userland.Process.Delete_Process (Waited_Process);
          Errno := Error_No_Error;
          return Waited_PID;

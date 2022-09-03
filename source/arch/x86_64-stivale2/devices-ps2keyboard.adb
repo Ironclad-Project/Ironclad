@@ -76,7 +76,7 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
    function Init return Boolean is
       BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
       Index     : Arch.IDT.IRQ_Index;
-      Unused    : Unsigned_8;
+      Data      : Unsigned_8;
       Stat      : VFS.File_Stat;
       Device    : VFS.Resource;
    begin
@@ -88,10 +88,31 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
          return False;
       end if;
 
+      --  Take the chance for initializing the PS2 controller.
+      --  Disable primary and secondary PS/2 ports
+      Arch.Wrappers.Port_Out (16#64#, 16#AD#);
+      Arch.Wrappers.Port_Out (16#64#, 16#A7#);
+
       --  Read from port 0x60 to flush the PS/2 controller buffer.
       while (Arch.Wrappers.Port_In (16#64#) and 1) /= 0 loop
-         Unused := Arch.Wrappers.Port_In (16#60#);
+         Data := Arch.Wrappers.Port_In (16#60#);
       end loop;
+
+      --  Enable keyboard interrupt and keyboard scancode translation.
+      Data := Read_PS2_Config;
+      Data := Data or Shift_Left (1, 0) or Shift_Left (1, 6);
+
+      --  Enable mouse interrupt if any
+      if (Data and Shift_Left (1, 5)) /= 0 then
+         Data := Data or Shift_Left (1, 1);
+      end if;
+
+      --  Write changes, enable keyboard port, and enable mouse port if any.
+      Write_PS2_Config (Data);
+      Write_PS2 (16#64#, 16#AE#);
+      if (Data and Shift_Left (1, 5)) /= 0 then
+         Write_PS2 (16#64#, 16#A8#);
+      end if;
 
       Stat := (
          Unique_Identifier => 0,
@@ -117,6 +138,34 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
 
       return VFS.Register (Device, "ps2keyboard");
    end Init;
+
+   function Read_PS2 return Unsigned_8 is
+   begin
+      while (Arch.Wrappers.Port_In (16#64#) and 1) = 0 loop
+         Arch.Snippets.Pause;
+      end loop;
+      return Arch.Wrappers.Port_In (16#60#);
+   end Read_PS2;
+
+   procedure Write_PS2 (Port : Unsigned_16; Value : Unsigned_8) is
+   begin
+      while (Arch.Wrappers.Port_In (16#64#) and 2) /= 0 loop
+         Arch.Snippets.Pause;
+      end loop;
+      Arch.Wrappers.Port_Out (Port, Value);
+   end Write_PS2;
+
+   function Read_PS2_Config return Unsigned_8 is
+   begin
+      Write_PS2 (16#64#, 16#20#);
+      return Read_PS2;
+   end Read_PS2_Config;
+
+   procedure Write_PS2_Config (Value : Unsigned_8) is
+   begin
+      Write_PS2 (16#64#, 16#60#);
+      Write_PS2 (16#60#, Value);
+   end Write_PS2_Config;
 
    function Read
       (Data   : VFS.Resource_Acc;

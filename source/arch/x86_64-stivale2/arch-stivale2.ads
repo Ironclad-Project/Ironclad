@@ -63,12 +63,14 @@ package Arch.Stivale2 with SPARK_Mode => Off is
    end record;
    for RSDP_Tag'Size use 192;
 
+   type Terminal_Function_Acc is access procedure
+      (Message_Addr : System.Address; Len : Natural) with Convention => C;
    type Terminal_Tag is record
       TagInfo   : Tag;
       Flags     : Unsigned_32;
       Cols      : Unsigned_16;
       Rows      : Unsigned_16;
-      TermWrite : Physical_Address;
+      TermWrite : Terminal_Function_Acc;
       MaxLength : Unsigned_64;
    end record;
    for Terminal_Tag use record

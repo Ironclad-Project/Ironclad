@@ -376,10 +376,10 @@ package body Scheduler with SPARK_Mode => Off is
    procedure Scheduler_ISR (State : not null Arch.Context.GP_Context_Acc) is
       Did_Seize : Boolean;
       Current_TID, Next_TID : TID;
-      Rearm_Period : Natural := Priority_Slices (0);
+      Rearm_Period : constant Natural := Priority_Slices (0);
    begin
       Lib.Synchronization.Try_Seize (Scheduler_Mutex, Did_Seize);
-      if Did_Seize then
+      if not Did_Seize then
          Arch.Local.Reschedule_In (Rearm_Period);
          return;
       end if;
@@ -406,9 +406,6 @@ package body Scheduler with SPARK_Mode => Off is
 
       --  Rearm for the next attempt.
       Lib.Synchronization.Release (Scheduler_Mutex);
-      if Current_TID /= 0 then
-         Rearm_Period := Priority_Slices (Thread_Pool (Current_TID).Priority);
-      end if;
       Arch.Local.Reschedule_In (Rearm_Period);
       return;
 

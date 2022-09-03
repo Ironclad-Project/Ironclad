@@ -39,8 +39,8 @@ package body Arch.Hooks with SPARK_Mode => Off is
          (To_Address (ST.Get_Tag (ST.Stivale_Tag, ST.Framebuffer_ID)));
    begin
       if not Config.Is_Small then
-         if not Devices.BootFB.Init (Fb) or not Devices.PS2Mouse.Init or
-            not Devices.PS2Keyboard.Init or not Devices.TTY.Init
+         if not Devices.BootFB.Init (Fb) or not Devices.PS2Keyboard.Init or
+            not Devices.PS2Mouse.Init    or not Devices.TTY.Init
          then
             goto Error;
          end if;

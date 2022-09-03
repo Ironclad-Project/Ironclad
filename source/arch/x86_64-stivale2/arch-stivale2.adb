@@ -14,8 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System.Machine_Code;     use System.Machine_Code;
-with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with System.Address_To_Access_Conversions;
 with Arch.Wrappers;
 with Memory.Virtual; use Memory.Virtual;
@@ -23,8 +21,7 @@ with Lib.Synchronization;
 with Arch.Snippets;
 
 package body Arch.Stivale2 with SPARK_Mode => Off is
-   Terminal_Enabled    : Boolean          := False;
-   Terminal_Entrypoint : Physical_Address := Null_Address;
+   Terminal_Entrypoint : Terminal_Function_Acc := null;
    Terminal_Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
 
    function Get_Tag
@@ -48,7 +45,6 @@ package body Arch.Stivale2 with SPARK_Mode => Off is
 
    procedure Init_Terminal (Terminal : access Terminal_Tag) is
    begin
-      Terminal_Enabled    := True;
       Terminal_Entrypoint := Terminal.TermWrite;
       Lib.Synchronization.Release (Terminal_Mutex);
    end Init_Terminal;
@@ -66,13 +62,12 @@ package body Arch.Stivale2 with SPARK_Mode => Off is
    procedure Inner_Terminal (Message : System.Address; Length : Natural) is
       Discard : Boolean;
    begin
-      if not Terminal_Enabled then
+      if Terminal_Entrypoint = null then
          return;
       end if;
 
-      Snippets.Disable_Interrupts;
       declare
-         Message_Str  : String (1 .. Length) with Address => Message;
+         Message_Str  : String (1 .. Length) with Address => Message, Import;
          Message_Copy : String (1 .. Length);
          Current_CR3  : constant Unsigned_64 := Wrappers.Read_CR3;
       begin
@@ -82,36 +77,28 @@ package body Arch.Stivale2 with SPARK_Mode => Off is
             Message_Copy (I) := Message_Str (I);
          end loop;
 
+         --  TODO: If the terminal gets preempted here, we will end with
+         --  bad memory maps when switching back and we will triplefault.
+         --  A fix for this would be ISTs.
+         Snippets.Disable_Interrupts;
+
          --  Ensure we are using the kernel pagemap, as the lower half needs
          --  to be identity mapped, and only the kernel pagemap does that.
-         if Kernel_Map /= null and then
-            not Memory.Virtual.Is_Loaded (Kernel_Map)
-         then
+         if Kernel_Map /= null then
             Discard := Make_Active (Kernel_Map);
          end if;
 
          --  The terminal doesn't have internal locking so we need to lock it
          --  ourselves.
          Lib.Synchronization.Seize (Terminal_Mutex);
-         Asm ("push %%rdi" & LF & HT &
-              "push %%rsi" & LF & HT &
-              "call *%0"   & LF & HT &
-              "pop %%rsi"  & LF & HT &
-              "pop %%rdi",
-              Inputs => (Physical_Address'Asm_Input ("m", Terminal_Entrypoint),
-                         System.Address'Asm_Input ("D", Message_Copy'Address),
-                         Natural'Asm_Input        ("S", Length)),
-              Clobber  => "rax, rdx, rcx, r8, r9, r10, r11, memory",
-              Volatile => True);
+         Terminal_Entrypoint.all (Message_Copy'Address, Length);
          Lib.Synchronization.Release (Terminal_Mutex);
 
-         if Kernel_Map /= null and then
-            Memory.Virtual.Is_Loaded (Kernel_Map)
-         then
+         if Kernel_Map /= null then
             Wrappers.Write_CR3 (Current_CR3);
          end if;
-      end;
 
-      Snippets.Enable_Interrupts;
+         Snippets.Enable_Interrupts;
+      end;
    end Inner_Terminal;
 end Arch.Stivale2;

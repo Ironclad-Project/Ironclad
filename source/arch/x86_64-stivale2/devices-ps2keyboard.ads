@@ -30,5 +30,10 @@ private
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;
 
+   function Read_PS2 return Unsigned_8;
+   procedure Write_PS2 (Port : Unsigned_16; Value : Unsigned_8);
+   function Read_PS2_Config return Unsigned_8;
+   procedure Write_PS2_Config (Value : Unsigned_8);
+
    procedure Keyboard_Handler;
 end Devices.PS2Keyboard;
