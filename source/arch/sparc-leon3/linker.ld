@@ -49,10 +49,14 @@ SECTIONS {
         *(.data .data.*)
     } :data
 
+    . = ALIGN(8);
+    __bss_start = .;
     .bss : {
         *(.bss .bss.*)
         *(COMMON)
     } :data
+    . = ALIGN(8);
+    __bss_end = .;
 
     /DISCARD/ : {
       *a:*(*)

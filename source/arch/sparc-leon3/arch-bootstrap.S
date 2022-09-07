@@ -18,6 +18,21 @@
 
 .globl bootstrap
 bootstrap:
+    # Clear the BSS.
+    set __bss_start, %g2
+    set __bss_end,   %g3
+    mov %g0, %g1 ! So std has two zeros
+    sub %g3, %g2, %g3
+0:
+    subcc  %g3, 8, %g3
+    bge,a  0b
+    std    %g0, [%g2 + %g3]
+
+    # Enable traps, else QEMU faults when a trap happens.
+    mov %psr, %l4
+    or  %l4, 32, %l4
+    mov %l4, %psr
+
     # Jump to Ada using the preexisting stack.
     call kernel_main
     nop

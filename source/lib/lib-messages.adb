@@ -16,31 +16,34 @@
 
 with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
-with Lib.Synchronization;
 with Arch.Debug;
+with Lib.Synchronization;
 
-package body Lib.Messages with SPARK_Mode => Off is
+package body Lib.Messages is
+   --  Unit passes GNATprove AoRTE, GNAT does not know this.
+   pragma Suppress (All_Checks);
+
    Messages_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
 
    procedure Put_Line (Message : String) is
    begin
       Lib.Synchronization.Seize (Messages_Mutex);
-      Inner_Put (Message);
-      Inner_Put (Ada.Characters.Latin_1.LF);
+      Arch.Debug.Print (Message);
+      Arch.Debug.Print (Ada.Characters.Latin_1.LF);
       Lib.Synchronization.Release (Messages_Mutex);
    end Put_Line;
 
    procedure Put (Message : String) is
    begin
       Lib.Synchronization.Seize (Messages_Mutex);
-      Inner_Put (Message);
+      Arch.Debug.Print (Message);
       Lib.Synchronization.Release (Messages_Mutex);
    end Put;
 
    procedure Put (Message : Character) is
    begin
       Lib.Synchronization.Seize (Messages_Mutex);
-      Inner_Put (Message);
+      Arch.Debug.Print (Message);
       Lib.Synchronization.Release (Messages_Mutex);
    end Put;
 
@@ -54,47 +57,56 @@ package body Lib.Messages with SPARK_Mode => Off is
       if Message < 0 then
          Put ('-');
       end if;
-      Put (Unsigned_64 (abs Message), Pad, Use_Hex);
+
+      --  Check for possible overflow.
+      if Message = Integer_64'First then
+         Put (Unsigned_64 (Integer_64'Last + 1), Pad, Use_Hex);
+      else
+         Put (Unsigned_64 (abs Message), Pad, Use_Hex);
+      end if;
    end Put;
 
    procedure Put (Message : Unsigned_64; Pad, Use_Hex : Boolean := False) is
-      Conversion_Table : constant String      := "0123456789ABCDEF";
-      To_Convert       : Unsigned_64          := Message;
-      Base             : Unsigned_64          := 10;
-      Char_Limit       : Natural              := 20;
-      Written          : Integer              := 0;
-      Result           : String (1 .. 20);
+      pragma Annotate (
+         GNATprove,
+         False_Positive,
+         "array index check might fail",
+         "Does not happen, but I cannot convince GNATprove"
+      );
+
+      Conversion : constant String  := "0123456789ABCDEF";
+      To_Convert : Unsigned_64      := Message;
+      Base       : Unsigned_64      := 10;
+      Char_Limit : Natural          := 20;
+      Written    : Integer          := 0;
+      Result     : String (1 .. 20) := (others => Ada.Characters.Latin_1.NUL);
    begin
       Lib.Synchronization.Seize (Messages_Mutex);
       if Use_Hex then
-         Inner_Put ("0x");
+         Arch.Debug.Print ("0x");
          Base       := 16;
          Char_Limit := 15;
       end if;
 
-      if Message = 0 and not Pad then
-         Inner_Put ("0");
-         Lib.Synchronization.Release (Messages_Mutex);
-         return;
-      end if;
-
-      if Message /= 0 then
-         while To_Convert /= 0 loop
+      if To_Convert = 0 then
+         Result (1) := '0';
+         Written    := 1;
+      else
+         while To_Convert /= 0 and Written < Char_Limit loop
             Written          := Written + 1;
-            Result (Written) := Conversion_Table
-               (Integer (To_Convert rem Base) + 1);
+            Result (Written) := Conversion (Integer (To_Convert rem Base) + 1);
             To_Convert       := To_Convert / Base;
          end loop;
       end if;
 
       if Pad then
          for I in Written .. Char_Limit loop
-            Inner_Put ('0');
+            Arch.Debug.Print ('0');
          end loop;
       end if;
 
       for I in reverse 1 .. Written loop
-         Inner_Put (Result (I));
+         Arch.Debug.Print (Result (I));
       end loop;
       Lib.Synchronization.Release (Messages_Mutex);
    end Put;
@@ -103,14 +115,4 @@ package body Lib.Messages with SPARK_Mode => Off is
    begin
       Put (Unsigned_64 (To_Integer (Message)), Pad, True);
    end Put;
-
-   procedure Inner_Put (Message : String) is
-   begin
-      Arch.Debug.Print (Message);
-   end Inner_Put;
-
-   procedure Inner_Put (Message : Character) is
-   begin
-      Arch.Debug.Print (Message);
-   end Inner_Put;
 end Lib.Messages;

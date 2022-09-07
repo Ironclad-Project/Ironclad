@@ -1,4 +1,4 @@
---  lib-messages.ads: Specification of the messages package.
+--  lib-messages.ads: Convenient and safe interface for printing debug output.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -18,19 +18,28 @@ with System;
 with Interfaces; use Interfaces;
 
 package Lib.Messages is
-   --  Prints and adds a newline.
+   --  Prints a string to debug outputs and adds a newline.
+   --  @param Message String to print to append with a new line.
    procedure Put_Line (Message : String);
 
-   --  Prints a message of different types.
+   --  Prints a string to debug outputs.
+   --  @param Message String to print.
    procedure Put (Message : String);
+
+   --  Prints a character.
+   --  @param Message Character to print.
    procedure Put (Message : Character);
+
+   --  Prints an integer to debug outputs.
+   --  @param Message Integer to print.
+   --  @param Pad Whether to pad the message with zeros or not.
+   --  @param Use_Hex Whether to use hexadecimal or decimal for printing.
    procedure Put (Message : Integer;     Pad, Use_Hex : Boolean := False);
    procedure Put (Message : Integer_64;  Pad, Use_Hex : Boolean := False);
    procedure Put (Message : Unsigned_64; Pad, Use_Hex : Boolean := False);
+
+   --  Prints an address to debug outputs, always hexadecimal.
+   --  @param Message Address to print.
+   --  @param Pad Whether to pad the message with zeros or not.
    procedure Put (Message : System.Address; Pad : Boolean := False);
-
-private
-
-   procedure Inner_Put (Message : String);
-   procedure Inner_Put (Message : Character);
 end Lib.Messages;

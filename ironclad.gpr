@@ -45,7 +45,7 @@ project Ironclad is
 
    package Compiler is
       Base_Ada_Switches := Split (Ada_Flags, " ") & (
-         "-fno-stack-protector", "-fno-stack-check", "-mgeneral-regs-only",
+         "-fno-stack-protector", "-fno-stack-check",
          "-gnateDArchName=""" & Arch & """"
       );
       Base_Asm_Switches := Split (Asm_Flags, " ");
@@ -60,7 +60,8 @@ project Ironclad is
       case Arch is
          when "aarch64-stivale2" =>
             for Switches ("Ada") use Base_Ada_Switches & (
-               "-static", "-fno-pie", "-fno-pic"
+               "-static", "-fno-pie", "-fno-pic", "-mgeneral-regs-only",
+               "-march=armv8-a"
             );
             for Switches ("Asm_Cpp") use Base_Asm_Switches;
          when "sparc-leon3" =>
@@ -70,7 +71,7 @@ project Ironclad is
             for Switches ("Asm_Cpp") use Base_Asm_Switches & ("-mcpu=leon3");
          when "x86_64-stivale2" =>
             for Switches ("Ada") use Base_Ada_Switches & (
-               "-fpie", "-mno-red-zone"
+               "-fpie", "-mno-red-zone", "-mgeneral-regs-only"
             );
             for Switches ("Asm_Cpp") use Base_Asm_Switches & ("-fpie");
       end case;
@@ -80,7 +81,8 @@ project Ironclad is
 
    package Linker is
       Base_Link_Switches := Split (Linker_Flags, " ") & (
-         "-T../source/arch/" & Arch & "/linker.ld", "-nostdlib", "-lgcc"
+         "-T../source/arch/" & Arch & "/linker.ld", "-nostdlib", "-lgcc",
+         "-znoexecstack"
       );
 
       case Arch is

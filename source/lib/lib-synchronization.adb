@@ -14,8 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Messages;
-with Lib.Panic;
 with Lib.Atomic; use Lib.Atomic;
 with Arch;
 with Arch.Snippets;
@@ -31,23 +29,17 @@ package body Lib.Synchronization with SPARK_Mode => Off is
 <<Retry_Lock>>
       if not Atomic_Test_And_Set (Semaphore.Is_Locked'Address, Mem_Acquire)
       then
-         Semaphore.Caller := Get_Caller_Address (0);
          return;
       end if;
 
       --  Do a rough wait until the lock is free for cache-locality.
       --  https://en.wikipedia.org/wiki/Test_and_test-and-set
-      for I in 1 .. 50000000 loop
+      loop
          if Atomic_Load_8 (Semaphore.Is_Locked'Address, Mem_Relaxed) = 0 then
             goto Retry_Lock;
          end if;
          Arch.Snippets.Pause;
       end loop;
-
-      Lib.Messages.Put ("Deadlock at address: ");
-      Lib.Messages.Put (Semaphore.Caller);
-      Lib.Messages.Put_Line ("");
-      Lib.Panic.Hard_Panic ("Deadlocked!");
    end Seize;
 
    procedure Release (Semaphore : aliased in out Binary_Semaphore) is
@@ -60,11 +52,7 @@ package body Lib.Synchronization with SPARK_Mode => Off is
        Did_Lock  : out Boolean)
    is
    begin
-      if Atomic_Test_And_Set (Semaphore.Is_Locked'Address, Mem_Acquire) then
-         Did_Lock := False;
-      else
-         Semaphore.Caller := Get_Caller_Address (0);
-         Did_Lock := True;
-      end if;
+      Did_Lock := not Atomic_Test_And_Set
+         (Semaphore.Is_Locked'Address, Mem_Acquire);
    end Try_Seize;
 end Lib.Synchronization;

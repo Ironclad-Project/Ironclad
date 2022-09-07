@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
 with Interfaces; use Interfaces;
 
 package Lib.Synchronization is
@@ -43,10 +42,6 @@ package Lib.Synchronization is
 private
 
    type Binary_Semaphore is record
-      Caller    : System.Address;
       Is_Locked : Unsigned_8;
    end record;
-
-   function Get_Caller_Address (Depth : Natural) return System.Address;
-   pragma Import (Intrinsic, Get_Caller_Address, "__builtin_return_address");
 end Lib.Synchronization;

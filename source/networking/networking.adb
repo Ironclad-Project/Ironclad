@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Characters.Latin_1;
 with Lib.Synchronization;
 
 package body Networking is
@@ -26,6 +27,8 @@ package body Networking is
 
    procedure Get_Hostname (Name : out String; Length : out Hostname_Len) is
    begin
+      Name := (others => Ada.Characters.Latin_1.NUL);
+
       if Name'Length < Hostname_Length then
          Length := Name'Length;
       else

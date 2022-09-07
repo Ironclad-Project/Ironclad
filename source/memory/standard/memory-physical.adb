@@ -35,7 +35,7 @@ package body Memory.Physical with SPARK_Mode => Off is
    Block_Count      : Unsigned_64     := 0;
    Bitmap_Length    : Memory.Size     := 0;
    Bitmap_Address   : Virtual_Address := Null_Address;
-   Bitmap_Last_Used : Unsigned_64     := 1;
+   Bitmap_Last_Used : Unsigned_64     := 0;
    Alloc_Mutex      : aliased Binary_Semaphore;
 
    procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map) is
