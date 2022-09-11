@@ -15,9 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Lib.Panic is
-   --  Enable architecture-specific utilities for core propagation of panics.
-   procedure Enable_Panic_Propagation;
-
    --  Warns about a runtime issue, it does not panic or lock up the system the
    --  first time its called, the second one will be upgraded to a Hard_Panic.
    procedure Soft_Panic (Message : String);
@@ -25,8 +22,4 @@ package Lib.Panic is
    --  Will report the issue and then lock up the system, for situations that
    --  are too risky or unrecoverable.
    procedure Hard_Panic (Message : String) with No_Return;
-
-private
-
-   procedure Panic_Handler;
 end Lib.Panic;

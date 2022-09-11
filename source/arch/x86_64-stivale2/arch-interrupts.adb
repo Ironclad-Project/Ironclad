@@ -22,6 +22,7 @@ with Lib.Messages;
 with Scheduler;
 with Userland.Syscall; use Userland.Syscall;
 with Arch.Wrappers;
+with Arch.Snippets;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
@@ -210,6 +211,11 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       Arch.APIC.LAPIC_EOI;
       Scheduler.Scheduler_ISR (Context.GP_Context_Acc (State));
    end Scheduler_Handler;
+
+   procedure Panic_Handler is
+   begin
+      Snippets.HCF;
+   end Panic_Handler;
 
    procedure Default_ISR_Handler is
    begin

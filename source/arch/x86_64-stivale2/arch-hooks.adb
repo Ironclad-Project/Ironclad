@@ -21,8 +21,8 @@ with Devices.PS2Keyboard;
 with Devices.Serial;
 with Devices.TTY;
 with Arch.Wrappers;
-with Arch.IDT;
-with Arch.CPU;
+with Arch.Interrupts;
+with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
 with Lib.Panic;
 with Arch.Stivale2;
@@ -69,21 +69,15 @@ package body Arch.Hooks with SPARK_Mode => Off is
       return True;
    end PRCTL_Hook;
 
-   Panic_Vector : Arch.IDT.IRQ_Index;
-
-   function Panic_Prepare_Hook (Addr : System.Address) return Boolean is
+   procedure Panic_SMP_Hook is
    begin
-      return Arch.IDT.Load_ISR (Addr, Panic_Vector);
-   end Panic_Prepare_Hook;
-
-   procedure Panic_Hook is
-      Current_Core : constant Positive := Arch.CPU.Get_Local.Number;
-   begin
-      for I in Arch.CPU.Core_Locals.all'Range loop
-         if I /= Current_Core then
-            Arch.APIC.LAPIC_Send_IPI
-               (Arch.CPU.Core_Locals (I).LAPIC_ID, Panic_Vector);
-         end if;
-      end loop;
-   end Panic_Hook;
+      if CPU.Core_Locals /= null then
+         for I in CPU.Core_Locals.all'Range loop
+            if I /= CPU.Get_Local.Number then
+               APIC.LAPIC_Send_IPI
+                  (CPU.Core_Locals (I).LAPIC_ID, Interrupts.Panic_Interrupt);
+            end if;
+         end loop;
+      end if;
+   end Panic_SMP_Hook;
 end Arch.Hooks;

@@ -22,19 +22,11 @@ with Lib.Synchronization;
 
 package body Lib.Panic with SPARK_Mode => Off is
    Already_Soft_Panicked : Boolean := False;
-   Is_Propagated         : Boolean := False;
    Panic_Mutex           : aliased Synchronization.Binary_Semaphore;
 
    Soft_Panic_Color : constant String := Ada.Characters.Latin_1.ESC & "[35m";
    Hard_Panic_Color : constant String := Ada.Characters.Latin_1.ESC & "[31m";
    Reset_Color      : constant String := Ada.Characters.Latin_1.ESC & "[0m";
-
-   procedure Enable_Panic_Propagation is
-   begin
-      --  Set an interrupt for software IPIs to call for panic.
-      Is_Propagated := Arch.Hooks.Panic_Prepare_Hook (Panic_Handler'Address);
-      Lib.Synchronization.Release (Panic_Mutex);
-   end Enable_Panic_Propagation;
 
    procedure Soft_Panic (Message : String) is
    begin
@@ -55,9 +47,7 @@ package body Lib.Panic with SPARK_Mode => Off is
       Synchronization.Seize (Panic_Mutex);
 
       --  Tell the rest of the cores to go take a nap, forever.
-      if Is_Propagated then
-         Arch.Hooks.Panic_Hook;
-      end if;
+      Arch.Hooks.Panic_SMP_Hook;
 
       --  Print the error and lights out.
       Lib.Messages.Put_Line ("                   --:::-+*.            ");
@@ -73,10 +63,4 @@ package body Lib.Panic with SPARK_Mode => Off is
       Lib.Messages.Put_Line (Message);
       Arch.Snippets.HCF;
    end Hard_Panic;
-
-   procedure Panic_Handler is
-   begin
-      --  Put the callee to sleep.
-      Arch.Snippets.HCF;
-   end Panic_Handler;
 end Lib.Panic;

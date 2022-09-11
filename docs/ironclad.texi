@@ -128,18 +128,43 @@ kernel without having to navigate the (often cryptic and scary Ada) code.
 @node How to contribute
 @section How to contribute
 
-Thanks for considering contributing to Ironclad, it means a lot. Please visit
-the @url{https://savannah.nongnu.org/git/?group=ironclad, development repository}
-for the code and read carefully @url{https://git.savannah.nongnu.org/cgit/ironclad.git/tree/CONTRIBUTING?h=main, CONTRIBUTING}
-for some concrete guidelines and advices on how to get started.
+Thanks for considering contributing to Ironclad, it means a lot.
+
+There are several ways one can help the Ironclad project, from writing and
+correcting documentation to contributing source.
+
+For submitting patches, be it for Ironclad's webpages, kernel code, or
+documentation, please submit the patch to the project's
+@url{https://savannah.nongnu.org/patch/?group=ironclad, patch manager},
+(@url{https://savannah.nongnu.org/patch/?group=ironclad&func=additem, create an item}).
+
+When contributing code, it's good to keep in mind these guidelines:
+
+@enumerate
+@item
+One may only contribute code that complies with the project's license, or code
+ruled by GPL-compatible licenses under certain conditions, its the
+responsability of the contributor to ensure this is the case.
+
+@item
+Add license headers and detail the authors of the code. For files with a main
+author and small touches being done on top of it, you can update the authors in
+the copyright to `Copyright (C) 2022 [main author's name], et. al.`, or add
+your name or pseudonym for a major contribution to the comma-separated list.
+
+@item
+It goes a long way to add the relevant documentation as comments and standalone
+documentation when considered necessary. While not necessary, you save me the
+trouble of having to add it later. :D
+@end enumerate
 
 @node Error reporting
 @section Error reporting
 
-Ironclad is a really new project at the end of the day, so things are prone to
-fail. Once an issue arises, one can open a bug report on the kernel's
-@uref{https://savannah.nongnu.org/bugs/?group=ironclad, bug items}, the URL
-is printed as well when booting.
+Ironclad is a fairly new project at the end of the day, so things are prone to
+fail. Once an issue arises, one can open a bug report at the
+@url{https://savannah.nongnu.org/bugs/?group=ironclad, project's bug tracker},
+(@url{https://savannah.nongnu.org/bugs/?group=ironclad&func=additem, create an item}).
 
 @node Navigating the source
 @section Navigating the source
@@ -669,6 +694,9 @@ int munmap(void *address, size_t length);
 process. An address can be passed, if it is @code{null}, then the kernel gets
 to choose the address, else, it is taken as a hint about where to place the
 mapping.
+
+@code{hint} and @code{length} are required to be aligned to page boundaries
+for the running architecture, else it will fail.
 
 @code{protection} and @code{flags} are a bitfield of the following flags:
 

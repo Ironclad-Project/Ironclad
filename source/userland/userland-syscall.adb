@@ -20,7 +20,6 @@ with Config;
 with System; use System;
 with Lib.Messages;
 with Lib;
-with Lib.Alignment;
 with Networking;
 with Userland.Process; use Userland.Process;
 with Userland.Loader;
@@ -326,20 +325,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Offset     : Unsigned_64;
        Errno      : out Errno_Value) return Unsigned_64
    is
-      Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.Local.Get_Current_Process;
-      Map : constant Memory.Virtual.Page_Map_Acc := Current_Process.Common_Map;
-
-      Map_Flags : Arch.MMU.Page_Permissions := (
+      Map_Flags : constant Arch.MMU.Page_Permissions := (
          User_Accesible => True,
-         Read_Only      => True,
-         Executable     => False,
+         Read_Only      => (Protection and Protection_Write)    = 0,
+         Executable     => (Protection and Protection_Execute) /= 0,
          Global         => False,
          Write_Through  => False
       );
-
-      package Align is new Lib.Alignment (Unsigned_64);
-      Aligned_Hint : Unsigned_64 := Align.Align_Up (Hint, Page_Size);
+      Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Map  : constant Page_Map_Acc     := Proc.Common_Map;
+      Final_Hint : Unsigned_64 := Hint;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall mmap(");
@@ -357,33 +352,28 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      --  Check protection flags.
-      Map_Flags.Read_Only  := (Protection and Protection_Write)    = 0;
-      Map_Flags.Executable := (Protection and Protection_Execute) /= 0;
-
       --  Check that we got a length.
       if Length = 0 then
          Errno := Error_Invalid_Value;
          return Unsigned_64'Last;
       end if;
 
-      --  Set our own hint if none was provided.
+      --  Check for our own hint if none was provided.
       if Hint = 0 then
-         Aligned_Hint := Current_Process.Alloc_Base;
-         Current_Process.Alloc_Base := Current_Process.Alloc_Base + Length;
-      end if;
-
-      --  Check for fixed.
-      if (Flags and Map_Fixed) /= 0 and Aligned_Hint /= Hint then
-         Errno := Error_Invalid_Value;
-         return Unsigned_64'Last;
+         if (Flags and Map_Fixed) /= 0 then
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+         else
+            Final_Hint      := Proc.Alloc_Base;
+            Proc.Alloc_Base := Proc.Alloc_Base + Length;
+         end if;
       end if;
 
       --  Do mmap anon or pass it to the VFS.
       if (Flags and Map_Anon) /= 0 then
          if not Memory.Virtual.Map_Range (
             Map,
-            Virtual_Address (Aligned_Hint),
+            Virtual_Address (Final_Hint),
             Memory.Physical.Alloc (Interfaces.C.size_t (Length)) -
                                    Memory_Offset,
             Length,
@@ -395,15 +385,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return Unsigned_64'Last;
          else
             Errno := Error_No_Error;
-            return Aligned_Hint;
+            return Final_Hint;
          end if;
       else
          declare
-            File : constant VFS.File.File_Acc :=
-               Userland.Process.Get_File (Current_Process, File_D);
+            File : constant File_Acc   := Get_File (Proc, File_D);
             Did_Map : constant Boolean := VFS.File.Mmap (
                F           => File,
-               Address     => Virtual_Address (Aligned_Hint),
+               Address     => Virtual_Address (Final_Hint),
                Length      => Length,
                Map_Read    => True,
                Map_Write   => not Map_Flags.Read_Only,
@@ -412,7 +401,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          begin
             if Did_Map then
                Errno := Error_No_Error;
-               return Aligned_Hint;
+               return Final_Hint;
             else
                Errno := Error_Bad_File;
                return Unsigned_64'Last;

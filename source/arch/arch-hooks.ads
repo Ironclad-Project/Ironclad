@@ -21,7 +21,7 @@ package Arch.Hooks is
    --  PRCTL hook for the syscall.
    function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean;
 
-   --  Panic preparation and execution hook.
-   function Panic_Prepare_Hook (Addr : System.Address) return Boolean;
-   procedure Panic_Hook;
+   --  Hook to be called in panic procedures for bringing all cores to a stop
+   --  (but not the caller).
+   procedure Panic_SMP_Hook;
 end Arch.Hooks;

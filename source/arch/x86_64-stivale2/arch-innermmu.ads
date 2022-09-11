@@ -33,6 +33,9 @@ package Arch.InnerMMU with SPARK_Mode => Off is
       with Alignment => Page_Size_4K, Size => 512 * 64;
    type PML4_Acc is access all PML4;
 
+   --  Default page alignment.
+   Page_Size : constant := Page_Size_4K;
+
    --  Page maps.
    type Page_Map is record
       PML4_Level : PML4;

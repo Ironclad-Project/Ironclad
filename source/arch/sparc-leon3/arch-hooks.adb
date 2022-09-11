@@ -27,13 +27,7 @@ package body Arch.Hooks with SPARK_Mode => Off is
       return False;
    end PRCTL_Hook;
 
-   function Panic_Prepare_Hook (Addr : System.Address) return Boolean is
-      pragma Unreferenced (Addr);
-   begin
-      return False;
-   end Panic_Prepare_Hook;
-
-   procedure Panic_Hook is
+   procedure Panic_SMP_Hook is
    begin
       return;
    end Panic_Hook;

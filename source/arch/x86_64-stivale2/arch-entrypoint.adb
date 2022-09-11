@@ -92,7 +92,6 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
 
       --  Initialize other cores, and then jump to the freestanding main.
       Arch.CPU.Init_Cores (SMP);
-      Lib.Panic.Enable_Panic_Propagation;
       Main;
    end Bootstrap_Main;
 end Arch.Entrypoint;

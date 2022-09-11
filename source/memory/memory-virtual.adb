@@ -15,15 +15,11 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Unchecked_Deallocation;
-with Lib.Alignment;
 with Arch.InnerMMU; use Arch.InnerMMU;
 with Memory.Physical;
 with Interfaces.C;
 
 package body Memory.Virtual with SPARK_Mode => Off is
-   package Align1 is new Lib.Alignment (Integer_Address);
-   package Align2 is new Lib.Alignment (Unsigned_64);
-
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
    begin
       if not Arch.MMU.Init (Memmap) then
@@ -36,15 +32,14 @@ package body Memory.Virtual with SPARK_Mode => Off is
       end if;
    end Init;
 
-   function Make_Active (Map : Page_Map_Acc) return Boolean is
-      Success : Boolean := True;
+   function Is_Loaded (Map : Page_Map_Acc) return Boolean is
    begin
-      --  Make the pagemap active on the callee core by writing the top-level
-      --  address to CR3.
-      if not Arch.MMU.Is_Active (Map.Inner) then
-         Success := Arch.MMU.Make_Active (Map.Inner);
-      end if;
-      return Success;
+      return Arch.MMU.Is_Active (Map.Inner);
+   end Is_Loaded;
+
+   function Make_Active (Map : Page_Map_Acc) return Boolean is
+   begin
+      return Arch.MMU.Make_Active (Map.Inner);
    end Make_Active;
 
    function Map_Range
@@ -56,14 +51,18 @@ package body Memory.Virtual with SPARK_Mode => Off is
    is
       Success : Boolean;
    begin
+      if Map = null then
+         return False;
+      end if;
+
       Lib.Synchronization.Seize (Map.Mutex);
 
       Success := Arch.MMU.Map_Range (
-         Map.Inner,
-         To_Address     (Align1.Align_Down (Physical, Page_Size)),
-         To_Address     (Align1.Align_Down (Virtual,  Page_Size)),
-         Storage_Offset (Align2.Align_Up   (Length,   Page_Size)),
-         Flags
+         Map            => Map.Inner,
+         Physical_Start => To_Address     (Physical),
+         Virtual_Start  => To_Address     (Virtual),
+         Length         => Storage_Offset (Length),
+         Permissions    => Flags
       );
 
       if not Success then
@@ -96,13 +95,17 @@ package body Memory.Virtual with SPARK_Mode => Off is
    is
       Success : Boolean;
    begin
+      if Map = null then
+         return False;
+      end if;
+
       Lib.Synchronization.Seize (Map.Mutex);
 
       Success := Arch.MMU.Remap_Range (
-         Map.Inner,
-         To_Address    (Align1.Align_Down (Virtual, Page_Size)),
-         Storage_Count (Align2.Align_Up   (Length,  Page_Size)),
-         Flags
+         Map           => Map.Inner,
+         Virtual_Start => To_Address    (Virtual),
+         Length        => Storage_Count (Length),
+         Permissions   => Flags
       );
 
       if not Success then
@@ -130,12 +133,16 @@ package body Memory.Virtual with SPARK_Mode => Off is
    is
       Success : Boolean;
    begin
+      if Map = null then
+         return False;
+      end if;
+
       Lib.Synchronization.Seize (Map.Mutex);
 
       Success := Arch.MMU.Unmap_Range (
-         Map.Inner,
-         To_Address    (Align1.Align_Down (Virtual, Page_Size)),
-         Storage_Count (Align2.Align_Up   (Length,  Page_Size))
+         Map           => Map.Inner,
+         Virtual_Start => To_Address    (Virtual),
+         Length        => Storage_Count (Length)
       );
 
       if not Success then
@@ -173,9 +180,11 @@ package body Memory.Virtual with SPARK_Mode => Off is
    procedure Delete_Map (Map : in out Page_Map_Acc) is
       procedure F is new Ada.Unchecked_Deallocation (Page_Map, Page_Map_Acc);
    begin
-      Lib.Synchronization.Seize (Map.Mutex);
-      Arch.MMU.Destroy_Table (Map.Inner);
-      F (Map);
+      if Map /= null then
+         Lib.Synchronization.Seize (Map.Mutex);
+         Arch.MMU.Destroy_Table (Map.Inner);
+         F (Map);
+      end if;
    end Delete_Map;
 
    function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc is
@@ -184,12 +193,16 @@ package body Memory.Virtual with SPARK_Mode => Off is
       Discard : Boolean;
       Forked  : constant Page_Map_Acc := New_Map;
    begin
+      if Map = null then
+         return null;
+      end if;
+
       Lib.Synchronization.Seize (Map.Mutex);
 
       for Mapping of Map.Map_Ranges loop
          if Mapping.Is_Present then
             declare
-               --  FIXME: This has to be done this ugly way because an array
+               --  This has to be done this ugly way because an array
                --  like "access Page_Data" makes Ada allocate 16 bytes of data
                --  in front of the block, which is more than problematic when
                --  we care about exact copies with the same alignment.
@@ -215,11 +228,6 @@ package body Memory.Virtual with SPARK_Mode => Off is
       Lib.Synchronization.Release (Map.Mutex);
       return Forked;
    end Fork_Map;
-
-   function Is_Loaded (Map : Page_Map_Acc) return Boolean is
-   begin
-      return Arch.MMU.Is_Active (Map.Inner);
-   end Is_Loaded;
 
    function Virtual_To_Physical
       (Map     : Page_Map_Acc;

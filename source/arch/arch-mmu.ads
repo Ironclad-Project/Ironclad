@@ -22,6 +22,9 @@ package Arch.MMU with SPARK_Mode => Off is
    subtype Page_Table_Acc   is InnerMMU.Page_Map_Acc;
    subtype Page_Permissions is InnerMMU.Page_Permissions;
 
+   --  Minimum page size.
+   Page_Size : constant := InnerMMU.Page_Size;
+
    --  Kernel map, which is used by the freestanding kernel when called.
    Kernel_Table : Page_Table_Acc;
 

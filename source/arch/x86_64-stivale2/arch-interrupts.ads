@@ -85,6 +85,10 @@ package Arch.Interrupts with SPARK_Mode => Off is
    Scheduler_Interrupt : constant := 16#82#;
    procedure Scheduler_Handler (Num : Integer; State : not null ISR_GPRs_Acc);
 
+   --  Entrypoint for the scheduler handler.
+   Panic_Interrupt : constant := 16#83#;
+   procedure Panic_Handler;
+
    --  Default ISR handler.
    procedure Default_ISR_Handler;
 

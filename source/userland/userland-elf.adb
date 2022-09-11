@@ -19,6 +19,7 @@ with Memory.Physical;
 with Memory; use Memory;
 with Interfaces.C;
 with Arch.MMU;
+with Lib.Alignment;
 
 package body Userland.ELF with SPARK_Mode => Off is
    type ELF_ID_Field is array (Natural range <>) of Unsigned_8;
@@ -158,6 +159,9 @@ package body Userland.ELF with SPARK_Mode => Off is
        Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Boolean
    is
+      package Align1 is new Lib.Alignment (Unsigned_64);
+      package Align2 is new Lib.Alignment (Integer_Address);
+
       MisAlign : constant Unsigned_64 :=
          Header.Virt_Address and (Memory.Virtual.Page_Size - 1);
       Load_Size : constant Unsigned_64 := MisAlign + Header.Mem_Size_Bytes;
@@ -178,9 +182,11 @@ package body Userland.ELF with SPARK_Mode => Off is
    begin
       if not Memory.Virtual.Map_Range
          (Map      => Map,
-          Virtual  => ELF_Virtual,
-          Physical => To_Integer (Load'Address) - Memory.Memory_Offset,
-          Length   => Load_Size,
+          Virtual  => Align2.Align_Down (ELF_Virtual,
+                      Memory.Virtual.Page_Size),
+          Physical => Align2.Align_Down (To_Integer (Load'Address) -
+                      Memory.Memory_Offset, Memory.Virtual.Page_Size),
+          Length   => Align1.Align_Up (Load_Size, Memory.Virtual.Page_Size),
           Flags    => Flags)
       then
          return False;
