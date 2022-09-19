@@ -1,4 +1,4 @@
---  devices-tty.ads: Expose a TTY device
+--  arch-debug.adb: Architecture-specific debug channels.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,30 +14,24 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Arch.Wrappers;
 with Interfaces; use Interfaces;
-with System;
-with VFS;
 
-package Devices.TTY with SPARK_Mode => Off is
-   --  Initialize the device.
-   function Init return Boolean;
+package body Arch.Debug with SPARK_Mode => Off is
+   COM1 : constant := 16#3F8#;
 
-private
+   procedure Print (Message : Character) is
+   begin
+      while (Wrappers.Port_In (16#3F8# + 5) and 16#20#) = 0 loop
+         null;
+      end loop;
+      Wrappers.Port_Out (COM1, Character'Pos (Message));
+   end Print;
 
-   function Read
-      (Data     : VFS.Resource_Acc;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64;
-
-   function Write
-      (Data     : VFS.Resource_Acc;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64;
-
-   function IO_Control
-      (Data     : VFS.Resource_Acc;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean;
-end Devices.TTY;
+   procedure Print (Message : String) is
+   begin
+      for C of Message loop
+         Print (C);
+      end loop;
+   end Print;
+end Arch.Debug;

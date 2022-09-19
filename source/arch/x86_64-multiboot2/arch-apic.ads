@@ -26,6 +26,7 @@ package Arch.APIC with SPARK_Mode => Off is
    procedure Init_LAPIC;
 
    --  Send an InterProcessor Interrupt to another LAPIC.
+   procedure LAPIC_Send_IPI_Raw (LAPIC_ID : Unsigned_32; Code : Unsigned_32);
    procedure LAPIC_Send_IPI (LAPIC_ID : Unsigned_32; Vector : IDT.IDT_Index);
 
    --  Find out the LAPIC timer frequency, in Hz.
@@ -44,9 +45,7 @@ package Arch.APIC with SPARK_Mode => Off is
    --  LAPIC End Of Interrupt routine, that is to be called at the end of
    --  an interrupt.
    procedure LAPIC_EOI;
-
    ----------------------------------------------------------------------------
-
    --  Initialize the IOAPICs, return True in success or False on failure.
    function Init_IOAPIC return Boolean;
 
@@ -70,10 +69,13 @@ package Arch.APIC with SPARK_Mode => Off is
        IDT_Entry : IDT.IDT_Index;
        Flags     : Unsigned_16;
        Enable    : Boolean) return Boolean;
+
 private
-   function Get_LAPIC_Base return Virtual_Address;
+
    function LAPIC_Read (Register : Unsigned_32) return Unsigned_32;
    procedure LAPIC_Write (Register : Unsigned_32; Value : Unsigned_32);
+
+   function Get_LAPIC_Base return Virtual_Address;
 
    function Get_IOAPIC_From_GSI
       (GSI  : Unsigned_32;

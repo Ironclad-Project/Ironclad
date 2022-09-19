@@ -31,8 +31,6 @@ package body Arch.Context with SPARK_Mode => Off is
    begin
       Ctx.all := (
          CS     => GDT.User_Code64_Segment or 3,
-         DS     => GDT.User_Data64_Segment or 3,
-         ES     => GDT.User_Data64_Segment or 3,
          SS     => GDT.User_Data64_Segment or 3,
          RFLAGS => 16#202#,
          RIP    => Unsigned_64 (To_Integer (Start_Addr)),
@@ -48,10 +46,6 @@ package body Arch.Context with SPARK_Mode => Off is
    begin
       Asm (
          "mov %0, %%rsp"   & LF & HT &
-         "pop %%rax"       & LF & HT &
-         "mov %%eax, %%ds" & LF & HT &
-         "pop %%rax"       & LF & HT &
-         "mov %%eax, %%es" & LF & HT &
          "pop %%rax"       & LF & HT &
          "pop %%rbx"       & LF & HT &
          "pop %%rcx"       & LF & HT &

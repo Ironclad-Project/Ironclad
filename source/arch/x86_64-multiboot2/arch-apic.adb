@@ -52,10 +52,15 @@ package body Arch.APIC with SPARK_Mode => Off is
       LAPIC_Write (LAPIC_Spurious_Register, To_Write or Shift_Left (1, 8));
    end Init_LAPIC;
 
-   procedure LAPIC_Send_IPI (LAPIC_ID : Unsigned_32; Vector : IDT.IDT_Index) is
+   procedure LAPIC_Send_IPI_Raw (LAPIC_ID : Unsigned_32; Code : Unsigned_32) is
    begin
       LAPIC_Write (LAPIC_ICR1_Register, Shift_Left (LAPIC_ID, 24));
-      LAPIC_Write (LAPIC_ICR0_Register, Unsigned_32 (Vector) - 1);
+      LAPIC_Write (LAPIC_ICR0_Register, Code);
+   end LAPIC_Send_IPI_Raw;
+
+   procedure LAPIC_Send_IPI (LAPIC_ID : Unsigned_32; Vector : IDT.IDT_Index) is
+   begin
+      LAPIC_Send_IPI_Raw (LAPIC_ID, Unsigned_32 (Vector) - 1);
    end LAPIC_Send_IPI;
 
    function LAPIC_Timer_Calibrate return Unsigned_64 is

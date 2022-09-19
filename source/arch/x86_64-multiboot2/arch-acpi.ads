@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces;
+with Interfaces; use Interfaces;
 with Memory; use Memory;
 
 package Arch.ACPI with SPARK_Mode => Off is
@@ -194,8 +194,47 @@ package Arch.ACPI with SPARK_Mode => Off is
    end record;
    for HPET_Contents'Size use 2048;
 
-   --  Scan the ACPI tables from the RSDP, true on success, false on failure.
-   function ScanTables (RSDP_Address : Virtual_Address) return Boolean;
+   --  RSDP table in memory, and its 2.0 version.
+   type RSDP_Padding is array (1 .. 3) of Unsigned_8;
+   type RSDP is record
+      Signature    : String (1 .. 8);
+      Checksum     : Unsigned_8;
+      OEM_ID       : String (1 .. 6);
+      Revision     : Unsigned_8;
+      RSDT_Address : Unsigned_32;
+      --  Version 2.0 onwards.
+      Length       : Unsigned_32;
+      XSDT_Address : Unsigned_64;
+      Checksum_2   : Unsigned_8;
+      Reserved     : RSDP_Padding;
+   end record;
+   for RSDP use record
+      Signature    at 0 range   0 ..  63;
+      Checksum     at 0 range  64 ..  71;
+      OEM_ID       at 0 range  72 .. 119;
+      Revision     at 0 range 120 .. 127;
+      RSDT_Address at 0 range 128 .. 159;
+      Length       at 0 range 160 .. 191;
+      XSDT_Address at 0 range 192 .. 255;
+      Checksum_2   at 0 range 256 .. 263;
+      Reserved     at 0 range 264 .. 287;
+   end record;
+   for RSDP'Size use 288;
+
+   --  Root System Descriptor Table and entries for itself and the XSDT
+   --  (The XSDT is just an RSDT with 64 bit entries).
+   type RSDT_Entries is array (Natural range <>) of Unsigned_32;
+   type XSDT_Entries is array (Natural range <>) of Unsigned_64;
+   type RSDT is record
+      Header  : SDT_Header;
+      Entries : Unsigned_32; --  Actually the start of the RSDT/XSDT entries.
+   end record;
+   for RSDT use record
+      Header at 0 range 0 .. 287;
+   end record;
+
+   --  Scan the ACPI tables, true on success, false on failure.
+   function ScanTables return Boolean;
 
    --  Search for an ACPI table and return its address, null if not found.
    function FindTable (Signature : SDT_Signature) return Virtual_Address;

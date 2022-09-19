@@ -20,8 +20,6 @@ package Arch.Interrupts with SPARK_Mode => Off is
    --  Passed to every interrupt called ever as an access.
    type ISR_GPRs is record
       --  Pushed by us.
-      DS  : Unsigned_64;
-      ES  : Unsigned_64;
       RAX : Unsigned_64;
       RBX : Unsigned_64;
       RCX : Unsigned_64;
@@ -46,31 +44,29 @@ package Arch.Interrupts with SPARK_Mode => Off is
       SS         : Unsigned_64;
    end record with Convention => C;
    for ISR_GPRs use record
-      DS         at 0 range    0 ..   63;
-      ES         at 0 range   64 ..  127;
-      RAX        at 0 range  128 ..  191;
-      RBX        at 0 range  192 ..  255;
-      RCX        at 0 range  256 ..  319;
-      RDX        at 0 range  320 ..  383;
-      RSI        at 0 range  384 ..  447;
-      RDI        at 0 range  448 ..  511;
-      RBP        at 0 range  512 ..  575;
-      R8         at 0 range  576 ..  639;
-      R9         at 0 range  640 ..  703;
-      R10        at 0 range  704 ..  767;
-      R11        at 0 range  768 ..  831;
-      R12        at 0 range  832 ..  895;
-      R13        at 0 range  896 ..  959;
-      R14        at 0 range  960 .. 1023;
-      R15        at 0 range 1024 .. 1087;
-      Error_Code at 0 range 1088 .. 1151;
-      RIP        at 0 range 1152 .. 1215;
-      CS         at 0 range 1216 .. 1279;
-      RFLAGS     at 0 range 1280 .. 1343;
-      RSP        at 0 range 1344 .. 1407;
-      SS         at 0 range 1408 .. 1471;
+      RAX        at 0 range    0 ..   63;
+      RBX        at 0 range   64 ..  127;
+      RCX        at 0 range  128 ..  191;
+      RDX        at 0 range  192 ..  255;
+      RSI        at 0 range  256 ..  319;
+      RDI        at 0 range  320 ..  383;
+      RBP        at 0 range  384 ..  447;
+      R8         at 0 range  448 ..  511;
+      R9         at 0 range  512 ..  575;
+      R10        at 0 range  576 ..  639;
+      R11        at 0 range  640 ..  703;
+      R12        at 0 range  704 ..  767;
+      R13        at 0 range  768 ..  831;
+      R14        at 0 range  832 ..  895;
+      R15        at 0 range  896 ..  959;
+      Error_Code at 0 range  960 .. 1023;
+      RIP        at 0 range 1024 .. 1087;
+      CS         at 0 range 1088 .. 1151;
+      RFLAGS     at 0 range 1152 .. 1215;
+      RSP        at 0 range 1216 .. 1279;
+      SS         at 0 range 1280 .. 1343;
    end record;
-   for ISR_GPRs'Size use 1472;
+   for ISR_GPRs'Size use 1344;
    type ISR_GPRs_Acc is access ISR_GPRs;
 
    --  Generic handler for exceptions.

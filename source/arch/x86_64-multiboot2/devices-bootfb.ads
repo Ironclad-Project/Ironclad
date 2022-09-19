@@ -17,12 +17,11 @@
 with VFS;
 with Interfaces; use Interfaces;
 with System;
-with Arch.Stivale2;
 with Memory;
 
 package Devices.BootFB with SPARK_Mode => Off is
    --  Initialize the device.
-   function Init (Fb : access Arch.Stivale2.Framebuffer_Tag) return Boolean;
+   function Init return Boolean;
 
 private
 

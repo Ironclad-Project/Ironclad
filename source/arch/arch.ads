@@ -20,8 +20,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 package Arch is
    --  Boot information passed to the freestanding parts of the kernel.
 
-   --  Memory map for the kernel, it is not necessarily sorted, and may have
-   --  overlapping sections, or may have gaps.
+   --  Memory map for the kernel, it must be sorted and have no gaps.
    type Boot_Memory_Type is (
       Memory_Free,     --  Memory free for use by the allocators.
       Memory_Reserved, --  MMIO addresses or memory tables.

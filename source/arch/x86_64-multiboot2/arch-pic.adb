@@ -1,4 +1,4 @@
---  arch-debug.adb: Architecture-specific debug channels.
+--  arch-pic.adb: PIC driver.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -15,27 +15,27 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Wrappers;
-with Arch.Stivale2;
-with Config;
 
-package body Arch.Debug with SPARK_Mode => Off is
-   QEMU_DebugCon : constant := 16#E9#;
-
-   procedure Print (Message : Character) is
+package body Arch.PIC with SPARK_Mode => Off is
+   procedure Mask_All is
    begin
-      Wrappers.Port_Out (QEMU_DebugCon, Character'Pos (Message));
-      if not Config.Is_Small then
-         Stivale2.Print_Terminal (Message);
-      end if;
-   end Print;
+      Wrappers.Port_Out (16#A1#, 16#FF#);
+      Wrappers.Port_Out (16#21#, 16#FF#);
+      Flush;
+   end Mask_All;
 
-   procedure Print (Message : String) is
+   procedure Flush is
    begin
-      for C of Message loop
-         Wrappers.Port_Out (QEMU_DebugCon, Character'Pos (C));
+      for I in 0 .. 15 loop
+         EOI (I);
       end loop;
-      if not Config.Is_Small then
-         Stivale2.Print_Terminal (Message);
+   end Flush;
+
+   procedure EOI (IRQ : Natural) is
+   begin
+      if IRQ >= 8 then
+         Wrappers.Port_Out (16#A0#, 16#20#);
       end if;
-   end Print;
-end Arch.Debug;
+      Wrappers.Port_Out (16#20#, 16#20#);
+   end EOI;
+end Arch.PIC;

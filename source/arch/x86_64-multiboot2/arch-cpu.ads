@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with Arch.Stivale2;
 with Userland.Process;
 with Scheduler;
 with Arch.GDT;
@@ -41,14 +40,17 @@ package Arch.CPU with SPARK_Mode => Off is
    Core_Locals : Core_Local_Arr_Acc;
 
    --  Init the cores and BSP.
-   procedure Init_Cores (SMP_Info : access Arch.Stivale2.SMP_Tag);
+   procedure Init_Cores;
 
    --  Get the core local structure of the passed core.
-   function Get_Local return not null Core_Local_Acc;
+   function Get_Local return Core_Local_Acc;
 
 private
 
-   procedure Init_Core (Core_Info : access Arch.Stivale2.SMP_Core)
-      with Convention => C;
+   procedure Core_Bootstrap (Core_Number : Positive; LAPIC_ID : Unsigned_8);
+   procedure Init_Core (Core_Number : Positive; LAPIC_ID : Unsigned_8)
+      with Convention => C, Export, External_Name => "init_core";
    procedure Init_Common (Core_Number : Positive; LAPIC : Unsigned_32);
+   function Get_BSP_LAPIC_ID return Unsigned_32;
+   procedure Delay_Execution (Cycles : Unsigned_64);
 end Arch.CPU;

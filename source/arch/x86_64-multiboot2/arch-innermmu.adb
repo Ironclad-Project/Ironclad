@@ -15,9 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Unchecked_Deallocation;
-with System.Address_To_Access_Conversions;
 with Arch.Wrappers;
-with Arch.Stivale2;
 with Lib.Panic;
 with Lib.Alignment;
 with Arch.MMU;
@@ -143,14 +141,9 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
    end Flags_To_Bitmap;
 
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
-      package ST renames Stivale2;
-      package C1 is new System.Address_To_Access_Conversions (ST.PMR_Tag);
-
       package Ali1 is new Lib.Alignment (Integer_Address);
       package Ali2 is new Lib.Alignment (Unsigned_64);
 
-      PMRs : constant access ST.PMR_Tag :=
-         C1.To_Pointer (To_Address (ST.Get_Tag (ST.Stivale_Tag, ST.PMR_ID)));
       Flags : constant Page_Permissions := (
          User_Accesible => False,
          Read_Only      => False,
@@ -217,28 +210,18 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
       <<SKIP>>
       end loop;
 
-      --  Map PMRs of the kernel.
-      --  This will always be mapped, so we can mark them global.
-      for E of PMRs.Entries loop
-         Aligned_Addr := Ali1.Align_Down (E.Base,   Page_Size_4K);
-         Aligned_Len  := Ali2.Align_Up   (E.Length, Page_Size_4K);
-         Success1     := Map_Range (
-            Map            => MMU.Kernel_Table,
-            Physical_Start => To_Address (Aligned_Addr - Kernel_Offset),
-            Virtual_Start  => To_Address (Aligned_Addr),
-            Length         => Storage_Offset (Aligned_Len),
-            Permissions    => (
-               False,
-               (E.Permissions and Arch.Stivale2.PMR_Writable_Mask)    = 0,
-               (E.Permissions and Arch.Stivale2.PMR_Executable_Mask) /= 0,
-               True,
-               False
-            )
-         );
-         if not Success1 then
-            return False;
-         end if;
-      end loop;
+      --  Map 128MiB of kernel.
+      Success1 := Map_Range (
+         Map            => MMU.Kernel_Table,
+         Physical_Start => To_Address (16#200000#),
+         Virtual_Start  => To_Address (Kernel_Offset),
+         Length         => 16#7000000#,
+         Permissions    => Flags
+      );
+      if not Success1 then
+         Lib.Panic.Soft_Panic ("or here!");
+         return False;
+      end if;
       return True;
    end Init;
 

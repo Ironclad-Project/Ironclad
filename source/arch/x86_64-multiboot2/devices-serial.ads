@@ -24,13 +24,13 @@ package Devices.Serial with SPARK_Mode => Off is
 
 private
 
-   function Serial_Read
+   function Read
       (Data   : VFS.Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;
 
-   function Serial_Write
+   function Write
       (Data     : VFS.Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;

@@ -29,6 +29,7 @@ package body Lib.Messages is
    begin
       Lib.Synchronization.Seize (Messages_Mutex);
       Arch.Debug.Print (Message);
+      Arch.Debug.Print (Ada.Characters.Latin_1.CR);
       Arch.Debug.Print (Ada.Characters.Latin_1.LF);
       Lib.Synchronization.Release (Messages_Mutex);
    end Put_Line;

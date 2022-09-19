@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 
-package Arch.Snippets with SPARK_Mode => Off is
+package Arch.Snippets is
    --  All of these are always inlined because they usually are 3 or 4
    --  instructions tops, and used in hot execution paths.
    --  Inline instead of Always_Inline seems to never inline at all.

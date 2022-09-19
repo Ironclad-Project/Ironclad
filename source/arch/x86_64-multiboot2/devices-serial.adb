@@ -43,8 +43,8 @@ package body Devices.Serial with SPARK_Mode => Off is
          Arch.Wrappers.Port_Out (COM_Ports (I) + 1, 16#00#);
          Arch.Wrappers.Port_Out (COM_Ports (I) + 3, 16#80#);
 
-         --  Set divisor to low 1 hi 0 (115200 baud).
-         Arch.Wrappers.Port_Out (COM_Ports (I) + 0, 16#01#);
+         --  Set divisor to low 1 hi 0 (9600 baud).
+         Arch.Wrappers.Port_Out (COM_Ports (I) + 0, 16#0C#);
          Arch.Wrappers.Port_Out (COM_Ports (I) + 1, 16#00#);
 
          --  Enable FIFO and interrupts.
@@ -78,8 +78,8 @@ package body Devices.Serial with SPARK_Mode => Off is
                Mutex      => <>,
                Stat       => Stat,
                Sync       => null,
-               Read       => Serial_Read'Access,
-               Write      => Serial_Write'Access,
+               Read       => Read'Access,
+               Write      => Write'Access,
                IO_Control => null,
                Mmap       => null,
                Munmap     => null
@@ -93,7 +93,7 @@ package body Devices.Serial with SPARK_Mode => Off is
       return True;
    end Init;
 
-   function Serial_Read
+   function Read
       (Data   : VFS.Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
@@ -117,9 +117,9 @@ package body Devices.Serial with SPARK_Mode => Off is
 
       Lib.Synchronization.Release (Data.Mutex);
       return Count;
-   end Serial_Read;
+   end Read;
 
-   function Serial_Write
+   function Write
       (Data     : VFS.Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
@@ -142,7 +142,7 @@ package body Devices.Serial with SPARK_Mode => Off is
       end loop;
       Lib.Synchronization.Release (Data.Mutex);
       return Count;
-   end Serial_Write;
+   end Write;
 
    function Is_Transmitter_Empty (Port : Unsigned_16) return Boolean is
    begin

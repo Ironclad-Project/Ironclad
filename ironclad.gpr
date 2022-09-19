@@ -16,10 +16,10 @@
 
 project Ironclad is
    --  Get command-line options for flags and boards.
-   type Arch_Name    is ("aarch64-stivale2", "sparc-leon3", "x86_64-stivale2");
+   type Arch_Name    is ("aarch64-stivale2", "sparc-leon3", "x86_64-multiboot2");
    type Target_Name  is ("big", "small");
    type Alloc_Scheme is ("standard", "alloconly");
-   Arch   : Arch_Name    := External ("ARCH",   "x86_64-stivale2");
+   Arch   : Arch_Name    := External ("ARCH",   "x86_64-multiboot2");
    Target : Target_Name  := External ("TARGET", "big");
    Alloc  : Alloc_Scheme := External ("ALLOC_SCHEME", "standard");
 
@@ -69,11 +69,14 @@ project Ironclad is
                "-mcpu=leon3", "-static", "-fno-pie", "-fno-pic"
             );
             for Switches ("Asm_Cpp") use Base_Asm_Switches & ("-mcpu=leon3");
-         when "x86_64-stivale2" =>
+         when "x86_64-multiboot2" =>
             for Switches ("Ada") use Base_Ada_Switches & (
-               "-fpie", "-mno-red-zone", "-mgeneral-regs-only"
+               "-fno-pie", "-fno-pic", "-mgeneral-regs-only", "-mno-red-zone",
+               "-mcmodel=kernel"
             );
-            for Switches ("Asm_Cpp") use Base_Asm_Switches & ("-fpie");
+            for Switches ("Asm_Cpp") use Base_Asm_Switches & (
+               "-fno-pie", "-fno-pic", "-mno-red-zone", "-mcmodel=kernel"
+            );
       end case;
 
       for Local_Configuration_Pragmas use "source/pragmas.adc";
@@ -96,10 +99,10 @@ project Ironclad is
                "-zmax-page-size=0x1000", "-static", "-Wl,-zmuldefs",
                "-fno-pie", "-fno-pic"
             );
-         when "x86_64-stivale2" =>
+         when "x86_64-multiboot2" =>
             for Switches ("Ada") use Base_Link_Switches & (
-               "-pie", "-zmax-page-size=0x1000",
-               "-Wl,--undefined=stivale2hdr,-zmuldefs"
+               "-static", "-zmax-page-size=0x1000",
+               "-Wl,--undefined=multiboot2,-zmuldefs"
             );
       end case;
    end Linker;

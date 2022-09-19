@@ -1,4 +1,4 @@
---  entrypoint.ads: Specification of the main function's package.
+--  arch.adb: Architecture-specific package.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,9 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Stivale2;
+with Arch.Multiboot2;
+with Arch.Entrypoint;
+pragma Unreferenced (Arch.Entrypoint);
 
-package Arch.Entrypoint with SPARK_Mode => Off is
-   procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header)
-      with Export, Convention => C, External_Name => "kernel_main";
-end Arch.Entrypoint;
+package body Arch with SPARK_Mode => Off is
+   function Get_Info return Boot_Information is
+   begin
+      return Multiboot2.Translate_Proto (null);
+   end Get_Info;
+end Arch;

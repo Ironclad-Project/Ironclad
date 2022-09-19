@@ -24,11 +24,12 @@ interrupt_thunk_\num:
 .if \num != 8 && \num != 10 && \num != 11 && \num != 12 && \num != 13 && \num != 14 && \num != 17 && \num != 30
     push $0
 .endif
-    # Check for the user 64 bit code selector in CS.
+    # Check for the user 64 bit code selector in CS to swap our GS.
     cmpq $0x43, 16(%rsp)
     jne 1f
     swapgs
 1:
+    # Save state.
     push %r15
     push %r14
     push %r13
@@ -44,22 +45,10 @@ interrupt_thunk_\num:
     push %rcx
     push %rbx
     push %rax
-    mov %es, %eax
-    push %rax
-    mov %ds, %eax
-    push %rax
-
-    cld
-
-    # XXX: Restore segment registers since the limine terminal couldve
-    # change them. Remove this if we were to move from it.
-    mov $0x30, %eax
-    mov %eax, %ds
-    mov %eax, %es
-    mov %eax, %ss
 
     # Calculate the index on the isr table and call the handler
     # using C calling convetion.
+    cld
     mov $\num, %rdi
     mov $(\num * 8), %rax
     lea isr_table(%rip), %rbx
@@ -67,13 +56,6 @@ interrupt_thunk_\num:
     mov %rsp, %rsi
     xor %rbp, %rbp
     call *(%rbx)
-
-
-    # XXX: Second part of above's XXX.
-    pop %rax
-    mov %eax, %ds
-    pop %rax
-    mov %eax, %es
 
     # Pop back state.
     pop %rax
@@ -93,6 +75,7 @@ interrupt_thunk_\num:
     pop %r15
     add $8, %rsp
 
+    # Check for the user 64 bit code selector in CS to swap our GS.
     cmpq $0x43, 8(%rsp) # if user
     jne 1f
     swapgs

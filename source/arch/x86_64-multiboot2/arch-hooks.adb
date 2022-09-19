@@ -14,33 +14,24 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System.Address_To_Access_Conversions;
 with Devices.BootFB;
 with Devices.PS2Mouse;
 with Devices.PS2Keyboard;
 with Devices.Serial;
-with Devices.TTY;
 with Arch.Wrappers;
-with Arch.Interrupts;
 with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
 with Lib.Panic;
-with Arch.Stivale2;
+with Arch.Interrupts;
 with Config;
 with Interfaces; use Interfaces;
 
 package body Arch.Hooks with SPARK_Mode => Off is
    procedure Devices_Hook is
-      package ST renames Stivale2;
-      package C is new
-         System.Address_To_Access_Conversions (ST.Framebuffer_Tag);
-
-      Fb : constant access ST.Framebuffer_Tag := C.To_Pointer
-         (To_Address (ST.Get_Tag (ST.Stivale_Tag, ST.Framebuffer_ID)));
    begin
       if not Config.Is_Small then
-         if not Devices.BootFB.Init (Fb) or not Devices.PS2Keyboard.Init or
-            not Devices.PS2Mouse.Init    or not Devices.TTY.Init
+         if not Devices.BootFB.Init or not Devices.PS2Keyboard.Init or
+            not Devices.PS2Mouse.Init
          then
             goto Error;
          end if;
@@ -57,7 +48,7 @@ package body Arch.Hooks with SPARK_Mode => Off is
 
    function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean is
       Int_Arg : constant Unsigned_64 := Unsigned_64 (To_Integer (Arg));
-      A : Unsigned_64 with Address => Arg;
+      A : Unsigned_64 with Import, Address => Arg;
    begin
       case Code is
          when 1 => Wrappers.Write_FS (Int_Arg);
@@ -80,4 +71,5 @@ package body Arch.Hooks with SPARK_Mode => Off is
          end loop;
       end if;
    end Panic_SMP_Hook;
+
 end Arch.Hooks;

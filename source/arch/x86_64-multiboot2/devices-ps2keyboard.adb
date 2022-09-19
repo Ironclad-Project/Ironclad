@@ -35,7 +35,6 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
    Key_Buffer    : String (1 .. 100);
 
    --  Special keys and notable values.
-   Max_Code            : constant := 16#57#;
    Capslock_Press      : constant := 16#3A#;
    Right_Shift_Press   : constant := 16#36#;
    Right_Shift_Release : constant := 16#B6#;
@@ -182,18 +181,18 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
 
       --  Set that we are reading, and wait until done.
       Is_Reading := True;
-      while Buffer_Length /= Natural (Count) loop
+      while Buffer_Length < Natural (Count) loop
          Arch.Snippets.Wait_For_Interrupt;
       end loop;
+      Is_Reading := False;
 
       --  Copy back.
-      Is_Reading := False;
       To_Write := Key_Buffer (1 .. Natural (Count));
       return Count;
    end Read;
 
    procedure Keyboard_Handler is
-      Input : constant Unsigned_8 := Arch.Wrappers.Port_In (16#60#);
+      Input : constant Integer := Integer (Arch.Wrappers.Port_In (16#60#));
       C     : Character;
    begin
       if not Is_Reading then
@@ -206,42 +205,43 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
       end if;
 
       if Has_Extra_Code then
+         Has_Extra_Code := False;
          case Input is
-            when Ctrl_Press   => Is_Ctrl_Active := True;  goto EOI;
-            when Ctrl_Release => Is_Ctrl_Active := False; goto EOI;
-            when others       => goto EOI;
+            when Ctrl_Press   => Is_Ctrl_Active := True;
+            when Ctrl_Release => Is_Ctrl_Active := False;
+            when others       => null;
          end case;
+         goto EOI;
       end if;
 
       case Input is
-         when Left_Shift_Press    => Is_Shift_Active := True;  goto EOI;
-         when Left_Shift_Release  => Is_Shift_Active := False; goto EOI;
-         when Right_Shift_Press   => Is_Shift_Active := True;  goto EOI;
-         when Right_Shift_Release => Is_Shift_Active := False; goto EOI;
-         when Ctrl_Press          => Is_Ctrl_Active  := True;  goto EOI;
-         when Ctrl_Release        => Is_Ctrl_Active  := False; goto EOI;
-         when Capslock_Press      =>
-            Is_Capslock_Active := not Is_Capslock_Active; goto EOI;
-         when others => null;
+         when Left_Shift_Press    => Is_Shift_Active := True;
+         when Left_Shift_Release  => Is_Shift_Active := False;
+         when Right_Shift_Press   => Is_Shift_Active := True;
+         when Right_Shift_Release => Is_Shift_Active := False;
+         when Ctrl_Press          => Is_Ctrl_Active  := True;
+         when Ctrl_Release        => Is_Ctrl_Active  := False;
+         when Capslock_Press => Is_Capslock_Active := not Is_Capslock_Active;
+         when others =>
+            if Input >= Normal_Mapping'First and
+               Input <= Normal_Mapping'Last
+            then
+               if Is_Ctrl_Active then
+                  --  TODO: Caret notation.
+                  C := Capslock_Mapping (Input);
+               elsif Is_Capslock_Active and Is_Shift_Active then
+                  C := Shift_Capslock_Mapping (Input);
+               elsif not Is_Capslock_Active and Is_Shift_Active then
+                  C := Shift_Mapping (Input);
+               elsif Is_Capslock_Active and not Is_Shift_Active then
+                  C := Capslock_Mapping (Input);
+               else
+                  C := Normal_Mapping (Input);
+               end if;
+               Buffer_Length := Buffer_Length + 1;
+               Key_Buffer (Buffer_Length) := C;
+            end if;
       end case;
-
-      if Input < Max_Code then
-         if Is_Ctrl_Active then
-            --  TODO: Caret notation.
-            C := Capslock_Mapping (Integer (Input));
-         elsif Is_Capslock_Active and Is_Shift_Active then
-            C := Shift_Capslock_Mapping (Integer (Input));
-         elsif not Is_Capslock_Active and Is_Shift_Active then
-            C := Shift_Mapping (Integer (Input));
-         elsif Is_Capslock_Active and not Is_Shift_Active then
-            C := Capslock_Mapping (Integer (Input));
-         else
-            C := Normal_Mapping (Integer (Input));
-         end if;
-
-         Buffer_Length := Buffer_Length + 1;
-         Key_Buffer (Buffer_Length) := C;
-      end if;
 
    <<EOI>>
       Arch.APIC.LAPIC_EOI;

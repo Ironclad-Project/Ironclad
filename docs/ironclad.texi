@@ -98,10 +98,10 @@ Syscalls
 
 Devices and their properties
 
-* Common devices::           Devices common to all architectures and targets.
-* aarch64-stivale2 devices:: Devices specific to aarch64-stivale2.
-* sparc-leon3 devices::      Devices specific to sparc-leon3.
-* x86_64-stivale2 devices::  Devices specific to x86_64-stivale2.
+* Common devices::             Devices common to all architectures and targets.
+* aarch64-stivale2 devices::   Devices specific to aarch64-stivale2.
+* sparc-leon3 devices::        Devices specific to sparc-leon3.
+* x86_64-multiboot2 devices::  Devices specific to x86_64-multiboot2.
 
 @end detailmenu
 @end menu
@@ -1237,8 +1237,8 @@ This target has no special devices.
 
 This target has no special devices.
 
-@node x86_64-stivale2 devices
-@section x86_64-stivale2 devices
+@node x86_64-multiboot2 devices
+@section x86_64-multiboot2 devices
 
 @subsection bootfb
 
@@ -1252,16 +1252,10 @@ argument with the following structure:
 @example
 FB_DIMENSIONS = 1
 struct fb_dimensions @{
-   uint16_t width;
-   uint16_t height;
-   uint16_t pitch;
-   uint16_t bpp;
-   uint8_t  red_mask_size;
-   uint8_t  red_mask_shift;
-   uint8_t  green_mask_size;
-   uint8_t  green_mask_shift;
-   uint8_t  blue_mask_size;
-   uint8_t  blue_mask_shift;
+   uint32_t width;
+   uint32_t height;
+   uint32_t pitch;
+   uint8_t  bpp;
 @};
 
 ioctl(fb, FB_DIMENTIONS, pointer_to_fb_dimensions)
@@ -1311,49 +1305,6 @@ the call is ignored. For valid values and their meaning refer to
 The devices starting by @code{serial} represent the several character devices
 used for each present serial port, they support read/write operations, but no
 TTY interface is exposed, they are raw byte streams.
-
-@subsection stivale2tty
-
-@code{stivale2tty} wraps the Stivale2 protocol's terminal for output with
-@code{ps2keyboard} for input, along with some special ioctls, which are:
-
-@itemize @bullet
-@item
-@code{tcgets(0x5401)}/@code{tcsets(0x5402)}/@code{tcgetsw(0x5403)}/@code{tcsetsf(0x5404)}:
-Sets or gets the @code{termios} structure passed as an argument.
-@example
-struct termios @{
-    tcflag_t c_iflag;
-    tcflag_t c_oflag;
-    tcflag_t c_cflag;
-    tcflag_t c_lflag;
-    cc_t c_cc[11];
-    speed_t ibaud;
-    speed_t obaud;
-@};
-@end example
-
-@code{termios} is a complex interface with a lot of fields and options, a
-lot of them not supported in Ironclad, for a complete @code{termios} reference,
-please read
-@uref{https://www.man7.org/linux/man-pages/man3/termios.3.html, this linux-specific site}.
-
-While Ironclad accepts the @code{sets}, @code{getsw}, and @code{setsf}
-requests, they all result in the same behaviour of @code{tcsets}, and may be
-used interchangeably. This might change in the future, so standard use is
-recommended, despite the gap in functionality of @code{getsw} and @code{setsf}.
-
-@item
-@code{tiocgwinsz(0x5413)}: Sets a structure passed as an argument as such:
-@example
-struct window_size @{
-    uint16_t ws_row;
-    uint16_t ws_col;
-    uint16_t ws_xpixel;
-    uint16_t ws_ypixel;
-@};
-@end example
-@end itemize
 
 @node GNU Free Documentation License
 @appendix GNU Free Documentation License
