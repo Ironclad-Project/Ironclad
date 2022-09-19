@@ -68,13 +68,6 @@ package body Lib.Messages is
    end Put;
 
    procedure Put (Message : Unsigned_64; Pad, Use_Hex : Boolean := False) is
-      pragma Annotate (
-         GNATprove,
-         False_Positive,
-         "array index check might fail",
-         "Does not happen, but I cannot convince GNATprove"
-      );
-
       Conversion : constant String  := "0123456789ABCDEF";
       To_Convert : Unsigned_64      := Message;
       Base       : Unsigned_64      := 10;
@@ -86,7 +79,7 @@ package body Lib.Messages is
       if Use_Hex then
          Arch.Debug.Print ("0x");
          Base       := 16;
-         Char_Limit := 15;
+         Char_Limit := 16;
       end if;
 
       if To_Convert = 0 then
@@ -94,6 +87,7 @@ package body Lib.Messages is
          Written    := 1;
       else
          while To_Convert /= 0 and Written < Char_Limit loop
+            pragma Loop_Invariant (Written >= 0 and Written <= Result'Length);
             Written          := Written + 1;
             Result (Written) := Conversion (Integer (To_Convert rem Base) + 1);
             To_Convert       := To_Convert / Base;
@@ -101,7 +95,7 @@ package body Lib.Messages is
       end if;
 
       if Pad then
-         for I in Written .. Char_Limit loop
+         for I in Written + 1 .. Char_Limit loop
             Arch.Debug.Print ('0');
          end loop;
       end if;
