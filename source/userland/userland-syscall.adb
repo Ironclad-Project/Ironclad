@@ -952,9 +952,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
    end Syscall_IOCTL;
 
-   procedure Syscall_Sched_Yield is
+   function Syscall_Sched_Yield (Errno : out Errno_Value) return Unsigned_64
+   is
    begin
+      if Is_Tracing then
+         Lib.Messages.Put_Line ("syscall sched_yield()");
+      end if;
+
       Scheduler.Yield;
+      Errno := Error_No_Error;
+      return 0;
    end Syscall_Sched_Yield;
 
    function Unsigned_64_To_Integer is

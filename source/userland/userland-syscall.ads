@@ -245,7 +245,7 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno    : out Errno_Value) return Unsigned_64;
 
    --  Yield.
-   procedure Syscall_Sched_Yield;
+   function Syscall_Sched_Yield (Errno : out Errno_Value) return Unsigned_64;
 
    --  Get thread priority.
    Which_Process : constant := 1;

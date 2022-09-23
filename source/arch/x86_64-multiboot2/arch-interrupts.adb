@@ -172,8 +172,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 20 =>
             Returned := Syscall_IOCTL (State.RDI, State.RSI, State.RDX, Errno);
          when 21 =>
-            Syscall_Sched_Yield;
-            Returned := 0;
+            Returned := Syscall_Sched_Yield (Errno);
          when 22 =>
             Returned := Syscall_Get_Priority (State.RDI, State.RSI, Errno);
          when 23 =>
