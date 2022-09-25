@@ -26,7 +26,6 @@ with Lib.Panic;
 with Memory.Physical;
 with Main;
 with Memory.Virtual;
-with Lib.Messages;
 
 package body Arch.Entrypoint with SPARK_Mode => Off is
    procedure Bootstrap_Main (Proto : Multiboot2.Header_Acc) is
@@ -37,14 +36,6 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
       IDT.Init;
 
       --  Initialize the allocators.
-      for E of Info.Memmap (1 .. Info.Memmap_Len) loop
-         Lib.Messages.Put      ('[');
-         Lib.Messages.Put      (E.Start, True);
-         Lib.Messages.Put      (" -> ");
-         Lib.Messages.Put      (E.Start + E.Length, True);
-         Lib.Messages.Put      ("] ");
-         Lib.Messages.Put_Line (Arch.Boot_Memory_Type'Image (E.MemType));
-      end loop;
       Memory.Physical.Init_Allocator (Info.Memmap (1 .. Info.Memmap_Len));
       if not Memory.Virtual.Init (Info.Memmap (1 .. Info.Memmap_Len)) then
          Lib.Panic.Hard_Panic ("The VMM could not be initialized");

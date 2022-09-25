@@ -1306,6 +1306,12 @@ The devices starting by @code{serial} represent the several character devices
 used for each present serial port, they support read/write operations, but no
 TTY interface is exposed, they are raw byte streams.
 
+Baud and other settings can be set by using the @code{termios}, note that
+most of the fields are not implemented as the serial devices are not ttys but
+just byte streams.
+
+The default baud for all ports is set to be @code{115200}.
+
 @node GNU Free Documentation License
 @appendix GNU Free Documentation License
 @include fdl.texi

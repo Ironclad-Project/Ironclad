@@ -36,6 +36,12 @@ private
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64;
 
-   function Is_Transmitter_Empty (Port : Unsigned_16) return Boolean;
-   function Is_Data_Received (Port : Unsigned_16) return Boolean;
+   function IO_Control
+      (Data     : VFS.Resource_Acc;
+       Request  : Unsigned_64;
+       Argument : System.Address) return Boolean;
+
+   procedure Transmit_Data (Port : Unsigned_16; Data : Unsigned_8);
+   function Fetch_Data (Port : Unsigned_16) return Unsigned_8;
+   procedure Set_Baud (Port : Unsigned_16; Baud : Unsigned_32);
 end Devices.Serial;
