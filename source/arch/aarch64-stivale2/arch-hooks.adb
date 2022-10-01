@@ -30,5 +30,5 @@ package body Arch.Hooks with SPARK_Mode => Off is
    procedure Panic_SMP_Hook is
    begin
       return;
-   end Panic_Hook;
+   end Panic_SMP_Hook;
 end Arch.Hooks;

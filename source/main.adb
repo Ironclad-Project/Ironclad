@@ -106,6 +106,8 @@ begin
       end if;
       Free_S (Init_Value);
       Free_F (Init_File);
+   else
+      Lib.Panic.Hard_Panic ("No init was specified");
    end if;
 
    --  Going idle into the scheduler.
