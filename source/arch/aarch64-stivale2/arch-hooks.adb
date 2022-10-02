@@ -14,10 +14,15 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Devices.PL011;
+with Lib.Panic;
+
 package body Arch.Hooks with SPARK_Mode => Off is
    procedure Devices_Hook is
    begin
-      return;
+      if not Devices.PL011.Register then
+         Lib.Panic.Soft_Panic ("Architectural VFS hook failed");
+      end if;
    end Devices_Hook;
 
    function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean is

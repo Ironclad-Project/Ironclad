@@ -19,9 +19,6 @@ with Lib.Panic;
 with Lib.Synchronization; use Lib.Synchronization;
 with Lib.Alignment;
 
---  FIXME: This allocator will not work for aarch64-stivale2, and alloconly
---  has to be used instead, this must be debugged.
-
 package body Memory.Physical with SPARK_Mode => Off is
    Block_Free : constant Boolean := True;
    Block_Used : constant Boolean := False;

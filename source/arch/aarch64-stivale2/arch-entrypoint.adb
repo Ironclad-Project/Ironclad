@@ -21,6 +21,7 @@ with Memory.Physical;
 with Memory.Virtual;
 with Memory; use Memory;
 with Main;
+with Devices.PL011;
 
 package body Arch.Entrypoint with SPARK_Mode => Off is
    procedure Bootstrap_Main (Protocol : access Arch.Stivale2.Header) is
@@ -30,6 +31,8 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
       SMP_Addr : Integer_Address := ST.Get_Tag (Protocol, ST.SMP_ID);
       Info     : Boot_Information;
    begin
+      Devices.PL011.Configure;
+
       --  Initialize memory allocators and virtual mappings.
       Arch.Stivale2.Stivale_Tag := Protocol;
       Info := Get_Info;

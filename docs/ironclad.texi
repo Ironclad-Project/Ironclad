@@ -1230,7 +1230,16 @@ operations are discarded.
 @node aarch64-stivale2 devices
 @section aarch64-stivale2 devices
 
-This target has no special devices.
+@subsection pl011
+
+The device @code{pl011} supports read operations for PL011 UART compatible
+devices.
+
+Baud and other settings can be set by using the @code{termios}, note that
+most of the fields are not implemented, only the ones related to input stream
+settings.
+
+The default baud for the device is set to be @code{115200}.
 
 @node sparc-leon3 devices
 @section sparc-leon3 devices
