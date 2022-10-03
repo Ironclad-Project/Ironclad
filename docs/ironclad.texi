@@ -468,6 +468,8 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @xref{fcntl}
 @item
 @xref{spawn}
+@item
+@xref{getrandom}
 @end enumerate
 
 @node Errno
@@ -1181,6 +1183,29 @@ sets the following errno:
 @code{EACCES}: The file couldn't be launched out of a permission error.
 @end itemize
 
+@node getrandom
+@section getrandom
+
+@example
+ssize_t getrandom(void *buffer, size_t length);
+@end example
+
+This syscall fills the buffer pointed to @code{buffer} with up to @code{length}
+random bytes. These bytes can be used for cryptographic purposes.
+
+The operation is the same as reading from @code{/dev/random}. It is provided
+instead of just reading from the device as to avoid denial of service attacks
+based on exhausting the file descriptor limit of the system, along with other
+vulnerabilities and inconveniences related to the classic file interface.
+
+The syscall returns the count of read random data or @code{-1} on failure, and
+sets the following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: @code{buffer} points to invalid memory.
+@end itemize
+
 @node Devices and their properties
 @chapter Devices and their properties
 
@@ -1199,7 +1224,7 @@ architecture-specific devices.
 
 @subsection debug
 
-@code {/dev/debug} wraps architecture-specific debug output channels for use
+@code{/dev/debug} wraps architecture-specific debug output channels for use
 with file operations. For x86-based targets, this is QEMU's E9, for arm-based
 and sparc-based targets, this is UART.
 
@@ -1215,6 +1240,9 @@ The device @code{random} is equivalent to the one featured in other unix-like
 kernels. Keep in mind that Ironclad has limited sources of entropy, so the
 quality of this random numbers is a bit limited. Writing to the source is not
 allowed, unlike other systems.
+
+@code{/dev/urandom} does the same as @code{/dev/random}, and is only provided
+for compatibility.
 
 @subsection null/zero
 

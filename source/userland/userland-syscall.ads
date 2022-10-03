@@ -306,6 +306,12 @@ package Userland.Syscall with SPARK_Mode => Off is
        Envp    : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64;
 
+   --  Bypassing /dev/(u)random for getting random data.
+   function Syscall_Get_Random
+     (Address : Unsigned_64;
+      Length  : Unsigned_64;
+      Errno   : out Errno_Value) return Unsigned_64;
+
 private
 
    function Inner_Stat

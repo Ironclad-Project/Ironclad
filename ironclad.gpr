@@ -29,9 +29,17 @@ project Ironclad is
 
    --  Set directories and files.
    for Source_Dirs use (
-      "source", "source/devices", "source/lib", "source/memory",
-      "source/networking", "source/userland", "source/vfs",
-      "source/arch", "source/arch/" & Arch, "source/memory/" & Alloc
+      "source/arch/" & Arch,
+      "source/arch",
+      "source/cryptography",
+      "source/devices",
+      "source/lib",
+      "source/memory/" & Alloc,
+      "source/memory",
+      "source/networking",
+      "source/userland",
+      "source/vfs",
+      "source"
    );
    for Object_Dir use "obj";
    for Exec_Dir use ".";

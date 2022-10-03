@@ -1,4 +1,4 @@
---  devices-random.ads: Random devices.
+--  cryptography-random.ads: The random number generator of the kernel.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -15,18 +15,13 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with System;
-with VFS;
 
-package Devices.Random with SPARK_Mode => Off is
-   --  Initialize the device.
-   function Init return Boolean;
+package Cryptography.Random is
+   --  Fill a region in memory with random data.
+   type Crypto_Data is array (Natural range <>) of Unsigned_32;
+   procedure Fill_Data (Data : out Crypto_Data);
 
 private
 
-   function Read
-      (Data   : VFS.Resource_Acc;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64;
-end Devices.Random;
+   function Get_Seed return Unsigned_128 with Global => null;
+end Cryptography.Random;

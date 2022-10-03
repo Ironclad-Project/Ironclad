@@ -35,6 +35,7 @@ with Interfaces.C;
 with Arch.Hooks;
 with Arch.MMU;
 with Arch.Local;
+with Cryptography.Random;
 
 package body Userland.Syscall with SPARK_Mode => Off is
    --  Whether we are to print syscall information.
@@ -1326,7 +1327,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Env_Count  : Natural := 0;
    begin
       if Is_Tracing then
-         Lib.Messages.Put ("syscall spawn(" & Path_String & ")");
+         Lib.Messages.Put_Line ("syscall spawn(" & Path_String & ")");
       end if;
 
       if Opened_File = null then
@@ -1397,4 +1398,29 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64 (Child.Process_PID);
       end;
    end Syscall_Spawn;
+
+   function Syscall_Get_Random
+     (Address : Unsigned_64;
+      Length  : Unsigned_64;
+      Errno   : out Errno_Value) return Unsigned_64
+   is
+      Result : Cryptography.Random.Crypto_Data (1 .. Natural (Length / 4))
+         with Address => To_Address (Integer_Address (Address)), Import;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall getrandom(");
+         Lib.Messages.Put      (Address, False, True);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Length);
+         Lib.Messages.Put_Line (")");
+      end if;
+      if Address = 0 then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      else
+         Cryptography.Random.Fill_Data (Result);
+         Errno := Error_No_Error;
+         return Result'Length * 4;
+      end if;
+   end Syscall_Get_Random;
 end Userland.Syscall;

@@ -1,4 +1,4 @@
---  devices-random.ads: Random devices.
+--  cryptography.ads: Specification of the crypto library.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,19 +14,5 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
-with System;
-with VFS;
-
-package Devices.Random with SPARK_Mode => Off is
-   --  Initialize the device.
-   function Init return Boolean;
-
-private
-
-   function Read
-      (Data   : VFS.Resource_Acc;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64;
-end Devices.Random;
+package Cryptography is
+end Cryptography;
