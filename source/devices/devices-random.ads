@@ -30,5 +30,5 @@ private
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;
 
-   procedure Reseed (Seed1, Seed2, Seed3, Seed4 : out Unsigned_32);
+   function Get_Seed return Unsigned_128;
 end Devices.Random;

@@ -14,44 +14,26 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System.Address_To_Access_Conversions;
-with System.Storage_Elements; use System.Storage_Elements;
+with Ada.Unchecked_Conversion;
 with Lib.Synchronization;
-with Memory.Physical;
+with Memory.Physical; use Memory.Physical;
 with Memory; use Memory;
 with Arch.Snippets;
 
 package body Devices.Random with SPARK_Mode => Off is
-   Reseed_Limit : constant := 4096;
-   type Random_Data is record
-      Since_Reseed : Unsigned_64;
-      Seed1        : Unsigned_32;
-      Seed2        : Unsigned_32;
-      Seed3        : Unsigned_32;
-      Seed4        : Unsigned_32;
-   end record;
-   type Random_Data_Acc is access all Random_Data;
-
-   package Conv is new System.Address_To_Access_Conversions (Random_Data);
-
    function Init return Boolean is
-      Stat : constant VFS.File_Stat := (
-         Unique_Identifier => 0,
-         Type_Of_File      => VFS.File_Character_Device,
-         Mode              => 8#660#,
-         Hard_Link_Count   => 1,
-         Byte_Size         => 0,
-         IO_Block_Size     => 4096,
-         IO_Block_Count    => 0
-      );
-      Random_Dat : constant Random_Data_Acc := new Random_Data'(
-         Since_Reseed => 0,
-         others       => <>
-      );
       Random_Res : VFS.Resource := (
-         Data       => Conv.To_Address (Conv.Object_Pointer (Random_Dat)),
+         Data       => System.Null_Address,
          Mutex      => <>,
-         Stat       => Stat,
+         Stat       => (
+            Unique_Identifier => 0,
+            Type_Of_File      => VFS.File_Character_Device,
+            Mode              => 8#660#,
+            Hard_Link_Count   => 1,
+            Byte_Size         => 0,
+            IO_Block_Size     => 4096,
+            IO_Block_Count    => 0
+         ),
          Sync       => null,
          Read       => Random_Read'Access,
          Write      => null,
@@ -60,12 +42,6 @@ package body Devices.Random with SPARK_Mode => Off is
          Munmap     => null
       );
    begin
-      Reseed (
-         Random_Dat.Seed1,
-         Random_Dat.Seed2,
-         Random_Dat.Seed3,
-         Random_Dat.Seed4
-      );
       Lib.Synchronization.Release (Random_Res.Mutex);
       return VFS.Register (Random_Res, "random");
    end Init;
@@ -77,54 +53,65 @@ package body Devices.Random with SPARK_Mode => Off is
        Desto  : System.Address) return Unsigned_64
    is
       pragma Unreferenced (Offset);
-      Buff : array (1 .. Count / 4) of Unsigned_32
-         with Address => Desto, Import;
-      Dat : constant Random_Data_Acc :=
-         Random_Data_Acc (Conv.To_Pointer (Data.Data));
+
+      --  We will reseed at the start of every request, no matter the size, and
+      --  when reaching this limit.
+      Reseed_Limit : constant := 1024;
+
+      type Seed is record
+         Seed1 : Unsigned_32;
+         Seed2 : Unsigned_32;
+         Seed3 : Unsigned_32;
+         Seed4 : Unsigned_32;
+      end record;
+      function To_Seed is new Ada.Unchecked_Conversion (Unsigned_128, Seed);
+
+      S     : Seed;
+      Index : Unsigned_64 := 0;
       Inter : Unsigned_32;
+      Buff  : array (1 .. Count / 4) of Unsigned_32
+         with Address => Desto, Import;
    begin
       if Buff'Length = 0 then
          return 0;
       end if;
 
       Lib.Synchronization.Seize (Data.Mutex);
-
-      --  Adjust reseeds and bytes since reseed.
-      if Dat.Since_Reseed >= Reseed_Limit then
-         Dat.Since_Reseed := 0;
-         Reseed (Dat.Seed1, Dat.Seed2, Dat.Seed3, Dat.Seed4);
-      end if;
-      Dat.Since_Reseed := Dat.Since_Reseed + Count;
+      S := To_Seed (Get_Seed);
 
       for Val of Buff loop
          --  Mix our seeds using LFSR113.
-         Inter := Shift_Right (Shift_Left (Dat.Seed1, 6) xor Dat.Seed1, 13);
-         Dat.Seed1 := Shift_Left (Dat.Seed1 and 16#FFFFFFFE#, 18) xor Inter;
-         Inter := Shift_Right (Shift_Left (Dat.Seed2, 2) xor Dat.Seed2, 27);
-         Dat.Seed2 := Shift_Left (Dat.Seed2 and 16#FFFFFFFE#, 2) xor Inter;
-         Inter := Shift_Right (Shift_Left (Dat.Seed3, 13) xor Dat.Seed3, 21);
-         Dat.Seed3 := Shift_Left (Dat.Seed3 and 16#FFFFFFFE#, 7) xor Inter;
-         Inter := Shift_Right (Shift_Left (Dat.Seed4, 3) xor Dat.Seed4, 12);
-         Dat.Seed4 := Shift_Left (Dat.Seed4 and 16#FFFFFFFE#, 13) xor Inter;
-         Val := Dat.Seed1 xor Dat.Seed2 xor Dat.Seed3 xor Dat.Seed4;
+         Inter := Shift_Right (Shift_Left (S.Seed1, 6) xor S.Seed1, 13);
+         S.Seed1 := Shift_Left (S.Seed1 and 16#FFFFFFFE#, 18) xor Inter;
+         Inter := Shift_Right (Shift_Left (S.Seed2, 2) xor S.Seed2, 27);
+         S.Seed2 := Shift_Left (S.Seed2 and 16#FFFFFFFE#, 2) xor Inter;
+         Inter := Shift_Right (Shift_Left (S.Seed3, 13) xor S.Seed3, 21);
+         S.Seed3 := Shift_Left (S.Seed3 and 16#FFFFFFFE#, 7) xor Inter;
+         Inter := Shift_Right (Shift_Left (S.Seed4, 3) xor S.Seed4, 12);
+         S.Seed4 := Shift_Left (S.Seed4 and 16#FFFFFFFE#, 13) xor Inter;
+         Val := S.Seed1 xor S.Seed2 xor S.Seed3 xor S.Seed4;
+
+         Index := Index + 1;
+         if Index >= Reseed_Limit then
+            S := To_Seed (Get_Seed);
+            Index := 0;
+         end if;
       end loop;
 
       Lib.Synchronization.Release (Data.Mutex);
       return Count;
    end Random_Read;
 
-   procedure Reseed (Seed1, Seed2, Seed3, Seed4 : out Unsigned_32) is
-      --  Fetch some system data for reseeding.
-      --  - Currently allocated memory (weak runtime entropy).
-      --  - Address of a variable in the stack (weak runtime entropy).
-      --  - Cycles the system has gone thru till now (??).
-      S1 : constant Memory.Size := Memory.Physical.Get_Statistics.Used_Memory;
-      S2 : constant Unsigned_64 := Unsigned_64 (To_Integer (S1'Address));
-      S3 : constant Unsigned_64 := Arch.Snippets.Read_Cycles;
+   function Get_Seed return Unsigned_128 is
+      --  Seeds for mixing.
+      S1 : constant Unsigned_64 := Arch.Snippets.Read_Cycles;
+      S2 : constant Unsigned_64 := Unsigned_64 (Get_Statistics.Used_Memory);
+
+      --  Hash them, ideally this should be MD5 or something stronger.
+      --  This is totally homegrown and loosely based on boost::hash_combine.
+      M1 : constant Unsigned_64 := S2 xor (S1 + 16#9e3779b9# + S2);
+      M2 : constant Unsigned_64 := M1 xor (S1 + Shift_Left (S2, 6)) xor S2;
    begin
-      Seed1 := Unsigned_32 (S1 and 16#FFFFFFFF#);
-      Seed2 := Unsigned_32 (S2 and 16#FFFFFFFF#);
-      Seed3 := Unsigned_32 (S3 and 16#FFFFFFFF#);
-      Seed4 := 4315; --  Plug here other entropy sources, like clock drift.
-   end Reseed;
+      return Shift_Left (Unsigned_128 (M1), 63) or Unsigned_128 (M2);
+   end Get_Seed;
 end Devices.Random;
