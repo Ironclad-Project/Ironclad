@@ -18,46 +18,43 @@ with Ada.Unchecked_Conversion;
 with Memory.Physical; use Memory.Physical;
 with Arch.Snippets;
 with Memory; use Memory;
+with Cryptography.Chacha20;
 
 package body Cryptography.Random is
    procedure Fill_Data (Data : out Crypto_Data) is
-      --  We will reseed at the start of every request, no matter the size, and
-      --  when reaching this limit.
-      Reseed_Limit : constant := 1024;
-
       type Seed is record
-         Seed1 : Unsigned_32;
-         Seed2 : Unsigned_32;
-         Seed3 : Unsigned_32;
-         Seed4 : Unsigned_32;
-      end record with Object_Size => 128;
-      function To_Seed is new Ada.Unchecked_Conversion (Unsigned_128, Seed);
+         Seed1 : Unsigned_128;
+         Seed2 : Unsigned_128;
+      end record with Object_Size => 256;
+      function To_Seed is new Ada.Unchecked_Conversion (Seed, Chacha20.Key);
 
-      S     : Seed;
-      Index : Unsigned_64 := 0;
-      Inter : Unsigned_32;
+      --  Seed every time a new chain of random numbers is requested.
+      S : constant Seed := (
+         Seed1 => Get_Seed,
+         Seed2 => Get_Seed
+      );
+
+      Cha_Block   : Chacha20.Block := (others => 0);
+      Index       : Natural        := Cha_Block'Last + 1;
+      Block_Index : Unsigned_64    := 0;
    begin
-      S := To_Seed (Get_Seed);
-      for Val of Data loop
-         --  Mix our seeds using LFSR113.
-         Inter := Shift_Right (Shift_Left (S.Seed1, 6) xor S.Seed1, 13);
-         S.Seed1 := Shift_Left (S.Seed1 and 16#FFFFFFFE#, 18) xor Inter;
-         Inter := Shift_Right (Shift_Left (S.Seed2, 2) xor S.Seed2, 27);
-         S.Seed2 := Shift_Left (S.Seed2 and 16#FFFFFFFE#, 2) xor Inter;
-         Inter := Shift_Right (Shift_Left (S.Seed3, 13) xor S.Seed3, 21);
-         S.Seed3 := Shift_Left (S.Seed3 and 16#FFFFFFFE#, 7) xor Inter;
-         Inter := Shift_Right (Shift_Left (S.Seed4, 3) xor S.Seed4, 12);
-         S.Seed4 := Shift_Left (S.Seed4 and 16#FFFFFFFE#, 13) xor Inter;
-         Val := S.Seed1 xor S.Seed2 xor S.Seed3 xor S.Seed4;
-
-         Index := Index + 1;
-         if Index >= Reseed_Limit then
-            S := To_Seed (Get_Seed);
-            Index := 0;
+      --  The core of our RNG is Chacha20-based. We just create keys with a
+      --  random key and incremental block ID a-la CTR mode and use them as
+      --  random data. For some increased security once could XOR
+      --  low quality disposable entropy.
+      for Value of Data loop
+         if Index > Cha_Block'Last then
+            Cha_Block   := Chacha20.Gen_Key (To_Seed (S), 1, Block_Index);
+            Index       := Cha_Block'First;
+            Block_Index := Block_Index + 1;
          end if;
+
+         Value := Cha_Block (Index);
+         Index := Index + 1;
       end loop;
    end Fill_Data;
 
+   --  TODO: More entropy, please.
    function Get_Seed return Unsigned_128 is
       pragma SPARK_Mode (Off);
 
@@ -70,6 +67,6 @@ package body Cryptography.Random is
       M1 : constant Unsigned_64 := S2 xor (S1 + 16#9e3779b9# + S2);
       M2 : constant Unsigned_64 := M1 xor (S1 + Shift_Left (S2, 6)) xor S2;
    begin
-      return Shift_Left (Unsigned_128 (M1), 63) or Unsigned_128 (M2);
+      return Shift_Left (Unsigned_128 (M1), 64) or Unsigned_128 (M2);
    end Get_Seed;
 end Cryptography.Random;
