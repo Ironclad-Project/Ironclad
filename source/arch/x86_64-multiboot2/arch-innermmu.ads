@@ -27,58 +27,58 @@ package Arch.InnerMMU with SPARK_Mode => Off is
    end record;
 
    --  Object to represent a page map.
-   Page_Size_4K : constant := 16#001000#;
+   Page_Size_4K : constant := 16#1000#;
    Page_Size_2M : constant := 16#200000#;
-   type PML4 is array (1 .. 512) of Unsigned_64
-      with Alignment => Page_Size_4K, Size => 512 * 64;
+   Page_Size    : constant := Page_Size_4K;
+   type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
    type PML4_Acc is access all PML4;
 
-   --  Default page alignment.
-   Page_Size : constant := Page_Size_4K;
-
-   --  Page maps.
+   --  Inner page map structure.
    type Page_Map is record
       PML4_Level : PML4;
    end record;
-   type Page_Map_Acc is access all Page_Map;
+   type Page_Map_Acc is access Page_Map;
 
+   --  Initialize MMU.Kernel_Table and architecture specific state.
+   --  Return true on success or false in failure.
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean;
 
+   --  Create a new map ready for kernel use.
    function Create_Table return Page_Map_Acc;
 
+   --  Destroy a kernel map.
    procedure Destroy_Table (Map : in out Page_Map_Acc);
 
+   --  Make the passed map active, or check whether its active.
    function Make_Active (Map : Page_Map_Acc) return Boolean;
-
    function Is_Active (Map : Page_Map_Acc) return Boolean;
 
+   --  Translate a virtual address into a physical one.
    function Translate_Address
       (Map     : Page_Map_Acc;
        Virtual : System.Address) return System.Address;
 
+   --  Map, remap, or unmap a range of memory.
+   --  Return true on success or false on failure.
    function Map_Range
       (Map            : Page_Map_Acc;
        Physical_Start : System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
        Permissions    : Page_Permissions) return Boolean;
-
    function Remap_Range
       (Map           : Page_Map_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count;
        Permissions   : Page_Permissions) return Boolean;
-
    function Unmap_Range
       (Map           : Page_Map_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count) return Boolean;
 
+   --  Flush local and global TLBs, regardless of map.
    procedure Flush_Local_TLB (Addr : System.Address);
-
    procedure Flush_Local_TLB (Addr : System.Address; Len : Storage_Count);
-   --  TODO: Code this 2 bad boys once the VMM makes use of them.
-
    procedure Flush_Global_TLBs (Addr : System.Address);
    procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count);
 
@@ -94,6 +94,8 @@ private
       (Virtual : Virtual_Address) return Address_Components;
 
    function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address;
+
+   procedure Destroy_Level (Entry_Body : Unsigned_64; Level : Integer);
 
    function Get_Next_Level
       (Current_Level       : Physical_Address;

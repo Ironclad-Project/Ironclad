@@ -14,11 +14,12 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces.C;
 with Ada.Unchecked_Deallocation;
 with Arch.Wrappers;
 with Lib.Panic;
-with Lib.Alignment;
 with Arch.MMU;
+with Memory.Physical;
 
 package body Arch.InnerMMU with SPARK_Mode => Off is
    function Get_Address_Components
@@ -37,9 +38,8 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
    end Get_Address_Components;
 
    function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address is
-      Addr : constant Unsigned_64 := Entry_Body and not 16#FFF#;
    begin
-      return Physical_Address (Addr and not Shift_Left (1, 63));
+      return Physical_Address (Entry_Body and 16#FFFFFFFFF000#);
    end Clean_Entry;
 
    function Get_Next_Level
@@ -141,9 +141,6 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
    end Flags_To_Bitmap;
 
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
-      package Ali1 is new Lib.Alignment (Integer_Address);
-      package Ali2 is new Lib.Alignment (Unsigned_64);
-
       Flags : constant Page_Permissions := (
          User_Accesible => False,
          Read_Only      => False,
@@ -153,8 +150,6 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
       );
       Hardcoded_Region   : constant := 16#100000000#;
       Success1, Success2 : Boolean;
-      Aligned_Addr       : Integer_Address;
-      Aligned_Len        : Unsigned_64;
    begin
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Map;
@@ -182,32 +177,16 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
 
       --  Map the memmap memory to the memory window and identity
       for E of Memmap loop
-         --  Sometimes one gets a memory entry at 0 with stivale, which is
-         --  always unusable and reserved. We want to keep it unmapped.
-         if To_Integer (E.Start) = 0 then
-            goto SKIP;
-         end if;
-
-         Aligned_Addr := Ali1.Align_Down (To_Integer (E.Start), Page_Size_4K);
-         Aligned_Len  := Ali2.Align_Up (Unsigned_64 (E.Length), Page_Size_4K);
          Success1 := Map_Range (
             Map            => MMU.Kernel_Table,
-            Physical_Start => To_Address (Aligned_Addr),
-            Virtual_Start  => To_Address (Aligned_Addr + Memory_Offset),
-            Length         => Storage_Offset (Aligned_Len),
+            Physical_Start => To_Address (To_Integer (E.Start)),
+            Virtual_Start => To_Address (To_Integer (E.Start) + Memory_Offset),
+            Length         => Storage_Offset (E.Length),
             Permissions    => Flags
          );
-         Success2 := Map_Range (
-            Map            => MMU.Kernel_Table,
-            Physical_Start => To_Address (Aligned_Addr),
-            Virtual_Start  => To_Address (Aligned_Addr),
-            Length         => Storage_Offset (Aligned_Len),
-            Permissions    => Flags
-         );
-         if not Success1 or not Success2 then
+         if not Success1 then
             return False;
          end if;
-      <<SKIP>>
       end loop;
 
       --  Map 128MiB of kernel.
@@ -218,26 +197,43 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
          Length         => 16#7000000#,
          Permissions    => Flags
       );
-      if not Success1 then
-         Lib.Panic.Soft_Panic ("or here!");
-         return False;
-      end if;
-      return True;
+      return Success1;
    end Init;
 
    function Create_Table return Page_Map_Acc is
       Map : constant Page_Map_Acc := new Page_Map;
    begin
-      Map.PML4_Level (256 .. 512) := MMU.Kernel_Table.PML4_Level (256 .. 512);
+      Map.PML4_Level (257 .. 512) := MMU.Kernel_Table.PML4_Level (257 .. 512);
       return Map;
    end Create_Table;
+
+   procedure Destroy_Level (Entry_Body : Unsigned_64; Level : Integer) is
+      Addr : constant Integer_Address := Clean_Entry (Entry_Body);
+      PML  : PML4 with Import, Address =>
+         To_Address (Memory.Memory_Offset + Addr);
+   begin
+      if (Entry_Body and 1) /= 0 then
+         if Level > 1 then
+            for E of PML loop
+               if (E and 1) /= 0 then
+                  Destroy_Level (E, Level - 1);
+               end if;
+            end loop;
+         end if;
+         Memory.Physical.Free (Interfaces.C.size_t (Addr));
+      end if;
+   end Destroy_Level;
 
    procedure Destroy_Table (Map : in out Page_Map_Acc) is
       procedure F is new Ada.Unchecked_Deallocation (Page_Map, Page_Map_Acc);
    begin
-      --  TODO: Free the tables themselves.
-      F (Map);
-      Map := null;
+      if Map /= null then
+         for I in 1 .. 256 loop
+            Destroy_Level (Map.PML4_Level (I), 3);
+         end loop;
+         F (Map);
+         Map := null;
+      end if;
    end Destroy_Table;
 
    function Make_Active (Map : Page_Map_Acc) return Boolean is
