@@ -33,7 +33,6 @@ with Ada.Unchecked_Deallocation;
 with Ada.Unchecked_Conversion;
 with Interfaces.C;
 with Arch.Hooks;
-with Arch.MMU;
 with Arch.Local;
 with Cryptography.Random;
 
@@ -111,9 +110,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
       pragma Unreferenced (Mode);
       Addr : constant System.Address := To_Address (Integer_Address (Address));
    begin
-      if Address = 0 then
+      if not Check_Userland_Access (To_Integer (Addr)) then
          if Is_Tracing then
-            Lib.Messages.Put ("syscall open(null, ");
+            Lib.Messages.Put ("syscall open(BAD_MEM, ");
             Lib.Messages.Put (Flags);
             Lib.Messages.Put_Line (")");
          end if;
@@ -221,7 +220,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
-      elsif Buffer = 0 then
+      elsif not Check_Userland_Access (To_Integer (Buffer_Addr)) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       elsif File.Flags /= Access_R and File.Flags /= Access_RW then
@@ -259,7 +258,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
-      elsif Buffer = 0 then
+      elsif not Check_Userland_Access (To_Integer (Buffer_Addr)) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       elsif File.Flags /= Access_W and File.Flags /= Access_RW then
@@ -317,6 +316,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
       return File.Index;
    end Syscall_Seek;
 
+   function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions is
+   begin
+      return (
+         User_Accesible => True,
+         Read_Only      => (P and Protection_Write)    = 0,
+         Executable     => (P and Protection_Execute) /= 0,
+         Global         => False,
+         Write_Through  => False
+      );
+   end Get_Mmap_Prot;
+
    function Syscall_Mmap
       (Hint       : Unsigned_64;
        Length     : Unsigned_64;
@@ -326,13 +336,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Offset     : Unsigned_64;
        Errno      : out Errno_Value) return Unsigned_64
    is
-      Map_Flags : constant Arch.MMU.Page_Permissions := (
-         User_Accesible => True,
-         Read_Only      => (Protection and Protection_Write)    = 0,
-         Executable     => (Protection and Protection_Execute) /= 0,
-         Global         => False,
-         Write_Through  => False
-      );
+      Map_Flags : constant Arch.MMU.Page_Permissions :=
+         Get_Mmap_Prot (Protection);
       Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Map  : constant Page_Map_Acc     := Proc.Common_Map;
       Final_Hint : Unsigned_64 := Hint;
@@ -491,6 +496,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
+      if not Check_Userland_Access (To_Integer (Addr)) then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      end if;
+
       --  Count the args and envp we have, and copy them to Ada arrays.
       for I in Args_Raw'Range loop
          exit when Args_Raw (I) = 0;
@@ -602,7 +612,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
             Arch.Local.Get_Current_Process;
       Exit_Value : Unsigned_32
-         with Address => To_Address (Integer_Address (Exit_Addr));
+         with Address => To_Address (Integer_Address (Exit_Addr)), Import;
 
       Dont_Hang : constant Boolean := (Options and Wait_WNOHANG) /= 0;
    begin
@@ -619,6 +629,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
       --  Fail on having to wait on the process group, we dont support that.
       if Waited_PID = 0 then
          Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      end if;
+
+      if not Check_Userland_Access (Integer_Address (Exit_Addr)) then
+         Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       end if;
 
@@ -678,7 +693,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
       UTS  : UTS_Name with Address => Addr;
       Host_Len : Networking.Hostname_Len;
    begin
-      if Addr = System.Null_Address then
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall uname(");
+         Lib.Messages.Put      (Address);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if not Check_Userland_Access (Integer_Address (Address)) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       end if;
@@ -709,7 +730,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Name : String (1 .. Len) with Address => Addr;
       Success : Boolean;
    begin
-      if Addr = System.Null_Address then
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall set_hostname(");
+         Lib.Messages.Put      (Address);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Length);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if not Check_Userland_Access (Integer_Address (Address)) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       end if;
@@ -790,7 +819,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
-      elsif Address = 0 then
+      elsif not Check_Userland_Access (Integer_Address (Address)) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       end if;
@@ -823,7 +852,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      if Address = 0 then
+      if not Check_Userland_Access (Integer_Address (Address)) then
          Errno := Error_Would_Fault;
          return 0;
       end if;
@@ -857,7 +886,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      if Buffer = 0 then
+      if not Check_Userland_Access (Integer_Address (Buffer)) then
          Errno := Error_Would_Fault;
          return 0;
       end if;
@@ -884,9 +913,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Process : constant Userland.Process.Process_Data_Acc :=
             Arch.Local.Get_Current_Process;
    begin
-      if Path = 0 then
+      if not Check_Userland_Access (Integer_Address (Path)) then
          if Is_Tracing then
-            Lib.Messages.Put_Line ("syscall chdir(0)");
+            Lib.Messages.Put_Line ("syscall chdir(BAD_MEM)");
          end if;
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
@@ -939,7 +968,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
-      elsif Argument = 0 then
+      elsif not Check_Userland_Access (Integer_Address (Argument)) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       end if;
@@ -1165,9 +1194,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Addr : constant System.Address := To_Address (Integer_Address (Path));
    begin
-      if Path = 0 then
+      if not Check_Userland_Access (Integer_Address (Path)) then
          if Is_Tracing then
-            Lib.Messages.Put ("syscall access(null, ");
+            Lib.Messages.Put ("syscall access(BAD_MEM, ");
             Lib.Messages.Put (Mode);
             Lib.Messages.Put_Line (")");
          end if;
@@ -1414,7 +1443,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put      (Length);
          Lib.Messages.Put_Line (")");
       end if;
-      if Address = 0 then
+      if not Check_Userland_Access (Integer_Address (Address)) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       else
@@ -1423,4 +1452,35 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Result'Length * 4;
       end if;
    end Syscall_Get_Random;
+
+   function Syscall_MProtect
+     (Address    : Unsigned_64;
+      Length     : Unsigned_64;
+      Protection : Unsigned_64;
+      Errno      : out Errno_Value) return Unsigned_64
+   is
+      Proc  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Map   : constant Page_Map_Acc     := Proc.Common_Map;
+      Flags : constant Arch.MMU.Page_Permissions := Get_Mmap_Prot (Protection);
+      Addr  : constant Integer_Address := Integer_Address (Address);
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall mprotect(");
+         Lib.Messages.Put      (Address, False, True);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Length);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Protection, False, True);
+         Lib.Messages.Put_Line (")");
+      end if;
+      if not Check_Userland_Access (Addr) or else
+         not Remap_Range (Map, Addr, Length, Flags)
+      then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      else
+         Errno := Error_No_Error;
+         return 0;
+      end if;
+   end Syscall_MProtect;
 end Userland.Syscall;

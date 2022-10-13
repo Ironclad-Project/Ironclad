@@ -39,7 +39,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
 
    function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address is
    begin
-      return Physical_Address (Entry_Body and 16#FFFFFFFFF000#);
+      return Physical_Address (Entry_Body and 16#FFFFFFF000#);
    end Clean_Entry;
 
    function Get_Next_Level
@@ -148,8 +148,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
          Global         => True,
          Write_Through  => False
       );
-      Hardcoded_Region   : constant := 16#100000000#;
-      Success1, Success2 : Boolean;
+      Hardcoded_Region : constant := 16#100000000#;
    begin
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Map;
@@ -157,47 +156,46 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
       --  Map the first 4 GiB (except 0) to the window and identity mapped.
       --  This is done instead of following the pagemap to ensure that all
       --  I/O and memory tables that may not be in the memmap are mapped.
-      Success1 := Map_Range (
+      if not Map_Range (
          Map            => MMU.Kernel_Table,
          Physical_Start => To_Address (Page_Size_4K),
          Virtual_Start  => To_Address (Page_Size_4K),
          Length         => Hardcoded_Region - Page_Size_4K,
          Permissions    => Flags
-      );
-      Success2 := Map_Range (
+      )
+      or not Map_Range (
          Map            => MMU.Kernel_Table,
          Physical_Start => To_Address (Page_Size_4K),
          Virtual_Start  => To_Address (Page_Size_4K + Memory_Offset),
          Length         => Hardcoded_Region - Page_Size_4K,
          Permissions    => Flags
-      );
-      if not Success1 or not Success2 then
+      )
+      then
          return False;
       end if;
 
       --  Map the memmap memory to the memory window and identity
       for E of Memmap loop
-         Success1 := Map_Range (
+         if not Map_Range (
             Map            => MMU.Kernel_Table,
             Physical_Start => To_Address (To_Integer (E.Start)),
             Virtual_Start => To_Address (To_Integer (E.Start) + Memory_Offset),
             Length         => Storage_Offset (E.Length),
             Permissions    => Flags
-         );
-         if not Success1 then
+         )
+         then
             return False;
          end if;
       end loop;
 
       --  Map 128MiB of kernel.
-      Success1 := Map_Range (
+      return Map_Range (
          Map            => MMU.Kernel_Table,
          Physical_Start => To_Address (16#200000#),
          Virtual_Start  => To_Address (Kernel_Offset),
          Length         => 16#7000000#,
          Permissions    => Flags
       );
-      return Success1;
    end Init;
 
    function Create_Table return Page_Map_Acc is
@@ -209,8 +207,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
 
    procedure Destroy_Level (Entry_Body : Unsigned_64; Level : Integer) is
       Addr : constant Integer_Address := Clean_Entry (Entry_Body);
-      PML  : PML4 with Import, Address =>
-         To_Address (Memory.Memory_Offset + Addr);
+      PML  : PML4 with Import, Address => To_Address (Memory_Offset + Addr);
    begin
       if (Entry_Body and 1) /= 0 then
          if Level > 1 then
@@ -263,10 +260,13 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
       Searched1 : Unsigned_64 with Address => To_Address (Addr1), Import;
       Searched2 : Unsigned_64 with Address => To_Address (Addr2), Import;
    begin
-      if (Shift_Right (Unsigned_64 (Addr1), 7) and 1) /= 0 then
+      if Addr1 /= Null_Address and then (Shift_Right (Searched1, 7) and 1) /= 0
+      then
          return To_Address (Clean_Entry (Searched1));
-      else
+      elsif Addr2 /= Null_Address then
          return To_Address (Clean_Entry (Searched2));
+      else
+         return System.Null_Address;
       end if;
    end Translate_Address;
 
@@ -395,19 +395,23 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
 
       while Virt mod Page_Size_2M /= 0 and Virt /= Final_Addr loop
          declare
-            Addr : constant Virtual_Address := Get_Page_4K (Map, Virt, True);
+            Addr : constant Virtual_Address := Get_Page_4K (Map, Virt, False);
             Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
          begin
-            Entry_Body := Entry_Body and 0;
+            if Addr /= 0 then
+               Entry_Body := Entry_Body and 0;
+            end if;
          end;
          Virt := Virt + Page_Size_4K;
       end loop;
       while Virt < Final_Addr loop
          declare
-            Addr : constant Virtual_Address := Get_Page_2M (Map, Virt, True);
+            Addr : constant Virtual_Address := Get_Page_2M (Map, Virt, False);
             Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
          begin
-            Entry_Body := Entry_Body and 0;
+            if Addr /= 0 then
+               Entry_Body := Entry_Body and 0;
+            end if;
          end;
          Virt := Virt + Page_Size_2M;
       end loop;

@@ -470,6 +470,8 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @xref{spawn}
 @item
 @xref{getrandom}
+@item
+@xref{mprotect}
 @end enumerate
 
 @node Errno
@@ -1204,6 +1206,27 @@ sets the following errno:
 @itemize @bullet
 @item
 @code{EFAULT}: @code{buffer} points to invalid memory.
+@end itemize
+
+@node mprotect
+@section mprotect
+
+@example
+int mprotect(void *addr, size_t len, int prot);
+@end example
+
+This syscall allows to change the permission of a range of memory of the passed
+length pointed by @code{addr}, previously mapped by the caller. The format of
+@code{prot} is the same as @code{mmap}.
+
+@code{addr} and @code{len} must be aligned to an architecture-valid alignment.
+
+The syscall returns the @code{0} on success or @code{-1} on failure, and
+sets the following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: @code{addr} points to invalid memory.
 @end itemize
 
 @node Devices and their properties

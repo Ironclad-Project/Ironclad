@@ -241,4 +241,12 @@ package body Memory.Virtual with SPARK_Mode => Off is
       Lib.Synchronization.Release (Map.Mutex);
       return Result;
    end Virtual_To_Physical;
+
+   function Check_Userland_Access (Addr : Virtual_Address) return Boolean is
+   begin
+      --  TODO: This should use a passed map to actually check memory regions.
+      --  for now, we can just check whether its in the higher half for
+      --  speed.
+      return Addr /= 0 and Addr < Memory_Offset;
+   end Check_Userland_Access;
 end Memory.Virtual;

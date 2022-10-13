@@ -17,6 +17,7 @@
 with Interfaces; use Interfaces;
 with VFS.File;
 with Arch.Context;
+with Arch.MMU;
 
 package Userland.Syscall with SPARK_Mode => Off is
    --  Error conditions for syscalls.
@@ -312,7 +313,16 @@ package Userland.Syscall with SPARK_Mode => Off is
       Length  : Unsigned_64;
       Errno   : out Errno_Value) return Unsigned_64;
 
+   --  Change protection from memory regions.
+   function Syscall_MProtect
+     (Address    : Unsigned_64;
+      Length     : Unsigned_64;
+      Protection : Unsigned_64;
+      Errno      : out Errno_Value) return Unsigned_64;
+
 private
+
+   function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions;
 
    function Inner_Stat
       (F       : VFS.File.File_Acc;

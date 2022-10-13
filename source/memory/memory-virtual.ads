@@ -90,4 +90,8 @@ package Memory.Virtual with SPARK_Mode => Off is
    function Virtual_To_Physical
       (Map     : Page_Map_Acc;
        Virtual : Virtual_Address) return Physical_Address;
+
+   --  Check whether the loaded map can access the passed address
+   --  from userland.
+   function Check_Userland_Access (Addr : Virtual_Address) return Boolean;
 end Memory.Virtual;
