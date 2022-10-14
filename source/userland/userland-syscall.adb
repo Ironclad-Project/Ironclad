@@ -1483,4 +1483,21 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return 0;
       end if;
    end Syscall_MProtect;
+
+   function Syscall_Crypto_Request
+      (Request  : Unsigned_64;
+       Argument : Unsigned_64;
+       Errno    : out Errno_Value) return Unsigned_64
+   is
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall crypto_request(");
+         Lib.Messages.Put      (Request, False, True);
+         Lib.Messages.Put      (", ");
+         Lib.Messages.Put      (Argument, False, True);
+         Lib.Messages.Put_Line (")");
+      end if;
+      Errno := Error_Not_Implemented;
+      return Unsigned_64'Last;
+   end Syscall_Crypto_Request;
 end Userland.Syscall;

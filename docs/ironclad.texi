@@ -95,6 +95,9 @@ Syscalls
 * thread_sched::            Manage scheduler-related thread permissions.
 * fcntl::                   Multiplexed operations for files.
 * spawn::                   Start separate programs by path.
+* getrandom::               Bypass /dev/random for avoiding DoS attacks.
+* mprotect::                Change memory permissions.
+* crypto_request::          Access to kernel crypto ala /dev/crypto.
 
 Devices and their properties
 
@@ -175,6 +178,9 @@ directory. It has several subdirectories with the following meanings:
 @table @code
 @item arch
 Architecture-dependent code, including aarch64 and x86_64 code.
+
+@item cryptography
+Cryptographic facilities, cypher implementations, entropy management.
 
 @item devices
 Several device drivers, physical and virtual.
@@ -472,6 +478,8 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @xref{getrandom}
 @item
 @xref{mprotect}
+@item
+@xref{crypto_request}
 @end enumerate
 
 @node Errno
@@ -956,7 +964,7 @@ following errno:
 @code{EBADF}: The passed file does not exist for the process.
 
 @item
-@code{EFAULT}: The passed argument is in non-accesible mmeory
+@code{EFAULT}: The passed argument is in non-accesible memory
 @end itemize
 
 @node sched_yield
@@ -1229,6 +1237,30 @@ sets the following errno:
 @code{EFAULT}: @code{addr} points to invalid memory.
 @end itemize
 
+@node crypto_request
+@section crypto_request
+
+@example
+int crypto_request(unsigned long request, void *argument);
+@end example
+
+This syscall exposes kernel cryptographic facilities on the same way
+@code{ioctl} does for the @code{/dev/crypto} pseudo-device on OpenBSD systems.
+
+Currently this syscall is in development (its alpha software after all) so
+it will always fail with @code{ENOSYS}.
+
+The syscall returns @code{0} on success, or @code{-1} on failure, and
+sets the following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: @code{argument} points to invalid memory.
+
+@item
+@code{ENOSYS}: @code{request} is not implemented.
+@end itemize
+
 @node Devices and their properties
 @chapter Devices and their properties
 
@@ -1266,6 +1298,8 @@ allowed, unlike other systems.
 
 @code{/dev/urandom} does the same as @code{/dev/random}, and is only provided
 for compatibility.
+
+@code{getrandom} is provided as well for avoiding the file interface.
 
 @subsection null/zero
 

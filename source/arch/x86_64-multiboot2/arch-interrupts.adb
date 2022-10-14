@@ -195,8 +195,12 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 31 =>
             Returned := Syscall_Spawn (State.RDI, State.RSI, State.RDX, Errno);
          when 32 =>
+            Returned := Syscall_Get_Random (State.RDI, State.RSI, Errno);
+         when 33 =>
             Returned := Syscall_MProtect (State.RDI, State.RSI, State.RDX,
                                           Errno);
+         when 34 =>
+            Returned := Syscall_Crypto_Request (State.RDI, State.RSI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;

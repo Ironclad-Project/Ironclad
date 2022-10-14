@@ -320,6 +320,12 @@ package Userland.Syscall with SPARK_Mode => Off is
       Protection : Unsigned_64;
       Errno      : out Errno_Value) return Unsigned_64;
 
+   --  Cryptographic functions exposed to userland.
+   function Syscall_Crypto_Request
+      (Request  : Unsigned_64;
+       Argument : Unsigned_64;
+       Errno    : out Errno_Value) return Unsigned_64;
+
 private
 
    function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions;
