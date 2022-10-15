@@ -1,4 +1,4 @@
---  arch-innermmu.adb: Architecture-specific MMU code.
+--  arch-mmu.adb: Architecture-specific MMU code.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -20,11 +20,13 @@ with System.Machine_Code;
 with Lib.Panic;
 with Memory; use Memory;
 
-package body Arch.InnerMMU with SPARK_Mode => Off is
+package body Arch.MMU with SPARK_Mode => Off is
    --  The MMU driver is heavily inspired from:
    --  - Managarm (https://github.com/managarm/managarm, MIT)
    --  - Sabaton  (https://github.com/FlorenceOS/Sabaton, 0BSD)
    --  Really interesting projects, check them out!
+
+   Higher_Half : constant := 16#FFFF000000000000#;
 
    --  Page attributes.
    Page_RO      : constant Unsigned_64 := Shift_Left (1, 7);
@@ -79,355 +81,12 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
    end record;
    for AA64MMFR0'Size use 64;
 
-   function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
-      Flags : constant Page_Permissions := (
-         User_Accesible => False,
-         Read_Only      => False,
-         Executable     => True,
-         Global         => True,
-         Write_Through  => False
-      );
-
-      AA64MMFR : AA64MMFR0;
-      Success  : Boolean;
-   begin
-      --  Check for 4K pages, which is the only thing we support right now.
-      System.Machine_Code.Asm
-         ("mrs %0, id_aa64mmfr0_el1",
-          Outputs  => AA64MMFR0'Asm_Output ("=r", AA64MMFR),
-          Clobber  => "memory",
-          Volatile => True);
-
-      if AA64MMFR.TGran_4 /= 0 then
-         Lib.Panic.Soft_Panic ("MMU does not support 4K pages");
-         return False;
-      end if;
-
-      --  Create the kernel map and map the kernel and other regions.
-      MMU.Kernel_Table := new Page_Map;
-
-      --  Search for kernel entries and map them.
-      for E of Memmap loop
-         --  Sabaton returns only 1 kernel entry and a reserved memory entry
-         --  starting at 512GiB, that we have to filter out.
-         if E.MemType = Arch.Memory_Kernel then
-            Success := Map_Range (
-               Map            => MMU.Kernel_Table,
-               Physical_Start => E.Start,
-               Virtual_Start  => To_Address (Kernel_Offset + 16#100000#),
-               Length         => E.Length,
-               Permissions    => Flags
-            );
-         elsif To_Integer (E.Start) /= 16#8000000000# then
-            Success := Map_Range (
-               MMU.Kernel_Table,
-               E.Start,
-               To_Address (Memory_Offset + To_Integer (E.Start)),
-               E.Length,
-               Flags
-            );
-         end if;
-         if not Success then
-            return False;
-         end if;
-      end loop;
-
-      --  Make the map active right now to minimize the window of
-      --  potentially invalid settings in the old maps.
-      Set_MMU_State;
-      return Make_Active (MMU.Kernel_Table);
-   end Init;
-
-   function Create_Table return Page_Map_Acc is
-      Map : constant Page_Map_Acc := new Page_Map;
-   begin
-      Map.TTBR1 := MMU.Kernel_Table.TTBR1;
-      return Map;
-   end Create_Table;
-
-   procedure Destroy_Table (Map : in out Page_Map_Acc) is
-      procedure F is new Ada.Unchecked_Deallocation (Page_Map, Page_Map_Acc);
-   begin
-      --  TODO: Free the tables themselves.
-      F (Map);
-      Map := null;
-   end Destroy_Table;
-
-   function Make_Active (Map : Page_Map_Acc) return Boolean is
-      Addr0 : constant Integer_Address :=
-         To_Integer (Map.TTBR0'Address) - Memory.Memory_Offset;
-      Addr1 : constant Integer_Address :=
-         To_Integer (Map.TTBR1'Address) - Memory.Memory_Offset;
-   begin
-      if not Is_Active (Map) then
-         System.Machine_Code.Asm
-            ("msr ttbr0_el1, %0; msr ttbr1_el1, %1; tlbi vmalle1; dsb nsh",
-             Inputs   => (Integer_Address'Asm_Input ("r", Addr0),
-                          Integer_Address'Asm_Input ("r", Addr1)),
-             Clobber  => "memory",
-             Volatile => True);
-      end if;
-      return True;
-   end Make_Active;
-
-   function Is_Active (Map : Page_Map_Acc) return Boolean is
-      TTBR0, TTBR1 : Integer_Address;
-   begin
-      System.Machine_Code.Asm
-         ("mrs %0, ttbr0_el1; mrs %1, ttbr1_el1",
-          Outputs  => (Integer_Address'Asm_Output ("=r", TTBR0),
-                       Integer_Address'Asm_Output ("=r", TTBR1)),
-          Clobber  => "memory",
-          Volatile => True);
-
-      TTBR0 := TTBR0 + Memory.Memory_Offset;
-      TTBR1 := TTBR1 + Memory.Memory_Offset;
-
-      return Map.TTBR0'Address = To_Address (TTBR0) and
-             Map.TTBR1'Address = To_Address (TTBR1);
-   end Is_Active;
-
-   procedure Set_MMU_State is
-      type MAIR_EL1 is record
-         Attr0 : Unsigned_8;
-         Attr1 : Unsigned_8;
-         Attr2 : Unsigned_8;
-         Attr3 : Unsigned_8;
-         Attr4 : Unsigned_8;
-         Attr5 : Unsigned_8;
-         Attr6 : Unsigned_8;
-         Attr7 : Unsigned_8;
-      end record;
-      for MAIR_EL1 use record
-         Attr0 at 0 range 0 .. 7;
-         Attr1 at 1 range 0 .. 7;
-         Attr2 at 2 range 0 .. 7;
-         Attr3 at 3 range 0 .. 7;
-         Attr4 at 4 range 0 .. 7;
-         Attr5 at 5 range 0 .. 7;
-         Attr6 at 6 range 0 .. 7;
-         Attr7 at 7 range 0 .. 7;
-      end record;
-      for MAIR_EL1'Size use 64;
-
-      MAIR : constant MAIR_EL1 := (
-         Attr0 => 2#11111111#, --  Normal, Write-back RW-Allocate non-transient
-         Attr1 => 2#00001100#, --  Device, GRE
-         Attr2 => 2#00000000#, --  Device, nGnRnE
-         Attr3 => 2#00000100#, --  Device, nGnRE
-         Attr4 => 2#01000100#, --  Normal Non-cachable
-         Attr5 => 2#00000000#, --  Device, nGnRnE
-         Attr6 => 2#00000000#, --  Device, nGnRnE
-         Attr7 => 2#00000000#  --  Device, nGnRnE
-      );
-      AA64MMFR : AA64MMFR0;
-      PA_Range, TCR, SCTLR : Unsigned_64;
-   begin
-      --  Set caching modes.
-      System.Machine_Code.Asm
-         ("mrs %0, sctlr_el1",
-          Outputs  => Unsigned_64'Asm_Output ("=r", SCTLR),
-          Clobber  => "memory",
-          Volatile => True);
-      SCTLR := SCTLR or Shift_Left (1, 2) or Shift_Left (1, 12);
-      System.Machine_Code.Asm
-         ("msr sctlr_el1, %0",
-          Inputs   => Unsigned_64'Asm_Input ("r", SCTLR),
-          Clobber  => "memory",
-          Volatile => True);
-
-      --  Set MMU state.
-      System.Machine_Code.Asm
-         ("mrs %0, id_aa64mmfr0_el1",
-          Outputs  => AA64MMFR0'Asm_Output ("=r", AA64MMFR),
-          Clobber  => "memory",
-          Volatile => True);
-      PA_Range := Unsigned_64
-         ((if AA64MMFR.PA_Range < 5 then AA64MMFR.PA_Range else 5));
-      TCR := Shift_Left (16, 0) or Shift_Left (16, 16) or Shift_Left (1, 8)  or
-             Shift_Left (1, 10) or Shift_Left (1, 24)  or Shift_Left (1, 26) or
-             Shift_Left (2, 12) or Shift_Left (2, 28)  or Shift_Left (2, 30) or
-             Shift_Left (PA_Range, 32);
-      System.Machine_Code.Asm
-         ("msr tcr_el1, %0",
-          Inputs   => Unsigned_64'Asm_Input ("r", TCR),
-          Clobber  => "memory",
-          Volatile => True);
-      System.Machine_Code.Asm
-         ("msr mair_el1, %0",
-          Inputs   => MAIR_EL1'Asm_Input ("r", MAIR),
-          Clobber  => "memory",
-          Volatile => True);
-   end Set_MMU_State;
-
-   function Translate_Address
-      (Map     : Page_Map_Acc;
-       Virtual : System.Address) return System.Address
-   is
-      Virt : Integer_Address := To_Integer (Virtual);
-      TTBR : System.Address  := System.Null_Address;
-   begin
-      if (Virt and Higher_Half) /= 0 then
-         Virt := Virt and not Higher_Half;
-         TTBR := Map.TTBR1'Address;
-      else
-         TTBR := Map.TTBR0'Address;
-      end if;
-
-      declare
-         Addr : constant Integer_Address := Get_Page (TTBR, Virt, True);
-         Entry_B : Unsigned_64 with Address => To_Address (Addr), Import;
-      begin
-         return To_Address (Integer_Address (Get_Addr_From_Entry (Entry_B)));
-      end;
-   end Translate_Address;
-
-   function Map_Range
-      (Map            : Page_Map_Acc;
-       Physical_Start : System.Address;
-       Virtual_Start  : System.Address;
-       Length         : Storage_Count;
-       Permissions    : Page_Permissions) return Boolean
-   is
-      Virt       : Integer_Address := To_Integer (Virtual_Start);
-      Phys       : Integer_Address := To_Integer (Physical_Start);
-      Final_Virt : Integer_Address := Virt + Integer_Address (Length);
-      TTBR       : System.Address  := System.Null_Address;
-      Perm_Mask : constant Unsigned_64 := Get_Bits (Permissions);
-   begin
-      if Virt   mod Page_Size /= 0 or Phys mod Page_Size /= 0 or
-         Length mod Page_Size /= 0
-      then
-         return False;
-      end if;
-
-      if (Virt and Higher_Half) /= 0 then
-         Virt       := Virt       and not Higher_Half;
-         Final_Virt := Final_Virt and not Higher_Half;
-         TTBR       := Map.TTBR1'Address;
-      else
-         TTBR := Map.TTBR0'Address;
-      end if;
-
-      while Virt < Final_Virt loop
-         declare
-            Addr : constant Integer_Address := Get_Page (TTBR, Virt, True);
-            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
-         begin
-            Entry_Body := Unsigned_64 (Phys) or Perm_Mask;
-         end;
-         Virt := Virt + Page_Size;
-         Phys := Phys + Page_Size;
-      end loop;
-
-      return True;
-   end Map_Range;
-
-   function Remap_Range
-      (Map           : Page_Map_Acc;
-       Virtual_Start : System.Address;
-       Length        : Storage_Count;
-       Permissions   : Page_Permissions) return Boolean
-   is
-      Virt       : Integer_Address := To_Integer (Virtual_Start);
-      Final_Virt : Integer_Address := Virt + Integer_Address (Length);
-      TTBR       : System.Address  := System.Null_Address;
-      Perm_Mask : constant Unsigned_64 := Get_Bits (Permissions);
-   begin
-      if Virt mod Page_Size /= 0 or Length mod Page_Size /= 0 then
-         return False;
-      end if;
-
-      if (Virt and Higher_Half) /= 0 then
-         Virt       := Virt       and not Higher_Half;
-         Final_Virt := Final_Virt and not Higher_Half;
-         TTBR       := Map.TTBR1'Address;
-      else
-         TTBR := Map.TTBR0'Address;
-      end if;
-
-      while Virt < Final_Virt loop
-         declare
-            Addr : constant Integer_Address := Get_Page (TTBR, Virt, False);
-            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
-         begin
-            Entry_Body := Get_Addr_From_Entry (Entry_Body) or Perm_Mask;
-            Flush_Local_TLB (To_Address (Virt));
-         end;
-         Virt := Virt + Page_Size;
-      end loop;
-
-      return True;
-   end Remap_Range;
-
-   function Unmap_Range
-      (Map           : Page_Map_Acc;
-       Virtual_Start : System.Address;
-       Length        : Storage_Count) return Boolean
-   is
-      Virt       : Integer_Address := To_Integer (Virtual_Start);
-      Final_Virt : Integer_Address := Virt + Integer_Address (Length);
-      TTBR       : System.Address  := System.Null_Address;
-   begin
-      if Virt mod Page_Size /= 0 or Length mod Page_Size /= 0 then
-         return False;
-      end if;
-
-      if (Virt and Higher_Half) /= 0 then
-         Virt       := Virt       and not Higher_Half;
-         Final_Virt := Final_Virt and not Higher_Half;
-         TTBR       := Map.TTBR1'Address;
-      else
-         TTBR := Map.TTBR0'Address;
-      end if;
-
-      while Virt < Final_Virt loop
-         declare
-            Addr : constant Integer_Address := Get_Page (TTBR, Virt, False);
-            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
-         begin
-            Entry_Body := Entry_Body xor Page_Valid;
-            Flush_Local_TLB (To_Address (Virt));
-         end;
-         Virt := Virt + Page_Size;
-      end loop;
-
-      return True;
-   end Unmap_Range;
-
-   procedure Flush_Local_TLB (Addr : System.Address) is
-      Ad : constant Unsigned_64 := Unsigned_64 (To_Integer (Addr));
-   begin
-      System.Machine_Code.Asm
-         ("dsb st; tlbi vale1, %0; dsb sy; isb",
-          Inputs   => Unsigned_64'Asm_Input ("r", Shift_Right (Ad, 12)),
-          Clobber  => "memory",
-          Volatile => True);
-   end Flush_Local_TLB;
-
-   procedure Flush_Local_TLB (Addr : System.Address; Len : Storage_Count) is
-      Curr : Storage_Count := 0;
-   begin
-      while Curr < Len loop
-         Flush_Local_TLB (Addr + Curr);
-         Curr := Curr + Page_Size;
-      end loop;
-   end Flush_Local_TLB;
-
-   --  TODO: Code this 2 bad boys once the VMM makes use of them.
-
-   procedure Flush_Global_TLBs (Addr : System.Address) is
-      pragma Unreferenced (Addr);
-   begin
-      return;
-   end Flush_Global_TLBs;
-
-   procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count) is
-      pragma Unreferenced (Addr);
-      pragma Unreferenced (Len);
-   begin
-      return;
-   end Flush_Global_TLBs;
+   type Address_Components is record
+      Level0_Entry : Unsigned_64;
+      Level1_Entry : Unsigned_64;
+      Level2_Entry : Unsigned_64;
+      Level3_Entry : Unsigned_64;
+   end record;
 
    function Get_Components (Add : Integer_Address) return Address_Components is
       Addr : constant Unsigned_64 := Unsigned_64 (Add);
@@ -532,4 +191,354 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
    begin
       return Entry_B and 16#FFFFFFFFF000#;
    end Get_Addr_From_Entry;
-end Arch.InnerMMU;
+
+   procedure Set_MMU_State is
+      type MAIR_EL1 is record
+         Attr0 : Unsigned_8;
+         Attr1 : Unsigned_8;
+         Attr2 : Unsigned_8;
+         Attr3 : Unsigned_8;
+         Attr4 : Unsigned_8;
+         Attr5 : Unsigned_8;
+         Attr6 : Unsigned_8;
+         Attr7 : Unsigned_8;
+      end record;
+      for MAIR_EL1 use record
+         Attr0 at 0 range 0 .. 7;
+         Attr1 at 1 range 0 .. 7;
+         Attr2 at 2 range 0 .. 7;
+         Attr3 at 3 range 0 .. 7;
+         Attr4 at 4 range 0 .. 7;
+         Attr5 at 5 range 0 .. 7;
+         Attr6 at 6 range 0 .. 7;
+         Attr7 at 7 range 0 .. 7;
+      end record;
+      for MAIR_EL1'Size use 64;
+
+      MAIR : constant MAIR_EL1 := (
+         Attr0 => 2#11111111#, --  Normal, Write-back RW-Allocate non-transient
+         Attr1 => 2#00001100#, --  Device, GRE
+         Attr2 => 2#00000000#, --  Device, nGnRnE
+         Attr3 => 2#00000100#, --  Device, nGnRE
+         Attr4 => 2#01000100#, --  Normal Non-cachable
+         Attr5 => 2#00000000#, --  Device, nGnRnE
+         Attr6 => 2#00000000#, --  Device, nGnRnE
+         Attr7 => 2#00000000#  --  Device, nGnRnE
+      );
+      AA64MMFR : AA64MMFR0;
+      PA_Range, TCR, SCTLR : Unsigned_64;
+   begin
+      --  Set caching modes.
+      System.Machine_Code.Asm
+         ("mrs %0, sctlr_el1",
+          Outputs  => Unsigned_64'Asm_Output ("=r", SCTLR),
+          Clobber  => "memory",
+          Volatile => True);
+      SCTLR := SCTLR or Shift_Left (1, 2) or Shift_Left (1, 12);
+      System.Machine_Code.Asm
+         ("msr sctlr_el1, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", SCTLR),
+          Clobber  => "memory",
+          Volatile => True);
+
+      --  Set MMU state.
+      System.Machine_Code.Asm
+         ("mrs %0, id_aa64mmfr0_el1",
+          Outputs  => AA64MMFR0'Asm_Output ("=r", AA64MMFR),
+          Clobber  => "memory",
+          Volatile => True);
+      PA_Range := Unsigned_64
+         ((if AA64MMFR.PA_Range < 5 then AA64MMFR.PA_Range else 5));
+      TCR := Shift_Left (16, 0) or Shift_Left (16, 16) or Shift_Left (1, 8)  or
+             Shift_Left (1, 10) or Shift_Left (1, 24)  or Shift_Left (1, 26) or
+             Shift_Left (2, 12) or Shift_Left (2, 28)  or Shift_Left (2, 30) or
+             Shift_Left (PA_Range, 32);
+      System.Machine_Code.Asm
+         ("msr tcr_el1, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", TCR),
+          Clobber  => "memory",
+          Volatile => True);
+      System.Machine_Code.Asm
+         ("msr mair_el1, %0",
+          Inputs   => MAIR_EL1'Asm_Input ("r", MAIR),
+          Clobber  => "memory",
+          Volatile => True);
+   end Set_MMU_State;
+
+   function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
+      Flags : constant Page_Permissions := (
+         User_Accesible => False,
+         Read_Only      => False,
+         Executable     => True,
+         Global         => True,
+         Write_Through  => False
+      );
+
+      AA64MMFR : AA64MMFR0;
+      Success  : Boolean;
+   begin
+      --  Check for 4K pages, which is the only thing we support right now.
+      System.Machine_Code.Asm
+         ("mrs %0, id_aa64mmfr0_el1",
+          Outputs  => AA64MMFR0'Asm_Output ("=r", AA64MMFR),
+          Clobber  => "memory",
+          Volatile => True);
+
+      if AA64MMFR.TGran_4 /= 0 then
+         Lib.Panic.Soft_Panic ("MMU does not support 4K pages");
+         return False;
+      end if;
+
+      --  Create the kernel map and map the kernel and other regions.
+      MMU.Kernel_Table := new Page_Table;
+
+      --  Search for kernel entries and map them.
+      for E of Memmap loop
+         --  Sabaton returns only 1 kernel entry and a reserved memory entry
+         --  starting at 512GiB, that we have to filter out.
+         if E.MemType = Arch.Memory_Kernel then
+            Success := Map_Range (
+               Map            => MMU.Kernel_Table,
+               Physical_Start => E.Start,
+               Virtual_Start  => To_Address (Kernel_Offset + 16#100000#),
+               Length         => E.Length,
+               Permissions    => Flags
+            );
+         elsif To_Integer (E.Start) /= 16#8000000000# then
+            Success := Map_Range (
+               MMU.Kernel_Table,
+               E.Start,
+               To_Address (Memory_Offset + To_Integer (E.Start)),
+               E.Length,
+               Flags
+            );
+         end if;
+         if not Success then
+            return False;
+         end if;
+      end loop;
+
+      --  Make the map active right now to minimize the window of
+      --  potentially invalid settings in the old maps.
+      Set_MMU_State;
+      return Make_Active (MMU.Kernel_Table);
+   end Init;
+
+   function Create_Table return Page_Table_Acc is
+      Map : constant Page_Table_Acc := new Page_Table;
+   begin
+      Map.TTBR1 := MMU.Kernel_Table.TTBR1;
+      return Map;
+   end Create_Table;
+
+   procedure Destroy_Table (Map : in out Page_Table_Acc) is
+      procedure F is new Ada.Unchecked_Deallocation (Page_Table, Page_Table_Acc);
+   begin
+      --  TODO: Free the tables themselves.
+      F (Map);
+      Map := null;
+   end Destroy_Table;
+
+   function Make_Active (Map : Page_Table_Acc) return Boolean is
+      Addr0 : constant Integer_Address :=
+         To_Integer (Map.TTBR0'Address) - Memory.Memory_Offset;
+      Addr1 : constant Integer_Address :=
+         To_Integer (Map.TTBR1'Address) - Memory.Memory_Offset;
+   begin
+      if not Is_Active (Map) then
+         System.Machine_Code.Asm
+            ("msr ttbr0_el1, %0; msr ttbr1_el1, %1; tlbi vmalle1; dsb nsh",
+             Inputs   => (Integer_Address'Asm_Input ("r", Addr0),
+                          Integer_Address'Asm_Input ("r", Addr1)),
+             Clobber  => "memory",
+             Volatile => True);
+      end if;
+      return True;
+   end Make_Active;
+
+   function Is_Active (Map : Page_Table_Acc) return Boolean is
+      TTBR0, TTBR1 : Integer_Address;
+   begin
+      System.Machine_Code.Asm
+         ("mrs %0, ttbr0_el1; mrs %1, ttbr1_el1",
+          Outputs  => (Integer_Address'Asm_Output ("=r", TTBR0),
+                       Integer_Address'Asm_Output ("=r", TTBR1)),
+          Clobber  => "memory",
+          Volatile => True);
+
+      TTBR0 := TTBR0 + Memory.Memory_Offset;
+      TTBR1 := TTBR1 + Memory.Memory_Offset;
+
+      return Map.TTBR0'Address = To_Address (TTBR0) and
+             Map.TTBR1'Address = To_Address (TTBR1);
+   end Is_Active;
+
+   function Translate_Address
+      (Map     : Page_Table_Acc;
+       Virtual : System.Address) return System.Address
+   is
+      Virt : Integer_Address := To_Integer (Virtual);
+      TTBR : System.Address  := System.Null_Address;
+   begin
+      if (Virt and Higher_Half) /= 0 then
+         Virt := Virt and not Higher_Half;
+         TTBR := Map.TTBR1'Address;
+      else
+         TTBR := Map.TTBR0'Address;
+      end if;
+
+      declare
+         Addr : constant Integer_Address := Get_Page (TTBR, Virt, True);
+         Entry_B : Unsigned_64 with Address => To_Address (Addr), Import;
+      begin
+         return To_Address (Integer_Address (Get_Addr_From_Entry (Entry_B)));
+      end;
+   end Translate_Address;
+
+   function Map_Range
+      (Map            : Page_Table_Acc;
+       Physical_Start : System.Address;
+       Virtual_Start  : System.Address;
+       Length         : Storage_Count;
+       Permissions    : Page_Permissions) return Boolean
+   is
+      Virt       : Integer_Address := To_Integer (Virtual_Start);
+      Phys       : Integer_Address := To_Integer (Physical_Start);
+      Final_Virt : Integer_Address := Virt + Integer_Address (Length);
+      TTBR       : System.Address  := System.Null_Address;
+      Perm_Mask : constant Unsigned_64 := Get_Bits (Permissions);
+   begin
+      if Virt   mod Page_Size /= 0 or Phys mod Page_Size /= 0 or
+         Length mod Page_Size /= 0
+      then
+         return False;
+      end if;
+
+      if (Virt and Higher_Half) /= 0 then
+         Virt       := Virt       and not Higher_Half;
+         Final_Virt := Final_Virt and not Higher_Half;
+         TTBR       := Map.TTBR1'Address;
+      else
+         TTBR := Map.TTBR0'Address;
+      end if;
+
+      while Virt < Final_Virt loop
+         declare
+            Addr : constant Integer_Address := Get_Page (TTBR, Virt, True);
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            Entry_Body := Unsigned_64 (Phys) or Perm_Mask;
+         end;
+         Virt := Virt + Page_Size;
+         Phys := Phys + Page_Size;
+      end loop;
+
+      return True;
+   end Map_Range;
+
+   function Remap_Range
+      (Map           : Page_Table_Acc;
+       Virtual_Start : System.Address;
+       Length        : Storage_Count;
+       Permissions   : Page_Permissions) return Boolean
+   is
+      Virt       : Integer_Address := To_Integer (Virtual_Start);
+      Final_Virt : Integer_Address := Virt + Integer_Address (Length);
+      TTBR       : System.Address  := System.Null_Address;
+      Perm_Mask : constant Unsigned_64 := Get_Bits (Permissions);
+   begin
+      if Virt mod Page_Size /= 0 or Length mod Page_Size /= 0 then
+         return False;
+      end if;
+
+      if (Virt and Higher_Half) /= 0 then
+         Virt       := Virt       and not Higher_Half;
+         Final_Virt := Final_Virt and not Higher_Half;
+         TTBR       := Map.TTBR1'Address;
+      else
+         TTBR := Map.TTBR0'Address;
+      end if;
+
+      while Virt < Final_Virt loop
+         declare
+            Addr : constant Integer_Address := Get_Page (TTBR, Virt, False);
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            Entry_Body := Get_Addr_From_Entry (Entry_Body) or Perm_Mask;
+            Flush_Local_TLB (To_Address (Virt));
+         end;
+         Virt := Virt + Page_Size;
+      end loop;
+
+      return True;
+   end Remap_Range;
+
+   function Unmap_Range
+      (Map           : Page_Table_Acc;
+       Virtual_Start : System.Address;
+       Length        : Storage_Count) return Boolean
+   is
+      Virt       : Integer_Address := To_Integer (Virtual_Start);
+      Final_Virt : Integer_Address := Virt + Integer_Address (Length);
+      TTBR       : System.Address  := System.Null_Address;
+   begin
+      if Virt mod Page_Size /= 0 or Length mod Page_Size /= 0 then
+         return False;
+      end if;
+
+      if (Virt and Higher_Half) /= 0 then
+         Virt       := Virt       and not Higher_Half;
+         Final_Virt := Final_Virt and not Higher_Half;
+         TTBR       := Map.TTBR1'Address;
+      else
+         TTBR := Map.TTBR0'Address;
+      end if;
+
+      while Virt < Final_Virt loop
+         declare
+            Addr : constant Integer_Address := Get_Page (TTBR, Virt, False);
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            Entry_Body := Entry_Body xor Page_Valid;
+            Flush_Local_TLB (To_Address (Virt));
+         end;
+         Virt := Virt + Page_Size;
+      end loop;
+
+      return True;
+   end Unmap_Range;
+
+   procedure Flush_Local_TLB (Addr : System.Address) is
+      Ad : constant Unsigned_64 := Unsigned_64 (To_Integer (Addr));
+   begin
+      System.Machine_Code.Asm
+         ("dsb st; tlbi vale1, %0; dsb sy; isb",
+          Inputs   => Unsigned_64'Asm_Input ("r", Shift_Right (Ad, 12)),
+          Clobber  => "memory",
+          Volatile => True);
+   end Flush_Local_TLB;
+
+   procedure Flush_Local_TLB (Addr : System.Address; Len : Storage_Count) is
+      Curr : Storage_Count := 0;
+   begin
+      while Curr < Len loop
+         Flush_Local_TLB (Addr + Curr);
+         Curr := Curr + Page_Size;
+      end loop;
+   end Flush_Local_TLB;
+
+   --  TODO: Code this 2 bad boys once the VMM makes use of them.
+
+   procedure Flush_Global_TLBs (Addr : System.Address) is
+      pragma Unreferenced (Addr);
+   begin
+      return;
+   end Flush_Global_TLBs;
+
+   procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count) is
+      pragma Unreferenced (Addr);
+      pragma Unreferenced (Len);
+   begin
+      return;
+   end Flush_Global_TLBs;
+end Arch.MMU;

@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Unchecked_Deallocation;
-with Arch.InnerMMU; use Arch.InnerMMU;
 with Memory.Physical;
 with Interfaces.C;
 

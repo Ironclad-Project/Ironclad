@@ -17,7 +17,6 @@
 with Interfaces; use Interfaces;
 with System.Machine_Code;
 with Arch.MMU;
-with Arch.InnerMMU;
 with Lib.Panic;
 
 package body Arch.SMP with SPARK_Mode => Off is
@@ -57,7 +56,7 @@ package body Arch.SMP with SPARK_Mode => Off is
    procedure Init_Core (Core_Info : access Arch.Stivale2.SMP_Core) is
    begin
       --  Initialize MMU.
-      InnerMMU.Set_MMU_State;
+      MMU.Set_MMU_State;
       if not MMU.Make_Active (MMU.Kernel_Table) then
          Lib.Panic.Soft_Panic ("Could not set core map active");
       end if;

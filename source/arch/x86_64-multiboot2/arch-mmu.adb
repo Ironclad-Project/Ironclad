@@ -1,4 +1,4 @@
---  arch-innermmu.adb: Architecture-specific MMU code.
+--  arch-mmu.adb: Architecture-specific MMU code.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -18,10 +18,17 @@ with Interfaces.C;
 with Ada.Unchecked_Deallocation;
 with Arch.Wrappers;
 with Lib.Panic;
-with Arch.MMU;
+with Memory; use Memory;
 with Memory.Physical;
 
-package body Arch.InnerMMU with SPARK_Mode => Off is
+package body Arch.MMU with SPARK_Mode => Off is
+   type Address_Components is record
+      PML4_Entry : Unsigned_64;
+      PML3_Entry : Unsigned_64;
+      PML2_Entry : Unsigned_64;
+      PML1_Entry : Unsigned_64;
+   end record;
+
    function Get_Address_Components
       (Virtual : Virtual_Address) return Address_Components
    is
@@ -69,7 +76,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
    end Get_Next_Level;
 
    function Get_Page_4K
-      (Map      : Page_Map_Acc;
+      (Map      : Page_Table_Acc;
        Virtual  : Virtual_Address;
        Allocate : Boolean) return Virtual_Address
    is
@@ -100,7 +107,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
    end Get_Page_4K;
 
    function Get_Page_2M
-      (Map      : Page_Map_Acc;
+      (Map      : Page_Table_Acc;
        Virtual  : Virtual_Address;
        Allocate : Boolean) return Virtual_Address
    is
@@ -151,7 +158,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
       Hardcoded_Region : constant := 16#100000000#;
    begin
       --  Initialize the kernel pagemap.
-      MMU.Kernel_Table := new Page_Map;
+      MMU.Kernel_Table := new Page_Table;
 
       --  Map the first 4 GiB (except 0) to the window and identity mapped.
       --  This is done instead of following the pagemap to ensure that all
@@ -198,8 +205,8 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
       );
    end Init;
 
-   function Create_Table return Page_Map_Acc is
-      Map : constant Page_Map_Acc := new Page_Map;
+   function Create_Table return Page_Table_Acc is
+      Map : constant Page_Table_Acc := new Page_Table;
    begin
       Map.PML4_Level (257 .. 512) := MMU.Kernel_Table.PML4_Level (257 .. 512);
       return Map;
@@ -221,8 +228,9 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
       end if;
    end Destroy_Level;
 
-   procedure Destroy_Table (Map : in out Page_Map_Acc) is
-      procedure F is new Ada.Unchecked_Deallocation (Page_Map, Page_Map_Acc);
+   procedure Destroy_Table (Map : in out Page_Table_Acc) is
+      procedure F is new Ada.Unchecked_Deallocation
+         (Page_Table, Page_Table_Acc);
    begin
       if Map /= null then
          for I in 1 .. 256 loop
@@ -233,7 +241,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
       end if;
    end Destroy_Table;
 
-   function Make_Active (Map : Page_Map_Acc) return Boolean is
+   function Make_Active (Map : Page_Table_Acc) return Boolean is
       Addr : constant Unsigned_64 :=
          Unsigned_64 (To_Integer (Map.PML4_Level'Address) - Memory_Offset);
    begin
@@ -243,7 +251,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
       return True;
    end Make_Active;
 
-   function Is_Active (Map : Page_Map_Acc) return Boolean is
+   function Is_Active (Map : Page_Table_Acc) return Boolean is
       Current : constant Unsigned_64 := Arch.Wrappers.Read_CR3;
       PAddr : constant Integer_Address := To_Integer (Map.PML4_Level'Address);
    begin
@@ -251,7 +259,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
    end Is_Active;
 
    function Translate_Address
-      (Map     : Page_Map_Acc;
+      (Map     : Page_Table_Acc;
        Virtual : System.Address) return System.Address
    is
       Addr  : constant Integer_Address := To_Integer (Virtual);
@@ -271,7 +279,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
    end Translate_Address;
 
    function Map_Range
-      (Map            : Page_Map_Acc;
+      (Map            : Page_Table_Acc;
        Physical_Start : System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
@@ -327,7 +335,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
    end Map_Range;
 
    function Remap_Range
-      (Map           : Page_Map_Acc;
+      (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count;
        Permissions   : Page_Permissions) return Boolean
@@ -380,7 +388,7 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
    end Remap_Range;
 
    function Unmap_Range
-      (Map           : Page_Map_Acc;
+      (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count) return Boolean
    is
@@ -448,4 +456,4 @@ package body Arch.InnerMMU with SPARK_Mode => Off is
    begin
       null;
    end Flush_Global_TLBs;
-end Arch.InnerMMU;
+end Arch.MMU;
