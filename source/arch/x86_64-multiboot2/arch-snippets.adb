@@ -14,7 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System.Machine_Code;
+with System.Machine_Code;     use System.Machine_Code;
+with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 
 package body Arch.Snippets with SPARK_Mode => Off is
    procedure HCF is
@@ -29,34 +30,281 @@ package body Arch.Snippets with SPARK_Mode => Off is
 
    procedure Enable_Interrupts is
    begin
-      System.Machine_Code.Asm ("sti", Volatile => True);
+      Asm ("sti", Volatile => True);
    end Enable_Interrupts;
 
    procedure Disable_Interrupts is
    begin
-      System.Machine_Code.Asm ("cli", Volatile => True);
+      Asm ("cli", Volatile => True);
    end Disable_Interrupts;
 
    procedure Wait_For_Interrupt is
    begin
-      System.Machine_Code.Asm ("hlt", Volatile => True);
+      Asm ("hlt", Volatile => True);
    end Wait_For_Interrupt;
 
    procedure Pause is
    begin
-      System.Machine_Code.Asm ("pause", Volatile => True);
+      Asm ("pause", Volatile => True);
    end Pause;
 
    function Read_Cycles return Unsigned_64 is
       High : Unsigned_32;
       Low  : Unsigned_32;
    begin
-      --  Use the TSC since that doesnt need checking unlike rdrand.
-      System.Machine_Code.Asm
-         ("rdtsc",
+      Asm ("rdtsc",
           Outputs => (Unsigned_32'Asm_Output ("=d", High),
                       Unsigned_32'Asm_Output ("=a", Low)),
           Volatile => True);
       return Unsigned_64 (Shift_Left (High, 32) or Low);
    end Read_Cycles;
+   ----------------------------------------------------------------------------
+   function Supports_AES_Accel return Boolean is
+      Leaf    : constant Unsigned_32 := 1;
+      Subleaf : constant Unsigned_32 := 0;
+      EDX     : Unsigned_32;
+   begin
+      Asm ("cpuid",
+           Outputs  => Unsigned_32'Asm_Output ("=d", EDX),
+           Inputs   => (Unsigned_32'Asm_Input ("a", Leaf),
+                        Unsigned_32'Asm_Input ("c", Subleaf)),
+           Clobber  => "memory,rbx",
+           Volatile => True);
+      return (EDX and Shift_Left (1, 25)) /= 0;
+   end Supports_AES_Accel;
+
+   function AES_Expand_Key (Key : Unsigned_128) return Expanded_AES_Key is
+      Result : Expanded_AES_Key;
+   begin
+      --  May god forgive whoever has to debug this. I am sorry.
+      Asm ("mov    %%rsp, %%rax"      & LF & HT &
+           "sub    $48, %%rax"        & LF & HT &
+           "and    $~15, %%rax"       & LF & HT &
+           "movdqa %%xmm0, (%%rax)"   & LF & HT &
+           "movdqa %%xmm1, 16(%%rax)" & LF & HT &
+           "movdqa %%xmm2, 32(%%rax)" & LF & HT &
+           "movdqu %10, %%xmm0"       & LF & HT &
+
+           "aeskeygenassist $1, %%xmm0, %%xmm1"    & LF & HT &
+           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "movdqu          %%xmm0, %0"            & LF & HT &
+           "aeskeygenassist $2, %%xmm0, %%xmm1"    & LF & HT &
+           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "movdqu          %%xmm0, %1"            & LF & HT &
+           "aeskeygenassist $4, %%xmm0, %%xmm1"    & LF & HT &
+           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "movdqu          %%xmm0, %2"            & LF & HT &
+           "aeskeygenassist $8, %%xmm0, %%xmm1"    & LF & HT &
+           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "movdqu          %%xmm0, %3"            & LF & HT &
+           "aeskeygenassist $16, %%xmm0, %%xmm1"   & LF & HT &
+           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "movdqu          %%xmm0, %4"            & LF & HT &
+           "aeskeygenassist $32, %%xmm0, %%xmm1"   & LF & HT &
+           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "movdqu          %%xmm0, %5"            & LF & HT &
+           "aeskeygenassist $64, %%xmm0, %%xmm1"   & LF & HT &
+           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "movdqu          %%xmm0, %6"            & LF & HT &
+           "aeskeygenassist $128, %%xmm0, %%xmm1"  & LF & HT &
+           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "movdqu          %%xmm0, %7"            & LF & HT &
+           "aeskeygenassist $27, %%xmm0, %%xmm1"   & LF & HT &
+           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "movdqu          %%xmm0, %8"            & LF & HT &
+           "aeskeygenassist $54, %%xmm0, %%xmm1"   & LF & HT &
+           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "movaps          %%xmm0, %%xmm2"        & LF & HT &
+           "pslldq          $0x4,  %%xmm2"         & LF & HT &
+           "pxor            %%xmm2, %%xmm0"        & LF & HT &
+           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "movdqu          %%xmm0, %9"            & LF & HT &
+
+           "movdqa (%%rax),   %%xmm0" & LF & HT &
+           "movdqa 16(%%rax), %%xmm1" & LF & HT &
+           "movdqa 32(%%rax), %%xmm2",
+           Outputs  => (Unsigned_128'Asm_Output ("=m", Result (1)),
+                        Unsigned_128'Asm_Output ("=m", Result (2)),
+                        Unsigned_128'Asm_Output ("=m", Result (3)),
+                        Unsigned_128'Asm_Output ("=m", Result (4)),
+                        Unsigned_128'Asm_Output ("=m", Result (5)),
+                        Unsigned_128'Asm_Output ("=m", Result (6)),
+                        Unsigned_128'Asm_Output ("=m", Result (7)),
+                        Unsigned_128'Asm_Output ("=m", Result (8)),
+                        Unsigned_128'Asm_Output ("=m", Result (9)),
+                        Unsigned_128'Asm_Output ("=m", Result (10))),
+           Inputs   => Unsigned_128'Asm_Input ("m", Key),
+           Clobber  => "memory,rax",
+           Volatile => True);
+      return Result;
+   end AES_Expand_Key;
+
+   function AES_Expand_Inv_Key (Key : Unsigned_128) return Expanded_AES_Key is
+      Result : Expanded_AES_Key := AES_Expand_Key (Key);
+   begin
+      for I in Result'First .. (Result'Last - 1) loop
+         Asm ("mov    %%rsp, %%rax"      & LF & HT &
+              "sub    $16, %%rax"        & LF & HT &
+              "and    $~15, %%rax"       & LF & HT &
+              "movdqa %%xmm0, (%%rax)"   & LF & HT &
+              "movdqu %0, %%xmm0"        & LF & HT &
+              "aesimc %%xmm0, %%xmm0"    & LF & HT &
+              "movdqu %%xmm0, %0"        & LF & HT &
+              "movdqa (%%rax), %%xmm0",
+              Outputs  => Unsigned_128'Asm_Output ("+m", Result (I)),
+              Clobber  => "memory,rax",
+              Volatile => True);
+      end loop;
+      return Result;
+   end AES_Expand_Inv_Key;
+
+   function AES_Encrypt_One (Data, Key : Unsigned_128) return Unsigned_128 is
+      Result : Unsigned_128 := Data;
+   begin
+      Asm ("mov    %%rsp, %%rax"      & LF & HT &
+           "sub    $32, %%rax"        & LF & HT &
+           "and    $~15, %%rax"       & LF & HT &
+           "movdqa %%xmm0, (%%rax)"   & LF & HT &
+           "movdqa %%xmm1, 16(%%rax)" & LF & HT &
+           "movdqu %0, %%xmm0"        & LF & HT &
+           "movdqu %1, %%xmm1"        & LF & HT &
+           "aesenc %%xmm1, %%xmm0"    & LF & HT &
+           "movdqu %%xmm0, %0"        & LF & HT &
+           "movdqa (%%rax), %%xmm0"   & LF & HT &
+           "movdqa 16(%%rax), %%xmm1",
+           Outputs  => Unsigned_128'Asm_Output ("+m", Result),
+           Inputs   => Unsigned_128'Asm_Input  ("m",  Key),
+           Clobber  => "memory,rax",
+           Volatile => True);
+      return Result;
+   end AES_Encrypt_One;
+
+   function AES_Encrypt_Last (Data, Key : Unsigned_128) return Unsigned_128 is
+      Result : Unsigned_128 := Data;
+   begin
+      Asm ("mov        %%rsp, %%rax"      & LF & HT &
+           "sub        $32, %%rax"        & LF & HT &
+           "and        $~15, %%rax"       & LF & HT &
+           "movdqa     %%xmm0, (%%rax)"   & LF & HT &
+           "movdqa     %%xmm1, 16(%%rax)" & LF & HT &
+           "movdqu     %0, %%xmm0"        & LF & HT &
+           "movdqu     %1, %%xmm1"        & LF & HT &
+           "aesenclast %%xmm1, %%xmm0"    & LF & HT &
+           "movdqu     %%xmm0, %0"        & LF & HT &
+           "movdqa     (%%rax), %%xmm0"   & LF & HT &
+           "movdqa     16(%%rax), %%xmm1",
+           Outputs  => Unsigned_128'Asm_Output ("+m", Result),
+           Inputs   => Unsigned_128'Asm_Input  ("m",  Key),
+           Clobber  => "memory,rax",
+           Volatile => True);
+      return Result;
+   end AES_Encrypt_Last;
+
+   function AES_Decrypt_One (Data, Key : Unsigned_128) return Unsigned_128 is
+      Result : Unsigned_128 := Data;
+   begin
+      Asm ("mov    %%rsp, %%rax"      & LF & HT &
+           "sub    $32, %%rax"        & LF & HT &
+           "and    $~15, %%rax"       & LF & HT &
+           "movdqa %%xmm0, (%%rax)"   & LF & HT &
+           "movdqa %%xmm1, 16(%%rax)" & LF & HT &
+           "movdqu %0, %%xmm0"        & LF & HT &
+           "movdqu %1, %%xmm1"        & LF & HT &
+           "aesdec %%xmm1, %%xmm0"    & LF & HT &
+           "movdqu %%xmm0, %0"        & LF & HT &
+           "movdqa (%%rax), %%xmm0"   & LF & HT &
+           "movdqa 16(%%rax), %%xmm1",
+           Outputs  => Unsigned_128'Asm_Output ("+m", Result),
+           Inputs   => Unsigned_128'Asm_Input  ("m",  Key),
+           Clobber  => "memory,rax",
+           Volatile => True);
+      return Result;
+   end AES_Decrypt_One;
+
+   function AES_Decrypt_Last (Data, Key : Unsigned_128) return Unsigned_128 is
+      Result : Unsigned_128 := Data;
+   begin
+      Asm ("mov        %%rsp, %%rax"      & LF & HT &
+           "sub        $32, %%rax"        & LF & HT &
+           "and        $~15, %%rax"       & LF & HT &
+           "movdqa     %%xmm0, (%%rax)"   & LF & HT &
+           "movdqa     %%xmm1, 16(%%rax)" & LF & HT &
+           "movdqu     %0, %%xmm0"        & LF & HT &
+           "movdqu     %1, %%xmm1"        & LF & HT &
+           "aesdeclast %%xmm1, %%xmm0"    & LF & HT &
+           "movdqu     %%xmm0, %0"        & LF & HT &
+           "movdqa     (%%rax), %%xmm0"   & LF & HT &
+           "movdqa     16(%%rax), %%xmm1",
+           Outputs  => Unsigned_128'Asm_Output ("+m", Result),
+           Inputs   => Unsigned_128'Asm_Input  ("m",  Key),
+           Clobber  => "memory,rax",
+           Volatile => True);
+      return Result;
+   end AES_Decrypt_Last;
 end Arch.Snippets;

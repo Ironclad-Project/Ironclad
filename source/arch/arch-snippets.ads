@@ -40,4 +40,23 @@ package Arch.Snippets is
    --  The value is not guaranteed to be linear, or even changing, it is only
    --  to be used for statistical or entropy purposes.
    function Read_Cycles return Unsigned_64 with Inline_Always;
+   ----------------------------------------------------------------------------
+   --  Check whether the CPU supports AES acceleration.
+   --  If false, the AES functions below will not work.
+   function Supports_AES_Accel return Boolean;
+
+   --  Expand a 128-bit key into a 176 byte array.
+   type Expanded_AES_Key is array (1 .. 10) of Unsigned_128;
+   function AES_Expand_Key (Key : Unsigned_128) return Expanded_AES_Key;
+   function AES_Expand_Inv_Key (Key : Unsigned_128) return Expanded_AES_Key;
+
+   --  Perform one round of AES encryption, using 128-bit data and a 128-bit
+   --  round key.
+   function AES_Encrypt_One (Data, Key : Unsigned_128) return Unsigned_128;
+   function AES_Encrypt_Last (Data, Key : Unsigned_128) return Unsigned_128;
+
+   --  Perform one round of AES decryption, using 128-bit data and a 128-bit
+   --  round key.
+   function AES_Decrypt_One (Data, Key : Unsigned_128) return Unsigned_128;
+   function AES_Decrypt_Last (Data, Key : Unsigned_128) return Unsigned_128;
 end Arch.Snippets;

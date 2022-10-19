@@ -18,6 +18,7 @@ with Interfaces; use Interfaces;
 with VFS.File;
 with Arch.Context;
 with Arch.MMU;
+with System;
 
 package Userland.Syscall with SPARK_Mode => Off is
    --  Error conditions for syscalls.
@@ -321,6 +322,14 @@ package Userland.Syscall with SPARK_Mode => Off is
       Errno      : out Errno_Value) return Unsigned_64;
 
    --  Cryptographic functions exposed to userland.
+   type Crypto_AES_Data is record
+      Key    : Unsigned_128;
+      IV     : Unsigned_128;
+      Data   : System.Address;
+      Length : Natural;
+   end record;
+   CRYPTO_AES128_ECB_ENCRYPT : constant := 0;
+   CRYPTO_AES128_ECB_DECRYPT : constant := 1;
    function Syscall_Crypto_Request
       (Request  : Unsigned_64;
        Argument : Unsigned_64;
