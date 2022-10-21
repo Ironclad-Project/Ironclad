@@ -17,29 +17,39 @@
 with System;
 with Interfaces; use Interfaces;
 
-package Lib.Messages is
+package Lib.Messages with
+   Abstract_State => Message_State,
+   Initializes    => Message_State
+is
    --  Prints a string to debug outputs and adds a newline.
    --  @param Message String to print to append with a new line.
-   procedure Put_Line (Message : String);
+   procedure Put_Line (Message : String)
+      with Global => (In_Out => Message_State);
 
    --  Prints a string to debug outputs.
    --  @param Message String to print.
-   procedure Put (Message : String);
+   procedure Put (Message : String)
+      with Global => (In_Out => Message_State);
 
    --  Prints a character.
    --  @param Message Character to print.
-   procedure Put (Message : Character);
+   procedure Put (Message : Character)
+      with Global => (In_Out => Message_State);
 
    --  Prints an integer to debug outputs.
    --  @param Message Integer to print.
    --  @param Pad Whether to pad the message with zeros or not.
    --  @param Use_Hex Whether to use hexadecimal or decimal for printing.
-   procedure Put (Message : Integer;     Pad, Use_Hex : Boolean := False);
-   procedure Put (Message : Integer_64;  Pad, Use_Hex : Boolean := False);
-   procedure Put (Message : Unsigned_64; Pad, Use_Hex : Boolean := False);
+   procedure Put (Message : Integer; Pad, Use_Hex : Boolean := False)
+      with Global => (In_Out => Message_State);
+   procedure Put (Message : Integer_64; Pad, Use_Hex : Boolean := False)
+      with Global => (In_Out => Message_State);
+   procedure Put (Message : Unsigned_64; Pad, Use_Hex : Boolean := False)
+      with Global => (In_Out => Message_State);
 
    --  Prints an address to debug outputs, always hexadecimal.
    --  @param Message Address to print.
    --  @param Pad Whether to pad the message with zeros or not.
-   procedure Put (Message : System.Address; Pad : Boolean := False);
+   procedure Put (Message : System.Address; Pad : Boolean := False)
+      with Global => (In_Out => Message_State);
 end Lib.Messages;

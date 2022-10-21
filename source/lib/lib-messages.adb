@@ -19,11 +19,14 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Debug;
 with Lib.Synchronization;
 
-package body Lib.Messages is
+package body Lib.Messages with
+   Refined_State => (Message_State => Messages_Mutex)
+is
    --  Unit passes GNATprove AoRTE, GNAT does not know this.
    pragma Suppress (All_Checks);
 
-   Messages_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+   Messages_Mutex : aliased Lib.Synchronization.Binary_Semaphore :=
+      Lib.Synchronization.Unlocked_Semaphore;
 
    procedure Put_Line (Message : String) is
    begin

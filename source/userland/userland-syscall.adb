@@ -996,10 +996,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
       return 0;
    end Syscall_Sched_Yield;
 
+   type Integer_64 is range -2**63 .. 2**63 - 1 with Size => 64;
    function Unsigned_64_To_Integer is
-      new Ada.Unchecked_Conversion (Unsigned_64, Integer);
+      new Ada.Unchecked_Conversion (Unsigned_64, Integer_64);
    function Integer_To_Unsigned_64 is
-      new Ada.Unchecked_Conversion (Integer, Unsigned_64);
+      new Ada.Unchecked_Conversion (Integer_64, Unsigned_64);
 
    function Syscall_Get_Priority
       (Which, Who : Unsigned_64;
@@ -1035,7 +1036,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end loop;
 
       Errno := Error_No_Error;
-      return Integer_To_Unsigned_64 (Highest_Priority);
+      return Integer_To_Unsigned_64 (Integer_64 (Highest_Priority));
    end Syscall_Get_Priority;
 
    function Syscall_Set_Priority
@@ -1068,7 +1069,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       --  Set the priority to all the children.
       for T of Proc.Thread_List loop
          if T /= 0 then
-            Set_Thread_Priority (T, Unsigned_64_To_Integer (Prio));
+            Set_Thread_Priority (T, Integer (Unsigned_64_To_Integer (Prio)));
          end if;
       end loop;
 

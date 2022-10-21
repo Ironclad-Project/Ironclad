@@ -23,5 +23,5 @@ package Arch.Hooks is
 
    --  Hook to be called in panic procedures for bringing all cores to a stop
    --  (but not the caller).
-   procedure Panic_SMP_Hook;
+   procedure Panic_SMP_Hook with Global => null;
 end Arch.Hooks;

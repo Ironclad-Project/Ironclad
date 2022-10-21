@@ -18,7 +18,10 @@ with Interfaces; use Interfaces;
 
 package Lib.Synchronization is
    --  A simple binary semaphore.
-   type Binary_Semaphore is private;
+   type Binary_Semaphore is record
+      Is_Locked : Unsigned_8;
+   end record;
+   Unlocked_Semaphore : constant Binary_Semaphore := (others => 0);
 
    --  Check if a lock is available or locked.
    --  @param Semaphore Semaphore to test.
@@ -35,13 +38,10 @@ package Lib.Synchronization is
    procedure Release (Semaphore : aliased in out Binary_Semaphore)
       with Post => not Is_Locked (Semaphore);
 
+   --  Attempt to lock the passed semaphore.
+   --  @param Semaphore Semaphore to try to lock.
+   --  @param Did_Lock True if the attempt succeeded.
    procedure Try_Seize
       (Semaphore : aliased in out Binary_Semaphore;
        Did_Lock  : out Boolean);
-
-private
-
-   type Binary_Semaphore is record
-      Is_Locked : Unsigned_8;
-   end record;
 end Lib.Synchronization;

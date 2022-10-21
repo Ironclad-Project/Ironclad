@@ -17,12 +17,14 @@
 with Ada.Characters.Latin_1;
 with Arch.Hooks;
 with Arch.Snippets;
-with Lib.Messages;
 with Lib.Synchronization;
 
-package body Lib.Panic is
+package body Lib.Panic with
+   Refined_State => (Panic_State => (Already_Soft_Panicked, Panic_Mutex))
+is
    Already_Soft_Panicked : Boolean := False;
-   Panic_Mutex           : aliased Synchronization.Binary_Semaphore;
+   Panic_Mutex : aliased Synchronization.Binary_Semaphore :=
+      Synchronization.Unlocked_Semaphore;
 
    Soft_Panic_Color : constant String := Ada.Characters.Latin_1.ESC & "[35m";
    Hard_Panic_Color : constant String := Ada.Characters.Latin_1.ESC & "[31m";
