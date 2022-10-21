@@ -23,9 +23,9 @@ project Ironclad is
    Target : Target_Name  := External ("TARGET", "big");
    Alloc  : Alloc_Scheme := External ("ALLOC_SCHEME", "standard");
 
-   Ada_Flags := External ("ADAFLAGS", "-O2 -g -gnaty -Wall -fdata-sections");
-   Asm_Flags := External ("ASMFLAGS", "-O2 -g -Wall");
-   Linker_Flags := External ("LDFLAGS", "-O2 -g -Wl,-gc-sections");
+   Ada_Flags    := External ("ADAFLAGS", "-O2 -g -gnaty -Wall -flto=auto");
+   Asm_Flags    := External ("ASMFLAGS", "-O2 -g -Wall");
+   Linker_Flags := External ("LDFLAGS",  "-O2 -g -Wall -flto=auto");
 
    --  Set directories and files.
    for Source_Dirs use (

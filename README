@@ -3,60 +3,6 @@ embedded modes, written in Ada.
 
 For more information about the project, check https://nongnu.org/ironclad
 
--- Building --
-
-The steps for building using gprbuild are:
-
-gprbuild -p ironclad.gpr -j4 # Build the kernel.
-./install.sh                 # Install.
-
-To run the formal proofing framework, which is not necessary, one can run:
-
-gnatprove -P ironclad.gpr -U --prover=cvc4,altergo,z3 --mode=all -j4
-
-Several flags and variables are available for tuning:
-
-- ARCH, right now "x86_64-stivale2" and "aarch64-stivale2" are available.
-- TARGET, visited in the "Big and small targets" section.
-- ALLOC_SCHEME, visited in the "Allocation schemes" section.
-- ADAFLAGS, ASMFLAGS, and LDFLAGS, passed as environment variables to gprbuild.
-- DESTDIR and PREFIX for ./install.sh.
-- Pass 'strip' as the only argument to ./install.sh for stripped binaries.
-
-A list of the tools needed for compilation and checked by configure is:
-
-- gprbuild and a compatible Ada and C compilers.
-- gnatprove for formal proofing if desired.
-- GNU Info for building the documentation with Info and PDF support.
-
-A good set of flags for a release build is:
-
-ADAFLAGS='-flto -O2' CFLAGS='-flto -O2' LDFLAGS='-flto -O2'
-
--- Big and small targets --
-
-Ironclad supports two main build-time configurations, ruled by the TARGET
-variable, which depending on the value will take the following meanings:
-
-- TARGET="big": Normal configuration of the kernel for general-purpose
-usecases. All drivers will be cooked in regardless of system footprint.
-
-- TARGET="small": Superfluous drivers will be left out, building a minimal yet
-lightweight system.
-
-"big" is the default for the flag.
-
--- Allocation schemes --
-
-Two memory allocation schemes are supported, deep information about them is
-given on the documentation, but this are the options and a short description:
-
-- ALLOC_SCHEME="standard": General-purpose allocation algorithm that supports
-freeing memory.
-
-- ALLOC_SCHEME="alloconly": More efficient allocator, which uses less memory
-and is faster but cannot free.
-
 -- Documentation --
 
 The project features info and PDF files generated from the texinfo source in
@@ -64,13 +10,55 @@ the docs subdirectory, and they are generated and installed automatically when
 running ./install.sh.
 
 The generated documentation features information about a lot of kernel-specific
-concepts along with syscall listings and project information. Apart of that,
-there is this README and a CONTRIBUTING.md with contributing guidelines in the
-root directory of the project.
+concepts along with syscall listings and project information.
 
 Generated documentation is hosted and updated regularly online at:
 https://www.nongnu.org/ironclad/manual/ - HTML format.
 https://www.nongnu.org/ironclad/manual/ironclad.pdf - PDF format.
+
+-- Building and testing --
+
+The tools needed are:
+
+- gprbuild for compilation.
+- A compatible Ada compiler, and an assembler for the desired architecture.
+- GNU Info for building the documentation with Info and PDF support.
+- gnatprove for formal verification, if desired.
+
+For building the project's binaries, using gprbuild like the following works:
+
+gprbuild -p ironclad.gpr -j4
+
+Several environment variables are available for tweaking the kernel, the
+options are also tackled in length in the documentation:
+
+- ARCH: Chooses which architecture to target, the supported values are:
+     aarch64-stivale2    aarch64 for stivale2-capable bootloaders.
+     sparc-leon3         LEON3 boards.
+     x86_64-multiboot2   x86_64 for multiboot2-capable bootloaders.
+
+- TARGET: The following values are provided:
+     big     All drivers will be cooked in.
+     small   Exclude superfluous drivers, building a minimal system.
+
+- ALLOC_SCHEME: Choose the memory allocation scheme of the kernel.
+     standard    General-purpose allocation that supports freeing memory.
+     alloconly   More efficient allocator but unable to free.
+
+- ADAFLAGS, ASMFLAGS, and LDFLAGS, for the flags used by each tool
+  respectively.
+
+A shell script called 'install.sh' is provided for installing the resulting
+binaries and generating the project's documentation in PDF and Info formats.
+
+Several flags and environment variables are available for 'install.sh':
+
+- DESTDIR and PREFIX.
+- Pass 'strip' as the only argument for stripped binaries.
+
+To run the formal proofing framework, which is not necessary, one can run:
+
+gnatprove -P ironclad.gpr -U --prover=cvc4,altergo,z3 --mode=all -j4
 
 -- Thanks to --
 
