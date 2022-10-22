@@ -28,6 +28,11 @@ package Cryptography.AES is
    procedure Encrypt_ECB (Key : Unsigned_128; Data : in out AES_Data);
    procedure Decrypt_ECB (Key : Unsigned_128; Data : in out AES_Data);
 
+   --  Encrypt and decrypt a block using AES-128, an IV, and CBC.
+   --  The returned value is the resulting IV for encryption or decryption.
+   procedure Encrypt_CBC (Key, IV : Unsigned_128; Data : in out AES_Data);
+   procedure Decrypt_CBC (Key, IV : Unsigned_128; Data : in out AES_Data);
+
 private
 
    function Encrypt_128

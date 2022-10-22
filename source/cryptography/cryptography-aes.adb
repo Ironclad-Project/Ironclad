@@ -33,6 +33,30 @@ package body Cryptography.AES is
       end loop;
    end Decrypt_ECB;
 
+   procedure Encrypt_CBC (Key, IV : Unsigned_128; Data : in out AES_Data) is
+      Expanded_Key : constant Arch.Snippets.Expanded_AES_Key :=
+         Arch.Snippets.AES_Expand_Key (Key);
+      Curr_IV : Unsigned_128 := IV;
+   begin
+      for I in Data'Range loop
+         Data (I) := Encrypt_128 (Data (I) xor Curr_IV, Key, Expanded_Key);
+         Curr_IV  := Data (I);
+      end loop;
+   end Encrypt_CBC;
+
+   procedure Decrypt_CBC (Key, IV : Unsigned_128; Data : in out AES_Data) is
+      Expanded_Key : constant Arch.Snippets.Expanded_AES_Key :=
+         Arch.Snippets.AES_Expand_Inv_Key (Key);
+      Curr_IV : Unsigned_128 := IV;
+      Next_IV : Unsigned_128;
+   begin
+      for I in Data'Range loop
+         Next_IV  := Data (I);
+         Data (I) := Decrypt_128 (Data (I), Key, Expanded_Key) xor Curr_IV;
+         Curr_IV  := Next_IV;
+      end loop;
+   end Decrypt_CBC;
+
    function Encrypt_128
       (Data, Original_Key : Unsigned_128;
        Key : Arch.Snippets.Expanded_AES_Key) return Unsigned_128

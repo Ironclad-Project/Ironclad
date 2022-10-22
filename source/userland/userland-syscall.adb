@@ -1503,7 +1503,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      if not Check_Userland_Access (Data_Addr) then
+      if not Check_Userland_Access (Data_Addr) or else
+         not Check_Userland_Access (To_Integer (Data.Data))
+      then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       end if;
@@ -1523,6 +1525,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Cryptography.AES.Encrypt_ECB (Data.Key, AES_Data);
             when CRYPTO_AES128_ECB_DECRYPT =>
                Cryptography.AES.Decrypt_ECB (Data.Key, AES_Data);
+            when CRYPTO_AES128_CBC_ENCRYPT =>
+               Cryptography.AES.Encrypt_CBC (Data.Key, Data.IV, AES_Data);
+            when CRYPTO_AES128_CBC_DECRYPT =>
+               Cryptography.AES.Decrypt_CBC (Data.Key, Data.IV, AES_Data);
             when others =>
                Errno := Error_Not_Implemented;
                return Unsigned_64'Last;
