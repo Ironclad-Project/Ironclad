@@ -15,8 +15,11 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Lib.Synchronization;
+with Lib.Alignment;
 with Ada.Unchecked_Deallocation;
 with Arch.Local;
+with Cryptography.Random;
+with Userland.Memory_Locations;
 
 package body Userland.Process with SPARK_Mode => Off is
    procedure Free_Proc is new Ada.Unchecked_Deallocation
@@ -38,7 +41,9 @@ package body Userland.Process with SPARK_Mode => Off is
    function Create_Process
       (Parent : Process_Data_Acc := null) return Process_Data_Acc
    is
-      Returned : Process_Data_Acc := null;
+      package Aln is new Lib.Alignment (Unsigned_64);
+      Rand_Addr, Rand_Jump : Unsigned_64;
+      Returned             : Process_Data_Acc := null;
    begin
       Lib.Synchronization.Seize (Process_List_Mutex);
 
@@ -64,9 +69,21 @@ package body Userland.Process with SPARK_Mode => Off is
                Process_List (I).Current_Dir_Len := Parent.Current_Dir_Len;
                Process_List (I).Current_Dir     := Parent.Current_Dir;
             else
+               --  Get ASLR bases and ensure they are 4K aligned.
+               Rand_Addr := Cryptography.Random.Get_Integer
+                  (Memory_Locations.Mmap_Anon_Min,
+                   Memory_Locations.Mmap_Anon_Max);
+               Rand_Jump := Cryptography.Random.Get_Integer
+                  (Memory_Locations.Stack_Jump_Min,
+                   Memory_Locations.Stack_Jump_Max);
+
+               --  Ensure they are page aligned.
+               Rand_Addr := Aln.Align_Up (Rand_Addr, Memory.Virtual.Page_Size);
+               Rand_Jump := Aln.Align_Up (Rand_Jump, Memory.Virtual.Page_Size);
+
                Process_List (I).Parent_PID      := 0;
-               Process_List (I).Stack_Base      := 16#70000000000#;
-               Process_List (I).Alloc_Base      := 16#80000000000#;
+               Process_List (I).Alloc_Base      := Rand_Addr;
+               Process_List (I).Stack_Base      := Rand_Addr + Rand_Jump;
                Process_List (I).Current_Dir_Len := 1;
                Process_List (I).Current_Dir (1) := '/';
             end if;

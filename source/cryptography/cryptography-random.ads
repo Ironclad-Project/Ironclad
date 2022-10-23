@@ -21,6 +21,15 @@ package Cryptography.Random is
    type Crypto_Data is array (Natural range <>) of Unsigned_32;
    procedure Fill_Data (Data : out Crypto_Data);
 
+   --  Get random integers with optional ranges.
+   function Get_Integer return Unsigned_64;
+
+   --  FIXME: Fix this annotation.
+   function Get_Integer (Min, Max : Unsigned_64) return Unsigned_64
+      with Pre  => Max >= Min and Max <= Unsigned_64'Last - 1,
+           Post => Min <= Get_Integer'Result and Get_Integer'Result <= Max;
+   pragma Annotate (GNATprove, False_Positive, "postcondition might fail",
+                    "Counterexample works, could be a gnatprove bug?");
 private
 
    function Get_Seed return Unsigned_128 with Global => null;

@@ -23,12 +23,11 @@ with Memory; use Memory;
 with Userland.ELF;
 with Scheduler; use Scheduler;
 with Ada.Unchecked_Conversion;
+with Userland.Memory_Locations;
+with Lib.Alignment;
+with Cryptography.Random;
 
 package body Userland.Loader with SPARK_Mode => Off is
-   --  Virtual offsets for different kinds of programs to load.
-   Program_Offset        : constant := 16#00000000#;
-   Dynamic_Linker_Offset : constant := 16#40000000#;
-
    function Start_Program
       (FD          : File_Acc;
        Arguments   : Argument_Arr;
@@ -90,13 +89,17 @@ package body Userland.Loader with SPARK_Mode => Off is
        Environment : Environment_Arr;
        Proc        : Process_Data_Acc) return Boolean
    is
+      package Aln is new Lib.Alignment (Unsigned_64);
+
       Loaded_ELF, LD_ELF : ELF.Parsed_ELF;
       Entrypoint   : Virtual_Address;
-      LD_Path : String (1 .. 100);
-      LD_File : File_Acc;
+      LD_Slide : Unsigned_64;
+      LD_Path  : String (1 .. 100);
+      LD_File  : File_Acc;
    begin
       --  Load the executable.
-      Loaded_ELF := ELF.Load_ELF (FD, Proc.Common_Map, Program_Offset);
+      Loaded_ELF := ELF.Load_ELF (FD, Proc.Common_Map,
+         Memory_Locations.Program_Offset);
       if not Loaded_ELF.Was_Loaded then
          goto Error;
       end if;
@@ -111,8 +114,11 @@ package body Userland.Loader with SPARK_Mode => Off is
          if LD_File = null then
             goto Error;
          end if;
-         LD_ELF := ELF.Load_ELF (LD_File, Proc.Common_Map,
-                                 Dynamic_Linker_Offset);
+         LD_Slide := Cryptography.Random.Get_Integer
+            (Memory_Locations.LD_Offset_Min,
+             Memory_Locations.LD_Offset_Max);
+         LD_Slide := Aln.Align_Up (LD_Slide, Memory.Virtual.Page_Size);
+         LD_ELF := ELF.Load_ELF (LD_File, Proc.Common_Map, LD_Slide);
          Entrypoint := To_Integer (LD_ELF.Entrypoint);
          if not LD_ELF.Was_Loaded then
             goto Error;

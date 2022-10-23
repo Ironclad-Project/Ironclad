@@ -69,6 +69,11 @@ Memory allocation algorithms
 * standard::             The standard allocator.
 * alloconly::            The low profile allocator that does not free.
 
+Userland state and conditions
+
+* Program loading and ld.so::  Format of the loaded programs.
+* Memory layout::              Layout of the memory in userland.
+
 Syscalls
 
 * x86_64::                  x86_64 syscall ABI and table.
@@ -389,6 +394,33 @@ as its biggest trade-off.
 This allocator is appropiate for embedded applications that are recommended
 to allocate all the program will ever need at the beggining of its execution,
 and thats it.
+
+@node Userland state and conditions
+@chapter Userland state and conditions
+
+Ironclad places several requirements on loaded userland programs, from the
+format of which, to memory layout.
+
+@node Program loading and ld.so
+@section Program loading and ld.so
+
+Loaded programs must be under the ELF64 format, other formats may be supported
+in the future. Loaded programs can be relocatable or not.
+
+@code{ld.so} is a special case, it's loaded from the information on the headers
+of the primary loaded program, and is assumed to be relocatable (static-PIE).
+
+@node Memory layout
+@section Memory layout
+
+Loaded programs are loaded at address 0, and they are free to allocate
+themselves at nearby offsets.
+
+@code{ld.so} and entities like stacks, anonymous memory regions, and others,
+will be randomized on load time following
+@uref{https://en.wikipedia.org/wiki/Address_space_layout_randomization, ASLR},
+and must not be relied upon. It is up to @code{ld.so} to optionally place
+additionally loaded libraries at random offsets.
 
 @node Syscalls
 @chapter Syscalls

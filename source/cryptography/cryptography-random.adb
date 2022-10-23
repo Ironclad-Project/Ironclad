@@ -54,6 +54,18 @@ package body Cryptography.Random is
       end loop;
    end Fill_Data;
 
+   function Get_Integer return Unsigned_64 is
+      Data : Crypto_Data (1 .. 2);
+   begin
+      Fill_Data (Data);
+      return Shift_Left (Unsigned_64 (Data (1)), 32) or Unsigned_64 (Data (2));
+   end Get_Integer;
+
+   function Get_Integer (Min, Max : Unsigned_64) return Unsigned_64 is
+   begin
+      return (Get_Integer mod (Max + 1 - Min)) + Min;
+   end Get_Integer;
+
    --  TODO: More entropy, please.
    function Get_Seed return Unsigned_128 is
       pragma SPARK_Mode (Off);
