@@ -1390,8 +1390,8 @@ This target has no special devices.
 @subsection bootfb
 
 The @code{bootfb} device exposes the framebuffer passed as part of the
-boot-protocol, when present. The device is accessible by normal @code{read} and
-@code{write} calls, where each pixel counts as a byte.
+boot-protocol, when present. The device is not accessible by normal @code{read}
+and @code{write} calls, and must be @code{mmap}'d for operating on it.
 
 The @code{bootfb} device has a special @code{ioctl} call, which has an
 argument with the following structure:
@@ -1407,10 +1407,6 @@ struct fb_dimensions @{
 
 ioctl(fb, FB_DIMENTIONS, pointer_to_fb_dimensions)
 @end example
-
-@code{bootfb} also supports special routines for being @code{mmap}'d to memory
-windows for increased performance, instead of having to issue costly syscalls
-for partial updates and refreshes.
 
 @subsection ps2keyboard/ps2mouse
 

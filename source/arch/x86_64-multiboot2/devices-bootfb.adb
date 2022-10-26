@@ -26,7 +26,6 @@ with Memory.Virtual;
 
 package body Devices.BootFB with SPARK_Mode => Off is
    package Align is new Lib.Alignment (Unsigned_64);
-   type FB_Arr is array (Unsigned_32 range <>) of Unsigned_32;
 
    function Init return Boolean is
       Stat     : VFS.File_Stat;
@@ -72,8 +71,8 @@ package body Devices.BootFB with SPARK_Mode => Off is
          Mutex      => <>,
          Stat       => Stat,
          Sync       => null,
-         Read       => Read'Access,
-         Write      => Write'Access,
+         Read       => null,
+         Write      => null,
          IO_Control => IO_Control'Access,
          Mmap       => Mmap'Access,
          Munmap     => null
@@ -81,44 +80,6 @@ package body Devices.BootFB with SPARK_Mode => Off is
 
       return VFS.Register (Device, "bootfb");
    end Init;
-
-   function Read
-      (Data    : VFS.Resource_Acc;
-       Offset  : Unsigned_64;
-       Count   : Unsigned_64;
-       To_Read : System.Address) return Unsigned_64
-   is
-      Dev_Data : Arch.Multiboot2.Framebuffer_Tag with Address => Data.Data;
-      Dev_Y    : constant Unsigned_32 := Dev_Data.Height;
-      Dev_X    : constant Unsigned_32 := Dev_Data.Pitch / 4;
-      Offset2  : constant Unsigned_32 := Unsigned_32 (Offset);
-      Count2   : constant Unsigned_32 := Unsigned_32 (Count);
-
-      Read_Data : FB_Arr (1 .. Count2)        with Address => To_Read;
-      Window    : FB_Arr (1 .. Dev_X * Dev_Y) with Address => Dev_Data.Address;
-   begin
-      Read_Data := Window (Offset2 + 1 .. Offset2 + Count2);
-      return Count;
-   end Read;
-
-   function Write
-      (Data     : VFS.Resource_Acc;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64
-   is
-      Dev_Data : Arch.Multiboot2.Framebuffer_Tag with Address => Data.Data;
-      Dev_Y    : constant Unsigned_32 := Dev_Data.Height;
-      Dev_X    : constant Unsigned_32 := Dev_Data.Pitch / 4;
-      Offset2  : constant Unsigned_32 := Unsigned_32 (Offset);
-      Count2   : constant Unsigned_32 := Unsigned_32 (Count);
-
-      Write_Data : FB_Arr (1 .. Count2)       with Address => To_Write;
-      Window    : FB_Arr (1 .. Dev_X * Dev_Y) with Address => Dev_Data.Address;
-   begin
-      Window (Offset2 + 1 .. Offset2 + Count2) := Write_Data;
-      return Count;
-   end Write;
 
    IO_Control_Report_Dimensions : constant := 1;
    function IO_Control

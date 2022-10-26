@@ -58,7 +58,7 @@ package body Cryptography.Random is
       Data : Crypto_Data (1 .. 2);
    begin
       Fill_Data (Data);
-      return Shift_Left (Unsigned_64 (Data (1)), 32) or Unsigned_64 (Data (2));
+      return Shift_Left (Unsigned_64 (Data (1)), 31) or Unsigned_64 (Data (2));
    end Get_Integer;
 
    function Get_Integer (Min, Max : Unsigned_64) return Unsigned_64 is

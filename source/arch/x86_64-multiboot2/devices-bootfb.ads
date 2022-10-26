@@ -25,18 +25,6 @@ package Devices.BootFB with SPARK_Mode => Off is
 
 private
 
-   function Read
-      (Data    : VFS.Resource_Acc;
-       Offset  : Unsigned_64;
-       Count   : Unsigned_64;
-       To_Read : System.Address) return Unsigned_64;
-
-   function Write
-      (Data     : VFS.Resource_Acc;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64;
-
    function IO_Control
       (Data     : VFS.Resource_Acc;
        Request  : Unsigned_64;
