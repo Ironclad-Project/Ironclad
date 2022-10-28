@@ -74,6 +74,10 @@ Userland state and conditions
 * Program loading and ld.so::  Format of the loaded programs.
 * Memory layout::              Layout of the memory in userland.
 
+Mandatory access control
+
+* How to configure MAC::      How MAC is configured.
+
 Syscalls
 
 * x86_64::                  x86_64 syscall ABI and table.
@@ -103,6 +107,8 @@ Syscalls
 * getrandom::               Bypass /dev/random for avoiding DoS attacks.
 * mprotect::                Change memory permissions.
 * crypto_request::          Access to kernel crypto ala /dev/crypto.
+* set_mac::                 Modify MAC settings.
+* lock_mac::                Lock MAC down.
 
 Devices and their properties
 
@@ -145,6 +151,9 @@ For submitting patches, be it for Ironclad's webpages, kernel code, or
 documentation, please submit the patch to the project's
 @url{https://savannah.nongnu.org/patch/?group=ironclad, patch manager},
 (@url{https://savannah.nongnu.org/patch/?group=ironclad&func=additem, create an item}).
+
+If prefered, one can send a patch in
+@email{bug-ironclad@@nongnu.org, bug-ironclad}.
 
 When contributing code, it's good to keep in mind these guidelines:
 
@@ -422,6 +431,56 @@ will be randomized on load time following
 and must not be relied upon. It is up to @code{ld.so} to optionally place
 additionally loaded libraries at random offsets.
 
+@node Mandatory access control
+@chapter Mandatory access control
+
+Mandatory access control (MAC) forms one of the backbones of Ironclad security.
+With several restrictive settings that are inherited from parent processes to
+children, we can ensure processes will only have access to the minimum
+required set of permissions for their task.
+
+MAC does not necesarily help with preventing breaches of security, but
+minimizes the things a breached process can do, when configured correctly.
+
+@node How to configure MAC
+@section How to configure MAC
+
+MAC is configured using the syscalls @ref{set_mac} and @ref{lock_mac}. Once
+locked, MAC comes into effect.
+
+When locked, processes can only restrict themselves further, but not make
+them more permissive. Locking is not reversible.
+
+MAC is meant to be configured and locked in a parent process like init in a
+classic UNIX-like boot. There, the init can configure the desired processes
+to be launched under the necessary permissions.
+
+The permissions of the parent process booted by the kernel as passed in
+the @code{init} cmdline option are all denied.
+
+For example:
+
+@example
+int main(void) @{
+    // Set our permissions and spawn a child, the child will inherit them.
+
+    // We create a process that can access to allocation but not deallocation,
+    // grant access to entropy, and change its own scheduling.
+    if (set_mac(MAC_CAN_ALLOC_MEM | MAC_CAN_ACC_ENTROPY |
+                MAC_CAN_CHANGE_SCHED) != 0) @{
+        return -1;
+    @}
+    if (spawn("/usr/bin/example1", NULL, NULL) != 0) @{
+        return -1;
+    @}
+
+    // Lock, and we are done!
+    if (lock_mac() != 0) @{
+        return -1;
+    @}
+@}
+@end example
+
 @node Syscalls
 @chapter Syscalls
 
@@ -512,6 +571,10 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @xref{mprotect}
 @item
 @xref{crypto_request}
+@item
+@xref{set_mac}
+@item
+@xref{lock_mac}
 @end enumerate
 
 @node Errno
@@ -573,7 +636,12 @@ This syscall terminates the calling process "immediately".
 Any open file descriptors belonging to the process to be closed, and any
 threads of execution are terminated.
 
-This syscall does not return, thus, it has no return value or errno.
+This syscall does not return any value, but it sets errno on failure:
+
+@itemize @bullet
+@item
+@code{EACCES}: MAC disallowed this, rookie mistake.
+@end itemize
 
 @node arch_prctl
 @section arch_prctl
@@ -767,7 +835,15 @@ partial unmapping is not allowed.
 
 @code{mmap} returns a pointer to the allocated area, or @code{-1} on failure.
 @code{munmap} returns @code{0} on success, @code{-1} on failure. Both functions
-set @code{EINVAL} for bad hints or parameters.
+set the following errno:
+
+@itemize @bullet
+@item
+@code{EINVAL}: Bad hints or parameters.
+
+@item
+@code{EACCES}: MAC disallowed this.
+@end itemize
 
 @node getpid/getppid
 @section getpid/getppid
@@ -829,6 +905,9 @@ the parent, in failure, the parent gets @code{-1} with the following errno:
 @itemize @bullet
 @item
 @code{EAGAIN}: The system could not fork right now, try again later.
+
+@item
+@code{EACCES}: MAC disallowed this.
 @end itemize
 
 @node wait
@@ -894,6 +973,9 @@ returned on success and @code{-1} on failure, with the following errno:
 
 @item
 @code{EINVAL}: The passed length is bigger than the kernel can handle or 0.
+
+@item
+@code{EACCES}: MAC did not allow this.
 @end itemize
 
 @node fstat/lstat
@@ -1045,6 +1127,9 @@ Both syscalls set the following errno on failure:
 @code{which}
 
 @item
+@code{EACCES}: MAC did not allow this.
+
+@item
 @code{ESRCH}: The passed process could not be found.
 @end itemize
 
@@ -1152,8 +1237,13 @@ its execution slice is over, without being deleted. If set when calling
 @code{set_thread_sched}, the thread will be dequed effective immediately.
 @end itemize
 
-These two syscalls do not fail, @code{get_thread_sched} returns the flags, and
-@code{set_thread_sched} always returns 0, both syscalls return no @code{errno}.
+@code{get_thread_sched} returns the flags and does not fail, @code{set_thread_sched}
+returns @code{0} on success and @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EACCES}: MAC did not allow the operation.
+@end itemize
 
 @node fcntl
 @section fcntl
@@ -1222,7 +1312,8 @@ sets the following errno:
 @code{EAGAIN}: The process could not be created, please try again later.
 
 @item
-@code{EACCES}: The file couldn't be launched out of a permission error.
+@code{EACCES}: The file couldn't be launched out of a permission error, or
+MAC did not allow it.
 @end itemize
 
 @node getrandom
@@ -1246,6 +1337,8 @@ sets the following errno:
 @itemize @bullet
 @item
 @code{EFAULT}: @code{buffer} points to invalid memory.
+@item
+@code{EACCES}: MAC disallowed this.
 @end itemize
 
 @node mprotect
@@ -1267,6 +1360,9 @@ sets the following errno:
 @itemize @bullet
 @item
 @code{EFAULT}: @code{addr} points to invalid memory.
+
+@item
+@code{EACCES}: MAC disallowed this.
 @end itemize
 
 @node crypto_request
@@ -1312,6 +1408,44 @@ sets the following errno:
 
 @item
 @code{ENOSYS}: @code{request} is not implemented by the hardware.
+@end itemize
+
+@node set_mac
+@section set_mac
+
+@example
+#define MAC_EXIT_ITSELF   0b000001
+#define MAC_CREATE_OTHERS 0b000010
+#define MAC_CHANGE_SCHED  0b000100
+#define MAC_ACC_ENTROPY   0b001000
+#define MAC_ALLOC_MEM     0b010000
+#define MAC_DEALLOC_MEM   0b100000
+
+int set_mac(unsigned long request);
+@end example
+
+This syscall sets MAC filters on the way described in
+@ref{Mandatory access control}.
+
+This syscall always returns @code{0} and does not fail, settings will just
+be ignored if permission to change them is not granted.
+
+@node lock_mac
+@section lock_mac
+
+@example
+int lock_mac(void);
+@end example
+
+This syscall locks MAC modification as described in
+@ref{Mandatory access control}.
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@itemize @bullet
+@item
+@code{EACCES}: MAC was already locked.
 @end itemize
 
 @node Devices and their properties

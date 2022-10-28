@@ -124,12 +124,9 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       --  RAX is the return value, as well as the syscall number.
       --  RDX is the returned errno.
       --  Arguments can be RDI, RSI, RDX, RCX, R8, and R9, in that order.
-      --
-      --  TODO: Instead of this case, use the table commented out at
-      --  userland-syscall.ads
       case State.RAX is
          when 0 =>
-            Syscall_Exit (State.RDI);
+            Syscall_Exit (State.RDI, Errno);
          when 1 =>
             Returned := Syscall_Arch_PRCtl (State.RDI, State.RSI, Errno);
          when 2 =>
@@ -201,6 +198,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
                                           Errno);
          when 34 =>
             Returned := Syscall_Crypto_Request (State.RDI, State.RSI, Errno);
+         when 35 =>
+            Returned := Syscall_Set_MAC (State.RDI, Errno);
+         when 36 =>
+            Returned := Syscall_Lock_MAC (Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;

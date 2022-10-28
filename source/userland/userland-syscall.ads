@@ -62,7 +62,7 @@ package Userland.Syscall with SPARK_Mode => Off is
    procedure Set_Tracing (Value : Boolean);
 
    --  Exit the callee thread, flushing open files.
-   procedure Syscall_Exit (Error_Code : Unsigned_64);
+   procedure Syscall_Exit (Code : Unsigned_64; Errno : out Errno_Value);
 
    --  Set arch-specific thread state.
    function Syscall_Arch_PRCtl
@@ -336,6 +336,18 @@ package Userland.Syscall with SPARK_Mode => Off is
       (Request  : Unsigned_64;
        Argument : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64;
+
+   MAC_EXIT_ITSELF   : constant := 2#0000001#;
+   MAC_CREATE_OTHERS : constant := 2#0000010#;
+   MAC_CHANGE_SCHED  : constant := 2#0000100#;
+   MAC_ACC_ENTROPY   : constant := 2#0001000#;
+   MAC_ALLOC_MEM     : constant := 2#0010000#;
+   MAC_DEALLOC_MEM   : constant := 2#0100000#;
+   MAC_MANAGE_NET    : constant := 2#1000000#;
+   function Syscall_Set_MAC
+      (Bits  : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64;
+   function Syscall_Lock_MAC (Errno : out Errno_Value) return Unsigned_64;
 
 private
 

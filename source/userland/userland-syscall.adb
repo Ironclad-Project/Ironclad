@@ -39,8 +39,9 @@ with Cryptography.AES;
 with Arch.Snippets;
 
 package body Userland.Syscall with SPARK_Mode => Off is
-   --  Whether we are to print syscall information.
-   Is_Tracing : Boolean := False;
+   --  Whether we are to print syscall information and MAC.
+   Is_Tracing    : Boolean := False;
+   MAC_Is_Locked : Boolean := False;
 
    procedure Free_Str is new Ada.Unchecked_Deallocation
       (String, Userland.String_Acc);
@@ -52,23 +53,27 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Is_Tracing := Value;
    end Set_Tracing;
 
-   procedure Syscall_Exit (Error_Code : Unsigned_64) is
-      Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Arch.Local.Get_Current_Process;
+   procedure Syscall_Exit (Code : Unsigned_64; Errno : out Errno_Value) is
+      Curr_Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall exit(");
-         Lib.Messages.Put (Error_Code);
+         Lib.Messages.Put (Code);
          Lib.Messages.Put_Line (")");
+      end if;
+
+      if MAC_Is_Locked and not Curr_Proc.MAC_Table.Can_Exit_Itself then
+         Errno := Error_Bad_Access;
+         return;
       end if;
 
       --  Remove all state but the return value and keep the zombie around
       --  until we are waited.
-      Userland.Process.Flush_Threads (Current_Process);
-      Userland.Process.Flush_Files   (Current_Process);
+      Userland.Process.Flush_Threads (Curr_Proc);
+      Userland.Process.Flush_Files   (Curr_Proc);
 
-      Current_Process.Exit_Code := Unsigned_8 (Error_Code);
-      Current_Process.Did_Exit  := True;
+      Curr_Proc.Exit_Code := Unsigned_8 (Code);
+      Curr_Proc.Did_Exit  := True;
       Scheduler.Bail;
    end Syscall_Exit;
 
@@ -423,9 +428,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Length     : Unsigned_64;
        Errno      : out Errno_Value) return Unsigned_64
    is
-      Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.Local.Get_Current_Process;
-      Map : constant Memory.Virtual.Page_Map_Acc := Current_Process.Common_Map;
+      Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Map : constant Memory.Virtual.Page_Map_Acc := Proc.Common_Map;
       Addr : constant Physical_Address :=
          Memory.Virtual.Virtual_To_Physical (Map, Virtual_Address (Address));
    begin
@@ -436,6 +440,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put (Length, False, True);
          Lib.Messages.Put_Line (")");
       end if;
+
+      if MAC_Is_Locked and not Proc.MAC_Table.Can_Deallocate_Memory then
+         Errno := Error_Bad_Access;
+         return Unsigned_64'Last;
+      end if;
+
       --  We only support MAP_ANON and MAP_FIXED, so we can just assume we want
       --  to free.
       --  TODO: Actually unmap, not only free.
@@ -573,11 +583,18 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno         : out Errno_Value) return Unsigned_64
    is
       Parent : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
-      Child  : constant Process_Data_Acc := Create_Process (Parent);
+      Child  : Process_Data_Acc;
    begin
       if Is_Tracing then
          Lib.Messages.Put_Line ("syscall fork()");
       end if;
+
+      if MAC_Is_Locked and not Parent.MAC_Table.Can_Create_Others then
+         Errno := Error_Bad_Access;
+         return Unsigned_64'Last;
+      end if;
+
+      Child := Create_Process (Parent);
       if Child = null then
          Errno := Error_Would_Block;
          return Unsigned_64'Last;
@@ -585,6 +602,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       --  Fork the child state.
       Child.Common_Map := Memory.Virtual.Fork_Map (Parent.Common_Map);
+      Child.MAC_Table  := Parent.MAC_Table;
       for I in Parent.File_Table'Range loop
          Child.File_Table (I) := (
             Close_On_Exec => Parent.File_Table (I).Close_On_Exec,
@@ -727,6 +745,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Length  : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64
    is
+      Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Len  : constant Natural := Natural (Length);
       Addr : constant System.Address := To_Address (Integer_Address (Address));
       Name : String (1 .. Len) with Address => Addr;
@@ -738,6 +757,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put      (", ");
          Lib.Messages.Put      (Length);
          Lib.Messages.Put_Line (")");
+      end if;
+
+      if MAC_Is_Locked and not Proc.MAC_Table.Can_Manage_Networking then
+         Errno := Error_Bad_Access;
+         return Unsigned_64'Last;
       end if;
 
       if not Check_Userland_Access (Integer_Address (Address)) then
@@ -984,8 +1008,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
    end Syscall_IOCTL;
 
-   function Syscall_Sched_Yield (Errno : out Errno_Value) return Unsigned_64
-   is
+   function Syscall_Sched_Yield (Errno : out Errno_Value) return Unsigned_64 is
    begin
       if Is_Tracing then
          Lib.Messages.Put_Line ("syscall sched_yield()");
@@ -1043,8 +1066,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       (Which, Who, Prio : Unsigned_64;
        Errno            : out Errno_Value) return Unsigned_64
    is
-      Proc : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_PID (Natural (Who));
+      Proc      : constant Process_Data_Acc := Get_By_PID (Natural (Who));
+      Curr_Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
    begin
       if Is_Tracing then
          Lib.Messages.Put      ("syscall setpriority(");
@@ -1057,10 +1080,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       --  Check we didnt get asked for anything weird and that we found it.
-      if Which /= Which_Process then
+      if MAC_Is_Locked and not Curr_Proc.MAC_Table.Can_Change_Scheduling then
+         Errno := Error_Bad_Access;
+         return Unsigned_64'Last;
+      elsif Which /= Which_Process then
          Errno := Error_Not_Implemented;
          return Unsigned_64'Last;
       end if;
+
       if Proc = null then
          Errno := Error_Bad_Search;
          return Unsigned_64'Last;
@@ -1271,12 +1298,18 @@ package body Userland.Syscall with SPARK_Mode => Off is
       (Flags : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64
    is
-      Curr : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
+      Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Curr : constant Scheduler.TID    := Arch.Local.Get_Current_Thread;
    begin
       if Is_Tracing then
          Lib.Messages.Put      ("syscall set_thread_sched(");
          Lib.Messages.Put      (Flags);
          Lib.Messages.Put_Line (")");
+      end if;
+
+      if MAC_Is_Locked and not Proc.MAC_Table.Can_Change_Scheduling then
+         Errno := Error_Bad_Access;
+         return Unsigned_64'Last;
       end if;
 
       Scheduler.Set_RT_Thread   (Curr, (Flags and Thread_RT)     /= 0);
@@ -1362,6 +1395,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line ("syscall spawn(" & Path_String & ")");
       end if;
 
+      if MAC_Is_Locked and not Current_Process.MAC_Table.Can_Create_Others then
+         Errno := Error_Bad_Access;
+         return Unsigned_64'Last;
+      end if;
+
       if Opened_File = null then
          Errno := Error_No_Entity;
          return Unsigned_64'Last;
@@ -1409,6 +1447,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end loop;
 
          Child.Common_Map := Memory.Virtual.New_Map;
+         Child.MAC_Table  := Current_Process.MAC_Table;
          if not Loader.Start_Program (Opened_File, Args, Env, Child) then
             Errno := Error_Bad_Access;
             return Unsigned_64'Last;
@@ -1436,6 +1475,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Length  : Unsigned_64;
       Errno   : out Errno_Value) return Unsigned_64
    is
+      Proc  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Result : Cryptography.Random.Crypto_Data (1 .. Natural (Length / 4))
          with Address => To_Address (Integer_Address (Address)), Import;
    begin
@@ -1446,7 +1486,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put      (Length);
          Lib.Messages.Put_Line (")");
       end if;
-      if not Check_Userland_Access (Integer_Address (Address)) then
+      if MAC_Is_Locked and not Proc.MAC_Table.Can_Access_Entropy then
+         Errno := Error_Bad_Access;
+         return Unsigned_64'Last;
+      elsif not Check_Userland_Access (Integer_Address (Address)) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       else
@@ -1476,6 +1519,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put      (Protection, False, True);
          Lib.Messages.Put_Line (")");
       end if;
+
+      if MAC_Is_Locked and not Proc.MAC_Table.Can_Allocate_Memory then
+         Errno := Error_Bad_Access;
+         return Unsigned_64'Last;
+      end if;
+
       if not Check_Userland_Access (Addr) or else
          not Remap_Range (Map, Addr, Length, Flags)
       then
@@ -1537,4 +1586,64 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno := Error_No_Error;
       return 0;
    end Syscall_Crypto_Request;
+
+   function Syscall_Set_MAC
+      (Bits  : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64
+   is
+      P : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      E_I : constant Boolean := (Bits and MAC_EXIT_ITSELF)   /= 0;
+      C_O : constant Boolean := (Bits and MAC_CREATE_OTHERS) /= 0;
+      C_S : constant Boolean := (Bits and MAC_CHANGE_SCHED)  /= 0;
+      A_E : constant Boolean := (Bits and MAC_ACC_ENTROPY)   /= 0;
+      A_M : constant Boolean := (Bits and MAC_ALLOC_MEM)     /= 0;
+      D_M : constant Boolean := (Bits and MAC_DEALLOC_MEM)   /= 0;
+      M_N : constant Boolean := (Bits and MAC_MANAGE_NET)    /= 0;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall set_mac(");
+         Lib.Messages.Put      (Bits, False, True);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if MAC_Is_Locked then
+         P.MAC_Table := (
+            Can_Exit_Itself       => P.MAC_Table.Can_Exit_Itself       and E_I,
+            Can_Create_Others     => P.MAC_Table.Can_Create_Others     and C_O,
+            Can_Change_Scheduling => P.MAC_Table.Can_Change_Scheduling and C_S,
+            Can_Access_Entropy    => P.MAC_Table.Can_Access_Entropy    and A_E,
+            Can_Allocate_Memory   => P.MAC_Table.Can_Allocate_Memory   and A_M,
+            Can_Deallocate_Memory => P.MAC_Table.Can_Deallocate_Memory and D_M,
+            Can_Manage_Networking => P.MAC_Table.Can_Manage_Networking and M_N
+         );
+      else
+         P.MAC_Table := (
+            Can_Exit_Itself       => E_I,
+            Can_Create_Others     => C_O,
+            Can_Change_Scheduling => C_S,
+            Can_Access_Entropy    => A_E,
+            Can_Allocate_Memory   => A_M,
+            Can_Deallocate_Memory => D_M,
+            Can_Manage_Networking => M_N
+         );
+      end if;
+      Errno := Error_No_Error;
+      return 0;
+   end Syscall_Set_MAC;
+
+   function Syscall_Lock_MAC (Errno : out Errno_Value) return Unsigned_64 is
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put_Line ("syscall lock_mac()");
+      end if;
+
+      if MAC_Is_Locked then
+         Errno := Error_Bad_Access;
+         return Unsigned_64'Last;
+      else
+         MAC_Is_Locked := True;
+         Errno := Error_No_Error;
+         return 0;
+      end if;
+   end Syscall_Lock_MAC;
 end Userland.Syscall;
