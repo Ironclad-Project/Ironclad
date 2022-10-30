@@ -16,8 +16,7 @@
 
 package body Cryptography.AES is
    procedure Encrypt_ECB (Key : Unsigned_128; Data : in out AES_Data) is
-      Expanded_Key : constant Arch.Snippets.Expanded_AES_Key :=
-         Arch.Snippets.AES_Expand_Key (Key);
+      Expanded_Key : constant Expanded_AES_Key := AES_Expand_Key (Key);
    begin
       for I in Data'Range loop
          Data (I) := Encrypt_128 (Data (I), Key, Expanded_Key);
@@ -25,8 +24,7 @@ package body Cryptography.AES is
    end Encrypt_ECB;
 
    procedure Decrypt_ECB (Key : Unsigned_128; Data : in out AES_Data) is
-      Expanded_Key : constant Arch.Snippets.Expanded_AES_Key :=
-         Arch.Snippets.AES_Expand_Inv_Key (Key);
+      Expanded_Key : constant Expanded_AES_Key := AES_Expand_Inv_Key (Key);
    begin
       for I in Data'Range loop
          Data (I) := Decrypt_128 (Data (I), Key, Expanded_Key);
@@ -34,8 +32,7 @@ package body Cryptography.AES is
    end Decrypt_ECB;
 
    procedure Encrypt_CBC (Key, IV : Unsigned_128; Data : in out AES_Data) is
-      Expanded_Key : constant Arch.Snippets.Expanded_AES_Key :=
-         Arch.Snippets.AES_Expand_Key (Key);
+      Expanded_Key : constant Expanded_AES_Key := AES_Expand_Key (Key);
       Curr_IV : Unsigned_128 := IV;
    begin
       for I in Data'Range loop
@@ -45,8 +42,7 @@ package body Cryptography.AES is
    end Encrypt_CBC;
 
    procedure Decrypt_CBC (Key, IV : Unsigned_128; Data : in out AES_Data) is
-      Expanded_Key : constant Arch.Snippets.Expanded_AES_Key :=
-         Arch.Snippets.AES_Expand_Inv_Key (Key);
+      Expanded_Key : constant Expanded_AES_Key := AES_Expand_Inv_Key (Key);
       Curr_IV : Unsigned_128 := IV;
       Next_IV : Unsigned_128;
    begin
@@ -57,42 +53,41 @@ package body Cryptography.AES is
       end loop;
    end Decrypt_CBC;
 
+   procedure Crypt_CTR (Key, IV : Unsigned_128; Data : in out AES_Data) is
+      Expanded_Key : constant Expanded_AES_Key := AES_Expand_Key (Key);
+      Curr_IV : Unsigned_128 := Shift_Left (IV, 31) and
+         Unsigned_128 (not Unsigned_32'Last);
+   begin
+      for I in Data'Range loop
+         Data (I) := Encrypt_128 (Curr_IV, Key, Expanded_Key) xor Data (I);
+         Curr_IV  := Curr_IV + 1;
+      end loop;
+   end Crypt_CTR;
+
    function Encrypt_128
       (Data, Original_Key : Unsigned_128;
-       Key : Arch.Snippets.Expanded_AES_Key) return Unsigned_128
+       Key : Expanded_AES_Key) return Unsigned_128
    is
       Encrypted : Unsigned_128 := Data;
    begin
       Encrypted := Encrypted xor Original_Key;
-      Encrypted := Arch.Snippets.AES_Encrypt_One  (Encrypted, Key (1));
-      Encrypted := Arch.Snippets.AES_Encrypt_One  (Encrypted, Key (2));
-      Encrypted := Arch.Snippets.AES_Encrypt_One  (Encrypted, Key (3));
-      Encrypted := Arch.Snippets.AES_Encrypt_One  (Encrypted, Key (4));
-      Encrypted := Arch.Snippets.AES_Encrypt_One  (Encrypted, Key (5));
-      Encrypted := Arch.Snippets.AES_Encrypt_One  (Encrypted, Key (6));
-      Encrypted := Arch.Snippets.AES_Encrypt_One  (Encrypted, Key (7));
-      Encrypted := Arch.Snippets.AES_Encrypt_One  (Encrypted, Key (8));
-      Encrypted := Arch.Snippets.AES_Encrypt_One  (Encrypted, Key (9));
+      for I in 1 .. 9 loop
+         Encrypted := Arch.Snippets.AES_Encrypt_One (Encrypted, Key (I));
+      end loop;
       Encrypted := Arch.Snippets.AES_Encrypt_Last (Encrypted, Key (10));
       return Encrypted;
    end Encrypt_128;
 
    function Decrypt_128
       (Data, Original_Key : Unsigned_128;
-       Key : Arch.Snippets.Expanded_AES_Key) return Unsigned_128
+       Key : Expanded_AES_Key) return Unsigned_128
    is
       Decrypted : Unsigned_128 := Data;
    begin
       Decrypted := Decrypted xor Key (10);
-      Decrypted := Arch.Snippets.AES_Decrypt_One  (Decrypted, Key (9));
-      Decrypted := Arch.Snippets.AES_Decrypt_One  (Decrypted, Key (8));
-      Decrypted := Arch.Snippets.AES_Decrypt_One  (Decrypted, Key (7));
-      Decrypted := Arch.Snippets.AES_Decrypt_One  (Decrypted, Key (6));
-      Decrypted := Arch.Snippets.AES_Decrypt_One  (Decrypted, Key (5));
-      Decrypted := Arch.Snippets.AES_Decrypt_One  (Decrypted, Key (4));
-      Decrypted := Arch.Snippets.AES_Decrypt_One  (Decrypted, Key (3));
-      Decrypted := Arch.Snippets.AES_Decrypt_One  (Decrypted, Key (2));
-      Decrypted := Arch.Snippets.AES_Decrypt_One  (Decrypted, Key (1));
+      for I in reverse 1 .. 9 loop
+         Decrypted := Arch.Snippets.AES_Decrypt_One (Decrypted, Key (I));
+      end loop;
       Decrypted := Arch.Snippets.AES_Decrypt_Last (Decrypted, Original_Key);
       return Decrypted;
    end Decrypt_128;

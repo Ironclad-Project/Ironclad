@@ -332,6 +332,7 @@ package Userland.Syscall with SPARK_Mode => Off is
    CRYPTO_AES128_ECB_DECRYPT : constant := 1;
    CRYPTO_AES128_CBC_ENCRYPT : constant := 2;
    CRYPTO_AES128_CBC_DECRYPT : constant := 3;
+   CRYPTO_AES128_CTR_CRYPT   : constant := 4;
    function Syscall_Crypto_Request
       (Request  : Unsigned_64;
        Argument : Unsigned_64;

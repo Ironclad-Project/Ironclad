@@ -14,8 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
-with Arch.Snippets;
+with Interfaces;    use Interfaces;
+with Arch.Snippets; use Arch.Snippets;
 
 package Cryptography.AES is
    --  Implementation of AES using hardware acceleration.
@@ -24,21 +24,23 @@ package Cryptography.AES is
    --  AES manages 128 bit blocks.
    type AES_Data is array (Natural range <>) of Unsigned_128;
 
-   --  Encrypt and decrypt a block with a key using AES-128 and ECB.
+   --  Encrypt and decrypt a block with a key using AES-128 and different
+   --  operation modes. For more info and the algos:
+   --  https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation.
+   --  CTR cyphers use IV as nonce with a size of 96, as recommended by GCM.
    procedure Encrypt_ECB (Key : Unsigned_128; Data : in out AES_Data);
    procedure Decrypt_ECB (Key : Unsigned_128; Data : in out AES_Data);
-
-   --  Encrypt and decrypt a block using AES-128, an IV, and CBC.
-   --  The returned value is the resulting IV for encryption or decryption.
    procedure Encrypt_CBC (Key, IV : Unsigned_128; Data : in out AES_Data);
    procedure Decrypt_CBC (Key, IV : Unsigned_128; Data : in out AES_Data);
+   procedure Crypt_CTR (Key, IV : Unsigned_128; Data : in out AES_Data);
+
 
 private
 
    function Encrypt_128
       (Data, Original_Key : Unsigned_128;
-       Key : Arch.Snippets.Expanded_AES_Key) return Unsigned_128;
+       Key : Expanded_AES_Key) return Unsigned_128;
    function Decrypt_128
       (Data, Original_Key : Unsigned_128;
-       Key : Arch.Snippets.Expanded_AES_Key) return Unsigned_128;
+       Key : Expanded_AES_Key) return Unsigned_128;
 end Cryptography.AES;

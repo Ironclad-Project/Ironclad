@@ -1381,15 +1381,16 @@ All the modes available and their @code{argument} are:
 @table @code
 @item CRYPTO_AES128_ECB_ENCRYPT (0)
 @itemx CRYPTO_AES128_ECB_DECRYPT (1)
-@itemx CRYPTO_AES128_CBC_DECRYPT (2)
+@itemx CRYPTO_AES128_CBC_ENCRYPT (2)
 @itemx CRYPTO_AES128_CBC_DECRYPT (3)
+@itemx CRYPTO_AES128_CTR_CRYPT (4)
 
 When using these encryption algorithms, @code{argument} points to a structure
 with the form:
 @example
 struct crypto_aes_data @{
    __uint128_t  key;    // Key for the AES encryption.
-   __uint128_t  iv;     // Initialization vector when needed.
+   __uint128_t  iv;     // Initialization vector/nonce when needed.
    void        *data;   // Data pointer.
    uint32_t     length; // Length, must be a multiple of 16.
 @}
@@ -1398,6 +1399,10 @@ struct crypto_aes_data @{
 These request will encrypt or decrypt @code{length} bytes of data in-place
 pointed by @code{data}, @code{length} must be divisible by 16 (128-bit blocks).
 @end table
+
+Note CTR operation modes have the same encryption and decryption procedure, so
+only a single @code{CRYPT} option is exposed. When doing CTR, the IV will be
+used as a 96-bit nonce as well.
 
 The syscall returns @code{0} on success, or @code{-1} on failure, and
 sets the following errno:

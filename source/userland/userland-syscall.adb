@@ -1578,6 +1578,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Cryptography.AES.Encrypt_CBC (Data.Key, Data.IV, AES_Data);
             when CRYPTO_AES128_CBC_DECRYPT =>
                Cryptography.AES.Decrypt_CBC (Data.Key, Data.IV, AES_Data);
+            when CRYPTO_AES128_CTR_CRYPT =>
+               Cryptography.AES.Crypt_CTR (Data.Key, Data.IV, AES_Data);
             when others =>
                Errno := Error_Not_Implemented;
                return Unsigned_64'Last;
