@@ -24,3 +24,6 @@ ironclad.log
 ironclad.toc
 ironclad
 libdl.a
+tests/obj
+tests/run_tests
+tests/gnatprove

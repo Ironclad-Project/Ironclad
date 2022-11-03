@@ -19,6 +19,7 @@ with Memory.Physical; use Memory.Physical;
 with Arch.Snippets;
 with Memory; use Memory;
 with Cryptography.Chacha20;
+with Cryptography.MD5;
 
 package body Cryptography.Random is
    procedure Fill_Data (Data : out Crypto_Data) is
@@ -30,7 +31,8 @@ package body Cryptography.Random is
 
       --  Seed every time a new chain of random numbers is requested.
       S : constant Seed := (
-         Seed1 => Get_Seed,
+         --  Binary value of "RNGSealOfQuality" in ASCII.
+         Seed1 => 16#524e475365616c4f665175616c697479#,
          Seed2 => Get_Seed
       );
 
@@ -58,7 +60,7 @@ package body Cryptography.Random is
       Data : Crypto_Data (1 .. 2);
    begin
       Fill_Data (Data);
-      return Shift_Left (Unsigned_64 (Data (1)), 31) or Unsigned_64 (Data (2));
+      return Shift_Left (Unsigned_64 (Data (1)), 32) or Unsigned_64 (Data (2));
    end Get_Integer;
 
    function Get_Integer (Min, Max : Unsigned_64) return Unsigned_64 is
@@ -74,11 +76,15 @@ package body Cryptography.Random is
       S1 : constant Unsigned_64 := Arch.Snippets.Read_Cycles;
       S2 : constant Unsigned_64 := Unsigned_64 (Get_Statistics.Used_Memory);
 
-      --  Hash them, ideally this should be MD5 or something stronger.
-      --  This is totally homegrown and loosely based on boost::hash_combine.
-      M1 : constant Unsigned_64 := S2 xor (S1 + 16#9e3779b9# + S2);
-      M2 : constant Unsigned_64 := M1 xor (S1 + Shift_Left (S2, 6)) xor S2;
+      To_Hash : constant MD5.MD5_Blocks (1 .. 1) := (0 => (
+         0  => Unsigned_32 (Shift_Right (S1, 32) and 16#FFFFFFFF#),
+         1  => Unsigned_32 (S1                   and 16#FFFFFFFF#),
+         2  => Unsigned_32 (Shift_Right (S2, 32) and 16#FFFFFFFF#),
+         3  => Unsigned_32 (S2                   and 16#FFFFFFFF#),
+         14 => 128,
+         others => 0
+      ));
    begin
-      return Shift_Left (Unsigned_128 (M1), 64) or Unsigned_128 (M2);
+      return MD5.Digest (To_Hash);
    end Get_Seed;
 end Cryptography.Random;
