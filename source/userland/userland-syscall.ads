@@ -19,6 +19,7 @@ with VFS.File;
 with Arch.Context;
 with Arch.MMU;
 with System;
+with Userland.Process; use Userland.Process;
 
 package Userland.Syscall with SPARK_Mode => Off is
    --  Error conditions for syscalls.
@@ -338,6 +339,7 @@ package Userland.Syscall with SPARK_Mode => Off is
        Argument : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64;
 
+   --  Set MAC capabilities of the caller process.
    MAC_EXIT_ITSELF   : constant := 2#0000001#;
    MAC_CREATE_OTHERS : constant := 2#0000010#;
    MAC_CHANGE_SCHED  : constant := 2#0000100#;
@@ -345,15 +347,48 @@ package Userland.Syscall with SPARK_Mode => Off is
    MAC_ALLOC_MEM     : constant := 2#0010000#;
    MAC_DEALLOC_MEM   : constant := 2#0100000#;
    MAC_MANAGE_NET    : constant := 2#1000000#;
-   function Syscall_Set_MAC
+   function Syscall_Set_MAC_Capabilities
       (Bits  : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
+
+   --  Lock the MAC from further significant modification.
    function Syscall_Lock_MAC (Errno : out Errno_Value) return Unsigned_64;
+
+   --  Add a file MAC filter.
+   type MAC_Filter is record
+      Path   : String (1 .. 75);
+      Length : Natural range 0 .. 75;
+      Perms  : Unsigned_32;
+   end record;
+   MAC_FILTER_INC_FILES : constant := 2#0000001#;
+   MAC_FILTER_INC_DIRS  : constant := 2#0000010#;
+   MAC_FILTER_R         : constant := 2#0000100#;
+   MAC_FILTER_W         : constant := 2#0001000#;
+   MAC_FILTER_EXEC      : constant := 2#0010000#;
+   function Syscall_Add_MAC_Filter
+      (Filter_Addr : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64;
+
+   --  Set the enforcement policy of the MAC.
+   MAC_DENY            : constant := 2#001#;
+   MAC_DENY_AND_SCREAM : constant := 2#010#;
+   MAC_KILL            : constant := 2#100#;
+   function Set_MAC_Enforcement
+      (Action : Unsigned_64;
+       Errno  : out Errno_Value) return Unsigned_64;
 
 private
 
+   --  Do the actual exiting.
+   procedure Do_Exit (Proc : Process_Data_Acc; Code : Unsigned_8);
+
+   --  Translate mmap permissions.
    function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions;
 
+   --  Execute the policy chose by the user for the process.
+   procedure Execute_MAC_Failure (Name : String; Curr_Proc : Process_Data_Acc);
+
+   --  Do the actual stat.
    function Inner_Stat
       (F       : VFS.File.File_Acc;
        Address : Unsigned_64) return Boolean;

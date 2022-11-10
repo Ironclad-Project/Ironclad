@@ -68,6 +68,7 @@ package body Userland.Process with SPARK_Mode => Off is
                Process_List (I).Alloc_Base      := Parent.Alloc_Base;
                Process_List (I).Current_Dir_Len := Parent.Current_Dir_Len;
                Process_List (I).Current_Dir     := Parent.Current_Dir;
+               Process_List (I).Perms           := Parent.Perms;
             else
                --  Get ASLR bases and ensure they are 4K aligned.
                Rand_Addr := Cryptography.Random.Get_Integer
@@ -86,6 +87,7 @@ package body Userland.Process with SPARK_Mode => Off is
                Process_List (I).Stack_Base      := Rand_Addr + Rand_Jump;
                Process_List (I).Current_Dir_Len := 1;
                Process_List (I).Current_Dir (1) := '/';
+               Process_List (I).Perms           := MAC.Default_Permissions;
             end if;
 
             Returned := Process_List (I);

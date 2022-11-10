@@ -46,7 +46,7 @@ package Userland.Process with SPARK_Mode => Off is
       Common_Map      : Memory.Virtual.Page_Map_Acc;
       Stack_Base      : Unsigned_64;
       Alloc_Base      : Unsigned_64;
-      MAC_Table       : MAC.Permissions;
+      Perms           : MAC.Permissions;
 
       --  Returns for waiting.
       Did_Exit  : Boolean    with Volatile;
