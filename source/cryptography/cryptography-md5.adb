@@ -109,7 +109,7 @@ package body Cryptography.MD5 is
       );
       Result   : MD5_String := (others => '0');
       Temp     : Unsigned_32;
-      Position : Natural := Result'Last;
+      Position : Integer range Result'First - 1 .. Result'Last := Result'Last;
    begin
       for I in Item'Range loop
          Item (I) := BSwap32 (Item (I));
