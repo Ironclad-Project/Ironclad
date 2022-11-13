@@ -1,4 +1,4 @@
---  ironclad_tests.gpr: Hosted tests of Ironclad library utilities.
+--  lib_tests.ads: Lib-related unit tests.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,26 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-project Ironclad_Tests is
-   --  Set directories and files.
-   for Source_Dirs use (
-      ".",
-      "../source/cryptography",
-      "../source/lib"
-   );
-   for Object_Dir use "obj";
-   for Exec_Dir use ".";
-   for Main use ("main.adb");
-   for Languages use ("Ada");
-   for Create_Missing_Dirs use "True";
-
-   package Builder is
-      for Executable ("main.adb") use "run_tests";
-   end Builder;
-
-   package Compiler is
-      for Switches ("Ada") use (
-         "-O2", "-g", "-gnaty", "-Wall"
-      );
-   end Compiler;
-end Ironclad_Tests;
+package Lib_Tests is
+   Lib_Exception : exception;
+   procedure Run_Cmdline_Tests;
+   procedure Run_Alignment_Tests;
+end Lib_Tests;

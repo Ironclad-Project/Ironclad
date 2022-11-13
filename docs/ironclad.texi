@@ -217,10 +217,13 @@ Userland code for loaders, processes, and such.
 VFS structure and FS drivers.
 @end table
 
-Apart of those subdirectories, @code{source} itself contains the
-@code{main.adb} of the kernel, @code{pragmas.adc} containing the pragmas used
-for the rest of the kernel code, and some other files and drivers that do
-not fit on the former subdirectories.
+Apart of those subdirectories, @code{source} contains the @code{main.adb} of
+the kernel, @code{pragmas.adc} containing the pragmas used for the rest of the
+kernel code, and some other files and drivers that do not fit in the former
+subdirectories.
+
+The code under @code{tests} does some general testing of facitilities that
+can be tested outside a final Ironclad binary.
 
 @node Formal verification
 @section Formal verification

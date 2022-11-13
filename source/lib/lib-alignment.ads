@@ -14,9 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
---  This functions are designed to be used with pow 2 alignments.
---  They will fail else.
-
 generic
    type T is mod <>;
 package Lib.Alignment with Pure is

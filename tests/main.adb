@@ -1,48 +1,66 @@
-with Ada.Text_IO; use Ada.Text_IO;
-with Cryptography.MD5; use Cryptography.MD5;
-with Ada.Unchecked_Conversion;
+--  main.adb: Main test runner.
+--  Copyright (C) 2021 streaksu
+--
+--  This program is free software: you can redistribute it and/or modify
+--  it under the terms of the GNU General Public License as published by
+--  the Free Software Foundation, either version 3 of the License, or
+--  (at your option) any later version.
+--
+--  This program is distributed in the hope that it will be useful,
+--  but WITHOUT ANY WARRANTY; without even the implied warranty of
+--  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+--  GNU General Public License for more details.
+--
+--  You should have received a copy of the GNU General Public License
+--  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+with Ada.Text_IO;
 with Ada.Characters.Latin_1;
+with Ada.Exceptions; use Ada.Exceptions;
+with Cryptography_Tests; use Cryptography_Tests;
+with Lib_Tests; use Lib_Tests;
 
 procedure Main is
-   type MD5_Exact_Str is new String (1 .. 64) with Size => 512;
-   function Conv is new Ada.Unchecked_Conversion (
-      Source => MD5_Exact_Str,
-      Target => Cryptography.MD5.MD5_Block
-   );
+   Begin_Col    : constant Ada.Text_IO.Count := 1;
+   Result_Col   : constant Ada.Text_IO.Count := 31;
+   Text_Success : constant String := Ada.Characters.Latin_1.ESC & "[32m";
+   Text_Fail    : constant String := Ada.Characters.Latin_1.ESC & "[31m";
+   Text_Reset   : constant String := Ada.Characters.Latin_1.ESC & "[0m";
 
-   --  Colors for printing.
-   Text_Red   : constant String := Ada.Characters.Latin_1.ESC & "[31m";
-   Text_Reset : constant String := Ada.Characters.Latin_1.ESC & "[0m";
-
-   --  MD5 test array.
-   type MD5_Test is record
-      Data     : access MD5_Blocks;
-      Expected : MD5_String;
+   type Test_Name is access String;
+   type Test_Data is record
+      Name : Test_Name;
+      Test : access procedure;
    end record;
-   type MD5_Test_Arr is array (Positive range <>) of MD5_Test;
 
-   MD5_Test1 : constant MD5_Exact_Str :=
-      "VIHP4l285gJ4IenB0EeLk9QLChfBx35QCJR11LY90XIsiyfW4qgSyESgtw2idle4";
-   MD5_Test_1 : constant access MD5_Blocks :=
-      new MD5_Blocks'((0 => Conv (MD5_Test1),
-                       1 => (0 => 16#80#, 1 .. 13 => 0, 14 => 512, 15 => 0)));
-
-   --  Empty string.
-   MD5_Test_2 : constant access MD5_Blocks :=
-      new MD5_Blocks'(0 => (0 => 16#80#, 1 .. 15 => 0));
-   MD5_Tests : constant MD5_Test_Arr (1 .. 2) := (
-      1 => (Data     => MD5_Test_1,
-            Expected => "90adb0735901070d47c9d32cc10b975c"),
-      2 => (Data     => MD5_Test_2,
-            Expected => "d41d8cd98f00b204e9800998ecf8427e")
+   Failed_Num : Natural := 0;
+   Tests : constant array (1 .. 3) of Test_Data := (
+      1 => (new String'("Cryptography - MD5"), Run_MD5_Tests'Access),
+      2 => (new String'("Lib - Cmdline"),      Run_Cmdline_Tests'Access),
+      3 => (new String'("Lib - Alignment"),    Run_Alignment_Tests'Access)
    );
 begin
-   Put_Line ("Cryptography");
-   Put_Line ("-----------------------------------");
-   Put_Line ("Testing MD5 using known vectors... ");
-   for I in MD5_Tests'Range loop
-      if MD5_Tests (I).Expected /= Digest (MD5_Tests (I).Data.all) then
-         Put_Line (Text_Red & Integer'Image (I) & " failed" & Text_Reset);
-      end if;
+   for Test of Tests loop
+      begin
+         Ada.Text_IO.Set_Col (Begin_Col);
+         Ada.Text_IO.Put (Test.Name.all & " ");
+         Ada.Text_IO.Set_Col (Result_Col);
+         Test.Test.all; --  We catch this.
+         Ada.Text_IO.Put (Text_Success & "Passed");
+      exception
+         when Error : others =>
+            Ada.Text_IO.Put
+               (Text_Fail & "Failed (" & Exception_Message (Error) & ")");
+            Failed_Num := Failed_Num + 1;
+      end;
+      Ada.Text_IO.Put_Line (Text_Reset);
    end loop;
+
+   Ada.Text_IO.Put ("Of " & Integer'Image (Tests'Length) & " tests, ");
+   if Failed_Num = 0 then
+      Ada.Text_IO.Put (Text_Success);
+   else
+      Ada.Text_IO.Put (Text_Fail);
+   end if;
+   Ada.Text_IO.Put_Line (Integer'Image (Failed_Num) & " failed" & Text_Reset);
 end Main;
