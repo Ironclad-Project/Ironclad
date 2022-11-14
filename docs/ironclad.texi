@@ -742,6 +742,9 @@ errno is set according to the conditions for both functions:
 @code{ENOENT}: The referenced file for @code{open} does not exist.
 
 @item
+@code{EINVAL}: Combination of @code{open} flags is not valid.
+
+@item
 @code{EMFILE}: Too many files are already owned by the process.
 
 @item

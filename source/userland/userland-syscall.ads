@@ -74,7 +74,6 @@ package Userland.Syscall with SPARK_Mode => Off is
    --  Open a file.
    O_RDONLY   : constant := 2#000000001#;
    O_WRONLY   : constant := 2#000000010#;
-   O_RDWR     : constant := 2#000000011#;
    O_APPEND   : constant := 2#000000100#;
    O_CREAT    : constant := 2#000001000#;
    O_CLOEXEC  : constant := 2#000010000#;

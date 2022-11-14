@@ -139,6 +139,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          File_Perms   : MAC.Filter_Permissions;
          Returned_FD  : Natural;
          Close_On_Exec : constant Boolean := (Flags and O_CLOEXEC) /= 0;
+         Flags_Read    : constant Boolean := (Flags and O_RDONLY)  /= 0;
+         Flags_Write   : constant Boolean := (Flags and O_WRONLY)  /= 0;
       begin
          if Is_Tracing then
             Lib.Messages.Put ("syscall open(");
@@ -149,18 +151,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
 
          --  Parse the mode.
-         if (Flags and O_RDWR) /= 0 then
+         if Flags_Read and Flags_Write then
             Open_Mode := VFS.File.Access_RW;
-         elsif (Flags and O_RDONLY) /= 0 then
+         elsif Flags_Read then
             Open_Mode := VFS.File.Access_R;
-         elsif (Flags and O_WRONLY) /= 0 then
+         elsif Flags_Write then
             Open_Mode := VFS.File.Access_W;
          else
-            --  XXX: This should go to Error_Return, yet mlibc's dynamic linker
-            --  passes flags = 0 for no reason, so we will put a default.
-            --  This should not be the case, and it is to be fixed.
-            --  goto Error_Return;
-            Open_Mode := VFS.File.Access_R;
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
          end if;
 
          if MAC_Is_Locked then
@@ -176,7 +175,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                      goto Resume;
                   end if;
                when VFS.File.Access_W =>
-                  if File_Perms.Can_Read then
+                  if File_Perms.Can_Write then
                      goto Resume;
                   end if;
             end case;
