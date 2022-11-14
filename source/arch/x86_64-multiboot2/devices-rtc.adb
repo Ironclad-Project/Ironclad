@@ -16,7 +16,6 @@
 
 with Arch.Wrappers;
 with Lib.Synchronization;
-with Lib.Messages;
 
 package body Devices.RTC with SPARK_Mode => Off is
    CMOS_Base_Port   : constant := 16#70#;
@@ -118,8 +117,6 @@ package body Devices.RTC with SPARK_Mode => Off is
             --  Calculate the full (4-digit) year.
             --  If you are using ironclad on x86_64 in 2100, im sorry.
             Re.TM_Year := Re.TM_Year + (20 * 100);
-            Lib.Messages.Put (Unsigned_64 (Re.TM_Mon));
-            Lib.Messages.Put_Line ("");
             return True;
          when others =>
             return False;

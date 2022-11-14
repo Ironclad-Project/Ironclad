@@ -79,5 +79,6 @@ package Userland.MAC is
    --  absolute path.
    function Check_Path_Permissions
       (Path    : String;
-       Filters : Filter_Arr) return Filter_Permissions;
+       Filters : Filter_Arr) return Filter_Permissions
+   with Pre => (Path'First <= Integer'Last - 75);
 end Userland.MAC;
