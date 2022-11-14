@@ -18,6 +18,7 @@ with Devices.BootFB;
 with Devices.PS2Mouse;
 with Devices.PS2Keyboard;
 with Devices.Serial;
+with Devices.RTC;
 with Arch.Wrappers;
 with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
@@ -37,7 +38,7 @@ package body Arch.Hooks with SPARK_Mode => Off is
          end if;
       end if;
 
-      if not Devices.Serial.Init then
+      if not Devices.Serial.Init or not Devices.RTC.Init then
          goto Error;
       end if;
       return;

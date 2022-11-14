@@ -1583,6 +1583,32 @@ discarded.
 @code{zero} returns exclusively a stream of zeros when read, and all write
 operations are discarded.
 
+@subsection rtc
+
+@code{/dev/rtc} exposes the hardware RTC in an architecture independent manner.
+
+The device only allows the following @code{ioctl} operations.
+
+The time structures handled represent ready-to-use, calendar timestamps.
+
+@example
+RTC_RD_TIME  = 1 // Reads time to the passed structure.
+RTC_SET_TIME = 2 // Sets the RTC to the passed time.
+struct rtc_time @{
+    int tm_sec;
+    int tm_min;
+    int tm_hour;
+    int tm_mday;
+    int tm_mon;
+    int tm_year;
+    int tm_wday;     /* unused */
+    int tm_yday;     /* unused */
+    int tm_isdst;    /* unused */
+@};
+
+ioctl(rtc, ..., pointer_to_rtc_time)
+@end example
+
 @node aarch64-stivale2 devices
 @section aarch64-stivale2 devices
 
