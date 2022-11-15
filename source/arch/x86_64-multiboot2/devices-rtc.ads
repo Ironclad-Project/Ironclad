@@ -30,4 +30,7 @@ private
        Argument : System.Address) return Boolean;
 
    function Get_RTC_Data (Register : Unsigned_8) return Unsigned_8;
+   procedure Set_RTC_Data (Register, Data : Unsigned_8);
+   function To_BCD (Num : Unsigned_32) return Unsigned_32;
+   function From_BCD (Num : Unsigned_32) return Unsigned_32;
 end Devices.RTC;
