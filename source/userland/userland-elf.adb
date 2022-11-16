@@ -166,7 +166,7 @@ package body Userland.ELF with SPARK_Mode => Off is
          Header.Virt_Address and (Memory.Virtual.Page_Size - 1);
       Load_Size : constant Unsigned_64 := MisAlign + Header.Mem_Size_Bytes;
       Load : array (1 .. Load_Size) of Unsigned_8
-         with Address => To_Address (Memory.Physical.Alloc
+         with Import, Address => To_Address (Memory.Physical.Alloc
             (Interfaces.C.size_t (Load_Size)));
       Load_Addr : constant System.Address := Load'Address +
          Storage_Offset (MisAlign);

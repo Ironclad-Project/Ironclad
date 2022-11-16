@@ -101,7 +101,7 @@ package body Devices.Serial with SPARK_Mode => Off is
    is
       Did_Seize : Boolean;
       COM    : COM_Root with Address => Data.Data;
-      Result : array (1 .. Count) of Unsigned_8 with Address => Desto;
+      Result : array (1 .. Count) of Unsigned_8 with Import, Address => Desto;
       pragma Unreferenced (Offset);
    begin
       loop
@@ -126,7 +126,8 @@ package body Devices.Serial with SPARK_Mode => Off is
    is
       Did_Seize  : Boolean;
       COM        : COM_Root with Address => Data.Data;
-      Write_Data : array (1 .. Count) of Unsigned_8 with Address => To_Write;
+      Write_Data : array (1 .. Count) of Unsigned_8
+         with Import, Address => To_Write;
       pragma Unreferenced (Offset);
    begin
       loop

@@ -15,6 +15,9 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Cryptography.AES is
+   --  Unit passes GNATprove AoRTE, GNAT does not know this.
+   pragma Suppress (All_Checks);
+
    procedure Encrypt_ECB (Key : Unsigned_128; Data : in out AES_Data) is
       Expanded_Key : constant Expanded_AES_Key := AES_Expand_Key (Key);
    begin

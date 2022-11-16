@@ -22,6 +22,9 @@ with Cryptography.Chacha20;
 with Cryptography.MD5;
 
 package body Cryptography.Random is
+   --  Unit passes GNATprove AoRTE, GNAT does not know this.
+   pragma Suppress (All_Checks);
+
    procedure Fill_Data (Data : out Crypto_Data) is
       type Seed is record
          Seed1 : Unsigned_128;

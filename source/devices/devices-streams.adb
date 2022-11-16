@@ -92,7 +92,7 @@ package body Devices.Streams with SPARK_Mode => Off is
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
    is
-      Result : array (1 .. Count) of Unsigned_8 with Address => Desto;
+      Result : array (1 .. Count) of Unsigned_8 with Import, Address => Desto;
       pragma Unreferenced (Data);
       pragma Unreferenced (Offset);
    begin

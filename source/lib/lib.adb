@@ -18,6 +18,8 @@ with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body Lib is
+   --  Unit passes GNATprove AoRTE, GNAT does not know this.
+   pragma Suppress (All_Checks);
    pragma Warnings (
       GNATprove,
       Off,
