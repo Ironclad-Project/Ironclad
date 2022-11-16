@@ -20,12 +20,6 @@ package Lib.Panic with
    Abstract_State => Panic_State,
    Initializes    => Panic_State
 is
-   --  Warns about a runtime issue, it does not panic or lock up the system the
-   --  first time its called, the second one will be upgraded to a Hard_Panic.
-   procedure Soft_Panic (Message : String)
-      with Global => (In_Out => (Panic_State, Messages.Message_State)),
-           Annotate => (GNATprove, Might_Not_Return);
-
    --  Will report the issue and then lock up the system, for situations that
    --  are too risky or unrecoverable.
    procedure Hard_Panic (Message : String)

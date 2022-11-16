@@ -108,7 +108,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       --  is our user code segment or'ed by 3.
       --  TODO: Send a SIGSEGV instead of just stopping execution for user.
       if State.CS = (GDT.User_Code64_Segment or 3) then
-         Lib.Panic.Hard_Panic ("Userland " & Exception_Text (Num));
+         Lib.Messages.Put_Line ("Userland " & Exception_Text (Num));
          Scheduler.Bail;
       else
          Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Num));
@@ -230,12 +230,13 @@ package body Arch.Interrupts with SPARK_Mode => Off is
 
    procedure Default_ISR_Handler is
    begin
-      Lib.Panic.Soft_Panic ("Default ISR triggered");
+      Lib.Messages.Put_Line ("Default ISR triggered");
       Arch.APIC.LAPIC_EOI;
    end Default_ISR_Handler;
 
    procedure Spurious_Handler is
    begin
-      Lib.Panic.Hard_Panic ("LAPIC Spurious interrupt occured");
+      Lib.Messages.Put_Line ("LAPIC Spurious interrupt occured");
+      Arch.APIC.LAPIC_EOI;
    end Spurious_Handler;
 end Arch.Interrupts;

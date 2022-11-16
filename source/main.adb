@@ -89,7 +89,7 @@ begin
 
    if Root_Value /= null then
       if not VFS.Mount (Root_Value.all, "/", VFS.FS_USTAR) then
-         Lib.Panic.Soft_Panic ("Could not mount " & Root_Value.all & " /");
+         Lib.Panic.Hard_Panic ("Could not mount root " & Root_Value.all);
       end if;
       Free_S (Root_Value);
    end if;
@@ -102,7 +102,7 @@ begin
          (Init_File, Init_Arguments, Init_Environment, Init_Stdin,
           Init_Stdout, Init_Stderr) = null
       then
-         Lib.Panic.Soft_Panic ("Could not start init");
+         Lib.Panic.Hard_Panic ("Could not start init");
       end if;
       Free_S (Init_Value);
       Free_F (Init_File);

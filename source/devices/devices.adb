@@ -28,11 +28,7 @@ package body Devices with SPARK_Mode => Off is
 
       --  Initialize common devices.
       if not Random.Init or not Debug.Init or not Streams.Init then
-         goto Error;
+         Lib.Panic.Hard_Panic ("Could not start arch-independent devices");
       end if;
-      return;
-
-   <<Error>>
-      Lib.Panic.Soft_Panic ("Could not start devices");
    end Init;
 end Devices;

@@ -20,28 +20,13 @@ with Arch.Snippets;
 with Lib.Synchronization;
 
 package body Lib.Panic with
-   Refined_State => (Panic_State => (Already_Soft_Panicked, Panic_Mutex))
+   Refined_State => (Panic_State => Panic_Mutex)
 is
-   Already_Soft_Panicked : Boolean := False;
    Panic_Mutex : aliased Synchronization.Binary_Semaphore :=
       Synchronization.Unlocked_Semaphore;
 
-   Soft_Panic_Color : constant String := Ada.Characters.Latin_1.ESC & "[35m";
    Hard_Panic_Color : constant String := Ada.Characters.Latin_1.ESC & "[31m";
    Reset_Color      : constant String := Ada.Characters.Latin_1.ESC & "[0m";
-
-   procedure Soft_Panic (Message : String) is
-   begin
-      --  Check whether it makes sense to go on.
-      if Already_Soft_Panicked then
-         Hard_Panic (Message);
-      end if;
-
-      --  Print the error and try to recover.
-      Already_Soft_Panicked := True;
-      Lib.Messages.Put      (Soft_Panic_Color & "Soft panic: " & Reset_Color);
-      Lib.Messages.Put_Line (Message);
-   end Soft_Panic;
 
    procedure Hard_Panic (Message : String) is
    begin

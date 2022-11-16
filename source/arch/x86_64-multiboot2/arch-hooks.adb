@@ -44,7 +44,7 @@ package body Arch.Hooks with SPARK_Mode => Off is
       return;
 
    <<Error>>
-      Lib.Panic.Soft_Panic ("Architectural VFS hook failed");
+      Lib.Panic.Hard_Panic ("Architectural VFS hook failed");
    end Devices_Hook;
 
    function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean is

@@ -90,7 +90,7 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
          end if;
       end loop;
       if Sub_1MiB_Region = Null_Address then
-         Lib.Panic.Soft_Panic ("No SMP trampoline address could be found!");
+         Lib.Panic.Hard_Panic ("No SMP trampoline address could be found!");
       end if;
 
       --  Get the highest module address, or 1MiB at least. Everything below

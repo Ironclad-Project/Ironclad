@@ -17,7 +17,6 @@
 with Interfaces.C;
 with Ada.Unchecked_Deallocation;
 with Arch.Wrappers;
-with Lib.Panic;
 with Memory; use Memory;
 with Memory.Physical;
 
@@ -102,7 +101,6 @@ package body Arch.MMU with SPARK_Mode => Off is
       return Addr1 + Memory_Offset + (Physical_Address (Addr.PML1_Entry) * 8);
 
    <<Error_Return>>
-      Lib.Panic.Soft_Panic ("Address could not be found");
       return Null_Address;
    end Get_Page_4K;
 
@@ -129,7 +127,6 @@ package body Arch.MMU with SPARK_Mode => Off is
       return Addr2 + Memory_Offset + (Physical_Address (Addr.PML2_Entry) * 8);
 
    <<Error_Return>>
-      Lib.Panic.Soft_Panic ("Address could not be found");
       return Null_Address;
    end Get_Page_2M;
 

@@ -145,7 +145,8 @@ package body Scheduler with SPARK_Mode => Off is
             Stack_Permissions
          )
          then
-            Lib.Panic.Soft_Panic ("Could not map a TID stack");
+            New_TID := 0;
+            goto End_Return;
          end if;
 
          --  Set up FPU control word and MXCSR as defined by SysV.
@@ -432,7 +433,7 @@ package body Scheduler with SPARK_Mode => Off is
 
       --  Reset state.
       if not Memory.Virtual.Make_Active (Thread_Pool (Next_TID).PageMap) then
-         Lib.Panic.Soft_Panic ("Could not make reschedule map active");
+         Lib.Panic.Hard_Panic ("Could not make reschedule map active");
       end if;
       Arch.Local.Set_Current_Process (Thread_Pool (Next_TID).Process);
       Arch.Local.Set_Kernel_Stack
