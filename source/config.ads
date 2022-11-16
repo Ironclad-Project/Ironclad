@@ -17,10 +17,10 @@
 package Config is
    --  Project name, contact, and basic information.
    Name      : constant String := "Ironclad";
-   Version   : constant String := "0.1.0";
+   Version   : constant String := "0.2.0";
    Arch_Name : constant String := $ArchName;
    Bug_Site  : constant String :=
-      "https://savannah.nongnu.org/bugs/?group=ironclad";
+      "https://savannah.nongnu.org/bugs/?group=ironclad&func=additem";
 
    --  Configuration for system internals.
    Is_Small : constant Boolean := $IsSmall;
