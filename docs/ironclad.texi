@@ -191,7 +191,7 @@ directory. It has several subdirectories with the following meanings:
 
 @table @code
 @item arch
-Architecture-dependent code, including aarch64 and x86_64 code.
+Architecture-dependent code.
 
 @item cryptography
 Cryptographic facilities, cypher implementations, entropy management.
@@ -286,7 +286,7 @@ is totally normal and can introduce substantial delays on systems with a lot
 of processes, or introduce jitter on systems that desire absolutely 0 stops.
 
 For how to get around scheduling-related ticks, read about @code{THREAD_MONO}
-at @xref{Scheduling and predictability}.
+at @pxref{Scheduling and predictability}.
 
 @node Scheduling and predictability
 @section Scheduling and predictability
@@ -297,64 +297,51 @@ how.
 
 @subsection Predictability and guarantees
 
-Ironclad scheduling is fully predictable on uniprocessor computers, given the
-execution times chosen by the relevant processes and order of creation.
+The sequence of scheduled tasks is fully predictable, and they are just
+executed in a round robin, once priorities have been given by RMS.
 
-Regarding multiple core systems, the sequence of tasks is predictable, but
-affected by details like order of core execution. For the strongest guarantees
-of execution order, mechanisms like @code{THREAD_MONO} are available.
-
-As a good RMS, deadlines are guaranteed to be meet as long as the following
-expression is met:
+Deadlines are guaranteed to be met, as long as:
 
 @tex
-$$ U=\sum_{i=1}^{n}{U_{i}}=\sum_{i=1}^{n}{{C_{i}}/{T_{i}}}\leq n({2}^{1/n}-1) $$
+$$ \sum_{i=1}^{n}{U_i}=\sum_{i=1}^{n}{C_i \over T_i}\leq n([2^{1/n}]-1) $$
 @end tex
 
 Where:
 
 @table @math
-@item U_@{i@}
-Utilization factor of the system or thread.
-@item C_@{i@}
-Computation time of the thread.
-@item T_@{i@}
-Release period of the task.
+@item U_i
+CPU time utilization of a thread.
+@item C_i
+CPU time needed by the thread.
+@item T_i
+Period of the thread.
 @item n
 Number of threads to be scheduled.
 @end table
 
-When the number of threads tends to infinity, the expression tends to:
+When the number of threads tends to infinity, the condition tends to:
 
 @tex
-$$ \lim _{n\rightarrow \infty }n({\sqrt[{n}]{2}}-1)=\ln 2\approx 0.693147\ldots $$
+$$ \lim_{n\rightarrow\infty}n([2^{1/n}]-1)=\ln 2\approx 0.693147\ldots $$
 @end tex
 
-The kernel will just always compare with this approximated value for simplicity
-reasons, if this test is not passed, the kernel will warn, but not refuse to
-schedule.
+The kernel will just always compare with this approximated value for
+simplicity and floating-point limitations. If this quick test is not passed, the
+kernel will warn about it, but will not refuse to schedule, since the user
+might know better, or may not want to respect deadlines at all.
 
 @subsection Monothreading
 
-Scheduling in Ironclad supports turning monothreading on on for the current
-running core and task using @xref{thread_sched} and @code{THREAD_MONO}.
+Scheduling in Ironclad supports creating critical sections backed by the kernel
+using @pxref{thread_sched} and @code{THREAD_MONO}.
 
-This flag will make the scheduler not preemt at all from the thread once
-execution has already been engaged, effectively starting cooperative
-multitasking.
+This flag will make the scheduler not preemt at all from the thread until
+rqeuested, by using @xref{sched_yield} or relinquishing execution in any other
+similar way. Doing that will not reset the flag, but it will allow the system
+to search for another possibly preemtible thread.
 
-This flag can be used for enforcing critical sections backed by the kernel in
-single-core systems, or for keeping a sensor-polling service running constantly
-for low latency, constant readings on important variables.
-
-Using @xref{sched_yield} or relinquishing execution in any other similar way
-will not reset the flag, but it will allow the system to search for another,
-non-monothreaded, thread.
-
-Notice that this flag does not imply the system runs only 1 thread, the kernel
-will attempt to leverage other hardware cores for example to run several
-threads at once if possible, it only ensures the given thread does not get
-interrupted at all, and does not stop running until it says so.
+Note that this flag only applies to the core to request the scheduling, other
+cores in the system will continue to preempt as usual.
 
 @node Memory allocation algorithms
 @chapter Memory allocation algorithms
@@ -365,17 +352,19 @@ and kernel.
 @node standard
 @section standard
 
-The standard allocator is a bitmap-based, simple allocator with 4K blocks.
-The allocator allows freeing and has a moderate use of memory, it suffers from
-heavy fragmentation for big allocations, and takes relatively a lot of memory
-to upkeep.
+The standard allocator is a bitmap-based, simple allocator with 4K-sized
+blocks.
+
+The allocator allows freeing, it suffers from heavy fragmentation when
+frequenty using big allocations, and takes a relative lot of memory to keep
+track of status.
 
 @node alloconly
 @section alloconly
 
-'alloconly' is an alternative, bump-based allocator that is much faster and
-uses way less memory than the standard allocator, while not being able to free
-as its biggest trade-off.
+The 'alloconly' allocator is an alternative, bump-based allocator that is
+much faster and uses way less memory than the standard allocator, while not
+being able to free as its biggest trade-off.
 
 This allocator is appropiate for embedded applications that are recommended
 to allocate all the program will ever need at the beggining of its execution,

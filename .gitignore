@@ -22,6 +22,7 @@ ironclad.aux
 ironclad.pdf
 ironclad.log
 ironclad.toc
+ironclad.fls
 ironclad
 libdl.a
 tests/obj
