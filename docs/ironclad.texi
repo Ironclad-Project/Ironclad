@@ -59,10 +59,8 @@ Boot-time command-line options
 
 Embedded facilities and RTC
 
-* Ticks and other interruptions::         Thread interruptions to expect.
-* Scheduling priority intervals::         Scheduling time slices.
-* Real time and monothreaded scheduling:: RT and monothreads.
-* Entering a real-time state::            Example for making RT-friendly state.
+* Ticks and other interruptions::     Thread interruptions to expect.
+* Scheduling and predictability::     Scheduling in Ironclad in depth.
 
 Memory allocation algorithms
 
@@ -98,7 +96,7 @@ Syscalls
 * getcwd/chdir::            Current working directory manipulation.
 * ioctl::                   IO multiplexer.
 * sched_yield::             Relinquish CPU time.
-* getpriority/setpriority:: Manage scheduler priorities for processes.
+* set_deadlines::           Manage scheduler deadlines.
 * dup/dup2/dup3::           Duplicate file descriptors.
 * access::                  Testing file permissions.
 * thread_sched::            Manage scheduler-related thread permissions.
@@ -287,63 +285,63 @@ However, Ironclad can interrupt a process for scheduling-related stops, this
 is totally normal and can introduce substantial delays on systems with a lot
 of processes, or introduce jitter on systems that desire absolutely 0 stops.
 
-For how to get around scheduling-related ticks,
-@xref{Real time and monothreaded scheduling}.
+For how to get around scheduling-related ticks, read about @code{THREAD_MONO}
+at @xref{Scheduling and predictability}.
 
-@node Scheduling priority intervals
-@section Scheduling priority intervals
+@node Scheduling and predictability
+@section Scheduling and predictability
 
-Scheduling in Ironclad is hardcoded to be done by a round robin (RR) with the
-addition of priorities which rule how much time the process will be run for.
+Scheduling in Ironclad is done using Rate-Monotonic Scheduling (RMS) to
+ensure deadlines. This puts contraints on the threads a user can create and
+how.
 
-The amount of time each priority corresponds to is fixed, with the goal
-of predictable outcome. Priorities can be modified for the running process
-using @xref{getpriority/setpriority}.
+@subsection Predictability and guarantees
 
-Priorities map to execution times using the following table.
+Ironclad scheduling is fully predictable on uniprocessor computers, given the
+execution times chosen by the relevant processes and order of creation.
 
-@table @code
-@item -20 .. -15
-30000ns
+Regarding multiple core systems, the sequence of tasks is predictable, but
+affected by details like order of core execution. For the strongest guarantees
+of execution order, mechanisms like @code{THREAD_MONO} are available.
 
-@item -14 .. -10
-20000ns
+As a good RMS, deadlines are guaranteed to be meet as long as the following
+expression is met:
 
-@item -9 .. -1
-15000ns
+@tex
+$$ U=\sum_{i=1}^{n}{U_{i}}=\sum_{i=1}^{n}{{C_{i}}/{T_{i}}}\leq n({2}^{1/n}-1) $$
+@end tex
 
-@item 0 (Default)
-10000ns
+Where:
 
-@item 1 .. 9
-8000ns
-
-@item 10 .. 15
-6000ns
-
-@item 16 .. 19
-5000ns
+@table @math
+@item U_@{i@}
+Utilization factor of the system or thread.
+@item C_@{i@}
+Computation time of the thread.
+@item T_@{i@}
+Release period of the task.
+@item n
+Number of threads to be scheduled.
 @end table
 
-@node Real time and monothreaded scheduling
-@section Real time and monothreaded scheduling
+When the number of threads tends to infinity, the expression tends to:
 
-Scheduling in Ironclad supports two special, embedded-oriented modes, which
-can be enabled or disabled using @xref{thread_sched} with @code{THREAD_RT} and
-@code{THREAD_MONO}.
+@tex
+$$ \lim _{n\rightarrow \infty }n({\sqrt[{n}]{2}}-1)=\ln 2\approx 0.693147\ldots $$
+@end tex
 
-@itemize @bullet
-@item
-@code{THREAD_RT}: This flag enables real-time (RT) scheduling.
+The kernel will just always compare with this approximated value for simplicity
+reasons, if this test is not passed, the kernel will warn, but not refuse to
+schedule.
 
-Under this mode, the kernel ensures that the thread will not be preemted by
-non-RT threads. When preemted by another RT thread, the default semantics of
-priority using POSIX's @xref{getpriority/setpriority} apply.
+@subsection Monothreading
 
-@item
-@code{THREAD_MONO}: This flag will make the scheduler not preemt at all from
-the thread once execution has already been engaged, effectively starting
-cooperative multitasking.
+Scheduling in Ironclad supports turning monothreading on on for the current
+running core and task using @xref{thread_sched} and @code{THREAD_MONO}.
+
+This flag will make the scheduler not preemt at all from the thread once
+execution has already been engaged, effectively starting cooperative
+multitasking.
 
 This flag can be used for enforcing critical sections backed by the kernel in
 single-core systems, or for keeping a sensor-polling service running constantly
@@ -357,32 +355,6 @@ Notice that this flag does not imply the system runs only 1 thread, the kernel
 will attempt to leverage other hardware cores for example to run several
 threads at once if possible, it only ensures the given thread does not get
 interrupted at all, and does not stop running until it says so.
-@end itemize
-
-@node Entering a real-time state
-@section Entering a real-time state
-
-Taking into account all the previous information, an appropiate sequence for
-entering a real-time friendly state would be
-
-@example
-int main(void) @{
-    // Set the running thread as RT/MLOCK.
-    int sched_flags = get_thread_sched();
-    if (set_thread_sched(sched_flags | THREAD_RT | THREAD_MLOCK) != 0) @{
-        return -1;
-    @}
-
-    // Changes are effective next reschedule, else we cannot ensure the
-    // scheduler will not interrupt us, the timer is already armed.
-    sched_yield();
-
-    // Welcome to RT land!
-
-    // One can do anything here, this snippet will just exit.
-    exit(0);
-@}
-@end example
 
 @node Memory allocation algorithms
 @chapter Memory allocation algorithms
@@ -561,9 +533,9 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{sched_yield}.
 @item
-@xref{getpriority/setpriority, getpriority}.
+@xref{set_deadlines, set_deadlines}.
 @item
-@pxref{getpriority/setpriority, setpriority}.
+empty
 @item
 @xref{dup/dup2/dup3, dup}.
 @item
@@ -1116,43 +1088,27 @@ Its up for the kernel how far in the queue of execution this thread will go.
 This syscall returns @code{0} always, as it never fails, this is done for
 compatibility with POSIX instead of having a @code{void} return type.
 
-@node getpriority/setpriority
-@section getpriority/setpriority
+@node set_deadlines
+@section set_deadlines
 
 @example
-int getpriority(int which, id_t who);
-int setpriority(int which, id_t who, int prio);
+int set_deadlines(int run_time, int period);
 @end example
 
-This syscalls manage scheduler priority. @code{which} is a selector for the
-kind of entity we are fetching and setting information for, right now only
-@code{PRIO_PROCESS(1)} is supported.
+This syscalls sets the run time and period of the calling thread, the meaning
+of this is explained in @xref{Scheduling and predictability}.
 
-Priority is a value in the range -20 to 19, with -20 being the highest priority
-and 19 being the lowest priority. Attempts to set a priority outside this
-range are silently clamped to the range. The default priority is 0; lower
-values give a process a higher scheduling priority.
+The units of both runtime and period are nanoseconds.
 
-The @code{getpriority} call returns the highest priority (lowest numerical
-value) enjoyed by any of the threads. @code{setpriority} sets the priorities of
-all of the threads of the specified process to the passed value.
-
-@code{getpriority} returns the priority in success or @code{-1} in failure,
-note that @code{-1} is a valid return value, so @code{errno} must be cleared.
-@code{setpriority} returns @code{0} on success and @code{-1} on failure.
-
-Both syscalls set the following errno on failure:
+The syscall returns @code{0} on success and @code{-1} on failure, with the
+following errno:
 
 @itemize @bullet
 @item
-@code{ENOSYS}: Any value different than @code{PRIO_PROCESS} was passed for
-@code{which}
-
+@code{EACCES}: MAC did not allow the operation.
 @item
-@code{EACCES}: MAC did not allow this.
-
-@item
-@code{ESRCH}: The passed process could not be found.
+@code{EINVAL}: Bad period or runtime make system not schedulable, or are
+nonsensical.
 @end itemize
 
 @node dup/dup2/dup3
@@ -1241,22 +1197,8 @@ operate on a bitmap with the following bits
 
 @itemize @bullet
 @item
-@code{THREAD_RT (0b0001)}: Marks whether the thread is a real time thread, see
-@xref{Real time and monothreaded scheduling} for details.
-
-@item
-@code{THREAD_MONO (0b0010)}: Marks whether the thread is a monothread, see
-@xref{Real time and monothreaded scheduling} for details.
-
-@item
-@code{THREAD_MLOCK (0b0100)}: An mlock'ed thread will not allow its memory to
-be swapped from memory, or altered by the kernel outside its control. This does
-not include previously configured shared memory.
-
-@item
-@code{THREAD_BANNED (0b1000)}: A banned thread will get dequed permanently once
-its execution slice is over, without being deleted. If set when calling
-@code{set_thread_sched}, the thread will be dequed effective immediately.
+@code{THREAD_MONO (0b1)}: Marks whether the thread is a monothread, see
+@xref{Scheduling and predictability} for details.
 @end itemize
 
 @code{get_thread_sched} returns the flags and does not fail, @code{set_thread_sched}

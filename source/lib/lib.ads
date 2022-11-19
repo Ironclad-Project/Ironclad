@@ -22,4 +22,10 @@ package Lib with Pure is
    --  @return Length of the passed string.
    function C_String_Length (Addr : Address) return Natural
       with Pre => Addr /= System.Null_Address;
+
+   --  Calculate the least common multiple.
+   function Least_Common_Multiple (Val1, Val2 : Integer) return Integer;
+
+   --  Calculate the greatest common divisor.
+   function Greatest_Common_Divisor (Val1, Val2 : Integer) return Integer;
 end Lib;

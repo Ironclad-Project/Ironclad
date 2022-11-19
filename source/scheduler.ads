@@ -54,19 +54,14 @@ package Scheduler with SPARK_Mode => Off is
    --  Removes a thread, kernel or user, from existance (if it exists).
    procedure Delete_Thread (Thread : TID);
 
-   --  Sets whether a thread is allowed to execute or not (if it exists).
-   procedure Ban_Thread (Thread : TID; Is_Banned : Boolean);
-
-   --  Get and set the priority of a thread.
-   function Get_Thread_Priority (Thread : TID) return Integer;
-   procedure Set_Thread_Priority (Thread : TID; Priority : Integer);
+   --  Change run time and period of a thread (in ns).
+   function Set_Deadlines
+      (Thread : TID; Run_Time, Period : Positive) return Boolean;
 
    --  Set whether a thread is real time or not, along with monothreading.
    --  Real time thread semantics are described in the documentation.
    function Is_Mono_Thread (Thread : TID) return Boolean;
    procedure Set_Mono_Thread (Thread : TID; Is_Mono : Boolean);
-   function Is_RT_Thread (Thread : TID) return Boolean;
-   procedure Set_RT_Thread (Thread : TID; Is_RT : Boolean);
 
    --  Give up the rest of our execution time for some other process.
    procedure Yield;
@@ -80,6 +75,7 @@ package Scheduler with SPARK_Mode => Off is
 
 private
 
+   function Update_Priorities return Boolean;
    function Find_Free_TID return TID;
    function Is_Thread_Present (Thread : TID) return Boolean;
 end Scheduler;

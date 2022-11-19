@@ -1047,91 +1047,35 @@ package body Userland.Syscall with SPARK_Mode => Off is
       return 0;
    end Syscall_Sched_Yield;
 
-   type Integer_64 is range -2**63 .. 2**63 - 1 with Size => 64;
-   function Unsigned_64_To_Integer is
-      new Ada.Unchecked_Conversion (Unsigned_64, Integer_64);
-   function Integer_To_Unsigned_64 is
-      new Ada.Unchecked_Conversion (Integer_64, Unsigned_64);
-
-   function Syscall_Get_Priority
-      (Which, Who : Unsigned_64;
-       Errno      : out Errno_Value) return Unsigned_64
+   function Syscall_Set_Deadlines
+      (Run_Time, Period : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64
    is
-      Highest_Priority : Integer := 0;
-      Proc : constant Userland.Process.Process_Data_Acc :=
-         Userland.Process.Get_By_PID (Natural (Who));
+      Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Current_TID : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
    begin
       if Is_Tracing then
-         Lib.Messages.Put      ("syscall getpriority(");
-         Lib.Messages.Put      (Which);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Who);
-         Lib.Messages.Put_Line (")");
+         Lib.Messages.Put ("syscall set_deadlines(");
+         Lib.Messages.Put (Run_Time);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Period);
+         Lib.Messages.Put_Line ("");
       end if;
 
-      --  Check we didnt get asked for anything weird and that we found it.
-      if Which /= Which_Process then
-         Errno := Error_Not_Implemented;
-         return Unsigned_64'Last;
-      end if;
-      if Proc = null then
-         Errno := Error_Bad_Search;
-         return Unsigned_64'Last;
-      end if;
-
-      --  Return the highest priority.
-      for T of Proc.Thread_List loop
-         if T /= 0 and then Highest_Priority > Get_Thread_Priority (T) then
-            Highest_Priority := Get_Thread_Priority (T);
-         end if;
-      end loop;
-
-      Errno := Error_No_Error;
-      return Integer_To_Unsigned_64 (Integer_64 (Highest_Priority));
-   end Syscall_Get_Priority;
-
-   function Syscall_Set_Priority
-      (Which, Who, Prio : Unsigned_64;
-       Errno            : out Errno_Value) return Unsigned_64
-   is
-      Proc      : constant Process_Data_Acc := Get_By_PID (Natural (Who));
-      Curr_Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
-   begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall setpriority(");
-         Lib.Messages.Put      (Which);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Who);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Prio);
-         Lib.Messages.Put_Line (")");
-      end if;
-
-      --  Check we didnt get asked for anything weird and that we found it.
-      if MAC_Is_Locked and not Curr_Proc.Perms.Caps.Can_Change_Scheduling then
+      if MAC_Is_Locked and not Proc.Perms.Caps.Can_Change_Scheduling then
          Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("setpriority", Curr_Proc);
+         Execute_MAC_Failure ("setdeadlines", Proc);
          return Unsigned_64'Last;
-      elsif Which /= Which_Process then
-         Errno := Error_Not_Implemented;
+      elsif not Scheduler.Set_Deadlines
+         (Current_TID, Positive (Run_Time), Positive (Period))
+      then
+         Errno := Error_Invalid_Value;
          return Unsigned_64'Last;
+      else
+         Errno := Error_No_Error;
+         return 0;
       end if;
-
-      if Proc = null then
-         Errno := Error_Bad_Search;
-         return Unsigned_64'Last;
-      end if;
-
-      --  Set the priority to all the children.
-      for T of Proc.Thread_List loop
-         if T /= 0 then
-            Set_Thread_Priority (T, Integer (Unsigned_64_To_Integer (Prio)));
-         end if;
-      end loop;
-
-      Errno := Error_No_Error;
-      return 0;
-   end Syscall_Set_Priority;
+   end Syscall_Set_Deadlines;
 
    function Syscall_Dup
       (Old_FD : Unsigned_64;
@@ -1308,16 +1252,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line ("syscall get_thread_sched()");
       end if;
 
-      if Scheduler.Is_RT_Thread (Curr) then
-         Ret := Ret and Thread_RT;
-      end if;
       if Scheduler.Is_Mono_Thread (Curr) then
-         Ret := Ret and Thread_MONO;
+         Ret := Ret or Thread_MONO;
       end if;
-
-      --  A thread is always MLOCK'd because we dont swap, and it cannot be
-      --  banned if it is calling this.
-      Ret := Ret and Thread_MLOCK;
 
       Errno := Error_No_Error;
       return Ret;
@@ -1342,13 +1279,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      Scheduler.Set_RT_Thread   (Curr, (Flags and Thread_RT)     /= 0);
-      Scheduler.Set_Mono_Thread (Curr, (Flags and Thread_MONO)   /= 0);
-      Scheduler.Ban_Thread      (Curr, (Flags and Thread_BANNED) /= 0);
-      if (Flags and Thread_BANNED) /= 0 then
-         Scheduler.Yield;
-      end if;
-
+      Scheduler.Set_Mono_Thread (Curr, (Flags and Thread_MONO) /= 0);
       Errno := Error_No_Error;
       return 0;
    end Syscall_Set_Thread_Sched;

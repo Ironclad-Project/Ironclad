@@ -41,4 +41,25 @@ package body Lib is
       end loop;
       return Length;
    end C_String_Length;
+
+   function Least_Common_Multiple (Val1, Val2 : Integer) return Integer is
+   begin
+      if Val1 = 0 or Val2 = 0 then
+         return 0;
+      end if;
+      return (abs Val1) * ((abs Val2) / Greatest_Common_Divisor (Val1, Val2));
+   end Least_Common_Multiple;
+
+   function Greatest_Common_Divisor (Val1, Val2 : Integer) return Integer is
+      M : Integer := Val1;
+      N : Integer := Val2;
+      T : Integer;
+   begin
+      while N /= 0 loop
+         T := M;
+         M := N;
+         N := T mod N;
+      end loop;
+      return M;
+   end Greatest_Common_Divisor;
 end Lib;

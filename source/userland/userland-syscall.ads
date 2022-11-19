@@ -249,16 +249,10 @@ package Userland.Syscall with SPARK_Mode => Off is
    --  Yield.
    function Syscall_Sched_Yield (Errno : out Errno_Value) return Unsigned_64;
 
-   --  Get thread priority.
-   Which_Process : constant := 1;
-   function Syscall_Get_Priority
-      (Which, Who : Unsigned_64;
-       Errno      : out Errno_Value) return Unsigned_64;
-
-   --  Set thread priority.
-   function Syscall_Set_Priority
-      (Which, Who, Prio : Unsigned_64;
-       Errno            : out Errno_Value) return Unsigned_64;
+   --  Change scheduling deadlines.
+   function Syscall_Set_Deadlines
+      (Run_Time, Period : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64;
 
    --  Dup functions.
    function Syscall_Dup
@@ -281,10 +275,7 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno      : out Errno_Value) return Unsigned_64;
 
    --  Managing scheduling of a thread.
-   Thread_RT     : constant := 2#0001#;
-   Thread_MONO   : constant := 2#0010#;
-   Thread_MLOCK  : constant := 2#0100#;
-   Thread_BANNED : constant := 2#1000#;
+   Thread_MONO : constant := 2#1#;
    function Syscall_Get_Thread_Sched
       (Errno : out Errno_Value) return Unsigned_64;
    function Syscall_Set_Thread_Sched
