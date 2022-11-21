@@ -47,7 +47,7 @@ package body Lib is
       if Val1 = 0 or Val2 = 0 then
          return 0;
       end if;
-      return (abs Val1) * ((abs Val2) / Greatest_Common_Divisor (Val1, Val2));
+      return (abs (Val1 * Val2)) / Greatest_Common_Divisor (Val1, Val2);
    end Least_Common_Multiple;
 
    function Greatest_Common_Divisor (Val1, Val2 : Integer) return Integer is

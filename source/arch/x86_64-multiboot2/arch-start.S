@@ -67,10 +67,10 @@ start:
     or $(1 << 5), %ecx
     mov %ecx, %cr4
 
-    # Enable EFER.LME
+    # Enable EFER.LME and NX
     mov $0xC0000080, %ecx
     rdmsr
-    or $(1 << 8), %eax
+    or $(1 << 8 | 1 << 11), %eax
     wrmsr
 
     # Enable our cool pages

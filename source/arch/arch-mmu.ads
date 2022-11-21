@@ -51,7 +51,7 @@ package Arch.MMU with SPARK_Mode => Off is
       Page_Size_2M : constant := 16#200000#;
       Page_Size    : constant := Page_Size_4K;
       type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
-      type PML4_Acc is access all PML4;
+      type PML4_Acc is access PML4;
       type Page_Table is record
          PML4_Level : PML4;
       end record;

@@ -63,12 +63,12 @@ smp_trampoline_start:
 
     lea (temp_stack_top - smp_trampoline_start)(%ebx), %esp
 
-    // Enable PAE and LME.
+    // Enable PAE, LME, NX (NX may be used in the passed pagemap).
     mov %cr4, %eax
     bts $5, %eax
     mov %eax, %cr4
     mov $0xC0000080, %ecx
-    mov $0x100, %eax
+    mov $(1 << 8 | 1 << 11), %eax
     xor %edx, %edx
     wrmsr
 

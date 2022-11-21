@@ -176,20 +176,14 @@ package body Arch.CPU with SPARK_Mode => Off is
 
    procedure Init_Common (Core_Number : Positive; LAPIC : Unsigned_32) is
       PAT_MSR  : constant := 16#00000277#;
-      EFER_MSR : constant := 16#C0000080#;
 
-      CR0  : Unsigned_64 := Wrappers.Read_CR0;
-      CR4  : Unsigned_64 := Wrappers.Read_CR4;
-      PAT  : Unsigned_64 := Wrappers.Read_MSR (PAT_MSR);
-      EFER : Unsigned_64 := Wrappers.Read_MSR (EFER_MSR);
+      CR0 : Unsigned_64 := Wrappers.Read_CR0;
+      CR4 : Unsigned_64 := Wrappers.Read_CR4;
+      PAT : Unsigned_64 := Wrappers.Read_MSR (PAT_MSR);
 
       Locals_Addr : constant Unsigned_64 :=
          Unsigned_64 (To_Integer (Core_Locals (Core_Number)'Address));
    begin
-      --  Enable NX.
-      EFER := EFER or Shift_Left (1, 11);
-      Wrappers.Write_MSR (EFER_MSR, EFER);
-
       --  Enable WP and SSE/2.
       CR0 := CR0 or Shift_Left (1, 16);
       CR0 := (CR0 and (not Shift_Left (1, 2))) or Shift_Left (1, 1);

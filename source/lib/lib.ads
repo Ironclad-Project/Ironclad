@@ -24,8 +24,11 @@ package Lib with Pure is
       with Pre => Addr /= System.Null_Address;
 
    --  Calculate the least common multiple.
-   function Least_Common_Multiple (Val1, Val2 : Integer) return Integer;
+   function Least_Common_Multiple (Val1, Val2 : Integer) return Integer
+      with Pre => Val1 /= Integer'First and Val2 /= Integer'First;
 
    --  Calculate the greatest common divisor.
-   function Greatest_Common_Divisor (Val1, Val2 : Integer) return Integer;
+   function Greatest_Common_Divisor (Val1, Val2 : Integer) return Integer
+      with Pre  => Val1 /= 0 or Val2 /= 0,
+           Post => Greatest_Common_Divisor'Result /= 0;
 end Lib;

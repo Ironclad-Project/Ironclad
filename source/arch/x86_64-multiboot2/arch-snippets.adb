@@ -76,106 +76,48 @@ package body Arch.Snippets with SPARK_Mode => Off is
    function AES_Expand_Key (Key : Unsigned_128) return Expanded_AES_Key is
       Result : Expanded_AES_Key;
    begin
-      --  May god forgive whoever has to debug this. I am sorry.
-      Asm ("mov    %%rsp, %%rax"      & LF & HT &
-           "sub    $48, %%rax"        & LF & HT &
-           "and    $~15, %%rax"       & LF & HT &
-           "movdqa %%xmm0, (%%rax)"   & LF & HT &
-           "movdqa %%xmm1, 16(%%rax)" & LF & HT &
-           "movdqa %%xmm2, 32(%%rax)" & LF & HT &
-           "movdqu %10, %%xmm0"       & LF & HT &
-
+      Asm ("mov             %%rsp, %%rax"          & LF & HT &
+           "sub             $48, %%rax"            & LF & HT &
+           "and             $~15, %%rax"           & LF & HT &
+           "movdqa          %%xmm0, (%%rax)"       & LF & HT &
+           "movdqa          %%xmm1, 16(%%rax)"     & LF & HT &
+           "movdqa          %%xmm2, 32(%%rax)"     & LF & HT &
+           "movdqu          %10, %%xmm0"           & LF & HT &
            "aeskeygenassist $1, %%xmm0, %%xmm1"    & LF & HT &
-           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "call            2f"                    & LF & HT &
            "movdqu          %%xmm0, %0"            & LF & HT &
            "aeskeygenassist $2, %%xmm0, %%xmm1"    & LF & HT &
-           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "call            2f"                    & LF & HT &
            "movdqu          %%xmm0, %1"            & LF & HT &
            "aeskeygenassist $4, %%xmm0, %%xmm1"    & LF & HT &
-           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "call            2f"                    & LF & HT &
            "movdqu          %%xmm0, %2"            & LF & HT &
            "aeskeygenassist $8, %%xmm0, %%xmm1"    & LF & HT &
-           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "call            2f"                    & LF & HT &
            "movdqu          %%xmm0, %3"            & LF & HT &
            "aeskeygenassist $16, %%xmm0, %%xmm1"   & LF & HT &
-           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "call            2f"                    & LF & HT &
            "movdqu          %%xmm0, %4"            & LF & HT &
            "aeskeygenassist $32, %%xmm0, %%xmm1"   & LF & HT &
-           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "call            2f"                    & LF & HT &
            "movdqu          %%xmm0, %5"            & LF & HT &
            "aeskeygenassist $64, %%xmm0, %%xmm1"   & LF & HT &
-           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "call            2f"                    & LF & HT &
            "movdqu          %%xmm0, %6"            & LF & HT &
            "aeskeygenassist $128, %%xmm0, %%xmm1"  & LF & HT &
-           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "call            2f"                    & LF & HT &
            "movdqu          %%xmm0, %7"            & LF & HT &
            "aeskeygenassist $27, %%xmm0, %%xmm1"   & LF & HT &
-           "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "movaps          %%xmm0, %%xmm2"        & LF & HT &
-           "pslldq          $0x4,  %%xmm2"         & LF & HT &
-           "pxor            %%xmm2, %%xmm0"        & LF & HT &
-           "pxor            %%xmm1, %%xmm0"        & LF & HT &
+           "call            2f"                    & LF & HT &
            "movdqu          %%xmm0, %8"            & LF & HT &
            "aeskeygenassist $54, %%xmm0, %%xmm1"   & LF & HT &
+           "call            2f"                    & LF & HT &
+           "movdqu          %%xmm0, %9"            & LF & HT &
+           "movdqa          (%%rax),   %%xmm0"     & LF & HT &
+           "movdqa          16(%%rax), %%xmm1"     & LF & HT &
+           "movdqa          32(%%rax), %%xmm2"     & LF & HT &
+           "jmp 1f"                                & LF & HT &
+        "2:"                                       & LF & HT &
            "pshufd          $0xff, %%xmm1, %%xmm1" & LF & HT &
            "movaps          %%xmm0, %%xmm2"        & LF & HT &
            "pslldq          $0x4,  %%xmm2"         & LF & HT &
@@ -184,11 +126,8 @@ package body Arch.Snippets with SPARK_Mode => Off is
            "pslldq          $0x4,  %%xmm2"         & LF & HT &
            "pxor            %%xmm2, %%xmm0"        & LF & HT &
            "pxor            %%xmm1, %%xmm0"        & LF & HT &
-           "movdqu          %%xmm0, %9"            & LF & HT &
-
-           "movdqa (%%rax),   %%xmm0" & LF & HT &
-           "movdqa 16(%%rax), %%xmm1" & LF & HT &
-           "movdqa 32(%%rax), %%xmm2",
+           "ret"                                   & LF & HT &
+        "1:",
            Outputs  => (Unsigned_128'Asm_Output ("=m", Result (1)),
                         Unsigned_128'Asm_Output ("=m", Result (2)),
                         Unsigned_128'Asm_Output ("=m", Result (3)),
