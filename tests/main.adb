@@ -34,10 +34,11 @@ procedure Main is
    end record;
 
    Failed_Num : Natural := 0;
-   Tests : constant array (1 .. 3) of Test_Data := (
+   Tests : constant array (1 .. 4) of Test_Data := (
       1 => (new String'("Cryptography - MD5"), Run_MD5_Tests'Access),
       2 => (new String'("Lib - Cmdline"),      Run_Cmdline_Tests'Access),
-      3 => (new String'("Lib - Alignment"),    Run_Alignment_Tests'Access)
+      3 => (new String'("Lib - Alignment"),    Run_Alignment_Tests'Access),
+      4 => (new String'("Lib - Math"),         Run_Math_Tests'Access)
    );
 begin
    for Test of Tests loop

@@ -297,10 +297,12 @@ how.
 
 @subsection Predictability and guarantees
 
-The sequence of scheduled tasks is fully predictable, and they are just
-executed in a round robin, once priorities have been given by RMS.
+The sequence of scheduled tasks is fully predictable, and they are executed in
+a round robin, once priorities have been given by RMS.
 
-Deadlines are guaranteed to be met, as long as:
+Thanks to RMS, deadlines are mathematically guaranteed to be met as long as an
+upper bound of CPU time utilization is not exceeded. Said bound can be
+calculated using the number of tasks following the schedulability test:
 
 @tex
 $$ \sum_{i=1}^{n}{U_i}=\sum_{i=1}^{n}{C_i \over T_i}\leq n([2^{1/n}]-1) $$
@@ -326,9 +328,29 @@ $$ \lim_{n\rightarrow\infty}n([2^{1/n}]-1)=\ln 2\approx 0.693147\ldots $$
 @end tex
 
 The kernel will just always compare with this approximated value for
-simplicity and floating-point limitations. If this quick test is not passed, the
-kernel will warn about it, but will not refuse to schedule, since the user
-might know better, or may not want to respect deadlines at all.
+simplicity and due to floating-point limitations. If this quick test is not
+passed, the kernel will warn about it, but will not refuse to schedule, since
+the user might know better, or may not want to respect deadlines at all.
+
+Since the kernel leaves the responsability (and priviledge) of ensuring a
+correct scheduling setup to the user, this opens the door to a number of tricks
+to break through the 69% usage ceiling, while keeping deadlines alive and well.
+
+@table @code
+@item Harmonic chains and task periods
+Thanks to the @url{https://ieeexplore.ieee.org/document/160369, work of Kuo and Mok},
+we know that for harmonic sets of tasks, the schedulability test becomes:
+@tex
+$$ \sum_{i=1}^{n}{U_i}=\sum_{i=1}^{n}{C_i \over T_i}\leq K([2^{1/K}]-1) $$
+@end tex
+
+Where @math{K} is the number of harmonic sets, for @math{1}, the utilization
+becomes 100%.
+
+A harmonic set of tasks is the set where every task evenly divides the period
+of every longer period. For example, a harmonic set of 3 tasks periods is
+@code{@{20, 60, 120@}}
+@end table
 
 @subsection Monothreading
 

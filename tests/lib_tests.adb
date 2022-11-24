@@ -17,6 +17,7 @@
 with Interfaces; use Interfaces;
 with Lib.Alignment;
 with Lib.Cmdline; use Lib.Cmdline;
+with Lib;
 
 package body Lib_Tests is
    procedure Run_Cmdline_Tests is
@@ -50,4 +51,15 @@ package body Lib_Tests is
          raise Lib_Exception with "Does not align properly";
       end if;
    end Run_Alignment_Tests;
+
+   procedure Run_Math_Tests is
+   begin
+      if Lib.Least_Common_Multiple (12, 18)   /= 36 or
+         Lib.Least_Common_Multiple (-6, 14)   /= 42 or
+         Lib.Least_Common_Multiple (35, 0)    /= 00 or
+         Lib.Least_Common_Multiple (-10, -14) /= -70
+      then
+         raise Lib_Exception with "LCM test failed";
+      end if;
+   end Run_Math_Tests;
 end Lib_Tests;

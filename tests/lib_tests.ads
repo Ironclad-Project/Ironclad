@@ -18,4 +18,5 @@ package Lib_Tests is
    Lib_Exception : exception;
    procedure Run_Cmdline_Tests;
    procedure Run_Alignment_Tests;
+   procedure Run_Math_Tests;
 end Lib_Tests;

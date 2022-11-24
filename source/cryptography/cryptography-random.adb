@@ -29,7 +29,7 @@ package body Cryptography.Random is
       type Seed is record
          Seed1 : Unsigned_128;
          Seed2 : Unsigned_128;
-      end record with Object_Size => 256;
+      end record with Size => 256;
       function To_Seed is new Ada.Unchecked_Conversion (Seed, Chacha20.Key);
 
       --  Seed every time a new chain of random numbers is requested.

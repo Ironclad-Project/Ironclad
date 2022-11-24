@@ -29,7 +29,7 @@ package Cryptography.Chacha20 is
    type Key is record
       Value1, Value2, Value3, Value4 : Unsigned_32;
       Value5, Value6, Value7, Value8 : Unsigned_32;
-   end record with Object_Size => 256;
+   end record with Size => 256;
 
    --  Get a generated key for a combination of key, nonce, and block number.
    function Gen_Key (K : Key; Nonce, Block_ID : Unsigned_64) return Block;

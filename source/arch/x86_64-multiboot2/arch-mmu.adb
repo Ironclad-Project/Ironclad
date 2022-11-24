@@ -140,26 +140,40 @@ package body Arch.MMU with SPARK_Mode => Off is
          Global         => NX_Flags.Global,
          Write_Through  => NX_Flags.Write_Through
       );
+      First_MiB        : constant := 16#000100000#;
       Hardcoded_Region : constant := 16#100000000#;
    begin
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Table;
 
-      --  Map the first 4 GiB (except 0) to the window and identity mapped.
-      --  This is done instead of following the pagemap to ensure that all
-      --  I/O and memory tables that may not be in the memmap are mapped.
+      --  Map the first 4KiB - 1 MiB not NX, because we have the smp bootstrap
+      --  there and else hell will break loose.
       if not Map_Range (
          Map            => MMU.Kernel_Table,
          Physical_Start => To_Address (Page_Size_4K),
          Virtual_Start  => To_Address (Page_Size_4K),
-         Length         => Hardcoded_Region - Page_Size_4K,
+         Length         => First_MiB - Page_Size_4K,
+         Permissions    => X_Flags
+      )
+      then
+         return False;
+      end if;
+
+      --  Map the rest of the first 4 GiB to the window and identity mapped.
+      --  This is done instead of following the pagemap to ensure that all
+      --  I/O and memory tables that may not be in the memmap are mapped.
+      if not Map_Range (
+         Map            => MMU.Kernel_Table,
+         Physical_Start => To_Address (First_MiB),
+         Virtual_Start  => To_Address (First_MiB),
+         Length         => Hardcoded_Region - First_MiB,
          Permissions    => NX_Flags
       )
       or not Map_Range (
          Map            => MMU.Kernel_Table,
-         Physical_Start => To_Address (Page_Size_4K),
-         Virtual_Start  => To_Address (Page_Size_4K + Memory_Offset),
-         Length         => Hardcoded_Region - Page_Size_4K,
+         Physical_Start => To_Address (First_MiB),
+         Virtual_Start  => To_Address (First_MiB + Memory_Offset),
+         Length         => Hardcoded_Region - First_MiB,
          Permissions    => NX_Flags
       )
       then

@@ -56,7 +56,6 @@ package Arch.MMU with SPARK_Mode => Off is
          PML4_Level : PML4;
       end record;
    #end if;
-
    type Page_Table_Acc is access Page_Table;
 
    --  Kernel map, which is used by the freestanding kernel when called.

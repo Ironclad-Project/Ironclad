@@ -25,7 +25,7 @@ package body Cryptography.MD5 is
    --  Code in Wikipedia is CC-BY-SA 3.0, relicensed to BY-SA 4.0 under 4(b),
    --  which is GPLv3-Or-Later compatible.
 
-   S : constant array (Unsigned_32 range 0 .. 63) of Integer := (
+   S : constant array (Unsigned_32 range 0 .. 63) of Natural := (
       7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
       5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20,
       4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
