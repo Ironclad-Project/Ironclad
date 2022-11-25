@@ -515,7 +515,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Arch.Local.Get_Current_Thread;
       Current_Process : constant Userland.Process.Process_Data_Acc :=
          Arch.Local.Get_Current_Process;
-
+      Tmp_Map : Memory.Virtual.Page_Map_Acc;
       Addr : constant System.Address := To_Address (Integer_Address (Address));
       Path_Length : constant Natural := Lib.C_String_Length (Addr);
       Path_String : String (1 .. Path_Length) with Address => Addr;
@@ -580,7 +580,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Userland.Process.Flush_Exec_Files (Current_Process);
 
          --  Create a new map for the process.
-         Memory.Virtual.Delete_Map (Current_Process.Common_Map);
+         Tmp_Map := Current_Process.Common_Map;
          Current_Process.Common_Map := Memory.Virtual.New_Map;
 
          --  Start the actual program.
@@ -598,7 +598,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Free_Str (En);
          end loop;
 
+         --  Free critical state now that we know wont be running.
          Userland.Process.Remove_Thread (Current_Process, Current_Thread);
+         Memory.Virtual.Delete_Map (Tmp_Map);
          Scheduler.Bail;
          Errno := Error_No_Error;
          return 0;
@@ -724,7 +726,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
 
          --  Now that we got the exit code, finally allow the process to die.
-         --  TODO: Deleting the map here deadlocks down the road, check why.
          Memory.Virtual.Delete_Map       (Waited_Process.Common_Map);
          Userland.Process.Delete_Process (Waited_Process);
          Errno := Error_No_Error;

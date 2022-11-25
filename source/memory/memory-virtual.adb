@@ -38,7 +38,11 @@ package body Memory.Virtual with SPARK_Mode => Off is
 
    function Make_Active (Map : Page_Map_Acc) return Boolean is
    begin
-      return Arch.MMU.Make_Active (Map.Inner);
+      if Map /= null then
+         return Arch.MMU.Make_Active (Map.Inner);
+      else
+         return False;
+      end if;
    end Make_Active;
 
    function Map_Range

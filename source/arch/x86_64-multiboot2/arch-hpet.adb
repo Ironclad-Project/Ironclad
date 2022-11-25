@@ -61,8 +61,8 @@ package body Arch.HPET with SPARK_Mode => Off is
       --  Reads must be atomic according to spec in 64-bit mode, for 32-bit
       --  mode it doesnt hurt either.
       HPET    : ACPI.HPET_Contents with Address => To_Address (HPET_Contents);
-      Counter : Unsigned_64 with Address => HPET.Main_Counter_Value'Address;
-      pragma Atomic (Counter);
+      Counter : Unsigned_64
+         with Atomic, Address => HPET.Main_Counter_Value'Address;
 
       FemtoSec : constant Unsigned_64 := Unsigned_64 (Nanoseconds * 1000000);
       To_Add   : constant Unsigned_64 := FemtoSec / HPET_Period;
@@ -72,6 +72,10 @@ package body Arch.HPET with SPARK_Mode => Off is
          return;
       end if;
 
-      while Counter < Target loop null; end loop;
+      loop
+         if Counter < Target then
+            exit;
+         end if;
+      end loop;
    end NSleep;
 end Arch.HPET;
