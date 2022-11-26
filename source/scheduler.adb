@@ -29,31 +29,26 @@ with Lib;
 package body Scheduler with SPARK_Mode => Off is
    --  Thread information.
    type Thread_Info is record
-      State         : aliased Arch.Context.GP_Context;
-      Is_Present    : Boolean;
-      Is_Running    : Boolean;
-      Is_Monothread : Boolean;
-      TCB_Pointer   : System.Address;
-      PageMap       : Memory.Virtual.Page_Map_Acc;
-      Stack         : Virtual_Address;
-      Kernel_Stack  : Virtual_Address;
-      FP_Region     : aliased Arch.Context.FP_Context;
-      Process       : Userland.Process.Process_Data_Acc;
-      Run_Time      : Positive;
-      Period        : Positive;
+      State          : aliased Arch.Context.GP_Context;
+      Is_Present     : Boolean;
+      Is_Running     : Boolean;
+      Is_Monothread  : Boolean;
+      TCB_Pointer    : System.Address;
+      PageMap        : Memory.Virtual.Page_Map_Acc;
+      Stack          : Virtual_Address;
+      Kernel_Stack   : Virtual_Address;
+      FP_Region      : aliased Arch.Context.FP_Context;
+      Process        : Userland.Process.Process_Data_Acc;
+      Time_Since_Run : Natural;
+      Priority       : Positive;
+      Run_Time       : Positive;
+      Period         : Positive;
    end record;
    type Thread_Info_Arr is array (TID range 1 .. 50) of Thread_Info;
 
    --  Storing scheduler information independent from scheduling algo.
    Scheduler_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
    Thread_Pool     : access Thread_Info_Arr;
-
-   --  To assign priorities, we use rate monotonic scheduling (RMS).
-   --  Once the priorities are calculated, assigned, stored, and greenlighted,
-   --  a simple RR does it well.
-   --  The priorities are thread indexes, 0 is the end.
-   Priorities : array (Thread_Info_Arr'Range) of TID := (others => 0);
-   Last_Priority_Index : TID := 0;
 
    --  Default period and run time.
    Default_Run_Time : constant :=  3000;
@@ -354,106 +349,85 @@ package body Scheduler with SPARK_Mode => Off is
    end Find_Free_TID;
 
    function Update_Priorities return Boolean is
-      Thread_LCM  : Positive := 1;
-      Temp, Temp2 : Natural;
-      Index       : TID;
+      Periods_LCM    : Positive := 1;
+      Total_Run_Time : Natural  := 0;
+      Temp           : Natural;
    begin
-      --  Find LCM of all available tasks periods.
+      --  Find period LCM, lowest period, and total run time of all available
+      --  tasks.
       for Th of Thread_Pool.all loop
          if Th.Is_Present then
-            Thread_LCM := Lib.Least_Common_Multiple (Thread_LCM, Th.Period);
+            Periods_LCM := Lib.Least_Common_Multiple (Periods_LCM, Th.Period);
+            Total_Run_Time := Total_Run_Time + Th.Run_Time;
          end if;
       end loop;
 
-      --  Adjust runtimes based on the new found LCM.
-      for Th of Thread_Pool.all loop
-         if Th.Is_Present then
-            Temp        := Thread_LCM / Th.Period;
-            Th.Run_Time := Th.Run_Time * Temp;
-            Th.Period   := Thread_LCM;
-         end if;
-      end loop;
-
-      --  Check validity using Least upper bound -> Inf = ln 2 = (aprox 69%)
-      Temp := 0;
-      for Th of Thread_Pool.all loop
-         if Th.Is_Present then
-            Temp := Temp + Th.Run_Time;
-         end if;
-      end loop;
-      Temp2 := Temp / (Thread_LCM / 100);
-      if Temp >= Thread_LCM or Temp2 > 69 then
-         Lib.Messages.Put      (Temp2);
+      --  Check validity using Least upper bound -> Inf = ln 2 = (aprox 69%).
+      Temp := Total_Run_Time / (Periods_LCM / 100);
+      if Temp > 69 then
+         Lib.Messages.Put      (Temp);
          Lib.Messages.Put_Line ("% > 69% (Least upper bound -> Inf)");
          Lib.Messages.Put_Line ("Tasks might not be schedulable");
       end if;
 
-      --  Calculate priorities and put them in the priority list, that means
-      --  putting highest run time first (highest rate given same period).
-      Priorities := (others => 0);
-      Index      := Priorities'First;
-      for I in Thread_Pool'Range loop
-         if Thread_Pool (I).Is_Present then
-            Priorities (Index) := I;
-            Index              := Index + 1;
+      --  Now that we know all the data is valid, update the priorities.
+      --  The lower the period, the higher the priority.
+      for Th of Thread_Pool.all loop
+         if Th.Is_Present then
+            Th.Time_Since_Run := 0;
+            Th.Priority := Periods_LCM / Th.Period;
          end if;
       end loop;
-      for I in Priorities'First .. Priorities'Last - 1 loop
-         if Priorities (I) = 0 or Priorities (I + 1) = 0 then
-            exit;
-         end if;
-         if Thread_Pool (Priorities (I)).Run_Time <
-            Thread_Pool (Priorities (I + 1)).Run_Time
-         then
-            Index := Priorities (I);
-            Priorities (I)     := Priorities (I + 1);
-            Priorities (I + 1) := Index;
-         end if;
-      end loop;
+
       return True;
    end Update_Priorities;
 
    procedure Scheduler_ISR (State : not null Arch.Context.GP_Context_Acc) is
-      Did_Seize   : Boolean;
-      Next_TID    : TID;
-      Current_TID : constant TID := Arch.Local.Get_Current_Thread;
+      Did_Seize          : Boolean;
+      Current_TID        : constant TID := Arch.Local.Get_Current_Thread;
+      Next_TID           : TID          := Current_TID;
+      Current_Increment  : Natural := 0;
+      Max_Available_Prio : Natural := 0;
    begin
-      Lib.Synchronization.Try_Seize (Scheduler_Mutex, Did_Seize);
-      if not Did_Seize then
-         goto Error_No_Unlock;
+      --  Get how much time we come from running and update time since run.
+      if Current_TID /= 0 then
+         Current_Increment := Thread_Pool (Current_TID).Run_Time;
+      else
+         Current_Increment := Default_Run_Time;
       end if;
 
-      --  Get the next thread for execution.
-      for I in Last_Priority_Index + 1 .. Thread_Pool'Last loop
-         if Priorities (I) /= 0 and then
-            (Thread_Pool (Priorities (I)).Is_Present and
-            not Thread_Pool (Priorities (I)).Is_Running)
-         then
-            Last_Priority_Index := I;
-            Next_TID            := Priorities (I);
-            goto Found_TID;
-         end if;
-      end loop;
-      for I in Thread_Pool'First .. Last_Priority_Index loop
-         if Priorities (I) /= 0 and then
-            (Thread_Pool (Priorities (I)).Is_Present     and
-            not Thread_Pool (Priorities (I)).Is_Running and
-            I /= Last_Priority_Index)
-         then
-            Last_Priority_Index := I;
-            Next_TID            := Priorities (I);
-            goto Found_TID;
+      --  Try to lock before we do modifications.
+      Lib.Synchronization.Try_Seize (Scheduler_Mutex, Did_Seize);
+      if not Did_Seize then
+         Arch.Local.Reschedule_In (Current_Increment);
+         return;
+      end if;
+
+      --  Get the next thread for execution by searching on the thread pool
+      --  for the thread that can run and has the highest priority that is not
+      --  the current one. In the same sweep, update time since last run.
+      for I in Thread_Pool'Range loop
+         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running then
+            Thread_Pool (I).Time_Since_Run := Thread_Pool (I).Time_Since_Run
+                                            + Current_Increment;
+
+            if Thread_Pool (I).Priority > Max_Available_Prio and
+               Thread_Pool (I).Time_Since_Run >= Thread_Pool (I).Period
+            then
+               Next_TID := I;
+               Max_Available_Prio := Thread_Pool (I).Priority;
+            end if;
          end if;
       end loop;
 
-      --  Rearm for the next attempt.
-      Lib.Synchronization.Release (Scheduler_Mutex);
-   <<Error_No_Unlock>>
-      Arch.Local.Reschedule_In (Default_Run_Time);
-      return;
+      --  Rearm for the next attempt if there are no available threads.
+      if Next_TID = Current_TID then
+         Lib.Synchronization.Release (Scheduler_Mutex);
+         Arch.Local.Reschedule_In (Current_Increment);
+         return;
+      end if;
 
-   <<Found_TID>>
-      --  Save state.
+      --  We found a suitable TID, so we save state and start context switch.
       if Current_TID /= 0 then
          Thread_Pool (Current_TID).Is_Running  := False;
          Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
@@ -465,6 +439,7 @@ package body Scheduler with SPARK_Mode => Off is
       --  Assign the next TID as our current one.
       Arch.Local.Set_Current_Thread (Next_TID);
       Thread_Pool (Next_TID).Is_Running := True;
+      Thread_Pool (Next_TID).Time_Since_Run := 0;
 
       --  Rearm the timer for next tick if we are not doing a monothread.
       Lib.Synchronization.Release (Scheduler_Mutex);

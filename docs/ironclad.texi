@@ -291,14 +291,17 @@ at @pxref{Scheduling and predictability}.
 @node Scheduling and predictability
 @section Scheduling and predictability
 
-Scheduling in Ironclad is done using Rate-Monotonic Scheduling (RMS) to
-ensure deadlines. This puts contraints on the threads a user can create and
-how.
+Scheduling in Ironclad is done using Rate-Monotonic Scheduling (RMS).
+
+RMS is an optimal fixed-priority policy where the higher the frequency of a
+task, the higher is its priority. This approach allows Ironclad to provide
+scheduling guarantees for hard real time applications.
 
 @subsection Predictability and guarantees
 
-The sequence of scheduled tasks is fully predictable, and they are executed in
-a round robin, once priorities have been given by RMS.
+The sequence of scheduled tasks is fully predictable. Once priorities are
+assigned using RMS, higher priority threads will interrupt lower priority
+threads according to their periods, specified using @pxref{set_deadlines}.
 
 Thanks to RMS, deadlines are mathematically guaranteed to be met as long as an
 upper bound of CPU time utilization is not exceeded. Said bound can be
