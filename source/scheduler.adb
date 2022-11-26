@@ -439,7 +439,7 @@ package body Scheduler with SPARK_Mode => Off is
       --  Assign the next TID as our current one.
       Arch.Local.Set_Current_Thread (Next_TID);
       Thread_Pool (Next_TID).Is_Running := True;
-      Thread_Pool (Next_TID).Time_Since_Run := 0;
+      Thread_Pool (Next_TID).Time_Since_Run := Thread_Pool (Next_TID).Run_Time;
 
       --  Rearm the timer for next tick if we are not doing a monothread.
       Lib.Synchronization.Release (Scheduler_Mutex);

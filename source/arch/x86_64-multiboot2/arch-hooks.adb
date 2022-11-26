@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Devices.BootFB;
+with Devices.FB;
 with Devices.PS2Mouse;
 with Devices.PS2Keyboard;
 with Devices.Serial;
@@ -31,7 +31,8 @@ package body Arch.Hooks with SPARK_Mode => Off is
    procedure Devices_Hook is
    begin
       if not Config.Is_Small then
-         if not Devices.BootFB.Init or not Devices.PS2Keyboard.Init or
+         if not Devices.FB.Init          or
+            not Devices.PS2Keyboard.Init or
             not Devices.PS2Mouse.Init
          then
             goto Error;

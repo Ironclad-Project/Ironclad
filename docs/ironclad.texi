@@ -1587,26 +1587,10 @@ This target has no special devices.
 @node x86_64-multiboot2 devices
 @section x86_64-multiboot2 devices
 
-@subsection bootfb
+@subsection fb0
 
-The @code{bootfb} device exposes the framebuffer passed as part of the
-boot-protocol, when present. The device is not accessible by normal @code{read}
-and @code{write} calls, and must be @code{mmap}'d for operating on it.
-
-The @code{bootfb} device has a special @code{ioctl} call, which has an
-argument with the following structure:
-
-@example
-FB_DIMENSIONS = 1
-struct fb_dimensions @{
-   uint32_t width;
-   uint32_t height;
-   uint32_t pitch;
-   uint8_t  bpp;
-@};
-
-ioctl(fb, FB_DIMENTIONS, pointer_to_fb_dimensions)
-@end example
+The @code{fb0} device exposes the framebuffer passed as part of the boot
+protocol, when present. The device uses Linux's @url{https://docs.kernel.org/fb/api.html, fbdev} interface.
 
 @subsection ps2keyboard/ps2mouse
 

@@ -19,7 +19,7 @@ with Interfaces; use Interfaces;
 with System;
 with Memory;
 
-package Devices.BootFB with SPARK_Mode => Off is
+package Devices.FB with SPARK_Mode => Off is
    --  Initialize the device.
    function Init return Boolean;
 
@@ -37,4 +37,4 @@ private
        Map_Read    : Boolean;
        Map_Write   : Boolean;
        Map_Execute : Boolean) return Boolean;
-end Devices.BootFB;
+end Devices.FB;
