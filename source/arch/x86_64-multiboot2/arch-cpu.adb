@@ -188,8 +188,20 @@ package body Arch.CPU with SPARK_Mode => Off is
       CR0 := CR0 or Shift_Left (1, 16);
       CR0 := (CR0 and (not Shift_Left (1, 2))) or Shift_Left (1, 1);
       CR4 := CR4 or Shift_Left (3, 9);
+
+      --  Enable UMIP if present.
+      if Supports_UMIP then
+         CR4 := CR4 or Shift_Left (1, 11);
+      end if;
+
+      --  Initialise the PAT (write-protect / write-combining).
+      PAT := PAT and (16#FFFFFFFF#);
+      PAT := PAT or  Shift_Left (Unsigned_64 (16#0105#), 32);
+
+      --  Write the final configuration.
       Wrappers.Write_CR0 (CR0);
       Wrappers.Write_CR4 (CR4);
+      Wrappers.Write_MSR (PAT_MSR, PAT);
 
       --  Prepare the core local structure and set it in GS.
       Core_Locals (Core_Number) := (
@@ -202,30 +214,22 @@ package body Arch.CPU with SPARK_Mode => Off is
       Wrappers.Write_GS        (Locals_Addr);
       Wrappers.Write_Kernel_GS (Locals_Addr);
 
-      --  Initialise the PAT (write-protect / write-combining).
-      PAT := PAT and (16#FFFFFFFF#);
-      PAT := PAT or  Shift_Left (Unsigned_64 (16#0105#), 32);
-      Wrappers.Write_MSR (PAT_MSR, PAT);
-
       --  Load the TSS.
       GDT.Load_TSS (Core_Locals (Core_Number).Core_TSS'Address);
    end Init_Common;
 
-   function Get_BSP_LAPIC_ID return Unsigned_32 is
-      Leaf    : constant Unsigned_32 := 1;
-      Subleaf : constant Unsigned_32 := 0;
+   function Supports_UMIP return Boolean is
       EAX, EBX, ECX, EDX : Unsigned_32;
    begin
-      Asm ("cpuid",
-           Outputs  => (Unsigned_32'Asm_Output ("=a", EAX),
-                        Unsigned_32'Asm_Output ("=b", EBX),
-                        Unsigned_32'Asm_Output ("=c", ECX),
-                        Unsigned_32'Asm_Output ("=d", EDX)),
-           Inputs   => (Unsigned_32'Asm_Input ("a", Leaf),
-                        Unsigned_32'Asm_Input ("c", Subleaf)),
-           Clobber  => "memory",
-           Volatile => True);
-      return Shift_Left (EBX, 24);
+      Wrappers.Get_CPUID (7, 0, EAX, EBX, ECX, EDX);
+      return (ECX and 2#100#) /= 0;
+   end Supports_UMIP;
+
+   function Get_BSP_LAPIC_ID return Unsigned_32 is
+      EAX, EBX, ECX, EDX : Unsigned_32;
+   begin
+      Wrappers.Get_CPUID (1, 0, EAX, EBX, ECX, EDX);
+      return Shift_Right (EBX, 24) and 16#FF#;
    end Get_BSP_LAPIC_ID;
 
    procedure Delay_Execution (Cycles : Unsigned_64) is

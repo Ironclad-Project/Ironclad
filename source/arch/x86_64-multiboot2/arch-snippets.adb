@@ -16,6 +16,7 @@
 
 with System.Machine_Code;     use System.Machine_Code;
 with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
+with Arch.Wrappers;
 
 package body Arch.Snippets with SPARK_Mode => Off is
    procedure HCF is
@@ -60,16 +61,9 @@ package body Arch.Snippets with SPARK_Mode => Off is
    end Read_Cycles;
    ----------------------------------------------------------------------------
    function Supports_AES_Accel return Boolean is
-      Leaf    : constant Unsigned_32 := 1;
-      Subleaf : constant Unsigned_32 := 0;
-      EDX     : Unsigned_32;
+      EAX, EBX, ECX, EDX : Unsigned_32;
    begin
-      Asm ("cpuid",
-           Outputs  => Unsigned_32'Asm_Output ("=d", EDX),
-           Inputs   => (Unsigned_32'Asm_Input ("a", Leaf),
-                        Unsigned_32'Asm_Input ("c", Subleaf)),
-           Clobber  => "memory,rbx",
-           Volatile => True);
+      Wrappers.Get_CPUID (1, 0, EAX, EBX, ECX, EDX);
       return (EDX and Shift_Left (1, 25)) /= 0;
    end Supports_AES_Accel;
 

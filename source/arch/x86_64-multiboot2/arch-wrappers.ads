@@ -48,4 +48,9 @@ package Arch.Wrappers with SPARK_Mode => Off is
    function Read_Kernel_GS return Unsigned_64;
    procedure Write_Kernel_GS (Value : Unsigned_64);
    procedure Swap_GS;
+   ----------------------------------------------------------------------------
+   --  CPUID wrapper.
+   procedure Get_CPUID
+      (Leaf, Subleaf : Unsigned_32;
+       EAX, EBX, ECX, EDX : out Unsigned_32);
 end Arch.Wrappers;

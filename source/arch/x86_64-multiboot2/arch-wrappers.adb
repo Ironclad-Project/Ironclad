@@ -172,4 +172,20 @@ package body Arch.Wrappers with SPARK_Mode => Off is
    begin
       Asm ("swapgs", Volatile => True);
    end Swap_GS;
+   ----------------------------------------------------------------------------
+   procedure Get_CPUID
+      (Leaf, Subleaf : Unsigned_32;
+       EAX, EBX, ECX, EDX : out Unsigned_32)
+   is
+   begin
+      Asm ("cpuid",
+           Outputs  => (Unsigned_32'Asm_Output ("=a", EAX),
+                        Unsigned_32'Asm_Output ("=b", EBX),
+                        Unsigned_32'Asm_Output ("=c", ECX),
+                        Unsigned_32'Asm_Output ("=d", EDX)),
+           Inputs   => (Unsigned_32'Asm_Input ("a", Leaf),
+                        Unsigned_32'Asm_Input ("c", Subleaf)),
+           Clobber  => "memory",
+           Volatile => True);
+   end Get_CPUID;
 end Arch.Wrappers;
