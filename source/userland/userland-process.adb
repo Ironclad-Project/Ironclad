@@ -194,37 +194,23 @@ package body Userland.Process with SPARK_Mode => Off is
        FD      : Unsigned_64) return Boolean
    is
    begin
-      return Process /= null                             and then
-             FD <= Unsigned_64 (Process_File_Table'Last) and then
-             Process.File_Table (Natural (FD)).Inner /= null;
+      if Process /= null and FD <= Unsigned_64 (Process_File_Table'Last) then
+         return Process.File_Table (Natural (FD)) /= null;
+      else
+         return False;
+      end if;
    end Is_Valid_File;
 
-   function Get_File
-      (Process : Process_Data_Acc;
-       FD      : Unsigned_64) return VFS.File.File_Acc
-   is
-   begin
-      if Process = null or FD > Unsigned_64 (Process_File_Table'Last) then
-         return null;
-      else
-         return Process.File_Table (Natural (FD)).Inner;
-      end if;
-   end Get_File;
-
    function Add_File
-      (Process       : Process_Data_Acc;
-       File          : VFS.File.File_Acc;
-       FD            : out Natural;
-       Close_On_Exec : Boolean := False) return Boolean
+      (Process : Process_Data_Acc;
+       File    : File_Description_Acc;
+       FD      : out Natural) return Boolean
    is
    begin
       if Process /= null then
          for I in Process.File_Table'Range loop
-            if Process.File_Table (I).Inner = null then
-               Process.File_Table (I) := (
-                  Close_On_Exec => Close_On_Exec,
-                  Inner         => File
-               );
+            if Process.File_Table (I) = null then
+               Process.File_Table (I) := File;
                FD := I;
                return True;
             end if;
@@ -234,31 +220,66 @@ package body Userland.Process with SPARK_Mode => Off is
       return False;
    end Add_File;
 
+   function Duplicate (F : File_Description_Acc) return File_Description_Acc is
+   begin
+      if F /= null then
+         return new File_Description'(F.all);
+      else
+         return null;
+      end if;
+   end Duplicate;
+
+   procedure Close (F : in out File_Description_Acc) is
+      procedure Free is new Ada.Unchecked_Deallocation
+         (File_Description, File_Description_Acc);
+   begin
+      if F /= null then
+         case F.Description is
+            when Description_Reader_Pipe =>
+               --  Free the pipe.
+               null;
+            when Description_Writer_Pipe =>
+               --  Free the pipe.
+               null;
+            when Description_File =>
+               --  Free the file.
+               null;
+         end case;
+         Free (F);
+         F := null;
+      end if;
+   end Close;
+
+   function Get_File
+      (Process : Process_Data_Acc;
+       FD      : Unsigned_64) return File_Description_Acc
+   is
+   begin
+      if Process /= null and FD <= Unsigned_64 (Process_File_Table'Last) then
+         return Process.File_Table (Natural (FD));
+      else
+         return null;
+      end if;
+   end Get_File;
+
    function Replace_File
-      (Process       : Process_Data_Acc;
-       File          : VFS.File.File_Acc;
-       Old_FD        : Natural;
-       Close_On_Exec : Boolean := False) return Boolean
+      (Process : Process_Data_Acc;
+       File    : File_Description_Acc;
+       Old_FD  : Natural) return Boolean
    is
    begin
       if Process = null or Old_FD > Process_File_Table'Last or File = null then
          return False;
       end if;
-      if Process.File_Table (Old_FD).Inner /= null then
-         VFS.File.Close (Process.File_Table (Old_FD).Inner);
-      end if;
-      Process.File_Table (Old_FD) := (
-         Close_On_Exec => Close_On_Exec,
-         Inner         => File
-      );
+      Remove_File (Process, Old_FD);
+      Process.File_Table (Old_FD) := File;
       return True;
    end Replace_File;
 
    procedure Remove_File (Process : Process_Data_Acc; FD : Natural) is
    begin
-      if Process /= null then
-         VFS.File.Close (Process.File_Table (FD).Inner);
-         Process.File_Table (FD).Inner := null;
+      if Process /= null and FD <= Process_File_Table'Last then
+         Close (Process.File_Table (FD));
       end if;
    end Remove_File;
 
@@ -266,10 +287,7 @@ package body Userland.Process with SPARK_Mode => Off is
    begin
       if Process /= null then
          for F of Process.File_Table loop
-            if F.Inner /= null then
-               VFS.File.Close (F.Inner);
-               F.Inner := null;
-            end if;
+            Close (F);
          end loop;
       end if;
    end Flush_Files;
@@ -278,9 +296,8 @@ package body Userland.Process with SPARK_Mode => Off is
    begin
       if Process /= null then
          for F of Process.File_Table loop
-            if F.Inner /= null and F.Close_On_Exec then
-               VFS.File.Close (F.Inner);
-               F.Inner := null;
+            if F /= null and then F.Close_On_Exec then
+               Close (F);
             end if;
          end loop;
       end if;

@@ -72,12 +72,13 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno    : out Errno_Value) return Unsigned_64;
 
    --  Open a file.
-   O_RDONLY   : constant := 2#000000001#;
-   O_WRONLY   : constant := 2#000000010#;
-   O_APPEND   : constant := 2#000000100#;
-   O_CREAT    : constant := 2#000001000#;
-   O_CLOEXEC  : constant := 2#000010000#;
-   O_NOFOLLOW : constant := 2#100000000#;
+   O_RDONLY   : constant := 2#0000000001#;
+   O_WRONLY   : constant := 2#0000000010#;
+   O_APPEND   : constant := 2#0000000100#;
+   O_CREAT    : constant := 2#0000001000#;
+   O_CLOEXEC  : constant := 2#0000010000#;
+   O_NOFOLLOW : constant := 2#0100000000#;
+   O_NONBLOCK : constant := 2#1000000000#;
    function Syscall_Open
       (Address : Unsigned_64;
        Flags   : Unsigned_64;
@@ -181,6 +182,7 @@ package Userland.Syscall with SPARK_Mode => Off is
       Seconds     : Unsigned_64;
       Nanoseconds : Unsigned_64;
    end record;
+   Stat_IFIFO : constant := 16#01000#;
    Stat_IFCHR : constant := 16#02000#;
    Stat_IFDIR : constant := 16#04000#;
    Stat_IFBLK : constant := 16#06000#;
@@ -254,6 +256,12 @@ package Userland.Syscall with SPARK_Mode => Off is
       (Run_Time, Period : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
 
+   --  Create a pair of pipes.
+   function Syscall_Pipe
+      (Result_Addr : Unsigned_64;
+       Flags       : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64;
+
    --  Dup functions.
    function Syscall_Dup
       (Old_FD : Unsigned_64;
@@ -283,9 +291,11 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno : out Errno_Value) return Unsigned_64;
 
    --  Multiplexed operation for files.
+   FD_CLOEXEC : constant := 1;
    F_GETFD    : constant := 3;
    F_SETFD    : constant := 4;
-   FD_CLOEXEC : constant := 1;
+   F_GETFL    : constant := 5;
+   F_SETFL    : constant := 6;
    function Syscall_Fcntl
       (FD       : Unsigned_64;
        Command  : Unsigned_64;
@@ -379,6 +389,10 @@ private
    procedure Execute_MAC_Failure (Name : String; Curr_Proc : Process_Data_Acc);
 
    --  Do the actual stat.
+   function Inner_Stat
+      (F       : File_Description_Acc;
+       Address : Unsigned_64;
+       Errno   : out Errno_Value) return Boolean;
    function Inner_Stat
       (F       : VFS.File.File_Acc;
        Address : Unsigned_64) return Boolean;

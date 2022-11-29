@@ -72,6 +72,11 @@ package body Lib.Runtime with SPARK_Mode => Off is
       Lib.Panic.Hard_Panic (Message);
    end Assert_Failure;
 
+   procedure Discriminant_Check (File : System.Address; Line : Integer) is
+   begin
+      Print_Exception ("Discriminant check failure", File, Line);
+   end Discriminant_Check;
+
    function MemCmp (S1, S2 : System.Address; Size : size_t) return int is
       Str1 : array (1 .. Size) of Unsigned_8 with Address => S1, Import;
       Str2 : array (1 .. Size) of Unsigned_8 with Address => S2, Import;

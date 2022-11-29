@@ -136,36 +136,6 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Check_Permissions;
 
-   function Duplicate (To_Duplicate : File_Acc) return File_Acc is
-      Duplicated_Data : System.Address := Null_Address;
-   begin
-      if To_Duplicate = null then
-         return null;
-      end if;
-
-      --  Communicate to the FS that we are opening another handle.
-      if To_Duplicate.FS_Data /= Null_Address then
-         Duplicated_Data := USTAR.Open (
-            To_Duplicate.FS_Data,
-            To_Duplicate.Full_Path (To_Duplicate.Full_Path'First + 1 ..
-                                    To_Duplicate.Full_Path'Last)
-         );
-         if Duplicated_Data = Null_Address then
-            return null;
-         end if;
-      end if;
-
-      return new File'(
-         Full_Path => new String'(To_Duplicate.Full_Path.all),
-         Dev_Data  => To_Duplicate.Dev_Data,
-         FS_Type   => To_Duplicate.FS_Type,
-         FS_Data   => To_Duplicate.FS_Data,
-         File_Data => Duplicated_Data,
-         Index     => To_Duplicate.Index,
-         Flags     => To_Duplicate.Flags
-      );
-   end Duplicate;
-
    procedure Close (To_Close : in out File_Acc) is
    begin
       if To_Close /= null and then To_Close.FS_Data /= System.Null_Address then

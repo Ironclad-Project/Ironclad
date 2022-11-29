@@ -20,6 +20,7 @@ with Memory.Virtual;
 with Scheduler; use Scheduler;
 with Interfaces; use Interfaces;
 with Userland.MAC;
+with VFS.Pipe; use VFS.Pipe;
 
 package Userland.Process with SPARK_Mode => Off is
    --  A process is a collection of threads (handled by the scheduler) and
@@ -28,12 +29,26 @@ package Userland.Process with SPARK_Mode => Off is
    --  process will be created for it.
    --  Userland will know the process by a PID, a parent PID of 0 means no
    --  parent.
-   type Process_File is record
+   type File_Description_Type is (
+      Description_Reader_Pipe,
+      Description_Writer_Pipe,
+      Description_File
+   );
+   type File_Description (Description : File_Description_Type) is record
       Close_On_Exec : Boolean;
-      Inner         : VFS.File.File_Acc;
+      case Description is
+         when Description_Reader_Pipe =>
+            Inner_Reader_Pipe : VFS.Pipe.Pipe_Reader_Acc;
+         when Description_Writer_Pipe =>
+            Inner_Writer_Pipe : VFS.Pipe.Pipe_Writer_Acc;
+         when Description_File =>
+            Inner_File : VFS.File.File_Acc;
+      end case;
    end record;
+   type File_Description_Acc is access all File_Description;
+
    type Process_Data_Threads   is array (1 .. 20) of Scheduler.TID;
-   type Process_File_Table     is array (0 .. 99) of Process_File;
+   type Process_File_Table     is array (0 .. 99) of File_Description_Acc;
    type Process_Children_Table is array (1 .. 10) of Natural;
    type Process_Data is record
       Process_PID     : Positive;
@@ -80,19 +95,19 @@ package Userland.Process with SPARK_Mode => Off is
    function Is_Valid_File
       (Process : Process_Data_Acc;
        FD      : Unsigned_64) return Boolean;
+   function Add_File
+      (Process : Process_Data_Acc;
+       File    : File_Description_Acc;
+       FD      : out Natural) return Boolean;
+   function Duplicate (F : File_Description_Acc) return File_Description_Acc;
+   procedure Close (F : in out File_Description_Acc);
    function Get_File
       (Process : Process_Data_Acc;
-       FD      : Unsigned_64) return VFS.File.File_Acc;
-   function Add_File
-      (Process       : Process_Data_Acc;
-       File          : VFS.File.File_Acc;
-       FD            : out Natural;
-       Close_On_Exec : Boolean := False) return Boolean;
+       FD      : Unsigned_64) return File_Description_Acc;
    function Replace_File
-      (Process       : Process_Data_Acc;
-       File          : VFS.File.File_Acc;
-       Old_FD        : Natural;
-       Close_On_Exec : Boolean := False) return Boolean;
+      (Process : Process_Data_Acc;
+       File    : File_Description_Acc;
+       Old_FD  : Natural) return Boolean;
    procedure Remove_File (Process : Process_Data_Acc; FD : Natural);
    procedure Flush_Files (Process : Process_Data_Acc);
    procedure Flush_Exec_Files (Process : Process_Data_Acc);

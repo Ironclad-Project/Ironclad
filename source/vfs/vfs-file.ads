@@ -29,7 +29,7 @@ package VFS.File with SPARK_Mode => Off is
       Index     : Unsigned_64;
       Flags     : Access_Mode;
    end record;
-   type File_Acc is access all File;
+   type File_Acc is access File;
 
    --  Check if a path is absolute.
    function Is_Absolute (Path : String) return Boolean;
@@ -44,9 +44,6 @@ package VFS.File with SPARK_Mode => Off is
        Can_Read  : Boolean;
        Can_Write : Boolean;
        Can_Exec  : Boolean) return Boolean;
-
-   --  Duplicate an opened file.
-   function Duplicate (To_Duplicate : File_Acc) return File_Acc;
 
    --  Close an opened file.
    procedure Close (To_Close : in out File_Acc);

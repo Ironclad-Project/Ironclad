@@ -41,19 +41,38 @@ package body Userland.Loader with SPARK_Mode => Off is
       StdOut       : constant File_Acc := Open (StdOut_Path, Access_W);
       StdErr       : constant File_Acc := Open (StdErr_Path, Access_W);
       Discard      : Natural;
+      User_Stdin, User_StdOut, User_StdErr : File_Description_Acc;
    begin
       if Returned_PID = null then
          goto Error;
       end if;
       Returned_PID.Common_Map := Memory.Virtual.New_Map;
 
-      if not Start_Program (FD, Arguments, Environment, Returned_PID) then
+      if not Start_Program (FD, Arguments, Environment, Returned_PID) or
+         Stdin = null or StdOut = null or StdErr = null
+      then
          goto Error_Process;
       end if;
 
-      if not Process.Add_File (Returned_PID, Stdin,  Discard) or else
-         not Process.Add_File (Returned_PID, StdOut, Discard) or else
-         not Process.Add_File (Returned_PID, StdErr, Discard)
+      User_Stdin := new File_Description'(
+         Close_On_Exec => False,
+         Description   => Description_File,
+         Inner_File    => Stdin
+      );
+      User_StdOut := new File_Description'(
+         Close_On_Exec => False,
+         Description   => Description_File,
+         Inner_File    => StdOut
+      );
+      User_StdErr := new File_Description'(
+         Close_On_Exec => False,
+         Description   => Description_File,
+         Inner_File    => StdErr
+      );
+
+      if not Process.Add_File (Returned_PID, User_Stdin,  Discard) or else
+         not Process.Add_File (Returned_PID, User_StdOut, Discard) or else
+         not Process.Add_File (Returned_PID, User_StdErr, Discard)
       then
          goto Error_Process;
       end if;

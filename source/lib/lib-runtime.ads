@@ -44,6 +44,8 @@ package Lib.Runtime with SPARK_Mode => Off is
       with Export, External_Name => "__gnat_rcheck_CE_Length_Check";
    procedure Assert_Failure (Message : String)
       with Export, External_Name => "system__assertions__raise_assert_failure";
+   procedure Discriminant_Check (File : System.Address; Line : Integer)
+      with Export, External_Name => "__gnat_rcheck_CE_Discriminant_Check";
    ----------------------------------------------------------------------------
    --  These functions are called for memory moves and copying primitives.
    function MemCmp (S1, S2 : System.Address; Size : size_t) return int
