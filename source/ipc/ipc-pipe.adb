@@ -17,7 +17,7 @@
 with Ada.Unchecked_Deallocation;
 with Arch.Snippets;
 
-package body VFS.Pipe with SPARK_Mode => Off is
+package body IPC.Pipe with SPARK_Mode => Off is
    procedure Create_Pair
       (Write_End   : out Pipe_Writer_Acc;
        Read_End    : out Pipe_Reader_Acc;
@@ -125,10 +125,10 @@ package body VFS.Pipe with SPARK_Mode => Off is
          return 0;
       end if;
 
-      if To_Write.Data_Count = 512 then
+      if To_Write.Data_Count = Pipe_Data_Len then
          if To_Write.Is_Blocking then
             loop
-               exit when To_Write.Data_Count /= 512;
+               exit when To_Write.Data_Count /= Pipe_Data_Len;
                Arch.Snippets.Pause;
             end loop;
          else
@@ -137,9 +137,9 @@ package body VFS.Pipe with SPARK_Mode => Off is
       end if;
 
       Lib.Synchronization.Seize (To_Write.Mutex);
-      if Len + To_Write.Data_Count > 512 then
-         Final := 512 - To_Write.Data_Count;
-         Len   := Final - To_Write.Data_Count;
+      if Len + To_Write.Data_Count > Pipe_Data_Len then
+         Final := Pipe_Data_Len;
+         Len   := Pipe_Data_Len - To_Write.Data_Count;
       else
          Final := To_Write.Data_Count + Len;
       end if;
@@ -149,4 +149,4 @@ package body VFS.Pipe with SPARK_Mode => Off is
       Lib.Synchronization.Release (To_Write.Mutex);
       return Unsigned_64 (Len);
    end Write;
-end VFS.Pipe;
+end IPC.Pipe;

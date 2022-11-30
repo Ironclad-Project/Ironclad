@@ -37,7 +37,7 @@ with Cryptography.Random;
 with Cryptography.AES;
 with Arch.Snippets;
 with Userland.MAC;
-with VFS.Pipe; use VFS.Pipe;
+with IPC.Pipe; use IPC.Pipe;
 
 package body Userland.Syscall with SPARK_Mode => Off is
    --  Whether we are to print syscall information and MAC.
@@ -859,10 +859,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
    begin
       case F.Description is
          when Description_File =>
-            if Inner_Stat (F.Inner_File, Address) then
-               Errno := Error_No_Error;
-               return True;
-            else
+            if not Inner_Stat (F.Inner_File, Address) then
                Errno := Error_Bad_File;
                return False;
             end if;
@@ -882,9 +879,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Block_Size    => 512,
                Block_Count   => 1
             );
-            Errno := Error_No_Error;
-            return True;
       end case;
+      Errno := Error_No_Error;
+      return True;
    end Inner_Stat;
 
    function Inner_Stat
@@ -1101,15 +1098,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      if File = null or else File.Description /= Description_File or else
-         not VFS.File.IO_Control (File.Inner_File, Request, Arg)
-      then
+      if File = null then
          Errno := Error_Not_A_TTY;
          return Unsigned_64'Last;
       end if;
 
-      Errno := Error_No_Error;
-      return 0;
+      if File.Description = Description_File and then
+         IO_Control (File.Inner_File, Request, Arg)
+      then
+         Errno := Error_No_Error;
+         return 0;
+      else
+         Errno := Error_Not_A_TTY;
+         return Unsigned_64'Last;
+      end if;
    end Syscall_IOCTL;
 
    function Syscall_Sched_Yield (Errno : out Errno_Value) return Unsigned_64 is
@@ -1813,7 +1815,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       return 0;
    end Syscall_Add_MAC_Filter;
 
-   function Set_MAC_Enforcement
+   function Syscall_Set_MAC_Enforcement
       (Action : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64
    is
@@ -1840,7 +1842,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       Errno := Error_No_Error;
       return 0;
-   end Set_MAC_Enforcement;
+   end Syscall_Set_MAC_Enforcement;
 
    procedure Execute_MAC_Failure (Name : String; Curr_Proc : Process_Data_Acc)
    is

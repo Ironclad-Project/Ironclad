@@ -1,4 +1,4 @@
---  vfs-pipe.ads: Pipe creation and management.
+--  ipc-pipe.ads: Pipe creation and management.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -16,8 +16,9 @@
 
 with System;
 with Lib.Synchronization;
+with Interfaces; use Interfaces;
 
-package VFS.Pipe with SPARK_Mode => Off is
+package IPC.Pipe with SPARK_Mode => Off is
    type Pipe_Writer;
    type Pipe_Reader;
    type Pipe_Writer_Acc is access Pipe_Writer;
@@ -26,12 +27,13 @@ package VFS.Pipe with SPARK_Mode => Off is
    --  Writer and reader need to be aware of the location of each other.
    --  The writer holds the data, and has the reader as validity check, while
    --  the reader just accesses it.
+   Pipe_Data_Len : constant := 512;
    type Pipe_Data is array (Natural range <>) of Unsigned_8;
    type Pipe_Writer is record
       Mutex       : aliased Lib.Synchronization.Binary_Semaphore;
       Is_Blocking : Boolean;
-      Data_Count  : Natural range 0 .. 512 with Volatile;
-      Data        : Pipe_Data (1 .. 512);
+      Data_Count  : Natural range 0 .. Pipe_Data_Len with Volatile;
+      Data        : Pipe_Data (1 .. Pipe_Data_Len);
       Reader      : Pipe_Reader_Acc;
    end record;
 
@@ -67,4 +69,4 @@ package VFS.Pipe with SPARK_Mode => Off is
       (To_Write : Pipe_Writer_Acc;
        Count    : Unsigned_64;
        Source   : System.Address) return Unsigned_64;
-end VFS.Pipe;
+end IPC.Pipe;

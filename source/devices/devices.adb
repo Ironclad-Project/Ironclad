@@ -19,6 +19,8 @@ with Devices.Streams;
 with Devices.Debug;
 with Lib.Panic;
 with Arch.Hooks;
+with Devices.PTY;
+with Config;
 
 package body Devices with SPARK_Mode => Off is
    procedure Init is
@@ -28,7 +30,19 @@ package body Devices with SPARK_Mode => Off is
 
       --  Initialize common devices.
       if not Random.Init or not Debug.Init or not Streams.Init then
-         Lib.Panic.Hard_Panic ("Could not start arch-independent devices");
+         goto Failure;
       end if;
+
+      --  Initialize devices for non small builds.
+      if not Config.Is_Small then
+         if not PTY.Init then
+            goto Failure;
+         end if;
+      end if;
+
+      return;
+
+   <<Failure>>
+      Lib.Panic.Hard_Panic ("Could not start arch-independent devices");
    end Init;
 end Devices;

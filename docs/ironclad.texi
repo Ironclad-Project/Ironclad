@@ -97,6 +97,7 @@ Syscalls
 * ioctl::                   IO multiplexer.
 * sched_yield::             Relinquish CPU time.
 * set_deadlines::           Manage scheduler deadlines.
+* pipe::                    Create pipes.
 * dup/dup2/dup3::           Duplicate file descriptors.
 * access::                  Testing file permissions.
 * thread_sched::            Manage scheduler-related thread permissions.
@@ -549,7 +550,7 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{set_deadlines, set_deadlines}.
 @item
-empty
+@xref{pipe, pipe}.
 @item
 @xref{dup/dup2/dup3, dup}.
 @item
@@ -1123,6 +1124,29 @@ following errno:
 @item
 @code{EINVAL}: Bad period or runtime make system not schedulable, or are
 nonsensical.
+@end itemize
+
+@node pipe
+@section pipe
+
+@example
+int pipe(int pipefd[2], int flags);
+@end example
+
+This syscalls creates a pipe with the passed flags and returns the registered
+file descriptors in @code{pipefd}. Index @code{0} is the reader end, @code{1}
+is the writing one.
+
+The only available flag for use is @code{O_NONBLOCK}.
+
+The syscall returns @code{0} on success and @code{-1} on failure, with the
+following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: @code{pipefd} points to bogus memory.
+@item
+@code{EMFILE}: No available file descriptor slots.
 @end itemize
 
 @node dup/dup2/dup3

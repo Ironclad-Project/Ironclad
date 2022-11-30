@@ -204,7 +204,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 37 =>
             Returned := Syscall_Add_MAC_Filter (State.RDI, Errno);
          when 38 =>
-            Returned := Set_MAC_Enforcement (State.RDI, Errno);
+            Returned := Syscall_Set_MAC_Enforcement (State.RDI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;

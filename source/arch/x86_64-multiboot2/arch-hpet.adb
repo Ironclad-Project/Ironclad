@@ -73,7 +73,7 @@ package body Arch.HPET with SPARK_Mode => Off is
       end if;
 
       loop
-         if Counter < Target then
+         if Counter > Target then
             exit;
          end if;
       end loop;

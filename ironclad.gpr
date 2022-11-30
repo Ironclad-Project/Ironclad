@@ -33,6 +33,7 @@ project Ironclad is
       "source/arch",
       "source/cryptography",
       "source/devices",
+      "source/ipc",
       "source/lib",
       "source/memory/" & Alloc,
       "source/memory",

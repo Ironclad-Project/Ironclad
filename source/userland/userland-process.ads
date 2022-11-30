@@ -20,7 +20,7 @@ with Memory.Virtual;
 with Scheduler; use Scheduler;
 with Interfaces; use Interfaces;
 with Userland.MAC;
-with VFS.Pipe; use VFS.Pipe;
+with IPC.Pipe; use IPC.Pipe;
 
 package Userland.Process with SPARK_Mode => Off is
    --  A process is a collection of threads (handled by the scheduler) and
@@ -38,9 +38,9 @@ package Userland.Process with SPARK_Mode => Off is
       Close_On_Exec : Boolean;
       case Description is
          when Description_Reader_Pipe =>
-            Inner_Reader_Pipe : VFS.Pipe.Pipe_Reader_Acc;
+            Inner_Reader_Pipe : IPC.Pipe.Pipe_Reader_Acc;
          when Description_Writer_Pipe =>
-            Inner_Writer_Pipe : VFS.Pipe.Pipe_Writer_Acc;
+            Inner_Writer_Pipe : IPC.Pipe.Pipe_Writer_Acc;
          when Description_File =>
             Inner_File : VFS.File.File_Acc;
       end case;

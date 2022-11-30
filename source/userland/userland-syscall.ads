@@ -373,7 +373,7 @@ package Userland.Syscall with SPARK_Mode => Off is
    MAC_DENY            : constant := 2#001#;
    MAC_DENY_AND_SCREAM : constant := 2#010#;
    MAC_KILL            : constant := 2#100#;
-   function Set_MAC_Enforcement
+   function Syscall_Set_MAC_Enforcement
       (Action : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64;
 
