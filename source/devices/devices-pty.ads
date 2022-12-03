@@ -64,4 +64,8 @@ private
        Argument : System.Address) return Boolean;
    ----------------------------------------------------------------------------
    function Add_File (Path : String) return Integer;
+   function Termios_IO_Control
+      (Data     : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address) return Boolean;
 end Devices.PTY;

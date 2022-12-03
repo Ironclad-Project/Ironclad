@@ -57,7 +57,7 @@ package body Arch.Snippets with SPARK_Mode => Off is
           Outputs => (Unsigned_32'Asm_Output ("=d", High),
                       Unsigned_32'Asm_Output ("=a", Low)),
           Volatile => True);
-      return Unsigned_64 (Shift_Left (High, 32) or Low);
+      return Shift_Left (Unsigned_64 (High), 32) or Unsigned_64 (Low);
    end Read_Cycles;
    ----------------------------------------------------------------------------
    function Supports_AES_Accel return Boolean is

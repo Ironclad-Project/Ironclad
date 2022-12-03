@@ -21,12 +21,12 @@ with Arch.Interrupts;
 with Interfaces; use Interfaces;
 
 package body Arch.Local with SPARK_Mode => Off is
-   procedure Reschedule_In (Nanoseconds : Natural) is
+   procedure Reschedule_In (Microseconds : Natural) is
    begin
       APIC.LAPIC_Timer_Oneshot (
          Interrupts.Scheduler_Interrupt,
          CPU.Get_Local.LAPIC_Timer_Hz,
-         Unsigned_64 (Nanoseconds)
+         Unsigned_64 (Microseconds)
       );
    end Reschedule_In;
 

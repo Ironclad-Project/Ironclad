@@ -50,7 +50,7 @@ package body Scheduler with SPARK_Mode => Off is
    Scheduler_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
    Thread_Pool     : access Thread_Info_Arr;
 
-   --  Default period and run time.
+   --  Default period and run time (in microseconds).
    Default_Run_Time : constant :=  3000;
    Default_Period   : constant := 10000;
 

@@ -35,6 +35,7 @@ package body Devices.PTY with SPARK_Mode => Off is
       Writer_To_Slave, Writer_To_Master : IPC.Pipe.Pipe_Writer_Acc;
       Slave     : Slave_PTY_Acc;
       Term_Info : TermIOs.Main_Data;
+      Term_Size : TermIOs.Win_Size;
       Index     : Natural;
    end record;
    type Slave_PTY is record
@@ -160,13 +161,16 @@ package body Devices.PTY with SPARK_Mode => Off is
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is
-      pragma Unreferenced (Request);
       Master : aliased Master_PTY with Import, Address => Data.Data;
       Result : Integer with Import, Address => Argument;
       Slave_Dev : VFS.Resource;
       Slave     : Slave_PTY_Acc;
       Name      : String := Slave_PTY_Base_Name;
    begin
+      if Request /= 0 then
+         return Termios_IO_Control (Data.Data, Request, Argument);
+      end if;
+
       --  Initialize the slave PTY and notify the master.
       Slave := new Slave_PTY'(Master => Data.Data);
       Master.Slave := Slave;
@@ -237,20 +241,9 @@ package body Devices.PTY with SPARK_Mode => Off is
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is
-      Slave  : Slave_PTY         with Import, Address => Data.Data;
-      Master : Master_PTY        with Import, Address => Slave.Master;
-      Result : TermIOs.Main_Data with Import, Address => Argument;
+      Slave  : Slave_PTY with Import, Address => Data.Data;
    begin
-      case Request is
-         when TermIOs.TCGETS =>
-            Result := Master.Term_Info;
-            return True;
-         when TermIOs.TCSETS | TermIOs.TCSETSW | TermIOs.TCSETSF =>
-            Master.Term_Info := Result;
-            return True;
-         when others =>
-            return False;
-      end case;
+      return Termios_IO_Control (Slave.Master, Request, Argument);
    end Slave_IO_Control;
    ----------------------------------------------------------------------------
    function Add_File (Path : String) return Integer is
@@ -277,4 +270,28 @@ package body Devices.PTY with SPARK_Mode => Off is
    <<Error>>
       return -1;
    end Add_File;
+
+   function Termios_IO_Control
+      (Data     : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address) return Boolean
+   is
+      Master      : Master_PTY        with Import, Address => Data;
+      Result_Info : TermIOs.Main_Data with Import, Address => Argument;
+      Result_Size : TermIOs.Win_Size  with Import, Address => Argument;
+   begin
+      case Request is
+         when TermIOs.TCGETS =>
+            Result_Info := Master.Term_Info;
+         when TermIOs.TCSETS | TermIOs.TCSETSW | TermIOs.TCSETSF =>
+            Master.Term_Info := Result_Info;
+         when TermIOs.TIOCGWINSZ =>
+            Result_Size := Master.Term_Size;
+         when TermIOs.TIOCSWINSZ =>
+            Master.Term_Size := Result_Size;
+         when others =>
+            return False;
+      end case;
+      return True;
+   end Termios_IO_Control;
 end Devices.PTY;

@@ -53,9 +53,18 @@ package Devices.TermIOs is
       Output_Baud   : Unsigned_32;
    end record with Size => 544;
 
+   type Win_Size is record
+      Rows     : Unsigned_16;
+      Columns  : Unsigned_16;
+      X_Pixels : Unsigned_16;
+      Y_Pixels : Unsigned_16;
+   end record;
+
    --  Standard ioctls for devices implementing termios.
-   TCGETS  : constant := 16#5401#;
-   TCSETS  : constant := 16#5402#;
-   TCSETSW : constant := 16#5403#;
-   TCSETSF : constant := 16#5404#;
+   TCGETS     : constant := 16#5401#;
+   TCSETS     : constant := 16#5402#;
+   TCSETSW    : constant := 16#5403#;
+   TCSETSF    : constant := 16#5404#;
+   TIOCGWINSZ : constant := 16#5413#;
+   TIOCSWINSZ : constant := 16#5414#;
 end Devices.TermIOs;

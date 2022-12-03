@@ -1113,7 +1113,7 @@ int set_deadlines(int run_time, int period);
 This syscalls sets the run time and period of the calling thread, the meaning
 of this is explained in @xref{Scheduling and predictability}.
 
-The units of both runtime and period are nanoseconds.
+The units of both runtime and period are microseconds.
 
 The syscall returns @code{0} on success and @code{-1} on failure, with the
 following errno:

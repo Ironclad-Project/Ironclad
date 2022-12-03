@@ -699,11 +699,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       --  TODO: Support things like WCONTINUE once signals work.
 
-      Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.Local.Get_Current_Process;
-      Exit_Value : Unsigned_32
-         with Address => To_Address (Integer_Address (Exit_Addr)), Import;
-
+      Addr : constant Integer_Address  := Integer_Address (Exit_Addr);
+      Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Exit_Value : Unsigned_32 with Address => To_Address (Addr), Import;
+      Waited : Process_Data_Acc;
+      Final_Waited_PID : Unsigned_64 := Waited_PID;
       Dont_Hang : constant Boolean := (Options and Wait_WNOHANG) /= 0;
    begin
       if Is_Tracing then
@@ -722,56 +722,60 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      if not Check_Userland_Access (Integer_Address (Exit_Addr)) then
-         Errno := Error_Would_Fault;
-         return Unsigned_64'Last;
-      end if;
-
-      --  If -1, we have to wait for any of the children.
-      --  TODO: Do not hardcode this to the first child.
+      --  If -1, we have to wait for any of the children, else, wait for the
+      --  passed PID.
       if Waited_PID = Unsigned_64 (Unsigned_32'Last) then
-         return Syscall_Wait
-            (Unsigned_64 (Current_Process.Children (1)),
-             Exit_Addr, Options, Errno);
-      end if;
+         loop
+            for PID_Item of Proc.Children loop
+               if PID_Item /= 0 then
+                  Waited := Userland.Process.Get_By_PID (PID_Item);
+                  if Waited /= null and then Waited.Did_Exit then
+                     Final_Waited_PID := Unsigned_64 (PID_Item);
+                     goto Waited_Exited;
+                  end if;
+               end if;
+            end loop;
 
-      --  Check the callee is actually the parent, else we are doing something
-      --  weird.
-      for PID_Item of Current_Process.Children loop
-         if Natural (Waited_PID) = PID_Item then
-            goto Is_Parent;
-         end if;
-      end loop;
-
-      Errno := Error_Child;
-      return Unsigned_64'Last;
-
-   <<Is_Parent>>
-      declare
-         Waited_Process : constant Userland.Process.Process_Data_Acc :=
-            Userland.Process.Get_By_PID (Natural (Waited_PID));
-      begin
-         --  Actually wait if we are to.
-         if Dont_Hang and then not Waited_Process.Did_Exit then
-            Errno := Error_No_Error;
-            return 0;
-         else
-            while not Waited_Process.Did_Exit loop
+            if Dont_Hang then
+               exit;
+            end if;
+            Scheduler.Yield;
+         end loop;
+      else
+         Waited := Userland.Process.Get_By_PID (Natural (Waited_PID));
+         if Waited /= null then
+            loop
+               if Waited.Did_Exit then
+                  goto Waited_Exited;
+               end if;
+               if Dont_Hang then
+                  exit;
+               end if;
                Scheduler.Yield;
             end loop;
          end if;
+      end if;
 
-         --  Set the return value if we are to.
-         if Exit_Value'Address /= System.Null_Address then
-            Exit_Value := Unsigned_32 (Waited_Process.Exit_Code);
+      --  If we get here, it means we are not blocking, and that the
+      --  process has not exited, so lets return what we have to.
+      Errno := Error_No_Error;
+      return 0;
+
+   <<Waited_Exited>>
+      --  Set the return value if we are to.
+      if Exit_Value'Address /= System.Null_Address then
+         if not Check_Userland_Access (Addr) then
+            Errno := Error_Would_Fault;
+            return Unsigned_64'Last;
          end if;
+         Exit_Value := Unsigned_32 (Waited.Exit_Code);
+      end if;
 
-         --  Now that we got the exit code, finally allow the process to die.
-         Memory.Virtual.Delete_Map       (Waited_Process.Common_Map);
-         Userland.Process.Delete_Process (Waited_Process);
-         Errno := Error_No_Error;
-         return Waited_PID;
-      end;
+      --  Now that we got the exit code, finally allow the process to die.
+      Memory.Virtual.Delete_Map       (Waited.Common_Map);
+      Userland.Process.Delete_Process (Waited);
+      Errno := Error_No_Error;
+      return Final_Waited_PID;
    end Syscall_Wait;
 
    function Syscall_Uname
