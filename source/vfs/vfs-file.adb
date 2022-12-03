@@ -89,6 +89,7 @@ package body VFS.File with SPARK_Mode => Off is
          return null;
       else
          return new File'(
+            Refcount  => 1,
             Full_Path => new String'(Path),
             Dev_Data  => Fetched_Dev,
             FS_Type   => Fetched_Type,
@@ -136,10 +137,22 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Check_Permissions;
 
+   procedure Increase_Refcount (F : File_Acc) is
+   begin
+      if F /= null then
+         F.Refcount := F.Refcount + 1;
+      end if;
+   end Increase_Refcount;
+
    procedure Close (To_Close : in out File_Acc) is
    begin
-      if To_Close /= null and then To_Close.FS_Data /= System.Null_Address then
-         USTAR.Close (To_Close.FS_Data, To_Close.File_Data);
+      if To_Close /= null then
+         To_Close.Refcount := To_Close.Refcount - 1;
+         if To_Close.Refcount = 0 then
+            if To_Close.FS_Data /= System.Null_Address then
+               USTAR.Close (To_Close.FS_Data, To_Close.File_Data);
+            end if;
+         end if;
          Free_Str (To_Close.Full_Path);
          Free_File (To_Close);
       end if;

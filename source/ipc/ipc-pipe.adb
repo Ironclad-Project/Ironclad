@@ -18,6 +18,11 @@ with Ada.Unchecked_Deallocation;
 with Arch.Snippets;
 
 package body IPC.Pipe with SPARK_Mode => Off is
+   procedure Free is new Ada.Unchecked_Deallocation
+         (Pipe_Writer, Pipe_Writer_Acc);
+   procedure Free is new Ada.Unchecked_Deallocation
+         (Pipe_Reader, Pipe_Reader_Acc);
+
    procedure Create_Pair
       (Write_End   : out Pipe_Writer_Acc;
        Read_End    : out Pipe_Reader_Acc;
@@ -27,6 +32,7 @@ package body IPC.Pipe with SPARK_Mode => Off is
       Write_End := new Pipe_Writer;
       Read_End  := new Pipe_Reader;
       Write_End.all := (
+         Refcount    => 1,
          Mutex       => Lib.Synchronization.Unlocked_Semaphore,
          Is_Blocking => Is_Blocking,
          Data_Count  => 0,
@@ -34,8 +40,10 @@ package body IPC.Pipe with SPARK_Mode => Off is
          Reader      => Read_End
       );
       Read_End.all := (
-         Is_Blocking => Is_Blocking,
-         Other_End   => Write_End
+         Refcount        => 1,
+         Writer_Is_Ghost => False,
+         Is_Blocking     => Is_Blocking,
+         Other_End       => Write_End
       );
    end Create_Pair;
 
@@ -55,22 +63,51 @@ package body IPC.Pipe with SPARK_Mode => Off is
       end if;
    end Set_Blocking;
 
-   procedure Close (To_Close : in out Pipe_Writer_Acc) is
-      procedure Free is new Ada.Unchecked_Deallocation
-         (Pipe_Writer, Pipe_Writer_Acc);
-      pragma Unreferenced (To_Close);
-      pragma Unreferenced (Free);
+   procedure Increase_Refcount (P : Pipe_Writer_Acc) is
    begin
-      return;
+      if P /= null then
+         P.Refcount := P.Refcount + 1;
+      end if;
+   end Increase_Refcount;
+
+   procedure Increase_Refcount (P : Pipe_Reader_Acc) is
+   begin
+      if P /= null then
+         P.Refcount := P.Refcount + 1;
+      end if;
+   end Increase_Refcount;
+
+   procedure Close (To_Close : in out Pipe_Writer_Acc) is
+   begin
+      if To_Close /= null then
+         Lib.Synchronization.Seize (To_Close.Mutex);
+         To_Close.Refcount := To_Close.Refcount - 1;
+         if To_Close.Refcount = 0 then
+            if To_Close.Reader /= null then
+               To_Close.Reader.Writer_Is_Ghost := True;
+            else
+               Free (To_Close);
+               return;
+            end if;
+         end if;
+         Lib.Synchronization.Release (To_Close.Mutex);
+      end if;
    end Close;
 
    procedure Close (To_Close : in out Pipe_Reader_Acc) is
-      procedure Free is new Ada.Unchecked_Deallocation
-         (Pipe_Reader, Pipe_Reader_Acc);
-      pragma Unreferenced (To_Close);
-      pragma Unreferenced (Free);
    begin
-      return;
+      if To_Close /= null then
+         To_Close.Refcount := To_Close.Refcount - 1;
+         if To_Close.Refcount = 0 then
+            if To_Close.Writer_Is_Ghost then
+               Free (To_Close.Other_End);
+            else
+               To_Close.Other_End.Reader := null;
+            end if;
+            Free (To_Close);
+            return;
+         end if;
+      end if;
    end Close;
 
    function Read
@@ -82,7 +119,9 @@ package body IPC.Pipe with SPARK_Mode => Off is
       Final_Len : Natural          := Len;
       Data      : Pipe_Data (1 .. Len) with Import, Address => Destination;
    begin
-      if To_Read = null or else To_Read.Other_End = null then
+      if To_Read = null or else
+         (To_Read.Writer_Is_Ghost and To_Read.Other_End.Data_Count = 0)
+      then
          return 0;
       end if;
 

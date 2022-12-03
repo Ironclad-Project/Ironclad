@@ -571,7 +571,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Env_Count  : Natural := 0;
    begin
       if Is_Tracing then
-         Lib.Messages.Put ("syscall exec(" & Path_String & ")");
+         Lib.Messages.Put_Line ("syscall exec(" & Path_String & ")");
       end if;
 
       if Opened_File = null then

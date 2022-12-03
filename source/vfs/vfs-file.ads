@@ -21,6 +21,7 @@ package VFS.File with SPARK_Mode => Off is
    type Access_Mode is (Access_R, Access_W, Access_RW);
    type String_Acc is access String;
    type File is record
+      Refcount  : Natural;
       Full_Path : String_Acc;
       Dev_Data  : Resource_Acc;
       FS_Type   : VFS.FS_Type;
@@ -45,7 +46,8 @@ package VFS.File with SPARK_Mode => Off is
        Can_Write : Boolean;
        Can_Exec  : Boolean) return Boolean;
 
-   --  Close an opened file.
+   --  Increase refcount, or decrease and close an opened file.
+   procedure Increase_Refcount (F : File_Acc);
    procedure Close (To_Close : in out File_Acc);
 
    --  Read from a file, and return the read count.

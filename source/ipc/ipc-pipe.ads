@@ -30,6 +30,7 @@ package IPC.Pipe with SPARK_Mode => Off is
    Pipe_Data_Len : constant := 512;
    type Pipe_Data is array (Natural range <>) of Unsigned_8;
    type Pipe_Writer is record
+      Refcount    : Natural;
       Mutex       : aliased Lib.Synchronization.Binary_Semaphore;
       Is_Blocking : Boolean;
       Data_Count  : Natural range 0 .. Pipe_Data_Len with Volatile;
@@ -39,8 +40,10 @@ package IPC.Pipe with SPARK_Mode => Off is
 
    --  Reader end holds a pointer to the writer and whether to block.
    type Pipe_Reader is record
-      Is_Blocking : Boolean;
-      Other_End   : Pipe_Writer_Acc;
+      Refcount        : Natural;
+      Writer_Is_Ghost : Boolean;
+      Is_Blocking     : Boolean;
+      Other_End       : Pipe_Writer_Acc;
    end record;
 
    --  Create a fresh pair of pipes.
@@ -55,6 +58,8 @@ package IPC.Pipe with SPARK_Mode => Off is
 
    --  Close the passed end, and do preparations for the other end.
    --  Both ends must be closed individually.
+   procedure Increase_Refcount (P : Pipe_Writer_Acc);
+   procedure Increase_Refcount (P : Pipe_Reader_Acc);
    procedure Close (To_Close : in out Pipe_Writer_Acc);
    procedure Close (To_Close : in out Pipe_Reader_Acc);
 

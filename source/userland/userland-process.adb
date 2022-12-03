@@ -221,30 +221,31 @@ package body Userland.Process with SPARK_Mode => Off is
    end Add_File;
 
    function Duplicate (F : File_Description_Acc) return File_Description_Acc is
+      Ret : File_Description_Acc := null;
    begin
       if F /= null then
-         return new File_Description'(F.all);
-      else
-         return null;
+         Ret := new File_Description'(F.all);
+         case Ret.Description is
+            when Description_Reader_Pipe =>
+               Increase_Refcount (Ret.Inner_Reader_Pipe);
+            when Description_Writer_Pipe =>
+               Increase_Refcount (Ret.Inner_Writer_Pipe);
+            when Description_File =>
+               Increase_Refcount (Ret.Inner_File);
+         end case;
       end if;
+      return Ret;
    end Duplicate;
 
    procedure Close (F : in out File_Description_Acc) is
       procedure Free is new Ada.Unchecked_Deallocation
          (File_Description, File_Description_Acc);
    begin
-      --  TODO: ...
       if F /= null then
          case F.Description is
-            when Description_Reader_Pipe =>
-               --  Free the pipe.
-               null;
-            when Description_Writer_Pipe =>
-               --  Free the pipe.
-               null;
-            when Description_File =>
-               --  Free the file.
-               null;
+            when Description_Reader_Pipe => Close (F.Inner_Reader_Pipe);
+            when Description_Writer_Pipe => Close (F.Inner_Writer_Pipe);
+            when Description_File        => Close (F.Inner_File);
          end case;
          Free (F);
          F := null;
