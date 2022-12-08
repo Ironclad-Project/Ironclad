@@ -676,6 +676,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       --  Fork the child state.
       Child.Common_Map := Memory.Virtual.Fork_Map (Parent.Common_Map);
+      if Child.Common_Map = null then
+         Errno := Error_Would_Block;
+         return Unsigned_64'Last;
+      end if;
       for I in Parent.File_Table'Range loop
          Child.File_Table (I) := Duplicate (Parent.File_Table (I));
       end loop;

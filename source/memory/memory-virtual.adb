@@ -192,9 +192,7 @@ package body Memory.Virtual with SPARK_Mode => Off is
 
    function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc is
       type Page_Data is array (Unsigned_64 range <>) of Unsigned_8;
-
-      Discard : Boolean;
-      Forked  : constant Page_Map_Acc := New_Map;
+      Forked : Page_Map_Acc := New_Map;
    begin
       if Map = null then
          return null;
@@ -217,17 +215,22 @@ package body Memory.Virtual with SPARK_Mode => Off is
                Address => To_Address (Mapping.Physical_Start + Memory_Offset);
             begin
                New_Data := Original_Data;
-               Discard  := Map_Range (
+               if not Map_Range (
                   Forked,
                   Mapping.Virtual_Start,
                   New_Data_Addr - Memory_Offset,
                   Mapping.Length,
                   Mapping.Flags
-               );
+               )
+               then
+                  Delete_Map (Forked);
+                  goto Cleanup;
+               end if;
             end;
          end if;
       end loop;
 
+   <<Cleanup>>
       Lib.Synchronization.Release (Map.Mutex);
       return Forked;
    end Fork_Map;

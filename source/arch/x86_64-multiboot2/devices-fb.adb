@@ -21,7 +21,8 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Arch.MMU;
 with Arch.CPU;
 with Arch.Multiboot2; use Arch.Multiboot2;
-with Memory.Virtual;
+with Memory.Virtual;  use Memory.Virtual;
+with Lib.Alignment;
 
 package body Devices.FB with SPARK_Mode => Off is
    --  Structures used by fbdev.
@@ -90,9 +91,11 @@ package body Devices.FB with SPARK_Mode => Off is
    type Internal_FB_Data_Acc is access Internal_FB_Data;
 
    function Init return Boolean is
-      Device : VFS.Resource;
-      Data   : constant Internal_FB_Data_Acc := new Internal_FB_Data;
-      Fb     : constant Framebuffer_Tag      := Get_Framebuffer;
+      package Align is new Lib.Alignment (Integer_Address);
+      Aligned, Len : Integer_Address;
+      Device       : VFS.Resource;
+      Data         : constant Internal_FB_Data_Acc := new Internal_FB_Data;
+      Fb           : constant Framebuffer_Tag      := Get_Framebuffer;
    begin
       --  Translate the multiboot information into fbdev info and register.
       Data.all := (
@@ -151,7 +154,24 @@ package body Devices.FB with SPARK_Mode => Off is
          Munmap     => null
       );
 
-      return VFS.Register (Device, "fb0");
+      --  Identity-map the framebuffer in case we are requested to access it by
+      --  userland.
+      Aligned := Align.Align_Down (To_Integer (Fb.Address), Page_Size);
+      Len     := Integer_Address (Fb.Height * Fb.Pitch) +
+                 (To_Integer (Fb.Address) - Aligned);
+      return Memory.Virtual.Map_Range (
+         Map      => Memory.Virtual.Kernel_Map,
+         Virtual  => Aligned + Memory_Offset,
+         Physical => Aligned,
+         Length   => Unsigned_64 (Align.Align_Up (Len, Page_Size)),
+         Flags    => (
+            User_Accesible => False,
+            Read_Only      => True,
+            Executable     => False,
+            Global         => True,
+            Write_Through  => True
+         )
+      ) and then VFS.Register (Device, "fb0");
    end Init;
 
    function IO_Control

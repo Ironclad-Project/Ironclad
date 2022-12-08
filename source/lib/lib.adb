@@ -41,7 +41,7 @@ package body Lib is
       end loop;
       return Length;
    end C_String_Length;
-
+   ----------------------------------------------------------------------------
    function Least_Common_Multiple (Val1, Val2 : Integer) return Integer is
    begin
       if Val1 = 0 or Val2 = 0 then

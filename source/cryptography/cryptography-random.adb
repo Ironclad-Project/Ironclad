@@ -22,6 +22,12 @@ with Cryptography.Chacha20;
 with Cryptography.MD5;
 
 package body Cryptography.Random is
+   --  The core of our RNG is Chacha20-based. We just create a keystream with a
+   --  random key, nonce, and block id. The key is randomized each
+   --  invocation, the nonce is randomized each block, block id is incremental.
+   --  As long as the key and nonce remain secret, future key streams should
+   --  not be predictable.
+
    --  Unit passes GNATprove AoRTE, GNAT does not know this.
    pragma Suppress (All_Checks);
 
@@ -38,18 +44,15 @@ package body Cryptography.Random is
          Seed1 => 16#524e475365616c4f665175616c697479#,
          Seed2 => Get_Seed
       );
-
-      Cha_Block   : Chacha20.Block := (others => 0);
-      Index       : Natural        := Cha_Block'Last + 1;
-      Block_Index : Unsigned_64    := 0;
+      Temp        : Unsigned_64;
+      Cha_Block   : Chacha20.Block;
+      Index       : Natural     := Cha_Block'Last + 1;
+      Block_Index : Unsigned_64 := 0;
    begin
-      --  The core of our RNG is Chacha20-based. We just create keys with a
-      --  random key and incremental block ID a-la CTR mode and use them as
-      --  random data. For some increased security once could XOR
-      --  low quality disposable entropy.
       for Value of Data loop
          if Index > Cha_Block'Last then
-            Cha_Block   := Chacha20.Gen_Key (To_Seed (S), 1, Block_Index);
+            Temp        := Unsigned_64 (Get_Seed and 16#FFFFFFFFFFFFFFFF#);
+            Cha_Block   := Chacha20.Gen_Key (To_Seed (S), Temp, Block_Index);
             Index       := Cha_Block'First;
             Block_Index := Block_Index + 1;
          end if;
