@@ -33,7 +33,7 @@ mb2hdr:
     .long MB2_LENGTH       # Length of the header.
     .long MB2_CHECKSUM     # Checksum.
 
-#ifndef SMALL
+#ifndef X86_64_BOOTFB
     # Framebuffer info.
     .short  5 # Type of tag.
     .short  0 # Flags.

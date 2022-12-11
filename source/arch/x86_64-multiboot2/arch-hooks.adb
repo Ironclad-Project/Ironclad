@@ -30,17 +30,25 @@ with Interfaces; use Interfaces;
 package body Arch.Hooks with SPARK_Mode => Off is
    procedure Devices_Hook is
    begin
-      if not Config.Is_Small then
-         if not Devices.FB.Init          or
-            not Devices.PS2Keyboard.Init or
-            not Devices.PS2Mouse.Init
-         then
+      if Config.Support_X86_64_BootFB then
+         if not Devices.FB.Init then
             goto Error;
          end if;
       end if;
-
-      if not Devices.Serial.Init or not Devices.RTC.Init then
-         goto Error;
+      if Config.Support_X86_64_PS2 then
+         if not Devices.PS2Keyboard.Init or not Devices.PS2Mouse.Init then
+            goto Error;
+         end if;
+      end if;
+      if Config.Support_X86_64_Serial then
+         if not Devices.Serial.Init then
+            goto Error;
+         end if;
+      end if;
+      if Config.Support_X86_64_RTC then
+         if not Devices.RTC.Init then
+            goto Error;
+         end if;
       end if;
       return;
 

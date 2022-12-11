@@ -1,5 +1,14 @@
-Ironclad is a kernel for several architectures, supporting general-purpose and
-embedded modes, written in Ada.
+Ironclad is a partially formally verified real-time kernel, with a small
+footprint, for general-purpose and embedded OSes, written in SPARK and Ada.
+
+Some of the supported features are:
+- A familiar POSIX-compatible interface
+- True simultaneous multitasking
+- Complex virtual and physical memory support, VFS support
+- Resiliency and small footprint
+- Partial gold-level formal verification
+- Advanced cryptography and a security-centered architecture
+- Hard real-time scheduling and real-time oriented features
 
 For more information about the project, check https://nongnu.org/ironclad
 
@@ -20,33 +29,21 @@ https://www.nongnu.org/ironclad/manual/ironclad.pdf - PDF format.
 
 The tools needed are:
 
+- dialog for the configuration menu.
 - gprbuild for compilation.
 - A compatible Ada compiler, and an assembler for the desired architecture.
 - GNU Info for building the documentation with Info and PDF support.
 - gnatprove for formal verification, if desired.
 
-For building the project's binaries, using gprbuild like the following works:
+For building the project's binaries, configure and then use gprbuild like the
+following:
 
+./configure.sh
 gprbuild -p ironclad.gpr -j4
 
-Several environment variables are available for tweaking the kernel, the
-options are also tackled in length in the documentation:
-
-- ARCH: Chooses which architecture to target, the supported values are:
-     aarch64-stivale2    aarch64 for stivale2-capable bootloaders.
-     sparc-leon3         LEON3 boards.
-     x86_64-multiboot2   x86_64 for multiboot2-capable bootloaders.
-
-- TARGET: The following values are provided:
-     big     All drivers will be cooked in.
-     small   Exclude superfluous drivers, building a minimal system.
-
-- ALLOC_SCHEME: Choose the memory allocation scheme of the kernel.
-     standard    General-purpose allocation that supports freeing memory.
-     alloconly   More efficient allocator but unable to free.
-
-- ADAFLAGS, ASMFLAGS, and LDFLAGS, for the flags used by each tool
-  respectively.
+./configure.sh will generate an ironclad.gpr with the selected options, for doing
+several builds with the same options, just save the ironclad.gpr, and skip the
+step next time.
 
 A shell script called 'install.sh' is provided for installing the resulting
 binaries and generating the project's documentation in PDF and Info formats.
@@ -54,7 +51,7 @@ binaries and generating the project's documentation in PDF and Info formats.
 Several flags and environment variables are available for 'install.sh':
 
 - DESTDIR and PREFIX.
-- Pass 'strip' as the only argument for stripped binaries.
+- Pass 'strip' as the only argument for stripping binaries.
 
 To run the formal proofing framework, which is not necessary, one can run:
 
@@ -76,7 +73,7 @@ debugging the obscure and esoteric issues.
 
 ========================================================================
 
-Copyright (C) 2022 streaksu, Inc.
+Copyright (C) 2022 streaksu
 
 Permission is granted to copy, distribute and/or modify this document
 under the terms of the GNU Free Documentation License, Version 1.3 or

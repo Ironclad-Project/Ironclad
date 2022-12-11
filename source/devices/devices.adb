@@ -28,16 +28,26 @@ package body Devices with SPARK_Mode => Off is
       --  Initialize architectural devices.
       Arch.Hooks.Devices_Hook;
 
-      --  Initialize common devices.
-      if not Random.Init or not Debug.Init or not Streams.Init then
-         goto Failure;
+      --  Initialize config-driven devices.
+      if Config.Support_Device_Streams then
+         if not Streams.Init then
+            goto Failure;
+         end if;
       end if;
-
-      --  Initialize devices for non small builds.
-      if not Config.Is_Small then
+      if Config.Support_Device_RNG then
+         if not Random.Init then
+            goto Failure;
+         end if;
+      end if;
+      if Config.Support_Device_PTY then
          if not PTY.Init then
             goto Failure;
          end if;
+      end if;
+
+      --  Initialize unconditional devices.
+      if not Debug.Init then
+         goto Failure;
       end if;
 
       return;

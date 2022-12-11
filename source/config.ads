@@ -23,5 +23,11 @@ package Config is
       "https://savannah.nongnu.org/bugs/?group=ironclad&func=additem";
 
    --  Configuration for system internals.
-   Is_Small : constant Boolean := $IsSmall;
+   Support_X86_64_BootFB  : constant Boolean := $X86_64_BOOTFB;
+   Support_X86_64_PS2     : constant Boolean := $X86_64_PS2;
+   Support_X86_64_RTC     : constant Boolean := $X86_64_RTC;
+   Support_X86_64_Serial  : constant Boolean := $X86_64_Serial;
+   Support_Device_Streams : constant Boolean := $DEVICES_STREAMS;
+   Support_Device_RNG     : constant Boolean := $DEVICES_RNG;
+   Support_Device_PTY     : constant Boolean := $DEVICES_PTY;
 end Config;

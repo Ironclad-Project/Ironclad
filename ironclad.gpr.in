@@ -1,4 +1,4 @@
---  ironclad.gpr: Project's building script.
+--  ironclad.gpr.in: Project's building script.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -15,17 +15,22 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 project Ironclad is
-   --  Get command-line options for flags and boards.
-   type Arch_Name    is ("aarch64-stivale2", "sparc-leon3", "x86_64-multiboot2");
-   type Target_Name  is ("big", "small");
-   type Alloc_Scheme is ("standard", "alloconly");
-   Arch   : Arch_Name    := External ("ARCH",   "x86_64-multiboot2");
-   Target : Target_Name  := External ("TARGET", "big");
-   Alloc  : Alloc_Scheme := External ("ALLOC_SCHEME", "standard");
-
+   --  Compilation flags.
    Ada_Flags    := External ("ADAFLAGS", "-O2 -g -gnaty -Wall -flto=auto");
    Asm_Flags    := External ("ASMFLAGS", "-O2 -g -Wall");
    Linker_Flags := External ("LDFLAGS",  "-O2 -g -Wall -flto=auto");
+
+   --  Command line/configure options.
+   type Arch_Name is ("aarch64-stivale2", "sparc-leon3", "x86_64-multiboot2");
+   Arch : Arch_Name := "@@ARCH@@";
+   X86_64_BOOTFB    := "@@X86_64_BOOTFB@@";
+   X86_64_PS2       := "@@X86_64_PS2@@";
+   X86_64_RTC       := "@@X86_64_RTC@@";
+   X86_64_SERIAL    := "@@X86_64_SERIAL@@";
+   DEVICES_STREAMS  := "@@DEVICES_STREAMS@@";
+   DEVICES_RNG      := "@@DEVICES_RNG@@";
+   DEVICES_PTY      := "@@DEVICES_PTY@@";
+   MEMORY_ALLOCONLY := "@@MEMORY_ALLOCONLY@@";
 
    --  Set directories and files.
    for Source_Dirs use (
@@ -35,7 +40,7 @@ project Ironclad is
       "source/devices",
       "source/ipc",
       "source/lib",
-      "source/memory/" & Alloc,
+      "source/memory/" & MEMORY_ALLOCONLY,
       "source/memory",
       "source/networking",
       "source/userland",
@@ -55,16 +60,18 @@ project Ironclad is
    package Compiler is
       Base_Ada_Switches := Split (Ada_Flags, " ") & (
          "-fno-stack-protector", "-fno-stack-check",
-         "-gnateDArchName=""" & Arch & """"
+         "-gnateDArchName=""" & Arch & """",
+         "-gnateDX86_64_BOOTFB="   & X86_64_BOOTFB,
+         "-gnateDX86_64_PS2="      & X86_64_PS2,
+         "-gnateDX86_64_RTC="      & X86_64_RTC,
+         "-gnateDX86_64_SERIAL="   & X86_64_SERIAL,
+         "-gnateDDEVICES_STREAMS=" & DEVICES_STREAMS,
+         "-gnateDDEVICES_RNG="     & DEVICES_RNG,
+         "-gnateDDEVICES_PTY="     & DEVICES_PTY
       );
-      Base_Asm_Switches := Split (Asm_Flags, " ");
-      case Target is
-         when "big" =>
-            Base_Ada_Switches := Base_Ada_Switches & ("-gnateDIsSmall=False");
-         when "small" =>
-            Base_Ada_Switches := Base_Ada_Switches & ("-gnateDIsSmall=True");
-            Base_Asm_Switches := Base_Asm_Switches & ("-DSMALL");
-      end case;
+      Base_Asm_Switches := Split (Asm_Flags, " ") & (
+         "-DX86_64_BOOTFB=" & X86_64_BOOTFB
+      );
 
       case Arch is
          when "aarch64-stivale2" =>
