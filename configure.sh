@@ -15,8 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-set -e
-
 main_choice_exit="0"
 
 # Defaults for all options ever.
@@ -100,6 +98,7 @@ while [ "$main_choice_exit" = "0" ]; do
    esac
 done
 
+set -e
 stty sane
 clear
 
