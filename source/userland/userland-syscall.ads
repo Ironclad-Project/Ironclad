@@ -149,8 +149,9 @@ package Userland.Syscall with SPARK_Mode => Off is
 
    --  Fork the callee process.
    function Syscall_Fork
-      (State_To_Fork : Arch.Context.GP_Context_Acc;
-       Errno         : out Errno_Value) return Unsigned_64;
+      (GP_State : Arch.Context.GP_Context;
+       FP_State : Arch.Context.FP_Context;
+       Errno    : out Errno_Value) return Unsigned_64;
 
    --  Wait.
    Wait_WNOHANG : constant := 2#000010#;

@@ -1589,6 +1589,21 @@ struct rtc_time @{
 ioctl(rtc, ..., pointer_to_rtc_time)
 @end example
 
+@subsection ptmx
+
+If the kernel is configured to support PTYs, this device fulfills a similar
+role to Linux's @code{/dev/ptmx}.
+
+A major difference is that instead of @code{open} being used for creating
+PTYs, @code{ioctl}, like the following:
+
+@example
+ioctl(ptmx_fd, 0, &result_master_fd);
+@end example
+
+Slaves are opened from the master FD in the same manner, this is done is said
+way thanks to Ironclad's @code{/dev} system limitations.
+
 @node aarch64-stivale2 devices
 @section aarch64-stivale2 devices
 

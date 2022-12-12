@@ -652,8 +652,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Syscall_Exec;
 
    function Syscall_Fork
-      (State_To_Fork : Arch.Context.GP_Context_Acc;
-       Errno         : out Errno_Value) return Unsigned_64
+      (GP_State : Arch.Context.GP_Context;
+       FP_State : Arch.Context.FP_Context;
+       Errno    : out Errno_Value) return Unsigned_64
    is
       Parent : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Child  : Process_Data_Acc;
@@ -687,7 +688,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       --  Create a running thread cloning the caller.
       if not Add_Thread (Child,
          Scheduler.Create_User_Thread
-            (State_To_Fork, Child.Common_Map, Child.Process_PID))
+            (GP_State, FP_State, Child.Common_Map, Child.Process_PID))
       then
          Errno := Error_Would_Block;
          return Unsigned_64'Last;

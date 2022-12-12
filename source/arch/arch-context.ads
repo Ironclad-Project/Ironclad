@@ -16,20 +16,20 @@
 
 with Interfaces; use Interfaces;
 with Arch.Interrupts;
+
 package Arch.Context with SPARK_Mode => Off is
    --  General-purpose context switching.
    subtype GP_Context is Arch.Interrupts.ISR_GPRs;
-   type GP_Context_Acc is access all GP_Context;
    procedure Init_GP_Context
-      (Ctx        : GP_Context_Acc;
+      (Ctx        : out GP_Context;
        Stack      : System.Address;
        Start_Addr : System.Address);
-   procedure Load_GP_Context (Ctx : GP_Context_Acc) with No_Return;
+   procedure Load_GP_Context (Ctx : GP_Context) with No_Return;
 
    --  Save and restore floating-point context.
-   type FP_Context is array (1 .. 512) of Unsigned_8 with Alignment => 16;
-   type FP_Context_Acc is access all FP_Context;
-   procedure Init_FP_Context (Ctx : FP_Context_Acc);
-   procedure Save_FP_Context (Ctx : FP_Context_Acc);
-   procedure Load_FP_Context (Ctx : FP_Context_Acc);
+   --  FIXME: Alignment should be 16, but GCC does not align then?
+   type FP_Context is array (1 .. 512) of Unsigned_8 with Alignment => 32;
+   procedure Init_FP_Context (Ctx : out FP_Context);
+   procedure Save_FP_Context (Ctx : out FP_Context);
+   procedure Load_FP_Context (Ctx : FP_Context);
 end Arch.Context;

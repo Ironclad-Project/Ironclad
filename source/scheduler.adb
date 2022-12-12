@@ -29,7 +29,7 @@ with Lib;
 package body Scheduler with SPARK_Mode => Off is
    --  Thread information.
    type Thread_Info is record
-      State          : aliased Arch.Context.GP_Context;
+      State          : Arch.Context.GP_Context;
       Is_Present     : Boolean;
       Is_Running     : Boolean;
       Is_Monothread  : Boolean;
@@ -37,7 +37,7 @@ package body Scheduler with SPARK_Mode => Off is
       PageMap        : Memory.Virtual.Page_Map_Acc;
       Stack          : Virtual_Address;
       Kernel_Stack   : Virtual_Address;
-      FP_Region      : aliased Arch.Context.FP_Context;
+      FP_Region      : Arch.Context.FP_Context;
       Process        : Userland.Process.Process_Data_Acc;
       Time_Since_Run : Natural;
       Priority       : Positive;
@@ -84,150 +84,119 @@ package body Scheduler with SPARK_Mode => Off is
        PID        : Natural;
        Exec_Stack : Boolean := True) return TID
    is
-      New_TID : TID;
-   begin
-      Lib.Synchronization.Seize (Scheduler_Mutex);
+      type Stack8  is array (1 ..       Stack_Size) of Unsigned_8;
+      type Stack64 is array (1 .. (Stack_Size / 8)) of Unsigned_64;
+      type Stack_Acc is access Stack8;
 
-      --  Find a new TID.
-      New_TID := Find_Free_TID;
-      if New_TID = 0 then
-         goto End_Return;
+      User_Stack_8  : constant Stack_Acc := new Stack8;
+      User_Stack_64 : Stack64 with Address => User_Stack_8.all'Address;
+      Index_8       : Natural := User_Stack_8'Last;
+      Index_64      : Natural := User_Stack_8'Last;
+
+      Stack_Permissions : constant Arch.MMU.Page_Permissions := (
+         User_Accesible => True,
+         Read_Only      => False,
+         Executable     => Exec_Stack,
+         Global         => False,
+         Write_Through  => False
+      );
+      New_TID  : TID;
+      GP_State : Arch.Context.GP_Context;
+      FP_State : Arch.Context.FP_Context;
+   begin
+      --  Initialize thread state. Start by mapping the user stack.
+      if not Memory.Virtual.Map_Range (
+         Map,
+         Virtual_Address (Stack_Top),
+         To_Integer (User_Stack_8.all'Address) - Memory_Offset,
+         Stack_Size,
+         Stack_Permissions
+      )
+      then
+         goto Error_1;
       end if;
 
-      --  Initialize thread state.
-      declare
-         type Stack8  is array (1 ..       Stack_Size) of Unsigned_8;
-         type Stack64 is array (1 .. (Stack_Size / 8)) of Unsigned_64;
-         type Stack_Acc is access Stack8;
-
-         User_Stack_8  : constant Stack_Acc := new Stack8;
-         User_Stack_64 : Stack64 with Address => User_Stack_8.all'Address;
-         User_Stack_Addr : constant Virtual_Address :=
-            To_Integer (User_Stack_8.all'Address) + Stack_Size;
-
-         Kernel_Stack : constant Stack_Acc := new Stack8;
-         Kernel_Stack_Addr : constant Virtual_Address :=
-            To_Integer (Kernel_Stack.all'Address) + Stack_Size;
-
-         Index_8  : Natural := User_Stack_8'Last;
-         Index_64 : Natural := User_Stack_8'Last;
-
-         Stack_Permissions : constant Arch.MMU.Page_Permissions := (
-            User_Accesible => True,
-            Read_Only      => False,
-            Executable     => Exec_Stack,
-            Global         => False,
-            Write_Through  => False
-         );
-      begin
-         Thread_Pool (New_TID).Is_Present    := True;
-         Thread_Pool (New_TID).Is_Running    := False;
-         Thread_Pool (New_TID).Is_Monothread := False;
-         Thread_Pool (New_TID).PageMap       := Map;
-         Thread_Pool (New_TID).Stack         := User_Stack_Addr;
-         Thread_Pool (New_TID).Kernel_Stack  := Kernel_Stack_Addr;
-         Thread_Pool (New_TID).Process    := Userland.Process.Get_By_PID (PID);
-         Thread_Pool (New_TID).Run_Time := Default_Run_Time;
-         Thread_Pool (New_TID).Period   := Default_Period;
-         if not Update_Priorities then
-            Thread_Pool (New_TID).Is_Present := False;
-            return 0;
-         end if;
-
-         --  Map the user stack.
-         if not Memory.Virtual.Map_Range (
-            Thread_Pool (New_TID).PageMap,
-            Virtual_Address (Stack_Top),
-            To_Integer (User_Stack_8.all'Address) - Memory_Offset,
-            Stack_Size,
-            Stack_Permissions
-         )
-         then
-            New_TID := 0;
-            goto End_Return;
-         end if;
-
-         --  Set up FPU control word and MXCSR as defined by SysV.
-         Arch.Context.Init_FP_Context (Thread_Pool (New_TID).FP_Region'Access);
-
-         --  Load env into the stack.
-         for En of reverse Env loop
-            User_Stack_8 (Index_8) := 0;
+      --  Load env into the stack.
+      for En of reverse Env loop
+         User_Stack_8 (Index_8) := 0;
+         Index_8 := Index_8 - 1;
+         for C of reverse En.all loop
+            User_Stack_8 (Index_8) := Character'Pos (C);
             Index_8 := Index_8 - 1;
-            for C of reverse En.all loop
-               User_Stack_8 (Index_8) := Character'Pos (C);
-               Index_8 := Index_8 - 1;
-            end loop;
          end loop;
+      end loop;
 
-         --  Load argv into the stack.
-         for Arg of reverse Args loop
-            User_Stack_8 (Index_8) := 0;
+      --  Load argv into the stack.
+      for Arg of reverse Args loop
+         User_Stack_8 (Index_8) := 0;
+         Index_8 := Index_8 - 1;
+         for C of reverse Arg.all loop
+            User_Stack_8 (Index_8) := Character'Pos (C);
             Index_8 := Index_8 - 1;
-            for C of reverse Arg.all loop
-               User_Stack_8 (Index_8) := Character'Pos (C);
-               Index_8 := Index_8 - 1;
-            end loop;
          end loop;
+      end loop;
 
-         --  Get the equivalent 64-bit stack index and align it to 16 bytes.
-         Index_64 := (Index_8 / 8) - ((Index_8 / 8) mod 16);
-         Index_64 := Index_64 - ((Args'Length + Env'Length + 3) mod 2);
+      --  Get the equivalent 64-bit stack index and align it to 16 bytes.
+      Index_64 := (Index_8 / 8) - ((Index_8 / 8) mod 16);
+      Index_64 := Index_64 - ((Args'Length + Env'Length + 3) mod 2);
 
-         --  Load auxval.
-         User_Stack_64 (Index_64 - 0) := 0;
-         User_Stack_64 (Index_64 - 1) := Userland.ELF.Auxval_Null;
-         User_Stack_64 (Index_64 - 2) := Vector.Entrypoint;
-         User_Stack_64 (Index_64 - 3) := Userland.ELF.Auxval_Entrypoint;
-         User_Stack_64 (Index_64 - 4) := Vector.Program_Headers;
-         User_Stack_64 (Index_64 - 5) := Userland.ELF.Auxval_Program_Headers;
-         User_Stack_64 (Index_64 - 6) := Vector.Program_Header_Count;
-         User_Stack_64 (Index_64 - 7) := Userland.ELF.Auxval_Header_Count;
-         User_Stack_64 (Index_64 - 8) := Vector.Program_Header_Size;
-         User_Stack_64 (Index_64 - 9) := Userland.ELF.Auxval_Header_Size;
-         Index_64 := Index_64 - 10;
+      --  Load auxval.
+      User_Stack_64 (Index_64 - 0) := 0;
+      User_Stack_64 (Index_64 - 1) := Userland.ELF.Auxval_Null;
+      User_Stack_64 (Index_64 - 2) := Vector.Entrypoint;
+      User_Stack_64 (Index_64 - 3) := Userland.ELF.Auxval_Entrypoint;
+      User_Stack_64 (Index_64 - 4) := Vector.Program_Headers;
+      User_Stack_64 (Index_64 - 5) := Userland.ELF.Auxval_Program_Headers;
+      User_Stack_64 (Index_64 - 6) := Vector.Program_Header_Count;
+      User_Stack_64 (Index_64 - 7) := Userland.ELF.Auxval_Header_Count;
+      User_Stack_64 (Index_64 - 8) := Vector.Program_Header_Size;
+      User_Stack_64 (Index_64 - 9) := Userland.ELF.Auxval_Header_Size;
+      Index_64 := Index_64 - 10;
 
-         --  Load envp taking into account the pointers at the beginning.
-         Index_8 := User_Stack_8'Last;
-         User_Stack_64 (Index_64) := 0; --  Null at the end of envp.
+      --  Load envp taking into account the pointers at the beginning.
+      Index_8 := User_Stack_8'Last;
+      User_Stack_64 (Index_64) := 0; --  Null at the end of envp.
+      Index_64 := Index_64 - 1;
+      for En of reverse Env loop
+         Index_8 := (Index_8 - En.all'Length) - 1;
+         User_Stack_64 (Index_64) := Stack_Top + Unsigned_64 (Index_8);
          Index_64 := Index_64 - 1;
-         for En of reverse Env loop
-            Index_8 := (Index_8 - En.all'Length) - 1;
-            User_Stack_64 (Index_64) := Stack_Top + Unsigned_64 (Index_8);
-            Index_64 := Index_64 - 1;
-         end loop;
+      end loop;
 
-         --  Load argv into the stack.
-         User_Stack_64 (Index_64) := 0; --  Null at the end of argv.
+      --  Load argv into the stack.
+      User_Stack_64 (Index_64) := 0; --  Null at the end of argv.
+      Index_64 := Index_64 - 1;
+      for Arg of reverse Args loop
+         Index_8 := (Index_8 - Arg.all'Length) - 1;
+         User_Stack_64 (Index_64) := Stack_Top + Unsigned_64 (Index_8);
          Index_64 := Index_64 - 1;
-         for Arg of reverse Args loop
-            Index_8 := (Index_8 - Arg.all'Length) - 1;
-            User_Stack_64 (Index_64) := Stack_Top + Unsigned_64 (Index_8);
-            Index_64 := Index_64 - 1;
-         end loop;
+      end loop;
 
-         --  Write argc and we are done!
-         User_Stack_64 (Index_64) := Args'Length;
-         Index_64 := Index_64 - 1;
+      --  Write argc and we are done!
+      User_Stack_64 (Index_64) := Args'Length;
+      Index_64 := Index_64 - 1;
 
-         --  Initialize context information.
-         Arch.Context.Init_GP_Context (
-            Thread_Pool (New_TID).State'Access,
-            To_Address
-               (Integer_Address (Stack_Top + (Unsigned_64 (Index_64) * 8))),
-            To_Address (Address)
-         );
-      end;
+      --  Initialize context information.
+      Arch.Context.Init_GP_Context (
+         GP_State,
+         To_Address (Integer_Address (Stack_Top + Unsigned_64 (Index_64 * 8))),
+         To_Address (Address)
+      );
+      Arch.Context.Init_FP_Context (FP_State);
+      New_TID := Create_User_Thread (GP_State, FP_State, Map, PID);
+      if New_TID /= 0 then
+         return New_TID;
+      end if;
 
-   <<End_Return>>
-      Lib.Synchronization.Release (Scheduler_Mutex);
-      return New_TID;
+   <<Error_1>>
+      return 0;
    end Create_User_Thread;
 
    function Create_User_Thread
-      (State : Arch.Context.GP_Context_Acc;
-       Map   : Memory.Virtual.Page_Map_Acc;
-       PID   : Natural) return TID
+      (GP_State : Arch.Context.GP_Context;
+       FP_State : Arch.Context.FP_Context;
+       Map      : Memory.Virtual.Page_Map_Acc;
+       PID      : Natural) return TID
    is
       type Stack8    is array (1 .. Stack_Size) of Unsigned_8;
       type Stack_Acc is access Stack8;
@@ -252,12 +221,12 @@ package body Scheduler with SPARK_Mode => Off is
       Thread_Pool (New_TID).PageMap       := Map;
       Thread_Pool (New_TID).Kernel_Stack  := Kernel_Stack_Addr;
       Thread_Pool (New_TID).TCB_Pointer   := Arch.Local.Fetch_TCB;
-      Thread_Pool (New_TID).State         := State.all;
+      Thread_Pool (New_TID).State         := GP_State;
       Thread_Pool (New_TID).State.RAX     := 0;
+      Thread_Pool (New_TID).FP_Region     := FP_State;
       Thread_Pool (New_TID).Process       := Userland.Process.Get_By_PID (PID);
       Thread_Pool (New_TID).Run_Time      := Default_Run_Time;
       Thread_Pool (New_TID).Period        := Default_Period;
-      Arch.Context.Save_FP_Context (Thread_Pool (New_TID).FP_Region'Access);
       if not Update_Priorities then
          Thread_Pool (New_TID).Is_Present := False;
          return 0;
@@ -382,7 +351,7 @@ package body Scheduler with SPARK_Mode => Off is
       return True;
    end Update_Priorities;
 
-   procedure Scheduler_ISR (State : not null Arch.Context.GP_Context_Acc) is
+   procedure Scheduler_ISR (State : Arch.Context.GP_Context) is
       Did_Seize          : Boolean;
       Current_TID        : constant TID := Arch.Local.Get_Current_Thread;
       Next_TID           : TID          := Current_TID;
@@ -431,9 +400,8 @@ package body Scheduler with SPARK_Mode => Off is
       if Current_TID /= 0 then
          Thread_Pool (Current_TID).Is_Running  := False;
          Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
-         Thread_Pool (Current_TID).State       := State.all;
-         Arch.Context.Save_FP_Context
-            (Thread_Pool (Current_TID).FP_Region'Access);
+         Thread_Pool (Current_TID).State       := State;
+         Arch.Context.Save_FP_Context (Thread_Pool (Current_TID).FP_Region);
       end if;
 
       --  Assign the next TID as our current one.
@@ -455,8 +423,8 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Local.Set_Kernel_Stack
          (To_Address (Thread_Pool (Next_TID).Kernel_Stack));
       Arch.Local.Load_TCB (Thread_Pool (Next_TID).TCB_Pointer);
-      Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_Region'Access);
-      Arch.Context.Load_GP_Context (Thread_Pool (Next_TID).State'Access);
+      Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_Region);
+      Arch.Context.Load_GP_Context (Thread_Pool (Next_TID).State);
       loop Arch.Snippets.Wait_For_Interrupt; end loop;
    end Scheduler_ISR;
 

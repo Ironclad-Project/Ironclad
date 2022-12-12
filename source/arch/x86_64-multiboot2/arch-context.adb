@@ -14,22 +14,18 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
-with System.Address_To_Access_Conversions;
-with System.Machine_Code;     use System.Machine_Code;
+with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
+with System.Machine_Code;    use System.Machine_Code;
 with Arch.GDT;
 
 package body Arch.Context with SPARK_Mode => Off is
-   package Conv1 is new System.Address_To_Access_Conversions (GP_Context);
-   package Conv2 is new System.Address_To_Access_Conversions (FP_Context);
-
    procedure Init_GP_Context
-      (Ctx        : GP_Context_Acc;
+      (Ctx        : out GP_Context;
        Stack      : System.Address;
        Start_Addr : System.Address)
    is
    begin
-      Ctx.all := (
+      Ctx := (
          CS     => GDT.User_Code64_Segment or 3,
          SS     => GDT.User_Data64_Segment or 3,
          RFLAGS => 16#202#,
@@ -40,9 +36,7 @@ package body Arch.Context with SPARK_Mode => Off is
       );
    end Init_GP_Context;
 
-   procedure Load_GP_Context (Ctx : GP_Context_Acc) is
-      Addr : constant System.Address :=
-         Conv1.To_Address (Conv1.Object_Pointer (Ctx));
+   procedure Load_GP_Context (Ctx : GP_Context) is
    begin
       Asm (
          "mov %0, %%rsp"   & LF & HT &
@@ -64,19 +58,17 @@ package body Arch.Context with SPARK_Mode => Off is
          "add $8, %%rsp"   & LF & HT &
          "swapgs"          & LF & HT &
          "iretq",
-         Inputs   => System.Address'Asm_Input ("rm", Addr),
+         Inputs   => System.Address'Asm_Input ("rm", Ctx'Address),
          Clobber  => "memory",
          Volatile => True
       );
       loop null; end loop;
    end Load_GP_Context;
 
-   procedure Init_FP_Context (Ctx : FP_Context_Acc) is
+   procedure Init_FP_Context (Ctx : out FP_Context) is
       FPU_Word : constant Unsigned_32 := 2#1100111111#;
       MXCSR    : constant Unsigned_64 := 2#1111110000000#;
    begin
-      Load_FP_Context (Ctx);
-
       --  Set up FPU control word and MXCSR as defined by SysV.
       Asm ("fldcw %0",
            Inputs   => Unsigned_32'Asm_Input ("m", FPU_Word),
@@ -90,22 +82,18 @@ package body Arch.Context with SPARK_Mode => Off is
       Save_FP_Context (Ctx);
    end Init_FP_Context;
 
-   procedure Save_FP_Context (Ctx : FP_Context_Acc) is
-      Addr : constant System.Address :=
-         Conv2.To_Address (Conv2.Object_Pointer (Ctx));
+   procedure Save_FP_Context (Ctx : out FP_Context) is
    begin
       Asm ("fxsave (%0)",
-           Inputs   => System.Address'Asm_Input ("r", Addr),
+           Inputs   => System.Address'Asm_Input ("r", Ctx'Address),
            Clobber  => "memory",
            Volatile => True);
    end Save_FP_Context;
 
-   procedure Load_FP_Context (Ctx : FP_Context_Acc) is
-      Addr : constant System.Address :=
-         Conv2.To_Address (Conv2.Object_Pointer (Ctx));
+   procedure Load_FP_Context (Ctx : FP_Context) is
    begin
       Asm ("fxrstor (%0)",
-           Inputs   => System.Address'Asm_Input ("r", Addr),
+           Inputs   => System.Address'Asm_Input ("r", Ctx'Address),
            Clobber  => "memory",
            Volatile => True);
    end Load_FP_Context;

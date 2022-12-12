@@ -118,6 +118,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Syscall_Handler (Num : Integer; State : not null ISR_GPRs_Acc) is
       Returned : Unsigned_64 := Unsigned_64'Last;
       Errno    : Errno_Value := Error_No_Error;
+      FP_State : Context.FP_Context;
       pragma Unreferenced (Num);
    begin
       --  Call the inner syscall.
@@ -151,7 +152,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 11 =>
             Returned := Syscall_Exec (State.RDI, State.RSI, State.RDX, Errno);
          when 12 =>
-            Returned := Syscall_Fork (Context.GP_Context_Acc (State), Errno);
+            Context.Save_FP_Context (FP_State);
+            Returned := Syscall_Fork (State.all, FP_State, Errno);
          when 13 =>
             Returned := Syscall_Wait (State.RDI, State.RSI, State.RDX, Errno);
          when 14 =>
@@ -219,7 +221,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       pragma Unreferenced (Num);
    begin
       Arch.APIC.LAPIC_EOI;
-      Scheduler.Scheduler_ISR (Context.GP_Context_Acc (State));
+      Scheduler.Scheduler_ISR (Context.GP_Context (State.all));
    end Scheduler_Handler;
 
    procedure Panic_Handler is
