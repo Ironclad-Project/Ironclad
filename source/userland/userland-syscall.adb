@@ -902,13 +902,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
    begin
       if VFS.File.Stat (F, Stat_Val) then
          Stat_Buf := (
-            Device_Number => F.Dev_Data.Stat.Unique_Identifier,
+            Device_Number => Unsigned_64 (F.Dev_Data.Unique_Identifier),
             Inode_Number  => Stat_Val.Unique_Identifier,
             Mode          => Stat_Val.Mode,
             Number_Links  => Unsigned_32 (Stat_Val.Hard_Link_Count),
             UID           => 0,
             GID           => 0,
-            Inner_Device  => F.Dev_Data.Stat.Unique_Identifier,
+            Inner_Device  => Unsigned_64 (F.Dev_Data.Unique_Identifier),
             File_Size     => Stat_Val.Byte_Size,
             Access_Time   => (Seconds => 0, Nanoseconds => 0),
             Modify_Time   => (Seconds => 0, Nanoseconds => 0),

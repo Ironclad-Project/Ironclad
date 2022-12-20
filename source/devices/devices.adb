@@ -23,8 +23,19 @@ with Devices.PTY;
 with Config;
 
 package body Devices with SPARK_Mode => Off is
+   type Device_Container is record
+      Is_Present : Boolean;
+      Name       : String (1 .. 64);
+      Name_Len   : Natural;
+      Contents   : aliased Resource;
+   end record;
+   type Device_Container_Arr is array (1 .. 20) of Device_Container;
+   Devices : access Device_Container_Arr;
+
    procedure Init is
    begin
+      Devices := new Device_Container_Arr;
+
       --  Initialize architectural devices.
       Arch.Hooks.Devices_Hook;
 
@@ -49,10 +60,43 @@ package body Devices with SPARK_Mode => Off is
       if not Debug.Init then
          goto Failure;
       end if;
-
       return;
 
    <<Failure>>
       Lib.Panic.Hard_Panic ("Could not start arch-independent devices");
    end Init;
+
+   function Register (Dev : Resource; Name : String) return Boolean is
+   begin
+      --  Search if the name is already taken.
+      for E of Devices.all loop
+         if E.Is_Present and then E.Name (1 .. E.Name_Len) = Name then
+            return False;
+         end if;
+      end loop;
+
+      --  Allocate.
+      for I in Devices'Range loop
+         if not Devices (I).Is_Present then
+            Devices (I).Is_Present                 := True;
+            Devices (I).Name (1 .. Name'Length)    := Name;
+            Devices (I).Name_Len                   := Name'Length;
+            Devices (I).Contents                   := Dev;
+            Devices (I).Contents.Unique_Identifier := I;
+            return True;
+         end if;
+      end loop;
+
+      return False;
+   end Register;
+
+   function Fetch (Name : String) return Resource_Acc is
+   begin
+      for E of Devices.all loop
+         if E.Is_Present and then E.Name (1 .. E.Name_Len) = Name then
+            return E.Contents'Access;
+         end if;
+      end loop;
+      return null;
+   end Fetch;
 end Devices;

@@ -54,8 +54,7 @@ package body Devices.Serial with SPARK_Mode => Off is
             Data        : constant COM_Root_Acc := new COM_Root;
             Device_Name : String (1 .. 7)       := "serial0";
             Discard     : Boolean               := False;
-            Stat        : VFS.File_Stat;
-            Device      : VFS.Resource;
+            Device      : Resource;
          begin
             Device_Name (7) := Character'Val (I + Character'Pos ('0'));
             Data.all := (
@@ -63,29 +62,22 @@ package body Devices.Serial with SPARK_Mode => Off is
                Baud => Default_Baud
             );
 
-            Stat := (
-               Unique_Identifier => 0,
-               Type_Of_File      => VFS.File_Character_Device,
-               Mode              => 8#660#,
-               Hard_Link_Count   => 1,
-               Byte_Size         => 0,
-               IO_Block_Size     => 4096,
-               IO_Block_Count    => 0
-            );
-
             Device := (
-               Data       => Data.all'Address,
-               Mutex      => <>,
-               Stat       => Stat,
-               Sync       => null,
-               Read       => Read'Access,
-               Write      => Write'Access,
-               IO_Control => IO_Control'Access,
-               Mmap       => null,
-               Munmap     => null
+               Data              => Data.all'Address,
+               Mutex             => <>,
+               Is_Block          => False,
+               Block_Size        => 4096,
+               Block_Count       => 0,
+               Unique_Identifier => 0,
+               Sync              => null,
+               Read              => Read'Access,
+               Write             => Write'Access,
+               IO_Control        => IO_Control'Access,
+               Mmap              => null,
+               Munmap            => null
             );
 
-            Discard := VFS.Register (Device, Device_Name);
+            Discard := Register (Device, Device_Name);
             Lib.Synchronization.Release (Device.Mutex);
          end;
       <<End_Port>>
@@ -94,7 +86,7 @@ package body Devices.Serial with SPARK_Mode => Off is
    end Init;
 
    function Read
-      (Data   : VFS.Resource_Acc;
+      (Data   : Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
@@ -119,7 +111,7 @@ package body Devices.Serial with SPARK_Mode => Off is
    end Read;
 
    function Write
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
@@ -144,7 +136,7 @@ package body Devices.Serial with SPARK_Mode => Off is
    end Write;
 
    function IO_Control
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is

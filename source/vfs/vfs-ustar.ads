@@ -15,11 +15,12 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
+with Devices;
 
 package VFS.USTAR with SPARK_Mode => Off is
    --  Probe for a USTAR FS in the passed device.
    --  Return opaque FS data on success, or Null_Address on failure.
-   function Probe (Dev : Resource_Acc) return System.Address;
+   function Probe (Dev : Devices.Resource_Acc) return System.Address;
 
    --  Basic file operations.
    function Open (FS : System.Address; Path : String) return System.Address;

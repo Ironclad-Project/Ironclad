@@ -31,28 +31,22 @@ package body Devices.RTC with SPARK_Mode => Off is
    CMOS_Config      : constant := 16#0B#;
 
    function Init return Boolean is
-      Stat : constant VFS.File_Stat := (
+      Device : constant Resource := (
+         Data              => System.Null_Address,
+         Mutex             => Lib.Synchronization.Unlocked_Semaphore,
+         Is_Block          => False,
+         Block_Size        => 4096,
+         Block_Count       => 0,
          Unique_Identifier => 0,
-         Type_Of_File      => VFS.File_Character_Device,
-         Mode              => 8#660#,
-         Hard_Link_Count   => 1,
-         Byte_Size         => 0,
-         IO_Block_Size     => 4096,
-         IO_Block_Count    => 0
-      );
-      Device : constant VFS.Resource := (
-         Data       => System.Null_Address,
-         Mutex      => Lib.Synchronization.Unlocked_Semaphore,
-         Stat       => Stat,
-         Sync       => null,
-         Read       => null,
-         Write      => null,
-         IO_Control => IO_Control'Access,
-         Mmap       => null,
-         Munmap     => null
+         Sync              => null,
+         Read              => null,
+         Write             => null,
+         IO_Control        => IO_Control'Access,
+         Mmap              => null,
+         Munmap            => null
       );
    begin
-      return VFS.Register (Device, "rtc");
+      return Register (Device, "rtc");
    end Init;
 
    type RTC_Time is record
@@ -70,7 +64,7 @@ package body Devices.RTC with SPARK_Mode => Off is
    IO_Control_RTC_RD_TIME  : constant := 1;
    IO_Control_RTC_SET_TIME : constant := 2;
    function IO_Control
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is

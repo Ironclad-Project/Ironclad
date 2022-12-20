@@ -19,37 +19,29 @@ with Lib.Synchronization;
 
 package body Devices.Debug with SPARK_Mode => Off is
    function Init return Boolean is
-      Stat   : VFS.File_Stat;
-      Device : VFS.Resource;
+      Device : Resource;
    begin
-      Stat := (
-         Unique_Identifier => 0,
-         Type_Of_File      => VFS.File_Character_Device,
-         Mode              => 8#660#,
-         Hard_Link_Count   => 1,
-         Byte_Size         => 0,
-         IO_Block_Size     => 4096,
-         IO_Block_Count    => 0
-      );
-
       Device := (
-         Data       => System.Null_Address,
-         Mutex      => <>,
-         Stat       => Stat,
-         Sync       => null,
-         Read       => null,
-         Write      => Write'Access,
-         IO_Control => null,
-         Mmap       => null,
-         Munmap     => null
+         Data              => System.Null_Address,
+         Mutex             => <>,
+         Is_Block          => False,
+         Block_Size        => 4096,
+         Block_Count       => 0,
+         Unique_Identifier => 0,
+         Sync              => null,
+         Read              => null,
+         Write             => Write'Access,
+         IO_Control        => null,
+         Mmap              => null,
+         Munmap            => null
       );
 
       Lib.Synchronization.Release (Device.Mutex);
-      return VFS.Register (Device, "debug");
+      return Register (Device, "debug");
    end Init;
 
    function Write
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64

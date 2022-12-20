@@ -50,8 +50,7 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
       BSP_LAPIC    : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
       Index        : Arch.IDT.IRQ_Index;
       Data, Unused : Unsigned_8;
-      Stat         : VFS.File_Stat;
-      Device       : VFS.Resource;
+      Device       : Resource;
    begin
       --  Set the interrupt up, which is always the 45 (we are 1 based).
       if not Arch.IDT.Load_ISR (Mouse_Handler'Address, Index) then
@@ -80,33 +79,26 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
       Mouse_Write (16#F4#);
       Unused := Mouse_Read;
 
-      Stat := (
-         Unique_Identifier => 0,
-         Type_Of_File      => VFS.File_Character_Device,
-         Mode              => 8#660#,
-         Hard_Link_Count   => 1,
-         Byte_Size         => 0,
-         IO_Block_Size     => 4096,
-         IO_Block_Count    => 0
-      );
-
       Device := (
-         Data       => System.Null_Address,
-         Mutex      => <>,
-         Stat       => Stat,
-         Sync       => null,
-         Read       => Read'Access,
-         Write      => null,
-         IO_Control => IO_Control'Access,
-         Mmap       => null,
-         Munmap     => null
+         Data              => System.Null_Address,
+         Mutex             => <>,
+         Is_Block          => False,
+         Block_Size        => 4096,
+         Block_Count       => 0,
+         Unique_Identifier => 0,
+         Sync              => null,
+         Read              => Read'Access,
+         Write             => null,
+         IO_Control        => IO_Control'Access,
+         Mmap              => null,
+         Munmap            => null
       );
 
-      return VFS.Register (Device, "ps2mouse");
+      return Register (Device, "ps2mouse");
    end Init;
 
    function Read
-      (Data   : VFS.Resource_Acc;
+      (Data   : Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
@@ -126,7 +118,7 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
    end Read;
 
    function IO_Control
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is

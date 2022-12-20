@@ -14,8 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
-
 package Devices.TermIOs is
    --  Structures handled by the termios interface.
    type Special_Characters is array (1 .. 11) of Unsigned_32;

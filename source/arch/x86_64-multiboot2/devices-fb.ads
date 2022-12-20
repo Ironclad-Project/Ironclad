@@ -14,9 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with VFS;
-with Interfaces; use Interfaces;
-with System;
 with Memory;
 
 package Devices.FB with SPARK_Mode => Off is
@@ -26,12 +23,12 @@ package Devices.FB with SPARK_Mode => Off is
 private
 
    function IO_Control
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
 
    function Mmap
-      (Data        : VFS.Resource_Acc;
+      (Data        : Resource_Acc;
        Address     : Memory.Virtual_Address;
        Length      : Unsigned_64;
        Map_Read    : Boolean;

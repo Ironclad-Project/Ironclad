@@ -72,11 +72,11 @@ package body VFS.USTAR with SPARK_Mode => Off is
    --  USTAR_GNU_Long_Path : constant := 16#4C#;
 
    type USTAR_Data is record
-      Dev : VFS.Resource_Acc;
+      Dev : Devices.Resource_Acc;
    end record;
    type USTAR_Data_Acc is access USTAR_Data;
 
-   function Probe (Dev : Resource_Acc) return System.Address is
+   function Probe (Dev : Devices.Resource_Acc) return System.Address is
       First_Header : USTAR_Header;
       Byte_Size    : constant Unsigned_64 := First_Header'Size / 8;
       Data : constant USTAR_Data_Acc := new USTAR_Data'(Dev => Dev);

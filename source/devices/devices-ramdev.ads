@@ -14,20 +14,17 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
-with VFS; use VFS;
-with Interfaces; use Interfaces;
 with Arch;
 
 package Devices.Ramdev with SPARK_Mode => Off is
    --  Initialize a device given a stivale2 module to go off from, and whether
    --  its a USTAR FS or not.
-   function Init_Module (Module : Arch.Boot_RAM_File) return VFS.Resource;
+   function Init_Module (Module : Arch.Boot_RAM_File) return Resource;
 
 private
 
    function Read
-      (Data   : VFS.Resource_Acc;
+      (Data   : Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;

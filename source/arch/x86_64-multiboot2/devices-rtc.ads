@@ -14,10 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
-with Interfaces; use Interfaces;
-with VFS;
-
 package Devices.RTC with SPARK_Mode => Off is
    --  Initialize the device.
    function Init return Boolean;
@@ -25,7 +21,7 @@ package Devices.RTC with SPARK_Mode => Off is
 private
 
    function IO_Control
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
 

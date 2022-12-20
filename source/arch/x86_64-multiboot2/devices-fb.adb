@@ -93,7 +93,7 @@ package body Devices.FB with SPARK_Mode => Off is
    function Init return Boolean is
       package Align is new Lib.Alignment (Integer_Address);
       Aligned, Len : Integer_Address;
-      Device       : VFS.Resource;
+      Device       : Resource;
       Data         : constant Internal_FB_Data_Acc := new Internal_FB_Data;
       Fb           : constant Framebuffer_Tag      := Get_Framebuffer;
    begin
@@ -135,23 +135,18 @@ package body Devices.FB with SPARK_Mode => Off is
       );
 
       Device := (
-         Data  => Data.all'Address,
-         Mutex => <>,
-         Stat  => (
-            Unique_Identifier => 0,
-            Type_Of_File      => VFS.File_Character_Device,
-            Mode              => 8#660#,
-            Hard_Link_Count   => 1,
-            Byte_Size         => 0,
-            IO_Block_Size     => 4096,
-            IO_Block_Count    => 0
-         ),
-         Sync       => null,
-         Read       => null,
-         Write      => null,
-         IO_Control => IO_Control'Access,
-         Mmap       => Mmap'Access,
-         Munmap     => null
+         Data              => Data.all'Address,
+         Mutex             => <>,
+         Is_Block          => False,
+         Block_Size        => 4096,
+         Block_Count       => 0,
+         Unique_Identifier => 0,
+         Sync              => null,
+         Read              => null,
+         Write             => null,
+         IO_Control        => IO_Control'Access,
+         Mmap              => Mmap'Access,
+         Munmap            => null
       );
 
       --  Identity-map the framebuffer in case we are requested to access it by
@@ -171,11 +166,11 @@ package body Devices.FB with SPARK_Mode => Off is
             Global         => True,
             Write_Through  => True
          )
-      ) and then VFS.Register (Device, "fb0");
+      ) and then Register (Device, "fb0");
    end Init;
 
    function IO_Control
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is
@@ -198,7 +193,7 @@ package body Devices.FB with SPARK_Mode => Off is
    end IO_Control;
 
    function Mmap
-      (Data        : VFS.Resource_Acc;
+      (Data        : Resource_Acc;
        Address     : Memory.Virtual_Address;
        Length      : Unsigned_64;
        Map_Read    : Boolean;

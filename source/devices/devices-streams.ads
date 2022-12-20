@@ -14,10 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
-with System;
-with VFS;
-
 package Devices.Streams with SPARK_Mode => Off is
    --  Initialize the device.
    function Init return Boolean;
@@ -25,25 +21,25 @@ package Devices.Streams with SPARK_Mode => Off is
 private
 
    function Nulldev_Read
-      (Data   : VFS.Resource_Acc;
+      (Data   : Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;
 
    function Nulldev_Write
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64;
    ----------------------------------------------------------------------------
    function Zerodev_Read
-      (Data   : VFS.Resource_Acc;
+      (Data   : Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;
 
    function Zerodev_Write
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64;

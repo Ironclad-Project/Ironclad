@@ -14,10 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
-with System;
-with VFS;
-
 package Devices.Serial with SPARK_Mode => Off is
    --  Initialize the serial devices.
    function Init return Boolean;
@@ -25,19 +21,19 @@ package Devices.Serial with SPARK_Mode => Off is
 private
 
    function Read
-      (Data   : VFS.Resource_Acc;
+      (Data   : Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;
 
    function Write
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64;
 
    function IO_Control
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
 

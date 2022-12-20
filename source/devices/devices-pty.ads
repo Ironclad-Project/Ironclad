@@ -14,10 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
-with System;
-with VFS;
-
 package Devices.PTY with SPARK_Mode => Off is
    --  Initialize the device.
    function Init return Boolean;
@@ -25,41 +21,41 @@ package Devices.PTY with SPARK_Mode => Off is
 private
 
    function PTMX_IO_Control
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
    ----------------------------------------------------------------------------
    function Master_Read
-      (Data   : VFS.Resource_Acc;
+      (Data   : Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;
 
    function Master_Write
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64;
 
    function Master_IO_Control
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
    ----------------------------------------------------------------------------
    function Slave_Read
-      (Data   : VFS.Resource_Acc;
+      (Data   : Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;
 
    function Slave_Write
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64;
 
    function Slave_IO_Control
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
    ----------------------------------------------------------------------------

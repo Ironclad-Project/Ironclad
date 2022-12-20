@@ -58,9 +58,9 @@ begin
    Lib.Messages.Put_Line ("Command line: '" & Cmdline & "'");
 
    --  Initialize several subsystems.
-   VFS.Init;
    Userland.Process.Init;
    Devices.Init;
+   VFS.Init;
 
    --  Load RAM files.
    for I in 1 .. Proto.RAM_Files_Len loop
@@ -68,7 +68,7 @@ begin
          Name : String := "ramdev0";
       begin
          Name (7) := Character'Val (I + Character'Pos ('0'));
-         if not VFS.Register
+         if not Devices.Register
             (Devices.Ramdev.Init_Module (Proto.RAM_Files (I)), Name)
          then
             Lib.Panic.Hard_Panic ("Could not load a boot ramdev");

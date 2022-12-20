@@ -25,41 +25,33 @@ package body Devices.Ramdev with SPARK_Mode => Off is
    end record;
    type Ramdev_Data_Acc is access Ramdev_Data;
 
-   function Init_Module (Module : Arch.Boot_RAM_File) return VFS.Resource is
-      Stat   : VFS.File_Stat;
-      Device : VFS.Resource;
+   function Init_Module (Module : Arch.Boot_RAM_File) return Resource is
+      Device : Resource;
       Data   : constant Ramdev_Data_Acc := new Ramdev_Data'(
          Start_Address => Module.Start,
          Size          => Virtual_Address (Module.Length)
       );
    begin
-      Stat := (
-         Unique_Identifier => 0,
-         Type_Of_File      => VFS.File_Block_Device,
-         Mode              => 8#660#,
-         Hard_Link_Count   => 1,
-         Byte_Size         => Unsigned_64 (Data.Size),
-         IO_Block_Size     => 4096,
-         IO_Block_Count    => (Unsigned_64 (Data.Size) + 4096 - 1) / 4096
-      );
-
       Device := (
-         Data       => Data.all'Address,
-         Mutex      => <>,
-         Stat       => Stat,
-         Sync       => null,
-         Read       => Read'Access,
-         Write      => null,
-         IO_Control => null,
-         Mmap       => null,
-         Munmap     => null
+         Data              => Data.all'Address,
+         Mutex             => <>,
+         Is_Block          => True,
+         Block_Size        => 4096,
+         Block_Count       => (Unsigned_64 (Data.Size) + 4096 - 1) / 4096,
+         Unique_Identifier => 0,
+         Sync              => null,
+         Read              => Read'Access,
+         Write             => null,
+         IO_Control        => null,
+         Mmap              => null,
+         Munmap            => null
       );
 
       return Device;
    end Init_Module;
 
    function Read
-      (Data   : VFS.Resource_Acc;
+      (Data   : Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64

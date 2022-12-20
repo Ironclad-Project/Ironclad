@@ -14,13 +14,15 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with VFS;
+
 package body Userland.MAC is
    --  Unit passes GNATprove AoRTE, GNAT does not know this.
    pragma Suppress (All_Checks);
 
    function Is_Conflicting (F : Filter; Filters : Filter_Arr) return Boolean is
    begin
-      if F.Length = 0 then
+      if not VFS.Is_Canonical (F.Path (1 .. F.Length)) then
          return True;
       end if;
 

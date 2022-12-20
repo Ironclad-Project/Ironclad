@@ -16,49 +16,44 @@
 
 package body Devices.Streams with SPARK_Mode => Off is
    function Init return Boolean is
-      Stat    : VFS.File_Stat;
-      Nulldev : VFS.Resource;
-      Zerodev : VFS.Resource;
+      Nulldev : Resource;
+      Zerodev : Resource;
    begin
-      Stat := (
-         Unique_Identifier => 0,
-         Type_Of_File      => VFS.File_Character_Device,
-         Mode              => 8#660#,
-         Hard_Link_Count   => 1,
-         Byte_Size         => 0,
-         IO_Block_Size     => 4096,
-         IO_Block_Count    => 0
-      );
-
       Nulldev := (
-         Data       => System.Null_Address,
-         Mutex      => <>,
-         Stat       => Stat,
-         Sync       => null,
-         Read       => Nulldev_Read'Access,
-         Write      => Nulldev_Write'Access,
-         IO_Control => null,
-         Mmap       => null,
-         Munmap     => null
+         Data              => System.Null_Address,
+         Mutex             => <>,
+         Is_Block          => False,
+         Block_Size        => 4096,
+         Block_Count       => 0,
+         Unique_Identifier => 0,
+         Sync              => null,
+         Read              => Nulldev_Read'Access,
+         Write             => Nulldev_Write'Access,
+         IO_Control        => null,
+         Mmap              => null,
+         Munmap            => null
       );
 
       Zerodev := (
-         Data       => System.Null_Address,
-         Mutex      => <>,
-         Stat       => Stat,
-         Sync       => null,
-         Read       => Zerodev_Read'Access,
-         Write      => Zerodev_Write'Access,
-         IO_Control => null,
-         Mmap       => null,
-         Munmap     => null
+         Data              => System.Null_Address,
+         Mutex             => <>,
+         Is_Block          => False,
+         Block_Size        => 4096,
+         Block_Count       => 0,
+         Unique_Identifier => 0,
+         Sync              => null,
+         Read              => Zerodev_Read'Access,
+         Write             => Zerodev_Write'Access,
+         IO_Control        => null,
+         Mmap              => null,
+         Munmap            => null
       );
 
-      return VFS.Register (Nulldev, "null") and VFS.Register (Zerodev, "zero");
+      return Register (Nulldev, "null") and Register (Zerodev, "zero");
    end Init;
    ----------------------------------------------------------------------------
    function Nulldev_Read
-      (Data   : VFS.Resource_Acc;
+      (Data   : Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
@@ -73,7 +68,7 @@ package body Devices.Streams with SPARK_Mode => Off is
    end Nulldev_Read;
 
    function Nulldev_Write
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
@@ -87,7 +82,7 @@ package body Devices.Streams with SPARK_Mode => Off is
    end Nulldev_Write;
    ----------------------------------------------------------------------------
    function Zerodev_Read
-      (Data   : VFS.Resource_Acc;
+      (Data   : Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
@@ -103,7 +98,7 @@ package body Devices.Streams with SPARK_Mode => Off is
    end Zerodev_Read;
 
    function Zerodev_Write
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64

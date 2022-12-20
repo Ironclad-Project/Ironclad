@@ -48,41 +48,36 @@ package body Devices.PTY with SPARK_Mode => Off is
    Slave_PTY_Base_Name  : constant String := "pts0";
 
    function Init return Boolean is
-      PTMX_Dev : constant VFS.Resource := (
-         Data       => System.Null_Address,
-         Mutex      => Lib.Synchronization.Unlocked_Semaphore,
-         Stat       => (
-            Unique_Identifier => 0,
-            Type_Of_File      => VFS.File_Character_Device,
-            Mode              => 8#660#,
-            Hard_Link_Count   => 1,
-            Byte_Size         => 0,
-            IO_Block_Size     => 4096,
-            IO_Block_Count    => 0
-         ),
-         Sync       => null,
-         Read       => null,
-         Write      => null,
-         IO_Control => PTMX_IO_Control'Access,
-         Mmap       => null,
-         Munmap     => null
+      PTMX_Dev : constant Resource := (
+         Data              => System.Null_Address,
+         Mutex             => Lib.Synchronization.Unlocked_Semaphore,
+         Is_Block          => False,
+         Block_Size        => 4096,
+         Block_Count       => 0,
+         Unique_Identifier => 0,
+         Sync              => null,
+         Read              => null,
+         Write             => null,
+         IO_Control        => PTMX_IO_Control'Access,
+         Mmap              => null,
+         Munmap            => null
       );
    begin
       --  Register /dev/ptmx, used exclusively for opening master ptys.
       --  Just instead of doing it with `open`, for API limitations, we do it
       --  with an IOCTL (lame I know).
-      return VFS.Register (PTMX_Dev, "ptmx");
+      return Register (PTMX_Dev, "ptmx");
    end Init;
 
    function PTMX_IO_Control
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is
       pragma Unreferenced (Data);
       pragma Unreferenced (Request);
       Result : Integer with Import, Address => Argument;
-      Master_Dev : VFS.Resource;
+      Master_Dev : Resource;
       Master     : Master_PTY_Acc;
       Name       : String := Master_PTY_Base_Name;
    begin
@@ -97,26 +92,21 @@ package body Devices.PTY with SPARK_Mode => Off is
       --  Give it a cool name and register it.
       Name (Name'Last) := Character'Val (Master.Index + Character'Pos ('0'));
       Master_Dev := (
-         Data       => Master.all'Address,
-         Mutex      => Lib.Synchronization.Unlocked_Semaphore,
-         Stat       => (
-            Unique_Identifier => 0,
-            Type_Of_File      => VFS.File_Character_Device,
-            Mode              => 8#660#,
-            Hard_Link_Count   => 1,
-            Byte_Size         => 0,
-            IO_Block_Size     => 4096,
-            IO_Block_Count    => 0
-         ),
-         Sync       => null,
-         Read       => Master_Read'Access,
-         Write      => Master_Write'Access,
-         IO_Control => Master_IO_Control'Access,
-         Mmap       => null,
-         Munmap     => null
+         Data              => Master.all'Address,
+         Mutex             => Lib.Synchronization.Unlocked_Semaphore,
+         Is_Block          => False,
+         Block_Size        => 4096,
+         Block_Count       => 0,
+         Unique_Identifier => 0,
+         Sync              => null,
+         Read              => Master_Read'Access,
+         Write             => Master_Write'Access,
+         IO_Control        => Master_IO_Control'Access,
+         Mmap              => null,
+         Munmap            => null
       );
 
-      if not VFS.Register (Master_Dev, Name) then
+      if not Register (Master_Dev, Name) then
          goto Error;
       end if;
 
@@ -130,7 +120,7 @@ package body Devices.PTY with SPARK_Mode => Off is
    end PTMX_IO_Control;
    ----------------------------------------------------------------------------
    function Master_Read
-      (Data   : VFS.Resource_Acc;
+      (Data   : Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
@@ -142,7 +132,7 @@ package body Devices.PTY with SPARK_Mode => Off is
    end Master_Read;
 
    function Master_Write
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
@@ -157,13 +147,13 @@ package body Devices.PTY with SPARK_Mode => Off is
    end Master_Write;
 
    function Master_IO_Control
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is
       Master : aliased Master_PTY with Import, Address => Data.Data;
       Result : Integer with Import, Address => Argument;
-      Slave_Dev : VFS.Resource;
+      Slave_Dev : Resource;
       Slave     : Slave_PTY_Acc;
       Name      : String := Slave_PTY_Base_Name;
    begin
@@ -178,26 +168,21 @@ package body Devices.PTY with SPARK_Mode => Off is
       --  Give it a cool name and register it.
       Name (Name'Last) := Character'Val (Master.Index + Character'Pos ('0'));
       Slave_Dev := (
-         Data       => Slave.all'Address,
-         Mutex      => Lib.Synchronization.Unlocked_Semaphore,
-         Stat       => (
-            Unique_Identifier => 0,
-            Type_Of_File      => VFS.File_Character_Device,
-            Mode              => 8#660#,
-            Hard_Link_Count   => 1,
-            Byte_Size         => 0,
-            IO_Block_Size     => 4096,
-            IO_Block_Count    => 0
-         ),
-         Sync       => null,
-         Read       => Slave_Read'Access,
-         Write      => Slave_Write'Access,
-         IO_Control => Slave_IO_Control'Access,
-         Mmap       => null,
-         Munmap     => null
+         Data              => Slave.all'Address,
+         Mutex             => Lib.Synchronization.Unlocked_Semaphore,
+         Is_Block          => False,
+         Block_Size        => 4096,
+         Block_Count       => 0,
+         Unique_Identifier => 0,
+         Sync              => null,
+         Read              => Slave_Read'Access,
+         Write             => Slave_Write'Access,
+         IO_Control        => Slave_IO_Control'Access,
+         Mmap              => null,
+         Munmap            => null
       );
 
-      if not VFS.Register (Slave_Dev, Name) then
+      if not Register (Slave_Dev, Name) then
          goto Error;
       end if;
 
@@ -211,7 +196,7 @@ package body Devices.PTY with SPARK_Mode => Off is
    end Master_IO_Control;
    ----------------------------------------------------------------------------
    function Slave_Read
-      (Data   : VFS.Resource_Acc;
+      (Data   : Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
@@ -224,7 +209,7 @@ package body Devices.PTY with SPARK_Mode => Off is
    end Slave_Read;
 
    function Slave_Write
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
@@ -237,7 +222,7 @@ package body Devices.PTY with SPARK_Mode => Off is
    end Slave_Write;
 
    function Slave_IO_Control
-      (Data     : VFS.Resource_Acc;
+      (Data     : Resource_Acc;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is

@@ -16,6 +16,7 @@
 
 with System;
 with Memory;
+with Devices;
 
 package VFS.File with SPARK_Mode => Off is
    type Access_Mode is (Access_R, Access_W, Access_RW);
@@ -23,7 +24,7 @@ package VFS.File with SPARK_Mode => Off is
    type File is record
       Refcount  : Natural;
       Full_Path : String_Acc;
-      Dev_Data  : Resource_Acc;
+      Dev_Data  : Devices.Resource_Acc;
       FS_Type   : VFS.FS_Type;
       FS_Data   : System.Address;
       File_Data : System.Address;
@@ -32,13 +33,11 @@ package VFS.File with SPARK_Mode => Off is
    end record;
    type File_Acc is access File;
 
-   --  Check if a path is absolute.
-   function Is_Absolute (Path : String) return Boolean;
-
    --  Open a file with an absolute path, and return it, or null on failure.
    function Open (Path : String; Access_Flags : Access_Mode) return File_Acc;
 
-   --  Check permissions for a file, in average its faster than opening a file.
+   --  Check permissions for a file in an absolute path.
+   --  Faster and easier than open + stat.
    function Check_Permissions
       (Path      : String;
        Exists    : Boolean;
@@ -63,7 +62,7 @@ package VFS.File with SPARK_Mode => Off is
        Data     : System.Address) return Unsigned_64;
 
    --  Get the stat of the file.
-   function Stat (F : File_Acc; S : out VFS.File_Stat) return Boolean;
+   function Stat (F : File_Acc; S : out File_Stat) return Boolean;
 
    --  IOCTL.
    function IO_Control
@@ -90,8 +89,8 @@ private
 
    function Resolve_File
       (Path         : String;
-       Is_Dev       : out Boolean;
-       Fetched_Dev  : out Resource_Acc;
-       Fetched_Type : out VFS.FS_Type;
+       Is_Device    : out Boolean;
+       Fetched_Dev  : out Devices.Resource_Acc;
+       Fetched_Type : out FS_Type;
        Fetched_FS   : out System.Address) return System.Address;
 end VFS.File;

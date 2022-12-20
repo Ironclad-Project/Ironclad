@@ -14,10 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
-with Interfaces; use Interfaces;
-with VFS;
-
 package Devices.PS2Keyboard with SPARK_Mode => Off is
    --  Initialize the device.
    function Init return Boolean;
@@ -25,7 +21,7 @@ package Devices.PS2Keyboard with SPARK_Mode => Off is
 private
 
    function Read
-      (Data   : VFS.Resource_Acc;
+      (Data   : Resource_Acc;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;

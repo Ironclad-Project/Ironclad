@@ -22,58 +22,51 @@ package body VFS.File with SPARK_Mode => Off is
    procedure Free_Str  is new Ada.Unchecked_Deallocation (String, String_Acc);
    procedure Free_File is new Ada.Unchecked_Deallocation (File, File_Acc);
 
-   function Is_Absolute (Path : String) return Boolean is
-   begin
-      return Path'Length >= 1 and then Path (Path'First) = '/';
-   end Is_Absolute;
-
    function Resolve_File
       (Path         : String;
-       Is_Dev       : out Boolean;
-       Fetched_Dev  : out Resource_Acc;
-       Fetched_Type : out VFS.FS_Type;
+       Is_Device    : out Boolean;
+       Fetched_Dev  : out Devices.Resource_Acc;
+       Fetched_Type : out FS_Type;
        Fetched_FS   : out System.Address) return System.Address
    is
       Fetched_File : System.Address := System.Null_Address;
    begin
-      Is_Dev       := False;
+      --  Default values.
+      Is_Device    := False;
+      Fetched_Dev  := null;
       Fetched_Type := FS_USTAR;
       Fetched_FS   := System.Null_Address;
 
-      if Path'Length >= 5 and then
-         Path (Path'First .. Path'First + 4) = "/dev/"
-      then
-         Fetched_Dev := Fetch (Path (Path'First + 5 .. Path'Last));
-         if Fetched_Dev = null then
-            return System.Null_Address;
-         else
-            Is_Dev := True;
-         end if;
-      elsif Is_Absolute (Path) then
-         Fetched_FS := Get_Mount ("/", Fetched_Type, Fetched_Dev);
-         if Fetched_FS = Null_Address then
-            return System.Null_Address;
-         end if;
-
-         case Fetched_Type is
-            when FS_USTAR =>
-               Fetched_File :=
-                  USTAR.Open (Fetched_FS, Path (Path'First + 1 .. Path'Last));
-               if Fetched_File = Null_Address then
-                  return System.Null_Address;
-               end if;
-         end case;
-      else
-         --  TODO: Do relative opening, at all.
-         return System.Null_Address;
+      --  TODO: Handle non-canonical paths.
+      if not Is_Canonical (Path) then
+         goto Done;
       end if;
 
+      --  Handle /dev/ devices, which we emulate with the internal kernel
+      --  registries. Else, do the usual procedure for files.
+      if Path'Length > 4 and then Path (Path'First .. Path'First + 4) = "/dev/"
+      then
+         Fetched_Dev := Fetch (Path (Path'First + 5 .. Path'Last));
+         Is_Device   := Fetched_Dev /= null;
+      else
+         Fetched_FS := Get_Mount ("/", Fetched_Type, Fetched_Dev);
+         if Fetched_FS /= Null_Address then
+            case Fetched_Type is
+               when FS_USTAR =>
+                  Fetched_File := USTAR.Open (
+                     Fetched_FS, Path (Path'First + 1 .. Path'Last)
+                  );
+            end case;
+         end if;
+      end if;
+
+   <<Done>>
       return Fetched_File;
    end Resolve_File;
 
    function Open (Path : String; Access_Flags : Access_Mode) return File_Acc is
       Is_Device    : Boolean;
-      Fetched_Dev  : Resource_Acc;
+      Fetched_Dev  : Devices.Resource_Acc;
       Fetched_Type : FS_Type;
       Fetched_FS   : System.Address;
       Fetched_File : System.Address;
@@ -109,7 +102,7 @@ package body VFS.File with SPARK_Mode => Off is
        Can_Exec  : Boolean) return Boolean
    is
       Is_Device    : Boolean;
-      Fetched_Dev  : Resource_Acc;
+      Fetched_Dev  : Devices.Resource_Acc;
       Fetched_Type : FS_Type;
       Fetched_FS   : System.Address;
       Discard      : System.Address;
@@ -152,9 +145,9 @@ package body VFS.File with SPARK_Mode => Off is
             if To_Close.FS_Data /= System.Null_Address then
                USTAR.Close (To_Close.FS_Data, To_Close.File_Data);
             end if;
+            Free_Str (To_Close.Full_Path);
+            Free_File (To_Close);
          end if;
-         Free_Str (To_Close.Full_Path);
-         Free_File (To_Close);
       end if;
    end Close;
 
@@ -221,7 +214,7 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Write;
 
-   function Stat (F : File_Acc; S : out VFS.File_Stat) return Boolean is
+   function Stat (F : File_Acc; S : out File_Stat) return Boolean is
    begin
       if F = null then
          return False;
@@ -231,7 +224,15 @@ package body VFS.File with SPARK_Mode => Off is
       then
          return USTAR.Stat (F.FS_Data, F.File_Data, S);
       else
-         S := F.Dev_Data.Stat;
+         S := (
+            Unique_Identifier => 1,
+            Type_Of_File      => File_Block_Device,
+            Mode              => 8#660#,
+            Hard_Link_Count   => F.Dev_Data.Unique_Identifier,
+            Byte_Size        => F.Dev_Data.Block_Size * F.Dev_Data.Block_Count,
+            IO_Block_Size     => Integer (F.Dev_Data.Block_Size),
+            IO_Block_Count    => F.Dev_Data.Block_Count
+         );
          return True;
       end if;
    end Stat;

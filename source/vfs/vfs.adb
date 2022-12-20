@@ -14,107 +14,79 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System; use System;
 with VFS.USTAR;
+with System; use System;
 
 package body VFS with SPARK_Mode => Off is
-   type Device_Container is record
-      Is_Present  : Boolean;
-      Name        : String (1 .. 64);
-      Name_Len    : Natural;
-      Contents    : aliased Resource;
-      Is_Mounted  : Boolean;
+   type Mount_Container is record
+      Mounted_Dev : Devices.Resource_Acc;
       Mounted_FS  : FS_Type;
       FS_Data     : System.Address;
       Path_Length : Natural;
       Path_Buffer : String (1 .. 100);
    end record;
-   type Device_Container_Arr is array (1 .. 20) of Device_Container;
-   Devices : access Device_Container_Arr;
+   type Mount_Container_Arr is array (1 .. 5) of Mount_Container;
+   Mounts : access Mount_Container_Arr;
 
    procedure Init is
    begin
-      Devices := new Device_Container_Arr;
+      Mounts := new Mount_Container_Arr;
+      for Mount of Mounts.all loop
+         Mount.Mounted_Dev := null;
+      end loop;
    end Init;
-
-   function Register (Dev : Resource; Name : String) return Boolean is
-   begin
-      --  Search if the name is already taken.
-      for E of Devices.all loop
-         if E.Is_Present and then E.Name (1 .. E.Name_Len) = Name then
-            return False;
-         end if;
-      end loop;
-
-      --  Allocate.
-      for I in Devices'Range loop
-         if not Devices (I).Is_Present then
-            Devices (I).Is_Present                      := True;
-            Devices (I).Name (1 .. Name'Length)         := Name;
-            Devices (I).Name_Len                        := Name'Length;
-            Devices (I).Contents                        := Dev;
-            Devices (I).Contents.Stat.Unique_Identifier := Unsigned_64 (I);
-            Devices (I).Is_Mounted                      := False;
-            Devices (I).FS_Data                         := System.Null_Address;
-            Devices (I).Path_Length                     := 0;
-            return True;
-         end if;
-      end loop;
-
-      return False;
-   end Register;
-
-   function Fetch (Name : String) return Resource_Acc is
-   begin
-      for E of Devices.all loop
-         if E.Is_Present and then E.Name (1 .. E.Name_Len) = Name then
-            return E.Contents'Access;
-         end if;
-      end loop;
-      return null;
-   end Fetch;
 
    function Mount
       (Name : String;
        Path : String;
        FS : FS_Type) return Boolean
    is
+      Free_I  : Natural := 0;
+      Dev     : constant Devices.Resource_Acc := Devices.Fetch (Name);
       FS_Data : System.Address := System.Null_Address;
    begin
-      for E of Devices.all loop
-         if E.Is_Present and then E.Name (1 .. E.Name_Len) = Name then
-            case FS is
-               when FS_USTAR =>
-                  FS_Data := USTAR.Probe (E.Contents'Access);
-                  if FS_Data /= System.Null_Address then
-                     E.Is_Mounted  := True;
-                     E.Mounted_FS  := FS;
-                     E.FS_Data     := FS_Data;
-                     E.Path_Length := Path'Length;
-                     E.Path_Buffer (1 .. Path'Length) := Path;
-                     return True;
-                  end if;
-                  exit;
-            end case;
+      --  Check whether we found the dev, or whether it is already mounted.
+      if Dev = null then
+         return False;
+      end if;
+      for I in Mounts'Range loop
+         if Mounts (I).Mounted_Dev = Dev then
+            return False;
+         elsif Mounts (I).Mounted_Dev = null then
+            Free_I := I;
          end if;
       end loop;
 
+      --  Register if found.
+      if Free_I /= 0 then
+         case FS is
+            when FS_USTAR =>
+               FS_Data := VFS.USTAR.Probe (Dev);
+               if FS_Data /= System.Null_Address then
+                  Mounts (Free_I).Mounted_Dev                    := Dev;
+                  Mounts (Free_I).FS_Data                        := FS_Data;
+                  Mounts (Free_I).Path_Length                   := Path'Length;
+                  Mounts (Free_I).Path_Buffer (1 .. Path'Length) := Path;
+               end if;
+         end case;
+         return True;
+      end if;
       return False;
    end Mount;
 
    function Get_Mount
       (Path : String;
        FS   : out FS_Type;
-       Dev  : out Resource_Acc) return System.Address
+       Dev  : out Devices.Resource_Acc) return System.Address
    is
    begin
-      for E of Devices.all loop
-         if E.Is_Present and E.Is_Mounted then
-            if Path = E.Path_Buffer (1 .. E.Path_Length) then
-               FS  := E.Mounted_FS;
-               Dev := E.Contents'Access;
-               return E.FS_Data;
-            end if;
+      for Mount of Mounts.all loop
+         if Mount.Mounted_Dev /= null and then
+            Mount.Path_Buffer (1 .. Mount.Path_Length) = Path
+         then
+            FS  := Mount.Mounted_FS;
+            Dev := Mount.Mounted_Dev;
+            return Mount.FS_Data;
          end if;
       end loop;
       FS := FS_USTAR;
@@ -123,15 +95,39 @@ package body VFS with SPARK_Mode => Off is
 
    procedure Unmount (Path : String) is
    begin
-      for E of Devices.all loop
-         if E.Is_Present and E.Is_Mounted then
-            if Path = E.Path_Buffer (1 .. E.Path_Length) then
-               if E.Contents.Sync /= null then
-                  E.Contents.Sync.all (E.Contents'Access);
-               end if;
-               E.Is_Mounted := False;
+      for Mount of Mounts.all loop
+         if Mount.Mounted_Dev /= null and then
+            Mount.Path_Buffer (1 .. Mount.Path_Length) = Path
+         then
+            if Mount.Mounted_Dev.Sync /= null then
+               Mount.Mounted_Dev.Sync.all (Mount.Mounted_Dev);
             end if;
+            Mount.Mounted_Dev := null;
          end if;
       end loop;
    end Unmount;
+   ----------------------------------------------------------------------------
+   function Is_Absolute (Path : String) return Boolean is
+   begin
+      return Path'Length >= 1 and then Path (Path'First) = '/';
+   end Is_Absolute;
+
+   function Is_Canonical (Path : String) return Boolean is
+      Previous_Char : Character := ' ';
+   begin
+      if not Is_Absolute (Path) or else Path (Path'Last) = '/' then
+         return False;
+      end if;
+
+      for C of Path loop
+         if (Previous_Char = '/' and C = '/') or
+            (Previous_Char = '.' and C = '.')
+         then
+            return False;
+         end if;
+         Previous_Char := C;
+      end loop;
+
+      return True;
+   end Is_Canonical;
 end VFS;
