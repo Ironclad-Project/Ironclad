@@ -1723,6 +1723,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       AM : constant Boolean := (Bits and MAC_ALLOC_MEM)     /= 0;
       DM : constant Boolean := (Bits and MAC_DEALLOC_MEM)   /= 0;
       MN : constant Boolean := (Bits and MAC_MANAGE_NET)    /= 0;
+      MM : constant Boolean := (Bits and MAC_MANAGE_MOUNTS) /= 0;
    begin
       if Is_Tracing then
          Lib.Messages.Put      ("syscall set_mac(");
@@ -1738,7 +1739,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Can_Access_Entropy    => P.Perms.Caps.Can_Access_Entropy    and AE,
             Can_Allocate_Memory   => P.Perms.Caps.Can_Allocate_Memory   and AM,
             Can_Deallocate_Memory => P.Perms.Caps.Can_Deallocate_Memory and DM,
-            Can_Manage_Networking => P.Perms.Caps.Can_Manage_Networking and MN
+            Can_Manage_Networking => P.Perms.Caps.Can_Manage_Networking and MN,
+            Can_Manage_Mounts     => P.Perms.Caps.Can_Manage_Mounts     and MM
          );
       else
          P.Perms.Caps := (
@@ -1748,7 +1750,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Can_Access_Entropy    => AE,
             Can_Allocate_Memory   => AM,
             Can_Deallocate_Memory => DM,
-            Can_Manage_Networking => MN
+            Can_Manage_Networking => MN,
+            Can_Manage_Mounts     => MM
          );
       end if;
       Errno := Error_No_Error;
@@ -1871,4 +1874,107 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Do_Exit (Curr_Proc, 42);
       end case;
    end Execute_MAC_Failure;
+
+   function Syscall_Mount
+      (Source_Addr : Unsigned_64;
+       Target_Addr : Unsigned_64;
+       FSType_Addr : Unsigned_64;
+       MountFlags  : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64
+   is
+      Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Src_IAddr : constant Integer_Address := Integer_Address (Source_Addr);
+      Tgt_IAddr : constant Integer_Address := Integer_Address (Target_Addr);
+      Typ_IAddr : constant Integer_Address := Integer_Address (FSType_Addr);
+      Src_Addr  : constant System.Address  := To_Address (Src_IAddr);
+      Tgt_Addr  : constant System.Address  := To_Address (Tgt_IAddr);
+      Typ_Addr  : constant System.Address  := To_Address (Typ_IAddr);
+   begin
+      if not Check_Userland_Access (Src_IAddr) or
+         not Check_Userland_Access (Tgt_IAddr) or
+         not Check_Userland_Access (Typ_IAddr)
+      then
+         if Is_Tracing then
+            Lib.Messages.Put_Line ("syscall mount(BAD_MEM)");
+         end if;
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      end if;
+      declare
+         Source_Len : constant Natural := Lib.C_String_Length (Src_Addr);
+         Target_Len : constant Natural := Lib.C_String_Length (Tgt_Addr);
+         FSType_Len : constant Natural := Lib.C_String_Length (Typ_Addr);
+         Source : String (1 .. Source_Len) with Address => Src_Addr, Import;
+         Target : String (1 .. Target_Len) with Address => Tgt_Addr, Import;
+         FSType : String (1 .. FSType_Len) with Address => Typ_Addr, Import;
+         Parsed_Type : VFS.FS_Type;
+      begin
+         if Is_Tracing then
+            Lib.Messages.Put ("syscall mount(");
+            Lib.Messages.Put (Source);
+            Lib.Messages.Put (", ");
+            Lib.Messages.Put (Target);
+            Lib.Messages.Put (", ");
+            Lib.Messages.Put (FSType);
+            Lib.Messages.Put (", ");
+            Lib.Messages.Put (MountFlags, False, True);
+            Lib.Messages.Put_Line (")");
+         end if;
+         if MAC_Is_Locked and not Proc.Perms.Caps.Can_Manage_Mounts then
+            Errno := Error_Bad_Access;
+            Execute_MAC_Failure ("mount", Proc);
+            return Unsigned_64'Last;
+         end if;
+         if FSType = "ustar" then
+            Parsed_Type := VFS.FS_USTAR;
+         else
+            goto Error_Ret;
+         end if;
+         if VFS.Mount (Source, Target, Parsed_Type) then
+            Errno := Error_No_Error;
+            return 0;
+         end if;
+      end;
+   <<Error_Ret>>
+      Errno := Error_Invalid_Value;
+      return Unsigned_64'Last;
+   end Syscall_Mount;
+
+   function Syscall_Umount
+      (Path  : Unsigned_64;
+       Flags : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64
+   is
+      Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Path_IAddr : constant Integer_Address := Integer_Address (Path);
+      Path_Addr  : constant System.Address  := To_Address (Path_IAddr);
+   begin
+      if not Check_Userland_Access (Path_IAddr) then
+         if Is_Tracing then
+            Lib.Messages.Put_Line ("syscall umount(BAD_MEM)");
+         end if;
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      end if;
+      if MAC_Is_Locked and not Proc.Perms.Caps.Can_Manage_Mounts then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("umount", Proc);
+         return Unsigned_64'Last;
+      end if;
+      declare
+         Path_Len : constant Natural := Lib.C_String_Length (Path_Addr);
+         Path_Str : String (1 .. Path_Len) with Address => Path_Addr, Import;
+      begin
+         if Is_Tracing then
+            Lib.Messages.Put ("syscall umount(");
+            Lib.Messages.Put (Path_Str);
+            Lib.Messages.Put (", ");
+            Lib.Messages.Put (Flags, False, True);
+            Lib.Messages.Put_Line (")");
+         end if;
+         VFS.Unmount (Path_Str);
+         Errno := Error_No_Error;
+         return 0;
+      end;
+   end Syscall_Umount;
 end Userland.Syscall;

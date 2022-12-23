@@ -110,6 +110,7 @@ Syscalls
 * lock_mac::                Lock MAC down.
 * add_mac_filter::          Configure MAC using filesystem-based filters.
 * set_mac_enforcement::     Set enforcement to follow on MAC violations.
+* mount/umount::            Mount and unmount partitions.
 
 Devices and their properties
 
@@ -581,6 +582,10 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @xref{add_mac_filter}
 @item
 @xref{set_mac_enforcement}
+@item
+@xref{mount/umount, mount}
+@item
+@xref{mount/umount, umount}
 @end enumerate
 
 @node Errno
@@ -1421,12 +1426,13 @@ sets the following errno:
 @section set_mac_capabilities
 
 @example
-#define MAC_EXIT_ITSELF   0b000001
-#define MAC_CREATE_OTHERS 0b000010
-#define MAC_CHANGE_SCHED  0b000100
-#define MAC_ACC_ENTROPY   0b001000
-#define MAC_ALLOC_MEM     0b010000
-#define MAC_DEALLOC_MEM   0b100000
+#define MAC_EXIT_ITSELF   0b0000001
+#define MAC_CREATE_OTHERS 0b0000010
+#define MAC_CHANGE_SCHED  0b0000100
+#define MAC_ACC_ENTROPY   0b0001000
+#define MAC_ALLOC_MEM     0b0010000
+#define MAC_DEALLOC_MEM   0b0100000
+#define MAC_MANAGE_MNT    0b1000000
 
 int set_mac_capabilities(unsigned long request);
 @end example
@@ -1510,6 +1516,36 @@ following errno:
 @itemize @bullet
 @item
 @code{EACCES}: MAC was locked.
+@end itemize
+
+@node mount/umount
+@section mount/umount
+
+@example
+int mount(const char *source, const char *target,
+          const char *filesystemtype, unsigned long mountflags);
+int umount(const char *target, int flags);
+@end example
+
+These syscalls mount and unmount FSs. @code{source} is the source device while
+@code{target} is where to mount. The list of available filesystems for
+@code{filesystemtype} is the following.
+
+@itemize @bullet
+@item
+@code{ustar}: USTAR Read-only filesystem.
+@end itemize
+
+The syscalls return @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: Incorrect addresses for the string arguments.
+@item
+@code{EACCES}: MAC forbid this operation.
+@item
+@code{EINVAL}: Wrong arguments.
 @end itemize
 
 @node Devices and their properties

@@ -27,7 +27,8 @@ package Userland.MAC is
       Can_Allocate_Memory   : Boolean;
       Can_Deallocate_Memory : Boolean;
       Can_Manage_Networking : Boolean;
-   end record with Pack, Size => 7;
+      Can_Manage_Mounts     : Boolean;
+   end record with Pack, Size => 8;
 
    --  Permissions a filter can give.
    type Filter_Permissions is record

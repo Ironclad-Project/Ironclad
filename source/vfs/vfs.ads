@@ -40,19 +40,42 @@ package VFS with SPARK_Mode => Off is
    --  Initialize the internal VFS registries.
    procedure Init;
 
-   --  Mount or unmount an FS, along with getting devices based on their FS.
+   --  Types of supported FS by the VFS.
    type FS_Type is (FS_USTAR);
+
+   --  Mount the passed device name into the passed path.
+   --  @param Name Name of the device (/dev/<name>).
+   --  @param Path Absolute path for mounting.
+   --  @param FS FS Type to mount as.
    function Mount
       (Name : String;
        Path : String;
        FS   : FS_Type) return Boolean;
+
+   --  Get a mount exactly matching the passed path.
+   --  @param Path Path to search a mount for.
+   --  @param FS FS type of the found mount.
+   --  @param Dev Device of the found mount.
+   --  @return Internal FS data of the found mount, Null_Address if not found.
+   --  TODO: Make this do a closest instead of best match in order to support
+   --  mounts better, along with file dispatching in vfs-file.adb.
    function Get_Mount
       (Path : String;
        FS   : out FS_Type;
        Dev  : out Devices.Resource_Acc) return System.Address;
+
+   --  Unmount a mount, syncing when possible.
+   --  @param Path Path of the mount to unmount.
    procedure Unmount (Path : String);
    ----------------------------------------------------------------------------
-   --  Check whether a path is absolute or canonical.
-   function Is_Absolute  (Path : String) return Boolean;
+   --  Check whether a path is absolute.
+   --  @param Path to check.
+   --  @return True if absolute, False if not.
+   function Is_Absolute (Path : String) return Boolean;
+
+   --  Check whether a path is canonical, that is, whether the path is the
+   --  shortest form it could be, symlinks are not checked.
+   --  @param Path Path to check.
+   --  @return True if canonical, False if not.
    function Is_Canonical (Path : String) return Boolean;
 end VFS;

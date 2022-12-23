@@ -341,13 +341,14 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno    : out Errno_Value) return Unsigned_64;
 
    --  Set MAC capabilities of the caller process.
-   MAC_EXIT_ITSELF   : constant := 2#0000001#;
-   MAC_CREATE_OTHERS : constant := 2#0000010#;
-   MAC_CHANGE_SCHED  : constant := 2#0000100#;
-   MAC_ACC_ENTROPY   : constant := 2#0001000#;
-   MAC_ALLOC_MEM     : constant := 2#0010000#;
-   MAC_DEALLOC_MEM   : constant := 2#0100000#;
-   MAC_MANAGE_NET    : constant := 2#1000000#;
+   MAC_EXIT_ITSELF   : constant := 2#00000001#;
+   MAC_CREATE_OTHERS : constant := 2#00000010#;
+   MAC_CHANGE_SCHED  : constant := 2#00000100#;
+   MAC_ACC_ENTROPY   : constant := 2#00001000#;
+   MAC_ALLOC_MEM     : constant := 2#00010000#;
+   MAC_DEALLOC_MEM   : constant := 2#00100000#;
+   MAC_MANAGE_NET    : constant := 2#01000000#;
+   MAC_MANAGE_MOUNTS : constant := 2#10000000#;
    function Syscall_Set_MAC_Capabilities
       (Bits  : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
@@ -377,6 +378,20 @@ package Userland.Syscall with SPARK_Mode => Off is
    function Syscall_Set_MAC_Enforcement
       (Action : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64;
+
+   --  Mount a filesystem.
+   function Syscall_Mount
+      (Source_Addr : Unsigned_64;
+       Target_Addr : Unsigned_64;
+       FSType_Addr : Unsigned_64;
+       MountFlags  : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64;
+
+   --  Unmount a filesystem.
+   function Syscall_Umount
+      (Path  : Unsigned_64;
+       Flags : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64;
 
 private
 
