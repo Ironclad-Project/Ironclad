@@ -45,7 +45,7 @@ package body Cryptography.Random is
          Seed2 => Get_Seed
       );
       Temp        : Unsigned_64;
-      Cha_Block   : Chacha20.Block;
+      Cha_Block   : Chacha20.Block := (others => 0);
       Index       : Natural     := Cha_Block'Last + 1;
       Block_Index : Unsigned_64 := 0;
    begin

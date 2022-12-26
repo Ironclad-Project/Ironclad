@@ -15,31 +15,31 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
+with Memory;     use Memory;
 
 package Arch.Snippets is
-   --  All of these are always inlined because they usually are 3 or 4
-   --  instructions tops, and used in hot execution paths.
-   --  Inline instead of Always_Inline seems to never inline at all.
+   --  Lots of these are inlined because they usually are 3 or 4 instructions
+   --  tops, and used in hot execution paths.
 
    --  Drive the execution thread to an irrecoverable state.
    --  (Halt and Catch Fire).
-   procedure HCF with Inline_Always, No_Return;
+   procedure HCF with Inline, No_Return;
 
    --  Enable and disable external interrupts.
-   procedure Enable_Interrupts with Inline_Always;
-   procedure Disable_Interrupts with Inline_Always;
+   procedure Enable_Interrupts with Inline;
+   procedure Disable_Interrupts with Inline;
 
    --  Processor hint for waiting for interrupts in an energy-efficient state.
-   procedure Wait_For_Interrupt with Inline_Always;
+   procedure Wait_For_Interrupt with Inline;
 
    --  Processor hint for optimizing spinlocks and another cache-intensitive
    --  situations.
-   procedure Pause with Inline_Always;
+   procedure Pause with Inline;
 
    --  Get a rough value of the number of cycles the system has gone thru.
    --  The value is not guaranteed to be linear, or even changing, it is only
    --  to be used for statistical or entropy purposes.
-   function Read_Cycles return Unsigned_64 with Inline_Always;
+   function Read_Cycles return Unsigned_64 with Inline;
    ----------------------------------------------------------------------------
    --  Check whether the CPU supports AES acceleration.
    --  If false, the AES functions below will not work.
@@ -59,4 +59,37 @@ package Arch.Snippets is
    --  round key.
    function AES_Decrypt_One (Data, Key : Unsigned_128) return Unsigned_128;
    function AES_Decrypt_Last (Data, Key : Unsigned_128) return Unsigned_128;
+   ----------------------------------------------------------------------------
+   --  Architecture-specific snippets.
+   --  FIXME: We use gnatprep for setting up architecture-specific snppets.
+   --  There are probably more idiomatic ways to do this, but for this small
+   --  little type changes, it is probably fine, else we would have to put
+   --  more files on each port, and that would segregate fundamentally
+   --  equivalent code for no reason.
+   #if ArchName = """aarch64-stivale2"""
+   #elsif ArchName = """sparc-leon3"""
+   #elsif ArchName = """x86_64-multiboot2"""
+      procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) with Inline;
+      function Port_In (Port : Unsigned_16) return Unsigned_8 with Inline;
+      procedure Invalidate_Page (Value : Virtual_Address) with Inline;
+      function Read_MSR (MSR : Unsigned_32) return Unsigned_64 with Inline;
+      procedure Write_MSR (MSR : Unsigned_32; Value : Unsigned_64) with Inline;
+      function Read_CR0 return Unsigned_64 with Inline;
+      procedure Write_CR0 (Value : Unsigned_64) with Inline;
+      function Read_CR2 return Unsigned_64 with Inline;
+      function Read_CR3 return Unsigned_64 with Inline;
+      procedure Write_CR3 (Value : Unsigned_64) with Inline;
+      function Read_CR4 return Unsigned_64 with Inline;
+      procedure Write_CR4 (Value : Unsigned_64) with Inline;
+      function Read_FS return Unsigned_64 with Inline;
+      procedure Write_FS (Value : Unsigned_64) with Inline;
+      function Read_GS return Unsigned_64 with Inline;
+      procedure Write_GS (Value : Unsigned_64) with Inline;
+      function Read_Kernel_GS return Unsigned_64 with Inline;
+      procedure Write_Kernel_GS (Value : Unsigned_64) with Inline;
+      procedure Swap_GS with Inline;
+      procedure Get_CPUID
+         (Leaf, Subleaf : Unsigned_32;
+          EAX, EBX, ECX, EDX : out Unsigned_32);
+   #end if;
 end Arch.Snippets;

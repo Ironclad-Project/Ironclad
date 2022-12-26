@@ -16,7 +16,7 @@
 
 with Arch.CPU;
 with Arch.APIC;
-with Arch.Wrappers;
+with Arch.Snippets;
 with Arch.Interrupts;
 with Interfaces; use Interfaces;
 
@@ -50,12 +50,12 @@ package body Arch.Local with SPARK_Mode => Off is
 
    function Fetch_TCB return System.Address is
    begin
-      return To_Address (Integer_Address (Wrappers.Read_FS));
+      return To_Address (Integer_Address (Snippets.Read_FS));
    end Fetch_TCB;
 
    procedure Load_TCB (TCB : System.Address) is
    begin
-      Wrappers.Write_FS (Unsigned_64 (To_Integer (TCB)));
+      Snippets.Write_FS (Unsigned_64 (To_Integer (TCB)));
    end Load_TCB;
 
    procedure Set_Kernel_Stack (Stack : System.Address) is

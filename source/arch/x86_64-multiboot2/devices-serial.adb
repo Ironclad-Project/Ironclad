@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Wrappers;
 with Lib.Synchronization;
 with Scheduler;
 with Devices.TermIOs;
@@ -38,16 +37,16 @@ package body Devices.Serial with SPARK_Mode => Off is
    begin
       for I in COM_Ports'Range loop
          --  Check if the port exists by writting a value and checking.
-         Arch.Wrappers.Port_Out (COM_Ports (I) + 7, 16#55#);
-         if Arch.Wrappers.Port_In (COM_Ports (I) + 7) /= 16#55# then
+         Arch.Snippets.Port_Out (COM_Ports (I) + 7, 16#55#);
+         if Arch.Snippets.Port_In (COM_Ports (I) + 7) /= 16#55# then
             goto End_Port;
          end if;
 
          --  Disable all interrupts, set baud enable interrupts and FIFO.
-         Arch.Wrappers.Port_Out (COM_Ports (I) + 1, 16#00#);
+         Arch.Snippets.Port_Out (COM_Ports (I) + 1, 16#00#);
          Set_Baud (COM_Ports (I), Default_Baud);
-         Arch.Wrappers.Port_Out (COM_Ports (I) + 2, 16#C7#);
-         Arch.Wrappers.Port_Out (COM_Ports (I) + 4, 16#0B#);
+         Arch.Snippets.Port_Out (COM_Ports (I) + 2, 16#C7#);
+         Arch.Snippets.Port_Out (COM_Ports (I) + 4, 16#0B#);
 
          --  Add the device.
          declare
@@ -170,18 +169,18 @@ package body Devices.Serial with SPARK_Mode => Off is
 
    procedure Transmit_Data (Port : Unsigned_16; Data : Unsigned_8) is
    begin
-      while not ((Arch.Wrappers.Port_In (Port + 5) and 2#01000000#) /= 0) loop
+      while not ((Arch.Snippets.Port_In (Port + 5) and 2#01000000#) /= 0) loop
          Arch.Snippets.Pause;
       end loop;
-      Arch.Wrappers.Port_Out (Port, Data);
+      Arch.Snippets.Port_Out (Port, Data);
    end Transmit_Data;
 
    function Fetch_Data (Port : Unsigned_16) return Unsigned_8 is
    begin
-      while not ((Arch.Wrappers.Port_In (Port + 5) and 2#00000001#) /= 0) loop
+      while not ((Arch.Snippets.Port_In (Port + 5) and 2#00000001#) /= 0) loop
          Arch.Snippets.Pause;
       end loop;
-      return Arch.Wrappers.Port_In (Port);
+      return Arch.Snippets.Port_In (Port);
    end Fetch_Data;
 
    procedure Set_Baud (Port : Unsigned_16; Baud : Unsigned_32) is
@@ -192,9 +191,9 @@ package body Devices.Serial with SPARK_Mode => Off is
       High8 : constant Unsigned_8 := Unsigned_8 (Low_Divisor and 16#FF#);
    begin
       --  Enable DLAB and set the low and high parts of the divisor.
-      Arch.Wrappers.Port_Out (Port + 3, 16#80#);
-      Arch.Wrappers.Port_Out (Port + 0, Low8);
-      Arch.Wrappers.Port_Out (Port + 1, High8);
-      Arch.Wrappers.Port_Out (Port + 3, 16#03#);
+      Arch.Snippets.Port_Out (Port + 3, 16#80#);
+      Arch.Snippets.Port_Out (Port + 0, Low8);
+      Arch.Snippets.Port_Out (Port + 1, High8);
+      Arch.Snippets.Port_Out (Port + 3, 16#03#);
    end Set_Baud;
 end Devices.Serial;

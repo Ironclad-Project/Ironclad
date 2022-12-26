@@ -19,7 +19,7 @@ with Devices.PS2Mouse;
 with Devices.PS2Keyboard;
 with Devices.Serial;
 with Devices.RTC;
-with Arch.Wrappers;
+with Arch.Snippets;
 with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
 with Lib.Panic;
@@ -61,10 +61,10 @@ package body Arch.Hooks with SPARK_Mode => Off is
       A : Unsigned_64 with Import, Address => Arg;
    begin
       case Code is
-         when 1 => Wrappers.Write_FS (Int_Arg);
-         when 2 => A := Wrappers.Read_FS;
-         when 3 => Wrappers.Write_GS (Int_Arg);
-         when 4 => A := Wrappers.Read_GS;
+         when 1 => Snippets.Write_FS (Int_Arg);
+         when 2 => A := Snippets.Read_FS;
+         when 3 => Snippets.Write_GS (Int_Arg);
+         when 4 => A := Snippets.Read_GS;
          when others => return False;
       end case;
       return True;

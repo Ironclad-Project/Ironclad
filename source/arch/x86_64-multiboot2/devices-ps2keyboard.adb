@@ -18,7 +18,6 @@ with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
 with Arch.IDT;
 with Arch.APIC;
 with Arch.CPU;
-with Arch.Wrappers;
 with Arch.Snippets;
 
 package body Devices.PS2Keyboard with SPARK_Mode => Off is
@@ -88,12 +87,12 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
 
       --  Take the chance for initializing the PS2 controller.
       --  Disable primary and secondary PS/2 ports
-      Arch.Wrappers.Port_Out (16#64#, 16#AD#);
-      Arch.Wrappers.Port_Out (16#64#, 16#A7#);
+      Arch.Snippets.Port_Out (16#64#, 16#AD#);
+      Arch.Snippets.Port_Out (16#64#, 16#A7#);
 
       --  Read from port 0x60 to flush the PS/2 controller buffer.
-      while (Arch.Wrappers.Port_In (16#64#) and 1) /= 0 loop
-         Data := Arch.Wrappers.Port_In (16#60#);
+      while (Arch.Snippets.Port_In (16#64#) and 1) /= 0 loop
+         Data := Arch.Snippets.Port_In (16#60#);
       end loop;
 
       --  Enable keyboard interrupt and keyboard scancode translation.
@@ -132,18 +131,18 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
 
    function Read_PS2 return Unsigned_8 is
    begin
-      while (Arch.Wrappers.Port_In (16#64#) and 1) = 0 loop
+      while (Arch.Snippets.Port_In (16#64#) and 1) = 0 loop
          Arch.Snippets.Pause;
       end loop;
-      return Arch.Wrappers.Port_In (16#60#);
+      return Arch.Snippets.Port_In (16#60#);
    end Read_PS2;
 
    procedure Write_PS2 (Port : Unsigned_16; Value : Unsigned_8) is
    begin
-      while (Arch.Wrappers.Port_In (16#64#) and 2) /= 0 loop
+      while (Arch.Snippets.Port_In (16#64#) and 2) /= 0 loop
          Arch.Snippets.Pause;
       end loop;
-      Arch.Wrappers.Port_Out (Port, Value);
+      Arch.Snippets.Port_Out (Port, Value);
    end Write_PS2;
 
    function Read_PS2_Config return Unsigned_8 is
@@ -184,7 +183,7 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
    end Read;
 
    procedure Keyboard_Handler is
-      Input : constant Integer := Integer (Arch.Wrappers.Port_In (16#60#));
+      Input : constant Integer := Integer (Arch.Snippets.Port_In (16#60#));
       C     : Character;
    begin
       if not Is_Reading then

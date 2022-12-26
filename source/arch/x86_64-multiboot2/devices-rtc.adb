@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Wrappers;
+with Arch.Snippets;
 with Lib.Synchronization;
 
 package body Devices.RTC with SPARK_Mode => Off is
@@ -155,14 +155,14 @@ package body Devices.RTC with SPARK_Mode => Off is
 
    function Get_RTC_Data (Register : Unsigned_8) return Unsigned_8 is
    begin
-      Arch.Wrappers.Port_Out (CMOS_Base_Port, Register);
-      return Arch.Wrappers.Port_In (CMOS_Data_Port);
+      Arch.Snippets.Port_Out (CMOS_Base_Port, Register);
+      return Arch.Snippets.Port_In (CMOS_Data_Port);
    end Get_RTC_Data;
 
    procedure Set_RTC_Data (Register, Data : Unsigned_8) is
    begin
-      Arch.Wrappers.Port_Out (CMOS_Base_Port, Register);
-      Arch.Wrappers.Port_Out (CMOS_Data_Port, Data);
+      Arch.Snippets.Port_Out (CMOS_Base_Port, Register);
+      Arch.Snippets.Port_Out (CMOS_Data_Port, Data);
    end Set_RTC_Data;
 
    function To_BCD (Num : Unsigned_32) return Unsigned_32 is

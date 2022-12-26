@@ -14,13 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Wrappers;
+with Arch.Snippets;
 
 package body Arch.PIC with SPARK_Mode => Off is
    procedure Mask_All is
    begin
-      Wrappers.Port_Out (16#A1#, 16#FF#);
-      Wrappers.Port_Out (16#21#, 16#FF#);
+      Snippets.Port_Out (16#A1#, 16#FF#);
+      Snippets.Port_Out (16#21#, 16#FF#);
       Flush;
    end Mask_All;
 
@@ -34,8 +34,8 @@ package body Arch.PIC with SPARK_Mode => Off is
    procedure EOI (IRQ : Natural) is
    begin
       if IRQ >= 8 then
-         Wrappers.Port_Out (16#A0#, 16#20#);
+         Snippets.Port_Out (16#A0#, 16#20#);
       end if;
-      Wrappers.Port_Out (16#20#, 16#20#);
+      Snippets.Port_Out (16#20#, 16#20#);
    end EOI;
 end Arch.PIC;

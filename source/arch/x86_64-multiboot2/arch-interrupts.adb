@@ -21,7 +21,6 @@ with Lib.Panic;
 with Lib.Messages;
 with Scheduler;
 with Userland.Syscall; use Userland.Syscall;
-with Arch.Wrappers;
 with Arch.Snippets;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
@@ -100,7 +99,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       Lib.Messages.Put (State.RSP, True, True);
       Lib.Messages.Put (" ");
       Lib.Messages.Put ("CR2: ");
-      Lib.Messages.Put (Wrappers.Read_CR2, True, True);
+      Lib.Messages.Put (Snippets.Read_CR2, True, True);
       Lib.Messages.Put_Line ("");
 
       --  Check whether we have to panic or just exit the thread.

@@ -17,7 +17,7 @@
 with Arch.ACPI;
 with Arch.HPET;
 with Arch.PIT;
-with Arch.Wrappers;
+with Arch.Snippets;
 with Lib.Panic;
 
 package body Arch.APIC with SPARK_Mode => Off is
@@ -36,7 +36,7 @@ package body Arch.APIC with SPARK_Mode => Off is
    LAPIC_Timer_2_Divisor : constant := 0;
 
    procedure Init_LAPIC is
-      MSR_Read : constant Unsigned_64 := Arch.Wrappers.Read_MSR (LAPIC_MSR);
+      MSR_Read : constant Unsigned_64 := Arch.Snippets.Read_MSR (LAPIC_MSR);
       Value, To_Write : Unsigned_32;
    begin
       --  We assume the LAPIC base for performance reasons.

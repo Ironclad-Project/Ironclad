@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Wrappers;
+with Arch.Snippets;
 with Interfaces; use Interfaces;
 
 package body Arch.Debug with SPARK_Mode => Off is
@@ -22,10 +22,10 @@ package body Arch.Debug with SPARK_Mode => Off is
 
    procedure Print (Message : Character) is
    begin
-      while (Wrappers.Port_In (16#3F8# + 5) and 16#20#) = 0 loop
+      while (Snippets.Port_In (16#3F8# + 5) and 16#20#) = 0 loop
          null;
       end loop;
-      Wrappers.Port_Out (COM1, Character'Pos (Message));
+      Snippets.Port_Out (COM1, Character'Pos (Message));
    end Print;
 
    procedure Print (Message : String) is

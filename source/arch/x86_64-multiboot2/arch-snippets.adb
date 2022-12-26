@@ -14,9 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System.Machine_Code;     use System.Machine_Code;
-with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
-with Arch.Wrappers;
+with System.Machine_Code;    use System.Machine_Code;
+with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
 
 package body Arch.Snippets with SPARK_Mode => Off is
    procedure HCF is
@@ -63,7 +62,7 @@ package body Arch.Snippets with SPARK_Mode => Off is
    function Supports_AES_Accel return Boolean is
       EAX, EBX, ECX, EDX : Unsigned_32;
    begin
-      Wrappers.Get_CPUID (1, 0, EAX, EBX, ECX, EDX);
+      Get_CPUID (1, 0, EAX, EBX, ECX, EDX);
       return (EDX and Shift_Left (1, 25)) /= 0;
    end Supports_AES_Accel;
 
@@ -240,4 +239,176 @@ package body Arch.Snippets with SPARK_Mode => Off is
            Volatile => True);
       return Result;
    end AES_Decrypt_Last;
+   ----------------------------------------------------------------------------
+   procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) is
+   begin
+      Asm ("outb %0, %1",
+           Inputs   => (Unsigned_8'Asm_Input  ("a",  Value),
+                        Unsigned_16'Asm_Input ("Nd", Port)),
+           Clobber  => "memory",
+           Volatile => True);
+   end Port_Out;
+
+   function Port_In (Port : Unsigned_16) return Unsigned_8 is
+      Value : Unsigned_8;
+   begin
+      Asm ("inb %1, %0",
+           Outputs  => Unsigned_8'Asm_Output ("=a", Value),
+           Inputs   => Unsigned_16'Asm_Input ("Nd", Port),
+           Clobber  => "memory",
+           Volatile => True);
+      return Value;
+   end Port_In;
+
+   procedure Invalidate_Page (Value : Virtual_Address) is
+   begin
+      Asm ("invlpg (%0)",
+           Inputs   => Virtual_Address'Asm_Input ("r", Value),
+           Clobber  => "memory",
+           Volatile => True);
+   end Invalidate_Page;
+
+   function Read_MSR (MSR : Unsigned_32) return Unsigned_64 is
+      Res_High : Unsigned_32;
+      Res_Low  : Unsigned_32;
+   begin
+      Asm ("rdmsr",
+           Outputs  => (Unsigned_32'Asm_Output ("=a", Res_Low),
+                        Unsigned_32'Asm_Output ("=d", Res_High)),
+           Inputs   => Unsigned_32'Asm_Input  ("c", MSR),
+           Clobber  => "memory",
+           Volatile => True);
+      return Shift_Left (Unsigned_64 (Res_High), 32) or Unsigned_64 (Res_Low);
+   end Read_MSR;
+
+   procedure Write_MSR (MSR : Unsigned_32; Value : Unsigned_64) is
+      Value_Hi : constant Unsigned_32 := Unsigned_32 (Shift_Right (Value, 32));
+      Value_Lo : constant Unsigned_32 := Unsigned_32 (Value and 16#FFFFFFFF#);
+   begin
+      Asm ("wrmsr",
+           Inputs   => (Unsigned_32'Asm_Input ("a", Value_Lo),
+                        Unsigned_32'Asm_Input ("d", Value_Hi),
+                        Unsigned_32'Asm_Input ("c", MSR)),
+           Clobber  => "memory",
+           Volatile => True);
+   end Write_MSR;
+
+   function Read_CR0 return Unsigned_64 is
+      Value : Unsigned_64;
+   begin
+      Asm ("mov %%cr0, %0",
+           Outputs  => Unsigned_64'Asm_Output ("=r", Value),
+           Clobber  => "memory",
+           Volatile => True);
+      return Value;
+   end Read_CR0;
+
+   procedure Write_CR0 (Value : Unsigned_64) is
+   begin
+      Asm ("mov %0, %%cr0",
+           Inputs   => Unsigned_64'Asm_Input ("r", Value),
+           Clobber  => "memory",
+           Volatile => True);
+   end Write_CR0;
+
+   function Read_CR2 return Unsigned_64 is
+      Value : Unsigned_64;
+   begin
+      Asm ("mov %%cr2, %0",
+           Outputs  => Unsigned_64'Asm_Output ("=r", Value),
+           Clobber  => "memory",
+           Volatile => True);
+      return Value;
+   end Read_CR2;
+
+   function Read_CR3 return Unsigned_64 is
+      Value : Unsigned_64;
+   begin
+      Asm ("mov %%cr3, %0",
+           Outputs  => Unsigned_64'Asm_Output ("=r", Value),
+           Clobber  => "memory",
+           Volatile => True);
+      return Value;
+   end Read_CR3;
+
+   procedure Write_CR3 (Value : Unsigned_64) is
+   begin
+      Asm ("mov %0, %%cr3",
+           Inputs   => Unsigned_64'Asm_Input ("r", Value),
+           Clobber  => "memory",
+           Volatile => True);
+   end Write_CR3;
+
+   function Read_CR4 return Unsigned_64 is
+      Value : Unsigned_64;
+   begin
+      Asm ("mov %%cr4, %0",
+           Outputs  => Unsigned_64'Asm_Output ("=r", Value),
+           Clobber  => "memory",
+           Volatile => True);
+      return Value;
+   end Read_CR4;
+
+   procedure Write_CR4 (Value : Unsigned_64) is
+   begin
+      Asm ("mov %0, %%cr4",
+           Inputs   => Unsigned_64'Asm_Input ("r", Value),
+           Clobber  => "memory",
+           Volatile => True);
+   end Write_CR4;
+
+   FS_MSR        : constant := 16#C0000100#;
+   GS_MSR        : constant := 16#C0000101#;
+   Kernel_GS_MSR : constant := 16#C0000102#;
+
+   function Read_FS return Unsigned_64 is
+   begin
+      return Read_MSR (FS_MSR);
+   end Read_FS;
+
+   procedure Write_FS (Value : Unsigned_64) is
+   begin
+      Write_MSR (FS_MSR, Value);
+   end Write_FS;
+
+   function Read_GS return Unsigned_64 is
+   begin
+      return Read_MSR (GS_MSR);
+   end Read_GS;
+
+   procedure Write_GS (Value : Unsigned_64) is
+   begin
+      Write_MSR (GS_MSR, Value);
+   end Write_GS;
+
+   function Read_Kernel_GS return Unsigned_64 is
+   begin
+      return Read_MSR (Kernel_GS_MSR);
+   end Read_Kernel_GS;
+
+   procedure Write_Kernel_GS (Value : Unsigned_64) is
+   begin
+      Write_MSR (Kernel_GS_MSR, Value);
+   end Write_Kernel_GS;
+
+   procedure Swap_GS is
+   begin
+      Asm ("swapgs", Volatile => True);
+   end Swap_GS;
+
+   procedure Get_CPUID
+      (Leaf, Subleaf : Unsigned_32;
+       EAX, EBX, ECX, EDX : out Unsigned_32)
+   is
+   begin
+      Asm ("cpuid",
+           Outputs  => (Unsigned_32'Asm_Output ("=a", EAX),
+                        Unsigned_32'Asm_Output ("=b", EBX),
+                        Unsigned_32'Asm_Output ("=c", ECX),
+                        Unsigned_32'Asm_Output ("=d", EDX)),
+           Inputs   => (Unsigned_32'Asm_Input ("a", Leaf),
+                        Unsigned_32'Asm_Input ("c", Subleaf)),
+           Clobber  => "memory",
+           Volatile => True);
+   end Get_CPUID;
 end Arch.Snippets;

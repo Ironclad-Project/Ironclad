@@ -18,7 +18,6 @@ with Arch;
 with Arch.IDT;
 with Arch.APIC;
 with Arch.CPU;
-with Arch.Wrappers;
 with Ada.Unchecked_Conversion;
 with Arch.Snippets;
 
@@ -62,17 +61,17 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
 
       --  Init the mouse.
       Mouse_Wait_Write;
-      Arch.Wrappers.Port_Out (16#64#, 16#A8#);
+      Arch.Snippets.Port_Out (16#64#, 16#A8#);
       Mouse_Wait_Write;
-      Arch.Wrappers.Port_Out (16#64#, 16#20#);
+      Arch.Snippets.Port_Out (16#64#, 16#20#);
       Data   := Mouse_Read;
       Unused := Mouse_Read;
       Data   := Data or  Shift_Left (1, 1);
       Data   := Data and (not Shift_Left (1, 5));
       Mouse_Wait_Write;
-      Arch.Wrappers.Port_Out (16#64#, 16#60#);
+      Arch.Snippets.Port_Out (16#64#, 16#60#);
       Mouse_Wait_Write;
-      Arch.Wrappers.Port_Out (16#60#, Data);
+      Arch.Snippets.Port_Out (16#60#, Data);
       Unused := Mouse_Read;
       Mouse_Write (16#F6#);
       Unused := Mouse_Read;
@@ -172,7 +171,7 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
    begin
       case Current_Mouse_Cycle is
          when 1 =>
-            Current_Cycle_Data.Flags := Arch.Wrappers.Port_In (16#60#);
+            Current_Cycle_Data.Flags := Arch.Snippets.Port_In (16#60#);
             if (Current_Cycle_Data.Flags and Shift_Left (1, 3)) /= 0 and
                (Current_Cycle_Data.Flags and Shift_Left (1, 6))  = 0 and
                (Current_Cycle_Data.Flags and Shift_Left (1, 7))  = 0
@@ -180,10 +179,10 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
                Current_Mouse_Cycle := 2;
             end if;
          when 2 =>
-            Current_Cycle_Data.X_Variation := Arch.Wrappers.Port_In (16#60#);
+            Current_Cycle_Data.X_Variation := Arch.Snippets.Port_In (16#60#);
             Current_Mouse_Cycle            := 3;
          when 3 =>
-            Current_Cycle_Data.Y_Variation := Arch.Wrappers.Port_In (16#60#);
+            Current_Cycle_Data.Y_Variation := Arch.Snippets.Port_In (16#60#);
             Current_Mouse_Cycle            := 1;
 
             --  Apply the flags and convert format.
@@ -220,7 +219,7 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
    procedure Mouse_Wait_Read is
    begin
       for I in 1 .. 100_000 loop
-         exit when (Arch.Wrappers.Port_In (16#64#) and Shift_Left (1, 0)) /= 0;
+         exit when (Arch.Snippets.Port_In (16#64#) and Shift_Left (1, 0)) /= 0;
          Arch.Snippets.Pause;
       end loop;
    end Mouse_Wait_Read;
@@ -228,7 +227,7 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
    procedure Mouse_Wait_Write is
    begin
       for I in 1 .. 100_000 loop
-         exit when (Arch.Wrappers.Port_In (16#64#) and Shift_Left (1, 1)) = 0;
+         exit when (Arch.Snippets.Port_In (16#64#) and Shift_Left (1, 1)) = 0;
          Arch.Snippets.Pause;
       end loop;
    end Mouse_Wait_Write;
@@ -236,14 +235,14 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
    function Mouse_Read return Unsigned_8 is
    begin
       Mouse_Wait_Read;
-      return Arch.Wrappers.Port_In (16#60#);
+      return Arch.Snippets.Port_In (16#60#);
    end Mouse_Read;
 
    procedure Mouse_Write (Data : Unsigned_8) is
    begin
       Mouse_Wait_Write;
-      Arch.Wrappers.Port_Out (16#64#, 16#D4#);
+      Arch.Snippets.Port_Out (16#64#, 16#D4#);
       Mouse_Wait_Write;
-      Arch.Wrappers.Port_Out (16#60#, Data);
+      Arch.Snippets.Port_Out (16#60#, Data);
    end Mouse_Write;
 end Devices.PS2Mouse;

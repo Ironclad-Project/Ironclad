@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
+with Memory;     use Memory;
 
 package Arch.MMU with SPARK_Mode => Off is
    --  Permissions used for mapping.
@@ -30,6 +31,8 @@ package Arch.MMU with SPARK_Mode => Off is
    --  There are probably more idiomatic ways to do this, but for this small
    --  little type changes, it is probably fine, else we would have to put
    --  this header on each port, and that would repeat a lot of code.
+   type Page_Table;
+   type Page_Table_Acc is access Page_Table;
    #if ArchName = """aarch64-stivale2"""
       Page_Size : constant := 16#1000#;
       type Page_Level is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
@@ -55,8 +58,27 @@ package Arch.MMU with SPARK_Mode => Off is
       type Page_Table is record
          PML4_Level : PML4;
       end record;
+      type Address_Components is record
+         PML4_Entry : Unsigned_64;
+         PML3_Entry : Unsigned_64;
+         PML2_Entry : Unsigned_64;
+         PML1_Entry : Unsigned_64;
+      end record;
+
+      function Get_Address_Components
+         (Virtual : Virtual_Address) return Address_Components;
+      function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address;
+      function Get_Next_Level
+         (Current_Level       : Physical_Address;
+          Index               : Unsigned_64;
+          Create_If_Not_Found : Boolean) return Physical_Address;
+      function Get_Page
+         (Map               : Page_Table_Acc;
+          Virtual           : Virtual_Address;
+          Allocate, Is_2MiB : Boolean) return Virtual_Address;
+      function Flags_To_Bitmap (Perm : Page_Permissions) return Unsigned_16;
+      procedure Destroy_Level (Entry_Body : Unsigned_64; Level : Integer);
    #end if;
-   type Page_Table_Acc is access Page_Table;
 
    --  Kernel map, which is used by the freestanding kernel when called.
    Kernel_Table : Page_Table_Acc;

@@ -16,7 +16,6 @@
 
 with System.Machine_Code; use System.Machine_Code;
 with Arch.APIC;
-with Arch.Wrappers;
 with Memory; use Memory;
 with Arch.ACPI;
 with Arch.Multiboot2;
@@ -177,9 +176,9 @@ package body Arch.CPU with SPARK_Mode => Off is
    procedure Init_Common (Core_Number : Positive; LAPIC : Unsigned_32) is
       PAT_MSR  : constant := 16#00000277#;
 
-      CR0 : Unsigned_64 := Wrappers.Read_CR0;
-      CR4 : Unsigned_64 := Wrappers.Read_CR4;
-      PAT : Unsigned_64 := Wrappers.Read_MSR (PAT_MSR);
+      CR0 : Unsigned_64 := Snippets.Read_CR0;
+      CR4 : Unsigned_64 := Snippets.Read_CR4;
+      PAT : Unsigned_64 := Snippets.Read_MSR (PAT_MSR);
 
       Locals_Addr : constant Unsigned_64 :=
          Unsigned_64 (To_Integer (Core_Locals (Core_Number)'Address));
@@ -199,9 +198,9 @@ package body Arch.CPU with SPARK_Mode => Off is
       PAT := PAT or  Shift_Left (Unsigned_64 (16#0105#), 32);
 
       --  Write the final configuration.
-      Wrappers.Write_CR0 (CR0);
-      Wrappers.Write_CR4 (CR4);
-      Wrappers.Write_MSR (PAT_MSR, PAT);
+      Snippets.Write_CR0 (CR0);
+      Snippets.Write_CR4 (CR4);
+      Snippets.Write_MSR (PAT_MSR, PAT);
 
       --  Prepare the core local structure and set it in GS.
       Core_Locals (Core_Number) := (
@@ -211,8 +210,8 @@ package body Arch.CPU with SPARK_Mode => Off is
          LAPIC_Timer_Hz => APIC.LAPIC_Timer_Calibrate,
          others         => <>
       );
-      Wrappers.Write_GS        (Locals_Addr);
-      Wrappers.Write_Kernel_GS (Locals_Addr);
+      Snippets.Write_GS        (Locals_Addr);
+      Snippets.Write_Kernel_GS (Locals_Addr);
 
       --  Load the TSS.
       GDT.Load_TSS (Core_Locals (Core_Number).Core_TSS'Address);
@@ -221,14 +220,14 @@ package body Arch.CPU with SPARK_Mode => Off is
    function Supports_UMIP return Boolean is
       EAX, EBX, ECX, EDX : Unsigned_32;
    begin
-      Wrappers.Get_CPUID (7, 0, EAX, EBX, ECX, EDX);
+      Snippets.Get_CPUID (7, 0, EAX, EBX, ECX, EDX);
       return (ECX and 2#100#) /= 0;
    end Supports_UMIP;
 
    function Get_BSP_LAPIC_ID return Unsigned_32 is
       EAX, EBX, ECX, EDX : Unsigned_32;
    begin
-      Wrappers.Get_CPUID (1, 0, EAX, EBX, ECX, EDX);
+      Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX);
       return Shift_Right (EBX, 24) and 16#FF#;
    end Get_BSP_LAPIC_ID;
 

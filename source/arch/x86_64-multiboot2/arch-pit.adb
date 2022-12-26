@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Wrappers;
+with Arch.Snippets;
 
 package body Arch.PIT with SPARK_Mode => Off is
    PIT_Divisor       : constant := 1193180;
@@ -30,18 +30,18 @@ package body Arch.PIT with SPARK_Mode => Off is
       High8 : constant Unsigned_8 := Unsigned_8 (Low_Divisor and 16#FF#);
    begin
       --  Setup the PIT.
-      Arch.Wrappers.Port_Out (PIT_Command_Port,  16#36#);
-      Arch.Wrappers.Port_Out (PIT_Channel0_Port, Low8);
-      Arch.Wrappers.Port_Out (PIT_Channel0_Port, High8);
+      Arch.Snippets.Port_Out (PIT_Command_Port,  16#36#);
+      Arch.Snippets.Port_Out (PIT_Channel0_Port, Low8);
+      Arch.Snippets.Port_Out (PIT_Channel0_Port, High8);
       return True;
    end Init;
 
    function Get_Current_Count return Unsigned_16 is
       Low_8, High_8 : Unsigned_8;
    begin
-      Arch.Wrappers.Port_Out (PIT_Command_Port, 0);
-      Low_8 := Arch.Wrappers.Port_In (PIT_Channel0_Port);
-      High_8 := Arch.Wrappers.Port_In (PIT_Channel0_Port);
+      Arch.Snippets.Port_Out (PIT_Command_Port, 0);
+      Low_8 := Arch.Snippets.Port_In (PIT_Channel0_Port);
+      High_8 := Arch.Snippets.Port_In (PIT_Channel0_Port);
       return Unsigned_16 (Shift_Left (High_8, 8)) or Unsigned_16 (Low_8);
    end Get_Current_Count;
 
@@ -49,9 +49,9 @@ package body Arch.PIT with SPARK_Mode => Off is
       Low_8  : constant Unsigned_16 := Value and 16#FF#;
       High_8 : constant Unsigned_16 := Shift_Right (Value, 8) and 16#FF#;
    begin
-      Arch.Wrappers.Port_Out (PIT_Command_Port, 16#34#);
-      Arch.Wrappers.Port_Out (PIT_Channel0_Port, Unsigned_8 (Low_8));
-      Arch.Wrappers.Port_Out (PIT_Channel0_Port, Unsigned_8 (High_8));
+      Arch.Snippets.Port_Out (PIT_Command_Port, 16#34#);
+      Arch.Snippets.Port_Out (PIT_Channel0_Port, Unsigned_8 (Low_8));
+      Arch.Snippets.Port_Out (PIT_Channel0_Port, Unsigned_8 (High_8));
    end Set_Current_Count;
 
    procedure Sleep_1MS is

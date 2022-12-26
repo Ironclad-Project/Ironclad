@@ -16,18 +16,10 @@
 
 with Interfaces.C;
 with Ada.Unchecked_Deallocation;
-with Arch.Wrappers;
-with Memory; use Memory;
+with Arch.Snippets;
 with Memory.Physical;
 
 package body Arch.MMU with SPARK_Mode => Off is
-   type Address_Components is record
-      PML4_Entry : Unsigned_64;
-      PML3_Entry : Unsigned_64;
-      PML2_Entry : Unsigned_64;
-      PML1_Entry : Unsigned_64;
-   end record;
-
    function Get_Address_Components
       (Virtual : Virtual_Address) return Address_Components
    is
@@ -248,14 +240,14 @@ package body Arch.MMU with SPARK_Mode => Off is
       end if;
 
       Val := Unsigned_64 (To_Integer (Map.PML4_Level'Address) - Memory_Offset);
-      if Arch.Wrappers.Read_CR3 /= Val then
-         Arch.Wrappers.Write_CR3 (Val);
+      if Arch.Snippets.Read_CR3 /= Val then
+         Arch.Snippets.Write_CR3 (Val);
       end if;
       return True;
    end Make_Active;
 
    function Is_Active (Map : Page_Table_Acc) return Boolean is
-      Current : constant Unsigned_64 := Arch.Wrappers.Read_CR3;
+      Current : constant Unsigned_64 := Arch.Snippets.Read_CR3;
       PAddr : constant Integer_Address := To_Integer (Map.PML4_Level'Address);
    begin
       return Current = Unsigned_64 (PAddr - Memory_Offset);
@@ -421,14 +413,14 @@ package body Arch.MMU with SPARK_Mode => Off is
 
    procedure Flush_Local_TLB (Addr : System.Address) is
    begin
-      Wrappers.Invalidate_Page (To_Integer (Addr));
+      Snippets.Invalidate_Page (To_Integer (Addr));
    end Flush_Local_TLB;
 
    procedure Flush_Local_TLB (Addr : System.Address; Len : Storage_Count) is
       Curr : Storage_Count := 0;
    begin
       while Curr < Len loop
-         Wrappers.Invalidate_Page (To_Integer (Addr + Curr));
+         Snippets.Invalidate_Page (To_Integer (Addr + Curr));
          Curr := Curr + Page_Size_4K;
       end loop;
    end Flush_Local_TLB;
