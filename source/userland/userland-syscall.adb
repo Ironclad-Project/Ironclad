@@ -138,9 +138,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
          New_Descr    : File_Description_Acc;
          File_Perms   : MAC.Filter_Permissions;
          Returned_FD  : Natural;
-         Close_On_Exec : constant Boolean := (Flags and O_CLOEXEC) /= 0;
-         Flags_Read    : constant Boolean := (Flags and O_RDONLY)  /= 0;
-         Flags_Write   : constant Boolean := (Flags and O_WRONLY)  /= 0;
+         Close_On_Exec : constant Boolean := (Flags and O_CLOEXEC)  /= 0;
+         Flags_Read    : constant Boolean := (Flags and O_RDONLY)   /= 0;
+         Flags_Write   : constant Boolean := (Flags and O_WRONLY)   /= 0;
+         No_Follow     : constant Boolean := (Flags and O_NOFOLLOW) /= 0;
       begin
          if Is_Tracing then
             Lib.Messages.Put ("syscall open(");
@@ -186,7 +187,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
          --  Actually open the file.
       <<Resume>>
-         Opened_File := VFS.File.Open (Path_String, Open_Mode);
+         Opened_File := VFS.File.Open (Path_String, Open_Mode, not No_Follow);
 
          if Opened_File = null then
             Errno := Error_No_Entity;
@@ -979,7 +980,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Path_Length  : constant Natural := Lib.C_String_Length (Addr);
       Path_String  : String (1 .. Path_Length) with Address => Addr;
       File : constant VFS.File.File_Acc :=
-         VFS.File.Open (Path_String, VFS.File.Access_R);
+         VFS.File.Open (Path_String, VFS.File.Access_R, False);
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall lstat(");
@@ -1977,4 +1978,68 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return 0;
       end;
    end Syscall_Umount;
+
+   function Syscall_Readlink
+      (Path_Addr   : Unsigned_64;
+       Buffer_Addr : Unsigned_64;
+       Buffer_Len  : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64
+   is
+      Pr : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Path_IAddr   : constant Integer_Address := Integer_Address (Path_Addr);
+      Buffer_IAddr : constant Integer_Address := Integer_Address (Buffer_Addr);
+      Path_Add     : constant System.Address  := To_Address (Path_IAddr);
+      Buffer_Add   : constant System.Address  := To_Address (Buffer_IAddr);
+   begin
+      if not Check_Userland_Access (Path_IAddr) or
+         not Check_Userland_Access (Buffer_IAddr)
+      then
+         if Is_Tracing then
+            Lib.Messages.Put_Line ("syscall readlink(BAD_MEM)");
+         end if;
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      end if;
+      declare
+         Path_Len   : constant Natural := Lib.C_String_Length (Path_Add);
+         Path       : String (1 .. Path_Len) with Address => Path_Add, Import;
+         Opened     : VFS.File.File_Acc;
+         Opened_Sta : VFS.File_Stat;
+         Stat_Succs : Boolean;
+         Result     : Unsigned_64;
+      begin
+         if Is_Tracing then
+            Lib.Messages.Put ("syscall readlink(");
+            Lib.Messages.Put (Path);
+            Lib.Messages.Put (", ");
+            Lib.Messages.Put (Buffer_Addr, False, True);
+            Lib.Messages.Put (", ");
+            Lib.Messages.Put (Buffer_Len, False, True);
+            Lib.Messages.Put_Line (")");
+         end if;
+         if MAC_Is_Locked and then
+            not MAC.Check_Path_Permissions (Path, Pr.Perms.Filters).Can_Read
+         then
+            Errno := Error_Bad_Access;
+            Execute_MAC_Failure ("readlink", Pr);
+            return Unsigned_64'Last;
+         end if;
+         Opened := VFS.File.Open (Path, VFS.File.Access_R, False);
+         if Opened = null then
+            Errno := Error_No_Entity;
+            return Unsigned_64'Last;
+         end if;
+         Stat_Succs := VFS.File.Stat (Opened, Opened_Sta);
+         if not Stat_Succs or else
+         Opened_Sta.Type_Of_File /= VFS.File_Symbolic_Link
+         then
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+         end if;
+         Errno  := Error_No_Error;
+         Result := VFS.File.Read (Opened, Buffer_Len, Buffer_Add);
+         Close (Opened);
+         return Result;
+      end;
+   end Syscall_Readlink;
 end Userland.Syscall;

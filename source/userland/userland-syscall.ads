@@ -393,6 +393,13 @@ package Userland.Syscall with SPARK_Mode => Off is
        Flags : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
 
+   --  Read the contents of a symlink.
+   function Syscall_Readlink
+      (Path_Addr   : Unsigned_64;
+       Buffer_Addr : Unsigned_64;
+       Buffer_Len  : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64;
+
 private
 
    --  Do the actual exiting.

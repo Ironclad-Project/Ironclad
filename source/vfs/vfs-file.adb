@@ -27,9 +27,15 @@ package body VFS.File with SPARK_Mode => Off is
        Is_Device    : out Boolean;
        Fetched_Dev  : out Devices.Resource_Acc;
        Fetched_Type : out FS_Type;
-       Fetched_FS   : out System.Address) return System.Address
+       Fetched_FS   : out System.Address;
+       Follow_Links : Boolean) return System.Address
    is
       Fetched_File : System.Address := System.Null_Address;
+      Fetched_Stat : File_Stat;
+      Fetched_Succ : Boolean;
+      Last_Slash   : Natural;
+      Symlink      : String (1 .. 60);
+      Symlink_Len  : Natural;
    begin
       --  Default values.
       Is_Device    := False;
@@ -43,20 +49,74 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
 
       --  Handle /dev/ devices, which we emulate with the internal kernel
-      --  registries. Else, do the usual procedure for files.
+      --  registries.
       if Path'Length > 4 and then Path (Path'First .. Path'First + 4) = "/dev/"
       then
          Fetched_Dev := Fetch (Path (Path'First + 5 .. Path'Last));
          Is_Device   := Fetched_Dev /= null;
-      else
-         Fetched_FS := Get_Mount ("/", Fetched_Type, Fetched_Dev);
-         if Fetched_FS /= Null_Address then
-            case Fetched_Type is
-               when FS_USTAR =>
-                  Fetched_File := USTAR.Open (
-                     Fetched_FS, Path (Path'First + 1 .. Path'Last)
-                  );
-            end case;
+         goto Done;
+      end if;
+
+      --  Do the usual file opening routine.
+      Fetched_FS := Get_Mount ("/", Fetched_Type, Fetched_Dev);
+      if Fetched_FS /= Null_Address then
+         case Fetched_Type is
+            when FS_USTAR =>
+               Fetched_File := USTAR.Open (
+                  Fetched_FS, Path (Path'First + 1 .. Path'Last)
+               );
+               if Fetched_File /= Null_Address then
+                  Fetched_Succ := USTAR.Stat (
+                     Fetched_FS, Fetched_File, Fetched_Stat
+                   );
+               else
+                  Fetched_Succ := False;
+               end if;
+         end case;
+      end if;
+
+      --  Redirect if we are dealing with a symlink.
+      if Follow_Links and Fetched_Succ and
+         Fetched_Stat.Type_Of_File = File_Symbolic_Link
+      then
+         case Fetched_Type is
+            when FS_USTAR =>
+               Symlink_Len := Natural (USTAR.Read (
+                  Fetched_FS,
+                  Fetched_File,
+                  0,
+                  Symlink'Length,
+                  Symlink'Address
+               ));
+         end case;
+
+         for I in Path'Range loop
+            if Path (I) = '/' then
+               Last_Slash := I;
+            end if;
+         end loop;
+
+         if Symlink_Len = 0 then
+            --  ????.
+            return Null_Address;
+         elsif Symlink (1) = '/' then
+            return Resolve_File (
+               Symlink (1 .. Symlink_Len),
+               Is_Device,
+               Fetched_Dev,
+               Fetched_Type,
+               Fetched_FS,
+               Follow_Links
+            );
+         else
+            return Resolve_File (
+               Path (Path'First .. Last_Slash) & Symlink (1 .. Symlink_Len),
+               Is_Device,
+               Fetched_Dev,
+               Fetched_Type,
+               Fetched_FS,
+               Follow_Links
+            );
          end if;
       end if;
 
@@ -64,7 +124,11 @@ package body VFS.File with SPARK_Mode => Off is
       return Fetched_File;
    end Resolve_File;
 
-   function Open (Path : String; Access_Flags : Access_Mode) return File_Acc is
+   function Open
+      (Path         : String;
+       Access_Flags : Access_Mode;
+       Follow_Links : Boolean := True) return File_Acc
+   is
       Is_Device    : Boolean;
       Fetched_Dev  : Devices.Resource_Acc;
       Fetched_Type : FS_Type;
@@ -76,7 +140,8 @@ package body VFS.File with SPARK_Mode => Off is
          Is_Device,
          Fetched_Dev,
          Fetched_Type,
-         Fetched_FS
+         Fetched_FS,
+         Follow_Links
       );
       if Fetched_File = System.Null_Address and not Is_Device then
          return null;
@@ -95,11 +160,12 @@ package body VFS.File with SPARK_Mode => Off is
    end Open;
 
    function Check_Permissions
-      (Path      : String;
-       Exists    : Boolean;
-       Can_Read  : Boolean;
-       Can_Write : Boolean;
-       Can_Exec  : Boolean) return Boolean
+      (Path         : String;
+       Exists       : Boolean;
+       Can_Read     : Boolean;
+       Can_Write    : Boolean;
+       Can_Exec     : Boolean;
+       Follow_Links : Boolean := True) return Boolean
    is
       Is_Device    : Boolean;
       Fetched_Dev  : Devices.Resource_Acc;
@@ -112,7 +178,8 @@ package body VFS.File with SPARK_Mode => Off is
          Is_Device,
          Fetched_Dev,
          Fetched_Type,
-         Fetched_FS
+         Fetched_FS,
+         Follow_Links
       );
       if Is_Device and Exists and not Can_Exec then
          return True;

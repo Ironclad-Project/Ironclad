@@ -111,6 +111,7 @@ Syscalls
 * add_mac_filter::          Configure MAC using filesystem-based filters.
 * set_mac_enforcement::     Set enforcement to follow on MAC violations.
 * mount/umount::            Mount and unmount partitions.
+* readlink::                Read the contents of a symlink.
 
 Devices and their properties
 
@@ -565,27 +566,29 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{thread_sched, set_thread_sched}.
 @item
-@xref{fcntl}
+@xref{fcntl}.
 @item
-@xref{spawn}
+@xref{spawn}.
 @item
-@xref{getrandom}
+@xref{getrandom}.
 @item
-@xref{mprotect}
+@xref{mprotect}.
 @item
-@xref{crypto_request}
+@xref{crypto_request}.
 @item
-@xref{set_mac_capabilities}
+@xref{set_mac_capabilities}.
 @item
-@xref{lock_mac}
+@xref{lock_mac}.
 @item
-@xref{add_mac_filter}
+@xref{add_mac_filter}.
 @item
 @xref{set_mac_enforcement}
 @item
-@xref{mount/umount, mount}
+@xref{mount/umount, mount}.
 @item
-@xref{mount/umount, umount}
+@xref{mount/umount, umount}.
+@item
+@xref{readlink}.
 @end enumerate
 
 @node Errno
@@ -1546,6 +1549,27 @@ following errno:
 @code{EACCES}: MAC forbid this operation.
 @item
 @code{EINVAL}: Wrong arguments.
+@end itemize
+
+@node readlink
+@section readlink
+
+@example
+ssize_t readlink(char *path, char *buffer, size_t buffer_len);
+@end example
+
+The syscall reads the redirected path of a symlink.
+
+The syscalls return the read length on success or @code{-1} on failure, with the
+following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: Incorrect addresses for the string arguments.
+@item
+@code{EACCES}: MAC forbid this operation.
+@item
+@code{EINVAL}: The passed file is not a symbolic link.
 @end itemize
 
 @node Devices and their properties

@@ -211,6 +211,9 @@ package body Arch.Interrupts with SPARK_Mode => Off is
                                        State.RCX, Errno);
          when 40 =>
             Returned := Syscall_Umount (State.RDI, State.RSI, Errno);
+         when 41 =>
+            Returned := Syscall_Readlink (State.RDI, State.RSI, State.RDX,
+                                          Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;

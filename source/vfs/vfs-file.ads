@@ -34,16 +34,20 @@ package VFS.File with SPARK_Mode => Off is
    type File_Acc is access File;
 
    --  Open a file with an absolute path, and return it, or null on failure.
-   function Open (Path : String; Access_Flags : Access_Mode) return File_Acc;
+   function Open
+      (Path         : String;
+       Access_Flags : Access_Mode;
+       Follow_Links : Boolean := True) return File_Acc;
 
    --  Check permissions for a file in an absolute path.
    --  Faster and easier than open + stat.
    function Check_Permissions
-      (Path      : String;
-       Exists    : Boolean;
-       Can_Read  : Boolean;
-       Can_Write : Boolean;
-       Can_Exec  : Boolean) return Boolean;
+      (Path         : String;
+       Exists       : Boolean;
+       Can_Read     : Boolean;
+       Can_Write    : Boolean;
+       Can_Exec     : Boolean;
+       Follow_Links : Boolean := True) return Boolean;
 
    --  Increase refcount, or decrease and close an opened file.
    procedure Increase_Refcount (F : File_Acc);
@@ -92,5 +96,6 @@ private
        Is_Device    : out Boolean;
        Fetched_Dev  : out Devices.Resource_Acc;
        Fetched_Type : out FS_Type;
-       Fetched_FS   : out System.Address) return System.Address;
+       Fetched_FS   : out System.Address;
+       Follow_Links : Boolean) return System.Address;
 end VFS.File;

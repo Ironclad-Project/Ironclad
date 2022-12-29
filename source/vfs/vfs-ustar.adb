@@ -198,9 +198,10 @@ package body VFS.USTAR with SPARK_Mode => Off is
       Byte_Size    : constant Natural     := USTAR_Header'Size / 8;
       Byte_Size_64 : constant Unsigned_64 := Unsigned_64 (Byte_Size);
 
-      Header       : USTAR_Header;
-      Header_Index : Unsigned_64 := 0;
-      Size, Jump   : Natural;
+      Header          : USTAR_Header;
+      Header_Index    : Unsigned_64 := 0;
+      Size, Jump      : Natural;
+      Linked_Name_Len : Natural := 0;
    begin
       --  Loop until we find the header or run out of USTAR data.
       loop
@@ -224,12 +225,26 @@ package body VFS.USTAR with SPARK_Mode => Off is
       end loop;
 
       case Header.File_Type is
-         when USTAR_Regular_File | USTAR_Symbolic_Link | USTAR_Directory =>
+         when USTAR_Regular_File | USTAR_Directory =>
             Data := (
                Name      => Header.Name,
                Name_Len  => Path'Length,
                Start     => Header_Index + Byte_Size_64,
                Size      => Size,
+               File_Type => Header.File_Type,
+               Mode      => Octal_To_Decimal (Header.Mode)
+            );
+            return True;
+         when USTAR_Symbolic_Link =>
+            for C of Header.Link_Name loop
+               exit when C = Ada.Characters.Latin_1.NUL;
+               Linked_Name_Len := Linked_Name_Len + 1;
+            end loop;
+            Data := (
+               Name      => Header.Name,
+               Name_Len  => Path'Length,
+               Start     => Header_Index + Header.Link_Name'Position,
+               Size      => Linked_Name_Len,
                File_Type => Header.File_Type,
                Mode      => Octal_To_Decimal (Header.Mode)
             );
