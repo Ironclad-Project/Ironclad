@@ -237,7 +237,7 @@ package body Devices.PTY with SPARK_Mode => Off is
       Descr  : File_Description_Acc;
       File   : VFS.File.File_Acc;
    begin
-      File := VFS.File.Open (Path, Access_RW);
+      File := VFS.File.Open (Path, Read_Write);
       if File = null then
          goto Error;
       end if;

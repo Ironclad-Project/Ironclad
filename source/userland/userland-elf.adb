@@ -107,7 +107,7 @@ package body Userland.ELF with SPARK_Mode => Off is
             return Result;
          end if;
 
-         File_D.Index := Header.Program_Header_List;
+         VFS.File.Set_Position (File_D, Header.Program_Header_List);
 
          if VFS.File.Read (File_D, RSize, PHDRs'Address) /= RSize then
             return Result;
@@ -146,7 +146,7 @@ package body Userland.ELF with SPARK_Mode => Off is
       return Ret : constant String_Acc :=
          new String (1 .. Header.File_Size_Bytes)
       do
-         File_D.Index := Header.Offset;
+         VFS.File.Set_Position (File_D, Header.Offset);
          Discard := VFS.File.Read
             (File_D, Unsigned_64 (Header.File_Size_Bytes), Ret.all'Address);
       end return;
@@ -192,7 +192,7 @@ package body Userland.ELF with SPARK_Mode => Off is
          return False;
       end if;
 
-      File_D.Index := Header.Offset;
+      VFS.File.Set_Position (File_D, Header.Offset);
       return VFS.File.Read (
          File_D,
          Unsigned_64 (Header.File_Size_Bytes),

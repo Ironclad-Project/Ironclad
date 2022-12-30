@@ -19,28 +19,51 @@ with Memory;
 with Devices;
 
 package VFS.File with SPARK_Mode => Off is
-   type Access_Mode is (Access_R, Access_W, Access_RW);
-   type String_Acc is access String;
-   type File is record
-      Refcount  : Natural;
-      Full_Path : String_Acc;
-      Dev_Data  : Devices.Resource_Acc;
-      FS_Type   : VFS.FS_Type;
-      FS_Data   : System.Address;
-      File_Data : System.Address;
-      Index     : Unsigned_64;
-      Flags     : Access_Mode;
-   end record;
+   --  A file represents an entity in disk, held by an FS.
+   --  This file abstraction is built for kernel-use and indirect userland use
+   --  thru purpose-built file descriptions.
+   --
+   --  Emulation for /dev devices is provided, which are accessed just like
+   --  any file.
+
+   --  File type and access modes for a file to be opened with.
+   type Access_Mode is (Read_Only, Write_Only, Read_Write);
+   type File     is private;
    type File_Acc is access File;
 
-   --  Open a file with an absolute path, and return it, or null on failure.
+   --  Open a file with an absolute path.
+   --  TODO: .. and . are not supported, they are nice to have.
+   --  TODO: Directories are not fully supported, they are nice to have.
    function Open
       (Path         : String;
        Access_Flags : Access_Mode;
        Follow_Links : Boolean := True) return File_Acc;
 
-   --  Check permissions for a file in an absolute path.
-   --  Faster and easier than open + stat.
+   --  Get the full path of a file.
+   type String_Acc is access String;
+   function Get_Path (File : File_Acc) return String_Acc;
+
+   --  An internal position is kept for next reads to be easier.
+   --  This functions get or set said position.
+   --  Setting the position past of the end of file is not checked.
+   function Get_Position (File : File_Acc) return Unsigned_64
+      with Inline, Pre => File /= null;
+   procedure Set_Position (File : File_Acc; Pos : Unsigned_64)
+      with Inline, Pre => File /= null;
+
+   --  Files have an access mode, this function fetches it for the passed file.
+   function Get_Access (File : File_Acc) return Access_Mode
+      with Inline, Pre => File /= null;
+
+   --  Devices in UNIX have a unique device ID, used for representing it in
+   --  stat-s. This function fetches the one the file represents or
+   --  where the file is contained.
+   function Get_Device_ID (File : File_Acc) return Natural
+      with Inline, Pre => File /= null;
+
+   --  Check permissions for a file. Path has the same limitations as Open.
+   --  Faster and easier than Open + Stat! (its all temp so it doesnt save).
+   --  Returns True if the passed permissions are supported.
    function Check_Permissions
       (Path         : String;
        Exists       : Boolean;
@@ -90,6 +113,17 @@ package VFS.File with SPARK_Mode => Off is
        Length  : Unsigned_64) return Boolean;
 
 private
+
+   type File is record
+      Refcount  : Natural;
+      Full_Path : String_Acc;
+      Dev_Data  : Devices.Resource_Acc;
+      FS_Type   : VFS.FS_Type;
+      FS_Data   : System.Address;
+      File_Data : System.Address;
+      Index     : Unsigned_64;
+      Flags     : Access_Mode;
+   end record;
 
    function Resolve_File
       (Path         : String;

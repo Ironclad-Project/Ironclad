@@ -37,9 +37,9 @@ package body Userland.Loader with SPARK_Mode => Off is
        StdErr_Path : String) return Process_Data_Acc
    is
       Returned_PID : constant Process_Data_Acc := Process.Create_Process;
-      Stdin        : constant File_Acc := Open (StdIn_Path,  Access_R);
-      StdOut       : constant File_Acc := Open (StdOut_Path, Access_W);
-      StdErr       : constant File_Acc := Open (StdErr_Path, Access_W);
+      Stdin        : constant File_Acc := Open (StdIn_Path,  Read_Only);
+      StdOut       : constant File_Acc := Open (StdOut_Path, Write_Only);
+      StdErr       : constant File_Acc := Open (StdErr_Path, Write_Only);
       Discard      : Natural;
       User_Stdin, User_StdOut, User_StdErr : File_Description_Acc;
    begin
@@ -94,7 +94,7 @@ package body Userland.Loader with SPARK_Mode => Off is
       if Start_ELF (FD, Arguments, Environment, Proc) then
          return True;
       end if;
-      FD.Index := 0;
+      Set_Position (FD, 0);
       if Start_Shebang (FD, Arguments, Environment, Proc) then
          return True;
       end if;
@@ -129,7 +129,7 @@ package body Userland.Loader with SPARK_Mode => Off is
          LD_Path (9 .. Loaded_ELF.Linker_Path.all'Length + 8) :=
             Loaded_ELF.Linker_Path (1 .. Loaded_ELF.Linker_Path.all'Length);
          LD_File := Open
-            (LD_Path (9 .. 7 + Loaded_ELF.Linker_Path.all'Length), Access_R);
+            (LD_Path (9 .. 7 + Loaded_ELF.Linker_Path.all'Length), Read_Only);
          if LD_File = null then
             goto Error;
          end if;
@@ -229,9 +229,9 @@ package body Userland.Loader with SPARK_Mode => Off is
             I := I + 1;
          end if;
          New_Args (I .. New_Args'Length) := Arguments;
-         New_Args (I) := Conv (FD.Full_Path);
+         New_Args (I) := Conv (Get_Path (FD));
          return Start_Program (
-            Open (Path (1 .. Path_Len), Access_R),
+            Open (Path (1 .. Path_Len), Read_Only),
             New_Args,
             Environment,
             Proc

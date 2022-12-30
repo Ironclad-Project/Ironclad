@@ -97,7 +97,7 @@ begin
    if Init_Value /= null then
       Lib.Messages.Put_Line ("Booting init " & Init_Value.all);
       Init_Arguments (1) := new String'(Init_Value.all);
-      Init_File := Open (Init_Value.all, Access_R);
+      Init_File := Open (Init_Value.all, Read_Only);
       if Init_File = null or else Userland.Loader.Start_Program
          (Init_File, Init_Arguments, Init_Environment, Init_Stdin,
           Init_Stdout, Init_Stderr) = null

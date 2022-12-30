@@ -153,11 +153,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
          --  Parse the mode.
          if Flags_Read and Flags_Write then
-            Open_Mode := VFS.File.Access_RW;
+            Open_Mode := VFS.File.Read_Write;
          elsif Flags_Read then
-            Open_Mode := VFS.File.Access_R;
+            Open_Mode := VFS.File.Read_Only;
          elsif Flags_Write then
-            Open_Mode := VFS.File.Access_W;
+            Open_Mode := VFS.File.Write_Only;
          else
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
@@ -167,15 +167,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
             File_Perms := MAC.Check_Path_Permissions
                (Path_String, Current_Proc.Perms.Filters);
             case Open_Mode is
-               when VFS.File.Access_RW =>
+               when VFS.File.Read_Write =>
                   if File_Perms.Can_Read and File_Perms.Can_Write then
                      goto Resume;
                   end if;
-               when VFS.File.Access_R =>
+               when VFS.File.Read_Only =>
                   if File_Perms.Can_Read then
                      goto Resume;
                   end if;
-               when VFS.File.Access_W =>
+               when VFS.File.Write_Only =>
                   if File_Perms.Can_Write then
                      goto Resume;
                   end if;
@@ -246,6 +246,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
             Arch.Local.Get_Current_Process;
       File : File_Description_Acc;
+      File_Mode : Access_Mode;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall read(");
@@ -270,9 +271,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case File.Description is
          when Description_File =>
-            if File.Inner_File.Flags /= Access_R and
-               File.Inner_File.Flags /= Access_RW
-            then
+            File_Mode := Get_Access (File.Inner_File);
+            if File_Mode /= Read_Only and File_Mode /= Read_Write then
                Errno := Error_Invalid_Value;
                return Unsigned_64'Last;
             else
@@ -299,6 +299,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Current_Process : constant Userland.Process.Process_Data_Acc :=
             Arch.Local.Get_Current_Process;
       File : File_Description_Acc;
+      File_Mode : Access_Mode;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall write(");
@@ -323,9 +324,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case File.Description is
          when Description_File =>
-            if File.Inner_File.Flags /= Access_W and
-               File.Inner_File.Flags /= Access_RW
-            then
+            File_Mode := Get_Access (File.Inner_File);
+            if File_Mode /= Write_Only and File_Mode /= Read_Write then
                Errno := Error_Invalid_Value;
                return Unsigned_64'Last;
             else
@@ -376,17 +376,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
             end if;
             case Whence is
                when SEEK_SET =>
-                  File.Inner_File.Index := Offset;
+                  Set_Position (File.Inner_File, Offset);
                when SEEK_CURRENT =>
-                  File.Inner_File.Index := File.Inner_File.Index + Offset;
+                  Set_Position
+                     (File.Inner_File,
+                      Get_Position (File.Inner_File) + Offset);
                when SEEK_END =>
-                  File.Inner_File.Index := Stat_Val.Byte_Size + Offset;
+                  Set_Position (File.Inner_File, Stat_Val.Byte_Size + Offset);
                when others =>
                   Errno := Error_Invalid_Value;
                   return Unsigned_64'Last;
             end case;
             Errno := Error_No_Error;
-            return File.Inner_File.Index;
+            return Get_Position (File.Inner_File);
          when Description_Writer_Pipe | Description_Reader_Pipe =>
             Errno := Error_Invalid_Seek;
             return Unsigned_64'Last;
@@ -564,7 +566,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Addr : constant System.Address := To_Address (Integer_Address (Address));
       Path_Length : constant Natural := Lib.C_String_Length (Addr);
       Path_String : String (1 .. Path_Length) with Address => Addr;
-      Opened_File : constant File_Acc := Open (Path_String, Access_R);
+      Opened_File : constant File_Acc := Open (Path_String, Read_Only);
 
       Args_Raw : Arg_Arr with Address => To_Address (Integer_Address (Argv));
       Env_Raw  : Arg_Arr with Address => To_Address (Integer_Address (Envp));
@@ -903,13 +905,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
    begin
       if VFS.File.Stat (F, Stat_Val) then
          Stat_Buf := (
-            Device_Number => Unsigned_64 (F.Dev_Data.Unique_Identifier),
+            Device_Number => Unsigned_64 (Get_Device_ID (F)),
             Inode_Number  => Stat_Val.Unique_Identifier,
             Mode          => Stat_Val.Mode,
             Number_Links  => Unsigned_32 (Stat_Val.Hard_Link_Count),
             UID           => 0,
             GID           => 0,
-            Inner_Device  => Unsigned_64 (F.Dev_Data.Unique_Identifier),
+            Inner_Device  => Unsigned_64 (Get_Device_ID (F)),
             File_Size     => Stat_Val.Byte_Size,
             Access_Time   => (Seconds => 0, Nanoseconds => 0),
             Modify_Time   => (Seconds => 0, Nanoseconds => 0),
@@ -980,7 +982,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Path_Length  : constant Natural := Lib.C_String_Length (Addr);
       Path_String  : String (1 .. Path_Length) with Address => Addr;
       File : constant VFS.File.File_Acc :=
-         VFS.File.Open (Path_String, VFS.File.Access_R, False);
+         VFS.File.Open (Path_String, VFS.File.Read_Only, False);
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall lstat(");
@@ -1498,7 +1500,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Addr : constant System.Address := To_Address (Integer_Address (Address));
       Path_Length : constant Natural := Lib.C_String_Length (Addr);
       Path_String : String (1 .. Path_Length) with Address => Addr;
-      Opened_File : constant File_Acc := Open (Path_String, Access_R);
+      Opened_File : constant File_Acc := Open (Path_String, Read_Only);
       File_Perms  : MAC.Filter_Permissions;
 
       Args_Raw : Arg_Arr with Address => To_Address (Integer_Address (Argv));
@@ -2024,7 +2026,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Execute_MAC_Failure ("readlink", Pr);
             return Unsigned_64'Last;
          end if;
-         Opened := VFS.File.Open (Path, VFS.File.Access_R, False);
+         Opened := VFS.File.Open (Path, VFS.File.Read_Only, False);
          if Opened = null then
             Errno := Error_No_Entity;
             return Unsigned_64'Last;

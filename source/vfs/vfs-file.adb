@@ -159,6 +159,31 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Open;
 
+   function Get_Path (File : File_Acc) return String_Acc is
+   begin
+      return File.Full_Path;
+   end Get_Path;
+
+   function Get_Position (File : File_Acc) return Unsigned_64 is
+   begin
+      return File.Index;
+   end Get_Position;
+
+   procedure Set_Position (File : File_Acc; Pos : Unsigned_64) is
+   begin
+      File.Index := Pos;
+   end Set_Position;
+
+   function Get_Access (File : File_Acc) return Access_Mode is
+   begin
+      return File.Flags;
+   end Get_Access;
+
+   function Get_Device_ID (File : File_Acc) return Natural is
+   begin
+      return File.Dev_Data.Unique_Identifier;
+   end Get_Device_ID;
+
    function Check_Permissions
       (Path         : String;
        Exists       : Boolean;
@@ -225,7 +250,7 @@ package body VFS.File with SPARK_Mode => Off is
    is
       Read_Count : Unsigned_64;
    begin
-      if To_Read = null or else To_Read.Flags = Access_W then
+      if To_Read = null or else To_Read.Flags = Write_Only then
          return 0;
       end if;
 
@@ -262,7 +287,7 @@ package body VFS.File with SPARK_Mode => Off is
    is
       Write_Count : Unsigned_64;
    begin
-      if To_Write = null or else To_Write.Flags = Access_R then
+      if To_Write = null or else To_Write.Flags = Read_Only then
          return 0;
       end if;
       if To_Write.FS_Data /= System.Null_Address and
