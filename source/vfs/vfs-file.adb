@@ -32,8 +32,8 @@ package body VFS.File with SPARK_Mode => Off is
    is
       Fetched_File : System.Address := System.Null_Address;
       Fetched_Stat : File_Stat;
-      Fetched_Succ : Boolean;
-      Last_Slash   : Natural;
+      Fetched_Succ : Boolean := False;
+      Last_Slash   : Natural := 0;
       Symlink      : String (1 .. 60);
       Symlink_Len  : Natural;
    begin
@@ -250,7 +250,7 @@ package body VFS.File with SPARK_Mode => Off is
    is
       Read_Count : Unsigned_64;
    begin
-      if To_Read = null or else To_Read.Flags = Write_Only then
+      if To_Read.Flags = Write_Only then
          return 0;
       end if;
 
@@ -287,7 +287,7 @@ package body VFS.File with SPARK_Mode => Off is
    is
       Write_Count : Unsigned_64;
    begin
-      if To_Write = null or else To_Write.Flags = Read_Only then
+      if To_Write.Flags = Read_Only then
          return 0;
       end if;
       if To_Write.FS_Data /= System.Null_Address and
@@ -308,9 +308,7 @@ package body VFS.File with SPARK_Mode => Off is
 
    function Stat (F : File_Acc; S : out File_Stat) return Boolean is
    begin
-      if F = null then
-         return False;
-      end if;
+      --  This is null?
       if F.FS_Data /= System.Null_Address and
          F.File_Data /= System.Null_Address
       then
@@ -335,9 +333,6 @@ package body VFS.File with SPARK_Mode => Off is
        Argument : System.Address) return Boolean
    is
    begin
-      if F = null then
-         return False;
-      end if;
       if F.FS_Data /= System.Null_Address and
          F.File_Data /= System.Null_Address
       then
@@ -359,9 +354,6 @@ package body VFS.File with SPARK_Mode => Off is
        Map_Execute : Boolean) return Boolean
    is
    begin
-      if F = null then
-         return False;
-      end if;
       if F.FS_Data = System.Null_Address and F.File_Data = System.Null_Address
          and F.Dev_Data.Mmap /= null
       then
@@ -385,9 +377,6 @@ package body VFS.File with SPARK_Mode => Off is
        Length  : Unsigned_64) return Boolean
    is
    begin
-      if F = null then
-         return False;
-      end if;
       if F.FS_Data = System.Null_Address and F.File_Data = System.Null_Address
          and F.Dev_Data.Munmap /= null
       then

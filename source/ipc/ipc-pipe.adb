@@ -47,66 +47,64 @@ package body IPC.Pipe with SPARK_Mode => Off is
       );
    end Create_Pair;
 
+   function Is_Blocking (P : Pipe_Writer_Acc) return Boolean is
+   begin
+      return P.Is_Blocking;
+   end Is_Blocking;
+
+   function Is_Blocking (P : Pipe_Reader_Acc) return Boolean is
+   begin
+      return P.Is_Blocking;
+   end Is_Blocking;
+
    procedure Set_Blocking (P : Pipe_Writer_Acc; B : Boolean) is
    begin
-      if P /= null then
-         Lib.Synchronization.Seize (P.Mutex);
-         P.Is_Blocking := B;
-         Lib.Synchronization.Release (P.Mutex);
-      end if;
+      Lib.Synchronization.Seize (P.Mutex);
+      P.Is_Blocking := B;
+      Lib.Synchronization.Release (P.Mutex);
    end Set_Blocking;
 
    procedure Set_Blocking (P : Pipe_Reader_Acc; B : Boolean) is
    begin
-      if P /= null then
-         P.Is_Blocking := B;
-      end if;
+      P.Is_Blocking := B;
    end Set_Blocking;
 
    procedure Increase_Refcount (P : Pipe_Writer_Acc) is
    begin
-      if P /= null then
-         P.Refcount := P.Refcount + 1;
-      end if;
+      P.Refcount := P.Refcount + 1;
    end Increase_Refcount;
 
    procedure Increase_Refcount (P : Pipe_Reader_Acc) is
    begin
-      if P /= null then
-         P.Refcount := P.Refcount + 1;
-      end if;
+      P.Refcount := P.Refcount + 1;
    end Increase_Refcount;
 
    procedure Close (To_Close : in out Pipe_Writer_Acc) is
    begin
-      if To_Close /= null then
-         Lib.Synchronization.Seize (To_Close.Mutex);
-         To_Close.Refcount := To_Close.Refcount - 1;
-         if To_Close.Refcount = 0 then
-            if To_Close.Reader /= null then
-               To_Close.Reader.Writer_Is_Ghost := True;
-            else
-               Free (To_Close);
-               return;
-            end if;
+      Lib.Synchronization.Seize (To_Close.Mutex);
+      To_Close.Refcount := To_Close.Refcount - 1;
+      if To_Close.Refcount = 0 then
+         if To_Close.Reader /= null then
+            To_Close.Reader.Writer_Is_Ghost := True;
+         else
+            Free (To_Close);
+            return;
          end if;
-         Lib.Synchronization.Release (To_Close.Mutex);
       end if;
+      Lib.Synchronization.Release (To_Close.Mutex);
    end Close;
 
    procedure Close (To_Close : in out Pipe_Reader_Acc) is
    begin
-      if To_Close /= null then
-         To_Close.Refcount := To_Close.Refcount - 1;
-         if To_Close.Refcount = 0 then
-            if To_Close.Writer_Is_Ghost then
-               Free (To_Close.Other_End);
-            else
-               To_Close.Other_End.Reader := null;
-            end if;
-            Free (To_Close);
-            return;
+      To_Close.Refcount := To_Close.Refcount - 1;
+      if To_Close.Refcount = 0 then
+         if To_Close.Writer_Is_Ghost then
+            Free (To_Close.Other_End);
+         else
+            To_Close.Other_End.Reader := null;
          end if;
+         Free (To_Close);
+         return;
       end if;
    end Close;
 
@@ -119,9 +117,7 @@ package body IPC.Pipe with SPARK_Mode => Off is
       Final_Len : Natural          := Len;
       Data      : Pipe_Data (1 .. Len) with Import, Address => Destination;
    begin
-      if To_Read = null or else
-         (To_Read.Writer_Is_Ghost and To_Read.Other_End.Data_Count = 0)
-      then
+      if To_Read.Writer_Is_Ghost and To_Read.Other_End.Data_Count = 0 then
          return 0;
       end if;
 
@@ -160,7 +156,7 @@ package body IPC.Pipe with SPARK_Mode => Off is
       Final : Natural;
       Data  : Pipe_Data (1 .. Len) with Import, Address => Source;
    begin
-      if To_Write = null or else To_Write.Reader = null then
+      if To_Write.Reader = null then
          return 0;
       end if;
 

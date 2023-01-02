@@ -73,29 +73,32 @@ package VFS.File with SPARK_Mode => Off is
        Follow_Links : Boolean := True) return Boolean;
 
    --  Increase refcount, or decrease and close an opened file.
-   procedure Increase_Refcount (F : File_Acc);
-   procedure Close (To_Close : in out File_Acc);
+   procedure Increase_Refcount (F : File_Acc)   with Pre => F        /= null;
+   procedure Close (To_Close : in out File_Acc) with Pre => To_Close /= null;
 
    --  Read from a file, and return the read count.
    function Read
       (To_Read     : File_Acc;
        Count       : Unsigned_64;
-       Destination : System.Address) return Unsigned_64;
+       Destination : System.Address) return Unsigned_64
+      with Pre => To_Read /= null;
 
    --  Write to a file, and return the written count.
    function Write
       (To_Write : File_Acc;
        Count    : Unsigned_64;
-       Data     : System.Address) return Unsigned_64;
+       Data     : System.Address) return Unsigned_64
+      with Pre => To_Write /= null;
 
    --  Get the stat of the file.
-   function Stat (F : File_Acc; S : out File_Stat) return Boolean;
+   function Stat (F : File_Acc; S : out File_Stat) return Boolean
+      with Pre => F /= null;
 
    --  IOCTL.
    function IO_Control
       (F        : File_Acc;
        Request  : Unsigned_64;
-       Argument : System.Address) return Boolean;
+       Argument : System.Address) return Boolean with Pre => F /= null;
 
    --  Mmap.
    function Mmap
@@ -104,13 +107,13 @@ package VFS.File with SPARK_Mode => Off is
        Length      : Unsigned_64;
        Map_Read    : Boolean;
        Map_Write   : Boolean;
-       Map_Execute : Boolean) return Boolean;
+       Map_Execute : Boolean) return Boolean with Pre => F /= null;
 
    --  Munmap.
    function Munmap
       (F       : File_Acc;
        Address : Memory.Virtual_Address;
-       Length  : Unsigned_64) return Boolean;
+       Length  : Unsigned_64) return Boolean with Pre => F /= null;
 
 private
 

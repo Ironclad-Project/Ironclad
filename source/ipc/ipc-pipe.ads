@@ -19,14 +19,57 @@ with Lib.Synchronization;
 with Interfaces; use Interfaces;
 
 package IPC.Pipe with SPARK_Mode => Off is
-   type Pipe_Writer;
-   type Pipe_Reader;
+   --  Pipes are one of the simplest IPC methods of Ironclad.
+   --  Its basically a memory buffer held by the kernel which can be read
+   --  and written to, blocking or non blocking.
+   type Pipe_Writer     is private;
+   type Pipe_Reader     is private;
    type Pipe_Writer_Acc is access Pipe_Writer;
    type Pipe_Reader_Acc is access Pipe_Reader;
 
-   --  Writer and reader need to be aware of the location of each other.
-   --  The writer holds the data, and has the reader as validity check, while
-   --  the reader just accesses it.
+   --  Create a fresh pair of pipes.
+   procedure Create_Pair
+      (Write_End   : out Pipe_Writer_Acc;
+       Read_End    : out Pipe_Reader_Acc;
+       Is_Blocking : Boolean);
+
+   --  Check or change whether the passed pipe is blocking or not.
+   function Is_Blocking (P : Pipe_Writer_Acc) return Boolean
+      with Inline, Pre => P /= null;
+   function Is_Blocking (P : Pipe_Reader_Acc) return Boolean
+      with Inline, Pre => P /= null;
+   procedure Set_Blocking (P : Pipe_Writer_Acc; B : Boolean)
+      with Inline, Pre => P /= null;
+   procedure Set_Blocking (P : Pipe_Reader_Acc; B : Boolean)
+      with Inline, Pre => P /= null;
+
+   --  Close the passed end, and do preparations for the other end.
+   --  Both ends must be closed individually,.
+   --  If the writing end is closed but the reader end isnt, the reader will
+   --  be allowed to read until the end of the held data.
+   procedure Increase_Refcount (P : Pipe_Writer_Acc)   with Pre => P /= null;
+   procedure Increase_Refcount (P : Pipe_Reader_Acc)   with Pre => P /= null;
+   procedure Close (To_Close : in out Pipe_Writer_Acc)
+      with Pre => To_Close /= null;
+   procedure Close (To_Close : in out Pipe_Reader_Acc)
+      with Pre => To_Close /= null;
+
+   --  Read from the reader end of a pipe.
+   function Read
+      (To_Read     : Pipe_Reader_Acc;
+       Count       : Unsigned_64;
+       Destination : System.Address) return Unsigned_64
+      with Pre => To_Read /= null;
+
+   --  Write to the writer end of a pipe.
+   function Write
+      (To_Write : Pipe_Writer_Acc;
+       Count    : Unsigned_64;
+       Source   : System.Address) return Unsigned_64
+      with Pre => To_Write /= null;
+
+private
+
    Pipe_Data_Len : constant := 512;
    type Pipe_Data is array (Natural range <>) of Unsigned_8;
    type Pipe_Writer is record
@@ -38,40 +81,10 @@ package IPC.Pipe with SPARK_Mode => Off is
       Reader      : Pipe_Reader_Acc;
    end record;
 
-   --  Reader end holds a pointer to the writer and whether to block.
    type Pipe_Reader is record
       Refcount        : Natural;
       Writer_Is_Ghost : Boolean;
       Is_Blocking     : Boolean;
       Other_End       : Pipe_Writer_Acc;
    end record;
-
-   --  Create a fresh pair of pipes.
-   procedure Create_Pair
-      (Write_End   : out Pipe_Writer_Acc;
-       Read_End    : out Pipe_Reader_Acc;
-       Is_Blocking : Boolean);
-
-   --  Change whether the passed pipe is blocking or not.
-   procedure Set_Blocking (P : Pipe_Writer_Acc; B : Boolean);
-   procedure Set_Blocking (P : Pipe_Reader_Acc; B : Boolean);
-
-   --  Close the passed end, and do preparations for the other end.
-   --  Both ends must be closed individually.
-   procedure Increase_Refcount (P : Pipe_Writer_Acc);
-   procedure Increase_Refcount (P : Pipe_Reader_Acc);
-   procedure Close (To_Close : in out Pipe_Writer_Acc);
-   procedure Close (To_Close : in out Pipe_Reader_Acc);
-
-   --  Read from the reader end of a pipe.
-   function Read
-      (To_Read     : Pipe_Reader_Acc;
-       Count       : Unsigned_64;
-       Destination : System.Address) return Unsigned_64;
-
-   --  Write to the writer end of a pipe.
-   function Write
-      (To_Write : Pipe_Writer_Acc;
-       Count    : Unsigned_64;
-       Source   : System.Address) return Unsigned_64;
 end IPC.Pipe;

@@ -981,8 +981,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Addr : constant System.Address := To_Address (Integer_Address (Path));
       Path_Length  : constant Natural := Lib.C_String_Length (Addr);
       Path_String  : String (1 .. Path_Length) with Address => Addr;
-      File : constant VFS.File.File_Acc :=
-         VFS.File.Open (Path_String, VFS.File.Read_Only, False);
+      File : File_Acc := Open (Path_String, VFS.File.Read_Only, False);
+      Stat_Is_Success : Boolean;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall lstat(");
@@ -994,16 +994,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       if not Check_Userland_Access (Integer_Address (Address)) then
          Errno := Error_Would_Fault;
-         return 0;
-      end if;
-
-      if Inner_Stat (File, Address) then
-         Errno := Error_No_Error;
-         return 0;
-      else
-         Errno := Error_Bad_File;
          return Unsigned_64'Last;
       end if;
+
+      if File /= null then
+         Stat_Is_Success := Inner_Stat (File, Address);
+         Close (File);
+         if Stat_Is_Success then
+            Errno := Error_No_Error;
+            return 0;
+         end if;
+      end if;
+
+      Errno := Error_Bad_File;
+      return Unsigned_64'Last;
    end Syscall_LStat;
 
    function Syscall_Get_CWD
@@ -1455,11 +1459,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when F_GETFL =>
             case File.Description is
                when Description_Reader_Pipe =>
-                  if File.Inner_Reader_Pipe.Is_Blocking then
+                  if Is_Blocking (File.Inner_Reader_Pipe) then
                      Returned := O_NONBLOCK;
                   end if;
                when Description_Writer_Pipe =>
-                  if File.Inner_Writer_Pipe.Is_Blocking then
+                  if Is_Blocking (File.Inner_Writer_Pipe) then
                      Returned := O_NONBLOCK;
                   end if;
                when others =>
