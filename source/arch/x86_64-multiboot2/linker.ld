@@ -31,7 +31,8 @@ SECTIONS {
     . = VIRTUAL_BASE;
 
     /DISCARD/ : {
-        *libgnat.a:*(*)
+        *libgnat*:*(*)
+        *b__main.o(*)
     }
 
     /* Position in the front required by spec. */

@@ -16,9 +16,9 @@
 
 project Ironclad is
    --  Compilation flags.
-   Ada_Flags    := External ("ADAFLAGS", "-O2 -g -gnaty -Wall -flto=auto");
+   Ada_Flags    := External ("ADAFLAGS", "-O2 -g -gnaty -Wall");
    Asm_Flags    := External ("ASMFLAGS", "-O2 -g -Wall");
-   Linker_Flags := External ("LDFLAGS",  "-O2 -g -Wall -flto=auto");
+   Linker_Flags := External ("LDFLAGS",  "-O2 -g -Wall");
 
    --  Command line/configure options.
    type Arch_Name is ("aarch64-stivale2", "sparc-leon3", "x86_64-multiboot2");
@@ -34,18 +34,18 @@ project Ironclad is
 
    --  Set directories and files.
    for Source_Dirs use (
-      "source/arch/" & Arch,
-      "source/arch",
-      "source/cryptography",
-      "source/devices",
-      "source/ipc",
-      "source/lib",
-      "source/memory/" & MEMORY_ALLOCONLY,
-      "source/memory",
-      "source/networking",
-      "source/userland",
-      "source/vfs",
-      "source"
+      "@@SRC@@/source/arch/" & Arch,
+      "@@SRC@@/source/arch",
+      "@@SRC@@/source/cryptography",
+      "@@SRC@@/source/devices",
+      "@@SRC@@/source/ipc",
+      "@@SRC@@/source/lib",
+      "@@SRC@@/source/memory/" & MEMORY_ALLOCONLY,
+      "@@SRC@@/source/memory",
+      "@@SRC@@/source/networking",
+      "@@SRC@@/source/userland",
+      "@@SRC@@/source/vfs",
+      "@@SRC@@/source"
    );
    for Object_Dir use "obj";
    for Exec_Dir use ".";
@@ -95,13 +95,12 @@ project Ironclad is
             );
       end case;
 
-      for Local_Configuration_Pragmas use "source/pragmas.adc";
+      for Local_Configuration_Pragmas use "@@SRC@@/source/pragmas.adc";
    end Compiler;
 
    package Linker is
       Base_Link_Switches := Split (Linker_Flags, " ") & (
-         "-T../source/arch/" & Arch & "/linker.ld", "-nostdlib", "-lgcc",
-         "-znoexecstack"
+         "-T@@SRC@@/source/arch/" & Arch & "/linker.ld", "-nostdlib", "-Llibgnat-hack"
       );
 
       case Arch is

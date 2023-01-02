@@ -29,3 +29,4 @@ tests/obj
 tests/run_tests
 tests/gnatprove
 ironclad.gpr
+libgnat-hack
