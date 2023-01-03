@@ -71,6 +71,11 @@ package Arch.Snippets is
    #elsif ArchName = """x86_64-multiboot2"""
       procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) with Inline;
       function Port_In (Port : Unsigned_16) return Unsigned_8 with Inline;
+      procedure Port_Out16 (Port, Value : Unsigned_16) with Inline;
+      function Port_In16 (Port : Unsigned_16) return Unsigned_16 with Inline;
+      procedure Port_Out32 (Port : Unsigned_16; Value : Unsigned_32)
+         with Inline;
+      function Port_In32 (Port : Unsigned_16) return Unsigned_32 with Inline;
       procedure Invalidate_Page (Value : Virtual_Address) with Inline;
       function Read_MSR (MSR : Unsigned_32) return Unsigned_64 with Inline;
       procedure Write_MSR (MSR : Unsigned_32; Value : Unsigned_64) with Inline;

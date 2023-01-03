@@ -84,33 +84,30 @@ package body Arch.GDT with SPARK_Mode => Off is
    end record;
    for GDT_Pointer'Size use 80;
 
-   --  Global variables for the GDT and its pointer.
-   Global_GDT     : GDT;
-   Global_Pointer : GDT_Pointer;
-   TSS_Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
+   --  Global GDT and GDT pointer, the TSS is initialized when needed.
+   Global_GDT : GDT := (
+      Entries => (
+         1 =>        (0, 0, 0,           0,           0, 0), --  Null.
+         2 => (16#FFFF#, 0, 0, 2#10011010#,           0, 0), --  16-bit kcode.
+         3 => (16#FFFF#, 0, 0, 2#10010010#,           0, 0), --  16-bit kdata.
+         4 => (16#FFFF#, 0, 0, 2#10011010#, 2#11001111#, 0), --  32-bit kcode.
+         5 => (16#FFFF#, 0, 0, 2#10010010#, 2#11001111#, 0), --  32-bit kdata.
+         6 =>        (0, 0, 0, 2#10011010#, 2#00100000#, 0), --  64-bit kcode.
+         7 =>        (0, 0, 0, 2#10010010#,           0, 0), --  64-bit kdata.
+         8 =>        (0, 0, 0, 2#11110010#,           0, 0), --  64-bit udata.
+         9 =>        (0, 0, 0, 2#11111010#, 2#00100000#, 0)  --  64-bit ucode.
+      ),
+      TSS => <>
+   );
+   Global_Pointer : constant GDT_Pointer := (
+      Size    => Global_GDT'Size - 1,
+      Address => Global_GDT'Address
+   );
+   TSS_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
 
    procedure Init is
    begin
-      --  Filling the GDT's descriptors, which are in order Null followed by:
-      --  16-bit kernel code | 16-bit kernel data
-      --  32-bit kernel code | 32-bit kernel data
-      --  64-bit kernel code | 64-bit-kernel data
-      --  64-bit user data   | 64-bit user code
-      Global_GDT.Entries (1) :=        (0, 0, 0,           0,           0, 0);
-      Global_GDT.Entries (2) := (16#FFFF#, 0, 0, 2#10011010#,           0, 0);
-      Global_GDT.Entries (3) := (16#FFFF#, 0, 0, 2#10010010#,           0, 0);
-      Global_GDT.Entries (4) := (16#FFFF#, 0, 0, 2#10011010#, 2#11001111#, 0);
-      Global_GDT.Entries (5) := (16#FFFF#, 0, 0, 2#10010010#, 2#11001111#, 0);
-      Global_GDT.Entries (6) :=        (0, 0, 0, 2#10011010#, 2#00100000#, 0);
-      Global_GDT.Entries (7) :=        (0, 0, 0, 2#10010010#,           0, 0);
-      Global_GDT.Entries (8) :=        (0, 0, 0, 2#11110010#,           0, 0);
-      Global_GDT.Entries (9) :=        (0, 0, 0, 2#11111010#, 2#00100000#, 0);
-
-      --  Set GDT Pointer and load the GDT for the current core.
-      Global_Pointer := (Global_GDT'Size - 1, Global_GDT'Address);
       Load_GDT;
-
-      --  Free the TSS lock.
       Lib.Synchronization.Release (TSS_Mutex);
    end Init;
 

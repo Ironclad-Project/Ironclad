@@ -260,6 +260,46 @@ package body Arch.Snippets with SPARK_Mode => Off is
       return Value;
    end Port_In;
 
+   procedure Port_Out16 (Port, Value : Unsigned_16) is
+   begin
+      Asm ("outw %0, %1",
+           Inputs   => (Unsigned_16'Asm_Input ("a",  Value),
+                        Unsigned_16'Asm_Input ("Nd", Port)),
+           Clobber  => "memory",
+           Volatile => True);
+   end Port_Out16;
+
+   function Port_In16 (Port : Unsigned_16) return Unsigned_16 is
+      Value : Unsigned_16;
+   begin
+      Asm ("inw %1, %0",
+           Outputs  => Unsigned_16'Asm_Output ("=a", Value),
+           Inputs   => Unsigned_16'Asm_Input  ("Nd", Port),
+           Clobber  => "memory",
+           Volatile => True);
+      return Value;
+   end Port_In16;
+
+   procedure Port_Out32 (Port : Unsigned_16; Value : Unsigned_32) is
+   begin
+      Asm ("out %0, %1",
+           Inputs   => (Unsigned_32'Asm_Input ("a",  Value),
+                        Unsigned_16'Asm_Input ("Nd", Port)),
+           Clobber  => "memory",
+           Volatile => True);
+   end Port_Out32;
+
+   function Port_In32 (Port : Unsigned_16) return Unsigned_32 is
+      Value : Unsigned_32;
+   begin
+      Asm ("in %1, %0",
+           Outputs  => Unsigned_32'Asm_Output ("=a", Value),
+           Inputs   => Unsigned_16'Asm_Input  ("Nd", Port),
+           Clobber  => "memory",
+           Volatile => True);
+      return Value;
+   end Port_In32;
+
    procedure Invalidate_Page (Value : Virtual_Address) is
    begin
       Asm ("invlpg (%0)",
