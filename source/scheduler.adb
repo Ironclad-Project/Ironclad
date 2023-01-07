@@ -334,9 +334,7 @@ package body Scheduler with SPARK_Mode => Off is
       --  Check validity using Least upper bound -> Inf = ln 2 = (aprox 69%).
       Temp := Total_Run_Time / (Periods_LCM / 100);
       if Temp > 69 then
-         Lib.Messages.Put      (Temp);
-         Lib.Messages.Put_Line ("% > 69% (Least upper bound -> Inf)");
-         Lib.Messages.Put_Line ("Tasks might not be schedulable");
+         Lib.Messages.Warn ("Usage% > 69%. Tasks might not be schedulable!");
       end if;
 
       --  Now that we know all the data is valid, update the priorities.

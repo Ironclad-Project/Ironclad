@@ -155,7 +155,7 @@ package body Devices.FB with SPARK_Mode => Off is
       Len     := Integer_Address (Fb.Height * Fb.Pitch) +
                  (To_Integer (Fb.Address) - Aligned);
       return Memory.Virtual.Map_Range (
-         Map      => Memory.Virtual.Kernel_Map,
+         Map      => Memory.Virtual.Get_Kernel_Map,
          Virtual  => Aligned + Memory_Offset,
          Physical => Aligned,
          Length   => Unsigned_64 (Align.Align_Up (Len, Page_Size)),

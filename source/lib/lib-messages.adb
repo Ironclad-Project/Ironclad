@@ -28,6 +28,13 @@ is
    Messages_Mutex : aliased Lib.Synchronization.Binary_Semaphore :=
       Lib.Synchronization.Unlocked_Semaphore;
 
+   procedure Warn (Message : String) is
+      Header_Str : constant String := Ada.Characters.Latin_1.ESC & "[35m";
+      Reset_Str  : constant String := Ada.Characters.Latin_1.ESC & "[0m";
+   begin
+      Put_Line (Header_Str & "Warning" & Reset_Str & ": " & Message);
+   end Warn;
+
    procedure Put_Line (Message : String) is
    begin
       Lib.Synchronization.Seize (Messages_Mutex);

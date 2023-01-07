@@ -24,27 +24,16 @@ package Memory.Virtual with SPARK_Mode => Off is
    Page_Size : constant := Arch.MMU.Page_Size;
 
    --  Structures for keeping track of mapping information.
-   type Mapping_Range is record
-      Is_Present     : Boolean;
-      Virtual_Start  : Virtual_Address;
-      Physical_Start : Physical_Address;
-      Length         : Unsigned_64;
-      Flags          : Arch.MMU.Page_Permissions;
-   end record;
-   type Mapping_Range_Arr is array (Natural range <>) of Mapping_Range;
-   type Page_Map is record
-      Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
-      Inner      : Arch.MMU.Page_Table_Acc;
-      Map_Ranges : Mapping_Range_Arr (1 .. 100);
-   end record;
+   type Page_Map     is private;
    type Page_Map_Acc is access Page_Map;
-
-   --  Default map for the kernel.
-   Kernel_Map : Page_Map_Acc;
 
    --  Initialize the manager using the architectural interface.
    --  @return True on success, False on failure.
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean;
+
+   --  Get the default kernel map if initialized by Init.
+   --  @return Pointer to the kernel map, or null in failure.
+   function Get_Kernel_Map return Page_Map_Acc;
 
    --  Make maps active.
    --  @return True on success, False on failure.
@@ -94,4 +83,20 @@ package Memory.Virtual with SPARK_Mode => Off is
    --  Check whether the loaded map can access the passed address
    --  from userland.
    function Check_Userland_Access (Addr : Virtual_Address) return Boolean;
+
+private
+
+   type Mapping_Range is record
+      Is_Present     : Boolean;
+      Virtual_Start  : Virtual_Address;
+      Physical_Start : Physical_Address;
+      Length         : Unsigned_64;
+      Flags          : Arch.MMU.Page_Permissions;
+   end record;
+   type Mapping_Range_Arr is array (Natural range <>) of Mapping_Range;
+   type Page_Map is record
+      Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
+      Inner      : Arch.MMU.Page_Table_Acc;
+      Map_Ranges : Mapping_Range_Arr (1 .. 100);
+   end record;
 end Memory.Virtual;

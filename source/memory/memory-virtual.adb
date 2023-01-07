@@ -19,6 +19,8 @@ with Memory.Physical;
 with Interfaces.C;
 
 package body Memory.Virtual with SPARK_Mode => Off is
+   Kernel_Map : Page_Map_Acc;
+
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
    begin
       if not Arch.MMU.Init (Memmap) then
@@ -30,6 +32,11 @@ package body Memory.Virtual with SPARK_Mode => Off is
          return Make_Active (Kernel_Map);
       end if;
    end Init;
+
+   function Get_Kernel_Map return Page_Map_Acc is
+   begin
+      return Kernel_Map;
+   end Get_Kernel_Map;
 
    function Is_Loaded (Map : Page_Map_Acc) return Boolean is
    begin

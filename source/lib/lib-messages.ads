@@ -21,6 +21,10 @@ package Lib.Messages with
    Abstract_State => Message_State,
    Initializes    => Message_State
 is
+   --  Print a warning message to debug outputs and add a newline.
+   --  @param Message String to print appending a newline.
+   procedure Warn (Message : String) with Global => (In_Out => Message_State);
+
    --  Prints a string to debug outputs and adds a newline.
    --  @param Message String to print to append with a new line.
    procedure Put_Line (Message : String)

@@ -162,7 +162,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       --  Load the global GDT, IDT, mappings, and LAPIC.
       GDT.Load_GDT;
       IDT.Load_IDT;
-      Discard := Memory.Virtual.Make_Active (Memory.Virtual.Kernel_Map);
+      Discard := Memory.Virtual.Make_Active (Memory.Virtual.Get_Kernel_Map);
       APIC.Init_LAPIC;
 
       --  Load several goodies.
