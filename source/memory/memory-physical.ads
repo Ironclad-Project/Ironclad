@@ -25,7 +25,7 @@ package Memory.Physical is
    --  Called when doing 'new'. Ada adds the semantics of erroring out
    --  unconditionally when Sz is size_t'Last, and 0 allocates a small block.
    --  It returns memory that is:
-   --  - Always zero'ed out for security reasons, this is a kernel after all.
+   --  - Not zero'd out, since SPARK requires us to initialize it ourselves.
    --  - Always aligned to 4K.
    --  - Never null, errors are handled internally, this includes OOM.
    --  @param Sz Size to allocate in bytes.

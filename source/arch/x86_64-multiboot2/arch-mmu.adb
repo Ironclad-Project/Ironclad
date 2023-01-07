@@ -55,7 +55,7 @@ package body Arch.MMU with SPARK_Mode => Off is
       elsif Create_If_Not_Found then
          --  Allocate and put some default flags.
          declare
-            New_Entry      : constant PML4_Acc := new PML4;
+            New_Entry      : constant PML4_Acc := new PML4'(others => 0);
             New_Entry_Addr : constant Physical_Address :=
                To_Integer (New_Entry.all'Address) - Memory_Offset;
          begin

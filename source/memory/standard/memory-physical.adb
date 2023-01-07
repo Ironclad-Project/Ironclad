@@ -163,22 +163,12 @@ package body Memory.Physical with SPARK_Mode => Off is
          Bitmap_Body (First_Found_Index + Unsigned_64 (I - 1)) := Block_Used;
       end loop;
 
-      --  Set statistic and global variables.
+      --  Set statistic and global variables and return.
       Bitmap_Last_Used := First_Found_Index;
       Free_Memory      := Free_Memory - Size;
       Used_Memory      := Used_Memory + Size;
       Lib.Synchronization.Release (Alloc_Mutex);
-
-      --  Zero out memory and return value.
-      declare
-         Addr : constant Virtual_Address :=
-            Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
-         Pool : array (1 .. Unsigned_64 (Size)) of Unsigned_8 with Import;
-         for Pool'Address use To_Address (Addr);
-      begin
-         Pool := (others => 0);
-         return Addr;
-      end;
+      return Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
    end Alloc;
 
    procedure Free (Address : Interfaces.C.size_t) is

@@ -34,7 +34,9 @@ package body Devices with SPARK_Mode => Off is
 
    procedure Init is
    begin
-      Devices := new Device_Container_Arr;
+      Devices := new Device_Container_Arr'(others => (
+         Is_Present => False, Name => <>, Name_Len => 0, Contents => <>
+      ));
 
       --  Initialize architectural devices.
       Arch.Hooks.Devices_Hook;

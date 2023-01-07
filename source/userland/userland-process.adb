@@ -53,6 +53,7 @@ package body Userland.Process with SPARK_Mode => Off is
             Process_List (I).Process_PID := I;
             Process_List (I).Did_Exit    := False;
             Process_List (I).Exit_Code   := 0;
+            Process_List (I).Children    := (others => 0);
 
             --  If we have a parent, set ourselves as a child and fetch data.
             if Parent /= null then
@@ -100,26 +101,22 @@ package body Userland.Process with SPARK_Mode => Off is
    end Create_Process;
 
    procedure Delete_Process (Process : Process_Data_Acc) is
+      Parent_Process : Process_Data_Acc;
    begin
       if Process /= null then
          Lib.Synchronization.Seize (Process_List_Mutex);
 
          if Process.Parent_PID /= 0 then
-            declare
-               Parent_Process : constant Process_Data_Acc :=
-                  Get_By_PID (Process.Parent_PID);
-            begin
-               if Parent_Process /= null then
-                  for PID of Parent_Process.Children loop
-                     if PID = Process.Process_PID then
-                        PID := 0;
-                        exit;
-                     end if;
-                  end loop;
-               end if;
-            end;
+            Parent_Process := Get_By_PID (Process.Parent_PID);
+            if Parent_Process /= null then
+               for PID of Parent_Process.Children loop
+                  if PID = Process.Process_PID then
+                     PID := 0;
+                     exit;
+                  end if;
+               end loop;
+            end if;
          end if;
-
          Free_Proc (Process_List (Process.Process_PID));
          Process_List (Process.Process_PID) := null;
 
