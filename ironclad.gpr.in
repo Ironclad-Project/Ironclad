@@ -26,6 +26,7 @@ project Ironclad is
    X86_64_BOOTFB    := "@@X86_64_BOOTFB@@";
    X86_64_PS2       := "@@X86_64_PS2@@";
    X86_64_RTC       := "@@X86_64_RTC@@";
+   X86_64_ATA       := "@@X86_64_ATA@@";
    X86_64_SERIAL    := "@@X86_64_SERIAL@@";
    DEVICES_STREAMS  := "@@DEVICES_STREAMS@@";
    DEVICES_RNG      := "@@DEVICES_RNG@@";
@@ -64,6 +65,7 @@ project Ironclad is
          "-gnateDX86_64_BOOTFB="   & X86_64_BOOTFB,
          "-gnateDX86_64_PS2="      & X86_64_PS2,
          "-gnateDX86_64_RTC="      & X86_64_RTC,
+         "-gnateDX86_64_ATA="      & X86_64_ATA,
          "-gnateDX86_64_SERIAL="   & X86_64_SERIAL,
          "-gnateDDEVICES_STREAMS=" & DEVICES_STREAMS,
          "-gnateDDEVICES_RNG="     & DEVICES_RNG,

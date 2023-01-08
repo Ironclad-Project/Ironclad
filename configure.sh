@@ -48,6 +48,7 @@ ARCH="x86_64-multiboot2"
 X86_64_BOOTFB="True"
 X86_64_PS2="True"
 X86_64_RTC="True"
+X86_64_ATA="True"
 X86_64_SERIAL="True"
 DEVICES_STREAMS="True"
 DEVICES_RNG="True"
@@ -83,16 +84,19 @@ if ! [ "$skip_menu" = "yes" ]; then
             1 "Boot protocol framebuffer support" $(geton $X86_64_BOOTFB "True")  \
             2 "PS2 Keyboard/Mouse support"        $(geton $X86_64_PS2    "True")  \
             3 "RTC (Real Time Clock) support"     $(geton $X86_64_RTC    "True")  \
-            4 "Serial (COM) support"              $(geton $X86_64_SERIAL "True"))
+            4 "ATA drive support"                 $(geton $X86_64_ATA    "True")
+            5 "Serial (COM) support"              $(geton $X86_64_SERIAL "True"))
          X86_64_BOOTFB="False"
          X86_64_PS2="False"
          X86_64_RTC="False"
+         X86_64_ATA="False"
          X86_64_SERIAL="False"
          for c in $x86_64_choices; do case "$c" in
             1) X86_64_BOOTFB="True" ;;
             2) X86_64_PS2="True"    ;;
             3) X86_64_RTC="True"    ;;
-            4) X86_64_SERIAL="True" ;;
+            4) X86_64_ATA="True"    ;;
+            5) X86_64_SERIAL="True" ;;
          esac; done
          ;;
       5)
@@ -143,6 +147,7 @@ replace_in_file ARCH             $ARCH
 replace_in_file X86_64_BOOTFB    $X86_64_BOOTFB
 replace_in_file X86_64_PS2       $X86_64_PS2
 replace_in_file X86_64_RTC       $X86_64_RTC
+replace_in_file X86_64_ATA       $X86_64_ATA
 replace_in_file X86_64_SERIAL    $X86_64_SERIAL
 replace_in_file DEVICES_STREAMS  $DEVICES_STREAMS
 replace_in_file DEVICES_RNG      $DEVICES_RNG

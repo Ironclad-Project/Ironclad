@@ -63,7 +63,7 @@ package body Arch.PCI with SPARK_Mode => Off is
    is
       Root_Bus, Host_Bridge : PCI_Device;
    begin
-      if not Fetch_Device (0, 0, 0, 0, Root_Bus) then
+      if not Fetch_Device (0, 0, 0, Root_Bus) then
          goto Error;
       end if;
 
@@ -77,7 +77,7 @@ package body Arch.PCI with SPARK_Mode => Off is
          );
       else
          for I in 0 .. PCI_Max_Function loop
-            if Fetch_Device (0, 0, I, 0, Host_Bridge) then
+            if Fetch_Device (0, 0, I, Host_Bridge) then
                if Read32 (Host_Bridge, 0) /= 16#FFFFFFFF# then
                   if Check_Bus (
                      Bus                  => I,
@@ -180,7 +180,7 @@ package body Arch.PCI with SPARK_Mode => Off is
    function Get_BAR
       (Dev   : PCI_Device;
        Index : BAR_Index;
-       BAR   : out Base_Address_Registers) return Boolean
+       BAR   : out Base_Address_Register) return Boolean
    is
       Reg_Index : constant Unsigned_16 := 16#10# + Unsigned_16 (Index) * 4;
       BAR_Low, BAR_Size_Low, BAR_High, BAR_Size_High : Unsigned_32;
@@ -231,7 +231,7 @@ package body Arch.PCI with SPARK_Mode => Off is
       Size := not Size + 1;
 
       BAR := (
-         Base            => To_Address (Integer_Address (Base)),
+         Base            => Integer_Address (Base),
          Size            => Size,
          Is_MMIO         => Is_MMIO,
          Is_Prefetchable => Is_Prefetchable

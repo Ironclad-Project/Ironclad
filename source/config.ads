@@ -26,6 +26,7 @@ package Config is
    Support_X86_64_BootFB  : constant Boolean := $X86_64_BOOTFB;
    Support_X86_64_PS2     : constant Boolean := $X86_64_PS2;
    Support_X86_64_RTC     : constant Boolean := $X86_64_RTC;
+   Support_X86_64_ATA     : constant Boolean := $X86_64_ATA;
    Support_X86_64_Serial  : constant Boolean := $X86_64_Serial;
    Support_Device_Streams : constant Boolean := $DEVICES_STREAMS;
    Support_Device_RNG     : constant Boolean := $DEVICES_RNG;

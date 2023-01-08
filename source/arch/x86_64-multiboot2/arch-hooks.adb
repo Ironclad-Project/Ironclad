@@ -17,6 +17,7 @@
 with Devices.FB;
 with Devices.PS2Mouse;
 with Devices.PS2Keyboard;
+with Devices.ATA;
 with Devices.Serial;
 with Devices.RTC;
 with Arch.Snippets;
@@ -37,6 +38,11 @@ package body Arch.Hooks with SPARK_Mode => Off is
       end if;
       if Config.Support_X86_64_PS2 then
          if not Devices.PS2Keyboard.Init or not Devices.PS2Mouse.Init then
+            goto Error;
+         end if;
+      end if;
+      if Config.Support_X86_64_ATA then
+         if not Devices.ATA.Init then
             goto Error;
          end if;
       end if;

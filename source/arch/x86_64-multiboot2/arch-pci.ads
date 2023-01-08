@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
 with Interfaces; use Interfaces;
 
 package Arch.PCI with SPARK_Mode => Off is
@@ -23,8 +22,8 @@ package Arch.PCI with SPARK_Mode => Off is
    --
    --  Each PCI device has an associated set of base address registers, this
    --  structures hold MMIO addresses used by the device.
-   type Base_Address_Registers is record
-      Base            : System.Address;
+   type Base_Address_Register is record
+      Base            : Integer_Address;
       Size            : Unsigned_64;
       Is_MMIO         : Boolean;
       Is_Prefetchable : Boolean;
@@ -49,11 +48,11 @@ package Arch.PCI with SPARK_Mode => Off is
 
    --  Get a BAR from the PCI device configuration space, return True if it
    --  exists and was successful, or false if not.
-   type BAR_Index is range 0 .. 4;
+   type BAR_Index is range 0 .. 5;
    function Get_BAR
       (Dev   : PCI_Device;
        Index : BAR_Index;
-       BAR   : out Base_Address_Registers) return Boolean;
+       BAR   : out Base_Address_Register) return Boolean;
    ----------------------------------------------------------------------------
    --  Read and write data into the PCI device configuration space.
    function Read8  (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_8;
