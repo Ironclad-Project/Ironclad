@@ -17,6 +17,7 @@
 with Arch.Snippets; use Arch.Snippets;
 with System.Address_To_Access_Conversions;
 with Lib.Messages;
+with Devices.Partitions;
 
 package body Devices.ATA with SPARK_Mode => Off is
    package Con is new System.Address_To_Access_Conversions (ATA_Data);
@@ -42,7 +43,8 @@ package body Devices.ATA with SPARK_Mode => Off is
                IO_Control        => null,
                Mmap              => null,
                Munmap            => null
-            ), Base_Name)
+            ), Base_Name) or
+               not Partitions.Parse_Partitions (Base_Name, Fetch (Base_Name))
             then
                return False;
             end if;
