@@ -135,7 +135,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       --  Search for contiguous blocks, as many as needed.
       Lib.Synchronization.Seize (Alloc_Mutex);
    <<Search_Blocks>>
-      for I in Bitmap_Last_Used .. Block_Count - 1 loop
+      for I in Bitmap_Last_Used + 1 .. Block_Count - 1 loop
          if Bitmap_Body (I) = Block_Free then
             if First_Found_Index = 0 or I /= First_Found_Index + Found_Count
             then

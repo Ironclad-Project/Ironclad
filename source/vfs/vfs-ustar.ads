@@ -15,12 +15,11 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
-with Devices;
 
 package VFS.USTAR with SPARK_Mode => Off is
-   --  Probe for a USTAR FS in the passed device.
+   --  Probe for a USTAR FS in the passed mount.
    --  Return opaque FS data on success, or Null_Address on failure.
-   function Probe (Dev : Devices.Resource_Acc) return System.Address;
+   function Probe (Key : Positive) return System.Address;
 
    --  Basic file operations.
    function Open (FS : System.Address; Path : String) return System.Address;
@@ -43,6 +42,7 @@ package VFS.USTAR with SPARK_Mode => Off is
        Obj  : System.Address;
        S    : out File_Stat) return Boolean;
 private
+
    type USTAR_File is record
       Name      : String (1 .. 100);
       Name_Len  : Natural;
@@ -51,12 +51,12 @@ private
       Size      : Natural;
       File_Type : Unsigned_8;
    end record;
-   type USTAR_File_Acc is access USTAR_File;
+   type USTAR_File_Acc is access all USTAR_File;
 
    function Fetch_Header
       (FS   : System.Address;
        Path : String;
-       Data : out USTAR_File) return Boolean;
+       Data : out USTAR_File_Acc) return Boolean;
 
    function Octal_To_Decimal (Octal : String) return Natural;
 end VFS.USTAR;

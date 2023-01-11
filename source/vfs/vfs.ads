@@ -36,7 +36,7 @@ package VFS with SPARK_Mode => Off is
       IO_Block_Size     : Natural;
       IO_Block_Count    : Unsigned_64;
    end record;
-
+   ----------------------------------------------------------------------------
    --  Initialize the internal VFS registries.
    procedure Init;
 
@@ -47,26 +47,66 @@ package VFS with SPARK_Mode => Off is
    --  @param Name Name of the device (/dev/<name>).
    --  @param Path Absolute path for mounting.
    --  @param FS FS Type to mount as.
-   function Mount
-      (Name : String;
-       Path : String;
-       FS   : FS_Type) return Boolean;
-
-   --  Get a mount exactly matching the passed path.
-   --  @param Path Path to search a mount for.
-   --  @param FS FS type of the found mount.
-   --  @param Dev Device of the found mount.
-   --  @return Internal FS data of the found mount, Null_Address if not found.
-   --  TODO: Make this do a closest instead of best match in order to support
-   --  mounts better, along with file dispatching in vfs-file.adb.
-   function Get_Mount
-      (Path : String;
-       FS   : out FS_Type;
-       Dev  : out Devices.Resource_Acc) return System.Address;
+   function Mount (Name, Path : String; FS : FS_Type) return Boolean;
 
    --  Unmount a mount, syncing when possible.
    --  @param Path Path of the mount to unmount.
    procedure Unmount (Path : String);
+
+   --  Get a mount mounted exactly in the passed path.
+   --  @param Path Path to search a mount for.
+   --  @return Key to use to refer to the mount, or 0 if not found.
+   --  TODO: Make this do a closest instead of exact match in order to support
+   --  mounts better, along with file dispatching in vfs-file.adb.
+   function Get_Mount (Path : String) return Natural;
+
+   --  Check if a key is valid.
+   --  @param Key Key to check.
+   --  @return True if valid, False if not.
+   function Is_Valid (Key : Positive) return Boolean;
+
+   --  Get the backing FS type.
+   --  @param Key Key to use to fetch the info.
+   --  @return The FS type, will be a placeholder if the key is not valid.
+   function Get_Backing_FS (Key : Positive) return FS_Type
+      with Pre => Is_Valid (Key);
+
+   --  Get the backing data of the FS.
+   --  @param Key Key to use to fetch the info.
+   --  @return The FS data, or System.Null_Address if not a valid key.
+   function Get_Backing_FS_Data (Key : Positive) return System.Address
+      with Pre => Is_Valid (Key);
+
+   --  Get the backing device of a mount.
+   --  @param Key Key to use to fetch the info.
+   --  @return The backing device.
+   function Get_Backing_Device (Key : Positive) return Resource_Acc
+      with Pre => Is_Valid (Key);
+
+   --  Read from the mount itself, this function is needed as mount registering
+   --  involves some caching by the registry for use by FSs.
+   function Read
+      (Key    : Positive;
+       Offset : Unsigned_64;
+       Count  : Unsigned_64;
+       Desto  : System.Address) return Unsigned_64
+   with Pre => Is_Valid (Key);
+
+   --  Write to the mount, this function is needed as mount registering
+   --  involves some caching by the registry for use by FSs.
+   function Write
+      (Key      : Positive;
+       Offset   : Unsigned_64;
+       Count    : Unsigned_64;
+       To_Write : System.Address) return Unsigned_64
+   with Pre => Is_Valid (Key);
+
+   --  Flush the aforementioned caches.
+   --  @param Key Mount to flush the caches of.
+   procedure Flush_Caches (Key : Positive) with Pre => Is_Valid (Key);
+
+   --  Flush the aforementioned caches for all mounts.
+   procedure Flush_Caches;
    ----------------------------------------------------------------------------
    --  Check whether a path is absolute.
    --  @param Path to check.
@@ -78,4 +118,22 @@ package VFS with SPARK_Mode => Off is
    --  @param Path Path to check.
    --  @return True if canonical, False if not.
    function Is_Canonical (Path : String) return Boolean;
+
+private
+
+   --  Read and write individual sectors, return true in success.
+   function Read_Sector
+      (Dev   : Devices.Resource_Acc;
+       LBA   : Unsigned_64;
+       Desto : System.Address) return Boolean;
+   function Write_Sector
+      (Dev  : Devices.Resource_Acc;
+       LBA  : Unsigned_64;
+       Data : System.Address) return Boolean;
+
+   --  Evict the passed information, and replace it.
+   procedure Evict_Sector
+      (Dev              : Devices.Resource_Acc;
+       Old_LBA, New_LBA : Unsigned_64;
+       Data             : System.Address);
 end VFS;

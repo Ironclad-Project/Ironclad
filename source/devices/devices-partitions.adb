@@ -279,10 +279,26 @@ package body Devices.Partitions with SPARK_Mode => Off is
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
    is
-      Part : constant Partition_Data_Acc :=
-         Partition_Data_Acc (Con1.To_Pointer (Data.Data));
+      Part : Partition_Data_Acc;
+      LBA_Offset, LBA_Length, Final_Count : Unsigned_64;
    begin
-      return Part.Inner_Device.Read (Part.Inner_Device, Offset, Count, Desto);
+      Part       := Partition_Data_Acc (Con1.To_Pointer (Data.Data));
+      LBA_Offset := Part.LBA_Offset * Part.Inner_Device.Block_Size;
+      LBA_Length := Part.LBA_Length * Part.Inner_Device.Block_Size;
+
+      if Offset > LBA_Offset + LBA_Length then
+         return 0;
+      elsif Offset + Count > LBA_Offset + LBA_Length then
+         Final_Count := LBA_Length - Offset;
+      else
+         Final_Count := Count;
+      end if;
+
+      return Part.Inner_Device.Read
+         (Data   => Part.Inner_Device,
+          Offset => LBA_Offset + Offset,
+          Count  => Final_Count,
+          Desto  => Desto);
    end Read;
 
    function Write
@@ -291,12 +307,27 @@ package body Devices.Partitions with SPARK_Mode => Off is
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
    is
-      Part : constant Partition_Data_Acc :=
-         Partition_Data_Acc (Con1.To_Pointer (Data.Data));
+      Part : Partition_Data_Acc;
+      LBA_Offset, LBA_Length, Final_Count : Unsigned_64;
    begin
+      Part       := Partition_Data_Acc (Con1.To_Pointer (Data.Data));
+      LBA_Offset := Part.LBA_Offset * Part.Inner_Device.Block_Size;
+      LBA_Length := Part.LBA_Length * Part.Inner_Device.Block_Size;
+
+      if Offset > LBA_Offset + LBA_Length then
+         return 0;
+      elsif Offset + Count > LBA_Offset + LBA_Length then
+         Final_Count := LBA_Length - Offset;
+      else
+         Final_Count := Count;
+      end if;
+
       if Part.Inner_Device.Write /= null then
          return Part.Inner_Device.Write
-            (Part.Inner_Device, Offset, Count, To_Write);
+            (Data     => Part.Inner_Device,
+             Offset   => LBA_Offset + Offset,
+             Count    => Final_Count,
+             To_Write => To_Write);
       else
          --  TODO: Return error, not 0.
          return 0;

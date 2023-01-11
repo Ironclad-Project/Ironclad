@@ -63,49 +63,106 @@ package body VFS.USTAR with SPARK_Mode => Off is
 
    --  USTAR file types.
    USTAR_Regular_File  : constant := 16#30#;
-   --  USTAR_Hard_Link     : constant := 16#31#;
    USTAR_Symbolic_Link : constant := 16#32#;
-   --  USTAR_Char_Device   : constant := 16#33#;
-   --  USTAR_Block_Device  : constant := 16#34#;
    USTAR_Directory     : constant := 16#35#;
-   --  USTAR_FIFO          : constant := 16#36#;
-   --  USTAR_GNU_Long_Path : constant := 16#4C#;
 
+   --  Since the files are constant and we dont have to worry about write, we
+   --  can just cache the locations of all the files at boot.
+   type USTAR_Cached_Files is array (Natural range <>) of aliased USTAR_File;
+   type USTAR_Cached_Files_Acc is access USTAR_Cached_Files;
    type USTAR_Data is record
-      Dev : Devices.Resource_Acc;
+      Key   : Positive;
+      Cache : USTAR_Cached_Files_Acc;
    end record;
    type USTAR_Data_Acc is access USTAR_Data;
 
-   function Probe (Dev : Devices.Resource_Acc) return System.Address is
-      First_Header : USTAR_Header;
-      Byte_Size    : constant Unsigned_64 := First_Header'Size / 8;
-      Data : constant USTAR_Data_Acc := new USTAR_Data'(Dev => Dev);
+   function Probe (Key : Positive) return System.Address is
+      Header          : USTAR_Header;
+      Byte_Size       : constant Natural := Header'Size / 8;
+      Byte_Size_64    : constant Unsigned_64 := Unsigned_64 (Byte_Size);
+      Data            : USTAR_Data_Acc;
+      Header_Index    : Unsigned_64 := 0;
+      Size, Jump      : Natural;
+      Linked_Name_Len : Natural;
+      Name_Len        : Natural;
+      File_Count      : Natural := 0;
+      Discard         : Unsigned_64;
    begin
-      if Dev.Read.all (Dev, 0, Byte_Size, First_Header'Address) /=
-         Byte_Size
-      then
+      loop
+         if Read (Key, Header_Index, Byte_Size_64, Header'Address)
+            /= Byte_Size_64 or else Header.Signature /= USTAR_Signature
+         then
+            exit;
+         else
+            File_Count := File_Count + 1;
+         end if;
+
+         Size := Octal_To_Decimal (Header.Size);
+         Jump := Size;
+         if Jump mod Byte_Size /= 0 then
+            Jump := Jump + (Byte_Size - (Jump mod Byte_Size));
+         end if;
+         Jump := Jump + Byte_Size;
+         Header_Index := Header_Index + Unsigned_64 (Jump);
+      end loop;
+
+      if File_Count = 0 then
          return System.Null_Address;
       end if;
+      Data := new USTAR_Data'(Key, new USTAR_Cached_Files (1 .. File_Count));
 
-      if First_Header.Signature = USTAR_Signature then
-         return Data.all'Address;
-      end if;
+      Header_Index := 0;
+      for Cache_File of Data.Cache.all loop
+         Name_Len        := 0;
+         Linked_Name_Len := 0;
+         Discard := Read (Key, Header_Index, Byte_Size_64, Header'Address);
+         Size    := Octal_To_Decimal (Header.Size);
+         for C of Header.Name loop
+            exit when C = Ada.Characters.Latin_1.NUL;
+            Name_Len := Name_Len + 1;
+         end loop;
+         case Header.File_Type is
+            when USTAR_Symbolic_Link =>
+               for C of Header.Link_Name loop
+                  exit when C = Ada.Characters.Latin_1.NUL;
+                  Linked_Name_Len := Linked_Name_Len + 1;
+               end loop;
+               Cache_File :=
+                  (Name      => Header.Name,
+                   Name_Len  => Name_Len,
+                   Start     => Header_Index + Header.Link_Name'Position,
+                   Size      => Linked_Name_Len,
+                   File_Type => Header.File_Type,
+                   Mode      => Octal_To_Decimal (Header.Mode));
+            when others =>
+               Cache_File :=
+                  (Name      => Header.Name,
+                   Name_Len  => Name_Len,
+                   Start     => Header_Index + Byte_Size_64,
+                   Size      => Size,
+                   File_Type => Header.File_Type,
+                   Mode      => Octal_To_Decimal (Header.Mode));
+         end case;
 
-      return System.Null_Address;
+         Jump := Size;
+         if Jump mod Byte_Size /= 0 then
+            Jump := Jump + (Byte_Size - (Jump mod Byte_Size));
+         end if;
+         Jump := Jump + Byte_Size;
+         Header_Index := Header_Index + Unsigned_64 (Jump);
+      end loop;
+
+      return Data.all'Address;
    end Probe;
 
    function Open (FS : System.Address; Path : String) return System.Address is
       FS_Data : USTAR_Data with Address => FS, Import;
-      Data    : USTAR_File;
+      Data    : USTAR_File_Acc;
    begin
-      if not Fetch_Header (FS, Path, Data) then
-         return System.Null_Address;
+      if Fetch_Header (FS, Path, Data) then
+         return Data.all'Address;
       else
-         declare
-            Result : constant USTAR_File_Acc := new USTAR_File'(Data);
-         begin
-            return Result.all'Address;
-         end;
+         return System.Null_Address;
       end if;
    end Open;
 
@@ -119,7 +176,7 @@ package body VFS.USTAR with SPARK_Mode => Off is
    is
       pragma Unreferenced (Can_Read);
       pragma Unreferenced (Can_Exec);
-      Data : USTAR_File;
+      Data : USTAR_File_Acc;
    begin
       if Can_Write then
          return False;
@@ -150,8 +207,8 @@ package body VFS.USTAR with SPARK_Mode => Off is
       if Offset + Real_Count > Unsigned_64 (File_Data.Size) then
          Real_Count := Unsigned_64 (File_Data.Size) - Offset;
       end if;
-      return FS_Data.Dev.Read.all (
-         FS_Data.Dev,
+      return Read (
+         FS_Data.Key,
          File_Data.Start + Offset,
          Real_Count,
          Desto
@@ -163,18 +220,19 @@ package body VFS.USTAR with SPARK_Mode => Off is
        Obj  : System.Address;
        S    : out File_Stat) return Boolean
    is
-      pragma Unreferenced (Data);
-      File_Data : USTAR_File with Address => Obj, Import;
+      FS_Data   : USTAR_Data with Address => Data, Import;
+      File_Data : USTAR_File with Address => Obj,  Import;
+      D : constant Devices.Resource_Acc := Get_Backing_Device (FS_Data.Key);
    begin
-      S := (
-         Unique_Identifier => File_Data.Start,
-         Type_Of_File      => File_Regular,
-         Mode              => Unsigned_32 (File_Data.Mode),
-         Hard_Link_Count   => 1,
-         Byte_Size         => Unsigned_64 (File_Data.Size),
-         IO_Block_Size     => 512,
-         IO_Block_Count    => (Unsigned_64 (File_Data.Size) + 512 - 1) / 512
-      );
+      S :=
+         (Unique_Identifier => File_Data.Start,
+          Type_Of_File      => <>,
+          Mode              => Unsigned_32 (File_Data.Mode),
+          Hard_Link_Count   => 1,
+          Byte_Size         => Unsigned_64 (File_Data.Size),
+          IO_Block_Size     => Natural (D.Block_Size),
+          IO_Block_Count    =>
+          (Unsigned_64 (File_Data.Size) + D.Block_Size - 1) / D.Block_Size);
 
       case File_Data.File_Type is
          when USTAR_Regular_File  => S.Type_Of_File := File_Regular;
@@ -189,69 +247,18 @@ package body VFS.USTAR with SPARK_Mode => Off is
    function Fetch_Header
       (FS   : System.Address;
        Path : String;
-       Data : out USTAR_File) return Boolean
+       Data : out USTAR_File_Acc) return Boolean
    is
       FS_Data : USTAR_Data with Address => FS, Import;
-
-      --  Need the 2 because Ada's typesystem is overly strict.
-      --  Like Natural is essentially a subset of Unsigned_64, why cast.
-      Byte_Size    : constant Natural     := USTAR_Header'Size / 8;
-      Byte_Size_64 : constant Unsigned_64 := Unsigned_64 (Byte_Size);
-
-      Header          : USTAR_Header;
-      Header_Index    : Unsigned_64 := 0;
-      Size, Jump      : Natural;
-      Linked_Name_Len : Natural := 0;
    begin
-      --  Loop until we find the header or run out of USTAR data.
-      loop
-         if FS_Data.Dev.Read.all (FS_Data.Dev, Header_Index, Byte_Size_64,
-            Header'Address) /= Byte_Size_64
-            or else Header.Signature /= USTAR_Signature
-         then
-            return False;
+      for I in FS_Data.Cache'Range loop
+         if FS_Data.Cache (I).Name (1 .. Path'Length) = Path then
+            Data := FS_Data.Cache (I)'Access;
+            return True;
          end if;
-
-         Size := Octal_To_Decimal (Header.Size);
-         exit when Header.Name (1 .. Path'Length) = Path;
-
-         --  Calculate where is the next header is.
-         Jump := Size;
-         if Jump mod Byte_Size /= 0 then
-            Jump := Jump + (Byte_Size - (Jump mod Byte_Size));
-         end if;
-         Jump := Jump + Byte_Size;
-         Header_Index := Header_Index + Unsigned_64 (Jump);
       end loop;
-
-      case Header.File_Type is
-         when USTAR_Regular_File | USTAR_Directory =>
-            Data := (
-               Name      => Header.Name,
-               Name_Len  => Path'Length,
-               Start     => Header_Index + Byte_Size_64,
-               Size      => Size,
-               File_Type => Header.File_Type,
-               Mode      => Octal_To_Decimal (Header.Mode)
-            );
-            return True;
-         when USTAR_Symbolic_Link =>
-            for C of Header.Link_Name loop
-               exit when C = Ada.Characters.Latin_1.NUL;
-               Linked_Name_Len := Linked_Name_Len + 1;
-            end loop;
-            Data := (
-               Name      => Header.Name,
-               Name_Len  => Path'Length,
-               Start     => Header_Index + Header.Link_Name'Position,
-               Size      => Linked_Name_Len,
-               File_Type => Header.File_Type,
-               Mode      => Octal_To_Decimal (Header.Mode)
-            );
-            return True;
-         when others =>
-            return False;
-      end case;
+      Data := null;
+      return False;
    end Fetch_Header;
 
    function Octal_To_Decimal (Octal : String) return Natural is

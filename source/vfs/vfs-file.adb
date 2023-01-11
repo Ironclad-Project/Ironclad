@@ -36,6 +36,7 @@ package body VFS.File with SPARK_Mode => Off is
       Last_Slash   : Natural := 0;
       Symlink      : String (1 .. 60);
       Symlink_Len  : Natural;
+      Mount_Key    : Natural;
    begin
       --  Default values.
       Is_Device    := False;
@@ -58,7 +59,14 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
 
       --  Do the usual file opening routine.
-      Fetched_FS := Get_Mount ("/", Fetched_Type, Fetched_Dev);
+      Mount_Key := Get_Mount ("/");
+      if Mount_Key = 0 then
+         goto Done;
+      end if;
+
+      Fetched_Dev  := Get_Backing_Device (Mount_Key);
+      Fetched_Type := Get_Backing_FS (Mount_Key);
+      Fetched_FS   := Get_Backing_FS_Data (Mount_Key);
       if Fetched_FS /= Null_Address then
          case Fetched_Type is
             when FS_USTAR =>

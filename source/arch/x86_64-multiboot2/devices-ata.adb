@@ -151,31 +151,32 @@ package body Devices.ATA with SPARK_Mode => Off is
       Status : Unsigned_8;
       Data   : Unsigned_16;
    begin
+      --  Separate the address into LBA.
+      Request := Offset_Sector;
+      LBA0  := Unsigned_8 (Shift_Right (Request and 16#0000000000FF#,  0));
+      LBA8  := Unsigned_8 (Shift_Right (Request and 16#00000000FF00#,  8));
+      LBA16 := Unsigned_8 (Shift_Right (Request and 16#000000FF0000#, 16));
+      LBA24 := Unsigned_8 (Shift_Right (Request and 16#0000FF000000#, 24));
+      LBA32 := Unsigned_8 (Shift_Right (Request and 16#00FF00000000#, 32));
+      LBA40 := Unsigned_8 (Shift_Right (Request and 16#FF0000000000#, 40));
+
+      if Drive.Is_Master then
+         Port_Out (Drive.Device_Port, (16#40#));
+      else
+         Port_Out (Drive.Device_Port, (16#50#));
+      end if;
+      Port_Out (Drive.Sector_Count_Port,
+         Unsigned_8 (Shift_Right (Count_Sector, 8)));
+      Port_Out (Drive.LBA_Low_Port,  LBA24);
+      Port_Out (Drive.LBA_Mid_Port,  LBA32);
+      Port_Out (Drive.LBA_High_Port, LBA40);
+      Port_Out (Drive.Sector_Count_Port, Unsigned_8 (Count_Sector and 16#FF#));
+      Port_Out (Drive.LBA_Low_Port,  LBA0);
+      Port_Out (Drive.LBA_Mid_Port,  LBA8);
+      Port_Out (Drive.LBA_High_Port, LBA16);
+      Port_Out (Drive.Command_Port, (if Is_Write then 16#34# else 16#24#));
+
       for Sector in 1 .. Count_Sector loop
-         --  Separate the address into LBA.
-         Request := Offset_Sector + Sector - 1;
-         LBA0  := Unsigned_8 (Shift_Right (Request and 16#0000000000FF#,  0));
-         LBA8  := Unsigned_8 (Shift_Right (Request and 16#00000000FF00#,  8));
-         LBA16 := Unsigned_8 (Shift_Right (Request and 16#000000FF0000#, 16));
-         LBA24 := Unsigned_8 (Shift_Right (Request and 16#0000FF000000#, 24));
-         LBA32 := Unsigned_8 (Shift_Right (Request and 16#00FF00000000#, 32));
-         LBA40 := Unsigned_8 (Shift_Right (Request and 16#FF0000000000#, 40));
-
-         if Drive.Is_Master then
-            Port_Out (Drive.Device_Port, (16#40#));
-         else
-            Port_Out (Drive.Device_Port, (16#50#));
-         end if;
-         Port_Out (Drive.Sector_Count_Port, 0);
-         Port_Out (Drive.LBA_Low_Port,  LBA24);
-         Port_Out (Drive.LBA_Mid_Port,  LBA32);
-         Port_Out (Drive.LBA_High_Port, LBA40);
-         Port_Out (Drive.Sector_Count_Port, 1);
-         Port_Out (Drive.LBA_Low_Port,  LBA0);
-         Port_Out (Drive.LBA_Mid_Port,  LBA8);
-         Port_Out (Drive.LBA_High_Port, LBA16);
-         Port_Out (Drive.Command_Port, (if Is_Write then 16#34# else 16#24#));
-
          Status := Port_In (Drive.Command_Port);
          while (Status and 16#80#)  = 16#80# and
                (Status and 16#01#) /= 16#01#
@@ -191,7 +192,7 @@ package body Devices.ATA with SPARK_Mode => Off is
          if Is_Write then
             for I in 1 .. 256 loop
                Data := Shift_Left (Unsigned_16 (Data_Buffer (Index)), 8) or
-                       Unsigned_16 (Data_Buffer (Index));
+                       Unsigned_16 (Data_Buffer (Index + 1));
                Index := Index + 2;
                Port_Out16 (Drive.Data_Port, Data);
             end loop;

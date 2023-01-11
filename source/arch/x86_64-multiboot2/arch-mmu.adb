@@ -136,7 +136,7 @@ package body Arch.MMU with SPARK_Mode => Off is
       Hardcoded_Region : constant := 16#100000000#;
    begin
       --  Initialize the kernel pagemap.
-      MMU.Kernel_Table := new Page_Table;
+      MMU.Kernel_Table := new Page_Table'(PML4_Level => (others => 0));
 
       --  Map the first 4KiB - 1 MiB not NX, because we have the smp bootstrap
       --  there and else hell will break loose.
@@ -199,6 +199,7 @@ package body Arch.MMU with SPARK_Mode => Off is
    function Create_Table return Page_Table_Acc is
       Map : constant Page_Table_Acc := new Page_Table;
    begin
+      Map.PML4_Level   (1 .. 256) := (others => 0);
       Map.PML4_Level (257 .. 512) := MMU.Kernel_Table.PML4_Level (257 .. 512);
       return Map;
    end Create_Table;
