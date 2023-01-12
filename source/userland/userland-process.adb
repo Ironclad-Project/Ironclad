@@ -34,7 +34,7 @@ package body Userland.Process with SPARK_Mode => Off is
 
    procedure Init is
    begin
-      Process_List := new Process_Arr;
+      Process_List := new Process_Arr'(others => null);
       Lib.Synchronization.Release (Process_List_Mutex);
    end Init;
 

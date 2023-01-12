@@ -93,12 +93,12 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
          Lib.Panic.Hard_Panic ("No SMP trampoline address could be found!");
       end if;
 
-      --  Get the highest module address, or 1MiB at least. Everything below
+      --  Get the highest module address, or 5MiB at least. Everything below
       --  will be reserved, anything above will follow memory map.
       --  TODO: This could be done less wastefully, with much more finesse,
       --  more efficiently, more smart, and in all aspects better if we just
       --  actually corrected the mmap instead of discarding most of it.
-      Highest_Address := 16#100000#;
+      Highest_Address := 16#500000#;
       for E of Cached_Info.RAM_Files (1 .. Cached_Info.RAM_Files_Len) loop
          if To_Integer (E.Start + E.Length) - Memory.Memory_Offset >
             Highest_Address

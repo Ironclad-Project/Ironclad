@@ -60,7 +60,8 @@ package body Scheduler with SPARK_Mode => Off is
    function Init return Boolean is
    begin
       --  Allocate core locals and finishing touches.
-      Thread_Pool := new Thread_Info_Arr;
+      Thread_Pool := new Thread_Info_Arr'(others =>
+         (Is_Present => False, others => <>));
       Is_Initialized := True;
       Lib.Synchronization.Release (Scheduler_Mutex);
       return True;
@@ -428,8 +429,8 @@ package body Scheduler with SPARK_Mode => Off is
 
    function Is_Thread_Present (Thread : TID) return Boolean is
    begin
-      return Thread /= 0                      and then
-             Thread <= TID (Thread_Pool'Last) and then
+      return Thread >= TID (Thread_Pool'First) and then
+             Thread <= TID (Thread_Pool'Last)  and then
              Thread_Pool (Thread).Is_Present;
    end Is_Thread_Present;
 end Scheduler;
