@@ -53,6 +53,8 @@ private
        Count_Sector  : Unsigned_64;
        Is_Write      : Boolean;
        Data_Addr     : System.Address) return Boolean;
+
+   function Poll_Error (Port : Unsigned_16) return Boolean;
    ----------------------------------------------------------------------------
    function Read
       (Data   : Resource_Acc;

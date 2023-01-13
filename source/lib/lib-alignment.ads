@@ -35,4 +35,9 @@ package Lib.Alignment with Pure is
    function Align_Down (Value, Alignment : T) return T
       with Pre  => Alignment /= 0 and (Alignment and (Alignment - 1)) = 0,
            Post => Align_Down'Result rem Alignment = 0;
+
+   --  Divide and round up.
+   function Divide_Round_Up (Dividend, Divisor : T) return T
+      with Pre  => (Dividend + (Divisor - 1) <= T'Last) and (Divisor > 1),
+           Post => Divide_Round_Up'Result mod Divisor = 0;
 end Lib.Alignment;

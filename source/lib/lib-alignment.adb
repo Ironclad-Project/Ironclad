@@ -33,4 +33,9 @@ package body Lib.Alignment is
    begin
       return T (Value2 and not (Align2 - 1));
    end Align_Down;
+
+   function Divide_Round_Up (Dividend, Divisor : T) return T is
+   begin
+      return (Dividend + (Divisor - 1)) / Divisor;
+   end Divide_Round_Up;
 end Lib.Alignment;

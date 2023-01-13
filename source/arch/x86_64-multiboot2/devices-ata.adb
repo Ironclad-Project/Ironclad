@@ -18,9 +18,11 @@ with Arch.Snippets; use Arch.Snippets;
 with System.Address_To_Access_Conversions;
 with Lib.Messages;
 with Devices.Partitions;
+with Lib.Alignment;
 
 package body Devices.ATA with SPARK_Mode => Off is
    package Con is new System.Address_To_Access_Conversions (ATA_Data);
+   package Ali is new Lib.Alignment (Unsigned_64);
 
    function Init return Boolean is
       Base_Name  : String := "ata0";
@@ -29,21 +31,20 @@ package body Devices.ATA with SPARK_Mode => Off is
       for I in 0 .. 3 loop
          Drive_Data := Init_Port (I);
          if Drive_Data /= null then
-            Base_Name (4) := Character'Val (I + Character'Pos ('1'));
-            if not Register ((
-               Data => Con.To_Address (Con.Object_Pointer (Drive_Data)),
-               Mutex             => Lib.Synchronization.Unlocked_Semaphore,
-               Is_Block          => True,
-               Block_Size        => Sector_Size,
-               Block_Count       => Drive_Data.Sector_Count,
-               Unique_Identifier => 0,
-               Sync              => null,
-               Read              => Read'Access,
-               Write             => Write'Access,
-               IO_Control        => null,
-               Mmap              => null,
-               Munmap            => null
-            ), Base_Name) or
+            Base_Name (4) := Character'Val (I + 1 + Character'Pos ('0'));
+            if not Register (
+               (Data => Con.To_Address (Con.Object_Pointer (Drive_Data)),
+                Mutex             => Lib.Synchronization.Unlocked_Semaphore,
+                Is_Block          => True,
+                Block_Size        => Sector_Size,
+                Block_Count       => Drive_Data.Sector_Count,
+                Unique_Identifier => 0,
+                Sync              => null,
+                Read              => Read'Access,
+                Write             => Write'Access,
+                IO_Control        => null,
+                Mmap              => null,
+                Munmap            => null), Base_Name) or
                not Partitions.Parse_Partitions (Base_Name, Fetch (Base_Name))
             then
                return False;
@@ -119,20 +120,19 @@ package body Devices.ATA with SPARK_Mode => Off is
          Sector_Count : Unsigned_64 with
             Import, Address => Identify_Info (101)'Address;
       begin
-         return new ATA_Data'(
-            Is_Master         => Is_Master,
-            Identify          => Identify_Info,
-            Data_Port         => Data_Port,
-            Error_Port        => Error_Port,
-            Sector_Count_Port => Sector_Count_Port,
-            LBA_Low_Port      => LBA_Low_Port,
-            LBA_Mid_Port      => LBA_Mid_Port,
-            LBA_High_Port     => LBA_High_Port,
-            Device_Port       => Device_Port,
-            Command_Port      => Command_Port,
-            Control_Port      => Control_Port,
-            Sector_Count      => Sector_Count
-         );
+         return new ATA_Data'
+            (Is_Master         => Is_Master,
+             Identify          => Identify_Info,
+             Data_Port         => Data_Port,
+             Error_Port        => Error_Port,
+             Sector_Count_Port => Sector_Count_Port,
+             LBA_Low_Port      => LBA_Low_Port,
+             LBA_Mid_Port      => LBA_Mid_Port,
+             LBA_High_Port     => LBA_High_Port,
+             Device_Port       => Device_Port,
+             Command_Port      => Command_Port,
+             Control_Port      => Control_Port,
+             Sector_Count      => Sector_Count);
       end;
    end Init_Port;
 
@@ -148,8 +148,7 @@ package body Devices.ATA with SPARK_Mode => Off is
       Index   : Unsigned_64 := 1;
       Request : Unsigned_64;
       LBA0, LBA8, LBA16, LBA24, LBA32, LBA40 : Unsigned_8;
-      Status : Unsigned_8;
-      Data   : Unsigned_16;
+      Data : Unsigned_16;
    begin
       --  Separate the address into LBA.
       Request := Offset_Sector;
@@ -177,22 +176,15 @@ package body Devices.ATA with SPARK_Mode => Off is
       Port_Out (Drive.Command_Port, (if Is_Write then 16#34# else 16#24#));
 
       for Sector in 1 .. Count_Sector loop
-         Status := Port_In (Drive.Command_Port);
-         while (Status and 16#80#)  = 16#80# and
-               (Status and 16#01#) /= 16#01#
-         loop
-            Status := Port_In (Drive.Command_Port);
-         end loop;
-
-         if (Status and 16#01#) /= 0 then
+         if not Poll_Error (Drive.Command_Port) then
             Lib.Messages.Warn ("ATA error while operating on a sector");
             return False;
          end if;
 
          if Is_Write then
             for I in 1 .. 256 loop
-               Data := Shift_Left (Unsigned_16 (Data_Buffer (Index)), 8) or
-                       Unsigned_16 (Data_Buffer (Index + 1));
+               Data := Shift_Left (Unsigned_16 (Data_Buffer (Index + 1)), 8) or
+                       Unsigned_16 (Data_Buffer (Index));
                Index := Index + 2;
                Port_Out16 (Drive.Data_Port, Data);
             end loop;
@@ -205,8 +197,26 @@ package body Devices.ATA with SPARK_Mode => Off is
             end loop;
          end if;
       end loop;
+
+      if Is_Write then
+         Port_Out (Drive.Command_Port, 16#EA#);
+         if not Poll_Error (Drive.Command_Port) then
+            Lib.Messages.Warn ("ATA error while flushing on a sector");
+            return False;
+         end if;
+      end if;
       return True;
    end Read_Write;
+
+   function Poll_Error (Port : Unsigned_16) return Boolean is
+      Status : Unsigned_8;
+   begin
+      Status := Port_In (Port);
+      while (Status and 16#80#) = 16#80# and (Status and 16#01#) /= 16#01# loop
+         Status := Port_In (Port);
+      end loop;
+      return (Status and 16#01#) = 0;
+   end Poll_Error;
    ----------------------------------------------------------------------------
    function Read
       (Data   : Resource_Acc;
@@ -224,13 +234,12 @@ package body Devices.ATA with SPARK_Mode => Off is
       end if;
 
       Lib.Synchronization.Seize (Data.Mutex);
-      Success := Read_Write (
-         Drive         => Drive,
-         Offset_Sector => Offset / Sector_Size,
-         Count_Sector  => (Count / Sector_Size) + 1,
-         Is_Write      => False,
-         Data_Addr     => Desto
-      );
+      Success := Read_Write
+         (Drive         => Drive,
+          Offset_Sector => Offset / Sector_Size,
+          Count_Sector  => Ali.Divide_Round_Up (Count, Sector_Size),
+          Is_Write      => False,
+          Data_Addr     => Desto);
       Lib.Synchronization.Release (Data.Mutex);
       if Success then
          return Count;
@@ -255,13 +264,12 @@ package body Devices.ATA with SPARK_Mode => Off is
       end if;
 
       Lib.Synchronization.Seize (Data.Mutex);
-      Success := Read_Write (
-         Drive         => Drive,
-         Offset_Sector => Offset / Sector_Size,
-         Count_Sector  => (Count / Sector_Size) + 1,
-         Is_Write      => True,
-         Data_Addr     => To_Write
-      );
+      Success := Read_Write
+         (Drive         => Drive,
+          Offset_Sector => Offset / Sector_Size,
+          Count_Sector  => Ali.Divide_Round_Up (Count, Sector_Size),
+          Is_Write      => True,
+          Data_Addr     => To_Write);
       Lib.Synchronization.Release (Data.Mutex);
       if Success then
          return Count;
