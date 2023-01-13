@@ -21,12 +21,6 @@ with Ada.Unchecked_Deallocation;
 with Lib.Alignment;
 
 package body VFS with SPARK_Mode => Off is
-   type Sector_Data is array (Unsigned_64 range <>) of Unsigned_8;
-   type Sector_Cache (Size : Unsigned_64) is record
-      LBA_Offset : Unsigned_64;
-      Data       : Sector_Data (1 .. Size);
-   end record;
-   type Sector_Cache_Acc is access Sector_Cache;
    procedure Free_Sector_Cache is new Ada.Unchecked_Deallocation
       (Sector_Cache, Sector_Cache_Acc);
    type Sector_Cache_Arr is array (Unsigned_64 range <>) of Sector_Cache_Acc;
@@ -54,9 +48,6 @@ package body VFS with SPARK_Mode => Off is
       Mounts_Mutex := Lib.Synchronization.Unlocked_Semaphore;
       for Mount of Mounts.all loop
          Mount.Mounted_Dev := null;
-         Mount.Cache       := (others => null);
-         Mount.Cache_Mutex := Lib.Synchronization.Unlocked_Semaphore;
-         Mount.Last_Evict  := 1;
       end loop;
    end Init;
 
@@ -88,6 +79,9 @@ package body VFS with SPARK_Mode => Off is
       Mounts (Free_I).Mounted_Dev                    := Dev;
       Mounts (Free_I).Path_Length                    := Path'Length;
       Mounts (Free_I).Path_Buffer (1 .. Path'Length) := Path;
+      Mounts (Free_I).Cache                          := (others => null);
+      Mounts (Free_I).Cache_Mutex := Lib.Synchronization.Unlocked_Semaphore;
+      Mounts (Free_I).Last_Evict  := 1;
       case FS is
          when FS_USTAR =>
             FS_Data := VFS.USTAR.Probe (Free_I);
@@ -112,6 +106,11 @@ package body VFS with SPARK_Mode => Off is
             Mounts (I).Path_Buffer (1 .. Mounts (I).Path_Length) = Path
          then
             Flush_Caches (I);
+            for Cache of Mounts (I).Cache loop
+               if Cache /= null then
+                  Free_Sector_Cache (Cache);
+               end if;
+            end loop;
             Mounts (I).Mounted_Dev := null;
             goto Return_End;
          end if;
@@ -190,19 +189,20 @@ package body VFS with SPARK_Mode => Off is
                   Free_Index := J;
                end if;
             elsif Mounts (Key).Cache (J).LBA_Offset = Searched then
-               Caches (I) := Mounts (Key).Cache (J);
+               Free_Index := J;
                goto Found;
             end if;
          end loop;
          if Free_Index = 0 then
             Free_Index := Mounts (Key).Last_Evict;
-            Evict_Sector
+            if not Evict_Sector
                (Mounts (Key).Mounted_Dev,
-                Mounts (Key).Cache (Free_Index).LBA_Offset,
-                Searched,
-                Mounts (Key).Cache (Free_Index).Data'Address);
-            Mounts (Key).Cache (Free_Index).LBA_Offset := Searched;
-            Caches (I) := Mounts (Key).Cache (Free_Index);
+                Mounts (Key).Cache (Free_Index),
+                Searched)
+            then
+               return 0;
+            end if;
+
             if Mounts (Key).Last_Evict = Cache_Array_Length then
                Mounts (Key).Last_Evict := 1;
             else
@@ -211,6 +211,7 @@ package body VFS with SPARK_Mode => Off is
          else
             Mounts (Key).Cache (Free_Index) := new Sector_Cache (Block_Size);
             Mounts (Key).Cache (Free_Index).LBA_Offset := Searched;
+            Mounts (Key).Cache (Free_Index).Is_Dirty   := False;
             if not Read_Sector
                (Dev   => Mounts (Key).Mounted_Dev,
                 LBA   => Searched,
@@ -218,9 +219,9 @@ package body VFS with SPARK_Mode => Off is
             then
                return 0;
             end if;
-            Caches (I) := Mounts (Key).Cache (Free_Index);
          end if;
       <<Found>>
+         Caches (I) := Mounts (Key).Cache (Free_Index);
       end loop;
 
       Free_Index     := 1;
@@ -254,21 +255,21 @@ package body VFS with SPARK_Mode => Off is
           To_Write => To_Write);
    end Write;
 
-   procedure Evict_Sector
-      (Dev              : Devices.Resource_Acc;
-       Old_LBA, New_LBA : Unsigned_64;
-       Data             : System.Address)
+   function Evict_Sector
+      (Dev     : Devices.Resource_Acc;
+       Sector  : Sector_Cache_Acc;
+       New_LBA : Unsigned_64) return Boolean
    is
-      Discard : Boolean;
    begin
-      Discard := Write_Sector
-         (Dev  => Dev,
-          LBA  => Old_LBA,
-          Data => Data);
-      Discard := Read_Sector
-         (Dev   => Dev,
-          LBA   => New_LBA,
-          Desto => Data);
+      if Sector.Is_Dirty then
+         if not Write_Sector (Dev, Sector.LBA_Offset, Sector.Data'Address) then
+            return False;
+         end if;
+      end if;
+
+      Sector.LBA_Offset := New_LBA;
+      Sector.Is_Dirty   := False;
+      return Read_Sector (Dev, New_LBA, Sector.Data'Address);
    end Evict_Sector;
 
    procedure Flush_Caches (Key : Positive) is
@@ -276,12 +277,11 @@ package body VFS with SPARK_Mode => Off is
    begin
       Lib.Synchronization.Seize (Mounts (Key).Cache_Mutex);
       for Cache of Mounts (Key).Cache loop
-         if Cache /= null then
-            Discard := Write_Sector
-               (Dev  => Mounts (Key).Mounted_Dev,
-                LBA  => Cache.LBA_Offset,
-                Data => Cache.Data'Address);
-            Free_Sector_Cache (Cache);
+         if Cache /= null and then Cache.Is_Dirty then
+            Discard := Evict_Sector
+               (Dev     => Mounts (Key).Mounted_Dev,
+                Sector  => Cache,
+                New_LBA => Cache.LBA_Offset);
          end if;
       end loop;
       Lib.Synchronization.Release (Mounts (Key).Cache_Mutex);
@@ -290,7 +290,9 @@ package body VFS with SPARK_Mode => Off is
    procedure Flush_Caches is
    begin
       for I in Mounts'Range loop
-         Flush_Caches (I);
+         if Is_Valid (I) then
+            Flush_Caches (I);
+         end if;
       end loop;
    end Flush_Caches;
 

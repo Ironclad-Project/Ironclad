@@ -131,9 +131,18 @@ private
        LBA  : Unsigned_64;
        Data : System.Address) return Boolean;
 
+   --  Data kept for each sector as cache.
+   type Sector_Data is array (Unsigned_64 range <>) of Unsigned_8;
+   type Sector_Cache (Size : Unsigned_64) is record
+      LBA_Offset : Unsigned_64;
+      Is_Dirty   : Boolean;
+      Data       : Sector_Data (1 .. Size);
+   end record;
+   type Sector_Cache_Acc is access Sector_Cache;
+
    --  Evict the passed information, and replace it.
-   procedure Evict_Sector
-      (Dev              : Devices.Resource_Acc;
-       Old_LBA, New_LBA : Unsigned_64;
-       Data             : System.Address);
+   function Evict_Sector
+      (Dev     : Devices.Resource_Acc;
+       Sector  : Sector_Cache_Acc;
+       New_LBA : Unsigned_64) return Boolean;
 end VFS;
