@@ -270,10 +270,6 @@ package Userland.Syscall with SPARK_Mode => Off is
    function Syscall_Dup2
       (Old_FD, New_FD : Unsigned_64;
        Errno          : out Errno_Value) return Unsigned_64;
-   function Syscall_Dup3
-      (Old_FD, New_FD : Unsigned_64;
-       Flags          : Unsigned_64;
-       Errno          : out Errno_Value) return Unsigned_64;
 
    Access_Exists    : constant := 2#0001#;
    Access_Can_Read  : constant := 2#0010#;
@@ -292,11 +288,13 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno : out Errno_Value) return Unsigned_64;
 
    --  Multiplexed operation for files.
-   FD_CLOEXEC : constant := 1;
-   F_GETFD    : constant := 3;
-   F_SETFD    : constant := 4;
-   F_GETFL    : constant := 5;
-   F_SETFL    : constant := 6;
+   FD_CLOEXEC      : constant := 1;
+   F_DUPFD         : constant := 1;
+   F_DUPFD_CLOEXEC : constant := 2;
+   F_GETFD         : constant := 3;
+   F_SETFD         : constant := 4;
+   F_GETFL         : constant := 5;
+   F_SETFL         : constant := 6;
    function Syscall_Fcntl
       (FD       : Unsigned_64;
        Command  : Unsigned_64;

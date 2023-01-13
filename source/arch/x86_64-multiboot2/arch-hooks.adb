@@ -30,47 +30,34 @@ with Interfaces; use Interfaces;
 
 package body Arch.Hooks with SPARK_Mode => Off is
    procedure Devices_Hook is
+      type Option is record
+         Is_Called : Boolean;
+         Callback  : access function return Boolean;
+      end record;
+      Init_Calls : constant array (1 .. 6) of Option :=
+         ((Config.Support_X86_64_BootFB, Devices.FB.Init'Access),
+          (Config.Support_X86_64_PS2,    Devices.PS2Keyboard.Init'Access),
+          (Config.Support_X86_64_PS2,    Devices.PS2Mouse.Init'Access),
+          (Config.Support_X86_64_ATA,    Devices.ATA.Init'Access),
+          (Config.Support_X86_64_Serial, Devices.Serial.Init'Access),
+          (Config.Support_X86_64_RTC,    Devices.RTC.Init'Access));
    begin
-      if Config.Support_X86_64_BootFB then
-         if not Devices.FB.Init then
-            goto Error;
+      for Op of Init_Calls loop
+         if Op.Is_Called and then not Op.Callback.all then
+            Lib.Panic.Hard_Panic ("Architectural VFS hook failed");
          end if;
-      end if;
-      if Config.Support_X86_64_PS2 then
-         if not Devices.PS2Keyboard.Init or not Devices.PS2Mouse.Init then
-            goto Error;
-         end if;
-      end if;
-      if Config.Support_X86_64_ATA then
-         if not Devices.ATA.Init then
-            goto Error;
-         end if;
-      end if;
-      if Config.Support_X86_64_Serial then
-         if not Devices.Serial.Init then
-            goto Error;
-         end if;
-      end if;
-      if Config.Support_X86_64_RTC then
-         if not Devices.RTC.Init then
-            goto Error;
-         end if;
-      end if;
-      return;
-
-   <<Error>>
-      Lib.Panic.Hard_Panic ("Architectural VFS hook failed");
+      end loop;
    end Devices_Hook;
 
    function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean is
       Int_Arg : constant Unsigned_64 := Unsigned_64 (To_Integer (Arg));
-      A : Unsigned_64 with Import, Address => Arg;
+      Value   : Unsigned_64 with Import, Address => Arg;
    begin
       case Code is
          when 1 => Snippets.Write_FS (Int_Arg);
-         when 2 => A := Snippets.Read_FS;
+         when 2 => Value := Snippets.Read_FS;
          when 3 => Snippets.Write_GS (Int_Arg);
-         when 4 => A := Snippets.Read_GS;
+         when 4 => Value := Snippets.Read_GS;
          when others => return False;
       end case;
       return True;
@@ -87,5 +74,4 @@ package body Arch.Hooks with SPARK_Mode => Off is
          end loop;
       end if;
    end Panic_SMP_Hook;
-
 end Arch.Hooks;

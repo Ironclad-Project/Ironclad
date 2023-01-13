@@ -980,7 +980,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Addr : constant System.Address := To_Address (Integer_Address (Path));
       Path_Length  : constant Natural := Lib.C_String_Length (Addr);
-      Path_String  : String (1 .. Path_Length) with Address => Addr;
+      Path_String  : String (1 .. Path_Length) with Import, Address => Addr;
       File : File_Acc := Open (Path_String, VFS.File.Read_Only, False);
       Stat_Is_Success : Boolean;
    begin
@@ -1272,7 +1272,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      if not Userland.Process.Replace_File
+      if New_FD /= Old_FD and then not Userland.Process.Replace_File
          (Process, Duplicate (Old_File), Natural (New_FD))
       then
          Errno := Error_Bad_File;
@@ -1282,49 +1282,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return New_FD;
       end if;
    end Syscall_Dup2;
-
-   function Syscall_Dup3
-      (Old_FD, New_FD : Unsigned_64;
-       Flags          : Unsigned_64;
-       Errno          : out Errno_Value) return Unsigned_64
-   is
-      Process : constant Userland.Process.Process_Data_Acc :=
-         Arch.Local.Get_Current_Process;
-      Old_File  : constant File_Description_Acc :=
-         Userland.Process.Get_File (Process, Old_FD);
-      New_File : File_Description_Acc;
-      Close_On_Exec : constant Boolean := (Flags and O_CLOEXEC) /= 0;
-   begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall dup3(");
-         Lib.Messages.Put      (Old_FD);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (New_FD);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Flags);
-         Lib.Messages.Put_Line (")");
-      end if;
-
-      if Old_FD = New_FD or Flags /= 0 or Flags /= O_CLOEXEC then
-         Errno := Error_Invalid_Value;
-         return Unsigned_64'Last;
-      elsif Old_File = null then
-         Errno := Error_Bad_File;
-         return Unsigned_64'Last;
-      end if;
-
-      New_File := Duplicate (Old_File);
-      New_File.Close_On_Exec := Close_On_Exec;
-      if not Userland.Process.Replace_File
-         (Process, New_File, Natural (New_FD))
-      then
-         Errno := Error_Bad_File;
-         return Unsigned_64'Last;
-      else
-         Errno := Error_No_Error;
-         return New_FD;
-      end if;
-   end Syscall_Dup3;
 
    function Syscall_Access
       (Path, Mode : Unsigned_64;
@@ -1426,7 +1383,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno    : out Errno_Value) return Unsigned_64
    is
       Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
-      File : constant File_Description_Acc := Get_File (Proc, FD);
+      File : File_Description_Acc := Get_File (Proc, FD);
       Temp : Boolean;
       Returned : Unsigned_64 := 0;
    begin
@@ -1446,16 +1403,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       case Command is
-         --  Set and get the file descriptor flags, so far only FD_CLOEXEC is
-         --  supported.
+         when F_DUPFD | F_DUPFD_CLOEXEC =>
+            Returned := Syscall_Dup (FD, Errno);
+            if Returned = Unsigned_64'Last then
+               return Returned;
+            end if;
+            File := Get_File (Proc, Returned);
+            File.Close_On_Exec := Command = F_DUPFD_CLOEXEC;
          when F_GETFD =>
             if File.Close_On_Exec then
                Returned := FD_CLOEXEC;
             end if;
          when F_SETFD =>
-            if (Argument and FD_CLOEXEC) /= 0 then
-               File.Close_On_Exec := True;
-            end if;
+            File.Close_On_Exec := (Argument and FD_CLOEXEC) /= 0;
          when F_GETFL =>
             case File.Description is
                when Description_Reader_Pipe =>

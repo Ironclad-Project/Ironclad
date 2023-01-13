@@ -98,7 +98,7 @@ Syscalls
 * sched_yield::             Relinquish CPU time.
 * set_deadlines::           Manage scheduler deadlines.
 * pipe::                    Create pipes.
-* dup/dup2/dup3::           Duplicate file descriptors.
+* dup/dup2::                Duplicate file descriptors.
 * access::                  Testing file permissions.
 * thread_sched::            Manage scheduler-related thread permissions.
 * fcntl::                   Multiplexed operations for files.
@@ -554,11 +554,11 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{pipe, pipe}.
 @item
-@xref{dup/dup2/dup3, dup}.
+@xref{dup/dup2, dup}.
 @item
-@xref{dup/dup2/dup3, dup2}.
+@xref{dup/dup2, dup2}.
 @item
-@pxref{dup/dup2/dup3, dup3}.
+Empty.
 @item
 @xref{access}.
 @item
@@ -1157,26 +1157,23 @@ following errno:
 @code{EMFILE}: No available file descriptor slots.
 @end itemize
 
-@node dup/dup2/dup3
-@section dup/dup2/dup3
+@node dup/dup2
+@section dup/dup2
 
 @example
 int dup(int oldfd);
 int dup2(int oldfd, int newfd);
-int dup3(int oldfd, int newfd, int flags);
 @end example
 
 This syscalls allocate new file descriptors pointing to the same file as the
 passed file descriptor. @code{dup} chooses a descriptor itself, while
-@code{dup2} and @code{dup3} will replace @code{newfd} with the new descriptor,
+@code{dup2} will replace @code{newfd} with the new descriptor,
 closing the old one if necessary.
 
 The flags of the duplicated file descriptor are reset, this means
-@code{O_CLOEXEC}, and other flags like @code{O_NONBLOCK} are not inherited. One
-can use @code{dup3} to set those flags for the duplicated file descriptor using
-the @code{flags} field.
+@code{O_CLOEXEC}, and other flags like @code{O_NONBLOCK} are not inherited.
 
-All of these 3 syscalls return the new fd on success and @code{-1} on failure.
+These 2 syscalls return the new fd on success and @code{-1} on failure.
 The errno codes set on failure are:
 
 @itemize @bullet
@@ -1185,10 +1182,6 @@ The errno codes set on failure are:
 
 @item
 @code{EMFILE}: Too many files have already been opened by the process.
-
-@item
-@code{EINVAL}: For @code{dup3}, @code{oldfd} and @code{newfd} are the same, or
-flags are not @code{0} or @code{O_CLOEXEC}
 @end itemize
 
 @node access
@@ -1272,6 +1265,9 @@ detailed along the operations below.
 The valid operations are:
 
 @itemize @bullet
+@item
+@code{F_DUPFD (1)}: Makes fcntl behave in a manner equivalent to @code{dup}.
+
 @item
 @code{F_GETFD (3)}: The flags used for @code{fd} will be returned, right now
 only @code{FD_CLOEXEC} is supported. The syscall will return the flags on
