@@ -16,7 +16,7 @@
 
 package Networking is
    --  Maximum length of a hostname
-   Hostname_Max_Len : constant := 24;
+   Hostname_Max_Len : constant := 255;
    subtype Hostname_Len is Integer range 0 .. Hostname_Max_Len;
 
    --  Fetch the system's hostname.

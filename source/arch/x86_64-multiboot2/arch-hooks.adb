@@ -74,4 +74,9 @@ package body Arch.Hooks with SPARK_Mode => Off is
          end loop;
       end if;
    end Panic_SMP_Hook;
+
+   function Get_Active_Core_Count return Positive is
+   begin
+      return Core_Count;
+   end Get_Active_Core_Count;
 end Arch.Hooks;

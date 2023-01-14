@@ -23,7 +23,7 @@ package body Networking is
 
    Hostname_Lock : aliased Lib.Synchronization.Binary_Semaphore;
    Hostname_Length : Hostname_Len := 4;
-   Hostname : String (1 .. Hostname_Max_Len) := "none                    ";
+   Hostname : String (1 .. Hostname_Max_Len) := "none" & (1 .. 251 => ' ');
 
    procedure Get_Hostname (Name : out String; Length : out Hostname_Len) is
    begin

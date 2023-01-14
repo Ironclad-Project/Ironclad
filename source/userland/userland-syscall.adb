@@ -1281,6 +1281,37 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
    end Syscall_Dup2;
 
+   function Syscall_Sysconf
+      (Request : Unsigned_64;
+       Errno   : out Errno_Value) return Unsigned_64
+   is
+      Stats  : Memory.Physical.Statistics;
+      Result : Unsigned_64;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put      ("syscall sysconf(");
+         Lib.Messages.Put      (Request);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      Stats := Memory.Physical.Get_Statistics;
+      case Request is
+         when SC_PAGESIZE      => Result := Memory.Virtual.Page_Size;
+         when SC_OPEN_MAX      => Result := Process_File_Table'Length;
+         when SC_HOST_NAME_MAX => Result := Networking.Hostname_Max_Len;
+         when SC_AVPHYS_PAGES  => Result := Unsigned_64 (Stats.Free_Memory);
+         when SC_PHYS_PAGES    => Result := Unsigned_64 (Stats.Total_Memory);
+         when SC_NPROC_ONLN    =>
+            Result := Unsigned_64 (Arch.Hooks.Get_Active_Core_Count);
+         when others =>
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+      end case;
+
+      Errno := Error_No_Error;
+      return Result;
+   end Syscall_Sysconf;
+
    function Syscall_Access
       (Path, Mode : Unsigned_64;
        Errno      : out Errno_Value) return Unsigned_64

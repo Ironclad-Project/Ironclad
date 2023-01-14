@@ -24,4 +24,7 @@ package Arch.Hooks is
    --  Hook to be called in panic procedures for bringing all cores to a stop
    --  (but not the caller).
    procedure Panic_SMP_Hook with Global => null;
+
+   --  Get the number of cores which are active and used by the OS.
+   function Get_Active_Core_Count return Positive;
 end Arch.Hooks;

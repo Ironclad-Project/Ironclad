@@ -270,6 +270,17 @@ package Userland.Syscall with SPARK_Mode => Off is
       (Old_FD, New_FD : Unsigned_64;
        Errno          : out Errno_Value) return Unsigned_64;
 
+   --  Fetch some system information.
+   SC_PAGESIZE      : constant := 1;
+   SC_OPEN_MAX      : constant := 2;
+   SC_HOST_NAME_MAX : constant := 3;
+   SC_AVPHYS_PAGES  : constant := 4;
+   SC_PHYS_PAGES    : constant := 5;
+   SC_NPROC_ONLN    : constant := 6;
+   function Syscall_Sysconf
+      (Request : Unsigned_64;
+       Errno   : out Errno_Value) return Unsigned_64;
+
    Access_Exists    : constant := 2#0001#;
    Access_Can_Read  : constant := 2#0010#;
    Access_Can_Write : constant := 2#0100#;

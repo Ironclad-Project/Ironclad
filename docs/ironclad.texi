@@ -99,6 +99,7 @@ Syscalls
 * set_deadlines::           Manage scheduler deadlines.
 * pipe::                    Create pipes.
 * dup/dup2::                Duplicate file descriptors.
+* sysconf::                 Fetch general system parameters and information.
 * access::                  Testing file permissions.
 * thread_sched::            Manage scheduler-related thread permissions.
 * fcntl::                   Multiplexed operations for files.
@@ -557,7 +558,7 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{dup/dup2, dup2}.
 @item
-Empty.
+@xref{sysconf, sysconf}.
 @item
 @xref{access}.
 @item
@@ -1181,6 +1182,29 @@ The errno codes set on failure are:
 
 @item
 @code{EMFILE}: Too many files have already been opened by the process.
+@end itemize
+
+@node sysconf
+@section sysconf
+
+@example
+#define SC_PAGESIZE      1 // Page size of the system.
+#define SC_OPEN_MAX      2 // Maximum amount of files per process.
+#define SC_HOST_NAME_MAX 3 // Maximum length of hostnames.
+#define SC_AVPHYS_PAGES  4 // Number of physical pages available for use.
+#define SC_PHYS_PAGES    5 // Number of total physical pages the system has.
+#define SC_NPROC_ONLN    6 // Number of processors active and used by the OS.
+long int sysconf(int request);
+@end example
+
+This syscalls fetches the requested information, and returns it.
+
+The syscall return the requested information on success and @code{-1} on
+failure. The errno codes set on failure are:
+
+@itemize @bullet
+@item
+@code{EINVAL}: Invalid request.
 @end itemize
 
 @node access
