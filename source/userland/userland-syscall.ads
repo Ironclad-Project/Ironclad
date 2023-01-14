@@ -18,7 +18,6 @@ with Interfaces; use Interfaces;
 with VFS.File;
 with Arch.Context;
 with Arch.MMU;
-with System;
 with Userland.Process; use Userland.Process;
 
 package Userland.Syscall with SPARK_Mode => Off is
@@ -320,23 +319,6 @@ package Userland.Syscall with SPARK_Mode => Off is
       Length     : Unsigned_64;
       Protection : Unsigned_64;
       Errno      : out Errno_Value) return Unsigned_64;
-
-   --  Cryptographic functions exposed to userland.
-   type Crypto_AES_Data is record
-      Key    : Unsigned_128;
-      IV     : Unsigned_128;
-      Data   : System.Address;
-      Length : Natural;
-   end record;
-   CRYPTO_AES128_ECB_ENCRYPT : constant := 0;
-   CRYPTO_AES128_ECB_DECRYPT : constant := 1;
-   CRYPTO_AES128_CBC_ENCRYPT : constant := 2;
-   CRYPTO_AES128_CBC_DECRYPT : constant := 3;
-   CRYPTO_AES128_CTR_CRYPT   : constant := 4;
-   function Syscall_Crypto_Request
-      (Request  : Unsigned_64;
-       Argument : Unsigned_64;
-       Errno    : out Errno_Value) return Unsigned_64;
 
    --  Set MAC capabilities of the caller process.
    MAC_EXIT_ITSELF   : constant := 2#00000001#;

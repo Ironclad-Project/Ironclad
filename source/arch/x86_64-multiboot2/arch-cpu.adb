@@ -203,13 +203,14 @@ package body Arch.CPU with SPARK_Mode => Off is
       Snippets.Write_MSR (PAT_MSR, PAT);
 
       --  Prepare the core local structure and set it in GS.
-      Core_Locals (Core_Number) := (
-         Self           => Core_Locals (Core_Number)'Access,
-         Number         => Core_Number,
-         LAPIC_ID       => LAPIC,
-         LAPIC_Timer_Hz => APIC.LAPIC_Timer_Calibrate,
-         others         => <>
-      );
+      Core_Locals (Core_Number) :=
+         (Self            => Core_Locals (Core_Number)'Access,
+          Number          => Core_Number,
+          LAPIC_ID        => LAPIC,
+          LAPIC_Timer_Hz  => APIC.LAPIC_Timer_Calibrate,
+          Current_Thread  => 0,
+          Current_Process => null,
+          others          => <>);
       Snippets.Write_GS        (Locals_Addr);
       Snippets.Write_Kernel_GS (Locals_Addr);
 

@@ -34,8 +34,6 @@ with Interfaces.C;
 with Arch.Hooks;
 with Arch.Local;
 with Cryptography.Random;
-with Cryptography.AES;
-with Arch.Snippets;
 with Userland.MAC;
 with IPC.Pipe; use IPC.Pipe;
 
@@ -1624,59 +1622,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return 0;
       end if;
    end Syscall_MProtect;
-
-   function Syscall_Crypto_Request
-      (Request  : Unsigned_64;
-       Argument : Unsigned_64;
-       Errno    : out Errno_Value) return Unsigned_64
-   is
-      Data_Addr : constant Integer_Address := Integer_Address (Argument);
-      Data : Crypto_AES_Data with Import, Address => To_Address (Data_Addr);
-   begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall crypto_request(");
-         Lib.Messages.Put      (Request, False, True);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Argument, False, True);
-         Lib.Messages.Put_Line (")");
-      end if;
-
-      if not Check_Userland_Access (Data_Addr) or else
-         not Check_Userland_Access (To_Integer (Data.Data))
-      then
-         Errno := Error_Would_Fault;
-         return Unsigned_64'Last;
-      end if;
-
-      if not Arch.Snippets.Supports_AES_Accel then
-         Errno := Error_Not_Implemented;
-         return Unsigned_64'Last;
-      end if;
-
-      declare
-         AES_Data : Cryptography.AES.AES_Data
-            (1 .. Data.Length / (Unsigned_128'Size / 8))
-            with Import, Address => Data.Data;
-      begin
-         case Request is
-            when CRYPTO_AES128_ECB_ENCRYPT =>
-               Cryptography.AES.Encrypt_ECB (Data.Key, AES_Data);
-            when CRYPTO_AES128_ECB_DECRYPT =>
-               Cryptography.AES.Decrypt_ECB (Data.Key, AES_Data);
-            when CRYPTO_AES128_CBC_ENCRYPT =>
-               Cryptography.AES.Encrypt_CBC (Data.Key, Data.IV, AES_Data);
-            when CRYPTO_AES128_CBC_DECRYPT =>
-               Cryptography.AES.Decrypt_CBC (Data.Key, Data.IV, AES_Data);
-            when CRYPTO_AES128_CTR_CRYPT =>
-               Cryptography.AES.Crypt_CTR (Data.Key, Data.IV, AES_Data);
-            when others =>
-               Errno := Error_Not_Implemented;
-               return Unsigned_64'Last;
-         end case;
-      end;
-      Errno := Error_No_Error;
-      return 0;
-   end Syscall_Crypto_Request;
 
    function Syscall_Set_MAC_Capabilities
       (Bits  : Unsigned_64;

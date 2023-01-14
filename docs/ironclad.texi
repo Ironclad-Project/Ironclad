@@ -105,7 +105,6 @@ Syscalls
 * spawn::                   Start separate programs by path.
 * getrandom::               Bypass /dev/random for avoiding DoS attacks.
 * mprotect::                Change memory permissions.
-* crypto_request::          Access to kernel crypto ala /dev/crypto.
 * set_mac_capabilities::    Modify MAC capabilities.
 * lock_mac::                Lock MAC down.
 * add_mac_filter::          Configure MAC using filesystem-based filters.
@@ -574,7 +573,7 @@ Empty.
 @item
 @xref{mprotect}.
 @item
-@xref{crypto_request}.
+Empty.
 @item
 @xref{set_mac_capabilities}.
 @item
@@ -1369,56 +1368,6 @@ sets the following errno:
 
 @item
 @code{EACCES}: MAC disallowed this.
-@end itemize
-
-@node crypto_request
-@section crypto_request
-
-@example
-int crypto_request(unsigned long request, void *argument);
-@end example
-
-This syscall exposes kernel cryptographic facilities on the same way
-@code{ioctl} does for the @code{/dev/crypto} pseudo-device in OpenBSD systems.
-A series of authentication and encryption algorithms are supported.
-
-All the modes available and their @code{argument} are:
-
-@table @code
-@item CRYPTO_AES128_ECB_ENCRYPT (0)
-@itemx CRYPTO_AES128_ECB_DECRYPT (1)
-@itemx CRYPTO_AES128_CBC_ENCRYPT (2)
-@itemx CRYPTO_AES128_CBC_DECRYPT (3)
-@itemx CRYPTO_AES128_CTR_CRYPT (4)
-
-When using these encryption algorithms, @code{argument} points to a structure
-with the form:
-@example
-struct crypto_aes_data @{
-   __uint128_t  key;    // Key for the AES encryption.
-   __uint128_t  iv;     // Initialization vector/nonce when needed.
-   void        *data;   // Data pointer.
-   uint32_t     length; // Length, must be a multiple of 16.
-@}
-@end example
-
-These request will encrypt or decrypt @code{length} bytes of data in-place
-pointed by @code{data}, @code{length} must be divisible by 16 (128-bit blocks).
-@end table
-
-Note CTR operation modes have the same encryption and decryption procedure, so
-only a single @code{CRYPT} option is exposed. When doing CTR, the IV will be
-used as a 96-bit nonce as well.
-
-The syscall returns @code{0} on success, or @code{-1} on failure, and
-sets the following errno:
-
-@itemize @bullet
-@item
-@code{EFAULT}: @code{argument} points to invalid memory.
-
-@item
-@code{ENOSYS}: @code{request} is not implemented by the hardware.
 @end itemize
 
 @node set_mac_capabilities

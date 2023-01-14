@@ -194,8 +194,6 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 33 =>
             Returned := Syscall_MProtect (State.RDI, State.RSI, State.RDX,
                                           Errno);
-         when 34 =>
-            Returned := Syscall_Crypto_Request (State.RDI, State.RSI, Errno);
          when 35 =>
             Returned := Syscall_Set_MAC_Capabilities (State.RDI, Errno);
          when 36 =>
