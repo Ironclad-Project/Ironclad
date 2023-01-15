@@ -27,6 +27,7 @@ package body VFS with SPARK_Mode => Off is
    Path_Buffer_Length : constant :=  100;
    Cache_Array_Length : constant := 8000;
    type Mount_Container is record
+      Is_Cached   : Boolean;
       Mounted_Dev : Devices.Resource_Acc;
       Mounted_FS  : FS_Type;
       FS_Data     : System.Address;
@@ -76,6 +77,7 @@ package body VFS with SPARK_Mode => Off is
 
       --  We need an initialized mount for probing the FS, thats why the
       --  awkward split initialization.
+      Mounts (Free_I).Is_Cached                      := Dev.Is_Block;
       Mounts (Free_I).Mounted_Dev                    := Dev;
       Mounts (Free_I).Path_Length                    := Path'Length;
       Mounts (Free_I).Path_Buffer (1 .. Path'Length) := Path;
@@ -175,7 +177,17 @@ package body VFS with SPARK_Mode => Off is
       Initial_Offset : Unsigned_64;
       Searched       : Unsigned_64;
    begin
-      if Count = 0 then
+      if not Mounts (Key).Is_Cached then
+         if Mounts (Key).Mounted_Dev.Read /= null then
+            return Mounts (Key).Mounted_Dev.Read
+               (Data   => Mounts (Key).Mounted_Dev,
+                Offset => Offset,
+                Count  => Count,
+                Desto  => Desto);
+         else
+            return 0;
+         end if;
+      elsif Count = 0 then
          return 0;
       end if;
 

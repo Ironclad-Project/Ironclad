@@ -1299,8 +1299,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when SC_PAGESIZE      => Result := Memory.Virtual.Page_Size;
          when SC_OPEN_MAX      => Result := Process_File_Table'Length;
          when SC_HOST_NAME_MAX => Result := Networking.Hostname_Max_Len;
-         when SC_AVPHYS_PAGES  => Result := Unsigned_64 (Stats.Free_Memory);
-         when SC_PHYS_PAGES    => Result := Unsigned_64 (Stats.Total_Memory);
+         when SC_AVPHYS_PAGES  =>
+            Result := Unsigned_64 (Stats.Free_Memory) / Page_Size;
+         when SC_PHYS_PAGES    =>
+            Result := Unsigned_64 (Stats.Total_Memory) / Page_Size;
          when SC_NPROC_ONLN    =>
             Result := Unsigned_64 (Arch.Hooks.Get_Active_Core_Count);
          when others =>
