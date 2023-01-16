@@ -32,7 +32,12 @@ is
       Header_Str : constant String := Ada.Characters.Latin_1.ESC & "[35m";
       Reset_Str  : constant String := Ada.Characters.Latin_1.ESC & "[0m";
    begin
-      Put_Line (Header_Str & "Warning" & Reset_Str & ": " & Message);
+      Lib.Synchronization.Seize (Messages_Mutex);
+      Arch.Debug.Print (Header_Str & "Warning" & Reset_Str & ": ");
+      Arch.Debug.Print (Message);
+      Arch.Debug.Print (Ada.Characters.Latin_1.CR);
+      Arch.Debug.Print (Ada.Characters.Latin_1.LF);
+      Lib.Synchronization.Release (Messages_Mutex);
    end Warn;
 
    procedure Put_Line (Message : String) is
