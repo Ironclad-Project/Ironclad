@@ -30,7 +30,7 @@ package Scheduler with SPARK_Mode => Off is
 
    --  Use when doing nothing and we want the scheduler to put us to work.
    --  Doubles as the function to initialize core locals.
-   procedure Idle_Core;
+   procedure Idle_Core with No_Return;
 
    --  Creates a userland thread, and queues it for execution.
    --  Return thread ID or 0 on failure.
@@ -67,8 +67,8 @@ package Scheduler with SPARK_Mode => Off is
    --  Give up the rest of our execution time for some other process.
    procedure Yield;
 
-   --  Delete and yield the current thread.
-   procedure Bail;
+   --  Make the callee thread be dequed.
+   procedure Bail with No_Return;
 
    --  Hook to be called by the architecture for reescheduling of the callee
    --  core.
@@ -77,6 +77,5 @@ package Scheduler with SPARK_Mode => Off is
 private
 
    function Update_Priorities return Boolean;
-   function Find_Free_TID return TID;
    function Is_Thread_Present (Thread : TID) return Boolean;
 end Scheduler;

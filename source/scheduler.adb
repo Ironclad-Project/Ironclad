@@ -28,6 +28,11 @@ with Lib;
 
 package body Scheduler with SPARK_Mode => Off is
    --  Thread information.
+   Stack_Size : constant := 16#100000#;
+   type Thread_Stack     is array (1 ..       Stack_Size) of Unsigned_8;
+   type Thread_Stack_64  is array (1 .. (Stack_Size / 8)) of Unsigned_64;
+   type Thread_Stack_Acc is access Thread_Stack;
+
    type Thread_Info is record
       State          : Arch.Context.GP_Context;
       Is_Present     : Boolean;
@@ -35,8 +40,7 @@ package body Scheduler with SPARK_Mode => Off is
       Is_Monothread  : Boolean;
       TCB_Pointer    : System.Address;
       PageMap        : Memory.Virtual.Page_Map_Acc;
-      Stack          : Virtual_Address;
-      Kernel_Stack   : Virtual_Address;
+      Kernel_Stack   : Thread_Stack_Acc;
       FP_Region      : Arch.Context.FP_Context;
       Process        : Userland.Process.Process_Data_Acc;
       Time_Since_Run : Natural;
@@ -54,14 +58,10 @@ package body Scheduler with SPARK_Mode => Off is
    Default_Run_Time : constant :=  3000;
    Default_Period   : constant := 10000;
 
-   --  Stack size of new threads.
-   Stack_Size : constant := 16#200000#;
-
    function Init return Boolean is
    begin
-      --  Allocate core locals and finishing touches.
       Thread_Pool := new Thread_Info_Arr'(others =>
-         (Is_Present => False, others => <>));
+         (Is_Present => False, Kernel_Stack => null, others => <>));
       Is_Initialized := True;
       Lib.Synchronization.Release (Scheduler_Mutex);
       return True;
@@ -85,12 +85,8 @@ package body Scheduler with SPARK_Mode => Off is
        PID        : Natural;
        Exec_Stack : Boolean := True) return TID
    is
-      type Stack8  is array (1 ..       Stack_Size) of Unsigned_8;
-      type Stack64 is array (1 .. (Stack_Size / 8)) of Unsigned_64;
-      type Stack_Acc is access Stack8;
-
-      User_Stack_8  : constant Stack_Acc := new Stack8;
-      User_Stack_64 : Stack64 with Address => User_Stack_8.all'Address;
+      User_Stack_8  : constant Thread_Stack_Acc := new Thread_Stack;
+      User_Stack_64 : Thread_Stack_64 with Address => User_Stack_8.all'Address;
       Index_8       : Natural := User_Stack_8'Last;
       Index_64      : Natural := User_Stack_8'Last;
 
@@ -199,38 +195,48 @@ package body Scheduler with SPARK_Mode => Off is
        Map      : Memory.Virtual.Page_Map_Acc;
        PID      : Natural) return TID
    is
-      type Stack8    is array (1 .. Stack_Size) of Unsigned_8;
-      type Stack_Acc is access Stack8;
-
-      New_TID           : TID := 0;
-      Kernel_Stack      : constant Stack_Acc := new Stack8;
-      Kernel_Stack_Addr : constant Virtual_Address :=
-            To_Integer (Kernel_Stack.all'Address) + Stack_Size;
+      New_TID      : TID := 0;
+      Kernel_Stack : Thread_Stack_Acc;
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex);
 
       --  Find a new TID.
-      New_TID := Find_Free_TID;
-      if New_TID = 0 then
-         goto End_Return;
+      for I in Thread_Pool'Range loop
+         if not Thread_Pool (I).Is_Present then
+            New_TID := I;
+            goto Found_TID;
+         end if;
+      end loop;
+      goto End_Return;
+
+   <<Found_TID>>
+      --  If stacks were already allocated, we can just reuse them.
+      if Thread_Pool (New_TID).Kernel_Stack /= null then
+         Kernel_Stack := Thread_Pool (New_TID).Kernel_Stack;
+      else
+         Kernel_Stack := new Thread_Stack;
       end if;
 
-      --  Copy the state.
-      Thread_Pool (New_TID).Is_Present    := True;
-      Thread_Pool (New_TID).Is_Running    := False;
-      Thread_Pool (New_TID).Is_Monothread := False;
-      Thread_Pool (New_TID).PageMap       := Map;
-      Thread_Pool (New_TID).Kernel_Stack  := Kernel_Stack_Addr;
-      Thread_Pool (New_TID).TCB_Pointer   := Arch.Local.Fetch_TCB;
-      Thread_Pool (New_TID).State         := GP_State;
-      Thread_Pool (New_TID).State.RAX     := 0;
-      Thread_Pool (New_TID).FP_Region     := FP_State;
-      Thread_Pool (New_TID).Process       := Userland.Process.Get_By_PID (PID);
-      Thread_Pool (New_TID).Run_Time      := Default_Run_Time;
-      Thread_Pool (New_TID).Period        := Default_Period;
+      --  Initialize the state, be sure to zero out RAX for the return value.
+      Thread_Pool (New_TID) :=
+         (Is_Present     => True,
+          Is_Running     => False,
+          Is_Monothread  => False,
+          PageMap        => Map,
+          Kernel_Stack   => Kernel_Stack,
+          TCB_Pointer    => Arch.Local.Fetch_TCB,
+          State          => GP_State,
+          FP_Region      => FP_State,
+          Process        => Userland.Process.Get_By_PID (PID),
+          Run_Time       => Default_Run_Time,
+          Period         => Default_Period,
+          Time_Since_Run => 0,
+          Priority       => <>);
+      Thread_Pool (New_TID).State.RAX := 0;
+
       if not Update_Priorities then
          Thread_Pool (New_TID).Is_Present := False;
-         return 0;
+         New_TID := 0;
       end if;
 
    <<End_Return>>
@@ -307,16 +313,6 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Local.Set_Current_Thread (0);
       Idle_Core;
    end Bail;
-
-   function Find_Free_TID return TID is
-   begin
-      for I in Thread_Pool'Range loop
-         if not Thread_Pool (I).Is_Present then
-            return I;
-         end if;
-      end loop;
-      return 0;
-   end Find_Free_TID;
 
    function Update_Priorities return Boolean is
       Periods_LCM    : Positive := 1;
@@ -420,7 +416,7 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
       Arch.Local.Set_Current_Process (Thread_Pool (Next_TID).Process);
       Arch.Local.Set_Kernel_Stack
-         (To_Address (Thread_Pool (Next_TID).Kernel_Stack));
+         (Thread_Pool (Next_TID).Kernel_Stack (Thread_Stack'Last)'Address);
       Arch.Local.Load_TCB (Thread_Pool (Next_TID).TCB_Pointer);
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_Region);
       Arch.Context.Load_GP_Context (Thread_Pool (Next_TID).State);
