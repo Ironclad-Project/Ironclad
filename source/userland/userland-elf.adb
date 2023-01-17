@@ -192,6 +192,7 @@ package body Userland.ELF with SPARK_Mode => Off is
          return False;
       end if;
 
+      Load := (others => 0);
       VFS.File.Set_Position (File_D, Header.Offset);
       return VFS.File.Read (
          File_D,

@@ -454,22 +454,29 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       --  Do mmap anon or pass it to the VFS.
       if (Flags and Map_Anon) /= 0 then
-         if not Memory.Virtual.Map_Range (
-            Map,
-            Virtual_Address (Final_Hint),
-            Memory.Physical.Alloc (Interfaces.C.size_t (Length)) -
-                                   Memory_Offset,
-            Length,
-            Map_Flags
-         )
-         then
-            --  I dont really know what to return in this case.
-            Errno := Error_Invalid_Value;
-            return Unsigned_64'Last;
-         else
-            Errno := Error_No_Error;
-            return Final_Hint;
-         end if;
+         declare
+            Addr : constant Virtual_Address :=
+               Memory.Physical.Alloc (Interfaces.C.size_t (Length));
+            Allocated : array (1 .. Length) of Unsigned_8
+               with Import, Address => To_Address (Addr);
+         begin
+            Allocated := (others => 0);
+            if not Memory.Virtual.Map_Range (
+               Map,
+               Virtual_Address (Final_Hint),
+               Addr - Memory_Offset,
+               Length,
+               Map_Flags
+            )
+            then
+               --  I dont really know what to return in this case.
+               Errno := Error_Invalid_Value;
+               return Unsigned_64'Last;
+            else
+               Errno := Error_No_Error;
+               return Final_Hint;
+            end if;
+         end;
       else
          declare
             File : constant File_Description_Acc := Get_File (Proc, File_D);

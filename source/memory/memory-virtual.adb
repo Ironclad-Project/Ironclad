@@ -178,9 +178,11 @@ package body Memory.Virtual with SPARK_Mode => Off is
       New_Map : Page_Map_Acc;
    begin
       if Inner /= null then
-         New_Map := new Page_Map;
-         New_Map.Inner := Inner;
-         Lib.Synchronization.Release (New_Map.Mutex);
+         New_Map := new Page_Map'(
+            Inner      => Inner,
+            Mutex      => Lib.Synchronization.Unlocked_Semaphore,
+            Map_Ranges => (others => (Is_Present => False, others => <>))
+         );
          return New_Map;
       else
          return null;

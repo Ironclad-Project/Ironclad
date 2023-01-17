@@ -49,11 +49,15 @@ package body Userland.Process with SPARK_Mode => Off is
 
       for I in Process_List.all'Range loop
          if Process_List (I) = null then
-            Process_List (I) := new Process_Data;
-            Process_List (I).Process_PID := I;
-            Process_List (I).Did_Exit    := False;
-            Process_List (I).Exit_Code   := 0;
-            Process_List (I).Children    := (others => 0);
+            Process_List (I) := new Process_Data'
+               (Process_PID => I,
+                Did_Exit    => False,
+                Exit_Code   => 0,
+                Children    => (others => 0),
+                Thread_List => (others => 0),
+                File_Table  => (others => null),
+                Common_Map  => null,
+                others      => <>);
 
             --  If we have a parent, set ourselves as a child and fetch data.
             if Parent /= null then
