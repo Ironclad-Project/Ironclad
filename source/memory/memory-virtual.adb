@@ -174,26 +174,40 @@ package body Memory.Virtual with SPARK_Mode => Off is
    end Unmap_Range;
 
    function New_Map return Page_Map_Acc is
-      Inner   : constant Arch.MMU.Page_Table_Acc := Arch.MMU.Create_Table;
-      New_Map : Page_Map_Acc;
+      Inner : constant Arch.MMU.Page_Table_Acc := Arch.MMU.Create_Table;
    begin
-      if Inner /= null then
-         New_Map := new Page_Map'(
-            Inner      => Inner,
-            Mutex      => Lib.Synchronization.Unlocked_Semaphore,
-            Map_Ranges => (others => (Is_Present => False, others => <>))
-         );
-         return New_Map;
-      else
+      if Inner = null then
          return null;
       end if;
+      return new Page_Map'
+         (Inner      => Inner,
+          Mutex      => Lib.Synchronization.Unlocked_Semaphore,
+          Map_Ranges => (others => (Is_Present => False, others => <>)));
    end New_Map;
 
    procedure Delete_Map (Map : in out Page_Map_Acc) is
       procedure F is new Ada.Unchecked_Deallocation (Page_Map, Page_Map_Acc);
+      I : Integer_Address;
    begin
       if Map /= null then
          Lib.Synchronization.Seize (Map.Mutex);
+
+         --  FIXME: This implies the behaviour of the standard allocator, which
+         --  only frees the first page of the passed address, which itself is
+         --  a long overdue bug. It works, but any changes in the allocator
+         --  (which I'd love to do) will be erroneous at best, a massive bug
+         --  at worst.
+         for Mapping of Map.Map_Ranges loop
+            if Mapping.Is_Present then
+               I := Mapping.Physical_Start;
+               while Mapping.Physical_Start + Integer_Address (Mapping.Length)
+                  > I
+               loop
+                  Memory.Physical.Free (Interfaces.C.size_t (I));
+                  I := I + Page_Size;
+               end loop;
+            end if;
+         end loop;
          Arch.MMU.Destroy_Table (Map.Inner);
          F (Map);
       end if;

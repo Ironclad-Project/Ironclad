@@ -18,22 +18,21 @@ with Interfaces; use Interfaces;
 with Lib.Panic;
 with Lib.Synchronization; use Lib.Synchronization;
 with Lib.Alignment;
+with Memory.Virtual;
 
 package body Memory.Physical with SPARK_Mode => Off is
+   Block_Size :         constant := Memory.Virtual.Page_Size;
    Block_Free : constant Boolean := True;
    Block_Used : constant Boolean := False;
-   type Bitmap is array (Unsigned_64 range <>) of Boolean;
-   pragma Pack (Bitmap);
+   type Bitmap is array (Unsigned_64 range <>) of Boolean with Pack;
 
    --  Information that the allocator keeps track of.
    Total_Memory, Free_Memory, Used_Memory : Memory.Size;
-
-   Block_Size       : constant        := 16#1000#;
    Block_Count      : Unsigned_64     := 0;
    Bitmap_Length    : Memory.Size     := 0;
    Bitmap_Address   : Virtual_Address := Null_Address;
    Bitmap_Last_Used : Unsigned_64     := 0;
-   Alloc_Mutex      : aliased Binary_Semaphore;
+   Alloc_Mutex : aliased Binary_Semaphore := Unlocked_Semaphore;
 
    procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map) is
       use Arch;
@@ -107,9 +106,6 @@ package body Memory.Physical with SPARK_Mode => Off is
             end loop;
          end loop;
       end;
-
-      --  Prepare the mutex.
-      Lib.Synchronization.Release (Alloc_Mutex);
    end Init_Allocator;
 
    function Alloc (Sz : Interfaces.C.size_t) return Virtual_Address is
@@ -130,7 +126,8 @@ package body Memory.Physical with SPARK_Mode => Off is
          Size := 1;
       end if;
 
-      Blocks_To_Allocate := Align.Align_Up (Size, Block_Size) / Block_Size;
+      Size               := Align.Align_Up (Size, Block_Size);
+      Blocks_To_Allocate := Size / Block_Size;
 
       --  Search for contiguous blocks, as many as needed.
       Lib.Synchronization.Seize (Alloc_Mutex);
@@ -151,12 +148,14 @@ package body Memory.Physical with SPARK_Mode => Off is
          end if;
       end loop;
 
-      if Bitmap_Last_Used /= 1 then
-         Bitmap_Last_Used := 1;
+      --  Rewind to the beggining if memory was not found and we did not do
+      --  it already.
+      if Bitmap_Last_Used /= Bitmap_Body'First then
+         Bitmap_Last_Used := Bitmap_Body'First;
          goto Search_Blocks;
-      else
-         Lib.Panic.Hard_Panic ("Exhausted memory (OOM)");
       end if;
+
+      Lib.Panic.Hard_Panic ("Exhausted memory (OOM)");
 
    <<Fill_Bitmap>>
       for I in 1 .. Blocks_To_Allocate loop

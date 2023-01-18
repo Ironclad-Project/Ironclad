@@ -82,11 +82,21 @@ package body Devices.PTY with SPARK_Mode => Off is
       Name       : String := Master_PTY_Base_Name;
    begin
       --  Initialize the master PTY.
-      Master := new Master_PTY;
-      Master.Index := Next_PTY;
+      Master := new Master_PTY'
+         (Slave     => null,
+          Term_Info =>
+            (Input_Modes   => 0,
+             Output_Modes  => 0,
+             Control_Modes => 0,
+             Local_Mode    => (others => False),
+             Special_Chars => (others => 0),
+             Input_Baud    => 0,
+             Output_Baud   => 0),
+          Term_Size => (others => 0),
+          Index     => Next_PTY,
+          others    => <>);
       Create_Pair (Master.Writer_To_Master, Master.Reader_To_Master, True);
       Create_Pair (Master.Writer_To_Slave,  Master.Reader_To_Slave,  True);
-      Master.Slave := null;
       Next_PTY := Next_PTY + 1;
 
       --  Give it a cool name and register it.

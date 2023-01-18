@@ -134,6 +134,14 @@ package body VFS.USTAR with SPARK_Mode => Off is
                    Size      => Linked_Name_Len,
                    File_Type => Header.File_Type,
                    Mode      => Octal_To_Decimal (Header.Mode));
+            when USTAR_Directory =>
+               Cache_File :=
+                  (Name      => Header.Name,
+                   Name_Len  => Name_Len - 1, --  USTAR appends / to dir names.
+                   Start     => Header_Index + Byte_Size_64,
+                   Size      => Size,
+                   File_Type => Header.File_Type,
+                   Mode      => Octal_To_Decimal (Header.Mode));
             when others =>
                Cache_File :=
                   (Name      => Header.Name,
@@ -252,7 +260,9 @@ package body VFS.USTAR with SPARK_Mode => Off is
       FS_Data : USTAR_Data with Address => FS, Import;
    begin
       for I in FS_Data.Cache'Range loop
-         if FS_Data.Cache (I).Name (1 .. Path'Length) = Path then
+         if Path'Length = FS_Data.Cache (I).Name_Len and
+            FS_Data.Cache (I).Name (1 .. Path'Length) = Path
+         then
             Data := FS_Data.Cache (I)'Access;
             return True;
          end if;
