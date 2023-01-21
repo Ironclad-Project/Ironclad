@@ -118,7 +118,7 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
       end loop;
       for E of Cached_Info.Memmap (1 .. Cached_Info.Memmap_Len) loop
          if To_Integer (E.Start) < Highest_Address then
-            E.Length := 0;
+            E.MemType := Memory_Reserved;
          end if;
       end loop;
 
@@ -161,7 +161,7 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
       Type_Entry : Boot_Memory_Type;
    begin
       loop
-         exit when Offset >= Storage_Count (Map.TagInfo.Size - Tag'Size) or
+         exit when Offset >= Storage_Count (Map.TagInfo.Size - (128 / 8)) or
                    Cached_Info.Memmap_Len = Cached_Info.Memmap'Length;
 
          declare
@@ -199,7 +199,6 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
       package A is new Lib.Alignment (Integer_Address);
       Value        : Integer_Address;
       Min_Index    : Natural;
-      Final_Last   : Natural := Memmap'Last;
       Intermediate : Boot_Memory_Region;
    begin
       --  First, align all entries to page size.
@@ -215,31 +214,28 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
          end if;
       end loop;
 
-      --  Remove entries with a 0 length, made by the previous path.
-      Min_Index := Memmap'First;
-      while Min_Index < Final_Last loop
-         if Memmap (Min_Index).Length = 0 then
-            Memmap (Min_Index) := Memmap (Final_Last);
-            Min_Index  := Min_Index  - 1;
-            Final_Last := Final_Last - 1;
-         end if;
-         Min_Index := Min_Index + 1;
-      end loop;
-
       --  Sort the memory map with a simple bubble sort.
-      for Iteration in Memmap'First .. Final_Last - 1 loop
-         Value     := To_Integer (Memmap (Iteration).Start);
-         Min_Index := Iteration;
-         for Index in Iteration .. Memmap'Last loop
-            if To_Integer (Memmap (Index).Start) < Value then
-               Value     := To_Integer (Memmap (Index).Start);
-               Min_Index := Index;
+      for I in Memmap'Range loop
+         Value     := To_Integer (Memmap (I).Start);
+         Min_Index := I;
+         for J in I .. Memmap'Last loop
+            if To_Integer (Memmap (J).Start) < Value then
+               Value     := To_Integer (Memmap (J).Start);
+               Min_Index := J;
             end if;
          end loop;
          Intermediate := Memmap (Min_Index);
-         Memmap (Min_Index) := Memmap (Iteration);
-         Memmap (Iteration) := Intermediate;
+         Memmap (Min_Index) := Memmap (I);
+         Memmap (I)         := Intermediate;
       end loop;
-      return Final_Last;
+
+      --  Fill gaps.
+      for I in Memmap'First .. Memmap'Last - 1 loop
+         if Memmap (I + 1).Start > Memmap (I).Start + Memmap (I).Length then
+            Memmap (I).Length := Memmap (I + 1).Start - Memmap (I).Start;
+         end if;
+      end loop;
+
+      return Memmap'Last;
    end Clean_Memmap;
 end Arch.Multiboot2;

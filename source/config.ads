@@ -31,4 +31,5 @@ package Config is
    Support_Device_Streams : constant Boolean := $DEVICES_STREAMS;
    Support_Device_RNG     : constant Boolean := $DEVICES_RNG;
    Support_Device_PTY     : constant Boolean := $DEVICES_PTY;
+   Support_Scheduler_ASC  : constant Boolean := $SCHED_ASC;
 end Config;

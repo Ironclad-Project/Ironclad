@@ -54,9 +54,15 @@ DEVICES_STREAMS="True"
 DEVICES_RNG="True"
 DEVICES_PTY="True"
 MEMORY_ALLOCONLY="standard"
+SCHED_ASC="True"
 
 # Check whether we have to skip the menu or not.
 if ! [ "$skip_menu" = "yes" ]; then
+   if ! command -v dialog &> /dev/null; then
+      echo "error: dialog not available"
+      exit 1
+   fi
+
    main_choice_exit="0"
    geton() {
       if [ $1 = $2 ]; then echo "on"; else echo "off"; fi
@@ -72,7 +78,8 @@ if ! [ "$skip_menu" = "yes" ]; then
          6  "Memory management"                 \
          7  "Networking"                        \
          8  "Userland options"                  \
-         9  "VFS Options")
+         9  "VFS Options"                       \
+         10 "Scheduler options")
       main_choice_exit="$?"
 
       case "$main_choice" in
@@ -127,6 +134,17 @@ if ! [ "$skip_menu" = "yes" ]; then
             1) MEMORY_ALLOCONLY="alloconly" ;;
          esac; done
          ;;
+      10)
+         # scheduler
+         sched_choices=$(dialog --stdout --separate-output \
+            --ok-label "Save" --cancel-label "Back" \
+            --checklist "Scheduler options:" 0 0 0 \
+            1 "Anti-Starvation Corrections (ASC) support" $(geton $SCHED_ASC "True"))
+         SCHED_ASC="False"
+         for c in $sched_choices; do case "$c" in
+            1) SCHED_ASC="True" ;;
+         esac; done
+         ;;
       esac
    done
 
@@ -153,6 +171,7 @@ replace_in_file DEVICES_STREAMS  $DEVICES_STREAMS
 replace_in_file DEVICES_RNG      $DEVICES_RNG
 replace_in_file DEVICES_PTY      $DEVICES_PTY
 replace_in_file MEMORY_ALLOCONLY $MEMORY_ALLOCONLY
+replace_in_file SCHED_ASC        $SCHED_ASC
 
 ############## WARNING: DRAGONS LIE AHEAD ######################
 # So you see, gprbuild loves linking with -lgnat-XX where XX is the system
