@@ -16,13 +16,15 @@
 
 project Ironclad is
    --  Compilation flags.
-   Ada_Flags    := External ("ADAFLAGS", "-O2 -g -gnaty -Wall");
-   Asm_Flags    := External ("ASMFLAGS", "-O2 -g -Wall");
-   Linker_Flags := External ("LDFLAGS",  "-O2 -g -Wall");
+   type Arch_Name is ("aarch64-stivale2", "sparc-leon3", "x86_64-multiboot2");
+   Arch : Arch_Name := "@@ARCH@@";
+   Ada_Flags        := External ("ADAFLAGS", "-O2 -g -gnaty -Wall");
+   Asm_Flags        := External ("ASMFLAGS", "-O2 -g -Wall");
+   Linker_Flags     := External ("LDFLAGS",  "-O2 -g -Wall");
 
    --  Set directories and files.
    for Source_Dirs use (
-      "@@SRC@@/source/arch/" & "@@ARCH@@",
+      "@@SRC@@/source/arch/" & Arch,
       "@@SRC@@/source/arch",
       "@@SRC@@/source/cryptography",
       "@@SRC@@/source/devices",
