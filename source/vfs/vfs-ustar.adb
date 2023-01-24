@@ -19,6 +19,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Memory.Physical;
 with System; use System;
 with Interfaces.C;
+with Lib.Alignment;
 
 package body VFS.USTAR with SPARK_Mode => Off is
    type USTAR_Padding is array (Natural range <>) of Boolean with Pack;
@@ -228,9 +229,11 @@ package body VFS.USTAR with SPARK_Mode => Off is
        Obj  : System.Address;
        S    : out File_Stat) return Boolean
    is
+      package A is new Lib.Alignment (Unsigned_64);
       FS_Data   : USTAR_Data with Address => Data, Import;
       File_Data : USTAR_File with Address => Obj,  Import;
-      D : constant Devices.Resource_Acc := Get_Backing_Device (FS_Data.Key);
+      Han : constant Devices.Device_Handle := Get_Backing_Device (FS_Data.Key);
+      Block_Size : constant Unsigned_64 := Devices.Get_Block_Size (Han);
    begin
       S :=
          (Unique_Identifier => File_Data.Start,
@@ -238,9 +241,9 @@ package body VFS.USTAR with SPARK_Mode => Off is
           Mode              => Unsigned_32 (File_Data.Mode),
           Hard_Link_Count   => 1,
           Byte_Size         => Unsigned_64 (File_Data.Size),
-          IO_Block_Size     => Natural (D.Block_Size),
+          IO_Block_Size     => Natural (Block_Size),
           IO_Block_Count    =>
-          (Unsigned_64 (File_Data.Size) + D.Block_Size - 1) / D.Block_Size);
+            A.Divide_Round_Up (Unsigned_64 (File_Data.Size), Block_Size));
 
       case File_Data.File_Type is
          when USTAR_Regular_File  => S.Type_Of_File := File_Regular;

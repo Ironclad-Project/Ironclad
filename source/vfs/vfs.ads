@@ -80,7 +80,7 @@ package VFS with SPARK_Mode => Off is
    --  Get the backing device of a mount.
    --  @param Key Key to use to fetch the info.
    --  @return The backing device.
-   function Get_Backing_Device (Key : Positive) return Resource_Acc
+   function Get_Backing_Device (Key : Positive) return Device_Handle
       with Pre => Is_Valid (Key);
 
    --  Read from the mount itself, this function is needed as mount registering
@@ -123,13 +123,13 @@ private
 
    --  Read and write individual sectors, return true in success.
    function Read_Sector
-      (Dev   : Devices.Resource_Acc;
-       LBA   : Unsigned_64;
-       Desto : System.Address) return Boolean;
+      (Handle : Device_Handle;
+       LBA    : Unsigned_64;
+       Desto  : System.Address) return Boolean;
    function Write_Sector
-      (Dev  : Devices.Resource_Acc;
-       LBA  : Unsigned_64;
-       Data : System.Address) return Boolean;
+      (Handle : Device_Handle;
+       LBA    : Unsigned_64;
+       Data   : System.Address) return Boolean;
 
    --  Data kept for each sector as cache.
    type Sector_Data is array (Unsigned_64 range <>) of Unsigned_8;
@@ -142,7 +142,7 @@ private
 
    --  Evict the passed information, and replace it.
    function Evict_Sector
-      (Dev     : Devices.Resource_Acc;
+      (Handle  : Device_Handle;
        Sector  : Sector_Cache_Acc;
        New_LBA : Unsigned_64) return Boolean;
 end VFS;

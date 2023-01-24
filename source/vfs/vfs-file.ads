@@ -16,7 +16,6 @@
 
 with System;
 with Memory;
-with Devices;
 
 package VFS.File with SPARK_Mode => Off is
    --  A file represents an entity in disk, held by an FS.
@@ -120,7 +119,7 @@ private
    type File is record
       Refcount  : Natural;
       Full_Path : String_Acc;
-      Dev_Data  : Devices.Resource_Acc;
+      Dev_Data  : Device_Handle;
       FS_Type   : VFS.FS_Type;
       FS_Data   : System.Address;
       File_Data : System.Address;
@@ -131,7 +130,7 @@ private
    function Resolve_File
       (Path         : String;
        Is_Device    : out Boolean;
-       Fetched_Dev  : out Devices.Resource_Acc;
+       Fetched_Dev  : out Device_Handle;
        Fetched_Type : out FS_Type;
        Fetched_FS   : out System.Address;
        Follow_Links : Boolean) return System.Address;

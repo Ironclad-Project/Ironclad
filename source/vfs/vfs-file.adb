@@ -25,7 +25,7 @@ package body VFS.File with SPARK_Mode => Off is
    function Resolve_File
       (Path         : String;
        Is_Device    : out Boolean;
-       Fetched_Dev  : out Devices.Resource_Acc;
+       Fetched_Dev  : out Device_Handle;
        Fetched_Type : out FS_Type;
        Fetched_FS   : out System.Address;
        Follow_Links : Boolean) return System.Address
@@ -40,7 +40,7 @@ package body VFS.File with SPARK_Mode => Off is
    begin
       --  Default values.
       Is_Device    := False;
-      Fetched_Dev  := null;
+      Fetched_Dev  := Devices.Error_Handle;
       Fetched_Type := FS_USTAR;
       Fetched_FS   := System.Null_Address;
 
@@ -54,7 +54,7 @@ package body VFS.File with SPARK_Mode => Off is
       if Path'Length > 4 and then Path (Path'First .. Path'First + 4) = "/dev/"
       then
          Fetched_Dev := Fetch (Path (Path'First + 5 .. Path'Last));
-         Is_Device   := Fetched_Dev /= null;
+         Is_Device   := Fetched_Dev /= Error_Handle;
          goto Done;
       end if;
 
@@ -138,7 +138,7 @@ package body VFS.File with SPARK_Mode => Off is
        Follow_Links : Boolean := True) return File_Acc
    is
       Is_Device    : Boolean;
-      Fetched_Dev  : Devices.Resource_Acc;
+      Fetched_Dev  : Device_Handle;
       Fetched_Type : FS_Type;
       Fetched_FS   : System.Address;
       Fetched_File : System.Address;
@@ -189,7 +189,7 @@ package body VFS.File with SPARK_Mode => Off is
 
    function Get_Device_ID (File : File_Acc) return Natural is
    begin
-      return File.Dev_Data.Unique_Identifier;
+      return Devices.Get_Unique_ID (File.Dev_Data);
    end Get_Device_ID;
 
    function Check_Permissions
@@ -201,7 +201,7 @@ package body VFS.File with SPARK_Mode => Off is
        Follow_Links : Boolean := True) return Boolean
    is
       Is_Device    : Boolean;
-      Fetched_Dev  : Devices.Resource_Acc;
+      Fetched_Dev  : Device_Handle;
       Fetched_Type : FS_Type;
       Fetched_FS   : System.Address;
       Discard      : System.Address;
@@ -274,8 +274,8 @@ package body VFS.File with SPARK_Mode => Off is
          );
          To_Read.Index := To_Read.Index + Read_Count;
          return Read_Count;
-      elsif To_Read.Dev_Data.Read /= null then
-         Read_Count := To_Read.Dev_Data.Read (
+      else
+         Read_Count := Devices.Read (
             To_Read.Dev_Data,
             To_Read.Index,
             Count,
@@ -283,8 +283,6 @@ package body VFS.File with SPARK_Mode => Off is
          );
          To_Read.Index := To_Read.Index + Read_Count;
          return Read_Count;
-      else
-         return 0;
       end if;
    end Read;
 
@@ -303,7 +301,7 @@ package body VFS.File with SPARK_Mode => Off is
       then
          return 0;
       else
-         Write_Count := To_Write.Dev_Data.Write (
+         Write_Count := Devices.Write (
             To_Write.Dev_Data,
             To_Write.Index,
             Count,
@@ -315,6 +313,10 @@ package body VFS.File with SPARK_Mode => Off is
    end Write;
 
    function Stat (F : File_Acc; S : out File_Stat) return Boolean is
+      Is_Block                : Boolean;
+      Device_Type             : File_Type;
+      Block_Size, Block_Count : Unsigned_64;
+      Unique_Identifier       : Natural;
    begin
       --  This is null?
       if F.FS_Data /= System.Null_Address and
@@ -322,14 +324,23 @@ package body VFS.File with SPARK_Mode => Off is
       then
          return USTAR.Stat (F.FS_Data, F.File_Data, S);
       else
+         Is_Block          := Devices.Is_Block_Device (F.Dev_Data);
+         Block_Size        := Devices.Get_Block_Size  (F.Dev_Data);
+         Block_Count       := Devices.Get_Block_Count (F.Dev_Data);
+         Unique_Identifier := Devices.Get_Unique_ID   (F.Dev_Data);
+         if Is_Block then
+            Device_Type := File_Block_Device;
+         else
+            Device_Type := File_Character_Device;
+         end if;
          S := (
-            Unique_Identifier => 1,
-            Type_Of_File      => File_Block_Device,
+            Unique_Identifier => Unsigned_64 (Unique_Identifier),
+            Type_Of_File      => Device_Type,
             Mode              => 8#660#,
-            Hard_Link_Count   => F.Dev_Data.Unique_Identifier,
-            Byte_Size        => F.Dev_Data.Block_Size * F.Dev_Data.Block_Count,
-            IO_Block_Size     => Integer (F.Dev_Data.Block_Size),
-            IO_Block_Count    => F.Dev_Data.Block_Count
+            Hard_Link_Count   => 1,
+            Byte_Size         => Block_Size * Block_Count,
+            IO_Block_Size     => Integer (Block_Size),
+            IO_Block_Count    => Block_Count
          );
          return True;
       end if;
@@ -346,10 +357,8 @@ package body VFS.File with SPARK_Mode => Off is
       then
          --  Support USTAR IOCTL.
          return False;
-      elsif F.Dev_Data.IO_Control /= null then
-         return F.Dev_Data.IO_Control (F.Dev_Data, Request, Argument);
       else
-         return False;
+         return Devices.IO_Control (F.Dev_Data, Request, Argument);
       end if;
    end IO_Control;
 
@@ -363,9 +372,8 @@ package body VFS.File with SPARK_Mode => Off is
    is
    begin
       if F.FS_Data = System.Null_Address and F.File_Data = System.Null_Address
-         and F.Dev_Data.Mmap /= null
       then
-         return F.Dev_Data.Mmap (
+         return Devices.Mmap (
             F.Dev_Data,
             Address,
             Length,
@@ -386,9 +394,8 @@ package body VFS.File with SPARK_Mode => Off is
    is
    begin
       if F.FS_Data = System.Null_Address and F.File_Data = System.Null_Address
-         and F.Dev_Data.Munmap /= null
       then
-         return F.Dev_Data.Munmap (F.Dev_Data, Address, Length);
+         return Devices.Munmap (F.Dev_Data, Address, Length);
       else
          --  TODO: Support mmaping a non-device.
          return False;

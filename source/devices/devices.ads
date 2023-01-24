@@ -19,7 +19,8 @@ with Interfaces; use Interfaces;
 with Memory;
 with Lib.Synchronization;
 
-package Devices with SPARK_Mode => Off is
+package Devices is
+   --  Data that defines a device.
    type Resource;
    type Resource_Acc is access all Resource;
    type Resource is record
@@ -28,7 +29,6 @@ package Devices with SPARK_Mode => Off is
       Is_Block    : Boolean; --  True for block dev, false for character dev.
       Block_Size  : Unsigned_64;
       Block_Count : Unsigned_64;
-      Unique_Identifier : Natural;
 
       Sync : access procedure (Data : Resource_Acc);
       Read : access function
@@ -58,10 +58,121 @@ package Devices with SPARK_Mode => Off is
           Length  : Unsigned_64) return Boolean;
    end record;
 
-   --  Initialize the device registry and devices.
+   --  Handle for interfacing with devices, and device conditions.
+   type Device_Handle is private;
+   Error_Handle    : constant Device_Handle;
+   Max_Name_Length : constant Natural;
+
+   --  Initialize the device registry and register some devices.
    procedure Init;
 
-   --  Register and fetch devices, identified by a unique name.
-   function Register (Dev : Resource; Name : String) return Boolean;
-   function Fetch (Name : String) return Resource_Acc;
+   --  Register a device with a resource description and matching name.
+   --  @param Dev  Device description to register.
+   --  @param Name Name to register the device with, must be unique.
+   --  @return True on success, False on failure.
+   procedure Register (Dev : Resource; Name : String; Success : out Boolean)
+      with Pre => (Is_Registry_Initialized and Name'Length <= Max_Name_Length);
+
+   --  Fetch a device by name.
+   --  @param Name Name to search.
+   --  @return A handle on success, or Error_Handle on failure.
+   function Fetch (Name : String) return Device_Handle
+      with Pre => (Is_Registry_Initialized and Name'Length <= Max_Name_Length);
+
+   --  Fetch generic properties of a device handle.
+   --  @param Handle Handle to fetch, must be valid, as checking is not done.
+   --  @return The requested data.
+   function Is_Block_Device (Handle : Device_Handle) return Boolean
+      with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
+   function Get_Block_Count (Handle : Device_Handle) return Unsigned_64
+      with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
+   function Get_Block_Size  (Handle : Device_Handle) return Unsigned_64
+      with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
+   function Get_Unique_ID   (Handle : Device_Handle) return Natural
+      with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
+
+   --  Synchronize internal device state, in order to ensure coherency.
+   --  @param Handle Handle to synchronize if supported, must be valid.
+   procedure Synchronize (Handle : Device_Handle)
+      with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
+
+   --  Read from a device.
+   --  @param Handle Handle to read if supported, must be valid.
+   --  @param Offset Offset to start reading from, for block devices.
+   --  @param Count  Count of bytes to read.
+   --  @result Count of bytes read, less than count if EOF, 0 if EOF or error.
+   function Read
+      (Handle : Device_Handle;
+       Offset : Unsigned_64;
+       Count  : Unsigned_64;
+       Desto  : System.Address) return Unsigned_64
+      with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
+
+   --  Write to a device.
+   --  @param Handle Handle to write to if supported, must be valid.
+   --  @param Offset Offset to start writing to, for block devices.
+   --  @param Count  Count of bytes to write.
+   --  @result Count of bytes written, 0 less than count if EOF, 0 if error.
+   function Write
+      (Handle   : Device_Handle;
+       Offset   : Unsigned_64;
+       Count    : Unsigned_64;
+       To_Write : System.Address) return Unsigned_64
+      with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
+
+   --  Do a device-specific IO control request.
+   --  @param Handle   Handle to operate on, must be valid.
+   --  @param Request  Device-specific request.
+   --  @param Argument Device-specific argument address.
+   --  @result True in success, False if not supported or failed.
+   function IO_Control
+      (Handle   : Device_Handle;
+       Request  : Unsigned_64;
+       Argument : System.Address) return Boolean
+      with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
+
+   --  Do a device-specific memory map request.
+   --  @param Handle   Handle to operate on, must be valid.
+   --  @param Address  Virtual address to map device memory to.
+   --  @param Length   Length in bytes of the mapping.
+   --  @result True in success, False if not supported or failed.
+   function Mmap
+      (Handle      : Device_Handle;
+       Address     : Memory.Virtual_Address;
+       Length      : Unsigned_64;
+       Map_Read    : Boolean;
+       Map_Write   : Boolean;
+       Map_Execute : Boolean) return Boolean
+      with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
+
+   --  Do a device-specific memory unmap request.
+   --  @param Handle   Handle to operate on, must be valid.
+   --  @param Address  Virtual address to unmap device memory from.
+   --  @param Length   Length in bytes to unmap.
+   --  @result True in success, False if not supported or failed.
+   function Munmap
+      (Handle  : Device_Handle;
+       Address : Memory.Virtual_Address;
+       Length  : Unsigned_64) return Boolean
+      with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
+
+   --  Ghost function for checking whether the device handling is initialized.
+   function Is_Registry_Initialized return Boolean with Ghost;
+
+private
+
+   type Device_Handle is new Natural range 0 .. 20;
+   Error_Handle    : constant Device_Handle := 0;
+   Max_Name_Length : constant Natural       := 64;
+   type Device is record
+      Is_Present : Boolean;
+      Name       : String (1 .. Max_Name_Length);
+      Name_Len   : Natural range 0 .. Max_Name_Length;
+      Contents   : aliased Resource;
+   end record;
+   type Device_Arr     is array (Device_Handle range 1 .. 20) of Device;
+   type Device_Arr_Acc is access Device_Arr;
+   Devices_Data : Device_Arr_Acc;
+
+   function Is_Registry_Initialized return Boolean is (Devices_Data /= null);
 end Devices;

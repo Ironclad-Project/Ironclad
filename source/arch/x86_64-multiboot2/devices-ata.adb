@@ -27,24 +27,25 @@ package body Devices.ATA with SPARK_Mode => Off is
    function Init return Boolean is
       Base_Name  : String := "ata0";
       Drive_Data : ATA_Data_Acc;
+      Success    : Boolean;
    begin
       for I in 0 .. 3 loop
          Drive_Data := Init_Port (I);
          if Drive_Data /= null then
             Base_Name (4) := Character'Val (I + 1 + Character'Pos ('0'));
-            if not Register (
+            Register (
                (Data => Con.To_Address (Con.Object_Pointer (Drive_Data)),
-                Mutex             => Lib.Synchronization.Unlocked_Semaphore,
-                Is_Block          => True,
-                Block_Size        => Sector_Size,
-                Block_Count       => Drive_Data.Sector_Count,
-                Unique_Identifier => 0,
-                Sync              => null,
-                Read              => Read'Access,
-                Write             => Write'Access,
-                IO_Control        => null,
-                Mmap              => null,
-                Munmap            => null), Base_Name) or
+                Mutex       => Lib.Synchronization.Unlocked_Semaphore,
+                Is_Block    => True,
+                Block_Size  => Sector_Size,
+                Block_Count => Drive_Data.Sector_Count,
+                Sync        => null,
+                Read        => Read'Access,
+                Write       => Write'Access,
+                IO_Control  => null,
+                Mmap        => null,
+                Munmap      => null), Base_Name, Success);
+            if not Success or else
                not Partitions.Parse_Partitions (Base_Name, Fetch (Base_Name))
             then
                return False;

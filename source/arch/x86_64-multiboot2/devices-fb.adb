@@ -96,6 +96,7 @@ package body Devices.FB with SPARK_Mode => Off is
       Device       : Resource;
       Data         : constant Internal_FB_Data_Acc := new Internal_FB_Data;
       Fb           : constant Framebuffer_Tag      := Get_Framebuffer;
+      Success      : Boolean;
    begin
       --  Translate the multiboot information into fbdev info and register.
       Data.all := (
@@ -135,18 +136,17 @@ package body Devices.FB with SPARK_Mode => Off is
       );
 
       Device := (
-         Data              => Data.all'Address,
-         Mutex             => <>,
-         Is_Block          => False,
-         Block_Size        => 4096,
-         Block_Count       => 0,
-         Unique_Identifier => 0,
-         Sync              => null,
-         Read              => null,
-         Write             => null,
-         IO_Control        => IO_Control'Access,
-         Mmap              => Mmap'Access,
-         Munmap            => null
+         Data        => Data.all'Address,
+         Mutex       => <>,
+         Is_Block    => False,
+         Block_Size  => 4096,
+         Block_Count => 0,
+         Sync        => null,
+         Read        => null,
+         Write       => null,
+         IO_Control  => IO_Control'Access,
+         Mmap        => Mmap'Access,
+         Munmap      => null
       );
 
       --  Identity-map the framebuffer in case we are requested to access it by
@@ -154,7 +154,8 @@ package body Devices.FB with SPARK_Mode => Off is
       Aligned := Align.Align_Down (To_Integer (Fb.Address), Page_Size);
       Len     := Integer_Address (Fb.Height * Fb.Pitch) +
                  (To_Integer (Fb.Address) - Aligned);
-      return Memory.Virtual.Map_Range (
+      Register (Device, "fb0", Success);
+      return Success and then Memory.Virtual.Map_Range (
          Map      => Memory.Virtual.Get_Kernel_Map,
          Virtual  => Aligned + Memory_Offset,
          Physical => Aligned,
@@ -166,7 +167,7 @@ package body Devices.FB with SPARK_Mode => Off is
             Global         => True,
             Write_Through  => True
          )
-      ) and then Register (Device, "fb0");
+      );
    end Init;
 
    function IO_Control

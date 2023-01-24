@@ -28,7 +28,7 @@ package body VFS with SPARK_Mode => Off is
    Cache_Array_Length : constant := 8000;
    type Mount_Container is record
       Is_Cached   : Boolean;
-      Mounted_Dev : Devices.Resource_Acc;
+      Mounted_Dev : Device_Handle;
       Mounted_FS  : FS_Type;
       FS_Data     : System.Address;
       Path_Length : Natural;
@@ -48,17 +48,17 @@ package body VFS with SPARK_Mode => Off is
       Mounts       := new Mount_Container_Arr;
       Mounts_Mutex := Lib.Synchronization.Unlocked_Semaphore;
       for Mount of Mounts.all loop
-         Mount.Mounted_Dev := null;
+         Mount.Mounted_Dev := Error_Handle;
       end loop;
    end Init;
 
    function Mount (Name, Path : String; FS : FS_Type) return Boolean is
-      Dev     : constant Devices.Resource_Acc := Devices.Fetch (Name);
-      FS_Data : System.Address := System.Null_Address;
-      Free_I  : Natural        := 0;
+      Dev     : constant Device_Handle := Devices.Fetch (Name);
+      FS_Data : System.Address         := System.Null_Address;
+      Free_I  : Natural                := 0;
    begin
       if not Is_Absolute (Path) or Path'Length > Path_Buffer_Length or
-         Dev = null
+         Dev = Error_Handle
       then
          return False;
       end if;
@@ -67,7 +67,7 @@ package body VFS with SPARK_Mode => Off is
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev = Dev then
             goto Return_End;
-         elsif Mounts (I).Mounted_Dev = null then
+         elsif Mounts (I).Mounted_Dev = Error_Handle then
             Free_I := I;
          end if;
       end loop;
@@ -77,7 +77,7 @@ package body VFS with SPARK_Mode => Off is
 
       --  We need an initialized mount for probing the FS, thats why the
       --  awkward split initialization.
-      Mounts (Free_I).Is_Cached                      := Dev.Is_Block;
+      Mounts (Free_I).Is_Cached := Devices.Is_Block_Device (Dev);
       Mounts (Free_I).Mounted_Dev                    := Dev;
       Mounts (Free_I).Path_Length                    := Path'Length;
       Mounts (Free_I).Path_Buffer (1 .. Path'Length) := Path;
@@ -104,7 +104,7 @@ package body VFS with SPARK_Mode => Off is
    begin
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
-         if Mounts (I).Mounted_Dev /= null and then
+         if Mounts (I).Mounted_Dev /= Error_Handle and then
             Mounts (I).Path_Buffer (1 .. Mounts (I).Path_Length) = Path
          then
             Flush_Caches (I);
@@ -113,7 +113,7 @@ package body VFS with SPARK_Mode => Off is
                   Free_Sector_Cache (Cache);
                end if;
             end loop;
-            Mounts (I).Mounted_Dev := null;
+            Mounts (I).Mounted_Dev := Error_Handle;
             goto Return_End;
          end if;
       end loop;
@@ -126,7 +126,7 @@ package body VFS with SPARK_Mode => Off is
    begin
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
-         if Mounts (I).Mounted_Dev /= null and then
+         if Mounts (I).Mounted_Dev /= Error_Handle and then
             Mounts (I).Path_Buffer (1 .. Mounts (I).Path_Length) = Path
          then
             Returned := I;
@@ -140,7 +140,8 @@ package body VFS with SPARK_Mode => Off is
 
    function Is_Valid (Key : Positive) return Boolean is
    begin
-      return Key <= Mounts'Last and then Mounts (Key).Mounted_Dev /= null;
+      return Key <= Mounts'Last and then
+             Mounts (Key).Mounted_Dev /= Error_Handle;
    end Is_Valid;
 
    function Get_Backing_FS (Key : Positive) return FS_Type is
@@ -153,7 +154,7 @@ package body VFS with SPARK_Mode => Off is
       return Mounts (Key).FS_Data;
    end Get_Backing_FS_Data;
 
-   function Get_Backing_Device (Key : Positive) return Devices.Resource_Acc is
+   function Get_Backing_Device (Key : Positive) return Device_Handle is
    begin
       return Mounts (Key).Mounted_Dev;
    end Get_Backing_Device;
@@ -165,7 +166,8 @@ package body VFS with SPARK_Mode => Off is
        Desto  : System.Address) return Unsigned_64
    is
       Data : Sector_Data (1 .. Count) with Import, Address => Desto;
-      Block_Size : constant Unsigned_64 := Mounts (Key).Mounted_Dev.Block_Size;
+      Block_Size : constant Unsigned_64 := Devices.Get_Block_Size
+         (Mounts (Key).Mounted_Dev);
       Ali_Offset : constant Unsigned_64 := Ali.Align_Down (Offset, Block_Size);
       Low_LBA    : constant Unsigned_64 := Ali_Offset / Block_Size;
       Ali_Length : constant Unsigned_64 :=
@@ -178,15 +180,11 @@ package body VFS with SPARK_Mode => Off is
       Searched       : Unsigned_64;
    begin
       if not Mounts (Key).Is_Cached then
-         if Mounts (Key).Mounted_Dev.Read /= null then
-            return Mounts (Key).Mounted_Dev.Read
-               (Data   => Mounts (Key).Mounted_Dev,
-                Offset => Offset,
-                Count  => Count,
-                Desto  => Desto);
-         else
-            return 0;
-         end if;
+         return Devices.Read
+            (Handle => Mounts (Key).Mounted_Dev,
+             Offset => Offset,
+             Count  => Count,
+             Desto  => Desto);
       elsif Count = 0 then
          return 0;
       end if;
@@ -225,9 +223,9 @@ package body VFS with SPARK_Mode => Off is
             Mounts (Key).Cache (Free_Index).LBA_Offset := Searched;
             Mounts (Key).Cache (Free_Index).Is_Dirty   := False;
             if not Read_Sector
-               (Dev   => Mounts (Key).Mounted_Dev,
-                LBA   => Searched,
-                Desto => Mounts (Key).Cache (Free_Index).Data'Address)
+               (Handle => Mounts (Key).Mounted_Dev,
+                LBA    => Searched,
+                Desto  => Mounts (Key).Cache (Free_Index).Data'Address)
             then
                return 0;
             end if;
@@ -260,28 +258,29 @@ package body VFS with SPARK_Mode => Off is
        To_Write : System.Address) return Unsigned_64
    is
    begin
-      return Mounts (Key).Mounted_Dev.Write
-         (Data     => Mounts (Key).Mounted_Dev,
+      return Devices.Write
+         (Handle   => Mounts (Key).Mounted_Dev,
           Offset   => Offset,
           Count    => Count,
           To_Write => To_Write);
    end Write;
 
    function Evict_Sector
-      (Dev     : Devices.Resource_Acc;
+      (Handle  : Device_Handle;
        Sector  : Sector_Cache_Acc;
        New_LBA : Unsigned_64) return Boolean
    is
    begin
       if Sector.Is_Dirty then
-         if not Write_Sector (Dev, Sector.LBA_Offset, Sector.Data'Address) then
+         if not Write_Sector (Handle, Sector.LBA_Offset, Sector.Data'Address)
+         then
             return False;
          end if;
       end if;
 
       Sector.LBA_Offset := New_LBA;
       Sector.Is_Dirty   := False;
-      return Read_Sector (Dev, New_LBA, Sector.Data'Address);
+      return Read_Sector (Handle, New_LBA, Sector.Data'Address);
    end Evict_Sector;
 
    procedure Flush_Caches (Key : Positive) is
@@ -291,7 +290,7 @@ package body VFS with SPARK_Mode => Off is
       for Cache of Mounts (Key).Cache loop
          if Cache /= null and then Cache.Is_Dirty then
             Discard := Evict_Sector
-               (Dev     => Mounts (Key).Mounted_Dev,
+               (Handle  => Mounts (Key).Mounted_Dev,
                 Sector  => Cache,
                 New_LBA => Cache.LBA_Offset);
          end if;
@@ -309,37 +308,31 @@ package body VFS with SPARK_Mode => Off is
    end Flush_Caches;
 
    function Read_Sector
-      (Dev   : Devices.Resource_Acc;
-       LBA   : Unsigned_64;
-       Desto : System.Address) return Boolean
+      (Handle : Device_Handle;
+       LBA    : Unsigned_64;
+       Desto  : System.Address) return Boolean
    is
+      Block_Size : constant Unsigned_64 := Devices.Get_Block_Size (Handle);
    begin
-      if Dev.Read = null then
-         return False;
-      end if;
-
-      return Dev.Read.all
-         (Data   => Dev,
-          Offset => LBA * Dev.Block_Size,
-          Count  => Dev.Block_Size,
-          Desto  => Desto) = Dev.Block_Size;
+      return Devices.Read
+         (Handle => Handle,
+          Offset => LBA * Block_Size,
+          Count  => Block_Size,
+          Desto  => Desto) = Block_Size;
    end Read_Sector;
 
    function Write_Sector
-      (Dev  : Devices.Resource_Acc;
-       LBA  : Unsigned_64;
-       Data : System.Address) return Boolean
+      (Handle : Device_Handle;
+       LBA    : Unsigned_64;
+       Data   : System.Address) return Boolean
    is
+      Block_Size : constant Unsigned_64 := Devices.Get_Block_Size (Handle);
    begin
-      if Dev.Write = null then
-         return False;
-      end if;
-
-      return Dev.Write.all
-         (Data     => Dev,
-          Offset   => LBA * Dev.Block_Size,
-          Count    => Dev.Block_Size,
-          To_Write => Data) = Dev.Block_Size;
+      return Devices.Write
+         (Handle   => Handle,
+          Offset   => LBA * Block_Size,
+          Count    => Block_Size,
+          To_Write => Data) = Block_Size;
    end Write_Sector;
    ----------------------------------------------------------------------------
    function Is_Absolute (Path : String) return Boolean is

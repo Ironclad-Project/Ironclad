@@ -23,31 +23,33 @@ package Devices.Partitions with SPARK_Mode => Off is
    --  failed unexpectedly or the requirements are not met.
    function Parse_Partitions
       (Name : String;
-       Dev  : Resource_Acc) return Boolean;
+       Dev  : Device_Handle) return Boolean;
 
 private
 
    --  Scan partitions for GPT and MBR.
    function Parse_GPT_Partitions
       (Name                 : String;
-       Dev                  : Resource_Acc;
+       Dev                  : Device_Handle;
        Found_Any_Partitions : out Boolean) return Boolean;
    function Parse_MBR_Partitions
       (Name                 : String;
-       Dev                  : Resource_Acc;
+       Dev                  : Device_Handle;
        Found_Any_Partitions : out Boolean) return Boolean;
 
    --  Register data for a partition.
    type Partition_Data is record
-      Inner_Device : Resource_Acc;
+      Inner_Device : Device_Handle;
+      Block_Size   : Unsigned_64;
       LBA_Offset   : Unsigned_64;
       LBA_Length   : Unsigned_64;
    end record;
    type Partition_Data_Acc is access all Partition_Data;
    function Set_Part
-      (Name  : String;
-       Index : Positive;
-       Part  : Partition_Data_Acc) return Boolean;
+      (Name       : String;
+       Index      : Positive;
+       Block_Size : Unsigned_64;
+       Part       : Partition_Data_Acc) return Boolean;
    ----------------------------------------------------------------------------
    function Read
       (Data   : Resource_Acc;

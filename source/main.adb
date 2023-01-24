@@ -41,6 +41,7 @@ procedure Main is
    Root_Value : Lib.Cmdline.String_Acc;
    Init_Value : Lib.Cmdline.String_Acc;
    Init_File  : File_Acc;
+   Success    : Boolean;
 
    Init_Stdin  : constant String := "/dev/null";
    Init_Stdout : constant String := "/dev/debug";
@@ -68,9 +69,10 @@ begin
          Name : String := "ramdev0";
       begin
          Name (7) := Character'Val (I + Character'Pos ('0'));
-         if not Devices.Register
-            (Devices.Ramdev.Init_Module (Proto.RAM_Files (I)), Name)
-         then
+         Devices.Register
+            (Devices.Ramdev.Init_Module (Proto.RAM_Files (I)), Name, Success);
+
+         if not Success then
             Lib.Panic.Hard_Panic ("Could not load a boot ramdev");
          end if;
       end;

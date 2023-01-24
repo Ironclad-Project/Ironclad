@@ -49,24 +49,25 @@ package body Devices.PTY with SPARK_Mode => Off is
 
    function Init return Boolean is
       PTMX_Dev : constant Resource := (
-         Data              => System.Null_Address,
-         Mutex             => Lib.Synchronization.Unlocked_Semaphore,
-         Is_Block          => False,
-         Block_Size        => 4096,
-         Block_Count       => 0,
-         Unique_Identifier => 0,
-         Sync              => null,
-         Read              => null,
-         Write             => null,
-         IO_Control        => PTMX_IO_Control'Access,
-         Mmap              => null,
-         Munmap            => null
+         Data        => System.Null_Address,
+         Mutex       => Lib.Synchronization.Unlocked_Semaphore,
+         Is_Block    => False,
+         Block_Size  => 4096,
+         Block_Count => 0,
+         Sync        => null,
+         Read        => null,
+         Write       => null,
+         IO_Control  => PTMX_IO_Control'Access,
+         Mmap        => null,
+         Munmap      => null
       );
+      Success : Boolean;
    begin
       --  Register /dev/ptmx, used exclusively for opening master ptys.
       --  Just instead of doing it with `open`, for API limitations, we do it
       --  with an IOCTL (lame I know).
-      return Register (PTMX_Dev, "ptmx");
+      Register (PTMX_Dev, "ptmx", Success);
+      return Success;
    end Init;
 
    function PTMX_IO_Control
@@ -80,6 +81,7 @@ package body Devices.PTY with SPARK_Mode => Off is
       Master_Dev : Resource;
       Master     : Master_PTY_Acc;
       Name       : String := Master_PTY_Base_Name;
+      Success    : Boolean;
    begin
       --  Initialize the master PTY.
       Master := new Master_PTY'
@@ -102,21 +104,21 @@ package body Devices.PTY with SPARK_Mode => Off is
       --  Give it a cool name and register it.
       Name (Name'Last) := Character'Val (Master.Index + Character'Pos ('0'));
       Master_Dev := (
-         Data              => Master.all'Address,
-         Mutex             => Lib.Synchronization.Unlocked_Semaphore,
-         Is_Block          => False,
-         Block_Size        => 4096,
-         Block_Count       => 0,
-         Unique_Identifier => 0,
-         Sync              => null,
-         Read              => Master_Read'Access,
-         Write             => Master_Write'Access,
-         IO_Control        => Master_IO_Control'Access,
-         Mmap              => null,
-         Munmap            => null
+         Data        => Master.all'Address,
+         Mutex       => Lib.Synchronization.Unlocked_Semaphore,
+         Is_Block    => False,
+         Block_Size  => 4096,
+         Block_Count => 0,
+         Sync        => null,
+         Read        => Master_Read'Access,
+         Write       => Master_Write'Access,
+         IO_Control  => Master_IO_Control'Access,
+         Mmap        => null,
+         Munmap      => null
       );
 
-      if not Register (Master_Dev, Name) then
+      Register (Master_Dev, Name, Success);
+      if not Success then
          goto Error;
       end if;
 
@@ -166,6 +168,7 @@ package body Devices.PTY with SPARK_Mode => Off is
       Slave_Dev : Resource;
       Slave     : Slave_PTY_Acc;
       Name      : String := Slave_PTY_Base_Name;
+      Success   : Boolean;
    begin
       if Request /= 0 then
          return Termios_IO_Control (Data.Data, Request, Argument);
@@ -178,21 +181,21 @@ package body Devices.PTY with SPARK_Mode => Off is
       --  Give it a cool name and register it.
       Name (Name'Last) := Character'Val (Master.Index + Character'Pos ('0'));
       Slave_Dev := (
-         Data              => Slave.all'Address,
-         Mutex             => Lib.Synchronization.Unlocked_Semaphore,
-         Is_Block          => False,
-         Block_Size        => 4096,
-         Block_Count       => 0,
-         Unique_Identifier => 0,
-         Sync              => null,
-         Read              => Slave_Read'Access,
-         Write             => Slave_Write'Access,
-         IO_Control        => Slave_IO_Control'Access,
-         Mmap              => null,
-         Munmap            => null
+         Data        => Slave.all'Address,
+         Mutex       => Lib.Synchronization.Unlocked_Semaphore,
+         Is_Block    => False,
+         Block_Size  => 4096,
+         Block_Count => 0,
+         Sync        => null,
+         Read        => Slave_Read'Access,
+         Write       => Slave_Write'Access,
+         IO_Control  => Slave_IO_Control'Access,
+         Mmap        => null,
+         Munmap      => null
       );
 
-      if not Register (Slave_Dev, Name) then
+      Register (Slave_Dev, Name, Success);
+      if not Success then
          goto Error;
       end if;
 

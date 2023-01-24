@@ -114,11 +114,11 @@ package body Devices.Partitions with SPARK_Mode => Off is
 
    function Parse_Partitions
       (Name : String;
-       Dev  : Resource_Acc) return Boolean
+       Dev  : Device_Handle) return Boolean
    is
       Found_Any_Partitions : Boolean;
    begin
-      if not Dev.Is_Block or else Dev.Read = null then
+      if not Devices.Is_Block_Device (Dev) then
          return False;
       end if;
 
@@ -134,11 +134,12 @@ package body Devices.Partitions with SPARK_Mode => Off is
 
    function Parse_GPT_Partitions
       (Name                 : String;
-       Dev                  : Resource_Acc;
+       Dev                  : Device_Handle;
        Found_Any_Partitions : out Boolean) return Boolean
    is
-      Sector : Sector_Data_Acc := new Sector_Data (1 .. Dev.Block_Size);
-      S_Addr : constant System.Address := Sector.all'Address;
+      Block_Size : constant Unsigned_64 := Devices.Get_Block_Size (Dev);
+      Sector : Sector_Data_Acc := new Sector_Data (1 .. Block_Size);
+      S_Addr : constant System.Address  := Sector.all'Address;
       GPT    : GPT_Header_Acc;
       Part   : Partition_Data_Acc;
 
@@ -150,8 +151,8 @@ package body Devices.Partitions with SPARK_Mode => Off is
       Success          : Boolean := True;
    begin
       Found_Any_Partitions := False;
-      if Dev.Read (Dev, Dev.Block_Size, Dev.Block_Size, S_Addr) /=
-         Dev.Block_Size
+      if Devices.Read (Dev, Block_Size, Block_Size, S_Addr) /=
+         Block_Size
       then
          Success := False;
          goto Return_End;
@@ -164,12 +165,12 @@ package body Devices.Partitions with SPARK_Mode => Off is
       end if;
 
       Part_Count       := Natural (GPT.Number_Of_Partitions);
-      Block            := Dev.Block_Size * 2;
+      Block            := Block_Size * 2;
       Parts_Per_Sector :=
-         Natural (Dev.Block_Size / Unsigned_64 (GPT.Partition_Entry_Size / 8));
+         Natural (Block_Size / Unsigned_64 (GPT.Partition_Entry_Size / 8));
 
       loop
-         if Dev.Read (Dev, Block, Dev.Block_Size, S_Addr) /= Dev.Block_Size
+         if Devices.Read (Dev, Block, Block_Size, S_Addr) /= Block_Size
          then
             Success := False;
             goto Return_End;
@@ -187,11 +188,12 @@ package body Devices.Partitions with SPARK_Mode => Off is
                   Found_Any_Partitions := True;
                   Part := new Partition_Data'(
                      Inner_Device => Dev,
+                     Block_Size   => Block_Size,
                      LBA_Offset   => Partition.Starting_LBA,
                      LBA_Length   => Partition.Ending_LBA -
                                      Partition.Starting_LBA
                   );
-                  if not Set_Part (Name, Added_Index, Part) then
+                  if not Set_Part (Name, Added_Index, Block_Size, Part) then
                      Success := False;
                      goto Return_End;
                   end if;
@@ -200,7 +202,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
                I := I + 1;
             end loop;
          end;
-         Block := Block + Dev.Block_Size;
+         Block := Block + Block_Size;
       end loop;
 
    <<Return_End>>
@@ -210,17 +212,18 @@ package body Devices.Partitions with SPARK_Mode => Off is
 
    function Parse_MBR_Partitions
       (Name                 : String;
-       Dev                  : Resource_Acc;
+       Dev                  : Device_Handle;
        Found_Any_Partitions : out Boolean) return Boolean
    is
-      Sector  : Sector_Data_Acc := new Sector_Data (1 .. Dev.Block_Size);
-      S_Addr  : constant System.Address := Sector.all'Address;
+      Block_Size : constant Unsigned_64 := Devices.Get_Block_Size (Dev);
+      Sector : Sector_Data_Acc := new Sector_Data (1 .. Block_Size);
+      S_Addr : constant System.Address  := Sector.all'Address;
       MBR     : MBR_Data_Acc;
       Part    : Partition_Data_Acc;
       Success : Boolean := True;
    begin
       Found_Any_Partitions := False;
-      if Dev.Read (Dev, 0, Dev.Block_Size, S_Addr) /= Dev.Block_Size then
+      if Devices.Read (Dev, 0, Block_Size, S_Addr) /= Block_Size then
          Success := False;
          goto Return_End;
       end if;
@@ -236,10 +239,11 @@ package body Devices.Partitions with SPARK_Mode => Off is
             Found_Any_Partitions := True;
             Part := new Partition_Data'(
                Inner_Device => Dev,
+               Block_Size   => Block_Size,
                LBA_Offset   => Unsigned_64 (MBR.Entries (I).First_Sector),
                LBA_Length   => Unsigned_64 (MBR.Entries (I).Sector_Count)
             );
-            if not Set_Part (Name, I, Part) then
+            if not Set_Part (Name, I, Block_Size, Part) then
                Success := False;
                goto Return_End;
             end if;
@@ -252,25 +256,28 @@ package body Devices.Partitions with SPARK_Mode => Off is
    end Parse_MBR_Partitions;
 
    function Set_Part
-      (Name  : String;
-       Index : Positive;
-       Part  : Partition_Data_Acc) return Boolean
+      (Name       : String;
+       Index      : Positive;
+       Block_Size : Unsigned_64;
+       Part       : Partition_Data_Acc) return Boolean
    is
+      Success : Boolean;
    begin
-      return Register ((
-         Data              => Con1.To_Address (Con1.Object_Pointer (Part)),
-         Mutex             => Lib.Synchronization.Unlocked_Semaphore,
-         Is_Block          => True,
-         Block_Size        => Part.Inner_Device.Block_Size,
-         Block_Count       => Part.LBA_Length,
-         Unique_Identifier => 0,
-         Sync              => null,
-         Read              => Read'Access,
-         Write             => Write'Access,
-         IO_Control        => null,
-         Mmap              => null,
-         Munmap            => null
-      ), Name & (1 => 'p', 2 => Character'Val (Index + Character'Pos ('0'))));
+      Register ((
+         Data        => Con1.To_Address (Con1.Object_Pointer (Part)),
+         Mutex       => Lib.Synchronization.Unlocked_Semaphore,
+         Is_Block    => True,
+         Block_Size  => Block_Size,
+         Block_Count => Part.LBA_Length,
+         Sync        => null,
+         Read        => Read'Access,
+         Write       => Write'Access,
+         IO_Control  => null,
+         Mmap        => null,
+         Munmap      => null
+      ), Name & (1 => 'p', 2 => Character'Val (Index + Character'Pos ('0'))),
+         Success);
+      return Success;
    end Set_Part;
    ----------------------------------------------------------------------------
    function Read
@@ -283,8 +290,8 @@ package body Devices.Partitions with SPARK_Mode => Off is
       LBA_Offset, LBA_Length, Final_Count : Unsigned_64;
    begin
       Part       := Partition_Data_Acc (Con1.To_Pointer (Data.Data));
-      LBA_Offset := Part.LBA_Offset * Part.Inner_Device.Block_Size;
-      LBA_Length := Part.LBA_Length * Part.Inner_Device.Block_Size;
+      LBA_Offset := Part.LBA_Offset * Part.Block_Size;
+      LBA_Length := Part.LBA_Length * Part.Block_Size;
 
       if Offset > LBA_Offset + LBA_Length then
          return 0;
@@ -294,8 +301,8 @@ package body Devices.Partitions with SPARK_Mode => Off is
          Final_Count := Count;
       end if;
 
-      return Part.Inner_Device.Read
-         (Data   => Part.Inner_Device,
+      return Devices.Read
+         (Handle => Part.Inner_Device,
           Offset => LBA_Offset + Offset,
           Count  => Final_Count,
           Desto  => Desto);
@@ -311,8 +318,8 @@ package body Devices.Partitions with SPARK_Mode => Off is
       LBA_Offset, LBA_Length, Final_Count : Unsigned_64;
    begin
       Part       := Partition_Data_Acc (Con1.To_Pointer (Data.Data));
-      LBA_Offset := Part.LBA_Offset * Part.Inner_Device.Block_Size;
-      LBA_Length := Part.LBA_Length * Part.Inner_Device.Block_Size;
+      LBA_Offset := Part.LBA_Offset * Part.Block_Size;
+      LBA_Length := Part.LBA_Length * Part.Block_Size;
 
       if Offset > LBA_Offset + LBA_Length then
          return 0;
@@ -322,15 +329,10 @@ package body Devices.Partitions with SPARK_Mode => Off is
          Final_Count := Count;
       end if;
 
-      if Part.Inner_Device.Write /= null then
-         return Part.Inner_Device.Write
-            (Data     => Part.Inner_Device,
-             Offset   => LBA_Offset + Offset,
-             Count    => Final_Count,
-             To_Write => To_Write);
-      else
-         --  TODO: Return error, not 0.
-         return 0;
-      end if;
+      return Devices.Write
+         (Handle   => Part.Inner_Device,
+          Offset   => LBA_Offset + Offset,
+          Count    => Final_Count,
+          To_Write => To_Write);
    end Write;
 end Devices.Partitions;

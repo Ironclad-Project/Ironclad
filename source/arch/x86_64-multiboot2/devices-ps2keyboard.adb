@@ -76,6 +76,7 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
       Index     : Arch.IDT.IRQ_Index;
       Data      : Unsigned_8;
       Device    : Resource;
+      Success   : Boolean;
    begin
       --  Set the interrupt up, which is always the 34 (we are 1 based).
       if not Arch.IDT.Load_ISR (Keyboard_Handler'Address, Index) then
@@ -112,21 +113,21 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
       end if;
 
       Device := (
-         Data              => System.Null_Address,
-         Mutex             => <>,
-         Is_Block          => False,
-         Block_Size        => 4096,
-         Block_Count       => 0,
-         Unique_Identifier => 0,
-         Sync              => null,
-         Read              => Read'Access,
-         Write             => null,
-         IO_Control        => null,
-         Mmap              => null,
-         Munmap            => null
+         Data        => System.Null_Address,
+         Mutex       => <>,
+         Is_Block    => False,
+         Block_Size  => 4096,
+         Block_Count => 0,
+         Sync        => null,
+         Read        => Read'Access,
+         Write       => null,
+         IO_Control  => null,
+         Mmap        => null,
+         Munmap      => null
       );
 
-      return Register (Device, "ps2keyboard");
+      Register (Device, "ps2keyboard", Success);
+      return Success;
    end Init;
 
    function Read_PS2 return Unsigned_8 is

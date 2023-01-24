@@ -15,36 +15,36 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System; use System;
-with Memory; use Memory;
+with Lib.Alignment;
 
 package body Devices.Ramdev with SPARK_Mode => Off is
    --  Ramdev data.
    type Ramdev_Data is record
       Start_Address : System.Address;
-      Size          : Virtual_Address;
+      Size          : Unsigned_64;
    end record;
    type Ramdev_Data_Acc is access Ramdev_Data;
 
    function Init_Module (Module : Arch.Boot_RAM_File) return Resource is
+      package A is new Lib.Alignment (Unsigned_64);
       Device : Resource;
       Data   : constant Ramdev_Data_Acc := new Ramdev_Data'(
          Start_Address => Module.Start,
-         Size          => Virtual_Address (Module.Length)
+         Size          => Unsigned_64 (Module.Length)
       );
    begin
       Device := (
-         Data              => Data.all'Address,
-         Mutex             => <>,
-         Is_Block          => False,
-         Block_Size        => 4096,
-         Block_Count       => (Unsigned_64 (Data.Size) + 4096 - 1) / 4096,
-         Unique_Identifier => 0,
-         Sync              => null,
-         Read              => Read'Access,
-         Write             => null,
-         IO_Control        => null,
-         Mmap              => null,
-         Munmap            => null
+         Data        => Data.all'Address,
+         Mutex       => <>,
+         Is_Block    => False,
+         Block_Size  => 4096,
+         Block_Count => A.Divide_Round_Up (Data.Size, 4096),
+         Sync        => null,
+         Read        => Read'Access,
+         Write       => null,
+         IO_Control  => null,
+         Mmap        => null,
+         Munmap      => null
       );
 
       return Device;

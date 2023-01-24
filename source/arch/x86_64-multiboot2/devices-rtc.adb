@@ -32,21 +32,22 @@ package body Devices.RTC with SPARK_Mode => Off is
 
    function Init return Boolean is
       Device : constant Resource := (
-         Data              => System.Null_Address,
-         Mutex             => Lib.Synchronization.Unlocked_Semaphore,
-         Is_Block          => False,
-         Block_Size        => 4096,
-         Block_Count       => 0,
-         Unique_Identifier => 0,
-         Sync              => null,
-         Read              => null,
-         Write             => null,
-         IO_Control        => IO_Control'Access,
-         Mmap              => null,
-         Munmap            => null
+         Data        => System.Null_Address,
+         Mutex       => Lib.Synchronization.Unlocked_Semaphore,
+         Is_Block    => False,
+         Block_Size  => 4096,
+         Block_Count => 0,
+         Sync        => null,
+         Read        => null,
+         Write       => null,
+         IO_Control  => IO_Control'Access,
+         Mmap        => null,
+         Munmap      => null
       );
+      Success : Boolean;
    begin
-      return Register (Device, "rtc");
+      Register (Device, "rtc", Success);
+      return Success;
    end Init;
 
    type RTC_Time is record

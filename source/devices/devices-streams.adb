@@ -18,38 +18,39 @@ package body Devices.Streams with SPARK_Mode => Off is
    function Init return Boolean is
       Nulldev : Resource;
       Zerodev : Resource;
+      Success_1, Success_2 : Boolean;
    begin
       Nulldev := (
-         Data              => System.Null_Address,
-         Mutex             => <>,
-         Is_Block          => False,
-         Block_Size        => 4096,
-         Block_Count       => 0,
-         Unique_Identifier => 0,
-         Sync              => null,
-         Read              => Nulldev_Read'Access,
-         Write             => Nulldev_Write'Access,
-         IO_Control        => null,
-         Mmap              => null,
-         Munmap            => null
+         Data        => System.Null_Address,
+         Mutex       => <>,
+         Is_Block    => False,
+         Block_Size  => 4096,
+         Block_Count => 0,
+         Sync        => null,
+         Read        => Nulldev_Read'Access,
+         Write       => Nulldev_Write'Access,
+         IO_Control  => null,
+         Mmap        => null,
+         Munmap      => null
       );
 
       Zerodev := (
-         Data              => System.Null_Address,
-         Mutex             => <>,
-         Is_Block          => False,
-         Block_Size        => 4096,
-         Block_Count       => 0,
-         Unique_Identifier => 0,
-         Sync              => null,
-         Read              => Zerodev_Read'Access,
-         Write             => Zerodev_Write'Access,
-         IO_Control        => null,
-         Mmap              => null,
-         Munmap            => null
+         Data        => System.Null_Address,
+         Mutex       => <>,
+         Is_Block    => False,
+         Block_Size  => 4096,
+         Block_Count => 0,
+         Sync        => null,
+         Read        => Zerodev_Read'Access,
+         Write       => Zerodev_Write'Access,
+         IO_Control  => null,
+         Mmap        => null,
+         Munmap      => null
       );
 
-      return Register (Nulldev, "null") and Register (Zerodev, "zero");
+      Register (Nulldev, "null", Success_1);
+      Register (Zerodev, "zero", Success_2);
+      return Success_1 and Success_2;
    end Init;
    ----------------------------------------------------------------------------
    function Nulldev_Read

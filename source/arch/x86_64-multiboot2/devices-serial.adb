@@ -62,22 +62,20 @@ package body Devices.Serial with SPARK_Mode => Off is
             );
 
             Device := (
-               Data              => Data.all'Address,
-               Mutex             => <>,
-               Is_Block          => False,
-               Block_Size        => 4096,
-               Block_Count       => 0,
-               Unique_Identifier => 0,
-               Sync              => null,
-               Read              => Read'Access,
-               Write             => Write'Access,
-               IO_Control        => IO_Control'Access,
-               Mmap              => null,
-               Munmap            => null
+               Data        => Data.all'Address,
+               Mutex       => Lib.Synchronization.Unlocked_Semaphore,
+               Is_Block    => False,
+               Block_Size  => 4096,
+               Block_Count => 0,
+               Sync        => null,
+               Read        => Read'Access,
+               Write       => Write'Access,
+               IO_Control  => IO_Control'Access,
+               Mmap        => null,
+               Munmap      => null
             );
 
-            Discard := Register (Device, Device_Name);
-            Lib.Synchronization.Release (Device.Mutex);
+            Register (Device, Device_Name, Discard);
          end;
       <<End_Port>>
       end loop;

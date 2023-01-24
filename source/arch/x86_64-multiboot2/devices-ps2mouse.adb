@@ -50,6 +50,7 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
       Index        : Arch.IDT.IRQ_Index;
       Data, Unused : Unsigned_8;
       Device       : Resource;
+      Success      : Boolean;
    begin
       --  Set the interrupt up, which is always the 45 (we are 1 based).
       if not Arch.IDT.Load_ISR (Mouse_Handler'Address, Index) then
@@ -79,21 +80,21 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
       Unused := Mouse_Read;
 
       Device := (
-         Data              => System.Null_Address,
-         Mutex             => <>,
-         Is_Block          => False,
-         Block_Size        => 4096,
-         Block_Count       => 0,
-         Unique_Identifier => 0,
-         Sync              => null,
-         Read              => Read'Access,
-         Write             => null,
-         IO_Control        => IO_Control'Access,
-         Mmap              => null,
-         Munmap            => null
+         Data        => System.Null_Address,
+         Mutex       => <>,
+         Is_Block    => False,
+         Block_Size  => 4096,
+         Block_Count => 0,
+         Sync        => null,
+         Read        => Read'Access,
+         Write       => null,
+         IO_Control  => IO_Control'Access,
+         Mmap        => null,
+         Munmap      => null
       );
 
-      return Register (Device, "ps2mouse");
+      Register (Device, "ps2mouse", Success);
+      return Success;
    end Init;
 
    function Read

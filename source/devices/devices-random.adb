@@ -19,24 +19,24 @@ with Cryptography.Random; use Cryptography.Random;
 
 package body Devices.Random with SPARK_Mode => Off is
    function Init return Boolean is
-      Random_Res : Resource := (
-         Data              => System.Null_Address,
-         Mutex             => <>,
-         Is_Block          => False,
-         Block_Size        => 4096,
-         Block_Count       => 0,
-         Unique_Identifier => 0,
-         Sync              => null,
-         Read              => Read'Access,
-         Write             => null,
-         IO_Control        => null,
-         Mmap              => null,
-         Munmap            => null
+      Random_Res : constant Resource := (
+         Data        => System.Null_Address,
+         Mutex       => Lib.Synchronization.Unlocked_Semaphore,
+         Is_Block    => False,
+         Block_Size  => 4096,
+         Block_Count => 0,
+         Sync        => null,
+         Read        => Read'Access,
+         Write       => null,
+         IO_Control  => null,
+         Mmap        => null,
+         Munmap      => null
       );
+      Success_1, Success_2 : Boolean;
    begin
-      Lib.Synchronization.Release (Random_Res.Mutex);
-      return Register (Random_Res, "random") and
-             Register (Random_Res, "urandom");
+      Register (Random_Res, "random",  Success_1);
+      Register (Random_Res, "urandom", Success_2);
+      return Success_1 and Success_2;
    end Init;
 
    function Read

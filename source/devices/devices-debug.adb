@@ -19,25 +19,24 @@ with Lib.Synchronization;
 
 package body Devices.Debug with SPARK_Mode => Off is
    function Init return Boolean is
-      Device : Resource;
+      Device  : Resource;
+      Success : Boolean;
    begin
       Device := (
-         Data              => System.Null_Address,
-         Mutex             => <>,
-         Is_Block          => False,
-         Block_Size        => 4096,
-         Block_Count       => 0,
-         Unique_Identifier => 0,
-         Sync              => null,
-         Read              => null,
-         Write             => Write'Access,
-         IO_Control        => null,
-         Mmap              => null,
-         Munmap            => null
+         Data        => System.Null_Address,
+         Mutex       => Lib.Synchronization.Unlocked_Semaphore,
+         Is_Block    => False,
+         Block_Size  => 4096,
+         Block_Count => 0,
+         Sync        => null,
+         Read        => null,
+         Write       => Write'Access,
+         IO_Control  => null,
+         Mmap        => null,
+         Munmap      => null
       );
-
-      Lib.Synchronization.Release (Device.Mutex);
-      return Register (Device, "debug");
+      Register (Device, "debug", Success);
+      return Success;
    end Init;
 
    function Write
