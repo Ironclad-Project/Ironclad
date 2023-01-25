@@ -27,7 +27,7 @@ package Devices is
       Mutex       : aliased Lib.Synchronization.Binary_Semaphore; --  Driver.
       Data        : System.Address;
       Is_Block    : Boolean; --  True for block dev, false for character dev.
-      Block_Size  : Unsigned_64;
+      Block_Size  : Natural;
       Block_Count : Unsigned_64;
 
       Sync : access procedure (Data : Resource_Acc);
@@ -86,7 +86,7 @@ package Devices is
       with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
    function Get_Block_Count (Handle : Device_Handle) return Unsigned_64
       with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
-   function Get_Block_Size  (Handle : Device_Handle) return Unsigned_64
+   function Get_Block_Size  (Handle : Device_Handle) return Natural
       with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
    function Get_Unique_ID   (Handle : Device_Handle) return Natural
       with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
@@ -96,28 +96,40 @@ package Devices is
    procedure Synchronize (Handle : Device_Handle)
       with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
 
+   --  Data to operate with read-write.
+   --  This data type imposes a hard limit on operation length of
+   --  Natural. Linux shares this limitation funnily enough.
+   type Operation_Data is array (Natural range <>) of Unsigned_8;
+   type Operation_Data_Acc is access Operation_Data;
+
    --  Read from a device.
-   --  @param Handle Handle to read if supported, must be valid.
-   --  @param Offset Offset to start reading from, for block devices.
-   --  @param Count  Count of bytes to read.
-   --  @result Count of bytes read, less than count if EOF, 0 if EOF or error.
-   function Read
-      (Handle : Device_Handle;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64
+   --  @param Handle    Handle to read if supported, must be valid.
+   --  @param Offset    Byte offset to start reading from, for block devices.
+   --  @param Count     Count of bytes to read.
+   --  @param Desto     Destination address where to write the read data.
+   --  @param Ret_Count Count of bytes actually read, < count if EOF or error.
+   --  @param Success   True on success, False on non-supported/failure.
+   procedure Read
+      (Handle    : Device_Handle;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
       with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
 
    --  Write to a device.
-   --  @param Handle Handle to write to if supported, must be valid.
-   --  @param Offset Offset to start writing to, for block devices.
-   --  @param Count  Count of bytes to write.
-   --  @result Count of bytes written, 0 less than count if EOF, 0 if error.
-   function Write
-      (Handle   : Device_Handle;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64
+   --  @param Handle    Handle to read if supported, must be valid.
+   --  @param Offset    Byte offset to start writing to, for block devices.
+   --  @param Count     Count of bytes to write.
+   --  @param To_Write  Source address for the data to write.
+   --  @param Ret_Count Count of bytes actually written, < count if EOF/error.
+   --  @param Success   True on success, False on non-supported/failure.
+   procedure Write
+      (Handle    : Device_Handle;
+       Offset    : Unsigned_64;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
       with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
 
    --  Do a device-specific IO control request.

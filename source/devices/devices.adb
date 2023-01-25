@@ -78,10 +78,10 @@ package body Devices is
       --  Allocate.
       for I in Devices_Data'Range loop
          if not Devices_Data (I).Is_Present then
-            Devices_Data (I).Is_Present                 := True;
-            Devices_Data (I).Name (1 .. Name'Length)    := Name;
-            Devices_Data (I).Name_Len                   := Name'Length;
-            Devices_Data (I).Contents                   := Dev;
+            Devices_Data (I).Is_Present              := True;
+            Devices_Data (I).Name (1 .. Name'Length) := Name;
+            Devices_Data (I).Name_Len                := Name'Length;
+            Devices_Data (I).Contents                := Dev;
             Success := True;
             exit;
          end if;
@@ -110,7 +110,7 @@ package body Devices is
       return Devices_Data (Handle).Contents.Block_Count;
    end Get_Block_Count;
 
-   function Get_Block_Size (Handle : Device_Handle) return Unsigned_64 is
+   function Get_Block_Size (Handle : Device_Handle) return Natural is
    begin
       return Devices_Data (Handle).Contents.Block_Size;
    end Get_Block_Size;
@@ -129,39 +129,45 @@ package body Devices is
       end if;
    end Synchronize;
 
-   function Read
-      (Handle : Device_Handle;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64
+   procedure Read
+      (Handle    : Device_Handle;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
    begin
       if Devices_Data (Handle).Contents.Read /= null then
-         return Devices_Data (Handle).Contents.Read
+         Ret_Count := Natural (Devices_Data (Handle).Contents.Read
             (Data   => Devices_Data (Handle).Contents'Access,
              Offset => Offset,
-             Count  => Count,
-             Desto  => Desto);
+             Count  => Data'Length,
+             Desto  => Data'Address));
+         Success := True;
       else
-         return 0;
+         Ret_Count := 0;
+         Success   := False;
       end if;
    end Read;
 
-   function Write
-      (Handle   : Device_Handle;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64
+   procedure Write
+      (Handle    : Device_Handle;
+       Offset    : Unsigned_64;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
    begin
       if Devices_Data (Handle).Contents.Write /= null then
-         return Devices_Data (Handle).Contents.Write
+         Ret_Count := Natural (Devices_Data (Handle).Contents.Write
             (Data     => Devices_Data (Handle).Contents'Access,
              Offset   => Offset,
-             Count    => Count,
-             To_Write => To_Write);
+             Count    => Data'Length,
+             To_Write => Data'Address));
+         Success := True;
       else
-         return 0;
+         Ret_Count := 0;
+         Success   := False;
       end if;
    end Write;
 

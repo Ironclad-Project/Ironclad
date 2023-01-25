@@ -233,7 +233,7 @@ package body VFS.USTAR with SPARK_Mode => Off is
       FS_Data   : USTAR_Data with Address => Data, Import;
       File_Data : USTAR_File with Address => Obj,  Import;
       Han : constant Devices.Device_Handle := Get_Backing_Device (FS_Data.Key);
-      Block_Size : constant Unsigned_64 := Devices.Get_Block_Size (Han);
+      Block_Size : constant Natural := Devices.Get_Block_Size (Han);
    begin
       S :=
          (Unique_Identifier => File_Data.Start,
@@ -241,9 +241,9 @@ package body VFS.USTAR with SPARK_Mode => Off is
           Mode              => Unsigned_32 (File_Data.Mode),
           Hard_Link_Count   => 1,
           Byte_Size         => Unsigned_64 (File_Data.Size),
-          IO_Block_Size     => Natural (Block_Size),
-          IO_Block_Count    =>
-            A.Divide_Round_Up (Unsigned_64 (File_Data.Size), Block_Size));
+          IO_Block_Size     => Block_Size,
+          IO_Block_Count    => A.Divide_Round_Up
+            (Unsigned_64 (File_Data.Size), Unsigned_64 (Block_Size)));
 
       case File_Data.File_Type is
          when USTAR_Regular_File  => S.Type_Of_File := File_Regular;

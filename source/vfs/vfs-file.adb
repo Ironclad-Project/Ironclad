@@ -256,7 +256,10 @@ package body VFS.File with SPARK_Mode => Off is
        Count       : Unsigned_64;
        Destination : System.Address) return Unsigned_64
    is
-      Read_Count : Unsigned_64;
+      Discard    : Boolean;
+      Read_Count : Natural;
+      Data       : Devices.Operation_Data (1 .. Natural (Count))
+         with Import, Address => Destination;
    begin
       if To_Read.Flags = Write_Only then
          return 0;
@@ -265,25 +268,24 @@ package body VFS.File with SPARK_Mode => Off is
       if To_Read.FS_Data /= System.Null_Address
          and To_Read.File_Data /= System.Null_Address
       then
-         Read_Count := USTAR.Read (
+         Read_Count := Natural (USTAR.Read (
             To_Read.FS_Data,
             To_Read.File_Data,
             To_Read.Index,
             Count,
             Destination
-         );
-         To_Read.Index := To_Read.Index + Read_Count;
-         return Read_Count;
+         ));
       else
-         Read_Count := Devices.Read (
-            To_Read.Dev_Data,
-            To_Read.Index,
-            Count,
-            Destination
+         Devices.Read (
+            Handle    => To_Read.Dev_Data,
+            Offset    => To_Read.Index,
+            Data      => Data,
+            Ret_Count => Read_Count,
+            Success   => Discard
          );
-         To_Read.Index := To_Read.Index + Read_Count;
-         return Read_Count;
       end if;
+      To_Read.Index := To_Read.Index + Unsigned_64 (Read_Count);
+      return Unsigned_64 (Read_Count);
    end Read;
 
    function Write
@@ -291,7 +293,10 @@ package body VFS.File with SPARK_Mode => Off is
        Count    : Unsigned_64;
        Data     : System.Address) return Unsigned_64
    is
-      Write_Count : Unsigned_64;
+      Discard     : Boolean;
+      Write_Count : Natural;
+      Data2       : Devices.Operation_Data (1 .. Natural (Count))
+         with Import, Address => Data;
    begin
       if To_Write.Flags = Read_Only then
          return 0;
@@ -301,22 +306,23 @@ package body VFS.File with SPARK_Mode => Off is
       then
          return 0;
       else
-         Write_Count := Devices.Write (
-            To_Write.Dev_Data,
-            To_Write.Index,
-            Count,
-            Data
+         Devices.Write (
+            Handle    => To_Write.Dev_Data,
+            Offset    => To_Write.Index,
+            Data      => Data2,
+            Ret_Count => Write_Count,
+            Success   => Discard
          );
-         To_Write.Index := To_Write.Index + Write_Count;
-         return Write_Count;
+         To_Write.Index := To_Write.Index + Unsigned_64 (Write_Count);
+         return Unsigned_64 (Write_Count);
       end if;
    end Write;
 
    function Stat (F : File_Acc; S : out File_Stat) return Boolean is
-      Is_Block                : Boolean;
-      Device_Type             : File_Type;
-      Block_Size, Block_Count : Unsigned_64;
-      Unique_Identifier       : Natural;
+      Is_Block                      : Boolean;
+      Device_Type                   : File_Type;
+      Block_Count                   : Unsigned_64;
+      Block_Size, Unique_Identifier : Natural;
    begin
       --  This is null?
       if F.FS_Data /= System.Null_Address and
@@ -338,8 +344,8 @@ package body VFS.File with SPARK_Mode => Off is
             Type_Of_File      => Device_Type,
             Mode              => 8#660#,
             Hard_Link_Count   => 1,
-            Byte_Size         => Block_Size * Block_Count,
-            IO_Block_Size     => Integer (Block_Size),
+            Byte_Size         => Unsigned_64 (Block_Size) * Block_Count,
+            IO_Block_Size     => Block_Size,
             IO_Block_Count    => Block_Count
          );
          return True;

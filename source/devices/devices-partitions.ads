@@ -40,7 +40,7 @@ private
    --  Register data for a partition.
    type Partition_Data is record
       Inner_Device : Device_Handle;
-      Block_Size   : Unsigned_64;
+      Block_Size   : Natural;
       LBA_Offset   : Unsigned_64;
       LBA_Length   : Unsigned_64;
    end record;
@@ -48,7 +48,7 @@ private
    function Set_Part
       (Name       : String;
        Index      : Positive;
-       Block_Size : Unsigned_64;
+       Block_Size : Natural;
        Part       : Partition_Data_Acc) return Boolean;
    ----------------------------------------------------------------------------
    function Read

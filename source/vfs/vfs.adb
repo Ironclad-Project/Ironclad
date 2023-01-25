@@ -165,9 +165,11 @@ package body VFS with SPARK_Mode => Off is
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
    is
-      Data : Sector_Data (1 .. Count) with Import, Address => Desto;
-      Block_Size : constant Unsigned_64 := Devices.Get_Block_Size
-         (Mounts (Key).Mounted_Dev);
+      Data  : Sector_Data (1 .. Count) with Import, Address => Desto;
+      Data2 : Devices.Operation_Data (1 .. Natural (Count))
+         with Import, Address => Desto;
+      Block_Size : constant Unsigned_64 := Unsigned_64 (Devices.Get_Block_Size
+         (Mounts (Key).Mounted_Dev));
       Ali_Offset : constant Unsigned_64 := Ali.Align_Down (Offset, Block_Size);
       Low_LBA    : constant Unsigned_64 := Ali_Offset / Block_Size;
       Ali_Length : constant Unsigned_64 :=
@@ -178,13 +180,17 @@ package body VFS with SPARK_Mode => Off is
       Sector_Index   : Unsigned_64;
       Initial_Offset : Unsigned_64;
       Searched       : Unsigned_64;
+      Returned       : Natural;
+      Discard        : Boolean;
    begin
       if not Mounts (Key).Is_Cached then
-         return Devices.Read
-            (Handle => Mounts (Key).Mounted_Dev,
-             Offset => Offset,
-             Count  => Count,
-             Desto  => Desto);
+         Devices.Read
+            (Handle    => Mounts (Key).Mounted_Dev,
+             Offset    => Offset,
+             Ret_Count => Returned,
+             Data      => Data2,
+             Success   => Discard);
+         return Unsigned_64 (Returned);
       elsif Count = 0 then
          return 0;
       end if;
@@ -257,12 +263,18 @@ package body VFS with SPARK_Mode => Off is
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
    is
+      Discard : Boolean;
+      Result  : Natural;
+      Data    : Devices.Operation_Data (1 .. Natural (Count))
+         with Import, Address => To_Write;
    begin
-      return Devices.Write
-         (Handle   => Mounts (Key).Mounted_Dev,
-          Offset   => Offset,
-          Count    => Count,
-          To_Write => To_Write);
+      Devices.Write
+         (Handle    => Mounts (Key).Mounted_Dev,
+          Offset    => Offset,
+          Ret_Count => Result,
+          Data      => Data,
+          Success   => Discard);
+      return Unsigned_64 (Result);
    end Write;
 
    function Evict_Sector
@@ -312,13 +324,19 @@ package body VFS with SPARK_Mode => Off is
        LBA    : Unsigned_64;
        Desto  : System.Address) return Boolean
    is
-      Block_Size : constant Unsigned_64 := Devices.Get_Block_Size (Handle);
+      Discard    : Boolean;
+      Result     : Natural;
+      Block_Size : constant Natural := Devices.Get_Block_Size (Handle);
+      Data       : Devices.Operation_Data (1 .. Block_Size)
+         with Import, Address => Desto;
    begin
-      return Devices.Read
-         (Handle => Handle,
-          Offset => LBA * Block_Size,
-          Count  => Block_Size,
-          Desto  => Desto) = Block_Size;
+      Devices.Read
+         (Handle    => Handle,
+          Offset    => LBA * Unsigned_64 (Block_Size),
+          Ret_Count => Result,
+          Data      => Data,
+          Success   => Discard);
+      return Result = Block_Size;
    end Read_Sector;
 
    function Write_Sector
@@ -326,13 +344,19 @@ package body VFS with SPARK_Mode => Off is
        LBA    : Unsigned_64;
        Data   : System.Address) return Boolean
    is
-      Block_Size : constant Unsigned_64 := Devices.Get_Block_Size (Handle);
+      Discard    : Boolean;
+      Result     : Natural;
+      Block_Size : constant Natural := Devices.Get_Block_Size (Handle);
+      Data2      : Devices.Operation_Data (1 .. Block_Size)
+         with Import, Address => Data;
    begin
-      return Devices.Write
-         (Handle   => Handle,
-          Offset   => LBA * Block_Size,
-          Count    => Block_Size,
-          To_Write => Data) = Block_Size;
+      Devices.Write
+         (Handle    => Handle,
+          Offset    => LBA * Unsigned_64 (Block_Size),
+          Ret_Count => Result,
+          Data      => Data2,
+          Success   => Discard);
+      return Result = Block_Size;
    end Write_Sector;
    ----------------------------------------------------------------------------
    function Is_Absolute (Path : String) return Boolean is
