@@ -40,42 +40,22 @@ package body Devices is
              Block_Count => 0,
              others      => <>)));
 
-      --  Formally verified devices.
-      if Config.Support_Device_Streams then
-         if not Streams.Init then
-            goto Failure;
-         end if;
+      if (not Config.Support_Device_Streams or else Streams.Init) and then
+         (not Config.Support_Device_RNG     or else Random.Init)  and then
+         Debug.Init                                               and then
+         Non_Verified_Init
+      then
+         return;
+      else
+         Lib.Panic.Hard_Panic ("Some devices could not be added");
       end if;
-      if Config.Support_Device_RNG then
-         if not Random.Init then
-            goto Failure;
-         end if;
-      end if;
-      if not Debug.Init then
-         goto Failure;
-      end if;
-
-      --  Non formally verified devices.
-      if not Non_Verified_Init then
-         goto Failure;
-      end if;
-
-      return;
-
-   <<Failure>>
-      Lib.Panic.Hard_Panic ("Could not start arch-independent devices");
    end Init;
 
    function Non_Verified_Init return Boolean is
       pragma SPARK_Mode (Off);
    begin
-      if Config.Support_Device_PTY then
-         if not PTY.Init then
-            return False;
-         end if;
-      end if;
-      Arch.Hooks.Devices_Hook;
-      return True;
+      return (not Config.Support_Device_PTY or else PTY.Init) and then
+             Arch.Hooks.Devices_Hook;
    end Non_Verified_Init;
 
    procedure Register (Dev : Resource; Name : String; Success : out Boolean) is

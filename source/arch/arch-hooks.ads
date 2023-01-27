@@ -16,7 +16,7 @@
 
 package Arch.Hooks is
    --  Register architecture-specific devices.
-   procedure Devices_Hook;
+   function Devices_Hook return Boolean;
 
    --  PRCTL hook for the syscall.
    function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean;

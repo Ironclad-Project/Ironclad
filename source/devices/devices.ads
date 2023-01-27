@@ -87,7 +87,8 @@ package Devices is
    Max_Name_Length : constant Natural;
 
    --  Initialize the device registry and register some devices.
-   procedure Init;
+   --  @return True on success, False if some devices could not be registered.
+   procedure Init with Post => Is_Registry_Initialized;
 
    --  Register a device with a resource description and matching name.
    --  @param Dev  Device description to register.

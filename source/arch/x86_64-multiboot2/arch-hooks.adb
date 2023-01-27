@@ -23,30 +23,19 @@ with Devices.RTC;
 with Arch.Snippets;
 with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
-with Lib.Panic;
 with Arch.Interrupts;
-with Config;
+with Config; use Config;
 with Interfaces; use Interfaces;
 
 package body Arch.Hooks with SPARK_Mode => Off is
-   procedure Devices_Hook is
-      type Option is record
-         Is_Called : Boolean;
-         Callback  : access function return Boolean;
-      end record;
-      Init_Calls : constant array (1 .. 6) of Option :=
-         ((Config.Support_X86_64_BootFB, Devices.FB.Init'Access),
-          (Config.Support_X86_64_PS2,    Devices.PS2Keyboard.Init'Access),
-          (Config.Support_X86_64_PS2,    Devices.PS2Mouse.Init'Access),
-          (Config.Support_X86_64_ATA,    Devices.ATA.Init'Access),
-          (Config.Support_X86_64_Serial, Devices.Serial.Init'Access),
-          (Config.Support_X86_64_RTC,    Devices.RTC.Init'Access));
+   function Devices_Hook return Boolean is
    begin
-      for Op of Init_Calls loop
-         if Op.Is_Called and then not Op.Callback.all then
-            Lib.Panic.Hard_Panic ("Architectural VFS hook failed");
-         end if;
-      end loop;
+      return (not Support_X86_64_BootFB or else Devices.FB.Init)       and then
+             (not Support_X86_64_PS2 or else Devices.PS2Keyboard.Init) and then
+             (not Support_X86_64_PS2    or else Devices.PS2Mouse.Init) and then
+             (not Support_X86_64_ATA    or else Devices.ATA.Init)      and then
+             (not Support_X86_64_Serial or else Devices.Serial.Init)   and then
+             (not Support_X86_64_RTC    or else Devices.RTC.Init);
    end Devices_Hook;
 
    function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean is
