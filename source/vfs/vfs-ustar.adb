@@ -81,17 +81,27 @@ package body VFS.USTAR with SPARK_Mode => Off is
       Header          : USTAR_Header;
       Byte_Size       : constant Natural := Header'Size / 8;
       Byte_Size_64    : constant Unsigned_64 := Unsigned_64 (Byte_Size);
+      Header_Data     : Operation_Data (1 .. Byte_Size)
+         with Import, Address => Header'Address;
       Data            : USTAR_Data_Acc;
       Header_Index    : Unsigned_64 := 0;
       Size, Jump      : Natural;
       Linked_Name_Len : Natural;
       Name_Len        : Natural;
       File_Count      : Natural := 0;
-      Discard         : Unsigned_64;
+      Ret_Count       : Natural;
+      Success         : Boolean;
    begin
       loop
-         if Read (Key, Header_Index, Byte_Size_64, Header'Address)
-            /= Byte_Size_64 or else Header.Signature /= USTAR_Signature
+         VFS.Read
+            (Key       => Key,
+             Offset    => Header_Index,
+             Data      => Header_Data,
+             Ret_Count => Ret_Count,
+             Success   => Success);
+
+         if not Success or else Ret_Count /= Byte_Size or else
+            Header.Signature /= USTAR_Signature
          then
             exit;
          else
@@ -116,8 +126,13 @@ package body VFS.USTAR with SPARK_Mode => Off is
       for Cache_File of Data.Cache.all loop
          Name_Len        := 0;
          Linked_Name_Len := 0;
-         Discard := Read (Key, Header_Index, Byte_Size_64, Header'Address);
-         Size    := Octal_To_Decimal (Header.Size);
+         Read
+            (Key       => Key,
+             Offset    => Header_Index,
+             Data      => Header_Data,
+             Ret_Count => Ret_Count,
+             Success   => Success);
+         Size := Octal_To_Decimal (Header.Size);
          for C of Header.Name loop
             exit when C = Ada.Characters.Latin_1.NUL;
             Name_Len := Name_Len + 1;
@@ -202,25 +217,27 @@ package body VFS.USTAR with SPARK_Mode => Off is
       Memory.Physical.Free (Interfaces.C.size_t (To_Integer (File_Ptr)));
    end Close;
 
-   function Read
-      (Data   : System.Address;
-       Obj    : System.Address;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64
+   procedure Read
+      (FS_Data   : System.Address;
+       Obj       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      FS_Data    : USTAR_Data with Address => Data, Import;
-      File_Data  : USTAR_File with Address => Obj,  Import;
-      Real_Count : Unsigned_64 := Count;
+      FS_Data2   : USTAR_Data with Address => FS_Data, Import;
+      File_Data  : USTAR_File with Address => Obj,     Import;
+      Real_Count : Natural := Data'Length;
    begin
-      if Offset + Real_Count > Unsigned_64 (File_Data.Size) then
-         Real_Count := Unsigned_64 (File_Data.Size) - Offset;
+      if Offset + Unsigned_64 (Real_Count) > Unsigned_64 (File_Data.Size) then
+         Real_Count := Natural (Unsigned_64 (File_Data.Size) - Offset);
       end if;
-      return Read (
-         FS_Data.Key,
-         File_Data.Start + Offset,
-         Real_Count,
-         Desto
+      VFS.Read (
+         Key       => FS_Data2.Key,
+         Offset    => File_Data.Start + Offset,
+         Ret_Count => Ret_Count,
+         Success   => Success,
+         Data      => Data (Data'First .. Data'First + Real_Count - 1)
       );
    end Read;
 

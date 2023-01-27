@@ -617,6 +617,9 @@ The passed value would make the program fault.
 @item EINVAL (1026)
 The passed value is not valid for the called syscall.
 
+@item EIO (1027)
+The requested operation failed at a device level.
+
 @item EMFILE (1031)
 Too many files were opened by the process.
 
@@ -776,6 +779,9 @@ failure. errno is to be set to:
 
 @item
 @code{EINVAL}: The passed fd is not suitable for the operation.
+
+@item
+@code{EIO}: The requested operation failed at the device level.
 @end itemize
 
 @node seek

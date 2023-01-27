@@ -159,40 +159,38 @@ package body VFS with SPARK_Mode => Off is
       return Mounts (Key).Mounted_Dev;
    end Get_Backing_Device;
 
-   function Read
-      (Key    : Positive;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64
+   procedure Read
+      (Key       : Positive;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      Data  : Sector_Data (1 .. Count) with Import, Address => Desto;
-      Data2 : Devices.Operation_Data (1 .. Natural (Count))
-         with Import, Address => Desto;
       Block_Size : constant Unsigned_64 := Unsigned_64 (Devices.Get_Block_Size
          (Mounts (Key).Mounted_Dev));
       Ali_Offset : constant Unsigned_64 := Ali.Align_Down (Offset, Block_Size);
       Low_LBA    : constant Unsigned_64 := Ali_Offset / Block_Size;
       Ali_Length : constant Unsigned_64 :=
-         Ali.Align_Up (Count + Offset - Ali_Offset, Block_Size);
+         Ali.Align_Up (Data'Length + Offset - Ali_Offset, Block_Size);
       LBA_Count : constant Unsigned_64 := Ali_Length / Block_Size;
       Caches : Sector_Cache_Arr (1 .. LBA_Count) := (others => null);
       Free_Index     : Unsigned_64;
       Sector_Index   : Unsigned_64;
       Initial_Offset : Unsigned_64;
       Searched       : Unsigned_64;
-      Returned       : Natural;
-      Discard        : Boolean;
    begin
       if not Mounts (Key).Is_Cached then
          Devices.Read
             (Handle    => Mounts (Key).Mounted_Dev,
              Offset    => Offset,
-             Ret_Count => Returned,
-             Data      => Data2,
-             Success   => Discard);
-         return Unsigned_64 (Returned);
-      elsif Count = 0 then
-         return 0;
+             Ret_Count => Ret_Count,
+             Data      => Data,
+             Success   => Success);
+         return;
+      elsif Data'Length = 0 then
+         Ret_Count := 0;
+         Success   := False;
+         return;
       end if;
 
       Lib.Synchronization.Seize (Mounts (Key).Cache_Mutex);
@@ -216,7 +214,9 @@ package body VFS with SPARK_Mode => Off is
                 Mounts (Key).Cache (Free_Index),
                 Searched)
             then
-               return 0;
+               Ret_Count := 0;
+               Success   := False;
+               return;
             end if;
 
             if Mounts (Key).Last_Evict = Cache_Array_Length then
@@ -225,7 +225,8 @@ package body VFS with SPARK_Mode => Off is
                Mounts (Key).Last_Evict := Mounts (Key).Last_Evict + 1;
             end if;
          else
-            Mounts (Key).Cache (Free_Index) := new Sector_Cache (Block_Size);
+            Mounts (Key).Cache (Free_Index) :=
+               new Sector_Cache (Natural (Block_Size));
             Mounts (Key).Cache (Free_Index).LBA_Offset := Searched;
             Mounts (Key).Cache (Free_Index).Is_Dirty   := False;
             if not Read_Sector
@@ -233,7 +234,9 @@ package body VFS with SPARK_Mode => Off is
                 LBA    => Searched,
                 Desto  => Mounts (Key).Cache (Free_Index).Data'Address)
             then
-               return 0;
+               Ret_Count := 0;
+               Success   := False;
+               return;
             end if;
          end if;
       <<Found>>
@@ -244,7 +247,8 @@ package body VFS with SPARK_Mode => Off is
       Sector_Index   := 1;
       Initial_Offset := Offset - Ali_Offset;
       for Byte of Data loop
-         Byte := Caches (Sector_Index).Data (Initial_Offset + Free_Index);
+         Byte :=
+            Caches (Sector_Index).Data (Natural (Initial_Offset + Free_Index));
          if Free_Index >= Block_Size - Initial_Offset then
             Free_Index     := 1;
             Sector_Index   := Sector_Index + 1;
@@ -254,27 +258,24 @@ package body VFS with SPARK_Mode => Off is
          end if;
       end loop;
       Lib.Synchronization.Release (Mounts (Key).Cache_Mutex);
-      return Count;
+      Success   := True;
+      Ret_Count := Data'Length;
    end Read;
 
-   function Write
-      (Key      : Positive;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64
+   procedure Write
+      (Key       : Positive;
+       Offset    : Unsigned_64;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      Discard : Boolean;
-      Result  : Natural;
-      Data    : Devices.Operation_Data (1 .. Natural (Count))
-         with Import, Address => To_Write;
    begin
       Devices.Write
          (Handle    => Mounts (Key).Mounted_Dev,
           Offset    => Offset,
-          Ret_Count => Result,
           Data      => Data,
-          Success   => Discard);
-      return Unsigned_64 (Result);
+          Ret_Count => Ret_Count,
+          Success   => Success);
    end Write;
 
    function Evict_Sector

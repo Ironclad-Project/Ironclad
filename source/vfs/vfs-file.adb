@@ -35,8 +35,11 @@ package body VFS.File with SPARK_Mode => Off is
       Fetched_Succ : Boolean := False;
       Last_Slash   : Natural := 0;
       Symlink      : String (1 .. 60);
+      Symlink_Data : Operation_Data (1 .. 60)
+         with Import, Address => Symlink'Address;
       Symlink_Len  : Natural;
       Mount_Key    : Natural;
+      Discard      : Boolean;
    begin
       --  Default values.
       Is_Device    := False;
@@ -89,13 +92,13 @@ package body VFS.File with SPARK_Mode => Off is
       then
          case Fetched_Type is
             when FS_USTAR =>
-               Symlink_Len := Natural (USTAR.Read (
-                  Fetched_FS,
-                  Fetched_File,
-                  0,
-                  Symlink'Length,
-                  Symlink'Address
-               ));
+               USTAR.Read
+                  (FS_Data   => Fetched_FS,
+                   Obj       => Fetched_File,
+                   Offset    => 0,
+                   Data      => Symlink_Data,
+                   Ret_Count => Symlink_Len,
+                   Success   => Discard);
          end case;
 
          for I in Path'Range loop
@@ -251,70 +254,75 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Close;
 
-   function Read
-      (To_Read     : File_Acc;
-       Count       : Unsigned_64;
-       Destination : System.Address) return Unsigned_64
+   procedure Read
+      (To_Read   : File_Acc;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      Discard    : Boolean;
-      Read_Count : Natural;
-      Data       : Devices.Operation_Data (1 .. Natural (Count))
-         with Import, Address => Destination;
    begin
       if To_Read.Flags = Write_Only then
-         return 0;
+         Ret_Count := 0;
+         Success   := False;
+         return;
       end if;
 
-      if To_Read.FS_Data /= System.Null_Address
-         and To_Read.File_Data /= System.Null_Address
+      if To_Read.FS_Data   /= System.Null_Address and
+         To_Read.File_Data /= System.Null_Address
       then
-         Read_Count := Natural (USTAR.Read (
-            To_Read.FS_Data,
-            To_Read.File_Data,
-            To_Read.Index,
-            Count,
-            Destination
-         ));
+         USTAR.Read
+            (FS_Data   => To_Read.FS_Data,
+             Obj       => To_Read.File_Data,
+             Offset    => To_Read.Index,
+             Data      => Data,
+             Ret_Count => Ret_Count,
+             Success   => Success);
       else
-         Devices.Read (
-            Handle    => To_Read.Dev_Data,
-            Offset    => To_Read.Index,
-            Data      => Data,
-            Ret_Count => Read_Count,
-            Success   => Discard
-         );
+         Devices.Read
+            (Handle    => To_Read.Dev_Data,
+             Offset    => To_Read.Index,
+             Data      => Data,
+             Ret_Count => Ret_Count,
+             Success   => Success);
       end if;
-      To_Read.Index := To_Read.Index + Unsigned_64 (Read_Count);
-      return Unsigned_64 (Read_Count);
+
+      if Success then
+         To_Read.Index := To_Read.Index + Unsigned_64 (Ret_Count);
+      end if;
    end Read;
 
-   function Write
-      (To_Write : File_Acc;
-       Count    : Unsigned_64;
-       Data     : System.Address) return Unsigned_64
+   procedure Write
+      (To_Write  : File_Acc;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      Discard     : Boolean;
-      Write_Count : Natural;
-      Data2       : Devices.Operation_Data (1 .. Natural (Count))
-         with Import, Address => Data;
    begin
       if To_Write.Flags = Read_Only then
-         return 0;
+         Ret_Count := 0;
+         Success   := False;
+         return;
       end if;
-      if To_Write.FS_Data /= System.Null_Address and
+
+      if To_Write.FS_Data   /= System.Null_Address and
          To_Write.File_Data /= System.Null_Address
       then
-         return 0;
+         --  Write-support for FS.
+         Ret_Count := 0;
+         Success   := False;
+         return;
       else
          Devices.Write (
             Handle    => To_Write.Dev_Data,
             Offset    => To_Write.Index,
-            Data      => Data2,
-            Ret_Count => Write_Count,
-            Success   => Discard
+            Data      => Data,
+            Ret_Count => Ret_Count,
+            Success   => Success
          );
-         To_Write.Index := To_Write.Index + Unsigned_64 (Write_Count);
-         return Unsigned_64 (Write_Count);
+      end if;
+
+      if Success then
+         To_Write.Index := To_Write.Index + Unsigned_64 (Ret_Count);
       end if;
    end Write;
 

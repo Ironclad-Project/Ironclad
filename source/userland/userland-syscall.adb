@@ -36,6 +36,7 @@ with Arch.Local;
 with Cryptography.Random;
 with Userland.MAC;
 with IPC.Pipe; use IPC.Pipe;
+with Devices;
 
 package body Userland.Syscall with SPARK_Mode => Off is
    --  Whether we are to print syscall information and MAC.
@@ -245,6 +246,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Arch.Local.Get_Current_Process;
       File : File_Description_Acc;
       File_Mode : Access_Mode;
+      Data : Operation_Data (1 .. Natural (Count))
+         with Import, Address => Buffer_Addr;
+      Ret_Count : Natural;
+      Success   : Boolean;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall read(");
@@ -274,8 +279,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Errno := Error_Invalid_Value;
                return Unsigned_64'Last;
             else
-               Errno := Error_No_Error;
-               return VFS.File.Read (File.Inner_File, Count, Buffer_Addr);
+               VFS.File.Read (File.Inner_File, Data, Ret_Count, Success);
+               if not Success then
+                  Errno := Error_IO;
+                  return Unsigned_64'Last;
+               else
+                  Errno := Error_No_Error;
+                  return Unsigned_64 (Ret_Count);
+               end if;
             end if;
          when Description_Reader_Pipe =>
             Errno := Error_No_Error;
@@ -298,6 +309,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Arch.Local.Get_Current_Process;
       File : File_Description_Acc;
       File_Mode : Access_Mode;
+      Data : Operation_Data (1 .. Natural (Count))
+         with Import, Address => Buffer_Addr;
+      Ret_Count : Natural;
+      Success   : Boolean;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall write(");
@@ -327,8 +342,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Errno := Error_Invalid_Value;
                return Unsigned_64'Last;
             else
-               Errno := Error_No_Error;
-               return VFS.File.Write (File.Inner_File, Count, Buffer_Addr);
+               VFS.File.Write (File.Inner_File, Data, Ret_Count, Success);
+               if not Success then
+                  Errno := Error_IO;
+                  return Unsigned_64'Last;
+               else
+                  Errno := Error_No_Error;
+                  return Unsigned_64 (Ret_Count);
+               end if;
             end if;
          when Description_Writer_Pipe =>
             Errno := Error_No_Error;
@@ -1957,7 +1978,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Opened     : VFS.File.File_Acc;
          Opened_Sta : VFS.File_Stat;
          Stat_Succs : Boolean;
-         Result     : Unsigned_64;
+         Data : Operation_Data (1 .. Natural (Buffer_Len))
+            with Import, Address => Buffer_Add;
+         Ret_Count : Natural;
+         Success   : Boolean;
       begin
          if Is_Tracing then
             Lib.Messages.Put ("syscall readlink(");
@@ -1987,10 +2011,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
          end if;
-         Errno  := Error_No_Error;
-         Result := VFS.File.Read (Opened, Buffer_Len, Buffer_Add);
+
+         VFS.File.Read (Opened, Data, Ret_Count, Success);
          Close (Opened);
-         return Result;
+         if not Success then
+            Errno := Error_IO;
+            return Unsigned_64'Last;
+         else
+            Errno := Error_No_Error;
+            return Unsigned_64 (Ret_Count);
+         end if;
       end;
    end Syscall_Readlink;
 end Userland.Syscall;

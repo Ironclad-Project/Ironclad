@@ -75,18 +75,23 @@ package VFS.File with SPARK_Mode => Off is
    procedure Increase_Refcount (F : File_Acc)   with Pre => F        /= null;
    procedure Close (To_Close : in out File_Acc) with Pre => To_Close /= null;
 
+   --  Type for file operations.
+   subtype Operation_Data is Devices.Operation_Data;
+
    --  Read from a file, and return the read count.
-   function Read
-      (To_Read     : File_Acc;
-       Count       : Unsigned_64;
-       Destination : System.Address) return Unsigned_64
+   procedure Read
+      (To_Read   : File_Acc;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
       with Pre => To_Read /= null;
 
    --  Write to a file, and return the written count.
-   function Write
-      (To_Write : File_Acc;
-       Count    : Unsigned_64;
-       Data     : System.Address) return Unsigned_64
+   procedure Write
+      (To_Write  : File_Acc;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
       with Pre => To_Write /= null;
 
    --  Get the stat of the file.

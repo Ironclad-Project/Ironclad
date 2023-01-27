@@ -85,20 +85,22 @@ package VFS with SPARK_Mode => Off is
 
    --  Read from the mount itself, this function is needed as mount registering
    --  involves some caching by the registry for use by FSs.
-   function Read
-      (Key    : Positive;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64
+   procedure Read
+      (Key       : Positive;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    with Pre => Is_Valid (Key);
 
    --  Write to the mount, this function is needed as mount registering
    --  involves some caching by the registry for use by FSs.
-   function Write
-      (Key      : Positive;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64
+   procedure Write
+      (Key       : Positive;
+       Offset    : Unsigned_64;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    with Pre => Is_Valid (Key);
 
    --  Flush the aforementioned caches.
@@ -132,11 +134,10 @@ private
        Data   : System.Address) return Boolean;
 
    --  Data kept for each sector as cache.
-   type Sector_Data is array (Unsigned_64 range <>) of Unsigned_8;
-   type Sector_Cache (Size : Unsigned_64) is record
+   type Sector_Cache (Size : Natural) is record
       LBA_Offset : Unsigned_64;
       Is_Dirty   : Boolean;
-      Data       : Sector_Data (1 .. Size);
+      Data       : Operation_Data (1 .. Size);
    end record;
    type Sector_Cache_Acc is access Sector_Cache;
 

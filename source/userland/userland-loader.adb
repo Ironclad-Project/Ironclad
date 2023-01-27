@@ -185,19 +185,28 @@ package body Userland.Loader with SPARK_Mode => Off is
       function Conv is new Ada.Unchecked_Conversion
          (Target => Userland.String_Acc, Source => VFS.File.String_Acc);
 
-      Path_Len : Natural := 0;
-      Arg_Len  : Natural := 0;
-      Path     : String (1 .. 100);
-      Arg      : String (1 .. 100);
-      Char     : Character;
+      Path_Len  : Natural := 0;
+      Arg_Len   : Natural := 0;
+      Path      : String (1 .. 100);
+      Path_Data : Operation_Data (1 .. 100)
+         with Import, Address => Path'Address;
+      Arg       : String (1 .. 100);
+      Char      : Character;
+      Char_Data : Operation_Data (1 .. 1)
+         with Import, Address => Char'Address;
+      Char_Len  : Natural;
+      Success   : Boolean;
    begin
-      if Read (FD, 2, Path'Address) /= 2 or else Path (1 .. 2) /= "#!" then
+      Read (FD, Path_Data (1 .. 2), Path_Len, Success);
+      if not Success or Path_Len /= 2 or Path (1 .. 2) /= "#!" then
          return False;
       end if;
 
       --  Format of a shebang: #!path [arg]newline
+      Path_Len := 0;
       loop
-         if Read (FD, 1, Char'Address) /= 1 then
+         Read (FD, Char_Data, Char_Len, Success);
+         if not Success or Char_Len /= 1 then
             return False;
          end if;
          case Char is
@@ -207,7 +216,8 @@ package body Userland.Loader with SPARK_Mode => Off is
          end case;
       end loop;
       loop
-         if Read (FD, 1, Char'Address) /= 1 then
+         Read (FD, Char_Data, Char_Len, Success);
+         if not Success or Char_Len /= 1 then
             return False;
          end if;
          case Char is

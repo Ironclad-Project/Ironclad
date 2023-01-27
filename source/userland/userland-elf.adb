@@ -64,7 +64,11 @@ package body Userland.ELF with SPARK_Mode => Off is
        Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Parsed_ELF
    is
-      Header : ELF_Header;
+      Header       : ELF_Header;
+      Header_Bytes : constant Natural := ELF_Header'Size / 8;
+      Header_Data  : VFS.File.Operation_Data (1 .. Header_Bytes)
+         with Import, Address => Header'Address;
+
       Result : Parsed_ELF := (
          Was_Loaded  => False,
          Entrypoint  => System.Null_Address,
@@ -77,15 +81,14 @@ package body Userland.ELF with SPARK_Mode => Off is
          ),
          Exec_Stack => True
       );
-      Header_Bytes : constant Unsigned_64 := ELF_Header'Size / 8;
+      Ret_Count : Natural;
+      Success   : Boolean;
    begin
       --  Read and check the header.
-
-      if VFS.File.Read (File_D, Header_Bytes, Header'Address) /= Header_Bytes
+      VFS.File.Read (File_D, Header_Data, Ret_Count, Success);
+      if not Success or Ret_Count /= Header_Bytes or
+         Header.Identifier (1 .. 4) /= ELF_Signature
       then
-         return Result;
-      end if;
-      if Header.Identifier (1 .. 4) /= ELF_Signature then
          return Result;
       end if;
 
@@ -102,14 +105,16 @@ package body Userland.ELF with SPARK_Mode => Off is
          HSize : constant Unsigned_64 :=
             Unsigned_64 (Header.Program_Header_Size);
          RSize : constant Unsigned_64 := HSize * PHDRs'Length;
+         PHDRs_Data : VFS.File.Operation_Data (1 .. Natural (RSize))
+            with Import, Address => PHDRs'Address;
       begin
          if HSize = 0 or PHDRs'Length = 0 then
             return Result;
          end if;
 
          VFS.File.Set_Position (File_D, Header.Program_Header_List);
-
-         if VFS.File.Read (File_D, RSize, PHDRs'Address) /= RSize then
+         VFS.File.Read (File_D, PHDRs_Data, Ret_Count, Success);
+         if not Success or Ret_Count /= Natural (RSize) then
             return Result;
          end if;
 
@@ -141,15 +146,20 @@ package body Userland.ELF with SPARK_Mode => Off is
       (File_D : VFS.File.File_Acc;
        Header : Program_Header) return String_Acc
    is
-      Discard : Unsigned_64;
+      Discard  : Unsigned_64;
+      Ret : constant String_Acc := new String (1 .. Header.File_Size_Bytes);
+      Ret_Data : VFS.File.Operation_Data (1 .. Header.File_Size_Bytes)
+         with Import, Address => Ret (1)'Address;
+      Ret_Count : Natural;
+      Success   : Boolean;
    begin
-      return Ret : constant String_Acc :=
-         new String (1 .. Header.File_Size_Bytes)
-      do
-         VFS.File.Set_Position (File_D, Header.Offset);
-         Discard := VFS.File.Read
-            (File_D, Unsigned_64 (Header.File_Size_Bytes), Ret.all'Address);
-      end return;
+      VFS.File.Set_Position (File_D, Header.Offset);
+      VFS.File.Read (File_D, Ret_Data, Ret_Count, Success);
+      if Success and Ret_Count = Header.File_Size_Bytes then
+         return Ret;
+      else
+         return null;
+      end if;
    end Get_Linker;
 
    --  Load and map a loadable program header to memory.
@@ -165,11 +175,13 @@ package body Userland.ELF with SPARK_Mode => Off is
       MisAlign : constant Unsigned_64 :=
          Header.Virt_Address and (Memory.Virtual.Page_Size - 1);
       Load_Size : constant Unsigned_64 := MisAlign + Header.Mem_Size_Bytes;
-      Load : array (1 .. Load_Size) of Unsigned_8
+      Load : VFS.File.Operation_Data (1 .. Natural (Load_Size))
          with Import, Address => To_Address (Memory.Physical.Alloc
             (Interfaces.C.size_t (Load_Size)));
       Load_Addr : constant System.Address := Load'Address +
          Storage_Offset (MisAlign);
+      Load2 : VFS.File.Operation_Data (1 .. Header.File_Size_Bytes)
+         with Import, Address => Load_Addr;
       ELF_Virtual : constant Virtual_Address :=
          Virtual_Address (Base + Header.Virt_Address);
       Flags : constant Arch.MMU.Page_Permissions := (
@@ -179,6 +191,8 @@ package body Userland.ELF with SPARK_Mode => Off is
          Global         => False,
          Write_Through  => False
       );
+      Ret_Count : Natural;
+      Success   : Boolean;
    begin
       if not Memory.Virtual.Map_Range
          (Map      => Map,
@@ -194,10 +208,7 @@ package body Userland.ELF with SPARK_Mode => Off is
 
       Load := (others => 0);
       VFS.File.Set_Position (File_D, Header.Offset);
-      return VFS.File.Read (
-         File_D,
-         Unsigned_64 (Header.File_Size_Bytes),
-         Load_Addr
-      ) = Unsigned_64 (Header.File_Size_Bytes);
+      VFS.File.Read (File_D, Load2, Ret_Count, Success);
+      return Success and Ret_Count = Header.File_Size_Bytes;
    end Load_Header;
 end Userland.ELF;

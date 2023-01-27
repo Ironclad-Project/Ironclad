@@ -31,6 +31,7 @@ package Userland.Syscall with SPARK_Mode => Off is
       Error_Child,           --  ECHILD
       Error_Would_Fault,     --  EFAULT
       Error_Invalid_Value,   --  EINVAL
+      Error_IO,              --  EIO
       Error_Too_Many_Files,  --  EMFILE
       Error_String_Too_Long, --  ENAMETOOLONG
       Error_No_Entity,       --  ENOENT
@@ -48,6 +49,7 @@ package Userland.Syscall with SPARK_Mode => Off is
       Error_Child           => 1012,
       Error_Would_Fault     => 1020,
       Error_Invalid_Value   => 1026,
+      Error_IO              => 1027,
       Error_Too_Many_Files  => 1031,
       Error_String_Too_Long => 1036,
       Error_No_Entity       => 1043,

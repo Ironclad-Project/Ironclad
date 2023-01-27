@@ -31,12 +31,13 @@ package VFS.USTAR with SPARK_Mode => Off is
        Can_Write : Boolean;
        Can_Exec  : Boolean) return Boolean;
    procedure Close (FS : System.Address; File_Ptr : System.Address);
-   function Read
-      (Data   : System.Address;
-       Obj    : System.Address;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64;
+   procedure Read
+      (FS_Data   : System.Address;
+       Obj       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean);
    function Stat
       (Data : System.Address;
        Obj  : System.Address;
