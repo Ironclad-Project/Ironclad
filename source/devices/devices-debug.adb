@@ -17,7 +17,10 @@
 with Arch.Debug;
 with Lib.Synchronization;
 
-package body Devices.Debug with SPARK_Mode => Off is
+package body Devices.Debug is
+   --  Unit passes GNATprove AoRTE, GNAT does not know this.
+   pragma Suppress (All_Checks);
+
    function Init return Boolean is
       Device  : Resource;
       Success : Boolean;
@@ -28,9 +31,11 @@ package body Devices.Debug with SPARK_Mode => Off is
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
+         Safe_Read   => null,
+         Safe_Write  => Write'Access,
          Sync        => null,
          Read        => null,
-         Write       => Write'Access,
+         Write       => null,
          IO_Control  => null,
          Mmap        => null,
          Munmap      => null
@@ -39,18 +44,21 @@ package body Devices.Debug with SPARK_Mode => Off is
       return Success;
    end Init;
 
-   function Write
-      (Data     : Resource_Acc;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64
+   procedure Write
+      (Key       : Resource_Acc;
+       Offset    : Unsigned_64;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
       pragma Unreferenced (Offset);
-      Buff : String (1 .. Natural (Count)) with Address => To_Write;
    begin
-      Lib.Synchronization.Seize (Data.Mutex);
-      Arch.Debug.Print (Buff);
-      Lib.Synchronization.Release (Data.Mutex);
-      return Count;
+      Lib.Synchronization.Seize (Key.Mutex);
+      for C of Data loop
+         Arch.Debug.Print (Character'Val (C));
+      end loop;
+      Lib.Synchronization.Release (Key.Mutex);
+      Ret_Count := Data'Length;
+      Success   := True;
    end Write;
 end Devices.Debug;

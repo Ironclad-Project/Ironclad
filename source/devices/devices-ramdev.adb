@@ -16,8 +16,12 @@
 
 with System; use System;
 with Lib.Alignment;
+with Lib.Synchronization;
 
-package body Devices.Ramdev with SPARK_Mode => Off is
+package body Devices.Ramdev is
+   --  Unit passes GNATprove AoRTE, GNAT does not know this.
+   pragma Suppress (All_Checks);
+
    --  Ramdev data.
    type Ramdev_Data is record
       Start_Address : System.Address;
@@ -35,12 +39,14 @@ package body Devices.Ramdev with SPARK_Mode => Off is
    begin
       Device := (
          Data        => Data.all'Address,
-         Mutex       => <>,
+         Mutex       => Lib.Synchronization.Unlocked_Semaphore,
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => A.Divide_Round_Up (Data.Size, 4096),
+         Safe_Read   => Read'Access,
+         Safe_Write  => null,
          Sync        => null,
-         Read        => Read'Access,
+         Read        => null,
          Write       => null,
          IO_Control  => null,
          Mmap        => null,
@@ -50,29 +56,29 @@ package body Devices.Ramdev with SPARK_Mode => Off is
       return Device;
    end Init_Module;
 
-   function Read
-      (Data   : Resource_Acc;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64
+   procedure Read
+      (Key       : Resource_Acc;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      Data2     : Ramdev_Data with Address => Data.Data;
-      Data_Addr : constant System.Address  := Data2.Start_Address;
-      Data_Sz   : constant Natural         := Natural (Data2.Size);
-      Result    : array (1 .. Natural (Count)) of Unsigned_8
-         with Address => Desto;
-      Real_Data : array (1 .. Data_Sz) of Unsigned_8 with Address => Data_Addr;
-      Offset2   : constant Natural := Natural (Offset) + Natural (Count);
-      To_Write  : Natural := Natural (Count);
+      Dev      : constant Ramdev_Data with Import, Address => Key.Data;
+      Dev_Size : constant        Natural := Natural (Dev.Size);
+      Dev_Data : constant Operation_Data (1 .. Dev_Size)
+         with Import, Address => Dev.Start_Address;
+
+      Final_Loc : constant Natural := Natural (Offset) + Data'Length;
+      To_Write  :          Natural := Data'Length;
    begin
-      if Offset2 > Data_Sz then
-         To_Write := To_Write - (Offset2 - Data_Sz);
+      if Final_Loc > Dev_Size then
+         To_Write := To_Write - (Final_Loc - Dev_Size);
       end if;
 
-      for I in 1 .. To_Write loop
-         Result (I) := Real_Data (Natural (Offset) + I);
-      end loop;
+      Data (Data'First .. Data'First + To_Write - 1) :=
+         Dev_Data (Natural (Offset) + 1 .. Natural (Offset) + To_Write);
 
-      return Unsigned_64 (To_Write);
+      Ret_Count := To_Write;
+      Success   := True;
    end Read;
 end Devices.Ramdev;

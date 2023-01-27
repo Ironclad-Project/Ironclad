@@ -27,18 +27,20 @@ package body Devices is
    pragma Suppress (All_Checks);
 
    procedure Init is
-      pragma SPARK_Mode (Off);
    begin
       Devices_Data := new Device_Arr'(others =>
          (Is_Present => False,
-          Name       => <>,
-          Name_Len   => <>,
-          Contents   => <>));
+          Name       => (others => ' '),
+          Name_Len   => 0,
+          Contents   =>
+            (Data        => System.Null_Address,
+             Mutex       => Lib.Synchronization.Unlocked_Semaphore,
+             Is_Block    => False,
+             Block_Size  => 0,
+             Block_Count => 0,
+             others      => <>)));
 
-      --  Initialize architectural Devices_Data.
-      Arch.Hooks.Devices_Hook;
-
-      --  Initialize config-driven Devices_Data.
+      --  Formally verified devices.
       if Config.Support_Device_Streams then
          if not Streams.Init then
             goto Failure;
@@ -49,21 +51,32 @@ package body Devices is
             goto Failure;
          end if;
       end if;
-      if Config.Support_Device_PTY then
-         if not PTY.Init then
-            goto Failure;
-         end if;
-      end if;
-
-      --  Initialize unconditional devices.
       if not Debug.Init then
          goto Failure;
       end if;
+
+      --  Non formally verified devices.
+      if not Non_Verified_Init then
+         goto Failure;
+      end if;
+
       return;
 
    <<Failure>>
       Lib.Panic.Hard_Panic ("Could not start arch-independent devices");
    end Init;
+
+   function Non_Verified_Init return Boolean is
+      pragma SPARK_Mode (Off);
+   begin
+      if Config.Support_Device_PTY then
+         if not PTY.Init then
+            return False;
+         end if;
+      end if;
+      Arch.Hooks.Devices_Hook;
+      return True;
+   end Non_Verified_Init;
 
    procedure Register (Dev : Resource; Name : String; Success : out Boolean) is
    begin
@@ -137,7 +150,14 @@ package body Devices is
        Success   : out Boolean)
    is
    begin
-      if Devices_Data (Handle).Contents.Read /= null then
+      if Devices_Data (Handle).Contents.Safe_Read /= null then
+         Devices_Data (Handle).Contents.Safe_Read
+            (Key       => Devices_Data (Handle).Contents'Access,
+             Offset    => Offset,
+             Data      => Data,
+             Ret_Count => Ret_Count,
+             Success   => Success);
+      elsif Devices_Data (Handle).Contents.Read /= null then
          Ret_Count := Natural (Devices_Data (Handle).Contents.Read
             (Data   => Devices_Data (Handle).Contents'Access,
              Offset => Offset,
@@ -158,7 +178,14 @@ package body Devices is
        Success   : out Boolean)
    is
    begin
-      if Devices_Data (Handle).Contents.Write /= null then
+      if Devices_Data (Handle).Contents.Safe_Write /= null then
+         Devices_Data (Handle).Contents.Safe_Write
+            (Key       => Devices_Data (Handle).Contents'Access,
+             Offset    => Offset,
+             Data      => Data,
+             Ret_Count => Ret_Count,
+             Success   => Success);
+      elsif Devices_Data (Handle).Contents.Write /= null then
          Ret_Count := Natural (Devices_Data (Handle).Contents.Write
             (Data     => Devices_Data (Handle).Contents'Access,
              Offset   => Offset,

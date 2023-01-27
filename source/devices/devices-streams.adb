@@ -14,7 +14,10 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package body Devices.Streams with SPARK_Mode => Off is
+package body Devices.Streams is
+   --  Unit passes GNATprove AoRTE, GNAT does not know this.
+   pragma Suppress (All_Checks);
+
    function Init return Boolean is
       Nulldev : Resource;
       Zerodev : Resource;
@@ -26,9 +29,11 @@ package body Devices.Streams with SPARK_Mode => Off is
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
+         Safe_Read   => Null_Read'Access,
+         Safe_Write  => Null_Write'Access,
          Sync        => null,
-         Read        => Nulldev_Read'Access,
-         Write       => Nulldev_Write'Access,
+         Read        => null,
+         Write       => null,
          IO_Control  => null,
          Mmap        => null,
          Munmap      => null
@@ -40,9 +45,11 @@ package body Devices.Streams with SPARK_Mode => Off is
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
+         Safe_Read   => Zero_Read'Access,
+         Safe_Write  => Zero_Write'Access,
          Sync        => null,
-         Read        => Zerodev_Read'Access,
-         Write       => Zerodev_Write'Access,
+         Read        => null,
+         Write       => null,
          IO_Control  => null,
          Mmap        => null,
          Munmap      => null
@@ -53,62 +60,61 @@ package body Devices.Streams with SPARK_Mode => Off is
       return Success_1 and Success_2;
    end Init;
    ----------------------------------------------------------------------------
-   function Nulldev_Read
-      (Data   : Resource_Acc;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64
+   procedure Null_Read
+      (Key       : Resource_Acc;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      pragma Unreferenced (Data);
+      pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
-      pragma Unreferenced (Count);
-      pragma Unreferenced (Desto);
+      pragma Unreferenced (Data);
    begin
-      --  Return that there is nothing to read, end of file.
-      return 0;
-   end Nulldev_Read;
+      Ret_Count := 0;
+      Success   := True;
+   end Null_Read;
 
-   function Nulldev_Write
-      (Data     : Resource_Acc;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64
+   procedure Null_Write
+      (Key       : Resource_Acc;
+       Offset    : Unsigned_64;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      pragma Unreferenced (Data);
+      pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
-      pragma Unreferenced (To_Write);
    begin
-      --  Return that everything was written successfully
-      return Count;
-   end Nulldev_Write;
+      Ret_Count := Data'Length;
+      Success   := True;
+   end Null_Write;
    ----------------------------------------------------------------------------
-   function Zerodev_Read
-      (Data   : Resource_Acc;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64
+   procedure Zero_Read
+      (Key       : Resource_Acc;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      Result : array (1 .. Count) of Unsigned_8 with Import, Address => Desto;
-      pragma Unreferenced (Data);
+      pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
    begin
-      for I of Result loop
-         I := 0;
-      end loop;
-      return Count;
-   end Zerodev_Read;
+      Data      := (others => 0);
+      Ret_Count := Data'Length;
+      Success   := True;
+   end Zero_Read;
 
-   function Zerodev_Write
-      (Data     : Resource_Acc;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64
+   procedure Zero_Write
+      (Key       : Resource_Acc;
+       Offset    : Unsigned_64;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      pragma Unreferenced (Data);
+      pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
-      pragma Unreferenced (To_Write);
    begin
-      --  Return that everything was written successfully
-      return Count;
-   end Zerodev_Write;
+      Ret_Count := Data'Length;
+      Success   := True;
+   end Zero_Write;
 end Devices.Streams;

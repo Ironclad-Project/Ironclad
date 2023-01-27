@@ -36,7 +36,6 @@ with Arch.Local;
 with Cryptography.Random;
 with Userland.MAC;
 with IPC.Pipe; use IPC.Pipe;
-with Devices;
 
 package body Userland.Syscall with SPARK_Mode => Off is
    --  Whether we are to print syscall information and MAC.

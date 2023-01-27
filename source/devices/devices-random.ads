@@ -14,15 +14,16 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Devices.Random with SPARK_Mode => Off is
+package Devices.Random is
    --  Initialize the device.
    function Init return Boolean;
 
 private
 
-   function Read
-      (Data   : Resource_Acc;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64;
+   procedure Read
+      (Key       : Resource_Acc;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean);
 end Devices.Random;

@@ -15,9 +15,12 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Lib.Synchronization;
-with Cryptography.Random; use Cryptography.Random;
+with Cryptography.Random;
 
-package body Devices.Random with SPARK_Mode => Off is
+package body Devices.Random is
+   --  Unit passes GNATprove AoRTE, GNAT does not know this.
+   pragma Suppress (All_Checks);
+
    function Init return Boolean is
       Random_Res : constant Resource := (
          Data        => System.Null_Address,
@@ -25,8 +28,10 @@ package body Devices.Random with SPARK_Mode => Off is
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
+         Safe_Read   => Read'Access,
+         Safe_Write  => null,
          Sync        => null,
-         Read        => Read'Access,
+         Read        => null,
          Write       => null,
          IO_Control  => null,
          Mmap        => null,
@@ -39,20 +44,21 @@ package body Devices.Random with SPARK_Mode => Off is
       return Success_1 and Success_2;
    end Init;
 
-   function Read
-      (Data   : Resource_Acc;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64
+   procedure Read
+      (Key       : Resource_Acc;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      pragma Unreferenced (Data);
+      pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
-
-      Element_Size : constant Natural := Unsigned_32'Size / 8;
-      Buffer : Crypto_Data (1 .. Natural (Count) / (Element_Size))
-         with Address => Desto, Import;
+      Len  : constant Natural := Data'Length / 4;
+      Temp : Cryptography.Random.Crypto_Data (1 .. Len)
+         with Import, Address => Data (Data'First)'Address;
    begin
-      Fill_Data (Buffer);
-      return Buffer'Size / 8;
+      Cryptography.Random.Fill_Data (Temp);
+      Ret_Count := Len;
+      Success   := True;
    end Read;
 end Devices.Random;

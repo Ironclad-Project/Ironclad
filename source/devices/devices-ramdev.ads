@@ -16,16 +16,17 @@
 
 with Arch;
 
-package Devices.Ramdev with SPARK_Mode => Off is
+package Devices.Ramdev is
    --  Initialize a device given a stivale2 module to go off from, and whether
    --  its a USTAR FS or not.
    function Init_Module (Module : Arch.Boot_RAM_File) return Resource;
 
 private
 
-   function Read
-      (Data   : Resource_Acc;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64;
+   procedure Read
+      (Key       : Resource_Acc;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean);
 end Devices.Ramdev;

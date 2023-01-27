@@ -20,6 +20,12 @@ with Memory;
 with Lib.Synchronization;
 
 package Devices is
+   --  Data to operate with read-write.
+   --  This data type imposes a hard limit on operation length of
+   --  Natural. Linux shares this limitation funnily enough.
+   type Operation_Data is array (Natural range <>) of Unsigned_8;
+   type Operation_Data_Acc is access Operation_Data;
+
    --  Data that defines a device.
    type Resource;
    type Resource_Acc is access all Resource;
@@ -29,6 +35,23 @@ package Devices is
       Is_Block    : Boolean; --  True for block dev, false for character dev.
       Block_Size  : Natural;
       Block_Count : Unsigned_64;
+
+      --  Safe formally-verifiable alternatives to the functions below, which
+      --  will be used instead when available. This is only here because I am
+      --  a bit lazy to put 10h on testing and translating every device to be
+      --  better.
+      Safe_Read : access procedure
+         (Key       : Resource_Acc;
+          Offset    : Unsigned_64;
+          Data      : out Operation_Data;
+          Ret_Count : out Natural;
+          Success   : out Boolean);
+      Safe_Write : access procedure
+         (Key       : Resource_Acc;
+          Offset    : Unsigned_64;
+          Data      : Operation_Data;
+          Ret_Count : out Natural;
+          Success   : out Boolean);
 
       Sync : access procedure (Data : Resource_Acc);
       Read : access function
@@ -95,12 +118,6 @@ package Devices is
    --  @param Handle Handle to synchronize if supported, must be valid.
    procedure Synchronize (Handle : Device_Handle)
       with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
-
-   --  Data to operate with read-write.
-   --  This data type imposes a hard limit on operation length of
-   --  Natural. Linux shares this limitation funnily enough.
-   type Operation_Data is array (Natural range <>) of Unsigned_8;
-   type Operation_Data_Acc is access Operation_Data;
 
    --  Read from a device.
    --  @param Handle    Handle to read if supported, must be valid.
@@ -187,4 +204,5 @@ private
    Devices_Data : Device_Arr_Acc;
 
    function Is_Registry_Initialized return Boolean is (Devices_Data /= null);
+   function Non_Verified_Init return Boolean;
 end Devices;

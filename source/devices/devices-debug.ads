@@ -14,15 +14,16 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Devices.Debug with SPARK_Mode => Off is
+package Devices.Debug is
    --  Initialize the device.
    function Init return Boolean;
 
 private
 
-   function Write
-      (Data     : Resource_Acc;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64;
+   procedure Write
+      (Key       : Resource_Acc;
+       Offset    : Unsigned_64;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean);
 end Devices.Debug;
