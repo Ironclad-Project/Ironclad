@@ -17,11 +17,12 @@
 with Arch;
 
 package Devices.Ramdev is
-   --  Initialize a device given a stivale2 module to go off from, and whether
-   --  its a USTAR FS or not.
-   function Init_Module (Module : Arch.Boot_RAM_File) return Resource;
+   --  Initialize devices from a list of RAM files.
+   function Init (Modules : Arch.Boot_RAM_Files) return Boolean;
 
 private
+
+   function Init_Module (Module : Arch.Boot_RAM_File) return Resource;
 
    procedure Read
       (Key       : Resource_Acc;

@@ -18,10 +18,17 @@ package body Lib.Cmdline is
    --  Unit passes GNATprove AoRTE, GNAT does not know this.
    pragma Suppress (All_Checks);
 
-   function Get_Parameter (Cmdline, Key : String) return String_Acc is
+   procedure Get_Parameter
+      (Cmdline, Key : String;
+       Returned     : out String;
+       Found        : out Boolean;
+       Length       : out Natural)
+   is
       Curr_Index : Integer;
       Last_Index : Integer;
    begin
+      Returned := (others => ' ');
+
       for I in 1 .. Cmdline'Length - Key'Length + 1 loop
          Curr_Index := Cmdline'First + (I - 1);
          if Key = Cmdline (Curr_Index .. Curr_Index + (Key'Length - 1)) and
@@ -38,10 +45,19 @@ package body Lib.Cmdline is
          end if;
          pragma Loop_Invariant (Curr_Index <= Cmdline'Last);
       end loop;
-      return null;
+      Found  := False;
+      Length := 0;
+      return;
 
    <<Found_Value>>
-      return new String'(Cmdline (Curr_Index .. Last_Index));
+      Found  := True;
+      Length := Last_Index - Curr_Index + 1;
+      if Returned'Length >= Length then
+         Returned (Returned'First .. Returned'First + Length - 1)
+            := Cmdline (Curr_Index .. Last_Index);
+      else
+         Length := 0;
+      end if;
    end Get_Parameter;
 
    function Is_Key_Present (Cmdline, Key : String) return Boolean is

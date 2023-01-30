@@ -29,6 +29,22 @@ package body Devices.Ramdev is
    end record;
    type Ramdev_Data_Acc is access Ramdev_Data;
 
+   function Init (Modules : Arch.Boot_RAM_Files) return Boolean is
+      Success  : Boolean;
+      Dev_Res  : Resource;
+      Dev_Name : String := "ramdev0";
+   begin
+      for I in 1 .. Modules'Length loop
+         Dev_Name (Dev_Name'Last) := Character'Val (I + Character'Pos ('0'));
+         Dev_Res                  := Init_Module (Modules (I));
+         Devices.Register (Dev_Res, Dev_Name, Success);
+         if not Success then
+            return False;
+         end if;
+      end loop;
+      return True;
+   end Init;
+
    function Init_Module (Module : Arch.Boot_RAM_File) return Resource is
       package A is new Lib.Alignment (Unsigned_64);
       Device : Resource;

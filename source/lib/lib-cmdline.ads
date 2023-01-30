@@ -15,14 +15,17 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Lib.Cmdline is
-   type String_Acc is access String;
-
    --  Get the value of a key.
    --  @param Cmdline Command line to search in.
    --  @param Key Key to search for.
    --  @return An allocated string pointer, or null in failure.
-   function Get_Parameter (Cmdline, Key : String) return String_Acc
-      with Pre => Cmdline'Length /= 0 and Key'Length /= 0;
+   procedure Get_Parameter
+      (Cmdline, Key : String;
+       Returned     : out String;
+       Found        : out Boolean;
+       Length       : out Natural)
+      with Pre => Cmdline'Length /= 0 and Key'Length /= 0 and
+                  Returned'First = 1;
 
    --  Check whether an option is present.
    --  @param Cmdline Command line to search in.
