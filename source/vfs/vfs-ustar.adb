@@ -190,32 +190,77 @@ package body VFS.USTAR with SPARK_Mode => Off is
       end if;
    end Open;
 
-   function Check_Permissions
-      (FS        : System.Address;
-       Path      : String;
-       Exists    : Boolean;
-       Can_Read  : Boolean;
-       Can_Write : Boolean;
-       Can_Exec  : Boolean) return Boolean
-   is
-      pragma Unreferenced (Can_Read);
-      pragma Unreferenced (Can_Exec);
-      Data : USTAR_File_Acc;
-   begin
-      if Can_Write then
-         return False;
-      elsif not Fetch_Header (FS, Path, Data) then
-         return not Exists;
-      else
-         return True;
-      end if;
-   end Check_Permissions;
-
    procedure Close (FS : System.Address; File_Ptr : System.Address) is
       pragma Unreferenced (FS);
    begin
       Memory.Physical.Free (Interfaces.C.size_t (To_Integer (File_Ptr)));
    end Close;
+
+   procedure Read_Entries
+      (FS_Data   : System.Address;
+       Obj       : System.Address;
+       Entities  : out Directory_Entities;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
+   is
+      Cached_Data : USTAR_Data with Address => FS_Data, Import;
+      File_Data   : USTAR_File with Address => Obj,     Import;
+      Cache    : USTAR_Cached_Files_Acc renames Cached_Data.Cache;
+      Path     : String  renames File_Data.Name;
+      Path_Len : Natural renames File_Data.Name_Len;
+
+      Added_Count     : Natural := 0;
+      Index, Name_Len : Natural;
+      Has_Slash       : Boolean;
+   begin
+      if File_Data.File_Type /= USTAR_Directory then
+         Success   := False;
+         Ret_Count := 0;
+         return;
+      end if;
+
+      Ret_Count := 0;
+      for I in Cache'Range loop
+         if Path_Len + 1 < Cache (I).Name_Len and
+            Path (1 .. Path_Len) = Cache (I).Name (1 .. Path_Len)
+         then
+            Has_Slash := False;
+            for C of Cache (I).Name (Path_Len + 2 .. Cache (I).Name_Len) loop
+               if C = '/' then
+                  Has_Slash := True;
+                  exit;
+               end if;
+            end loop;
+            if Has_Slash then
+               goto End_Iteration;
+            end if;
+
+            if Entities'Length > Added_Count then
+               Index    := Entities'First + Added_Count;
+               Name_Len := Cache (I).Name_Len - Path_Len - 1;
+               Entities (Index) := (
+                  Inode_Number => Cache (I).Start,
+                  Type_Of_File => <>,
+                  Name_Len     => Name_Len,
+                  Name_Buffer  => <>
+               );
+               Entities (Index).Name_Buffer (1 .. Name_Len) :=
+               Cached_Data.Cache (I).Name (Path_Len + 2 .. Cache (I).Name_Len);
+
+               Entities (Index).Type_Of_File :=
+                  (case Cached_Data.Cache (I).File_Type is
+                     when USTAR_Symbolic_Link => File_Symbolic_Link,
+                     when USTAR_Directory     => File_Directory,
+                     when others              => File_Regular);
+               Added_Count := Added_Count + 1;
+            end if;
+            Ret_Count := Ret_Count + 1;
+         end if;
+      <<End_Iteration>>
+      end loop;
+
+      Success := True;
+   end Read_Entries;
 
    procedure Read
       (FS_Data   : System.Address;
@@ -229,6 +274,13 @@ package body VFS.USTAR with SPARK_Mode => Off is
       File_Data  : USTAR_File with Address => Obj,     Import;
       Real_Count : Natural := Data'Length;
    begin
+      if File_Data.File_Type = USTAR_Directory then
+         Data      := (others => 0);
+         Ret_Count := 0;
+         Success   := False;
+         return;
+      end if;
+
       if Offset + Unsigned_64 (Real_Count) > Unsigned_64 (File_Data.Size) then
          Real_Count := Natural (Unsigned_64 (File_Data.Size) - Offset);
       end if;

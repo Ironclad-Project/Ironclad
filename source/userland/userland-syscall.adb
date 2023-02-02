@@ -1022,17 +1022,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      if File /= null then
-         Stat_Is_Success := Inner_Stat (File, Address);
-         Close (File);
-         if Stat_Is_Success then
-            Errno := Error_No_Error;
-            return 0;
-         end if;
+      if File = null then
+         Errno := Error_No_Entity;
+         return Unsigned_64'Last;
       end if;
 
-      Errno := Error_Bad_File;
-      return Unsigned_64'Last;
+      Stat_Is_Success := Inner_Stat (File, Address);
+      Close (File);
+      if Stat_Is_Success then
+         Errno := Error_No_Error;
+         return 0;
+      else
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
    end Syscall_LStat;
 
    function Syscall_Get_CWD
@@ -1346,6 +1349,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno      : out Errno_Value) return Unsigned_64
    is
       Addr : constant System.Address := To_Address (Integer_Address (Path));
+      Check_Read  : constant Boolean := (Mode and Access_Can_Read)  /= 0;
+      Check_Write : constant Boolean := (Mode and Access_Can_Write) /= 0;
+      Check_Exec  : constant Boolean := (Mode and Access_Can_Exec)  /= 0;
    begin
       if not Check_Userland_Access (Integer_Address (Path)) then
          if Is_Tracing then
@@ -1366,6 +1372,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
       declare
          Path_Length : constant Natural := Lib.C_String_Length (Addr);
          Path_String : String (1 .. Path_Length) with Address => Addr;
+         Opened      : VFS.File.File_Acc;
+         Res_Stat    : VFS.File_Stat;
+         Returned    : Unsigned_64;
       begin
          if Is_Tracing then
             Lib.Messages.Put ("syscall access(");
@@ -1375,20 +1384,25 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Lib.Messages.Put_Line (")");
          end if;
 
-         if VFS.File.Check_Permissions (
-               Path      => Path_String,
-               Exists    => (Mode and Access_Exists)    /= 0,
-               Can_Read  => (Mode and Access_Can_Read)  /= 0,
-               Can_Write => (Mode and Access_Can_Write) /= 0,
-               Can_Exec  => (Mode and Access_Can_Exec)  /= 0
-         )
-         then
-            Errno := Error_No_Error;
-            return 0;
-         else
+         Opened := VFS.File.Open (Path_String, VFS.File.Read_Only);
+         if Opened = null or else not VFS.File.Stat (Opened, Res_Stat) then
             Errno := Error_No_Entity;
             return Unsigned_64'Last;
          end if;
+
+         if (not Check_Read  or ((Res_Stat.Mode and 8#400#) /= 0)) and
+            (not Check_Write or ((Res_Stat.Mode and 8#200#) /= 0)) and
+            (not Check_Exec  or ((Res_Stat.Mode and 8#100#) /= 0))
+         then
+            Errno    := Error_No_Error;
+            Returned := 0;
+         else
+            Errno    := Error_No_Entity;
+            Returned := Unsigned_64'Last;
+         end if;
+
+         VFS.File.Close (Opened);
+         return Returned;
       end;
    end Syscall_Access;
 
@@ -2022,4 +2036,70 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end;
    end Syscall_Readlink;
+
+   function Syscall_GetDEnts
+      (FD          : Unsigned_64;
+       Buffer_Addr : Unsigned_64;
+       Buffer_Len  : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64
+   is
+      Buff_IAddr : constant Integer_Address := Integer_Address (Buffer_Addr);
+      Buff_Addr  : constant System.Address  := To_Address (Buff_IAddr);
+      Buff_Len   : constant Unsigned_64     := Buffer_Len / (Dirent'Size / 8);
+      Buffer     : Dirents (1 .. Buff_Len) with Address => Buff_Addr;
+      Tmp_Buffer : VFS.Directory_Entities (1 .. Natural (Buff_Len));
+      Read_Len   : Natural;
+      Success    : Boolean;
+      Proc : constant Process_Data_Acc     := Arch.Local.Get_Current_Process;
+      File : constant File_Description_Acc := Get_File (Proc, FD);
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall getdents(");
+         Lib.Messages.Put (FD);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Buffer_Addr, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Buffer_Len, False, True);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if not Check_Userland_Access (Buff_IAddr) then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      elsif File = null or else File.Description /= Description_File then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+
+      VFS.File.Read_Entries (File.Inner_File, Tmp_Buffer, Read_Len, Success);
+      if not Success then
+         Errno := Error_No_Entity;
+         return Unsigned_64'Last;
+      elsif Read_Len > Tmp_Buffer'Length then
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      end if;
+
+      for I in 1 .. Read_Len loop
+         Buffer (Unsigned_64 (I)) := (
+            D_Ino    => Tmp_Buffer (I).Inode_Number,
+            D_Off    => (Dirent'Size / 8) * Unsigned_64 (I),
+            D_Reclen => Dirent'Size / 8,
+            D_Type   => 0,
+            D_Name   => (others => Ada.Characters.Latin_1.NUL)
+         );
+         Buffer (Unsigned_64 (I)).D_Name (1 .. Tmp_Buffer (I).Name_Len)
+            := Tmp_Buffer (I).Name_Buffer (1 .. Tmp_Buffer (I).Name_Len);
+         Buffer (Unsigned_64 (I)).D_Type :=
+            (case Tmp_Buffer (I).Type_Of_File is
+               when File_Regular          => DT_REG,
+               when File_Directory        => DT_DIR,
+               when File_Symbolic_Link    => DT_LNK,
+               when File_Character_Device => DT_CHR,
+               when File_Block_Device     => DT_BLK);
+      end loop;
+
+      Errno := Error_No_Error;
+      return Unsigned_64 (Read_Len * (Dirent'Size / 8));
+   end Syscall_GetDEnts;
 end Userland.Syscall;

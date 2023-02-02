@@ -195,44 +195,6 @@ package body VFS.File with SPARK_Mode => Off is
       return Devices.Get_Unique_ID (File.Dev_Data);
    end Get_Device_ID;
 
-   function Check_Permissions
-      (Path         : String;
-       Exists       : Boolean;
-       Can_Read     : Boolean;
-       Can_Write    : Boolean;
-       Can_Exec     : Boolean;
-       Follow_Links : Boolean := True) return Boolean
-   is
-      Is_Device    : Boolean;
-      Fetched_Dev  : Device_Handle;
-      Fetched_Type : FS_Type;
-      Fetched_FS   : System.Address;
-      Discard      : System.Address;
-   begin
-      Discard := Resolve_File (
-         Path,
-         Is_Device,
-         Fetched_Dev,
-         Fetched_Type,
-         Fetched_FS,
-         Follow_Links
-      );
-      if Is_Device and Exists and not Can_Exec then
-         return True;
-      elsif Fetched_FS /= System.Null_Address then
-         return USTAR.Check_Permissions (
-            Fetched_FS,
-            Path,
-            Exists,
-            Can_Read,
-            Can_Write,
-            Can_Exec
-         );
-      else
-         return False;
-      end if;
-   end Check_Permissions;
-
    procedure Increase_Refcount (F : File_Acc) is
    begin
       if F /= null then
@@ -253,6 +215,28 @@ package body VFS.File with SPARK_Mode => Off is
          end if;
       end if;
    end Close;
+
+   procedure Read_Entries
+      (To_Read   : File_Acc;
+       Entities  : out Directory_Entities;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
+   is
+   begin
+      if To_Read.FS_Data   /= System.Null_Address and
+         To_Read.File_Data /= System.Null_Address
+      then
+         USTAR.Read_Entries
+            (FS_Data   => To_Read.FS_Data,
+             Obj       => To_Read.File_Data,
+             Entities  => Entities,
+             Ret_Count => Ret_Count,
+             Success   => Success);
+      else
+         Success   := False;
+         Ret_Count := 0;
+      end if;
+   end Read_Entries;
 
    procedure Read
       (To_Read   : File_Acc;

@@ -60,23 +60,24 @@ package VFS.File with SPARK_Mode => Off is
    function Get_Device_ID (File : File_Acc) return Natural
       with Inline, Pre => File /= null;
 
-   --  Check permissions for a file. Path has the same limitations as Open.
-   --  Faster and easier than Open + Stat! (its all temp so it doesnt save).
-   --  Returns True if the passed permissions are supported.
-   function Check_Permissions
-      (Path         : String;
-       Exists       : Boolean;
-       Can_Read     : Boolean;
-       Can_Write    : Boolean;
-       Can_Exec     : Boolean;
-       Follow_Links : Boolean := True) return Boolean;
-
    --  Increase refcount, or decrease and close an opened file.
    procedure Increase_Refcount (F : File_Acc)   with Pre => F        /= null;
    procedure Close (To_Close : in out File_Acc) with Pre => To_Close /= null;
 
    --  Type for file operations.
    subtype Operation_Data is Devices.Operation_Data;
+
+   --  Read directory entries.
+   --  @param To_Read File to read.
+   --  @param Entities  Where to store the read entries, as many as possible.
+   --  @param Ret_Count The count of entries, even if num > Entities'Length.
+   --  @param Success   True in success, False in failure.
+   procedure Read_Entries
+      (To_Read   : File_Acc;
+       Entities  : out Directory_Entities;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
+   with Pre => To_Read /= null;
 
    --  Read from a file, and return the read count.
    procedure Read

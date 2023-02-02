@@ -23,14 +23,13 @@ package VFS.USTAR with SPARK_Mode => Off is
 
    --  Basic file operations.
    function Open (FS : System.Address; Path : String) return System.Address;
-   function Check_Permissions
-      (FS        : System.Address;
-       Path      : String;
-       Exists    : Boolean;
-       Can_Read  : Boolean;
-       Can_Write : Boolean;
-       Can_Exec  : Boolean) return Boolean;
    procedure Close (FS : System.Address; File_Ptr : System.Address);
+   procedure Read_Entries
+      (FS_Data   : System.Address;
+       Obj       : System.Address;
+       Entities  : out Directory_Entities;
+       Ret_Count : out Natural;
+       Success   : out Boolean);
    procedure Read
       (FS_Data   : System.Address;
        Obj       : System.Address;

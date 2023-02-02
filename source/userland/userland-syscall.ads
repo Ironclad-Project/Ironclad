@@ -393,6 +393,34 @@ package Userland.Syscall with SPARK_Mode => Off is
        Buffer_Len  : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
 
+   --  Get directory entities.
+   DT_FIFO : constant := 1;
+   DT_CHR  : constant := 2;
+   DT_DIR  : constant := 4;
+   DT_BLK  : constant := 6;
+   DT_LNK  : constant := 7;
+   DT_REG  : constant := 8;
+   type Dirent is record
+      D_Ino    : Unsigned_64;
+      D_Off    : Unsigned_64;
+      D_Reclen : Unsigned_16;
+      D_Type   : Unsigned_8;
+      D_Name   : String (1 .. 61);
+   end record with Size => 640;
+   for Dirent use record
+      D_Ino    at 0 range   0 ..  63;
+      D_Off    at 0 range  64 .. 127;
+      D_Reclen at 0 range 128 .. 143;
+      D_Type   at 0 range 144 .. 151;
+      D_Name   at 0 range 152 .. 639;
+   end record;
+   type Dirents is array (Unsigned_64 range <>) of Dirent with Pack;
+   function Syscall_GetDEnts
+      (FD          : Unsigned_64;
+       Buffer_Addr : Unsigned_64;
+       Buffer_Len  : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64;
+
 private
 
    --  Do the actual exiting.

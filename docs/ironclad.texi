@@ -112,6 +112,7 @@ Syscalls
 * set_mac_enforcement::     Set enforcement to follow on MAC violations.
 * mount/umount::            Mount and unmount partitions.
 * readlink::                Read the contents of a symlink.
+* getdents::                Get directory entries.
 
 Devices and their properties
 
@@ -589,6 +590,8 @@ Empty.
 @xref{mount/umount, umount}.
 @item
 @xref{readlink}.
+@item
+@xref{getdents}.
 @end enumerate
 
 @node Errno
@@ -1034,6 +1037,9 @@ directories.
 @itemize @bullet
 @item
 @code{EBADF}: The passed path or file descriptor is not valid.
+
+@item
+@code{ENOENT}: The file pointed by @code{pathname} does not exist.
 
 @item
 @code{EFAULT}: The passed address for the path or stat buffer is not valid.
@@ -1545,6 +1551,48 @@ following errno:
 @code{EACCES}: MAC forbid this operation.
 @item
 @code{EINVAL}: The passed file is not a symbolic link.
+@end itemize
+
+@node getdents
+@section getdents
+
+@example
+#define DT_UNKNOWN 0
+#define DT_FIFO    1
+#define DT_CHR     2
+#define DT_DIR     4
+#define DT_BLK     6
+#define DT_REG     8
+#define DT_LNK    10
+#define DT_SOCK   12
+#define DT_WHT    14
+
+struct dirent @{
+   uint64_t d_ino;
+   uint64_t d_off;
+   uint16_t d_reclen;
+   uint8_t  d_type;     // One of the DT_ values.
+   char     d_name[61]; // Null-terminated.
+@};
+
+ssize_t getdents(int fd, struct dirent *buffer, size_t size);
+@end example
+
+The syscall reads the contents of a directory all in one go, partial reads
+are not supported.
+
+The syscalls return the read length in bytes on success, or @code{0} if no
+contents or @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: Incorrect addresses for the arguments.
+@item
+@code{EBADFD}: @code{fd} does not contain a valid file.
+@item
+@code{ENOENT}: @code{fd} is not a directory.
+@item
+@code{EINVAL}: @code{size} is not big enough to fit all the directory entries.
 @end itemize
 
 @node Devices and their properties
