@@ -196,6 +196,23 @@ package body VFS with SPARK_Mode => Off is
       end case;
    end Read_Entries;
 
+   procedure Read_Symbolic_Link
+      (Key       : FS_Handle;
+       Obj       : System.Address;
+       Path      : out String;
+       Ret_Count : out Natural)
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_USTAR =>
+            USTAR.Read_Symbolic_Link
+               (Mounts (Key).FS_Data, Obj, Path, Ret_Count);
+         when FS_EXT =>
+            EXT.Read_Symbolic_Link
+               (Mounts (Key).FS_Data, Obj, Path, Ret_Count);
+      end case;
+   end Read_Symbolic_Link;
+
    function Create_Symbolic_Link
       (Key          : FS_Handle;
        Path, Target : String;

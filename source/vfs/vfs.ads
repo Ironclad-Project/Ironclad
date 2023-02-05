@@ -20,6 +20,10 @@ with Devices;    use Devices;
 
 package VFS with SPARK_Mode => Off is
    --  Stat structure of a file, which describes the qualities of a file.
+   type File_Timestamp is record
+      Seconds_Since_Epoch    : Unsigned_64;
+      Additional_Nanoseconds : Unsigned_64;
+   end record;
    type File_Type is (
       File_Regular,
       File_Directory,
@@ -35,6 +39,9 @@ package VFS with SPARK_Mode => Off is
       Byte_Size         : Unsigned_64;
       IO_Block_Size     : Natural;
       IO_Block_Count    : Unsigned_64;
+      Creation_Time     : File_Timestamp;
+      Modification_Time : File_Timestamp;
+      Access_Time       : File_Timestamp;
    end record;
 
    --  Describes an entity inside the contents of a directory.
@@ -132,6 +139,19 @@ package VFS with SPARK_Mode => Off is
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out Boolean)
+      with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
+
+   --  Read the entries of an opened directory.
+   --  @param Key       FS handle to operate on.
+   --  @param Obj       Object to read the entries of.
+   --  @param Entities  Where to store the read entries, as many as possible.
+   --  @param Ret_Count The count of entries, even if num > Entities'Length.
+   --  @param Success   True in success, False in failure.
+   procedure Read_Symbolic_Link
+      (Key       : FS_Handle;
+       Obj       : System.Address;
+       Path      : out String;
+       Ret_Count : out Natural)
       with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
 
    --  Create a symlink with an absolute path inside the mount and a target.

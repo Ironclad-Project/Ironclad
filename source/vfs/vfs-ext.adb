@@ -28,8 +28,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Data  : EXT_Data_Acc := new EXT_Data'(Handle => Handle, others => <>);
       Sup   : Superblock renames Data.Super;
    begin
-      --  Check signature and conditions we do not support yet.
-      if not Read_Superblock (Data) or Sup.Signature /= 16#EF53# or
+      if not Read_Superblock (Data) or Sup.Signature /= EXT_Signature or
          Sup.Block_Size_Log < Sup.Fragment_Size_Log
       then
          Free_1 (Data);
@@ -126,6 +125,19 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success   := False;
    end Read_Entries;
 
+   procedure Read_Symbolic_Link
+      (FS_Data   : System.Address;
+       Obj       : System.Address;
+       Path      : out String;
+       Ret_Count : out Natural)
+   is
+      pragma Unreferenced (FS_Data);
+      pragma Unreferenced (Obj);
+   begin
+      Path      := (others => ' ');
+      Ret_Count := 0;
+   end Read_Symbolic_Link;
+
    procedure Read
       (FS_Data   : System.Address;
        Obj       : System.Address;
@@ -199,21 +211,21 @@ package body VFS.EXT with SPARK_Mode => Off is
           Data      => Super_Data,
           Ret_Count => Ret_Count,
           Success   => Success);
-      return Success and (Ret_Count /= Super_Data'Length);
+      return Success and (Ret_Count = Super_Data'Length);
    end Write_Superblock;
 
    procedure Act_On_Policy (Data : EXT_Data_Acc; Message : String) is
    begin
       case Data.Error_Policy is
          when Policy_Ignore =>
-            null;
+            Lib.Messages.Warn (Message);
          when Policy_Remount_RO =>
-            Lib.Messages.Warn (Message & ", we will go read-only");
+            Lib.Messages.Warn (Message);
             Data.Is_Read_Only := True;
          when Policy_Panic =>
-            Lib.Panic.Hard_Panic ("ext says: " & Message);
+            Lib.Panic.Hard_Panic (Message);
          when others =>
-            Lib.Panic.Hard_Panic ("ext is dead, and we killed it: " & Message);
+            Lib.Panic.Hard_Panic ("ext is dead, and we killed it");
       end case;
    end Act_On_Policy;
 end VFS.EXT;

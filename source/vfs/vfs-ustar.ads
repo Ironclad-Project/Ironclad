@@ -29,6 +29,11 @@ package VFS.USTAR with SPARK_Mode => Off is
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out Boolean);
+   procedure Read_Symbolic_Link
+      (FS_Data   : System.Address;
+       Obj       : System.Address;
+       Path      : out String;
+       Ret_Count : out Natural);
    procedure Read
       (FS_Data   : System.Address;
        Obj       : System.Address;
@@ -43,13 +48,55 @@ package VFS.USTAR with SPARK_Mode => Off is
 
 private
 
+   type USTAR_Padding is array (Natural range <>) of Boolean with Pack;
+   USTAR_Signature : constant String := "ustar ";
+   type USTAR_Header is record
+      Name         : String (1 .. 100);
+      Mode         : String (1 .. 8);
+      UID          : String (1 .. 8);
+      GID          : String (1 .. 8);
+      Size         : String (1 .. 12);
+      MTime        : String (1 .. 12);
+      Checksum     : String (1 .. 8);
+      File_Type    : Unsigned_8;
+      Link_Name    : String (1 .. 100);
+      Signature    : String (1 .. 6);
+      Version      : String (1 .. 2);
+      Owner        : String (1 .. 32);
+      Device_Major : String (1 .. 8);
+      Device_Minor : String (1 .. 8);
+      Prefix       : String (1 .. 155);
+      Unused       : USTAR_Padding (1 .. 352);
+   end record;
+   for USTAR_Header use record
+      Name         at 0 range    0 ..  799;
+      Mode         at 0 range  800 ..  863;
+      UID          at 0 range  864 ..  927;
+      GID          at 0 range  928 ..  991;
+      Size         at 0 range  992 .. 1087;
+      MTime        at 0 range 1088 .. 1183;
+      Checksum     at 0 range 1184 .. 1247;
+      File_Type    at 0 range 1248 .. 1255;
+      Link_Name    at 0 range 1256 .. 2055;
+      Signature    at 0 range 2056 .. 2103;
+      Version      at 0 range 2104 .. 2119;
+      Owner        at 0 range 2120 .. 2375;
+      Device_Major at 0 range 2376 .. 2439;
+      Device_Minor at 0 range 2440 .. 2503;
+      Prefix       at 0 range 2504 .. 3743;
+      Unused       at 0 range 3744 .. 4095;
+   end record;
+   for USTAR_Header'Size use 4096; -- Padding.
+
    type USTAR_File is record
-      Name      : String (1 .. 100);
-      Name_Len  : Natural;
-      Mode      : Natural;
-      Start     : Unsigned_64;
-      Size      : Natural;
-      File_Type : Unsigned_8;
+      Name          : String (1 .. 100);
+      Name_Len      : Natural;
+      Header        : USTAR_Header;
+      Mode          : Natural;
+      Start         : Unsigned_64;
+      Size          : Natural;
+      File_Type     : Unsigned_8;
+      Creation_Time : File_Timestamp;
    end record;
    type USTAR_File_Acc is access all USTAR_File;
 

@@ -68,7 +68,7 @@ package VFS.File with SPARK_Mode => Off is
    subtype Operation_Data is Devices.Operation_Data;
 
    --  Read directory entries.
-   --  @param To_Read File to read.
+   --  @param To_Read   File to read.
    --  @param Entities  Where to store the read entries, as many as possible.
    --  @param Ret_Count The count of entries, even if num > Entities'Length.
    --  @param Success   True in success, False in failure.
@@ -77,6 +77,16 @@ package VFS.File with SPARK_Mode => Off is
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out Boolean)
+   with Pre => To_Read /= null;
+
+   --  Read contents of a symbolic link.
+   --  @param To_Read   File to read.
+   --  @param Path      Result to store as much as possible of the path.
+   --  @param Ret_Count The path length in the filesystem. 0 in failure.
+   procedure Read_Symbolic_Link
+      (To_Read   : File_Acc;
+       Path      : out String;
+       Ret_Count : out Natural)
    with Pre => To_Read /= null;
 
    --  Read from a file, and return the read count.

@@ -18,46 +18,6 @@ with Ada.Characters.Latin_1;
 with Lib.Alignment;
 
 package body VFS.USTAR with SPARK_Mode => Off is
-   type USTAR_Padding is array (Natural range <>) of Boolean with Pack;
-   USTAR_Signature : constant String := "ustar ";
-   type USTAR_Header is record
-      Name         : String (1 .. 100);
-      Mode         : String (1 .. 8);
-      UID          : String (1 .. 8);
-      GID          : String (1 .. 8);
-      Size         : String (1 .. 12);
-      MTime        : String (1 .. 12);
-      Checksum     : String (1 .. 8);
-      File_Type    : Unsigned_8;
-      Link_Name    : String (1 .. 100);
-      Signature    : String (1 .. 6);
-      Version      : String (1 .. 2);
-      Owner        : String (1 .. 32);
-      Device_Major : String (1 .. 8);
-      Device_Minor : String (1 .. 8);
-      Prefix       : String (1 .. 155);
-      Unused       : USTAR_Padding (1 .. 352);
-   end record;
-   for USTAR_Header use record
-      Name         at 0 range    0 ..  799;
-      Mode         at 0 range  800 ..  863;
-      UID          at 0 range  864 ..  927;
-      GID          at 0 range  928 ..  991;
-      Size         at 0 range  992 .. 1087;
-      MTime        at 0 range 1088 .. 1183;
-      Checksum     at 0 range 1184 .. 1247;
-      File_Type    at 0 range 1248 .. 1255;
-      Link_Name    at 0 range 1256 .. 2055;
-      Signature    at 0 range 2056 .. 2103;
-      Version      at 0 range 2104 .. 2119;
-      Owner        at 0 range 2120 .. 2375;
-      Device_Major at 0 range 2376 .. 2439;
-      Device_Minor at 0 range 2440 .. 2503;
-      Prefix       at 0 range 2504 .. 3743;
-      Unused       at 0 range 3744 .. 4095;
-   end record;
-   for USTAR_Header'Size use 4096; -- Padding.
-
    --  USTAR file types.
    USTAR_Regular_File  : constant := 16#30#;
    USTAR_Symbolic_Link : constant := 16#32#;
@@ -82,11 +42,11 @@ package body VFS.USTAR with SPARK_Mode => Off is
       Data            : USTAR_Data_Acc;
       Header_Index    : Unsigned_64 := 0;
       Size, Jump      : Natural;
-      Linked_Name_Len : Natural;
       Name_Len        : Natural;
       File_Count      : Natural := 0;
       Ret_Count       : Natural;
       Success         : Boolean;
+      Creation_Time   : Unsigned_64;
    begin
       loop
          Devices.Read
@@ -121,8 +81,7 @@ package body VFS.USTAR with SPARK_Mode => Off is
 
       Header_Index := 0;
       for Cache_File of Data.Cache.all loop
-         Name_Len        := 0;
-         Linked_Name_Len := 0;
+         Name_Len := 0;
          Devices.Read
             (Handle    => Handle,
              Offset    => Header_Index,
@@ -130,39 +89,26 @@ package body VFS.USTAR with SPARK_Mode => Off is
              Ret_Count => Ret_Count,
              Success   => Success);
          Size := Octal_To_Decimal (Header.Size);
+         Creation_Time := Unsigned_64 (Octal_To_Decimal (Header.MTime));
          for C of Header.Name loop
             exit when C = Ada.Characters.Latin_1.NUL;
             Name_Len := Name_Len + 1;
          end loop;
+         Cache_File :=
+            (Name          => Header.Name,
+             Name_Len      => Name_Len,
+             Header        => Header,
+             Start         => Header_Index + Byte_Size_64,
+             Size          => Size,
+             File_Type     => Header.File_Type,
+             Mode          => Octal_To_Decimal (Header.Mode),
+             Creation_Time => (Creation_Time, 0));
          case Header.File_Type is
-            when USTAR_Symbolic_Link =>
-               for C of Header.Link_Name loop
-                  exit when C = Ada.Characters.Latin_1.NUL;
-                  Linked_Name_Len := Linked_Name_Len + 1;
-               end loop;
-               Cache_File :=
-                  (Name      => Header.Name,
-                   Name_Len  => Name_Len,
-                   Start     => Header_Index + Header.Link_Name'Position,
-                   Size      => Linked_Name_Len,
-                   File_Type => Header.File_Type,
-                   Mode      => Octal_To_Decimal (Header.Mode));
             when USTAR_Directory =>
-               Cache_File :=
-                  (Name      => Header.Name,
-                   Name_Len  => Name_Len - 1, --  USTAR appends / to dir names.
-                   Start     => Header_Index + Byte_Size_64,
-                   Size      => Size,
-                   File_Type => Header.File_Type,
-                   Mode      => Octal_To_Decimal (Header.Mode));
+               --  USTAR appends / to dir names.
+               Cache_File.Name_Len := Cache_File.Name_Len - 1;
             when others =>
-               Cache_File :=
-                  (Name      => Header.Name,
-                   Name_Len  => Name_Len,
-                   Start     => Header_Index + Byte_Size_64,
-                   Size      => Size,
-                   File_Type => Header.File_Type,
-                   Mode      => Octal_To_Decimal (Header.Mode));
+               null;
          end case;
 
          Jump := Size;
@@ -253,6 +199,31 @@ package body VFS.USTAR with SPARK_Mode => Off is
       Success := True;
    end Read_Entries;
 
+   procedure Read_Symbolic_Link
+      (FS_Data   : System.Address;
+       Obj       : System.Address;
+       Path      : out String;
+       Ret_Count : out Natural)
+   is
+      Cached_Data : USTAR_Data with Address => FS_Data, Import;
+      File_Data   : USTAR_File with Address => Obj,     Import;
+   begin
+      Ret_Count := 0;
+      if File_Data.File_Type = USTAR_Symbolic_Link then
+         for C of File_Data.Header.Link_Name loop
+            exit when C = Ada.Characters.Latin_1.NUL;
+            Ret_Count := Ret_Count + 1;
+         end loop;
+
+         if Path'Length < Ret_Count then
+            Path := File_Data.Header.Link_Name (1 .. Path'Length);
+         else
+            Path (Path'First .. Path'First - 1 + Ret_Count) :=
+               File_Data.Header.Link_Name (1 .. Ret_Count);
+         end if;
+      end if;
+   end Read_Symbolic_Link;
+
    procedure Read
       (FS_Data   : System.Address;
        Obj       : System.Address;
@@ -265,7 +236,7 @@ package body VFS.USTAR with SPARK_Mode => Off is
       File_Data  : USTAR_File with Address => Obj,     Import;
       Real_Count : Natural := Data'Length;
    begin
-      if File_Data.File_Type = USTAR_Directory then
+      if File_Data.File_Type /= USTAR_Regular_File then
          Data      := (others => 0);
          Ret_Count := 0;
          Success   := False;
@@ -290,8 +261,8 @@ package body VFS.USTAR with SPARK_Mode => Off is
        S    : out File_Stat) return Boolean
    is
       package A is new Lib.Alignment (Unsigned_64);
-      FS_Data   : USTAR_Data with Address => Data, Import;
-      File_Data : USTAR_File with Address => Obj,  Import;
+      FS_Data    : USTAR_Data with Address => Data, Import;
+      File_Data  : USTAR_File with Address => Obj,  Import;
       Block_Size : constant Natural := Devices.Get_Block_Size (FS_Data.Handle);
    begin
       S :=
@@ -302,7 +273,10 @@ package body VFS.USTAR with SPARK_Mode => Off is
           Byte_Size         => Unsigned_64 (File_Data.Size),
           IO_Block_Size     => Block_Size,
           IO_Block_Count    => A.Divide_Round_Up
-            (Unsigned_64 (File_Data.Size), Unsigned_64 (Block_Size)));
+            (Unsigned_64 (File_Data.Size), Unsigned_64 (Block_Size)),
+          Creation_Time     => File_Data.Creation_Time,
+          Modification_Time => File_Data.Creation_Time,
+          Access_Time       => File_Data.Creation_Time);
 
       case File_Data.File_Type is
          when USTAR_Regular_File  => S.Type_Of_File := File_Regular;

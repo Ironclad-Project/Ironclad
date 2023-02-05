@@ -938,9 +938,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
             GID           => 0,
             Inner_Device  => Unsigned_64 (Get_Device_ID (F)),
             File_Size     => Stat_Val.Byte_Size,
-            Access_Time   => (Seconds => 0, Nanoseconds => 0),
-            Modify_Time   => (Seconds => 0, Nanoseconds => 0),
-            Create_Time   => (Seconds => 0, Nanoseconds => 0),
+            Access_Time   =>
+               (Stat_Val.Access_Time.Seconds_Since_Epoch,
+                Stat_Val.Access_Time.Additional_Nanoseconds),
+            Modify_Time   =>
+               (Stat_Val.Modification_Time.Seconds_Since_Epoch,
+                Stat_Val.Modification_Time.Additional_Nanoseconds),
+            Create_Time   =>
+               (Stat_Val.Creation_Time.Seconds_Since_Epoch,
+                Stat_Val.Creation_Time.Additional_Nanoseconds),
             Block_Size    => Unsigned_64 (Stat_Val.IO_Block_Size),
             Block_Count   => Stat_Val.IO_Block_Count
          );
@@ -1986,15 +1992,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
       declare
-         Path_Len   : constant Natural := Lib.C_String_Length (Path_Add);
-         Path       : String (1 .. Path_Len) with Address => Path_Add, Import;
-         Opened     : VFS.File.File_Acc;
-         Opened_Sta : VFS.File_Stat;
-         Stat_Succs : Boolean;
-         Data : Operation_Data (1 .. Natural (Buffer_Len))
-            with Import, Address => Buffer_Add;
+         Path_Len : constant Natural := Lib.C_String_Length (Path_Add);
+         Path     : String (1 .. Path_Len) with Address => Path_Add, Import;
+         Opened   : VFS.File.File_Acc;
+         Data : String (1 .. Natural (Buffer_Len)) with Address => Buffer_Add;
          Ret_Count : Natural;
-         Success   : Boolean;
       begin
          if Is_Tracing then
             Lib.Messages.Put ("syscall readlink(");
@@ -2017,18 +2019,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Errno := Error_No_Entity;
             return Unsigned_64'Last;
          end if;
-         Stat_Succs := VFS.File.Stat (Opened, Opened_Sta);
-         if not Stat_Succs or else
-         Opened_Sta.Type_Of_File /= VFS.File_Symbolic_Link
-         then
-            Errno := Error_Invalid_Value;
-            return Unsigned_64'Last;
-         end if;
 
-         VFS.File.Read (Opened, Data, Ret_Count, Success);
+         VFS.File.Read_Symbolic_Link (Opened, Data, Ret_Count);
          Close (Opened);
-         if not Success then
-            Errno := Error_IO;
+         if Ret_Count = 0 then
+            Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
          else
             Errno := Error_No_Error;

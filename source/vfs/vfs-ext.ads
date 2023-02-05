@@ -42,6 +42,11 @@ package VFS.EXT with SPARK_Mode => Off is
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out Boolean);
+   procedure Read_Symbolic_Link
+      (FS_Data   : System.Address;
+       Obj       : System.Address;
+       Path      : out String;
+       Ret_Count : out Natural);
    procedure Read
       (FS_Data   : System.Address;
        Obj       : System.Address;
@@ -67,6 +72,7 @@ private
    Policy_Ignore     : constant := 1;
    Policy_Remount_RO : constant := 2;
    Policy_Panic      : constant := 3;
+   EXT_Signature     : constant := 16#EF53#;
    Superblock_Offset : constant := 512 * 2;
    type Superblock is record
       Inode_Count             : Unsigned_32;

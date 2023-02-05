@@ -32,8 +32,6 @@ package body VFS.File with SPARK_Mode => Off is
       Fetched_Succ : Boolean := False;
       Last_Slash   : Natural := 0;
       Symlink      : String (1 .. 60);
-      Symlink_Data : Operation_Data (1 .. 60)
-         with Import, Address => Symlink'Address;
       Symlink_Len  : Natural;
       Discard      : Boolean;
    begin
@@ -74,13 +72,11 @@ package body VFS.File with SPARK_Mode => Off is
       if Follow_Links and Fetched_Succ and
          Fetched_Stat.Type_Of_File = File_Symbolic_Link
       then
-         VFS.Read
+         VFS.Read_Symbolic_Link
             (Key       => Fetched_FS,
              Obj       => Fetched_File,
-             Offset    => 0,
-             Data      => Symlink_Data,
-             Ret_Count => Symlink_Len,
-             Success   => Discard);
+             Path      => Symlink,
+             Ret_Count => Symlink_Len);
 
          for I in Path'Range loop
             if Path (I) = '/' then
@@ -89,7 +85,6 @@ package body VFS.File with SPARK_Mode => Off is
          end loop;
 
          if Symlink_Len = 0 then
-            --  ????.
             return Null_Address;
          elsif Symlink (1) = '/' then
             return Resolve_File (
@@ -214,6 +209,26 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Read_Entries;
 
+   procedure Read_Symbolic_Link
+      (To_Read   : File_Acc;
+       Path      : out String;
+       Ret_Count : out Natural)
+   is
+   begin
+      if To_Read.FS_Data   /= Error_Handle and
+         To_Read.File_Data /= System.Null_Address
+      then
+         VFS.Read_Symbolic_Link
+            (Key       => To_Read.FS_Data,
+             Obj       => To_Read.File_Data,
+             Path      => Path,
+             Ret_Count => Ret_Count);
+      else
+         Path      := (others => ' ');
+         Ret_Count := 0;
+      end if;
+   end Read_Symbolic_Link;
+
    procedure Read
       (To_Read   : File_Acc;
        Data      : out Operation_Data;
@@ -316,7 +331,10 @@ package body VFS.File with SPARK_Mode => Off is
             Hard_Link_Count   => 1,
             Byte_Size         => Unsigned_64 (Block_Size) * Block_Count,
             IO_Block_Size     => Block_Size,
-            IO_Block_Count    => Block_Count
+            IO_Block_Count    => Block_Count,
+            Creation_Time     => (0, 0),
+            Modification_Time => (0, 0),
+            Access_Time       => (0, 0)
          );
          return True;
       end if;
