@@ -126,8 +126,7 @@ private
       Refcount  : Natural;
       Full_Path : String_Acc;
       Dev_Data  : Device_Handle;
-      FS_Type   : VFS.FS_Type;
-      FS_Data   : System.Address;
+      FS_Data   : FS_Handle;
       File_Data : System.Address;
       Index     : Unsigned_64;
       Flags     : Access_Mode;
@@ -137,7 +136,6 @@ private
       (Path         : String;
        Is_Device    : out Boolean;
        Fetched_Dev  : out Device_Handle;
-       Fetched_Type : out FS_Type;
-       Fetched_FS   : out System.Address;
+       Fetched_FS   : out FS_Handle;
        Follow_Links : Boolean) return System.Address;
 end VFS.File;

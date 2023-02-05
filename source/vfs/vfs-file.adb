@@ -15,8 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Unchecked_Deallocation;
-with System; use System;
-with VFS.USTAR;
 
 package body VFS.File with SPARK_Mode => Off is
    procedure Free_Str  is new Ada.Unchecked_Deallocation (String, String_Acc);
@@ -26,8 +24,7 @@ package body VFS.File with SPARK_Mode => Off is
       (Path         : String;
        Is_Device    : out Boolean;
        Fetched_Dev  : out Device_Handle;
-       Fetched_Type : out FS_Type;
-       Fetched_FS   : out System.Address;
+       Fetched_FS   : out FS_Handle;
        Follow_Links : Boolean) return System.Address
    is
       Fetched_File : System.Address := System.Null_Address;
@@ -38,14 +35,12 @@ package body VFS.File with SPARK_Mode => Off is
       Symlink_Data : Operation_Data (1 .. 60)
          with Import, Address => Symlink'Address;
       Symlink_Len  : Natural;
-      Mount_Key    : Natural;
       Discard      : Boolean;
    begin
       --  Default values.
-      Is_Device    := False;
-      Fetched_Dev  := Devices.Error_Handle;
-      Fetched_Type := FS_USTAR;
-      Fetched_FS   := System.Null_Address;
+      Is_Device   := False;
+      Fetched_Dev := Devices.Error_Handle;
+      Fetched_FS  := Error_Handle;
 
       --  TODO: Handle non-canonical paths.
       if not Is_Canonical (Path) then
@@ -57,49 +52,35 @@ package body VFS.File with SPARK_Mode => Off is
       if Path'Length > 4 and then Path (Path'First .. Path'First + 4) = "/dev/"
       then
          Fetched_Dev := Fetch (Path (Path'First + 5 .. Path'Last));
-         Is_Device   := Fetched_Dev /= Error_Handle;
+         Is_Device   := Fetched_Dev /= Devices.Error_Handle;
          goto Done;
       end if;
 
       --  Do the usual file opening routine.
-      Mount_Key := Get_Mount ("/");
-      if Mount_Key = 0 then
+      Fetched_FS := Get_Mount ("/");
+      if Fetched_FS = Error_Handle then
          goto Done;
       end if;
 
-      Fetched_Dev  := Get_Backing_Device (Mount_Key);
-      Fetched_Type := Get_Backing_FS (Mount_Key);
-      Fetched_FS   := Get_Backing_FS_Data (Mount_Key);
-      if Fetched_FS /= Null_Address then
-         case Fetched_Type is
-            when FS_USTAR =>
-               Fetched_File := USTAR.Open (
-                  Fetched_FS, Path (Path'First + 1 .. Path'Last)
-               );
-               if Fetched_File /= Null_Address then
-                  Fetched_Succ := USTAR.Stat (
-                     Fetched_FS, Fetched_File, Fetched_Stat
-                   );
-               else
-                  Fetched_Succ := False;
-               end if;
-         end case;
+      Fetched_Dev  := Get_Backing_Device (Fetched_FS);
+      Fetched_File := Open (Fetched_FS, Path (Path'First + 1 .. Path'Last));
+      if Fetched_File /= Null_Address then
+         Fetched_Succ := Stat (Fetched_FS, Fetched_File, Fetched_Stat);
+      else
+         Fetched_Succ := False;
       end if;
 
       --  Redirect if we are dealing with a symlink.
       if Follow_Links and Fetched_Succ and
          Fetched_Stat.Type_Of_File = File_Symbolic_Link
       then
-         case Fetched_Type is
-            when FS_USTAR =>
-               USTAR.Read
-                  (FS_Data   => Fetched_FS,
-                   Obj       => Fetched_File,
-                   Offset    => 0,
-                   Data      => Symlink_Data,
-                   Ret_Count => Symlink_Len,
-                   Success   => Discard);
-         end case;
+         VFS.Read
+            (Key       => Fetched_FS,
+             Obj       => Fetched_File,
+             Offset    => 0,
+             Data      => Symlink_Data,
+             Ret_Count => Symlink_Len,
+             Success   => Discard);
 
          for I in Path'Range loop
             if Path (I) = '/' then
@@ -115,7 +96,6 @@ package body VFS.File with SPARK_Mode => Off is
                Symlink (1 .. Symlink_Len),
                Is_Device,
                Fetched_Dev,
-               Fetched_Type,
                Fetched_FS,
                Follow_Links
             );
@@ -124,7 +104,6 @@ package body VFS.File with SPARK_Mode => Off is
                Path (Path'First .. Last_Slash) & Symlink (1 .. Symlink_Len),
                Is_Device,
                Fetched_Dev,
-               Fetched_Type,
                Fetched_FS,
                Follow_Links
             );
@@ -142,15 +121,13 @@ package body VFS.File with SPARK_Mode => Off is
    is
       Is_Device    : Boolean;
       Fetched_Dev  : Device_Handle;
-      Fetched_Type : FS_Type;
-      Fetched_FS   : System.Address;
+      Fetched_FS   : FS_Handle;
       Fetched_File : System.Address;
    begin
       Fetched_File := Resolve_File (
          Path,
          Is_Device,
          Fetched_Dev,
-         Fetched_Type,
          Fetched_FS,
          Follow_Links
       );
@@ -161,7 +138,6 @@ package body VFS.File with SPARK_Mode => Off is
             Refcount  => 1,
             Full_Path => new String'(Path),
             Dev_Data  => Fetched_Dev,
-            FS_Type   => Fetched_Type,
             FS_Data   => Fetched_FS,
             File_Data => Fetched_File,
             Index     => 0,
@@ -207,8 +183,8 @@ package body VFS.File with SPARK_Mode => Off is
       if To_Close /= null then
          To_Close.Refcount := To_Close.Refcount - 1;
          if To_Close.Refcount = 0 then
-            if To_Close.FS_Data /= System.Null_Address then
-               USTAR.Close (To_Close.FS_Data, To_Close.File_Data);
+            if To_Close.FS_Data /= Error_Handle then
+               VFS.Close (To_Close.FS_Data, To_Close.File_Data);
             end if;
             Free_Str (To_Close.Full_Path);
             Free_File (To_Close);
@@ -223,11 +199,11 @@ package body VFS.File with SPARK_Mode => Off is
        Success   : out Boolean)
    is
    begin
-      if To_Read.FS_Data   /= System.Null_Address and
+      if To_Read.FS_Data   /= Error_Handle and
          To_Read.File_Data /= System.Null_Address
       then
-         USTAR.Read_Entries
-            (FS_Data   => To_Read.FS_Data,
+         VFS.Read_Entries
+            (Key       => To_Read.FS_Data,
              Obj       => To_Read.File_Data,
              Entities  => Entities,
              Ret_Count => Ret_Count,
@@ -251,11 +227,11 @@ package body VFS.File with SPARK_Mode => Off is
          return;
       end if;
 
-      if To_Read.FS_Data   /= System.Null_Address and
+      if To_Read.FS_Data   /= Error_Handle and
          To_Read.File_Data /= System.Null_Address
       then
-         USTAR.Read
-            (FS_Data   => To_Read.FS_Data,
+         VFS.Read
+            (Key       => To_Read.FS_Data,
              Obj       => To_Read.File_Data,
              Offset    => To_Read.Index,
              Data      => Data,
@@ -288,13 +264,16 @@ package body VFS.File with SPARK_Mode => Off is
          return;
       end if;
 
-      if To_Write.FS_Data   /= System.Null_Address and
+      if To_Write.FS_Data   /= Error_Handle and
          To_Write.File_Data /= System.Null_Address
       then
-         --  Write-support for FS.
-         Ret_Count := 0;
-         Success   := False;
-         return;
+         VFS.Write
+            (Key       => To_Write.FS_Data,
+             Obj       => To_Write.File_Data,
+             Offset    => To_Write.Index,
+             Data      => Data,
+             Ret_Count => Ret_Count,
+             Success   => Success);
       else
          Devices.Write (
             Handle    => To_Write.Dev_Data,
@@ -316,11 +295,10 @@ package body VFS.File with SPARK_Mode => Off is
       Block_Count                   : Unsigned_64;
       Block_Size, Unique_Identifier : Natural;
    begin
-      --  This is null?
-      if F.FS_Data /= System.Null_Address and
+      if F.FS_Data   /= Error_Handle and
          F.File_Data /= System.Null_Address
       then
-         return USTAR.Stat (F.FS_Data, F.File_Data, S);
+         return VFS.Stat (F.FS_Data, F.File_Data, S);
       else
          Is_Block          := Devices.Is_Block_Device (F.Dev_Data);
          Block_Size        := Devices.Get_Block_Size  (F.Dev_Data);
@@ -350,13 +328,10 @@ package body VFS.File with SPARK_Mode => Off is
        Argument : System.Address) return Boolean
    is
    begin
-      if F.FS_Data /= System.Null_Address and
-         F.File_Data /= System.Null_Address
-      then
-         --  Support USTAR IOCTL.
-         return False;
-      else
+      if F.FS_Data = Error_Handle and F.File_Data = System.Null_Address then
          return Devices.IO_Control (F.Dev_Data, Request, Argument);
+      else
+         return False;
       end if;
    end IO_Control;
 
@@ -369,8 +344,7 @@ package body VFS.File with SPARK_Mode => Off is
        Map_Execute : Boolean) return Boolean
    is
    begin
-      if F.FS_Data = System.Null_Address and F.File_Data = System.Null_Address
-      then
+      if F.FS_Data = Error_Handle and F.File_Data = System.Null_Address then
          return Devices.Mmap (
             F.Dev_Data,
             Address,
@@ -380,7 +354,6 @@ package body VFS.File with SPARK_Mode => Off is
             Map_Execute
          );
       else
-         --  TODO: Support mmaping a non-device.
          return False;
       end if;
    end Mmap;
@@ -391,11 +364,9 @@ package body VFS.File with SPARK_Mode => Off is
        Length  : Unsigned_64) return Boolean
    is
    begin
-      if F.FS_Data = System.Null_Address and F.File_Data = System.Null_Address
-      then
+      if F.FS_Data = Error_Handle and F.File_Data = System.Null_Address then
          return Devices.Munmap (F.Dev_Data, Address, Length);
       else
-         --  TODO: Support mmaping a non-device.
          return False;
       end if;
    end Munmap;

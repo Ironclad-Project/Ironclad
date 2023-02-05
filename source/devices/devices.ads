@@ -114,6 +114,8 @@ package Devices is
       with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
    function Get_Unique_ID   (Handle : Device_Handle) return Natural
       with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
+   function Is_Read_Only (Handle : Device_Handle) return Boolean
+      with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
 
    --  Synchronize internal device state, in order to ensure coherency.
    --  @param Handle Handle to synchronize if supported, must be valid.

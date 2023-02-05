@@ -15,8 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with System;
-with Devices; use Devices;
+with System;     use System;
+with Devices;    use Devices;
 
 package VFS with SPARK_Mode => Off is
    --  Stat structure of a file, which describes the qualities of a file.
@@ -44,21 +44,28 @@ package VFS with SPARK_Mode => Off is
       Name_Len     : Natural;
       Type_Of_File : File_Type;
    end record;
-   type Directory_Entities is array (Natural range <>) of Directory_Entity
-      with Pack;
-
+   type Directory_Entities is array (Natural range <>) of Directory_Entity;
    ----------------------------------------------------------------------------
+   --  Handle for interfacing with mounted FSs and FS types.
+   type FS_Type   is (FS_USTAR, FS_EXT);
+   type FS_Handle is private;
+   Error_Handle : constant FS_Handle;
+
    --  Initialize the internal VFS registries.
    procedure Init;
-
-   --  Types of supported FS by the VFS.
-   type FS_Type is (FS_USTAR);
 
    --  Mount the passed device name into the passed path.
    --  @param Name Name of the device (/dev/<name>).
    --  @param Path Absolute path for mounting.
    --  @param FS FS Type to mount as.
+   --  @return True on success, False on failure.
    function Mount (Name, Path : String; FS : FS_Type) return Boolean;
+
+   --  Mount the passed device name into the passed path, guessing the FS.
+   --  @param Name Name of the device (/dev/<name>).
+   --  @param Path Absolute path for mounting.
+   --  @return True on success, False on failure.
+   function Mount (Name, Path : String) return Boolean;
 
    --  Unmount a mount, syncing when possible.
    --  @param Path Path of the mount to unmount.
@@ -69,57 +76,129 @@ package VFS with SPARK_Mode => Off is
    --  @return Key to use to refer to the mount, or 0 if not found.
    --  TODO: Make this do a closest instead of exact match in order to support
    --  mounts better, along with file dispatching in vfs-file.adb.
-   function Get_Mount (Path : String) return Natural;
-
-   --  Check if a key is valid.
-   --  @param Key Key to check.
-   --  @return True if valid, False if not.
-   function Is_Valid (Key : Positive) return Boolean;
+   function Get_Mount (Path : String) return FS_Handle;
 
    --  Get the backing FS type.
    --  @param Key Key to use to fetch the info.
    --  @return The FS type, will be a placeholder if the key is not valid.
-   function Get_Backing_FS (Key : Positive) return FS_Type
-      with Pre => Is_Valid (Key);
+   function Get_Backing_FS (Key : FS_Handle) return FS_Type
+      with Pre => Key /= Error_Handle;
 
    --  Get the backing data of the FS.
    --  @param Key Key to use to fetch the info.
    --  @return The FS data, or System.Null_Address if not a valid key.
-   function Get_Backing_FS_Data (Key : Positive) return System.Address
-      with Pre => Is_Valid (Key);
+   function Get_Backing_FS_Data (Key : FS_Handle) return System.Address
+      with Pre => Key /= Error_Handle;
 
    --  Get the backing device of a mount.
    --  @param Key Key to use to fetch the info.
    --  @return The backing device.
-   function Get_Backing_Device (Key : Positive) return Device_Handle
-      with Pre => Is_Valid (Key);
+   function Get_Backing_Device (Key : FS_Handle) return Device_Handle
+      with Pre => Key /= Error_Handle;
 
-   --  Read from the mount itself, this function is needed as mount registering
-   --  involves some caching by the registry for use by FSs.
+   --  Open a file with an absolute path inside the mount.
+   --  @param Key  FS Handle to open.
+   --  @param Path Absolute path inside the mount, creation is not done.
+   --  @return Returned opaque pointer for the passed mount, Null in failure.
+   function Open (Key : FS_Handle; Path : String) return System.Address
+      with Pre => Key /= Error_Handle;
+
+   --  Create a file with an absolute path inside the mount.
+   --  @param Key  FS Handle to open.
+   --  @param Path Absolute path inside the mount, must not exist.
+   --  @param Mode Mode to use for the created file.
+   --  @return Returned opaque pointer for the passed mount, Null in failure.
+   function Create
+      (Key  : FS_Handle;
+       Path : String;
+       Mode : Unsigned_32) return System.Address
+      with Pre => Key /= Error_Handle;
+
+   --  Close an already opened file.
+   --  @param Key FS handle to operate on.
+   --  @param Obj Object to close and free, will be set to Null.
+   procedure Close (Key : FS_Handle; Obj : out System.Address)
+      with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
+
+   --  Read the entries of an opened directory.
+   --  @param Key       FS handle to operate on.
+   --  @param Obj       Object to read the entries of.
+   --  @param Entities  Where to store the read entries, as many as possible.
+   --  @param Ret_Count The count of entries, even if num > Entities'Length.
+   --  @param Success   True in success, False in failure.
+   procedure Read_Entries
+      (Key       : FS_Handle;
+       Obj       : System.Address;
+       Entities  : out Directory_Entities;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
+      with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
+
+   --  Create a symlink with an absolute path inside the mount and a target.
+   --  @param Key    FS Handle to open.
+   --  @param Path   Absolute path inside the mount, must not exist.
+   --  @param Target Target of the symlink, it is not checked in any way.
+   --  @param Mode   Mode to use for the created symlink.
+   --  @return Returned opaque pointer for the passed mount, Null in failure.
+   function Create_Symbolic_Link
+      (Key          : FS_Handle;
+       Path, Target : String;
+       Mode         : Unsigned_32) return System.Address
+      with Pre => Key /= Error_Handle;
+
+   --  Create a directory with an absolute path inside the mount.
+   --  @param Key    FS Handle to open.
+   --  @param Path   Absolute path inside the mount, must not exist.
+   --  @param Mode   Mode to use for the created directory.
+   --  @return Returned opaque pointer for the passed mount, Null in failure.
+   function Create_Directory
+      (Key  : FS_Handle;
+       Path : String;
+       Mode : Unsigned_32) return System.Address
+      with Pre => Key /= Error_Handle;
+
+   --  Read from a regular file.
+   --  @param Key       FS Handle to open.
+   --  @param Obj       Object to read from.
+   --  @param Offset    Offset to read from.
+   --  @param Data      Place to write read data.
+   --  @param Ret_Count How many items were read into Data until EOF.
+   --  @param Success   True on success, False on failure.
    procedure Read
-      (Key       : Positive;
+      (Key       : FS_Handle;
+       Obj       : System.Address;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean)
-   with Pre => Is_Valid (Key);
+      with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
 
-   --  Write to the mount, this function is needed as mount registering
-   --  involves some caching by the registry for use by FSs.
+   --  Write to a regular file.
+   --  @param Key       FS Handle to open.
+   --  @param Obj       Object to write to.
+   --  @param Offset    Offset to write to.
+   --  @param Data      Data to write
+   --  @param Ret_Count How many items were written until EOF.
+   --  @param Success   True on success, False on failure.
    procedure Write
-      (Key       : Positive;
+      (Key       : FS_Handle;
+       Obj       : System.Address;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean)
-   with Pre => Is_Valid (Key);
+      with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
 
-   --  Flush the aforementioned caches.
-   --  @param Key Mount to flush the caches of.
-   procedure Flush_Caches (Key : Positive) with Pre => Is_Valid (Key);
-
-   --  Flush the aforementioned caches for all mounts.
-   procedure Flush_Caches;
+   --  Get the stat of a file.
+   --  @param Key FS Handle to open.
+   --  @param Obj Object to fetch information for.
+   --  @param S   Data to fetch.
+   --  @return True on success, False on failure.
+   function Stat
+      (Key  : FS_Handle;
+       Obj  : System.Address;
+       S    : out File_Stat) return Boolean
+      with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
    ----------------------------------------------------------------------------
    --  Check whether a path is absolute.
    --  @param Path to check.
@@ -134,27 +213,6 @@ package VFS with SPARK_Mode => Off is
 
 private
 
-   --  Read and write individual sectors, return true in success.
-   function Read_Sector
-      (Handle : Device_Handle;
-       LBA    : Unsigned_64;
-       Desto  : System.Address) return Boolean;
-   function Write_Sector
-      (Handle : Device_Handle;
-       LBA    : Unsigned_64;
-       Data   : System.Address) return Boolean;
-
-   --  Data kept for each sector as cache.
-   type Sector_Cache (Size : Natural) is record
-      LBA_Offset : Unsigned_64;
-      Is_Dirty   : Boolean;
-      Data       : Operation_Data (1 .. Size);
-   end record;
-   type Sector_Cache_Acc is access Sector_Cache;
-
-   --  Evict the passed information, and replace it.
-   function Evict_Sector
-      (Handle  : Device_Handle;
-       Sector  : Sector_Cache_Acc;
-       New_LBA : Unsigned_64) return Boolean;
+   type FS_Handle is new Natural range 0 .. 5;
+   Error_Handle : constant FS_Handle := 0;
 end VFS;

@@ -15,10 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Characters.Latin_1;
-with System.Storage_Elements; use System.Storage_Elements;
-with Memory.Physical;
-with System; use System;
-with Interfaces.C;
 with Lib.Alignment;
 
 package body VFS.USTAR with SPARK_Mode => Off is
@@ -72,12 +68,12 @@ package body VFS.USTAR with SPARK_Mode => Off is
    type USTAR_Cached_Files is array (Natural range <>) of aliased USTAR_File;
    type USTAR_Cached_Files_Acc is access USTAR_Cached_Files;
    type USTAR_Data is record
-      Key   : Positive;
-      Cache : USTAR_Cached_Files_Acc;
+      Handle : Device_Handle;
+      Cache  : USTAR_Cached_Files_Acc;
    end record;
    type USTAR_Data_Acc is access USTAR_Data;
 
-   function Probe (Key : Positive) return System.Address is
+   function Probe (Handle : Device_Handle) return System.Address is
       Header          : USTAR_Header;
       Byte_Size       : constant Natural := Header'Size / 8;
       Byte_Size_64    : constant Unsigned_64 := Unsigned_64 (Byte_Size);
@@ -93,8 +89,8 @@ package body VFS.USTAR with SPARK_Mode => Off is
       Success         : Boolean;
    begin
       loop
-         VFS.Read
-            (Key       => Key,
+         Devices.Read
+            (Handle    => Handle,
              Offset    => Header_Index,
              Data      => Header_Data,
              Ret_Count => Ret_Count,
@@ -120,14 +116,15 @@ package body VFS.USTAR with SPARK_Mode => Off is
       if File_Count = 0 then
          return System.Null_Address;
       end if;
-      Data := new USTAR_Data'(Key, new USTAR_Cached_Files (1 .. File_Count));
+      Data := new USTAR_Data'
+         (Handle, new USTAR_Cached_Files (1 .. File_Count));
 
       Header_Index := 0;
       for Cache_File of Data.Cache.all loop
          Name_Len        := 0;
          Linked_Name_Len := 0;
-         Read
-            (Key       => Key,
+         Devices.Read
+            (Handle    => Handle,
              Offset    => Header_Index,
              Data      => Header_Data,
              Ret_Count => Ret_Count,
@@ -189,12 +186,6 @@ package body VFS.USTAR with SPARK_Mode => Off is
          return System.Null_Address;
       end if;
    end Open;
-
-   procedure Close (FS : System.Address; File_Ptr : System.Address) is
-      pragma Unreferenced (FS);
-   begin
-      Memory.Physical.Free (Interfaces.C.size_t (To_Integer (File_Ptr)));
-   end Close;
 
    procedure Read_Entries
       (FS_Data   : System.Address;
@@ -284,8 +275,8 @@ package body VFS.USTAR with SPARK_Mode => Off is
       if Offset + Unsigned_64 (Real_Count) > Unsigned_64 (File_Data.Size) then
          Real_Count := Natural (Unsigned_64 (File_Data.Size) - Offset);
       end if;
-      VFS.Read (
-         Key       => FS_Data2.Key,
+      Devices.Read (
+         Handle    => FS_Data2.Handle,
          Offset    => File_Data.Start + Offset,
          Ret_Count => Ret_Count,
          Success   => Success,
@@ -301,8 +292,7 @@ package body VFS.USTAR with SPARK_Mode => Off is
       package A is new Lib.Alignment (Unsigned_64);
       FS_Data   : USTAR_Data with Address => Data, Import;
       File_Data : USTAR_File with Address => Obj,  Import;
-      Han : constant Devices.Device_Handle := Get_Backing_Device (FS_Data.Key);
-      Block_Size : constant Natural := Devices.Get_Block_Size (Han);
+      Block_Size : constant Natural := Devices.Get_Block_Size (FS_Data.Handle);
    begin
       S :=
          (Unique_Identifier => File_Data.Start,

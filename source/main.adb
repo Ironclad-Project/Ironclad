@@ -20,7 +20,7 @@ with Devices.Ramdev;
 with Devices;
 with VFS.File; use VFS.File;
 with VFS;
-with Lib.Cmdline; use Lib.Cmdline;
+with Lib.Cmdline;
 with Lib.Messages;
 with Lib.Panic;
 with Userland.Loader;
@@ -74,7 +74,7 @@ begin
    --  Mount a root if specified.
    Lib.Cmdline.Get_Parameter (Cmdline, "root", Value, Found, Value_Len);
    if Found and Value_Len /= 0 then
-      if not VFS.Mount (Value (1 .. Value_Len), "/", VFS.FS_USTAR) then
+      if not VFS.Mount (Value (1 .. Value_Len), "/") then
          Lib.Messages.Warn ("Failed to mount " & Value (1 .. Value_Len));
       end if;
    end if;

@@ -14,51 +14,43 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with VFS.EXT;
 with VFS.USTAR;
-with System; use System;
 with Lib.Synchronization;
-with Ada.Unchecked_Deallocation;
-with Lib.Alignment;
 
 package body VFS with SPARK_Mode => Off is
-   procedure Free_Sector_Cache is new Ada.Unchecked_Deallocation
-      (Sector_Cache, Sector_Cache_Acc);
-   type Sector_Cache_Arr is array (Unsigned_64 range <>) of Sector_Cache_Acc;
-   Path_Buffer_Length : constant :=  100;
-   Cache_Array_Length : constant := 8000;
+   Path_Buffer_Length : constant := 100;
    type Mount_Container is record
-      Is_Cached   : Boolean;
       Mounted_Dev : Device_Handle;
       Mounted_FS  : FS_Type;
       FS_Data     : System.Address;
       Path_Length : Natural;
       Path_Buffer : String (1 .. Path_Buffer_Length);
-      Cache_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
-      Cache       : Sector_Cache_Arr (1 .. Cache_Array_Length);
-      Last_Evict  : Unsigned_64;
    end record;
-   type Mount_Container_Arr is array (1 .. 5) of Mount_Container;
-   Mounts       : access Mount_Container_Arr;
-   Mounts_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+   type Mount_Arr is array (FS_Handle range 1 .. 5) of Mount_Container;
+   type Mount_Arr_Acc is access Mount_Arr;
 
-   package Ali is new Lib.Alignment (Unsigned_64);
+   Mounts       : Mount_Arr_Acc;
+   Mounts_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
 
    procedure Init is
    begin
-      Mounts       := new Mount_Container_Arr;
+      Mounts       := new Mount_Arr'(others =>
+         (Mounted_Dev => Devices.Error_Handle,
+          Mounted_FS  => FS_USTAR,
+          FS_Data     => System.Null_Address,
+          Path_Length => 0,
+          Path_Buffer => (others => ' ')));
       Mounts_Mutex := Lib.Synchronization.Unlocked_Semaphore;
-      for Mount of Mounts.all loop
-         Mount.Mounted_Dev := Error_Handle;
-      end loop;
    end Init;
 
    function Mount (Name, Path : String; FS : FS_Type) return Boolean is
       Dev     : constant Device_Handle := Devices.Fetch (Name);
       FS_Data : System.Address         := System.Null_Address;
-      Free_I  : Natural                := 0;
+      Free_I  : FS_Handle              := VFS.Error_Handle;
    begin
       if not Is_Absolute (Path) or Path'Length > Path_Buffer_Length or
-         Dev = Error_Handle
+         Dev = Devices.Error_Handle
       then
          return False;
       end if;
@@ -67,53 +59,50 @@ package body VFS with SPARK_Mode => Off is
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev = Dev then
             goto Return_End;
-         elsif Mounts (I).Mounted_Dev = Error_Handle then
+         elsif Mounts (I).Mounted_Dev = Devices.Error_Handle then
             Free_I := I;
          end if;
       end loop;
-      if Free_I = 0 then
+      if Free_I = VFS.Error_Handle then
          goto Return_End;
       end if;
 
-      --  We need an initialized mount for probing the FS, thats why the
-      --  awkward split initialization.
-      Mounts (Free_I).Is_Cached := Devices.Is_Block_Device (Dev);
-      Mounts (Free_I).Mounted_Dev                    := Dev;
-      Mounts (Free_I).Path_Length                    := Path'Length;
-      Mounts (Free_I).Path_Buffer (1 .. Path'Length) := Path;
-      Mounts (Free_I).Cache                          := (others => null);
-      Mounts (Free_I).Cache_Mutex := Lib.Synchronization.Unlocked_Semaphore;
-      Mounts (Free_I).Last_Evict  := 1;
       case FS is
          when FS_USTAR =>
-            FS_Data := VFS.USTAR.Probe (Free_I);
-            if FS_Data /= System.Null_Address then
-               Mounts (Free_I).Mounted_FS := FS_USTAR;
-               Mounts (Free_I).FS_Data    := FS_Data;
-            else
-               Free_I := 0;
-            end if;
+            FS_Data := VFS.USTAR.Probe (Dev);
+            Mounts (Free_I).Mounted_FS := FS_USTAR;
+         when FS_EXT =>
+            FS_Data := VFS.EXT.Probe (Dev);
+            Mounts (Free_I).Mounted_FS := FS_EXT;
       end case;
+
+      if FS_Data /= System.Null_Address then
+         Mounts (Free_I).FS_Data := FS_Data;
+         Mounts (Free_I).Mounted_Dev                    := Dev;
+         Mounts (Free_I).Path_Length                    := Path'Length;
+         Mounts (Free_I).Path_Buffer (1 .. Path'Length) := Path;
+      else
+         Free_I := VFS.Error_Handle;
+      end if;
 
    <<Return_End>>
       Lib.Synchronization.Release (Mounts_Mutex);
-      return Free_I /= 0;
+      return Free_I /= VFS.Error_Handle;
+   end Mount;
+
+   function Mount (Name, Path : String) return Boolean is
+   begin
+      return Mount (Name, Path, FS_EXT) or else Mount (Name, Path, FS_USTAR);
    end Mount;
 
    procedure Unmount (Path : String) is
    begin
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
-         if Mounts (I).Mounted_Dev /= Error_Handle and then
+         if Mounts (I).Mounted_Dev /= Devices.Error_Handle and then
             Mounts (I).Path_Buffer (1 .. Mounts (I).Path_Length) = Path
          then
-            Flush_Caches (I);
-            for Cache of Mounts (I).Cache loop
-               if Cache /= null then
-                  Free_Sector_Cache (Cache);
-               end if;
-            end loop;
-            Mounts (I).Mounted_Dev := Error_Handle;
+            Mounts (I).Mounted_Dev := Devices.Error_Handle;
             goto Return_End;
          end if;
       end loop;
@@ -121,12 +110,12 @@ package body VFS with SPARK_Mode => Off is
       Lib.Synchronization.Release (Mounts_Mutex);
    end Unmount;
 
-   function Get_Mount (Path : String) return Natural is
-      Returned : Natural := 0;
+   function Get_Mount (Path : String) return FS_Handle is
+      Returned : FS_Handle := VFS.Error_Handle;
    begin
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
-         if Mounts (I).Mounted_Dev /= Error_Handle and then
+         if Mounts (I).Mounted_Dev /= Devices.Error_Handle and then
             Mounts (I).Path_Buffer (1 .. Mounts (I).Path_Length) = Path
          then
             Returned := I;
@@ -138,227 +127,171 @@ package body VFS with SPARK_Mode => Off is
       return Returned;
    end Get_Mount;
 
-   function Is_Valid (Key : Positive) return Boolean is
-   begin
-      return Key <= Mounts'Last and then
-             Mounts (Key).Mounted_Dev /= Error_Handle;
-   end Is_Valid;
-
-   function Get_Backing_FS (Key : Positive) return FS_Type is
+   function Get_Backing_FS (Key : FS_Handle) return FS_Type is
    begin
       return Mounts (Key).Mounted_FS;
    end Get_Backing_FS;
 
-   function Get_Backing_FS_Data (Key : Positive) return System.Address is
+   function Get_Backing_FS_Data (Key : FS_Handle) return System.Address is
    begin
       return Mounts (Key).FS_Data;
    end Get_Backing_FS_Data;
 
-   function Get_Backing_Device (Key : Positive) return Device_Handle is
+   function Get_Backing_Device (Key : FS_Handle) return Device_Handle is
    begin
       return Mounts (Key).Mounted_Dev;
    end Get_Backing_Device;
 
+   function Open (Key : FS_Handle; Path : String) return System.Address is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_USTAR => return USTAR.Open (Mounts (Key).FS_Data, Path);
+         when FS_EXT   => return EXT.Open   (Mounts (Key).FS_Data, Path);
+      end case;
+   end Open;
+
+   function Create
+      (Key  : FS_Handle;
+       Path : String;
+       Mode : Unsigned_32) return System.Address
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_USTAR => return Null_Address;
+         when FS_EXT   => return EXT.Create (Mounts (Key).FS_Data, Path, Mode);
+      end case;
+   end Create;
+
+   procedure Close (Key : FS_Handle; Obj : out System.Address) is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_USTAR => Obj := Null_Address;
+         when FS_EXT   => EXT.Close (Mounts (Key).FS_Data, Obj);
+      end case;
+   end Close;
+
+   procedure Read_Entries
+      (Key       : FS_Handle;
+       Obj       : System.Address;
+       Entities  : out Directory_Entities;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_USTAR =>
+            USTAR.Read_Entries
+               (Mounts (Key).FS_Data,
+                Obj,
+                Entities,
+                Ret_Count,
+                Success);
+         when FS_EXT =>
+            EXT.Read_Entries
+               (Mounts (Key).FS_Data,
+                Obj,
+                Entities,
+                Ret_Count,
+                Success);
+      end case;
+   end Read_Entries;
+
+   function Create_Symbolic_Link
+      (Key          : FS_Handle;
+       Path, Target : String;
+       Mode         : Unsigned_32) return System.Address
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_USTAR =>
+            return System.Null_Address;
+         when FS_EXT =>
+            return EXT.Create_Symbolic_Link
+               (Mounts (Key).FS_Data,
+                Path,
+                Target,
+                Mode);
+      end case;
+   end Create_Symbolic_Link;
+
+   function Create_Directory
+      (Key  : FS_Handle;
+       Path : String;
+       Mode : Unsigned_32) return System.Address
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_USTAR =>
+            return System.Null_Address;
+         when FS_EXT =>
+            return EXT.Create_Directory (Mounts (Key).FS_Data, Path, Mode);
+      end case;
+   end Create_Directory;
+
    procedure Read
-      (Key       : Positive;
+      (Key       : FS_Handle;
+       Obj       : System.Address;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
-      Block_Size : constant Unsigned_64 := Unsigned_64 (Devices.Get_Block_Size
-         (Mounts (Key).Mounted_Dev));
-      Ali_Offset : constant Unsigned_64 := Ali.Align_Down (Offset, Block_Size);
-      Low_LBA    : constant Unsigned_64 := Ali_Offset / Block_Size;
-      Ali_Length : constant Unsigned_64 :=
-         Ali.Align_Up (Data'Length + Offset - Ali_Offset, Block_Size);
-      LBA_Count : constant Unsigned_64 := Ali_Length / Block_Size;
-      Caches : Sector_Cache_Arr (1 .. LBA_Count) := (others => null);
-      Free_Index     : Unsigned_64;
-      Sector_Index   : Unsigned_64;
-      Initial_Offset : Unsigned_64;
-      Searched       : Unsigned_64;
    begin
-      if not Mounts (Key).Is_Cached then
-         Devices.Read
-            (Handle    => Mounts (Key).Mounted_Dev,
-             Offset    => Offset,
-             Ret_Count => Ret_Count,
-             Data      => Data,
-             Success   => Success);
-         return;
-      elsif Data'Length = 0 then
-         Ret_Count := 0;
-         Success   := False;
-         return;
-      end if;
-
-      Lib.Synchronization.Seize (Mounts (Key).Cache_Mutex);
-      for I in 1 .. LBA_Count loop
-         Free_Index := 0;
-         Searched   := Low_LBA + I - 1;
-         for J in Mounts (Key).Cache'Range loop
-            if Mounts (Key).Cache (J) = null then
-               if Free_Index = 0 then
-                  Free_Index := J;
-               end if;
-            elsif Mounts (Key).Cache (J).LBA_Offset = Searched then
-               Free_Index := J;
-               goto Found;
-            end if;
-         end loop;
-         if Free_Index = 0 then
-            Free_Index := Mounts (Key).Last_Evict;
-            if not Evict_Sector
-               (Mounts (Key).Mounted_Dev,
-                Mounts (Key).Cache (Free_Index),
-                Searched)
-            then
-               Ret_Count := 0;
-               Success   := False;
-               return;
-            end if;
-
-            if Mounts (Key).Last_Evict = Cache_Array_Length then
-               Mounts (Key).Last_Evict := 1;
-            else
-               Mounts (Key).Last_Evict := Mounts (Key).Last_Evict + 1;
-            end if;
-         else
-            Mounts (Key).Cache (Free_Index) :=
-               new Sector_Cache (Natural (Block_Size));
-            Mounts (Key).Cache (Free_Index).LBA_Offset := Searched;
-            Mounts (Key).Cache (Free_Index).Is_Dirty   := False;
-            if not Read_Sector
-               (Handle => Mounts (Key).Mounted_Dev,
-                LBA    => Searched,
-                Desto  => Mounts (Key).Cache (Free_Index).Data'Address)
-            then
-               Ret_Count := 0;
-               Success   := False;
-               return;
-            end if;
-         end if;
-      <<Found>>
-         Caches (I) := Mounts (Key).Cache (Free_Index);
-      end loop;
-
-      Free_Index     := 1;
-      Sector_Index   := 1;
-      Initial_Offset := Offset - Ali_Offset;
-      for Byte of Data loop
-         Byte :=
-            Caches (Sector_Index).Data (Natural (Initial_Offset + Free_Index));
-         if Free_Index >= Block_Size - Initial_Offset then
-            Free_Index     := 1;
-            Sector_Index   := Sector_Index + 1;
-            Initial_Offset := 0;
-         else
-            Free_Index := Free_Index + 1;
-         end if;
-      end loop;
-      Lib.Synchronization.Release (Mounts (Key).Cache_Mutex);
-      Success   := True;
-      Ret_Count := Data'Length;
+      case Mounts (Key).Mounted_FS is
+         when FS_USTAR =>
+            USTAR.Read
+               (Mounts (Key).FS_Data,
+                Obj,
+                Offset,
+                Data,
+                Ret_Count,
+                Success);
+         when FS_EXT =>
+            EXT.Read
+               (Mounts (Key).FS_Data,
+                Obj,
+                Offset,
+                Data,
+                Ret_Count,
+                Success);
+      end case;
    end Read;
 
    procedure Write
-      (Key       : Positive;
+      (Key       : FS_Handle;
+       Obj       : System.Address;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
    begin
-      Devices.Write
-         (Handle    => Mounts (Key).Mounted_Dev,
-          Offset    => Offset,
-          Data      => Data,
-          Ret_Count => Ret_Count,
-          Success   => Success);
+      case Mounts (Key).Mounted_FS is
+         when FS_USTAR =>
+            Ret_Count := 0;
+            Success   := False;
+         when FS_EXT =>
+            EXT.Write
+               (Mounts (Key).FS_Data,
+                Obj,
+                Offset,
+                Data,
+                Ret_Count,
+                Success);
+      end case;
    end Write;
 
-   function Evict_Sector
-      (Handle  : Device_Handle;
-       Sector  : Sector_Cache_Acc;
-       New_LBA : Unsigned_64) return Boolean
+   function Stat
+      (Key  : FS_Handle;
+       Obj  : System.Address;
+       S    : out File_Stat) return Boolean
    is
    begin
-      if Sector.Is_Dirty then
-         if not Write_Sector (Handle, Sector.LBA_Offset, Sector.Data'Address)
-         then
-            return False;
-         end if;
-      end if;
-
-      Sector.LBA_Offset := New_LBA;
-      Sector.Is_Dirty   := False;
-      return Read_Sector (Handle, New_LBA, Sector.Data'Address);
-   end Evict_Sector;
-
-   procedure Flush_Caches (Key : Positive) is
-      Discard : Boolean;
-   begin
-      Lib.Synchronization.Seize (Mounts (Key).Cache_Mutex);
-      for Cache of Mounts (Key).Cache loop
-         if Cache /= null and then Cache.Is_Dirty then
-            Discard := Evict_Sector
-               (Handle  => Mounts (Key).Mounted_Dev,
-                Sector  => Cache,
-                New_LBA => Cache.LBA_Offset);
-         end if;
-      end loop;
-      Lib.Synchronization.Release (Mounts (Key).Cache_Mutex);
-   end Flush_Caches;
-
-   procedure Flush_Caches is
-   begin
-      for I in Mounts'Range loop
-         if Is_Valid (I) then
-            Flush_Caches (I);
-         end if;
-      end loop;
-   end Flush_Caches;
-
-   function Read_Sector
-      (Handle : Device_Handle;
-       LBA    : Unsigned_64;
-       Desto  : System.Address) return Boolean
-   is
-      Discard    : Boolean;
-      Result     : Natural;
-      Block_Size : constant Natural := Devices.Get_Block_Size (Handle);
-      Data       : Devices.Operation_Data (1 .. Block_Size)
-         with Import, Address => Desto;
-   begin
-      Devices.Read
-         (Handle    => Handle,
-          Offset    => LBA * Unsigned_64 (Block_Size),
-          Ret_Count => Result,
-          Data      => Data,
-          Success   => Discard);
-      return Result = Block_Size;
-   end Read_Sector;
-
-   function Write_Sector
-      (Handle : Device_Handle;
-       LBA    : Unsigned_64;
-       Data   : System.Address) return Boolean
-   is
-      Discard    : Boolean;
-      Result     : Natural;
-      Block_Size : constant Natural := Devices.Get_Block_Size (Handle);
-      Data2      : Devices.Operation_Data (1 .. Block_Size)
-         with Import, Address => Data;
-   begin
-      Devices.Write
-         (Handle    => Handle,
-          Offset    => LBA * Unsigned_64 (Block_Size),
-          Ret_Count => Result,
-          Data      => Data2,
-          Success   => Discard);
-      return Result = Block_Size;
-   end Write_Sector;
+      case Mounts (Key).Mounted_FS is
+         when FS_USTAR => return USTAR.Stat (Mounts (Key).FS_Data, Obj, S);
+         when FS_EXT   => return EXT.Stat   (Mounts (Key).FS_Data, Obj, S);
+      end case;
+   end Stat;
    ----------------------------------------------------------------------------
    function Is_Absolute (Path : String) return Boolean is
    begin

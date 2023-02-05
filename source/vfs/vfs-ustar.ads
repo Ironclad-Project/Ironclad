@@ -17,13 +17,12 @@
 with System;
 
 package VFS.USTAR with SPARK_Mode => Off is
-   --  Probe for a USTAR FS in the passed mount.
+   --  Probe for a USTAR FS in the passed device.
    --  Return opaque FS data on success, or Null_Address on failure.
-   function Probe (Key : Positive) return System.Address;
+   function Probe (Handle : Device_Handle) return System.Address;
 
-   --  Basic file operations.
+   --  Basic file operations wrapped in vfs.adb.
    function Open (FS : System.Address; Path : String) return System.Address;
-   procedure Close (FS : System.Address; File_Ptr : System.Address);
    procedure Read_Entries
       (FS_Data   : System.Address;
        Obj       : System.Address;
@@ -41,6 +40,7 @@ package VFS.USTAR with SPARK_Mode => Off is
       (Data : System.Address;
        Obj  : System.Address;
        S    : out File_Stat) return Boolean;
+
 private
 
    type USTAR_File is record

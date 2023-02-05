@@ -114,6 +114,11 @@ package body Devices is
       return Natural (Handle);
    end Get_Unique_ID;
 
+   function Is_Read_Only (Handle : Device_Handle) return Boolean is
+   begin
+      return Devices_Data (Handle).Contents.Write = null;
+   end Is_Read_Only;
+
    procedure Synchronize (Handle : Device_Handle) is
    begin
       if Devices_Data (Handle).Contents.Sync /= null then
