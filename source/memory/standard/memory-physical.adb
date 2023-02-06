@@ -167,7 +167,20 @@ package body Memory.Physical with SPARK_Mode => Off is
       Free_Memory      := Free_Memory - Size;
       Used_Memory      := Used_Memory + Size;
       Lib.Synchronization.Release (Alloc_Mutex);
-      return Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
+
+      --  FIXME: We technically dont have to zero out as specified in the
+      --  specification, but we used to, and if we dont the kernel is bound
+      --  to fail on weird ways down the road. Once more code is SPARK, we can
+      --  remove this, since SPARK forces us to always initialize memory.
+      declare
+         Addr : constant Virtual_Address :=
+            Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
+         Pool : array (1 .. Unsigned_64 (Size)) of Unsigned_8 with Import;
+         for Pool'Address use To_Address (Addr);
+      begin
+         Pool := (others => 0);
+         return Addr;
+      end;
    end Alloc;
 
    procedure Free (Address : Interfaces.C.size_t) is

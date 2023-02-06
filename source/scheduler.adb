@@ -71,7 +71,7 @@ package body Scheduler with SPARK_Mode => Off is
 
    procedure Idle_Core is
    begin
-      while not Is_Initialized loop null; end loop;
+      while not Is_Initialized loop Arch.Snippets.Pause; end loop;
       Arch.Local.Reschedule_In (Default_Run_Time);
       Arch.Snippets.Enable_Interrupts;
       loop Arch.Snippets.Wait_For_Interrupt; end loop;
@@ -197,8 +197,7 @@ package body Scheduler with SPARK_Mode => Off is
        Map      : Memory.Virtual.Page_Map_Acc;
        PID      : Natural) return TID
    is
-      New_TID      : TID := 0;
-      Kernel_Stack : Thread_Stack_Acc;
+      New_TID : TID := 0;
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex);
 
@@ -212,20 +211,13 @@ package body Scheduler with SPARK_Mode => Off is
       goto End_Return;
 
    <<Found_TID>>
-      --  If stacks were already allocated, we can just reuse them.
-      if Thread_Pool (New_TID).Kernel_Stack /= null then
-         Kernel_Stack := Thread_Pool (New_TID).Kernel_Stack;
-      else
-         Kernel_Stack := new Thread_Stack;
-      end if;
-
       --  Initialize the state, be sure to zero out RAX for the return value.
       Thread_Pool (New_TID) :=
          (Is_Present     => True,
           Is_Running     => False,
           Is_Monothread  => False,
           PageMap        => Map,
-          Kernel_Stack   => Kernel_Stack,
+          Kernel_Stack   => new Thread_Stack,
           TCB_Pointer    => Arch.Local.Fetch_TCB,
           State          => GP_State,
           FP_Region      => FP_State,
@@ -252,9 +244,6 @@ package body Scheduler with SPARK_Mode => Off is
       if Is_Thread_Present (Thread) then
          Lib.Synchronization.Seize (Scheduler_Mutex);
          Thread_Pool (Thread).Is_Present := False;
-         if Thread_Pool (Thread).Is_Running then
-            Arch.Local.Reschedule_Cores_ASAP (Thread);
-         end if;
          Lib.Synchronization.Release (Scheduler_Mutex);
       end if;
    end Delete_Thread;
@@ -312,6 +301,7 @@ package body Scheduler with SPARK_Mode => Off is
 
    procedure Bail is
    begin
+      Arch.Snippets.Disable_Interrupts;
       Delete_Thread (Arch.Local.Get_Current_Thread);
       Arch.Local.Set_Current_Thread (0);
       Idle_Core;
@@ -396,11 +386,11 @@ package body Scheduler with SPARK_Mode => Off is
       --  override Next_TID.
       if Config.Support_Scheduler_ASC then
          for I in Thread_Pool'Range loop
-            if Thread_Pool (I).Is_Present then
+            if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running
+            then
                Thread_Pool (I).ASC_Not_Scheduled_Count :=
                   Thread_Pool (I).ASC_Not_Scheduled_Count + 1;
-               if Next_TID /= I and not Thread_Pool (I).Is_Running and
-                  Thread_Pool (I).ASC_Not_Scheduled_Count > Active_Thread_Count
+               if Thread_Pool (I).ASC_Not_Scheduled_Count > Active_Thread_Count
                then
                   Next_TID := I;
                   exit;
@@ -417,7 +407,7 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       --  We found a suitable TID, so we save state and start context switch.
-      if Current_TID /= 0 then
+      if Current_TID /= 0 and then Thread_Pool (Current_TID).Is_Present then
          Thread_Pool (Current_TID).Is_Running  := False;
          Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
          Thread_Pool (Current_TID).State       := State;

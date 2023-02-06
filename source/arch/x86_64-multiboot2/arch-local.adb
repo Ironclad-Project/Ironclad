@@ -37,17 +37,6 @@ package body Arch.Local with SPARK_Mode => Off is
       APIC.LAPIC_Send_IPI (Core_LAPIC, Interrupts.Scheduler_Interrupt);
    end Reschedule_ASAP;
 
-   procedure Reschedule_Cores_ASAP (Thread : Scheduler.TID) is
-   begin
-      for I in CPU.Core_Locals'Range loop
-         if CPU.Core_Locals (I).Current_Thread = Thread then
-            APIC.LAPIC_Send_IPI
-               (CPU.Core_Locals (I).LAPIC_ID, Interrupts.Scheduler_Interrupt);
-            exit;
-         end if;
-      end loop;
-   end Reschedule_Cores_ASAP;
-
    function Fetch_TCB return System.Address is
    begin
       return To_Address (Integer_Address (Snippets.Read_FS));
