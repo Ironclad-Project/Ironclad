@@ -1,5 +1,5 @@
 --  userland-syscall.ads: Syscall list and implementation.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ package Userland.Syscall with SPARK_Mode => Off is
       Error_Not_Big_Enough,  --  ERANGE
       Error_Bad_Access,      --  EACCES
       Error_Would_Block,     --  EAGAIN
+      Error_Busy,            --  EBUSY
       Error_Child,           --  ECHILD
       Error_Would_Fault,     --  EFAULT
       Error_Invalid_Value,   --  EINVAL
@@ -46,6 +47,7 @@ package Userland.Syscall with SPARK_Mode => Off is
       Error_Not_Big_Enough  => 3,
       Error_Bad_Access      => 1002,
       Error_Would_Block     => 1006,
+      Error_Busy            => 1010,
       Error_Child           => 1012,
       Error_Would_Fault     => 1020,
       Error_Invalid_Value   => 1026,
@@ -381,6 +383,7 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno       : out Errno_Value) return Unsigned_64;
 
    --  Unmount a filesystem.
+   MNT_FORCE : constant := 1;
    function Syscall_Umount
       (Path  : Unsigned_64;
        Flags : Unsigned_64;

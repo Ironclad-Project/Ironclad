@@ -1,5 +1,5 @@
 --  vfs-ustar.adb: USTAR FS driver.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -15,6 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Characters.Latin_1;
+with Ada.Unchecked_Deallocation;
+with System.Address_To_Access_Conversions;
 with Lib.Alignment;
 
 package body VFS.USTAR with SPARK_Mode => Off is
@@ -23,15 +25,16 @@ package body VFS.USTAR with SPARK_Mode => Off is
    USTAR_Symbolic_Link : constant := 16#32#;
    USTAR_Directory     : constant := 16#35#;
 
-   --  Since the files are constant and we dont have to worry about write, we
-   --  can just cache the locations of all the files at boot.
-   type USTAR_Cached_Files is array (Natural range <>) of aliased USTAR_File;
-   type USTAR_Cached_Files_Acc is access USTAR_Cached_Files;
-   type USTAR_Data is record
+   type USTAR_Cached is array (Natural range <>) of aliased USTAR_File;
+   type USTAR_Data (Cached_Count : Natural) is record
       Handle : Device_Handle;
-      Cache  : USTAR_Cached_Files_Acc;
+      Cache  : USTAR_Cached (1 .. Cached_Count);
    end record;
-   type USTAR_Data_Acc is access USTAR_Data;
+   type USTAR_Data_Acc is access all USTAR_Data;
+
+   procedure Fr is new Ada.Unchecked_Deallocation (USTAR_Data, USTAR_Data_Acc);
+   package Conv1 is new System.Address_To_Access_Conversions (USTAR_Data);
+   package Conv2 is new System.Address_To_Access_Conversions (USTAR_File);
 
    function Probe (Handle : Device_Handle) return System.Address is
       Header          : USTAR_Header;
@@ -76,11 +79,11 @@ package body VFS.USTAR with SPARK_Mode => Off is
       if File_Count = 0 then
          return System.Null_Address;
       end if;
-      Data := new USTAR_Data'
-         (Handle, new USTAR_Cached_Files (1 .. File_Count));
+      Data := new USTAR_Data (File_Count);
+      Data.Handle := Handle;
 
       Header_Index := 0;
-      for Cache_File of Data.Cache.all loop
+      for Cache_File of Data.Cache loop
          Name_Len := 0;
          Devices.Read
             (Handle    => Handle,
@@ -102,7 +105,8 @@ package body VFS.USTAR with SPARK_Mode => Off is
              Size          => Size,
              File_Type     => Header.File_Type,
              Mode          => Octal_To_Decimal (Header.Mode),
-             Creation_Time => (Creation_Time, 0));
+             Creation_Time => (Creation_Time, 0),
+             Refcount      => 0);
          case Header.File_Type is
             when USTAR_Directory =>
                --  USTAR appends / to dir names.
@@ -119,19 +123,42 @@ package body VFS.USTAR with SPARK_Mode => Off is
          Header_Index := Header_Index + Unsigned_64 (Jump);
       end loop;
 
-      return Data.all'Address;
+      return Conv1.To_Address (Conv1.Object_Pointer (Data));
    end Probe;
 
+   procedure Unmount (FS : in out System.Address) is
+      Data : USTAR_Data_Acc := USTAR_Data_Acc (Conv1.To_Pointer (FS));
+   begin
+      for File of Data.Cache loop
+         if File.Refcount /= 0 then
+            return;
+         end if;
+      end loop;
+
+      Fr (Data);
+      FS := System.Null_Address;
+   end Unmount;
+
    function Open (FS : System.Address; Path : String) return System.Address is
-      FS_Data : USTAR_Data with Address => FS, Import;
-      Data    : USTAR_File_Acc;
+      Data : USTAR_File_Acc;
    begin
       if Fetch_Header (FS, Path, Data) then
+         Data.Refcount := Data.Refcount + 1;
          return Data.all'Address;
       else
          return System.Null_Address;
       end if;
    end Open;
+
+   procedure Close (FS : System.Address; Obj : in out System.Address) is
+      pragma Unreferenced (FS);
+      Fl : constant USTAR_File_Acc := USTAR_File_Acc (Conv2.To_Pointer (Obj));
+   begin
+      if Fl.Refcount /= 0 then
+         Fl.Refcount := Fl.Refcount - 1;
+      end if;
+      Obj := Null_Address;
+   end Close;
 
    procedure Read_Entries
       (FS_Data   : System.Address;
@@ -140,9 +167,11 @@ package body VFS.USTAR with SPARK_Mode => Off is
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
-      Cached_Data : USTAR_Data with Address => FS_Data, Import;
-      File_Data   : USTAR_File with Address => Obj,     Import;
-      Cache    : USTAR_Cached_Files_Acc renames Cached_Data.Cache;
+      Cached_Data : constant USTAR_Data_Acc :=
+         USTAR_Data_Acc (Conv1.To_Pointer (FS_Data));
+      File_Data : constant USTAR_File_Acc :=
+         USTAR_File_Acc (Conv2.To_Pointer (Obj));
+      Cache    : USTAR_Cached renames Cached_Data.Cache;
       Path     : String  renames File_Data.Name;
       Path_Len : Natural renames File_Data.Name_Len;
 
@@ -205,8 +234,8 @@ package body VFS.USTAR with SPARK_Mode => Off is
        Path      : out String;
        Ret_Count : out Natural)
    is
-      Cached_Data : USTAR_Data with Address => FS_Data, Import;
-      File_Data   : USTAR_File with Address => Obj,     Import;
+      pragma Unreferenced (FS_Data);
+      File_Data : USTAR_File with Address => Obj, Import;
    begin
       Ret_Count := 0;
       if File_Data.File_Type = USTAR_Symbolic_Link then
@@ -232,8 +261,10 @@ package body VFS.USTAR with SPARK_Mode => Off is
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
-      FS_Data2   : USTAR_Data with Address => FS_Data, Import;
-      File_Data  : USTAR_File with Address => Obj,     Import;
+      FS_Data2 : constant USTAR_Data_Acc :=
+         USTAR_Data_Acc (Conv1.To_Pointer (FS_Data));
+      File_Data : constant USTAR_File_Acc :=
+         USTAR_File_Acc (Conv2.To_Pointer (Obj));
       Real_Count : Natural := Data'Length;
    begin
       if File_Data.File_Type /= USTAR_Regular_File then
@@ -261,8 +292,10 @@ package body VFS.USTAR with SPARK_Mode => Off is
        S    : out File_Stat) return Boolean
    is
       package A is new Lib.Alignment (Unsigned_64);
-      FS_Data    : USTAR_Data with Address => Data, Import;
-      File_Data  : USTAR_File with Address => Obj,  Import;
+      FS_Data : constant USTAR_Data_Acc :=
+         USTAR_Data_Acc (Conv1.To_Pointer (Data));
+      File_Data : constant USTAR_File_Acc :=
+         USTAR_File_Acc (Conv2.To_Pointer (Obj));
       Block_Size : constant Natural := Devices.Get_Block_Size (FS_Data.Handle);
    begin
       S :=
@@ -293,7 +326,8 @@ package body VFS.USTAR with SPARK_Mode => Off is
        Path : String;
        Data : out USTAR_File_Acc) return Boolean
    is
-      FS_Data : USTAR_Data with Address => FS, Import;
+      FS_Data : constant USTAR_Data_Acc :=
+         USTAR_Data_Acc (Conv1.To_Pointer (FS));
    begin
       for I in FS_Data.Cache'Range loop
          if Path'Length = FS_Data.Cache (I).Name_Len and

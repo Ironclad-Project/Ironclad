@@ -1,5 +1,5 @@
 --  arch-syscall.adb: Syscall table and implementation.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -1917,11 +1917,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Execute_MAC_Failure ("mount", Proc);
             return Unsigned_64'Last;
          end if;
-         if FSType = "ustar" then
-            Parsed_Type := VFS.FS_USTAR;
-         else
-            goto Error_Ret;
-         end if;
+
+         if    FSType = "ustar" then Parsed_Type := VFS.FS_USTAR;
+         elsif FSType = "ext"   then Parsed_Type := VFS.FS_EXT;
+         else goto Error_Ret; end if;
+
          if VFS.Mount (Source, Target, Parsed_Type) then
             Errno := Error_No_Error;
             return 0;
@@ -1940,6 +1940,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Path_IAddr : constant Integer_Address := Integer_Address (Path);
       Path_Addr  : constant System.Address  := To_Address (Path_IAddr);
+      Flag_Force : constant Boolean := (Flags and MNT_FORCE) /= 0;
    begin
       if not Check_Userland_Access (Path_IAddr) then
          if Is_Tracing then
@@ -1964,9 +1965,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Lib.Messages.Put (Flags, False, True);
             Lib.Messages.Put_Line (")");
          end if;
-         VFS.Unmount (Path_Str);
-         Errno := Error_No_Error;
-         return 0;
+         if VFS.Unmount (Path_Str, Flag_Force) then
+            Errno := Error_No_Error;
+            return 0;
+         else
+            Errno := Error_Busy;
+            return Unsigned_64'Last;
+         end if;
       end;
    end Syscall_Umount;
 

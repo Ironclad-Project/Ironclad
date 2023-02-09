@@ -1,5 +1,5 @@
 --  vfs-ustar.ads: USTAR FS driver.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -20,9 +20,11 @@ package VFS.USTAR with SPARK_Mode => Off is
    --  Probe for a USTAR FS in the passed device.
    --  Return opaque FS data on success, or Null_Address on failure.
    function Probe (Handle : Device_Handle) return System.Address;
+   procedure Unmount (FS : in out System.Address);
 
    --  Basic file operations wrapped in vfs.adb.
    function Open (FS : System.Address; Path : String) return System.Address;
+   procedure Close (FS : System.Address; Obj : in out System.Address);
    procedure Read_Entries
       (FS_Data   : System.Address;
        Obj       : System.Address;
@@ -97,6 +99,7 @@ private
       Size          : Natural;
       File_Type     : Unsigned_8;
       Creation_Time : File_Timestamp;
+      Refcount      : Natural;
    end record;
    type USTAR_File_Acc is access all USTAR_File;
 

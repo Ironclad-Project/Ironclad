@@ -4,7 +4,7 @@
 @settitle Kernel interfaces
 
 @copying
-Copyright @copyright{} 2022 streaksu
+Copyright @copyright{} 2023 streaksu
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -110,7 +110,8 @@ Syscalls
 * lock_mac::                Lock MAC down.
 * add_mac_filter::          Configure MAC using filesystem-based filters.
 * set_mac_enforcement::     Set enforcement to follow on MAC violations.
-* mount/umount::            Mount and unmount partitions.
+* mount::                   Mount partitions.
+* umount::                  Unmount partitions.
 * readlink::                Read the contents of a symlink.
 * getdents::                Get directory entries.
 
@@ -585,9 +586,9 @@ Empty.
 @item
 @xref{set_mac_enforcement}
 @item
-@xref{mount/umount, mount}.
+@xref{mount, mount}.
 @item
-@xref{mount/umount, umount}.
+@xref{umount, umount}.
 @item
 @xref{readlink}.
 @item
@@ -610,6 +611,9 @@ The passed access for a variable points to bad memory.
 
 @item EAGAIN (1006)
 The requested resource is not available at the moment.
+
+@item EBUSY (1010)
+The requested resource is busy and cannot handle the request.
 
 @item ECHILD (1012)
 The passed value is not a child process.
@@ -1502,13 +1506,12 @@ following errno:
 @code{EACCES}: MAC was locked.
 @end itemize
 
-@node mount/umount
-@section mount/umount
+@node mount
+@section mount
 
 @example
 int mount(const char *source, const char *target,
           const char *filesystemtype, unsigned long mountflags);
-int umount(const char *target, int flags);
 @end example
 
 These syscalls mount and unmount FSs. @code{source} is the source device while
@@ -1518,9 +1521,11 @@ These syscalls mount and unmount FSs. @code{source} is the source device while
 @itemize @bullet
 @item
 @code{ustar}: USTAR Read-only filesystem.
+@item
+@code{ext}: EXT family filesystem.
 @end itemize
 
-The syscalls return @code{0} on success or @code{-1} on failure, with the
+The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:
 
 @itemize @bullet
@@ -1530,6 +1535,34 @@ following errno:
 @code{EACCES}: MAC forbid this operation.
 @item
 @code{EINVAL}: Wrong arguments.
+@end itemize
+
+@node umount
+@section umount
+
+@example
+#define MNT_FORCE 1
+
+int umount(const char *target, int flags);
+@end example
+
+This syscalls unmount FSs. @code{target} is the path to unmount, while
+@code{flags} allows the following options:
+@itemize @bullet
+@item
+@code{MNT_FORCE}: Unmount the filesystem even if busy, can cause data loss.
+@end itemize
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: Incorrect addresses for the string arguments.
+@item
+@code{EACCES}: MAC forbid this operation.
+@item
+@code{EBUSY}: The mount is busy, and @code{MNT_FORCE} was not passed.
 @end itemize
 
 @node readlink

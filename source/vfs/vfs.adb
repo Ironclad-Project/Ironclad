@@ -1,5 +1,5 @@
 --  vfs.adb: FS and register dispatching.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -95,19 +95,29 @@ package body VFS with SPARK_Mode => Off is
       return Mount (Name, Path, FS_EXT) or else Mount (Name, Path, FS_USTAR);
    end Mount;
 
-   procedure Unmount (Path : String) is
+   function Unmount (Path : String; Force : Boolean) return Boolean is
+      Success : Boolean := False;
    begin
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev /= Devices.Error_Handle and then
             Mounts (I).Path_Buffer (1 .. Mounts (I).Path_Length) = Path
          then
-            Mounts (I).Mounted_Dev := Devices.Error_Handle;
+            case Mounts (I).Mounted_FS is
+               when FS_USTAR => USTAR.Unmount (Mounts (I).FS_Data);
+               when FS_EXT   => EXT.Unmount   (Mounts (I).FS_Data);
+            end case;
+
+            if Force or Mounts (I).FS_Data = Null_Address then
+               Mounts (I).Mounted_Dev := Devices.Error_Handle;
+               Success := True;
+            end if;
             goto Return_End;
          end if;
       end loop;
    <<Return_End>>
       Lib.Synchronization.Release (Mounts_Mutex);
+      return Success;
    end Unmount;
 
    function Get_Mount (Path : String) return FS_Handle is
@@ -162,7 +172,7 @@ package body VFS with SPARK_Mode => Off is
       end case;
    end Create;
 
-   procedure Close (Key : FS_Handle; Obj : out System.Address) is
+   procedure Close (Key : FS_Handle; Obj : in out System.Address) is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_USTAR => Obj := Null_Address;

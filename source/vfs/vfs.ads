@@ -1,5 +1,5 @@
 --  vfs.ads: FS and register dispatching.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -75,8 +75,10 @@ package VFS with SPARK_Mode => Off is
    function Mount (Name, Path : String) return Boolean;
 
    --  Unmount a mount, syncing when possible.
-   --  @param Path Path of the mount to unmount.
-   procedure Unmount (Path : String);
+   --  @param Path  Path of the mount to unmount.
+   --  @param Force Whether to unmount even if busy.
+   --  @return True on success, False if busy or non present.
+   function Unmount (Path : String; Force : Boolean) return Boolean;
 
    --  Get a mount mounted exactly in the passed path.
    --  @param Path Path to search a mount for.
@@ -124,7 +126,7 @@ package VFS with SPARK_Mode => Off is
    --  Close an already opened file.
    --  @param Key FS handle to operate on.
    --  @param Obj Object to close and free, will be set to Null.
-   procedure Close (Key : FS_Handle; Obj : out System.Address)
+   procedure Close (Key : FS_Handle; Obj : in out System.Address)
       with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
 
    --  Read the entries of an opened directory.
