@@ -107,7 +107,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success                : Boolean;
    begin
       if Path'Length = 0 then
-         return Null_Address;
+         goto End_Return;
       end if;
 
       First_I := Path'First;
@@ -134,7 +134,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                 Next_Index  => Next_Index,
                 Success     => Success);
             if not Success then
-               exit;
+               return System.Null_Address;
             else
                Curr_Index := Next_Index;
             end if;
@@ -156,13 +156,12 @@ package body VFS.EXT with SPARK_Mode => Off is
             end if;
          end loop;
 
-         return System.Null_Address;
-
       <<Next_Iteration>>
          Last_I  := Last_I + 1;
          First_I := Last_I;
       end loop;
 
+   <<End_Return>>
       Result := new EXT_File'
          (Size           => Search_Sz,
           Inode_Number   => Inode_Num,
@@ -227,6 +226,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (FS_Data));
       Fi : constant EXT_File_Acc := EXT_File_Acc (Conv_2.To_Pointer (Obj));
       Curr_Index, Next_Index : Unsigned_64 := 0;
+      Ent : Directory_Entity;
    begin
       if Get_Inode_Type (Fi.Inner_Inode.Permissions) /= File_Directory then
          Ret_Count := 0;
@@ -235,13 +235,13 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
       Ret_Count := 0;
-      for E of Entities loop
+      loop
          Inner_Read_Entry
             (FS_Data     => FS,
              Inode_Sz    => Fi.Size,
              File_Ino    => Fi.Inner_Inode,
              Inode_Index => Curr_Index,
-             Entity      => E,
+             Entity      => Ent,
              Next_Index  => Next_Index,
              Success     => Success);
          if not Success then
@@ -249,7 +249,10 @@ package body VFS.EXT with SPARK_Mode => Off is
          end if;
 
          Curr_Index := Next_Index;
-         Ret_Count  := Ret_Count + 1;
+         if Ret_Count < Entities'Length then
+            Entities (Entities'First + Ret_Count) := Ent;
+         end if;
+         Ret_Count := Ret_Count + 1;
       end loop;
       Success := True;
    end Read_Entries;

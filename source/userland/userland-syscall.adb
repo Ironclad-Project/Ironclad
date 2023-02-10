@@ -116,6 +116,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       pragma Unreferenced (Mode);
       Addr : constant System.Address := To_Address (Integer_Address (Address));
+      Current_Proc : constant Userland.Process.Process_Data_Acc :=
+         Arch.Local.Get_Current_Process;
    begin
       if not Check_Userland_Access (To_Integer (Addr)) then
          if Is_Tracing then
@@ -129,8 +131,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       declare
          Path_Length  : constant Natural := Lib.C_String_Length (Addr);
          Path_String  : String (1 .. Path_Length) with Address => Addr;
-         Current_Proc : constant Userland.Process.Process_Data_Acc :=
-            Arch.Local.Get_Current_Process;
+         Final_Path   : String (1 .. 1024);
+         Final_Path_L : Natural;
          Open_Mode    : VFS.File.Access_Mode;
          Opened_File  : VFS.File.File_Acc;
          New_Descr    : File_Description_Acc;
@@ -185,7 +187,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
          --  Actually open the file.
       <<Resume>>
-         Opened_File := VFS.File.Open (Path_String, Open_Mode, not No_Follow);
+         VFS.Compound_Path
+            (Base      => Current_Proc.Current_Dir
+                          (1 .. Current_Proc.Current_Dir_Len),
+             Extension => Path_String,
+             Result    => Final_Path,
+             Count     => Final_Path_L);
+         if Final_Path_L = 0 then
+            Errno := Error_String_Too_Long;
+            return Unsigned_64'Last;
+         end if;
+
+         Opened_File := VFS.File.Open
+               (Final_Path (1 .. Final_Path_L), Open_Mode, not No_Follow);
 
          if Opened_File = null then
             Errno := Error_No_Entity;
@@ -1009,10 +1023,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Address : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64
    is
+      Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Addr : constant System.Address := To_Address (Integer_Address (Path));
       Path_Length  : constant Natural := Lib.C_String_Length (Addr);
       Path_String  : String (1 .. Path_Length) with Import, Address => Addr;
-      File : File_Acc := Open (Path_String, VFS.File.Read_Only, False);
+      Final_Path   : String (1 .. 1024);
+      Final_Path_L : Natural;
+      File : File_Acc;
       Stat_Is_Success : Boolean;
    begin
       if Is_Tracing then
@@ -1027,6 +1044,21 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       end if;
+
+      VFS.Compound_Path
+         (Base      => Proc.Current_Dir (1 .. Proc.Current_Dir_Len),
+          Extension => Path_String,
+          Result    => Final_Path,
+          Count     => Final_Path_L);
+      if Final_Path_L = 0 then
+         Errno := Error_String_Too_Long;
+         return Unsigned_64'Last;
+      end if;
+
+      File := VFS.File.Open
+            (Final_Path (1 .. Final_Path_L),
+             VFS.File.Read_Only,
+             False);
 
       if File = null then
          Errno := Error_No_Entity;
@@ -1100,8 +1132,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       declare
-         Path_Length : constant Natural := Lib.C_String_Length (Addr);
-         Path_String : String (1 .. Path_Length) with Address => Addr;
+         Path_Length  : constant Natural := Lib.C_String_Length (Addr);
+         Path_String  : String (1 .. Path_Length) with Address => Addr;
+         Final_Path   : String (1 .. 1024);
+         Final_Path_L : Natural;
+         File         : VFS.File.File_Acc;
       begin
          if Is_Tracing then
             Lib.Messages.Put ("syscall chdir(");
@@ -1109,13 +1144,33 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Lib.Messages.Put_Line (")");
          end if;
 
-         if Path_Length > Process.Current_Dir'Length then
+         VFS.Compound_Path
+            (Base      => Process.Current_Dir (1 .. Process.Current_Dir_Len),
+             Extension => Path_String,
+             Result    => Final_Path,
+             Count     => Final_Path_L);
+         if Final_Path_L = 0 then
             Errno := Error_String_Too_Long;
             return Unsigned_64'Last;
          end if;
 
-         Process.Current_Dir_Len := Path_Length;
-         Process.Current_Dir (1 .. Path_Length) := Path_String;
+         File := VFS.File.Open
+            (Final_Path (1 .. Final_Path_L), VFS.File.Read_Only, False);
+
+         if File = null then
+            Errno := Error_No_Entity;
+            return Unsigned_64'Last;
+         end if;
+
+         if Final_Path_L > Process.Current_Dir'Length then
+            Errno := Error_String_Too_Long;
+            return Unsigned_64'Last;
+         end if;
+
+         Close (File);
+         Process.Current_Dir_Len := Final_Path_L;
+         Process.Current_Dir (1 .. Final_Path_L) :=
+            Final_Path (1 .. Final_Path_L);
          Errno := Error_No_Error;
          return 0;
       end;

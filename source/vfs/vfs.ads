@@ -233,6 +233,18 @@ package VFS with SPARK_Mode => Off is
    --  @return True if canonical, False if not.
    function Is_Canonical (Path : String) return Boolean;
 
+   --  Compound 2 components of a path, a base, and an extension.
+   --  If the extension is absolute, the base will not be used.
+   --  @param Base      First component to use.
+   --  @param Extension Second component to use.
+   --  @param Result    Where to write as much of the path as possible.
+   --  @param Count     Length of the made path, if it fits, or 0 in failure.
+   procedure Compound_Path
+      (Base      : String;
+       Extension : String;
+       Result    : out String;
+       Count     : out Natural);
+
 private
 
    type FS_Handle is new Natural range 0 .. 5;

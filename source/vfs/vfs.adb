@@ -328,12 +328,13 @@ package body VFS with SPARK_Mode => Off is
    function Is_Canonical (Path : String) return Boolean is
       Previous : Character := ' ';
    begin
-      if not Is_Absolute (Path) or else Path (Path'Last) = '/' then
+      if not Is_Absolute (Path) or (Path'Length > 1 and Path (Path'Last) = '/')
+      then
          return False;
       end if;
 
       for C of Path loop
-         if (Previous = '/' and C = '/') or (Previous = '.' and C = '.') then
+         if Previous = '/' and C = '/' then
             return False;
          end if;
          Previous := C;
@@ -341,4 +342,28 @@ package body VFS with SPARK_Mode => Off is
 
       return True;
    end Is_Canonical;
+
+   procedure Compound_Path
+      (Base      : String;
+       Extension : String;
+       Result    : out String;
+       Count     : out Natural)
+   is
+   begin
+      if Is_Absolute (Extension) and Result'Length >= Extension'Length then
+         Count := Extension'Length;
+         Result (Result'First .. Result'First - 1 + Count) := Extension;
+      elsif Base (Base'Last) /= '/' and
+            Result'Length >= Base'Length + 1 + Extension'Length
+      then
+         Count := Base'Length + 1 + Extension'Length;
+         Result (Result'First .. Result'First - 1 + Count) :=
+            Base & "/" & Extension;
+      elsif Result'Length >= Base'Length + Extension'Length then
+         Count := Base'Length + Extension'Length;
+         Result (Result'First .. Result'First - 1 + Count) := Base & Extension;
+      else
+         Count := 0;
+      end if;
+   end Compound_Path;
 end VFS;
