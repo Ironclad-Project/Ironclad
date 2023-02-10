@@ -1,0 +1,65 @@
+#!/bin/sh
+# install.sh.in: Install script template for ironclad and docs.
+# Copyright (C) 2023 streaksu
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+set -e
+
+print_help() {
+   echo "Ironclad's install script"
+   echo "Available options:"
+   echo "--strip    Skip the configure menu and use sensible defaults"
+   echo "-h|--help  This help message"
+   echo ""
+   echo "Available environment variables:"
+   echo "PREFIX     Prefix for installation (by default, /usr/local)"
+   echo "DESTDIR    Directory path to prepend to PREFIX (by default, empty)" 
+   exit 0
+}
+
+# Variables.
+if [ -z "$PREFIX" ]; then
+    PREFIX="/usr/local"
+fi
+DO_STRIP=no
+
+# Parse command line.
+for i in "$@"; do
+   case "$i" in
+      --strip)   DO_STRIP="yes";;
+      -h|--help) print_help;;
+   esac
+done
+
+# Build documentation from the source file.
+makeinfo             "@@SRC@@/docs/ironclad.texi"
+texi2any --plaintext "@@SRC@@/docs/ironclad.texi" > interfaces.txt
+
+# Install the generated info and some other goodies.
+install -d "$DESTDIR$PREFIX"/share/info
+install -d "$DESTDIR$PREFIX"/share/docs
+install -d "$DESTDIR$PREFIX"/share/docs/ironclad
+install ironclad.info     "$DESTDIR$PREFIX"/share/info/
+install "@@SRC@@/README"  "$DESTDIR$PREFIX"/share/docs/ironclad/
+install "@@SRC@@/COPYING" "$DESTDIR$PREFIX"/share/docs/ironclad/
+install interfaces.txt    "$DESTDIR$PREFIX"/share/docs/ironclad/
+
+# Install the main executable.
+install -d "$DESTDIR"/boot
+if [ "$DO_STRIP" = "yes" ]; then
+    install -s ironclad "$DESTDIR"/boot/
+else
+    install ironclad "$DESTDIR"/boot/
+fi

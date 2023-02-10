@@ -1,6 +1,6 @@
 #!/bin/sh
 # configure.sh: Configure script.
-# Copyright (C) 2021 streaksu
+# Copyright (C) 2023 streaksu
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,6 +14,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+replace_in_file() {
+   sed "s|@@$2@@|$3|g" < $1 > $1.tmp
+   mv $1.tmp $1
+}
 
 print_help() {
    echo "Ironclad's configure script"
@@ -155,23 +160,23 @@ fi
 
 # Create the final gprbuild and sed out the values.
 cp "$script_dir"/ironclad.gpr.in ironclad.gpr
-replace_in_file() {
-   sed "s|@@$1@@|$2|g" < ironclad.gpr > ironclad.gpr.tmp
-   mv ironclad.gpr.tmp ironclad.gpr
-}
+replace_in_file ironclad.gpr SRC              $script_dir
+replace_in_file ironclad.gpr ARCH             $ARCH
+replace_in_file ironclad.gpr X86_64_BOOTFB    $X86_64_BOOTFB
+replace_in_file ironclad.gpr X86_64_PS2       $X86_64_PS2
+replace_in_file ironclad.gpr X86_64_RTC       $X86_64_RTC
+replace_in_file ironclad.gpr X86_64_ATA       $X86_64_ATA
+replace_in_file ironclad.gpr X86_64_SERIAL    $X86_64_SERIAL
+replace_in_file ironclad.gpr DEVICES_STREAMS  $DEVICES_STREAMS
+replace_in_file ironclad.gpr DEVICES_RNG      $DEVICES_RNG
+replace_in_file ironclad.gpr DEVICES_PTY      $DEVICES_PTY
+replace_in_file ironclad.gpr MEMORY_ALLOCONLY $MEMORY_ALLOCONLY
+replace_in_file ironclad.gpr SCHED_ASC        $SCHED_ASC
 
-replace_in_file SRC              $script_dir
-replace_in_file ARCH             $ARCH
-replace_in_file X86_64_BOOTFB    $X86_64_BOOTFB
-replace_in_file X86_64_PS2       $X86_64_PS2
-replace_in_file X86_64_RTC       $X86_64_RTC
-replace_in_file X86_64_ATA       $X86_64_ATA
-replace_in_file X86_64_SERIAL    $X86_64_SERIAL
-replace_in_file DEVICES_STREAMS  $DEVICES_STREAMS
-replace_in_file DEVICES_RNG      $DEVICES_RNG
-replace_in_file DEVICES_PTY      $DEVICES_PTY
-replace_in_file MEMORY_ALLOCONLY $MEMORY_ALLOCONLY
-replace_in_file SCHED_ASC        $SCHED_ASC
+# Create the final install.sh
+cp "$script_dir"/install.sh.in install.sh
+replace_in_file install.sh SRC $script_dir
+chmod +x install.sh
 
 ############## WARNING: DRAGONS LIE AHEAD ######################
 # So you see, gprbuild loves linking with -lgnat-XX where XX is the system
