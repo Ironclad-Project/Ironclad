@@ -18,11 +18,9 @@ with Arch.Snippets; use Arch.Snippets;
 with System.Address_To_Access_Conversions;
 with Lib.Messages;
 with Devices.Partitions;
-with Lib.Alignment;
 
 package body Devices.ATA with SPARK_Mode => Off is
    package Con is new System.Address_To_Access_Conversions (ATA_Data);
-   package Ali is new Lib.Alignment (Unsigned_64);
 
    function Init return Boolean is
       Base_Name  : String := "ata0";
@@ -39,11 +37,11 @@ package body Devices.ATA with SPARK_Mode => Off is
                 Is_Block    => True,
                 Block_Size  => Sector_Size,
                 Block_Count => Drive_Data.Sector_Count,
-                Safe_Read   => null,
-                Safe_Write  => null,
-                Sync        => null,
-                Read        => Read'Access,
-                Write       => Write'Access,
+                Safe_Read   => Read'Access,
+                Safe_Write  => Write'Access,
+                Sync        => Sync'Access,
+                Read        => null,
+                Write       => null,
                 IO_Control  => null,
                 Mmap        => null,
                 Munmap      => null), Base_Name, Success);
@@ -120,96 +118,113 @@ package body Devices.ATA with SPARK_Mode => Off is
 
       --  Return the initialized drive.
       declare
-         Sector_Count : Unsigned_64 with
-            Import, Address => Identify_Info (101)'Address;
+         Sectors : Unsigned_64 with Address => Identify_Info (101)'Address;
       begin
          return new ATA_Data'
-            (Is_Master         => Is_Master,
-             Identify          => Identify_Info,
-             Data_Port         => Data_Port,
-             Error_Port        => Error_Port,
-             Sector_Count_Port => Sector_Count_Port,
-             LBA_Low_Port      => LBA_Low_Port,
-             LBA_Mid_Port      => LBA_Mid_Port,
-             LBA_High_Port     => LBA_High_Port,
-             Device_Port       => Device_Port,
-             Command_Port      => Command_Port,
-             Control_Port      => Control_Port,
-             Sector_Count      => Sector_Count);
+            (Is_Master     => Is_Master,
+             Identify      => Identify_Info,
+             Data_Port     => Data_Port,
+             Error_Port    => Error_Port,
+             Count_Port    => Sector_Count_Port,
+             LBA_Low_Port  => LBA_Low_Port,
+             LBA_Mid_Port  => LBA_Mid_Port,
+             LBA_High_Port => LBA_High_Port,
+             Device_Port   => Device_Port,
+             Command_Port  => Command_Port,
+             Control_Port  => Control_Port,
+             Sector_Count  => Sectors,
+             Caches        => (others => (Is_Used => False, others => <>)),
+             Next_Evict    => 1);
       end;
    end Init_Port;
 
-   function Read_Write
-      (Drive         : ATA_Data_Acc;
-       Offset_Sector : Unsigned_64;
-       Count_Sector  : Unsigned_64;
-       Is_Write      : Boolean;
-       Data_Addr     : System.Address) return Boolean
+   function Read_Sector
+      (Drive       : ATA_Data_Acc;
+       LBA         : Unsigned_64;
+       Data_Buffer : out Sector_Data) return Boolean
    is
-      Data_Buffer : array (1 .. Count_Sector * Sector_Size) of Unsigned_8
-         with Import, Address => Data_Addr;
-      Index   : Unsigned_64 := 1;
-      Request : Unsigned_64;
-      LBA0, LBA8, LBA16, LBA24, LBA32, LBA40 : Unsigned_8;
-      Data : Unsigned_16;
+      Data  : Unsigned_16;
+      Index : Natural := 1;
    begin
-      --  Separate the address into LBA.
-      Request := Offset_Sector;
-      LBA0  := Unsigned_8 (Shift_Right (Request and 16#0000000000FF#,  0));
-      LBA8  := Unsigned_8 (Shift_Right (Request and 16#00000000FF00#,  8));
-      LBA16 := Unsigned_8 (Shift_Right (Request and 16#000000FF0000#, 16));
-      LBA24 := Unsigned_8 (Shift_Right (Request and 16#0000FF000000#, 24));
-      LBA32 := Unsigned_8 (Shift_Right (Request and 16#00FF00000000#, 32));
-      LBA40 := Unsigned_8 (Shift_Right (Request and 16#FF0000000000#, 40));
+      if not Issue_Command (Drive, LBA, 16#24#) then
+         return False;
+      end if;
+
+      for I in 1 .. 256 loop
+         Data                    := Port_In16 (Drive.Data_Port);
+         Data_Buffer (Index)     := Unsigned_8 (Data and 16#FF#);
+         Data_Buffer (Index + 1) := Unsigned_8 (Shift_Right (Data, 8));
+         Index                   := Index + 2;
+      end loop;
+
+      return True;
+   end Read_Sector;
+
+   function Write_Sector
+      (Drive       : ATA_Data_Acc;
+       LBA         : Unsigned_64;
+       Data_Buffer : Sector_Data) return Boolean
+   is
+      Data  : Unsigned_16;
+      Index : Natural := 1;
+   begin
+      if not Issue_Command (Drive, LBA, 16#34#) then
+         return False;
+      end if;
+
+      for I in 1 .. 256 loop
+         Data := Shift_Left (Unsigned_16 (Data_Buffer (Index + 1)), 8) or
+                 Unsigned_16 (Data_Buffer (Index));
+         Index := Index + 2;
+         Port_Out16 (Drive.Data_Port, Data);
+      end loop;
+
+      Port_Out (Drive.Command_Port, 16#EA#);
+      if not Poll_Error (Drive.Command_Port) then
+         Lib.Messages.Warn ("ATA error while flushing");
+         return False;
+      end if;
+
+      return True;
+   end Write_Sector;
+
+   function Issue_Command
+      (Drive : ATA_Data_Acc;
+       LBA   : Unsigned_64;
+       Cmd   : Unsigned_8) return Boolean
+   is
+      LBA0, LBA8, LBA16, LBA24, LBA32, LBA40 : Unsigned_8;
+   begin
+      LBA0  := Unsigned_8 (Shift_Right (LBA and 16#0000000000FF#,  0));
+      LBA8  := Unsigned_8 (Shift_Right (LBA and 16#00000000FF00#,  8));
+      LBA16 := Unsigned_8 (Shift_Right (LBA and 16#000000FF0000#, 16));
+      LBA24 := Unsigned_8 (Shift_Right (LBA and 16#0000FF000000#, 24));
+      LBA32 := Unsigned_8 (Shift_Right (LBA and 16#00FF00000000#, 32));
+      LBA40 := Unsigned_8 (Shift_Right (LBA and 16#FF0000000000#, 40));
 
       if Drive.Is_Master then
          Port_Out (Drive.Device_Port, (16#40#));
       else
          Port_Out (Drive.Device_Port, (16#50#));
       end if;
-      Port_Out (Drive.Sector_Count_Port,
-         Unsigned_8 (Shift_Right (Count_Sector, 8)));
+
+      Port_Out (Drive.Count_Port, 0);
       Port_Out (Drive.LBA_Low_Port,  LBA24);
       Port_Out (Drive.LBA_Mid_Port,  LBA32);
       Port_Out (Drive.LBA_High_Port, LBA40);
-      Port_Out (Drive.Sector_Count_Port, Unsigned_8 (Count_Sector and 16#FF#));
+      Port_Out (Drive.Count_Port, 1);
       Port_Out (Drive.LBA_Low_Port,  LBA0);
       Port_Out (Drive.LBA_Mid_Port,  LBA8);
       Port_Out (Drive.LBA_High_Port, LBA16);
-      Port_Out (Drive.Command_Port, (if Is_Write then 16#34# else 16#24#));
+      Port_Out (Drive.Command_Port, Cmd);
 
-      for Sector in 1 .. Count_Sector loop
-         if not Poll_Error (Drive.Command_Port) then
-            Lib.Messages.Warn ("ATA error while operating on a sector");
-            return False;
-         end if;
-
-         if Is_Write then
-            for I in 1 .. 256 loop
-               Data := Shift_Left (Unsigned_16 (Data_Buffer (Index + 1)), 8) or
-                       Unsigned_16 (Data_Buffer (Index));
-               Index := Index + 2;
-               Port_Out16 (Drive.Data_Port, Data);
-            end loop;
-         else
-            for I in 1 .. 256 loop
-               Data                    := Port_In16 (Drive.Data_Port);
-               Data_Buffer (Index)     := Unsigned_8 (Data and 16#FF#);
-               Data_Buffer (Index + 1) := Unsigned_8 (Shift_Right (Data, 8));
-               Index                   := Index + 2;
-            end loop;
-         end if;
-      end loop;
-
-      if Is_Write then
-         Port_Out (Drive.Command_Port, 16#EA#);
-         if not Poll_Error (Drive.Command_Port) then
-            Lib.Messages.Warn ("ATA error while flushing on a sector");
-            return False;
-         end if;
+      if not Poll_Error (Drive.Command_Port) then
+         Lib.Messages.Warn ("ATA error while operating on a sector");
+         return False;
+      else
+         return True;
       end if;
-      return True;
-   end Read_Write;
+   end Issue_Command;
 
    function Poll_Error (Port : Unsigned_16) return Boolean is
       Status : Unsigned_8;
@@ -220,64 +235,156 @@ package body Devices.ATA with SPARK_Mode => Off is
       end loop;
       return (Status and 16#01#) = 0;
    end Poll_Error;
-   ----------------------------------------------------------------------------
-   function Read
-      (Data   : Resource_Acc;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64
+
+   function Get_Cache_Index
+      (Drive : ATA_Data_Acc;
+       LBA   : Unsigned_64) return Natural
    is
-      Success : Boolean;
-      Drive   : constant ATA_Data_Acc :=
-         ATA_Data_Acc (Con.To_Pointer (Data.Data));
+      Success  : Boolean;
+      Returned : Natural := 0;
    begin
-      --  TODO: Instead of returning EOF, return error.
-      if Offset mod Sector_Size /= 0 or Count mod Sector_Size /= 0 then
-         return 0;
+      for I in Drive.Caches'Range loop
+         if Drive.Caches (I).Is_Used and Drive.Caches (I).LBA_Offset = LBA then
+            Returned := I;
+            goto Found_And_Set;
+         elsif not Drive.Caches (I).Is_Used and Returned = 0 then
+            Returned := I;
+         end if;
+      end loop;
+
+      if Returned = 0 then
+         Returned := Drive.Next_Evict;
+
+         if Drive.Caches (Drive.Next_Evict).Is_Dirty then
+            Success := Write_Sector
+               (Drive       => Drive,
+                LBA         => Drive.Caches (Returned).LBA_Offset,
+                Data_Buffer => Drive.Caches (Returned).Data);
+            if not Success then
+               Lib.Messages.Warn ("ata could not write on cache fetching!");
+            end if;
+         end if;
+
+         if Drive.Next_Evict = Drive.Caches'Last then
+            Drive.Next_Evict := Drive.Caches'First;
+         else
+            Drive.Next_Evict := Drive.Next_Evict + 1;
+         end if;
       end if;
 
-      Lib.Synchronization.Seize (Data.Mutex);
-      Success := Read_Write
-         (Drive         => Drive,
-          Offset_Sector => Offset / Sector_Size,
-          Count_Sector  => Ali.Divide_Round_Up (Count, Sector_Size),
-          Is_Write      => False,
-          Data_Addr     => Desto);
-      Lib.Synchronization.Release (Data.Mutex);
-      if Success then
-         return Count;
-      else
-         return 0;
+      Drive.Caches (Returned) :=
+         (Is_Used    => True,
+          LBA_Offset => LBA,
+          Is_Dirty   => False,
+          Data       => <>);
+
+      Success := Read_Sector
+         (Drive       => Drive,
+          LBA         => Drive.Caches (Returned).LBA_Offset,
+          Data_Buffer => Drive.Caches (Returned).Data);
+      if not Success then
+         Lib.Messages.Warn ("ata could not read on cache fetching!");
       end if;
+
+   <<Found_And_Set>>
+      return Returned;
+   end Get_Cache_Index;
+   ----------------------------------------------------------------------------
+   procedure Read
+      (Key       : Resource_Acc;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
+   is
+      D : constant ATA_Data_Acc := ATA_Data_Acc (Con.To_Pointer (Key.Data));
+      Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
+      Current_LBA : Unsigned_64;
+   begin
+      if Data'Length = 0 then
+         Ret_Count := 0;
+         Success   := False;
+         return;
+      end if;
+
+      Lib.Synchronization.Seize (Key.Mutex);
+      while Progress < Data'Length loop
+         Current_LBA  := (Offset + Unsigned_64 (Progress)) / Sector_Size;
+         Cache_Idx    := Get_Cache_Index (D, Current_LBA);
+         Copy_Count   := Data'Length - Progress;
+         Cache_Offset := Natural ((Offset + Unsigned_64 (Progress)) mod
+                                  Sector_Size);
+         if Copy_Count > Sector_Size - Cache_Offset then
+            Copy_Count := Sector_Size - Cache_Offset;
+         end if;
+         Data (Data'First + Progress .. Data'First + Progress + Copy_Count - 1)
+            := D.Caches (Cache_Idx).Data (Cache_Offset + 1 ..
+                                          Cache_Offset + Copy_Count);
+         Progress := Progress + Copy_Count;
+      end loop;
+      Lib.Synchronization.Release (Key.Mutex);
+
+      Ret_Count := Progress;
+      Success   := True;
    end Read;
 
-   function Write
-      (Data     : Resource_Acc;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64
+   procedure Write
+      (Key       : Resource_Acc;
+       Offset    : Unsigned_64;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      Success : Boolean;
-      Drive   : constant ATA_Data_Acc :=
-         ATA_Data_Acc (Con.To_Pointer (Data.Data));
+      D : constant ATA_Data_Acc := ATA_Data_Acc (Con.To_Pointer (Key.Data));
+      Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
+      Current_LBA : Unsigned_64;
    begin
-      --  TODO: Instead of returning EOF, return error.
-      if Offset mod Sector_Size /= 0 or Count mod Sector_Size /= 0 then
-         return 0;
+      if Data'Length = 0 then
+         Ret_Count := 0;
+         Success   := False;
+         return;
       end if;
 
-      Lib.Synchronization.Seize (Data.Mutex);
-      Success := Read_Write
-         (Drive         => Drive,
-          Offset_Sector => Offset / Sector_Size,
-          Count_Sector  => Ali.Divide_Round_Up (Count, Sector_Size),
-          Is_Write      => True,
-          Data_Addr     => To_Write);
-      Lib.Synchronization.Release (Data.Mutex);
-      if Success then
-         return Count;
-      else
-         return 0;
-      end if;
+      Lib.Synchronization.Seize (Key.Mutex);
+      while Progress < Data'Length loop
+         Current_LBA  := (Offset + Unsigned_64 (Progress)) / Sector_Size;
+         Cache_Idx    := Get_Cache_Index (D, Current_LBA);
+         Copy_Count   := Data'Length - Progress;
+         Cache_Offset := Natural ((Offset + Unsigned_64 (Progress)) mod
+                                  Sector_Size);
+         if Copy_Count > Sector_Size - Cache_Offset then
+            Copy_Count := Sector_Size - Cache_Offset;
+         end if;
+         D.Caches (Cache_Idx).Data (Cache_Offset + 1 ..
+                                    Cache_Offset + Copy_Count) :=
+            Data (Data'First + Progress ..
+                  Data'First + Progress + Copy_Count - 1);
+         Progress := Progress + Copy_Count;
+      end loop;
+      Lib.Synchronization.Release (Key.Mutex);
+
+      Ret_Count := Progress;
+      Success   := True;
    end Write;
+
+   procedure Sync (Key : Resource_Acc) is
+      Success : Boolean;
+      D : constant ATA_Data_Acc := ATA_Data_Acc (Con.To_Pointer (Key.Data));
+   begin
+      Lib.Synchronization.Seize (Key.Mutex);
+      for Cache of D.Caches loop
+         if Cache.Is_Used and Cache.Is_Dirty then
+            Success := Write_Sector
+               (Drive       => D,
+                LBA         => Cache.LBA_Offset,
+                Data_Buffer => Cache.Data);
+            if not Success then
+               Lib.Messages.Warn ("ata could not write on sync!");
+            end if;
+
+            Cache.Is_Dirty := False;
+         end if;
+      end loop;
+      Lib.Synchronization.Release (Key.Mutex);
+   end Sync;
 end Devices.ATA;
