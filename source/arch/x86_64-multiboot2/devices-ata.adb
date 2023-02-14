@@ -245,8 +245,7 @@ package body Devices.ATA with SPARK_Mode => Off is
    begin
       for I in Drive.Caches'Range loop
          if Drive.Caches (I).Is_Used and Drive.Caches (I).LBA_Offset = LBA then
-            Returned := I;
-            goto Found_And_Set;
+            return I;
          elsif not Drive.Caches (I).Is_Used and Returned = 0 then
             Returned := I;
          end if;
@@ -286,7 +285,6 @@ package body Devices.ATA with SPARK_Mode => Off is
          Lib.Messages.Warn ("ata could not read on cache fetching!");
       end if;
 
-   <<Found_And_Set>>
       return Returned;
    end Get_Cache_Index;
    ----------------------------------------------------------------------------
@@ -359,6 +357,7 @@ package body Devices.ATA with SPARK_Mode => Off is
                                     Cache_Offset + Copy_Count) :=
             Data (Data'First + Progress ..
                   Data'First + Progress + Copy_Count - 1);
+         D.Caches (Cache_Idx).Is_Dirty := True;
          Progress := Progress + Copy_Count;
       end loop;
       Lib.Synchronization.Release (Key.Mutex);

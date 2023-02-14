@@ -424,6 +424,9 @@ package Userland.Syscall with SPARK_Mode => Off is
        Buffer_Len  : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
 
+   --  Synchronize devices and kernel caches.
+   function Syscall_Sync (Errno : out Errno_Value) return Unsigned_64;
+
 private
 
    --  Do the actual exiting.

@@ -36,6 +36,7 @@ with Arch.Local;
 with Cryptography.Random;
 with Userland.MAC;
 with IPC.Pipe; use IPC.Pipe;
+with Devices;
 
 package body Userland.Syscall with SPARK_Mode => Off is
    --  Whether we are to print syscall information and MAC.
@@ -135,6 +136,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Final_Path_L : Natural;
          Open_Mode    : VFS.File.Access_Mode;
          Opened_File  : VFS.File.File_Acc;
+         Opened_Stat  : VFS.File_Stat;
          New_Descr    : File_Description_Acc;
          File_Perms   : MAC.Filter_Permissions;
          Returned_FD  : Natural;
@@ -142,6 +144,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Flags_Read    : constant Boolean := (Flags and O_RDONLY)   /= 0;
          Flags_Write   : constant Boolean := (Flags and O_WRONLY)   /= 0;
          No_Follow     : constant Boolean := (Flags and O_NOFOLLOW) /= 0;
+         Do_Append     : constant Boolean := (Flags and O_APPEND)   /= 0;
       begin
          if Is_Tracing then
             Lib.Messages.Put ("syscall open(");
@@ -204,6 +207,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
          if Opened_File = null then
             Errno := Error_No_Entity;
             return Unsigned_64'Last;
+         end if;
+
+         if Do_Append then
+            if not VFS.File.Stat (Opened_File, Opened_Stat) then
+               Errno := Error_Invalid_Seek;
+               return Unsigned_64'Last;
+            end if;
+            Set_Position (Opened_File, Opened_Stat.Byte_Size);
          end if;
 
          New_Descr := new File_Description'(
@@ -2157,4 +2168,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno := Error_No_Error;
       return Unsigned_64 (Read_Len * (Dirent'Size / 8));
    end Syscall_GetDEnts;
+
+   function Syscall_Sync (Errno : out Errno_Value) return Unsigned_64 is
+   begin
+      Devices.Synchronize;
+      Errno := Error_No_Error;
+      return 0;
+   end Syscall_Sync;
 end Userland.Syscall;

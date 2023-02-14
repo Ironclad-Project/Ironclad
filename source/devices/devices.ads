@@ -122,6 +122,9 @@ package Devices is
    procedure Synchronize (Handle : Device_Handle)
       with Pre => (Is_Registry_Initialized and (Handle /= Error_Handle));
 
+   --  Synchronize all devices.
+   procedure Synchronize with Pre => Is_Registry_Initialized;
+
    --  Read from a device.
    --  @param Handle    Handle to read if supported, must be valid.
    --  @param Offset    Byte offset to start reading from, for block devices.

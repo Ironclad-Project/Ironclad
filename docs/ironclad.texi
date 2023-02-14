@@ -114,6 +114,7 @@ Syscalls
 * umount::                  Unmount partitions.
 * readlink::                Read the contents of a symlink.
 * getdents::                Get directory entries.
+* sync::                    Synchronize device caches.
 
 Devices and their properties
 
@@ -593,6 +594,8 @@ Empty.
 @xref{readlink}.
 @item
 @xref{getdents}.
+@item
+@xref{sync}
 @end enumerate
 
 @node Errno
@@ -1627,6 +1630,20 @@ contents or @code{-1} on failure, with the following errno:
 @item
 @code{EINVAL}: @code{size} is not big enough to fit all the directory entries.
 @end itemize
+
+@node sync
+@section sync
+
+@example
+int sync(void);
+@end example
+
+The syscall flushes the associated caches of all external devices, which may
+be needed in order to ensure data coherency on shutdown or other situations.
+
+The syscalls @code{0} or @code{-1} on failure, with a corresponding errno. This
+is done as to be forward compatible with future modifications, the syscall\
+right now is not able to fail.
 
 @node Devices and their properties
 @chapter Devices and their properties

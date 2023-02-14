@@ -215,6 +215,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 42 =>
             Returned := Syscall_GetDEnts (State.RDI, State.RSI, State.RDX,
                                           Errno);
+         when 43 =>
+            Returned := Syscall_Sync (Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;

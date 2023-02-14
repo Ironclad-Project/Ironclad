@@ -116,7 +116,8 @@ package body Devices is
 
    function Is_Read_Only (Handle : Device_Handle) return Boolean is
    begin
-      return Devices_Data (Handle).Contents.Write = null;
+      return Devices_Data (Handle).Contents.Safe_Write = null and
+             Devices_Data (Handle).Contents.Write      = null;
    end Is_Read_Only;
 
    procedure Synchronize (Handle : Device_Handle) is
@@ -125,6 +126,18 @@ package body Devices is
          Devices_Data (Handle).Contents.Sync
             (Devices_Data (Handle).Contents'Access);
       end if;
+   end Synchronize;
+
+   procedure Synchronize is
+   begin
+      for I in Devices_Data'Range loop
+         if Devices_Data (I).Is_Present and
+            Devices_Data (I).Contents.Sync /= null
+         then
+            Devices_Data (I).Contents.Sync
+               (Devices_Data (I).Contents'Access);
+         end if;
+      end loop;
    end Synchronize;
 
    procedure Read
