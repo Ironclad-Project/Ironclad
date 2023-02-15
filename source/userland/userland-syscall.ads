@@ -85,7 +85,6 @@ package Userland.Syscall with SPARK_Mode => Off is
    function Syscall_Open
       (Address : Unsigned_64;
        Flags   : Unsigned_64;
-       Mode    : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64;
 
    --  Close a file.
@@ -426,6 +425,22 @@ package Userland.Syscall with SPARK_Mode => Off is
 
    --  Synchronize devices and kernel caches.
    function Syscall_Sync (Errno : out Errno_Value) return Unsigned_64;
+
+   --  Create a file.
+   CREATE_REG : constant := 1;
+   CREATE_DIR : constant := 2;
+   CREATE_SYM : constant := 3;
+   function Syscall_Create
+      (Address : Unsigned_64;
+       File_T  : Unsigned_64;
+       Mode    : Unsigned_64;
+       Extra   : Unsigned_64;
+       Errno   : out Errno_Value) return Unsigned_64;
+
+   --  Deletes a file.
+   function Syscall_Delete
+      (Address : Unsigned_64;
+       Errno   : out Errno_Value) return Unsigned_64;
 
 private
 

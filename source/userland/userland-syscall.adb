@@ -112,10 +112,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
    function Syscall_Open
       (Address : Unsigned_64;
        Flags   : Unsigned_64;
-       Mode    : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64
    is
-      pragma Unreferenced (Mode);
       Addr : constant System.Address := To_Address (Integer_Address (Address));
       Current_Proc : constant Userland.Process.Process_Data_Acc :=
          Arch.Local.Get_Current_Process;
@@ -2171,8 +2169,89 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
    function Syscall_Sync (Errno : out Errno_Value) return Unsigned_64 is
    begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall sync()");
+      end if;
+
       Devices.Synchronize;
       Errno := Error_No_Error;
       return 0;
    end Syscall_Sync;
+
+   function Syscall_Create
+      (Address : Unsigned_64;
+       File_T  : Unsigned_64;
+       Mode    : Unsigned_64;
+       Extra   : Unsigned_64;
+       Errno   : out Errno_Value) return Unsigned_64
+   is
+      Path_IAddr : constant Integer_Address := Integer_Address (Address);
+      Path_Addr  : constant System.Address  := To_Address (Path_IAddr);
+      Path_Len   : constant Natural := Lib.C_String_Length (Path_Addr);
+      Path       : String (1 .. Path_Len) with Address => Path_Addr, Import;
+      Success    : Boolean;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall create");
+         Lib.Messages.Put (Path);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (File_T);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Mode);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Extra);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      case File_T is
+         when CREATE_REG =>
+            Success := Create_Regular (Path, Unsigned_32 (Mode));
+         when CREATE_DIR =>
+            Success := Create_Directory (Path, Unsigned_32 (Mode));
+         when CREATE_SYM =>
+            declare
+               Lnk_IAddr : constant Integer_Address := Integer_Address (Extra);
+               Lnk_Addr  : constant System.Address  := To_Address (Lnk_IAddr);
+               Lnk_Len   : constant Natural := Lib.C_String_Length (Lnk_Addr);
+               Lnk       : String (1 .. Lnk_Len) with Address => Lnk_Addr;
+            begin
+               Success := Create_Symbolic_Link (Path, Lnk, Unsigned_32 (Mode));
+            end;
+         when others =>
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+      end case;
+
+      if Success then
+         Errno := Error_No_Error;
+         return 0;
+      else
+         Errno := Error_IO;
+         return Unsigned_64'Last;
+      end if;
+   end Syscall_Create;
+
+   function Syscall_Delete
+      (Address : Unsigned_64;
+       Errno   : out Errno_Value) return Unsigned_64
+   is
+      Path_IAddr : constant Integer_Address := Integer_Address (Address);
+      Path_Addr  : constant System.Address  := To_Address (Path_IAddr);
+      Path_Len   : constant Natural := Lib.C_String_Length (Path_Addr);
+      Path       : String (1 .. Path_Len) with Address => Path_Addr, Import;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall delete(");
+         Lib.Messages.Put (Path);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if VFS.File.Delete (Path) then
+         Errno := Error_No_Error;
+         return 0;
+      else
+         Errno := Error_No_Entity;
+         return Unsigned_64'Last;
+      end if;
+   end Syscall_Delete;
 end Userland.Syscall;

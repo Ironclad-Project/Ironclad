@@ -130,6 +130,18 @@ package VFS.File with SPARK_Mode => Off is
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64) return Boolean with Pre => F /= null;
 
+   --  Create several kinds of files.
+   function Create_Regular (Path : String; Mode : Unsigned_32) return Boolean;
+   function Create_Directory
+      (Path : String;
+       Mode : Unsigned_32) return Boolean;
+   function Create_Symbolic_Link
+      (Path, Target : String;
+       Mode         : Unsigned_32) return Boolean;
+
+   --  Delete a file.
+   function Delete (Path : String) return Boolean;
+
 private
 
    type File is record

@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
+with Lib.Synchronization;
 
 package VFS.EXT with SPARK_Mode => Off is
    --  Probe for an ext* FS in the passed device.
@@ -24,18 +25,19 @@ package VFS.EXT with SPARK_Mode => Off is
 
    --  Basic file operations wrapped in vfs.adb.
    function Open (FS : System.Address; Path : String) return System.Address;
-   function Create
+   function Create_Regular
       (FS   : System.Address;
        Path : String;
-       Mode : Unsigned_32) return System.Address;
+       Mode : Unsigned_32) return Boolean;
    function Create_Symbolic_Link
       (FS           : System.Address;
        Path, Target : String;
-       Mode         : Unsigned_32) return System.Address;
+       Mode         : Unsigned_32) return Boolean;
    function Create_Directory
       (FS   : System.Address;
        Path : String;
-       Mode : Unsigned_32) return System.Address;
+       Mode : Unsigned_32) return Boolean;
+   function Delete (FS : System.Address; Path : String) return Boolean;
    procedure Close (FS : System.Address; Obj : in out System.Address);
    procedure Read_Entries
       (FS_Data   : System.Address;
@@ -252,12 +254,14 @@ private
       Size           : Unsigned_64;
       Inode_Number   : Unsigned_32;
       Inner_Inode    : Inode;
+      Inode_Type     : File_Type;
       Is_Immutable   : Boolean;
       Is_Append_Only : Boolean;
    end record;
    type EXT_File_Acc is access all EXT_File;
 
    type EXT_Data is record
+      Mutex                 : aliased Lib.Synchronization.Binary_Semaphore;
       Handle                : Device_Handle;
       Super                 : Superblock;
       Is_Read_Only          : Boolean;
@@ -309,9 +313,59 @@ private
        Ret_Count   : out Natural;
        Success     : out Boolean);
 
+   procedure Write_To_Inode
+      (FS_Data     : EXT_Data_Acc;
+       Inode_Data  : in out Inode;
+       Inode_Num   : Unsigned_32;
+       Inode_Size  : Unsigned_64;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean);
+
+   function Grow_Inode
+      (FS_Data     : EXT_Data_Acc;
+       Inode_Data  : in out Inode;
+       Inode_Num   : Unsigned_32;
+       Start       : Unsigned_64;
+       Count       : Unsigned_64) return Boolean;
+
+   function Assign_Inode_Blocks
+      (FS_Data     : EXT_Data_Acc;
+       Inode_Data  : in out Inode;
+       Inode_Num   : Unsigned_32;
+       Start_Blk   : Unsigned_32;
+       Block_Count : Unsigned_32) return Boolean;
+
+   function Wire_Inode_Blocks
+      (FS_Data     : EXT_Data_Acc;
+       Inode_Data  : in out Inode;
+       Inode_Num   : Unsigned_32;
+       Block_Index : Unsigned_32;
+       Wired_Block : Unsigned_32) return Boolean;
+
+   function Allocate_Block_For_Inode
+      (FS_Data    : EXT_Data_Acc;
+       Inode_Data : in out Inode;
+       Inode_Num  : Unsigned_32;
+       Ret_Block  : out Unsigned_32) return Boolean;
+
    function Get_Dir_Type (Dir_Type : Unsigned_8) return File_Type;
-   function Get_Inode_Type (Permissions : Unsigned_16) return File_Type;
+
+   function Get_Dir_Type (T : File_Type) return Unsigned_8;
+
+   function Get_Inode_Type (Perms : Unsigned_16) return File_Type;
+
+   function Get_Inode_Type
+      (T    : File_Type;
+       Mode : Unsigned_32) return Unsigned_16;
+
    function Get_Size (Ino : Inode; Is_64_Bits : Boolean) return Unsigned_64;
+
+   function Set_Size
+      (Ino        : out Inode;
+       New_Size   : Unsigned_64;
+       Is_64_Bits : Boolean) return Boolean;
 
    procedure Act_On_Policy (Data : EXT_Data_Acc; Message : String);
 end VFS.EXT;

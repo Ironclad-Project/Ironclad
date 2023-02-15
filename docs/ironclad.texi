@@ -82,7 +82,7 @@ Syscalls
 * Errno::                   Error conditions and their values.
 * exit::                    Exit the callee process.
 * arch_prctl::              Interacting with architectural thread-local data.
-* open/close::              Opening and closing a file.
+* open/close::              Opening and closing files.
 * read/write::              Read and write from an already opened file.
 * seek::                    Modify and fetch file offsets.
 * mmap/munmap::             Memory mapping and requesting.
@@ -115,6 +115,8 @@ Syscalls
 * readlink::                Read the contents of a symlink.
 * getdents::                Get directory entries.
 * sync::                    Synchronize device caches.
+* create::                  Create several kinds of files.
+* delete::                  Delete files.
 
 Devices and their properties
 
@@ -596,6 +598,10 @@ Empty.
 @xref{getdents}.
 @item
 @xref{sync}
+@item
+@xref{create}
+@item
+@xref{delete}
 @end enumerate
 
 @node Errno
@@ -709,14 +715,13 @@ errno is to be set to the following values on failure:
 @section open/close
 
 @example
-int open(char *path, int flags, mode_t mode);
+int open(char *path, int flags);
 int close(int fd);
 @end example
 
-@code{open} opens the passed file, depending on the flags passed, it may create
-it if not present. By default, the file descriptor will remain open accross an
-@code{exec}, and the file offset is set to the beggining. @code{mode} is used
-when creating the file.
+@code{open} opens the passed file, depending on the flags passed, does not
+create it if not existent. By default, the file descriptor will remain open
+accross an @code{exec}, and the file offset is set to the beggining.
 
 The flags can be an OR'd field of the following elements:
 
@@ -1641,9 +1646,44 @@ int sync(void);
 The syscall flushes the associated caches of all external devices, which may
 be needed in order to ensure data coherency on shutdown or other situations.
 
-The syscalls @code{0} or @code{-1} on failure, with a corresponding errno. This
-is done as to be forward compatible with future modifications, the syscall\
-right now is not able to fail.
+The syscall returns @code{0} or @code{-1} on failure, with a corresponding
+errno. This is done as to be forward compatible with future modifications, the
+syscall right now is not able to fail.
+
+@node create
+@section create
+
+@example
+int create(const char *path, int file_type, int mode, size_t extra);
+@end example
+
+The syscall creates non existent files. @code{file_type} denotes the kind of
+file, while @code{extra} may be used for the creation of some files, like
+symlinks. It does not open the created file.
+
+The syscall returns @code{0} or @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EINVAL}: The value of @code{file_type} or @code{mode} is not allowed.
+@end itemize
+
+@node delete
+@section delete
+
+@example
+int delete(const char *path);
+@end example
+
+The syscall deletes the file pointed to by @code{path}. If @code{path} points
+to a directory, it must be empty.
+
+The syscall returns @code{0} or @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{ENOENT}: @code{delete} points to a file not valid for deletion, if at all.
+@end itemize
 
 @node Devices and their properties
 @chapter Devices and their properties

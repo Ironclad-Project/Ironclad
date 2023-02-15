@@ -130,7 +130,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 1 =>
             Returned := Syscall_Arch_PRCtl (State.RDI, State.RSI, Errno);
          when 2 =>
-            Returned := Syscall_Open (State.RDI, State.RSI, State.RDX, Errno);
+            Returned := Syscall_Open (State.RDI, State.RSI, Errno);
          when 3 =>
             Returned := Syscall_Close (State.RDI, Errno);
          when 4 =>
@@ -217,6 +217,11 @@ package body Arch.Interrupts with SPARK_Mode => Off is
                                           Errno);
          when 43 =>
             Returned := Syscall_Sync (Errno);
+         when 44 =>
+            Returned := Syscall_Create (State.RDI, State.RSI, State.RDX,
+                                        State.RCX, Errno);
+         when 45 =>
+            Returned := Syscall_Delete (State.RDI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;

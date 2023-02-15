@@ -116,12 +116,41 @@ package VFS with SPARK_Mode => Off is
    --  @param Key  FS Handle to open.
    --  @param Path Absolute path inside the mount, must not exist.
    --  @param Mode Mode to use for the created file.
-   --  @return Returned opaque pointer for the passed mount, Null in failure.
-   function Create
+   --  @return True on success, False on failure.
+   function Create_Regular
       (Key  : FS_Handle;
        Path : String;
-       Mode : Unsigned_32) return System.Address
+       Mode : Unsigned_32) return Boolean
       with Pre => Key /= Error_Handle;
+
+   --  Create a symlink with an absolute path inside the mount and a target.
+   --  @param Key    FS Handle to open.
+   --  @param Path   Absolute path inside the mount, must not exist.
+   --  @param Target Target of the symlink, it is not checked in any way.
+   --  @param Mode   Mode to use for the created symlink.
+   --  @return True on success, False on failure.
+   function Create_Symbolic_Link
+      (Key          : FS_Handle;
+       Path, Target : String;
+       Mode         : Unsigned_32) return Boolean
+      with Pre => Key /= Error_Handle;
+
+   --  Create a directory with an absolute path inside the mount.
+   --  @param Key    FS Handle to open.
+   --  @param Path   Absolute path inside the mount, must not exist.
+   --  @param Mode   Mode to use for the created directory.
+   --  @return True on success, False on failure.
+   function Create_Directory
+      (Key  : FS_Handle;
+       Path : String;
+       Mode : Unsigned_32) return Boolean
+      with Pre => Key /= Error_Handle;
+
+   --  Delete a file by absolute path inside the mount.
+   --  @param Key  FS Handle to open.
+   --  @param Path Absolute path inside the mount, must exist.
+   --  @return True on success, False on failure.
+   function Delete (Key : FS_Handle; Path : String) return Boolean;
 
    --  Close an already opened file.
    --  @param Key FS handle to operate on.
@@ -155,29 +184,6 @@ package VFS with SPARK_Mode => Off is
        Path      : out String;
        Ret_Count : out Natural)
       with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
-
-   --  Create a symlink with an absolute path inside the mount and a target.
-   --  @param Key    FS Handle to open.
-   --  @param Path   Absolute path inside the mount, must not exist.
-   --  @param Target Target of the symlink, it is not checked in any way.
-   --  @param Mode   Mode to use for the created symlink.
-   --  @return Returned opaque pointer for the passed mount, Null in failure.
-   function Create_Symbolic_Link
-      (Key          : FS_Handle;
-       Path, Target : String;
-       Mode         : Unsigned_32) return System.Address
-      with Pre => Key /= Error_Handle;
-
-   --  Create a directory with an absolute path inside the mount.
-   --  @param Key    FS Handle to open.
-   --  @param Path   Absolute path inside the mount, must not exist.
-   --  @param Mode   Mode to use for the created directory.
-   --  @return Returned opaque pointer for the passed mount, Null in failure.
-   function Create_Directory
-      (Key  : FS_Handle;
-       Path : String;
-       Mode : Unsigned_32) return System.Address
-      with Pre => Key /= Error_Handle;
 
    --  Read from a regular file.
    --  @param Key       FS Handle to open.

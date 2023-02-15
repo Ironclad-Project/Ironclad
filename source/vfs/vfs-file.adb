@@ -388,4 +388,42 @@ package body VFS.File with SPARK_Mode => Off is
          return False;
       end if;
    end Munmap;
+
+   function Delete (Path : String) return Boolean is
+      Handle : constant FS_Handle := Get_Mount ("/");
+   begin
+      return Delete (Handle, Path (Path'First + 1 .. Path'Last));
+   end Delete;
+
+   function Create_Regular (Path : String; Mode : Unsigned_32) return Boolean
+   is
+      Handle : constant FS_Handle := Get_Mount ("/");
+   begin
+      return Create_Regular (Handle, Path (Path'First + 1 .. Path'Last), Mode);
+   end Create_Regular;
+
+   function Create_Directory
+      (Path : String;
+       Mode : Unsigned_32) return Boolean
+   is
+      Handle : constant FS_Handle := Get_Mount ("/");
+   begin
+      return Create_Directory
+         (Handle,
+          Path (Path'First + 1 .. Path'Last),
+          Mode);
+   end Create_Directory;
+
+   function Create_Symbolic_Link
+      (Path, Target : String;
+       Mode         : Unsigned_32) return Boolean
+   is
+      Handle : constant FS_Handle := Get_Mount ("/");
+   begin
+      return Create_Symbolic_Link
+         (Handle,
+          Path (Path'First + 1 .. Path'Last),
+          Target,
+          Mode);
+   end Create_Symbolic_Link;
 end VFS.File;

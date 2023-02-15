@@ -160,17 +160,59 @@ package body VFS with SPARK_Mode => Off is
       end case;
    end Open;
 
-   function Create
+   function Create_Regular
       (Key  : FS_Handle;
        Path : String;
-       Mode : Unsigned_32) return System.Address
+       Mode : Unsigned_32) return Boolean
    is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_USTAR => return Null_Address;
-         when FS_EXT   => return EXT.Create (Mounts (Key).FS_Data, Path, Mode);
+         when FS_USTAR =>
+            return False;
+         when FS_EXT =>
+            return EXT.Create_Regular (Mounts (Key).FS_Data, Path, Mode);
       end case;
-   end Create;
+   end Create_Regular;
+
+   function Create_Symbolic_Link
+      (Key          : FS_Handle;
+       Path, Target : String;
+       Mode         : Unsigned_32) return Boolean
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_USTAR =>
+            return False;
+         when FS_EXT =>
+            return EXT.Create_Symbolic_Link
+               (Mounts (Key).FS_Data,
+                Path,
+                Target,
+                Mode);
+      end case;
+   end Create_Symbolic_Link;
+
+   function Create_Directory
+      (Key  : FS_Handle;
+       Path : String;
+       Mode : Unsigned_32) return Boolean
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_USTAR =>
+            return False;
+         when FS_EXT =>
+            return EXT.Create_Directory (Mounts (Key).FS_Data, Path, Mode);
+      end case;
+   end Create_Directory;
+
+   function Delete (Key : FS_Handle; Path : String) return Boolean is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_USTAR => return False;
+         when FS_EXT   => return EXT.Delete (Mounts (Key).FS_Data, Path);
+      end case;
+   end Delete;
 
    procedure Close (Key : FS_Handle; Obj : in out System.Address) is
    begin
@@ -222,38 +264,6 @@ package body VFS with SPARK_Mode => Off is
                (Mounts (Key).FS_Data, Obj, Path, Ret_Count);
       end case;
    end Read_Symbolic_Link;
-
-   function Create_Symbolic_Link
-      (Key          : FS_Handle;
-       Path, Target : String;
-       Mode         : Unsigned_32) return System.Address
-   is
-   begin
-      case Mounts (Key).Mounted_FS is
-         when FS_USTAR =>
-            return System.Null_Address;
-         when FS_EXT =>
-            return EXT.Create_Symbolic_Link
-               (Mounts (Key).FS_Data,
-                Path,
-                Target,
-                Mode);
-      end case;
-   end Create_Symbolic_Link;
-
-   function Create_Directory
-      (Key  : FS_Handle;
-       Path : String;
-       Mode : Unsigned_32) return System.Address
-   is
-   begin
-      case Mounts (Key).Mounted_FS is
-         when FS_USTAR =>
-            return System.Null_Address;
-         when FS_EXT =>
-            return EXT.Create_Directory (Mounts (Key).FS_Data, Path, Mode);
-      end case;
-   end Create_Directory;
 
    procedure Read
       (Key       : FS_Handle;
