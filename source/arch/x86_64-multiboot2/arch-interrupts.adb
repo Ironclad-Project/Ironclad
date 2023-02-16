@@ -130,7 +130,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 1 =>
             Returned := Syscall_Arch_PRCtl (State.RDI, State.RSI, Errno);
          when 2 =>
-            Returned := Syscall_Open (State.RDI, State.RSI, Errno);
+            Returned := Syscall_Open (State.RDI, State.RSI, State.RDX, Errno);
          when 3 =>
             Returned := Syscall_Close (State.RDI, Errno);
          when 4 =>
@@ -149,7 +149,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 10 =>
             Returned := Syscall_Get_Parent_PID;
          when 11 =>
-            Returned := Syscall_Exec (State.RDI, State.RSI, State.RDX, Errno);
+            Returned := Syscall_Exec (State.RDI, State.RSI, State.RDX,
+                                      State.RCX, State.R8, State.R9, Errno);
          when 12 =>
             Context.Save_FP_Context (FP_State);
             Returned := Syscall_Fork (State.all, FP_State, Errno);
@@ -162,11 +163,11 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 16 =>
             Returned := Syscall_FStat (State.RDI, State.RSI, Errno);
          when 17 =>
-            Returned := Syscall_LStat (State.RDI, State.RSI, Errno);
+            Returned := Syscall_LStat (State.RDI, State.RSI, State.RDX, Errno);
          when 18 =>
             Returned := Syscall_Get_CWD (State.RDI, State.RSI, Errno);
          when 19 =>
-            Returned := Syscall_Chdir (State.RDI, Errno);
+            Returned := Syscall_Chdir (State.RDI, State.RSI, Errno);
          when 20 =>
             Returned := Syscall_IOCTL (State.RDI, State.RSI, State.RDX, Errno);
          when 21 =>
@@ -182,7 +183,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 26 =>
             Returned := Syscall_Sysconf (State.RDI, Errno);
          when 27 =>
-            Returned := Syscall_Access (State.RDI, State.RSI, Errno);
+            Returned := Syscall_Access
+               (State.RDI, State.RSI, State.RDX, Errno);
          when 28 =>
             Returned := Syscall_Get_Thread_Sched (Errno);
          when 29 =>
@@ -206,12 +208,13 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := Syscall_Set_MAC_Enforcement (State.RDI, Errno);
          when 39 =>
             Returned := Syscall_Mount (State.RDI, State.RSI, State.RDX,
-                                       State.RCX, Errno);
+                                       State.RCX, State.R8, State.R9, Errno);
          when 40 =>
-            Returned := Syscall_Umount (State.RDI, State.RSI, Errno);
+            Returned := Syscall_Umount
+               (State.RDI, State.RSI, State.RDX, Errno);
          when 41 =>
             Returned := Syscall_Readlink (State.RDI, State.RSI, State.RDX,
-                                          Errno);
+                                          State.RCX, Errno);
          when 42 =>
             Returned := Syscall_GetDEnts (State.RDI, State.RSI, State.RDX,
                                           Errno);
@@ -219,9 +222,9 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := Syscall_Sync (Errno);
          when 44 =>
             Returned := Syscall_Create (State.RDI, State.RSI, State.RDX,
-                                        State.RCX, Errno);
+                                        State.RCX, State.R8, Errno);
          when 45 =>
-            Returned := Syscall_Delete (State.RDI, Errno);
+            Returned := Syscall_Delete (State.RDI, State.RSI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;

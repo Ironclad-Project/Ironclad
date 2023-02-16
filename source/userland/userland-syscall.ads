@@ -83,9 +83,10 @@ package Userland.Syscall with SPARK_Mode => Off is
    O_NOFOLLOW : constant := 2#0100000000#;
    O_NONBLOCK : constant := 2#1000000000#;
    function Syscall_Open
-      (Address : Unsigned_64;
-       Flags   : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64;
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Flags     : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
 
    --  Close a file.
    function Syscall_Close
@@ -144,10 +145,13 @@ package Userland.Syscall with SPARK_Mode => Off is
 
    --  Execute.
    function Syscall_Exec
-      (Address : Unsigned_64;
-       Argv    : Unsigned_64;
-       Envp    : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64;
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Argv_Addr : Unsigned_64;
+       Argv_Len  : Unsigned_64;
+       Envp_Addr : Unsigned_64;
+       Envp_Len  : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
 
    --  Fork the callee process.
    function Syscall_Fork
@@ -229,9 +233,10 @@ package Userland.Syscall with SPARK_Mode => Off is
 
    --  Path stat.
    function Syscall_LStat
-      (Path    : Unsigned_64;
-       Address : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64;
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Stat_Addr : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
 
    --  Get current working directory.
    function Syscall_Get_CWD
@@ -241,8 +246,9 @@ package Userland.Syscall with SPARK_Mode => Off is
 
    --  Get current working directory.
    function Syscall_Chdir
-      (Path  : Unsigned_64;
-       Errno : out Errno_Value) return Unsigned_64;
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
 
    --  IO control.
    function Syscall_IOCTL
@@ -289,8 +295,10 @@ package Userland.Syscall with SPARK_Mode => Off is
    Access_Can_Write : constant := 2#0100#;
    Access_Can_Exec  : constant := 2#1000#;
    function Syscall_Access
-      (Path, Mode : Unsigned_64;
-       Errno      : out Errno_Value) return Unsigned_64;
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Mode      : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
 
    --  Managing scheduling of a thread.
    Thread_MONO : constant := 2#1#;
@@ -376,7 +384,9 @@ package Userland.Syscall with SPARK_Mode => Off is
    --  Mount a filesystem.
    function Syscall_Mount
       (Source_Addr : Unsigned_64;
+       Source_Len  : Unsigned_64;
        Target_Addr : Unsigned_64;
+       Target_Len  : Unsigned_64;
        FSType_Addr : Unsigned_64;
        MountFlags  : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
@@ -384,13 +394,15 @@ package Userland.Syscall with SPARK_Mode => Off is
    --  Unmount a filesystem.
    MNT_FORCE : constant := 1;
    function Syscall_Umount
-      (Path  : Unsigned_64;
-       Flags : Unsigned_64;
-       Errno : out Errno_Value) return Unsigned_64;
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Flags     : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
 
    --  Read the contents of a symlink.
    function Syscall_Readlink
       (Path_Addr   : Unsigned_64;
+       Path_Len    : Unsigned_64;
        Buffer_Addr : Unsigned_64;
        Buffer_Len  : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
@@ -431,16 +443,18 @@ package Userland.Syscall with SPARK_Mode => Off is
    CREATE_DIR : constant := 2;
    CREATE_SYM : constant := 3;
    function Syscall_Create
-      (Address : Unsigned_64;
-       File_T  : Unsigned_64;
-       Mode    : Unsigned_64;
-       Extra   : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64;
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       File_T    : Unsigned_64;
+       Mode      : Unsigned_64;
+       Extra     : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
 
    --  Deletes a file.
    function Syscall_Delete
-      (Address : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64;
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
 
 private
 

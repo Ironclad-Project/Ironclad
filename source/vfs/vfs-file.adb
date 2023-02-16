@@ -84,6 +84,8 @@ package body VFS.File with SPARK_Mode => Off is
             end if;
          end loop;
 
+         Close (Fetched_FS, Fetched_File);
+
          if Symlink_Len = 0 then
             return Null_Address;
          elsif Symlink (1) = '/' then

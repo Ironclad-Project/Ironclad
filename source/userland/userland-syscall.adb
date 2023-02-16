@@ -110,63 +110,58 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Syscall_Arch_PRCtl;
 
    function Syscall_Open
-      (Address : Unsigned_64;
-       Flags   : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Flags     : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64
    is
-      Addr : constant System.Address := To_Address (Integer_Address (Address));
-      Current_Proc : constant Userland.Process.Process_Data_Acc :=
-         Arch.Local.Get_Current_Process;
+      Path_IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant   System.Address := To_Address (Path_IAddr);
+      Curr_Proc  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Do_Close_On_Exec  : constant Boolean := (Flags and O_CLOEXEC)  /= 0;
+      Do_Read           : constant Boolean := (Flags and O_RDONLY)   /= 0;
+      Do_Write          : constant Boolean := (Flags and O_WRONLY)   /= 0;
+      Dont_Follow       : constant Boolean := (Flags and O_NOFOLLOW) /= 0;
+      Do_Append         : constant Boolean := (Flags and O_APPEND)   /= 0;
+
+      Final_Path   : String (1 .. 1024);
+      Final_Path_L : Natural;
+      Open_Mode    : VFS.File.Access_Mode;
+      Opened_File  : VFS.File.File_Acc;
+      Opened_Stat  : VFS.File_Stat;
+      New_Descr    : File_Description_Acc;
+      File_Perms   : MAC.Filter_Permissions;
+      Returned_FD  : Natural;
    begin
-      if not Check_Userland_Access (To_Integer (Addr)) then
-         if Is_Tracing then
-            Lib.Messages.Put ("syscall open(BAD_MEM, ");
-            Lib.Messages.Put (Flags);
-            Lib.Messages.Put_Line (")");
-         end if;
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall open(");
+         Lib.Messages.Put (Path_Addr);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Path_Len);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Flags);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if not Check_Userland_Access (Path_IAddr) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
+      elsif Path_Len > Unsigned_64 (Natural'Last) then
+         Errno := Error_String_Too_Long;
+         return Unsigned_64'Last;
       end if;
+
+      if        Do_Read and     Do_Write then Open_Mode := VFS.File.Read_Write;
+      elsif     Do_Read and not Do_Write then Open_Mode := VFS.File.Read_Only;
+      elsif not Do_Read and     Do_Write then Open_Mode := VFS.File.Write_Only;
+      else Errno := Error_Invalid_Value; return Unsigned_64'Last; end if;
+
       declare
-         Path_Length  : constant Natural := Lib.C_String_Length (Addr);
-         Path_String  : String (1 .. Path_Length) with Address => Addr;
-         Final_Path   : String (1 .. 1024);
-         Final_Path_L : Natural;
-         Open_Mode    : VFS.File.Access_Mode;
-         Opened_File  : VFS.File.File_Acc;
-         Opened_Stat  : VFS.File_Stat;
-         New_Descr    : File_Description_Acc;
-         File_Perms   : MAC.Filter_Permissions;
-         Returned_FD  : Natural;
-         Close_On_Exec : constant Boolean := (Flags and O_CLOEXEC)  /= 0;
-         Flags_Read    : constant Boolean := (Flags and O_RDONLY)   /= 0;
-         Flags_Write   : constant Boolean := (Flags and O_WRONLY)   /= 0;
-         No_Follow     : constant Boolean := (Flags and O_NOFOLLOW) /= 0;
-         Do_Append     : constant Boolean := (Flags and O_APPEND)   /= 0;
+         Path : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
       begin
-         if Is_Tracing then
-            Lib.Messages.Put ("syscall open(");
-            Lib.Messages.Put (Path_String);
-            Lib.Messages.Put (", ");
-            Lib.Messages.Put (Flags);
-            Lib.Messages.Put_Line (")");
-         end if;
-
-         --  Parse the mode.
-         if Flags_Read and Flags_Write then
-            Open_Mode := VFS.File.Read_Write;
-         elsif Flags_Read then
-            Open_Mode := VFS.File.Read_Only;
-         elsif Flags_Write then
-            Open_Mode := VFS.File.Write_Only;
-         else
-            Errno := Error_Invalid_Value;
-            return Unsigned_64'Last;
-         end if;
-
          if MAC_Is_Locked then
             File_Perms := MAC.Check_Path_Permissions
-               (Path_String, Current_Proc.Perms.Filters);
+               (Path, Curr_Proc.Perms.Filters);
             case Open_Mode is
                when VFS.File.Read_Write =>
                   if File_Perms.Can_Read and File_Perms.Can_Write then
@@ -182,16 +177,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   end if;
             end case;
             Errno := Error_Bad_Access;
-            Execute_MAC_Failure ("open", Current_Proc);
+            Execute_MAC_Failure ("open", Curr_Proc);
             return Unsigned_64'Last;
          end if;
 
          --  Actually open the file.
       <<Resume>>
          VFS.Compound_Path
-            (Base      => Current_Proc.Current_Dir
-                          (1 .. Current_Proc.Current_Dir_Len),
-             Extension => Path_String,
+            (Base => Curr_Proc.Current_Dir (1 .. Curr_Proc.Current_Dir_Len),
+             Extension => Path,
              Result    => Final_Path,
              Count     => Final_Path_L);
          if Final_Path_L = 0 then
@@ -200,37 +194,35 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
 
          Opened_File := VFS.File.Open
-               (Final_Path (1 .. Final_Path_L), Open_Mode, not No_Follow);
-
-         if Opened_File = null then
-            Errno := Error_No_Entity;
-            return Unsigned_64'Last;
-         end if;
-
-         if Do_Append then
-            if not VFS.File.Stat (Opened_File, Opened_Stat) then
-               Errno := Error_Invalid_Seek;
-               return Unsigned_64'Last;
-            end if;
-            Set_Position (Opened_File, Opened_Stat.Byte_Size);
-         end if;
-
-         New_Descr := new File_Description'(
-            Close_On_Exec => Close_On_Exec,
-            Description   => Description_File,
-            Inner_File    => Opened_File
-         );
-         if not Userland.Process.Add_File
-            (Current_Proc, New_Descr, Returned_FD)
-         then
-            Close (New_Descr);
-            Errno := Error_Too_Many_Files;
-            return Unsigned_64'Last;
-         else
-            Errno := Error_No_Error;
-            return Unsigned_64 (Returned_FD);
-         end if;
+               (Final_Path (1 .. Final_Path_L), Open_Mode, not Dont_Follow);
       end;
+
+      if Opened_File = null then
+         Errno := Error_No_Entity;
+         return Unsigned_64'Last;
+      end if;
+
+      if Do_Append then
+         if not VFS.File.Stat (Opened_File, Opened_Stat) then
+            Errno := Error_Invalid_Seek;
+            return Unsigned_64'Last;
+         end if;
+         Set_Position (Opened_File, Opened_Stat.Byte_Size);
+      end if;
+
+      New_Descr := new File_Description'(
+         Close_On_Exec => Do_Close_On_Exec,
+         Description   => Description_File,
+         Inner_File    => Opened_File
+      );
+      if Userland.Process.Add_File (Curr_Proc, New_Descr, Returned_FD) then
+         Errno := Error_No_Error;
+         return Unsigned_64 (Returned_FD);
+      else
+         Close (New_Descr);
+         Errno := Error_Too_Many_Files;
+         return Unsigned_64'Last;
+      end if;
    end Syscall_Open;
 
    function Syscall_Close
@@ -598,71 +590,80 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Syscall_Get_Parent_PID;
 
    function Syscall_Exec
-      (Address : Unsigned_64;
-       Argv    : Unsigned_64;
-       Envp    : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Argv_Addr : Unsigned_64;
+       Argv_Len  : Unsigned_64;
+       Envp_Addr : Unsigned_64;
+       Envp_Len  : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64
    is
-      --  FIXME: This type should be dynamic ideally and not have a maximum.
-      type Arg_Arr is array (1 .. 40) of Unsigned_64;
+      type Arg_Arr is array (Natural range <>) of Unsigned_64;
 
-      Current_Thread  : constant Scheduler.TID :=
-         Arch.Local.Get_Current_Thread;
-      Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Arch.Local.Get_Current_Process;
-      Tmp_Map : Memory.Virtual.Page_Map_Acc;
-      Addr : constant System.Address := To_Address (Integer_Address (Address));
-      Path_Length : constant Natural := Lib.C_String_Length (Addr);
-      Path_String : String (1 .. Path_Length) with Address => Addr;
-      Opened_File : constant File_Acc := Open (Path_String, Read_Only);
+      Curr_Th   : constant    Scheduler.TID := Arch.Local.Get_Current_Thread;
+      Curr_Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Tmp_Map   : Memory.Virtual.Page_Map_Acc;
 
-      Args_Raw : Arg_Arr with Address => To_Address (Integer_Address (Argv));
-      Env_Raw  : Arg_Arr with Address => To_Address (Integer_Address (Envp));
-      Args_Count : Natural := 0;
-      Env_Count  : Natural := 0;
+      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
+      Path       : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
+      Path_File  : File_Acc;
+
+      Argv_IAddr : constant Integer_Address := Integer_Address (Argv_Addr);
+      Argv_SAddr : constant  System.Address := To_Address (Argv_IAddr);
+      Envp_IAddr : constant Integer_Address := Integer_Address (Envp_Addr);
+      Envp_SAddr : constant  System.Address := To_Address (Envp_IAddr);
    begin
       if Is_Tracing then
-         Lib.Messages.Put_Line ("syscall exec(" & Path_String & ")");
+         Lib.Messages.Put ("syscall open(");
+         Lib.Messages.Put (Path_Addr);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Path_Len);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Argv_Addr);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Argv_Len);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Envp_Addr);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Envp_Len);
+         Lib.Messages.Put_Line (")");
       end if;
 
-      if Opened_File = null then
-         Errno := Error_No_Entity;
-         return Unsigned_64'Last;
-      end if;
-
-      if not Check_Userland_Access (To_Integer (Addr)) then
+      if not Check_Userland_Access (Path_IAddr) or
+            not Check_Userland_Access (Argv_IAddr) or
+            not Check_Userland_Access (Envp_IAddr)
+      then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       end if;
 
-      --  Count the args and envp we have, and copy them to Ada arrays.
-      for I in Args_Raw'Range loop
-         exit when Args_Raw (I) = 0;
-         Args_Count := Args_Count + 1;
-      end loop;
-      for I in Env_Raw'Range loop
-         exit when Env_Raw (I) = 0;
-         Env_Count := Env_Count + 1;
-      end loop;
+      Path_File := Open (Path, Read_Only);
+      if Path_File = null then
+         Errno := Error_No_Entity;
+         return Unsigned_64'Last;
+      end if;
 
       declare
-         Args : Userland.Argument_Arr    (1 .. Args_Count);
-         Env  : Userland.Environment_Arr (1 .. Env_Count);
+         Argv : Arg_Arr (1 .. Natural (Argv_Len)) with Address => Argv_SAddr;
+         Envp : Arg_Arr (1 .. Natural (Envp_Len)) with Address => Envp_SAddr;
+         Args : Userland.Argument_Arr    (1 .. Argv'Length);
+         Env  : Userland.Environment_Arr (1 .. Envp'Length);
       begin
-         for I in 1 .. Args_Count loop
+         for I in Argv'Range loop
             declare
                Addr : constant System.Address :=
-                  To_Address (Integer_Address (Args_Raw (I)));
+                  To_Address (Integer_Address (Argv (I)));
                Arg_Length : constant Natural := Lib.C_String_Length (Addr);
                Arg_String : String (1 .. Arg_Length) with Address => Addr;
             begin
                Args (I) := new String'(Arg_String);
             end;
          end loop;
-         for I in 1 .. Env_Count loop
+         for I in Envp'Range loop
             declare
                Addr : constant System.Address :=
-                  To_Address (Integer_Address (Env_Raw (I)));
+                  To_Address (Integer_Address (Envp (I)));
                Arg_Length : constant Natural := Lib.C_String_Length (Addr);
                Arg_String : String (1 .. Arg_Length) with Address => Addr;
             begin
@@ -671,16 +672,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end loop;
 
          --  Free state.
-         Userland.Process.Flush_Threads (Current_Process);
-         Userland.Process.Flush_Exec_Files (Current_Process);
+         Userland.Process.Flush_Threads (Curr_Proc);
+         Userland.Process.Flush_Exec_Files (Curr_Proc);
 
          --  Create a new map for the process.
-         Tmp_Map := Current_Process.Common_Map;
-         Current_Process.Common_Map := Memory.Virtual.New_Map;
+         Tmp_Map              := Curr_Proc.Common_Map;
+         Curr_Proc.Common_Map := Memory.Virtual.New_Map;
 
          --  Start the actual program.
-         if not Userland.Loader.Start_Program
-            (Opened_File, Args, Env, Current_Process)
+         if not Userland.Loader.Start_Program (Path_File, Args, Env, Curr_Proc)
          then
             Errno := Error_Bad_Access;
             return Unsigned_64'Last;
@@ -694,7 +694,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end loop;
 
          --  Free critical state now that we know wont be running.
-         Userland.Process.Remove_Thread (Current_Process, Current_Thread);
+         Userland.Process.Remove_Thread (Curr_Proc, Curr_Th);
          Memory.Virtual.Delete_Map (Tmp_Map);
          Scheduler.Bail;
          Errno := Error_No_Error;
@@ -1028,35 +1028,39 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Syscall_FStat;
 
    function Syscall_LStat
-      (Path    : Unsigned_64;
-       Address : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Stat_Addr : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64
    is
-      Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
-      Addr : constant System.Address := To_Address (Integer_Address (Path));
-      Path_Length  : constant Natural := Lib.C_String_Length (Addr);
-      Path_String  : String (1 .. Path_Length) with Import, Address => Addr;
+      Proc       : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Path_IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant   System.Address := To_Address (Path_IAddr);
+
+      Path       : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
-      File : File_Acc;
-      Stat_Is_Success : Boolean;
+      File         : File_Acc;
+      Success      : Boolean;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall lstat(");
-         Lib.Messages.Put (Path_String);
+         Lib.Messages.Put (Path_Addr);
          Lib.Messages.Put (", ");
-         Lib.Messages.Put (Address, False, True);
+         Lib.Messages.Put (Path_Len);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Stat_Addr);
          Lib.Messages.Put_Line (")");
       end if;
 
-      if not Check_Userland_Access (Integer_Address (Address)) then
+      if not Check_Userland_Access (Path_IAddr) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       end if;
 
       VFS.Compound_Path
          (Base      => Proc.Current_Dir (1 .. Proc.Current_Dir_Len),
-          Extension => Path_String,
+          Extension => Path,
           Result    => Final_Path,
           Count     => Final_Path_L);
       if Final_Path_L = 0 then
@@ -1064,19 +1068,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      File := VFS.File.Open
-            (Final_Path (1 .. Final_Path_L),
-             VFS.File.Read_Only,
-             False);
-
+      File := Open (Final_Path (1 .. Final_Path_L), Read_Only, False);
       if File = null then
          Errno := Error_No_Entity;
          return Unsigned_64'Last;
       end if;
 
-      Stat_Is_Success := Inner_Stat (File, Address);
+      Success := Inner_Stat (File, Stat_Addr);
       Close (File);
-      if Stat_Is_Success then
+      if Success then
          Errno := Error_No_Error;
          return 0;
       else
@@ -1125,64 +1125,55 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Syscall_Get_CWD;
 
    function Syscall_Chdir
-      (Path  : Unsigned_64;
-       Errno : out Errno_Value) return Unsigned_64
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64
    is
-      Addr    : constant System.Address := To_Address (Integer_Address (Path));
-      Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.Local.Get_Current_Process;
+      I_Addr : constant  Integer_Address := Integer_Address (Path_Addr);
+      S_Addr : constant   System.Address := To_Address (I_Addr);
+      Proc   : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Path  : String (1 .. Natural (Path_Len)) with Address => S_Addr;
+      Final_Path   : String (1 .. 1024);
+      Final_Path_L : Natural;
+      File         : VFS.File.File_Acc;
    begin
-      if not Check_Userland_Access (Integer_Address (Path)) then
-         if Is_Tracing then
-            Lib.Messages.Put_Line ("syscall chdir(BAD_MEM)");
-         end if;
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall chdir(");
+         Lib.Messages.Put (Path_Addr);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Path_Len);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if not Check_Userland_Access (I_Addr) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       end if;
 
-      declare
-         Path_Length  : constant Natural := Lib.C_String_Length (Addr);
-         Path_String  : String (1 .. Path_Length) with Address => Addr;
-         Final_Path   : String (1 .. 1024);
-         Final_Path_L : Natural;
-         File         : VFS.File.File_Acc;
-      begin
-         if Is_Tracing then
-            Lib.Messages.Put ("syscall chdir(");
-            Lib.Messages.Put (Path_String);
-            Lib.Messages.Put_Line (")");
-         end if;
+      VFS.Compound_Path
+         (Base      => Proc.Current_Dir (1 .. Proc.Current_Dir_Len),
+          Extension => Path,
+          Result    => Final_Path,
+          Count     => Final_Path_L);
+      if Final_Path_L = 0 then
+         Errno := Error_String_Too_Long;
+         return Unsigned_64'Last;
+      end if;
 
-         VFS.Compound_Path
-            (Base      => Process.Current_Dir (1 .. Process.Current_Dir_Len),
-             Extension => Path_String,
-             Result    => Final_Path,
-             Count     => Final_Path_L);
-         if Final_Path_L = 0 then
-            Errno := Error_String_Too_Long;
-            return Unsigned_64'Last;
-         end if;
+      File := Open (Final_Path (1 .. Final_Path_L), VFS.File.Read_Only, False);
+      if File = null then
+         Errno := Error_No_Entity;
+         return Unsigned_64'Last;
+      elsif Final_Path_L > Proc.Current_Dir'Length then
+         Errno := Error_String_Too_Long;
+         return Unsigned_64'Last;
+      end if;
 
-         File := VFS.File.Open
-            (Final_Path (1 .. Final_Path_L), VFS.File.Read_Only, False);
-
-         if File = null then
-            Errno := Error_No_Entity;
-            return Unsigned_64'Last;
-         end if;
-
-         if Final_Path_L > Process.Current_Dir'Length then
-            Errno := Error_String_Too_Long;
-            return Unsigned_64'Last;
-         end if;
-
-         Close (File);
-         Process.Current_Dir_Len := Final_Path_L;
-         Process.Current_Dir (1 .. Final_Path_L) :=
-            Final_Path (1 .. Final_Path_L);
-         Errno := Error_No_Error;
-         return 0;
-      end;
+      Close (File);
+      Proc.Current_Dir_Len := Final_Path_L;
+      Proc.Current_Dir (1 .. Final_Path_L) := Final_Path (1 .. Final_Path_L);
+      Errno := Error_No_Error;
+      return 0;
    end Syscall_Chdir;
 
    function Syscall_IOCTL
@@ -1191,11 +1182,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Argument : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64
    is
-      Arg : constant System.Address := To_Address (Integer_Address (Argument));
-      Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Arch.Local.Get_Current_Process;
-      File : constant File_Description_Acc :=
-         Userland.Process.Get_File (Current_Process, FD);
+      I_Arg : constant      Integer_Address := Integer_Address (Argument);
+      S_Arg : constant       System.Address := To_Address (I_Arg);
+      Proc  : constant     Process_Data_Acc := Arch.Local.Get_Current_Process;
+      File  : constant File_Description_Acc := Get_File (Proc, FD);
    begin
       if Is_Tracing then
          Lib.Messages.Put      ("syscall ioctl(");
@@ -1207,18 +1197,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      if not Check_Userland_Access (Integer_Address (Argument)) then
+      if not Check_Userland_Access (I_Arg) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
-      end if;
-
-      if File = null then
+      elsif File = null then
          Errno := Error_Not_A_TTY;
          return Unsigned_64'Last;
       end if;
 
       if File.Description = Description_File and then
-         IO_Control (File.Inner_File, Request, Arg)
+         IO_Control (File.Inner_File, Request, S_Arg)
       then
          Errno := Error_No_Error;
          return 0;
@@ -1244,7 +1232,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno : out Errno_Value) return Unsigned_64
    is
       Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
-      Current_TID : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
+      Thre : constant    Scheduler.TID := Arch.Local.Get_Current_Thread;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall set_deadlines(");
@@ -1259,7 +1247,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Execute_MAC_Failure ("setdeadlines", Proc);
          return Unsigned_64'Last;
       elsif not Scheduler.Set_Deadlines
-         (Current_TID, Positive (Run_Time), Positive (Period))
+         (Thre, Positive (Run_Time), Positive (Period))
       then
          Errno := Error_Invalid_Value;
          return Unsigned_64'Last;
@@ -1322,10 +1310,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       (Old_FD : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64
    is
-      Process : constant Userland.Process.Process_Data_Acc :=
-         Arch.Local.Get_Current_Process;
-      Old_File  : constant File_Description_Acc :=
-         Userland.Process.Get_File (Process, Old_FD);
+      Process   : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Old_File  : constant File_Description_Acc := Get_File (Process, Old_FD);
       New_FD    : File_Description_Acc;
       Result_FD : Natural;
    begin
@@ -1357,10 +1343,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       (Old_FD, New_FD : Unsigned_64;
        Errno          : out Errno_Value) return Unsigned_64
    is
-      Process : constant Userland.Process.Process_Data_Acc :=
-         Arch.Local.Get_Current_Process;
-      Old_File : constant File_Description_Acc :=
-         Userland.Process.Get_File (Process, Old_FD);
+      Process  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Old_File : constant File_Description_Acc := Get_File (Process, Old_FD);
    begin
       if Is_Tracing then
          Lib.Messages.Put      ("syscall dup2(");
@@ -1415,65 +1399,58 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Syscall_Sysconf;
 
    function Syscall_Access
-      (Path, Mode : Unsigned_64;
-       Errno      : out Errno_Value) return Unsigned_64
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Mode      : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64
    is
-      Addr : constant System.Address := To_Address (Integer_Address (Path));
+      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
       Check_Read  : constant Boolean := (Mode and Access_Can_Read)  /= 0;
       Check_Write : constant Boolean := (Mode and Access_Can_Write) /= 0;
       Check_Exec  : constant Boolean := (Mode and Access_Can_Exec)  /= 0;
+      Path : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
+      Opened      : VFS.File.File_Acc;
+      Res_Stat    : VFS.File_Stat;
+      Returned    : Unsigned_64;
    begin
-      if not Check_Userland_Access (Integer_Address (Path)) then
-         if Is_Tracing then
-            Lib.Messages.Put ("syscall access(BAD_MEM, ");
-            Lib.Messages.Put (Mode);
-            Lib.Messages.Put_Line (")");
-         end if;
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall access(");
+         Lib.Messages.Put (Path_Addr, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Path_Len);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Mode);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if not Check_Userland_Access (Path_IAddr) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
-      end if;
-      if Mode = 0 then
-         if Is_Tracing then
-            Lib.Messages.Put_Line ("syscall access(..., 0)");
-         end if;
+      elsif Mode = 0 then
          Errno := Error_Invalid_Value;
          return Unsigned_64'Last;
       end if;
-      declare
-         Path_Length : constant Natural := Lib.C_String_Length (Addr);
-         Path_String : String (1 .. Path_Length) with Address => Addr;
-         Opened      : VFS.File.File_Acc;
-         Res_Stat    : VFS.File_Stat;
-         Returned    : Unsigned_64;
-      begin
-         if Is_Tracing then
-            Lib.Messages.Put ("syscall access(");
-            Lib.Messages.Put (Path_String);
-            Lib.Messages.Put (", ");
-            Lib.Messages.Put (Mode, False, True);
-            Lib.Messages.Put_Line (")");
-         end if;
 
-         Opened := VFS.File.Open (Path_String, VFS.File.Read_Only);
-         if Opened = null or else not VFS.File.Stat (Opened, Res_Stat) then
-            Errno := Error_No_Entity;
-            return Unsigned_64'Last;
-         end if;
+      Opened := VFS.File.Open (Path, VFS.File.Read_Only);
+      if Opened = null or else not VFS.File.Stat (Opened, Res_Stat) then
+         Errno := Error_No_Entity;
+         return Unsigned_64'Last;
+      end if;
 
-         if (not Check_Read  or ((Res_Stat.Mode and 8#400#) /= 0)) and
-            (not Check_Write or ((Res_Stat.Mode and 8#200#) /= 0)) and
-            (not Check_Exec  or ((Res_Stat.Mode and 8#100#) /= 0))
-         then
-            Errno    := Error_No_Error;
-            Returned := 0;
-         else
-            Errno    := Error_No_Entity;
-            Returned := Unsigned_64'Last;
-         end if;
+      if (not Check_Read  or ((Res_Stat.Mode and 8#400#) /= 0)) and
+         (not Check_Write or ((Res_Stat.Mode and 8#200#) /= 0)) and
+         (not Check_Exec  or ((Res_Stat.Mode and 8#100#) /= 0))
+      then
+         Errno    := Error_No_Error;
+         Returned := 0;
+      else
+         Errno    := Error_No_Entity;
+         Returned := Unsigned_64'Last;
+      end if;
 
-         VFS.File.Close (Opened);
-         return Returned;
-      end;
+      VFS.File.Close (Opened);
+      return Returned;
    end Syscall_Access;
 
    function Syscall_Get_Thread_Sched
@@ -1933,7 +1910,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
    function Syscall_Mount
       (Source_Addr : Unsigned_64;
+       Source_Len  : Unsigned_64;
        Target_Addr : Unsigned_64;
+       Target_Len  : Unsigned_64;
        FSType_Addr : Unsigned_64;
        MountFlags  : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64
@@ -1957,12 +1936,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
       declare
-         Source_Len : constant Natural := Lib.C_String_Length (Src_Addr);
-         Target_Len : constant Natural := Lib.C_String_Length (Tgt_Addr);
          FSType_Len : constant Natural := Lib.C_String_Length (Typ_Addr);
-         Source : String (1 .. Source_Len) with Address => Src_Addr, Import;
-         Target : String (1 .. Target_Len) with Address => Tgt_Addr, Import;
-         FSType : String (1 .. FSType_Len) with Address => Typ_Addr, Import;
+         Source : String (1 .. Natural (Source_Len)) with Address => Src_Addr;
+         Target : String (1 .. Natural (Target_Len)) with Address => Tgt_Addr;
+         FSType : String (1 ..           FSType_Len) with Address => Typ_Addr;
          Parsed_Type : VFS.FS_Type;
       begin
          if Is_Tracing then
@@ -1997,13 +1974,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Syscall_Mount;
 
    function Syscall_Umount
-      (Path  : Unsigned_64;
-       Flags : Unsigned_64;
-       Errno : out Errno_Value) return Unsigned_64
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Flags     : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64
    is
       Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
-      Path_IAddr : constant Integer_Address := Integer_Address (Path);
-      Path_Addr  : constant System.Address  := To_Address (Path_IAddr);
+      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant System.Address  := To_Address (Path_IAddr);
       Flag_Force : constant Boolean := (Flags and MNT_FORCE) /= 0;
    begin
       if not Check_Userland_Access (Path_IAddr) then
@@ -2019,17 +1997,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
       declare
-         Path_Len : constant Natural := Lib.C_String_Length (Path_Addr);
-         Path_Str : String (1 .. Path_Len) with Address => Path_Addr, Import;
+         Path : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
       begin
          if Is_Tracing then
             Lib.Messages.Put ("syscall umount(");
-            Lib.Messages.Put (Path_Str);
+            Lib.Messages.Put (Path);
             Lib.Messages.Put (", ");
             Lib.Messages.Put (Flags, False, True);
             Lib.Messages.Put_Line (")");
          end if;
-         if VFS.Unmount (Path_Str, Flag_Force) then
+         if VFS.Unmount (Path, Flag_Force) then
             Errno := Error_No_Error;
             return 0;
          else
@@ -2041,6 +2018,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
    function Syscall_Readlink
       (Path_Addr   : Unsigned_64;
+       Path_Len    : Unsigned_64;
        Buffer_Addr : Unsigned_64;
        Buffer_Len  : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64
@@ -2061,9 +2039,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
       declare
-         Path_Len : constant Natural := Lib.C_String_Length (Path_Add);
-         Path     : String (1 .. Path_Len) with Address => Path_Add, Import;
-         Opened   : VFS.File.File_Acc;
+         Path   : String (1 .. Natural (Path_Len)) with Address => Path_Add;
+         Opened : VFS.File.File_Acc;
          Data : String (1 .. Natural (Buffer_Len)) with Address => Buffer_Add;
          Ret_Count : Natural;
       begin
@@ -2179,16 +2156,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Syscall_Sync;
 
    function Syscall_Create
-      (Address : Unsigned_64;
-       File_T  : Unsigned_64;
-       Mode    : Unsigned_64;
-       Extra   : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       File_T    : Unsigned_64;
+       Mode      : Unsigned_64;
+       Extra     : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64
    is
-      Path_IAddr : constant Integer_Address := Integer_Address (Address);
-      Path_Addr  : constant System.Address  := To_Address (Path_IAddr);
-      Path_Len   : constant Natural := Lib.C_String_Length (Path_Addr);
-      Path       : String (1 .. Path_Len) with Address => Path_Addr, Import;
+      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
+      Path       : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
       Success    : Boolean;
    begin
       if Is_Tracing then
@@ -2232,13 +2209,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Syscall_Create;
 
    function Syscall_Delete
-      (Address : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64
    is
-      Path_IAddr : constant Integer_Address := Integer_Address (Address);
-      Path_Addr  : constant System.Address  := To_Address (Path_IAddr);
-      Path_Len   : constant Natural := Lib.C_String_Length (Path_Addr);
-      Path       : String (1 .. Path_Len) with Address => Path_Addr, Import;
+      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant System.Address  := To_Address (Path_IAddr);
+      Path       : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall delete(");

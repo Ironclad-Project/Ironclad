@@ -715,7 +715,7 @@ errno is to be set to the following values on failure:
 @section open/close
 
 @example
-int open(char *path, int flags);
+int open(char *path, int path_len, int flags);
 int close(int fd);
 @end example
 
@@ -901,7 +901,7 @@ This functions are always successful.
 @section exec
 
 @example
-int exec(const char *path, char *const argv[], char *const envp[]);
+int exec(const char *path, int path_len, char *const argv[], int argv_len, char *const envp[], envp_len);
 @end example
 
 This syscall executes the program passed with the passed argv and evp, closing
@@ -1037,7 +1037,7 @@ struct stat @{
 @};
 
 int fstat(int fd, struct stat *statbuf);
-int lstat(const char *pathname, struct stat *statbuf);
+int lstat(const char *pathname, int pathname_len, struct stat *statbuf);
 @end example
 
 This syscalls return information about a file. No permissions are required
@@ -1062,7 +1062,7 @@ directories.
 
 @example
 char *getcwd(char *buf, size_t size);
-int chdir(const char *path);
+int chdir(const char *path, int path_len);
 @end example
 
 This syscalls manage the current working directory of the callee process.
@@ -1235,7 +1235,7 @@ failure. The errno codes set on failure are:
 @section access
 
 @example
-int access(const char *path, int mode);
+int access(const char *path, int path_len, int mode);
 @end example
 
 This syscalls tests for file permissions and access without opening it.
@@ -1518,8 +1518,8 @@ following errno:
 @section mount
 
 @example
-int mount(const char *source, const char *target,
-          const char *filesystemtype, unsigned long mountflags);
+int mount(const char *source, int source_len, const char *target,
+   int target_len, const char *filesystemtype, unsigned long mountflags);
 @end example
 
 These syscalls mount and unmount FSs. @code{source} is the source device while
@@ -1551,7 +1551,7 @@ following errno:
 @example
 #define MNT_FORCE 1
 
-int umount(const char *target, int flags);
+int umount(const char *target, int target_len, int flags);
 @end example
 
 This syscalls unmount FSs. @code{target} is the path to unmount, while
@@ -1577,13 +1577,13 @@ following errno:
 @section readlink
 
 @example
-ssize_t readlink(char *path, char *buffer, size_t buffer_len);
+ssize_t readlink(char *path, int path_len, char *buffer, size_t buffer_len);
 @end example
 
 The syscall reads the redirected path of a symlink.
 
-The syscalls return the read length on success or @code{-1} on failure, with the
-following errno:
+The syscalls return the read length on success or @code{-1} on failure, with
+the following errno:
 
 @itemize @bullet
 @item
@@ -1654,7 +1654,8 @@ syscall right now is not able to fail.
 @section create
 
 @example
-int create(const char *path, int file_type, int mode, size_t extra);
+int create(const char *path, int path_len, int file_type, int mode,
+   size_t extra);
 @end example
 
 The syscall creates non existent files. @code{file_type} denotes the kind of
@@ -1672,7 +1673,7 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @section delete
 
 @example
-int delete(const char *path);
+int delete(const char *path, int path_len);
 @end example
 
 The syscall deletes the file pointed to by @code{path}. If @code{path} points
