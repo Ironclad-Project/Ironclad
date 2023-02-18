@@ -82,7 +82,8 @@ Syscalls
 * Errno::                   Error conditions and their values.
 * exit::                    Exit the callee process.
 * arch_prctl::              Interacting with architectural thread-local data.
-* open/close::              Opening and closing files.
+* open::                    Opening file-system entities.
+* close::                   Closing file descriptors.
 * read/write::              Read and write from an already opened file.
 * seek::                    Modify and fetch file offsets.
 * mmap/munmap::             Memory mapping and requesting.
@@ -92,7 +93,7 @@ Syscalls
 * wait::                    Waiting for execution of a child to finish.
 * uname::                   Fetch basic system information.
 * sethostname::             Hostname setting.
-* fstat/lstat::             Fetch file information.
+* lstat::                   Fetch file information.
 * getcwd/chdir::            Current working directory manipulation.
 * ioctl::                   IO multiplexer.
 * sched_yield::             Relinquish CPU time.
@@ -515,9 +516,9 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{arch_prctl}.
 @item
-@xref{open/close, open}.
+@xref{open, open}.
 @item
-@xref{open/close, close}.
+@xref{close, close}.
 @item
 @xref{read/write, read}.
 @item
@@ -543,9 +544,9 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{sethostname}.
 @item
-@xref{fstat/lstat, fstat}.
+@xref{delete}
 @item
-@pxref{fstat/lstat, lstat}.
+@pxref{lstat, lstat}.
 @item
 @xref{getcwd/chdir, getcwd}.
 @item
@@ -579,7 +580,7 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{mprotect}.
 @item
-Empty.
+@xref{sync}
 @item
 @xref{set_mac_capabilities}.
 @item
@@ -597,11 +598,7 @@ Empty.
 @item
 @xref{getdents}.
 @item
-@xref{sync}
-@item
 @xref{create}
-@item
-@xref{delete}
 @end enumerate
 
 @node Errno
@@ -711,58 +708,69 @@ errno is to be set to the following values on failure:
 @code{EFAULT}: @code{argument} is outside the available address space.
 @end itemize
 
-@node open/close
-@section open/close
+@node open
+@section open
 
 @example
-int open(char *path, int path_len, int flags);
-int close(int fd);
+int open(int dir_fd, char *path, int path_len, int flags);
 @end example
 
-@code{open} opens the passed file, depending on the flags passed, does not
-create it if not existent. By default, the file descriptor will remain open
-accross an @code{exec}, and the file offset is set to the beggining.
+@code{open} opens the passed file relative to @code{dir_fd}, depending on the
+flags passed. It does not create the file if not existent. By default, the file
+descriptor will remain open accross an @code{exec}.
 
-The flags can be an OR'd field of the following elements:
+@code{flags} can be an OR'd field of the following elements:
 
 @table @code
-@item O_RDONLY (0b0001)
-Makes the file read-only.
+@item O_RDONLY (0b000001)
+Makes the file able to be read.
 
-@item O_WRONLY (0b0010)
-Makes the file write-only.
+@item O_WRONLY (0b000010)
+Makes the file able to be written to.
 
-@item O_RDWR (0b0011)
-Makes the file read/write.
-
-@item O_APPEND (0b0100)
+@item O_APPEND (0b000100)
 Makes the file be opened at the end of the file, instead of the beggining.
 
-@item O_CREAT (0b1000)
-Create the file if it does not exist.
+@item O_CLOEXEC (0b001000)
+Will make the file close when @code{exec}'d.
+
+@item O_NOFOLLOW (0b0100000000)
+Do not follow symlinks when opening the file.
+
+@item O_NONBLOCK (0b1000000000)
+Make the file not block on read or write operations when possible.
 @end table
 
-@code{close} closes an open file descriptor. Once no open references exist of a
-file descriptor, its resources are freed, and the file deleted if needed.
-
-@code{open} returns the opened file descriptor or @code{-1} on error.
-@code{close} returns 0 on success and -1 in failure.
-
-errno is set according to the conditions for both functions:
+The syscall returns the opened file descriptor or @code{-1} on error, and errno
+is set to the following:
 
 @itemize @bullet
 @item
-@code{ENOENT}: The referenced file for @code{open} does not exist.
+@code{ENOENT}: The referenced file does not exist.
 
 @item
-@code{EINVAL}: Combination of @code{open} flags is not valid.
+@code{EINVAL}: Combination of @code{flags} is not valid.
 
 @item
 @code{EMFILE}: Too many files are already owned by the process.
 
 @item
 @code{EFAULT}: The passed path is outside the available address space.
+@end itemize
 
+@node close
+@section close
+
+@example
+int close(int fd);
+@end example
+
+@code{close} closes an open file descriptor. Once no open references exist of a
+file descriptor, its resources are freed, and the file deleted if needed.
+
+The syscall returns 0 on success and -1 in failure, and errno is set to:
+
+@itemize @bullet
 @item
 @code{EBADF}: The passed file to @code{close} is not valid.
 @end itemize
@@ -1016,8 +1024,8 @@ returned on success and @code{-1} on failure, with the following errno:
 @code{EACCES}: MAC did not allow this.
 @end itemize
 
-@node fstat/lstat
-@section fstat/lstat
+@node lstat
+@section lstat
 
 @example
 struct stat @{
@@ -1036,8 +1044,7 @@ struct stat @{
     blkcnt_t st_blocks;
 @};
 
-int fstat(int fd, struct stat *statbuf);
-int lstat(const char *pathname, int pathname_len, struct stat *statbuf);
+int lstat(int dir_fd, const char *path, int path_len, struct stat *statbuf);
 @end example
 
 This syscalls return information about a file. No permissions are required
@@ -1051,7 +1058,7 @@ directories.
 @code{EBADF}: The passed path or file descriptor is not valid.
 
 @item
-@code{ENOENT}: The file pointed by @code{pathname} does not exist.
+@code{ENOENT}: The file pointed by @code{path} does not exist.
 
 @item
 @code{EFAULT}: The passed address for the path or stat buffer is not valid.

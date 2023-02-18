@@ -126,105 +126,108 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       --  Arguments can be RDI, RSI, RDX, RCX, R8, and R9, in that order.
       case State.RAX is
          when 0 =>
-            Syscall_Exit (State.RDI, Errno);
+            Sys_Exit (State.RDI, Errno);
          when 1 =>
-            Returned := Syscall_Arch_PRCtl (State.RDI, State.RSI, Errno);
+            Returned := Arch_PRCtl (State.RDI, State.RSI, Errno);
          when 2 =>
-            Returned := Syscall_Open (State.RDI, State.RSI, State.RDX, Errno);
+            Returned := Open
+               (State.RDI, State.RSI, State.RDX, State.RCX, Errno);
          when 3 =>
-            Returned := Syscall_Close (State.RDI, Errno);
+            Returned := Close (State.RDI, Errno);
          when 4 =>
-            Returned := Syscall_Read (State.RDI, State.RSI, State.RDX, Errno);
+            Returned := Read (State.RDI, State.RSI, State.RDX, Errno);
          when 5 =>
-            Returned := Syscall_Write (State.RDI, State.RSI, State.RDX, Errno);
+            Returned := Write (State.RDI, State.RSI, State.RDX, Errno);
          when 6 =>
-            Returned := Syscall_Seek (State.RDI, State.RSI, State.RDX, Errno);
+            Returned := Seek (State.RDI, State.RSI, State.RDX, Errno);
          when 7 =>
-            Returned := Syscall_Mmap (State.RDI, State.RSI, State.RDX,
+            Returned := Mmap (State.RDI, State.RSI, State.RDX,
                                       State.RCX, State.R8, State.R9, Errno);
          when 8 =>
-            Returned := Syscall_Munmap (State.RDI, State.RSI, Errno);
+            Returned := Munmap (State.RDI, State.RSI, Errno);
          when 9 =>
-            Returned := Syscall_Get_PID;
+            Returned := Get_PID;
          when 10 =>
-            Returned := Syscall_Get_Parent_PID;
+            Returned := Get_Parent_PID;
          when 11 =>
-            Returned := Syscall_Exec (State.RDI, State.RSI, State.RDX,
+            Returned := Exec (State.RDI, State.RSI, State.RDX,
                                       State.RCX, State.R8, State.R9, Errno);
          when 12 =>
             Context.Save_FP_Context (FP_State);
-            Returned := Syscall_Fork (State.all, FP_State, Errno);
+            Returned := Fork (State.all, FP_State, Errno);
          when 13 =>
-            Returned := Syscall_Wait (State.RDI, State.RSI, State.RDX, Errno);
+            Returned := Wait (State.RDI, State.RSI, State.RDX, Errno);
          when 14 =>
-            Returned := Syscall_Uname (State.RDI, Errno);
+            Returned := Uname (State.RDI, Errno);
          when 15 =>
-            Returned := Syscall_Set_Hostname (State.RDI, State.RSI, Errno);
+            Returned := Set_Hostname (State.RDI, State.RSI, Errno);
          when 16 =>
-            Returned := Syscall_FStat (State.RDI, State.RSI, Errno);
-         when 17 =>
-            Returned := Syscall_LStat (State.RDI, State.RSI, State.RDX, Errno);
-         when 18 =>
-            Returned := Syscall_Get_CWD (State.RDI, State.RSI, Errno);
-         when 19 =>
-            Returned := Syscall_Chdir (State.RDI, State.RSI, Errno);
-         when 20 =>
-            Returned := Syscall_IOCTL (State.RDI, State.RSI, State.RDX, Errno);
-         when 21 =>
-            Returned := Syscall_Sched_Yield (Errno);
-         when 22 =>
-            Returned := Syscall_Set_Deadlines (State.RDI, State.RSI, Errno);
-         when 23 =>
-            Returned := Syscall_Pipe (State.RDI, State.RSI, Errno);
-         when 24 =>
-            Returned := Syscall_Dup (State.RDI, Errno);
-         when 25 =>
-            Returned := Syscall_Dup2 (State.RDI, State.RSI, Errno);
-         when 26 =>
-            Returned := Syscall_Sysconf (State.RDI, Errno);
-         when 27 =>
-            Returned := Syscall_Access
+            Returned := Delete
                (State.RDI, State.RSI, State.RDX, Errno);
+         when 17 =>
+            Returned := LStat
+               (State.RDI, State.RSI, State.RDX, State.RCX, State.R8, Errno);
+         when 18 =>
+            Returned := Get_CWD (State.RDI, State.RSI, Errno);
+         when 19 =>
+            Returned := Chdir (State.RDI, State.RSI, Errno);
+         when 20 =>
+            Returned := IOCTL (State.RDI, State.RSI, State.RDX, Errno);
+         when 21 =>
+            Returned := Sched_Yield (Errno);
+         when 22 =>
+            Returned := Set_Deadlines (State.RDI, State.RSI, Errno);
+         when 23 =>
+            Returned := Pipe (State.RDI, State.RSI, Errno);
+         when 24 =>
+            Returned := Dup (State.RDI, Errno);
+         when 25 =>
+            Returned := Dup2 (State.RDI, State.RSI, Errno);
+         when 26 =>
+            Returned := Sysconf (State.RDI, Errno);
+         when 27 =>
+            Returned := Sys_Access
+               (State.RDI, State.RSI, State.RDX, State.RCX, State.R8, Errno);
          when 28 =>
-            Returned := Syscall_Get_Thread_Sched (Errno);
+            Returned := Get_Thread_Sched (Errno);
          when 29 =>
-            Returned := Syscall_Set_Thread_Sched (State.RDI, Errno);
+            Returned := Set_Thread_Sched (State.RDI, Errno);
          when 30 =>
-            Returned := Syscall_Fcntl (State.RDI, State.RSI, State.RDX, Errno);
+            Returned := Fcntl (State.RDI, State.RSI, State.RDX, Errno);
          when 31 =>
-            Returned := Syscall_Spawn (State.RDI, State.RSI, State.RDX, Errno);
+            Returned := Spawn
+               (State.RDI, State.RSI, State.RDX, State.RCX, State.R8,
+                State.R9, Errno);
          when 32 =>
-            Returned := Syscall_Get_Random (State.RDI, State.RSI, Errno);
+            Returned := Get_Random (State.RDI, State.RSI, Errno);
          when 33 =>
-            Returned := Syscall_MProtect (State.RDI, State.RSI, State.RDX,
+            Returned := MProtect (State.RDI, State.RSI, State.RDX,
                                           Errno);
+         when 34 =>
+            Returned := Sync (Errno);
          when 35 =>
-            Returned := Syscall_Set_MAC_Capabilities (State.RDI, Errno);
+            Returned := Set_MAC_Capabilities (State.RDI, Errno);
          when 36 =>
-            Returned := Syscall_Lock_MAC (Errno);
+            Returned := Lock_MAC (Errno);
          when 37 =>
-            Returned := Syscall_Add_MAC_Filter (State.RDI, Errno);
+            Returned := Add_MAC_Filter (State.RDI, Errno);
          when 38 =>
-            Returned := Syscall_Set_MAC_Enforcement (State.RDI, Errno);
+            Returned := Set_MAC_Enforcement (State.RDI, Errno);
          when 39 =>
-            Returned := Syscall_Mount (State.RDI, State.RSI, State.RDX,
+            Returned := Mount (State.RDI, State.RSI, State.RDX,
                                        State.RCX, State.R8, State.R9, Errno);
          when 40 =>
-            Returned := Syscall_Umount
+            Returned := Umount
                (State.RDI, State.RSI, State.RDX, Errno);
          when 41 =>
-            Returned := Syscall_Readlink (State.RDI, State.RSI, State.RDX,
-                                          State.RCX, Errno);
+            Returned := Readlink (State.RDI, State.RSI, State.RDX,
+                                          State.RCX, State.R8, Errno);
          when 42 =>
-            Returned := Syscall_GetDEnts (State.RDI, State.RSI, State.RDX,
+            Returned := GetDEnts (State.RDI, State.RSI, State.RDX,
                                           Errno);
          when 43 =>
-            Returned := Syscall_Sync (Errno);
-         when 44 =>
-            Returned := Syscall_Create (State.RDI, State.RSI, State.RDX,
-                                        State.RCX, State.R8, Errno);
-         when 45 =>
-            Returned := Syscall_Delete (State.RDI, State.RSI, Errno);
+            Returned := Create (State.RDI, State.RSI, State.RDX,
+                                        State.RCX, State.R8, State.R9, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;

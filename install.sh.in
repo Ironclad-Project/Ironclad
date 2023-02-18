@@ -49,12 +49,12 @@ texi2any --plaintext "@@SRC@@/docs/ironclad.texi" > interfaces.txt
 
 # Install the generated info and some other goodies.
 install -d "$DESTDIR$PREFIX"/share/info
-install -d "$DESTDIR$PREFIX"/share/docs
-install -d "$DESTDIR$PREFIX"/share/docs/ironclad
+install -d "$DESTDIR$PREFIX"/share/doc
+install -d "$DESTDIR$PREFIX"/share/doc/ironclad
 install ironclad.info     "$DESTDIR$PREFIX"/share/info/
-install "@@SRC@@/README"  "$DESTDIR$PREFIX"/share/docs/ironclad/
-install "@@SRC@@/COPYING" "$DESTDIR$PREFIX"/share/docs/ironclad/
-install interfaces.txt    "$DESTDIR$PREFIX"/share/docs/ironclad/
+install "@@SRC@@/README"  "$DESTDIR$PREFIX"/share/doc/ironclad/
+install "@@SRC@@/COPYING" "$DESTDIR$PREFIX"/share/doc/ironclad/
+install interfaces.txt    "$DESTDIR$PREFIX"/share/doc/ironclad/
 
 # Install the main executable.
 install -d "$DESTDIR"/boot

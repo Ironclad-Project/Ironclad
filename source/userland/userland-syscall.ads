@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with VFS.File;
 with Arch.Context;
 with Arch.MMU;
 with Userland.Process; use Userland.Process;
@@ -62,14 +61,17 @@ package Userland.Syscall with SPARK_Mode => Off is
       Error_Bad_File        => 1081
    );
 
+   --  AT_ directives for path-relative syscalls.
+   AT_FDCWD : constant := Natural'Last;
+
    --  Enable syscall tracing.
    procedure Set_Tracing (Value : Boolean);
 
    --  Exit the callee thread, flushing open files.
-   procedure Syscall_Exit (Code : Unsigned_64; Errno : out Errno_Value);
+   procedure Sys_Exit (Code : Unsigned_64; Errno : out Errno_Value);
 
    --  Set arch-specific thread state.
-   function Syscall_Arch_PRCtl
+   function Arch_PRCtl
       (Code     : Unsigned_64;
        Argument : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64;
@@ -78,30 +80,30 @@ package Userland.Syscall with SPARK_Mode => Off is
    O_RDONLY   : constant := 2#0000000001#;
    O_WRONLY   : constant := 2#0000000010#;
    O_APPEND   : constant := 2#0000000100#;
-   O_CREAT    : constant := 2#0000001000#;
-   O_CLOEXEC  : constant := 2#0000010000#;
+   O_CLOEXEC  : constant := 2#0000001000#;
    O_NOFOLLOW : constant := 2#0100000000#;
    O_NONBLOCK : constant := 2#1000000000#;
-   function Syscall_Open
-      (Path_Addr : Unsigned_64;
+   function Open
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Flags     : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
 
    --  Close a file.
-   function Syscall_Close
+   function Close
       (File_D : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64;
 
    --  Read from a file.
-   function Syscall_Read
+   function Read
       (File_D : Unsigned_64;
        Buffer : Unsigned_64;
        Count  : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64;
 
    --  Write to a file.
-   function Syscall_Write
+   function Write
       (File_D : Unsigned_64;
        Buffer : Unsigned_64;
        Count  : Unsigned_64;
@@ -111,7 +113,7 @@ package Userland.Syscall with SPARK_Mode => Off is
    SEEK_SET     : constant := 1;
    SEEK_CURRENT : constant := 2;
    SEEK_END     : constant := 4;
-   function Syscall_Seek
+   function Seek
       (File_D : Unsigned_64;
        Offset : Unsigned_64;
        Whence : Unsigned_64;
@@ -122,7 +124,7 @@ package Userland.Syscall with SPARK_Mode => Off is
    Protection_Execute : constant := 2#100#;
    Map_Fixed : constant := 2#0100#;
    Map_Anon  : constant := 2#1000#;
-   function Syscall_Mmap
+   function Mmap
       (Hint       : Unsigned_64;
        Length     : Unsigned_64;
        Protection : Unsigned_64;
@@ -132,19 +134,19 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno      : out Errno_Value) return Unsigned_64;
 
    --  Mmap^-1
-   function Syscall_Munmap
+   function Munmap
       (Address    : Unsigned_64;
        Length     : Unsigned_64;
        Errno      : out Errno_Value) return Unsigned_64;
 
    --  Get the callee PID.
-   function Syscall_Get_PID return Unsigned_64;
+   function Get_PID return Unsigned_64;
 
    --  Get the PID of the parent of the callee.
-   function Syscall_Get_Parent_PID return Unsigned_64;
+   function Get_Parent_PID return Unsigned_64;
 
    --  Execute.
-   function Syscall_Exec
+   function Exec
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Argv_Addr : Unsigned_64;
@@ -154,14 +156,14 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno     : out Errno_Value) return Unsigned_64;
 
    --  Fork the callee process.
-   function Syscall_Fork
+   function Fork
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
        Errno    : out Errno_Value) return Unsigned_64;
 
    --  Wait.
    Wait_WNOHANG : constant := 2#000010#;
-   function Syscall_Wait
+   function Wait
       (Waited_PID : Unsigned_64;
        Exit_Addr  : Unsigned_64;
        Options    : Unsigned_64;
@@ -175,16 +177,16 @@ package Userland.Syscall with SPARK_Mode => Off is
       Version     : String (1 .. 65);
       Machine     : String (1 .. 65);
    end record;
-   function Syscall_Uname
+   function Uname
       (Address : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64;
 
-   function Syscall_Set_Hostname
+   function Set_Hostname
       (Address : Unsigned_64;
        Length  : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64;
 
-   --  File descriptor Stat.
+   --  Stat.
    type Time_Spec is record
       Seconds     : Unsigned_64;
       Nanoseconds : Unsigned_64;
@@ -226,56 +228,54 @@ package Userland.Syscall with SPARK_Mode => Off is
       Block_Count   at 0 range 832 .. 895;
    end record;
    for Stat'Size use 896;
-   function Syscall_FStat
-      (File_D  : Unsigned_64;
-       Address : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64;
-
-   --  Path stat.
-   function Syscall_LStat
-      (Path_Addr : Unsigned_64;
+   AT_EMPTY_PATH       : constant := 2#01#;
+   AT_SYMLINK_NOFOLLOW : constant := 2#10#;
+   function LStat
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Stat_Addr : Unsigned_64;
+       Flags     : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
 
    --  Get current working directory.
-   function Syscall_Get_CWD
+   function Get_CWD
       (Buffer : Unsigned_64;
        Length : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64;
 
    --  Get current working directory.
-   function Syscall_Chdir
+   function Chdir
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
 
    --  IO control.
-   function Syscall_IOCTL
+   function IOCTL
       (FD       : Unsigned_64;
        Request  : Unsigned_64;
        Argument : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64;
 
    --  Yield.
-   function Syscall_Sched_Yield (Errno : out Errno_Value) return Unsigned_64;
+   function Sched_Yield (Errno : out Errno_Value) return Unsigned_64;
 
    --  Change scheduling deadlines.
-   function Syscall_Set_Deadlines
+   function Set_Deadlines
       (Run_Time, Period : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
 
    --  Create a pair of pipes.
-   function Syscall_Pipe
+   function Pipe
       (Result_Addr : Unsigned_64;
        Flags       : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
 
    --  Dup functions.
-   function Syscall_Dup
+   function Dup
       (Old_FD : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64;
-   function Syscall_Dup2
+   function Dup2
       (Old_FD, New_FD : Unsigned_64;
        Errno          : out Errno_Value) return Unsigned_64;
 
@@ -286,7 +286,7 @@ package Userland.Syscall with SPARK_Mode => Off is
    SC_AVPHYS_PAGES  : constant := 4;
    SC_PHYS_PAGES    : constant := 5;
    SC_NPROC_ONLN    : constant := 6;
-   function Syscall_Sysconf
+   function Sysconf
       (Request : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64;
 
@@ -294,17 +294,19 @@ package Userland.Syscall with SPARK_Mode => Off is
    Access_Can_Read  : constant := 2#0010#;
    Access_Can_Write : constant := 2#0100#;
    Access_Can_Exec  : constant := 2#1000#;
-   function Syscall_Access
-      (Path_Addr : Unsigned_64;
+   function Sys_Access
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Mode      : Unsigned_64;
+       Flags     : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
 
    --  Managing scheduling of a thread.
    Thread_MONO : constant := 2#1#;
-   function Syscall_Get_Thread_Sched
+   function Get_Thread_Sched
       (Errno : out Errno_Value) return Unsigned_64;
-   function Syscall_Set_Thread_Sched
+   function Set_Thread_Sched
       (Flags : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
 
@@ -316,27 +318,30 @@ package Userland.Syscall with SPARK_Mode => Off is
    F_SETFD         : constant := 4;
    F_GETFL         : constant := 5;
    F_SETFL         : constant := 6;
-   function Syscall_Fcntl
+   function Fcntl
       (FD       : Unsigned_64;
        Command  : Unsigned_64;
        Argument : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64;
 
    --  "posix_spawn"-like utility.
-   function Syscall_Spawn
-      (Address : Unsigned_64;
-       Argv    : Unsigned_64;
-       Envp    : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64;
+   function Spawn
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Argv_Addr : Unsigned_64;
+       Argv_Len  : Unsigned_64;
+       Envp_Addr : Unsigned_64;
+       Envp_Len  : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
 
    --  Bypassing /dev/(u)random for getting random data.
-   function Syscall_Get_Random
+   function Get_Random
      (Address : Unsigned_64;
       Length  : Unsigned_64;
       Errno   : out Errno_Value) return Unsigned_64;
 
    --  Change protection from memory regions.
-   function Syscall_MProtect
+   function MProtect
      (Address    : Unsigned_64;
       Length     : Unsigned_64;
       Protection : Unsigned_64;
@@ -351,12 +356,12 @@ package Userland.Syscall with SPARK_Mode => Off is
    MAC_DEALLOC_MEM   : constant := 2#00100000#;
    MAC_MANAGE_NET    : constant := 2#01000000#;
    MAC_MANAGE_MOUNTS : constant := 2#10000000#;
-   function Syscall_Set_MAC_Capabilities
+   function Set_MAC_Capabilities
       (Bits  : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
 
    --  Lock the MAC from further significant modification.
-   function Syscall_Lock_MAC (Errno : out Errno_Value) return Unsigned_64;
+   function Lock_MAC (Errno : out Errno_Value) return Unsigned_64;
 
    --  Add a file MAC filter.
    type MAC_Filter is record
@@ -369,7 +374,7 @@ package Userland.Syscall with SPARK_Mode => Off is
    MAC_FILTER_R         : constant := 2#0000100#;
    MAC_FILTER_W         : constant := 2#0001000#;
    MAC_FILTER_EXEC      : constant := 2#0010000#;
-   function Syscall_Add_MAC_Filter
+   function Add_MAC_Filter
       (Filter_Addr : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
 
@@ -377,31 +382,34 @@ package Userland.Syscall with SPARK_Mode => Off is
    MAC_DENY            : constant := 2#001#;
    MAC_DENY_AND_SCREAM : constant := 2#010#;
    MAC_KILL            : constant := 2#100#;
-   function Syscall_Set_MAC_Enforcement
+   function Set_MAC_Enforcement
       (Action : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64;
 
    --  Mount a filesystem.
-   function Syscall_Mount
+   MNT_USTAR : constant := 1;
+   MNT_EXT   : constant := 2;
+   function Mount
       (Source_Addr : Unsigned_64;
        Source_Len  : Unsigned_64;
        Target_Addr : Unsigned_64;
        Target_Len  : Unsigned_64;
-       FSType_Addr : Unsigned_64;
+       FSType      : Unsigned_64;
        MountFlags  : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
 
    --  Unmount a filesystem.
    MNT_FORCE : constant := 1;
-   function Syscall_Umount
+   function Umount
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Flags     : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
 
    --  Read the contents of a symlink.
-   function Syscall_Readlink
-      (Path_Addr   : Unsigned_64;
+   function Readlink
+      (Dir_FD      : Unsigned_64;
+       Path_Addr   : Unsigned_64;
        Path_Len    : Unsigned_64;
        Buffer_Addr : Unsigned_64;
        Buffer_Len  : Unsigned_64;
@@ -429,21 +437,22 @@ package Userland.Syscall with SPARK_Mode => Off is
       D_Name   at 0 range 152 .. 639;
    end record;
    type Dirents is array (Unsigned_64 range <>) of Dirent with Pack;
-   function Syscall_GetDEnts
+   function GetDEnts
       (FD          : Unsigned_64;
        Buffer_Addr : Unsigned_64;
        Buffer_Len  : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
 
    --  Synchronize devices and kernel caches.
-   function Syscall_Sync (Errno : out Errno_Value) return Unsigned_64;
+   function Sync (Errno : out Errno_Value) return Unsigned_64;
 
    --  Create a file.
    CREATE_REG : constant := 1;
    CREATE_DIR : constant := 2;
    CREATE_SYM : constant := 3;
-   function Syscall_Create
-      (Path_Addr : Unsigned_64;
+   function Create
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        File_T    : Unsigned_64;
        Mode      : Unsigned_64;
@@ -451,8 +460,9 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno     : out Errno_Value) return Unsigned_64;
 
    --  Deletes a file.
-   function Syscall_Delete
-      (Path_Addr : Unsigned_64;
+   function Delete
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
 
@@ -461,18 +471,17 @@ private
    --  Do the actual exiting.
    procedure Do_Exit (Proc : Process_Data_Acc; Code : Unsigned_8);
 
+   --  Handle AT_ directive.
+   procedure Compound_AT_Path
+      (AT_Directive : Natural;
+       Curr_Proc    : Process_Data_Acc;
+       Extension    : String;
+       Result       : out String;
+       Count        : out Natural);
+
    --  Translate mmap permissions.
    function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions;
 
    --  Execute the policy chose by the user for the process.
    procedure Execute_MAC_Failure (Name : String; Curr_Proc : Process_Data_Acc);
-
-   --  Do the actual stat.
-   function Inner_Stat
-      (F       : File_Description_Acc;
-       Address : Unsigned_64;
-       Errno   : out Errno_Value) return Boolean;
-   function Inner_Stat
-      (F       : VFS.File.File_Acc;
-       Address : Unsigned_64) return Boolean;
 end Userland.Syscall;
