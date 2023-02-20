@@ -182,7 +182,12 @@ package body Scheduler with SPARK_Mode => Off is
          To_Address (Address)
       );
       Arch.Context.Init_FP_Context (FP_State);
-      New_TID := Create_User_Thread (GP_State, FP_State, Map, PID);
+      New_TID := Create_User_Thread
+         (GP_State => GP_State,
+          FP_State => FP_State,
+          Map       => Map,
+          PID       => PID,
+          TCB       => System.Null_Address);
       if New_TID /= 0 then
          return New_TID;
       end if;
@@ -192,10 +197,35 @@ package body Scheduler with SPARK_Mode => Off is
    end Create_User_Thread;
 
    function Create_User_Thread
+      (Address    : Virtual_Address;
+       Map        : Memory.Virtual.Page_Map_Acc;
+       Stack_Addr : Unsigned_64;
+       TLS_Addr   : Unsigned_64;
+       PID        : Natural) return TID
+   is
+      GP_State : Arch.Context.GP_Context;
+      FP_State : Arch.Context.FP_Context;
+   begin
+      Arch.Context.Init_GP_Context (
+         GP_State,
+         To_Address (Integer_Address (Stack_Addr)),
+         To_Address (Address)
+      );
+      Arch.Context.Init_FP_Context (FP_State);
+      return Create_User_Thread
+         (GP_State => GP_State,
+          FP_State => FP_State,
+          Map      => Map,
+          PID      => PID,
+          TCB      => To_Address (Integer_Address (TLS_Addr)));
+   end Create_User_Thread;
+
+   function Create_User_Thread
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
        Map      : Memory.Virtual.Page_Map_Acc;
-       PID      : Natural) return TID
+       PID      : Natural;
+       TCB      : System.Address) return TID
    is
       New_TID : TID := 0;
    begin
@@ -218,7 +248,7 @@ package body Scheduler with SPARK_Mode => Off is
           Is_Monothread  => False,
           PageMap        => Map,
           Kernel_Stack   => new Thread_Stack,
-          TCB_Pointer    => Arch.Local.Fetch_TCB,
+          TCB_Pointer    => TCB,
           State          => GP_State,
           FP_Region      => FP_State,
           Process        => Userland.Process.Get_By_PID (PID),

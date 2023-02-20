@@ -756,52 +756,95 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end;
    end Exec;
 
-   function Fork
-      (GP_State : Arch.Context.GP_Context;
-       FP_State : Arch.Context.FP_Context;
-       Errno    : out Errno_Value) return Unsigned_64
+   function Clone
+      (Callback  : Unsigned_64;
+       Call_Arg  : Unsigned_64;
+       Stack     : Unsigned_64;
+       Flags     : Unsigned_64;
+       TLS_Addr  : Unsigned_64;
+       GP_State  : Arch.Context.GP_Context;
+       FP_State  : Arch.Context.FP_Context;
+       Errno     : out Errno_Value) return Unsigned_64
    is
-      Parent : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
-      Child  : Process_Data_Acc;
+      Parent  : Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Child   : Process_Data_Acc;
+      New_TID : Scheduler.TID;
+      Ret     : Unsigned_64;
+
+      Use_Parent : constant Boolean := (Flags and CLONE_PARENT) /= 0;
+      Do_Thread  : constant Boolean := (Flags and CLONE_THREAD) /= 0;
    begin
       if Is_Tracing then
-         Lib.Messages.Put_Line ("syscall fork()");
+         Lib.Messages.Put ("syscall clone(");
+         Lib.Messages.Put (Callback, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Call_Arg);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Stack, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Flags);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (TLS_Addr, False, True);
+         Lib.Messages.Put_Line (")");
       end if;
 
       if MAC_Is_Locked and not Parent.Perms.Caps.Can_Create_Others then
          Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("fork", Parent);
+         Execute_MAC_Failure ("clone", Parent);
          return Unsigned_64'Last;
       end if;
 
-      Child := Create_Process (Parent);
-      if Child = null then
-         Errno := Error_Would_Block;
-         return Unsigned_64'Last;
+      if Use_Parent then
+         Parent := Get_By_PID (Parent.Parent_PID);
+         if Parent = null then
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+         end if;
       end if;
 
-      --  Fork the child state.
-      Child.Common_Map := Memory.Virtual.Fork_Map (Parent.Common_Map);
-      if Child.Common_Map = null then
-         Errno := Error_Would_Block;
-         return Unsigned_64'Last;
-      end if;
-      for I in Parent.File_Table'Range loop
-         Child.File_Table (I) := Duplicate (Parent.File_Table (I));
-      end loop;
+      if Do_Thread then
+         Child   := Parent;
+         New_TID := Create_User_Thread
+            (Address    => Integer_Address (Callback),
+             Map        => Child.Common_Map,
+             Stack_Addr => Stack,
+             TLS_Addr   => TLS_Addr,
+             PID        => Child.Process_PID);
+         Ret := Unsigned_64 (New_TID);
+      else
+         Child := Create_Process (Parent);
+         if Child = null then
+            goto Block_Error;
+         end if;
 
-      --  Create a running thread cloning the caller.
-      if not Add_Thread (Child,
-         Scheduler.Create_User_Thread
-            (GP_State, FP_State, Child.Common_Map, Child.Process_PID))
-      then
-         Errno := Error_Would_Block;
-         return Unsigned_64'Last;
+         Child.Common_Map := Memory.Virtual.Fork_Map (Parent.Common_Map);
+         if Child.Common_Map = null then
+            goto Block_Error;
+         end if;
+
+         for I in Parent.File_Table'Range loop
+            Child.File_Table (I) := Duplicate (Parent.File_Table (I));
+         end loop;
+         New_TID := Scheduler.Create_User_Thread
+            (GP_State => GP_State,
+             FP_State => FP_State,
+             Map      => Child.Common_Map,
+             PID      => Child.Process_PID,
+             TCB      => Arch.Local.Fetch_TCB);
+         Ret := Unsigned_64 (Child.Process_PID);
+      end if;
+
+      if New_TID = 0 or else not Add_Thread (Child, New_TID) then
+         goto Block_Error;
       end if;
 
       Errno := Error_No_Error;
-      return Unsigned_64 (Child.Process_PID);
-   end Fork;
+      return Ret;
+
+   <<Block_Error>>
+      Errno := Error_Would_Block;
+      return Unsigned_64'Last;
+   end Clone;
 
    function Wait
       (Waited_PID, Exit_Addr, Options : Unsigned_64;
@@ -1620,120 +1663,21 @@ package body Userland.Syscall with SPARK_Mode => Off is
       return Returned;
    end Fcntl;
 
-   function Spawn
-      (Path_Addr : Unsigned_64;
-       Path_Len  : Unsigned_64;
-       Argv_Addr : Unsigned_64;
-       Argv_Len  : Unsigned_64;
-       Envp_Addr : Unsigned_64;
-       Envp_Len  : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64
-   is
-      type Arg_Arr is array (Natural range <>) of Unsigned_64;
-
-      Curr_Proc  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
-      Child_Proc : constant Process_Data_Acc := Create_Process (Curr_Proc);
-
-      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
-      Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
-      Path       : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
-      Path_File  : File_Acc;
-      File_Perms : MAC.Filter_Permissions;
-
-      Argv_IAddr : constant Integer_Address := Integer_Address (Argv_Addr);
-      Argv_SAddr : constant  System.Address := To_Address (Argv_IAddr);
-      Envp_IAddr : constant Integer_Address := Integer_Address (Envp_Addr);
-      Envp_SAddr : constant  System.Address := To_Address (Envp_IAddr);
+   procedure Exit_Thread (Errno : out Errno_Value) is
+      Curr_Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
    begin
       if Is_Tracing then
-         Lib.Messages.Put ("syscall spawn(");
-         Lib.Messages.Put (Path_Addr);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Argv_Addr);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Argv_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Envp_Addr);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Envp_Len);
-         Lib.Messages.Put_Line (")");
+         Lib.Messages.Put_Line ("syscall exit_thread()");
       end if;
 
-      if MAC_Is_Locked then
-         File_Perms := MAC.Check_Path_Permissions
-            (Path    => Path,
-             Filters => Curr_Proc.Perms.Filters);
-
-         if not Curr_Proc.Perms.Caps.Can_Create_Others or
-            not File_Perms.Can_Execute
-         then
-            Errno := Error_Bad_Access;
-            Execute_MAC_Failure ("spawn", Curr_Proc);
-            return Unsigned_64'Last;
-         end if;
+      if MAC_Is_Locked and not Curr_Proc.Perms.Caps.Can_Exit_Itself then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("exit_thread", Curr_Proc);
+         return;
       end if;
 
-      Path_File := Open (Path, Read_Only);
-      if Path_File = null then
-         Errno := Error_No_Entity;
-         return Unsigned_64'Last;
-      elsif Child_Proc = null then
-         Errno := Error_Would_Block;
-         return Unsigned_64'Last;
-      end if;
-
-      --  Copy the argv and envp to Ada arrays and boot the process.
-      declare
-         Argv : Arg_Arr (1 .. Natural (Argv_Len)) with Address => Argv_SAddr;
-         Envp : Arg_Arr (1 .. Natural (Envp_Len)) with Address => Envp_SAddr;
-         Args : Userland.Argument_Arr    (1 .. Argv'Length);
-         Env  : Userland.Environment_Arr (1 .. Envp'Length);
-      begin
-         for I in Argv'Range loop
-            declare
-               Addr : constant System.Address :=
-                  To_Address (Integer_Address (Argv (I)));
-               Arg_Length : constant Natural := Lib.C_String_Length (Addr);
-               Arg_String : String (1 .. Arg_Length) with Address => Addr;
-            begin
-               Args (I) := new String'(Arg_String);
-            end;
-         end loop;
-         for I in Envp'Range loop
-            declare
-               Addr : constant System.Address :=
-                  To_Address (Integer_Address (Envp (I)));
-               Arg_Length : constant Natural := Lib.C_String_Length (Addr);
-               Arg_String : String (1 .. Arg_Length) with Address => Addr;
-            begin
-               Env (I) := new String'(Arg_String);
-            end;
-         end loop;
-
-         Child_Proc.Common_Map := Memory.Virtual.New_Map;
-         if not Loader.Start_Program (Path_File, Args, Env, Child_Proc) then
-            Errno := Error_Bad_Access;
-            return Unsigned_64'Last;
-         end if;
-         Child_Proc.File_Table (0 .. 2) := (
-            0 =>  Duplicate (Curr_Proc.File_Table (0)),
-            1 =>  Duplicate (Curr_Proc.File_Table (1)),
-            2 =>  Duplicate (Curr_Proc.File_Table (2))
-         );
-
-         for Arg of Args loop
-            Free_Str (Arg);
-         end loop;
-         for En of Env loop
-            Free_Str (En);
-         end loop;
-
-         Errno := Error_No_Error;
-         return Unsigned_64 (Child_Proc.Process_PID);
-      end;
-   end Spawn;
+      Scheduler.Bail;
+   end Exit_Thread;
 
    function Get_Random
      (Address : Unsigned_64;

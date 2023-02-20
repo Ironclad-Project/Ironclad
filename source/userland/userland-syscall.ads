@@ -155,11 +155,18 @@ package Userland.Syscall with SPARK_Mode => Off is
        Envp_Len  : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
 
-   --  Fork the callee process.
-   function Fork
-      (GP_State : Arch.Context.GP_Context;
-       FP_State : Arch.Context.FP_Context;
-       Errno    : out Errno_Value) return Unsigned_64;
+   --  Create processes and threads with different flavours.
+   CLONE_PARENT : constant := 2#01#;
+   CLONE_THREAD : constant := 2#10#;
+   function Clone
+      (Callback  : Unsigned_64;
+       Call_Arg  : Unsigned_64;
+       Stack     : Unsigned_64;
+       Flags     : Unsigned_64;
+       TLS_Addr  : Unsigned_64;
+       GP_State  : Arch.Context.GP_Context;
+       FP_State  : Arch.Context.FP_Context;
+       Errno     : out Errno_Value) return Unsigned_64;
 
    --  Wait.
    Wait_WNOHANG : constant := 2#000010#;
@@ -324,15 +331,8 @@ package Userland.Syscall with SPARK_Mode => Off is
        Argument : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64;
 
-   --  "posix_spawn"-like utility.
-   function Spawn
-      (Path_Addr : Unsigned_64;
-       Path_Len  : Unsigned_64;
-       Argv_Addr : Unsigned_64;
-       Argv_Len  : Unsigned_64;
-       Envp_Addr : Unsigned_64;
-       Envp_Len  : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
+   --  Exit the callee thread.
+   procedure Exit_Thread (Errno : out Errno_Value);
 
    --  Bypassing /dev/(u)random for getting random data.
    function Get_Random

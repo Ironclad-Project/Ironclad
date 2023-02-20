@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System;
 with Interfaces; use Interfaces;
 with Memory.Virtual;
 with Memory; use Memory;
@@ -45,12 +46,21 @@ package Scheduler with SPARK_Mode => Off is
        PID        : Natural;
        Exec_Stack : Boolean := True) return TID;
 
+   --  Create a userland thread with no arguments.
+   function Create_User_Thread
+      (Address    : Virtual_Address;
+       Map        : Memory.Virtual.Page_Map_Acc;
+       Stack_Addr : Unsigned_64;
+       TLS_Addr   : Unsigned_64;
+       PID        : Natural) return TID;
+
    --  Create a user thread with a context.
    function Create_User_Thread
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
        Map      : Memory.Virtual.Page_Map_Acc;
-       PID      : Natural) return TID;
+       PID      : Natural;
+       TCB      : System.Address) return TID;
 
    --  Removes a thread, kernel or user, from existance (if it exists).
    procedure Delete_Thread (Thread : TID);

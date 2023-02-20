@@ -123,7 +123,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       --  Call the inner syscall.
       --  RAX is the return value, as well as the syscall number.
       --  RDX is the returned errno.
-      --  Arguments can be RDI, RSI, RDX, RCX, R8, and R9, in that order.
+      --  Arguments can be RDI, RSI, RDX, RCX, R8, R9, and R10, in that order.
       case State.RAX is
          when 0 =>
             Sys_Exit (State.RDI, Errno);
@@ -151,10 +151,11 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := Get_Parent_PID;
          when 11 =>
             Returned := Exec (State.RDI, State.RSI, State.RDX,
-                                      State.RCX, State.R8, State.R9, Errno);
+                              State.RCX, State.R8, State.R9, Errno);
          when 12 =>
             Context.Save_FP_Context (FP_State);
-            Returned := Fork (State.all, FP_State, Errno);
+            Returned := Clone (State.RDI, State.RSI, State.RDX, State.RCX,
+                               State.R8,  State.all,  FP_State, Errno);
          when 13 =>
             Returned := Wait (State.RDI, State.RSI, State.RDX, Errno);
          when 14 =>
@@ -195,9 +196,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 30 =>
             Returned := Fcntl (State.RDI, State.RSI, State.RDX, Errno);
          when 31 =>
-            Returned := Spawn
-               (State.RDI, State.RSI, State.RDX, State.RCX, State.R8,
-                State.R9, Errno);
+            Exit_Thread (Errno);
          when 32 =>
             Returned := Get_Random (State.RDI, State.RSI, Errno);
          when 33 =>
