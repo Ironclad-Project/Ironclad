@@ -1,5 +1,5 @@
 --  cryptography_tests.ads: Cryptography-related unit tests.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -16,5 +16,6 @@
 
 package Cryptography_Tests is
    Crypto_Exception : exception;
+   procedure Run_Chacha20_Tests;
    procedure Run_MD5_Tests;
 end Cryptography_Tests;

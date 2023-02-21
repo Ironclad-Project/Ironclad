@@ -1,5 +1,5 @@
 --  lib_tests.adb: Lib-related unit tests.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -22,6 +22,9 @@ with Lib;
 package body Lib_Tests is
    procedure Run_Cmdline_Tests is
       Example : constant String := "example1 example2=3 hi supreader aa z=321";
+      Ret     : String (1 .. 60);
+      Ret_Len : Natural;
+      Found   : Boolean;
    begin
       if not Is_Key_Present (Example, "example1")  or
          not Is_Key_Present (Example, "example2")  or
@@ -35,10 +38,24 @@ package body Lib_Tests is
          raise Lib_Exception with "Individual keys";
       end if;
 
-      if Get_Parameter (Example, "example2").all /= "3"   or
-         Get_Parameter (Example, "z").all        /= "321"
-      then
-         raise Lib_Exception with "Parameters do not match";
+      Get_Parameter
+         (Cmdline  => Example,
+          Key      => "example2",
+          Returned => Ret,
+          Found    => Found,
+          Length   => Ret_Len);
+      if not Found or else Ret (1 .. Ret_Len) /= "3" then
+         raise Lib_Exception with "First key do not match";
+      end if;
+
+      Get_Parameter
+         (Cmdline  => Example,
+          Key      => "z",
+          Returned => Ret,
+          Found    => Found,
+          Length   => Ret_Len);
+      if not Found or else Ret (1 .. Ret_Len) /= "321" then
+         raise Lib_Exception with "Second key does not match";
       end if;
    end Run_Cmdline_Tests;
 
@@ -49,6 +66,12 @@ package body Lib_Tests is
          Align.Align_Down (16#2401#, 16#20000#) /= 16#0#
       then
          raise Lib_Exception with "Does not align properly";
+      end if;
+
+      if Align.Divide_Round_Up (3, 2) /= 2 or
+         Align.Divide_Round_Up (0, 2) /= 0
+      then
+         raise Lib_Exception with "Does not round up properly";
       end if;
    end Run_Alignment_Tests;
 

@@ -1,5 +1,5 @@
 --  cryptography_tests.adb: Cryptography-related unit tests.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,16 +14,31 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Cryptography.MD5; use Cryptography.MD5;
+with Cryptography.MD5;      use Cryptography.MD5;
+with Cryptography.Chacha20; use Cryptography.Chacha20;
 with Ada.Unchecked_Conversion;
 
 package body Cryptography_Tests is
+   procedure Run_Chacha20_Tests is
+      Test_Key   : Cryptography.Chacha20.Key;
+      Returned   : Cryptography.Chacha20.Block;
+      Test_Block : Cryptography.Chacha20.Block;
+   begin
+      Test_Key   := (0, 0, 0, 0, 0, 0, 0, 0);
+      Returned   := Cryptography.Chacha20.Gen_Key (Test_Key, 0, 0);
+      Test_Block := (16#7CB7FD84#, 16#0BD21656#, 16#81E7ABD2#, 16#8420B8D0#,
+                     16#B3B60989#, 16#2D54A092#, 16#AD7A6043#, 16#F8DED59A#,
+                     16#F099991B#, 16#DAAA95FD#, 16#CCC6A0B1#, 16#C755D901#,
+                     16#433E0355#, 16#FA53AB82#, 16#006964FE#, 16#560E3B68#);
+      if Returned /= Test_Block then
+         raise Crypto_Exception with "Chacha20 test failed";
+      end if;
+   end Run_Chacha20_Tests;
+
    procedure Run_MD5_Tests is
       type MD5_Exact_Str is new String (1 .. 64) with Size => 512;
-      function Conv is new Ada.Unchecked_Conversion (
-         Source => MD5_Exact_Str,
-         Target => Cryptography.MD5.MD5_Block
-      );
+      function Conv is new Ada.Unchecked_Conversion
+         (Source => MD5_Exact_Str, Target => Cryptography.MD5.MD5_Block);
 
       --  MD5 test array.
       type MD5_Test is record

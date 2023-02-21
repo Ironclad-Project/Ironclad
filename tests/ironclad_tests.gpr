@@ -1,5 +1,5 @@
 --  ironclad_tests.gpr: Hosted tests of Ironclad library utilities.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -16,11 +16,7 @@
 
 project Ironclad_Tests is
    --  Set directories and files.
-   for Source_Dirs use (
-      ".",
-      "../source/cryptography",
-      "../source/lib"
-   );
+   for Source_Dirs use (".", "../source/cryptography", "../source/lib");
    for Object_Dir use "obj";
    for Exec_Dir use ".";
    for Main use ("main.adb");
@@ -32,8 +28,6 @@ project Ironclad_Tests is
    end Builder;
 
    package Compiler is
-      for Switches ("Ada") use (
-         "-O2", "-g", "-gnaty", "-Wall"
-      );
+      for Switches ("Ada") use ("-gnaty", "-Wall");
    end Compiler;
 end Ironclad_Tests;
