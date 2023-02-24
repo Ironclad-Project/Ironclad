@@ -62,4 +62,14 @@ package body Lib is
       end loop;
       return M;
    end Greatest_Common_Divisor;
+   ----------------------------------------------------------------------------
+   function Get_Hash (To_Hash : String) return Unsigned_64 is
+      Result : Unsigned_64 := 0;
+   begin
+      for C of To_Hash loop
+         Result := Unsigned_64 (Character'Pos (C)) + Shift_Left (Result, 6) +
+                   Shift_Left (Result, 16) - Result;
+      end loop;
+      return Result;
+   end Get_Hash;
 end Lib;

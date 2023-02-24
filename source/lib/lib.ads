@@ -14,7 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System; use System;
+with System;     use System;
+with Interfaces; use Interfaces;
 
 package Lib with Pure is
    --  Get the length of a C-Style string.
@@ -32,4 +33,8 @@ package Lib with Pure is
    function Greatest_Common_Divisor (Val1, Val2 : Integer) return Integer
       with Pre  => Val1 /= 0 or Val2 /= 0,
            Post => Greatest_Common_Divisor'Result /= 0;
+   ----------------------------------------------------------------------------
+   --  Hash a string up, using the SDBM hashing algo.
+   --  @param To_Hash String to hash.
+   function Get_Hash (To_Hash : String) return Unsigned_64;
 end Lib;
