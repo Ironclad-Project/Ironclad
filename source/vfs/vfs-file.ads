@@ -146,18 +146,21 @@ private
 
    type File is record
       Refcount  : Natural;
+      Is_Device : Boolean;
       Full_Path : String_Acc;
       Dev_Data  : Device_Handle;
       FS_Data   : FS_Handle;
-      File_Data : System.Address;
+      File_Data : File_Inode_Number;
       Index     : Unsigned_64;
       Flags     : Access_Mode;
    end record;
 
-   function Resolve_File
+   procedure Resolve_File
       (Path         : String;
        Is_Device    : out Boolean;
        Fetched_Dev  : out Device_Handle;
        Fetched_FS   : out FS_Handle;
-       Follow_Links : Boolean) return System.Address;
+       Fetched_File : out File_Inode_Number;
+       Success      : out Boolean;
+       Follow_Links : Boolean);
 end VFS.File;

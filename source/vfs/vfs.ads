@@ -19,20 +19,20 @@ with System;     use System;
 with Devices;    use Devices;
 
 package VFS with SPARK_Mode => Off is
+   --  Inodes numbers are identifiers that denotes a unique file inside an FS.
+   --  These values are not consistent across filesystems, they may not be
+   --  consistent across different mounts, depending on the FS.
+   type File_Inode_Number is new Unsigned_64;
+
    --  Stat structure of a file, which describes the qualities of a file.
    type File_Timestamp is record
       Seconds_Since_Epoch    : Unsigned_64;
       Additional_Nanoseconds : Unsigned_64;
    end record;
-   type File_Type is (
-      File_Regular,
-      File_Directory,
-      File_Symbolic_Link,
-      File_Character_Device,
-      File_Block_Device
-   );
+   type File_Type is (File_Regular, File_Directory, File_Symbolic_Link,
+                      File_Character_Device, File_Block_Device);
    type File_Stat is record
-      Unique_Identifier : Unsigned_64;
+      Unique_Identifier : File_Inode_Number;
       Type_Of_File      : File_Type;
       Mode              : Unsigned_32;
       Hard_Link_Count   : Positive;
@@ -54,7 +54,7 @@ package VFS with SPARK_Mode => Off is
    type Directory_Entities is array (Natural range <>) of Directory_Entity;
    ----------------------------------------------------------------------------
    --  Handle for interfacing with mounted FSs and FS types.
-   type FS_Type   is (FS_USTAR, FS_EXT);
+   type FS_Type   is (FS_EXT, FS_FAT32);
    type FS_Handle is private;
    Error_Handle : constant FS_Handle;
 
@@ -80,12 +80,11 @@ package VFS with SPARK_Mode => Off is
    --  @return True on success, False if busy or non present.
    function Unmount (Path : String; Force : Boolean) return Boolean;
 
-   --  Get a mount mounted exactly in the passed path.
+   --  Get a best-matching mount for the passed path.
    --  @param Path Path to search a mount for.
+   --  @param Match Count of characters matched.
    --  @return Key to use to refer to the mount, or 0 if not found.
-   --  TODO: Make this do a closest instead of exact match in order to support
-   --  mounts better, along with file dispatching in vfs-file.adb.
-   function Get_Mount (Path : String) return FS_Handle;
+   function Get_Mount (Path : String; Match : out Natural) return FS_Handle;
 
    --  Get the backing FS type.
    --  @param Key Key to use to fetch the info.
@@ -106,10 +105,16 @@ package VFS with SPARK_Mode => Off is
       with Pre => Key /= Error_Handle;
 
    --  Open a file with an absolute path inside the mount.
-   --  @param Key  FS Handle to open.
-   --  @param Path Absolute path inside the mount, creation is not done.
+   --  @param Key     FS Handle to open.
+   --  @param Path    Absolute path inside the mount, creation is not done.
+   --  @param Ino     Found inode, if any.
+   --  @param Success True if found, False if not.
    --  @return Returned opaque pointer for the passed mount, Null in failure.
-   function Open (Key : FS_Handle; Path : String) return System.Address
+   procedure Open
+      (Key     : FS_Handle;
+       Path    : String;
+       Ino     : out File_Inode_Number;
+       Success : out Boolean)
       with Pre => Key /= Error_Handle;
 
    --  Create a file with an absolute path inside the mount.
@@ -152,81 +157,81 @@ package VFS with SPARK_Mode => Off is
    --  @return True on success, False on failure.
    function Delete (Key : FS_Handle; Path : String) return Boolean;
 
-   --  Close an already opened file.
+   --  Signal to the FS we do not need this inode anymore.
    --  @param Key FS handle to operate on.
-   --  @param Obj Object to close and free, will be set to Null.
-   procedure Close (Key : FS_Handle; Obj : in out System.Address)
-      with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
+   --  @param Ino Inode to signal to close.
+   procedure Close (Key : FS_Handle; Ino : File_Inode_Number)
+      with Pre => Key /= Error_Handle;
 
    --  Read the entries of an opened directory.
    --  @param Key       FS handle to operate on.
-   --  @param Obj       Object to read the entries of.
+   --  @param Ino       Inode to operate on.
    --  @param Entities  Where to store the read entries, as many as possible.
    --  @param Ret_Count The count of entries, even if num > Entities'Length.
    --  @param Success   True in success, False in failure.
    procedure Read_Entries
       (Key       : FS_Handle;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out Boolean)
-      with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
+      with Pre => Key /= Error_Handle;
 
    --  Read the entries of an opened directory.
    --  @param Key       FS handle to operate on.
-   --  @param Obj       Object to read the entries of.
+   --  @param Ino       Inode to operate on.
    --  @param Entities  Where to store the read entries, as many as possible.
    --  @param Ret_Count The count of entries, even if num > Entities'Length.
    --  @param Success   True in success, False in failure.
    procedure Read_Symbolic_Link
       (Key       : FS_Handle;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Path      : out String;
        Ret_Count : out Natural)
-      with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
+      with Pre => Key /= Error_Handle;
 
    --  Read from a regular file.
    --  @param Key       FS Handle to open.
-   --  @param Obj       Object to read from.
+   --  @param Ino       Inode to operate on.
    --  @param Offset    Offset to read from.
    --  @param Data      Place to write read data.
    --  @param Ret_Count How many items were read into Data until EOF.
    --  @param Success   True on success, False on failure.
    procedure Read
       (Key       : FS_Handle;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean)
-      with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
+      with Pre => Key /= Error_Handle;
 
    --  Write to a regular file.
    --  @param Key       FS Handle to open.
-   --  @param Obj       Object to write to.
+   --  @param Ino       Inode to operate on.
    --  @param Offset    Offset to write to.
    --  @param Data      Data to write
    --  @param Ret_Count How many items were written until EOF.
    --  @param Success   True on success, False on failure.
    procedure Write
       (Key       : FS_Handle;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean)
-      with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
+      with Pre => Key /= Error_Handle;
 
    --  Get the stat of a file.
    --  @param Key FS Handle to open.
-   --  @param Obj Object to fetch information for.
+   --  @param Ino Inode to operate on.
    --  @param S   Data to fetch.
    --  @return True on success, False on failure.
    function Stat
-      (Key  : FS_Handle;
-       Obj  : System.Address;
-       S    : out File_Stat) return Boolean
-      with Pre => Key /= Error_Handle and Obj /= System.Null_Address;
+      (Key : FS_Handle;
+       Ino : File_Inode_Number;
+       S   : out File_Stat) return Boolean
+      with Pre => Key /= Error_Handle;
    ----------------------------------------------------------------------------
    --  Check whether a path is absolute.
    --  @param Path to check.

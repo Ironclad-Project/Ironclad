@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with VFS.EXT;
-with VFS.USTAR;
+with VFS.FAT32;
 with Lib.Synchronization;
 
 package body VFS with SPARK_Mode => Off is
@@ -35,9 +35,9 @@ package body VFS with SPARK_Mode => Off is
 
    procedure Init is
    begin
-      Mounts       := new Mount_Arr'(others =>
+      Mounts := new Mount_Arr'(others =>
          (Mounted_Dev => Devices.Error_Handle,
-          Mounted_FS  => FS_USTAR,
+          Mounted_FS  => FS_EXT,
           FS_Data     => System.Null_Address,
           Path_Length => 0,
           Path_Buffer => (others => ' ')));
@@ -68,12 +68,12 @@ package body VFS with SPARK_Mode => Off is
       end if;
 
       case FS is
-         when FS_USTAR =>
-            FS_Data := VFS.USTAR.Probe (Dev);
-            Mounts (Free_I).Mounted_FS := FS_USTAR;
          when FS_EXT =>
             FS_Data := VFS.EXT.Probe (Dev);
             Mounts (Free_I).Mounted_FS := FS_EXT;
+         when FS_FAT32 =>
+            FS_Data := VFS.FAT32.Probe (Dev);
+            Mounts (Free_I).Mounted_FS := FS_FAT32;
       end case;
 
       if FS_Data /= System.Null_Address then
@@ -92,7 +92,7 @@ package body VFS with SPARK_Mode => Off is
 
    function Mount (Name, Path : String) return Boolean is
    begin
-      return Mount (Name, Path, FS_EXT) or else Mount (Name, Path, FS_USTAR);
+      return Mount (Name, Path, FS_EXT) or else Mount (Name, Path, FS_FAT32);
    end Mount;
 
    function Unmount (Path : String; Force : Boolean) return Boolean is
@@ -104,8 +104,8 @@ package body VFS with SPARK_Mode => Off is
             Mounts (I).Path_Buffer (1 .. Mounts (I).Path_Length) = Path
          then
             case Mounts (I).Mounted_FS is
-               when FS_USTAR => USTAR.Unmount (Mounts (I).FS_Data);
                when FS_EXT   => EXT.Unmount   (Mounts (I).FS_Data);
+               when FS_FAT32 => FAT32.Unmount (Mounts (I).FS_Data);
             end case;
 
             if Force or Mounts (I).FS_Data = Null_Address then
@@ -120,21 +120,32 @@ package body VFS with SPARK_Mode => Off is
       return Success;
    end Unmount;
 
-   function Get_Mount (Path : String) return FS_Handle is
-      Returned : FS_Handle := VFS.Error_Handle;
+   function Get_Mount (Path : String; Match : out Natural) return FS_Handle is
+      Closest_Match : FS_Handle := VFS.Error_Handle;
    begin
+      Match := 0;
+
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev /= Devices.Error_Handle and then
-            Mounts (I).Path_Buffer (1 .. Mounts (I).Path_Length) = Path
+            Path'Length >= Mounts (I).Path_Length          and then
+            Match < Mounts (I).Path_Length                 and then
+            Mounts (I).Path_Buffer (1 .. Mounts (I).Path_Length) =
+            Path (Path'First .. Path'First + Mounts (I).Path_Length - 1)
          then
-            Returned := I;
-            goto Return_End;
+            Closest_Match := I;
+            Match         := Mounts (I).Path_Length;
          end if;
       end loop;
-   <<Return_End>>
       Lib.Synchronization.Release (Mounts_Mutex);
-      return Returned;
+
+      if Match > 1           and then
+         Path'Length > Match and then
+         Path (Path'First + Match) = '/'
+      then
+         Match := Match + 1;
+      end if;
+      return Closest_Match;
    end Get_Mount;
 
    function Get_Backing_FS (Key : FS_Handle) return FS_Type is
@@ -152,11 +163,26 @@ package body VFS with SPARK_Mode => Off is
       return Mounts (Key).Mounted_Dev;
    end Get_Backing_Device;
 
-   function Open (Key : FS_Handle; Path : String) return System.Address is
+   procedure Open
+      (Key     : FS_Handle;
+       Path    : String;
+       Ino     : out File_Inode_Number;
+       Success : out Boolean)
+   is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_USTAR => return USTAR.Open (Mounts (Key).FS_Data, Path);
-         when FS_EXT   => return EXT.Open   (Mounts (Key).FS_Data, Path);
+         when FS_EXT =>
+            EXT.Open
+               (FS      => Mounts (Key).FS_Data,
+                Path    => Path,
+                Ino     => Ino,
+                Success => Success);
+         when FS_FAT32 =>
+            FAT32.Open
+               (FS      => Mounts (Key).FS_Data,
+                Path    => Path,
+                Ino     => Ino,
+                Success => Success);
       end case;
    end Open;
 
@@ -167,10 +193,10 @@ package body VFS with SPARK_Mode => Off is
    is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_USTAR =>
-            return False;
          when FS_EXT =>
             return EXT.Create_Regular (Mounts (Key).FS_Data, Path, Mode);
+         when FS_FAT32 =>
+            return False;
       end case;
    end Create_Regular;
 
@@ -181,14 +207,11 @@ package body VFS with SPARK_Mode => Off is
    is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_USTAR =>
-            return False;
          when FS_EXT =>
             return EXT.Create_Symbolic_Link
-               (Mounts (Key).FS_Data,
-                Path,
-                Target,
-                Mode);
+               (Mounts (Key).FS_Data, Path, Target, Mode);
+         when FS_FAT32 =>
+            return False;
       end case;
    end Create_Symbolic_Link;
 
@@ -199,49 +222,49 @@ package body VFS with SPARK_Mode => Off is
    is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_USTAR =>
-            return False;
          when FS_EXT =>
             return EXT.Create_Directory (Mounts (Key).FS_Data, Path, Mode);
+         when FS_FAT32 =>
+            return False;
       end case;
    end Create_Directory;
 
    function Delete (Key : FS_Handle; Path : String) return Boolean is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_USTAR => return False;
          when FS_EXT   => return EXT.Delete (Mounts (Key).FS_Data, Path);
+         when FS_FAT32 => return False;
       end case;
    end Delete;
 
-   procedure Close (Key : FS_Handle; Obj : in out System.Address) is
+   procedure Close (Key : FS_Handle; Ino : File_Inode_Number) is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_USTAR => Obj := Null_Address;
-         when FS_EXT   => EXT.Close (Mounts (Key).FS_Data, Obj);
+         when FS_EXT   => EXT.Close   (Mounts (Key).FS_Data, Ino);
+         when FS_FAT32 => FAT32.Close (Mounts (Key).FS_Data, Ino);
       end case;
    end Close;
 
    procedure Read_Entries
       (Key       : FS_Handle;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_USTAR =>
-            USTAR.Read_Entries
-               (Mounts (Key).FS_Data,
-                Obj,
-                Entities,
-                Ret_Count,
-                Success);
          when FS_EXT =>
             EXT.Read_Entries
                (Mounts (Key).FS_Data,
-                Obj,
+                Ino,
+                Entities,
+                Ret_Count,
+                Success);
+         when FS_FAT32 =>
+            FAT32.Read_Entries
+               (Mounts (Key).FS_Data,
+                Ino,
                 Entities,
                 Ret_Count,
                 Success);
@@ -250,24 +273,24 @@ package body VFS with SPARK_Mode => Off is
 
    procedure Read_Symbolic_Link
       (Key       : FS_Handle;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Path      : out String;
        Ret_Count : out Natural)
    is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_USTAR =>
-            USTAR.Read_Symbolic_Link
-               (Mounts (Key).FS_Data, Obj, Path, Ret_Count);
          when FS_EXT =>
             EXT.Read_Symbolic_Link
-               (Mounts (Key).FS_Data, Obj, Path, Ret_Count);
+               (Mounts (Key).FS_Data, Ino, Path, Ret_Count);
+         when FS_FAT32 =>
+            Path      := (others => ' ');
+            Ret_Count := 0;
       end case;
    end Read_Symbolic_Link;
 
    procedure Read
       (Key       : FS_Handle;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
@@ -275,18 +298,18 @@ package body VFS with SPARK_Mode => Off is
    is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_USTAR =>
-            USTAR.Read
+         when FS_EXT =>
+            EXT.Read
                (Mounts (Key).FS_Data,
-                Obj,
+                Ino,
                 Offset,
                 Data,
                 Ret_Count,
                 Success);
-         when FS_EXT =>
-            EXT.Read
+         when FS_FAT32 =>
+            FAT32.Read
                (Mounts (Key).FS_Data,
-                Obj,
+                Ino,
                 Offset,
                 Data,
                 Ret_Count,
@@ -296,7 +319,7 @@ package body VFS with SPARK_Mode => Off is
 
    procedure Write
       (Key       : FS_Handle;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
@@ -304,29 +327,29 @@ package body VFS with SPARK_Mode => Off is
    is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_USTAR =>
-            Ret_Count := 0;
-            Success   := False;
          when FS_EXT =>
             EXT.Write
                (Mounts (Key).FS_Data,
-                Obj,
+                Ino,
                 Offset,
                 Data,
                 Ret_Count,
                 Success);
+         when FS_FAT32 =>
+            Ret_Count := 0;
+            Success   := False;
       end case;
    end Write;
 
    function Stat
-      (Key  : FS_Handle;
-       Obj  : System.Address;
-       S    : out File_Stat) return Boolean
+      (Key : FS_Handle;
+       Ino : File_Inode_Number;
+       S   : out File_Stat) return Boolean
    is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_USTAR => return USTAR.Stat (Mounts (Key).FS_Data, Obj, S);
-         when FS_EXT   => return EXT.Stat   (Mounts (Key).FS_Data, Obj, S);
+         when FS_EXT   => return EXT.Stat   (Mounts (Key).FS_Data, Ino, S);
+         when FS_FAT32 => return FAT32.Stat (Mounts (Key).FS_Data, Ino, S);
       end case;
    end Stat;
    ----------------------------------------------------------------------------

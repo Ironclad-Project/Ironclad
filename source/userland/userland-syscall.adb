@@ -1111,7 +1111,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       if VFS.File.Stat (File, Stat_Val) then
          Stat_Buf := (
             Device_Number => Unsigned_64 (Get_Device_ID (File)),
-            Inode_Number  => Stat_Val.Unique_Identifier,
+            Inode_Number  => Unsigned_64 (Stat_Val.Unique_Identifier),
             Mode          => Stat_Val.Mode,
             Number_Links  => Unsigned_32 (Stat_Val.Hard_Link_Count),
             UID           => 0,
@@ -1961,8 +1961,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       case FSType is
-         when MNT_USTAR => Parsed_Typ := VFS.FS_USTAR;
          when MNT_EXT   => Parsed_Typ := VFS.FS_EXT;
+         when MNT_FAT32 => Parsed_Typ := VFS.FS_FAT32;
          when others    =>
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;

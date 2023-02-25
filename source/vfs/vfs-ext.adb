@@ -16,8 +16,10 @@
 
 with Lib.Messages;
 with Lib.Panic;
+with Lib.Alignment;
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
+with System.Storage_Elements; use System.Storage_Elements;
 
 package body VFS.EXT with SPARK_Mode => Off is
    package   Conv_1 is new System.Address_To_Access_Conversions (EXT_Data);
@@ -97,16 +99,23 @@ package body VFS.EXT with SPARK_Mode => Off is
       FS := System.Null_Address;
    end Unmount;
 
-   function Open (FS : System.Address; Path : String) return System.Address is
+   procedure Open
+      (FS      : System.Address;
+       Path    : String;
+       Ino     : out File_Inode_Number;
+       Success : out Boolean)
+   is
       Data   : constant EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (FS));
       Result : EXT_File_Acc;
       Entity : Directory_Entity;
       Searched  :       Inode := Data.Root;
       Search_Sz : Unsigned_64 := Get_Size (Searched, Data.Has_64bit_Filesizes);
+      Searched_Type : File_Type := File_Directory;
       Inode_Num : Unsigned_32 := 2;
       First_I, Last_I        : Natural;
       Curr_Index, Next_Index : Unsigned_64;
-      Success                : Boolean;
+      Symlink                : String (1 .. 60);
+      Symlink_Len            : Natural;
    begin
       if Path'Length = 0 then
          goto End_Return;
@@ -124,6 +133,10 @@ package body VFS.EXT with SPARK_Mode => Off is
             Last_I := Last_I + 1;
          end loop;
 
+         if Searched_Type /= File_Directory then
+            goto Error_Return;
+         end if;
+
          Success    := True;
          Curr_Index := 0;
          Next_Index := 0;
@@ -137,8 +150,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                 Next_Index  => Next_Index,
                 Success     => Success);
             if not Success then
-               Lib.Synchronization.Release (Data.Mutex);
-               return System.Null_Address;
+               goto Error_Return;
             else
                Curr_Index := Next_Index;
             end if;
@@ -152,10 +164,29 @@ package body VFS.EXT with SPARK_Mode => Off is
                    Inode_Index     => Inode_Num,
                    Result          => Searched,
                    Write_Operation => False);
-               Search_Sz := Get_Size (Searched, Data.Has_64bit_Filesizes);
+               Search_Sz     := Get_Size (Searched, Data.Has_64bit_Filesizes);
+               Searched_Type := Get_Inode_Type (Searched.Permissions);
                if not Success then
+                  goto Error_Return;
+               end if;
+
+               if Last_I < Path'Last and Searched_Type = File_Symbolic_Link
+               then
+                  Inner_Read_Symbolic_Link
+                     (Searched,
+                      Search_Sz,
+                      Symlink,
+                      Symlink_Len);
+                  if Symlink_Len = 0 then
+                     goto Error_Return;
+                  end if;
                   Lib.Synchronization.Release (Data.Mutex);
-                  return Null_Address;
+                  Open
+                     (FS,
+                      Symlink (1 .. Symlink_Len) & Path (Last_I .. Path'Last),
+                      Ino,
+                      Success);
+                  return;
                end if;
                goto Next_Iteration;
             end if;
@@ -171,11 +202,19 @@ package body VFS.EXT with SPARK_Mode => Off is
          (Size           => Search_Sz,
           Inode_Number   => Inode_Num,
           Inner_Inode    => Searched,
-          Inode_Type     => Get_Inode_Type (Searched.Permissions),
+          Inode_Type     => Searched_Type,
           Is_Immutable   => (Searched.Flags and Flags_Immutable)   /= 0,
           Is_Append_Only => (Searched.Flags and Flags_Append_Only) /= 0);
       Lib.Synchronization.Release (Data.Mutex);
-      return Conv_2.To_Address (Conv_2.Object_Pointer (Result));
+      Ino := File_Inode_Number (To_Integer
+         (Conv_2.To_Address (Conv_2.Object_Pointer (Result))));
+      Success := True;
+      return;
+
+   <<Error_Return>>
+      Lib.Synchronization.Release (Data.Mutex);
+      Ino     := 0;
+      Success := False;
    end Open;
 
    function Create_Regular
@@ -230,23 +269,24 @@ package body VFS.EXT with SPARK_Mode => Off is
       return False;
    end Delete;
 
-   procedure Close (FS : System.Address; Obj : in out System.Address) is
+   procedure Close (FS : System.Address; Ino : File_Inode_Number) is
       pragma Unreferenced (FS);
-      File : EXT_File_Acc := EXT_File_Acc (Conv_2.To_Pointer (Obj));
+      File : EXT_File_Acc := EXT_File_Acc (Conv_2.To_Pointer
+         (To_Address (Integer_Address (Ino))));
    begin
       Free_2 (File);
-      Obj := Null_Address;
    end Close;
 
    procedure Read_Entries
       (FS_Data   : System.Address;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (FS_Data));
-      Fi : constant EXT_File_Acc := EXT_File_Acc (Conv_2.To_Pointer (Obj));
+      Fi : constant EXT_File_Acc := EXT_File_Acc (Conv_2.To_Pointer
+         (To_Address (Integer_Address (Ino))));
       Curr_Index, Next_Index : Unsigned_64 := 0;
       Ent : Directory_Entity;
    begin
@@ -287,39 +327,37 @@ package body VFS.EXT with SPARK_Mode => Off is
 
    procedure Read_Symbolic_Link
       (FS_Data   : System.Address;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Path      : out String;
        Ret_Count : out Natural)
    is
       pragma Unreferenced (FS_Data);
-      File : constant EXT_File_Acc := EXT_File_Acc (Conv_2.To_Pointer (Obj));
-      Final_Length : Natural;
-      Str_Data : Operation_Data (1 .. Path'Length)
-         with Address => File.Inner_Inode.Blocks'Address;
+      File : constant EXT_File_Acc :=  EXT_File_Acc (Conv_2.To_Pointer
+         (To_Address (Integer_Address (Ino))));
    begin
-      if File.Inode_Type /= File_Symbolic_Link or File.Size > 60 then
+      if File.Inode_Type = File_Symbolic_Link then
+         Inner_Read_Symbolic_Link
+            (Ino       => File.Inner_Inode,
+             File_Size => File.Size,
+             Path      => Path,
+             Ret_Count => Ret_Count);
+      else
          Path      := (others => ' ');
          Ret_Count := 0;
-         return;
       end if;
-
-      Final_Length := Natural (File.Size);
-      for I in 1 .. Final_Length loop
-         Path (Path'First + I - 1) := Character'Val (Str_Data (I));
-      end loop;
-      Ret_Count := Final_Length;
    end Read_Symbolic_Link;
 
    procedure Read
       (FS_Data   : System.Address;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (FS_Data));
-      File : constant EXT_File_Acc := EXT_File_Acc (Conv_2.To_Pointer (Obj));
+      File : constant EXT_File_Acc :=  EXT_File_Acc (Conv_2.To_Pointer
+         (To_Address (Integer_Address (Ino))));
    begin
       if File.Inode_Type /= File_Regular then
          Ret_Count := 0;
@@ -345,14 +383,15 @@ package body VFS.EXT with SPARK_Mode => Off is
 
    procedure Write
       (FS_Data   : System.Address;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (FS_Data));
-      Fi : constant EXT_File_Acc := EXT_File_Acc (Conv_2.To_Pointer (Obj));
+      Fi : constant EXT_File_Acc :=  EXT_File_Acc (Conv_2.To_Pointer
+         (To_Address (Integer_Address (Ino))));
    begin
       if Fi.Inode_Type /= File_Regular or FS.Is_Read_Only or Fi.Is_Immutable
       then
@@ -376,24 +415,27 @@ package body VFS.EXT with SPARK_Mode => Off is
 
    function Stat
       (Data : System.Address;
-       Obj  : System.Address;
+       Ino  : File_Inode_Number;
        S    : out File_Stat) return Boolean
    is
+      package Align is new Lib.Alignment (Unsigned_64);
       FS   : constant EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (Data));
-      File : constant EXT_File_Acc := EXT_File_Acc (Conv_2.To_Pointer (Obj));
-      Ino  : Inode renames File.Inner_Inode;
+      File : constant EXT_File_Acc :=  EXT_File_Acc (Conv_2.To_Pointer
+         (To_Address (Integer_Address (Ino))));
+      Blk  : constant Unsigned_64  := Unsigned_64 (Get_Block_Size (FS.Handle));
+      Inod : Inode renames File.Inner_Inode;
    begin
       S :=
-         (Unique_Identifier => Unsigned_64 (File.Inode_Number),
-          Type_Of_File      => Get_Inode_Type (Ino.Permissions),
-          Mode              => Unsigned_32 (Ino.Permissions),
-          Hard_Link_Count   => Positive (Ino.Hard_Link_Count),
+         (Unique_Identifier => File_Inode_Number (File.Inode_Number),
+          Type_Of_File      => Get_Inode_Type (Inod.Permissions),
+          Mode              => Unsigned_32 (Inod.Permissions),
+          Hard_Link_Count   => Positive (Inod.Hard_Link_Count),
           Byte_Size         => File.Size,
-          IO_Block_Size     => Devices.Get_Block_Size (FS.Handle),
-          IO_Block_Count    => Devices.Get_Block_Count (FS.Handle),
-          Creation_Time     => (Unsigned_64 (Ino.Creation_Time_Epoch), 0),
-          Modification_Time => (Unsigned_64 (Ino.Modified_Time_Epoch), 0),
-          Access_Time       => (Unsigned_64 (Ino.Access_Time_Epoch),   0));
+          IO_Block_Size     => Get_Block_Size (FS.Handle),
+          IO_Block_Count    => Align.Divide_Round_Up (File.Size, Blk),
+          Creation_Time     => (Unsigned_64 (Inod.Creation_Time_Epoch), 0),
+          Modification_Time => (Unsigned_64 (Inod.Modified_Time_Epoch), 0),
+          Access_Time       => (Unsigned_64 (Inod.Access_Time_Epoch),   0));
       return True;
    end Stat;
    ----------------------------------------------------------------------------
@@ -613,6 +655,29 @@ package body VFS.EXT with SPARK_Mode => Off is
           Success   => Discard_2);
       return Block_Index;
    end Get_Block_Index;
+
+   procedure Inner_Read_Symbolic_Link
+      (Ino       : Inode;
+       File_Size : Unsigned_64;
+       Path      : out String;
+       Ret_Count : out Natural)
+   is
+      Final_Length : Natural;
+      Str_Data     : Operation_Data (1 .. Path'Length)
+         with Address => Ino.Blocks'Address;
+   begin
+      Final_Length := Natural (File_Size);
+      if Final_Length > 60 then
+         Path      := (others => ' ');
+         Ret_Count := 0;
+         return;
+      end if;
+
+      for I in 1 .. Final_Length loop
+         Path (Path'First + I - 1) := Character'Val (Str_Data (I));
+      end loop;
+      Ret_Count := Final_Length;
+   end Inner_Read_Symbolic_Link;
 
    procedure Inner_Read_Entry
       (FS_Data     : EXT_Data_Acc;

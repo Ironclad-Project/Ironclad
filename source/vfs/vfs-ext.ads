@@ -18,55 +18,67 @@ with System;
 with Lib.Synchronization;
 
 package VFS.EXT with SPARK_Mode => Off is
-   --  Probe for an ext* FS in the passed device.
-   --  Return opaque FS data on success, or Null_Address on failure.
    function Probe (Handle : Device_Handle) return System.Address;
+
    procedure Unmount (FS : in out System.Address);
 
-   --  Basic file operations wrapped in vfs.adb.
-   function Open (FS : System.Address; Path : String) return System.Address;
+   procedure Open
+      (FS      : System.Address;
+       Path    : String;
+       Ino     : out File_Inode_Number;
+       Success : out Boolean);
+
    function Create_Regular
       (FS   : System.Address;
        Path : String;
        Mode : Unsigned_32) return Boolean;
+
    function Create_Symbolic_Link
       (FS           : System.Address;
        Path, Target : String;
        Mode         : Unsigned_32) return Boolean;
+
    function Create_Directory
       (FS   : System.Address;
        Path : String;
        Mode : Unsigned_32) return Boolean;
+
    function Delete (FS : System.Address; Path : String) return Boolean;
-   procedure Close (FS : System.Address; Obj : in out System.Address);
+
+   procedure Close (FS : System.Address; Ino : File_Inode_Number);
+
    procedure Read_Entries
       (FS_Data   : System.Address;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out Boolean);
+
    procedure Read_Symbolic_Link
       (FS_Data   : System.Address;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Path      : out String;
        Ret_Count : out Natural);
+
    procedure Read
       (FS_Data   : System.Address;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean);
+
    procedure Write
       (FS_Data   : System.Address;
-       Obj       : System.Address;
+       Ino       : File_Inode_Number;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean);
+
    function Stat
       (Data : System.Address;
-       Obj  : System.Address;
+       Ino  : File_Inode_Number;
        S    : out File_Stat) return Boolean;
 
 private
@@ -272,6 +284,12 @@ private
       Has_64bit_Filesizes   : Boolean;
    end record;
    type EXT_Data_Acc is access all EXT_Data;
+
+   procedure Inner_Read_Symbolic_Link
+      (Ino       : Inode;
+       File_Size : Unsigned_64;
+       Path      : out String;
+       Ret_Count : out Natural);
 
    procedure Inner_Read_Entry
       (FS_Data     : EXT_Data_Acc;

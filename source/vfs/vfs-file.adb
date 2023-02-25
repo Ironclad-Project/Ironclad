@@ -20,29 +20,34 @@ package body VFS.File with SPARK_Mode => Off is
    procedure Free_Str  is new Ada.Unchecked_Deallocation (String, String_Acc);
    procedure Free_File is new Ada.Unchecked_Deallocation (File, File_Acc);
 
-   function Resolve_File
+   procedure Resolve_File
       (Path         : String;
        Is_Device    : out Boolean;
        Fetched_Dev  : out Device_Handle;
        Fetched_FS   : out FS_Handle;
-       Follow_Links : Boolean) return System.Address
+       Fetched_File : out File_Inode_Number;
+       Success      : out Boolean;
+       Follow_Links : Boolean)
    is
-      Fetched_File : System.Address := System.Null_Address;
       Fetched_Stat : File_Stat;
       Fetched_Succ : Boolean := False;
+      Match_Count  : Natural;
       Last_Slash   : Natural := 0;
       Symlink      : String (1 .. 60);
       Symlink_Len  : Natural;
       Discard      : Boolean;
    begin
       --  Default values.
-      Is_Device   := False;
-      Fetched_Dev := Devices.Error_Handle;
-      Fetched_FS  := Error_Handle;
+      Success      := True;
+      Is_Device    := False;
+      Fetched_Dev  := Devices.Error_Handle;
+      Fetched_FS   := Error_Handle;
+      Fetched_File := 0;
 
       --  TODO: Handle non-canonical paths.
       if not Is_Canonical (Path) then
-         goto Done;
+         Success := False;
+         return;
       end if;
 
       --  Handle /dev/ devices, which we emulate with the internal kernel
@@ -51,18 +56,23 @@ package body VFS.File with SPARK_Mode => Off is
       then
          Fetched_Dev := Fetch (Path (Path'First + 5 .. Path'Last));
          Is_Device   := Fetched_Dev /= Devices.Error_Handle;
-         goto Done;
+         return;
       end if;
 
       --  Do the usual file opening routine.
-      Fetched_FS := Get_Mount ("/");
+      Fetched_FS := Get_Mount (Path, Match_Count);
       if Fetched_FS = Error_Handle then
-         goto Done;
+         Success := False;
+         return;
       end if;
 
       Fetched_Dev  := Get_Backing_Device (Fetched_FS);
-      Fetched_File := Open (Fetched_FS, Path (Path'First + 1 .. Path'Last));
-      if Fetched_File /= Null_Address then
+      Open
+         (Fetched_FS,
+          Path (Path'First + Match_Count .. Path'Last),
+          Fetched_File,
+          Success);
+      if Success then
          Fetched_Succ := Stat (Fetched_FS, Fetched_File, Fetched_Stat);
       else
          Fetched_Succ := False;
@@ -74,7 +84,7 @@ package body VFS.File with SPARK_Mode => Off is
       then
          VFS.Read_Symbolic_Link
             (Key       => Fetched_FS,
-             Obj       => Fetched_File,
+             Ino       => Fetched_File,
              Path      => Symlink,
              Ret_Count => Symlink_Len);
 
@@ -87,28 +97,31 @@ package body VFS.File with SPARK_Mode => Off is
          Close (Fetched_FS, Fetched_File);
 
          if Symlink_Len = 0 then
-            return Null_Address;
+            Success := False;
+            return;
          elsif Symlink (1) = '/' then
-            return Resolve_File (
+            Resolve_File (
                Symlink (1 .. Symlink_Len),
                Is_Device,
                Fetched_Dev,
                Fetched_FS,
+               Fetched_File,
+               Success,
                Follow_Links
             );
          else
-            return Resolve_File (
+            Resolve_File (
                Path (Path'First .. Last_Slash) & Symlink (1 .. Symlink_Len),
                Is_Device,
                Fetched_Dev,
                Fetched_FS,
+               Fetched_File,
+               Success,
                Follow_Links
             );
          end if;
+         return;
       end if;
-
-   <<Done>>
-      return Fetched_File;
    end Resolve_File;
 
    function Open
@@ -116,23 +129,25 @@ package body VFS.File with SPARK_Mode => Off is
        Access_Flags : Access_Mode;
        Follow_Links : Boolean := True) return File_Acc
    is
+      Success      : Boolean;
       Is_Device    : Boolean;
       Fetched_Dev  : Device_Handle;
       Fetched_FS   : FS_Handle;
-      Fetched_File : System.Address;
+      Fetched_File : File_Inode_Number;
    begin
-      Fetched_File := Resolve_File (
-         Path,
-         Is_Device,
-         Fetched_Dev,
-         Fetched_FS,
-         Follow_Links
-      );
-      if Fetched_File = System.Null_Address and not Is_Device then
-         return null;
-      else
+      Resolve_File
+         (Path         => Path,
+          Is_Device    => Is_Device,
+          Fetched_Dev  => Fetched_Dev,
+          Fetched_FS   => Fetched_FS,
+          Fetched_File => Fetched_File,
+          Success      => Success,
+          Follow_Links => Follow_Links);
+
+      if Success then
          return new File'(
             Refcount  => 1,
+            Is_Device => Is_Device,
             Full_Path => new String'(Path),
             Dev_Data  => Fetched_Dev,
             FS_Data   => Fetched_FS,
@@ -140,6 +155,8 @@ package body VFS.File with SPARK_Mode => Off is
             Index     => 0,
             Flags     => Access_Flags
          );
+      else
+         return null;
       end if;
    end Open;
 
@@ -196,12 +213,10 @@ package body VFS.File with SPARK_Mode => Off is
        Success   : out Boolean)
    is
    begin
-      if To_Read.FS_Data   /= Error_Handle and
-         To_Read.File_Data /= System.Null_Address
-      then
+      if not To_Read.Is_Device then
          VFS.Read_Entries
             (Key       => To_Read.FS_Data,
-             Obj       => To_Read.File_Data,
+             Ino       => To_Read.File_Data,
              Entities  => Entities,
              Ret_Count => Ret_Count,
              Success   => Success);
@@ -217,12 +232,10 @@ package body VFS.File with SPARK_Mode => Off is
        Ret_Count : out Natural)
    is
    begin
-      if To_Read.FS_Data   /= Error_Handle and
-         To_Read.File_Data /= System.Null_Address
-      then
+      if not To_Read.Is_Device then
          VFS.Read_Symbolic_Link
             (Key       => To_Read.FS_Data,
-             Obj       => To_Read.File_Data,
+             Ino       => To_Read.File_Data,
              Path      => Path,
              Ret_Count => Ret_Count);
       else
@@ -244,12 +257,10 @@ package body VFS.File with SPARK_Mode => Off is
          return;
       end if;
 
-      if To_Read.FS_Data   /= Error_Handle and
-         To_Read.File_Data /= System.Null_Address
-      then
+      if not To_Read.Is_Device then
          VFS.Read
             (Key       => To_Read.FS_Data,
-             Obj       => To_Read.File_Data,
+             Ino       => To_Read.File_Data,
              Offset    => To_Read.Index,
              Data      => Data,
              Ret_Count => Ret_Count,
@@ -281,12 +292,10 @@ package body VFS.File with SPARK_Mode => Off is
          return;
       end if;
 
-      if To_Write.FS_Data   /= Error_Handle and
-         To_Write.File_Data /= System.Null_Address
-      then
+      if not To_Write.Is_Device then
          VFS.Write
             (Key       => To_Write.FS_Data,
-             Obj       => To_Write.File_Data,
+             Ino       => To_Write.File_Data,
              Offset    => To_Write.Index,
              Data      => Data,
              Ret_Count => Ret_Count,
@@ -312,9 +321,7 @@ package body VFS.File with SPARK_Mode => Off is
       Block_Count                   : Unsigned_64;
       Block_Size, Unique_Identifier : Natural;
    begin
-      if F.FS_Data   /= Error_Handle and
-         F.File_Data /= System.Null_Address
-      then
+      if not F.Is_Device then
          return VFS.Stat (F.FS_Data, F.File_Data, S);
       else
          Is_Block          := Devices.Is_Block_Device (F.Dev_Data);
@@ -327,7 +334,7 @@ package body VFS.File with SPARK_Mode => Off is
             Device_Type := File_Character_Device;
          end if;
          S := (
-            Unique_Identifier => Unsigned_64 (Unique_Identifier),
+            Unique_Identifier => File_Inode_Number (Unique_Identifier),
             Type_Of_File      => Device_Type,
             Mode              => 8#660#,
             Hard_Link_Count   => 1,
@@ -348,7 +355,7 @@ package body VFS.File with SPARK_Mode => Off is
        Argument : System.Address) return Boolean
    is
    begin
-      if F.FS_Data = Error_Handle and F.File_Data = System.Null_Address then
+      if F.Is_Device then
          return Devices.IO_Control (F.Dev_Data, Request, Argument);
       else
          return False;
@@ -364,7 +371,7 @@ package body VFS.File with SPARK_Mode => Off is
        Map_Execute : Boolean) return Boolean
    is
    begin
-      if F.FS_Data = Error_Handle and F.File_Data = System.Null_Address then
+      if F.Is_Device then
          return Devices.Mmap (
             F.Dev_Data,
             Address,
@@ -384,7 +391,7 @@ package body VFS.File with SPARK_Mode => Off is
        Length  : Unsigned_64) return Boolean
    is
    begin
-      if F.FS_Data = Error_Handle and F.File_Data = System.Null_Address then
+      if F.Is_Device then
          return Devices.Munmap (F.Dev_Data, Address, Length);
       else
          return False;
@@ -392,27 +399,33 @@ package body VFS.File with SPARK_Mode => Off is
    end Munmap;
 
    function Delete (Path : String) return Boolean is
-      Handle : constant FS_Handle := Get_Mount ("/");
+      Match_Count : Natural;
+      Handle      : constant FS_Handle := Get_Mount (Path, Match_Count);
    begin
-      return Delete (Handle, Path (Path'First + 1 .. Path'Last));
+      return Delete (Handle, Path (Path'First + Match_Count .. Path'Last));
    end Delete;
 
    function Create_Regular (Path : String; Mode : Unsigned_32) return Boolean
    is
-      Handle : constant FS_Handle := Get_Mount ("/");
+      Match_Count : Natural;
+      Handle      : constant FS_Handle := Get_Mount (Path, Match_Count);
    begin
-      return Create_Regular (Handle, Path (Path'First + 1 .. Path'Last), Mode);
+      return Create_Regular
+         (Handle,
+          Path (Path'First + Match_Count .. Path'Last),
+          Mode);
    end Create_Regular;
 
    function Create_Directory
       (Path : String;
        Mode : Unsigned_32) return Boolean
    is
-      Handle : constant FS_Handle := Get_Mount ("/");
+      Match_Count : Natural;
+      Handle      : constant FS_Handle := Get_Mount (Path, Match_Count);
    begin
       return Create_Directory
          (Handle,
-          Path (Path'First + 1 .. Path'Last),
+          Path (Path'First + Match_Count .. Path'Last),
           Mode);
    end Create_Directory;
 
@@ -420,11 +433,12 @@ package body VFS.File with SPARK_Mode => Off is
       (Path, Target : String;
        Mode         : Unsigned_32) return Boolean
    is
-      Handle : constant FS_Handle := Get_Mount ("/");
+      Match_Count : Natural;
+      Handle      : constant FS_Handle := Get_Mount (Path, Match_Count);
    begin
       return Create_Symbolic_Link
          (Handle,
-          Path (Path'First + 1 .. Path'Last),
+          Path (Path'First + Match_Count .. Path'Last),
           Target,
           Mode);
    end Create_Symbolic_Link;
