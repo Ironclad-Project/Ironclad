@@ -85,4 +85,15 @@ package body Lib_Tests is
          raise Lib_Exception with "LCM test failed";
       end if;
    end Run_Math_Tests;
+
+   procedure Run_Hashing_Tests is
+   begin
+      --  TODO: I dont really know how to test this to be honest.
+      if Lib.Get_Hash ("")        /= Lib.Get_Hash ("") or
+         Lib.Get_Hash ("follower") = Lib.Get_Hash ("followed") or
+         Lib.Get_Hash ("sign")     = Lib.Get_Hash ("MONOTONOUS")
+      then
+         raise Lib_Exception with "Get_Hash test failed";
+      end if;
+   end Run_Hashing_Tests;
 end Lib_Tests;

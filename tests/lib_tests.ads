@@ -19,4 +19,5 @@ package Lib_Tests is
    procedure Run_Cmdline_Tests;
    procedure Run_Alignment_Tests;
    procedure Run_Math_Tests;
+   procedure Run_Hashing_Tests;
 end Lib_Tests;
