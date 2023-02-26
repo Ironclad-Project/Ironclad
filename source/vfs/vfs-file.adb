@@ -30,7 +30,6 @@ package body VFS.File with SPARK_Mode => Off is
        Follow_Links : Boolean)
    is
       Fetched_Stat : File_Stat;
-      Fetched_Succ : Boolean := False;
       Match_Count  : Natural;
       Last_Slash   : Natural := 0;
       Symlink      : String (1 .. 60);
@@ -56,6 +55,7 @@ package body VFS.File with SPARK_Mode => Off is
       then
          Fetched_Dev := Fetch (Path (Path'First + 5 .. Path'Last));
          Is_Device   := Fetched_Dev /= Devices.Error_Handle;
+         Success     := Is_Device;
          return;
       end if;
 
@@ -73,13 +73,11 @@ package body VFS.File with SPARK_Mode => Off is
           Fetched_File,
           Success);
       if Success then
-         Fetched_Succ := Stat (Fetched_FS, Fetched_File, Fetched_Stat);
-      else
-         Fetched_Succ := False;
+         Success := Stat (Fetched_FS, Fetched_File, Fetched_Stat);
       end if;
 
       --  Redirect if we are dealing with a symlink.
-      if Follow_Links and Fetched_Succ and
+      if Follow_Links and Success and
          Fetched_Stat.Type_Of_File = File_Symbolic_Link
       then
          VFS.Read_Symbolic_Link
@@ -120,7 +118,6 @@ package body VFS.File with SPARK_Mode => Off is
                Follow_Links
             );
          end if;
-         return;
       end if;
    end Resolve_File;
 

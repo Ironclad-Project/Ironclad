@@ -58,6 +58,7 @@ package body VFS with SPARK_Mode => Off is
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev = Dev then
+            Free_I := VFS.Error_Handle;
             goto Return_End;
          elsif Mounts (I).Mounted_Dev = Devices.Error_Handle then
             Free_I := I;

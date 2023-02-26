@@ -14,62 +14,16 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
 with Arch.IDT;
 with Arch.APIC;
 with Arch.CPU;
 with Arch.Snippets;
 
 package body Devices.PS2Keyboard with SPARK_Mode => Off is
-   --  There can only be 1 PS2 keyboard, so we can store the private data here
-   --  to avoid the indirection of having it in the root object.
-   Is_Capslock_Active : Boolean;
-   Is_Shift_Active    : Boolean;
-   Is_Ctrl_Active     : Boolean;
-   Has_Extra_Code     : Boolean;
-
-   --  Buffer to be filled by the handler.
+   --  Globals to communicate with the interrupt routine.
    Is_Reading    : Boolean with Volatile;
-   Buffer_Length : Natural with Volatile;
-   Key_Buffer    : String (1 .. 100);
-
-   --  Special keys and notable values.
-   Capslock_Press      : constant := 16#3A#;
-   Right_Shift_Press   : constant := 16#36#;
-   Right_Shift_Release : constant := 16#B6#;
-   Left_Shift_Press    : constant := 16#2A#;
-   Left_Shift_Release  : constant := 16#AA#;
-   Ctrl_Press          : constant := 16#1D#;
-   Ctrl_Release        : constant := 16#9D#;
-
-   --  Different mappings for different modifiers.
-   Capslock_Mapping : constant array (0 .. 57) of Character := (
-      NUL, ESC, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', BS,
-      HT, 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '[', ']', LF,
-      NUL, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ';', ''', '`', NUL,
-      '\', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', '/', NUL, NUL, NUL, ' '
-   );
-
-   Shift_Mapping : constant array (0 .. 57) of Character := (
-      NUL, ESC, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', BS,
-      HT, 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', LF,
-      NUL, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', NUL,
-      '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', NUL, NUL, NUL, ' '
-   );
-
-   Shift_Capslock_Mapping : constant array (0 .. 57) of Character := (
-      NUL, ESC, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', BS,
-      HT, 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '{', '}', LF,
-      NUL, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ':', '"', '~', NUL,
-      '|', 'z', 'x', 'c', 'v', 'b', 'n', 'm', '<', '>', '?', NUL, NUL, NUL, ' '
-   );
-
-   Normal_Mapping : constant array (0 .. 57) of Character := (
-      NUL, ESC, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', BS,
-      HT, 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', LF,
-      NUL, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', ''', '`', NUL,
-      '\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', NUL, NUL, NUL, ' '
-   );
+   Has_Read      : Boolean with Volatile;
+   Read_Scancode : Unsigned_8;
 
    function Init return Boolean is
       BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
@@ -168,76 +122,30 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
    is
       pragma Unreferenced (Data);
       pragma Unreferenced (Offset);
-      To_Write : String (1 .. Natural (Count)) with Address => Desto;
+      To_Write : Unsigned_8 with Address => Desto;
    begin
-      --  Set the info for the buffer.
-      Buffer_Length := 0;
+      if Count = 0 then
+         return 0;
+      end if;
 
-      --  Set that we are reading, and wait until done.
+      Has_Read   := False;
       Is_Reading := True;
-      while Buffer_Length < Natural (Count) loop
+      while not Has_Read loop
          Arch.Snippets.Wait_For_Interrupt;
       end loop;
       Is_Reading := False;
-
-      --  Copy back.
-      To_Write := Key_Buffer (1 .. Natural (Count));
-      return Count;
+      To_Write := Read_Scancode;
+      return 1;
    end Read;
 
    procedure Keyboard_Handler is
-      Input : constant Integer := Integer (Arch.Snippets.Port_In (16#60#));
-      C     : Character;
+      Input : constant Unsigned_8 := Arch.Snippets.Port_In (16#60#);
    begin
-      if not Is_Reading then
-         goto EOI;
+      if Is_Reading then
+         Read_Scancode := Input;
+         Has_Read      := True;
       end if;
 
-      if Input = 16#E0# then
-         Has_Extra_Code := True;
-         goto EOI;
-      end if;
-
-      if Has_Extra_Code then
-         Has_Extra_Code := False;
-         case Input is
-            when Ctrl_Press   => Is_Ctrl_Active := True;
-            when Ctrl_Release => Is_Ctrl_Active := False;
-            when others       => null;
-         end case;
-         goto EOI;
-      end if;
-
-      case Input is
-         when Left_Shift_Press    => Is_Shift_Active := True;
-         when Left_Shift_Release  => Is_Shift_Active := False;
-         when Right_Shift_Press   => Is_Shift_Active := True;
-         when Right_Shift_Release => Is_Shift_Active := False;
-         when Ctrl_Press          => Is_Ctrl_Active  := True;
-         when Ctrl_Release        => Is_Ctrl_Active  := False;
-         when Capslock_Press => Is_Capslock_Active := not Is_Capslock_Active;
-         when others =>
-            if Input >= Normal_Mapping'First and
-               Input <= Normal_Mapping'Last
-            then
-               if Is_Ctrl_Active then
-                  --  TODO: Caret notation.
-                  C := Capslock_Mapping (Input);
-               elsif Is_Capslock_Active and Is_Shift_Active then
-                  C := Shift_Capslock_Mapping (Input);
-               elsif not Is_Capslock_Active and Is_Shift_Active then
-                  C := Shift_Mapping (Input);
-               elsif Is_Capslock_Active and not Is_Shift_Active then
-                  C := Capslock_Mapping (Input);
-               else
-                  C := Normal_Mapping (Input);
-               end if;
-               Buffer_Length := Buffer_Length + 1;
-               Key_Buffer (Buffer_Length) := C;
-            end if;
-      end case;
-
-   <<EOI>>
       Arch.APIC.LAPIC_EOI;
    end Keyboard_Handler;
 end Devices.PS2Keyboard;

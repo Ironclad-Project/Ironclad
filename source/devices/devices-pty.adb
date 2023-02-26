@@ -154,11 +154,8 @@ package body Devices.PTY with SPARK_Mode => Off is
        To_Write : System.Address) return Unsigned_64
    is
       pragma Unreferenced (Offset);
-      Master  : Master_PTY with Import, Address => Data.Data;
-      Discard : Unsigned_64;
+      Master : Master_PTY with Import, Address => Data.Data;
    begin
-      --  Handle echo.
-      Discard := Write (Master.Writer_To_Master, Count, To_Write);
       return Write (Master.Writer_To_Slave, Count, To_Write);
    end Master_Write;
 
