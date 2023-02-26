@@ -47,7 +47,7 @@ package VFS.File with SPARK_Mode => Off is
    --  Setting the position past of the end of file is not checked.
    function Get_Position (File : File_Acc) return Unsigned_64
       with Inline, Pre => File /= null;
-   procedure Set_Position (File : File_Acc; Pos : Unsigned_64)
+   function Set_Position (File : File_Acc; Pos : Unsigned_64) return Boolean
       with Inline, Pre => File /= null;
 
    --  Files have an access mode, this function fetches it for the passed file.

@@ -81,7 +81,6 @@ package body IPC.Pipe with SPARK_Mode => Off is
 
    procedure Close (To_Close : in out Pipe_Writer_Acc) is
    begin
-      Lib.Synchronization.Seize (To_Close.Mutex);
       To_Close.Refcount := To_Close.Refcount - 1;
       if To_Close.Refcount = 0 then
          if To_Close.Reader /= null then
@@ -91,7 +90,6 @@ package body IPC.Pipe with SPARK_Mode => Off is
             return;
          end if;
       end if;
-      Lib.Synchronization.Release (To_Close.Mutex);
    end Close;
 
    procedure Close (To_Close : in out Pipe_Reader_Acc) is

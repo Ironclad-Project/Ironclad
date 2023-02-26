@@ -112,7 +112,7 @@ package body Userland.ELF with SPARK_Mode => Off is
             return Result;
          end if;
 
-         VFS.File.Set_Position (File_D, Header.Program_Header_List);
+         Success := VFS.File.Set_Position (File_D, Header.Program_Header_List);
          VFS.File.Read (File_D, PHDRs_Data, Ret_Count, Success);
          if not Success or Ret_Count /= Natural (RSize) then
             return Result;
@@ -153,7 +153,7 @@ package body Userland.ELF with SPARK_Mode => Off is
       Ret_Count : Natural;
       Success   : Boolean;
    begin
-      VFS.File.Set_Position (File_D, Header.Offset);
+      Success := VFS.File.Set_Position (File_D, Header.Offset);
       VFS.File.Read (File_D, Ret_Data, Ret_Count, Success);
       if Success and Ret_Count = Header.File_Size_Bytes then
          return Ret;
@@ -207,7 +207,7 @@ package body Userland.ELF with SPARK_Mode => Off is
       end if;
 
       Load := (others => 0);
-      VFS.File.Set_Position (File_D, Header.Offset);
+      Success := VFS.File.Set_Position (File_D, Header.Offset);
       VFS.File.Read (File_D, Load2, Ret_Count, Success);
       return Success and Ret_Count = Header.File_Size_Bytes;
    end Load_Header;

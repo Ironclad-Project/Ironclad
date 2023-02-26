@@ -158,6 +158,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Dont_Follow       : constant Boolean := (Flags and O_NOFOLLOW) /= 0;
       Do_Append         : constant Boolean := (Flags and O_APPEND)   /= 0;
 
+      Discard      : Boolean;
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
       Open_Mode    : VFS.File.Access_Mode;
@@ -245,7 +246,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Errno := Error_Invalid_Seek;
             return Unsigned_64'Last;
          end if;
-         Set_Position (Opened_File, Opened_Stat.Byte_Size);
+         Discard := Set_Position (Opened_File, Opened_Stat.Byte_Size);
       end if;
 
       New_Descr := new File_Description'(
@@ -421,6 +422,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc     : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       File     : File_Description_Acc;
       Stat_Val : VFS.File_Stat;
+      Success  : Boolean;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall seek(");
@@ -443,21 +445,26 @@ package body Userland.Syscall with SPARK_Mode => Off is
             if VFS.File.Stat (File.Inner_File, Stat_Val) then
                case Whence is
                   when SEEK_SET =>
-                     Set_Position (File.Inner_File, Offset);
+                     Success := Set_Position (File.Inner_File, Offset);
                   when SEEK_CURRENT =>
-                     Set_Position
+                     Success := Set_Position
                         (File.Inner_File,
                          Get_Position (File.Inner_File) + Offset);
                   when SEEK_END =>
-                     Set_Position
+                     Success := Set_Position
                         (File.Inner_File, Stat_Val.Byte_Size + Offset);
                   when others =>
                      Errno := Error_Invalid_Value;
                      return Unsigned_64'Last;
                end case;
 
-               Errno := Error_No_Error;
-               return Get_Position (File.Inner_File);
+               if Success then
+                  Errno := Error_No_Error;
+                  return Get_Position (File.Inner_File);
+               else
+                  Errno := Error_Invalid_Seek;
+                  return Unsigned_64'Last;
+               end if;
             end if;
          when Description_Writer_Pipe | Description_Reader_Pipe =>
             null;

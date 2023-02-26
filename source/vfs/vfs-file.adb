@@ -167,9 +167,14 @@ package body VFS.File with SPARK_Mode => Off is
       return File.Index;
    end Get_Position;
 
-   procedure Set_Position (File : File_Acc; Pos : Unsigned_64) is
+   function Set_Position (File : File_Acc; Pos : Unsigned_64) return Boolean is
    begin
-      File.Index := Pos;
+      if File.Is_Device and not Is_Block_Device (File.Dev_Data) then
+         return False;
+      else
+         File.Index := Pos;
+         return True;
+      end if;
    end Set_Position;
 
    function Get_Access (File : File_Acc) return Access_Mode is

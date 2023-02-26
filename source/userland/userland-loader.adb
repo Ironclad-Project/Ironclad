@@ -90,11 +90,12 @@ package body Userland.Loader with SPARK_Mode => Off is
        Environment : Environment_Arr;
        Proc        : Process_Data_Acc) return Boolean
    is
+      Discard : Boolean;
    begin
       if Start_ELF (FD, Arguments, Environment, Proc) then
          return True;
       end if;
-      Set_Position (FD, 0);
+      Discard := Set_Position (FD, 0);
       if Start_Shebang (FD, Arguments, Environment, Proc) then
          return True;
       end if;
