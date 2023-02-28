@@ -91,6 +91,9 @@ package Userland.Process with SPARK_Mode => Off is
        Thread  : Scheduler.TID);
    procedure Flush_Threads (Process : Process_Data_Acc);
 
+   --  Reroll the ASLR addresses given to a process at creation.
+   procedure Reroll_ASLR (Process : Process_Data_Acc);
+
    --  Add and remove files to the process file table, or remove them all.
    function Is_Valid_File
       (Process : Process_Data_Acc;

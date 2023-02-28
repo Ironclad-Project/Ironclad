@@ -41,9 +41,7 @@ package body Userland.Process with SPARK_Mode => Off is
    function Create_Process
       (Parent : Process_Data_Acc := null) return Process_Data_Acc
    is
-      package Aln is new Lib.Alignment (Unsigned_64);
-      Rand_Addr, Rand_Jump : Unsigned_64;
-      Returned             : Process_Data_Acc := null;
+      Returned : Process_Data_Acc := null;
    begin
       Lib.Synchronization.Seize (Process_List_Mutex);
 
@@ -75,21 +73,8 @@ package body Userland.Process with SPARK_Mode => Off is
                Process_List (I).Current_Dir     := Parent.Current_Dir;
                Process_List (I).Perms           := Parent.Perms;
             else
-               --  Get ASLR bases and ensure they are 4K aligned.
-               Rand_Addr := Cryptography.Random.Get_Integer
-                  (Memory_Locations.Mmap_Anon_Min,
-                   Memory_Locations.Mmap_Anon_Max);
-               Rand_Jump := Cryptography.Random.Get_Integer
-                  (Memory_Locations.Stack_Jump_Min,
-                   Memory_Locations.Stack_Jump_Max);
-
-               --  Ensure they are page aligned.
-               Rand_Addr := Aln.Align_Up (Rand_Addr, Memory.Virtual.Page_Size);
-               Rand_Jump := Aln.Align_Up (Rand_Jump, Memory.Virtual.Page_Size);
-
+               Reroll_ASLR (Process_List (I));
                Process_List (I).Parent_PID      := 0;
-               Process_List (I).Alloc_Base      := Rand_Addr;
-               Process_List (I).Stack_Base      := Rand_Addr + Rand_Jump;
                Process_List (I).Current_Dir_Len := 1;
                Process_List (I).Current_Dir (1) := '/';
                Process_List (I).Perms           := MAC.Default_Permissions;
@@ -189,6 +174,26 @@ package body Userland.Process with SPARK_Mode => Off is
          end loop;
       end if;
    end Flush_Threads;
+
+   procedure Reroll_ASLR (Process : Process_Data_Acc) is
+      package Aln is new Lib.Alignment (Unsigned_64);
+      Rand_Addr, Rand_Jump : Unsigned_64;
+   begin
+      --  Get ASLR bases and ensure they are 4K aligned.
+      Rand_Addr := Cryptography.Random.Get_Integer
+         (Memory_Locations.Mmap_Anon_Min,
+          Memory_Locations.Mmap_Anon_Max);
+      Rand_Jump := Cryptography.Random.Get_Integer
+         (Memory_Locations.Stack_Jump_Min,
+          Memory_Locations.Stack_Jump_Max);
+
+      --  Ensure they are page aligned.
+      Rand_Addr := Aln.Align_Up (Rand_Addr, Memory.Virtual.Page_Size);
+      Rand_Jump := Aln.Align_Up (Rand_Jump, Memory.Virtual.Page_Size);
+
+      Process.Alloc_Base := Rand_Addr;
+      Process.Stack_Base := Rand_Addr + Rand_Jump;
+   end Reroll_ASLR;
 
    function Is_Valid_File
       (Process : Process_Data_Acc;

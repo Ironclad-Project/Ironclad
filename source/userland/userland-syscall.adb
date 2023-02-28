@@ -737,6 +737,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Userland.Process.Flush_Exec_Files (Curr_Proc);
 
          --  Create a new map for the process.
+         Userland.Process.Reroll_ASLR (Curr_Proc);
          Tmp_Map              := Curr_Proc.Common_Map;
          Curr_Proc.Common_Map := Memory.Virtual.New_Map;
 
@@ -882,6 +883,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
+      --  Check whether there is anything to wait.
+      for PID_Item of Proc.Children loop
+         if PID_Item /= 0 then
+            goto Proceed_Wait;
+         end if;
+      end loop;
+
+      Errno := Error_Child;
+      return Unsigned_64'Last;
+
+   <<Proceed_Wait>>
       --  If -1, we have to wait for any of the children, else, wait for the
       --  passed PID.
       if Waited_PID = Unsigned_64 (Unsigned_32'Last) then
@@ -902,6 +914,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Scheduler.Yield;
          end loop;
       else
+         --  Check the process is actually our child.
+         for PID_Item of Proc.Children loop
+            if PID_Item = Natural (Waited_PID) then
+               goto Actually_Wait;
+            end if;
+         end loop;
+
+         Errno := Error_Child;
+         return Unsigned_64'Last;
+
+      <<Actually_Wait>>
          Waited := Userland.Process.Get_By_PID (Natural (Waited_PID));
          if Waited /= null then
             loop
@@ -934,6 +957,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
       --  Now that we got the exit code, finally allow the process to die.
       Memory.Virtual.Delete_Map       (Waited.Common_Map);
       Userland.Process.Delete_Process (Waited);
+      for PID_Item of Proc.Children loop
+         if PID_Item = Natural (Final_Waited_PID) then
+            PID_Item := 0;
+         end if;
+      end loop;
       Errno := Error_No_Error;
       return Final_Waited_PID;
    end Wait;
