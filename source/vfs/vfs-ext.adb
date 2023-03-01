@@ -19,49 +19,59 @@ with Lib.Panic;
 with Lib.Alignment;
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
-with System.Storage_Elements; use System.Storage_Elements;
 
 package body VFS.EXT with SPARK_Mode => Off is
-   package   Conv_1 is new System.Address_To_Access_Conversions (EXT_Data);
-   package   Conv_2 is new System.Address_To_Access_Conversions (EXT_File);
-   procedure Free_1 is new Ada.Unchecked_Deallocation (EXT_Data, EXT_Data_Acc);
-   procedure Free_2 is new Ada.Unchecked_Deallocation (EXT_File, EXT_File_Acc);
+   package   Conv is new System.Address_To_Access_Conversions (EXT_Data);
+   procedure Free is new Ada.Unchecked_Deallocation (EXT_Data, EXT_Data_Acc);
 
    function Probe (Handle : Device_Handle) return System.Address is
-      Data    : EXT_Data_Acc := new EXT_Data'(Handle => Handle, others => <>);
-      Sup     : Superblock renames Data.Super;
+      Sup     : Superblock;
+      Data    : EXT_Data_Acc;
       Success : Boolean;
+      Is_RO   : Boolean;
    begin
-      --  Check we support everything ext needs us to.
-      if not RW_Superblock (Data, Main_Superblock_Offset, False)  or
-         Sup.Signature /= EXT_Signature                           or
-         Sup.Block_Size_Log < Sup.Fragment_Size_Log               or
-         Sup.Major_Version > 1                                    or
-         (Sup.Required_Features and Required_Compression)    /= 0 or
-         (Sup.Required_Features and Required_Journal_Replay) /= 0 or
-         (Sup.Required_Features and Required_Journal_Device) /= 0
-      then
-         goto Error_Return;
+      Success := RW_Superblock
+         (Handle          => Handle,
+          Offset          => Main_Superblock_Offset,
+          Super           => Sup,
+          Write_Operation => False);
+      if not Success then
+         return Null_Address;
       end if;
 
-      --  Check for the features we do support.
-      Data.Has_Sparse_Superblock :=
-         (Sup.RO_If_Not_Features and RO_Sparse_Superblocks) /= 0;
-      Data.Has_64bit_Filesizes :=
-         (Sup.RO_If_Not_Features and RO_64bit_Filesize) /= 0;
+      --  Check we support everything ext needs us to.
+      if Sup.Signature /= EXT_Signature                           or else
+         Sup.Block_Size_Log < Sup.Fragment_Size_Log               or else
+         Sup.Major_Version > 1                                    or else
+         (Sup.Required_Features and Required_Compression)    /= 0 or else
+         (Sup.Required_Features and Required_Journal_Replay) /= 0 or else
+         (Sup.Required_Features and Required_Journal_Device) /= 0
+      then
+         return Null_Address;
+      end if;
 
       --  Check under which conditions we have to RO.
-      Data.Is_Read_Only :=
-         Devices.Is_Read_Only (Handle)                       or
-         Sup.Filesystem_State /= State_Clean                 or
-         Sup.Mounts_Since_Check > Sup.Max_Mounts_Since_Check or
-         (Sup.RO_If_Not_Features and RO_Binary_Trees) /= 0;
-      if Data.Is_Read_Only then
+      Is_RO := Devices.Is_Read_Only (Handle)                       or
+               Sup.Filesystem_State /= State_Clean                 or
+               Sup.Mounts_Since_Check > Sup.Max_Mounts_Since_Check or
+               (Sup.RO_If_Not_Features and RO_Binary_Trees) /= 0;
+      if Is_RO then
          Lib.Messages.Warn ("ext will be mounted RO, consider an fsck");
       end if;
 
-      Data.Block_Size    := Shift_Left (1024, Natural (Sup.Block_Size_Log));
-      Data.Fragment_Size := Shift_Left (1024, Natural (Sup.Fragment_Size_Log));
+      --  Commit to mounting.
+      Data := new EXT_Data'
+         (Mutex         => Lib.Synchronization.Unlocked_Semaphore,
+          Handle        => Handle,
+          Super         => Sup,
+          Is_Read_Only  => Is_RO,
+          Block_Size    => Shift_Left (1024, Natural (Sup.Block_Size_Log)),
+          Fragment_Size => Shift_Left (1024, Natural (Sup.Fragment_Size_Log)),
+          Root          => <>,
+          Has_Sparse_Superblock =>
+            (Sup.RO_If_Not_Features and RO_Sparse_Superblocks) /= 0,
+          Has_64bit_Filesizes =>
+            (Sup.RO_If_Not_Features and RO_64bit_Filesize) /= 0);
 
       --  Read the root inode.
       Success := RW_Inode
@@ -69,33 +79,30 @@ package body VFS.EXT with SPARK_Mode => Off is
           Inode_Index     => 2,
           Result          => Data.Root,
           Write_Operation => False);
-      if not Success then
-         goto Error_Return;
-      end if;
-
-      Data.Mutex := Lib.Synchronization.Unlocked_Semaphore;
-      return Conv_1.To_Address (Conv_1.Object_Pointer (Data));
-
-   <<Error_Return>>
-      Free_1 (Data);
-      return Null_Address;
+      return Conv.To_Address (Conv.Object_Pointer (Data));
    end Probe;
 
    procedure Unmount (FS : in out System.Address) is
-      Data : EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (FS));
+      Data    : EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Success : Boolean;
    begin
       Lib.Synchronization.Seize (Data.Mutex);
 
-      if not Data.Is_Read_Only then
-         if Data.Super.Mounts_Since_Check /= Unsigned_16'Last then
-            Data.Super.Mounts_Since_Check := Data.Super.Mounts_Since_Check + 1;
-            if not RW_Superblock (Data, Main_Superblock_Offset, True) then
-               Act_On_Policy (Data, "superblock write error");
-            end if;
+      if not Data.Is_Read_Only and
+         Data.Super.Mounts_Since_Check /= Unsigned_16'Last
+      then
+         Data.Super.Mounts_Since_Check := Data.Super.Mounts_Since_Check + 1;
+         Success := RW_Superblock
+            (Handle          => Data.Handle,
+             Offset          => Main_Superblock_Offset,
+             Super           => Data.Super,
+             Write_Operation => True);
+         if not Success then
+            Act_On_Policy (Data, "superblock write error");
          end if;
       end if;
 
-      Free_1 (Data);
+      Free (Data);
       FS := System.Null_Address;
    end Unmount;
 
@@ -105,8 +112,7 @@ package body VFS.EXT with SPARK_Mode => Off is
        Ino     : out File_Inode_Number;
        Success : out Boolean)
    is
-      Data   : constant EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (FS));
-      Result : EXT_File_Acc;
+      Data   : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Entity : Directory_Entity;
       Searched  :       Inode := Data.Root;
       Search_Sz : Unsigned_64 := Get_Size (Searched, Data.Has_64bit_Filesizes);
@@ -198,16 +204,8 @@ package body VFS.EXT with SPARK_Mode => Off is
       end loop;
 
    <<End_Return>>
-      Result := new EXT_File'
-         (Size           => Search_Sz,
-          Inode_Number   => Inode_Num,
-          Inner_Inode    => Searched,
-          Inode_Type     => Searched_Type,
-          Is_Immutable   => (Searched.Flags and Flags_Immutable)   /= 0,
-          Is_Append_Only => (Searched.Flags and Flags_Append_Only) /= 0);
       Lib.Synchronization.Release (Data.Mutex);
-      Ino := File_Inode_Number (To_Integer
-         (Conv_2.To_Address (Conv_2.Object_Pointer (Result))));
+      Ino     := File_Inode_Number (Inode_Num);
       Success := True;
       return;
 
@@ -222,14 +220,55 @@ package body VFS.EXT with SPARK_Mode => Off is
        Path : String;
        Mode : Unsigned_32) return Boolean
    is
-      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (FS));
-      pragma Unreferenced (Mode);
+      Data      : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Perms     : constant  Unsigned_16 := Get_Permissions (File_Regular);
+      New_Inode : Unsigned_32;
+      New_Data  : Inode;
+      Success   : Boolean;
    begin
       if Data.Is_Read_Only or Path'Length = 0 then
          return False;
       end if;
 
-      return False;
+      Lib.Synchronization.Seize (Data.Mutex);
+      Success := Allocate_Inode
+         (FS_Data   => Data,
+          Inode_Num => New_Inode);
+      if not Success then
+         goto Cleanup;
+      end if;
+
+      New_Data :=
+         (Permissions         => Perms or Unsigned_16 (Mode and 16#FFFF#),
+          UID                 => 0,
+          Size_Low            => 0,
+          Access_Time_Epoch   => 0,
+          Creation_Time_Epoch => 0,
+          Modified_Time_Epoch => 0,
+          Deleted_Time_Epoch  => 0,
+          GID                 => 0,
+          Hard_Link_Count     => 0,
+          Sectors             => 0,
+          Flags               => 0,
+          OS_Specific_Value_1 => 0,
+          Blocks              => (others => 0),
+          Generation_Number   => 0,
+          EAB                 => 0,
+          Size_High           => 0,
+          Fragment_Address    => 0,
+          OS_Specific_Value_2 => (others => 0));
+      Success := RW_Inode
+         (Data            => Data,
+          Inode_Index     => New_Inode,
+          Result          => New_Data,
+          Write_Operation => True);
+      if not Success then
+         goto Cleanup;
+      end if;
+
+   <<Cleanup>>
+      Lib.Synchronization.Release (Data.Mutex);
+      return Success;
    end Create_Regular;
 
    function Create_Symbolic_Link
@@ -237,7 +276,7 @@ package body VFS.EXT with SPARK_Mode => Off is
        Path, Target : String;
        Mode         : Unsigned_32) return Boolean
    is
-      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (FS));
+      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       pragma Unreferenced (Mode);
    begin
       if Data.Is_Read_Only or Path'Length = 0 or Target'Length = 0 then
@@ -252,7 +291,7 @@ package body VFS.EXT with SPARK_Mode => Off is
        Path : String;
        Mode : Unsigned_32) return Boolean
    is
-      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (FS));
+      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       pragma Unreferenced (Mode);
    begin
       if Data.Is_Read_Only or Path'Length = 0 then
@@ -271,10 +310,9 @@ package body VFS.EXT with SPARK_Mode => Off is
 
    procedure Close (FS : System.Address; Ino : File_Inode_Number) is
       pragma Unreferenced (FS);
-      File : EXT_File_Acc := EXT_File_Acc (Conv_2.To_Pointer
-         (To_Address (Integer_Address (Ino))));
+      pragma Unreferenced (Ino);
    begin
-      Free_2 (File);
+      null;
    end Close;
 
    procedure Read_Entries
@@ -284,29 +322,40 @@ package body VFS.EXT with SPARK_Mode => Off is
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
-      FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (FS_Data));
-      Fi : constant EXT_File_Acc := EXT_File_Acc (Conv_2.To_Pointer
-         (To_Address (Integer_Address (Ino))));
-      Curr_Index, Next_Index : Unsigned_64 := 0;
-      Ent : Directory_Entity;
+      FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS_Data));
+      Fetched_Inode : Inode;
+      Curr_Index    : Unsigned_64;
+      Next_Index    : Unsigned_64;
+      Entity        : Directory_Entity;
    begin
-      if Fi.Inode_Type /= File_Directory then
-         Ret_Count := 0;
-         Success   := False;
+      Ret_Count := 0;
+      Success   := RW_Inode
+         (Data            => FS,
+          Inode_Index     => Unsigned_32 (Ino),
+          Result          => Fetched_Inode,
+          Write_Operation => False);
+      if not Success then
+         return;
+      end if;
+
+      if Get_Inode_Type (Fetched_Inode.Permissions) /= File_Directory then
+         Success := False;
          return;
       end if;
 
       if not FS.Is_Read_Only then
          Lib.Synchronization.Seize (FS.Mutex);
       end if;
-      Ret_Count := 0;
+
+      Curr_Index := 0;
+      Next_Index := 0;
       loop
          Inner_Read_Entry
             (FS_Data     => FS,
-             Inode_Sz    => Fi.Size,
-             File_Ino    => Fi.Inner_Inode,
+             Inode_Sz    => Get_Size (Fetched_Inode, FS.Has_64bit_Filesizes),
+             File_Ino    => Fetched_Inode,
              Inode_Index => Curr_Index,
-             Entity      => Ent,
+             Entity      => Entity,
              Next_Index  => Next_Index,
              Success     => Success);
          if not Success then
@@ -315,11 +364,12 @@ package body VFS.EXT with SPARK_Mode => Off is
 
          Curr_Index := Next_Index;
          if Ret_Count < Entities'Length then
-            Entities (Entities'First + Ret_Count) := Ent;
+            Entities (Entities'First + Ret_Count) := Entity;
          end if;
          Ret_Count := Ret_Count + 1;
       end loop;
       Success := True;
+
       if not FS.Is_Read_Only then
          Lib.Synchronization.Release (FS.Mutex);
       end if;
@@ -331,14 +381,24 @@ package body VFS.EXT with SPARK_Mode => Off is
        Path      : out String;
        Ret_Count : out Natural)
    is
-      pragma Unreferenced (FS_Data);
-      File : constant EXT_File_Acc :=  EXT_File_Acc (Conv_2.To_Pointer
-         (To_Address (Integer_Address (Ino))));
+      FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS_Data));
+      Fetched_Inode : Inode;
+      Success       : Boolean;
    begin
-      if File.Inode_Type = File_Symbolic_Link then
+      Ret_Count := 0;
+      Success   := RW_Inode
+         (Data            => FS,
+          Inode_Index     => Unsigned_32 (Ino),
+          Result          => Fetched_Inode,
+          Write_Operation => False);
+      if not Success then
+         return;
+      end if;
+
+      if Get_Inode_Type (Fetched_Inode.Permissions) = File_Symbolic_Link then
          Inner_Read_Symbolic_Link
-            (Ino       => File.Inner_Inode,
-             File_Size => File.Size,
+            (Ino       => Fetched_Inode,
+             File_Size => Get_Size (Fetched_Inode, FS.Has_64bit_Filesizes),
              Path      => Path,
              Ret_Count => Ret_Count);
       else
@@ -355,27 +415,37 @@ package body VFS.EXT with SPARK_Mode => Off is
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
-      FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (FS_Data));
-      File : constant EXT_File_Acc :=  EXT_File_Acc (Conv_2.To_Pointer
-         (To_Address (Integer_Address (Ino))));
+      FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS_Data));
+      Fetched_Inode : Inode;
    begin
-      if File.Inode_Type /= File_Regular then
-         Ret_Count := 0;
-         Success   := False;
+      Ret_Count := 0;
+      Success   := RW_Inode
+         (Data            => FS,
+          Inode_Index     => Unsigned_32 (Ino),
+          Result          => Fetched_Inode,
+          Write_Operation => False);
+      if not Success then
+         return;
+      end if;
+
+      if Get_Inode_Type (Fetched_Inode.Permissions) /= File_Regular then
+         Success := False;
          return;
       end if;
 
       if not FS.Is_Read_Only then
          Lib.Synchronization.Seize (FS.Mutex);
       end if;
+
       Read_From_Inode
          (FS_Data    => FS,
-          Inode_Data => File.Inner_Inode,
-          Inode_Size => File.Size,
+          Inode_Data => Fetched_Inode,
+          Inode_Size => Get_Size (Fetched_Inode, FS.Has_64bit_Filesizes),
           Offset     => Offset,
           Data       => Data,
           Ret_Count  => Ret_Count,
           Success    => Success);
+
       if not FS.Is_Read_Only then
          Lib.Synchronization.Release (FS.Mutex);
       end if;
@@ -389,23 +459,32 @@ package body VFS.EXT with SPARK_Mode => Off is
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
-      FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (FS_Data));
-      Fi : constant EXT_File_Acc :=  EXT_File_Acc (Conv_2.To_Pointer
-         (To_Address (Integer_Address (Ino))));
+      FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS_Data));
+      Fetched_Inode : Inode;
    begin
-      if Fi.Inode_Type /= File_Regular or FS.Is_Read_Only or Fi.Is_Immutable
+      Ret_Count := 0;
+      Success   := RW_Inode
+         (Data            => FS,
+          Inode_Index     => Unsigned_32 (Ino),
+          Result          => Fetched_Inode,
+          Write_Operation => False);
+      if not Success then
+         return;
+      end if;
+
+      if Get_Inode_Type (Fetched_Inode.Permissions) /= File_Regular or
+         FS.Is_Read_Only or Is_Immutable (Fetched_Inode)
       then
-         Ret_Count := 0;
-         Success   := False;
+         Success := False;
          return;
       end if;
 
       Lib.Synchronization.Seize (FS.Mutex);
       Write_To_Inode
          (FS_Data    => FS,
-          Inode_Data => Fi.Inner_Inode,
-          Inode_Num  => Fi.Inode_Number,
-          Inode_Size => Fi.Size,
+          Inode_Data => Fetched_Inode,
+          Inode_Num  => Unsigned_32 (Ino),
+          Inode_Size => Get_Size (Fetched_Inode, FS.Has_64bit_Filesizes),
           Offset     => Offset,
           Data       => Data,
           Ret_Count  => Ret_Count,
@@ -419,46 +498,160 @@ package body VFS.EXT with SPARK_Mode => Off is
        S    : out File_Stat) return Boolean
    is
       package Align is new Lib.Alignment (Unsigned_64);
-      FS   : constant EXT_Data_Acc := EXT_Data_Acc (Conv_1.To_Pointer (Data));
-      File : constant EXT_File_Acc :=  EXT_File_Acc (Conv_2.To_Pointer
-         (To_Address (Integer_Address (Ino))));
+      FS   : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
       Blk  : constant Unsigned_64  := Unsigned_64 (Get_Block_Size (FS.Handle));
-      Inod : Inode renames File.Inner_Inode;
+      Size : Unsigned_64;
+      Inod : Inode;
+      Success : Boolean;
    begin
-      S :=
-         (Unique_Identifier => File_Inode_Number (File.Inode_Number),
+      Success := RW_Inode
+         (Data            => FS,
+          Inode_Index     => Unsigned_32 (Ino),
+          Result          => Inod,
+          Write_Operation => False);
+      if not Success then
+         return False;
+      end if;
+
+      Size := Get_Size (Inod, FS.Has_64bit_Filesizes);
+      S    :=
+         (Unique_Identifier => Ino,
           Type_Of_File      => Get_Inode_Type (Inod.Permissions),
           Mode              => Unsigned_32 (Inod.Permissions),
           Hard_Link_Count   => Positive (Inod.Hard_Link_Count),
-          Byte_Size         => File.Size,
+          Byte_Size         => Size,
           IO_Block_Size     => Get_Block_Size (FS.Handle),
-          IO_Block_Count    => Align.Divide_Round_Up (File.Size, Blk),
+          IO_Block_Count    => Align.Divide_Round_Up (Size, Blk),
           Creation_Time     => (Unsigned_64 (Inod.Creation_Time_Epoch), 0),
           Modification_Time => (Unsigned_64 (Inod.Modified_Time_Epoch), 0),
           Access_Time       => (Unsigned_64 (Inod.Access_Time_Epoch),   0));
       return True;
    end Stat;
+
+   function Truncate
+      (Data     : System.Address;
+       Ino      : File_Inode_Number;
+       New_Size : Unsigned_64) return Boolean
+   is
+      FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
+      Fetched      : Inode;
+      Fetched_Size : Unsigned_64;
+      Success      : Boolean;
+   begin
+      Success := RW_Inode
+         (Data            => FS,
+          Inode_Index     => Unsigned_32 (Ino),
+          Result          => Fetched,
+          Write_Operation => False);
+      if not Success                                          or else
+         Get_Inode_Type (Fetched.Permissions) /= File_Regular or else
+         FS.Is_Read_Only                                      or else
+         Is_Immutable (Fetched)
+      then
+         return False;
+      end if;
+
+      Lib.Synchronization.Seize (FS.Mutex);
+
+      Fetched_Size := Get_Size (Fetched, FS.Has_64bit_Filesizes);
+      if Fetched_Size = New_Size then
+         Success := True;
+      else
+         if Fetched_Size < New_Size then
+            Success := Grow_Inode
+               (FS_Data     => FS,
+                Inode_Data  => Fetched,
+                Inode_Num   => Unsigned_32 (Ino),
+                Start       => 0,
+                Count       => New_Size);
+         else
+            Success := False;
+         end if;
+
+         if Success then
+            Success := Set_Size (Fetched, New_Size, FS.Has_64bit_Filesizes);
+            if Success then
+               Success := RW_Inode
+                  (Data            => FS,
+                   Inode_Index     => Unsigned_32 (Ino),
+                   Result          => Fetched,
+                   Write_Operation => True);
+            end if;
+         end if;
+      end if;
+
+      Lib.Synchronization.Release (FS.Mutex);
+      return Success;
+   end Truncate;
+
+   function IO_Control
+      (Data : System.Address;
+       Ino  : File_Inode_Number;
+       Req  : Unsigned_64;
+       Arg  : System.Address) return Boolean
+   is
+      EXT_GETFLAGS : constant := 16#5600#;
+      EXT_SETFLAGS : constant := 16#5601#;
+
+      FS      : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
+      Inod    : Inode;
+      Success : Boolean;
+      Flags   : Unsigned_32 with Address => Arg;
+   begin
+      Success := RW_Inode
+         (Data            => FS,
+          Inode_Index     => Unsigned_32 (Ino),
+          Result          => Inod,
+          Write_Operation => False);
+      if not Success then
+         return False;
+      end if;
+
+      if Get_Inode_Type (Inod.Permissions) /= File_Regular or FS.Is_Read_Only
+      then
+         return False;
+      end if;
+
+      Lib.Synchronization.Seize (FS.Mutex);
+      case Req is
+         when EXT_GETFLAGS =>
+            Flags   := Inod.Flags;
+            Success := True;
+         when EXT_SETFLAGS =>
+            Inod.Flags := Flags;
+            Success    := RW_Inode
+               (Data            => FS,
+                Inode_Index     => Unsigned_32 (Ino),
+                Result          => Inod,
+                Write_Operation => True);
+         when others =>
+            Success := False;
+      end case;
+      Lib.Synchronization.Release (FS.Mutex);
+      return Success;
+   end IO_Control;
    ----------------------------------------------------------------------------
    function RW_Superblock
-      (Data            : EXT_Data_Acc;
+      (Handle          : Device_Handle;
        Offset          : Unsigned_64;
+       Super           : in out Superblock;
        Write_Operation : Boolean) return Boolean
    is
+      Ret_Count  : Natural;
+      Success    : Boolean;
       Super_Data : Operation_Data (1 .. Superblock'Size / 8)
-         with Address => Data.Super'Address;
-      Ret_Count : Natural;
-      Success   : Boolean;
+         with Address => Super'Address;
    begin
       if Write_Operation then
          Devices.Write
-            (Handle    => Data.Handle,
+            (Handle    => Handle,
              Offset    => Offset,
              Data      => Super_Data,
              Ret_Count => Ret_Count,
              Success   => Success);
       else
          Devices.Read
-            (Handle    => Data.Handle,
+            (Handle    => Handle,
              Offset    => Offset,
              Data      => Super_Data,
              Ret_Count => Ret_Count,
@@ -1251,6 +1444,98 @@ package body VFS.EXT with SPARK_Mode => Off is
       return False;
    end Allocate_Block_For_Inode;
 
+   function Allocate_Inode
+      (FS_Data   : EXT_Data_Acc;
+       Inode_Num : out Unsigned_32) return Boolean
+   is
+      Success    : Boolean;
+      Ret_Count  : Natural;
+      Desc       : Block_Group_Descriptor;
+      Bitmap     : Operation_Data (1 .. Natural (FS_Data.Block_Size));
+      Curr_Block : Unsigned_32;
+   begin
+      for I in 0 .. FS_Data.Super.Inode_Count loop
+         Success := RW_Block_Group_Descriptor
+            (Data             => FS_Data,
+             Descriptor_Index => I,
+             Result           => Desc,
+             Write_Operation  => False);
+         if not Success then
+            goto Error_Return;
+         end if;
+
+         if Desc.Unallocated_Inodes = 0 then
+            goto Next_Iteration;
+         end if;
+
+         Devices.Read
+            (Handle    => FS_Data.Handle,
+             Offset    => Unsigned_64 (Desc.Inode_Usage_Bitmap_Block *
+                                       FS_Data.Block_Size),
+             Data      => Bitmap,
+             Ret_Count => Ret_Count,
+             Success   => Success);
+         if not Success then
+            goto Error_Return;
+         end if;
+
+         Curr_Block := 0;
+         for J in Bitmap'Range loop
+            if Bitmap (J) = 16#FF# then
+               goto Next_Next_Iteration;
+            end if;
+            for Bit in 0 .. 7 loop
+               if (Bitmap (J) and 2 ** Bit) /= 0 then
+                  Curr_Block := (I * FS_Data.Super.Inodes_Per_Group) +
+                                 Unsigned_32 (J) * 8 + Unsigned_32 (Bit);
+                  if Curr_Block > FS_Data.Super.First_Non_Reserved and
+                     Curr_Block > 11
+                  then
+                     Bitmap (J) := Bitmap (J) or 2 ** Bit;
+                     goto End_Search_Loop;
+                  end if;
+               end if;
+            end loop;
+         <<Next_Next_Iteration>>
+         end loop;
+      <<End_Search_Loop>>
+         if Curr_Block = 0 then
+            goto Next_Iteration;
+         end if;
+
+         Devices.Write
+            (Handle    => FS_Data.Handle,
+             Offset    => Unsigned_64 (Desc.Inode_Usage_Bitmap_Block *
+                                       FS_Data.Block_Size),
+             Data      => Bitmap,
+             Ret_Count => Ret_Count,
+             Success   => Success);
+         if not Success then
+            goto Error_Return;
+         end if;
+
+         FS_Data.Super.Unallocated_Inode_Count :=
+            FS_Data.Super.Unallocated_Inode_Count - 1;
+         Desc.Unallocated_Inodes := Desc.Unallocated_Inodes - 1;
+
+         Success := RW_Block_Group_Descriptor
+            (Data             => FS_Data,
+             Descriptor_Index => I,
+             Result           => Desc,
+             Write_Operation  => True);
+         if not Success then
+            goto Error_Return;
+         end if;
+         Inode_Num := Curr_Block;
+         return True;
+   <<Next_Iteration>>
+      end loop;
+
+   <<Error_Return>>
+      Inode_Num := 0;
+      return False;
+   end Allocate_Inode;
+
    function Get_Dir_Type (Dir_Type : Unsigned_8) return File_Type is
    begin
       case Dir_Type is
@@ -1272,6 +1557,17 @@ package body VFS.EXT with SPARK_Mode => Off is
          when others                => return 5;
       end case;
    end Get_Dir_Type;
+
+   function Get_Permissions (T : File_Type) return Unsigned_16 is
+   begin
+      case T is
+         when File_Character_Device => return 16#2000#;
+         when File_Directory        => return 16#4000#;
+         when File_Block_Device     => return 16#6000#;
+         when File_Regular          => return 16#8000#;
+         when File_Symbolic_Link    => return 16#A000#;
+      end case;
+   end Get_Permissions;
 
    function Get_Inode_Type (Perms : Unsigned_16) return File_Type is
    begin

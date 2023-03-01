@@ -351,6 +351,15 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Stat;
 
+   function Truncate (F : File_Acc; Size : Unsigned_64 := 0) return Boolean is
+   begin
+      if not F.Is_Device and F.Flags /= Read_Only then
+         return VFS.Truncate (F.FS_Data, F.File_Data, Size);
+      else
+         return False;
+      end if;
+   end Truncate;
+
    function IO_Control
       (F        : File_Acc;
        Request  : Unsigned_64;
@@ -360,7 +369,7 @@ package body VFS.File with SPARK_Mode => Off is
       if F.Is_Device then
          return Devices.IO_Control (F.Dev_Data, Request, Argument);
       else
-         return False;
+         return VFS.IO_Control (F.FS_Data, F.File_Data, Request, Argument);
       end if;
    end IO_Control;
 

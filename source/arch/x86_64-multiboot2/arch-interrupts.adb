@@ -227,6 +227,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 43 =>
             Returned := Create (State.RDI, State.RSI, State.RDX,
                                         State.RCX, State.R8, State.R9, Errno);
+         when 44 =>
+            Returned := Truncate (State.RDI, State.RSI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;

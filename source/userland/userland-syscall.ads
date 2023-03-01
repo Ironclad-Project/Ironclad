@@ -77,12 +77,12 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno    : out Errno_Value) return Unsigned_64;
 
    --  Open a file.
-   O_RDONLY   : constant := 2#0000000001#;
-   O_WRONLY   : constant := 2#0000000010#;
-   O_APPEND   : constant := 2#0000000100#;
-   O_CLOEXEC  : constant := 2#0000001000#;
-   O_NOFOLLOW : constant := 2#0100000000#;
-   O_NONBLOCK : constant := 2#1000000000#;
+   O_RDONLY   : constant := 2#000001#;
+   O_WRONLY   : constant := 2#000010#;
+   O_APPEND   : constant := 2#000100#;
+   O_CLOEXEC  : constant := 2#001000#;
+   O_NOFOLLOW : constant := 2#010000#;
+   O_NONBLOCK : constant := 2#100000#;
    function Open
       (Dir_FD    : Unsigned_64;
        Path_Addr : Unsigned_64;
@@ -465,6 +465,12 @@ package Userland.Syscall with SPARK_Mode => Off is
        Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
+
+   --  Truncates a file to a new size.
+   function Truncate
+      (FD       : Unsigned_64;
+       New_Size : Unsigned_64;
+       Errno    : out Errno_Value) return Unsigned_64;
 
 private
 

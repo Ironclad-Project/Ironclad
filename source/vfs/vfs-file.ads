@@ -109,6 +109,10 @@ package VFS.File with SPARK_Mode => Off is
    function Stat (F : File_Acc; S : out File_Stat) return Boolean
       with Pre => F /= null;
 
+   --  Truncate the file to 0 size.
+   function Truncate (F : File_Acc; Size : Unsigned_64 := 0) return Boolean
+      with Pre => F /= null;
+
    --  IOCTL.
    function IO_Control
       (F        : File_Acc;

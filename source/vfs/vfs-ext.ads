@@ -81,6 +81,17 @@ package VFS.EXT with SPARK_Mode => Off is
        Ino  : File_Inode_Number;
        S    : out File_Stat) return Boolean;
 
+   function Truncate
+      (Data     : System.Address;
+       Ino      : File_Inode_Number;
+       New_Size : Unsigned_64) return Boolean;
+
+   function IO_Control
+      (Data : System.Address;
+       Ino  : File_Inode_Number;
+       Req  : Unsigned_64;
+       Arg  : System.Address) return Boolean;
+
 private
 
    State_Clean       : constant := 1;
@@ -262,16 +273,6 @@ private
       Dir_Type    at 0 range 56 .. 63;
    end record;
 
-   type EXT_File is record
-      Size           : Unsigned_64;
-      Inode_Number   : Unsigned_32;
-      Inner_Inode    : Inode;
-      Inode_Type     : File_Type;
-      Is_Immutable   : Boolean;
-      Is_Append_Only : Boolean;
-   end record;
-   type EXT_File_Acc is access all EXT_File;
-
    type EXT_Data is record
       Mutex                 : aliased Lib.Synchronization.Binary_Semaphore;
       Handle                : Device_Handle;
@@ -301,8 +302,9 @@ private
        Success     : out Boolean);
 
    function RW_Superblock
-      (Data            : EXT_Data_Acc;
+      (Handle          : Device_Handle;
        Offset          : Unsigned_64;
+       Super           : in out Superblock;
        Write_Operation : Boolean) return Boolean;
 
    function RW_Block_Group_Descriptor
@@ -368,9 +370,15 @@ private
        Inode_Num  : Unsigned_32;
        Ret_Block  : out Unsigned_32) return Boolean;
 
+   function Allocate_Inode
+      (FS_Data   : EXT_Data_Acc;
+       Inode_Num : out Unsigned_32) return Boolean;
+
    function Get_Dir_Type (Dir_Type : Unsigned_8) return File_Type;
 
    function Get_Dir_Type (T : File_Type) return Unsigned_8;
+
+   function Get_Permissions (T : File_Type) return Unsigned_16;
 
    function Get_Inode_Type (Perms : Unsigned_16) return File_Type;
 
@@ -384,6 +392,12 @@ private
       (Ino        : out Inode;
        New_Size   : Unsigned_64;
        Is_64_Bits : Boolean) return Boolean;
+
+   function Is_Immutable (Ino : Inode) return Boolean is
+      ((Ino.Flags and Flags_Immutable) /= 0);
+
+   function Is_Append_Only (Ino : Inode) return Boolean is
+      ((Ino.Flags and Flags_Append_Only) /= 0);
 
    procedure Act_On_Policy (Data : EXT_Data_Acc; Message : String);
 end VFS.EXT;

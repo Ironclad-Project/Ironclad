@@ -353,6 +353,35 @@ package body VFS with SPARK_Mode => Off is
          when FS_FAT32 => return FAT32.Stat (Mounts (Key).FS_Data, Ino, S);
       end case;
    end Stat;
+
+   function Truncate
+      (Key      : FS_Handle;
+       Ino      : File_Inode_Number;
+       New_Size : Unsigned_64) return Boolean
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT   =>
+            return EXT.Truncate (Mounts (Key).FS_Data, Ino, New_Size);
+         when FS_FAT32 =>
+            return False;
+      end case;
+   end Truncate;
+
+   function IO_Control
+      (Key     : FS_Handle;
+       Ino     : File_Inode_Number;
+       Request : Unsigned_64;
+       Arg     : System.Address) return Boolean
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT =>
+            return EXT.IO_Control (Mounts (Key).FS_Data, Ino, Request, Arg);
+         when FS_FAT32 =>
+            return False;
+      end case;
+   end IO_Control;
    ----------------------------------------------------------------------------
    function Is_Absolute (Path : String) return Boolean is
    begin

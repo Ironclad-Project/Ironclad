@@ -2372,4 +2372,44 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
    end Delete;
+
+   function Truncate
+      (FD       : Unsigned_64;
+       New_Size : Unsigned_64;
+       Errno    : out Errno_Value) return Unsigned_64
+   is
+      Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      File : File_Description_Acc;
+      Succ : Boolean;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall truncate(");
+         Lib.Messages.Put (FD);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (New_Size);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      File := Userland.Process.Get_File (Proc, FD);
+      if File = null then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+
+      case File.Description is
+         when Description_File =>
+            Succ := VFS.File.Truncate (File.Inner_File, New_Size);
+         when others =>
+            Errno := Error_Bad_File;
+            return Unsigned_64'Last;
+      end case;
+
+      if Succ then
+         Errno := Error_No_Error;
+         return 0;
+      else
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      end if;
+   end Truncate;
 end Userland.Syscall;

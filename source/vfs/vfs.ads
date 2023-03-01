@@ -232,6 +232,24 @@ package VFS with SPARK_Mode => Off is
        Ino : File_Inode_Number;
        S   : out File_Stat) return Boolean
       with Pre => Key /= Error_Handle;
+
+   --  Truncate a file to size 0.
+   --  @param Key      FS Handle to open.
+   --  @param Ino      Inode to operate on.
+   --  @param New_Size New size for the file to adopt.
+   --  @return True on success, False on failure.
+   function Truncate
+      (Key      : FS_Handle;
+       Ino      : File_Inode_Number;
+       New_Size : Unsigned_64) return Boolean;
+
+   --  Do an FS-specific ioctl on the inode.
+   function IO_Control
+      (Key     : FS_Handle;
+       Ino     : File_Inode_Number;
+       Request : Unsigned_64;
+       Arg     : System.Address) return Boolean
+      with Pre => Key /= Error_Handle;
    ----------------------------------------------------------------------------
    --  Check whether a path is absolute.
    --  @param Path to check.
