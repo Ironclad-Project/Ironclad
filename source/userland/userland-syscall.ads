@@ -447,16 +447,11 @@ package Userland.Syscall with SPARK_Mode => Off is
    function Sync (Errno : out Errno_Value) return Unsigned_64;
 
    --  Create a file.
-   CREATE_REG : constant := 1;
-   CREATE_DIR : constant := 2;
-   CREATE_SYM : constant := 3;
    function Create
       (Dir_FD    : Unsigned_64;
        Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
-       File_T    : Unsigned_64;
        Mode      : Unsigned_64;
-       Extra     : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
 
    --  Deletes a file.
@@ -471,6 +466,24 @@ package Userland.Syscall with SPARK_Mode => Off is
       (FD       : Unsigned_64;
        New_Size : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64;
+
+   --  Create a directory.
+   function Create_Directory
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Mode      : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
+
+   --  Create a symbolic link.
+   function Create_Symlink
+      (Dir_FD      : Unsigned_64;
+       Path_Addr   : Unsigned_64;
+       Path_Len    : Unsigned_64;
+       Target_Addr : Unsigned_64;
+       Target_Len  : Unsigned_64;
+       Mode        : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64;
 
 private
 

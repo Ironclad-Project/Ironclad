@@ -225,10 +225,17 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := GetDEnts (State.RDI, State.RSI, State.RDX,
                                           Errno);
          when 43 =>
-            Returned := Create (State.RDI, State.RSI, State.RDX,
-                                        State.RCX, State.R8, State.R9, Errno);
+            Returned := Create
+               (State.RDI, State.RSI, State.RDX, State.RCX, Errno);
          when 44 =>
             Returned := Truncate (State.RDI, State.RSI, Errno);
+         when 45 =>
+            Returned := Create_Directory
+               (State.RDI, State.RSI, State.RDX, State.RCX, Errno);
+         when 46 =>
+            Returned := Create_Symlink
+               (State.RDI, State.RSI, State.RDX, State.RCX, State.R8, State.R9,
+                Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;

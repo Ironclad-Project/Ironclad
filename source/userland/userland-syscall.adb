@@ -2235,15 +2235,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
       (Dir_FD    : Unsigned_64;
        Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
-       File_T    : Unsigned_64;
        Mode      : Unsigned_64;
-       Extra     : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64
    is
       Curr_Proc  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
-      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
-      Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
-      Success      : Boolean;
+      Path_IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant   System.Address := To_Address (Path_IAddr);
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
    begin
@@ -2253,11 +2250,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put (", ");
          Lib.Messages.Put (Path_Addr, False, True);
          Lib.Messages.Put (", ");
-         Lib.Messages.Put (File_T);
+         Lib.Messages.Put (Path_Len);
          Lib.Messages.Put (", ");
          Lib.Messages.Put (Mode);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Extra);
          Lib.Messages.Put_Line (")");
       end if;
 
@@ -2284,33 +2279,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end;
 
-      case File_T is
-         when CREATE_REG =>
-            Success := Create_Regular
-               (Final_Path (1 .. Final_Path_L),
-                Unsigned_32 (Mode));
-         when CREATE_DIR =>
-            Success := Create_Directory
-               (Final_Path (1 .. Final_Path_L),
-                Unsigned_32 (Mode));
-         when CREATE_SYM =>
-            declare
-               Lnk_IAddr : constant Integer_Address := Integer_Address (Extra);
-               Lnk_Addr  : constant System.Address  := To_Address (Lnk_IAddr);
-               Lnk_Len   : constant Natural := Lib.C_String_Length (Lnk_Addr);
-               Lnk       : String (1 .. Lnk_Len) with Address => Lnk_Addr;
-            begin
-               Success := Create_Symbolic_Link
-                  (Final_Path (1 .. Final_Path_L),
-                   Lnk,
-                   Unsigned_32 (Mode));
-            end;
-         when others =>
-            Errno := Error_Invalid_Value;
-            return Unsigned_64'Last;
-      end case;
-
-      if Success then
+      if Create_Regular (Final_Path (1 .. Final_Path_L), Unsigned_32 (Mode))
+      then
          Errno := Error_No_Error;
          return 0;
       else
@@ -2412,4 +2382,134 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
    end Truncate;
+
+   function Create_Directory
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Mode      : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64
+   is
+      Curr_Proc  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Path_IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant   System.Address := To_Address (Path_IAddr);
+      Final_Path   : String (1 .. 1024);
+      Final_Path_L : Natural;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall create_directory(");
+         Lib.Messages.Put (Dir_FD, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Path_Addr, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Path_Len);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Mode);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if not Check_Userland_Access (Path_IAddr) then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      elsif Path_Len > Unsigned_64 (Natural'Last) then
+         Errno := Error_String_Too_Long;
+         return Unsigned_64'Last;
+      end if;
+
+      declare
+         Path : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
+      begin
+         Compound_AT_Path
+            (AT_Directive => Natural (Dir_FD),
+             Curr_Proc    => Curr_Proc,
+             Extension    => Path,
+             Result       => Final_Path,
+             Count        => Final_Path_L);
+         if Final_Path_L = 0 then
+            Errno := Error_String_Too_Long;
+            return Unsigned_64'Last;
+         end if;
+      end;
+
+      if Create_Directory (Final_Path (1 .. Final_Path_L), Unsigned_32 (Mode))
+      then
+         Errno := Error_No_Error;
+         return 0;
+      else
+         Errno := Error_IO;
+         return Unsigned_64'Last;
+      end if;
+   end Create_Directory;
+
+   function Create_Symlink
+      (Dir_FD      : Unsigned_64;
+       Path_Addr   : Unsigned_64;
+       Path_Len    : Unsigned_64;
+       Target_Addr : Unsigned_64;
+       Target_Len  : Unsigned_64;
+       Mode        : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64
+   is
+      Curr_Proc  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Path_IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant   System.Address := To_Address (Path_IAddr);
+      Targ_IAddr : constant  Integer_Address := Integer_Address (Target_Addr);
+      Targ_SAddr : constant   System.Address := To_Address (Targ_IAddr);
+      Final_Path   : String (1 .. 1024);
+      Final_Path_L : Natural;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall create_symlink(");
+         Lib.Messages.Put (Dir_FD, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Path_Addr, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Path_Len);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Target_Addr, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Target_Len);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Mode);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if not Check_Userland_Access (Path_IAddr) or
+         not Check_Userland_Access (Targ_IAddr)
+      then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      elsif Path_Len   > Unsigned_64 (Natural'Last) or
+            Target_Len > Unsigned_64 (Natural'Last)
+      then
+         Errno := Error_String_Too_Long;
+         return Unsigned_64'Last;
+      end if;
+
+      declare
+         Path : String (1 ..   Natural (Path_Len)) with Address => Path_SAddr;
+         Targ : String (1 .. Natural (Target_Len)) with Address => Targ_SAddr;
+      begin
+         Compound_AT_Path
+            (AT_Directive => Natural (Dir_FD),
+             Curr_Proc    => Curr_Proc,
+             Extension    => Path,
+             Result       => Final_Path,
+             Count        => Final_Path_L);
+         if Final_Path_L = 0 then
+            Errno := Error_String_Too_Long;
+            return Unsigned_64'Last;
+         end if;
+
+         if VFS.File.Create_Symbolic_Link
+            (Final_Path (1 .. Final_Path_L), Targ, Unsigned_32 (Mode))
+         then
+            Errno := Error_No_Error;
+            return 0;
+         else
+            Errno := Error_IO;
+            return Unsigned_64'Last;
+         end if;
+      end;
+   end Create_Symlink;
 end Userland.Syscall;
