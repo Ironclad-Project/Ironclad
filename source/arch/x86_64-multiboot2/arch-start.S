@@ -15,12 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # Account for the fb tag length.
-#ifdef  X86_64_BOOTFB
-   #define MB2_LENGTH (16 + 20)
-#else
-   #define MB2_LENGTH (16)
-#endif
-
+#define MB2_LENGTH       36
 #define MB2_MAGIC        0xE85250D6
 #define MB2_ARCHITECTURE 0
 #define MB2_CHECKSUM     -(MB2_MAGIC + MB2_ARCHITECTURE + MB2_LENGTH)
@@ -32,8 +27,6 @@ mb2hdr:
     .long MB2_ARCHITECTURE # Architecture, 0 means i386.
     .long MB2_LENGTH       # Length of the header.
     .long MB2_CHECKSUM     # Checksum.
-
-#ifdef X86_64_BOOTFB
     # Framebuffer info.
     .short  5 # Type of tag.
     .short  0 # Flags.
@@ -41,7 +34,6 @@ mb2hdr:
     .long   0 # Width,  0 means no preference.
     .long   0 # Height, 0 means no preference.
     .long   0 # Depth,  0 means no preference.
-#endif
 
 .section .text
 

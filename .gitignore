@@ -24,10 +24,15 @@ ironclad.log
 ironclad.toc
 ironclad.fls
 ironclad
-libdl.a
 tests/obj
 tests/run_tests
 tests/gnatprove
 ironclad.gpr
-install.sh
 libgnat-hack
+GNUmakefile
+autom4te.cache
+build-aux
+config.log
+config.status
+configure
+configure~

@@ -16,20 +16,12 @@
 
 package Config is
    --  Project name, contact, and basic information.
-   Name      : constant String := "Ironclad";
-   Version   : constant String := "0.2.0";
+   Name      : constant String := $IroncladName;
+   Version   : constant String := $Version;
    Arch_Name : constant String := $ArchName;
    Bug_Site  : constant String :=
-      "https://savannah.nongnu.org/bugs/?group=ironclad&func=additem";
+      $BugSite;
 
    --  Configuration for system internals.
-   Support_X86_64_BootFB  : constant Boolean := $X86_64_BOOTFB;
-   Support_X86_64_PS2     : constant Boolean := $X86_64_PS2;
-   Support_X86_64_RTC     : constant Boolean := $X86_64_RTC;
-   Support_X86_64_ATA     : constant Boolean := $X86_64_ATA;
-   Support_X86_64_Serial  : constant Boolean := $X86_64_Serial;
-   Support_Device_Streams : constant Boolean := $DEVICES_STREAMS;
-   Support_Device_RNG     : constant Boolean := $DEVICES_RNG;
-   Support_Device_PTY     : constant Boolean := $DEVICES_PTY;
-   Support_Scheduler_ASC  : constant Boolean := $SCHED_ASC;
+   Support_Scheduler_ASC : constant Boolean := $SCHED_ASC;
 end Config;

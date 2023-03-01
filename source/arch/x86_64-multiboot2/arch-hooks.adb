@@ -24,18 +24,17 @@ with Arch.Snippets;
 with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
 with Arch.Interrupts;
-with Config; use Config;
 with Interfaces; use Interfaces;
 
 package body Arch.Hooks with SPARK_Mode => Off is
    function Devices_Hook return Boolean is
    begin
-      return (not Support_X86_64_BootFB or else Devices.FB.Init)       and then
-             (not Support_X86_64_PS2 or else Devices.PS2Keyboard.Init) and then
-             (not Support_X86_64_PS2    or else Devices.PS2Mouse.Init) and then
-             (not Support_X86_64_ATA    or else Devices.ATA.Init)      and then
-             (not Support_X86_64_Serial or else Devices.Serial.Init)   and then
-             (not Support_X86_64_RTC    or else Devices.RTC.Init);
+      return Devices.FB.Init          and then
+             Devices.PS2Keyboard.Init and then
+             Devices.PS2Mouse.Init    and then
+             Devices.ATA.Init         and then
+             Devices.Serial.Init      and then
+             Devices.RTC.Init;
    end Devices_Hook;
 
    function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean is

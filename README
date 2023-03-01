@@ -12,11 +12,33 @@ Some of the supported features are:
 
 For more information about the project, check https://nongnu.org/ironclad
 
+-- Building and testing --
+
+The tools needed are:
+
+- autoconf and automake when not using a tarball.
+- gprbuild for compilation, along with a compatible Ada compiler and assembler.
+- GNU Info for building the documentation, if desired.
+- gnatprove for formal verification, if desired.
+
+For building the project's binaries, a standard configure-make-make install is
+enough, like the following:
+
+./configure
+make
+make install
+
+Several flags are provided in configure for customizing kernel settings, one
+can check them with ./configure --help.
+
+Documentation can be generated and installed with make docs and
+make install-docs respectively. gnatprove can be used for proofs using
+make prove.
+
 -- Documentation --
 
-The project features info and PDF files generated from the texinfo source in
-the docs subdirectory, and they are generated and installed automatically when
-running ./install.sh.
+The project features info files generated from the texinfo source in the docs
+subdirectory.
 
 The generated documentation features information about a lot of kernel-specific
 concepts along with syscall listings and project information.
@@ -25,43 +47,13 @@ Generated documentation is hosted and updated regularly online at:
 https://www.nongnu.org/ironclad/manual/ - HTML format.
 https://www.nongnu.org/ironclad/manual/ironclad.pdf - PDF format.
 
--- Building and testing --
-
-The tools needed are:
-
-- dialog for the configuration menu.
-- gprbuild for compilation.
-- A compatible Ada compiler, and an assembler for the desired architecture.
-- GNU Info for building the documentation with Info and PDF support.
-- gnatprove for formal verification, if desired.
-
-For building the project's binaries, configure and then use gprbuild like the
-following:
-
-./configure.sh
-gprbuild -p ironclad.gpr -j4
-
-./configure.sh will generate an ironclad.gpr with the selected options, for doing
-several builds with the same options, just save the ironclad.gpr, and skip the
-step next time.
-
-A shell script called 'install.sh' is provided for installing the resulting
-binaries and generating the project's documentation in PDF and Info formats.
-
-Several flags and environment variables are available for 'install.sh':
-
-- DESTDIR and PREFIX.
-- Pass 'strip' as the only argument for stripping binaries.
-
-To run the formal proofing framework, which is not necessary, one can run:
-
-gnatprove -P ironclad.gpr -U --prover=cvc4,altergo,z3 --mode=all -j4
-
 -- Thanks to --
 
 - Mintsuki (https://github.com/mintsuki) et al - For the
 Limine (https://github.com/limine-bootloader/limine) project, used for testing
 and code reference.
+
+- Mintsuki personally for helping with the build system.
 
 - The managarm project (https://github.com/managarm), used for code
 reference for the aarch64 port, and Qookie, one of the maintainers, for help
@@ -73,7 +65,7 @@ debugging the obscure and esoteric issues.
 
 ========================================================================
 
-Copyright (C) 2022 streaksu
+Copyright (C) 2023 streaksu
 
 Permission is granted to copy, distribute and/or modify this document
 under the terms of the GNU Free Documentation License, Version 1.3 or

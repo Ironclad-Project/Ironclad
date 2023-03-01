@@ -20,7 +20,6 @@ with Devices.Debug;
 with Lib.Panic;
 with Arch.Hooks;
 with Devices.PTY;
-with Config;
 
 package body Devices is
    --  Unit passes GNATprove AoRTE, GNAT does not know this.
@@ -40,9 +39,7 @@ package body Devices is
              Block_Count => 0,
              others      => <>)));
 
-      if (not Config.Support_Device_Streams or else Streams.Init) and then
-         (not Config.Support_Device_RNG     or else Random.Init)  and then
-         Debug.Init                                               and then
+      if Streams.Init and then Random.Init and then Debug.Init and then
          Non_Verified_Init
       then
          return;
@@ -54,8 +51,7 @@ package body Devices is
    function Non_Verified_Init return Boolean is
       pragma SPARK_Mode (Off);
    begin
-      return (not Config.Support_Device_PTY or else PTY.Init) and then
-             Arch.Hooks.Devices_Hook;
+      return PTY.Init and then Arch.Hooks.Devices_Hook;
    end Non_Verified_Init;
 
    procedure Register (Dev : Resource; Name : String; Success : out Boolean) is
