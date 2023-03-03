@@ -22,10 +22,8 @@ AC_CONFIG_AUX_DIR([build-aux])
 
 SRCDIR="$(cd "$srcdir" && pwd -P)"
 BUILDDIR="$(pwd -P)"
-
 AC_SUBST([SRCDIR])
 AC_SUBST([BUILDDIR])
-
 
 werror_state="no"
 AC_ARG_ENABLE([werror],
@@ -34,13 +32,13 @@ AC_ARG_ENABLE([werror],
 
 SCHED_ASC="True"
 AC_ARG_ENABLE([asc],
-    [AS_HELP_STRING([--disable-asc], [treat warnings as errors])],
+    [AS_HELP_STRING([--disable-asc], [Disable anti-starvation corrections (ASC)])],
     [test "$enableval" = "no" && SCHED_ASC="False"])
 AC_SUBST([SCHED_ASC])
 
 MEMORY_ALLOCONLY="standard"
 AC_ARG_ENABLE([alloconly],
-    [AS_HELP_STRING([--enable-alloconly], [treat warnings as errors])],
+    [AS_HELP_STRING([--enable-alloconly], [Use the alloconly allocator instead of standard])],
     [test "$enableval" = "yes" && MEMORY_ALLOCONLY="alloconly"])
 AC_SUBST([MEMORY_ALLOCONLY])
 
@@ -68,6 +66,21 @@ test "x$LDFLAGS" = "x" && LDFLAGS="DEFAULT_LDFLAGS"
 
 AC_PROG_MKDIR_P
 AC_PROG_INSTALL
+
+AC_CHECK_PROG([GPRBUILD_FOUND], [gprbuild], [yes])
+if ! test "x$GPRBUILD_FOUND" = "xyes"; then
+    AC_MSG_ERROR([gprbuild not found, please install gprbuild before configuring])
+fi
+
+AC_CHECK_PROG([GNATPROVE_FOUND], [gnatprove], [yes])
+if ! test "x$GNATPROVE_FOUND" = "xyes"; then
+    AC_MSG_WARN([gnatprove not found, formal proofing will not be available])
+fi
+
+AC_CHECK_PROG([MAKEINFO_FOUND], [makeinfo], [yes])
+if ! test "x$MAKEINFO_FOUND" = "xyes"; then
+    AC_MSG_WARN([makeinfo not found, generating documentation will not be available])
+fi
 
 ############## WARNING: DRAGONS LIE AHEAD ######################
 #           ____ __
