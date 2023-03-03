@@ -257,15 +257,16 @@ package VFS with SPARK_Mode => Off is
    function Is_Absolute (Path : String) return Boolean;
 
    --  Check whether a path is canonical, that is, whether the path is the
-   --  shortest form it could be, symlinks are not checked.
+   --  shortest form it could be, symlinks, ., and .., are not checked.
    --  @param Path Path to check.
    --  @return True if canonical, False if not.
    function Is_Canonical (Path : String) return Boolean;
 
    --  Compound 2 components of a path, a base, and an extension.
    --  If the extension is absolute, the base will not be used.
+   --  The resulting path will be cleaned a bit in order to be made canonical.
    --  @param Base      First component to use.
-   --  @param Extension Second component to use.
+   --  @param Extension Component to append to extension, if not absolute.
    --  @param Result    Where to write as much of the path as possible.
    --  @param Count     Length of the made path, if it fits, or 0 in failure.
    procedure Compound_Path

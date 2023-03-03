@@ -412,21 +412,41 @@ package body VFS with SPARK_Mode => Off is
        Result    : out String;
        Count     : out Natural)
    is
+      Curr_Index :   Natural;
+      Previous   : Character;
    begin
+      --  Actually compound the paths.
       if Is_Absolute (Extension) and Result'Length >= Extension'Length then
          Count := Extension'Length;
          Result (Result'First .. Result'First - 1 + Count) := Extension;
-      elsif Base (Base'Last) /= '/' and
-            Result'Length >= Base'Length + 1 + Extension'Length
-      then
-         Count := Base'Length + 1 + Extension'Length;
-         Result (Result'First .. Result'First - 1 + Count) :=
-            Base & "/" & Extension;
       elsif Result'Length >= Base'Length + Extension'Length then
          Count := Base'Length + Extension'Length;
          Result (Result'First .. Result'First - 1 + Count) := Base & Extension;
       else
          Count := 0;
+         return;
+      end if;
+
+      --  Clean the path.
+      Curr_Index := Result'First;
+      Previous   := ' ';
+      loop
+         if Previous = '/' and Result (Curr_Index) = '/' then
+            Result (Curr_Index - 1 .. Result'First - 2 + Count) :=
+               Result (Curr_Index .. Result'First - 1 + Count);
+            Count := Count - 1;
+         else
+            Curr_Index := Curr_Index + 1;
+         end if;
+         if Curr_Index = Result'First + Count + 1 then
+            exit;
+         else
+            Previous := Result (Curr_Index - 1);
+         end if;
+      end loop;
+
+      if Count > 1 and Result (Result'First - 1 + Count) = '/' then
+         Count := Count - 1;
       end if;
    end Compound_Path;
 end VFS;
