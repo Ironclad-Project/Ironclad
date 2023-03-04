@@ -485,6 +485,20 @@ package Userland.Syscall with SPARK_Mode => Off is
        Mode        : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
 
+   --  Communicate and control with the integrity checks.
+   INTEGRITY_SET_POLICY    : constant := 1;
+   INTEGRITY_RUN_YOURSELF  : constant := 2;
+   INTEGRITY_STOP_YOURSELF : constant := 3;
+   INTEGRITY_ONESHOT       : constant := 4;
+   INTEGRITY_FREE_MEMORY   : constant := 5;
+   INTEGRITY_MAX_PROC      : constant := 6;
+   INTEGRITY_POLICY_WARN   : constant := 1;
+   INTEGRITY_POLICY_PANIC  : constant := 2;
+   function Integrity_Setup
+      (Command  : Unsigned_64;
+       Argument : Unsigned_64;
+       Errno    : out Errno_Value) return Unsigned_64;
+
 private
 
    --  Do the actual exiting.

@@ -33,13 +33,15 @@ Documentation License''.
 @end ifnottex
 
 @menu
-* General information::              General information about the project
-* Boot-time command-line options::   Command-line options
-* Embedded facilities and RTC::      Features and interfaces for embedded work
-* Memory allocation algorithms::     The avaiable allocation algorithms.
-* Syscalls::                         The main method of userland to interface
-* Devices and their properties::     Devices exposed by the kernel
-* GNU Free Documentation License::   Copying and sharing this manual
+* General information::               General information about the project
+* Boot-time command-line options::    Command-line options
+* Embedded facilities and RTC::       Features and interfaces for embedded work
+* Memory allocation algorithms::      The avaiable allocation algorithms.
+* Userland state and conditions::     Userland state and conditions.
+* Security and integrity facilities:: Ironclad-specific security facilities.
+* Syscalls::                          The main method of userland to interface
+* Devices and their properties::      Devices exposed by the kernel
+* GNU Free Documentation License::    Copying and sharing this manual
 
 @detailmenu
 --- The Detailed Node Listing ---
@@ -72,9 +74,10 @@ Userland state and conditions
 * Program loading and ld.so::  Format of the loaded programs.
 * Memory layout::              Layout of the memory in userland.
 
-Mandatory access control
+Security and integrity facilities
 
-* How to configure MAC::      How MAC is configured.
+* Mandatory access control (MAC)::  MAC quickguide and configuration.
+* Integrity checks::                Userland integrity checks.
 
 Syscalls
 
@@ -93,6 +96,7 @@ Syscalls
 * wait::                    Waiting for execution of a child to finish.
 * uname::                   Fetch basic system information.
 * sethostname::             Hostname setting.
+* delete::                  Delete files.
 * lstat::                   Fetch file information.
 * getcwd/chdir::            Current working directory manipulation.
 * ioctl::                   IO multiplexer.
@@ -116,8 +120,9 @@ Syscalls
 * readlink::                Read the contents of a symlink.
 * getdents::                Get directory entries.
 * sync::                    Synchronize device caches.
-* create::                  Create several kinds of files.
-* delete::                  Delete files.
+* create*::                 Create regular files.
+* truncate::                Truncate the contents of a file to an offset.
+* integrity_setup::         Setup and configure integrity checks.
 
 Devices and their properties
 
@@ -431,8 +436,14 @@ will be randomized on load time following
 and must not be relied upon. It is up to @code{ld.so} to optionally place
 additionally loaded libraries at random offsets.
 
-@node Mandatory access control
-@chapter Mandatory access control
+@node Security and integrity facilities
+@chapter Security and integrity facilities
+
+This chapter digs into the various Ironclad-specific security and integrity
+features available for the user.
+
+@node Mandatory access control (MAC)
+@section Mandatory access control (MAC)
 
 Mandatory access control (MAC) forms one of the main components of Ironclad
 security.
@@ -443,9 +454,6 @@ required set of permissions for their task.
 
 MAC does not necesarily help with preventing breaches of security, but
 minimizes the things a breached process can do, when configured correctly.
-
-@node How to configure MAC
-@section How to configure MAC
 
 A series of coarse permissions, called capabilities, that restrict the process
 on what it can and cannot do, can be done by using @ref{set_mac_capabilities}.
@@ -490,6 +498,19 @@ int main(void) @{
     @}
 @}
 @end example
+
+@node Integrity checks
+@section Integrity checks
+
+Ironclad provides facilities for running configurable userland-wide checks
+configurable using the @code{integrity_setup} system call.
+
+Both in-demand and interrupt-based solutions are provided. The in-demand
+solution is triggered by direct syscall use, it has the advantage of being
+interrupt-free, which makes runtime analysis and realtime overall much easier.
+The interrupt-driven kernel one offers convenience and being independent
+from userland altogether. When using the interrupt-based kernel solution,
+watchdog hardware may be used internally.
 
 @node Syscalls
 @chapter Syscalls
@@ -598,7 +619,15 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{getdents}.
 @item
-@xref{create}
+@xref{create*, create}.
+@item
+@xref{truncate}.
+@item
+@xref{create*, create_directory}.
+@item
+@xref{create*, create_symlink}.
+@item
+@xref{integrity_setup}.
 @end enumerate
 
 @node Errno
@@ -1039,6 +1068,23 @@ returned on success and @code{-1} on failure, with the following errno:
 @code{EACCES}: MAC did not allow this.
 @end itemize
 
+@node delete
+@section delete
+
+@example
+int delete(const char *path, int path_len);
+@end example
+
+The syscall deletes the file pointed to by @code{path}. If @code{path} points
+to a directory, it must be empty.
+
+The syscall returns @code{0} or @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{ENOENT}: @code{delete} points to a file not valid for deletion, if at all.
+@end itemize
+
 @node lstat
 @section lstat
 
@@ -1440,7 +1486,7 @@ int set_mac_capabilities(unsigned long request);
 @end example
 
 This syscall sets MAC filters on the way described in
-@ref{Mandatory access control}.
+@ref{Mandatory access control (MAC)}.
 
 This syscall always returns @code{0} and does not fail, settings will just
 be ignored if permission to change them is not granted.
@@ -1453,7 +1499,7 @@ int lock_mac(void);
 @end example
 
 This syscall locks MAC modification as described in
-@ref{Mandatory access control}.
+@ref{Mandatory access control (MAC)}.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:
@@ -1483,7 +1529,7 @@ int add_mac_filter(struct mac_filter *filter);
 @end example
 
 This syscall adds file-based filters as described in
-@ref{Mandatory access control}.
+@ref{Mandatory access control (MAC)}.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:
@@ -1510,7 +1556,7 @@ int set_mac_enforcement(unsigned long request);
 @end example
 
 This syscall sets the action to take for enforcement on MAC issues as explained
-in @ref{Mandatory access control}.
+in @ref{Mandatory access control (MAC)}.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:
@@ -1656,17 +1702,18 @@ The syscall returns @code{0} or @code{-1} on failure, with a corresponding
 errno. This is done as to be forward compatible with future modifications, the
 syscall right now is not able to fail.
 
-@node create
-@section create
+@node create*
+@section create*
 
 @example
-int create(const char *path, int path_len, int file_type, int mode,
-   size_t extra);
+int create(int dir_fd, const char *path, int path_len, int mode);
+int create_directory(int dir_fd, const char *path, int path_len, int mode);
+int create_symlink(int dir_fd, const char *path, int path_len,
+   const char *target, int target_len,int mode);
 @end example
 
-The syscall creates non existent files. @code{file_type} denotes the kind of
-file, while @code{extra} may be used for the creation of some files, like
-symlinks. It does not open the created file.
+These syscall creates non existent files. Each syscall manages one kind of
+file only.
 
 The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 
@@ -1675,21 +1722,79 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @code{EINVAL}: The value of @code{file_type} or @code{mode} is not allowed.
 @end itemize
 
-@node delete
-@section delete
+@node truncate
+@section truncate
 
 @example
-int delete(const char *path, int path_len);
+int truncate(int fd, uint64_t new_size);
 @end example
 
-The syscall deletes the file pointed to by @code{path}. If @code{path} points
-to a directory, it must be empty.
+The syscall truncates the size of @code{fd} on disk to exactly @code{new_size}
+bytes.
+
+If the file was larger, the cropped contents are lost, if it was smaller, the
+new data is zero'd out. No other file data is changed.
 
 The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 
 @itemize @bullet
 @item
-@code{ENOENT}: @code{delete} points to a file not valid for deletion, if at all.
+@code{EBADF}: The file pointed by @code{fd} is not valid for truncation.
+@item
+@code{EINVAL}: @code{new_size} could not be set.
+@end itemize
+
+@node integrity_setup
+@section integrity_setup
+
+@example
+#define INTEGRITY_SET_POLICY    1
+#define INTEGRITY_RUN_YOURSELF  2
+#define INTEGRITY_STOP_YOURSELF 3
+#define INTEGRITY_ONESHOT       4
+#define INTEGRITY_FREE_MEMORY   5
+#define INTEGRITY_MAX_PROC      6
+
+#define INTEGRITY_POLICY_WARN  1
+#define INTEGRITY_POLICY_PANIC 2
+
+int integrity_setup(int request, uint64_t argument);
+@end example
+
+The syscall configures the integrity check facilities.
+
+@code{request} can be one of the following:
+
+@itemize @bullet
+@item
+@code{INTEGRITY_SET_POLICY (1)}: Set the failure policy to the value passed in
+@code{argument}, which has to be one of the @code{INTEGRITY_POLICY_} family.
+
+@item
+@code{INTEGRITY_RUN_YOURSELF (2)}: Tell the kernel to launch the kernel-side
+periodic integrity checks, @code{argument} is the ms deadline for each test.
+
+@item
+@code{INTEGRITY_STOP_YOURSELF (3)}: Tell the kernel to stop the kernel-side
+checks.
+
+@item
+@code{INTEGRITY_ONESHOT (4)}: Run the checks.
+
+@item
+@code{INTEGRITY_FREE_MEMORY (5)}: Check for at least @code{argument} free
+bytes of memory next check.
+
+@item
+@code{INTEGRITY_MAX_PROC (6)}: Check that the total number of processes in
+the system does not equal or exceed @code{argument}.
+@end itemize
+
+The syscall returns @code{0} or @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EINVAL}: Invalid configuration value combination.
 @end itemize
 
 @node Devices and their properties

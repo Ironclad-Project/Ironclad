@@ -37,6 +37,7 @@ with Cryptography.Random;
 with Userland.MAC;
 with IPC.Pipe; use IPC.Pipe;
 with Devices;
+with Userland.Integrity;
 
 package body Userland.Syscall with SPARK_Mode => Off is
    --  Whether we are to print syscall information and MAC.
@@ -2512,4 +2513,49 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end;
    end Create_Symlink;
+
+   function Integrity_Setup
+      (Command  : Unsigned_64;
+       Argument : Unsigned_64;
+       Errno    : out Errno_Value) return Unsigned_64
+   is
+      P : Integrity.Policy;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall integrity_setup(");
+         Lib.Messages.Put (Command);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Argument);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      case Command is
+         when INTEGRITY_SET_POLICY =>
+            case Argument is
+               when INTEGRITY_POLICY_WARN  => P := Integrity.Policy_Warn;
+               when INTEGRITY_POLICY_PANIC => P := Integrity.Policy_Panic;
+               when others                 => goto Error;
+            end case;
+            Integrity.Set_Policy (P);
+         when INTEGRITY_ONESHOT =>
+            Integrity.Run_Checks;
+         when INTEGRITY_FREE_MEMORY =>
+            Integrity.Set_Free_Memory (Memory.Size (Argument));
+         when INTEGRITY_MAX_PROC =>
+            if Argument > Unsigned_64 (Process.Max_Process_Count) then
+               Integrity.Set_Max_Processes_Check (Process.Max_Process_Count);
+            else
+               Integrity.Set_Max_Processes_Check (Natural (Argument));
+            end if;
+         when others =>
+            goto Error;
+      end case;
+
+      Errno := Error_No_Error;
+      return 0;
+
+   <<Error>>
+      Errno := Error_Invalid_Value;
+      return Unsigned_64'Last;
+   end Integrity_Setup;
 end Userland.Syscall;

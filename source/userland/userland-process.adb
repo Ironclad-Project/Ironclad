@@ -26,7 +26,7 @@ package body Userland.Process with SPARK_Mode => Off is
       (Process_Data, Process_Data_Acc);
 
    --  Process registry and its lock, the index happens to do as PID as well.
-   type Process_Arr is array (1 .. 256) of Process_Data_Acc;
+   type Process_Arr is array (1 .. Max_Process_Count) of Process_Data_Acc;
    type Process_Arr_Acc is access Process_Arr;
 
    Process_List_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
@@ -37,6 +37,19 @@ package body Userland.Process with SPARK_Mode => Off is
       Process_List := new Process_Arr'(others => null);
       Lib.Synchronization.Release (Process_List_Mutex);
    end Init;
+
+   function Get_Process_Count return Natural is
+      Count : Natural := 0;
+   begin
+      Lib.Synchronization.Seize (Process_List_Mutex);
+      for I in Process_List.all'Range loop
+         if Process_List (I) /= null then
+            Count := Count + 1;
+         end if;
+      end loop;
+      Lib.Synchronization.Release (Process_List_Mutex);
+      return Count;
+   end Get_Process_Count;
 
    function Create_Process
       (Parent : Process_Data_Acc := null) return Process_Data_Acc

@@ -69,8 +69,13 @@ package Userland.Process with SPARK_Mode => Off is
    end record;
    type Process_Data_Acc is access Process_Data;
 
+   Max_Process_Count : constant Natural;
+
    --  Initialize the process registry.
    procedure Init;
+
+   --  Get a count of all the processes in the system.
+   function Get_Process_Count return Natural;
 
    --  Created a vanilla process, or remove a process, or fetch processes.
    function Create_Process
@@ -114,4 +119,8 @@ package Userland.Process with SPARK_Mode => Off is
    procedure Remove_File (Process : Process_Data_Acc; FD : Natural);
    procedure Flush_Files (Process : Process_Data_Acc);
    procedure Flush_Exec_Files (Process : Process_Data_Acc);
+
+private
+
+   Max_Process_Count : constant Natural := 256;
 end Userland.Process;

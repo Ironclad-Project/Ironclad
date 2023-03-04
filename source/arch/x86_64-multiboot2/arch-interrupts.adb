@@ -236,6 +236,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := Create_Symlink
                (State.RDI, State.RSI, State.RDX, State.RCX, State.R8, State.R9,
                 Errno);
+         when 47 =>
+            Returned := Integrity_Setup (State.RDI, State.RSI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
