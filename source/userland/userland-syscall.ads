@@ -293,6 +293,7 @@ package Userland.Syscall with SPARK_Mode => Off is
    SC_AVPHYS_PAGES  : constant := 4;
    SC_PHYS_PAGES    : constant := 5;
    SC_NPROC_ONLN    : constant := 6;
+   SC_TOTAL_PAGES   : constant := 7;
    function Sysconf
       (Request : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64;

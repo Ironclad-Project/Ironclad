@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch;
+with Arch; use Arch;
 with Interfaces.C;
 
 package Memory.Physical is
@@ -26,7 +26,7 @@ package Memory.Physical is
    --  unconditionally when Sz is size_t'Last, and 0 allocates a small block.
    --  It returns memory that is:
    --  - Not zero'd out, since SPARK requires us to initialize it ourselves.
-   --  - Always aligned to 4K.
+   --  - For Sz >= Page_Size, alignment is Page_Size. Else, it is unspecified.
    --  - Never null, errors are handled internally, this includes OOM.
    --  @param Sz Size to allocate in bytes.
    --  @return Address of the allocated object in the higher half.
@@ -39,17 +39,19 @@ package Memory.Physical is
    procedure Free (Address : Interfaces.C.size_t)
       with Export, Convention => C, External_Name => "__gnat_free";
 
-   --  Memory statistics.
-   --  @field Total_Memory Total physical memory of the system.
-   --  @field Free_Memory Memory available for allocation in the system.
-   --  @field Used_Memory Memory not available for allocation.
+   --  Allocator-wide memory statistics.
+   --  @field Total     Total physical memory of the system.
+   --  @field Available Non-reserved memory amount managed by the allocator.
+   --  @field Free      Free allocator-managed memory in the system.
+   --  @field Size_Mode Estimated mode of allocation sizes.
    type Statistics is record
-      Total_Memory : Memory.Size;
-      Free_Memory  : Memory.Size;
-      Used_Memory  : Memory.Size;
+      Total     : Memory.Size;
+      Available : Memory.Size;
+      Free      : Memory.Size;
+      Size_Mode : Memory.Size;
    end record;
 
-   --  Fetch memory statistics.
-   --  @return Statistics.
-   function Get_Statistics return Statistics;
+   --  Fetch memory statistics as defined in the Statistics record.
+   --  @param Stats Where to return the stats.
+   procedure Get_Statistics (Stats : out Statistics);
 end Memory.Physical;

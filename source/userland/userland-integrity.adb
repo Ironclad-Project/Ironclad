@@ -39,8 +39,8 @@ package body Userland.Integrity with SPARK_Mode => Off is
       Memory_Stats    : Memory.Physical.Statistics;
       Proc_Count      : Natural;
    begin
-      Memory_Stats := Memory.Physical.Get_Statistics;
-      if Memory_Stats.Free_Memory < Min_Free_Memory then
+      Memory.Physical.Get_Statistics (Memory_Stats);
+      if Memory_Stats.Free < Min_Free_Memory then
          goto Failure;
       end if;
 

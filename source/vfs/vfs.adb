@@ -391,7 +391,8 @@ package body VFS with SPARK_Mode => Off is
    function Is_Canonical (Path : String) return Boolean is
       Previous : Character := ' ';
    begin
-      if not Is_Absolute (Path) or (Path'Length > 1 and Path (Path'Last) = '/')
+      if not Is_Absolute (Path) or else
+         (Path'Length > 1 and Path (Path'Last) = '/')
       then
          return False;
       end if;

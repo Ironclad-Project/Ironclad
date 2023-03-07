@@ -78,19 +78,22 @@ package body Cryptography.Random is
    function Get_Seed return Unsigned_128 is
       pragma SPARK_Mode (Off);
 
-      --  Seeds for mixing.
-      S1 : constant Unsigned_64 := Arch.Snippets.Read_Cycles;
-      S2 : constant Unsigned_64 := Unsigned_64 (Get_Statistics.Used_Memory);
-
-      To_Hash : constant MD5.MD5_Blocks (1 .. 1) := (0 => (
-         0  => Unsigned_32 (Shift_Right (S1, 32) and 16#FFFFFFFF#),
-         1  => Unsigned_32 (S1                   and 16#FFFFFFFF#),
-         2  => Unsigned_32 (Shift_Right (S2, 32) and 16#FFFFFFFF#),
-         3  => Unsigned_32 (S2                   and 16#FFFFFFFF#),
+      Cycles  : Unsigned_64;
+      Used    : Unsigned_64;
+      Stats   : Memory.Physical.Statistics;
+      To_Hash : MD5.MD5_Blocks (1 .. 1);
+   begin
+      Get_Statistics (Stats);
+      Cycles  := Arch.Snippets.Read_Cycles;
+      Used    := Unsigned_64 (Stats.Available - Stats.Free);
+      To_Hash := (0 => (
+         0  => Unsigned_32 (Shift_Right (Cycles, 32) and 16#FFFFFFFF#),
+         1  => Unsigned_32 (Cycles                   and 16#FFFFFFFF#),
+         2  => Unsigned_32 (Shift_Right (Used, 32)   and 16#FFFFFFFF#),
+         3  => Unsigned_32 (Used                     and 16#FFFFFFFF#),
          14 => 128,
          others => 0
       ));
-   begin
       return MD5.Digest (To_Hash);
    end Get_Seed;
 end Cryptography.Random;

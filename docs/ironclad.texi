@@ -137,13 +137,17 @@ Devices and their properties
 @node General information
 @chapter General information
 
-As the README of the project states, Ironclad is a kernel for x86_64 devices
-exclusively (for now), written in Ada. The goal of the project is to create
-a POSIX kernel for hobbyist fun, maybe one day for real life use. Ironclad has
-a lot of features one would expect on a modern system, and the list only
-continues to grow, like support for desktop environments, true multitasking, a
-good memory manager, and a fully functional userland with dynamic linking and
-ELF loading.
+Ironclad is a partially formally verified real-time kernel, with a small
+footprint, for general-purpose and embedded OSes, written in SPARK and Ada.
+
+Some of the supported features are:
+- A familiar POSIX-compatible interface
+- True simultaneous multitasking
+- Complex virtual and physical memory support, VFS support
+- Resiliency and small footprint
+- Partial gold-level formal verification
+- Advanced cryptography and a security-centered architecture
+- Hard real-time scheduling and real-time oriented features
 
 @node Audience
 @section Audience
@@ -185,8 +189,7 @@ your name or pseudonym for a major contribution to the comma-separated list.
 
 @item
 It goes a long way to add the relevant documentation as comments and standalone
-documentation when considered necessary. While not necessary, you save me the
-trouble of having to add it later. :D
+documentation. You can end up saving others a lot of time!
 @end enumerate
 
 @node Error reporting
@@ -321,9 +324,9 @@ Thanks to RMS, deadlines are mathematically guaranteed to be met as long as an
 upper bound of CPU time utilization is not exceeded. Said bound can be
 calculated using the number of tasks following the schedulability test:
 
-@tex
-$$ \sum_{i=1}^{n}{U_i}=\sum_{i=1}^{n}{C_i \over T_i}\leq n([2^{1/n}]-1) $$
-@end tex
+@displaymath
+\sum_{i=1}^{n}{U_i}=\sum_{i=1}^{n}{C_i \over T_i}\leq n([2^{1/n}]-1)
+@end displaymath
 
 Where:
 
@@ -340,9 +343,9 @@ Number of threads to be scheduled.
 
 When the number of threads tends to infinity, the condition tends to:
 
-@tex
-$$ \lim_{n\rightarrow\infty}n([2^{1/n}]-1)=\ln 2\approx 0.693147\ldots $$
-@end tex
+@displaymath
+\lim_{n\rightarrow\infty}n([2^{1/n}]-1)=\ln 2\approx 0.693147\ldots
+@end displaymath
 
 The kernel will just always compare with this approximated value for
 simplicity and due to floating-point limitations. If this quick test is not
@@ -357,9 +360,10 @@ to break through the 69% usage ceiling, while keeping deadlines alive and well.
 @item Harmonic chains and task periods
 Thanks to the @url{https://ieeexplore.ieee.org/document/160369, work of Kuo and Mok},
 we know that for harmonic sets of tasks, the schedulability test becomes:
-@tex
-$$ \sum_{i=1}^{n}{U_i}=\sum_{i=1}^{n}{C_i \over T_i}\leq K([2^{1/K}]-1) $$
-@end tex
+
+@displaymath
+\sum_{i=1}^{n}{U_i}=\sum_{i=1}^{n}{C_i \over T_i}\leq K([2^{1/K}]-1)
+@end displaymath
 
 Where @math{K} is the number of harmonic sets, for @math{1}, the utilization
 becomes 100%.
@@ -385,29 +389,30 @@ cores in the system will continue to preempt as usual.
 @node Memory allocation algorithms
 @chapter Memory allocation algorithms
 
-Ironclad features several memory allocator choices for use by the userland
-and kernel.
+Ironclad features several memory allocator choices for use, the chosen
+allocator will be used both for kernel and userland allocations.
 
 @node standard
 @section standard
 
-The standard allocator is a bitmap-based, simple allocator with 4K-sized
-blocks.
+The standard allocator is a general purpose allocator for your average
+everyday allocator needs. Its internally implemented as a bitmap allocator with
+page-sized blocks and a quick cache for small objects.
 
-The allocator allows freeing, it suffers from heavy fragmentation when
-frequenty using big allocations, and takes a relative lot of memory to keep
-track of status.
+For more specialized uses, other allocators are bound to do better, but this
+one is a safe bet.
 
 @node alloconly
 @section alloconly
 
-The 'alloconly' allocator is an alternative, bump-based allocator that is
-much faster and uses way less memory than the standard allocator, while not
-being able to free as its biggest trade-off.
+The 'alloconly' allocator is faster and uses way less memory than the standard
+allocator, while not being able to free as its biggest trade-off. It is
+internally implemented as a singly linked list of bump allocators.
 
 This allocator is appropiate for embedded applications that are recommended
 to allocate all the program will ever need at the beggining of its execution,
-and thats it.
+or for debugging memory management, as its a much simpler allocator than the
+standard option.
 
 @node Userland state and conditions
 @chapter Userland state and conditions
@@ -1283,16 +1288,20 @@ The errno codes set on failure are:
 #define SC_PAGESIZE      1 // Page size of the system.
 #define SC_OPEN_MAX      2 // Maximum amount of files per process.
 #define SC_HOST_NAME_MAX 3 // Maximum length of hostnames.
-#define SC_AVPHYS_PAGES  4 // Number of physical pages available for use.
-#define SC_PHYS_PAGES    5 // Number of total physical pages the system has.
+#define SC_AVPHYS_PAGES  4 // Number of free physical pages.
+#define SC_PHYS_PAGES    5 // Number of total available pages the system has.
 #define SC_NPROC_ONLN    6 // Number of processors active and used by the OS.
+#define SC_TOTAL_PAGES   7 // Total amount of installed memory pages.
+
 long int sysconf(int request);
 @end example
 
 This syscalls fetches the requested information, and returns it.
 
 The syscall return the requested information on success and @code{-1} on
-failure. The errno codes set on failure are:
+failure. If the requested value can also be @code{-1}, errno must be checked.
+
+The errno codes set on failure are:
 
 @itemize @bullet
 @item

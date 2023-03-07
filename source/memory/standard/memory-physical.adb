@@ -19,6 +19,7 @@ with Lib.Panic;
 with Lib.Synchronization; use Lib.Synchronization;
 with Lib.Alignment;
 with Memory.Virtual;
+with System; use System;
 
 package body Memory.Physical with SPARK_Mode => Off is
    Block_Size :         constant := Memory.Virtual.Page_Size;
@@ -27,32 +28,28 @@ package body Memory.Physical with SPARK_Mode => Off is
    type Bitmap is array (Unsigned_64 range <>) of Boolean with Pack;
 
    --  Information that the allocator keeps track of.
-   Total_Memory, Free_Memory, Used_Memory : Memory.Size;
-   Block_Count      : Unsigned_64     := 0;
-   Bitmap_Length    : Memory.Size     := 0;
-   Bitmap_Address   : Virtual_Address := Null_Address;
-   Bitmap_Last_Used : Unsigned_64     := 0;
-   Alloc_Mutex : aliased Binary_Semaphore := Unlocked_Semaphore;
+   Total_Memory, Available_Memory, Free_Memory : Memory.Size;
+   Block_Count      :              Unsigned_64 := 0;
+   Bitmap_Length    :              Memory.Size := 0;
+   Bitmap_Address   :          Virtual_Address := Null_Address;
+   Bitmap_Last_Used :              Unsigned_64 := 0;
+   Alloc_Mutex      : aliased Binary_Semaphore := Unlocked_Semaphore;
 
    procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map) is
-      use Arch;
-      use System;
-
       Adjusted_Length : Storage_Count  := 0;
       Adjusted_Start  : System.Address := System.Null_Address;
    begin
       for E of Memmap loop
          if E.MemType = Arch.Memory_Free then
             Free_Memory := Free_Memory + Size (E.Length);
-         else
-            Used_Memory := Used_Memory + Size (E.Length);
          end if;
       end loop;
       declare
          Sta : constant Size := Size (To_Integer (Memmap (Memmap'Last).Start));
          Len : constant Size := Size (Memmap (Memmap'Last).Length);
       begin
-         Total_Memory := Sta + Len;
+         Available_Memory := Free_Memory;
+         Total_Memory     := Sta + Len;
       end;
 
       --  Calculate what we will need for the bitmap, and find a hole for it.
@@ -64,8 +61,7 @@ package body Memory.Physical with SPARK_Mode => Off is
             Bitmap_Address  := To_Integer (E.Start) + Memory_Offset;
             Adjusted_Length := E.Length - Storage_Count (Bitmap_Length);
             Adjusted_Start  := E.Start + Storage_Count (Bitmap_Length);
-            Free_Memory := Free_Memory - Bitmap_Length;
-            Used_Memory := Used_Memory + Bitmap_Length;
+            Free_Memory     := Free_Memory - Bitmap_Length;
             exit;
          end if;
       end loop;
@@ -162,25 +158,11 @@ package body Memory.Physical with SPARK_Mode => Off is
          Bitmap_Body (First_Found_Index + Unsigned_64 (I - 1)) := Block_Used;
       end loop;
 
-      --  Set statistic and global variables and return.
+      --  Set statistic, global variables and return.
       Bitmap_Last_Used := First_Found_Index;
       Free_Memory      := Free_Memory - Size;
-      Used_Memory      := Used_Memory + Size;
       Lib.Synchronization.Release (Alloc_Mutex);
-
-      --  FIXME: We technically dont have to zero out as specified in the
-      --  specification, but we used to, and if we dont the kernel is bound
-      --  to fail on weird ways down the road. Once more code is SPARK, we can
-      --  remove this, since SPARK forces us to always initialize memory.
-      declare
-         Addr : constant Virtual_Address :=
-            Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
-         Pool : array (1 .. Unsigned_64 (Size)) of Unsigned_8 with Import;
-         for Pool'Address use To_Address (Addr);
-      begin
-         Pool := (others => 0);
-         return Addr;
-      end;
+      return Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
    end Alloc;
 
    procedure Free (Address : Interfaces.C.size_t) is
@@ -195,27 +177,22 @@ package body Memory.Physical with SPARK_Mode => Off is
          Real_Address := Real_Address - Memory_Offset;
       end if;
 
-      Lib.Synchronization.Seize (Alloc_Mutex);
-
       --  TODO: This is basically a placeholder free that will free only the
       --  first block. Blocks per address should be tracked and freed.
+      Lib.Synchronization.Seize (Alloc_Mutex);
       Bitmap_Body (Unsigned_64 (Real_Address / Block_Size)) := Block_Free;
       Free_Memory := Free_Memory + Block_Size;
-      Used_Memory := Used_Memory - Block_Size;
-
       Lib.Synchronization.Release (Alloc_Mutex);
    end Free;
 
-   function Get_Statistics return Statistics is
-      Ret : Statistics;
+   procedure Get_Statistics (Stats : out Statistics) is
    begin
       Lib.Synchronization.Seize (Alloc_Mutex);
-      Ret := (
-         Total_Memory => Total_Memory,
-         Free_Memory  => Free_Memory,
-         Used_Memory  => Used_Memory
-      );
+      Stats :=
+         (Total     => Total_Memory,
+          Available => Available_Memory,
+          Free      => Free_Memory,
+          Size_Mode => 0);
       Lib.Synchronization.Release (Alloc_Mutex);
-      return Ret;
    end Get_Statistics;
 end Memory.Physical;

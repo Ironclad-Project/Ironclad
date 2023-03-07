@@ -269,8 +269,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       (File_D : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64
    is
-      Current_Process : constant Userland.Process.Process_Data_Acc :=
-         Arch.Local.Get_Current_Process;
+      Curr : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
    begin
       if Is_Tracing then
          Lib.Messages.Put ("syscall close(");
@@ -278,12 +277,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      if not Userland.Process.Is_Valid_File (Current_Process, File_D) then
+      if not Userland.Process.Is_Valid_File (Curr, File_D) then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
       end if;
 
-      Userland.Process.Remove_File (Current_Process, Natural (File_D));
+      Userland.Process.Remove_File (Curr, Natural (File_D));
       Errno := Error_No_Error;
       return 0;
    end Close;
@@ -294,14 +293,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Count  : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64
    is
-      Buffer_Addr : constant System.Address :=
-         To_Address (Integer_Address (Buffer));
-      Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.Local.Get_Current_Process;
-      File : File_Description_Acc;
+      Buf_IAddr : constant  Integer_Address := Integer_Address (Buffer);
+      Buf_SAddr : constant   System.Address := To_Address (Buf_IAddr);
+      Curr_Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Final_Cnt : constant          Natural := Natural (Count);
+      File      : File_Description_Acc;
       File_Mode : Access_Mode;
-      Data : Operation_Data (1 .. Natural (Count))
-         with Import, Address => Buffer_Addr;
+      Data      : Operation_Data (1 .. Final_Cnt) with Address => Buf_SAddr;
       Ret_Count : Natural;
       Success   : Boolean;
    begin
@@ -315,12 +313,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      if not Check_Userland_Access (To_Integer (Buffer_Addr)) then
+      if not Check_Userland_Access (Buf_IAddr) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       end if;
 
-      File := Userland.Process.Get_File (Current_Process, File_D);
+      File := Userland.Process.Get_File (Curr_Proc, File_D);
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -344,7 +342,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             end if;
          when Description_Reader_Pipe =>
             Errno := Error_No_Error;
-            return Read (File.Inner_Reader_Pipe, Count, Buffer_Addr);
+            return Read (File.Inner_Reader_Pipe, Count, Buf_SAddr);
          when others =>
             Errno := Error_Bad_File;
             return Unsigned_64'Last;
@@ -357,14 +355,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Count  : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64
    is
-      Buffer_Addr     : constant System.Address :=
-         To_Address (Integer_Address (Buffer));
-      Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.Local.Get_Current_Process;
-      File : File_Description_Acc;
+      Buf_IAddr : constant  Integer_Address := Integer_Address (Buffer);
+      Buf_SAddr : constant   System.Address := To_Address (Buf_IAddr);
+      Curr_Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Final_Cnt : constant          Natural := Natural (Count);
+      File      : File_Description_Acc;
       File_Mode : Access_Mode;
-      Data : Operation_Data (1 .. Natural (Count))
-         with Import, Address => Buffer_Addr;
+      Data      : Operation_Data (1 .. Final_Cnt) with Address => Buf_SAddr;
       Ret_Count : Natural;
       Success   : Boolean;
    begin
@@ -378,12 +375,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      if not Check_Userland_Access (To_Integer (Buffer_Addr)) then
+      if not Check_Userland_Access (Buf_IAddr) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       end if;
 
-      File := Userland.Process.Get_File (Current_Process, File_D);
+      File := Userland.Process.Get_File (Curr_Proc, File_D);
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -407,7 +404,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             end if;
          when Description_Writer_Pipe =>
             Errno := Error_No_Error;
-            return Write (File.Inner_Writer_Pipe, Count, Buffer_Addr);
+            return Write (File.Inner_Writer_Pipe, Count, Buf_SAddr);
          when others =>
             Errno := Error_Bad_File;
             return Unsigned_64'Last;
@@ -616,24 +613,21 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Munmap;
 
    function Get_PID return Unsigned_64 is
-      Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.Local.Get_Current_Process;
+      Curr_Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
    begin
       if Is_Tracing then
          Lib.Messages.Put_Line ("syscall getpid()");
       end if;
-      return Unsigned_64 (Current_Process.Process_PID);
+      return Unsigned_64 (Curr_Proc.Process_PID);
    end Get_PID;
 
    function Get_Parent_PID return Unsigned_64 is
-      Current_Process : constant Userland.Process.Process_Data_Acc :=
-            Arch.Local.Get_Current_Process;
-      Parent_Process : constant Natural := Current_Process.Parent_PID;
+      Curr_Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
    begin
       if Is_Tracing then
          Lib.Messages.Put_Line ("syscall getppid()");
       end if;
-      return Unsigned_64 (Parent_Process);
+      return Unsigned_64 (Curr_Proc.Parent_PID);
    end Get_Parent_PID;
 
    function Exec
@@ -1473,8 +1467,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
       (Request : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64
    is
+      function CCount return Positive renames Arch.Hooks.Get_Active_Core_Count;
+
       Stats  : Memory.Physical.Statistics;
       Result : Unsigned_64;
+      PS     : constant := Page_Size;
+      Aval   : Memory.Size renames Stats.Available;
    begin
       if Is_Tracing then
          Lib.Messages.Put      ("syscall sysconf(");
@@ -1482,17 +1480,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      Stats := Memory.Physical.Get_Statistics;
+      Memory.Physical.Get_Statistics (Stats);
       case Request is
-         when SC_PAGESIZE      => Result := Memory.Virtual.Page_Size;
+         when SC_PAGESIZE      => Result := PS;
          when SC_OPEN_MAX      => Result := Process_File_Table'Length;
          when SC_HOST_NAME_MAX => Result := Networking.Hostname_Max_Len;
-         when SC_AVPHYS_PAGES  =>
-            Result := Unsigned_64 (Stats.Free_Memory) / Page_Size;
-         when SC_PHYS_PAGES    =>
-            Result := Unsigned_64 (Stats.Total_Memory) / Page_Size;
-         when SC_NPROC_ONLN    =>
-            Result := Unsigned_64 (Arch.Hooks.Get_Active_Core_Count);
+         when SC_AVPHYS_PAGES  => Result := Unsigned_64 (Stats.Free) / PS;
+         when SC_PHYS_PAGES    => Result := Unsigned_64 (Aval)       / PS;
+         when SC_NPROC_ONLN    => Result := Unsigned_64 (CCount);
+         when SC_TOTAL_PAGES   => Result := Unsigned_64 (Stats.Total) / PS;
          when others =>
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
