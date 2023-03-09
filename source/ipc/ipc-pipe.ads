@@ -73,8 +73,8 @@ private
    Pipe_Data_Len : constant := 512;
    type Pipe_Data is array (Natural range <>) of Unsigned_8;
    type Pipe_Writer is record
-      Refcount    : Natural;
       Mutex       : aliased Lib.Synchronization.Binary_Semaphore;
+      Refcount    : Natural;
       Is_Blocking : Boolean;
       Data_Count  : Natural range 0 .. Pipe_Data_Len with Volatile;
       Data        : Pipe_Data (1 .. Pipe_Data_Len);
@@ -82,6 +82,7 @@ private
    end record;
 
    type Pipe_Reader is record
+      Mutex           : aliased Lib.Synchronization.Binary_Semaphore;
       Refcount        : Natural;
       Writer_Is_Ghost : Boolean;
       Is_Blocking     : Boolean;

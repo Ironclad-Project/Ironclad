@@ -21,19 +21,19 @@ package Devices.Serial with SPARK_Mode => Off is
 private
 
    function Read
-      (Data   : Resource_Acc;
+      (Data   : System.Address;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;
 
    function Write
-      (Data     : Resource_Acc;
+      (Data     : System.Address;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64;
 
    function IO_Control
-      (Data     : Resource_Acc;
+      (Data     : System.Address;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
 

@@ -27,8 +27,9 @@ package body Devices.Serial with SPARK_Mode => Off is
 
    --  Inner COM port root data.
    type COM_Root is record
-      Port : Unsigned_16;
-      Baud : Unsigned_32;
+      Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+      Port  : Unsigned_16;
+      Baud  : Unsigned_32;
    end record;
    type COM_Root_Acc is access COM_Root;
 
@@ -57,13 +58,13 @@ package body Devices.Serial with SPARK_Mode => Off is
          begin
             Device_Name (7) := Character'Val (I + Character'Pos ('0'));
             Data.all := (
-               Port => COM_Ports (I),
-               Baud => Default_Baud
+               Mutex => Lib.Synchronization.Unlocked_Semaphore,
+               Port  => COM_Ports (I),
+               Baud  => Default_Baud
             );
 
             Device := (
                Data        => Data.all'Address,
-               Mutex       => Lib.Synchronization.Unlocked_Semaphore,
                Is_Block    => False,
                Block_Size  => 4096,
                Block_Count => 0,
@@ -85,18 +86,18 @@ package body Devices.Serial with SPARK_Mode => Off is
    end Init;
 
    function Read
-      (Data   : Resource_Acc;
+      (Data   : System.Address;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
    is
       Did_Seize : Boolean;
-      COM    : COM_Root with Address => Data.Data;
+      COM    : COM_Root with Address => Data;
       Result : array (1 .. Count) of Unsigned_8 with Import, Address => Desto;
       pragma Unreferenced (Offset);
    begin
       loop
-         Lib.Synchronization.Try_Seize (Data.Mutex, Did_Seize);
+         Lib.Synchronization.Try_Seize (COM.Mutex, Did_Seize);
          exit when Did_Seize;
          Scheduler.Yield;
       end loop;
@@ -105,24 +106,24 @@ package body Devices.Serial with SPARK_Mode => Off is
          I := Fetch_Data (COM.Port);
       end loop;
 
-      Lib.Synchronization.Release (Data.Mutex);
+      Lib.Synchronization.Release (COM.Mutex);
       return Count;
    end Read;
 
    function Write
-      (Data     : Resource_Acc;
+      (Data     : System.Address;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
    is
       Did_Seize  : Boolean;
-      COM        : COM_Root with Address => Data.Data;
+      COM        : COM_Root with Address => Data;
       Write_Data : array (1 .. Count) of Unsigned_8
          with Import, Address => To_Write;
       pragma Unreferenced (Offset);
    begin
       loop
-         Lib.Synchronization.Try_Seize (Data.Mutex, Did_Seize);
+         Lib.Synchronization.Try_Seize (COM.Mutex, Did_Seize);
          exit when Did_Seize;
          Scheduler.Yield;
       end loop;
@@ -130,20 +131,20 @@ package body Devices.Serial with SPARK_Mode => Off is
       for I of Write_Data loop
          Transmit_Data (COM.Port, I);
       end loop;
-      Lib.Synchronization.Release (Data.Mutex);
+      Lib.Synchronization.Release (COM.Mutex);
       return Count;
    end Write;
 
    function IO_Control
-      (Data     : Resource_Acc;
+      (Data     : System.Address;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is
-      COM      : COM_Root          with Import, Address => Data.Data;
+      COM      : COM_Root          with Import, Address => Data;
       Returned : TermIOs.Main_Data with Import, Address => Argument;
       Success  : Boolean := False;
    begin
-      Lib.Synchronization.Seize (Data.Mutex);
+      Lib.Synchronization.Seize (COM.Mutex);
       case Request is
          when TermIOs.TCGETS =>
             Returned := (
@@ -163,7 +164,7 @@ package body Devices.Serial with SPARK_Mode => Off is
          when others =>
             null;
       end case;
-      Lib.Synchronization.Release (Data.Mutex);
+      Lib.Synchronization.Release (COM.Mutex);
       return Success;
    end IO_Control;
 

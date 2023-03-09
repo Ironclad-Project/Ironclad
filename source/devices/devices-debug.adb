@@ -15,19 +15,16 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Debug;
-with Lib.Synchronization;
 
 package body Devices.Debug is
    --  Unit passes GNATprove AoRTE, GNAT does not know this.
    pragma Suppress (All_Checks);
 
-   function Init return Boolean is
+   procedure Init (Success : out Boolean) is
       Device  : Resource;
-      Success : Boolean;
    begin
       Device := (
          Data        => System.Null_Address,
-         Mutex       => Lib.Synchronization.Unlocked_Semaphore,
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
@@ -41,23 +38,21 @@ package body Devices.Debug is
          Munmap      => null
       );
       Register (Device, "debug", Success);
-      return Success;
    end Init;
 
    procedure Write
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
+      pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
    begin
-      Lib.Synchronization.Seize (Key.Mutex);
       for C of Data loop
          Arch.Debug.Print (Character'Val (C));
       end loop;
-      Lib.Synchronization.Release (Key.Mutex);
       Ret_Count := Data'Length;
       Success   := True;
    end Write;

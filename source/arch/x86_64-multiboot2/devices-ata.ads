@@ -14,6 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Lib.Synchronization;
+
 package Devices.ATA with SPARK_Mode => Off is
    --  Probe for ATA drives and add em.
    function Init return Boolean;
@@ -37,6 +39,7 @@ private
 
    type ATA_Identify is array (1 .. 256) of Unsigned_16;
    type ATA_Data is record
+      Mutex         : aliased Lib.Synchronization.Binary_Semaphore;
       Is_Master     : Boolean;
       Identify      : ATA_Identify;
       Data_Port     : Unsigned_16;
@@ -84,18 +87,18 @@ private
        LBA   : Unsigned_64) return Natural;
    ----------------------------------------------------------------------------
    procedure Read
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean);
 
    procedure Write
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean);
 
-   procedure Sync (Key : Resource_Acc);
+   procedure Sync (Key : System.Address);
 end Devices.ATA;

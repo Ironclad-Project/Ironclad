@@ -19,13 +19,13 @@ with Devices.Streams;
 with Devices.Debug;
 with Lib.Panic;
 with Arch.Hooks;
-with Devices.PTY;
 
 package body Devices is
    --  Unit passes GNATprove AoRTE, GNAT does not know this.
    pragma Suppress (All_Checks);
 
    procedure Init is
+      Success : Boolean;
    begin
       Devices_Data := new Device_Arr'(others =>
          (Is_Present => False,
@@ -33,25 +33,30 @@ package body Devices is
           Name_Len   => 0,
           Contents   =>
             (Data        => System.Null_Address,
-             Mutex       => Lib.Synchronization.Unlocked_Semaphore,
              Is_Block    => False,
              Block_Size  => 0,
              Block_Count => 0,
              others      => <>)));
 
-      if Streams.Init and then Random.Init and then Debug.Init and then
-         Non_Verified_Init
-      then
-         return;
-      else
-         Lib.Panic.Hard_Panic ("Some devices could not be added");
+      Random.Init (Success);
+      if not Success then goto Panic_Error; end if;
+      Streams.Init (Success);
+      if not Success then goto Panic_Error; end if;
+      Debug.Init (Success);
+      if not Success or else not Non_Verified_Init then
+         goto Panic_Error;
       end if;
+
+      return;
+
+   <<Panic_Error>>
+      Lib.Panic.Hard_Panic ("Some devices could not be added");
    end Init;
 
    function Non_Verified_Init return Boolean is
       pragma SPARK_Mode (Off);
    begin
-      return PTY.Init and then Arch.Hooks.Devices_Hook;
+      return Arch.Hooks.Devices_Hook;
    end Non_Verified_Init;
 
    procedure Register (Dev : Resource; Name : String; Success : out Boolean) is
@@ -120,7 +125,7 @@ package body Devices is
    begin
       if Devices_Data (Handle).Contents.Sync /= null then
          Devices_Data (Handle).Contents.Sync
-            (Devices_Data (Handle).Contents'Access);
+            (Devices_Data (Handle).Contents.Data);
       end if;
    end Synchronize;
 
@@ -130,8 +135,7 @@ package body Devices is
          if Devices_Data (I).Is_Present and
             Devices_Data (I).Contents.Sync /= null
          then
-            Devices_Data (I).Contents.Sync
-               (Devices_Data (I).Contents'Access);
+            Devices_Data (I).Contents.Sync (Devices_Data (I).Contents.Data);
          end if;
       end loop;
    end Synchronize;
@@ -146,14 +150,14 @@ package body Devices is
    begin
       if Devices_Data (Handle).Contents.Safe_Read /= null then
          Devices_Data (Handle).Contents.Safe_Read
-            (Key       => Devices_Data (Handle).Contents'Access,
+            (Key       => Devices_Data (Handle).Contents.Data,
              Offset    => Offset,
              Data      => Data,
              Ret_Count => Ret_Count,
              Success   => Success);
       elsif Devices_Data (Handle).Contents.Read /= null then
          Ret_Count := Natural (Devices_Data (Handle).Contents.Read
-            (Data   => Devices_Data (Handle).Contents'Access,
+            (Key    => Devices_Data (Handle).Contents.Data,
              Offset => Offset,
              Count  => Data'Length,
              Desto  => Data'Address));
@@ -174,14 +178,14 @@ package body Devices is
    begin
       if Devices_Data (Handle).Contents.Safe_Write /= null then
          Devices_Data (Handle).Contents.Safe_Write
-            (Key       => Devices_Data (Handle).Contents'Access,
+            (Key       => Devices_Data (Handle).Contents.Data,
              Offset    => Offset,
              Data      => Data,
              Ret_Count => Ret_Count,
              Success   => Success);
       elsif Devices_Data (Handle).Contents.Write /= null then
          Ret_Count := Natural (Devices_Data (Handle).Contents.Write
-            (Data     => Devices_Data (Handle).Contents'Access,
+            (Key      => Devices_Data (Handle).Contents.Data,
              Offset   => Offset,
              Count    => Data'Length,
              To_Write => Data'Address));
@@ -200,9 +204,7 @@ package body Devices is
    begin
       if Devices_Data (Handle).Contents.IO_Control /= null then
          return Devices_Data (Handle).Contents.IO_Control
-            (Devices_Data (Handle).Contents'Access,
-             Request,
-             Argument);
+            (Devices_Data (Handle).Contents.Data, Request, Argument);
       else
          return False;
       end if;
@@ -219,12 +221,8 @@ package body Devices is
    begin
       if Devices_Data (Handle).Contents.Mmap /= null then
          return Devices_Data (Handle).Contents.Mmap
-            (Devices_Data (Handle).Contents'Access,
-             Address,
-             Length,
-             Map_Read,
-             Map_Write,
-             Map_Execute);
+            (Devices_Data (Handle).Contents.Data,
+             Address, Length, Map_Read, Map_Write, Map_Execute);
       else
          return False;
       end if;
@@ -238,9 +236,7 @@ package body Devices is
    begin
       if Devices_Data (Handle).Contents.Munmap /= null then
          return Devices_Data (Handle).Contents.Munmap
-            (Devices_Data (Handle).Contents'Access,
-             Address,
-             Length);
+            (Devices_Data (Handle).Contents.Data, Address, Length);
       else
          return False;
       end if;

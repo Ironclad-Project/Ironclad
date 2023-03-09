@@ -500,6 +500,13 @@ package Userland.Syscall with SPARK_Mode => Off is
        Argument : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64;
 
+   --  Create a pair of ptys.
+   function Open_PTY
+      (Result_Addr  : Unsigned_64;
+       Termios_Addr : Unsigned_64;
+       Window_Addr  : Unsigned_64;
+       Errno        : out Errno_Value) return Unsigned_64;
+
 private
 
    --  Do the actual exiting.

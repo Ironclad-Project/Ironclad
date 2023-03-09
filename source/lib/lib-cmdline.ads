@@ -15,6 +15,11 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Lib.Cmdline is
+   --  Some notable keys specified in the documentation.
+   Root_Key     : constant String := "root";           --  Device to use as /.
+   Init_Key     : constant String := "init";           --  Init to load.
+   STracing_Key : constant String := "syscalltracing"; --  Trace syscalls.
+
    --  Get the value of a key.
    --  @param Cmdline Command line to search in.
    --  @param Key Key to search for.
@@ -24,8 +29,7 @@ package Lib.Cmdline is
        Returned     : out String;
        Found        : out Boolean;
        Length       : out Natural)
-      with Pre => Cmdline'Length /= 0 and Key'Length /= 0 and
-                  Returned'First = 1;
+      with Pre => Key'Length /= 0 and Returned'First = 1;
 
    --  Check whether an option is present.
    --  @param Cmdline Command line to search in.

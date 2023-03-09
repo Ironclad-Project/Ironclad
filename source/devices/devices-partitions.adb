@@ -283,7 +283,6 @@ package body Devices.Partitions with SPARK_Mode => Off is
    begin
       Register ((
          Data        => Con1.To_Address (Con1.Object_Pointer (Part)),
-         Mutex       => Lib.Synchronization.Unlocked_Semaphore,
          Is_Block    => True,
          Block_Size  => Block_Size,
          Block_Count => Part.LBA_Length,
@@ -301,7 +300,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
    end Set_Part;
    ----------------------------------------------------------------------------
    function Read
-      (Data   : Resource_Acc;
+      (Data   : System.Address;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
@@ -311,7 +310,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
       Discard  : Boolean;
       Returned : Natural;
    begin
-      Part       := Partition_Data_Acc (Con1.To_Pointer (Data.Data));
+      Part       := Partition_Data_Acc (Con1.To_Pointer (Data));
       LBA_Offset := Part.LBA_Offset * Unsigned_64 (Part.Block_Size);
       LBA_Length := Part.LBA_Length * Unsigned_64 (Part.Block_Size);
 
@@ -338,7 +337,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
    end Read;
 
    function Write
-      (Data     : Resource_Acc;
+      (Data     : System.Address;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64
@@ -348,7 +347,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
       Discard : Boolean;
       Returned : Natural;
    begin
-      Part       := Partition_Data_Acc (Con1.To_Pointer (Data.Data));
+      Part       := Partition_Data_Acc (Con1.To_Pointer (Data));
       LBA_Offset := Part.LBA_Offset * Unsigned_64 (Part.Block_Size);
       LBA_Length := Part.LBA_Length * Unsigned_64 (Part.Block_Size);
 

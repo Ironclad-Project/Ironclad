@@ -23,12 +23,12 @@ package Devices.FB with SPARK_Mode => Off is
 private
 
    function IO_Control
-      (Data     : Resource_Acc;
+      (Data     : System.Address;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
 
    function Mmap
-      (Data        : Resource_Acc;
+      (Data        : System.Address;
        Address     : Memory.Virtual_Address;
        Length      : Unsigned_64;
        Map_Read    : Boolean;

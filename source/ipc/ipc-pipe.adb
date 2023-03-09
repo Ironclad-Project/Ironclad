@@ -40,6 +40,7 @@ package body IPC.Pipe with SPARK_Mode => Off is
          Reader      => Read_End
       );
       Read_End.all := (
+         Mutex           => Lib.Synchronization.Unlocked_Semaphore,
          Refcount        => 1,
          Writer_Is_Ghost => False,
          Is_Blocking     => Is_Blocking,
@@ -71,17 +72,25 @@ package body IPC.Pipe with SPARK_Mode => Off is
 
    procedure Increase_Refcount (P : Pipe_Writer_Acc) is
    begin
+      Lib.Synchronization.Seize (P.Mutex);
       P.Refcount := P.Refcount + 1;
+      Lib.Synchronization.Release (P.Mutex);
    end Increase_Refcount;
 
    procedure Increase_Refcount (P : Pipe_Reader_Acc) is
    begin
+      Lib.Synchronization.Seize (P.Mutex);
       P.Refcount := P.Refcount + 1;
+      Lib.Synchronization.Release (P.Mutex);
    end Increase_Refcount;
 
    procedure Close (To_Close : in out Pipe_Writer_Acc) is
    begin
       Lib.Synchronization.Seize (To_Close.Mutex);
+      if To_Close.Reader /= null then
+         Lib.Synchronization.Seize (To_Close.Reader.Mutex);
+      end if;
+
       To_Close.Refcount := To_Close.Refcount - 1;
       if To_Close.Refcount = 0 then
          if To_Close.Reader /= null then
@@ -91,24 +100,33 @@ package body IPC.Pipe with SPARK_Mode => Off is
             return;
          end if;
       end if;
+
+      if To_Close.Reader /= null then
+         Lib.Synchronization.Release (To_Close.Reader.Mutex);
+      end if;
       Lib.Synchronization.Release (To_Close.Mutex);
    end Close;
 
    procedure Close (To_Close : in out Pipe_Reader_Acc) is
    begin
+      Lib.Synchronization.Seize (To_Close.Mutex);
       Lib.Synchronization.Seize (To_Close.Other_End.Mutex);
+
       To_Close.Refcount := To_Close.Refcount - 1;
       if To_Close.Refcount = 0 then
          if To_Close.Writer_Is_Ghost then
             Free (To_Close.Other_End);
          else
-            Lib.Synchronization.Release (To_Close.Other_End.Mutex);
             To_Close.Other_End.Reader := null;
+            Lib.Synchronization.Release (To_Close.Other_End.Mutex);
          end if;
+
          Free (To_Close);
          return;
       end if;
+
       Lib.Synchronization.Release (To_Close.Other_End.Mutex);
+      Lib.Synchronization.Release (To_Close.Mutex);
    end Close;
 
    function Read

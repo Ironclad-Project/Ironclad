@@ -81,7 +81,6 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
 
       Device := (
          Data        => System.Null_Address,
-         Mutex       => <>,
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
@@ -100,7 +99,7 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
    end Init;
 
    function Read
-      (Data   : Resource_Acc;
+      (Data   : System.Address;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64
@@ -120,7 +119,7 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
    end Read;
 
    function IO_Control
-      (Data     : Resource_Acc;
+      (Data     : System.Address;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is

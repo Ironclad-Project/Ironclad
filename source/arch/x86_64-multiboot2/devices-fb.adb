@@ -137,7 +137,6 @@ package body Devices.FB with SPARK_Mode => Off is
 
       Device := (
          Data        => Data.all'Address,
-         Mutex       => <>,
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
@@ -173,7 +172,7 @@ package body Devices.FB with SPARK_Mode => Off is
    end Init;
 
    function IO_Control
-      (Data     : Resource_Acc;
+      (Data     : System.Address;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is
@@ -182,7 +181,7 @@ package body Devices.FB with SPARK_Mode => Off is
       FBIOPUT_VSCREENINFO : constant := 16#4601#;
       FBIOGET_FSCREENINFO : constant := 16#4602#;
 
-      Dev_Data : Internal_FB_Data  with Import, Address => Data.Data;
+      Dev_Data : Internal_FB_Data  with Import, Address => Data;
       Var_Req  : FB_Var_ScreenInfo with Import, Address => Argument;
       Fix_Req  : FB_Fix_ScreenInfo with Import, Address => Argument;
    begin
@@ -196,7 +195,7 @@ package body Devices.FB with SPARK_Mode => Off is
    end IO_Control;
 
    function Mmap
-      (Data        : Resource_Acc;
+      (Data        : System.Address;
        Address     : Memory.Virtual_Address;
        Length      : Unsigned_64;
        Map_Read    : Boolean;
@@ -205,7 +204,7 @@ package body Devices.FB with SPARK_Mode => Off is
    is
       pragma Unreferenced (Map_Read); --  We cannot really map not read lol.
 
-      Dev_Data : Internal_FB_Data with Import, Address => Data.Data;
+      Dev_Data : Internal_FB_Data with Import, Address => Data;
       Fb_Flags : constant Arch.MMU.Page_Permissions := (
          User_Accesible => True,
          Read_Only      => not Map_Write,

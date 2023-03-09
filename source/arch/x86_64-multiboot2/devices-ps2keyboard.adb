@@ -68,7 +68,6 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
 
       Device := (
          Data        => System.Null_Address,
-         Mutex       => <>,
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
@@ -115,7 +114,7 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
    end Write_PS2_Config;
 
    function Read
-      (Data   : Resource_Acc;
+      (Data   : System.Address;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64

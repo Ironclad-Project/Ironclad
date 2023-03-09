@@ -33,7 +33,6 @@ package body Devices.ATA with SPARK_Mode => Off is
             Base_Name (4) := Character'Val (I + 1 + Character'Pos ('0'));
             Register (
                (Data => Con.To_Address (Con.Object_Pointer (Drive_Data)),
-                Mutex       => Lib.Synchronization.Unlocked_Semaphore,
                 Is_Block    => True,
                 Block_Size  => Sector_Size,
                 Block_Count => Drive_Data.Sector_Count,
@@ -121,7 +120,8 @@ package body Devices.ATA with SPARK_Mode => Off is
          Sectors : Unsigned_64 with Address => Identify_Info (101)'Address;
       begin
          return new ATA_Data'
-            (Is_Master     => Is_Master,
+            (Mutex         => Lib.Synchronization.Unlocked_Semaphore,
+             Is_Master     => Is_Master,
              Identify      => Identify_Info,
              Data_Port     => Data_Port,
              Error_Port    => Error_Port,
@@ -289,13 +289,13 @@ package body Devices.ATA with SPARK_Mode => Off is
    end Get_Cache_Index;
    ----------------------------------------------------------------------------
    procedure Read
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
-      D : constant ATA_Data_Acc := ATA_Data_Acc (Con.To_Pointer (Key.Data));
+      D : constant ATA_Data_Acc := ATA_Data_Acc (Con.To_Pointer (Key));
       Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
       Current_LBA : Unsigned_64;
    begin
@@ -305,7 +305,7 @@ package body Devices.ATA with SPARK_Mode => Off is
          return;
       end if;
 
-      Lib.Synchronization.Seize (Key.Mutex);
+      Lib.Synchronization.Seize (D.Mutex);
       while Progress < Data'Length loop
          Current_LBA  := (Offset + Unsigned_64 (Progress)) / Sector_Size;
          Cache_Idx    := Get_Cache_Index (D, Current_LBA);
@@ -320,20 +320,20 @@ package body Devices.ATA with SPARK_Mode => Off is
                                           Cache_Offset + Copy_Count);
          Progress := Progress + Copy_Count;
       end loop;
-      Lib.Synchronization.Release (Key.Mutex);
+      Lib.Synchronization.Release (D.Mutex);
 
       Ret_Count := Progress;
       Success   := True;
    end Read;
 
    procedure Write
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
-      D : constant ATA_Data_Acc := ATA_Data_Acc (Con.To_Pointer (Key.Data));
+      D : constant ATA_Data_Acc := ATA_Data_Acc (Con.To_Pointer (Key));
       Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
       Current_LBA : Unsigned_64;
    begin
@@ -343,7 +343,7 @@ package body Devices.ATA with SPARK_Mode => Off is
          return;
       end if;
 
-      Lib.Synchronization.Seize (Key.Mutex);
+      Lib.Synchronization.Seize (D.Mutex);
       while Progress < Data'Length loop
          Current_LBA  := (Offset + Unsigned_64 (Progress)) / Sector_Size;
          Cache_Idx    := Get_Cache_Index (D, Current_LBA);
@@ -360,21 +360,21 @@ package body Devices.ATA with SPARK_Mode => Off is
          D.Caches (Cache_Idx).Is_Dirty := True;
          Progress := Progress + Copy_Count;
       end loop;
-      Lib.Synchronization.Release (Key.Mutex);
+      Lib.Synchronization.Release (D.Mutex);
 
       Ret_Count := Progress;
       Success   := True;
    end Write;
 
-   procedure Sync (Key : Resource_Acc) is
+   procedure Sync (Key : System.Address) is
       Success : Boolean;
-      D : constant ATA_Data_Acc := ATA_Data_Acc (Con.To_Pointer (Key.Data));
+      Drive   : constant ATA_Data_Acc := ATA_Data_Acc (Con.To_Pointer (Key));
    begin
-      Lib.Synchronization.Seize (Key.Mutex);
-      for Cache of D.Caches loop
+      Lib.Synchronization.Seize (Drive.Mutex);
+      for Cache of Drive.Caches loop
          if Cache.Is_Used and Cache.Is_Dirty then
             Success := Write_Sector
-               (Drive       => D,
+               (Drive       => Drive,
                 LBA         => Cache.LBA_Offset,
                 Data_Buffer => Cache.Data);
             if not Success then
@@ -384,6 +384,6 @@ package body Devices.ATA with SPARK_Mode => Off is
             Cache.Is_Dirty := False;
          end if;
       end loop;
-      Lib.Synchronization.Release (Key.Mutex);
+      Lib.Synchronization.Release (Drive.Mutex);
    end Sync;
 end Devices.ATA;

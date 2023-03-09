@@ -14,17 +14,15 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Synchronization;
 with Cryptography.Random;
 
 package body Devices.Random is
    --  Unit passes GNATprove AoRTE, GNAT does not know this.
    pragma Suppress (All_Checks);
 
-   function Init return Boolean is
+   procedure Init (Success : out Boolean) is
       Random_Res : constant Resource := (
          Data        => System.Null_Address,
-         Mutex       => Lib.Synchronization.Unlocked_Semaphore,
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
@@ -41,11 +39,11 @@ package body Devices.Random is
    begin
       Register (Random_Res, "random",  Success_1);
       Register (Random_Res, "urandom", Success_2);
-      return Success_1 and Success_2;
+      Success := Success_1 and Success_2;
    end Init;
 
    procedure Read
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
@@ -53,11 +51,32 @@ package body Devices.Random is
    is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
-      Len  : constant Natural := Data'Length / 4;
-      Temp : Cryptography.Random.Crypto_Data (1 .. Len)
-         with Import, Address => Data (Data'First)'Address;
+      DLen : constant Natural := Data'Length;
+      Len  : constant Natural := (if DLen > 4096 then 4096 else DLen / 4);
+      Temp : Cryptography.Random.Crypto_Data (1 .. Len);
+      Idx  : Natural;
    begin
+      Data := (others => 0);
+
+      if Len = 0 then
+         Ret_Count := 0;
+         Success   := True;
+         return;
+      end if;
+
+      Idx := Data'First;
       Cryptography.Random.Fill_Data (Temp);
+      for V of Temp loop
+         pragma Loop_Invariant (Idx >= Data'First and Idx <= Data'Last - 3);
+         Data (Idx + 0) := Unsigned_8 (Shift_Right (V and 16#FF000000#, 24));
+         Data (Idx + 1) := Unsigned_8 (Shift_Right (V and 16#00FF0000#, 16));
+         Data (Idx + 2) := Unsigned_8 (Shift_Right (V and 16#0000FF00#,  8));
+         Data (Idx + 3) := Unsigned_8 (Shift_Right (V and 16#000000FF#,  0));
+         if Idx < Natural'Last - 4 then
+            Idx := Idx + 4;
+         end if;
+      end loop;
+
       Ret_Count := Len;
       Success   := True;
    end Read;

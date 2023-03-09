@@ -16,12 +16,13 @@
 
 package Devices.Random is
    --  Initialize the device.
-   function Init return Boolean;
+   procedure Init (Success : out Boolean)
+      with Pre => Is_Initialized = True;
 
 private
 
    procedure Read
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;

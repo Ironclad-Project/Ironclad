@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Ada.Unchecked_Deallocation;
 with Arch;
 with Devices.Ramdev;
 with Devices;
@@ -45,9 +44,6 @@ procedure Main is
 
    Init_Stdin  : constant String := "/dev/null";
    Init_Stdout : constant String := "/dev/debug";
-   Init_Stderr : constant String := "/dev/debug";
-
-   procedure Free_F is new Ada.Unchecked_Deallocation (File, File_Acc);
 
    Proto   : constant Arch.Boot_Information := Arch.Get_Info;
    Cmdline : constant String := Proto.Cmdline (1 .. Proto.Cmdline_Len);
@@ -72,7 +68,8 @@ begin
    end if;
 
    --  Mount a root if specified.
-   Lib.Cmdline.Get_Parameter (Cmdline, "root", Value, Found, Value_Len);
+   Lib.Cmdline.Get_Parameter
+      (Cmdline, Lib.Cmdline.Root_Key, Value, Found, Value_Len);
    if Found and Value_Len /= 0 then
       if not VFS.Mount (Value (1 .. Value_Len), "/") then
          Lib.Messages.Warn ("Failed to mount " & Value (1 .. Value_Len));
@@ -80,25 +77,26 @@ begin
    end if;
 
    --  Init an init if specified.
-   Lib.Cmdline.Get_Parameter (Cmdline, "init", Value, Found, Value_Len);
+   Lib.Cmdline.Get_Parameter
+      (Cmdline, Lib.Cmdline.Init_Key, Value, Found, Value_Len);
    if Found and Value_Len /= 0 then
       Lib.Messages.Put_Line ("Booting init " & Value (1 .. Value_Len));
       Init_Arguments (1) := new String'(Value (1 .. Value_Len));
       Init_File := Open (Value (1 .. Value_Len), Read_Only);
       if Init_File = null or else Userland.Loader.Start_Program
          (Init_File, Init_Arguments, Init_Environment, Init_Stdin,
-          Init_Stdout, Init_Stderr) = null
+          Init_Stdout, Init_Stdout) = null
       then
          Lib.Panic.Hard_Panic ("Could not start init");
       end if;
-      Free_F (Init_File);
+      Close (Init_File);
    else
       Lib.Panic.Hard_Panic ("No init was specified");
    end if;
 
    --  Set tracing if specified.
    Userland.Syscall.Set_Tracing
-      (Lib.Cmdline.Is_Key_Present (Cmdline, "syscalltracing"));
+      (Lib.Cmdline.Is_Key_Present (Cmdline, Lib.Cmdline.STracing_Key));
 
    --  Going idle into the scheduler.
    Scheduler.Idle_Core;

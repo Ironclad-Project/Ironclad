@@ -52,13 +52,13 @@ private
        Part       : Partition_Data_Acc) return Boolean;
    ----------------------------------------------------------------------------
    function Read
-      (Data   : Resource_Acc;
+      (Data   : System.Address;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;
 
    function Write
-      (Data     : Resource_Acc;
+      (Data     : System.Address;
        Offset   : Unsigned_64;
        Count    : Unsigned_64;
        To_Write : System.Address) return Unsigned_64;

@@ -16,26 +16,11 @@
 
 with VFS.EXT;
 with VFS.FAT32;
-with Lib.Synchronization;
 
 package body VFS with SPARK_Mode => Off is
-   Path_Buffer_Length : constant := 100;
-   type Mount_Container is record
-      Mounted_Dev : Device_Handle;
-      Mounted_FS  : FS_Type;
-      FS_Data     : System.Address;
-      Path_Length : Natural;
-      Path_Buffer : String (1 .. Path_Buffer_Length);
-   end record;
-   type Mount_Arr is array (FS_Handle range 1 .. 5) of Mount_Container;
-   type Mount_Arr_Acc is access Mount_Arr;
-
-   Mounts       : Mount_Arr_Acc;
-   Mounts_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
-
    procedure Init is
    begin
-      Mounts := new Mount_Arr'(others =>
+      Mounts := new Mount_Registry'(others =>
          (Mounted_Dev => Devices.Error_Handle,
           Mounted_FS  => FS_EXT,
           FS_Data     => System.Null_Address,
@@ -121,10 +106,14 @@ package body VFS with SPARK_Mode => Off is
       return Success;
    end Unmount;
 
-   function Get_Mount (Path : String; Match : out Natural) return FS_Handle is
-      Closest_Match : FS_Handle := VFS.Error_Handle;
+   procedure Get_Mount
+      (Path   : String;
+       Match  : out Natural;
+       Handle : out FS_Handle)
+   is
    begin
-      Match := 0;
+      Match  := 0;
+      Handle := VFS.Error_Handle;
 
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
@@ -134,8 +123,8 @@ package body VFS with SPARK_Mode => Off is
             Mounts (I).Path_Buffer (1 .. Mounts (I).Path_Length) =
             Path (Path'First .. Path'First + Mounts (I).Path_Length - 1)
          then
-            Closest_Match := I;
-            Match         := Mounts (I).Path_Length;
+            Handle := I;
+            Match  := Mounts (I).Path_Length;
          end if;
       end loop;
       Lib.Synchronization.Release (Mounts_Mutex);
@@ -146,7 +135,6 @@ package body VFS with SPARK_Mode => Off is
       then
          Match := Match + 1;
       end if;
-      return Closest_Match;
    end Get_Mount;
 
    function Get_Backing_FS (Key : FS_Handle) return FS_Type is
@@ -342,15 +330,18 @@ package body VFS with SPARK_Mode => Off is
       end case;
    end Write;
 
-   function Stat
-      (Key : FS_Handle;
-       Ino : File_Inode_Number;
-       S   : out File_Stat) return Boolean
+   procedure Stat
+      (Key      : FS_Handle;
+       Ino      : File_Inode_Number;
+       Stat_Val : out File_Stat;
+       Success  : out Boolean)
    is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT   => return EXT.Stat   (Mounts (Key).FS_Data, Ino, S);
-         when FS_FAT32 => return FAT32.Stat (Mounts (Key).FS_Data, Ino, S);
+         when FS_EXT   =>
+            Success := EXT.Stat   (Mounts (Key).FS_Data, Ino, Stat_Val);
+         when FS_FAT32 =>
+            Success := FAT32.Stat (Mounts (Key).FS_Data, Ino, Stat_Val);
       end case;
    end Stat;
 

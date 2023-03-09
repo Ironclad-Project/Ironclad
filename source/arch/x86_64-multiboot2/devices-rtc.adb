@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Snippets;
-with Lib.Synchronization;
 
 package body Devices.RTC with SPARK_Mode => Off is
    CMOS_Base_Port   : constant := 16#70#;
@@ -33,7 +32,6 @@ package body Devices.RTC with SPARK_Mode => Off is
    function Init return Boolean is
       Device : constant Resource := (
          Data        => System.Null_Address,
-         Mutex       => Lib.Synchronization.Unlocked_Semaphore,
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
@@ -67,7 +65,7 @@ package body Devices.RTC with SPARK_Mode => Off is
    IO_Control_RTC_RD_TIME  : constant := 1;
    IO_Control_RTC_SET_TIME : constant := 2;
    function IO_Control
-      (Data     : Resource_Acc;
+      (Data     : System.Address;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is

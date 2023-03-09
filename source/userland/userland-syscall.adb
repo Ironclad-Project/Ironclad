@@ -36,8 +36,10 @@ with Arch.Local;
 with Cryptography.Random;
 with Userland.MAC;
 with IPC.Pipe; use IPC.Pipe;
+with IPC.PTY;  use IPC.PTY;
 with Devices;
 with Userland.Integrity;
+with Devices.TermIOs;
 
 package body Userland.Syscall with SPARK_Mode => Off is
    --  Whether we are to print syscall information and MAC.
@@ -343,7 +345,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when Description_Reader_Pipe =>
             Errno := Error_No_Error;
             return Read (File.Inner_Reader_Pipe, Count, Buf_SAddr);
-         when others =>
+         when Description_Primary_PTY =>
+            Errno := Error_No_Error;
+            return IPC.PTY.Read (File.Inner_Primary_PTY, Count, Buf_SAddr);
+         when Description_Secondary_PTY =>
+            Errno := Error_No_Error;
+            return IPC.PTY.Read (File.Inner_Secondary_PTY, Count, Buf_SAddr);
+         when Description_Writer_Pipe =>
             Errno := Error_Bad_File;
             return Unsigned_64'Last;
       end case;
@@ -405,7 +413,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when Description_Writer_Pipe =>
             Errno := Error_No_Error;
             return Write (File.Inner_Writer_Pipe, Count, Buf_SAddr);
-         when others =>
+         when Description_Primary_PTY =>
+            Errno := Error_No_Error;
+            return Write (File.Inner_Primary_PTY, Count, Buf_SAddr);
+         when Description_Secondary_PTY =>
+            Errno := Error_No_Error;
+            return Write (File.Inner_Secondary_PTY, Count, Buf_SAddr);
+         when Description_Reader_Pipe =>
             Errno := Error_Bad_File;
             return Unsigned_64'Last;
       end case;
@@ -464,7 +478,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   return Unsigned_64'Last;
                end if;
             end if;
-         when Description_Writer_Pipe | Description_Reader_Pipe =>
+         when Description_Writer_Pipe | Description_Reader_Pipe |
+              Description_Primary_PTY | Description_Secondary_PTY =>
             null;
       end case;
 
@@ -1092,7 +1107,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
             when Description_File =>
                File := File_Desc.Inner_File;
                goto Regular_File_Stat;
-            when Description_Reader_Pipe | Description_Writer_Pipe =>
+            when Description_Reader_Pipe | Description_Writer_Pipe |
+                 Description_Primary_PTY | Description_Secondary_PTY =>
                Stat_Buf := (
                   Device_Number => 0,
                   Inode_Number  => 1,
@@ -1284,6 +1300,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       S_Arg : constant       System.Address := To_Address (I_Arg);
       Proc  : constant     Process_Data_Acc := Arch.Local.Get_Current_Process;
       File  : constant File_Description_Acc := Get_File (Proc, FD);
+      Succ  : Boolean;
    begin
       if Is_Tracing then
          Lib.Messages.Put      ("syscall ioctl(");
@@ -1303,9 +1320,18 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      if File.Description = Description_File and then
-         IO_Control (File.Inner_File, Request, S_Arg)
-      then
+      case File.Description is
+         when Description_File =>
+            Succ := IO_Control (File.Inner_File, Request, S_Arg);
+         when Description_Primary_PTY =>
+            Succ := IO_Control (File.Inner_Primary_PTY, Request, S_Arg);
+         when Description_Secondary_PTY =>
+            Succ := IO_Control (File.Inner_Secondary_PTY, Request, S_Arg);
+         when others =>
+            Succ := False;
+      end case;
+
+      if Succ then
          Errno := Error_No_Error;
          return 0;
       else
@@ -2554,4 +2580,67 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno := Error_Invalid_Value;
       return Unsigned_64'Last;
    end Integrity_Setup;
+
+   function Open_PTY
+      (Result_Addr  : Unsigned_64;
+       Termios_Addr : Unsigned_64;
+       Window_Addr  : Unsigned_64;
+       Errno        : out Errno_Value) return Unsigned_64
+   is
+      Res_IAddr : constant  Integer_Address := Integer_Address (Result_Addr);
+      Res_SAddr : constant   System.Address := To_Address (Res_IAddr);
+      TIO_IAddr : constant  Integer_Address := Integer_Address (Termios_Addr);
+      TIO_SAddr : constant   System.Address := To_Address (TIO_IAddr);
+      Win_IAddr : constant  Integer_Address := Integer_Address (Window_Addr);
+      Win_SAddr : constant   System.Address := To_Address (Win_IAddr);
+      Proc      : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+
+      Primary        : IPC.PTY.Primary_Acc;
+      Secondary      : IPC.PTY.Secondary_Acc;
+      Primary_Desc   : File_Description_Acc;
+      Secondary_Desc : File_Description_Acc;
+
+      Result  : array (1 .. 2) of Integer with Import, Address => Res_SAddr;
+      Termios : Devices.TermIOs.Main_Data with Import, Address => TIO_SAddr;
+      Win_Siz : Devices.TermIOs.Win_Size  with Import, Address => Win_SAddr;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall open_pty(");
+         Lib.Messages.Put (Result_Addr);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if not Check_Userland_Access (Res_IAddr) or
+         not Check_Userland_Access (TIO_IAddr) or
+         not Check_Userland_Access (Win_IAddr)
+      then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      end if;
+
+      Create_Pair (Primary, Secondary, Termios, Win_Siz);
+      Primary_Desc := new File_Description'(
+         Close_On_Exec     => False,
+         Description       => Description_Primary_PTY,
+         Inner_Primary_PTY => Primary
+      );
+      Secondary_Desc := new File_Description'(
+         Close_On_Exec       => False,
+         Description         => Description_Secondary_PTY,
+         Inner_Secondary_PTY => Secondary
+      );
+      if not Userland.Process.Add_File (Proc, Primary_Desc,   Result (1)) or
+         not Userland.Process.Add_File (Proc, Secondary_Desc, Result (2))
+      then
+         Close (Primary);
+         Close (Primary_Desc);
+         Close (Secondary);
+         Close (Secondary_Desc);
+         Errno := Error_Too_Many_Files;
+         return Unsigned_64'Last;
+      else
+         Errno := Error_No_Error;
+         return 0;
+      end if;
+   end Open_PTY;
 end Userland.Syscall;

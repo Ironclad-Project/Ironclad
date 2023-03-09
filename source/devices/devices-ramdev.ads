@@ -25,7 +25,7 @@ private
    function Init_Module (Module : Arch.Boot_RAM_File) return Resource;
 
    procedure Read
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;

@@ -16,12 +16,13 @@
 
 package Devices.Debug is
    --  Initialize the device.
-   function Init return Boolean;
+   procedure Init (Success : out Boolean)
+      with Pre => Is_Initialized = True;
 
 private
 
    procedure Write
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;

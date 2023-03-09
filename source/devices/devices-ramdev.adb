@@ -16,12 +16,8 @@
 
 with System; use System;
 with Lib.Alignment;
-with Lib.Synchronization;
 
-package body Devices.Ramdev is
-   --  Unit passes GNATprove AoRTE, GNAT does not know this.
-   pragma Suppress (All_Checks);
-
+package body Devices.Ramdev with SPARK_Mode => Off is
    --  Ramdev data.
    type Ramdev_Data is record
       Start_Address : System.Address;
@@ -55,7 +51,6 @@ package body Devices.Ramdev is
    begin
       Device := (
          Data        => Data.all'Address,
-         Mutex       => Lib.Synchronization.Unlocked_Semaphore,
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => A.Divide_Round_Up (Data.Size, 4096),
@@ -73,13 +68,13 @@ package body Devices.Ramdev is
    end Init_Module;
 
    procedure Read
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
-      Dev      : constant Ramdev_Data with Import, Address => Key.Data;
+      Dev      : constant Ramdev_Data with Import, Address => Key;
       Dev_Size : constant        Natural := Natural (Dev.Size);
       Dev_Data : constant Operation_Data (1 .. Dev_Size)
          with Import, Address => Dev.Start_Address;

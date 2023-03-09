@@ -249,6 +249,10 @@ package body Userland.Process with SPARK_Mode => Off is
                Increase_Refcount (Ret.Inner_Reader_Pipe);
             when Description_Writer_Pipe =>
                Increase_Refcount (Ret.Inner_Writer_Pipe);
+            when Description_Primary_PTY =>
+               IPC.PTY.Increase_Refcount (Ret.Inner_Primary_PTY);
+            when Description_Secondary_PTY =>
+               IPC.PTY.Increase_Refcount (Ret.Inner_Secondary_PTY);
             when Description_File =>
                Increase_Refcount (Ret.Inner_File);
          end case;
@@ -262,9 +266,11 @@ package body Userland.Process with SPARK_Mode => Off is
    begin
       if F /= null then
          case F.Description is
-            when Description_Reader_Pipe => Close (F.Inner_Reader_Pipe);
-            when Description_Writer_Pipe => Close (F.Inner_Writer_Pipe);
-            when Description_File        => Close (F.Inner_File);
+            when Description_Reader_Pipe   => Close (F.Inner_Reader_Pipe);
+            when Description_Writer_Pipe   => Close (F.Inner_Writer_Pipe);
+            when Description_Primary_PTY   => Close (F.Inner_Primary_PTY);
+            when Description_Secondary_PTY => Close (F.Inner_Secondary_PTY);
+            when Description_File          => Close (F.Inner_File);
          end case;
          Free (F);
          F := null;

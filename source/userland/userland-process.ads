@@ -21,6 +21,7 @@ with Scheduler; use Scheduler;
 with Interfaces; use Interfaces;
 with Userland.MAC;
 with IPC.Pipe; use IPC.Pipe;
+with IPC.PTY;  use IPC.PTY;
 
 package Userland.Process with SPARK_Mode => Off is
    --  A process is a collection of threads (handled by the scheduler) and
@@ -32,6 +33,8 @@ package Userland.Process with SPARK_Mode => Off is
    type File_Description_Type is (
       Description_Reader_Pipe,
       Description_Writer_Pipe,
+      Description_Primary_PTY,
+      Description_Secondary_PTY,
       Description_File
    );
    type File_Description (Description : File_Description_Type) is record
@@ -41,6 +44,10 @@ package Userland.Process with SPARK_Mode => Off is
             Inner_Reader_Pipe : IPC.Pipe.Pipe_Reader_Acc;
          when Description_Writer_Pipe =>
             Inner_Writer_Pipe : IPC.Pipe.Pipe_Writer_Acc;
+         when Description_Primary_PTY =>
+            Inner_Primary_PTY : IPC.PTY.Primary_Acc;
+         when Description_Secondary_PTY =>
+            Inner_Secondary_PTY : IPC.PTY.Secondary_Acc;
          when Description_File =>
             Inner_File : VFS.File.File_Acc;
       end case;

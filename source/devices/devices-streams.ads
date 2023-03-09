@@ -16,33 +16,34 @@
 
 package Devices.Streams is
    --  Initialize the device.
-   function Init return Boolean;
+   procedure Init (Success : out Boolean)
+      with Pre => Is_Initialized = True;
 
 private
 
    procedure Null_Read
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean);
 
    procedure Null_Write
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean);
    ----------------------------------------------------------------------------
    procedure Zero_Read
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean);
 
    procedure Zero_Write
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;

@@ -21,7 +21,7 @@ package Devices.RTC with SPARK_Mode => Off is
 private
 
    function IO_Control
-      (Data     : Resource_Acc;
+      (Data     : System.Address;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
 

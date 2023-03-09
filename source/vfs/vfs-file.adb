@@ -60,7 +60,7 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
 
       --  Do the usual file opening routine.
-      Fetched_FS := Get_Mount (Path, Match_Count);
+      Get_Mount (Path, Match_Count, Fetched_FS);
       if Fetched_FS = Error_Handle then
          Success := False;
          return;
@@ -73,7 +73,7 @@ package body VFS.File with SPARK_Mode => Off is
           Fetched_File,
           Success);
       if Success then
-         Success := Stat (Fetched_FS, Fetched_File, Fetched_Stat);
+         Stat (Fetched_FS, Fetched_File, Fetched_Stat, Success);
       end if;
 
       --  Redirect if we are dealing with a symlink.
@@ -322,9 +322,11 @@ package body VFS.File with SPARK_Mode => Off is
       Device_Type                   : File_Type;
       Block_Count                   : Unsigned_64;
       Block_Size, Unique_Identifier : Natural;
+      Success                       : Boolean;
    begin
       if not F.Is_Device then
-         return VFS.Stat (F.FS_Data, F.File_Data, S);
+         VFS.Stat (F.FS_Data, F.File_Data, S, Success);
+         return Success;
       else
          Is_Block          := Devices.Is_Block_Device (F.Dev_Data);
          Block_Size        := Devices.Get_Block_Size  (F.Dev_Data);
@@ -411,16 +413,18 @@ package body VFS.File with SPARK_Mode => Off is
 
    function Delete (Path : String) return Boolean is
       Match_Count : Natural;
-      Handle      : constant FS_Handle := Get_Mount (Path, Match_Count);
+      Handle      : FS_Handle;
    begin
+      Get_Mount (Path, Match_Count, Handle);
       return Delete (Handle, Path (Path'First + Match_Count .. Path'Last));
    end Delete;
 
    function Create_Regular (Path : String; Mode : Unsigned_32) return Boolean
    is
       Match_Count : Natural;
-      Handle      : constant FS_Handle := Get_Mount (Path, Match_Count);
+      Handle      : FS_Handle;
    begin
+      Get_Mount (Path, Match_Count, Handle);
       return Create_Regular
          (Handle,
           Path (Path'First + Match_Count .. Path'Last),
@@ -432,8 +436,9 @@ package body VFS.File with SPARK_Mode => Off is
        Mode : Unsigned_32) return Boolean
    is
       Match_Count : Natural;
-      Handle      : constant FS_Handle := Get_Mount (Path, Match_Count);
+      Handle      : FS_Handle;
    begin
+      Get_Mount (Path, Match_Count, Handle);
       return Create_Directory
          (Handle,
           Path (Path'First + Match_Count .. Path'Last),
@@ -445,8 +450,9 @@ package body VFS.File with SPARK_Mode => Off is
        Mode         : Unsigned_32) return Boolean
    is
       Match_Count : Natural;
-      Handle      : constant FS_Handle := Get_Mount (Path, Match_Count);
+      Handle      : FS_Handle;
    begin
+      Get_Mount (Path, Match_Count, Handle);
       return Create_Symbolic_Link
          (Handle,
           Path (Path'First + Match_Count .. Path'Last),

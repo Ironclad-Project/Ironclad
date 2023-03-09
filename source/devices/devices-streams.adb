@@ -18,14 +18,13 @@ package body Devices.Streams is
    --  Unit passes GNATprove AoRTE, GNAT does not know this.
    pragma Suppress (All_Checks);
 
-   function Init return Boolean is
+   procedure Init (Success : out Boolean) is
       Nulldev : Resource;
       Zerodev : Resource;
       Success_1, Success_2 : Boolean;
    begin
       Nulldev := (
          Data        => System.Null_Address,
-         Mutex       => <>,
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
@@ -41,7 +40,6 @@ package body Devices.Streams is
 
       Zerodev := (
          Data        => System.Null_Address,
-         Mutex       => <>,
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
@@ -57,11 +55,11 @@ package body Devices.Streams is
 
       Register (Nulldev, "null", Success_1);
       Register (Zerodev, "zero", Success_2);
-      return Success_1 and Success_2;
+      Success := Success_1 and Success_2;
    end Init;
    ----------------------------------------------------------------------------
    procedure Null_Read
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
@@ -71,12 +69,13 @@ package body Devices.Streams is
       pragma Unreferenced (Offset);
       pragma Unreferenced (Data);
    begin
+      Data      := (others => 0);
       Ret_Count := 0;
       Success   := True;
    end Null_Read;
 
    procedure Null_Write
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
@@ -90,7 +89,7 @@ package body Devices.Streams is
    end Null_Write;
    ----------------------------------------------------------------------------
    procedure Zero_Read
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
@@ -105,7 +104,7 @@ package body Devices.Streams is
    end Zero_Read;
 
    procedure Zero_Write
-      (Key       : Resource_Acc;
+      (Key       : System.Address;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;

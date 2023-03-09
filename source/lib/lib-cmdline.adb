@@ -45,19 +45,26 @@ package body Lib.Cmdline is
          end if;
          pragma Loop_Invariant (Curr_Index <= Cmdline'Last);
       end loop;
-      Found  := False;
-      Length := 0;
-      return;
+
+      goto Not_Found;
 
    <<Found_Value>>
-      Found  := True;
-      Length := Last_Index - Curr_Index + 1;
-      if Returned'Length >= Length then
-         Returned (Returned'First .. Returned'First + Length - 1)
-            := Cmdline (Curr_Index .. Last_Index);
-      else
-         Length := 0;
+      Found := True;
+      if Curr_Index <= Last_Index then
+         Length := Last_Index - Curr_Index + 1;
+         if Returned'Length >= Length then
+            Returned (Returned'First .. Returned'First + Length - 1) :=
+               Cmdline (Curr_Index .. Last_Index);
+            return;
+         end if;
       end if;
+
+      goto Found_But_Does_Not_Fit;
+
+   <<Not_Found>>
+      Found := False;
+   <<Found_But_Does_Not_Fit>>
+      Length := 0;
    end Get_Parameter;
 
    function Is_Key_Present (Cmdline, Key : String) return Boolean is

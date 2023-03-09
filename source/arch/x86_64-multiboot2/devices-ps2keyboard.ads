@@ -21,7 +21,7 @@ package Devices.PS2Keyboard with SPARK_Mode => Off is
 private
 
    function Read
-      (Data   : Resource_Acc;
+      (Data   : System.Address;
        Offset : Unsigned_64;
        Count  : Unsigned_64;
        Desto  : System.Address) return Unsigned_64;

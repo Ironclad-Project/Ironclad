@@ -123,6 +123,7 @@ Syscalls
 * create*::                 Create regular files.
 * truncate::                Truncate the contents of a file to an offset.
 * integrity_setup::         Setup and configure integrity checks.
+* openpty::                 Create pseudoterminals.
 
 Devices and their properties
 
@@ -243,8 +244,10 @@ can be tested outside a final Ironclad binary.
 @node Formal verification
 @section Formal verification
 
-Right now the source of Ironclad is ongoing a process to raise its verification
-status to @url{https://docs.adacore.com/spark2014-docs/html/ug/en/usage_scenarios.html#levels-of-spark-use, a mix of silver and gold level}.
+Ironclad is in an ongoing process to raise its verification
+level to @url{https://docs.adacore.com/spark2014-docs/html/ug/en/usage_scenarios.html#levels-of-spark-use, a mix of silver and gold level} for
+as many of the kernel facilities as possible.
+
 This is done with the goal of ensure the absence of errors in a crucial system
 component like the kernel, and for ensuring the suitability of Ironclad for
 embedded and mission critical tasks.
@@ -633,6 +636,8 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @xref{create*, create_symlink}.
 @item
 @xref{integrity_setup}.
+@item
+@xref{openpty}.
 @end enumerate
 
 @node Errno
@@ -1077,7 +1082,7 @@ returned on success and @code{-1} on failure, with the following errno:
 @section delete
 
 @example
-int delete(const char *path, int path_len);
+int delete(int dir_fd, const char *path, int path_len);
 @end example
 
 The syscall deletes the file pointed to by @code{path}. If @code{path} points
@@ -1806,6 +1811,30 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @code{EINVAL}: Invalid configuration value combination.
 @end itemize
 
+@node openpty
+@section openpty
+
+@example
+int openty(int ptys[2], struct termios *t, struct win_size *w);
+@end example
+
+This syscalls creates a pair of pseudoterminals and returns the registered
+file descriptors in @code{ptys}. Index @code{0} is the primary end
+(also known as master), @code{1} is the secondary end (also known as slave).
+
+@code{t} and @code{w} are the termios and window information the created
+pseudoterminals will contain.
+
+The syscall returns @code{0} on success and @code{-1} on failure, with the
+following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: @code{ptys}, @code{t}, or @code{w}, point to bogus memory.
+@item
+@code{EMFILE}: No available file descriptor slots.
+@end itemize
+
 @node Devices and their properties
 @chapter Devices and their properties
 
@@ -1882,21 +1911,6 @@ struct rtc_time @{
 
 ioctl(rtc, ..., pointer_to_rtc_time)
 @end example
-
-@subsection ptmx
-
-If the kernel is configured to support PTYs, this device fulfills a similar
-role to Linux's @code{/dev/ptmx}.
-
-A major difference is that instead of @code{open} being used for creating
-PTYs, @code{ioctl}, like the following:
-
-@example
-ioctl(ptmx_fd, 0, &result_master_fd);
-@end example
-
-Slaves are opened from the master FD in the same manner, this is done is said
-way thanks to Ironclad's @code{/dev} system limitations.
 
 @node aarch64-stivale2 devices
 @section aarch64-stivale2 devices

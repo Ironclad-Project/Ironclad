@@ -17,8 +17,9 @@
 with Interfaces; use Interfaces;
 with System;     use System;
 with Devices;    use Devices;
+with Lib.Synchronization;
 
-package VFS with SPARK_Mode => Off is
+package VFS is
    --  Inodes numbers are identifiers that denotes a unique file inside an FS.
    --  These values are not consistent across filesystems, they may not be
    --  consistent across different mounts, depending on the FS.
@@ -56,7 +57,8 @@ package VFS with SPARK_Mode => Off is
    --  Handle for interfacing with mounted FSs and FS types.
    type FS_Type   is (FS_EXT, FS_FAT32);
    type FS_Handle is private;
-   Error_Handle : constant FS_Handle;
+   Error_Handle       : constant FS_Handle;
+   Path_Buffer_Length : constant Natural;
 
    --  Initialize the internal VFS registries.
    procedure Init;
@@ -81,10 +83,13 @@ package VFS with SPARK_Mode => Off is
    function Unmount (Path : String; Force : Boolean) return Boolean;
 
    --  Get a best-matching mount for the passed path.
-   --  @param Path Path to search a mount for.
-   --  @param Match Count of characters matched.
-   --  @return Key to use to refer to the mount, or 0 if not found.
-   function Get_Mount (Path : String; Match : out Natural) return FS_Handle;
+   --  @param Path   Path to search a mount for.
+   --  @param Match  Count of characters matched.
+   --  @param Handle Key to use to refer to the mount, Error_Handle if error.
+   procedure Get_Mount
+      (Path   : String;
+       Match  : out Natural;
+       Handle : out FS_Handle);
 
    --  Get the backing FS type.
    --  @param Key Key to use to fetch the info.
@@ -223,14 +228,15 @@ package VFS with SPARK_Mode => Off is
       with Pre => Key /= Error_Handle;
 
    --  Get the stat of a file.
-   --  @param Key FS Handle to open.
-   --  @param Ino Inode to operate on.
-   --  @param S   Data to fetch.
-   --  @return True on success, False on failure.
-   function Stat
-      (Key : FS_Handle;
-       Ino : File_Inode_Number;
-       S   : out File_Stat) return Boolean
+   --  @param Key      FS Handle to open.
+   --  @param Ino      Inode to operate on.
+   --  @param Stat_Val Data to fetch.
+   --  @param Success  True on success, False on failure.
+   procedure Stat
+      (Key      : FS_Handle;
+       Ino      : File_Inode_Number;
+       Stat_Val : out File_Stat;
+       Success  : out Boolean)
       with Pre => Key /= Error_Handle;
 
    --  Truncate a file to size 0.
@@ -278,5 +284,20 @@ package VFS with SPARK_Mode => Off is
 private
 
    type FS_Handle is new Natural range 0 .. 5;
-   Error_Handle : constant FS_Handle := 0;
+   Error_Handle       : constant FS_Handle := 0;
+   Path_Buffer_Length : constant Natural   := 100;
+
+   type Mount_Data is record
+      Mounted_Dev : Device_Handle;
+      Mounted_FS  : FS_Type;
+      FS_Data     : System.Address;
+      Path_Length : Natural range 0 .. Path_Buffer_Length;
+      Path_Buffer : String (1 .. Path_Buffer_Length);
+   end record;
+
+   type Mount_Registry     is array (FS_Handle range 1 .. 5) of Mount_Data;
+   type Mount_Registry_Acc is access Mount_Registry;
+
+   Mounts       : Mount_Registry_Acc;
+   Mounts_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
 end VFS;
