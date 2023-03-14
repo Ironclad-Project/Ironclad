@@ -41,7 +41,6 @@ private
    type ATA_Data is record
       Mutex         : aliased Lib.Synchronization.Binary_Semaphore;
       Is_Master     : Boolean;
-      Identify      : ATA_Identify;
       Data_Port     : Unsigned_16;
       Error_Port    : Unsigned_16;
       Count_Port    : Unsigned_16;

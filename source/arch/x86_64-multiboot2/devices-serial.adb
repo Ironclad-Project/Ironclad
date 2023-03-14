@@ -68,8 +68,6 @@ package body Devices.Serial with SPARK_Mode => Off is
                Is_Block    => False,
                Block_Size  => 4096,
                Block_Count => 0,
-               Safe_Read   => null,
-               Safe_Write  => null,
                Sync        => null,
                Read        => Read'Access,
                Write       => Write'Access,
@@ -85,15 +83,15 @@ package body Devices.Serial with SPARK_Mode => Off is
       return True;
    end Init;
 
-   function Read
-      (Data   : System.Address;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64
+   procedure Read
+      (Key       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
       Did_Seize : Boolean;
-      COM    : COM_Root with Address => Data;
-      Result : array (1 .. Count) of Unsigned_8 with Import, Address => Desto;
+      COM       : COM_Root with Address => Key;
       pragma Unreferenced (Offset);
    begin
       loop
@@ -102,24 +100,24 @@ package body Devices.Serial with SPARK_Mode => Off is
          Scheduler.Yield;
       end loop;
 
-      for I of Result loop
+      for I of Data loop
          I := Fetch_Data (COM.Port);
       end loop;
 
       Lib.Synchronization.Release (COM.Mutex);
-      return Count;
+      Ret_Count := Data'Length;
+      Success   := True;
    end Read;
 
-   function Write
-      (Data     : System.Address;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64
+   procedure Write
+      (Key       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
       Did_Seize  : Boolean;
-      COM        : COM_Root with Address => Data;
-      Write_Data : array (1 .. Count) of Unsigned_8
-         with Import, Address => To_Write;
+      COM        : COM_Root with Address => Key;
       pragma Unreferenced (Offset);
    begin
       loop
@@ -128,11 +126,12 @@ package body Devices.Serial with SPARK_Mode => Off is
          Scheduler.Yield;
       end loop;
 
-      for I of Write_Data loop
+      for I of Data loop
          Transmit_Data (COM.Port, I);
       end loop;
       Lib.Synchronization.Release (COM.Mutex);
-      return Count;
+      Ret_Count := Data'Length;
+      Success   := True;
    end Write;
 
    function IO_Control

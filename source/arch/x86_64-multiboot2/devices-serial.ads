@@ -20,17 +20,19 @@ package Devices.Serial with SPARK_Mode => Off is
 
 private
 
-   function Read
-      (Data   : System.Address;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64;
+   procedure Read
+      (Key       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean);
 
-   function Write
-      (Data     : System.Address;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64;
+   procedure Write
+      (Key       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean);
 
    function IO_Control
       (Data     : System.Address;

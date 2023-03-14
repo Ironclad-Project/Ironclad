@@ -286,8 +286,6 @@ package body Devices.Partitions with SPARK_Mode => Off is
          Is_Block    => True,
          Block_Size  => Block_Size,
          Block_Count => Part.LBA_Length,
-         Safe_Read   => null,
-         Safe_Write  => null,
          Sync        => null,
          Read        => Read'Access,
          Write       => Write'Access,
@@ -299,77 +297,71 @@ package body Devices.Partitions with SPARK_Mode => Off is
       return Success;
    end Set_Part;
    ----------------------------------------------------------------------------
-   function Read
-      (Data   : System.Address;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64
+   procedure Read
+      (Key       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
       Part : Partition_Data_Acc;
       LBA_Offset, LBA_Length, Final_Count : Unsigned_64;
-      Discard  : Boolean;
-      Returned : Natural;
    begin
-      Part       := Partition_Data_Acc (Con1.To_Pointer (Data));
+      Part       := Partition_Data_Acc (Con1.To_Pointer (Key));
       LBA_Offset := Part.LBA_Offset * Unsigned_64 (Part.Block_Size);
       LBA_Length := Part.LBA_Length * Unsigned_64 (Part.Block_Size);
 
       if Offset > LBA_Offset + LBA_Length then
-         return 0;
-      elsif Offset + Count > LBA_Offset + LBA_Length then
-         Final_Count := LBA_Length - Offset;
-      else
-         Final_Count := Count;
+         Ret_Count := 0;
+         Success   := True;
+         return;
       end if;
 
-      declare
-         Data : Devices.Operation_Data (1 .. Natural (Final_Count))
-            with Import, Address => Desto;
-      begin
-         Devices.Read
-            (Handle    => Part.Inner_Device,
-             Offset    => LBA_Offset + Offset,
-             Ret_Count => Returned,
-             Data      => Data,
-             Success   => Discard);
-         return Unsigned_64 (Returned);
-      end;
+      if Offset + Data'Length > LBA_Offset + LBA_Length then
+         Final_Count := LBA_Length - Offset;
+      else
+         Final_Count := Data'Length;
+      end if;
+
+      Devices.Read
+         (Handle    => Part.Inner_Device,
+          Offset    => LBA_Offset + Offset,
+          Ret_Count => Ret_Count,
+          Data  => Data (Data'First .. Data'First + Natural (Final_Count) - 1),
+          Success   => Success);
    end Read;
 
-   function Write
-      (Data     : System.Address;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64
+   procedure Write
+      (Key       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
       Part : Partition_Data_Acc;
       LBA_Offset, LBA_Length, Final_Count : Unsigned_64;
-      Discard : Boolean;
-      Returned : Natural;
    begin
-      Part       := Partition_Data_Acc (Con1.To_Pointer (Data));
+      Part       := Partition_Data_Acc (Con1.To_Pointer (Key));
       LBA_Offset := Part.LBA_Offset * Unsigned_64 (Part.Block_Size);
       LBA_Length := Part.LBA_Length * Unsigned_64 (Part.Block_Size);
 
       if Offset > LBA_Offset + LBA_Length then
-         return 0;
-      elsif Offset + Count > LBA_Offset + LBA_Length then
-         Final_Count := LBA_Length - Offset;
-      else
-         Final_Count := Count;
+         Ret_Count := 0;
+         Success   := True;
+         return;
       end if;
 
-      declare
-         Data : Devices.Operation_Data (1 .. Natural (Final_Count))
-            with Import, Address => To_Write;
-      begin
-         Devices.Write
-            (Handle    => Part.Inner_Device,
-             Offset    => LBA_Offset + Offset,
-             Ret_Count => Returned,
-             Data      => Data,
-             Success   => Discard);
-         return Unsigned_64 (Returned);
-      end;
+      if Offset + Data'Length > LBA_Offset + LBA_Length then
+         Final_Count := LBA_Length - Offset;
+      else
+         Final_Count := Data'Length;
+      end if;
+
+      Devices.Write
+         (Handle    => Part.Inner_Device,
+          Offset    => LBA_Offset + Offset,
+          Ret_Count => Ret_Count,
+          Data  => Data (Data'First .. Data'First + Natural (Final_Count) - 1),
+          Success   => Success);
    end Write;
 end Devices.Partitions;

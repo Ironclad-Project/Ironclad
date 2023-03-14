@@ -71,8 +71,6 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
-         Safe_Read   => null,
-         Safe_Write  => null,
          Sync        => null,
          Read        => Read'Access,
          Write       => null,
@@ -113,18 +111,19 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
       Write_PS2 (16#60#, Value);
    end Write_PS2_Config;
 
-   function Read
-      (Data   : System.Address;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64
+   procedure Read
+      (Key       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      pragma Unreferenced (Data);
+      pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
-      To_Write : Unsigned_8 with Address => Desto;
    begin
-      if Count = 0 then
-         return 0;
+      if Data'Length = 0 then
+         Ret_Count := 0;
+         Success   := False;
       end if;
 
       Has_Read   := False;
@@ -132,9 +131,10 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
       while not Has_Read loop
          Arch.Snippets.Wait_For_Interrupt;
       end loop;
-      Is_Reading := False;
-      To_Write := Read_Scancode;
-      return 1;
+      Is_Reading        := False;
+      Data (Data'First) := Read_Scancode;
+      Ret_Count         := 1;
+      Success           := True;
    end Read;
 
    procedure Keyboard_Handler is

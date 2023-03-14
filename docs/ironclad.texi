@@ -1838,30 +1838,38 @@ following errno:
 @node Devices and their properties
 @chapter Devices and their properties
 
-Ironclad exposes a number of devices, physical and virtual, to userland. All
+Ironclad exposes a number of physical and virtual devices to userland. All
 of them are exposed under the @code{/dev} location, and support a series of
 standard operations, like being manipulated by the usual file-related
 syscalls like @code{read} or @code{write}, while sporting device-specific
 interfaces in the form of device-specific @code{ioctl} requests.
 
-The devices detailed in this chapter are divided in "Common devices", which
-are devices featured regardless of the architecture running Ironclad, and
-architecture-specific devices.
+When quering device-specific information, Ironclad exposes information a bit
+different than other kernels like Linux. Here is a quick list of the most 
+notable differences:
+
+@itemize @bullet
+@item
+The @code{BLKGETSIZE}/@code{BLKGETSIZE64} @code{ioctl} calls are not available, 
+instead, the block count and block size values of @code{stat} are used.
+@end itemize
 
 @node Common devices
 @section Common devices
 
+These are devices exposed in Ironclad regardless of target system.
+
 @subsection debug
 
 @code{/dev/debug} wraps architecture-specific debug output channels for use
-with file operations. For x86-based targets, this is QEMU's E9, for arm-based
-and sparc-based targets, this is UART.
+with file operations. For x86-based targets, this is COM0, for ARM-based
+and SPARC-based targets, this is UART.
 
 @subsection ramdev
 
 The devices starting by @code{ramdev} are virtual devices representing the
-RAM driver passed by some boot protocols, an FS can be mounted to them, usually
-USTAR. These RAM devices are exclusively read-only.
+RAM driver passed by some boot protocols, an FS can be mounted to them, or be
+otherwise used like any other block device. These RAM devices are read-only.
 
 @subsection random
 
@@ -1873,12 +1881,10 @@ allowed, unlike other systems.
 @code{/dev/urandom} does the same as @code{/dev/random}, and is only provided
 for compatibility.
 
-@code{getrandom} is provided as well for avoiding the file interface.
+@code{getrandom} is provided as well for avoiding the file interface, and that
+way avoid certain kinds of DoS attacks.
 
 @subsection null/zero
-
-@code{null} and @code{zero} are the equivalent of the @code{null} and
-@code{zero} devices for platforms like Linux.
 
 @code{null} returns @code{EOF} whenever read, and all the write operations are
 discarded.
@@ -1890,7 +1896,7 @@ operations are discarded.
 
 @code{/dev/rtc} exposes the hardware RTC in an architecture independent manner.
 
-The device only allows the following @code{ioctl} operations.
+The device does not allow any file operations but the following @code{ioctl}:
 
 The time structures handled represent ready-to-use, calendar timestamps.
 
@@ -1934,6 +1940,14 @@ This target has no special devices.
 @node x86_64-multiboot2 devices
 @section x86_64-multiboot2 devices
 
+@subsection ata
+
+The devices starting by @code{sata} represent several ATA IDE block devices.
+These ATA drives have internal caching at the driver level, so they must be 
+@code{sync}'d for data integrity when wanting to ensure data coherency.
+
+No special @code{ioctl} calls are supported.
+
 @subsection fb0
 
 The @code{fb0} device exposes the framebuffer passed as part of the boot
@@ -1942,9 +1956,9 @@ protocol, when present. The device uses Linux's @url{https://docs.kernel.org/fb/
 @subsection ps2keyboard/ps2mouse
 
 The devices @code{ps2keyboard} and @code{ps2mouse} exposes x86's native PS2
-interfaces, @code{ps2keyboard} is a normal character device, while
-@code{ps2mouse} is a character device that returns mouse packets under the
-structure:
+interfaces, @code{ps2keyboard} is a normal character device that returns
+scancodes as they are received. @code{ps2mouse} is a character device that
+returns mouse packets following the structure:
 
 @example
 struct mouse_data @{
@@ -1973,6 +1987,14 @@ ioctl(mouse, PS2MOUSE_SET_SAMPLE_RATE, rate); // Set sample rate (0 - 200).
 Valid resolutions and sample rates are values for the PS2 controller, else
 the call is ignored. For valid values and their meaning refer to
 @uref{https://isdaman.com/alsos/hardware/mouse/ps2interface.htm, this website}.
+
+@subsection sata
+
+The devices starting by @code{sata} represent several SATA AHCI block devices.
+For now only SATA drives are supported, support for ATAPI is not present.
+
+These SATA drives have internal caching at the driver level, so they must be 
+@code{sync}'d for data integrity when wanting to ensure data coherency.
 
 @subsection serial
 

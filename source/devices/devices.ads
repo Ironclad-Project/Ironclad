@@ -35,34 +35,19 @@ package Devices is
       Block_Size  : Natural;
       Block_Count : Unsigned_64;
 
-      --  Safe formally-verifiable alternatives to the functions below, which
-      --  will be used instead when available. This is only here because I am
-      --  a bit lazy to put 10h on testing and translating every device to be
-      --  better.
-      Safe_Read : access procedure
+      Read : access procedure
          (Key       : System.Address;
           Offset    : Unsigned_64;
           Data      : out Operation_Data;
           Ret_Count : out Natural;
           Success   : out Boolean);
-      Safe_Write : access procedure
+      Write : access procedure
          (Key       : System.Address;
           Offset    : Unsigned_64;
           Data      : Operation_Data;
           Ret_Count : out Natural;
           Success   : out Boolean);
-
       Sync : access procedure (Key : System.Address);
-      Read : access function
-         (Key    : System.Address;
-          Offset : Unsigned_64;
-          Count  : Unsigned_64;
-          Desto  : System.Address) return Unsigned_64;
-      Write : access function
-         (Key      : System.Address;
-          Offset   : Unsigned_64;
-          Count    : Unsigned_64;
-          To_Write : System.Address) return Unsigned_64;
       IO_Control : access function
          (Key      : System.Address;
           Request  : Unsigned_64;
@@ -210,6 +195,5 @@ private
 
    Devices_Data : Device_Arr_Acc;
 
-   function Is_Initialized    return Boolean is (Devices_Data /= null);
-   function Non_Verified_Init return Boolean;
+   function Is_Initialized return Boolean is (Devices_Data /= null);
 end Devices;

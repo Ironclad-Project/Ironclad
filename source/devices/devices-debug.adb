@@ -28,11 +28,9 @@ package body Devices.Debug is
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
-         Safe_Read   => null,
-         Safe_Write  => Write'Access,
-         Sync        => null,
          Read        => null,
-         Write       => null,
+         Write       => Write'Access,
+         Sync        => null,
          IO_Control  => null,
          Mmap        => null,
          Munmap      => null

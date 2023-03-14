@@ -17,7 +17,7 @@
 with Memory; use Memory;
 with Userland.Process;
 
-package Userland.Integrity with SPARK_Mode => Off is
+package Userland.Integrity is
    --  This unit configures and launches checks of everything pertaining to
    --  userland, from memory to process counts, to everything we make it to.
    --  This is only for userland, kernel integrity neednt be checked here.

@@ -84,8 +84,6 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
-         Safe_Read   => null,
-         Safe_Write  => null,
          Sync        => null,
          Read        => Read'Access,
          Write       => null,
@@ -98,24 +96,25 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
       return Success;
    end Init;
 
-   function Read
-      (Data   : System.Address;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64
+   procedure Read
+      (Key       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      pragma Unreferenced (Data);
+      pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
-      pragma Unreferenced (Count);
-      Data2 : Mouse_Data with Address => Desto;
+      Data2 : Mouse_Data with Address => Data (Data'First)'Address;
    begin
       Has_Returned := False;
       while not Has_Returned loop
          Arch.Snippets.Wait_For_Interrupt;
       end loop;
 
-      Data2 := Return_Data;
-      return Return_Data'Size / 8;
+      Data2     := Return_Data;
+      Ret_Count := Return_Data'Size / 8;
+      Success   := True;
    end Read;
 
    function IO_Control

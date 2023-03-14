@@ -25,6 +25,7 @@ package body Devices is
    pragma Suppress (All_Checks);
 
    procedure Init is
+      pragma SPARK_Mode (Off); --  Some devices here are not verified.
       Success : Boolean;
    begin
       Devices_Data := new Device_Arr'(others =>
@@ -43,7 +44,7 @@ package body Devices is
       Streams.Init (Success);
       if not Success then goto Panic_Error; end if;
       Debug.Init (Success);
-      if not Success or else not Non_Verified_Init then
+      if not Success or else not Arch.Hooks.Devices_Hook then
          goto Panic_Error;
       end if;
 
@@ -52,12 +53,6 @@ package body Devices is
    <<Panic_Error>>
       Lib.Panic.Hard_Panic ("Some devices could not be added");
    end Init;
-
-   function Non_Verified_Init return Boolean is
-      pragma SPARK_Mode (Off);
-   begin
-      return Arch.Hooks.Devices_Hook;
-   end Non_Verified_Init;
 
    procedure Register (Dev : Resource; Name : String; Success : out Boolean) is
    begin
@@ -117,8 +112,7 @@ package body Devices is
 
    function Is_Read_Only (Handle : Device_Handle) return Boolean is
    begin
-      return Devices_Data (Handle).Contents.Safe_Write = null and
-             Devices_Data (Handle).Contents.Write      = null;
+      return Devices_Data (Handle).Contents.Write = null;
    end Is_Read_Only;
 
    procedure Synchronize (Handle : Device_Handle) is
@@ -148,21 +142,15 @@ package body Devices is
        Success   : out Boolean)
    is
    begin
-      if Devices_Data (Handle).Contents.Safe_Read /= null then
-         Devices_Data (Handle).Contents.Safe_Read
+      if Devices_Data (Handle).Contents.Read /= null then
+         Devices_Data (Handle).Contents.Read
             (Key       => Devices_Data (Handle).Contents.Data,
              Offset    => Offset,
              Data      => Data,
              Ret_Count => Ret_Count,
              Success   => Success);
-      elsif Devices_Data (Handle).Contents.Read /= null then
-         Ret_Count := Natural (Devices_Data (Handle).Contents.Read
-            (Key    => Devices_Data (Handle).Contents.Data,
-             Offset => Offset,
-             Count  => Data'Length,
-             Desto  => Data'Address));
-         Success := True;
       else
+         Data      := (others => 0);
          Ret_Count := 0;
          Success   := False;
       end if;
@@ -176,20 +164,13 @@ package body Devices is
        Success   : out Boolean)
    is
    begin
-      if Devices_Data (Handle).Contents.Safe_Write /= null then
-         Devices_Data (Handle).Contents.Safe_Write
+      if Devices_Data (Handle).Contents.Write /= null then
+         Devices_Data (Handle).Contents.Write
             (Key       => Devices_Data (Handle).Contents.Data,
              Offset    => Offset,
              Data      => Data,
              Ret_Count => Ret_Count,
              Success   => Success);
-      elsif Devices_Data (Handle).Contents.Write /= null then
-         Ret_Count := Natural (Devices_Data (Handle).Contents.Write
-            (Key      => Devices_Data (Handle).Contents.Data,
-             Offset   => Offset,
-             Count    => Data'Length,
-             To_Write => Data'Address));
-         Success := True;
       else
          Ret_Count := 0;
          Success   := False;

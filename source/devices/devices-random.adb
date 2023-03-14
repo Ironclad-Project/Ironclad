@@ -26,11 +26,9 @@ package body Devices.Random is
          Is_Block    => False,
          Block_Size  => 4096,
          Block_Count => 0,
-         Safe_Read   => Read'Access,
-         Safe_Write  => null,
-         Sync        => null,
-         Read        => null,
+         Read        => Read'Access,
          Write       => null,
+         Sync        => null,
          IO_Control  => null,
          Mmap        => null,
          Munmap      => null

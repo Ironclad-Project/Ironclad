@@ -18,6 +18,7 @@ with Devices.FB;
 with Devices.PS2Mouse;
 with Devices.PS2Keyboard;
 with Devices.ATA;
+with Devices.SATA;
 with Devices.Serial;
 with Devices.RTC;
 with Arch.Snippets;
@@ -29,12 +30,13 @@ with Interfaces; use Interfaces;
 package body Arch.Hooks with SPARK_Mode => Off is
    function Devices_Hook return Boolean is
    begin
-      return Devices.FB.Init          and then
+      return Devices.ATA.Init         and then
+             Devices.FB.Init          and then
              Devices.PS2Keyboard.Init and then
              Devices.PS2Mouse.Init    and then
-             Devices.ATA.Init         and then
-             Devices.Serial.Init      and then
-             Devices.RTC.Init;
+             Devices.RTC.Init         and then
+             Devices.SATA.Init        and then
+             Devices.Serial.Init;
    end Devices_Hook;
 
    function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean is

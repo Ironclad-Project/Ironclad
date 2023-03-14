@@ -20,11 +20,12 @@ package Devices.PS2Keyboard with SPARK_Mode => Off is
 
 private
 
-   function Read
-      (Data   : System.Address;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64;
+   procedure Read
+      (Key       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean);
 
    function Read_PS2 return Unsigned_8;
    procedure Write_PS2 (Port : Unsigned_16; Value : Unsigned_8);

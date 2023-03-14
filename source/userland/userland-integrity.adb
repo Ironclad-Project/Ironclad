@@ -18,7 +18,10 @@ with Lib.Messages;
 with Lib.Panic;
 with Memory.Physical;
 
-package body Userland.Integrity with SPARK_Mode => Off is
+package body Userland.Integrity is
+   --  Unit passes GNATprove AoRTE, GNAT does not know this.
+   pragma Suppress (All_Checks);
+
    procedure Set_Policy (P : Policy) is
    begin
       Failure_Policy := P;

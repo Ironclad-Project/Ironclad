@@ -51,15 +51,17 @@ private
        Block_Size : Natural;
        Part       : Partition_Data_Acc) return Boolean;
    ----------------------------------------------------------------------------
-   function Read
-      (Data   : System.Address;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64;
-       Desto  : System.Address) return Unsigned_64;
+   procedure Read
+      (Key       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean);
 
-   function Write
-      (Data     : System.Address;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64;
+   procedure Write
+      (Key       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean);
 end Devices.Partitions;
