@@ -375,6 +375,15 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end IO_Control;
 
+   function Synchronize (F : File_Acc) return Boolean is
+   begin
+      if F.Is_Device then
+         return Devices.Synchronize (F.Dev_Data);
+      else
+         return VFS.Synchronize (F.FS_Data, F.File_Data);
+      end if;
+   end Synchronize;
+
    function Mmap
       (F           : File_Acc;
        Address     : Memory.Virtual_Address;

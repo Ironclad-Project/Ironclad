@@ -85,6 +85,7 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
          Block_Size  => 4096,
          Block_Count => 0,
          Sync        => null,
+         Sync_Range  => null,
          Read        => Read'Access,
          Write       => null,
          IO_Control  => IO_Control'Access,

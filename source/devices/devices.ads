@@ -47,7 +47,11 @@ package Devices is
           Data      : Operation_Data;
           Ret_Count : out Natural;
           Success   : out Boolean);
-      Sync : access procedure (Key : System.Address);
+      Sync : access function (Key : System.Address) return Boolean;
+      Sync_Range : access function
+         (Key    : System.Address;
+          Offset : Unsigned_64;
+          Count  : Unsigned_64) return Boolean;
       IO_Control : access function
          (Key      : System.Address;
           Request  : Unsigned_64;
@@ -104,11 +108,20 @@ package Devices is
 
    --  Synchronize internal device state, in order to ensure coherency.
    --  @param Handle Handle to synchronize if supported, must be valid.
-   procedure Synchronize (Handle : Device_Handle)
+   --  @return True on success or sync not supported. False on device failure.
+   function Synchronize (Handle : Device_Handle) return Boolean
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
-   --  Synchronize all devices.
-   procedure Synchronize with Pre => (Is_Initialized = True);
+   --  Synchronize a data range of a device, in order to ensure coherency.
+   --  @param Handle Handle to synchronize if supported, must be valid.
+   --  @param Offset Offset to start synchronizing.
+   --  @param Count  Count of bytes to synchronize.
+   --  @return True on success or sync not supported. False on device failure.
+   function Synchronize
+      (Handle : Device_Handle;
+       Offset : Unsigned_64;
+       Count  : Unsigned_64) return Boolean
+      with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
    --  Read from a device.
    --  @param Handle    Handle to read if supported, must be valid.

@@ -507,6 +507,11 @@ package Userland.Syscall with SPARK_Mode => Off is
        Window_Addr  : Unsigned_64;
        Errno        : out Errno_Value) return Unsigned_64;
 
+   --  Synchronize the data of a file, instead of system-wide.
+   function FSync
+      (FD    : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64;
+
 private
 
    --  Do the actual exiting.

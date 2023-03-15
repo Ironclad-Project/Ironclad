@@ -64,4 +64,11 @@ private
        Data      : Operation_Data;
        Ret_Count : out Natural;
        Success   : out Boolean);
+
+   function Sync (Key : System.Address) return Boolean;
+
+   function Sync_Range
+      (Key    : System.Address;
+       Offset : Unsigned_64;
+       Count  : Unsigned_64) return Boolean;
 end Devices.Partitions;

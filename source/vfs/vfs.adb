@@ -373,6 +373,44 @@ package body VFS with SPARK_Mode => Off is
             return False;
       end case;
    end IO_Control;
+
+   function Synchronize return Boolean is
+      Final_Success : Boolean := True;
+   begin
+      Lib.Synchronization.Seize (Mounts_Mutex);
+      for I in Mounts'Range loop
+         if Mounts (I).Mounted_Dev /= Devices.Error_Handle then
+            if not Synchronize (I) then
+               Final_Success := False;
+            end if;
+         end if;
+      end loop;
+      Lib.Synchronization.Release (Mounts_Mutex);
+      return Final_Success;
+   end Synchronize;
+
+   function Synchronize (Key : FS_Handle) return Boolean is
+      S : Boolean;
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT   => S := EXT.Synchronize (Mounts (Key).FS_Data);
+         when FS_FAT32 => S := True;
+      end case;
+      return S;
+   end Synchronize;
+
+   function Synchronize
+      (Key : FS_Handle;
+       Ino : File_Inode_Number) return Boolean
+   is
+      S : Boolean;
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT   => S := EXT.Synchronize (Mounts (Key).FS_Data, Ino);
+         when FS_FAT32 => S := True;
+      end case;
+      return S;
+   end Synchronize;
    ----------------------------------------------------------------------------
    function Is_Absolute (Path : String) return Boolean is
    begin

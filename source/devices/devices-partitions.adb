@@ -286,7 +286,8 @@ package body Devices.Partitions with SPARK_Mode => Off is
          Is_Block    => True,
          Block_Size  => Block_Size,
          Block_Count => Part.LBA_Length,
-         Sync        => null,
+         Sync        => Sync'Access,
+         Sync_Range  => Sync_Range'Access,
          Read        => Read'Access,
          Write       => Write'Access,
          IO_Control  => null,
@@ -364,4 +365,22 @@ package body Devices.Partitions with SPARK_Mode => Off is
           Data  => Data (Data'First .. Data'First + Natural (Final_Count) - 1),
           Success   => Success);
    end Write;
+
+   function Sync (Key : System.Address) return Boolean is
+      Part : Partition_Data_Acc;
+   begin
+      Part := Partition_Data_Acc (Con1.To_Pointer (Key));
+      return Devices.Synchronize (Part.Inner_Device);
+   end Sync;
+
+   function Sync_Range
+      (Key    : System.Address;
+       Offset : Unsigned_64;
+       Count  : Unsigned_64) return Boolean
+   is
+      Part : Partition_Data_Acc;
+   begin
+      Part := Partition_Data_Acc (Con1.To_Pointer (Key));
+      return Devices.Synchronize (Part.Inner_Device, Offset, Count);
+   end Sync_Range;
 end Devices.Partitions;

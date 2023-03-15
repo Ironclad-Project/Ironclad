@@ -39,6 +39,7 @@ package body Devices.ATA with SPARK_Mode => Off is
                 Read        => Read'Access,
                 Write       => Write'Access,
                 Sync        => Sync'Access,
+                Sync_Range  => Sync_Range'Access,
                 IO_Control  => null,
                 Mmap        => null,
                 Munmap      => null), Base_Name, Success);
@@ -363,7 +364,7 @@ package body Devices.ATA with SPARK_Mode => Off is
       Success   := True;
    end Write;
 
-   procedure Sync (Key : System.Address) is
+   function Sync (Key : System.Address) return Boolean is
       Success : Boolean;
       Drive   : constant ATA_Data_Acc := ATA_Data_Acc (Con.To_Pointer (Key));
    begin
@@ -375,12 +376,45 @@ package body Devices.ATA with SPARK_Mode => Off is
                 LBA         => Cache.LBA_Offset,
                 Data_Buffer => Cache.Data);
             if not Success then
-               Lib.Messages.Warn ("ata could not write on sync!");
+               return False;
             end if;
 
             Cache.Is_Dirty := False;
          end if;
       end loop;
       Lib.Synchronization.Release (Drive.Mutex);
+      return True;
    end Sync;
+
+   function Sync_Range
+      (Key    : System.Address;
+       Offset : Unsigned_64;
+       Count  : Unsigned_64) return Boolean
+   is
+      Drive     : constant ATA_Data_Acc := ATA_Data_Acc (Con.To_Pointer (Key));
+      Curr_Idx  : Unsigned_64;
+      Cache_Idx : Natural;
+      Success   : Boolean;
+   begin
+      Curr_Idx := Offset;
+      Lib.Synchronization.Seize (Drive.Mutex);
+      while Curr_Idx < Offset + Count loop
+         Cache_Idx := Get_Cache_Index (Drive, Curr_Idx / Sector_Size);
+         if Drive.Caches (Cache_Idx).Is_Used and
+            Drive.Caches (Cache_Idx).Is_Dirty
+         then
+            Success := Write_Sector
+               (Drive       => Drive,
+                LBA         => Drive.Caches (Cache_Idx).LBA_Offset,
+                Data_Buffer => Drive.Caches (Cache_Idx).Data);
+            if not Success then
+               return False;
+            end if;
+            Drive.Caches (Cache_Idx).Is_Dirty := False;
+         end if;
+         Curr_Idx := Curr_Idx + Sector_Size;
+      end loop;
+      Lib.Synchronization.Release (Drive.Mutex);
+      return True;
+   end Sync_Range;
 end Devices.ATA;

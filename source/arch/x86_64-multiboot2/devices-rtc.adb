@@ -36,6 +36,7 @@ package body Devices.RTC with SPARK_Mode => Off is
          Block_Size  => 4096,
          Block_Count => 0,
          Sync        => null,
+         Sync_Range  => null,
          Read        => null,
          Write       => null,
          IO_Control  => IO_Control'Access,

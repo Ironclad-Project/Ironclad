@@ -64,6 +64,7 @@ package body Devices.Ramdev is
          Read        => Read'Access,
          Write       => null,
          Sync        => null,
+         Sync_Range  => null,
          IO_Control  => null,
          Mmap        => null,
          Munmap      => null

@@ -31,6 +31,7 @@ package body Devices.Debug is
          Read        => null,
          Write       => Write'Access,
          Sync        => null,
+         Sync_Range  => null,
          IO_Control  => null,
          Mmap        => null,
          Munmap      => null

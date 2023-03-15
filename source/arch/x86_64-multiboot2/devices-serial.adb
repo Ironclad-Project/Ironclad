@@ -69,6 +69,7 @@ package body Devices.Serial with SPARK_Mode => Off is
                Block_Size  => 4096,
                Block_Count => 0,
                Sync        => null,
+               Sync_Range  => null,
                Read        => Read'Access,
                Write       => Write'Access,
                IO_Control  => IO_Control'Access,

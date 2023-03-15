@@ -115,23 +115,31 @@ package body Devices is
       return Devices_Data (Handle).Contents.Write = null;
    end Is_Read_Only;
 
-   procedure Synchronize (Handle : Device_Handle) is
+   function Synchronize (Handle : Device_Handle) return Boolean is
+      Success : Boolean := True;
    begin
       if Devices_Data (Handle).Contents.Sync /= null then
-         Devices_Data (Handle).Contents.Sync
+         Success := Devices_Data (Handle).Contents.Sync
             (Devices_Data (Handle).Contents.Data);
       end if;
+      return Success;
    end Synchronize;
 
-   procedure Synchronize is
+   function Synchronize
+      (Handle : Device_Handle;
+       Offset : Unsigned_64;
+       Count  : Unsigned_64) return Boolean
+   is
+      Success : Boolean := True;
    begin
-      for I in Devices_Data'Range loop
-         if Devices_Data (I).Is_Present and
-            Devices_Data (I).Contents.Sync /= null
-         then
-            Devices_Data (I).Contents.Sync (Devices_Data (I).Contents.Data);
-         end if;
-      end loop;
+      if Devices_Data (Handle).Contents.Sync_Range /= null then
+         Success := Devices_Data (Handle).Contents.Sync_Range
+            (Devices_Data (Handle).Contents.Data, Offset, Count);
+      elsif Devices_Data (Handle).Contents.Sync /= null then
+         Success := Devices_Data (Handle).Contents.Sync
+            (Devices_Data (Handle).Contents.Data);
+      end if;
+      return Success;
    end Synchronize;
 
    procedure Read

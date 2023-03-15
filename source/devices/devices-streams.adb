@@ -31,6 +31,7 @@ package body Devices.Streams is
          Read        => Null_Read'Access,
          Write       => Null_Write'Access,
          Sync        => null,
+         Sync_Range  => null,
          IO_Control  => null,
          Mmap        => null,
          Munmap      => null
@@ -44,6 +45,7 @@ package body Devices.Streams is
          Read        => Zero_Read'Access,
          Write       => Zero_Write'Access,
          Sync        => null,
+         Sync_Range  => null,
          IO_Control  => null,
          Mmap        => null,
          Munmap      => null

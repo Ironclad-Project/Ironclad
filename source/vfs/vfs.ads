@@ -256,6 +256,25 @@ package VFS is
        Request : Unsigned_64;
        Arg     : System.Address) return Boolean
       with Pre => Key /= Error_Handle;
+
+   --  Synchronize all FSs mounted on the system.
+   --  @return True on success or sync not available. False on driver failure.
+   function Synchronize return Boolean;
+
+   --  Synchronize a whole FS driver-specific caches.
+   --  @param Key FS Handle to open.
+   --  @return True on success or sync not available. False on driver failure.
+   function Synchronize (Key : FS_Handle) return Boolean
+      with Pre => Key /= Error_Handle;
+
+   --  Synchronize the contents of a file cached by the FS driver.
+   --  @param Key FS Handle to open.
+   --  @param Ino Inode to operate on.
+   --  @return True on success or sync not available. False on driver failure.
+   function Synchronize
+      (Key : FS_Handle;
+       Ino : File_Inode_Number) return Boolean
+      with Pre => Key /= Error_Handle;
    ----------------------------------------------------------------------------
    --  Check whether a path is absolute.
    --  @param Path to check.

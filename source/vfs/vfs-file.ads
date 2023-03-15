@@ -119,6 +119,9 @@ package VFS.File with SPARK_Mode => Off is
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean with Pre => F /= null;
 
+   --  Synchronize.
+   function Synchronize (F : File_Acc) return Boolean with Pre => F /= null;
+
    --  Mmap.
    function Mmap
       (F           : File_Acc;

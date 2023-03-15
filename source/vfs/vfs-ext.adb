@@ -630,6 +630,22 @@ package body VFS.EXT with SPARK_Mode => Off is
       Lib.Synchronization.Release (FS.Mutex);
       return Success;
    end IO_Control;
+
+   function Synchronize (Data : System.Address) return Boolean is
+      FS_Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
+   begin
+      return Devices.Synchronize (FS_Data.Handle);
+   end Synchronize;
+
+   function Synchronize
+      (Data : System.Address;
+       Ino  : File_Inode_Number) return Boolean
+   is
+      pragma Unreferenced (Ino);
+      FS_Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
+   begin
+      return Devices.Synchronize (FS_Data.Handle);
+   end Synchronize;
    ----------------------------------------------------------------------------
    function RW_Superblock
       (Handle          : Device_Handle;

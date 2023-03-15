@@ -2249,9 +2249,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put ("syscall sync()");
       end if;
 
-      Devices.Synchronize;
-      Errno := Error_No_Error;
-      return 0;
+      if not VFS.Synchronize then
+         Errno := Error_IO;
+         return Unsigned_64'Last;
+      else
+         Errno := Error_No_Error;
+         return 0;
+      end if;
    end Sync;
 
    function Create
@@ -2371,8 +2375,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
        New_Size : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64
    is
-      Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
-      File : File_Description_Acc;
+      Proc : constant     Process_Data_Acc := Arch.Local.Get_Current_Process;
+      File : constant File_Description_Acc := Get_File (Proc, FD);
       Succ : Boolean;
    begin
       if Is_Tracing then
@@ -2383,7 +2387,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Messages.Put_Line (")");
       end if;
 
-      File := Userland.Process.Get_File (Proc, FD);
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -2643,4 +2646,37 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return 0;
       end if;
    end Open_PTY;
+
+   function FSync
+      (FD    : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64
+   is
+      Proc : constant     Process_Data_Acc := Arch.Local.Get_Current_Process;
+      File : constant File_Description_Acc := Get_File (Proc, FD);
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall fsync(");
+         Lib.Messages.Put (FD);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if File = null then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+
+      case File.Description is
+         when Description_File =>
+            if not VFS.File.Synchronize (File.Inner_File) then
+               Errno := Error_IO;
+               return Unsigned_64'Last;
+            else
+               Errno := Error_No_Error;
+               return 0;
+            end if;
+         when others =>
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+      end case;
+   end FSync;
 end Userland.Syscall;

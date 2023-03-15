@@ -124,6 +124,7 @@ Syscalls
 * truncate::                Truncate the contents of a file to an offset.
 * integrity_setup::         Setup and configure integrity checks.
 * openpty::                 Create pseudoterminals.
+* fsync::                   Synchronize file-specific caches.
 
 Devices and their properties
 
@@ -638,6 +639,8 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @xref{integrity_setup}.
 @item
 @xref{openpty}.
+@item
+@xref{fsync}.
 @end enumerate
 
 @node Errno
@@ -1709,12 +1712,17 @@ contents or @code{-1} on failure, with the following errno:
 int sync(void);
 @end example
 
-The syscall flushes the associated caches of all external devices, which may
-be needed in order to ensure data coherency on shutdown or other situations.
+The syscall flushes the associated caches of all FSes and the devices that
+contain said FSs, ensuring that all operations are finished, this can be used
+in order to ensure data coherency on power loss or program failure.
 
 The syscall returns @code{0} or @code{-1} on failure, with a corresponding
-errno. This is done as to be forward compatible with future modifications, the
-syscall right now is not able to fail.
+errno:
+
+@itemize @bullet
+@item
+@code{EIO}: Device error while flushing.
+@end itemize
 
 @node create*
 @section create*
@@ -1835,6 +1843,30 @@ following errno:
 @code{EMFILE}: No available file descriptor slots.
 @end itemize
 
+@node fsync
+@section fsync
+
+@example
+int fsync(int fd);
+@end example
+
+The syscall does the same as @code{sync}, just only applied to @code{fd}. If
+the passed file is a device, the device will flush its internal caches.
+
+If the file was just created, one might considering synchronizing the parent
+directory as well, as, depending on the FS and FS driver, parent directory
+entries are stored separately to the file, EXT-series filesystems come to mind.
+
+The syscall returns @code{0} or @code{-1} on failure, with the errno:
+
+@itemize @bullet
+@item
+@code{EINVAL}: The passed file does not exist or points to a non-flushable
+entity, like a pipe or pseudoterminal.
+@item
+@code{EIO}: FS or device error while flushing.
+@end itemize
+
 @node Devices and their properties
 @chapter Devices and their properties
 
@@ -1845,12 +1877,12 @@ syscalls like @code{read} or @code{write}, while sporting device-specific
 interfaces in the form of device-specific @code{ioctl} requests.
 
 When quering device-specific information, Ironclad exposes information a bit
-different than other kernels like Linux. Here is a quick list of the most 
+different than other kernels like Linux. Here is a quick list of the most
 notable differences:
 
 @itemize @bullet
 @item
-The @code{BLKGETSIZE}/@code{BLKGETSIZE64} @code{ioctl} calls are not available, 
+The @code{BLKGETSIZE}/@code{BLKGETSIZE64} @code{ioctl} calls are not available,
 instead, the block count and block size values of @code{stat} are used.
 @end itemize
 
@@ -1943,7 +1975,7 @@ This target has no special devices.
 @subsection ata
 
 The devices starting by @code{sata} represent several ATA IDE block devices.
-These ATA drives have internal caching at the driver level, so they must be 
+These ATA drives have internal caching at the driver level, so they must be
 @code{sync}'d for data integrity when wanting to ensure data coherency.
 
 No special @code{ioctl} calls are supported.
@@ -1993,7 +2025,7 @@ the call is ignored. For valid values and their meaning refer to
 The devices starting by @code{sata} represent several SATA AHCI block devices.
 For now only SATA drives are supported, support for ATAPI is not present.
 
-These SATA drives have internal caching at the driver level, so they must be 
+These SATA drives have internal caching at the driver level, so they must be
 @code{sync}'d for data integrity when wanting to ensure data coherency.
 
 @subsection serial

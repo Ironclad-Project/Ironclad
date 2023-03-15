@@ -92,6 +92,12 @@ package VFS.EXT with SPARK_Mode => Off is
        Req  : Unsigned_64;
        Arg  : System.Address) return Boolean;
 
+   function Synchronize (Data : System.Address) return Boolean;
+
+   function Synchronize
+      (Data : System.Address;
+       Ino  : File_Inode_Number) return Boolean;
+
 private
 
    State_Clean       : constant := 1;

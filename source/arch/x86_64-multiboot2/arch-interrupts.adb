@@ -240,6 +240,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := Integrity_Setup (State.RDI, State.RSI, Errno);
          when 48 =>
             Returned := Open_PTY (State.RDI, State.RSI, State.RDX, Errno);
+         when 49 =>
+            Returned := FSync (State.RDI, Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;
