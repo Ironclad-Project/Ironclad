@@ -292,6 +292,17 @@ private
    end record;
    type EXT_Data_Acc is access all EXT_Data;
 
+   Root_Inode : constant := 2;
+
+   function Inner_Open_Inode
+      (Data         : EXT_Data_Acc;
+       Path         : String;
+       Name_Start   : out Natural;
+       Target_Index : out Unsigned_32;
+       Target_Inode : out Inode;
+       Parent_Index : out Unsigned_32;
+       Parent_Inode : out Inode) return Boolean;
+
    procedure Inner_Read_Symbolic_Link
       (Ino       : Inode;
        File_Size : Unsigned_64;
@@ -380,6 +391,16 @@ private
       (FS_Data   : EXT_Data_Acc;
        Inode_Num : out Unsigned_32) return Boolean;
 
+   procedure Add_Directory_Entry
+      (FS_Data     : EXT_Data_Acc;
+       Inode_Data  : in out Inode;
+       Inode_Size  : Unsigned_64;
+       Inode_Index : Unsigned_32;
+       Added_Index : Unsigned_32;
+       Dir_Type    : Unsigned_8;
+       Name        : String;
+       Success     : out Boolean);
+
    function Get_Dir_Type (Dir_Type : Unsigned_8) return File_Type;
 
    function Get_Dir_Type (T : File_Type) return Unsigned_8;
@@ -395,7 +416,7 @@ private
    function Get_Size (Ino : Inode; Is_64_Bits : Boolean) return Unsigned_64;
 
    function Set_Size
-      (Ino        : out Inode;
+      (Ino        : in out Inode;
        New_Size   : Unsigned_64;
        Is_64_Bits : Boolean) return Boolean;
 

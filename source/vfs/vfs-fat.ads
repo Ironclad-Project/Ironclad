@@ -1,4 +1,4 @@
---  vfs-fat32.adb: FAT32 FS driver.
+--  vfs-fat.adb: FAT FS driver.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package VFS.FAT32 with SPARK_Mode => Off is
+package VFS.FAT with SPARK_Mode => Off is
    function Probe (Handle : Device_Handle) return System.Address;
 
    procedure Unmount (FS : in out System.Address);
@@ -205,4 +205,4 @@ private
    function Get_Type (Attributes : Unsigned_8) return File_Type is
       (if (Attributes and Directory_Directory) /= 0 then File_Directory
        else File_Regular);
-end VFS.FAT32;
+end VFS.FAT;

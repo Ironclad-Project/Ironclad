@@ -388,8 +388,8 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno  : out Errno_Value) return Unsigned_64;
 
    --  Mount a filesystem.
-   MNT_EXT   : constant := 1;
-   MNT_FAT32 : constant := 2;
+   MNT_EXT : constant := 1;
+   MNT_FAT : constant := 2;
    function Mount
       (Source_Addr : Unsigned_64;
        Source_Len  : Unsigned_64;

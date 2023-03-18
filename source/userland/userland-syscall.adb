@@ -2020,7 +2020,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case FSType is
          when MNT_EXT   => Parsed_Typ := VFS.FS_EXT;
-         when MNT_FAT32 => Parsed_Typ := VFS.FS_FAT32;
+         when MNT_FAT => Parsed_Typ := VFS.FS_FAT;
          when others    =>
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
@@ -2246,7 +2246,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
    function Sync (Errno : out Errno_Value) return Unsigned_64 is
    begin
       if Is_Tracing then
-         Lib.Messages.Put ("syscall sync()");
+         Lib.Messages.Put_Line ("syscall sync()");
       end if;
 
       if not VFS.Synchronize then

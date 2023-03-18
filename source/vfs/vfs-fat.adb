@@ -1,4 +1,4 @@
---  vfs-fat32.adb: FAT32 FS driver.
+--  vfs-fat.adb: FAT-series FS driver.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@ with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
 with Lib.Alignment;
 
-package body VFS.FAT32 with SPARK_Mode => Off is
+package body VFS.FAT with SPARK_Mode => Off is
    package   Conv_1 is new System.Address_To_Access_Conversions (FAT_Data);
    package   Conv_2 is new System.Address_To_Access_Conversions (FAT_File);
    procedure Free_1 is new Ada.Unchecked_Deallocation (FAT_Data, FAT_Data_Acc);
@@ -419,4 +419,4 @@ package body VFS.FAT32 with SPARK_Mode => Off is
 
       return Ret;
    end Compose_Path;
-end VFS.FAT32;
+end VFS.FAT;

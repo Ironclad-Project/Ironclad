@@ -33,15 +33,16 @@ Documentation License''.
 @end ifnottex
 
 @menu
-* General information::               General information about the project
-* Boot-time command-line options::    Command-line options
-* Embedded facilities and RTC::       Features and interfaces for embedded work
-* Memory allocation algorithms::      The avaiable allocation algorithms.
-* Userland state and conditions::     Userland state and conditions.
-* Security and integrity facilities:: Ironclad-specific security facilities.
-* Syscalls::                          The main method of userland to interface
-* Devices and their properties::      Devices exposed by the kernel
-* GNU Free Documentation License::    Copying and sharing this manual
+* General information::                General information about the project.
+* Boot-time command-line options::     Command-line options.
+* Embedded facilities and RTC::        Interfaces for embedded and RTC work.
+* Memory allocation algorithms::       The avaiable allocation algorithms.
+* Userland state and conditions::      Userland state and conditions.
+* Security and integrity facilities::  Ironclad-specific security facilities.
+* Syscalls::                           Listings and explanation of syscalls.
+* Filesystems support and interfaces:: Filesystems supported by the kernel.
+* Devices and their properties::       Devices exposed by the kernel.
+* GNU Free Documentation License::     Copying and sharing this manual.
 
 @detailmenu
 --- The Detailed Node Listing ---
@@ -125,6 +126,11 @@ Syscalls
 * integrity_setup::         Setup and configure integrity checks.
 * openpty::                 Create pseudoterminals.
 * fsync::                   Synchronize file-specific caches.
+
+Filesystems support and interfaces
+
+* Extended FileSystem::    EXT-series filesystems (ext2, ext3, ext4).
+* File Allocation Table::  FAT-series filesystems.
 
 Devices and their properties
 
@@ -1866,6 +1872,44 @@ entity, like a pipe or pseudoterminal.
 @item
 @code{EIO}: FS or device error while flushing.
 @end itemize
+
+@node Filesystems support and interfaces
+@chapter Filesystems support and interfaces
+
+Ironclad supports a series of filesystems, with filesystem-specific quirks at
+times, and exposes interfaces with @code{ioctl} calls.
+
+@node Extended FileSystem
+@section Extended FileSystem
+
+Ironclad supports EXT-series filesystems read-only and read-write.
+
+While a user may be used to the ext2/3/4 distinction, EXT internally works as
+an independent set of features, with the version numbers specifying a
+widely understood, assumed, and inconsistent set of features.
+
+Ironclad supports the feature list: @code{sparse_super}, @code{large_file},
+@code{filetype}, @code{resize_inode}, @code{dir_index}, @code{ext_attr}.
+
+Those features should translate to ext2 read-write support, and ext3 read-only
+support.
+
+Some @code{ioctl} calls exist for files inside EXT-series FSs, which can help
+manage specialized FS-specific inode flags and permissions, they are:
+
+@example
+EXT_GETFLAGS = 0x5600
+EXT_SETFLAGS = 0x5601
+
+ioctl(fd, EXT_GETFLAGS, pointer_to_u32); // Get EXT's flags inode field.
+ioctl(fd, EXT_SETFLAGS, pointer_to_u32); // Set EXT's flags inode field.
+@end example
+
+@node File Allocation Table
+@section File Allocation Table
+
+Ironclad's FAT support is really rough. Only read-only FAT32 is supported.
+No special @code{ioctl} calls are provided. Long filenames are not supported.
 
 @node Devices and their properties
 @chapter Devices and their properties

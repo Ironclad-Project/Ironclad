@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with VFS.EXT;
-with VFS.FAT32;
+with VFS.FAT;
 
 package body VFS with SPARK_Mode => Off is
    procedure Init is
@@ -57,9 +57,9 @@ package body VFS with SPARK_Mode => Off is
          when FS_EXT =>
             FS_Data := VFS.EXT.Probe (Dev);
             Mounts (Free_I).Mounted_FS := FS_EXT;
-         when FS_FAT32 =>
-            FS_Data := VFS.FAT32.Probe (Dev);
-            Mounts (Free_I).Mounted_FS := FS_FAT32;
+         when FS_FAT =>
+            FS_Data := VFS.FAT.Probe (Dev);
+            Mounts (Free_I).Mounted_FS := FS_FAT;
       end case;
 
       if FS_Data /= System.Null_Address then
@@ -78,7 +78,7 @@ package body VFS with SPARK_Mode => Off is
 
    function Mount (Name, Path : String) return Boolean is
    begin
-      return Mount (Name, Path, FS_EXT) or else Mount (Name, Path, FS_FAT32);
+      return Mount (Name, Path, FS_EXT) or else Mount (Name, Path, FS_FAT);
    end Mount;
 
    function Unmount (Path : String; Force : Boolean) return Boolean is
@@ -91,7 +91,7 @@ package body VFS with SPARK_Mode => Off is
          then
             case Mounts (I).Mounted_FS is
                when FS_EXT   => EXT.Unmount   (Mounts (I).FS_Data);
-               when FS_FAT32 => FAT32.Unmount (Mounts (I).FS_Data);
+               when FS_FAT => FAT.Unmount (Mounts (I).FS_Data);
             end case;
 
             if Force or Mounts (I).FS_Data = Null_Address then
@@ -166,8 +166,8 @@ package body VFS with SPARK_Mode => Off is
                 Path    => Path,
                 Ino     => Ino,
                 Success => Success);
-         when FS_FAT32 =>
-            FAT32.Open
+         when FS_FAT =>
+            FAT.Open
                (FS      => Mounts (Key).FS_Data,
                 Path    => Path,
                 Ino     => Ino,
@@ -184,7 +184,7 @@ package body VFS with SPARK_Mode => Off is
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             return EXT.Create_Regular (Mounts (Key).FS_Data, Path, Mode);
-         when FS_FAT32 =>
+         when FS_FAT =>
             return False;
       end case;
    end Create_Regular;
@@ -199,7 +199,7 @@ package body VFS with SPARK_Mode => Off is
          when FS_EXT =>
             return EXT.Create_Symbolic_Link
                (Mounts (Key).FS_Data, Path, Target, Mode);
-         when FS_FAT32 =>
+         when FS_FAT =>
             return False;
       end case;
    end Create_Symbolic_Link;
@@ -213,7 +213,7 @@ package body VFS with SPARK_Mode => Off is
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             return EXT.Create_Directory (Mounts (Key).FS_Data, Path, Mode);
-         when FS_FAT32 =>
+         when FS_FAT =>
             return False;
       end case;
    end Create_Directory;
@@ -222,7 +222,7 @@ package body VFS with SPARK_Mode => Off is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT   => return EXT.Delete (Mounts (Key).FS_Data, Path);
-         when FS_FAT32 => return False;
+         when FS_FAT => return False;
       end case;
    end Delete;
 
@@ -230,7 +230,7 @@ package body VFS with SPARK_Mode => Off is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT   => EXT.Close   (Mounts (Key).FS_Data, Ino);
-         when FS_FAT32 => FAT32.Close (Mounts (Key).FS_Data, Ino);
+         when FS_FAT => FAT.Close (Mounts (Key).FS_Data, Ino);
       end case;
    end Close;
 
@@ -250,8 +250,8 @@ package body VFS with SPARK_Mode => Off is
                 Entities,
                 Ret_Count,
                 Success);
-         when FS_FAT32 =>
-            FAT32.Read_Entries
+         when FS_FAT =>
+            FAT.Read_Entries
                (Mounts (Key).FS_Data,
                 Ino,
                 Entities,
@@ -271,7 +271,7 @@ package body VFS with SPARK_Mode => Off is
          when FS_EXT =>
             EXT.Read_Symbolic_Link
                (Mounts (Key).FS_Data, Ino, Path, Ret_Count);
-         when FS_FAT32 =>
+         when FS_FAT =>
             Path      := (others => ' ');
             Ret_Count := 0;
       end case;
@@ -295,8 +295,8 @@ package body VFS with SPARK_Mode => Off is
                 Data,
                 Ret_Count,
                 Success);
-         when FS_FAT32 =>
-            FAT32.Read
+         when FS_FAT =>
+            FAT.Read
                (Mounts (Key).FS_Data,
                 Ino,
                 Offset,
@@ -324,7 +324,7 @@ package body VFS with SPARK_Mode => Off is
                 Data,
                 Ret_Count,
                 Success);
-         when FS_FAT32 =>
+         when FS_FAT =>
             Ret_Count := 0;
             Success   := False;
       end case;
@@ -338,10 +338,10 @@ package body VFS with SPARK_Mode => Off is
    is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT   =>
-            Success := EXT.Stat   (Mounts (Key).FS_Data, Ino, Stat_Val);
-         when FS_FAT32 =>
-            Success := FAT32.Stat (Mounts (Key).FS_Data, Ino, Stat_Val);
+         when FS_EXT =>
+            Success := EXT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val);
+         when FS_FAT =>
+            Success := FAT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val);
       end case;
    end Stat;
 
@@ -352,9 +352,9 @@ package body VFS with SPARK_Mode => Off is
    is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT   =>
+         when FS_EXT =>
             return EXT.Truncate (Mounts (Key).FS_Data, Ino, New_Size);
-         when FS_FAT32 =>
+         when FS_FAT =>
             return False;
       end case;
    end Truncate;
@@ -369,7 +369,7 @@ package body VFS with SPARK_Mode => Off is
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             return EXT.IO_Control (Mounts (Key).FS_Data, Ino, Request, Arg);
-         when FS_FAT32 =>
+         when FS_FAT =>
             return False;
       end case;
    end IO_Control;
@@ -393,8 +393,8 @@ package body VFS with SPARK_Mode => Off is
       S : Boolean;
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT   => S := EXT.Synchronize (Mounts (Key).FS_Data);
-         when FS_FAT32 => S := True;
+         when FS_EXT => S := EXT.Synchronize (Mounts (Key).FS_Data);
+         when FS_FAT => S := True;
       end case;
       return S;
    end Synchronize;
@@ -406,8 +406,8 @@ package body VFS with SPARK_Mode => Off is
       S : Boolean;
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT   => S := EXT.Synchronize (Mounts (Key).FS_Data, Ino);
-         when FS_FAT32 => S := True;
+         when FS_EXT => S := EXT.Synchronize (Mounts (Key).FS_Data, Ino);
+         when FS_FAT => S := True;
       end case;
       return S;
    end Synchronize;
@@ -449,9 +449,10 @@ package body VFS with SPARK_Mode => Off is
       if Is_Absolute (Extension) and Result'Length >= Extension'Length then
          Count := Extension'Length;
          Result (Result'First .. Result'First - 1 + Count) := Extension;
-      elsif Result'Length >= Base'Length + Extension'Length then
-         Count := Base'Length + Extension'Length;
-         Result (Result'First .. Result'First - 1 + Count) := Base & Extension;
+      elsif Result'Length >= Base'Length + Extension'Length + 1 then
+         Count := Base'Length + Extension'Length + 1;
+         Result (Result'First .. Result'First - 1 + Count) :=
+            Base & "/" & Extension;
       else
          Count := 0;
          return;
