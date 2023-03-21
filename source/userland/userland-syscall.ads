@@ -1,4 +1,4 @@
---  userland-syscall.ads: Syscall list and implementation.
+--  userland-syscall.ads: Syscall implementation.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -349,14 +349,14 @@ package Userland.Syscall with SPARK_Mode => Off is
       Errno      : out Errno_Value) return Unsigned_64;
 
    --  Set MAC capabilities of the caller process.
-   MAC_EXIT_ITSELF   : constant := 2#00000001#;
-   MAC_CREATE_OTHERS : constant := 2#00000010#;
-   MAC_CHANGE_SCHED  : constant := 2#00000100#;
-   MAC_ACC_ENTROPY   : constant := 2#00001000#;
-   MAC_ALLOC_MEM     : constant := 2#00010000#;
-   MAC_DEALLOC_MEM   : constant := 2#00100000#;
-   MAC_MANAGE_NET    : constant := 2#01000000#;
-   MAC_MANAGE_MOUNTS : constant := 2#10000000#;
+   MAC_CAP_SCHED   : constant := 2#00000001#;
+   MAC_CAP_SPAWN   : constant := 2#00000010#;
+   MAC_CAP_ENTROPY : constant := 2#00000100#;
+   MAC_CAP_SYS_MEM : constant := 2#00001000#;
+   MAC_CAP_USE_NET : constant := 2#00010000#;
+   MAC_CAP_SYS_NET : constant := 2#00100000#;
+   MAC_CAP_SYS_MNT : constant := 2#01000000#;
+   MAC_CAP_SYS_PWR : constant := 2#10000000#;
    function Set_MAC_Capabilities
       (Bits  : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
@@ -370,11 +370,13 @@ package Userland.Syscall with SPARK_Mode => Off is
       Length : Natural range 0 .. 75;
       Perms  : Unsigned_32;
    end record;
-   MAC_FILTER_INC_FILES : constant := 2#0000001#;
-   MAC_FILTER_INC_DIRS  : constant := 2#0000010#;
-   MAC_FILTER_R         : constant := 2#0000100#;
-   MAC_FILTER_W         : constant := 2#0001000#;
-   MAC_FILTER_EXEC      : constant := 2#0010000#;
+   MAC_FILTER_CONTENTS : constant := 2#0000001#;
+   MAC_FILTER_DENY     : constant := 2#0000010#;
+   MAC_FILTER_READ     : constant := 2#0000100#;
+   MAC_FILTER_WRITE    : constant := 2#0001000#;
+   MAC_FILTER_EXEC     : constant := 2#0010000#;
+   MAC_FILTER_APPEND   : constant := 2#0100000#;
+   MAC_FILTER_FLOCK    : constant := 2#1000000#;
    function Add_MAC_Filter
       (Filter_Addr : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;

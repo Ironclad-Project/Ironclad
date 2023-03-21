@@ -1,5 +1,5 @@
 --  userland-mac.ads: Mandatory access control.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -20,24 +20,26 @@ package Userland.MAC is
    --  MAC (Mandatory Access Control) is configured by a bitmap of some
    --  broad permissions, called capabilities (not to be confused with Linux).
    type Capabilities is record
-      Can_Exit_Itself       : Boolean;
-      Can_Create_Others     : Boolean;
       Can_Change_Scheduling : Boolean;
+      Can_Spawn_Others      : Boolean;
       Can_Access_Entropy    : Boolean;
-      Can_Allocate_Memory   : Boolean;
-      Can_Deallocate_Memory : Boolean;
+      Can_Modify_Memory     : Boolean;
+      Can_Use_Networking    : Boolean;
       Can_Manage_Networking : Boolean;
       Can_Manage_Mounts     : Boolean;
+      Can_Manage_Power      : Boolean;
    end record with Pack, Size => 8;
 
    --  Permissions a filter can give.
    type Filter_Permissions is record
-      Includes_Files       : Boolean; --  Affects children files.
-      Includes_Directories : Boolean; --  Affects dirs and their contents.
-      Can_Read             : Boolean; --  Read permissions.
-      Can_Write            : Boolean; --  Write permissions.
-      Can_Execute          : Boolean; --  Execute permissions.
-   end record with Pack, Size => 5;
+      Includes_Contents : Boolean; --  Affects contained files&directories.
+      Deny_Instead      : Boolean; --  Instead of allow whats passed, deny it.
+      Can_Read          : Boolean; --  Read permissions.
+      Can_Write         : Boolean; --  Write permissions.
+      Can_Execute       : Boolean; --  Execute permissions.
+      Can_Append_Only   : Boolean; --  Can append only, conflicts with write.
+      Can_Lock_Files    : Boolean; --  Can lock the affected files.
+   end record with Pack, Size => 7;
 
    --  Filter, that has a string used as absolute path and permissions.
    Filter_Path_Length : constant := 75;
@@ -61,15 +63,13 @@ package Userland.MAC is
    end record;
 
    --  Default permissions are none (PoLP).
-   Default_Permissions : constant Permissions := (
-      Action  => Deny,
-      Caps    => (others => False),
-      Filters => (others => (
-         Path   => (others => Ada.Characters.Latin_1.NUL),
-         Length => 0,
-         Perms  => (others => False)
-      ))
-   );
+   Default_Permissions : constant Permissions :=
+      (Action  => Deny,
+       Caps    => (others => False),
+       Filters => (others =>
+         (Path   => (others => Ada.Characters.Latin_1.NUL),
+          Length => 0,
+          Perms  => (others => False))));
 
    --  Check whether the passed filter conflicts with any on the list.
    --  That means, it offers another set of permissions for an already

@@ -1,5 +1,5 @@
---  memory-virtual.ads: Specification of the virtual memory manager.
---  Copyright (C) 2021 streaksu
+--  memory-virtual.ads: Virtual memory manager.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -80,9 +80,12 @@ package Memory.Virtual with SPARK_Mode => Off is
       (Map     : Page_Map_Acc;
        Virtual : Virtual_Address) return Physical_Address;
 
-   --  Check whether the loaded map can access the passed address
-   --  from userland.
-   function Check_Userland_Access (Addr : Virtual_Address) return Boolean;
+   --  Check whether the loaded map can access the passed address + length
+   --  from userland with the passed map.
+   function Check_Userland_Access
+      (Map        : Page_Map_Acc;
+       Addr       : Virtual_Address;
+       Byte_Count : Unsigned_64) return Boolean;
 
 private
 

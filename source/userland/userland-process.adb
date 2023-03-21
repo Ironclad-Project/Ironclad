@@ -79,6 +79,7 @@ package body Userland.Process with SPARK_Mode => Off is
                   end if;
                end loop;
 
+               Process_List (I).Is_MAC_Locked   := Parent.Is_MAC_Locked;
                Process_List (I).Parent_PID      := Parent.Process_PID;
                Process_List (I).Stack_Base      := Parent.Stack_Base;
                Process_List (I).Alloc_Base      := Parent.Alloc_Base;
@@ -87,6 +88,7 @@ package body Userland.Process with SPARK_Mode => Off is
                Process_List (I).Perms           := Parent.Perms;
             else
                Reroll_ASLR (Process_List (I));
+               Process_List (I).Is_MAC_Locked   := False;
                Process_List (I).Parent_PID      := 0;
                Process_List (I).Current_Dir_Len := 1;
                Process_List (I).Current_Dir (1) := '/';

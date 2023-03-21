@@ -68,6 +68,7 @@ package Userland.Process with SPARK_Mode => Off is
       Common_Map      : Memory.Virtual.Page_Map_Acc;
       Stack_Base      : Unsigned_64;
       Alloc_Base      : Unsigned_64;
+      Is_MAC_Locked   : Boolean;
       Perms           : MAC.Permissions;
 
       --  Returns for waiting.

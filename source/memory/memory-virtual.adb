@@ -1,5 +1,5 @@
 --  memory-virtual.adb: Virtual memory manager.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -247,11 +247,26 @@ package body Memory.Virtual with SPARK_Mode => Off is
       return Result;
    end Virtual_To_Physical;
 
-   function Check_Userland_Access (Addr : Virtual_Address) return Boolean is
+   function Check_Userland_Access
+      (Map        : Page_Map_Acc;
+       Addr       : Virtual_Address;
+       Byte_Count : Unsigned_64) return Boolean
+   is
+      Success : Boolean := False;
    begin
-      --  TODO: This should use a passed map to actually check memory regions.
-      --  for now, we can just check whether its in the higher half for
-      --  speed.
-      return Addr /= 0 and Addr < Memory_Offset;
+      Lib.Synchronization.Seize (Map.Mutex);
+      for Mapping of Map.Map_Ranges loop
+         if Mapping.Is_Present            and then
+            Mapping.Flags.User_Accesible  and then
+            Mapping.Virtual_Start <= Addr and then
+            Mapping.Virtual_Start + Virtual_Address (Mapping.Length) > Addr +
+            Virtual_Address (Byte_Count)
+         then
+            Success := True;
+            exit;
+         end if;
+      end loop;
+      Lib.Synchronization.Release (Map.Mutex);
+      return Success;
    end Check_Userland_Access;
 end Memory.Virtual;

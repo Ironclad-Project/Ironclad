@@ -1,5 +1,5 @@
 --  userland-mac.adb: Mandatory access control.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -22,7 +22,9 @@ package body Userland.MAC is
 
    function Is_Conflicting (F : Filter; Filters : Filter_Arr) return Boolean is
    begin
-      if not VFS.Is_Canonical (F.Path (1 .. F.Length)) then
+      if not VFS.Is_Canonical (F.Path (1 .. F.Length)) or
+         (F.Perms.Can_Append_Only and F.Perms.Can_Write)
+      then
          return True;
       end if;
 
@@ -38,11 +40,11 @@ package body Userland.MAC is
          elsif F.Length > It.Length and
                F.Path (1 .. It.Length) = It.Path (1 .. It.Length)
          then
-            return It.Perms.Includes_Files or It.Perms.Includes_Directories;
+            return It.Perms.Includes_Contents;
          elsif F.Length < It.Length and
                F.Path (1 .. F.Length) = It.Path (1 .. F.Length)
          then
-            return F.Perms.Includes_Files or F.Perms.Includes_Directories;
+            return F.Perms.Includes_Contents;
          end if;
       end loop;
 
@@ -82,9 +84,7 @@ package body Userland.MAC is
       if Has_Matched then
          if Matched_Char_Count = Path'Length then
             return Filters (Best_Match_Index).Perms;
-         elsif Filters (Best_Match_Index).Perms.Includes_Files or
-               Filters (Best_Match_Index).Perms.Includes_Directories
-         then
+         elsif Filters (Best_Match_Index).Perms.Includes_Contents then
             return Filters (Best_Match_Index).Perms;
          end if;
       end if;

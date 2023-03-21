@@ -460,18 +460,50 @@ features available for the user.
 @node Mandatory access control (MAC)
 @section Mandatory access control (MAC)
 
-Mandatory access control (MAC) forms one of the main components of Ironclad
-security.
-
-With several restrictive settings that are inherited from parent processes to
-children, we can ensure processes will only have access to the minimum
-required set of permissions for their task.
-
-MAC does not necesarily help with preventing breaches of security, but
+Mandatory access control (MAC) is one of the main components of Ironclad
+security. It does not necesarily help with preventing breaches of security, but
 minimizes the things a breached process can do, when configured correctly.
 
-A series of coarse permissions, called capabilities, that restrict the process
-on what it can and cannot do, can be done by using @ref{set_mac_capabilities}.
+MAC in Ironclad consists on a series of settings inherited from process to
+process, with only more restrictive priviledge escalations allowed, with
+configurable actions to take on triggering illegal actions. These settings come
+in the form of capabilities and file filters.
+
+Capabilities are a set of coarse permissions that restrict a process on what it
+can and cannot do, they are configured using @ref{set_mac_capabilities}.
+
+The available capability list is:
+
+@table @code
+@item MAC_CAP_SCHED
+The process will be allowed to change its own scheduling rules, like modifying
+deadlines.
+
+@item MAC_CAP_SPAWN
+The process will be allowed to spawn other processes and threads.
+
+@item MAC_CAP_ENTROPY
+The process will have unrestricted access to the sources of entropy of the
+kernel, this does not cover the UNIX-standard @code{random/urandom}.
+
+@item MAC_CAP_SYS_MEM
+The process will be able to allocate and deallocate both private and shared
+memory regions.
+
+@item MAC_CAP_USE_NET
+The process will be able to use networking.
+
+@item MAC_CAP_SYS_NET
+The process will be able to modify networking, for things like hostname
+changing.
+
+@item MAC_CAP_SYS_MNT
+The process will be able to modify, add, and remove mountpoints.
+
+@item MAC_CAP_SYS_PWR
+The process will be able to modify power settings, along doing things like
+shutdown and reboot.
+@end table
 
 Apart of capabilities, access to filesystem structures and permission
 management can be done using @ref{add_mac_filter}.
@@ -480,39 +512,10 @@ The method of acting on MAC violations and failures can be set by using
 @ref{set_mac_enforcement}. Possible values include denying requests, killing
 the offending part outright, or denying and additionally logging the event.
 
-Locking can be done with @ref{lock_mac}. Once locked, MAC setup is done, and
-it comes into effect. When locked, processes can only restrict themselves
-further, but not make them more permissive. Locking is not reversible.
-
-MAC is meant to be configured and locked in a parent process like init in a
-classic UNIX-like boot. There, the init can configure the desired processes
-to be launched under the necessary permissions.
-
-The permissions of the parent process booted by the kernel as passed in
-the @code{init} cmdline option are all denied.
-
-For example:
-
-@example
-int main(void) @{
-    // Set our permissions and spawn a child, the child will inherit them.
-
-    // We create a process that can access to allocation but not deallocation,
-    // grant access to entropy, and change its own scheduling.
-    if (set_mac_capabilities(MAC_CAN_ALLOC_MEM | MAC_CAN_ACC_ENTROPY |
-                             MAC_CAN_CHANGE_SCHED) != 0) @{
-        return -1;
-    @}
-    if (spawn("/usr/bin/example1", NULL, NULL) != 0) @{
-        return -1;
-    @}
-
-    // Lock, and we are done!
-    if (lock_mac() != 0) @{
-        return -1;
-    @}
-@}
-@end example
+Locking can be done with @ref{lock_mac}. Once locked, MAC settings come into
+effect. When locked, processes can only restrict themselves further, and not
+make their capabilities more permissive. Locking is not reversible and is
+inherited.
 
 @node Integrity checks
 @section Integrity checks
@@ -1497,13 +1500,14 @@ sets the following errno:
 @section set_mac_capabilities
 
 @example
-#define MAC_EXIT_ITSELF   0b0000001
-#define MAC_CREATE_OTHERS 0b0000010
-#define MAC_CHANGE_SCHED  0b0000100
-#define MAC_ACC_ENTROPY   0b0001000
-#define MAC_ALLOC_MEM     0b0010000
-#define MAC_DEALLOC_MEM   0b0100000
-#define MAC_MANAGE_MNT    0b1000000
+#define MAC_CAP_SCHED   0b00000001
+#define MAC_CAP_SPAWN   0b00000010
+#define MAC_CAP_ENTROPY 0b00000100
+#define MAC_CAP_SYS_MEM 0b00001000
+#define MAC_CAP_USE_NET 0b00010000
+#define MAC_CAP_SYS_NET 0b00100000
+#define MAC_CAP_SYS_MNT 0b01000000
+#define MAC_CAP_SYS_PWR 0b10000000
 
 int set_mac_capabilities(unsigned long request);
 @end example
