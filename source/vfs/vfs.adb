@@ -204,6 +204,19 @@ package body VFS with SPARK_Mode => Off is
       end case;
    end Create_Symbolic_Link;
 
+   function Create_Hard_Link
+      (Key          : FS_Handle;
+       Path, Target : String) return Boolean
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT =>
+            return EXT.Create_Hard_Link (Mounts (Key).FS_Data, Path, Target);
+         when FS_FAT =>
+            return False;
+      end case;
+   end Create_Hard_Link;
+
    function Create_Directory
       (Key  : FS_Handle;
        Path : String;

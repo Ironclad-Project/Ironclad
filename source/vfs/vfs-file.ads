@@ -145,6 +145,7 @@ package VFS.File with SPARK_Mode => Off is
    function Create_Symbolic_Link
       (Path, Target : String;
        Mode         : Unsigned_32) return Boolean;
+   function Create_Hard_Link (Path, Target : String) return Boolean;
 
    --  Delete a file.
    function Delete (Path : String) return Boolean;

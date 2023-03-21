@@ -2688,4 +2688,85 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return Unsigned_64'Last;
       end case;
    end FSync;
+
+   function Link
+      (Source_Dir  : Unsigned_64;
+       Source_Addr : Unsigned_64;
+       Source_Len  : Unsigned_64;
+       Desto_Dir   : Unsigned_64;
+       Desto_Addr  : Unsigned_64;
+       Desto_Len   : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64
+   is
+      Proc      : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Src_IAddr : constant  Integer_Address := Integer_Address (Source_Addr);
+      Src_SAddr : constant   System.Address := To_Address (Src_IAddr);
+      Dst_IAddr : constant  Integer_Address := Integer_Address (Desto_Addr);
+      Dst_SAddr : constant   System.Address := To_Address (Dst_IAddr);
+      Final_Path1   : String (1 .. 1024);
+      Final_Path1_L : Natural;
+      Final_Path2   : String (1 .. 1024);
+      Final_Path2_L : Natural;
+   begin
+      if Is_Tracing then
+         Lib.Messages.Put ("syscall link(");
+         Lib.Messages.Put (Source_Dir, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Source_Addr, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Source_Len);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Desto_Dir, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Desto_Addr, False, True);
+         Lib.Messages.Put (", ");
+         Lib.Messages.Put (Desto_Len);
+         Lib.Messages.Put_Line (")");
+      end if;
+
+      if not Check_Userland_Access (Proc.Common_Map, Src_IAddr, Source_Len) or
+         not Check_Userland_Access (Proc.Common_Map, Dst_IAddr, Desto_Len)
+      then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      elsif Source_Len > Unsigned_64 (Natural'Last) or
+            Desto_Len  > Unsigned_64 (Natural'Last)
+      then
+         Errno := Error_String_Too_Long;
+         return Unsigned_64'Last;
+      end if;
+
+      declare
+         Src : String (1 .. Natural (Source_Len)) with Address => Src_SAddr;
+         Dst : String (1 ..  Natural (Desto_Len)) with Address => Dst_SAddr;
+      begin
+         Compound_AT_Path
+            (AT_Directive => Natural (Source_Dir),
+             Curr_Proc    => Proc,
+             Extension    => Src,
+             Result       => Final_Path1,
+             Count        => Final_Path1_L);
+         Compound_AT_Path
+            (AT_Directive => Natural (Desto_Dir),
+             Curr_Proc    => Proc,
+             Extension    => Dst,
+             Result       => Final_Path2,
+             Count        => Final_Path2_L);
+         if Final_Path1_L = 0 or Final_Path2_L = 0 then
+            Errno := Error_String_Too_Long;
+            return Unsigned_64'Last;
+         end if;
+
+         if VFS.File.Create_Hard_Link
+            (Final_Path1 (1 .. Final_Path1_L),
+             Final_Path2 (1 .. Final_Path2_L))
+         then
+            Errno := Error_No_Error;
+            return 0;
+         else
+            Errno := Error_IO;
+            return Unsigned_64'Last;
+         end if;
+      end;
+   end Link;
 end Userland.Syscall;

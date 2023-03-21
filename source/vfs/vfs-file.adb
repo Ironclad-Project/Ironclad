@@ -468,4 +468,15 @@ package body VFS.File with SPARK_Mode => Off is
           Target,
           Mode);
    end Create_Symbolic_Link;
+
+   function Create_Hard_Link (Path, Target : String) return Boolean is
+      Match_Count : Natural;
+      Handle      : FS_Handle;
+   begin
+      Get_Mount (Path, Match_Count, Handle);
+      return Create_Hard_Link
+         (Handle,
+          Path   (Path'First   + Match_Count ..   Path'Last),
+          Target (Target'First + Match_Count .. Target'Last));
+   end Create_Hard_Link;
 end VFS.File;

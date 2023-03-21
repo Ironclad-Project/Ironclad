@@ -650,6 +650,8 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @xref{openpty}.
 @item
 @xref{fsync}.
+@item
+@xref{create*, create_link}.
 @end enumerate
 
 @node Errno
@@ -1742,6 +1744,8 @@ int create(int dir_fd, const char *path, int path_len, int mode);
 int create_directory(int dir_fd, const char *path, int path_len, int mode);
 int create_symlink(int dir_fd, const char *path, int path_len,
    const char *target, int target_len,int mode);
+int create_link(int dir_fd, const char *path, int path_len,
+   const char *target, int target_len);
 @end example
 
 These syscall creates non existent files. Each syscall manages one kind of

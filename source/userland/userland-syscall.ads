@@ -514,6 +514,15 @@ package Userland.Syscall with SPARK_Mode => Off is
       (FD    : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
 
+   function Link
+      (Source_Dir  : Unsigned_64;
+       Source_Addr : Unsigned_64;
+       Source_Len  : Unsigned_64;
+       Desto_Dir   : Unsigned_64;
+       Desto_Addr  : Unsigned_64;
+       Desto_Len   : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64;
+
 private
 
    --  Do the actual exiting.

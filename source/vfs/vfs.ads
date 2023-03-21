@@ -145,6 +145,16 @@ package VFS is
        Mode         : Unsigned_32) return Boolean
       with Pre => Key /= Error_Handle;
 
+   --  Create a hard link with an absolute path inside the mount and a target.
+   --  @param Key    FS Handle to open.
+   --  @param Path   Absolute path inside the mount, must not exist.
+   --  @param Target Target of the symlink, it is not checked in any way.
+   --  @return True on success, False on failure.
+   function Create_Hard_Link
+      (Key          : FS_Handle;
+       Path, Target : String) return Boolean
+      with Pre => Key /= Error_Handle;
+
    --  Create a directory with an absolute path inside the mount.
    --  @param Key    FS Handle to open.
    --  @param Path   Absolute path inside the mount, must not exist.

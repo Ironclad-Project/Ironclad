@@ -38,6 +38,10 @@ package VFS.EXT with SPARK_Mode => Off is
        Path, Target : String;
        Mode         : Unsigned_32) return Boolean;
 
+   function Create_Hard_Link
+      (FS           : System.Address;
+       Path, Target : String) return Boolean;
+
    function Create_Directory
       (FS   : System.Address;
        Path : String;

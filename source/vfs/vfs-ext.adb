@@ -237,6 +237,86 @@ package body VFS.EXT with SPARK_Mode => Off is
       return False;
    end Create_Symbolic_Link;
 
+   function Create_Hard_Link
+      (FS           : System.Address;
+       Path, Target : String) return Boolean
+   is
+      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Name_Start                             : Natural;
+      Path_Index, Target_Index, Parent_Index : Unsigned_32;
+      Path_Inode, Target_Inode, Parent_Inode : Inode;
+      Success                                : Boolean;
+   begin
+      if Data.Is_Read_Only or Path'Length = 0 then
+         return False;
+      end if;
+
+      Lib.Synchronization.Seize (Data.Mutex);
+
+      --  Open the source.
+      Success := Inner_Open_Inode
+         (Data         => Data,
+          Path         => Path,
+          Name_Start   => Name_Start,
+          Target_Index => Path_Index,
+          Target_Inode => Path_Inode,
+          Parent_Index => Parent_Index,
+          Parent_Inode => Parent_Inode);
+      if not Success then
+         goto Cleanup;
+      end if;
+
+      --  Checking the target file doesn't exist but the parent is found.
+      Success := Inner_Open_Inode
+         (Data         => Data,
+          Path         => Target,
+          Name_Start   => Name_Start,
+          Target_Index => Target_Index,
+          Target_Inode => Target_Inode,
+          Parent_Index => Parent_Index,
+          Parent_Inode => Parent_Inode);
+      if Success or else Parent_Index = 0 or else Target_Index /= 0 then
+         Success := False;
+         goto Cleanup;
+      end if;
+
+      --  Once we can commit to it, update the hard link count.
+      Success := RW_Inode
+         (Data            => Data,
+          Inode_Index     => Path_Index,
+          Result          => Path_Inode,
+          Write_Operation => False);
+      if not Success then
+         goto Cleanup;
+      end if;
+      Path_Inode.Hard_Link_Count := Path_Inode.Hard_Link_Count + 1;
+      Success := RW_Inode
+         (Data            => Data,
+          Inode_Index     => Path_Index,
+          Result          => Path_Inode,
+          Write_Operation => True);
+      if not Success then
+         goto Cleanup;
+      end if;
+      if not Success then
+         goto Cleanup;
+      end if;
+
+      Add_Directory_Entry
+         (FS_Data     => Data,
+          Inode_Data  => Parent_Inode,
+          Inode_Size  => Get_Size (Parent_Inode, Data.Has_64bit_Filesizes),
+          Inode_Index => Parent_Index,
+          Added_Index => Path_Index,
+          Dir_Type    => Get_Dir_Type (File_Regular),
+          Name        => Target (Name_Start .. Target'Last),
+          Success     => Success);
+
+   <<Cleanup>>
+      Lib.Synchronization.Release (Data.Mutex);
+      return Success;
+   end Create_Hard_Link;
+
    function Create_Directory
       (FS   : System.Address;
        Path : String;
