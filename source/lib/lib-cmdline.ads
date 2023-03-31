@@ -16,9 +16,8 @@
 
 package Lib.Cmdline is
    --  Some notable keys specified in the documentation.
-   Root_Key     : constant String := "root";           --  Device to use as /.
-   Init_Key     : constant String := "init";           --  Init to load.
-   STracing_Key : constant String := "syscalltracing"; --  Trace syscalls.
+   Root_Key : constant String := "root"; --  Device to use as /.
+   Init_Key : constant String := "init"; --  Init to load.
 
    --  Get the value of a key.
    --  @param Cmdline Command line to search in.

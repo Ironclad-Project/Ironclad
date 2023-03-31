@@ -42,22 +42,9 @@ with Userland.Integrity;
 with Devices.TermIOs;
 
 package body Userland.Syscall with SPARK_Mode => Off is
-   Is_Tracing : Boolean := False;
-
-   procedure Set_Tracing (Value : Boolean) is
-   begin
-      Is_Tracing := Value;
-   end Set_Tracing;
-
    procedure Sys_Exit (Code : Unsigned_64; Errno : out Errno_Value) is
       Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall exit(");
-         Lib.Messages.Put (Code);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       Errno := Error_No_Error;
       Do_Exit (Proc, Unsigned_8 (Code and 16#FF#));
    end Sys_Exit;
@@ -112,14 +99,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       I_Arg : constant  Integer_Address := Integer_Address (Argument);
       S_Arg : constant   System.Address := To_Address (I_Arg);
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall arch_prctl(");
-         Lib.Messages.Put (Code);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Argument, False, True);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Proc.Common_Map, I_Arg, 8) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
@@ -163,18 +142,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       File_Perms   : MAC.Filter_Permissions;
       Returned_FD  : Natural;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall open(");
-         Lib.Messages.Put (Dir_FD);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Addr);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Flags);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Curr_Proc.Common_Map, Path_IAddr, Path_Len)
       then
          Errno := Error_Would_Fault;
@@ -266,12 +233,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Curr : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall close(");
-         Lib.Messages.Put (File_D);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Userland.Process.Is_Valid_File (Curr, File_D) then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -298,16 +259,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Ret_Count : Natural;
       Success   : Boolean;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall read(");
-         Lib.Messages.Put (File_D);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Buffer, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Count);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Curr_Proc.Common_Map, Buf_IAddr, Count)
       then
          Errno := Error_Would_Fault;
@@ -367,16 +318,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Ret_Count : Natural;
       Success   : Boolean;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall write(");
-         Lib.Messages.Put (File_D);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Buffer, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Count);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Curr_Proc.Common_Map, Buf_IAddr, Count)
       then
          Errno := Error_Would_Fault;
@@ -431,16 +372,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Stat_Val : VFS.File_Stat;
       Success  : Boolean;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall seek(");
-         Lib.Messages.Put (File_D);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Offset);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Whence);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       File := Get_File (Proc, File_D);
       if File = null then
          Errno := Error_Bad_File;
@@ -502,28 +433,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Offset     : Unsigned_64;
        Errno      : out Errno_Value) return Unsigned_64
    is
+      pragma Unreferenced (Offset);
       Map_Flags : constant Arch.MMU.Page_Permissions :=
          Get_Mmap_Prot (Protection);
       Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Map  : constant Page_Map_Acc     := Proc.Common_Map;
       Final_Hint : Unsigned_64 := Hint;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall mmap(");
-         Lib.Messages.Put (Hint, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Length, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Protection, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Flags, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (File_D);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Offset, False, True);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if Proc.Is_MAC_Locked and not Proc.Perms.Caps.Can_Modify_Memory then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("mmap", Proc);
@@ -601,19 +517,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Length     : Unsigned_64;
        Errno      : out Errno_Value) return Unsigned_64
    is
+      pragma Unreferenced (Length);
       Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Map : constant Memory.Virtual.Page_Map_Acc := Proc.Common_Map;
       Addr : constant Physical_Address :=
          Memory.Virtual.Virtual_To_Physical (Map, Virtual_Address (Address));
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall munmap(");
-         Lib.Messages.Put (Address, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Length, False, True);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if Proc.Is_MAC_Locked and not Proc.Perms.Caps.Can_Modify_Memory then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("munmap", Proc);
@@ -629,21 +538,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Munmap;
 
    function Get_PID return Unsigned_64 is
-      Curr_Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put_Line ("syscall getpid()");
-      end if;
-      return Unsigned_64 (Curr_Proc.Process_PID);
+      return Unsigned_64 (Arch.Local.Get_Current_Process.Process_PID);
    end Get_PID;
 
    function Get_Parent_PID return Unsigned_64 is
-      Curr_Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put_Line ("syscall getppid()");
-      end if;
-      return Unsigned_64 (Curr_Proc.Parent_PID);
+      return Unsigned_64 (Arch.Local.Get_Current_Process.Parent_PID);
    end Get_Parent_PID;
 
    function Exec
@@ -673,22 +574,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Envp_IAddr : constant Integer_Address := Integer_Address (Envp_Addr);
       Envp_SAddr : constant  System.Address := To_Address (Envp_IAddr);
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall exec(");
-         Lib.Messages.Put (Path_Addr);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Argv_Addr);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Argv_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Envp_Addr);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Envp_Len);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Proc.Common_Map, Path_IAddr, Path_Len) or
          not Check_Userland_Access (Proc.Common_Map, Argv_IAddr, Argv_Len) or
          not Check_Userland_Access (Proc.Common_Map, Envp_IAddr, Envp_Len)
@@ -783,6 +668,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        FP_State  : Arch.Context.FP_Context;
        Errno     : out Errno_Value) return Unsigned_64
    is
+      pragma Unreferenced (Call_Arg);
       Parent  : Process_Data_Acc := Arch.Local.Get_Current_Process;
       Child   : Process_Data_Acc;
       New_TID : Scheduler.TID;
@@ -791,20 +677,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Use_Parent : constant Boolean := (Flags and CLONE_PARENT) /= 0;
       Do_Thread  : constant Boolean := (Flags and CLONE_THREAD) /= 0;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall clone(");
-         Lib.Messages.Put (Callback, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Call_Arg);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Stack, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Flags);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (TLS_Addr, False, True);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if Parent.Is_MAC_Locked and not Parent.Perms.Caps.Can_Spawn_Others then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("clone", Parent);
@@ -874,18 +746,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Exit_Value : Unsigned_32 with Address => To_Address (Addr), Import;
       Waited : Process_Data_Acc;
       Final_Waited_PID : Unsigned_64 := Waited_PID;
-      Dont_Hang : constant Boolean := (Options and Wait_WNOHANG) /= 0;
+      Dont_Hang : constant Boolean := (Options and WNOHANG) /= 0;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall wait(");
-         Lib.Messages.Put      (Waited_PID);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Exit_Addr, False, True);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Options, False, True);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       --  Fail on having to wait on the process group, we dont support that.
       if Waited_PID = 0 then
          Errno := Error_Invalid_Value;
@@ -924,16 +786,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end loop;
       else
          --  Check the process is actually our child.
-         for PID_Item of Proc.Children loop
-            if PID_Item = Natural (Waited_PID) then
-               goto Actually_Wait;
-            end if;
-         end loop;
+         if not Is_Child (Proc, Positive (Waited_PID)) then
+            Errno := Error_Child;
+            return Unsigned_64'Last;
+         end if;
 
-         Errno := Error_Child;
-         return Unsigned_64'Last;
-
-      <<Actually_Wait>>
          Waited := Userland.Process.Get_By_PID (Natural (Waited_PID));
          if Waited /= null then
             loop
@@ -960,7 +817,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Errno := Error_Would_Fault;
             return Unsigned_64'Last;
          end if;
-         Exit_Value := Unsigned_32 (Waited.Exit_Code);
+         Exit_Value := Wait_EXITED or Unsigned_32 (Waited.Exit_Code);
       end if;
 
       --  Now that we got the exit code, finally allow the process to die.
@@ -985,12 +842,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       UTS      : UTS_Name with Address => SAddr;
       Host_Len : Networking.Hostname_Len;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall uname(");
-         Lib.Messages.Put      (Address);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Proc.Common_Map, IAddr, UTS'Size / 8) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
@@ -1024,14 +875,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Name    : String (1 .. Len) with Address => SAddr;
       Success : Boolean;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall set_hostname(");
-         Lib.Messages.Put      (Address);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Length);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if Proc.Is_MAC_Locked and not Proc.Perms.Caps.Can_Manage_Networking then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("set_hostname", Proc);
@@ -1078,20 +921,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Is_Empty_Path : constant Boolean := (Flags and AT_EMPTY_PATH)       /= 0;
       Dont_Follow   : constant Boolean := (Flags and AT_SYMLINK_NOFOLLOW) /= 0;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall lstat(");
-         Lib.Messages.Put (Dir_FD);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Addr);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Stat_Addr);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Flags);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access
          (Curr_Proc.Common_Map, Stat_IAddr, Stat'Size / 8)
       then
@@ -1216,14 +1045,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Len   : constant          Natural := Natural (Length);
       Path  : String (1 .. Len) with Address => SAddr;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall getcwd(");
-         Lib.Messages.Put (Buffer, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Length);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Proc.Common_Map, IAddr, Length) then
          Errno := Error_Would_Fault;
          return 0;
@@ -1256,14 +1077,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path_L : Natural;
       File         : VFS.File.File_Acc;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall chdir(");
-         Lib.Messages.Put (Path_Addr);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Len);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Proc.Common_Map, IAddr, Path_Len) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
@@ -1307,16 +1120,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       File  : constant File_Description_Acc := Get_File (Proc, FD);
       Succ  : Boolean;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall ioctl(");
-         Lib.Messages.Put      (FD);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Request, False, True);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Argument, False, True);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Proc.Common_Map, I_Arg, 8) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
@@ -1347,10 +1150,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
    function Sched_Yield (Errno : out Errno_Value) return Unsigned_64 is
    begin
-      if Is_Tracing then
-         Lib.Messages.Put_Line ("syscall sched_yield()");
-      end if;
-
       Scheduler.Yield;
       Errno := Error_No_Error;
       return 0;
@@ -1363,14 +1162,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Thre : constant    Scheduler.TID := Arch.Local.Get_Current_Thread;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall set_deadlines(");
-         Lib.Messages.Put (Run_Time);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Period);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if Proc.Is_MAC_Locked and not Proc.Perms.Caps.Can_Change_Scheduling then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("setdeadlines", Proc);
@@ -1398,12 +1189,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Writer : Pipe_Writer_Acc;
       Reader_Desc, Writer_Desc : File_Description_Acc;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall pipe(");
-         Lib.Messages.Put (Result_Addr);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Proc.Common_Map, Ad, Res'Size / 8) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
@@ -1444,12 +1229,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       New_FD    : File_Description_Acc;
       Result_FD : Natural;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall dup(");
-         Lib.Messages.Put      (Old_FD);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if Old_File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -1475,14 +1254,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Process  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Old_File : constant File_Description_Acc := Get_File (Process, Old_FD);
    begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall dup2(");
-         Lib.Messages.Put      (Old_FD);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (New_FD);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if New_FD /= Old_FD and then not Userland.Process.Replace_File
          (Process, Duplicate (Old_File), Natural (New_FD))
       then
@@ -1505,12 +1276,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       PS     : constant := Page_Size;
       Aval   : Memory.Size renames Stats.Available;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall sysconf(");
-         Lib.Messages.Put      (Request);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       Memory.Physical.Get_Statistics (Stats);
       case Request is
          when SC_PAGESIZE      => Result := PS;
@@ -1551,20 +1316,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       Dont_Follow : constant Boolean := (Flags and AT_SYMLINK_NOFOLLOW) /= 0;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall access(");
-         Lib.Messages.Put (Dir_FD);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Addr, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Mode);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Flags);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Curr_Proc.Common_Map, Path_IAddr, Path_Len)
       then
          Errno := Error_Would_Fault;
@@ -1619,10 +1370,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Ret  : Unsigned_64            := 0;
       Curr : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put_Line ("syscall get_thread_sched()");
-      end if;
-
       if Scheduler.Is_Mono_Thread (Curr) then
          Ret := Ret or Thread_MONO;
       end if;
@@ -1638,12 +1385,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Curr : constant Scheduler.TID    := Arch.Local.Get_Current_Thread;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall set_thread_sched(");
-         Lib.Messages.Put      (Flags);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if Proc.Is_MAC_Locked and not Proc.Perms.Caps.Can_Change_Scheduling then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("set_thread_sched", Proc);
@@ -1666,16 +1407,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Temp : Boolean;
       Returned : Unsigned_64 := 0;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall fcntl(");
-         Lib.Messages.Put      (FD);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Command);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Argument);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -1729,10 +1460,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
    procedure Exit_Thread (Errno : out Errno_Value) is
    begin
-      if Is_Tracing then
-         Lib.Messages.Put_Line ("syscall exit_thread()");
-      end if;
-
       Errno := Error_No_Error;
       Scheduler.Bail;
    end Exit_Thread;
@@ -1748,14 +1475,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Result : Cryptography.Random.Crypto_Data (1 .. Natural (Length / 4))
          with Address => SAddr;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall getrandom(");
-         Lib.Messages.Put      (Address, False, True);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Length);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if Proc.Is_MAC_Locked and not Proc.Perms.Caps.Can_Access_Entropy then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("getrandom", Proc);
@@ -1781,16 +1500,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Flags : constant Arch.MMU.Page_Permissions := Get_Mmap_Prot (Protection);
       Addr  : constant Integer_Address := Integer_Address (Address);
    begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall mprotect(");
-         Lib.Messages.Put      (Address, False, True);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Length);
-         Lib.Messages.Put      (", ");
-         Lib.Messages.Put      (Protection, False, True);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if Proc.Is_MAC_Locked and not Proc.Perms.Caps.Can_Modify_Memory then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("mprotect", Proc);
@@ -1821,13 +1530,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       S6 : constant Boolean := (Bits and MAC_CAP_SYS_NET) /= 0;
       S7 : constant Boolean := (Bits and MAC_CAP_SYS_MNT) /= 0;
       S8 : constant Boolean := (Bits and MAC_CAP_SYS_PWR) /= 0;
+      S9 : constant Boolean := (Bits and MAC_CAP_PTRACE)  /= 0;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall set_mac(");
-         Lib.Messages.Put      (Bits, False, True);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if P.Is_MAC_Locked then
          P.Perms.Caps := (
             Can_Change_Scheduling => P.Perms.Caps.Can_Change_Scheduling and S1,
@@ -1837,7 +1541,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Can_Use_Networking    => P.Perms.Caps.Can_Use_Networking    and S5,
             Can_Manage_Networking => P.Perms.Caps.Can_Manage_Networking and S6,
             Can_Manage_Mounts     => P.Perms.Caps.Can_Manage_Mounts     and S7,
-            Can_Manage_Power      => P.Perms.Caps.Can_Manage_Power      and S8
+            Can_Manage_Power      => P.Perms.Caps.Can_Manage_Power      and S8,
+            Can_Trace_Children    => P.Perms.Caps.Can_Trace_Children    and S9
          );
       else
          P.Perms.Caps := (
@@ -1848,7 +1553,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Can_Use_Networking    => S5,
             Can_Manage_Networking => S6,
             Can_Manage_Mounts     => S7,
-            Can_Manage_Power      => S8
+            Can_Manage_Power      => S8,
+            Can_Trace_Children    => S9
          );
       end if;
 
@@ -1859,10 +1565,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
    function Lock_MAC (Errno : out Errno_Value) return Unsigned_64 is
       Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put_Line ("syscall lock_mac()");
-      end if;
-
       if Proc.Is_MAC_Locked then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("lock_mac", Proc);
@@ -1883,12 +1585,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Filt   : MAC_Filter with Import, Address => To_Address (Addr);
       Xlated : MAC.Filter;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall add_mac_filter(");
-         Lib.Messages.Put      (Filter_Addr, False, True);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Proc.Common_Map, Addr, Filt'Size / 8) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
@@ -1931,12 +1627,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put      ("syscall set_mac_enforcement(");
-         Lib.Messages.Put      (Action, False, True);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if Proc.Is_MAC_Locked then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("set_mac_enforcement", Proc);
@@ -1982,6 +1672,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        MountFlags  : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64
    is
+      pragma Unreferenced (MountFlags);
       Proc       : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Src_IAddr  : constant  Integer_Address := Integer_Address (Source_Addr);
       Tgt_IAddr  : constant  Integer_Address := Integer_Address (Target_Addr);
@@ -1989,22 +1680,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Tgt_Addr   : constant   System.Address := To_Address (Tgt_IAddr);
       Parsed_Typ : VFS.FS_Type;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall mount(");
-         Lib.Messages.Put (Source_Addr, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Source_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Target_Addr, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Target_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (FSType);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (MountFlags);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Proc.Common_Map, Src_IAddr, Source_Len) or
          not Check_Userland_Access (Proc.Common_Map, Tgt_IAddr, Target_Len)
       then
@@ -2054,16 +1729,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Path_SAddr : constant  System.Address  := To_Address (Path_IAddr);
       Flag_Force : constant Boolean := (Flags and MNT_FORCE) /= 0;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall umount(");
-         Lib.Messages.Put (Path_Addr, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Flags, False, True);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Curr_Proc.Common_Map, Path_IAddr, Path_Len)
       then
          Errno := Error_Would_Fault;
@@ -2110,20 +1775,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Opened       : VFS.File.File_Acc;
       Ret_Count    : Natural;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall readlink(");
-         Lib.Messages.Put (Dir_FD);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Addr, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Buffer_Addr, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Buffer_Len, False, True);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Proc.Common_Map, Path_IAddr, Path_Len) or
          not Check_Userland_Access (Proc.Common_Map, Buffer_IAddr, Buffer_Len)
       then
@@ -2195,16 +1846,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc : constant Process_Data_Acc     := Arch.Local.Get_Current_Process;
       File : constant File_Description_Acc := Get_File (Proc, FD);
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall getdents(");
-         Lib.Messages.Put (FD);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Buffer_Addr, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Buffer_Len, False, True);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Proc.Common_Map, Buff_IAddr, Buffer_Len)
       then
          Errno := Error_Would_Fault;
@@ -2248,10 +1889,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
    function Sync (Errno : out Errno_Value) return Unsigned_64 is
    begin
-      if Is_Tracing then
-         Lib.Messages.Put_Line ("syscall sync()");
-      end if;
-
       if not VFS.Synchronize then
          Errno := Error_IO;
          return Unsigned_64'Last;
@@ -2274,18 +1911,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall create(");
-         Lib.Messages.Put (Dir_FD, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Addr, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Mode);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Curr_Proc.Common_Map, Path_IAddr, Path_Len)
       then
          Errno := Error_Would_Fault;
@@ -2332,16 +1957,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall delete(");
-         Lib.Messages.Put (Dir_FD);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Addr, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Len);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Curr_Proc.Common_Map, Path_IAddr, Path_Len)
       then
          Errno := Error_Would_Fault;
@@ -2384,14 +1999,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       File : constant File_Description_Acc := Get_File (Proc, FD);
       Succ : Boolean;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall truncate(");
-         Lib.Messages.Put (FD);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (New_Size);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -2427,18 +2034,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall create_directory(");
-         Lib.Messages.Put (Dir_FD, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Addr, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Mode);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Curr_Proc.Common_Map, Path_IAddr, Path_Len)
       then
          Errno := Error_Would_Fault;
@@ -2490,22 +2085,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall create_symlink(");
-         Lib.Messages.Put (Dir_FD, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Addr, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Path_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Target_Addr, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Target_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Mode);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Proc.Common_Map, Path_IAddr, Path_Len) or
          not Check_Userland_Access (Proc.Common_Map, Targ_IAddr, Target_Len)
       then
@@ -2552,14 +2131,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       P : Integrity.Policy;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall integrity_setup(");
-         Lib.Messages.Put (Command);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Argument);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       case Command is
          when INTEGRITY_SET_POLICY =>
             case Argument is
@@ -2616,12 +2187,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       TIO_Size : constant Unsigned_64 := Termios'Size / 8;
       Win_Size : constant Unsigned_64 := Win_Siz'Size / 8;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall open_pty(");
-         Lib.Messages.Put (Result_Addr);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Proc.Common_Map, Res_IAddr, Res_Size) or
          not Check_Userland_Access (Proc.Common_Map, TIO_IAddr, TIO_Size) or
          not Check_Userland_Access (Proc.Common_Map, Win_IAddr, Win_Size)
@@ -2663,12 +2228,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc : constant     Process_Data_Acc := Arch.Local.Get_Current_Process;
       File : constant File_Description_Acc := Get_File (Proc, FD);
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall fsync(");
-         Lib.Messages.Put (FD);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
@@ -2708,22 +2267,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path2   : String (1 .. 1024);
       Final_Path2_L : Natural;
    begin
-      if Is_Tracing then
-         Lib.Messages.Put ("syscall link(");
-         Lib.Messages.Put (Source_Dir, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Source_Addr, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Source_Len);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Desto_Dir, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Desto_Addr, False, True);
-         Lib.Messages.Put (", ");
-         Lib.Messages.Put (Desto_Len);
-         Lib.Messages.Put_Line (")");
-      end if;
-
       if not Check_Userland_Access (Proc.Common_Map, Src_IAddr, Source_Len) or
          not Check_Userland_Access (Proc.Common_Map, Dst_IAddr, Desto_Len)
       then
@@ -2769,4 +2312,37 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end;
    end Link;
+
+   function PTrace
+      (Request     : Unsigned_64;
+       Traced_PID  : Unsigned_64;
+       Traced_Addr : Unsigned_64;
+       Result_Addr : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64
+   is
+      pragma Unreferenced (Traced_Addr);
+      Proc  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      TProc : constant Process_Data_Acc := Get_By_PID (Positive (Traced_PID));
+   begin
+      if TProc = null or else not Is_Child (Proc, TProc.Process_PID) then
+         Errno := Error_Bad_Permissions;
+         return Unsigned_64'Last;
+      elsif Proc.Is_MAC_Locked and not Proc.Perms.Caps.Can_Trace_Children then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("ptrace", Proc);
+         return Unsigned_64'Last;
+      end if;
+
+      case Request is
+         when PTRACE_SYSCALL_PIPE =>
+            TProc.Tracer_PID := Proc.Process_PID;
+            TProc.Tracer_FD  := Natural (Result_Addr);
+         when others =>
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+      end case;
+
+      Errno := Error_No_Error;
+      return 0;
+   end PTrace;
 end Userland.Syscall;

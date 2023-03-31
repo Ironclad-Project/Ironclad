@@ -28,7 +28,8 @@ package Userland.MAC is
       Can_Manage_Networking : Boolean;
       Can_Manage_Mounts     : Boolean;
       Can_Manage_Power      : Boolean;
-   end record with Pack, Size => 8;
+      Can_Trace_Children    : Boolean;
+   end record with Pack, Size => 9;
 
    --  Permissions a filter can give.
    type Filter_Permissions is record

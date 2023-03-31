@@ -63,6 +63,8 @@ package body Userland.Process with SPARK_Mode => Off is
             Process_List (I) := new Process_Data'
                (Process_PID => I,
                 Did_Exit    => False,
+                Tracer_PID  => 0,
+                Tracer_FD   => 0,
                 Exit_Code   => 0,
                 Children    => (others => 0),
                 Thread_List => (others => 0),
@@ -147,6 +149,16 @@ package body Userland.Process with SPARK_Mode => Off is
 
       return null;
    end Get_By_Thread;
+
+   function Is_Child (P : Process_Data_Acc; Proc : Positive) return Boolean is
+   begin
+      for PID_Item of P.Children loop
+         if PID_Item = Proc then
+            return True;
+         end if;
+      end loop;
+      return False;
+   end Is_Child;
 
    function Add_Thread
       (Process : Process_Data_Acc;

@@ -37,6 +37,7 @@ package Userland.Syscall with SPARK_Mode => Off is
       Error_No_Entity,       --  ENOENT
       Error_Not_Implemented, --  ENOSYS
       Error_Not_A_TTY,       --  ENOTTY
+      Error_Bad_Permissions, --  EPERM
       Error_Invalid_Seek,    --  ESPIPE
       Error_Bad_Search,      --  ESRCH
       Error_Bad_File         --  EBADFD
@@ -56,6 +57,7 @@ package Userland.Syscall with SPARK_Mode => Off is
       Error_No_Entity       => 1043,
       Error_Not_Implemented => 1051,
       Error_Not_A_TTY       => 1058,
+      Error_Bad_Permissions => 1063,
       Error_Invalid_Seek    => 1069,
       Error_Bad_Search      => 1070,
       Error_Bad_File        => 1081
@@ -63,9 +65,6 @@ package Userland.Syscall with SPARK_Mode => Off is
 
    --  AT_ directives for path-relative syscalls.
    AT_FDCWD : constant := Natural'Last;
-
-   --  Enable syscall tracing.
-   procedure Set_Tracing (Value : Boolean);
 
    --  Exit the callee thread, flushing open files.
    procedure Sys_Exit (Code : Unsigned_64; Errno : out Errno_Value);
@@ -169,7 +168,8 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno     : out Errno_Value) return Unsigned_64;
 
    --  Wait.
-   Wait_WNOHANG : constant := 2#000010#;
+   WNOHANG     : constant := 2#0000000010#;
+   Wait_EXITED : constant := 2#1000000000#;
    function Wait
       (Waited_PID : Unsigned_64;
        Exit_Addr  : Unsigned_64;
@@ -349,14 +349,15 @@ package Userland.Syscall with SPARK_Mode => Off is
       Errno      : out Errno_Value) return Unsigned_64;
 
    --  Set MAC capabilities of the caller process.
-   MAC_CAP_SCHED   : constant := 2#00000001#;
-   MAC_CAP_SPAWN   : constant := 2#00000010#;
-   MAC_CAP_ENTROPY : constant := 2#00000100#;
-   MAC_CAP_SYS_MEM : constant := 2#00001000#;
-   MAC_CAP_USE_NET : constant := 2#00010000#;
-   MAC_CAP_SYS_NET : constant := 2#00100000#;
-   MAC_CAP_SYS_MNT : constant := 2#01000000#;
-   MAC_CAP_SYS_PWR : constant := 2#10000000#;
+   MAC_CAP_SCHED   : constant := 2#000000001#;
+   MAC_CAP_SPAWN   : constant := 2#000000010#;
+   MAC_CAP_ENTROPY : constant := 2#000000100#;
+   MAC_CAP_SYS_MEM : constant := 2#000001000#;
+   MAC_CAP_USE_NET : constant := 2#000010000#;
+   MAC_CAP_SYS_NET : constant := 2#000100000#;
+   MAC_CAP_SYS_MNT : constant := 2#001000000#;
+   MAC_CAP_SYS_PWR : constant := 2#010000000#;
+   MAC_CAP_PTRACE  : constant := 2#100000000#;
    function Set_MAC_Capabilities
       (Bits  : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
@@ -514,6 +515,7 @@ package Userland.Syscall with SPARK_Mode => Off is
       (FD    : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
 
+   --  Make a hard link.
    function Link
       (Source_Dir  : Unsigned_64;
        Source_Addr : Unsigned_64;
@@ -521,6 +523,15 @@ package Userland.Syscall with SPARK_Mode => Off is
        Desto_Dir   : Unsigned_64;
        Desto_Addr  : Unsigned_64;
        Desto_Len   : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64;
+
+   --  Trace process, with several debug utilities.
+   PTRACE_SYSCALL_PIPE : constant := 1;
+   function PTrace
+      (Request     : Unsigned_64;
+       Traced_PID  : Unsigned_64;
+       Traced_Addr : Unsigned_64;
+       Result_Addr : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
 
 private

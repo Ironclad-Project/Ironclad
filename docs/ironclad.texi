@@ -121,11 +121,15 @@ Syscalls
 * readlink::                Read the contents of a symlink.
 * getdents::                Get directory entries.
 * sync::                    Synchronize device caches.
-* create*::                 Create regular files.
+* create::                  Create regular files.
 * truncate::                Truncate the contents of a file to an offset.
+* mkdir::                   Create directories.
+* symlink::                 Create symbolic links.
 * integrity_setup::         Setup and configure integrity checks.
 * openpty::                 Create pseudoterminals.
 * fsync::                   Synchronize file-specific caches.
+* link::                    Create hard links.
+* ptrace::                  Trace and debug children processes.
 
 Filesystems support and interfaces
 
@@ -274,7 +278,7 @@ The format is a list of keys that can have arguments or not in a C-style
 NUL-terminted string, as such:
 
 @example
-key1=value1 key2 key3 ... keyN
+key1=value1 key2 key3=value3 ... keyN
 @end example
 
 @node List
@@ -290,10 +294,6 @@ Device to mount as root, if any.
 Path to a program that will be booted by the kernel when finished loading.
 The program will be started with @code{stdin} set to @code{/dev/null}, and
 @code{stdout} and @code{stderr} set to @code{/dev/debug}.
-
-@item syscalltracing
-Enables tracing syscalls and their arguments, really performance taxing, but
-essential for userland kernel debugging.
 @end table
 
 @node Embedded facilities and RTC
@@ -503,6 +503,9 @@ The process will be able to modify, add, and remove mountpoints.
 @item MAC_CAP_SYS_PWR
 The process will be able to modify power settings, along doing things like
 shutdown and reboot.
+
+@item MAC_CAP_PTRACE
+The process will be able to use ptrace on children processes.
 @end table
 
 Apart of capabilities, access to filesystem structures and permission
@@ -637,13 +640,13 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{getdents}.
 @item
-@xref{create*, create}.
+@xref{create}.
 @item
 @xref{truncate}.
 @item
-@xref{create*, create_directory}.
+@xref{mkdir}.
 @item
-@xref{create*, create_symlink}.
+@xref{symlink}.
 @item
 @xref{integrity_setup}.
 @item
@@ -651,7 +654,9 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{fsync}.
 @item
-@xref{create*, create_link}.
+@xref{link}.
+@item
+@xref{ptrace}
 @end enumerate
 
 @node Errno
@@ -1502,14 +1507,15 @@ sets the following errno:
 @section set_mac_capabilities
 
 @example
-#define MAC_CAP_SCHED   0b00000001
-#define MAC_CAP_SPAWN   0b00000010
-#define MAC_CAP_ENTROPY 0b00000100
-#define MAC_CAP_SYS_MEM 0b00001000
-#define MAC_CAP_USE_NET 0b00010000
-#define MAC_CAP_SYS_NET 0b00100000
-#define MAC_CAP_SYS_MNT 0b01000000
-#define MAC_CAP_SYS_PWR 0b10000000
+#define MAC_CAP_SCHED   0b000000001
+#define MAC_CAP_SPAWN   0b000000010
+#define MAC_CAP_ENTROPY 0b000000100
+#define MAC_CAP_SYS_MEM 0b000001000
+#define MAC_CAP_USE_NET 0b000010000
+#define MAC_CAP_SYS_NET 0b000100000
+#define MAC_CAP_SYS_MNT 0b001000000
+#define MAC_CAP_SYS_PWR 0b010000000
+#define MAC_CAP_PTRACE  0b100000000
 
 int set_mac_capabilities(unsigned long request);
 @end example
@@ -1736,26 +1742,23 @@ errno:
 @code{EIO}: Device error while flushing.
 @end itemize
 
-@node create*
-@section create*
+@node create
+@section create
 
 @example
 int create(int dir_fd, const char *path, int path_len, int mode);
-int create_directory(int dir_fd, const char *path, int path_len, int mode);
-int create_symlink(int dir_fd, const char *path, int path_len,
-   const char *target, int target_len,int mode);
-int create_link(int dir_fd, const char *path, int path_len,
-   const char *target, int target_len);
 @end example
 
-These syscall creates non existent files. Each syscall manages one kind of
-file only.
+This syscall creates regular files in the passed path.
 
 The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 
 @itemize @bullet
+@code{EACCES}: Bad memory addresses.
 @item
-@code{EINVAL}: The value of @code{file_type} or @code{mode} is not allowed.
+@code{EINVAL}: The passed path length is way too big.
+@item
+@code{EIO}: Internal error.
 @end itemize
 
 @node truncate
@@ -1778,6 +1781,46 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @code{EBADF}: The file pointed by @code{fd} is not valid for truncation.
 @item
 @code{EINVAL}: @code{new_size} could not be set.
+@end itemize
+
+@node mkdir
+@section mkdir
+
+@example
+int mkdir(int dir_fd, const char *path, int path_len, int mode);
+@end example
+
+This syscall creates directories in the passed path.
+
+The syscall returns @code{0} or @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@code{EACCES}: Bad memory addresses.
+@item
+@code{EINVAL}: The passed path length is way too big.
+@item
+@code{EIO}: Internal error.
+@end itemize
+
+@node symlink
+@section symlink
+
+@example
+int symlink(int dir_fd, const char *path, int path_len,
+            const char *target, int target_len, int mode);
+@end example
+
+This syscall creates symlinks for the passed path and mode.
+
+The syscall returns @code{0} or @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@code{EACCES}: Bad memory addresses.
+@item
+@code{EINVAL}: The passed path and target lengths are way too big, or the
+passed mode is invalid.
+@item
+@code{EIO}: Internal error.
 @end itemize
 
 @node integrity_setup
@@ -1879,6 +1922,63 @@ The syscall returns @code{0} or @code{-1} on failure, with the errno:
 entity, like a pipe or pseudoterminal.
 @item
 @code{EIO}: FS or device error while flushing.
+@end itemize
+
+@node link
+@section link
+
+@example
+int link(int dir_fd, const char *path, int path_len,
+         const char *target, int target_len);
+@end example
+
+This syscall creates hard links, the paths are not dereferenced in the case
+of being symlinks.
+
+The syscall returns @code{0} or @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EACCES}: Bad memory addresses.
+@item
+@code{EINVAL}: The passed path and target lengths are way too big.
+@item
+@code{EIO}: Internal error.
+@end itemize
+
+@node ptrace
+@section ptrace
+
+@example
+#define PTRACE_SYSCALL_PIPE 1
+
+long ptrace(long request, pid_t pid, void *addr, void *data);
+@end example
+
+This syscall can be used for tracing, debugging, execution control, and info
+reporting of data owned by a child process. The operations is indicated by
+@code{request}, while the PID to act upon is @code{pid}, @code{addr} the
+address in the child process to modify, and @code{data} what to modify with.
+
+@code{request} can be one of:
+
+@itemize @bullet
+@item
+@code{PTRACE_SYSCALL_PIPE (1)}: @code{data} will be taken as an FD in the
+child process, which the kernel will use to report the state on every syscall
+the child process does. The descriptor must be a pipe, no other files are
+supported. Errors writing are silently ignored.
+@end itemize
+
+The syscall returns @code{0} or @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EACCES}: MAC did not allow this.
+@item
+@code{EPERM}: @code{pid} is not a child or does not exist.
+@item
+@code{EINVAL}: @code{request} is not valid.
 @end itemize
 
 @node Filesystems support and interfaces

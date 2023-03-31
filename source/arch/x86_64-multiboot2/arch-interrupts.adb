@@ -22,6 +22,9 @@ with Lib.Messages;
 with Scheduler;
 with Userland.Syscall; use Userland.Syscall;
 with Arch.Snippets;
+with Arch.Local;
+with Userland.Process; use Userland.Process;
+with IPC.Pipe; use IPC.Pipe;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
@@ -115,11 +118,23 @@ package body Arch.Interrupts with SPARK_Mode => Off is
    end Exception_Handler;
 
    procedure Syscall_Handler (Num : Integer; State : not null ISR_GPRs_Acc) is
-      Returned : Unsigned_64 := Unsigned_64'Last;
-      Errno    : Errno_Value := Error_No_Error;
+      Proc     : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Returned :               Unsigned_64 := Unsigned_64'Last;
+      Errno    :               Errno_Value := Error_No_Error;
       FP_State : Context.FP_Context;
+      File     : File_Description_Acc;
       pragma Unreferenced (Num);
    begin
+      --  Check if we have to write the syscall info somewhere.
+      if Proc.Tracer_PID /= 0 then
+         File := Get_File (Proc, Unsigned_64 (Proc.Tracer_FD));
+         if File /= null and then File.Description = Description_Writer_Pipe
+         then
+            Returned := Write
+               (File.Inner_Writer_Pipe, ISR_GPRs'Size / 8, State.all'Address);
+         end if;
+      end if;
+
       --  Call the inner syscall.
       --  RAX is the return value, as well as the syscall number.
       --  RDX is the returned errno.
@@ -245,6 +260,9 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 50 =>
             Returned := Link (State.RDI, State.RSI, State.RDX, State.RCX,
                               State.R8, State.R9, Errno);
+         when 51 =>
+            Returned := PTrace (State.RDI, State.RSI, State.RDX, State.RCX,
+                                Errno);
          when others =>
             Errno := Error_Not_Implemented;
       end case;

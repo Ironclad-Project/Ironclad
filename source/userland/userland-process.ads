@@ -60,6 +60,8 @@ package Userland.Process with SPARK_Mode => Off is
    type Process_Data is record
       Process_PID     : Positive;
       Parent_PID      : Natural;
+      Tracer_PID      : Natural;
+      Tracer_FD       : Natural range 0 .. 99;
       Children        : Process_Children_Table;
       Current_Dir_Len : Natural;
       Current_Dir     : String (1 .. 100);
@@ -91,6 +93,9 @@ package Userland.Process with SPARK_Mode => Off is
    procedure Delete_Process (Process : Process_Data_Acc);
    function Get_By_PID (Process : Positive) return Process_Data_Acc;
    function Get_By_Thread (Thread : Scheduler.TID) return Process_Data_Acc;
+
+   --  Check whether a process is a child of the passed one.
+   function Is_Child (P : Process_Data_Acc; Proc : Positive) return Boolean;
 
    --  From here on, these are convenience functions for handling data in the
    --  process record.

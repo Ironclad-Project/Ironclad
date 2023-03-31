@@ -29,7 +29,6 @@ with Scheduler;
 with Lib.Runtime;
 pragma Unreferenced (Lib.Runtime);
 with Config;
-with Userland.Syscall;
 
 procedure Main is
    pragma SPARK_Mode (Off);
@@ -93,10 +92,6 @@ begin
    else
       Lib.Panic.Hard_Panic ("No init was specified");
    end if;
-
-   --  Set tracing if specified.
-   Userland.Syscall.Set_Tracing
-      (Lib.Cmdline.Is_Key_Present (Cmdline, Lib.Cmdline.STracing_Key));
 
    --  Going idle into the scheduler.
    Scheduler.Idle_Core;
