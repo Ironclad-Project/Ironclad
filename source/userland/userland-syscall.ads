@@ -235,14 +235,9 @@ package Userland.Syscall with SPARK_Mode => Off is
       Block_Count   at 0 range 832 .. 895;
    end record;
    for Stat'Size use 896;
-   AT_EMPTY_PATH       : constant := 2#01#;
-   AT_SYMLINK_NOFOLLOW : constant := 2#10#;
-   function LStat
-      (Dir_FD    : Unsigned_64;
-       Path_Addr : Unsigned_64;
-       Path_Len  : Unsigned_64;
+   function FStat
+      (FD        : Unsigned_64;
        Stat_Addr : Unsigned_64;
-       Flags     : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
 
    --  Get current working directory.
@@ -298,16 +293,14 @@ package Userland.Syscall with SPARK_Mode => Off is
       (Request : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64;
 
-   Access_Exists    : constant := 2#0001#;
-   Access_Can_Read  : constant := 2#0010#;
-   Access_Can_Write : constant := 2#0100#;
-   Access_Can_Exec  : constant := 2#1000#;
-   function Sys_Access
-      (Dir_FD    : Unsigned_64;
-       Path_Addr : Unsigned_64;
+   --  Spawn a process just like fork+exec would.
+   function Spawn
+      (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
-       Mode      : Unsigned_64;
-       Flags     : Unsigned_64;
+       Argv_Addr : Unsigned_64;
+       Argv_Len  : Unsigned_64;
+       Envp_Addr : Unsigned_64;
+       Envp_Len  : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
 
    --  Managing scheduling of a thread.

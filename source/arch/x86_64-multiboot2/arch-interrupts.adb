@@ -181,8 +181,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := Delete
                (State.RDI, State.RSI, State.RDX, Errno);
          when 17 =>
-            Returned := LStat
-               (State.RDI, State.RSI, State.RDX, State.RCX, State.R8, Errno);
+            Returned := FStat (State.RDI, State.RSI, Errno);
          when 18 =>
             Returned := Get_CWD (State.RDI, State.RSI, Errno);
          when 19 =>
@@ -202,8 +201,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 26 =>
             Returned := Sysconf (State.RDI, Errno);
          when 27 =>
-            Returned := Sys_Access
-               (State.RDI, State.RSI, State.RDX, State.RCX, State.R8, Errno);
+            Returned := Spawn (State.RDI, State.RSI, State.RDX,
+                               State.RCX, State.R8, State.R9, Errno);
          when 28 =>
             Returned := Get_Thread_Sched (Errno);
          when 29 =>

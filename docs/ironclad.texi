@@ -98,7 +98,7 @@ Syscalls
 * uname::                   Fetch basic system information.
 * sethostname::             Hostname setting.
 * delete::                  Delete files.
-* lstat::                   Fetch file information.
+* fstat::                   Fetch file information.
 * getcwd/chdir::            Current working directory manipulation.
 * ioctl::                   IO multiplexer.
 * sched_yield::             Relinquish CPU time.
@@ -106,7 +106,7 @@ Syscalls
 * pipe::                    Create pipes.
 * dup/dup2::                Duplicate file descriptors.
 * sysconf::                 Fetch general system parameters and information.
-* access::                  Testing file permissions.
+* spawn::                   Fork+exec power incarnate.
 * thread_sched::            Manage scheduler-related thread permissions.
 * fcntl::                   Multiplexed operations for files.
 * exit_thread::             Exit the calling thread.
@@ -588,7 +588,7 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{delete}
 @item
-@pxref{lstat, lstat}.
+@pxref{fstat, fstat}.
 @item
 @xref{getcwd/chdir, getcwd}.
 @item
@@ -608,7 +608,7 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{sysconf, sysconf}.
 @item
-@xref{access}.
+@xref{spawn, spawn}.
 @item
 @xref{thread_sched, get_thread_sched}.
 @item
@@ -667,6 +667,9 @@ depth. When a syscall does not error out, it returns the value 0 on the errno
 field. Here is a table of all the possible errno and its values and meaning:
 
 @table @code
+@item ENOERR (0)
+There was no error, this is displayed for completeness.
+
 @item ERANGE (3)
 The passed value was not big enough.
 
@@ -703,14 +706,21 @@ No such file or directory.
 @item ENOSYS (1051)
 The requested syscall or flag is not implemented.
 
+@item ENOTTY (1058)
+The passed argument is not a TTY.
+
+@item EPERM (1063)
+Bad permissions.
+
 @item ESPIPE (1069)
 A seek was issued to an invalid device.
 
 @item ESRCH (1070)
 The passed item could not be found after a search.
 
-@item ESPIPE (1081)
-The passed FD is in a bad state.
+@item EBADFD (1081)
+The passed FD is in a bad state or invalid.
+
 @end table
 
 @node exit
@@ -1114,8 +1124,8 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @code{ENOENT}: @code{delete} points to a file not valid for deletion, if at all.
 @end itemize
 
-@node lstat
-@section lstat
+@node fstat
+@section fstat
 
 @example
 struct stat @{
@@ -1134,12 +1144,10 @@ struct stat @{
     blkcnt_t st_blocks;
 @};
 
-int lstat(int dir_fd, const char *path, int path_len, struct stat *statbuf);
+int fstat(int fd, struct stat *statbuf);
 @end example
 
-This syscalls return information about a file. No permissions are required
-for fetching the file information, but they are required for the containing
-directories.
+This syscalls return information about an already opened file.
 
 @code{0} is returned on success, @code{-1} on failure, with the following errno:
 
@@ -1332,44 +1340,16 @@ The errno codes set on failure are:
 @code{EINVAL}: Invalid request.
 @end itemize
 
-@node access
-@section access
+@node spawn
+@section spawn
 
 @example
-int access(const char *path, int path_len, int mode);
+pid_t spawn(const char *path, int path_len, char *const argv[], int argv_len, char *const envp[], envp_len);
 @end example
 
-This syscalls tests for file permissions and access without opening it.
-@code{path} will be checked for a set of options or'd in @code{mode}, the
-options are:
-
-@itemize @bullet
-@item
-@code{F_OK (0b0001)}: The existance of the file is checked.
-
-@item
-@code{R_OK (0b0010)}: Being able to read the file is checked.
-
-@item
-@code{W_OK (0b0100)}: Being able to write to the file is checked.
-
-@item
-@code{X_OK (0b1000)}: The file being executable is checked.
-@end itemize
-
-The syscall returns @code{0} on success of checking the passed conditions
-and @code{-1} on failure. The errno codes set on failure are:
-
-@itemize @bullet
-@item
-@code{EFAULT}: The passed path points to invalid memory.
-
-@item
-@code{EINVAL}: The passed @code{mode} is not valid.
-
-@item
-@code{ENOENT}: The requested path to check does not exist.
-@end itemize
+This syscalls does exactly the same as a @code{fork}+@code{exec}, but faster
+and more efficiently. It has the same returns as @code{fork} and @code{spawn}
+together.
 
 @node thread_sched
 @section thread_sched
@@ -1388,8 +1368,9 @@ operate on a bitmap with the following bits
 @xref{Scheduling and predictability} for details.
 @end itemize
 
-@code{get_thread_sched} returns the flags and does not fail, @code{set_thread_sched}
-returns @code{0} on success and @code{-1} on failure, with the following errno:
+@code{get_thread_sched} returns the flags and does not fail, while
+@code{set_thread_sched} returns @code{0} on success and @code{-1} on failure,
+with the following errno:
 
 @itemize @bullet
 @item
