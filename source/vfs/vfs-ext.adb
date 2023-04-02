@@ -333,10 +333,41 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Create_Directory;
 
    function Delete (FS : System.Address; Path : String) return Boolean is
-      pragma Unreferenced (FS);
-      pragma Unreferenced (Path);
+      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Name_Start               : Natural;
+      Path_Index, Parent_Index : Unsigned_32;
+      Path_Inode, Parent_Inode : Inode;
+      Success                  : Boolean;
    begin
-      return False;
+      if Data.Is_Read_Only or Path'Length = 0 then
+         return False;
+      end if;
+
+      Lib.Synchronization.Seize (Data.Mutex);
+
+      Success := Inner_Open_Inode
+         (Data         => Data,
+          Path         => Path,
+          Name_Start   => Name_Start,
+          Target_Index => Path_Index,
+          Target_Inode => Path_Inode,
+          Parent_Index => Parent_Index,
+          Parent_Inode => Parent_Inode);
+      if not Success then
+         goto Cleanup;
+      end if;
+
+      Delete_Directory_Entry
+         (FS_Data     => Data,
+          Inode_Data  => Parent_Inode,
+          Inode_Size  => Get_Size (Parent_Inode, Data.Has_64bit_Filesizes),
+          Inode_Index => Parent_Index,
+          Added_Index => Path_Index,
+          Success     => Success);
+
+   <<Cleanup>>
+      Lib.Synchronization.Release (Data.Mutex);
+      return Success;
    end Delete;
 
    procedure Close (FS : System.Address; Ino : File_Inode_Number) is
@@ -1791,6 +1822,68 @@ package body VFS.EXT with SPARK_Mode => Off is
    <<Cleanup>>
       Free_2 (Buffer);
    end Add_Directory_Entry;
+
+   procedure Delete_Directory_Entry
+      (FS_Data     : EXT_Data_Acc;
+       Inode_Data  : in out Inode;
+       Inode_Size  : Unsigned_64;
+       Inode_Index : Unsigned_32;
+       Added_Index : Unsigned_32;
+       Success     : out Boolean)
+   is
+      Buffer                     : Operation_Data_Acc;
+      Offset, Offset2, Ret_Count : Natural;
+   begin
+      Buffer := new Operation_Data (1 .. Natural (Inode_Size));
+      Read_From_Inode
+         (FS_Data    => FS_Data,
+          Inode_Data => Inode_Data,
+          Inode_Size => Inode_Size,
+          Offset     => 0,
+          Data       => Buffer.all,
+          Ret_Count  => Ret_Count,
+          Success    => Success);
+      if not Success or Ret_Count /= Buffer'Length then
+         Success := False;
+         goto Cleanup;
+      end if;
+
+      Offset  := 0;
+      Offset2 := 0;
+
+      while Offset < Natural (Inode_Size) loop
+         declare
+            Ent : Directory_Entry
+               with Address => Buffer (Buffer'First + Offset)'Address;
+            Ent2 : Directory_Entry
+               with Address => Buffer (Buffer'First + Offset2)'Address;
+         begin
+            if Ent.Inode_Index = Added_Index then
+               Ent2.Entry_Count := Ent2.Entry_Count + Ent.Entry_Count;
+               Write_To_Inode
+                  (FS_Data    => FS_Data,
+                   Inode_Num  => Inode_Index,
+                   Inode_Data => Inode_Data,
+                   Inode_Size => Inode_Size,
+                   Offset     => 0,
+                   Data       => Buffer.all,
+                   Ret_Count  => Ret_Count,
+                   Success    => Success);
+               if not Success or Ret_Count /= Buffer'Length then
+                  Success := False;
+               end if;
+               goto Cleanup;
+            end if;
+            Offset2 := Offset;
+            Offset  := Offset + Natural (Ent.Entry_Count);
+         end;
+      end loop;
+
+      Success := False;
+
+   <<Cleanup>>
+      Free_2 (Buffer);
+   end Delete_Directory_Entry;
 
    function Get_Dir_Type (Dir_Type : Unsigned_8) return File_Type is
    begin

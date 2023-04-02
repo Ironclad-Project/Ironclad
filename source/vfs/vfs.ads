@@ -108,7 +108,7 @@ package VFS is
    --  @return The backing device.
    function Get_Backing_Device (Key : FS_Handle) return Device_Handle
       with Pre => Key /= Error_Handle;
-
+   ----------------------------------------------------------------------------
    --  Open a file with an absolute path inside the mount.
    --  @param Key     FS Handle to open.
    --  @param Path    Absolute path inside the mount, creation is not done.

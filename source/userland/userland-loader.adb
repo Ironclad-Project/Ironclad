@@ -47,7 +47,6 @@ package body Userland.Loader with SPARK_Mode => Off is
          goto Error;
       end if;
       Returned_PID.Common_Map := Memory.Virtual.New_Map;
-
       if not Start_Program (FD, Arguments, Environment, Returned_PID) or
          Stdin = null or StdOut = null or StdErr = null
       then
@@ -232,6 +231,7 @@ package body Userland.Loader with SPARK_Mode => Off is
          Arg_Diff : constant Natural := (if Arg_Len = 0 then 1 else 2);
          New_Args : Argument_Arr (1 .. Arguments'Length + Arg_Diff);
          I        : Positive := 1;
+         Banged   : VFS.File.File_Acc;
       begin
          New_Args (I) := new String'(Path (1 .. Path_Len));
          I := I + 1;
@@ -241,8 +241,12 @@ package body Userland.Loader with SPARK_Mode => Off is
          end if;
          New_Args (I .. New_Args'Length) := Arguments;
          New_Args (I) := Conv (Get_Path (FD));
+         Banged := Open (Path (1 .. Path_Len), Read_Only);
+         if Banged = null then
+            return False;
+         end if;
          return Start_Program (
-            Open (Path (1 .. Path_Len), Read_Only),
+            Banged,
             New_Args,
             Environment,
             Proc

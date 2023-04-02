@@ -405,6 +405,14 @@ private
        Name        : String;
        Success     : out Boolean);
 
+   procedure Delete_Directory_Entry
+      (FS_Data     : EXT_Data_Acc;
+       Inode_Data  : in out Inode;
+       Inode_Size  : Unsigned_64;
+       Inode_Index : Unsigned_32;
+       Added_Index : Unsigned_32;
+       Success     : out Boolean);
+
    function Get_Dir_Type (Dir_Type : Unsigned_8) return File_Type;
 
    function Get_Dir_Type (T : File_Type) return Unsigned_8;
