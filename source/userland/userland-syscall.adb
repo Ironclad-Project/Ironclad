@@ -404,8 +404,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   return Unsigned_64'Last;
                end if;
             end if;
-         when Description_Writer_Pipe | Description_Reader_Pipe |
-              Description_Primary_PTY | Description_Secondary_PTY =>
+         when others =>
             null;
       end case;
 
@@ -537,13 +536,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
       return 0;
    end Munmap;
 
-   function Get_PID return Unsigned_64 is
+   function Get_PID (Errno : out Errno_Value) return Unsigned_64 is
    begin
+      Errno := Error_No_Error;
       return Unsigned_64 (Arch.Local.Get_Current_Process.Process_PID);
    end Get_PID;
 
-   function Get_Parent_PID return Unsigned_64 is
+   function Get_Parent_PID (Errno : out Errno_Value) return Unsigned_64 is
    begin
+      Errno := Error_No_Error;
       return Unsigned_64 (Arch.Local.Get_Current_Process.Parent_PID);
    end Get_Parent_PID;
 
@@ -930,7 +931,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Stat_Buf := (
                Device_Number => Unsigned_64 (ID),
                Inode_Number  => Unsigned_64 (Stat_Val.Unique_Identifier),
-               Mode          => Stat_Val.Mode,
+               Mode          => Unsigned_32 (Stat_Val.Mode),
                Number_Links  => Unsigned_32 (Stat_Val.Hard_Link_Count),
                UID           => 0,
                GID           => 0,
@@ -1173,11 +1174,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
    function Dup
       (Old_FD : Unsigned_64;
+       New_FD : Unsigned_64;
+       Flags  : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64
    is
-      Process   : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
-      Old_File  : constant File_Description_Acc := Get_File (Process, Old_FD);
-      New_FD    : File_Description_Acc;
+      Process  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Old_File : constant File_Description_Acc := Get_File (Process, Old_FD);
+      Do_Ignore_New    : constant Boolean := (Flags and DUP_IGNORE_NEWFD) /= 0;
+      Do_Close_On_Exec : constant Boolean := (Flags and O_CLOEXEC)        /= 0;
+      New_File  : File_Description_Acc;
       Result_FD : Natural;
    begin
       if Old_File = null then
@@ -1185,36 +1190,96 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      New_FD := Duplicate (Old_File);
-      if New_FD = null then
-         Errno := Error_Bad_File;
-         return Unsigned_64'Last;
-      elsif not Userland.Process.Add_File (Process, New_FD, Result_FD) then
-         Errno := Error_Too_Many_Files;
-         return Unsigned_64'Last;
+      if Do_Ignore_New then
+         New_File := Duplicate (Old_File);
+         New_File.Close_On_Exec := Do_Close_On_Exec;
+         if not Userland.Process.Add_File (Process, New_File, Result_FD) then
+            Errno := Error_Too_Many_Files;
+            return Unsigned_64'Last;
+         else
+            Errno := Error_No_Error;
+            return Unsigned_64 (Result_FD);
+         end if;
       else
-         Errno := Error_No_Error;
-         return Unsigned_64 (Result_FD);
+         if New_FD /= Old_FD and then not Userland.Process.Replace_File
+            (Process, Duplicate (Old_File), Natural (New_FD))
+         then
+            Errno := Error_Bad_File;
+            return Unsigned_64'Last;
+         else
+            Errno := Error_No_Error;
+            return New_FD;
+         end if;
       end if;
    end Dup;
 
-   function Dup2
-      (Old_FD, New_FD : Unsigned_64;
-       Errno          : out Errno_Value) return Unsigned_64
+   function Rename
+      (Source_FD   : Unsigned_64;
+       Source_Addr : Unsigned_64;
+       Source_Len  : Unsigned_64;
+       Target_FD   : Unsigned_64;
+       Target_Addr : Unsigned_64;
+       Target_Len  : Unsigned_64;
+       Flags       : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64
    is
-      Process  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
-      Old_File : constant File_Description_Acc := Get_File (Process, Old_FD);
+      Proc      : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Src_IAddr : constant  Integer_Address := Integer_Address (Source_Addr);
+      Src_SAddr : constant   System.Address := To_Address (Src_IAddr);
+      Tgt_IAddr : constant  Integer_Address := Integer_Address (Target_Addr);
+      Tgt_SAddr : constant   System.Address := To_Address (Tgt_IAddr);
+      Do_Keep   : constant Boolean := (Flags and RENAME_NOREPLACE) /= 0;
+      Source_Path   : String (1 .. 1024);
+      Source_Path_L : Natural;
+      Target_Path   : String (1 .. 1024);
+      Target_Path_L : Natural;
    begin
-      if New_FD /= Old_FD and then not Userland.Process.Replace_File
-         (Process, Duplicate (Old_File), Natural (New_FD))
+      if not Check_Userland_Access (Proc.Common_Map, Src_IAddr, Source_Len) or
+         not Check_Userland_Access (Proc.Common_Map, Tgt_IAddr, Target_Len)
       then
-         Errno := Error_Bad_File;
+         Errno := Error_Would_Fault;
          return Unsigned_64'Last;
-      else
-         Errno := Error_No_Error;
-         return New_FD;
+      elsif Source_Len > Unsigned_64 (Natural'Last) or
+            Target_Len > Unsigned_64 (Natural'Last)
+      then
+         Errno := Error_String_Too_Long;
+         return Unsigned_64'Last;
       end if;
-   end Dup2;
+
+      declare
+         Src : String (1 .. Natural (Source_Len)) with Address => Src_SAddr;
+         Tgt : String (1 .. Natural (Target_Len)) with Address => Tgt_SAddr;
+      begin
+         Compound_AT_Path
+            (AT_Directive => Natural (Source_FD),
+             Curr_Proc    => Proc,
+             Extension    => Src,
+             Result       => Source_Path,
+             Count        => Source_Path_L);
+         Compound_AT_Path
+            (AT_Directive => Natural (Target_FD),
+             Curr_Proc    => Proc,
+             Extension    => Tgt,
+             Result       => Target_Path,
+             Count        => Target_Path_L);
+         if Source_Path_L = 0 or Target_Path_L = 0 then
+            Errno := Error_String_Too_Long;
+            return Unsigned_64'Last;
+         end if;
+
+         if VFS.File.Rename
+            (Source_Path (1 .. Source_Path_L),
+             Target_Path (1 .. Target_Path_L),
+             Do_Keep)
+         then
+            Errno := Error_No_Error;
+            return 0;
+         else
+            Errno := Error_IO;
+            return Unsigned_64'Last;
+         end if;
+      end;
+   end Rename;
 
    function Sysconf
       (Request : Unsigned_64;
@@ -1405,7 +1470,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case Command is
          when F_DUPFD | F_DUPFD_CLOEXEC =>
-            Returned := Dup (FD, Errno);
+            Returned := Dup (FD, 0, DUP_IGNORE_NEWFD, Errno);
             if Returned = Unsigned_64'Last then
                return Returned;
             end if;
@@ -1889,21 +1954,24 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
    end Sync;
 
-   function Create
+   function MakeNode
       (Dir_FD    : Unsigned_64;
        Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Mode      : Unsigned_64;
+       Dev       : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64
    is
-      Curr_Proc  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      pragma Unreferenced (Dev);
+      Proc       : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Path_IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr : constant   System.Address := To_Address (Path_IAddr);
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
+      Node_Type    : File_Type;
+      Tmp_Mode     : constant File_Mode := File_Mode (Mode and 8#7777#);
    begin
-      if not Check_Userland_Access (Curr_Proc.Common_Map, Path_IAddr, Path_Len)
-      then
+      if not Check_Userland_Access (Proc.Common_Map, Path_IAddr, Path_Len) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
       elsif Path_Len > Unsigned_64 (Natural'Last) then
@@ -1916,7 +1984,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       begin
          Compound_AT_Path
             (AT_Directive => Natural (Dir_FD),
-             Curr_Proc    => Curr_Proc,
+             Curr_Proc    => Proc,
              Extension    => Path,
              Result       => Final_Path,
              Count        => Final_Path_L);
@@ -1926,17 +1994,22 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end;
 
-      if Create_Regular (Final_Path (1 .. Final_Path_L), Unsigned_32 (Mode))
-      then
+      if (Mode and Stat_IFDIR) /= 0 then
+         Node_Type := File_Directory;
+      else
+         Node_Type := File_Regular;
+      end if;
+
+      if Create_Node (Final_Path (1 .. Final_Path_L), Node_Type, Tmp_Mode) then
          Errno := Error_No_Error;
          return 0;
       else
          Errno := Error_IO;
          return Unsigned_64'Last;
       end if;
-   end Create;
+   end MakeNode;
 
-   function Delete
+   function Unlink
       (Dir_FD    : Unsigned_64;
        Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
@@ -1972,14 +2045,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end;
 
-      if VFS.File.Delete (Final_Path (1 .. Final_Path_L)) then
+      if VFS.File.Unlink (Final_Path (1 .. Final_Path_L)) then
          Errno := Error_No_Error;
          return 0;
       else
          Errno := Error_No_Entity;
          return Unsigned_64'Last;
       end if;
-   end Delete;
+   end Unlink;
 
    function Truncate
       (FD       : Unsigned_64;
@@ -2012,54 +2085,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
    end Truncate;
 
-   function Create_Directory
-      (Dir_FD    : Unsigned_64;
-       Path_Addr : Unsigned_64;
-       Path_Len  : Unsigned_64;
-       Mode      : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64
-   is
-      Curr_Proc  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
-      Path_IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
-      Path_SAddr : constant   System.Address := To_Address (Path_IAddr);
-      Final_Path   : String (1 .. 1024);
-      Final_Path_L : Natural;
-   begin
-      if not Check_Userland_Access (Curr_Proc.Common_Map, Path_IAddr, Path_Len)
-      then
-         Errno := Error_Would_Fault;
-         return Unsigned_64'Last;
-      elsif Path_Len > Unsigned_64 (Natural'Last) then
-         Errno := Error_String_Too_Long;
-         return Unsigned_64'Last;
-      end if;
-
-      declare
-         Path : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
-      begin
-         Compound_AT_Path
-            (AT_Directive => Natural (Dir_FD),
-             Curr_Proc    => Curr_Proc,
-             Extension    => Path,
-             Result       => Final_Path,
-             Count        => Final_Path_L);
-         if Final_Path_L = 0 then
-            Errno := Error_String_Too_Long;
-            return Unsigned_64'Last;
-         end if;
-      end;
-
-      if Create_Directory (Final_Path (1 .. Final_Path_L), Unsigned_32 (Mode))
-      then
-         Errno := Error_No_Error;
-         return 0;
-      else
-         Errno := Error_IO;
-         return Unsigned_64'Last;
-      end if;
-   end Create_Directory;
-
-   function Create_Symlink
+   function Symlink
       (Dir_FD      : Unsigned_64;
        Path_Addr   : Unsigned_64;
        Path_Len    : Unsigned_64;
@@ -2113,7 +2139,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return Unsigned_64'Last;
          end if;
       end;
-   end Create_Symlink;
+   end Symlink;
 
    function Integrity_Setup
       (Command  : Unsigned_64;

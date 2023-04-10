@@ -139,10 +139,11 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
    end Open;
 
-   function Create_Regular
+   function Create_Node
       (FS   : System.Address;
        Path : String;
-       Mode : Unsigned_32) return Boolean
+       Typ  : File_Type;
+       Mode : File_Mode) return Boolean
    is
       Data     : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Perms    : constant  Unsigned_16 := Get_Permissions (File_Regular);
@@ -152,7 +153,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Target_Inode, Parent_Inode : Inode;
       Success                    : Boolean;
    begin
-      if Data.Is_Read_Only or Path'Length = 0 then
+      if Data.Is_Read_Only or Path'Length = 0 or Typ /= File_Regular then
          return False;
       end if;
 
@@ -180,7 +181,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
       Target_Inode :=
-         (Permissions         => Perms or Unsigned_16 (Mode and 16#FFFF#),
+         (Permissions         => Perms or Unsigned_16 (Mode),
           UID                 => 0,
           Size_Low            => 0,
           Access_Time_Epoch   => 0,
@@ -220,7 +221,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    <<Cleanup>>
       Lib.Synchronization.Release (Data.Mutex);
       return Success;
-   end Create_Regular;
+   end Create_Node;
 
    function Create_Symbolic_Link
       (FS           : System.Address;
@@ -317,22 +318,84 @@ package body VFS.EXT with SPARK_Mode => Off is
       return Success;
    end Create_Hard_Link;
 
-   function Create_Directory
-      (FS   : System.Address;
-       Path : String;
-       Mode : Unsigned_32) return Boolean
+   function Rename
+      (FS             : System.Address;
+       Source, Target : String;
+       Keep           : Boolean) return Boolean
    is
-      pragma Unreferenced (Mode);
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Name_Start                               : Natural;
+      Source_Index, Target_Index               : Unsigned_32;
+      Source_Parent_Index, Target_Parent_Index : Unsigned_32;
+      Source_Inode, Target_Inode               : Inode;
+      Source_Parent_Inode, Target_Parent_Inode : Inode;
+      Target_Parent_Size                       : Unsigned_64;
+      Success1, Success2                       : Boolean;
    begin
-      if Data.Is_Read_Only or Path'Length = 0 then
+      if Data.Is_Read_Only or Source'Length = 0 or Target'Length = 0 then
          return False;
       end if;
 
-      return False;
-   end Create_Directory;
+      Lib.Synchronization.Seize (Data.Mutex);
 
-   function Delete (FS : System.Address; Path : String) return Boolean is
+      Success1 := Inner_Open_Inode
+         (Data         => Data,
+          Path         => Source,
+          Name_Start   => Name_Start,
+          Target_Index => Source_Index,
+          Target_Inode => Source_Inode,
+          Parent_Index => Source_Parent_Index,
+          Parent_Inode => Source_Parent_Inode);
+      Success2 := Inner_Open_Inode
+         (Data         => Data,
+          Path         => Target,
+          Name_Start   => Name_Start,
+          Target_Index => Target_Index,
+          Target_Inode => Target_Inode,
+          Parent_Index => Target_Parent_Index,
+          Parent_Inode => Target_Parent_Inode);
+
+      --  Check that the source exists, that the parent of the target exists,
+      --  and that we do not want to keep the file if it exists.
+      if not Success1 or Target_Parent_Index = 0 or (Keep and Success2) then
+         Success1 := False;
+         goto Cleanup;
+      end if;
+
+      Target_Parent_Size := Get_Size (Target_Parent_Inode,
+                                      Data.Has_64bit_Filesizes);
+
+      --  The target already exists so we nuke it from orbit.
+      if Success2 then
+         Delete_Directory_Entry
+            (FS_Data     => Data,
+             Inode_Data  => Target_Parent_Inode,
+             Inode_Size  => Target_Parent_Size,
+             Inode_Index => Target_Parent_Index,
+             Added_Index => Target_Index,
+             Success     => Success1);
+         if not Success1 then
+            goto Cleanup;
+         end if;
+      end if;
+
+      --  Add the directory entry on its place.
+      Add_Directory_Entry
+         (FS_Data     => Data,
+          Inode_Data  => Target_Parent_Inode,
+          Inode_Size  => Target_Parent_Size,
+          Inode_Index => Target_Parent_Index,
+          Added_Index => Target_Index,
+          Dir_Type    => Get_Dir_Type (File_Regular),
+          Name        => Target (Name_Start .. Target'Last),
+          Success     => Success1);
+
+   <<Cleanup>>
+      Lib.Synchronization.Release (Data.Mutex);
+      return Success1;
+   end Rename;
+
+   function Unlink (FS : System.Address; Path : String) return Boolean is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Name_Start               : Natural;
       Path_Index, Parent_Index : Unsigned_32;
@@ -368,7 +431,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    <<Cleanup>>
       Lib.Synchronization.Release (Data.Mutex);
       return Success;
-   end Delete;
+   end Unlink;
 
    procedure Close (FS : System.Address; Ino : File_Inode_Number) is
       pragma Unreferenced (FS);
@@ -579,7 +642,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       S    :=
          (Unique_Identifier => Ino,
           Type_Of_File      => Get_Inode_Type (Inod.Permissions),
-          Mode              => Unsigned_32 (Inod.Permissions),
+          Mode              => File_Mode (Inod.Permissions and 8#7777#),
           Hard_Link_Count   => Positive (Inod.Hard_Link_Count),
           Byte_Size         => Size,
           IO_Block_Size     => Get_Block_Size (FS.Handle),

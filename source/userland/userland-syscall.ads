@@ -139,10 +139,10 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno      : out Errno_Value) return Unsigned_64;
 
    --  Get the callee PID.
-   function Get_PID return Unsigned_64;
+   function Get_PID (Errno : out Errno_Value) return Unsigned_64;
 
    --  Get the PID of the parent of the callee.
-   function Get_Parent_PID return Unsigned_64;
+   function Get_Parent_PID (Errno : out Errno_Value) return Unsigned_64;
 
    --  Execute.
    function Exec
@@ -274,12 +274,24 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno       : out Errno_Value) return Unsigned_64;
 
    --  Dup functions.
+   DUP_IGNORE_NEWFD : constant := 2#1000000000000#;
    function Dup
       (Old_FD : Unsigned_64;
+       New_FD : Unsigned_64;
+       Flags  : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64;
-   function Dup2
-      (Old_FD, New_FD : Unsigned_64;
-       Errno          : out Errno_Value) return Unsigned_64;
+
+   --  Rename files.
+   RENAME_NOREPLACE : constant := 2#1#;
+   function Rename
+      (Source_FD   : Unsigned_64;
+       Source_Addr : Unsigned_64;
+       Source_Len  : Unsigned_64;
+       Target_FD   : Unsigned_64;
+       Target_Addr : Unsigned_64;
+       Target_Len  : Unsigned_64;
+       Flags       : Unsigned_64;
+       Errno       : out Errno_Value) return Unsigned_64;
 
    --  Fetch some system information.
    SC_PAGESIZE      : constant := 1;
@@ -443,16 +455,17 @@ package Userland.Syscall with SPARK_Mode => Off is
    --  Synchronize devices and kernel caches.
    function Sync (Errno : out Errno_Value) return Unsigned_64;
 
-   --  Create a file.
-   function Create
+   --  Create a node, be it a file, directory, or others (not links).
+   function MakeNode
       (Dir_FD    : Unsigned_64;
        Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Mode      : Unsigned_64;
+       Dev       : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
 
-   --  Deletes a file.
-   function Delete
+   --  Unlinks a file.
+   function Unlink
       (Dir_FD    : Unsigned_64;
        Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
@@ -464,16 +477,8 @@ package Userland.Syscall with SPARK_Mode => Off is
        New_Size : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64;
 
-   --  Create a directory.
-   function Create_Directory
-      (Dir_FD    : Unsigned_64;
-       Path_Addr : Unsigned_64;
-       Path_Len  : Unsigned_64;
-       Mode      : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
-
    --  Create a symbolic link.
-   function Create_Symlink
+   function Symlink
       (Dir_FD      : Unsigned_64;
        Path_Addr   : Unsigned_64;
        Path_Len    : Unsigned_64;

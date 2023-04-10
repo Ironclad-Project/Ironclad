@@ -119,12 +119,14 @@ package body Arch.Interrupts with SPARK_Mode => Off is
 
    procedure Syscall_Handler (Num : Integer; State : not null ISR_GPRs_Acc) is
       Proc     : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
-      Returned :               Unsigned_64 := Unsigned_64'Last;
-      Errno    :               Errno_Value := Error_No_Error;
+      Returned : Unsigned_64;
+      Errno    : Errno_Value;
       FP_State : Context.FP_Context;
       File     : File_Description_Acc;
       pragma Unreferenced (Num);
    begin
+      Arch.Snippets.Enable_Interrupts;
+
       --  Check if we have to write the syscall info somewhere.
       if Proc.Tracer_PID /= 0 then
          File := Get_File (Proc, Unsigned_64 (Proc.Tracer_FD));
@@ -142,6 +144,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       case State.RAX is
          when 0 =>
             Sys_Exit (State.RDI, Errno);
+            Returned := 0;
          when 1 =>
             Returned := Arch_PRCtl (State.RDI, State.RSI, Errno);
          when 2 =>
@@ -161,9 +164,9 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 8 =>
             Returned := Munmap (State.RDI, State.RSI, Errno);
          when 9 =>
-            Returned := Get_PID;
+            Returned := Get_PID (Errno);
          when 10 =>
-            Returned := Get_Parent_PID;
+            Returned := Get_Parent_PID (Errno);
          when 11 =>
             Returned := Exec (State.RDI, State.RSI, State.RDX,
                               State.RCX, State.R8, State.R9, Errno);
@@ -178,8 +181,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 15 =>
             Returned := Set_Hostname (State.RDI, State.RSI, Errno);
          when 16 =>
-            Returned := Delete
-               (State.RDI, State.RSI, State.RDX, Errno);
+            Returned := Unlink (State.RDI, State.RSI, State.RDX, Errno);
          when 17 =>
             Returned := FStat (State.RDI, State.RSI, Errno);
          when 18 =>
@@ -195,9 +197,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 23 =>
             Returned := Pipe (State.RDI, State.RSI, Errno);
          when 24 =>
-            Returned := Dup (State.RDI, Errno);
+            Returned := Dup (State.RDI, State.RSI, State.RDX, Errno);
          when 25 =>
-            Returned := Dup2 (State.RDI, State.RSI, Errno);
+            Returned := Rename (State.RDI, State.RSI, State.RDX, State.RCX,
+                                State.R8, State.R9, State.R10, Errno);
          when 26 =>
             Returned := Sysconf (State.RDI, Errno);
          when 27 =>
@@ -211,6 +214,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := Fcntl (State.RDI, State.RSI, State.RDX, Errno);
          when 31 =>
             Exit_Thread (Errno);
+            Returned := 0;
          when 32 =>
             Returned := Get_Random (State.RDI, State.RSI, Errno);
          when 33 =>
@@ -239,15 +243,12 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := GetDEnts (State.RDI, State.RSI, State.RDX,
                                           Errno);
          when 43 =>
-            Returned := Create
-               (State.RDI, State.RSI, State.RDX, State.RCX, Errno);
+            Returned := MakeNode
+               (State.RDI, State.RSI, State.RDX, State.RCX, State.R8, Errno);
          when 44 =>
             Returned := Truncate (State.RDI, State.RSI, Errno);
-         when 45 =>
-            Returned := Create_Directory
-               (State.RDI, State.RSI, State.RDX, State.RCX, Errno);
          when 46 =>
-            Returned := Create_Symlink
+            Returned := Symlink
                (State.RDI, State.RSI, State.RDX, State.RCX, State.R8, State.R9,
                 Errno);
          when 47 =>
@@ -263,10 +264,11 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := PTrace (State.RDI, State.RSI, State.RDX, State.RCX,
                                 Errno);
          when others =>
-            Errno := Error_Not_Implemented;
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Not_Implemented;
       end case;
 
-      --  Assign the return values and swap back to user GS.
+      --  Assign the return values.
       State.RAX := Returned;
       State.RDX := Unsigned_64 (Errno_Value'Enum_Rep (Errno));
    end Syscall_Handler;

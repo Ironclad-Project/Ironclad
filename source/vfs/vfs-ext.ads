@@ -28,10 +28,11 @@ package VFS.EXT with SPARK_Mode => Off is
        Ino     : out File_Inode_Number;
        Success : out Boolean);
 
-   function Create_Regular
+   function Create_Node
       (FS   : System.Address;
        Path : String;
-       Mode : Unsigned_32) return Boolean;
+       Typ  : File_Type;
+       Mode : File_Mode) return Boolean;
 
    function Create_Symbolic_Link
       (FS           : System.Address;
@@ -42,12 +43,12 @@ package VFS.EXT with SPARK_Mode => Off is
       (FS           : System.Address;
        Path, Target : String) return Boolean;
 
-   function Create_Directory
-      (FS   : System.Address;
-       Path : String;
-       Mode : Unsigned_32) return Boolean;
+   function Rename
+      (FS             : System.Address;
+       Source, Target : String;
+       Keep           : Boolean) return Boolean;
 
-   function Delete (FS : System.Address; Path : String) return Boolean;
+   function Unlink (FS : System.Address; Path : String) return Boolean;
 
    procedure Close (FS : System.Address; Ino : File_Inode_Number);
 

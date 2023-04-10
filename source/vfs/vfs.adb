@@ -175,19 +175,20 @@ package body VFS with SPARK_Mode => Off is
       end case;
    end Open;
 
-   function Create_Regular
+   function Create_Node
       (Key  : FS_Handle;
        Path : String;
-       Mode : Unsigned_32) return Boolean
+       Typ  : File_Type;
+       Mode : File_Mode) return Boolean
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.Create_Regular (Mounts (Key).FS_Data, Path, Mode);
+            return EXT.Create_Node (Mounts (Key).FS_Data, Path, Typ, Mode);
          when FS_FAT =>
             return False;
       end case;
-   end Create_Regular;
+   end Create_Node;
 
    function Create_Symbolic_Link
       (Key          : FS_Handle;
@@ -217,32 +218,33 @@ package body VFS with SPARK_Mode => Off is
       end case;
    end Create_Hard_Link;
 
-   function Create_Directory
-      (Key  : FS_Handle;
-       Path : String;
-       Mode : Unsigned_32) return Boolean
+   function Rename
+      (Key    : FS_Handle;
+       Source : String;
+       Target : String;
+       Keep   : Boolean) return Boolean
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.Create_Directory (Mounts (Key).FS_Data, Path, Mode);
+            return EXT.Rename (Mounts (Key).FS_Data, Source, Target, Keep);
          when FS_FAT =>
             return False;
       end case;
-   end Create_Directory;
+   end Rename;
 
-   function Delete (Key : FS_Handle; Path : String) return Boolean is
+   function Unlink (Key : FS_Handle; Path : String) return Boolean is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT   => return EXT.Delete (Mounts (Key).FS_Data, Path);
+         when FS_EXT => return EXT.Unlink (Mounts (Key).FS_Data, Path);
          when FS_FAT => return False;
       end case;
-   end Delete;
+   end Unlink;
 
    procedure Close (Key : FS_Handle; Ino : File_Inode_Number) is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT   => EXT.Close   (Mounts (Key).FS_Data, Ino);
+         when FS_EXT => EXT.Close (Mounts (Key).FS_Data, Ino);
          when FS_FAT => FAT.Close (Mounts (Key).FS_Data, Ino);
       end case;
    end Close;

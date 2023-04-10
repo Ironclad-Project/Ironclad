@@ -420,39 +420,41 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Munmap;
 
-   function Delete (Path : String) return Boolean is
+   function Rename (Source, Target : String; Keep : Boolean) return Boolean is
       Match_Count : Natural;
       Handle      : FS_Handle;
    begin
-      Get_Mount (Path, Match_Count, Handle);
-      return Delete (Handle, Path (Path'First + Match_Count .. Path'Last));
-   end Delete;
-
-   function Create_Regular (Path : String; Mode : Unsigned_32) return Boolean
-   is
-      Match_Count : Natural;
-      Handle      : FS_Handle;
-   begin
-      Get_Mount (Path, Match_Count, Handle);
-      return Create_Regular
+      Get_Mount (Source, Match_Count, Handle);
+      return Rename
          (Handle,
-          Path (Path'First + Match_Count .. Path'Last),
-          Mode);
-   end Create_Regular;
+          Source (Source'First + Match_Count .. Source'Last),
+          Target (Target'First + Match_Count .. Target'Last),
+          Keep);
+   end Rename;
 
-   function Create_Directory
+   function Unlink (Path : String) return Boolean is
+      Match_Count : Natural;
+      Handle      : FS_Handle;
+   begin
+      Get_Mount (Path, Match_Count, Handle);
+      return Unlink (Handle, Path (Path'First + Match_Count .. Path'Last));
+   end Unlink;
+
+   function Create_Node
       (Path : String;
-       Mode : Unsigned_32) return Boolean
+       Typ  : File_Type;
+       Mode : File_Mode) return Boolean
    is
       Match_Count : Natural;
       Handle      : FS_Handle;
    begin
       Get_Mount (Path, Match_Count, Handle);
-      return Create_Directory
+      return Create_Node
          (Handle,
           Path (Path'First + Match_Count .. Path'Last),
+          Typ,
           Mode);
-   end Create_Directory;
+   end Create_Node;
 
    function Create_Symbolic_Link
       (Path, Target : String;

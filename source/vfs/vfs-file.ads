@@ -138,17 +138,20 @@ package VFS.File with SPARK_Mode => Off is
        Length  : Unsigned_64) return Boolean with Pre => F /= null;
 
    --  Create several kinds of files.
-   function Create_Regular (Path : String; Mode : Unsigned_32) return Boolean;
-   function Create_Directory
+   function Create_Node
       (Path : String;
-       Mode : Unsigned_32) return Boolean;
+       Typ  : File_Type;
+       Mode : File_Mode) return Boolean;
    function Create_Symbolic_Link
       (Path, Target : String;
        Mode         : Unsigned_32) return Boolean;
    function Create_Hard_Link (Path, Target : String) return Boolean;
 
-   --  Delete a file.
-   function Delete (Path : String) return Boolean;
+   --  Rename files.
+   function Rename (Source, Target : String; Keep : Boolean) return Boolean;
+
+   --  Queue a file for unlinking.
+   function Unlink (Path : String) return Boolean;
 
 private
 

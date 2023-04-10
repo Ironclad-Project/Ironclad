@@ -30,12 +30,13 @@ package VFS is
       Seconds_Since_Epoch    : Unsigned_64;
       Additional_Nanoseconds : Unsigned_64;
    end record;
+   type File_Mode is new Natural range 8#000# .. 8#7777#;
    type File_Type is (File_Regular, File_Directory, File_Symbolic_Link,
                       File_Character_Device, File_Block_Device);
    type File_Stat is record
       Unique_Identifier : File_Inode_Number;
       Type_Of_File      : File_Type;
-      Mode              : Unsigned_32;
+      Mode              : File_Mode;
       Hard_Link_Count   : Positive;
       Byte_Size         : Unsigned_64;
       IO_Block_Size     : Natural;
@@ -125,12 +126,14 @@ package VFS is
    --  Create a file with an absolute path inside the mount.
    --  @param Key  FS Handle to open.
    --  @param Path Absolute path inside the mount, must not exist.
+   --  @param Typ  Type of file to create.
    --  @param Mode Mode to use for the created file.
    --  @return True on success, False on failure.
-   function Create_Regular
+   function Create_Node
       (Key  : FS_Handle;
        Path : String;
-       Mode : Unsigned_32) return Boolean
+       Typ  : File_Type;
+       Mode : File_Mode) return Boolean
       with Pre => Key /= Error_Handle;
 
    --  Create a symlink with an absolute path inside the mount and a target.
@@ -155,22 +158,24 @@ package VFS is
        Path, Target : String) return Boolean
       with Pre => Key /= Error_Handle;
 
-   --  Create a directory with an absolute path inside the mount.
+   --  Rename two files.
    --  @param Key    FS Handle to open.
-   --  @param Path   Absolute path inside the mount, must not exist.
-   --  @param Mode   Mode to use for the created directory.
+   --  @param Source Absolute source path inside the mount, must not exist.
+   --  @param Target Target of the mode, if it exists, it will be replaced.
+   --  @param Keep   Keep the source instead of plainly renaming it.
    --  @return True on success, False on failure.
-   function Create_Directory
-      (Key  : FS_Handle;
-       Path : String;
-       Mode : Unsigned_32) return Boolean
+   function Rename
+      (Key    : FS_Handle;
+       Source : String;
+       Target : String;
+       Keep   : Boolean) return Boolean
       with Pre => Key /= Error_Handle;
 
-   --  Delete a file by absolute path inside the mount.
+   --  Queue a file for deletion inside a mount.
    --  @param Key  FS Handle to open.
    --  @param Path Absolute path inside the mount, must exist.
    --  @return True on success, False on failure.
-   function Delete (Key : FS_Handle; Path : String) return Boolean;
+   function Unlink (Key : FS_Handle; Path : String) return Boolean;
 
    --  Signal to the FS we do not need this inode anymore.
    --  @param Key FS handle to operate on.
