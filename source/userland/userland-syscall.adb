@@ -157,7 +157,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       else Errno := Error_Invalid_Value; return Unsigned_64'Last; end if;
 
       declare
-         Path : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
+         Path : String (1 .. Natural (Path_Len))
+            with Import, Address => Path_SAddr;
       begin
          Compound_AT_Path
             (AT_Directive => Natural (Dir_FD),
@@ -255,7 +256,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Cnt : constant          Natural := Natural (Count);
       File      : File_Description_Acc;
       File_Mode : Access_Mode;
-      Data      : Operation_Data (1 .. Final_Cnt) with Address => Buf_SAddr;
+      Data      : Operation_Data (1 .. Final_Cnt)
+         with Import, Address => Buf_SAddr;
       Ret_Count : Natural;
       Success   : Boolean;
    begin
@@ -314,7 +316,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Cnt : constant          Natural := Natural (Count);
       File      : File_Description_Acc;
       File_Mode : Access_Mode;
-      Data      : Operation_Data (1 .. Final_Cnt) with Address => Buf_SAddr;
+      Data      : Operation_Data (1 .. Final_Cnt)
+         with Import, Address => Buf_SAddr;
       Ret_Count : Natural;
       Success   : Boolean;
    begin
@@ -566,7 +569,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
-      Path       : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
+      Path       : String (1 .. Natural (Path_Len))
+         with Import, Address => Path_SAddr;
       Path_File  : File_Acc;
       File_Perms : MAC.Filter_Permissions;
 
@@ -602,8 +606,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       declare
-         Argv : Arg_Arr (1 .. Natural (Argv_Len)) with Address => Argv_SAddr;
-         Envp : Arg_Arr (1 .. Natural (Envp_Len)) with Address => Envp_SAddr;
+         Argv : Arg_Arr (1 .. Natural (Argv_Len))
+            with Import, Address => Argv_SAddr;
+         Envp : Arg_Arr (1 .. Natural (Envp_Len))
+            with Import, Address => Envp_SAddr;
          Args : Userland.Argument_Arr    (1 .. Argv'Length);
          Env  : Userland.Environment_Arr (1 .. Envp'Length);
       begin
@@ -612,7 +618,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Addr : constant System.Address :=
                   To_Address (Integer_Address (Argv (I)));
                Arg_Length : constant Natural := Lib.C_String_Length (Addr);
-               Arg_String : String (1 .. Arg_Length) with Address => Addr;
+               Arg_String : String (1 .. Arg_Length)
+                  with Import, Address => Addr;
             begin
                Args (I) := new String'(Arg_String);
             end;
@@ -622,7 +629,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Addr : constant System.Address :=
                   To_Address (Integer_Address (Envp (I)));
                Arg_Length : constant Natural := Lib.C_String_Length (Addr);
-               Arg_String : String (1 .. Arg_Length) with Address => Addr;
+               Arg_String : String (1 .. Arg_Length)
+                  with Import, Address => Addr;
             begin
                Env (I) := new String'(Arg_String);
             end;
@@ -840,7 +848,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc     : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       IAddr    : constant Integer_Address  := Integer_Address (Address);
       SAddr    : constant  System.Address  := To_Address (IAddr);
-      UTS      : UTS_Name with Address => SAddr;
+      UTS      : UTS_Name with Import, Address => SAddr;
       Host_Len : Networking.Hostname_Len;
    begin
       if not Check_Userland_Access (Proc.Common_Map, IAddr, UTS'Size / 8) then
@@ -873,7 +881,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Len     : constant          Natural := Natural (Length);
       IAddr   : constant  Integer_Address := Integer_Address (Address);
       SAddr   : constant   System.Address := To_Address (IAddr);
-      Name    : String (1 .. Len) with Address => SAddr;
+      Name    : String (1 .. Len) with Import, Address => SAddr;
       Success : Boolean;
    begin
       if Proc.Is_MAC_Locked and not Proc.Perms.Caps.Can_Manage_Networking then
@@ -1247,8 +1255,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       declare
-         Src : String (1 .. Natural (Source_Len)) with Address => Src_SAddr;
-         Tgt : String (1 .. Natural (Target_Len)) with Address => Tgt_SAddr;
+         Src : String (1 .. Natural (Source_Len))
+            with Import, Address => Src_SAddr;
+         Tgt : String (1 .. Natural (Target_Len))
+            with Import, Address => Tgt_SAddr;
       begin
          Compound_AT_Path
             (AT_Directive => Natural (Source_FD),
@@ -1325,7 +1335,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc       : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
-      Path       : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
+      Path       : String (1 .. Natural (Path_Len))
+         with Import, Address => Path_SAddr;
       Path_File  : File_Acc;
       File_Perms : MAC.Filter_Permissions;
       Child      : Process_Data_Acc;
@@ -1370,8 +1381,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end loop;
 
       declare
-         Argv : Arg_Arr (1 .. Natural (Argv_Len)) with Address => Argv_SAddr;
-         Envp : Arg_Arr (1 .. Natural (Envp_Len)) with Address => Envp_SAddr;
+         Argv : Arg_Arr (1 .. Natural (Argv_Len))
+            with Import, Address => Argv_SAddr;
+         Envp : Arg_Arr (1 .. Natural (Envp_Len))
+            with Import, Address => Envp_SAddr;
          Args : Userland.Argument_Arr    (1 .. Argv'Length);
          Env  : Userland.Environment_Arr (1 .. Envp'Length);
       begin
@@ -1380,7 +1393,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Addr : constant System.Address :=
                   To_Address (Integer_Address (Argv (I)));
                Arg_Length : constant Natural := Lib.C_String_Length (Addr);
-               Arg_String : String (1 .. Arg_Length) with Address => Addr;
+               Arg_String : String (1 .. Arg_Length)
+                  with Import, Address => Addr;
             begin
                Args (I) := new String'(Arg_String);
             end;
@@ -1390,7 +1404,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Addr : constant System.Address :=
                   To_Address (Integer_Address (Envp (I)));
                Arg_Length : constant Natural := Lib.C_String_Length (Addr);
-               Arg_String : String (1 .. Arg_Length) with Address => Addr;
+               Arg_String : String (1 .. Arg_Length)
+                  with Import, Address => Addr;
             begin
                Env (I) := new String'(Arg_String);
             end;
@@ -1529,7 +1544,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       IAddr  : constant  Integer_Address := Integer_Address (Address);
       SAddr  : constant   System.Address := To_Address (IAddr);
       Result : Cryptography.Random.Crypto_Data (1 .. Natural (Length / 4))
-         with Address => SAddr;
+         with Import, Address => SAddr;
    begin
       if Proc.Is_MAC_Locked and not Proc.Perms.Caps.Can_Access_Entropy then
          Errno := Error_Bad_Access;
@@ -1761,8 +1776,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end case;
 
       declare
-         Source : String (1 .. Natural (Source_Len)) with Address => Src_Addr;
-         Target : String (1 .. Natural (Target_Len)) with Address => Tgt_Addr;
+         Source : String (1 .. Natural (Source_Len))
+            with Import, Address => Src_Addr;
+         Target : String (1 .. Natural (Target_Len))
+            with Import, Address => Tgt_Addr;
       begin
          if VFS.Mount (Source, Target, Parsed_Typ) then
             Errno := Error_No_Error;
@@ -1801,7 +1818,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       declare
-         Path : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
+         Path : String (1 .. Natural (Path_Len))
+            with Import, Address => Path_SAddr;
       begin
          if VFS.Unmount (Path, Flag_Force) then
             Errno := Error_No_Error;
@@ -1844,8 +1862,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       declare
-         Path : String (1 ..   Natural (Path_Len)) with Address => Path_Add;
-         Data : String (1 .. Natural (Buffer_Len)) with Address => Buffer_Add;
+         Path : String (1 ..   Natural (Path_Len))
+            with Import, Address => Path_Add;
+         Data : String (1 .. Natural (Buffer_Len))
+            with Import, Address => Buffer_Add;
       begin
          Compound_AT_Path
             (AT_Directive => Natural (Dir_FD),
@@ -1895,7 +1915,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Buff_IAddr : constant Integer_Address := Integer_Address (Buffer_Addr);
       Buff_Addr  : constant System.Address  := To_Address (Buff_IAddr);
       Buff_Len   : constant Unsigned_64     := Buffer_Len / (Dirent'Size / 8);
-      Buffer     : Dirents (1 .. Buff_Len) with Address => Buff_Addr;
+      Buffer     : Dirents (1 .. Buff_Len) with Import, Address => Buff_Addr;
       Tmp_Buffer : VFS.Directory_Entities (1 .. Natural (Buff_Len));
       Read_Len   : Natural;
       Success    : Boolean;
@@ -1980,7 +2000,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       declare
-         Path : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
+         Path : String (1 .. Natural (Path_Len))
+            with Import, Address => Path_SAddr;
       begin
          Compound_AT_Path
             (AT_Directive => Natural (Dir_FD),
@@ -2031,7 +2052,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       declare
-         Path : String (1 .. Natural (Path_Len)) with Address => Path_SAddr;
+         Path : String (1 .. Natural (Path_Len))
+            with Import, Address => Path_SAddr;
       begin
          Compound_AT_Path
             (AT_Directive => Natural (Dir_FD),
@@ -2115,8 +2137,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       declare
-         Path : String (1 ..   Natural (Path_Len)) with Address => Path_SAddr;
-         Targ : String (1 .. Natural (Target_Len)) with Address => Targ_SAddr;
+         Path : String (1 ..   Natural (Path_Len))
+            with Import, Address => Path_SAddr;
+         Targ : String (1 .. Natural (Target_Len))
+            with Import, Address => Targ_SAddr;
       begin
          Compound_AT_Path
             (AT_Directive => Natural (Dir_FD),
@@ -2297,8 +2321,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       declare
-         Src : String (1 .. Natural (Source_Len)) with Address => Src_SAddr;
-         Dst : String (1 ..  Natural (Desto_Len)) with Address => Dst_SAddr;
+         Src : String (1 .. Natural (Source_Len))
+            with Import, Address => Src_SAddr;
+         Dst : String (1 ..  Natural (Desto_Len))
+            with Import, Address => Dst_SAddr;
       begin
          Compound_AT_Path
             (AT_Directive => Natural (Source_Dir),
@@ -2362,4 +2388,79 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno := Error_No_Error;
       return 0;
    end PTrace;
+
+   function Poll
+      (FDs_Addr  : Unsigned_64;
+       FDs_Count : Unsigned_64;
+       Timeout   : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64
+   is
+      pragma Unreferenced (Timeout);
+
+      Proc  : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      IAddr : constant  Integer_Address := Integer_Address (FDs_Addr);
+      SAddr : constant   System.Address := To_Address (IAddr);
+      Count :                   Natural := 0;
+      File  : File_Description_Acc;
+      FDs   : Poll_FDs (1 .. FDs_Count) with Import, Address => SAddr;
+   begin
+      if not Check_Userland_Access (Proc.Common_Map, IAddr, FDs'Size / 8) then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      elsif FDs'Length = 0 then
+         Errno := Error_No_Error;
+         return 0;
+      end if;
+
+      loop
+         for Polled of FDs loop
+            Polled.Out_Events := 0;
+
+            --  We are to ignore the FD if its negative.
+            if (Polled.FD and Shift_Left (1, 31)) /= 0 then
+               goto End_Iter;
+            end if;
+
+            --  Check the FD actually points to anything valuable.
+            File := Get_File (Proc, Unsigned_64 (Polled.FD));
+            if File = null then
+               Polled.Out_Events := POLLNVAL;
+               goto End_Iter;
+            end if;
+
+            --  Fill out events depending on the file type.
+            case File.Description is
+               when Description_Reader_Pipe =>
+                  if Is_Broken (File.Inner_Reader_Pipe) then
+                     Polled.Out_Events := POLLHUP;
+                  end if;
+                  if (Polled.Events and POLLIN) /= 0 then
+                     if not Is_Empty (File.Inner_Reader_Pipe) then
+                        Polled.Out_Events := Polled.Out_Events or POLLIN;
+                     end if;
+                  end if;
+               when Description_Writer_Pipe =>
+                  if (Polled.Events and POLLOUT) /= 0 then
+                     if Is_Empty (File.Inner_Writer_Pipe) then
+                        Polled.Out_Events := POLLOUT;
+                     end if;
+                  end if;
+               when others =>
+                  Polled.Out_Events := POLLERR;
+            end case;
+
+         <<End_Iter>>
+            if Polled.Out_Events /= 0 then
+               Count := Count + 1;
+            end if;
+         end loop;
+
+         if Count /= 0 then
+            Errno := Error_No_Error;
+            return Unsigned_64 (Count);
+         end if;
+
+         Scheduler.Yield;
+      end loop;
+   end Poll;
 end Userland.Syscall;

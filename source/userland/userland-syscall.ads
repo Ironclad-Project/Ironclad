@@ -198,12 +198,13 @@ package Userland.Syscall with SPARK_Mode => Off is
       Seconds     : Unsigned_64;
       Nanoseconds : Unsigned_64;
    end record;
-   Stat_IFIFO : constant := 16#01000#;
-   Stat_IFCHR : constant := 16#02000#;
-   Stat_IFDIR : constant := 16#04000#;
-   Stat_IFBLK : constant := 16#06000#;
-   Stat_IFREG : constant := 16#08000#;
-   Stat_IFLNK : constant := 16#0A000#;
+   Stat_IFIFO : constant := 16#1000#;
+   Stat_IFCHR : constant := 16#2000#;
+   Stat_IFDIR : constant := 16#4000#;
+   Stat_IFBLK : constant := 16#6000#;
+   Stat_IFREG : constant := 16#8000#;
+   Stat_IFLNK : constant := 16#A000#;
+   Stat_ISOCK : constant := 16#C000#;
    type Stat is record
       Device_Number : Unsigned_64;
       Inode_Number  : Unsigned_64;
@@ -531,6 +532,24 @@ package Userland.Syscall with SPARK_Mode => Off is
        Traced_Addr : Unsigned_64;
        Result_Addr : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
+
+   --  Poll on a series of events.
+   POLLIN   : constant := 2#00000001#;
+   POLLOUT  : constant := 2#00000010#;
+   POLLERR  : constant := 2#00001000#;
+   POLLHUP  : constant := 2#00010000#;
+   POLLNVAL : constant := 2#01000000#;
+   type Poll_FD is record
+      FD         : Unsigned_32;
+      Events     : Unsigned_16;
+      Out_Events : Unsigned_16;
+   end record with Size => 64;
+   type Poll_FDs is array (Unsigned_64 range <>) of Poll_FD;
+   function Poll
+      (FDs_Addr  : Unsigned_64;
+       FDs_Count : Unsigned_64;
+       Timeout   : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
 
 private
 

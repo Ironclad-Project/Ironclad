@@ -134,6 +134,9 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          then
             Returned := Write
                (File.Inner_Writer_Pipe, ISR_GPRs'Size / 8, State.all'Address);
+            while not Is_Empty (File.Inner_Writer_Pipe) loop
+               Scheduler.Yield;
+            end loop;
          end if;
       end if;
 
@@ -263,6 +266,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 51 =>
             Returned := PTrace (State.RDI, State.RSI, State.RDX, State.RCX,
                                 Errno);
+         when 57 =>
+            Returned := Poll (State.RDI, State.RSI, State.RDX, Errno);
          when others =>
             Returned := Unsigned_64'Last;
             Errno    := Error_Not_Implemented;

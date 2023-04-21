@@ -29,14 +29,18 @@ Documentation License''.
 @ifnottex
 @node Top
 @top Ironclad
+
+This manual documents interfaces and devices Ironclad exposes, without having
+to navigate the often cryptic and scary Ada code.
+
 @insertcopying
 @end ifnottex
 
 @menu
-* General information::                General information about the project.
+* Introduction::                       Project overview and bug reporting.
 * Boot-time command-line options::     Command-line options.
 * Embedded facilities and RTC::        Interfaces for embedded and RTC work.
-* Memory allocation algorithms::       The avaiable allocation algorithms.
+* Memory allocation algorithms::       The available allocation algorithms.
 * Userland state and conditions::      Userland state and conditions.
 * Security and integrity facilities::  Ironclad-specific security facilities.
 * Syscalls::                           Listings and explanation of syscalls.
@@ -47,13 +51,11 @@ Documentation License''.
 @detailmenu
 --- The Detailed Node Listing ---
 
-General information
+Introduction
 
-* Audience::                The people for whom this manual is written.
-* How to contribute::       How to contribute code to the kernel.
-* Error reporting::         How to report issues with the kernel.
-* Navigating the source::   Structure of the project.
-* Formal verification::     Current state of the formal verification effort.
+* How to contribute::    How to contribute code to the kernel.
+* Error reporting::      How to report issues with the kernel.
+* Formal verification::  Current state of the formal verification effort.
 
 Boot-time command-line options
 
@@ -88,23 +90,24 @@ Syscalls
 * arch_prctl::              Interacting with architectural thread-local data.
 * open::                    Opening file-system entities.
 * close::                   Closing file descriptors.
-* read/write::              Read and write from an already opened file.
+* read/write::              Read and write from file descriptors.
 * seek::                    Modify and fetch file offsets.
-* mmap/munmap::             Memory mapping and requesting.
+* mmap/munmap::             Manage memory regions.
 * getpid/getppid::          Get the PIDs of the caller.
 * exec::                    Launching new programs.
 * clone::                   Create new processes and threads.
 * wait::                    Waiting for execution of a child to finish.
 * uname::                   Fetch basic system information.
 * sethostname::             Hostname setting.
-* delete::                  Delete files.
+* unlink::                  Queue files for deletion.
 * fstat::                   Fetch file information.
 * getcwd/chdir::            Current working directory manipulation.
 * ioctl::                   IO multiplexer.
 * sched_yield::             Relinquish CPU time.
 * set_deadlines::           Manage scheduler deadlines.
 * pipe::                    Create pipes.
-* dup/dup2::                Duplicate file descriptors.
+* dup::                     Duplicate file descriptors.
+* rename::                  Rename a file.
 * sysconf::                 Fetch general system parameters and information.
 * spawn::                   Fork+exec power incarnate.
 * thread_sched::            Manage scheduler-related thread permissions.
@@ -121,7 +124,7 @@ Syscalls
 * readlink::                Read the contents of a symlink.
 * getdents::                Get directory entries.
 * sync::                    Synchronize device caches.
-* create::                  Create regular files.
+* mknod::                   Create several kinds of files.
 * truncate::                Truncate the contents of a file to an offset.
 * mkdir::                   Create directories.
 * symlink::                 Create symbolic links.
@@ -130,6 +133,7 @@ Syscalls
 * fsync::                   Synchronize file-specific caches.
 * link::                    Create hard links.
 * ptrace::                  Trace and debug children processes.
+* poll::                    I/O event multiplexer.
 
 Filesystems support and interfaces
 
@@ -146,28 +150,33 @@ Devices and their properties
 @end detailmenu
 @end menu
 
-@node General information
-@chapter General information
+@node Introduction
+@chapter Introduction
 
 Ironclad is a partially formally verified real-time kernel, with a small
 footprint, for general-purpose and embedded OSes, written in SPARK and Ada.
 
 Some of the supported features are:
-- A familiar POSIX-compatible interface
-- True simultaneous multitasking
-- Complex virtual and physical memory support, VFS support
-- Resiliency and small footprint
-- Partial gold-level formal verification
-- Advanced cryptography and a security-centered architecture
-- Hard real-time scheduling and real-time oriented features
+@itemize
+@item
+A familiar POSIX-compatible interface
+@item
+True simultaneous multitasking
+@item
+Complex virtual and physical memory support, VFS support
+@item
+Resiliency and small footprint
+@item
+Partial gold-level formal verification
+@item
+Advanced cryptography and a security-centered architecture
+@item
+Hard real-time scheduling and real-time oriented features
+@end itemize
 
-@node Audience
-@section Audience
-
-This manual is designed to document and give information about the several
-interfaces and devices Ironclad exposes, so developers of userland applications
-and other programmers can read inner details of how to interface with the
-kernel without having to navigate the (often cryptic and scary Ada) code.
+This manual is a work in progress: many sections make no attempt to
+explain basic concepts in a way suitable for novices. Thus, if you are
+interested, please get involved in improving this manual.
 
 @node How to contribute
 @section How to contribute
@@ -211,46 +220,6 @@ Ironclad is a fairly new project at the end of the day, so things are prone to
 fail. Once an issue arises, one can open a bug report at the
 @url{https://savannah.nongnu.org/bugs/?group=ironclad, project's bug tracker},
 (@url{https://savannah.nongnu.org/bugs/?group=ironclad&func=additem, create an item}).
-
-@node Navigating the source
-@section Navigating the source
-
-The source of Ironclad can be found on its repository under the @code{source}
-directory. It has several subdirectories with the following meanings:
-
-@table @code
-@item arch
-Architecture-dependent code.
-
-@item cryptography
-Cryptographic facilities, cypher implementations, entropy management.
-
-@item devices
-Several device drivers, physical and virtual.
-
-@item lib
-Functions and libraries for utilities used in the rest of the kernel.
-
-@item memory
-Memory management, physical as well as virtual.
-
-@item networking
-Networking drivers and data.
-
-@item userland
-Userland code for loaders, processes, and such.
-
-@item vfs
-VFS structure and FS drivers.
-@end table
-
-Apart of those subdirectories, @code{source} contains the @code{main.adb} of
-the kernel, @code{pragmas.adc} containing the pragmas used for the rest of the
-kernel code, and some other files and drivers that do not fit in the former
-subdirectories.
-
-The code under @code{tests} does some general testing of facitilities that
-can be tested outside a final Ironclad binary.
 
 @node Formal verification
 @section Formal verification
@@ -586,7 +555,7 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{sethostname}.
 @item
-@xref{delete}
+@xref{unlink}
 @item
 @pxref{fstat, fstat}.
 @item
@@ -598,17 +567,17 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{sched_yield}.
 @item
-@xref{set_deadlines, set_deadlines}.
+@xref{set_deadlines}.
 @item
-@xref{pipe, pipe}.
+@xref{pipe}.
 @item
-@xref{dup/dup2, dup}.
+@xref{dup}.
 @item
-@xref{dup/dup2, dup2}.
+@xref{rename}.
 @item
-@xref{sysconf, sysconf}.
+@xref{sysconf}.
 @item
-@xref{spawn, spawn}.
+@xref{spawn}.
 @item
 @xref{thread_sched, get_thread_sched}.
 @item
@@ -632,19 +601,19 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{set_mac_enforcement}
 @item
-@xref{mount, mount}.
+@xref{mount}.
 @item
-@xref{umount, umount}.
+@xref{umount}.
 @item
 @xref{readlink}.
 @item
 @xref{getdents}.
 @item
-@xref{create}.
+@xref{mknod}.
 @item
 @xref{truncate}.
 @item
-@xref{mkdir}.
+Unused.
 @item
 @xref{symlink}.
 @item
@@ -657,6 +626,8 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @xref{link}.
 @item
 @xref{ptrace}
+@item
+@xref{poll}
 @end enumerate
 
 @node Errno
@@ -1107,15 +1078,15 @@ returned on success and @code{-1} on failure, with the following errno:
 @code{EACCES}: MAC did not allow this.
 @end itemize
 
-@node delete
-@section delete
+@node unlink
+@section unlink
 
 @example
-int delete(int dir_fd, const char *path, int path_len);
+int unlink(int dir_fd, const char *path, int path_len);
 @end example
 
-The syscall deletes the file pointed to by @code{path}. If @code{path} points
-to a directory, it must be empty.
+The syscall queues for deletion the file pointed to by @code{path}. If
+@code{path} points to a directory, it must be empty.
 
 The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 
@@ -1286,24 +1257,28 @@ following errno:
 @code{EMFILE}: No available file descriptor slots.
 @end itemize
 
-@node dup/dup2
-@section dup/dup2
+@node dup
+@section dup
 
 @example
-int dup(int oldfd);
-int dup2(int oldfd, int newfd);
+#define DUP_IGNORE_NEWFD 0b1000000000000
+int dup(int oldfd, int newfd, int flags);
 @end example
 
 This syscalls allocate new file descriptors pointing to the same file as the
-passed file descriptor. @code{dup} chooses a descriptor itself, while
-@code{dup2} will replace @code{newfd} with the new descriptor,
-closing the old one if necessary.
+passed file descriptor. @code{newfd} points to descriptor to duplicate to,
+closing the descriptor first if necessary. The flags of the duplicated file
+descriptor are reset, this means @code{O_CLOEXEC}, and other flags like
+@code{O_NONBLOCK} are not inherited.
 
-The flags of the duplicated file descriptor are reset, this means
-@code{O_CLOEXEC}, and other flags like @code{O_NONBLOCK} are not inherited.
+@code{flags} can be used as a bitmask for setting several file attributes of
+the new descriptor, available flags that can be combined in a bitfield are
+@code{O_NONBLOCK}, and @code{DUP_IGNORE_NEWFD}, which will make @code{dup}
+ignore the @code{newfd} field and search the lowest available file descriptor.
+This can be used for a more standard UNIX-like behaviour.
 
-These 2 syscalls return the new fd on success and @code{-1} on failure.
-The errno codes set on failure are:
+The syscall return the new fd on success and @code{-1} on failure. The errno
+codes set on failure are:
 
 @itemize @bullet
 @item
@@ -1311,6 +1286,34 @@ The errno codes set on failure are:
 
 @item
 @code{EMFILE}: Too many files have already been opened by the process.
+@end itemize
+
+@node rename
+@section rename
+
+@example
+#define RENAME_NOREPLACE 1
+int rename(int sourcedirfd, const char *sourcepath, size_t sourcelen,
+       int targetirfd, const char *targetpath, size_t targetlen, int flags);
+@end example
+
+This syscalls renames a file in an atomic operation, it is only available in
+between files in the same mountpoint. If @code{targetpath} exists, it will be
+replaced, @code{RENAME_NOREPLACE} may be passed in @code{flags} for making the
+call fail in said case instead of replacing silently.
+
+The syscall return the new fd on success and @code{-1} on failure. The errno
+codes set on failure are:
+
+@itemize @bullet
+@item
+@code{EFAULT}: One of the passed values is outside addressable memory.
+
+@item
+@code{ENAMETOOLONG}: The passed path is too long.
+
+@item
+@code{EIO}: The operation could not be done out of an internal error.
 @end itemize
 
 @node sysconf
@@ -1723,21 +1726,22 @@ errno:
 @code{EIO}: Device error while flushing.
 @end itemize
 
-@node create
-@section create
+@node mknod
+@section mknod
 
 @example
-int create(int dir_fd, const char *path, int path_len, int mode);
+int mknod(int dir_fd, const char *path, int path_len, int mode, int dev);
 @end example
 
-This syscall creates regular files in the passed path.
+This syscall creates files in the passed path and dir. The type is chosen by
+@code{code}, which uses the same format as @code{stat}'s mode field.
 
 The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 
 @itemize @bullet
 @code{EACCES}: Bad memory addresses.
 @item
-@code{EINVAL}: The passed path length is way too big.
+@code{EINVAL}: The passed path length is way too big, or the mode is invalid.
 @item
 @code{EIO}: Internal error.
 @end itemize
@@ -1961,6 +1965,73 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @item
 @code{EINVAL}: @code{request} is not valid.
 @end itemize
+
+@node poll
+@section poll
+
+@example
+#define POLLIN   0b00000001
+#define POLLOUT  0b00000010
+#define POLLERR  0b00001000
+#define POLLHUP  0b00010000
+#define POLLNVAL 0b01000000
+
+struct pollfd @{
+   uint32_t fd;
+   uint16_t events;
+   uint16_t revents;
+@};
+
+int poll(struct pollfd *fds, nfds_t nfds, int timeout);
+@end example
+
+This syscall allows to wait for a series of events to happen to the passed
+FDs, in a manner similar to POSIX's @code{select}.
+
+@code{fds} is an array of @code{nfds} length of @code{pollfd} structures. Each
+structure represents one FD, for which @code{events} is a bitmap of events
+to wait for and @code{revents} is a bitmap written by the kernel to indicate
+which events of the waited ones did happen. If the FD of an structure is
+negative, that is, it has the first bit set, it is ignored, and @code{revents}
+is set to @code{0}.
+
+Both @code{events} and @code{revents} are bitmaps of the values:
+
+@table @code
+@item POLLIN
+The passed FD has data pending for reading.
+
+@item POLLOUT
+The passed FD will not block when written to (a sensible amount).
+
+@item POLLERR
+Only for @code{revents}, it is set in the case of error waiting, or if the FD
+is a pipe and the connection is broken with no data pending.
+
+@item POLLHUP
+Only for @code{revents}, it is set in the case of the passed FD having lost
+connection, or the FD being a broken pipe, but still having data pending.
+
+@item POLLNVAL
+Only for @code{revents}, equivalent of @code{EBADFD}, that is, the passed FD
+is not valid.
+@end table
+
+@code{timeout} argument specifies the number of milliseconds that the syscall
+should block waiting for a file descriptor to become ready. The call will block
+until either a file descriptor gets an event, the call is interrupted by a
+signal handler, or the timeout expires.
+
+The syscall returns the number of FDs to have an event happen on success or
+@code{-1} on failure, with the following errno:
+
+@table @code
+@item EFAULT
+The passed pointers are not in addressable memory.
+
+@item EINVAL
+The passed values are not valid.
+@end table
 
 @node Filesystems support and interfaces
 @chapter Filesystems support and interfaces

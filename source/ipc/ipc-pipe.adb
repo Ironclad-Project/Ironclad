@@ -70,6 +70,33 @@ package body IPC.Pipe with SPARK_Mode => Off is
       P.Is_Blocking := B;
    end Set_Blocking;
 
+   function Is_Broken (P : Pipe_Reader_Acc) return Boolean is
+      Result : Boolean;
+   begin
+      Lib.Synchronization.Seize (P.Mutex);
+      Result := P.Writer_Is_Ghost;
+      Lib.Synchronization.Release (P.Mutex);
+      return Result;
+   end Is_Broken;
+
+   function Is_Empty (P : Pipe_Reader_Acc) return Boolean is
+      Result : Boolean;
+   begin
+      Lib.Synchronization.Seize (P.Mutex);
+      Result := P.Other_End.Data_Count = 0;
+      Lib.Synchronization.Release (P.Mutex);
+      return Result;
+   end Is_Empty;
+
+   function Is_Empty (P : Pipe_Writer_Acc) return Boolean is
+      Result : Boolean;
+   begin
+      Lib.Synchronization.Seize (P.Mutex);
+      Result := P.Data_Count = 0;
+      Lib.Synchronization.Release (P.Mutex);
+      return Result;
+   end Is_Empty;
+
    procedure Increase_Refcount (P : Pipe_Writer_Acc) is
    begin
       Lib.Synchronization.Seize (P.Mutex);

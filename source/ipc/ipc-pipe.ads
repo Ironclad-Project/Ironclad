@@ -43,6 +43,16 @@ package IPC.Pipe with SPARK_Mode => Off is
    procedure Set_Blocking (P : Pipe_Reader_Acc; B : Boolean)
       with Inline, Pre => P /= null;
 
+   --  Check whether the pipe is broken.
+   function Is_Broken (P : Pipe_Reader_Acc) return Boolean
+      with Pre => P /= null;
+
+   --  Check whether the pipe is empty.
+   function Is_Empty (P : Pipe_Reader_Acc) return Boolean
+      with Pre => P /= null;
+   function Is_Empty (P : Pipe_Writer_Acc) return Boolean
+      with Pre => P /= null;
+
    --  Close the passed end, and do preparations for the other end.
    --  Both ends must be closed individually,.
    --  If the writing end is closed but the reader end isnt, the reader will
