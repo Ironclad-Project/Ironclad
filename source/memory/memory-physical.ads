@@ -43,12 +43,10 @@ package Memory.Physical is
    --  @field Total     Total physical memory of the system.
    --  @field Available Non-reserved memory amount managed by the allocator.
    --  @field Free      Free allocator-managed memory in the system.
-   --  @field Size_Mode Estimated mode of allocation sizes.
    type Statistics is record
       Total     : Memory.Size;
       Available : Memory.Size;
       Free      : Memory.Size;
-      Size_Mode : Memory.Size;
    end record;
 
    --  Fetch memory statistics as defined in the Statistics record.

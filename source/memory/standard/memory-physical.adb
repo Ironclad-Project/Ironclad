@@ -35,6 +35,11 @@ package body Memory.Physical with SPARK_Mode => Off is
    Bitmap_Last_Used :              Unsigned_64 := 0;
    Alloc_Mutex      : aliased Binary_Semaphore := Unlocked_Semaphore;
 
+   --  Header of each memory allocation.
+   type Allocation_Header is record
+      Block_Count : Size;
+   end record;
+
    procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map) is
       Adjusted_Length : Storage_Count  := 0;
       Adjusted_Start  : System.Address := System.Null_Address;
@@ -123,7 +128,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       end if;
 
       Size               := Align.Align_Up (Size, Block_Size);
-      Blocks_To_Allocate := Size / Block_Size;
+      Blocks_To_Allocate := (Size / Block_Size) + 1;
 
       --  Search for contiguous blocks, as many as needed.
       Lib.Synchronization.Seize (Alloc_Mutex);
@@ -158,31 +163,48 @@ package body Memory.Physical with SPARK_Mode => Off is
          Bitmap_Body (First_Found_Index + Unsigned_64 (I - 1)) := Block_Used;
       end loop;
 
-      --  Set statistic, global variables and return.
+      --  Set statistic, global variables, the allocation header and return.
       Bitmap_Last_Used := First_Found_Index;
       Free_Memory      := Free_Memory - Size;
       Lib.Synchronization.Release (Alloc_Mutex);
-      return Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
+
+      declare
+         Ret : constant Virtual_Address :=
+            Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
+         Header : Allocation_Header with Import, Address => To_Address (Ret);
+      begin
+         Header := (Block_Count => Blocks_To_Allocate);
+         return Ret + Block_Size;
+      end;
    end Alloc;
 
    procedure Free (Address : Interfaces.C.size_t) is
       Real_Address : Virtual_Address := Virtual_Address (Address);
+      Real_Block   : Unsigned_64;
       Bitmap_Body  : Bitmap (0 .. Block_Count - 1)
          with Address => To_Address (Bitmap_Address), Import;
    begin
-      --  Ensure the address is in the lower half and not null.
+      --  Ensure the address is in the higher half and not null.
       if Real_Address = 0 then
          return;
-      elsif Real_Address > Memory_Offset then
-         Real_Address := Real_Address - Memory_Offset;
+      elsif Real_Address < Memory_Offset then
+         Real_Address := Real_Address + Memory_Offset;
       end if;
 
-      --  TODO: This is basically a placeholder free that will free only the
-      --  first block. Blocks per address should be tracked and freed.
-      Lib.Synchronization.Seize (Alloc_Mutex);
-      Bitmap_Body (Unsigned_64 (Real_Address / Block_Size)) := Block_Free;
-      Free_Memory := Free_Memory + Block_Size;
-      Lib.Synchronization.Release (Alloc_Mutex);
+      --  Free the blocks in the header.
+      declare
+         Header_Address : constant System.Address :=
+            To_Address (Real_Address - Block_Size);
+         Header : Allocation_Header with Import, Address => Header_Address;
+      begin
+         Lib.Synchronization.Seize (Alloc_Mutex);
+         Free_Memory := Free_Memory + (Header.Block_Count * Block_Size);
+         Real_Block := Unsigned_64 (Real_Address - Memory_Offset) / Block_Size;
+         for I in 1 .. Header.Block_Count loop
+            Bitmap_Body (Real_Block + Unsigned_64 (I - 1)) := Block_Free;
+         end loop;
+         Lib.Synchronization.Release (Alloc_Mutex);
+      end;
    end Free;
 
    procedure Get_Statistics (Stats : out Statistics) is
@@ -191,8 +213,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       Stats :=
          (Total     => Total_Memory,
           Available => Available_Memory,
-          Free      => Free_Memory,
-          Size_Mode => 0);
+          Free      => Free_Memory);
       Lib.Synchronization.Release (Alloc_Mutex);
    end Get_Statistics;
 end Memory.Physical;

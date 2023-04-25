@@ -171,23 +171,11 @@ package body Memory.Virtual with SPARK_Mode => Off is
 
    procedure Delete_Map (Map : in out Page_Map_Acc) is
       procedure F is new Ada.Unchecked_Deallocation (Page_Map, Page_Map_Acc);
-      I : Integer_Address;
    begin
       Lib.Synchronization.Seize (Map.Mutex);
-
-      --  FIXME: This implies the behaviour of the standard allocator, which
-      --  only frees the first page of the passed address, which itself is a
-      --  long overdue bug. It works, but any changes in the allocator
-      --  (which I'd love to do) will make this erroneous at best, a massive
-      --  bug at worst.
       for Mapping of Map.Map_Ranges loop
          if Mapping.Is_Present then
-            I := Mapping.Physical_Start;
-            while Mapping.Physical_Start + Integer_Address (Mapping.Length) > I
-            loop
-               Memory.Physical.Free (Interfaces.C.size_t (I));
-               I := I + Page_Size;
-            end loop;
+            Physical.Free (Interfaces.C.size_t (Mapping.Physical_Start));
          end if;
       end loop;
       Arch.MMU.Destroy_Table (Map.Inner);

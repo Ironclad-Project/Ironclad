@@ -134,8 +134,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       Stats :=
          (Total     => Total_Memory,
           Available => Available_Memory,
-          Free      => Free_Memory,
-          Size_Mode => 0);
+          Free      => Free_Memory);
       Lib.Synchronization.Release (Alloc_Mutex);
    end Get_Statistics;
 end Memory.Physical;
