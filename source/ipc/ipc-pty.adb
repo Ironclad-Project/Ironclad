@@ -16,7 +16,9 @@
 
 with Ada.Unchecked_Deallocation;
 
-package body IPC.PTY with SPARK_Mode => Off is
+package body IPC.PTY is
+   pragma Suppress (All_Checks);
+
    procedure Free is new Ada.Unchecked_Deallocation (Primary,   Primary_Acc);
    procedure Free is new Ada.Unchecked_Deallocation (Secondary, Secondary_Acc);
 
@@ -26,8 +28,8 @@ package body IPC.PTY with SPARK_Mode => Off is
        Termios       : Devices.TermIOs.Main_Data;
        Window_Size   : Devices.TermIOs.Win_Size)
    is
-      Reader1, Reader2 : Pipe.Pipe_Reader_Acc;
-      Writer1, Writer2 : Pipe.Pipe_Writer_Acc;
+      Reader1, Reader2 : Pipe.Reader_Acc;
+      Writer1, Writer2 : Pipe.Writer_Acc;
    begin
       Pipe.Create_Pair (Writer1, Reader1, True);
       Pipe.Create_Pair (Writer2, Reader2, True);
@@ -116,22 +118,24 @@ package body IPC.PTY with SPARK_Mode => Off is
       Free (Prim);
    end Free_Primary;
 
-   function Read
-      (To_Read     : Primary_Acc;
-       Count       : Unsigned_64;
-       Destination : System.Address) return Unsigned_64
+   procedure Read
+      (To_Read   : Primary_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural)
    is
+      Discard : IPC.Pipe.Pipe_Status;
    begin
-      return Pipe.Read (To_Read.Reader_To_Primary, Count, Destination);
+      IPC.Pipe.Read (To_Read.Reader_To_Primary, Data, Ret_Count, Discard);
    end Read;
 
-   function Write
-      (To_Write : Primary_Acc;
-       Count    : Unsigned_64;
-       Source   : System.Address) return Unsigned_64
+   procedure Write
+      (To_Write  : Primary_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural)
    is
+      Discard : IPC.Pipe.Pipe_Status;
    begin
-      return Pipe.Write (To_Write.Writer_To_Secondary, Count, Source);
+      IPC.Pipe.Write (To_Write.Writer_To_Secondary, Data, Ret_Count, Discard);
    end Write;
 
    function IO_Control
@@ -153,24 +157,26 @@ package body IPC.PTY with SPARK_Mode => Off is
       return True;
    end IO_Control;
 
-   function Read
-      (To_Read     : Secondary_Acc;
-       Count       : Unsigned_64;
-       Destination : System.Address) return Unsigned_64
+   procedure Read
+      (To_Read   : Secondary_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural)
    is
-      Primary_End : Primary_Acc renames To_Read.Primary_End;
+      Prim_End : Primary_Acc renames To_Read.Primary_End;
+      Discard  : IPC.Pipe.Pipe_Status;
    begin
-      return Pipe.Read (Primary_End.Reader_To_Secondary, Count, Destination);
+      IPC.Pipe.Read (Prim_End.Reader_To_Secondary, Data, Ret_Count, Discard);
    end Read;
 
-   function Write
-      (To_Write : Secondary_Acc;
-       Count    : Unsigned_64;
-       Source   : System.Address) return Unsigned_64
+   procedure Write
+      (To_Write  : Secondary_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural)
    is
       Primary_End : Primary_Acc renames To_Write.Primary_End;
+      Discard     : IPC.Pipe.Pipe_Status;
    begin
-      return Pipe.Write (Primary_End.Writer_To_Primary, Count, Source);
+      IPC.Pipe.Write (Primary_End.Writer_To_Primary, Data, Ret_Count, Discard);
    end Write;
 
    function IO_Control

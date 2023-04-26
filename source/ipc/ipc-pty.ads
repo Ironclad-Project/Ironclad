@@ -20,7 +20,7 @@ with Devices.TermIOs;
 with IPC.Pipe;
 with Lib.Synchronization;
 
-package IPC.PTY with SPARK_Mode => Off is
+package IPC.PTY is
    type Primary       is private;
    type Secondary     is private;
    type Primary_Acc   is access Primary;
@@ -43,16 +43,16 @@ package IPC.PTY with SPARK_Mode => Off is
    procedure Close (Closed : in out Secondary_Acc) with Pre => Closed /= null;
 
    --  Read, write, and ioctl for the primary pty.
-   function Read
-      (To_Read     : Primary_Acc;
-       Count       : Unsigned_64;
-       Destination : System.Address) return Unsigned_64
+   procedure Read
+      (To_Read   : Primary_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural)
       with Pre => To_Read /= null;
 
-   function Write
-      (To_Write : Primary_Acc;
-       Count    : Unsigned_64;
-       Source   : System.Address) return Unsigned_64
+   procedure Write
+      (To_Write  : Primary_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural)
       with Pre => To_Write /= null;
 
    function IO_Control
@@ -61,16 +61,16 @@ package IPC.PTY with SPARK_Mode => Off is
        Argument : System.Address) return Boolean with Pre => File /= null;
 
    --  Read, write, and ioctl for the secondary pty.
-   function Read
-      (To_Read     : Secondary_Acc;
-       Count       : Unsigned_64;
-       Destination : System.Address) return Unsigned_64
+   procedure Read
+      (To_Read   : Secondary_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural)
       with Pre => To_Read /= null;
 
-   function Write
-      (To_Write : Secondary_Acc;
-       Count    : Unsigned_64;
-       Source   : System.Address) return Unsigned_64
+   procedure Write
+      (To_Write  : Secondary_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural)
       with Pre => To_Write /= null;
 
    function IO_Control
@@ -82,10 +82,10 @@ private
 
    type Primary is record
       Mutex               : aliased Lib.Synchronization.Binary_Semaphore;
-      Reader_To_Secondary : Pipe.Pipe_Reader_Acc;
-      Reader_To_Primary   : Pipe.Pipe_Reader_Acc;
-      Writer_To_Secondary : Pipe.Pipe_Writer_Acc;
-      Writer_To_Primary   : Pipe.Pipe_Writer_Acc;
+      Reader_To_Secondary : Pipe.Reader_Acc;
+      Reader_To_Primary   : Pipe.Reader_Acc;
+      Writer_To_Secondary : Pipe.Writer_Acc;
+      Writer_To_Primary   : Pipe.Writer_Acc;
       Secondary           : Secondary_Acc;
       Term_Info           : Devices.TermIOs.Main_Data;
       Term_Size           : Devices.TermIOs.Win_Size;

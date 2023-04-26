@@ -14,88 +14,94 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
 with Lib.Synchronization;
-with Interfaces; use Interfaces;
+with Devices;
 
-package IPC.Pipe with SPARK_Mode => Off is
+package IPC.Pipe is
    --  Pipes are one of the simplest IPC methods of Ironclad.
    --  Its basically a memory buffer held by the kernel which can be read
    --  and written to, blocking or non blocking.
-   type Pipe_Writer     is private;
-   type Pipe_Reader     is private;
-   type Pipe_Writer_Acc is access Pipe_Writer;
-   type Pipe_Reader_Acc is access Pipe_Reader;
+   type Writer     is private;
+   type Reader     is private;
+   type Writer_Acc is access Writer;
+   type Reader_Acc is access Reader;
 
    --  Create a fresh pair of pipes.
    procedure Create_Pair
-      (Write_End   : out Pipe_Writer_Acc;
-       Read_End    : out Pipe_Reader_Acc;
+      (Write_End   : out Writer_Acc;
+       Read_End    : out Reader_Acc;
        Is_Blocking : Boolean);
 
    --  Check or change whether the passed pipe is blocking or not.
-   function Is_Blocking (P : Pipe_Writer_Acc) return Boolean
+   function Is_Blocking (P : Writer_Acc) return Boolean
       with Inline, Pre => P /= null;
-   function Is_Blocking (P : Pipe_Reader_Acc) return Boolean
+   function Is_Blocking (P : Reader_Acc) return Boolean
       with Inline, Pre => P /= null;
-   procedure Set_Blocking (P : Pipe_Writer_Acc; B : Boolean)
+   procedure Set_Blocking (P : Writer_Acc; B : Boolean)
       with Inline, Pre => P /= null;
-   procedure Set_Blocking (P : Pipe_Reader_Acc; B : Boolean)
+   procedure Set_Blocking (P : Reader_Acc; B : Boolean)
       with Inline, Pre => P /= null;
 
    --  Check whether the pipe is broken.
-   function Is_Broken (P : Pipe_Reader_Acc) return Boolean
-      with Pre => P /= null;
+   function Is_Broken (P : Reader_Acc) return Boolean with Pre => P /= null;
 
    --  Check whether the pipe is empty.
-   function Is_Empty (P : Pipe_Reader_Acc) return Boolean
-      with Pre => P /= null;
-   function Is_Empty (P : Pipe_Writer_Acc) return Boolean
-      with Pre => P /= null;
+   function Is_Empty (P : Reader_Acc) return Boolean with Pre => P /= null;
+   function Is_Empty (P : Writer_Acc) return Boolean with Pre => P /= null;
 
    --  Close the passed end, and do preparations for the other end.
    --  Both ends must be closed individually,.
    --  If the writing end is closed but the reader end isnt, the reader will
    --  be allowed to read until the end of the held data.
-   procedure Increase_Refcount (P : Pipe_Writer_Acc)   with Pre => P /= null;
-   procedure Increase_Refcount (P : Pipe_Reader_Acc)   with Pre => P /= null;
-   procedure Close (To_Close : in out Pipe_Writer_Acc)
-      with Pre => To_Close /= null;
-   procedure Close (To_Close : in out Pipe_Reader_Acc)
-      with Pre => To_Close /= null;
+   procedure Increase_Refcount (P : Writer_Acc)   with Pre => P /= null;
+   procedure Increase_Refcount (P : Reader_Acc)   with Pre => P /= null;
+   procedure Close (To_Close : in out Writer_Acc) with Pre => To_Close /= null;
+   procedure Close (To_Close : in out Reader_Acc) with Pre => To_Close /= null;
+
+   --  Returned status of a pipe operation.
+   type Pipe_Status is (Pipe_Success, Broken_Failure, Would_Block_Failure);
 
    --  Read from the reader end of a pipe.
-   function Read
-      (To_Read     : Pipe_Reader_Acc;
-       Count       : Unsigned_64;
-       Destination : System.Address) return Unsigned_64
+   --  @param To_Read   Pipe end to read from.
+   --  @param Data      Buffer to write read data.
+   --  @param Ret_Count Count of data read.
+   --  @apram Success   Return status of the operation.
+   procedure Read
+      (To_Read   : Reader_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Pipe_Status)
       with Pre => To_Read /= null;
 
    --  Write to the writer end of a pipe.
-   function Write
-      (To_Write : Pipe_Writer_Acc;
-       Count    : Unsigned_64;
-       Source   : System.Address) return Unsigned_64
+   --  @param To_Write  Pipe end to write to.
+   --  @param Data      Data to write.
+   --  @param Ret_Count Count of data written.
+   --  @apram Success   Return status of the operation.
+   procedure Write
+      (To_Write  : Writer_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Pipe_Status)
       with Pre => To_Write /= null;
 
 private
 
-   Pipe_Data_Len : constant := 512;
-   type Pipe_Data is array (Natural range <>) of Unsigned_8;
-   type Pipe_Writer is record
+   Data_Len : constant := 512;
+   type Writer is record
       Mutex       : aliased Lib.Synchronization.Binary_Semaphore;
       Refcount    : Natural;
       Is_Blocking : Boolean;
-      Data_Count  : Natural range 0 .. Pipe_Data_Len with Volatile;
-      Data        : Pipe_Data (1 .. Pipe_Data_Len);
-      Reader      : Pipe_Reader_Acc;
+      Data_Count  : Natural range 0 .. Data_Len;
+      Data        : Devices.Operation_Data (1 .. Data_Len);
+      Reader      : Reader_Acc;
    end record;
 
-   type Pipe_Reader is record
+   type Reader is record
       Mutex           : aliased Lib.Synchronization.Binary_Semaphore;
       Refcount        : Natural;
       Writer_Is_Ghost : Boolean;
       Is_Blocking     : Boolean;
-      Other_End       : Pipe_Writer_Acc;
+      Other_End       : Writer_Acc;
    end record;
 end IPC.Pipe;

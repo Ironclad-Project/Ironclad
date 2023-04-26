@@ -260,6 +260,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          with Import, Address => Buf_SAddr;
       Ret_Count : Natural;
       Success   : Boolean;
+      Success1  : IPC.Pipe.Pipe_Status;
    begin
       if not Check_Userland_Access (Curr_Proc.Common_Map, Buf_IAddr, Count)
       then
@@ -290,14 +291,26 @@ package body Userland.Syscall with SPARK_Mode => Off is
                end if;
             end if;
          when Description_Reader_Pipe =>
-            Errno := Error_No_Error;
-            return Read (File.Inner_Reader_Pipe, Count, Buf_SAddr);
+            IPC.Pipe.Read (File.Inner_Reader_Pipe, Data, Ret_Count, Success1);
+            case Success1 is
+               when IPC.Pipe.Pipe_Success =>
+                  Errno := Error_No_Error;
+                  return Unsigned_64 (Ret_Count);
+               when IPC.Pipe.Broken_Failure =>
+                  Errno := Error_Invalid_Value;
+                  return Unsigned_64'Last;
+               when IPC.Pipe.Would_Block_Failure =>
+                  Errno := Error_Would_Block;
+                  return Unsigned_64'Last;
+            end case;
          when Description_Primary_PTY =>
+            IPC.PTY.Read (File.Inner_Primary_PTY, Data, Ret_Count);
             Errno := Error_No_Error;
-            return IPC.PTY.Read (File.Inner_Primary_PTY, Count, Buf_SAddr);
+            return Unsigned_64 (Ret_Count);
          when Description_Secondary_PTY =>
+            IPC.PTY.Read (File.Inner_Secondary_PTY, Data, Ret_Count);
             Errno := Error_No_Error;
-            return IPC.PTY.Read (File.Inner_Secondary_PTY, Count, Buf_SAddr);
+            return Unsigned_64 (Ret_Count);
          when Description_Writer_Pipe =>
             Errno := Error_Bad_File;
             return Unsigned_64'Last;
@@ -320,6 +333,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          with Import, Address => Buf_SAddr;
       Ret_Count : Natural;
       Success   : Boolean;
+      Success1  : IPC.Pipe.Pipe_Status;
    begin
       if not Check_Userland_Access (Curr_Proc.Common_Map, Buf_IAddr, Count)
       then
@@ -350,14 +364,26 @@ package body Userland.Syscall with SPARK_Mode => Off is
                end if;
             end if;
          when Description_Writer_Pipe =>
-            Errno := Error_No_Error;
-            return Write (File.Inner_Writer_Pipe, Count, Buf_SAddr);
+            IPC.Pipe.Write (File.Inner_Writer_Pipe, Data, Ret_Count, Success1);
+            case Success1 is
+               when IPC.Pipe.Pipe_Success =>
+                  Errno := Error_No_Error;
+                  return Unsigned_64 (Ret_Count);
+               when IPC.Pipe.Broken_Failure =>
+                  Errno := Error_Invalid_Value;
+                  return Unsigned_64'Last;
+               when IPC.Pipe.Would_Block_Failure =>
+                  Errno := Error_Would_Block;
+                  return Unsigned_64'Last;
+            end case;
          when Description_Primary_PTY =>
+            IPC.PTY.Write (File.Inner_Primary_PTY, Data, Ret_Count);
             Errno := Error_No_Error;
-            return Write (File.Inner_Primary_PTY, Count, Buf_SAddr);
+            return Unsigned_64 (Ret_Count);
          when Description_Secondary_PTY =>
+            IPC.PTY.Write (File.Inner_Secondary_PTY, Data, Ret_Count);
             Errno := Error_No_Error;
-            return Write (File.Inner_Secondary_PTY, Count, Buf_SAddr);
+            return Unsigned_64 (Ret_Count);
          when Description_Reader_Pipe =>
             Errno := Error_Bad_File;
             return Unsigned_64'Last;
@@ -1145,8 +1171,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Ad   : constant Integer_Address  := Integer_Address (Result_Addr);
       Proc : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Res  : array (1 .. 2) of Integer with Import, Address => To_Address (Ad);
-      Reader : Pipe_Reader_Acc;
-      Writer : Pipe_Writer_Acc;
+      Reader : IPC.Pipe.Reader_Acc;
+      Writer : IPC.Pipe.Writer_Acc;
       Reader_Desc, Writer_Desc : File_Description_Acc;
    begin
       if not Check_Userland_Access (Proc.Common_Map, Ad, Res'Size / 8) then
@@ -1154,7 +1180,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      Create_Pair (Writer, Reader, (Flags and O_NONBLOCK) = 0);
+      IPC.Pipe.Create_Pair (Writer, Reader, (Flags and O_NONBLOCK) = 0);
       Reader_Desc := new File_Description'(
          Close_On_Exec     => False,
          Description       => Description_Reader_Pipe,

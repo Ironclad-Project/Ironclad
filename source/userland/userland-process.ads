@@ -41,9 +41,9 @@ package Userland.Process with SPARK_Mode => Off is
       Close_On_Exec : Boolean;
       case Description is
          when Description_Reader_Pipe =>
-            Inner_Reader_Pipe : IPC.Pipe.Pipe_Reader_Acc;
+            Inner_Reader_Pipe : IPC.Pipe.Reader_Acc;
          when Description_Writer_Pipe =>
-            Inner_Writer_Pipe : IPC.Pipe.Pipe_Writer_Acc;
+            Inner_Writer_Pipe : IPC.Pipe.Writer_Acc;
          when Description_Primary_PTY =>
             Inner_Primary_PTY : IPC.PTY.Primary_Acc;
          when Description_Secondary_PTY =>

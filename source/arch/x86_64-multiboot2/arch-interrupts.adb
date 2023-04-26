@@ -25,6 +25,7 @@ with Arch.Snippets;
 with Arch.Local;
 with Userland.Process; use Userland.Process;
 with IPC.Pipe; use IPC.Pipe;
+with Devices;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
@@ -123,6 +124,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       Errno    : Errno_Value;
       FP_State : Context.FP_Context;
       File     : File_Description_Acc;
+      State_Data : Devices.Operation_Data (1 .. State.all'Size / 8)
+         with Import, Address => State.all'Address;
+      Success   : IPC.Pipe.Pipe_Status;
+      Ret_Count : Natural;
       pragma Unreferenced (Num);
    begin
       Arch.Snippets.Enable_Interrupts;
@@ -132,8 +137,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          File := Get_File (Proc, Unsigned_64 (Proc.Tracer_FD));
          if File /= null and then File.Description = Description_Writer_Pipe
          then
-            Returned := Write
-               (File.Inner_Writer_Pipe, ISR_GPRs'Size / 8, State.all'Address);
+            Write (File.Inner_Writer_Pipe, State_Data, Ret_Count, Success);
             while not Is_Empty (File.Inner_Writer_Pipe) loop
                Scheduler.Yield;
             end loop;

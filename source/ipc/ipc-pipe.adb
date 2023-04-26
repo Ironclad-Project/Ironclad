@@ -17,60 +17,59 @@
 with Ada.Unchecked_Deallocation;
 with Arch.Snippets;
 
-package body IPC.Pipe with SPARK_Mode => Off is
-   procedure Free is new Ada.Unchecked_Deallocation
-         (Pipe_Writer, Pipe_Writer_Acc);
-   procedure Free is new Ada.Unchecked_Deallocation
-         (Pipe_Reader, Pipe_Reader_Acc);
+package body IPC.Pipe is
+   pragma Suppress (All_Checks);
+
+   procedure Free is new Ada.Unchecked_Deallocation (Writer, Writer_Acc);
+   procedure Free is new Ada.Unchecked_Deallocation (Reader, Reader_Acc);
 
    procedure Create_Pair
-      (Write_End   : out Pipe_Writer_Acc;
-       Read_End    : out Pipe_Reader_Acc;
+      (Write_End   : out Writer_Acc;
+       Read_End    : out Reader_Acc;
        Is_Blocking : Boolean)
    is
    begin
-      Write_End := new Pipe_Writer;
-      Read_End  := new Pipe_Reader;
-      Write_End.all := (
+      Write_End := new Writer'(
          Refcount    => 1,
          Mutex       => Lib.Synchronization.Unlocked_Semaphore,
          Is_Blocking => Is_Blocking,
          Data_Count  => 0,
          Data        => (others => 0),
-         Reader      => Read_End
+         Reader      => null
       );
-      Read_End.all := (
+      Read_End := new Reader'(
          Mutex           => Lib.Synchronization.Unlocked_Semaphore,
          Refcount        => 1,
          Writer_Is_Ghost => False,
          Is_Blocking     => Is_Blocking,
          Other_End       => Write_End
       );
+      Write_End.Reader := Read_End;
    end Create_Pair;
 
-   function Is_Blocking (P : Pipe_Writer_Acc) return Boolean is
+   function Is_Blocking (P : Writer_Acc) return Boolean is
    begin
       return P.Is_Blocking;
    end Is_Blocking;
 
-   function Is_Blocking (P : Pipe_Reader_Acc) return Boolean is
+   function Is_Blocking (P : Reader_Acc) return Boolean is
    begin
       return P.Is_Blocking;
    end Is_Blocking;
 
-   procedure Set_Blocking (P : Pipe_Writer_Acc; B : Boolean) is
+   procedure Set_Blocking (P : Writer_Acc; B : Boolean) is
    begin
       Lib.Synchronization.Seize (P.Mutex);
       P.Is_Blocking := B;
       Lib.Synchronization.Release (P.Mutex);
    end Set_Blocking;
 
-   procedure Set_Blocking (P : Pipe_Reader_Acc; B : Boolean) is
+   procedure Set_Blocking (P : Reader_Acc; B : Boolean) is
    begin
       P.Is_Blocking := B;
    end Set_Blocking;
 
-   function Is_Broken (P : Pipe_Reader_Acc) return Boolean is
+   function Is_Broken (P : Reader_Acc) return Boolean is
       Result : Boolean;
    begin
       Lib.Synchronization.Seize (P.Mutex);
@@ -79,7 +78,7 @@ package body IPC.Pipe with SPARK_Mode => Off is
       return Result;
    end Is_Broken;
 
-   function Is_Empty (P : Pipe_Reader_Acc) return Boolean is
+   function Is_Empty (P : Reader_Acc) return Boolean is
       Result : Boolean;
    begin
       Lib.Synchronization.Seize (P.Mutex);
@@ -88,7 +87,7 @@ package body IPC.Pipe with SPARK_Mode => Off is
       return Result;
    end Is_Empty;
 
-   function Is_Empty (P : Pipe_Writer_Acc) return Boolean is
+   function Is_Empty (P : Writer_Acc) return Boolean is
       Result : Boolean;
    begin
       Lib.Synchronization.Seize (P.Mutex);
@@ -97,21 +96,21 @@ package body IPC.Pipe with SPARK_Mode => Off is
       return Result;
    end Is_Empty;
 
-   procedure Increase_Refcount (P : Pipe_Writer_Acc) is
+   procedure Increase_Refcount (P : Writer_Acc) is
    begin
       Lib.Synchronization.Seize (P.Mutex);
       P.Refcount := P.Refcount + 1;
       Lib.Synchronization.Release (P.Mutex);
    end Increase_Refcount;
 
-   procedure Increase_Refcount (P : Pipe_Reader_Acc) is
+   procedure Increase_Refcount (P : Reader_Acc) is
    begin
       Lib.Synchronization.Seize (P.Mutex);
       P.Refcount := P.Refcount + 1;
       Lib.Synchronization.Release (P.Mutex);
    end Increase_Refcount;
 
-   procedure Close (To_Close : in out Pipe_Writer_Acc) is
+   procedure Close (To_Close : in out Writer_Acc) is
    begin
       Lib.Synchronization.Seize (To_Close.Mutex);
       if To_Close.Reader /= null then
@@ -134,7 +133,7 @@ package body IPC.Pipe with SPARK_Mode => Off is
       Lib.Synchronization.Release (To_Close.Mutex);
    end Close;
 
-   procedure Close (To_Close : in out Pipe_Reader_Acc) is
+   procedure Close (To_Close : in out Reader_Acc) is
    begin
       Lib.Synchronization.Seize (To_Close.Mutex);
       Lib.Synchronization.Seize (To_Close.Other_End.Mutex);
@@ -156,17 +155,18 @@ package body IPC.Pipe with SPARK_Mode => Off is
       Lib.Synchronization.Release (To_Close.Mutex);
    end Close;
 
-   function Read
-      (To_Read     : Pipe_Reader_Acc;
-       Count       : Unsigned_64;
-       Destination : System.Address) return Unsigned_64
+   procedure Read
+      (To_Read   : Reader_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Pipe_Status)
    is
-      Len       : constant Natural := Natural (Count);
-      Final_Len : Natural          := Len;
-      Data      : Pipe_Data (1 .. Len) with Import, Address => Destination;
+      Final_Len : Natural := Data'Length;
    begin
       if To_Read.Writer_Is_Ghost and To_Read.Other_End.Data_Count = 0 then
-         return 0;
+         Ret_Count := 0;
+         Success   := Pipe_Success;
+         return;
       end if;
 
       if To_Read.Is_Blocking then
@@ -177,6 +177,12 @@ package body IPC.Pipe with SPARK_Mode => Off is
       end if;
 
       Lib.Synchronization.Seize (To_Read.Other_End.Mutex);
+      if To_Read.Is_Blocking and To_Read.Other_End.Data_Count = 0 then
+         Ret_Count := 0;
+         Success   := Would_Block_Failure;
+         return;
+      end if;
+
       if Final_Len > To_Read.Other_End.Data_Count then
          Final_Len := To_Read.Other_End.Data_Count;
       end if;
@@ -192,37 +198,42 @@ package body IPC.Pipe with SPARK_Mode => Off is
       end loop;
 
       Lib.Synchronization.Release (To_Read.Other_End.Mutex);
-      return Unsigned_64 (Final_Len);
+      Ret_Count := Final_Len;
+      Success   := Pipe_Success;
    end Read;
 
-   function Write
-      (To_Write : Pipe_Writer_Acc;
-       Count    : Unsigned_64;
-       Source   : System.Address) return Unsigned_64
+   procedure Write
+      (To_Write  : Writer_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Pipe_Status)
    is
-      Len   : Natural := Natural (Count);
+      Len   : Natural := Data'Length;
       Final : Natural;
-      Data  : Pipe_Data (1 .. Len) with Import, Address => Source;
    begin
       if To_Write.Reader = null then
-         return 0;
+         Ret_Count := 0;
+         Success   := Broken_Failure;
+         return;
       end if;
 
-      if To_Write.Data_Count = Pipe_Data_Len then
+      if To_Write.Data_Count = Data_Len then
          if To_Write.Is_Blocking then
             loop
-               exit when To_Write.Data_Count /= Pipe_Data_Len;
+               exit when To_Write.Data_Count /= Data_Len;
                Arch.Snippets.Pause;
             end loop;
          else
-            return 0;
+            Ret_Count := 0;
+            Success   := Would_Block_Failure;
+            return;
          end if;
       end if;
 
       Lib.Synchronization.Seize (To_Write.Mutex);
-      if Len + To_Write.Data_Count > Pipe_Data_Len then
-         Final := Pipe_Data_Len;
-         Len   := Pipe_Data_Len - To_Write.Data_Count;
+      if Len + To_Write.Data_Count > Data_Len then
+         Final := Data_Len;
+         Len   := Data_Len - To_Write.Data_Count;
       else
          Final := To_Write.Data_Count + Len;
       end if;
@@ -230,6 +241,7 @@ package body IPC.Pipe with SPARK_Mode => Off is
       To_Write.Data (To_Write.Data_Count + 1 .. Final) := Data (1 .. Len);
       To_Write.Data_Count := Final;
       Lib.Synchronization.Release (To_Write.Mutex);
-      return Unsigned_64 (Len);
+      Ret_Count := Len;
+      Success   := Pipe_Success;
    end Write;
 end IPC.Pipe;
