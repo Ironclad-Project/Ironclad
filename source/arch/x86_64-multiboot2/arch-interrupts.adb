@@ -209,7 +209,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := Rename (State.RDI, State.RSI, State.RDX, State.RCX,
                                 State.R8, State.R9, State.R10, Errno);
          when 26 =>
-            Returned := Sysconf (State.RDI, Errno);
+            Returned := Sysconf (State.RDI, State.RSI, State.RDX, Errno);
          when 27 =>
             Returned := Spawn (State.RDI, State.RSI, State.RDX,
                                State.RCX, State.R8, State.R9, Errno);

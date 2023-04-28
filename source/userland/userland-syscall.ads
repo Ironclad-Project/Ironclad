@@ -302,8 +302,34 @@ package Userland.Syscall with SPARK_Mode => Off is
    SC_PHYS_PAGES    : constant := 5;
    SC_NPROC_ONLN    : constant := 6;
    SC_TOTAL_PAGES   : constant := 7;
+   SC_LIST_PROCS    : constant := 8;
+   SC_LIST_MOUNTS   : constant := 9;
+
+   PROC_IS_TRACED  : constant := 2#001#;
+   PROC_MAC_LOCKED : constant := 2#010#;
+   PROC_EXITED     : constant := 2#100#;
+   type Proc_Info is record
+      Identifier  : String (1 .. 20);
+      Parent_PID  : Unsigned_16;
+      Process_PID : Unsigned_16;
+      Flags       : Unsigned_32;
+   end record;
+   type Proc_Info_Arr is array (Natural range <>) of Proc_Info;
+
+   type Mount_Info is record
+      FS_Type      : Unsigned_32;
+      Flags        : Unsigned_32;
+      Source       : String (1 .. 20);
+      Source_Len   : Unsigned_32;
+      Location     : String (1 .. 20);
+      Location_Len : Unsigned_32;
+   end record;
+   type Mount_Info_Arr is array (Natural range <>) of Mount_Info;
+
    function Sysconf
       (Request : Unsigned_64;
+       Addr    : Unsigned_64;
+       Length  : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64;
 
    --  Spawn a process just like fork+exec would.

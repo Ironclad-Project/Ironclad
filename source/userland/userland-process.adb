@@ -51,6 +51,30 @@ package body Userland.Process with SPARK_Mode => Off is
       return Count;
    end Get_Process_Count;
 
+   procedure List_All (List : out Process_Info_Arr; Total : out Natural) is
+      Curr_Index : Natural := 0;
+   begin
+      Total := 0;
+
+      Lib.Synchronization.Seize (Process_List_Mutex);
+      for I in Process_List.all'Range loop
+         if Process_List (I) /= null then
+            Total := Total + 1;
+            if Curr_Index < List'Length then
+               List (List'First + Curr_Index) :=
+                  (Identifier      => Process_List (I).Identifier,
+                   Process_PID     => Process_List (I).Process_PID,
+                   Parent_PID      => Process_List (I).Parent_PID,
+                   Is_Being_Traced => Process_List (I).Tracer_PID /= 0,
+                   Is_MAC_Locked   => Process_List (I).Is_MAC_Locked,
+                   Has_Exited      => Process_List (I).Did_Exit);
+               Curr_Index := Curr_Index + 1;
+            end if;
+         end if;
+      end loop;
+      Lib.Synchronization.Release (Process_List_Mutex);
+   end List_All;
+
    function Create_Process
       (Parent : Process_Data_Acc := null) return Process_Data_Acc
    is

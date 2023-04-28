@@ -16,6 +16,7 @@
 
 with VFS.EXT;
 with VFS.FAT;
+with Ada.Characters.Latin_1;
 
 package body VFS with SPARK_Mode => Off is
    procedure Init is
@@ -136,6 +137,35 @@ package body VFS with SPARK_Mode => Off is
          Match := Match + 1;
       end if;
    end Get_Mount;
+
+   procedure List_All (List : out Mountpoint_Info_Arr; Total : out Natural) is
+      Curr_Index        : Natural := 0;
+      Dev_Name          : String (1 .. Devices.Max_Name_Length);
+      Dev_Len, Path_Len : Natural;
+   begin
+      Total := 0;
+
+      Lib.Synchronization.Seize (Mounts_Mutex);
+      for I in Mounts'Range loop
+         if Mounts (I).Mounted_Dev /= Devices.Error_Handle then
+            Total := Total + 1;
+            if Curr_Index < List'Length then
+               Devices.Fetch_Name (Mounts (I).Mounted_Dev, Dev_Name, Dev_Len);
+               Path_Len := Mounts (I).Path_Length;
+
+               List (List'First + Curr_Index) :=
+                  (Inner_Type => Mounts (I).Mounted_FS,
+                   Source     => Dev_Name (1 .. 20),
+                   Source_Len => Dev_Len,
+                   Location   => Mounts (I).Path_Buffer (1 .. Path_Len) &
+                            (Path_Len + 1 .. 20 => Ada.Characters.Latin_1.NUL),
+                   Location_Len => Path_Len);
+               Curr_Index := Curr_Index + 1;
+            end if;
+         end if;
+      end loop;
+      Lib.Synchronization.Release (Mounts_Mutex);
+   end List_All;
 
    function Get_Backing_FS (Key : FS_Handle) return FS_Type is
    begin
@@ -491,7 +521,7 @@ package body VFS with SPARK_Mode => Off is
          end if;
       end loop;
 
-      if Count > 1 and Result (Result'First - 1 + Count) = '/' then
+      if Count > 1 and then Result (Result'First - 1 + Count) = '/' then
          Count := Count - 1;
       end if;
    end Compound_Path;

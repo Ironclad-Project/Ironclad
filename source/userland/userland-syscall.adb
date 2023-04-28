@@ -668,6 +668,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
          --  Create a new map for the process.
          Userland.Process.Reroll_ASLR (Proc);
+         if Args (1)'Length > Proc.Identifier'Length then
+            Proc.Identifier := Args (1).all (1 .. Proc.Identifier'Length);
+         else
+            Proc.Identifier (1 .. Args (1).all'Length) := Args (1).all;
+            Proc.Identifier (Args (1).all'Length + 1 .. Proc.Identifier'Last)
+               := (others => Ada.Characters.Latin_1.NUL);
+         end if;
+
          Tmp_Map         := Proc.Common_Map;
          Proc.Common_Map := Memory.Virtual.New_Map;
 
@@ -740,6 +748,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          if Child = null then
             goto Block_Error;
          end if;
+         Child.Identifier := Parent.Identifier;
 
          Child.Common_Map := Memory.Virtual.Fork_Map (Parent.Common_Map);
          if Child.Common_Map = null then
@@ -1319,24 +1328,101 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
    function Sysconf
       (Request : Unsigned_64;
+       Addr    : Unsigned_64;
+       Length  : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64
    is
-      function CCount return Positive renames Arch.Hooks.Get_Active_Core_Count;
-
+      Proc   : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
       Stats  : Memory.Physical.Statistics;
       Result : Unsigned_64;
-      PS     : constant := Page_Size;
-      Aval   : Memory.Size renames Stats.Available;
    begin
-      Memory.Physical.Get_Statistics (Stats);
       case Request is
-         when SC_PAGESIZE      => Result := PS;
-         when SC_OPEN_MAX      => Result := Process_File_Table'Length;
-         when SC_HOST_NAME_MAX => Result := Networking.Hostname_Max_Len;
-         when SC_AVPHYS_PAGES  => Result := Unsigned_64 (Stats.Free) / PS;
-         when SC_PHYS_PAGES    => Result := Unsigned_64 (Aval)       / PS;
-         when SC_NPROC_ONLN    => Result := Unsigned_64 (CCount);
-         when SC_TOTAL_PAGES   => Result := Unsigned_64 (Stats.Total) / PS;
+         when SC_PAGESIZE =>
+            Result := Page_Size;
+         when SC_OPEN_MAX =>
+            Result := Process_File_Table'Length;
+         when SC_HOST_NAME_MAX =>
+            Result := Networking.Hostname_Max_Len;
+         when SC_AVPHYS_PAGES =>
+            Memory.Physical.Get_Statistics (Stats);
+            Result := Unsigned_64 (Stats.Free) / Page_Size;
+         when SC_PHYS_PAGES =>
+            Memory.Physical.Get_Statistics (Stats);
+            Result := Unsigned_64 (Stats.Available) / Page_Size;
+         when SC_NPROC_ONLN =>
+            Result := Unsigned_64 (Arch.Hooks.Get_Active_Core_Count);
+         when SC_TOTAL_PAGES =>
+            Memory.Physical.Get_Statistics (Stats);
+            Result := Unsigned_64 (Stats.Total) / Page_Size;
+         when SC_LIST_PROCS =>
+            declare
+               IAddr : constant Integer_Address := Integer_Address (Addr);
+               SAddr : constant  System.Address := To_Address (IAddr);
+               Len   : constant Natural :=
+                  Natural (Length / (Process_Info'Size / 8));
+               Procs : Proc_Info_Arr (1 .. Len) with Import, Address => SAddr;
+               KProc : Process_Info_Arr (1 .. Len);
+               Ret   : Natural;
+            begin
+               if not Check_Userland_Access (Proc.Common_Map, IAddr, Length)
+               then
+                  Errno := Error_Would_Fault;
+                  return Unsigned_64'Last;
+               end if;
+
+               List_All (KProc, Ret);
+               for I in 1 .. Ret loop
+                  Procs (I) :=
+                     (Identifier  => KProc (I).Identifier,
+                      Parent_PID  => Unsigned_16 (KProc (I).Parent_PID),
+                      Process_PID => Unsigned_16 (KProc (I).Process_PID),
+                      Flags       => 0);
+                  if KProc (I).Is_Being_Traced then
+                     Procs (I).Flags := Procs (I).Flags or PROC_IS_TRACED;
+                  end if;
+                  if KProc (I).Is_MAC_Locked then
+                     Procs (I).Flags := Procs (I).Flags or PROC_MAC_LOCKED;
+                  end if;
+                  if KProc (I).Has_Exited then
+                     Procs (I).Flags := Procs (I).Flags or PROC_EXITED;
+                  end if;
+               end loop;
+
+               Result := Unsigned_64 (Ret);
+            end;
+         when SC_LIST_MOUNTS =>
+            declare
+               IAddr : constant Integer_Address := Integer_Address (Addr);
+               SAddr : constant  System.Address := To_Address (IAddr);
+               Len   : constant Natural :=
+                  Natural (Length / (Mount_Info'Size / 8));
+               Mnts  : Mount_Info_Arr (1 .. Len) with Import, Address => SAddr;
+               KMnts : Mountpoint_Info_Arr (1 .. Len);
+               Ret   : Natural;
+            begin
+               if not Check_Userland_Access (Proc.Common_Map, IAddr, Length)
+               then
+                  Errno := Error_Would_Fault;
+                  return Unsigned_64'Last;
+               end if;
+
+               List_All (KMnts, Ret);
+               for I in 1 .. Ret loop
+                  Mnts (I) :=
+                     (FS_Type      => 0,
+                      Flags        => 0,
+                      Source       => KMnts (I).Source,
+                      Source_Len   => Unsigned_32 (KMnts (I).Source_Len),
+                      Location     => KMnts (I).Location,
+                      Location_Len => Unsigned_32 (KMnts (I).Location_Len));
+                  case KMnts (I).Inner_Type is
+                     when FS_EXT => Mnts (I).FS_Type := MNT_EXT;
+                     when FS_FAT => Mnts (I).FS_Type := MNT_FAT;
+                  end case;
+               end loop;
+
+               Result := Unsigned_64 (Ret);
+            end;
          when others =>
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;

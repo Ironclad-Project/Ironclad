@@ -58,6 +58,7 @@ package Userland.Process with SPARK_Mode => Off is
    type Process_File_Table     is array (0 .. 99) of File_Description_Acc;
    type Process_Children_Table is array (1 .. 10) of Natural;
    type Process_Data is record
+      Identifier      : String (1 .. 20);
       Process_PID     : Positive;
       Parent_PID      : Natural;
       Tracer_PID      : Natural;
@@ -86,6 +87,22 @@ package Userland.Process with SPARK_Mode => Off is
 
    --  Get a count of all the processes in the system.
    function Get_Process_Count return Natural;
+
+   --  Information of a process.
+   type Process_Info is record
+      Identifier      : String (1 .. 20);
+      Process_PID     : Positive;
+      Parent_PID      : Natural;
+      Is_Being_Traced : Boolean;
+      Is_MAC_Locked   : Boolean;
+      Has_Exited      : Boolean;
+   end record;
+   type Process_Info_Arr is array (Natural range <>) of Process_Info;
+
+   --  List all processes on the system.
+   --  @param List  Where to write all the process information.
+   --  @param Total Total count of processes, even if it is > List'Length.
+   procedure List_All (List : out Process_Info_Arr; Total : out Natural);
 
    --  Created a vanilla process, or remove a process, or fetch processes.
    function Create_Process

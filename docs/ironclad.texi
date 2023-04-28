@@ -1324,14 +1324,54 @@ codes set on failure are:
 #define SC_OPEN_MAX      2 // Maximum amount of files per process.
 #define SC_HOST_NAME_MAX 3 // Maximum length of hostnames.
 #define SC_AVPHYS_PAGES  4 // Number of free physical pages.
-#define SC_PHYS_PAGES    5 // Number of total available pages the system has.
-#define SC_NPROC_ONLN    6 // Number of processors active and used by the OS.
+#define SC_PHYS_PAGES    5 // Number of total available pages.
+#define SC_NPROC_ONLN    6 // Number of processors active and used.
 #define SC_TOTAL_PAGES   7 // Total amount of installed memory pages.
+#define SC_LIST_PROCS    8 // List all processes of the system.
+#define SC_LIST_MOUNTS   9 // List all mountpoints of the system.
 
-long int sysconf(int request);
+long int sysconf(int request, uintptr_t addr, uintptr_t len);
 @end example
 
-This syscalls fetches the requested information, and returns it.
+This syscalls fetches the requested information in @code{request} and returns
+it.
+
+Depending on the request, @code{addr} and @code{len} may be used for
+determining the address of a buffer and its length for reporting information
+that doesn't fit on the usual return value. The options where they have meaning
+are:
+
+@itemize @bullet
+@item
+@code{SC_LIST_PROCS}: @code{addr} points to an array of items, and @code{len}
+is the count of bytes reserved in the array. The items have the structure:
+
+@example
+struct procinfo @{
+    uint16_t ppid;
+    uint16_t pid;
+    uint32_t flags;
+@};
+@end example
+
+The total number of processes is returned, even if it doesnt fit in the passed
+array.
+
+@item
+@code{SC_LIST_MOUNTS}: @code{addr} points to an array of items, and @code{len}
+is the count of bytes reserved in the array. The items have the structure:
+
+@example
+struct mountinfo @{
+    uint16_t ppid;
+    uint16_t pid;
+    uint32_t flags;
+@};
+@end example
+
+The total number of mounts is returned, even if it doesnt fit in the passed
+array.
+@end itemize
 
 The syscall return the requested information on success and @code{-1} on
 failure. If the requested value can also be @code{-1}, errno must be checked.

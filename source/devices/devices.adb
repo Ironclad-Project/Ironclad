@@ -89,6 +89,16 @@ package body Devices is
       return Error_Handle;
    end Fetch;
 
+   procedure Fetch_Name
+      (Handle : Device_Handle;
+       Name   : out String;
+       Length : out Natural)
+   is
+   begin
+      Name   := Devices_Data (Handle).Name;
+      Length := Devices_Data (Handle).Name_Len;
+   end Fetch_Name;
+
    function Is_Block_Device (Handle : Device_Handle) return Boolean is
    begin
       return Devices_Data (Handle).Contents.Is_Block;

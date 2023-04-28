@@ -92,6 +92,21 @@ package VFS is
        Match  : out Natural;
        Handle : out FS_Handle);
 
+   --  Information of a process.
+   type Mountpoint_Info is record
+      Inner_Type   : FS_Type;
+      Source       : String (1 .. 20);
+      Source_Len   : Natural;
+      Location     : String (1 .. 20);
+      Location_Len : Natural;
+   end record;
+   type Mountpoint_Info_Arr is array (Natural range <>) of Mountpoint_Info;
+
+   --  List all mountpoints on the system.
+   --  @param List  Where to write all the mount information.
+   --  @param Total Total count of mountpoints, even if it is > List'Length.
+   procedure List_All (List : out Mountpoint_Info_Arr; Total : out Natural);
+
    --  Get the backing FS type.
    --  @param Key Key to use to fetch the info.
    --  @return The FS type, will be a placeholder if the key is not valid.

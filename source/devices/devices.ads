@@ -71,7 +71,9 @@ package Devices is
 
    --  Handle for interfacing with devices, and device conditions.
    type Device_Handle is private;
-   Error_Handle    : constant Device_Handle;
+   Error_Handle : constant Device_Handle;
+
+   --  Device names have a maximum fixed length.
    Max_Name_Length : constant Natural;
 
    --  Initialize the device registry and register some devices.
@@ -91,6 +93,18 @@ package Devices is
    --  @return A handle on success, or Error_Handle on failure.
    function Fetch (Name : String) return Device_Handle
       with Pre => ((Is_Initialized = True) and Name'Length <= Max_Name_Length);
+
+   --  Write the name associated to a device handle to the passed buffer.
+   --  @param Handle Handle to fetch the name of.
+   --  @param Name   Buffer to write the name.
+   --  @param Count  Count of characters written to the buffer.
+   procedure Fetch_Name
+      (Handle : Device_Handle;
+       Name   : out String;
+       Length : out Natural)
+      with Pre  => ((Is_Initialized = True) and (Handle /= Error_Handle) and
+                    (Name'Length = Max_Name_Length)),
+           Post => (Length >= 0 and Length <= Max_Name_Length);
 
    --  Fetch generic properties of a device handle.
    --  @param Handle Handle to fetch, must be valid, as checking is not done.
