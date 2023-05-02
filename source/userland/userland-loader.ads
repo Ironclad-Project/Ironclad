@@ -28,7 +28,7 @@ package Userland.Loader with SPARK_Mode => Off is
        Environment : Environment_Arr;
        StdIn_Path  : String;
        StdOut_Path : String;
-       StdErr_Path : String) return Process_Data_Acc;
+       StdErr_Path : String) return PID;
 
    --  Same as above but with an existing process instead.
    --  Returns true on success, false on failure.
@@ -36,19 +36,19 @@ package Userland.Loader with SPARK_Mode => Off is
       (FD          : File_Acc;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       Proc        : Process_Data_Acc) return Boolean;
+       Proc        : PID) return Boolean;
 
    --  Start specifically an ELF file.
    function Start_ELF
       (FD          : File_Acc;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       Proc        : Process_Data_Acc) return Boolean;
+       Proc        : PID) return Boolean;
 
    --  Start specifically a shebang.
    function Start_Shebang
       (FD          : File_Acc;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       Proc        : Process_Data_Acc) return Boolean;
+       Proc        : PID) return Boolean;
 end Userland.Loader;

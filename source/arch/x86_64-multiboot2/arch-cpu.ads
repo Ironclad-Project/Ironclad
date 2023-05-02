@@ -30,7 +30,7 @@ package Arch.CPU with SPARK_Mode => Off is
       LAPIC_Timer_Hz  : Unsigned_64;
       Core_TSS        : Arch.GDT.TSS;
       Current_Thread  : Scheduler.TID;
-      Current_Process : Userland.Process.Process_Data_Acc;
+      Current_Process : Userland.Process.PID;
    end record;
 
    --  Core locals and the number of cores, used as an index for the former.

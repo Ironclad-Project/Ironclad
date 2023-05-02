@@ -43,7 +43,7 @@ package body Scheduler with SPARK_Mode => Off is
       PageMap        : Memory.Virtual.Page_Map_Acc;
       Kernel_Stack   : Thread_Stack_Acc;
       FP_Region      : Arch.Context.FP_Context;
-      Process        : Userland.Process.Process_Data_Acc;
+      Process        : Userland.Process.PID;
       Time_Since_Run : Natural;
       Priority       : Positive;
       Run_Time       : Positive;
@@ -251,7 +251,7 @@ package body Scheduler with SPARK_Mode => Off is
           TCB_Pointer    => TCB,
           State          => GP_State,
           FP_Region      => FP_State,
-          Process        => Userland.Process.Get_By_PID (PID),
+          Process        => Userland.Process.Convert (PID),
           Run_Time       => Default_Run_Time,
           Period         => Default_Period,
           Time_Since_Run => 0,

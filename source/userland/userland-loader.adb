@@ -34,19 +34,19 @@ package body Userland.Loader with SPARK_Mode => Off is
        Environment : Environment_Arr;
        StdIn_Path  : String;
        StdOut_Path : String;
-       StdErr_Path : String) return Process_Data_Acc
+       StdErr_Path : String) return PID
    is
-      Returned_PID : constant Process_Data_Acc := Process.Create_Process;
+      Returned_PID : constant PID := Process.Create_Process;
       Stdin        : constant File_Acc := Open (StdIn_Path,  Read_Only);
       StdOut       : constant File_Acc := Open (StdOut_Path, Write_Only);
       StdErr       : constant File_Acc := Open (StdErr_Path, Write_Only);
       Discard      : Natural;
       User_Stdin, User_StdOut, User_StdErr : File_Description_Acc;
    begin
-      if Returned_PID = null then
+      if Returned_PID = Error_PID then
          goto Error;
       end if;
-      Returned_PID.Common_Map := Memory.Virtual.New_Map;
+      Process.Set_Common_Map (Returned_PID, Memory.Virtual.New_Map);
       if not Start_Program (FD, Arguments, Environment, Returned_PID) or
          Stdin = null or StdOut = null or StdErr = null
       then
@@ -80,14 +80,14 @@ package body Userland.Loader with SPARK_Mode => Off is
    <<Error_Process>>
       Process.Delete_Process (Returned_PID);
    <<Error>>
-      return null;
+      return Error_PID;
    end Start_Program;
 
    function Start_Program
       (FD          : File_Acc;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       Proc        : Process_Data_Acc) return Boolean
+       Proc        : PID) return Boolean
    is
       Discard : Boolean;
    begin
@@ -106,7 +106,7 @@ package body Userland.Loader with SPARK_Mode => Off is
       (FD          : File_Acc;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       Proc        : Process_Data_Acc) return Boolean
+       Proc        : PID) return Boolean
    is
       package Aln is new Lib.Alignment (Unsigned_64);
 
@@ -117,7 +117,7 @@ package body Userland.Loader with SPARK_Mode => Off is
       LD_File  : File_Acc;
    begin
       --  Load the executable.
-      Loaded_ELF := ELF.Load_ELF (FD, Proc.Common_Map,
+      Loaded_ELF := ELF.Load_ELF (FD, Process.Get_Common_Map (Proc),
          Memory_Locations.Program_Offset);
       if not Loaded_ELF.Was_Loaded then
          goto Error;
@@ -137,7 +137,8 @@ package body Userland.Loader with SPARK_Mode => Off is
             (Memory_Locations.LD_Offset_Min,
              Memory_Locations.LD_Offset_Max);
          LD_Slide := Aln.Align_Up (LD_Slide, Memory.Virtual.Page_Size);
-         LD_ELF := ELF.Load_ELF (LD_File, Proc.Common_Map, LD_Slide);
+         LD_ELF := ELF.Load_ELF (LD_File, Process.Get_Common_Map (Proc),
+                                 LD_Slide);
          Entrypoint := To_Integer (LD_ELF.Entrypoint);
          if not LD_ELF.Was_Loaded then
             goto Error;
@@ -152,14 +153,15 @@ package body Userland.Loader with SPARK_Mode => Off is
             (Address    => Entrypoint,
              Args       => Arguments,
              Env        => Environment,
-             Map        => Proc.Common_Map,
+             Map        => Process.Get_Common_Map (Proc),
              Vector     => Loaded_ELF.Vector,
-             Stack_Top  => Proc.Stack_Base,
-             PID        => Proc.Process_PID,
+             Stack_Top  => Process.Get_Stack_Base (Proc),
+             PID        => Process.Convert (Proc),
              Exec_Stack => Loaded_ELF.Exec_Stack);
       begin
          --  TODO: Do not hardcode stack size.
-         Proc.Stack_Base := Proc.Stack_Base + 16#200000#;
+         Process.Set_Stack_Base (Proc, Process.Get_Stack_Base (Proc) +
+                                 16#200000#);
 
          if Returned_TID = 0 then
             goto Error;
@@ -180,7 +182,7 @@ package body Userland.Loader with SPARK_Mode => Off is
       (FD          : File_Acc;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       Proc        : Process_Data_Acc) return Boolean
+       Proc        : PID) return Boolean
    is
       function Conv is new Ada.Unchecked_Conversion
          (Target => Userland.String_Acc, Source => VFS.File.String_Acc);

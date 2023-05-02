@@ -119,7 +119,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
    end Exception_Handler;
 
    procedure Syscall_Handler (Num : Integer; State : not null ISR_GPRs_Acc) is
-      Proc     : constant Process_Data_Acc := Arch.Local.Get_Current_Process;
+      Proc     : constant PID := Arch.Local.Get_Current_Process;
       Returned : Unsigned_64;
       Errno    : Errno_Value;
       FP_State : Context.FP_Context;
@@ -128,13 +128,16 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          with Import, Address => State.all'Address;
       Success   : IPC.Pipe.Pipe_Status;
       Ret_Count : Natural;
+      Tracer_FD : Natural;
+      Is_Traced : Boolean;
       pragma Unreferenced (Num);
    begin
       Arch.Snippets.Enable_Interrupts;
 
       --  Check if we have to write the syscall info somewhere.
-      if Proc.Tracer_PID /= 0 then
-         File := Get_File (Proc, Unsigned_64 (Proc.Tracer_FD));
+      Userland.Process.Get_Traced_Info (Proc, Is_Traced, Tracer_FD);
+      if Is_Traced then
+         File := Get_File (Proc, Unsigned_64 (Tracer_FD));
          if File /= null and then File.Description = Description_Writer_Pipe
          then
             Write (File.Inner_Writer_Pipe, State_Data, Ret_Count, Success);

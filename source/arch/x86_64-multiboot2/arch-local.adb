@@ -57,7 +57,7 @@ package body Arch.Local with SPARK_Mode => Off is
       return CPU.Get_Local.Current_Thread;
    end Get_Current_Thread;
 
-   function Get_Current_Process return Userland.Process.Process_Data_Acc is
+   function Get_Current_Process return Userland.Process.PID is
    begin
       return CPU.Get_Local.Current_Process;
    end Get_Current_Process;
@@ -67,7 +67,7 @@ package body Arch.Local with SPARK_Mode => Off is
       CPU.Get_Local.Current_Thread := Thread;
    end Set_Current_Thread;
 
-   procedure Set_Current_Process (Proc : Userland.Process.Process_Data_Acc) is
+   procedure Set_Current_Process (Proc : Userland.Process.PID) is
    begin
       CPU.Get_Local.Current_Process := Proc;
    end Set_Current_Process;

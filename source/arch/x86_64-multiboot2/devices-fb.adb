@@ -23,6 +23,7 @@ with Arch.CPU;
 with Arch.Multiboot2; use Arch.Multiboot2;
 with Memory.Virtual;  use Memory.Virtual;
 with Lib.Alignment;
+with Userland.Process;
 
 package body Devices.FB with SPARK_Mode => Off is
    --  Structures used by fbdev.
@@ -213,7 +214,8 @@ package body Devices.FB with SPARK_Mode => Off is
       );
    begin
       return Memory.Virtual.Map_Range (
-         Map      => Arch.CPU.Get_Local.Current_Process.Common_Map,
+         Map      => Userland.Process.Get_Common_Map
+                     (Arch.CPU.Get_Local.Current_Process),
          Virtual  => Address,
          Physical => To_Integer (Dev_Data.Multiboot_Data.Address),
          Length   => Length,

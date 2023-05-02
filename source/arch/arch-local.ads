@@ -31,7 +31,7 @@ package Arch.Local with SPARK_Mode => Off is
 
    --  Fetch and set the current thread and process.
    function Get_Current_Thread return Scheduler.TID;
-   function Get_Current_Process return Userland.Process.Process_Data_Acc;
+   function Get_Current_Process return Userland.Process.PID;
    procedure Set_Current_Thread (Thread : Scheduler.TID);
-   procedure Set_Current_Process (Proc : Userland.Process.Process_Data_Acc);
+   procedure Set_Current_Process (Proc : Userland.Process.PID);
 end Arch.Local;

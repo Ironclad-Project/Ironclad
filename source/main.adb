@@ -84,7 +84,7 @@ begin
       Init_File := Open (Value (1 .. Value_Len), Read_Only);
       if Init_File = null or else Userland.Loader.Start_Program
          (Init_File, Init_Arguments, Init_Environment, Init_Stdin,
-          Init_Stdout, Init_Stdout) = null
+          Init_Stdout, Init_Stdout) = Error_PID
       then
          Lib.Panic.Hard_Panic ("Could not start init");
       end if;

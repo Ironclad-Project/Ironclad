@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Synchronization;
 with Lib.Alignment;
 with Ada.Unchecked_Deallocation;
 with Arch.Local;
@@ -22,215 +21,157 @@ with Cryptography.Random;
 with Userland.Memory_Locations;
 
 package body Userland.Process with SPARK_Mode => Off is
-   procedure Free_Proc is new Ada.Unchecked_Deallocation
+   procedure Free is new Ada.Unchecked_Deallocation
       (Process_Data, Process_Data_Acc);
-
-   --  Process registry and its lock, the index happens to do as PID as well.
-   type Process_Arr is array (1 .. Max_Process_Count) of Process_Data_Acc;
-   type Process_Arr_Acc is access Process_Arr;
-
-   Process_List_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
-   Process_List       : Process_Arr_Acc;
 
    procedure Init is
    begin
-      Process_List := new Process_Arr'(others => null);
-      Lib.Synchronization.Release (Process_List_Mutex);
+      Registry := new Process_Arr'(others => null);
+      Lib.Synchronization.Release (Registry_Mutex);
    end Init;
 
    function Get_Process_Count return Natural is
       Count : Natural := 0;
    begin
-      Lib.Synchronization.Seize (Process_List_Mutex);
-      for I in Process_List.all'Range loop
-         if Process_List (I) /= null then
+      Lib.Synchronization.Seize (Registry_Mutex);
+      for I in Registry.all'Range loop
+         if Registry (I) /= null then
             Count := Count + 1;
          end if;
       end loop;
-      Lib.Synchronization.Release (Process_List_Mutex);
+      Lib.Synchronization.Release (Registry_Mutex);
       return Count;
    end Get_Process_Count;
+
+   function Get_Children (Proc : PID; Buf : out Children_Arr) return Natural is
+      Count, Index : Natural := 0;
+   begin
+      Lib.Synchronization.Seize (Registry_Mutex);
+      for I in Registry.all'Range loop
+         if Registry (I) /= null and then Registry (I).Parent = Proc
+         then
+            Count := Count + 1;
+            if Index < Buf'Length then
+               Buf (Buf'First + Index) := I;
+               Index                   := Index + 1;
+            end if;
+         end if;
+      end loop;
+      Lib.Synchronization.Release (Registry_Mutex);
+      return Count;
+   end Get_Children;
 
    procedure List_All (List : out Process_Info_Arr; Total : out Natural) is
       Curr_Index : Natural := 0;
    begin
       Total := 0;
 
-      Lib.Synchronization.Seize (Process_List_Mutex);
-      for I in Process_List.all'Range loop
-         if Process_List (I) /= null then
+      Lib.Synchronization.Seize (Registry_Mutex);
+      for I in Registry.all'Range loop
+         if Registry (I) /= null then
             Total := Total + 1;
             if Curr_Index < List'Length then
                List (List'First + Curr_Index) :=
-                  (Identifier      => Process_List (I).Identifier,
-                   Process_PID     => Process_List (I).Process_PID,
-                   Parent_PID      => Process_List (I).Parent_PID,
-                   Is_Being_Traced => Process_List (I).Tracer_PID /= 0,
-                   Is_MAC_Locked   => Process_List (I).Is_MAC_Locked,
-                   Has_Exited      => Process_List (I).Did_Exit);
+                  (Identifier      => Registry (I).Identifier (1 .. 20),
+                   Process         => I,
+                   Parent          => Registry (I).Parent,
+                   Is_Being_Traced => Registry (I).Is_Traced,
+                   Is_MAC_Locked   => Registry (I).Is_MAC_Locked,
+                   Has_Exited      => Registry (I).Did_Exit);
                Curr_Index := Curr_Index + 1;
             end if;
          end if;
       end loop;
-      Lib.Synchronization.Release (Process_List_Mutex);
+      Lib.Synchronization.Release (Registry_Mutex);
    end List_All;
 
-   function Create_Process
-      (Parent : Process_Data_Acc := null) return Process_Data_Acc
-   is
-      Returned : Process_Data_Acc := null;
+   function Create_Process (Parent : PID := Error_PID) return PID is
+      P : PID renames Parent;
+      Returned : PID := Error_PID;
    begin
-      Lib.Synchronization.Seize (Process_List_Mutex);
+      Lib.Synchronization.Seize (Registry_Mutex);
 
-      for I in Process_List.all'Range loop
-         if Process_List (I) = null then
-            Process_List (I) := new Process_Data'
-               (Process_PID => I,
-                Did_Exit    => False,
-                Tracer_PID  => 0,
+      for I in Registry.all'Range loop
+         if Registry (I) = null then
+            Registry (I) := new Process_Data'
+               (Did_Exit    => False,
+                Is_Traced   => False,
                 Tracer_FD   => 0,
                 Exit_Code   => 0,
-                Children    => (others => 0),
                 Thread_List => (others => 0),
                 File_Table  => (others => null),
                 Common_Map  => null,
                 others      => <>);
 
-            --  If we have a parent, set ourselves as a child and fetch data.
-            if Parent /= null then
-               for PID of Parent.Children loop
-                  if PID = 0 then
-                     PID := I;
-                     exit;
-                  end if;
-               end loop;
-
-               Process_List (I).Is_MAC_Locked   := Parent.Is_MAC_Locked;
-               Process_List (I).Parent_PID      := Parent.Process_PID;
-               Process_List (I).Stack_Base      := Parent.Stack_Base;
-               Process_List (I).Alloc_Base      := Parent.Alloc_Base;
-               Process_List (I).Current_Dir_Len := Parent.Current_Dir_Len;
-               Process_List (I).Current_Dir     := Parent.Current_Dir;
-               Process_List (I).Perms           := Parent.Perms;
+            if Parent /= Error_PID then
+               Registry (I).Is_MAC_Locked   := Registry (P).Is_MAC_Locked;
+               Registry (I).Parent          := Parent;
+               Registry (I).Stack_Base      := Registry (P).Stack_Base;
+               Registry (I).Alloc_Base      := Registry (P).Alloc_Base;
+               Registry (I).Current_Dir_Len := Registry (P).Current_Dir_Len;
+               Registry (I).Current_Dir     := Registry (P).Current_Dir;
+               Registry (I).Perms           := Registry (P).Perms;
             else
-               Reroll_ASLR (Process_List (I));
-               Process_List (I).Is_MAC_Locked   := False;
-               Process_List (I).Parent_PID      := 0;
-               Process_List (I).Current_Dir_Len := 1;
-               Process_List (I).Current_Dir (1) := '/';
-               Process_List (I).Perms           := MAC.Default_Permissions;
+               Reroll_ASLR (PID (I));
+               Registry (I).Is_MAC_Locked   := False;
+               Registry (I).Parent          := 0;
+               Registry (I).Current_Dir_Len := 1;
+               Registry (I).Current_Dir (1) := '/';
+               Registry (I).Perms           := MAC.Default_Permissions;
             end if;
 
-            Returned := Process_List (I);
+            Returned := PID (I);
             exit;
          end if;
       end loop;
 
-      Lib.Synchronization.Release (Process_List_Mutex);
+      Lib.Synchronization.Release (Registry_Mutex);
       return Returned;
    end Create_Process;
 
-   procedure Delete_Process (Process : Process_Data_Acc) is
-      Parent_Process : Process_Data_Acc;
+   procedure Delete_Process (Process : PID) is
    begin
-      if Process /= null then
-         Lib.Synchronization.Seize (Process_List_Mutex);
-
-         if Process.Parent_PID /= 0 then
-            Parent_Process := Get_By_PID (Process.Parent_PID);
-            if Parent_Process /= null then
-               for PID of Parent_Process.Children loop
-                  if PID = Process.Process_PID then
-                     PID := 0;
-                     exit;
-                  end if;
-               end loop;
-            end if;
-         end if;
-         Free_Proc (Process_List (Process.Process_PID));
-         Process_List (Process.Process_PID) := null;
-
-         Lib.Synchronization.Release (Process_List_Mutex);
-      end if;
+      Lib.Synchronization.Seize (Registry_Mutex);
+      Free (Registry (Process));
+      Lib.Synchronization.Release (Registry_Mutex);
    end Delete_Process;
 
-   function Get_By_PID (Process : Positive) return Process_Data_Acc is
+   function Add_Thread (Proc : PID; Thread : Scheduler.TID) return Boolean is
    begin
-      return Process_List (Process);
-   end Get_By_PID;
-
-   function Get_By_Thread (Thread : Scheduler.TID) return Process_Data_Acc is
-   begin
-      for I in Process_List'Range loop
-         if Process_List (I) /= null then
-            for T of Process_List (I).Thread_List loop
-               if T = Thread then
-                  return Process_List (I);
-               end if;
-            end loop;
-         end if;
-      end loop;
-
-      return null;
-   end Get_By_Thread;
-
-   function Is_Child (P : Process_Data_Acc; Proc : Positive) return Boolean is
-   begin
-      for PID_Item of P.Children loop
-         if PID_Item = Proc then
+      for I in Registry (Proc).Thread_List'Range loop
+         if Registry (Proc).Thread_List (I) = 0 then
+            Registry (Proc).Thread_List (I) := Thread;
             return True;
          end if;
       end loop;
       return False;
-   end Is_Child;
-
-   function Add_Thread
-      (Process : Process_Data_Acc;
-       Thread  : Scheduler.TID) return Boolean is
-   begin
-      if Process /= null then
-         for I in Process.Thread_List'Range loop
-            if Process.Thread_List (I) = 0 then
-               Process.Thread_List (I) := Thread;
-               return True;
-            end if;
-         end loop;
-      end if;
-      return False;
    end Add_Thread;
 
-   procedure Remove_Thread
-      (Process : Process_Data_Acc;
-       Thread  : Scheduler.TID) is
+   procedure Remove_Thread (Proc : PID; Thread : Scheduler.TID) is
    begin
-      if Process /= null then
-         for I in Process.Thread_List'Range loop
-            if Process.Thread_List (I) = Thread then
-               Process.Thread_List (I) := 0;
-            end if;
-         end loop;
-      end if;
+      for I in Registry (Proc).Thread_List'Range loop
+         if Registry (Proc).Thread_List (I) = Thread then
+            Registry (Proc).Thread_List (I) := 0;
+            exit;
+         end if;
+      end loop;
    end Remove_Thread;
 
-   procedure Flush_Threads (Process : Process_Data_Acc) is
+   procedure Flush_Threads (Proc : PID) is
       Current_Thread : constant TID := Arch.Local.Get_Current_Thread;
    begin
-      if Process /= null then
-         for Thread of Process.Thread_List loop
-            if Thread /= Current_Thread then
-               Scheduler.Delete_Thread (Thread);
-            end if;
-
-            Thread := 0;
-         end loop;
-      end if;
+      for Thread of Registry (Proc).Thread_List loop
+         if Thread /= Current_Thread then
+            Scheduler.Delete_Thread (Thread);
+         end if;
+         Thread := 0;
+      end loop;
    end Flush_Threads;
 
-   procedure Reroll_ASLR (Process : Process_Data_Acc) is
+   procedure Reroll_ASLR (Process : PID) is
       package Aln is new Lib.Alignment (Unsigned_64);
       Rand_Addr, Rand_Jump : Unsigned_64;
    begin
-      --  Get ASLR bases and ensure they are 4K aligned.
       Rand_Addr := Cryptography.Random.Get_Integer
          (Memory_Locations.Mmap_Anon_Min,
           Memory_Locations.Mmap_Anon_Max);
@@ -238,41 +179,35 @@ package body Userland.Process with SPARK_Mode => Off is
          (Memory_Locations.Stack_Jump_Min,
           Memory_Locations.Stack_Jump_Max);
 
-      --  Ensure they are page aligned.
       Rand_Addr := Aln.Align_Up (Rand_Addr, Memory.Virtual.Page_Size);
       Rand_Jump := Aln.Align_Up (Rand_Jump, Memory.Virtual.Page_Size);
 
-      Process.Alloc_Base := Rand_Addr;
-      Process.Stack_Base := Rand_Addr + Rand_Jump;
+      Registry (Process).Alloc_Base := Rand_Addr;
+      Registry (Process).Stack_Base := Rand_Addr + Rand_Jump;
    end Reroll_ASLR;
 
-   function Is_Valid_File
-      (Process : Process_Data_Acc;
-       FD      : Unsigned_64) return Boolean
-   is
+   function Is_Valid_File (Process : PID; FD : Unsigned_64) return Boolean is
    begin
-      if Process /= null and FD <= Unsigned_64 (Process_File_Table'Last) then
-         return Process.File_Table (Natural (FD)) /= null;
+      if FD <= Unsigned_64 (File_Arr'Last) then
+         return Registry (Process).File_Table (Natural (FD)) /= null;
       else
          return False;
       end if;
    end Is_Valid_File;
 
    function Add_File
-      (Process : Process_Data_Acc;
+      (Process : PID;
        File    : File_Description_Acc;
        FD      : out Natural) return Boolean
    is
    begin
-      if Process /= null then
-         for I in Process.File_Table'Range loop
-            if Process.File_Table (I) = null then
-               Process.File_Table (I) := File;
-               FD := I;
-               return True;
-            end if;
-         end loop;
-      end if;
+      for I in Registry (Process).File_Table'Range loop
+         if Registry (Process).File_Table (I) = null then
+            Registry (Process).File_Table (I) := File;
+            FD := I;
+            return True;
+         end if;
+      end loop;
       FD := 0;
       return False;
    end Add_File;
@@ -298,6 +233,19 @@ package body Userland.Process with SPARK_Mode => Off is
       return Ret;
    end Duplicate;
 
+   function Duplicate (Proc : PID; FD : Natural) return File_Description_Acc is
+   begin
+      return Duplicate (Registry (Proc).File_Table (FD));
+   end Duplicate;
+
+   procedure Duplicate_FD_Table (Process, Target : PID) is
+   begin
+      for I in Registry (Process).File_Table'Range loop
+         Registry (Target).File_Table (I) :=
+            Duplicate (Registry (Process).File_Table (I));
+      end loop;
+   end Duplicate_FD_Table;
+
    procedure Close (F : in out File_Description_Acc) is
       procedure Free is new Ada.Unchecked_Deallocation
          (File_Description, File_Description_Acc);
@@ -316,55 +264,207 @@ package body Userland.Process with SPARK_Mode => Off is
    end Close;
 
    function Get_File
-      (Process : Process_Data_Acc;
+      (Process : PID;
        FD      : Unsigned_64) return File_Description_Acc
    is
    begin
-      if Process /= null and FD <= Unsigned_64 (Process_File_Table'Last) then
-         return Process.File_Table (Natural (FD));
+      if FD <= Unsigned_64 (File_Arr'Last) then
+         return Registry (Process).File_Table (Natural (FD));
       else
          return null;
       end if;
    end Get_File;
 
    function Replace_File
-      (Process : Process_Data_Acc;
+      (Process : PID;
        File    : File_Description_Acc;
        Old_FD  : Natural) return Boolean
    is
    begin
-      if Process = null or Old_FD > Process_File_Table'Last or File = null then
+      if Old_FD > File_Arr'Last or File = null then
          return False;
       end if;
       Remove_File (Process, Old_FD);
-      Process.File_Table (Old_FD) := File;
+      Registry (Process).File_Table (Old_FD) := File;
       return True;
    end Replace_File;
 
-   procedure Remove_File (Process : Process_Data_Acc; FD : Natural) is
+   procedure Remove_File (Process : PID; FD : Natural) is
    begin
-      if Process /= null and FD <= Process_File_Table'Last then
-         Close (Process.File_Table (FD));
+      if FD <= File_Arr'Last then
+         Close (Registry (Process).File_Table (FD));
       end if;
    end Remove_File;
 
-   procedure Flush_Files (Process : Process_Data_Acc) is
+   procedure Flush_Files (Process : PID) is
    begin
-      if Process /= null then
-         for F of Process.File_Table loop
-            Close (F);
-         end loop;
-      end if;
+      for F of Registry (Process).File_Table loop
+         Close (F);
+      end loop;
    end Flush_Files;
 
-   procedure Flush_Exec_Files (Process : Process_Data_Acc) is
+   procedure Flush_Exec_Files (Process : PID) is
    begin
-      if Process /= null then
-         for F of Process.File_Table loop
-            if F /= null and then F.Close_On_Exec then
-               Close (F);
-            end if;
-         end loop;
-      end if;
+      for F of Registry (Process).File_Table loop
+         if F /= null and then F.Close_On_Exec then
+            Close (F);
+         end if;
+      end loop;
    end Flush_Exec_Files;
+
+   procedure Set_Common_Map (Proc : PID; Map : Memory.Virtual.Page_Map_Acc) is
+   begin
+      Registry (Proc).Common_Map := Map;
+   end Set_Common_Map;
+
+   function Get_Common_Map (Proc : PID) return Memory.Virtual.Page_Map_Acc is
+   begin
+      return Registry (Proc).Common_Map;
+   end Get_Common_Map;
+
+   function Get_Stack_Base (Process : PID) return Unsigned_64 is
+   begin
+      return Registry (Process).Stack_Base;
+   end Get_Stack_Base;
+
+   procedure Set_Stack_Base (Process : PID; Base : Unsigned_64) is
+   begin
+      Registry (Process).Stack_Base := Base;
+   end Set_Stack_Base;
+
+   procedure Get_Traced_Info
+      (Process   : PID;
+       Is_Traced : out Boolean;
+       FD        : out Natural)
+   is
+   begin
+      Is_Traced := Registry (Process).Is_Traced;
+      FD        := Registry (Process).Tracer_FD;
+   end Get_Traced_Info;
+
+   procedure Set_Traced_Info
+      (Process   : PID;
+       Is_Traced : Boolean;
+       FD        : Natural)
+   is
+   begin
+      Registry (Process).Is_Traced := Is_Traced;
+      Registry (Process).Tracer_FD := FD;
+   end Set_Traced_Info;
+
+   procedure Issue_Exit (Process : PID; Code : Unsigned_8) is
+   begin
+      Registry (Process).Did_Exit  := True;
+      Registry (Process).Exit_Code := Code;
+   end Issue_Exit;
+
+   procedure Check_Exit
+      (Process  : PID;
+       Did_Exit : out Boolean;
+       Code     : out Unsigned_8)
+   is
+   begin
+      Did_Exit := Registry (Process).Did_Exit;
+      Code     := Registry (Process).Exit_Code;
+   end Check_Exit;
+
+   function Set_CWD (Proc : PID; CWD : String) return Boolean is
+   begin
+      Registry (Proc).Current_Dir (1 .. CWD'Length) := CWD;
+      Registry (Proc).Current_Dir_Len               := CWD'Length;
+      return True;
+   end Set_CWD;
+
+   procedure Get_CWD
+      (Proc : PID;
+       CWD  : out String;
+       Len  : out Natural)
+   is
+      Length : Natural;
+   begin
+      if CWD'Length > Registry (Proc).Current_Dir_Len then
+         Length := Registry (Proc).Current_Dir_Len;
+      else
+         Length := CWD'Length;
+      end if;
+
+      CWD (CWD'First .. CWD'First + Length - 1) :=
+         Registry (Proc).Current_Dir (1 .. Length);
+      Len := Length;
+   end Get_CWD;
+
+   function Is_MAC_Locked (Proc : PID) return Boolean is
+   begin
+      return Registry (Proc).Is_MAC_Locked;
+   end Is_MAC_Locked;
+
+   procedure Lock_MAC (Proc : PID) is
+   begin
+      Registry (Proc).Is_MAC_Locked := True;
+   end Lock_MAC;
+
+   function Get_MAC (Proc : PID) return MAC.Permissions is
+   begin
+      return Registry (Proc).Perms;
+   end Get_MAC;
+
+   procedure Set_MAC (Proc : PID; Perms : MAC.Permissions) is
+   begin
+      Registry (Proc).Perms := Perms;
+   end Set_MAC;
+
+   function Get_Alloc_Base (Process : PID) return Unsigned_64 is
+   begin
+      return Registry (Process).Alloc_Base;
+   end Get_Alloc_Base;
+
+   procedure Set_Alloc_Base (Process : PID; Base : Unsigned_64) is
+   begin
+      Registry (Process).Alloc_Base := Base;
+   end Set_Alloc_Base;
+
+   function Get_Parent (Proc : PID) return PID is
+   begin
+      return Registry (Proc).Parent;
+   end Get_Parent;
+
+   procedure Set_Identifier (Proc : PID; Name : String) is
+   begin
+      Registry (Proc).Identifier (1 .. Name'Length) := Name;
+      Registry (Proc).Identifier_Len := Name'Length;
+   end Set_Identifier;
+
+   procedure Get_Identifier
+      (Proc : PID;
+       ID   : out String;
+       Len  : out Natural)
+   is
+      Length : Natural;
+   begin
+      if ID'Length > Registry (Proc).Identifier_Len then
+         Length := Registry (Proc).Identifier_Len;
+      else
+         Length := ID'Length;
+      end if;
+
+      ID (ID'First .. ID'First + Length - 1) :=
+         Registry (Proc).Identifier (1 .. Length);
+      Len := Length;
+   end Get_Identifier;
+
+   function Convert (Proc : PID) return Natural is
+   begin
+      return Natural (Proc);
+   end Convert;
+
+   function Convert (Proc : Natural) return PID is
+   begin
+      if Proc /= 0 and then Proc <= Max_Process_Count and then
+         Registry (PID (Proc)) /= null
+      then
+         return PID (Proc);
+      else
+         return Error_PID;
+      end if;
+   end Convert;
 end Userland.Process;

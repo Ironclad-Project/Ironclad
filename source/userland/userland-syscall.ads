@@ -580,12 +580,12 @@ package Userland.Syscall with SPARK_Mode => Off is
 private
 
    --  Do the actual exiting.
-   procedure Do_Exit (Proc : Process_Data_Acc; Code : Unsigned_8);
+   procedure Do_Exit (Proc : PID; Code : Unsigned_8);
 
    --  Handle AT_ directive.
    procedure Compound_AT_Path
       (AT_Directive : Natural;
-       Curr_Proc    : Process_Data_Acc;
+       Curr_Proc    : PID;
        Extension    : String;
        Result       : out String;
        Count        : out Natural);
@@ -594,5 +594,5 @@ private
    function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions;
 
    --  Execute the policy chose by the user for the process.
-   procedure Execute_MAC_Failure (Name : String; Curr_Proc : Process_Data_Acc);
+   procedure Execute_MAC_Failure (Name : String; Curr_Proc : PID);
 end Userland.Syscall;
