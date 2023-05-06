@@ -21,7 +21,7 @@ with Lib.Synchronization;
 with Scheduler; use Scheduler;
 with Interfaces; use Interfaces;
 with Userland.MAC;
-with IPC.Pipe; use IPC.Pipe;
+with IPC.FIFO; use IPC.FIFO;
 with IPC.PTY;  use IPC.PTY;
 
 package Userland.Process with SPARK_Mode => Off is
@@ -42,22 +42,22 @@ package Userland.Process with SPARK_Mode => Off is
 
    --  Each file held by the process follows this format.
    type File_Description_Type is
-      (Description_Reader_Pipe,
-       Description_Writer_Pipe,
+      (Description_Reader_FIFO,
+       Description_Writer_FIFO,
        Description_Primary_PTY,
        Description_Secondary_PTY,
        Description_File);
    type File_Description (Description : File_Description_Type) is record
       Close_On_Exec : Boolean;
       case Description is
-         when Description_Reader_Pipe =>
-            Inner_Reader_Pipe : IPC.Pipe.Reader_Acc;
-         when Description_Writer_Pipe =>
-            Inner_Writer_Pipe : IPC.Pipe.Writer_Acc;
+         when Description_Reader_FIFO =>
+            Inner_Reader_FIFO : IPC.FIFO.Inner_Acc;
+         when Description_Writer_FIFO =>
+            Inner_Writer_FIFO : IPC.FIFO.Inner_Acc;
          when Description_Primary_PTY =>
-            Inner_Primary_PTY : IPC.PTY.Primary_Acc;
+            Inner_Primary_PTY : IPC.PTY.Inner_Acc;
          when Description_Secondary_PTY =>
-            Inner_Secondary_PTY : IPC.PTY.Secondary_Acc;
+            Inner_Secondary_PTY : IPC.PTY.Inner_Acc;
          when Description_File =>
             Inner_File : VFS.File.File_Acc;
       end case;

@@ -466,7 +466,6 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Local.Load_TCB (Thread_Pool (Next_TID).TCB_Pointer);
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_Region);
       Arch.Context.Load_GP_Context (Thread_Pool (Next_TID).State);
-      loop Arch.Snippets.Wait_For_Interrupt; end loop;
    end Scheduler_ISR;
 
    function Is_Thread_Present (Thread : TID) return Boolean is

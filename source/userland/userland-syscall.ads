@@ -17,6 +17,8 @@
 with Interfaces; use Interfaces;
 with Arch.Context;
 with Arch.MMU;
+with IPC.PTY;
+with System;
 with Userland.Process; use Userland.Process;
 
 package Userland.Syscall with SPARK_Mode => Off is
@@ -358,6 +360,8 @@ package Userland.Syscall with SPARK_Mode => Off is
    F_SETFD         : constant := 4;
    F_GETFL         : constant := 5;
    F_SETFL         : constant := 6;
+   F_GETPIPE_SZ    : constant := 7;
+   F_SETPIPE_SZ    : constant := 8;
    function Fcntl
       (FD       : Unsigned_64;
        Command  : Unsigned_64;
@@ -595,4 +599,11 @@ private
 
    --  Execute the policy chose by the user for the process.
    procedure Execute_MAC_Failure (Name : String; Curr_Proc : PID);
+
+   --  Inner PTY IOCTL.
+   procedure PTY_IOCTL
+      (P        : IPC.PTY.Inner_Acc;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Success  : out Boolean);
 end Userland.Syscall;

@@ -1,4 +1,4 @@
---  ipc-pty.ads: Pipe creation and management.
+--  ipc-pty.ads: PTY creation and management.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,90 +14,100 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
-with Interfaces; use Interfaces;
 with Devices.TermIOs;
-with IPC.Pipe;
+with IPC.FIFO;
 with Lib.Synchronization;
 
 package IPC.PTY is
-   type Primary       is private;
-   type Secondary     is private;
-   type Primary_Acc   is access Primary;
-   type Secondary_Acc is access Secondary;
+   --  PTYs are an IPC method meant to provide bidirectional communication
+   --  between 2 read/write ports, along with that, what makes it special
+   --  is storage and awareness of configurable termios data. Usually, the
+   --  ports are called master/slave, in Ironclad its primary/secondary.
+   --
+   --  These properties make the most common use of PTYs terminal emulation
+   --  and as building block for user interfaces. Only blocking operation is
+   --  available.
+   --
+   --  Unlike most UNIXy kernels out there, PTYs in Ironclad are not bound to
+   --  files, in this aspect, they act as an unbound FIFO would.
 
-   --  Create a fresh PTY pair.
-   procedure Create_Pair
-      (Primary_End   : out Primary_Acc;
-       Secondary_End : out Secondary_Acc;
-       Termios       : Devices.TermIOs.Main_Data;
-       Window_Size   : Devices.TermIOs.Win_Size);
+   --  Objects to represent a PTY.
+   type Inner     is private;
+   type Inner_Acc is access Inner;
 
-   --  Close the passed end, and do preparations for the other end.
-   --  Both ends must be closed individually.
-   --  If the writing end is closed but the reader end isnt, the reader will
-   --  be allowed to read until the end of the held data.
-   procedure Increase_Refcount (P : Primary_Acc)   with Pre => P /= null;
-   procedure Increase_Refcount (P : Secondary_Acc) with Pre => P /= null;
-   procedure Close (Closed : in out Primary_Acc)   with Pre => Closed /= null;
-   procedure Close (Closed : in out Secondary_Acc) with Pre => Closed /= null;
+   --  Create a fresh PTY with 1 refcount.
+   function Create
+      (Termios     : Devices.TermIOs.Main_Data;
+       Window_Size : Devices.TermIOs.Win_Size) return Inner_Acc;
 
-   --  Read, write, and ioctl for the primary pty.
-   procedure Read
-      (To_Read   : Primary_Acc;
+   --  Increase the refcount of the passed PTY.
+   --  @param P PTY to increase the refcount of.
+   procedure Increase_Refcount (P : Inner_Acc) with Pre => Is_Valid (P);
+
+   --  Decrease the refcount of a PTY, if zero, free it.
+   --  @param Closed PTY to decrease the refcount of.
+   procedure Close (Closed : in out Inner_Acc) with Pre => Is_Valid (Closed);
+
+   --  Read from the primary end of the PTY.
+   procedure Read_Primary
+      (To_Read   : Inner_Acc;
        Data      : out Devices.Operation_Data;
        Ret_Count : out Natural)
-      with Pre => To_Read /= null;
+      with Pre => Is_Valid (To_Read);
 
-   procedure Write
-      (To_Write  : Primary_Acc;
+   --  Write to the primary end of the PTY.
+   procedure Write_Primary
+      (To_Write  : Inner_Acc;
        Data      : Devices.Operation_Data;
        Ret_Count : out Natural)
-      with Pre => To_Write /= null;
+      with Pre => Is_Valid (To_Write);
 
-   function IO_Control
-      (File     : Primary_Acc;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean with Pre => File /= null;
-
-   --  Read, write, and ioctl for the secondary pty.
-   procedure Read
-      (To_Read   : Secondary_Acc;
+   --  Read from the secondary end of the PTY.
+   procedure Read_Secondary
+      (To_Read   : Inner_Acc;
        Data      : out Devices.Operation_Data;
        Ret_Count : out Natural)
-      with Pre => To_Read /= null;
+      with Pre => Is_Valid (To_Read);
 
-   procedure Write
-      (To_Write  : Secondary_Acc;
+   --  Write to the secondary end of the PTY.
+   procedure Write_Secondary
+      (To_Write  : Inner_Acc;
        Data      : Devices.Operation_Data;
        Ret_Count : out Natural)
-      with Pre => To_Write /= null;
+      with Pre => Is_Valid (To_Write);
 
-   function IO_Control
-      (File     : Secondary_Acc;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean with Pre => File /= null;
+   --  Get the termios data for the PTY.
+   procedure Get_TermIOs (P : Inner_Acc; T : out Devices.TermIOs.Main_Data)
+      with Pre => Is_Valid (P);
+
+   --  Set the termios data for the PTY.
+   procedure Set_TermIOs (P : Inner_Acc; T : Devices.TermIOs.Main_Data)
+      with Pre => Is_Valid (P);
+
+   --  Get terminal dimensions.
+   procedure Get_WinSize (P : Inner_Acc; W : out Devices.TermIOs.Win_Size)
+      with Pre => Is_Valid (P);
+
+   --  Set terminal dimensions.
+   procedure Set_WinSize (P : Inner_Acc; W : Devices.TermIOs.Win_Size)
+      with Pre => Is_Valid (P);
+
+   --  Ghost function for checking whether a PTY is properly initialized.
+   function Is_Valid (P : Inner_Acc) return Boolean with Ghost;
 
 private
 
-   type Primary is record
-      Mutex               : aliased Lib.Synchronization.Binary_Semaphore;
-      Reader_To_Secondary : Pipe.Reader_Acc;
-      Reader_To_Primary   : Pipe.Reader_Acc;
-      Writer_To_Secondary : Pipe.Writer_Acc;
-      Writer_To_Primary   : Pipe.Writer_Acc;
-      Secondary           : Secondary_Acc;
-      Term_Info           : Devices.TermIOs.Main_Data;
-      Term_Size           : Devices.TermIOs.Win_Size;
-      Refcount            : Natural;
+   type Inner is record
+      Mutex          : aliased Lib.Synchronization.Binary_Semaphore;
+      Secondary_Pipe : FIFO.Inner_Acc;
+      Primary_Pipe   : FIFO.Inner_Acc;
+      Term_Info      : Devices.TermIOs.Main_Data;
+      Term_Size      : Devices.TermIOs.Win_Size;
+      Refcount       : Natural;
    end record;
 
-   type Secondary is record
-      Mutex            : aliased Lib.Synchronization.Binary_Semaphore;
-      Primary_End      : Primary_Acc;
-      Primary_Is_Ghost : Boolean;
-      Refcount         : Natural;
-   end record;
-
-   procedure Free_Primary (Prim : in out Primary_Acc);
+   function Is_Valid (P : Inner_Acc) return Boolean is
+      (P /= null                        and then
+       FIFO.Is_Valid (P.Secondary_Pipe) and then
+       FIFO.Is_Valid (P.Primary_Pipe));
 end IPC.PTY;

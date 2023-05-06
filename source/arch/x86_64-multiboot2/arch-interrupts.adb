@@ -24,7 +24,7 @@ with Userland.Syscall; use Userland.Syscall;
 with Arch.Snippets;
 with Arch.Local;
 with Userland.Process; use Userland.Process;
-with IPC.Pipe; use IPC.Pipe;
+with IPC.FIFO; use IPC.FIFO;
 with Devices;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
@@ -126,7 +126,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       File     : File_Description_Acc;
       State_Data : Devices.Operation_Data (1 .. State.all'Size / 8)
          with Import, Address => State.all'Address;
-      Success   : IPC.Pipe.Pipe_Status;
+      Success   : IPC.FIFO.Pipe_Status;
       Ret_Count : Natural;
       Tracer_FD : Natural;
       Is_Traced : Boolean;
@@ -138,10 +138,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       Userland.Process.Get_Traced_Info (Proc, Is_Traced, Tracer_FD);
       if Is_Traced then
          File := Get_File (Proc, Unsigned_64 (Tracer_FD));
-         if File /= null and then File.Description = Description_Writer_Pipe
+         if File /= null and then File.Description = Description_Writer_FIFO
          then
-            Write (File.Inner_Writer_Pipe, State_Data, Ret_Count, Success);
-            while not Is_Empty (File.Inner_Writer_Pipe) loop
+            Write (File.Inner_Writer_FIFO, State_Data, Ret_Count, Success);
+            while not Is_Empty (File.Inner_Writer_FIFO) loop
                Scheduler.Yield;
             end loop;
          end if;

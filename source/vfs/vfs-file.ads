@@ -31,12 +31,11 @@ package VFS.File with SPARK_Mode => Off is
    type File_Acc is access File;
 
    --  Open a file with an absolute path.
-   --  TODO: .. and . are not supported, they are nice to have.
-   --  TODO: Directories are not fully supported, they are nice to have.
-   function Open
+   procedure Open
       (Path         : String;
        Access_Flags : Access_Mode;
-       Follow_Links : Boolean := True) return File_Acc;
+       Result       : out File_Acc;
+       Follow_Links : Boolean := True);
 
    --  Get the full path of a file.
    type String_Acc is access String;
@@ -47,8 +46,11 @@ package VFS.File with SPARK_Mode => Off is
    --  Setting the position past of the end of file is not checked.
    function Get_Position (File : File_Acc) return Unsigned_64
       with Inline, Pre => File /= null;
-   function Set_Position (File : File_Acc; Pos : Unsigned_64) return Boolean
-      with Inline, Pre => File /= null;
+   procedure Set_Position
+      (File    : File_Acc;
+       Pos     : Unsigned_64;
+       Success : out Boolean)
+      with Pre => File /= null;
 
    --  Files have an access mode, this function fetches it for the passed file.
    function Get_Access (File : File_Acc) return Access_Mode
@@ -106,18 +108,20 @@ package VFS.File with SPARK_Mode => Off is
       with Pre => To_Write /= null;
 
    --  Get the stat of the file.
-   function Stat (F : File_Acc; S : out File_Stat) return Boolean
+   procedure Stat (F : File_Acc; St : out File_Stat; Success : out Boolean)
       with Pre => F /= null;
 
-   --  Truncate the file to 0 size.
-   function Truncate (F : File_Acc; Size : Unsigned_64 := 0) return Boolean
+   --  Truncate the file to the passed size.
+   procedure Truncate (F : File_Acc; Size : Unsigned_64; Success : out Boolean)
       with Pre => F /= null;
 
    --  IOCTL.
-   function IO_Control
+   procedure IO_Control
       (F        : File_Acc;
        Request  : Unsigned_64;
-       Argument : System.Address) return Boolean with Pre => F /= null;
+       Argument : System.Address;
+       Success  : out Boolean)
+      with Pre => F /= null;
 
    --  Synchronize.
    function Synchronize (F : File_Acc) return Boolean with Pre => F /= null;
@@ -138,20 +142,29 @@ package VFS.File with SPARK_Mode => Off is
        Length  : Unsigned_64) return Boolean with Pre => F /= null;
 
    --  Create several kinds of files.
-   function Create_Node
-      (Path : String;
-       Typ  : File_Type;
-       Mode : File_Mode) return Boolean;
-   function Create_Symbolic_Link
+   procedure Create_Node
+      (Path    : String;
+       Typ     : File_Type;
+       Mode    : File_Mode;
+       Success : out Boolean);
+
+   procedure Create_Symbolic_Link
       (Path, Target : String;
-       Mode         : Unsigned_32) return Boolean;
-   function Create_Hard_Link (Path, Target : String) return Boolean;
+       Mode         : Unsigned_32;
+       Success      : out Boolean);
+
+   procedure Create_Hard_Link
+      (Path, Target : String;
+       Success      : out Boolean);
 
    --  Rename files.
-   function Rename (Source, Target : String; Keep : Boolean) return Boolean;
+   procedure Rename
+      (Source, Target : String;
+       Keep           : Boolean;
+       Success        : out Boolean);
 
    --  Queue a file for unlinking.
-   function Unlink (Path : String) return Boolean;
+   procedure Unlink (Path : String; Success : out Boolean);
 
 private
 

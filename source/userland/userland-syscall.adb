@@ -29,13 +29,12 @@ with Memory.Virtual; use Memory.Virtual;
 with Memory.Physical;
 with Memory; use Memory;
 with Ada.Unchecked_Deallocation;
-with Ada.Unchecked_Conversion;
 with Interfaces.C;
 with Arch.Hooks;
 with Arch.Local;
 with Cryptography.Random;
 with Userland.MAC;
-with IPC.Pipe; use IPC.Pipe;
+with IPC.FIFO; use IPC.FIFO;
 with IPC.PTY;  use IPC.PTY;
 with Devices;
 with Userland.Integrity;
@@ -136,7 +135,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Dont_Follow       : constant Boolean := (Flags and O_NOFOLLOW) /= 0;
       Do_Append         : constant Boolean := (Flags and O_APPEND)   /= 0;
 
-      Discard      : Boolean;
+      Success      : Boolean;
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
       Open_Mode    : VFS.File.Access_Mode;
@@ -201,19 +200,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
    <<Resume>>
-      Opened_File := Open
-         (Final_Path (1 .. Final_Path_L), Open_Mode, not Dont_Follow);
+      Open (Final_Path (1 .. Final_Path_L), Open_Mode, Opened_File,
+            not Dont_Follow);
       if Opened_File = null then
          Errno := Error_No_Entity;
          return Unsigned_64'Last;
       end if;
 
       if Do_Append then
-         if not VFS.File.Stat (Opened_File, Opened_Stat) then
+         VFS.File.Stat (Opened_File, Opened_Stat, Success);
+         if not Success then
             Errno := Error_Invalid_Seek;
             return Unsigned_64'Last;
          end if;
-         Discard := Set_Position (Opened_File, Opened_Stat.Byte_Size);
+         Set_Position (Opened_File, Opened_Stat.Byte_Size, Success);
       end if;
 
       New_Descr := new File_Description'(
@@ -264,7 +264,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          with Import, Address => Buf_SAddr;
       Ret_Count : Natural;
       Success   : Boolean;
-      Success1  : IPC.Pipe.Pipe_Status;
+      Success1  : IPC.FIFO.Pipe_Status;
    begin
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
@@ -293,29 +293,29 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   return Unsigned_64 (Ret_Count);
                end if;
             end if;
-         when Description_Reader_Pipe =>
-            IPC.Pipe.Read (File.Inner_Reader_Pipe, Data, Ret_Count, Success1);
+         when Description_Reader_FIFO =>
+            IPC.FIFO.Read (File.Inner_Reader_FIFO, Data, Ret_Count, Success1);
             case Success1 is
-               when IPC.Pipe.Pipe_Success =>
+               when IPC.FIFO.Pipe_Success =>
                   Errno := Error_No_Error;
                   return Unsigned_64 (Ret_Count);
-               when IPC.Pipe.Broken_Failure =>
+               when IPC.FIFO.Broken_Failure =>
                   Errno := Error_Invalid_Value;
                   return Unsigned_64'Last;
-               when IPC.Pipe.Would_Block_Failure =>
+               when IPC.FIFO.Would_Block_Failure =>
                   Errno := Error_Would_Block;
                   return Unsigned_64'Last;
             end case;
          when Description_Primary_PTY =>
-            IPC.PTY.Read (File.Inner_Primary_PTY, Data, Ret_Count);
+            IPC.PTY.Read_Primary (File.Inner_Primary_PTY, Data, Ret_Count);
             Errno := Error_No_Error;
             return Unsigned_64 (Ret_Count);
          when Description_Secondary_PTY =>
-            IPC.PTY.Read (File.Inner_Secondary_PTY, Data, Ret_Count);
+            IPC.PTY.Read_Secondary (File.Inner_Secondary_PTY, Data, Ret_Count);
             Errno := Error_No_Error;
             return Unsigned_64 (Ret_Count);
-         when Description_Writer_Pipe =>
-            Errno := Error_Bad_File;
+         when Description_Writer_FIFO =>
+            Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
       end case;
    end Read;
@@ -337,7 +337,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          with Import, Address => Buf_SAddr;
       Ret_Count : Natural;
       Success   : Boolean;
-      Success1  : IPC.Pipe.Pipe_Status;
+      Success1  : IPC.FIFO.Pipe_Status;
    begin
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
@@ -366,29 +366,30 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   return Unsigned_64 (Ret_Count);
                end if;
             end if;
-         when Description_Writer_Pipe =>
-            IPC.Pipe.Write (File.Inner_Writer_Pipe, Data, Ret_Count, Success1);
+         when Description_Writer_FIFO =>
+            IPC.FIFO.Write (File.Inner_Writer_FIFO, Data, Ret_Count, Success1);
             case Success1 is
-               when IPC.Pipe.Pipe_Success =>
+               when IPC.FIFO.Pipe_Success =>
                   Errno := Error_No_Error;
                   return Unsigned_64 (Ret_Count);
-               when IPC.Pipe.Broken_Failure =>
+               when IPC.FIFO.Broken_Failure =>
                   Errno := Error_Invalid_Value;
                   return Unsigned_64'Last;
-               when IPC.Pipe.Would_Block_Failure =>
+               when IPC.FIFO.Would_Block_Failure =>
                   Errno := Error_Would_Block;
                   return Unsigned_64'Last;
             end case;
          when Description_Primary_PTY =>
-            IPC.PTY.Write (File.Inner_Primary_PTY, Data, Ret_Count);
+            IPC.PTY.Write_Primary (File.Inner_Primary_PTY, Data, Ret_Count);
             Errno := Error_No_Error;
             return Unsigned_64 (Ret_Count);
          when Description_Secondary_PTY =>
-            IPC.PTY.Write (File.Inner_Secondary_PTY, Data, Ret_Count);
+            IPC.PTY.Write_Secondary
+               (File.Inner_Secondary_PTY, Data, Ret_Count);
             Errno := Error_No_Error;
             return Unsigned_64 (Ret_Count);
-         when Description_Reader_Pipe =>
-            Errno := Error_Bad_File;
+         when Description_Reader_FIFO =>
+            Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
       end case;
    end Write;
@@ -412,17 +413,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case File.Description is
          when Description_File =>
-            if VFS.File.Stat (File.Inner_File, Stat_Val) then
+            VFS.File.Stat (File.Inner_File, Stat_Val, Success);
+            if Success then
                case Whence is
                   when SEEK_SET =>
-                     Success := Set_Position (File.Inner_File, Offset);
+                     Set_Position (File.Inner_File, Offset, Success);
                   when SEEK_CURRENT =>
-                     Success := Set_Position
+                     Set_Position
                         (File.Inner_File,
-                         Get_Position (File.Inner_File) + Offset);
+                         Get_Position (File.Inner_File) + Offset,
+                         Success);
                   when SEEK_END =>
-                     Success := Set_Position
-                        (File.Inner_File, Stat_Val.Byte_Size + Offset);
+                     Set_Position
+                        (File.Inner_File,
+                         Stat_Val.Byte_Size + Offset, Success);
                   when others =>
                      Errno := Error_Invalid_Value;
                      return Unsigned_64'Last;
@@ -632,7 +636,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end if;
 
-      Path_File := Open (Path, Read_Only);
+      Open (Path, Read_Only, Path_File);
       if Path_File = null then
          Errno := Error_No_Entity;
          return Unsigned_64'Last;
@@ -697,8 +701,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Userland.Process.Remove_Thread (Proc, Th);
          Memory.Virtual.Delete_Map (Tmp_Map);
          Scheduler.Bail;
-         Errno := Error_No_Error;
-         return 0;
       end;
    end Exec;
 
@@ -836,7 +838,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end loop;
       else
          --  Check the process is actually our child.
-         if Get_Parent (Convert (Natural (Waited_PID))) = Proc then
+         if Get_Parent (Convert (Natural (Waited_PID))) /= Proc then
             Errno := Error_Child;
             return Unsigned_64'Last;
          end if;
@@ -846,6 +848,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             loop
                Check_Exit (Waited, Did_Exit, Error_Code);
                if Did_Exit then
+                  Final_Waited_PID := Waited_PID;
                   goto Waited_Exited;
                end if;
                if Dont_Hang then
@@ -959,6 +962,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       File_Desc  : constant File_Description_Acc := Get_File (Proc, FD);
       Stat_Val   : VFS.File_Stat;
       ID         : Natural;
+      Success    : Boolean;
       Stat_Buf   : Stat with Import, Address => Stat_SAddr;
    begin
       if not Check_Userland_Access (Map, Stat_IAddr, Stat'Size / 8) then
@@ -971,7 +975,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case File_Desc.Description is
          when Description_File =>
-            if not VFS.File.Stat (File_Desc.Inner_File, Stat_Val) then
+            VFS.File.Stat (File_Desc.Inner_File, Stat_Val, Success);
+            if not Success then
                Errno := Error_Bad_File;
                return Unsigned_64'Last;
             end if;
@@ -1012,7 +1017,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                when VFS.File_Block_Device =>
                   Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFBLK;
             end case;
-         when Description_Reader_Pipe | Description_Writer_Pipe |
+         when Description_Reader_FIFO | Description_Writer_FIFO |
               Description_Primary_PTY | Description_Secondary_PTY =>
             Stat_Buf := (
                Device_Number => 0,
@@ -1096,7 +1101,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      File := Open (Final_Path (1 .. Final_Path_L), VFS.File.Read_Only, False);
+      Open (Final_Path (1 .. Final_Path_L), VFS.File.Read_Only, File, False);
       if File = null then
          Errno := Error_No_Entity;
          return Unsigned_64'Last;
@@ -1135,11 +1140,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case File.Description is
          when Description_File =>
-            Succ := IO_Control (File.Inner_File, Request, S_Arg);
+            IO_Control (File.Inner_File, Request, S_Arg, Succ);
          when Description_Primary_PTY =>
-            Succ := IO_Control (File.Inner_Primary_PTY, Request, S_Arg);
+            PTY_IOCTL (File.Inner_Primary_PTY, Request, S_Arg, Succ);
          when Description_Secondary_PTY =>
-            Succ := IO_Control (File.Inner_Secondary_PTY, Request, S_Arg);
+            PTY_IOCTL (File.Inner_Secondary_PTY, Request, S_Arg, Succ);
          when others =>
             Succ := False;
       end case;
@@ -1152,6 +1157,31 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
    end IOCTL;
+
+   procedure PTY_IOCTL
+      (P        : IPC.PTY.Inner_Acc;
+       Request  : Unsigned_64;
+       Argument : System.Address;
+       Success  : out Boolean)
+   is
+      use Devices.TermIOs;
+      Result_Info : Main_Data with Import, Address => Argument;
+      Result_Size : Win_Size  with Import, Address => Argument;
+   begin
+      Success := True;
+      case Request is
+         when TCGETS =>
+            IPC.PTY.Get_TermIOs (P, Result_Info);
+         when TCSETS | TCSETSW | TCSETSF =>
+            IPC.PTY.Set_TermIOs (P, Result_Info);
+         when TIOCGWINSZ =>
+            IPC.PTY.Get_WinSize (P, Result_Size);
+         when TIOCSWINSZ =>
+            IPC.PTY.Set_WinSize (P, Result_Size);
+         when others =>
+            Success := False;
+      end case;
+   end PTY_IOCTL;
 
    function Sched_Yield (Errno : out Errno_Value) return Unsigned_64 is
    begin
@@ -1192,8 +1222,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc : constant PID := Arch.Local.Get_Current_Process;
       Map  : constant Page_Map_Acc     := Get_Common_Map (Proc);
       Res  : array (1 .. 2) of Integer with Import, Address => To_Address (Ad);
-      Reader : IPC.Pipe.Reader_Acc;
-      Writer : IPC.Pipe.Writer_Acc;
+      Returned : IPC.FIFO.Inner_Acc;
       Reader_Desc, Writer_Desc : File_Description_Acc;
    begin
       if not Check_Userland_Access (Map, Ad, Res'Size / 8) then
@@ -1201,23 +1230,22 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      IPC.Pipe.Create_Pair (Writer, Reader, (Flags and O_NONBLOCK) = 0);
+      Returned := IPC.FIFO.Create ((Flags and O_NONBLOCK) = 0);
       Reader_Desc := new File_Description'(
          Close_On_Exec     => False,
-         Description       => Description_Reader_Pipe,
-         Inner_Reader_Pipe => Reader
+         Description       => Description_Reader_FIFO,
+         Inner_Reader_FIFO => Returned
       );
       Writer_Desc := new File_Description'(
          Close_On_Exec     => False,
-         Description       => Description_Writer_Pipe,
-         Inner_Writer_Pipe => Writer
+         Description       => Description_Writer_FIFO,
+         Inner_Writer_FIFO => Returned
       );
       if not Userland.Process.Add_File (Proc, Reader_Desc, Res (1)) or
          not Userland.Process.Add_File (Proc, Writer_Desc, Res (2))
       then
-         Close (Reader);
+         Close (Returned);
          Close (Reader_Desc);
-         Close (Writer);
          Close (Writer_Desc);
          Errno := Error_Too_Many_Files;
          return Unsigned_64'Last;
@@ -1289,6 +1317,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Source_Path_L : Natural;
       Target_Path   : String (1 .. 1024);
       Target_Path_L : Natural;
+      Success       : Boolean;
    begin
       if not Check_Userland_Access (Map, Src_IAddr, Source_Len) or
          not Check_Userland_Access (Map, Tgt_IAddr, Target_Len)
@@ -1325,11 +1354,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return Unsigned_64'Last;
          end if;
 
-         if VFS.File.Rename
+         VFS.File.Rename
             (Source_Path (1 .. Source_Path_L),
              Target_Path (1 .. Target_Path_L),
-             Do_Keep)
-         then
+             Do_Keep,
+             Success);
+
+         if Success then
             Errno := Error_No_Error;
             return 0;
          else
@@ -1490,7 +1521,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end if;
 
-      Path_File := Open (Path, Read_Only);
+      Open (Path, Read_Only, Path_File);
       if Path_File = null then
          Errno := Error_No_Entity;
          return Unsigned_64'Last;
@@ -1624,34 +1655,53 @@ package body Userland.Syscall with SPARK_Mode => Off is
             File.Close_On_Exec := (Argument and FD_CLOEXEC) /= 0;
          when F_GETFL =>
             case File.Description is
-               when Description_Reader_Pipe =>
-                  if Is_Blocking (File.Inner_Reader_Pipe) then
+               when Description_Reader_FIFO =>
+                  if Is_Read_Blocking (File.Inner_Reader_FIFO) then
                      Returned := O_NONBLOCK;
                   end if;
-               when Description_Writer_Pipe =>
-                  if Is_Blocking (File.Inner_Writer_Pipe) then
+               when Description_Writer_FIFO =>
+                  if Is_Write_Blocking (File.Inner_Writer_FIFO) then
                      Returned := O_NONBLOCK;
                   end if;
                when others =>
                   null;
             end case;
-         when F_SETFL =>
-            Temp := (Argument and O_NONBLOCK) = 0;
+         when F_GETPIPE_SZ =>
             case File.Description is
-               when Description_Reader_Pipe =>
-                  Set_Blocking (File.Inner_Reader_Pipe, Temp);
-               when Description_Writer_Pipe =>
-                  Set_Blocking (File.Inner_Writer_Pipe, Temp);
+               when Description_Reader_FIFO =>
+                  Get_Size (File.Inner_Reader_FIFO, Natural (Returned));
+               when Description_Writer_FIFO =>
+                  Get_Size (File.Inner_Writer_FIFO, Natural (Returned));
                when others =>
-                  null;
+                  goto Invalid_Return;
+            end case;
+         when F_SETPIPE_SZ =>
+            case File.Description is
+               when Description_Reader_FIFO =>
+                  Set_Size (File.Inner_Reader_FIFO, Natural (Argument), Temp);
+                  if not Temp then
+                     Errno := Error_Would_Block;
+                     return Unsigned_64'Last;
+                  end if;
+               when Description_Writer_FIFO =>
+                  Set_Size (File.Inner_Writer_FIFO, Natural (Argument), Temp);
+                  if not Temp then
+                     Errno := Error_Would_Block;
+                     return Unsigned_64'Last;
+                  end if;
+               when others =>
+                  goto Invalid_Return;
             end case;
          when others =>
-            Errno := Error_Invalid_Value;
-            return Unsigned_64'Last;
+            goto Invalid_Return;
       end case;
 
       Errno := Error_No_Error;
       return Returned;
+
+   <<Invalid_Return>>
+      Errno := Error_Invalid_Value;
+      return Unsigned_64'Last;
    end Fcntl;
 
    procedure Exit_Thread (Errno : out Errno_Value) is
@@ -2028,7 +2078,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             end if;
          end if;
 
-         Opened := Open (Final_Path (1 .. Final_Path_L), Read_Only, False);
+         Open (Final_Path (1 .. Final_Path_L), Read_Only, Opened, False);
          if Opened = null then
             Errno := Error_No_Entity;
             return Unsigned_64'Last;
@@ -2131,6 +2181,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path_L : Natural;
       Node_Type    : File_Type;
       Tmp_Mode     : constant File_Mode := File_Mode (Mode and 8#7777#);
+      Succ         : Boolean;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
          Errno := Error_Would_Fault;
@@ -2162,7 +2213,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Node_Type := File_Regular;
       end if;
 
-      if Create_Node (Final_Path (1 .. Final_Path_L), Node_Type, Tmp_Mode) then
+      Create_Node (Final_Path (1 .. Final_Path_L), Node_Type, Tmp_Mode, Succ);
+      if Succ then
          Errno := Error_No_Error;
          return 0;
       else
@@ -2183,6 +2235,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Path_SAddr : constant System.Address  := To_Address (Path_IAddr);
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
+      Success      : Boolean;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
          Errno := Error_Would_Fault;
@@ -2208,7 +2261,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end;
 
-      if VFS.File.Unlink (Final_Path (1 .. Final_Path_L)) then
+      VFS.File.Unlink (Final_Path (1 .. Final_Path_L), Success);
+      if Success then
          Errno := Error_No_Error;
          return 0;
       else
@@ -2222,9 +2276,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
        New_Size : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64
    is
-      Proc : constant     PID := Arch.Local.Get_Current_Process;
-      File : constant File_Description_Acc := Get_File (Proc, FD);
-      Succ : Boolean;
+      Proc    : constant     PID := Arch.Local.Get_Current_Process;
+      File    : constant File_Description_Acc := Get_File (Proc, FD);
+      Success : Boolean;
    begin
       if File = null then
          Errno := Error_Bad_File;
@@ -2233,13 +2287,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case File.Description is
          when Description_File =>
-            Succ := VFS.File.Truncate (File.Inner_File, New_Size);
+            VFS.File.Truncate (File.Inner_File, New_Size, Success);
          when others =>
             Errno := Error_Bad_File;
             return Unsigned_64'Last;
       end case;
 
-      if Succ then
+      if Success then
          Errno := Error_No_Error;
          return 0;
       else
@@ -2265,6 +2319,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Targ_SAddr : constant   System.Address := To_Address (Targ_IAddr);
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
+      Success      : Boolean;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) or
          not Check_Userland_Access (Map, Targ_IAddr, Target_Len)
@@ -2295,9 +2350,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return Unsigned_64'Last;
          end if;
 
-         if VFS.File.Create_Symbolic_Link
-            (Final_Path (1 .. Final_Path_L), Targ, Unsigned_32 (Mode))
-         then
+         VFS.File.Create_Symbolic_Link
+            (Final_Path (1 .. Final_Path_L),
+             Targ, Unsigned_32 (Mode), Success);
+
+         if Success then
             Errno := Error_No_Error;
             return 0;
          else
@@ -2359,8 +2416,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc      : constant PID := Arch.Local.Get_Current_Process;
       Map       : constant     Page_Map_Acc := Get_Common_Map (Proc);
 
-      Primary        : IPC.PTY.Primary_Acc;
-      Secondary      : IPC.PTY.Secondary_Acc;
+      Result_PTY     : IPC.PTY.Inner_Acc;
       Primary_Desc   : File_Description_Acc;
       Secondary_Desc : File_Description_Acc;
 
@@ -2379,23 +2435,24 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      Create_Pair (Primary, Secondary, Termios, Win_Siz);
+      Result_PTY := Create (Termios, Win_Siz);
+      Increase_Refcount (Result_PTY);
       Primary_Desc := new File_Description'(
          Close_On_Exec     => False,
          Description       => Description_Primary_PTY,
-         Inner_Primary_PTY => Primary
+         Inner_Primary_PTY => Result_PTY
       );
       Secondary_Desc := new File_Description'(
          Close_On_Exec       => False,
          Description         => Description_Secondary_PTY,
-         Inner_Secondary_PTY => Secondary
+         Inner_Secondary_PTY => Result_PTY
       );
       if not Userland.Process.Add_File (Proc, Primary_Desc,   Result (1)) or
          not Userland.Process.Add_File (Proc, Secondary_Desc, Result (2))
       then
-         Close (Primary);
+         Close (Result_PTY);
+         Close (Result_PTY);
          Close (Primary_Desc);
-         Close (Secondary);
          Close (Secondary_Desc);
          Errno := Error_Too_Many_Files;
          return Unsigned_64'Last;
@@ -2451,6 +2508,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path1_L : Natural;
       Final_Path2   : String (1 .. 1024);
       Final_Path2_L : Natural;
+      Success       : Boolean;
    begin
       if not Check_Userland_Access (Map, Src_IAddr, Source_Len) or
          not Check_Userland_Access (Map, Dst_IAddr, Desto_Len)
@@ -2487,10 +2545,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return Unsigned_64'Last;
          end if;
 
-         if VFS.File.Create_Hard_Link
+         VFS.File.Create_Hard_Link
             (Final_Path1 (1 .. Final_Path1_L),
-             Final_Path2 (1 .. Final_Path2_L))
-         then
+             Final_Path2 (1 .. Final_Path2_L),
+             Success);
+
+         if Success then
             Errno := Error_No_Error;
             return 0;
          else
@@ -2575,18 +2635,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
             --  Fill out events depending on the file type.
             case File.Description is
-               when Description_Reader_Pipe =>
-                  if Is_Broken (File.Inner_Reader_Pipe) then
+               when Description_Reader_FIFO =>
+                  if Is_Broken (File.Inner_Reader_FIFO) then
+                     Lib.Messages.Put_Line ("We are chilling");
                      Polled.Out_Events := POLLHUP;
                   end if;
                   if (Polled.Events and POLLIN) /= 0 then
-                     if not Is_Empty (File.Inner_Reader_Pipe) then
+                     if not Is_Empty (File.Inner_Reader_FIFO) then
                         Polled.Out_Events := Polled.Out_Events or POLLIN;
                      end if;
                   end if;
-               when Description_Writer_Pipe =>
+               when Description_Writer_FIFO =>
                   if (Polled.Events and POLLOUT) /= 0 then
-                     if Is_Empty (File.Inner_Writer_Pipe) then
+                     if Is_Empty (File.Inner_Writer_FIFO) then
                         Polled.Out_Events := POLLOUT;
                      end if;
                   end if;

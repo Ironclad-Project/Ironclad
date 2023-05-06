@@ -81,7 +81,7 @@ begin
    if Found and Value_Len /= 0 then
       Lib.Messages.Put_Line ("Booting init " & Value (1 .. Value_Len));
       Init_Arguments (1) := new String'(Value (1 .. Value_Len));
-      Init_File := Open (Value (1 .. Value_Len), Read_Only);
+      Open (Value (1 .. Value_Len), Read_Only, Init_File);
       if Init_File = null or else Userland.Loader.Start_Program
          (Init_File, Init_Arguments, Init_Environment, Init_Stdin,
           Init_Stdout, Init_Stdout) = Error_PID

@@ -218,10 +218,10 @@ package body Userland.Process with SPARK_Mode => Off is
       if F /= null then
          Ret := new File_Description'(F.all);
          case Ret.Description is
-            when Description_Reader_Pipe =>
-               Increase_Refcount (Ret.Inner_Reader_Pipe);
-            when Description_Writer_Pipe =>
-               Increase_Refcount (Ret.Inner_Writer_Pipe);
+            when Description_Reader_FIFO =>
+               Increase_Reader_Refcount (Ret.Inner_Reader_FIFO);
+            when Description_Writer_FIFO =>
+               Increase_Writer_Refcount (Ret.Inner_Writer_FIFO);
             when Description_Primary_PTY =>
                IPC.PTY.Increase_Refcount (Ret.Inner_Primary_PTY);
             when Description_Secondary_PTY =>
@@ -252,8 +252,8 @@ package body Userland.Process with SPARK_Mode => Off is
    begin
       if F /= null then
          case F.Description is
-            when Description_Reader_Pipe   => Close (F.Inner_Reader_Pipe);
-            when Description_Writer_Pipe   => Close (F.Inner_Writer_Pipe);
+            when Description_Reader_FIFO => Close_Reader (F.Inner_Reader_FIFO);
+            when Description_Writer_FIFO => Close_Writer (F.Inner_Writer_FIFO);
             when Description_Primary_PTY   => Close (F.Inner_Primary_PTY);
             when Description_Secondary_PTY => Close (F.Inner_Secondary_PTY);
             when Description_File          => Close (F.Inner_File);

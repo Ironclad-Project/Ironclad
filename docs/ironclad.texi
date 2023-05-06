@@ -1448,6 +1448,23 @@ success.
 @item
 @code{F_SETFD (4)}: The flags for @code{fd} will be set with @code{arg}. The
 syscall will return @code{0} on sucess.
+
+@item
+@code{F_GETFL (5)}: Returns as the function result the file access mode
+and status flags.
+
+@item
+@code{F_SETFL (6)}: What @code{F_SETFD} is to @code{F_GETFD} for
+@code{F_GETFL}.
+
+@item
+@code{F_GETPIPE_SZ (7)}: If @code{fd} points to a FIFO or pipe, return
+its size.
+
+@item
+@code{F_SETPIPE_SZ (8)}: If @code{fd} points to a FIFO or pipe, the size will
+be set to the value of @code{arg}. If the operation would cause data loss, it
+will fail.
 @end itemize
 
 On failure, the syscall returns @code{-1}. The returned @code{errno} are:

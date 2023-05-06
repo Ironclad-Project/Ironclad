@@ -1,4 +1,4 @@
---  ipc-pty.adb: Pipe creation and management.
+--  ipc-pty.adb: PTY creation and management.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -19,172 +19,118 @@ with Ada.Unchecked_Deallocation;
 package body IPC.PTY is
    pragma Suppress (All_Checks);
 
-   procedure Free is new Ada.Unchecked_Deallocation (Primary,   Primary_Acc);
-   procedure Free is new Ada.Unchecked_Deallocation (Secondary, Secondary_Acc);
+   procedure Free is new Ada.Unchecked_Deallocation (Inner, Inner_Acc);
 
-   procedure Create_Pair
-      (Primary_End   : out Primary_Acc;
-       Secondary_End : out Secondary_Acc;
-       Termios       : Devices.TermIOs.Main_Data;
-       Window_Size   : Devices.TermIOs.Win_Size)
+   function Create
+      (Termios     : Devices.TermIOs.Main_Data;
+       Window_Size : Devices.TermIOs.Win_Size) return Inner_Acc
    is
-      Reader1, Reader2 : Pipe.Reader_Acc;
-      Writer1, Writer2 : Pipe.Writer_Acc;
+      Prim  : constant FIFO.Inner_Acc := FIFO.Create (Is_Blocking => True);
+      Secon : constant FIFO.Inner_Acc := FIFO.Create (Is_Blocking => True);
    begin
-      Pipe.Create_Pair (Writer1, Reader1, True);
-      Pipe.Create_Pair (Writer2, Reader2, True);
-      Primary_End := new Primary'
-         (Mutex               => Lib.Synchronization.Unlocked_Semaphore,
-          Reader_To_Secondary => Reader2,
-          Reader_To_Primary   => Reader1,
-          Writer_To_Secondary => Writer2,
-          Writer_To_Primary   => Writer1,
-          Secondary           => null,
-          Term_Info           => Termios,
-          Term_Size           => Window_Size,
-          Refcount            => 1);
-      Secondary_End := new Secondary'
-         (Mutex            => Lib.Synchronization.Unlocked_Semaphore,
-          Primary_End      => Primary_End,
-          Primary_Is_Ghost => False,
-          Refcount         => 1);
-      Primary_End.Secondary := Secondary_End;
-   end Create_Pair;
+      return new Inner'
+         (Mutex          => Lib.Synchronization.Unlocked_Semaphore,
+          Secondary_Pipe => Secon,
+          Primary_Pipe   => Prim,
+          Term_Info      => Termios,
+          Term_Size      => Window_Size,
+          Refcount       => 1);
+   end Create;
 
-   procedure Increase_Refcount (P : Primary_Acc) is
+   procedure Increase_Refcount (P : Inner_Acc) is
    begin
       Lib.Synchronization.Seize (P.Mutex);
-      P.Refcount := P.Refcount + 1;
+      if P.Refcount /= Natural'Last then
+         P.Refcount := P.Refcount + 1;
+      end if;
       Lib.Synchronization.Release (P.Mutex);
    end Increase_Refcount;
 
-   procedure Increase_Refcount (P : Secondary_Acc) is
-   begin
-      Lib.Synchronization.Seize (P.Mutex);
-      P.Refcount := P.Refcount + 1;
-      Lib.Synchronization.Release (P.Mutex);
-   end Increase_Refcount;
-
-   procedure Close (Closed : in out Primary_Acc) is
+   procedure Close (Closed : in out Inner_Acc) is
+      pragma Annotate
+         (GNATprove,
+          False_Positive,
+          "memory leak",
+          "Cannot verify that the pipes have only 1 reference, but they do");
    begin
       Lib.Synchronization.Seize (Closed.Mutex);
-      if Closed.Secondary /= null then
-         Lib.Synchronization.Seize (Closed.Secondary.Mutex);
+      if Closed.Refcount /= 0 then
+         Closed.Refcount := Closed.Refcount - 1;
       end if;
-
-      Closed.Refcount := Closed.Refcount - 1;
       if Closed.Refcount = 0 then
-         if Closed.Secondary /= null then
-            Closed.Secondary.Primary_Is_Ghost := True;
-         else
-            Free_Primary (Closed);
-            return;
-         end if;
-      end if;
-
-      if Closed.Secondary /= null then
-         Lib.Synchronization.Release (Closed.Secondary.Mutex);
-      end if;
-      Lib.Synchronization.Release (Closed.Mutex);
-   end Close;
-
-   procedure Close (Closed : in out Secondary_Acc) is
-   begin
-      Lib.Synchronization.Seize (Closed.Mutex);
-      Lib.Synchronization.Seize (Closed.Primary_End.Mutex);
-
-      Closed.Refcount := Closed.Refcount - 1;
-      if Closed.Refcount = 0 then
-         if Closed.Primary_Is_Ghost then
-            Free_Primary (Closed.Primary_End);
-         else
-            Closed.Primary_End.Secondary := null;
-            Lib.Synchronization.Release (Closed.Primary_End.Mutex);
-         end if;
+         FIFO.Close (Closed.Primary_Pipe);
+         FIFO.Close (Closed.Secondary_Pipe);
          Free (Closed);
-         return;
+      else
+         Lib.Synchronization.Release (Closed.Mutex);
       end if;
-
-      Lib.Synchronization.Release (Closed.Primary_End.Mutex);
-      Lib.Synchronization.Release (Closed.Mutex);
    end Close;
 
-   procedure Free_Primary (Prim : in out Primary_Acc) is
-   begin
-      Pipe.Close (Prim.Reader_To_Secondary);
-      Pipe.Close (Prim.Reader_To_Primary);
-      Pipe.Close (Prim.Writer_To_Secondary);
-      Pipe.Close (Prim.Writer_To_Primary);
-      Free (Prim);
-   end Free_Primary;
-
-   procedure Read
-      (To_Read   : Primary_Acc;
+   procedure Read_Primary
+      (To_Read   : Inner_Acc;
        Data      : out Devices.Operation_Data;
        Ret_Count : out Natural)
    is
-      Discard : IPC.Pipe.Pipe_Status;
+      Discard : IPC.FIFO.Pipe_Status;
    begin
-      IPC.Pipe.Read (To_Read.Reader_To_Primary, Data, Ret_Count, Discard);
-   end Read;
+      FIFO.Read (To_Read.Primary_Pipe, Data, Ret_Count, Discard);
+   end Read_Primary;
 
-   procedure Write
-      (To_Write  : Primary_Acc;
+   procedure Write_Primary
+      (To_Write  : Inner_Acc;
        Data      : Devices.Operation_Data;
        Ret_Count : out Natural)
    is
-      Discard : IPC.Pipe.Pipe_Status;
+      Discard : IPC.FIFO.Pipe_Status;
    begin
-      IPC.Pipe.Write (To_Write.Writer_To_Secondary, Data, Ret_Count, Discard);
-   end Write;
+      FIFO.Write (To_Write.Secondary_Pipe, Data, Ret_Count, Discard);
+   end Write_Primary;
 
-   function IO_Control
-      (File     : Primary_Acc;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean
-   is
-      use Devices.TermIOs;
-      Result_Info : Main_Data with Import, Address => Argument;
-      Result_Size : Win_Size  with Import, Address => Argument;
-   begin
-      case Request is
-         when TCGETS                     => Result_Info    := File.Term_Info;
-         when TCSETS | TCSETSW | TCSETSF => File.Term_Info := Result_Info;
-         when TIOCGWINSZ                 => Result_Size    := File.Term_Size;
-         when TIOCSWINSZ                 => File.Term_Size := Result_Size;
-         when others                     => return False;
-      end case;
-      return True;
-   end IO_Control;
-
-   procedure Read
-      (To_Read   : Secondary_Acc;
+   procedure Read_Secondary
+      (To_Read   : Inner_Acc;
        Data      : out Devices.Operation_Data;
        Ret_Count : out Natural)
    is
-      Prim_End : Primary_Acc renames To_Read.Primary_End;
-      Discard  : IPC.Pipe.Pipe_Status;
+      Discard : IPC.FIFO.Pipe_Status;
    begin
-      IPC.Pipe.Read (Prim_End.Reader_To_Secondary, Data, Ret_Count, Discard);
-   end Read;
+      FIFO.Read (To_Read.Secondary_Pipe, Data, Ret_Count, Discard);
+   end Read_Secondary;
 
-   procedure Write
-      (To_Write  : Secondary_Acc;
+   procedure Write_Secondary
+      (To_Write  : Inner_Acc;
        Data      : Devices.Operation_Data;
        Ret_Count : out Natural)
    is
-      Primary_End : Primary_Acc renames To_Write.Primary_End;
-      Discard     : IPC.Pipe.Pipe_Status;
+      Discard : IPC.FIFO.Pipe_Status;
    begin
-      IPC.Pipe.Write (Primary_End.Writer_To_Primary, Data, Ret_Count, Discard);
-   end Write;
+      FIFO.Write (To_Write.Primary_Pipe, Data, Ret_Count, Discard);
+   end Write_Secondary;
 
-   function IO_Control
-      (File     : Secondary_Acc;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean
-   is
+   procedure Get_TermIOs (P : Inner_Acc; T : out Devices.TermIOs.Main_Data) is
    begin
-      return IO_Control (File.Primary_End, Request, Argument);
-   end IO_Control;
+      Lib.Synchronization.Seize (P.Mutex);
+      T := P.Term_Info;
+      Lib.Synchronization.Release (P.Mutex);
+   end Get_TermIOs;
+
+   procedure Set_TermIOs (P : Inner_Acc; T : Devices.TermIOs.Main_Data) is
+   begin
+      Lib.Synchronization.Seize (P.Mutex);
+      P.Term_Info := T;
+      Lib.Synchronization.Release (P.Mutex);
+   end Set_TermIOs;
+
+   procedure Get_WinSize (P : Inner_Acc; W : out Devices.TermIOs.Win_Size) is
+   begin
+      Lib.Synchronization.Seize (P.Mutex);
+      W := P.Term_Size;
+      Lib.Synchronization.Release (P.Mutex);
+   end Get_WinSize;
+
+   procedure Set_WinSize (P : Inner_Acc; W : Devices.TermIOs.Win_Size) is
+   begin
+      Lib.Synchronization.Seize (P.Mutex);
+      P.Term_Size := W;
+      Lib.Synchronization.Release (P.Mutex);
+   end Set_WinSize;
 end IPC.PTY;

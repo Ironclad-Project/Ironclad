@@ -17,6 +17,8 @@
 with Ada.Unchecked_Deallocation;
 
 package body VFS.File with SPARK_Mode => Off is
+   pragma Suppress (All_Checks);
+
    procedure Free_Str  is new Ada.Unchecked_Deallocation (String, String_Acc);
    procedure Free_File is new Ada.Unchecked_Deallocation (File, File_Acc);
 
@@ -37,7 +39,6 @@ package body VFS.File with SPARK_Mode => Off is
       Discard      : Boolean;
    begin
       --  Default values.
-      Success      := True;
       Is_Device    := False;
       Fetched_Dev  := Devices.Error_Handle;
       Fetched_FS   := Error_Handle;
@@ -74,11 +75,14 @@ package body VFS.File with SPARK_Mode => Off is
           Success);
       if Success then
          Stat (Fetched_FS, Fetched_File, Fetched_Stat, Success);
+      else
+         Success := False;
+         return;
       end if;
 
       --  Redirect if we are dealing with a symlink.
-      if Follow_Links and Success and
-         Fetched_Stat.Type_Of_File = File_Symbolic_Link
+      if Success and then (Follow_Links and
+         Fetched_Stat.Type_Of_File = File_Symbolic_Link)
       then
          VFS.Read_Symbolic_Link
             (Key       => Fetched_FS,
@@ -121,10 +125,11 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Resolve_File;
 
-   function Open
+   procedure Open
       (Path         : String;
        Access_Flags : Access_Mode;
-       Follow_Links : Boolean := True) return File_Acc
+       Result       : out File_Acc;
+       Follow_Links : Boolean := True)
    is
       Success      : Boolean;
       Is_Device    : Boolean;
@@ -142,7 +147,7 @@ package body VFS.File with SPARK_Mode => Off is
           Follow_Links => Follow_Links);
 
       if Success then
-         return new File'(
+         Result := new File'(
             Refcount  => 1,
             Is_Device => Is_Device,
             Full_Path => new String'(Path),
@@ -153,7 +158,7 @@ package body VFS.File with SPARK_Mode => Off is
             Flags     => Access_Flags
          );
       else
-         return null;
+         Result := null;
       end if;
    end Open;
 
@@ -167,13 +172,17 @@ package body VFS.File with SPARK_Mode => Off is
       return File.Index;
    end Get_Position;
 
-   function Set_Position (File : File_Acc; Pos : Unsigned_64) return Boolean is
+   procedure Set_Position
+      (File    : File_Acc;
+       Pos     : Unsigned_64;
+       Success : out Boolean)
+   is
    begin
       if File.Is_Device and not Is_Block_Device (File.Dev_Data) then
-         return False;
+         Success := False;
       else
          File.Index := Pos;
-         return True;
+         Success := True;
       end if;
    end Set_Position;
 
@@ -225,6 +234,11 @@ package body VFS.File with SPARK_Mode => Off is
       else
          Success   := False;
          Ret_Count := 0;
+         Entities  := (others =>
+            (Inode_Number => 0,
+             Name_Buffer  => (others => ' '),
+             Name_Len     => 0,
+             Type_Of_File => File_Regular));
       end if;
    end Read_Entries;
 
@@ -254,6 +268,7 @@ package body VFS.File with SPARK_Mode => Off is
    is
    begin
       if To_Read.Flags = Write_Only then
+         Data      := (others => 0);
          Ret_Count := 0;
          Success   := False;
          return;
@@ -317,16 +332,14 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Write;
 
-   function Stat (F : File_Acc; S : out File_Stat) return Boolean is
+   procedure Stat (F : File_Acc; St : out File_Stat; Success : out Boolean) is
       Is_Block                      : Boolean;
       Device_Type                   : File_Type;
       Block_Count                   : Unsigned_64;
       Block_Size, Unique_Identifier : Natural;
-      Success                       : Boolean;
    begin
       if not F.Is_Device then
-         VFS.Stat (F.FS_Data, F.File_Data, S, Success);
-         return Success;
+         VFS.Stat (F.FS_Data, F.File_Data, St, Success);
       else
          Is_Block          := Devices.Is_Block_Device (F.Dev_Data);
          Block_Size        := Devices.Get_Block_Size  (F.Dev_Data);
@@ -337,7 +350,7 @@ package body VFS.File with SPARK_Mode => Off is
          else
             Device_Type := File_Character_Device;
          end if;
-         S := (
+         St := (
             Unique_Identifier => File_Inode_Number (Unique_Identifier),
             Type_Of_File      => Device_Type,
             Mode              => 8#660#,
@@ -349,29 +362,31 @@ package body VFS.File with SPARK_Mode => Off is
             Modification_Time => (0, 0),
             Access_Time       => (0, 0)
          );
-         return True;
+         Success := True;
       end if;
    end Stat;
 
-   function Truncate (F : File_Acc; Size : Unsigned_64 := 0) return Boolean is
+   procedure Truncate (F : File_Acc; Size : Unsigned_64; Success : out Boolean)
+   is
    begin
       if not F.Is_Device and F.Flags /= Read_Only then
-         return VFS.Truncate (F.FS_Data, F.File_Data, Size);
+         Success := VFS.Truncate (F.FS_Data, F.File_Data, Size);
       else
-         return False;
+         Success := False;
       end if;
    end Truncate;
 
-   function IO_Control
+   procedure IO_Control
       (F        : File_Acc;
        Request  : Unsigned_64;
-       Argument : System.Address) return Boolean
+       Argument : System.Address;
+       Success  : out Boolean)
    is
    begin
       if F.Is_Device then
-         return Devices.IO_Control (F.Dev_Data, Request, Argument);
+         Success := Devices.IO_Control (F.Dev_Data, Request, Argument);
       else
-         return VFS.IO_Control (F.FS_Data, F.File_Data, Request, Argument);
+         Success := VFS.IO_Control (F.FS_Data, F.File_Data, Request, Argument);
       end if;
    end IO_Control;
 
@@ -420,65 +435,68 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Munmap;
 
-   function Rename (Source, Target : String; Keep : Boolean) return Boolean is
+   procedure Create_Node
+      (Path    : String;
+       Typ     : File_Type;
+       Mode    : File_Mode;
+       Success : out Boolean)
+   is
+      Match_Count : Natural;
+      Handle      : FS_Handle;
+   begin
+      Get_Mount (Path, Match_Count, Handle);
+      Success := Create_Node
+         (Handle, Path (Path'First + Match_Count .. Path'Last), Typ, Mode);
+   end Create_Node;
+
+   procedure Create_Symbolic_Link
+      (Path, Target : String;
+       Mode         : Unsigned_32;
+       Success      : out Boolean)
+   is
+      Match_Count : Natural;
+      Handle      : FS_Handle;
+   begin
+      Get_Mount (Path, Match_Count, Handle);
+      Success := Create_Symbolic_Link
+         (Handle, Path (Path'First + Match_Count .. Path'Last), Target, Mode);
+   end Create_Symbolic_Link;
+
+   procedure Create_Hard_Link
+      (Path, Target : String;
+       Success      : out Boolean)
+   is
+      Match_Count : Natural;
+      Handle      : FS_Handle;
+   begin
+      Get_Mount (Path, Match_Count, Handle);
+      Success := Create_Hard_Link
+         (Handle,
+          Path   (Path'First   + Match_Count ..   Path'Last),
+          Target (Target'First + Match_Count .. Target'Last));
+   end Create_Hard_Link;
+
+   procedure Rename
+      (Source, Target : String;
+       Keep           : Boolean;
+       Success        : out Boolean)
+   is
       Match_Count : Natural;
       Handle      : FS_Handle;
    begin
       Get_Mount (Source, Match_Count, Handle);
-      return Rename
+      Success := Rename
          (Handle,
           Source (Source'First + Match_Count .. Source'Last),
           Target (Target'First + Match_Count .. Target'Last),
           Keep);
    end Rename;
 
-   function Unlink (Path : String) return Boolean is
+   procedure Unlink (Path : String; Success : out Boolean) is
       Match_Count : Natural;
       Handle      : FS_Handle;
    begin
       Get_Mount (Path, Match_Count, Handle);
-      return Unlink (Handle, Path (Path'First + Match_Count .. Path'Last));
+      Success := Unlink (Handle, Path (Path'First + Match_Count .. Path'Last));
    end Unlink;
-
-   function Create_Node
-      (Path : String;
-       Typ  : File_Type;
-       Mode : File_Mode) return Boolean
-   is
-      Match_Count : Natural;
-      Handle      : FS_Handle;
-   begin
-      Get_Mount (Path, Match_Count, Handle);
-      return Create_Node
-         (Handle,
-          Path (Path'First + Match_Count .. Path'Last),
-          Typ,
-          Mode);
-   end Create_Node;
-
-   function Create_Symbolic_Link
-      (Path, Target : String;
-       Mode         : Unsigned_32) return Boolean
-   is
-      Match_Count : Natural;
-      Handle      : FS_Handle;
-   begin
-      Get_Mount (Path, Match_Count, Handle);
-      return Create_Symbolic_Link
-         (Handle,
-          Path (Path'First + Match_Count .. Path'Last),
-          Target,
-          Mode);
-   end Create_Symbolic_Link;
-
-   function Create_Hard_Link (Path, Target : String) return Boolean is
-      Match_Count : Natural;
-      Handle      : FS_Handle;
-   begin
-      Get_Mount (Path, Match_Count, Handle);
-      return Create_Hard_Link
-         (Handle,
-          Path   (Path'First   + Match_Count ..   Path'Last),
-          Target (Target'First + Match_Count .. Target'Last));
-   end Create_Hard_Link;
 end VFS.File;
