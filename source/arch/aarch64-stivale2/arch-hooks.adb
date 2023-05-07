@@ -1,5 +1,5 @@
 --  arch-hooks.adb: Architecture-specific hooks for several utilities.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -15,14 +15,12 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Devices.PL011;
-with Lib.Panic;
+with Arch.SMP;
 
 package body Arch.Hooks with SPARK_Mode => Off is
-   procedure Devices_Hook is
+   function Devices_Hook return Boolean is
    begin
-      if not Devices.PL011.Register then
-         Lib.Panic.Soft_Panic ("Architectural VFS hook failed");
-      end if;
+      return Devices.PL011.Init;
    end Devices_Hook;
 
    function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean is
@@ -36,4 +34,9 @@ package body Arch.Hooks with SPARK_Mode => Off is
    begin
       return;
    end Panic_SMP_Hook;
+
+   function Get_Active_Core_Count return Positive is
+   begin
+      return SMP.Core_Count;
+   end Get_Active_Core_Count;
 end Arch.Hooks;

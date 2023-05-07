@@ -1,5 +1,5 @@
 --  lib-runtime.adb: Functions needed by the compiler.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -140,6 +140,12 @@ package body Lib.Runtime with SPARK_Mode => Off is
       end loop;
       return Desto;
    end MemSet;
+
+   function GetAuxVal (Value : Natural) return Natural is
+      pragma Unreferenced (Value);
+   begin
+      return 0;
+   end GetAuxVal;
 
    procedure Print_Exception
       (Message      : String;

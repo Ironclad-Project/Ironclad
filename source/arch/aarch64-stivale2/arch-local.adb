@@ -1,5 +1,5 @@
 --  arch-local.adb: Architecture-specific CPU-local storage.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -15,8 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Arch.Local with SPARK_Mode => Off is
-   procedure Reschedule_In (Nanoseconds : Natural) is
-      pragma Unreferenced (Nanoseconds);
+   procedure Reschedule_In (Microseconds : Natural) is
+      pragma Unreferenced (Microseconds);
    begin
       return;
    end Reschedule_In;
@@ -25,12 +25,6 @@ package body Arch.Local with SPARK_Mode => Off is
    begin
       return;
    end Reschedule_ASAP;
-
-   procedure Reschedule_Cores_ASAP (Thread : Scheduler.TID) is
-      pragma Unreferenced (Thread);
-   begin
-      return;
-   end Reschedule_Cores_ASAP;
 
    function Fetch_TCB return System.Address is
    begin
@@ -54,9 +48,9 @@ package body Arch.Local with SPARK_Mode => Off is
       return 0;
    end Get_Current_Thread;
 
-   function Get_Current_Process return Userland.Process.Process_Data_Acc is
+   function Get_Current_Process return Userland.Process.PID is
    begin
-      return null;
+      return Userland.Process.Error_PID;
    end Get_Current_Process;
 
    procedure Set_Current_Thread (Thread : Scheduler.TID) is
@@ -65,7 +59,7 @@ package body Arch.Local with SPARK_Mode => Off is
       return;
    end Set_Current_Thread;
 
-   procedure Set_Current_Process (Proc : Userland.Process.Process_Data_Acc) is
+   procedure Set_Current_Process (Proc : Userland.Process.PID) is
       pragma Unreferenced (Proc);
    begin
       return;

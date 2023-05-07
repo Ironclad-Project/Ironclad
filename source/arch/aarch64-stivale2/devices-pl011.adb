@@ -1,5 +1,5 @@
 --  devices-pl011.adb: PL011-compatible driver.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,116 +14,101 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System.Storage_Elements; use System.Storage_Elements;
-with System.Address_To_Access_Conversions;
-with Arch.Snippets;
-with Memory; use Memory;
-with Lib.Synchronization;
 with Devices.TermIOs;
+with Arch.Snippets;
+with Lib.Synchronization;
 
 package body Devices.PL011 with SPARK_Mode => Off is
-   PL011_Data    : Unsigned_32 with Import, Volatile;
-   PL011_Status  : Unsigned_32 with Import, Volatile;
-   PL011_I_Baud  : Unsigned_32 with Import, Volatile;
-   PL011_F_Baud  : Unsigned_32 with Import, Volatile;
-   PL011_Control : Unsigned_32 with Import, Volatile;
-   for PL011_Data'Address    use To_Address (Memory_Offset + 16#9000000#);
-   for PL011_Status'Address  use To_Address (Memory_Offset + 16#9000018#);
-   for PL011_I_Baud'Address  use To_Address (Memory_Offset + 16#9000024#);
-   for PL011_F_Baud'Address  use To_Address (Memory_Offset + 16#9000028#);
-   for PL011_Control'Address use To_Address (Memory_Offset + 16#9000030#);
-
    type PL011_Info is record
       Baud : Unsigned_32;
    end record;
    type PL011_Info_Acc is access PL011_Info;
-   package Conv is new System.Address_To_Access_Conversions (PL011_Info);
 
-   Default_Baud : constant := 115200;
+   Global_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
 
    procedure Configure is
    begin
       Set_Baud (Default_Baud);
+      Lib.Synchronization.Release (Global_Mutex);
    end Configure;
 
    procedure Print (Message : Character) is
    begin
+      Print (Character'Pos (Message));
+   end Print;
+
+   procedure Print (Message : Unsigned_8) is
+   begin
+      Lib.Synchronization.Seize (Global_Mutex);
       while (PL011_Status and 16#100000#) /= 0 loop
          Arch.Snippets.Pause;
       end loop;
-      PL011_Data := Character'Pos (Message);
+      PL011_Data := Unsigned_32 (Message);
+      Lib.Synchronization.Release (Global_Mutex);
    end Print;
 
-   function Register return Boolean is
-      Stat : constant VFS.File_Stat := (
-         Unique_Identifier => 0,
-         Type_Of_File      => VFS.File_Character_Device,
-         Mode              => 8#660#,
-         Hard_Link_Count   => 1,
-         Byte_Size         => 0,
-         IO_Block_Size     => 4096,
-         IO_Block_Count    => 0
-      );
-      Data : constant PL011_Info_Acc := new PL011_Info'(
-         Baud => Default_Baud
-      );
-      Device : VFS.Resource := (
-         Data       => Conv.To_Address (Conv.Object_Pointer (Data)),
-         Mutex      => <>,
-         Stat       => Stat,
-         Sync       => null,
-         Read       => null,
-         Write      => Write'Access,
-         IO_Control => IO_Control'Access,
-         Mmap       => null,
-         Munmap     => null
-      );
+   function Init return Boolean is
+      Data : constant PL011_Info_Acc := new PL011_Info'(Baud => Default_Baud);
+      Succ : Boolean;
+      Dev  : constant Resource :=
+         (Data        => Data.all'Address,
+          Is_Block    => False,
+          Block_Size  => 4096,
+          Block_Count => 0,
+          Sync        => null,
+          Sync_Range  => null,
+          Read        => null,
+          Write       => Write'Access,
+          IO_Control  => IO_Control'Access,
+          Mmap        => null,
+          Munmap      => null);
    begin
-      Lib.Synchronization.Release (Device.Mutex);
-      return VFS.Register (Device, "pl011");
-   end Register;
-
-   function Write
-      (Data     : VFS.Resource_Acc;
-       Offset   : Unsigned_64;
-       Count    : Unsigned_64;
-       To_Write : System.Address) return Unsigned_64
+      Register (Dev, "pl011", Succ);
+      return Succ;
+   end Init;
+   ----------------------------------------------------------------------------
+   procedure Write
+      (Key       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
    is
-      Write_Data : array (1 .. Count) of Character
-         with Import, Address => To_Write;
+      pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
    begin
-      Lib.Synchronization.Seize (Data.Mutex);
-      for I of Write_Data loop
+      for I of Data loop
          Print (I);
       end loop;
-      Lib.Synchronization.Release (Data.Mutex);
-      return Count;
+      Ret_Count := Data'Length;
+      Success   := True;
    end Write;
 
    function IO_Control
-      (Data     : VFS.Resource_Acc;
+      (Data     : System.Address;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is
-      Port_Data : constant not null Conv.Object_Pointer :=
-         Conv.To_Pointer (Data.Data);
+      Info     : PL011_Info        with Import, Address => Data;
       Returned : TermIOs.Main_Data with Import, Address => Argument;
-      Success  : Boolean := False;
+      Success  : Boolean := True;
    begin
-      Lib.Synchronization.Seize (Data.Mutex);
       case Request is
          when TermIOs.TCGETS =>
-            Returned.Output_Baud := Port_Data.Baud;
-            Success := True;
+            Returned :=
+               (Input_Modes   => <>,
+                Output_Modes  => <>,
+                Control_Modes => <>,
+                Local_Mode    => <>,
+                Special_Chars => <>,
+                Input_Baud    => Info.Baud,
+                Output_Baud   => Info.Baud);
          when TermIOs.TCSETS | TermIOs.TCSETSW | TermIOs.TCSETSF =>
             Set_Baud (Returned.Output_Baud);
-            Port_Data.Baud := Returned.Output_Baud;
-            Success := True;
+            Info.Baud := Returned.Output_Baud;
          when others =>
-            null;
+            Success := False;
       end case;
-      Lib.Synchronization.Release (Data.Mutex);
       return Success;
    end IO_Control;
 
@@ -134,7 +119,9 @@ package body Devices.PL011 with SPARK_Mode => Off is
       F_Part : constant Unsigned_64 := (((Clock * 1000) /
          A_Baud - (I_Part * 1000)) * 64 + 500) / 1000;
    begin
+      Lib.Synchronization.Seize (Global_Mutex);
       PL011_I_Baud := Unsigned_32 (I_Part and 16#FFFFFFFF#);
       PL011_F_Baud := Unsigned_32 (F_Part and 16#FFFFFFFF#);
+      Lib.Synchronization.Release (Global_Mutex);
    end Set_Baud;
 end Devices.PL011;

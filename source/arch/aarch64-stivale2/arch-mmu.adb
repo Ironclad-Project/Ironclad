@@ -1,5 +1,5 @@
 --  arch-mmu.adb: Architecture-specific MMU code.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -18,7 +18,8 @@ with Ada.Unchecked_Deallocation;
 with Arch.MMU;
 with System.Machine_Code;
 with Lib.Panic;
-with Memory; use Memory;
+with Lib.Messages;
+with System; use System;
 
 package body Arch.MMU with SPARK_Mode => Off is
    --  The MMU driver is heavily inspired from:
@@ -81,15 +82,8 @@ package body Arch.MMU with SPARK_Mode => Off is
    end record;
    for AA64MMFR0'Size use 64;
 
-   type Address_Components is record
-      Level0_Entry : Unsigned_64;
-      Level1_Entry : Unsigned_64;
-      Level2_Entry : Unsigned_64;
-      Level3_Entry : Unsigned_64;
-   end record;
-
-   function Get_Components (Add : Integer_Address) return Address_Components is
-      Addr : constant Unsigned_64 := Unsigned_64 (Add);
+   function Get_Components (Ad : Integer_Address) return Address_Components is
+      Addr : constant Unsigned_64 := Unsigned_64 (Ad);
       L0_E : constant Unsigned_64 := Addr and Shift_Left (16#1FF#, 39);
       L1_E : constant Unsigned_64 := Addr and Shift_Left (16#1FF#, 30);
       L2_E : constant Unsigned_64 := Addr and Shift_Left (16#1FF#, 21);
@@ -156,7 +150,7 @@ package body Arch.MMU with SPARK_Mode => Off is
              (Integer_Address (Addr.Level3_Entry) * 8);
 
    <<Error_Return>>
-      Lib.Panic.Soft_Panic ("Address could not be found");
+      Lib.Messages.Warn ("Address could not be found");
       return 0;
    end Get_Page;
 
@@ -285,7 +279,7 @@ package body Arch.MMU with SPARK_Mode => Off is
           Volatile => True);
 
       if AA64MMFR.TGran_4 /= 0 then
-         Lib.Panic.Soft_Panic ("MMU does not support 4K pages");
+         Lib.Panic.Hard_Panic ("MMU does not support 4K pages");
          return False;
       end if;
 
@@ -332,11 +326,11 @@ package body Arch.MMU with SPARK_Mode => Off is
    end Create_Table;
 
    procedure Destroy_Table (Map : in out Page_Table_Acc) is
-      procedure F is new Ada.Unchecked_Deallocation (Page_Table, Page_Table_Acc);
+      procedure Free is new Ada.Unchecked_Deallocation
+         (Page_Table, Page_Table_Acc);
    begin
       --  TODO: Free the tables themselves.
-      F (Map);
-      Map := null;
+      Free (Map);
    end Destroy_Table;
 
    function Make_Active (Map : Page_Table_Acc) return Boolean is

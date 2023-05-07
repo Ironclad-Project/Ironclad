@@ -1,5 +1,5 @@
 --  arch-mmu.ads: Architecture-specific MMU code.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -41,7 +41,25 @@ package Arch.MMU with SPARK_Mode => Off is
          TTBR0 : Page_Level;
          TTBR1 : Page_Level;
       end record;
+      type Address_Components is record
+         Level0_Entry : Unsigned_64;
+         Level1_Entry : Unsigned_64;
+         Level2_Entry : Unsigned_64;
+         Level3_Entry : Unsigned_64;
+      end record;
+
       procedure Set_MMU_State;
+      function Get_Addr_From_Entry (Entry_B : Unsigned_64) return Unsigned_64;
+      function Get_Components (Ad : Integer_Address) return Address_Components;
+      function Get_Next_Level
+         (Current_Level       : Integer_Address;
+          Index               : Unsigned_64;
+          Create_If_Not_Found : Boolean) return Integer_Address;
+      function Get_Page
+         (Root_Lvl : System.Address;
+          Virtual  : Integer_Address;
+          Allocate : Boolean) return Integer_Address;
+      function Get_Bits (Permissions : Page_Permissions) return Unsigned_64;
    #elsif ArchName = """sparc-leon3"""
       Page_Size : constant := 16#1000#;
       type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;

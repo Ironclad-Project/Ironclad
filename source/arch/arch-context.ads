@@ -1,5 +1,5 @@
 --  arch-context.ads: Architecture-specific context switching.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -18,8 +18,20 @@ with Interfaces; use Interfaces;
 with Arch.Interrupts;
 
 package Arch.Context with SPARK_Mode => Off is
+   #if ArchName = """aarch64-stivale2"""
+      subtype GP_Context is Arch.Interrupts.Frame;
+      type    FP_Context is array (1 .. 512) of Unsigned_8;
+   #elsif ArchName = """sparc-leon3"""
+      --  FIXME: Alignment should be 16, but GCC does not align then?
+      subtype GP_Context is Arch.Interrupts.ISR_GPRs;
+      type FP_Context is array (1 .. 512) of Unsigned_8 with Alignment => 32;
+   #elsif ArchName = """x86_64-multiboot2"""
+      --  FIXME: Alignment should be 16, but GCC does not align then?
+      subtype GP_Context is Arch.Interrupts.ISR_GPRs;
+      type FP_Context is array (1 .. 512) of Unsigned_8 with Alignment => 32;
+   #end if;
+
    --  General-purpose context switching.
-   subtype GP_Context is Arch.Interrupts.ISR_GPRs;
    procedure Init_GP_Context
       (Ctx        : out GP_Context;
        Stack      : System.Address;
@@ -27,8 +39,6 @@ package Arch.Context with SPARK_Mode => Off is
    procedure Load_GP_Context (Ctx : GP_Context) with No_Return;
 
    --  Save and restore floating-point context.
-   --  FIXME: Alignment should be 16, but GCC does not align then?
-   type FP_Context is array (1 .. 512) of Unsigned_8 with Alignment => 32;
    procedure Init_FP_Context (Ctx : out FP_Context);
    procedure Save_FP_Context (Ctx : out FP_Context);
    procedure Load_FP_Context (Ctx : FP_Context);

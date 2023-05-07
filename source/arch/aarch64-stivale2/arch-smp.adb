@@ -1,5 +1,5 @@
 --  arch-smp.adb: SMP initialization.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -58,7 +58,7 @@ package body Arch.SMP with SPARK_Mode => Off is
       --  Initialize MMU.
       MMU.Set_MMU_State;
       if not MMU.Make_Active (MMU.Kernel_Table) then
-         Lib.Panic.Soft_Panic ("Could not set core map active");
+         Lib.Panic.Hard_Panic ("Could not set core map active");
       end if;
 
       Init_Common (Positive (Core_Info.Extra_Argument));

@@ -1,5 +1,5 @@
 --  arch-context.adb: Architecture-specific context switching.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 
 package body Arch.Context with SPARK_Mode => Off is
    procedure Init_GP_Context
-      (Ctx        : GP_Context_Acc;
+      (Ctx        : out GP_Context;
        Stack      : System.Address;
        Start_Addr : System.Address)
    is
@@ -24,28 +24,28 @@ package body Arch.Context with SPARK_Mode => Off is
       pragma Unreferenced (Stack);
       pragma Unreferenced (Start_Addr);
    begin
-      return;
+      Ctx := (others => 0);
    end Init_GP_Context;
 
-   procedure Load_GP_Context (Ctx : GP_Context_Acc) is
+   procedure Load_GP_Context (Ctx : GP_Context) is
       pragma Unreferenced (Ctx);
    begin
       loop null; end loop;
    end Load_GP_Context;
 
-   procedure Init_FP_Context (Ctx : FP_Context_Acc) is
+   procedure Init_FP_Context (Ctx : out FP_Context) is
       pragma Unreferenced (Ctx);
    begin
       return;
    end Init_FP_Context;
 
-   procedure Save_FP_Context (Ctx : FP_Context_Acc) is
+   procedure Save_FP_Context (Ctx : out FP_Context) is
       pragma Unreferenced (Ctx);
    begin
       return;
    end Save_FP_Context;
 
-   procedure Load_FP_Context (Ctx : FP_Context_Acc) is
+   procedure Load_FP_Context (Ctx : FP_Context) is
       pragma Unreferenced (Ctx);
    begin
       return;

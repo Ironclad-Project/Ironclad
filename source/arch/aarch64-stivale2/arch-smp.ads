@@ -1,5 +1,5 @@
 --  arch-smp.ads: SMP initialization.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ package Arch.SMP with SPARK_Mode => Off is
       Self            : Core_Local_Acc; --  Here for performance reasons.
       Number          : Positive;       --  Core number, 1 based.
       Current_Thread  : Scheduler.TID;
-      Current_Process : Userland.Process.Process_Data_Acc;
+      Current_Process : Userland.Process.PID;
    end record;
 
    --  Core locals and the number of cores, used as an index for the former.

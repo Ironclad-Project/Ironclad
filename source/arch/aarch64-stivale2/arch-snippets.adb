@@ -1,5 +1,5 @@
 --  arch-snippets.adb: Architecture-specific bits.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -49,9 +49,19 @@ package body Arch.Snippets with SPARK_Mode => Off is
       Value : Unsigned_64;
    begin
       System.Machine_Code.Asm
-         ("mrs %0, PMCCNTR_EL0",
+         ("mrs %0, pmccntr_el0",
           Outputs  => Unsigned_64'Asm_Output ("=r", Value),
           Volatile => True);
       return Value;
    end Read_Cycles;
+   ----------------------------------------------------------------------------
+   function Get_Exception_Syndrome return Unsigned_64 is
+      Value : Unsigned_64;
+   begin
+      System.Machine_Code.Asm
+         ("mrs %0, esr_el1",
+          Outputs  => Unsigned_64'Asm_Output ("=r", Value),
+          Volatile => True);
+      return Value;
+   end Get_Exception_Syndrome;
 end Arch.Snippets;

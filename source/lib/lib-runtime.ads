@@ -1,5 +1,5 @@
 --  lib-runtime.ads: Specification of functions needed by the compiler.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -62,6 +62,9 @@ package Lib.Runtime with SPARK_Mode => Off is
        Value : Integer;
        Size  : size_t) return System.Address
       with Export, Convention => C, External_Name => "memset";
+
+   function GetAuxVal (Value : Natural) return Natural
+      with Export, Convention => C, External_Name => "__getauxval";
 
 private
 

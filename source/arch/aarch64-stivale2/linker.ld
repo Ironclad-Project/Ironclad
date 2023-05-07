@@ -1,6 +1,6 @@
 /*
  * linker.ld: Main linker script of the project.
- * Copyright (C) 2021 streaksu
+ * Copyright (C) 2023 streaksu
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,7 +29,8 @@ SECTIONS {
     . = 0xFFFFFFFF80000000 + 1M;
 
     /DISCARD/ : {
-        *libgnat.a:*(*)
+        *libgnat*:*(*)
+        *b__main.o(*)
     }
 
     . = ALIGN(4K);

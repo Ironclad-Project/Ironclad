@@ -1,5 +1,5 @@
 # header.S: Stivale2 header.
-# Copyright (C) 2021 streaksu
+# Copyright (C) 2023 streaksu
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -58,37 +58,79 @@ entrypoint_main:
 .balign 0x800
 execution_vectors:
     // Current EL with SP0 handlers.
-    .balign 0x80; mov x0, #0; b common_handler; // Synchronous.
-    .balign 0x80; mov x0, #1; b common_handler; // IRQ.
-    .balign 0x80; mov x0, #2; b common_handler; // FIQ.
-    .balign 0x80; mov x0, #3; b common_handler; // SError.
+    .balign 0x80; b common_handler; // Synchronous.
+    .balign 0x80; b common_handler; // IRQ.
+    .balign 0x80; b common_handler; // FIQ.
+    .balign 0x80; b common_handler; // SError.
 
     // Current EL with SPx handlers.
-    .balign 0x80; mov x0, #4; b common_handler; // Synchronous.
-    .balign 0x80; mov x0, #5; b common_handler; // IRQ.
-    .balign 0x80; mov x0, #6; b common_handler; // FIQ.
-    .balign 0x80; mov x0, #7; b common_handler; // SError.
+    .balign 0x80; b common_handler; // Synchronous.
+    .balign 0x80; b common_handler; // IRQ.
+    .balign 0x80; b common_handler; // FIQ.
+    .balign 0x80; b common_handler; // SError.
 
     // Lower EL using AArch64.
-    .balign 0x80; mov x0, #8;  b common_handler; // Synchronous.
-    .balign 0x80; mov x0, #9;  b common_handler; // IRQ.
-    .balign 0x80; mov x0, #10; b common_handler; // FIQ.
-    .balign 0x80; mov x0, #11; b common_handler; // SError.
+    .balign 0x80; b common_handler; // Synchronous.
+    .balign 0x80; b common_handler; // IRQ.
+    .balign 0x80; b common_handler; // FIQ.
+    .balign 0x80; b common_handler; // SError.
 
     // Lower EL using AArch32.
-    .balign 0x80; mov x0, #12; b common_handler; // Synchronous.
-    .balign 0x80; mov x0, #13; b common_handler; // IRQ.
-    .balign 0x80; mov x0, #14; b common_handler; // FIQ.
-    .balign 0x80; mov x0, #15; b common_handler; // SError.
+    .balign 0x80; b common_handler; // Synchronous.
+    .balign 0x80; b common_handler; // IRQ.
+    .balign 0x80; b common_handler; // FIQ.
+    .balign 0x80; b common_handler; // SError.
 
 common_handler:
     // Load the kernel stack back.
     ldr x1, =stack_top
     mov sp, x1
 
-    // Load some values and jump to our handler
-    mrs x1, esr_el1  // syndrome
-    mrs x2, elr_el1  // ip
-    mrs x3, spsr_el1 // state
-    mrs x4, far_el1  // fault address
+    // Save state
+    stp x1,  x0,  [sp, #-0x10]!
+    stp x3,  x2,  [sp, #-0x10]!
+    stp x5,  x4,  [sp, #-0x10]!
+    stp x7,  x6,  [sp, #-0x10]!
+    stp x9,  x8,  [sp, #-0x10]!
+    stp x11, x10, [sp, #-0x10]!
+    stp x13, x12, [sp, #-0x10]!
+    stp x15, x14, [sp, #-0x10]!
+    stp x17, x16, [sp, #-0x10]!
+    stp x19, x18, [sp, #-0x10]!
+    stp x21, x20, [sp, #-0x10]!
+    stp x23, x22, [sp, #-0x10]!
+    stp x25, x24, [sp, #-0x10]!
+    stp x27, x26, [sp, #-0x10]!
+    stp x29, x28, [sp, #-0x10]!
+    str x30,      [sp, #-0x08]!
+    mrs x0, elr_el1
+    mrs x1, spsr_el1
+    stp x1, x0,   [sp, #-0x08]!
+
+    // Jump to the kernel handler.
+    mov x0, sp
     b exception_handler
+
+    // Restore state.
+    ldp x0,  x1,  [SP], 0x10
+    msr spsr_el1, x0
+    msr elr_el1,  x1
+    ldr x30,      [sp], 0x08
+    ldp x29, x28, [sp], 0x10
+    ldp x27, x26, [sp], 0x10
+    ldp x25, x24, [sp], 0x10
+    ldp x23, x22, [sp], 0x10
+    ldp x21, x20, [sp], 0x10
+    ldp x19, x18, [sp], 0x10
+    ldp x17, x16, [sp], 0x10
+    ldp x15, x14, [sp], 0x10
+    ldp x13, x12, [sp], 0x10
+    ldp x11, x10, [sp], 0x10
+    ldp x9,  x8,  [sp], 0x10
+    ldp x7,  x6,  [sp], 0x10
+    ldp x5,  x4,  [sp], 0x10
+    ldp x3,  x2,  [sp], 0x10
+    ldp x1,  x0,  [sp], 0x10
+
+    // Return.
+    eret
