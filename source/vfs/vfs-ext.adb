@@ -26,7 +26,10 @@ package body VFS.EXT with SPARK_Mode => Off is
    procedure Free_2 is new Ada.Unchecked_Deallocation
       (Operation_Data, Operation_Data_Acc);
 
-   function Probe (Handle : Device_Handle) return System.Address is
+   function Probe
+      (Handle       : Device_Handle;
+       Do_Read_Only : Boolean) return System.Address
+   is
       Sup     : Superblock;
       Data    : EXT_Data_Acc;
       Success : Boolean;
@@ -53,7 +56,8 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
       --  Check under which conditions we have to RO.
-      Is_RO := Devices.Is_Read_Only (Handle)                       or
+      Is_RO := Do_Read_Only                                        or
+               Devices.Is_Read_Only (Handle)                       or
                Sup.Filesystem_State /= State_Clean                 or
                Sup.Mounts_Since_Check > Sup.Max_Mounts_Since_Check or
                (Sup.RO_If_Not_Features and RO_Binary_Trees) /= 0;

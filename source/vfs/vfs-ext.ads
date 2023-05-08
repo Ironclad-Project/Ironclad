@@ -18,7 +18,9 @@ with System;
 with Lib.Synchronization;
 
 package VFS.EXT with SPARK_Mode => Off is
-   function Probe (Handle : Device_Handle) return System.Address;
+   function Probe
+      (Handle       : Device_Handle;
+       Do_Read_Only : Boolean) return System.Address;
 
    procedure Unmount (FS : in out System.Address);
 

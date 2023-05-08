@@ -70,7 +70,7 @@ begin
    Lib.Cmdline.Get_Parameter
       (Cmdline, Lib.Cmdline.Root_Key, Value, Found, Value_Len);
    if Found and Value_Len /= 0 then
-      if not VFS.Mount (Value (1 .. Value_Len), "/") then
+      if not VFS.Mount (Value (1 .. Value_Len), "/", False) then
          Lib.Messages.Warn ("Failed to mount " & Value (1 .. Value_Len));
       end if;
    end if;

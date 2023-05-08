@@ -25,7 +25,12 @@ package body VFS.FAT with SPARK_Mode => Off is
    procedure Free_1 is new Ada.Unchecked_Deallocation (FAT_Data, FAT_Data_Acc);
    procedure Free_2 is new Ada.Unchecked_Deallocation (FAT_File, FAT_File_Acc);
 
-   function Probe (Handle : Device_Handle) return System.Address is
+   function Probe
+      (Handle       : Device_Handle;
+       Do_Read_Only : Boolean) return System.Address
+   is
+      pragma Unreferenced (Do_Read_Only);
+
       Data      : FAT_Data_Acc;
       BP        : BIOS_Parameter_Block;
       BP_Data   : Operation_Data (1 .. BP'Size / 8) with Address => BP'Address;

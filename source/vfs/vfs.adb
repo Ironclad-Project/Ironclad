@@ -30,12 +30,28 @@ package body VFS with SPARK_Mode => Off is
       Mounts_Mutex := Lib.Synchronization.Unlocked_Semaphore;
    end Init;
 
-   function Mount (Name, Path : String; FS : FS_Type) return Boolean is
-      Dev     : constant Device_Handle := Devices.Fetch (Name);
+   function Mount
+      (Device_Name  : String;
+       Mount_Path   : String;
+       Do_Read_Only : Boolean) return Boolean
+   is
+   begin
+      return Mount (Device_Name, Mount_Path, FS_EXT, Do_Read_Only) or else
+             Mount (Device_Name, Mount_Path, FS_FAT, Do_Read_Only);
+   end Mount;
+
+   function Mount
+      (Device_Name  : String;
+       Mount_Path   : String;
+       FS           : FS_Type;
+       Do_Read_Only : Boolean) return Boolean
+   is
+      Dev     : constant Device_Handle := Devices.Fetch (Device_Name);
       FS_Data : System.Address         := System.Null_Address;
       Free_I  : FS_Handle              := VFS.Error_Handle;
    begin
-      if not Is_Absolute (Path) or Path'Length > Path_Buffer_Length or
+      if not Is_Absolute (Mount_Path)           or
+         Mount_Path'Length > Path_Buffer_Length or
          Dev = Devices.Error_Handle
       then
          return False;
@@ -56,18 +72,18 @@ package body VFS with SPARK_Mode => Off is
 
       case FS is
          when FS_EXT =>
-            FS_Data := VFS.EXT.Probe (Dev);
+            FS_Data := VFS.EXT.Probe (Dev, Do_Read_Only);
             Mounts (Free_I).Mounted_FS := FS_EXT;
          when FS_FAT =>
-            FS_Data := VFS.FAT.Probe (Dev);
+            FS_Data := VFS.FAT.Probe (Dev, Do_Read_Only);
             Mounts (Free_I).Mounted_FS := FS_FAT;
       end case;
 
       if FS_Data /= System.Null_Address then
          Mounts (Free_I).FS_Data := FS_Data;
-         Mounts (Free_I).Mounted_Dev                    := Dev;
-         Mounts (Free_I).Path_Length                    := Path'Length;
-         Mounts (Free_I).Path_Buffer (1 .. Path'Length) := Path;
+         Mounts (Free_I).Mounted_Dev := Dev;
+         Mounts (Free_I).Path_Length := Mount_Path'Length;
+         Mounts (Free_I).Path_Buffer (1 .. Mount_Path'Length) := Mount_Path;
       else
          Free_I := VFS.Error_Handle;
       end if;
@@ -75,11 +91,6 @@ package body VFS with SPARK_Mode => Off is
    <<Return_End>>
       Lib.Synchronization.Release (Mounts_Mutex);
       return Free_I /= VFS.Error_Handle;
-   end Mount;
-
-   function Mount (Name, Path : String) return Boolean is
-   begin
-      return Mount (Name, Path, FS_EXT) or else Mount (Name, Path, FS_FAT);
    end Mount;
 
    function Unmount (Path : String; Force : Boolean) return Boolean is

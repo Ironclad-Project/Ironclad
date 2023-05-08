@@ -421,13 +421,14 @@ package Userland.Syscall with SPARK_Mode => Off is
    --  Mount a filesystem.
    MNT_EXT : constant := 1;
    MNT_FAT : constant := 2;
+   MS_RDONLY : constant := 2#01#;
    function Mount
       (Source_Addr : Unsigned_64;
        Source_Len  : Unsigned_64;
        Target_Addr : Unsigned_64;
        Target_Len  : Unsigned_64;
        FSType      : Unsigned_64;
-       MountFlags  : Unsigned_64;
+       Flags       : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
 
    --  Unmount a filesystem.

@@ -64,18 +64,27 @@ package VFS is
    --  Initialize the internal VFS registries.
    procedure Init;
 
-   --  Mount the passed device name into the passed path.
-   --  @param Name Name of the device (/dev/<name>).
-   --  @param Path Absolute path for mounting.
-   --  @param FS FS Type to mount as.
-   --  @return True on success, False on failure.
-   function Mount (Name, Path : String; FS : FS_Type) return Boolean;
-
    --  Mount the passed device name into the passed path, guessing the FS.
-   --  @param Name Name of the device (/dev/<name>).
-   --  @param Path Absolute path for mounting.
+   --  @param Device_Name  Name of the device (/dev/<name>).
+   --  @param Mount_Path   Absolute path for mounting.
+   --  @param Do_Read_Only Force to mount read only.
    --  @return True on success, False on failure.
-   function Mount (Name, Path : String) return Boolean;
+   function Mount
+      (Device_Name  : String;
+       Mount_Path   : String;
+       Do_Read_Only : Boolean) return Boolean;
+
+   --  Mount the passed device name into the passed path.
+   --  @param Device_Name  Name of the device (/dev/<name>).
+   --  @param Mount_Path   Absolute path for mounting.
+   --  @param FS           FS Type to mount as.
+   --  @param Do_Read_Only Force to mount read only.
+   --  @return True on success, False on failure.
+   function Mount
+      (Device_Name  : String;
+       Mount_Path   : String;
+       FS           : FS_Type;
+       Do_Read_Only : Boolean) return Boolean;
 
    --  Unmount a mount, syncing when possible.
    --  @param Path  Path of the mount to unmount.

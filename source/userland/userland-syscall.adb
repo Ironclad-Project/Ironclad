@@ -1892,16 +1892,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Target_Addr : Unsigned_64;
        Target_Len  : Unsigned_64;
        FSType      : Unsigned_64;
-       MountFlags  : Unsigned_64;
+       Flags       : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64
    is
-      pragma Unreferenced (MountFlags);
       Proc       : constant PID := Arch.Local.Get_Current_Process;
       Map        : constant     Page_Map_Acc := Get_Common_Map (Proc);
       Src_IAddr  : constant  Integer_Address := Integer_Address (Source_Addr);
       Tgt_IAddr  : constant  Integer_Address := Integer_Address (Target_Addr);
       Src_Addr   : constant   System.Address := To_Address (Src_IAddr);
       Tgt_Addr   : constant   System.Address := To_Address (Tgt_IAddr);
+      Do_RO      : constant          Boolean := (Flags and MS_RDONLY) /= 0;
       Parsed_Typ : VFS.FS_Type;
    begin
       if not Check_Userland_Access (Map, Src_IAddr, Source_Len) or
@@ -1935,13 +1935,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Target : String (1 .. Natural (Target_Len))
             with Import, Address => Tgt_Addr;
       begin
-         if VFS.Mount (Source, Target, Parsed_Typ) then
-            Errno := Error_No_Error;
-            return 0;
-         else
+         if not VFS.Mount (Source, Target, Parsed_Typ, Do_RO) then
             Errno := Error_IO;
             return Unsigned_64'Last;
          end if;
+
+         Errno := Error_No_Error;
+         return 0;
       end;
    end Mount;
 

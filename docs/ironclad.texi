@@ -1331,9 +1331,12 @@ is the count of bytes reserved in the array. The items have the structure:
 
 @example
 struct mountinfo @{
-    uint16_t ppid;
-    uint16_t pid;
+    uint32_t fs_type;
     uint32_t flags;
+    char source[20];
+    uint32_t source_len;
+    char location[20];
+    uint32_t location_len;
 @};
 @end example
 
@@ -1629,20 +1632,28 @@ following errno:
 @section mount
 
 @example
+#define MNT_FAT   1
+#define MNT_EXT   2
+#define MS_RDONLY 1
+
 int mount(const char *source, int source_len, const char *target,
-   int target_len, const char *filesystemtype, unsigned long mountflags);
+          int target_len, int fs_type, unsigned long flags);
 @end example
 
-These syscalls mount and unmount FSs. @code{source} is the source device while
-@code{target} is where to mount. The list of available filesystems for
-@code{filesystemtype} is the following.
+This syscall mounts filesystems. @code{source} is the source device while
+@code{target} is where to mount in the global virtual filesystem.
+
+@code{fs_type} can be one of the following values to choose the filesystem type
+to mount, it must be specified, detection is not done.
 
 @itemize @bullet
 @item
-@code{ustar}: USTAR Read-only filesystem.
+@code{MNT_FAT}: FAT family filesystem.
 @item
-@code{ext}: EXT family filesystem.
+@code{MNT_EXT}: EXT family filesystem.
 @end itemize
+
+@code{flags} may contain @code{MS_RDONLY} to force mounting read-only mounting.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:
@@ -1667,6 +1678,7 @@ int umount(const char *target, int target_len, int flags);
 
 This syscalls unmount FSs. @code{target} is the path to unmount, while
 @code{flags} allows the following options:
+
 @itemize @bullet
 @item
 @code{MNT_FORCE}: Unmount the filesystem even if busy, can cause data loss.
