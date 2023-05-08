@@ -1255,47 +1255,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
    end Pipe;
 
-   function Dup
-      (Old_FD : Unsigned_64;
-       New_FD : Unsigned_64;
-       Flags  : Unsigned_64;
-       Errno  : out Errno_Value) return Unsigned_64
-   is
-      Process  : constant PID := Arch.Local.Get_Current_Process;
-      Old_File : constant File_Description_Acc := Get_File (Process, Old_FD);
-      Do_Ignore_New    : constant Boolean := (Flags and DUP_IGNORE_NEWFD) /= 0;
-      Do_Close_On_Exec : constant Boolean := (Flags and O_CLOEXEC)        /= 0;
-      New_File  : File_Description_Acc;
-      Result_FD : Natural;
-   begin
-      if Old_File = null then
-         Errno := Error_Bad_File;
-         return Unsigned_64'Last;
-      end if;
-
-      if Do_Ignore_New then
-         New_File := Duplicate (Old_File);
-         New_File.Close_On_Exec := Do_Close_On_Exec;
-         if not Userland.Process.Add_File (Process, New_File, Result_FD) then
-            Errno := Error_Too_Many_Files;
-            return Unsigned_64'Last;
-         else
-            Errno := Error_No_Error;
-            return Unsigned_64 (Result_FD);
-         end if;
-      else
-         if New_FD /= Old_FD and then not Userland.Process.Replace_File
-            (Process, Duplicate (Old_File), Natural (New_FD))
-         then
-            Errno := Error_Bad_File;
-            return Unsigned_64'Last;
-         else
-            Errno := Error_No_Error;
-            return New_FD;
-         end if;
-      end if;
-   end Dup;
-
    function Rename
       (Source_FD   : Unsigned_64;
        Source_Addr : Unsigned_64;
@@ -1629,10 +1588,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Argument : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64
    is
-      Proc : constant PID := Arch.Local.Get_Current_Process;
-      File : File_Description_Acc := Get_File (Proc, FD);
-      Temp : Boolean;
-      Returned : Unsigned_64 := 0;
+      Proc      : constant PID := Arch.Local.Get_Current_Process;
+      File      : constant File_Description_Acc := Get_File (Proc, FD);
+      Temp      : Boolean;
+      Returned  : Unsigned_64 := 0;
+      New_File  : File_Description_Acc;
+      Result_FD : Natural;
    begin
       if File = null then
          Errno := Error_Bad_File;
@@ -1641,18 +1602,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case Command is
          when F_DUPFD | F_DUPFD_CLOEXEC =>
-            Returned := Dup (FD, 0, DUP_IGNORE_NEWFD, Errno);
-            if Returned = Unsigned_64'Last then
-               return Returned;
+            New_File := Duplicate (File);
+            if not Add_File (Proc, New_File, Result_FD, Natural (Argument))
+            then
+               Errno := Error_Too_Many_Files;
+               return Unsigned_64'Last;
+            else
+               Returned               := Unsigned_64 (Result_FD);
+               New_File.Close_On_Exec := Command = F_DUPFD_CLOEXEC;
+               return Unsigned_64 (Result_FD);
             end if;
-            File := Get_File (Proc, Returned);
-            File.Close_On_Exec := Command = F_DUPFD_CLOEXEC;
          when F_GETFD =>
             if File.Close_On_Exec then
                Returned := FD_CLOEXEC;
             end if;
-         when F_SETFD =>
-            File.Close_On_Exec := (Argument and FD_CLOEXEC) /= 0;
          when F_GETFL =>
             case File.Description is
                when Description_Reader_FIFO =>
@@ -1666,6 +1629,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
                when others =>
                   null;
             end case;
+         when F_SETFD =>
+            File.Close_On_Exec := (Argument and FD_CLOEXEC) /= 0;
          when F_GETPIPE_SZ =>
             case File.Description is
                when Description_Reader_FIFO =>
@@ -2637,7 +2602,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
             case File.Description is
                when Description_Reader_FIFO =>
                   if Is_Broken (File.Inner_Reader_FIFO) then
-                     Lib.Messages.Put_Line ("We are chilling");
                      Polled.Out_Events := POLLHUP;
                   end if;
                   if (Polled.Events and POLLIN) /= 0 then

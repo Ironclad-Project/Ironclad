@@ -198,10 +198,11 @@ package body Userland.Process with SPARK_Mode => Off is
    function Add_File
       (Process : PID;
        File    : File_Description_Acc;
-       FD      : out Natural) return Boolean
+       FD      : out Natural;
+       Start   : Natural := 0) return Boolean
    is
    begin
-      for I in Registry (Process).File_Table'Range loop
+      for I in Start .. Registry (Process).File_Table'Last loop
          if Registry (Process).File_Table (I) = null then
             Registry (Process).File_Table (I) := File;
             FD := I;
@@ -217,6 +218,7 @@ package body Userland.Process with SPARK_Mode => Off is
    begin
       if F /= null then
          Ret := new File_Description'(F.all);
+         Ret.Close_On_Exec := False;
          case Ret.Description is
             when Description_Reader_FIFO =>
                Increase_Reader_Refcount (Ret.Inner_Reader_FIFO);
@@ -274,20 +276,6 @@ package body Userland.Process with SPARK_Mode => Off is
          return null;
       end if;
    end Get_File;
-
-   function Replace_File
-      (Process : PID;
-       File    : File_Description_Acc;
-       Old_FD  : Natural) return Boolean
-   is
-   begin
-      if Old_FD > File_Arr'Last or File = null then
-         return False;
-      end if;
-      Remove_File (Process, Old_FD);
-      Registry (Process).File_Table (Old_FD) := File;
-      return True;
-   end Replace_File;
 
    procedure Remove_File (Process : PID; FD : Natural) is
    begin

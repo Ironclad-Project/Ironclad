@@ -134,11 +134,13 @@ package Userland.Process with SPARK_Mode => Off is
    --  @param Process Process to add a file to.
    --  @param File    File to add.
    --  @param FD      FD registered.
+   --  @param Start   Start allocating by the passed FD.
    --  @return True on success, False, for example, if no slots are available.
    function Add_File
       (Process : PID;
        File    : File_Description_Acc;
-       FD      : out Natural) return Boolean
+       FD      : out Natural;
+       Start   : Natural := 0) return Boolean
       with Pre => Process /= Error_PID;
 
    --  Duplicate an individual file.
@@ -170,17 +172,6 @@ package Userland.Process with SPARK_Mode => Off is
    function Get_File
       (Process : PID;
        FD      : Unsigned_64) return File_Description_Acc
-      with Pre => Process /= Error_PID;
-
-   --  Replace a file in a descriptor slot for a new one, closing the old one.
-   --  @param Process Process to operate on.
-   --  @param File    File to replace with.
-   --  @param Old_FD  FD to replace.
-   --  @return True on success, or False if the replacement could not be done.
-   function Replace_File
-      (Process : PID;
-       File    : File_Description_Acc;
-       Old_FD  : Natural) return Boolean
       with Pre => Process /= Error_PID;
 
    --  Remove a file from a process.

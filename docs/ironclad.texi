@@ -106,7 +106,6 @@ Syscalls
 * sched_yield::             Relinquish CPU time.
 * set_deadlines::           Manage scheduler deadlines.
 * pipe::                    Create pipes.
-* dup::                     Duplicate file descriptors.
 * rename::                  Rename a file.
 * sysconf::                 Fetch general system parameters and information.
 * spawn::                   Fork+exec power incarnate.
@@ -571,7 +570,7 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{pipe}.
 @item
-@xref{dup}.
+Empty.
 @item
 @xref{rename}.
 @item
@@ -1257,37 +1256,6 @@ following errno:
 @code{EMFILE}: No available file descriptor slots.
 @end itemize
 
-@node dup
-@section dup
-
-@example
-#define DUP_IGNORE_NEWFD 0b1000000000000
-int dup(int oldfd, int newfd, int flags);
-@end example
-
-This syscalls allocate new file descriptors pointing to the same file as the
-passed file descriptor. @code{newfd} points to descriptor to duplicate to,
-closing the descriptor first if necessary. The flags of the duplicated file
-descriptor are reset, this means @code{O_CLOEXEC}, and other flags like
-@code{O_NONBLOCK} are not inherited.
-
-@code{flags} can be used as a bitmask for setting several file attributes of
-the new descriptor, available flags that can be combined in a bitfield are
-@code{O_NONBLOCK}, and @code{DUP_IGNORE_NEWFD}, which will make @code{dup}
-ignore the @code{newfd} field and search the lowest available file descriptor.
-This can be used for a more standard UNIX-like behaviour.
-
-The syscall return the new fd on success and @code{-1} on failure. The errno
-codes set on failure are:
-
-@itemize @bullet
-@item
-@code{EBADF}: The passed file descriptor is not owned by the process.
-
-@item
-@code{EMFILE}: Too many files have already been opened by the process.
-@end itemize
-
 @node rename
 @section rename
 
@@ -1424,6 +1392,16 @@ with the following errno:
 @section fcntl
 
 @example
+#define FD_CLOEXEC      1
+#define F_DUPFD         1
+#define F_DUPFD_CLOEXEC 2
+#define F_GETFD         3
+#define F_SETFD         4
+#define F_GETFL         5
+#define F_SETFL         6
+#define F_GETPIPE_SZ    7
+#define F_SETPIPE_SZ    8
+
 int fcntl(int fd, int cmd, int arg);
 @end example
 
@@ -1438,31 +1416,36 @@ The valid operations are:
 
 @itemize @bullet
 @item
-@code{F_DUPFD (1)}: Makes fcntl behave in a manner equivalent to @code{dup}.
+@code{F_DUPFD}: Clones @code{fd} into a the first available file descriptor
+starting by @code{arg}. Returns the resulting FD.
 
 @item
-@code{F_GETFD (3)}: The flags used for @code{fd} will be returned, right now
+@code{F_DUPFD_CLOEXEC}: The same as @code{F_DUPFD} but sets the close on exec
+flag for the cloned FD if succesful, in order to save a subsequent call.
+
+@item
+@code{F_GETFD}: The flags used for @code{fd} will be returned, right now
 only @code{FD_CLOEXEC} is supported. The syscall will return the flags on
 success.
 
 @item
-@code{F_SETFD (4)}: The flags for @code{fd} will be set with @code{arg}. The
+@code{F_SETFD}: The flags for @code{fd} will be set with @code{arg}. The
 syscall will return @code{0} on sucess.
 
 @item
-@code{F_GETFL (5)}: Returns as the function result the file access mode
+@code{F_GETFL}: Returns as the function result the file access mode
 and status flags.
 
 @item
-@code{F_SETFL (6)}: What @code{F_SETFD} is to @code{F_GETFD} for
+@code{F_SETFL}: What @code{F_SETFD} is to @code{F_GETFD} for
 @code{F_GETFL}.
 
 @item
-@code{F_GETPIPE_SZ (7)}: If @code{fd} points to a FIFO or pipe, return
+@code{F_GETPIPE_SZ}: If @code{fd} points to a FIFO or pipe, return
 its size.
 
 @item
-@code{F_SETPIPE_SZ (8)}: If @code{fd} points to a FIFO or pipe, the size will
+@code{F_SETPIPE_SZ}: If @code{fd} points to a FIFO or pipe, the size will
 be set to the value of @code{arg}. If the operation would cause data loss, it
 will fail.
 @end itemize

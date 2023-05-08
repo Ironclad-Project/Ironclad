@@ -276,14 +276,6 @@ package Userland.Syscall with SPARK_Mode => Off is
        Flags       : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
 
-   --  Dup functions.
-   DUP_IGNORE_NEWFD : constant := 2#1000000000000#;
-   function Dup
-      (Old_FD : Unsigned_64;
-       New_FD : Unsigned_64;
-       Flags  : Unsigned_64;
-       Errno  : out Errno_Value) return Unsigned_64;
-
    --  Rename files.
    RENAME_NOREPLACE : constant := 2#1#;
    function Rename

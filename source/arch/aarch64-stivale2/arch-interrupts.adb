@@ -132,8 +132,6 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := Set_Deadlines (State.X0, State.X1, Errno);
          when 23 =>
             Returned := Pipe (State.X0, State.X1, Errno);
-         when 24 =>
-            Returned := Dup (State.X0, State.X1, State.X2, Errno);
          when 25 =>
             Returned := Rename (State.X0, State.X1, State.X2, State.X3,
                                 State.X4, State.X5, State.X6, Errno);
