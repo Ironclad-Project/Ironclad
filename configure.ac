@@ -42,10 +42,6 @@ AC_ARG_ENABLE([alloconly],
     [test "$enableval" = "yes" && MEMORY_ALLOCONLY="alloconly"])
 AC_SUBST([MEMORY_ALLOCONLY])
 
-m4_define([DEFAULT_ARCH], [x86_64-multiboot2])
-AC_ARG_VAR([ARCH], [target architecture @<:@default: ]DEFAULT_ARCH[@:>@])
-test "x$ARCH" = "x" && ARCH="DEFAULT_ARCH"
-
 m4_define([DEFAULT_ADAFLAGS], [-g -O2 -pipe -gnaty -Wall -Wextra])
 AC_ARG_VAR([ADAFLAGS], [Ada flags @<:@default: ]DEFAULT_ADAFLAGS[@:>@])
 test "x$ADAFLAGS" = "x" && ADAFLAGS="DEFAULT_ADAFLAGS"
@@ -81,6 +77,16 @@ AC_CHECK_PROG([MAKEINFO_FOUND], [makeinfo], [yes])
 if ! test "x$MAKEINFO_FOUND" = "xyes"; then
     AC_MSG_WARN([makeinfo not found, generating documentation will not be available])
 fi
+
+AC_CANONICAL_TARGET
+
+case $target_cpu-$target_vendor in
+    aarch64-stivale2|sparc-leon3|x86_64-multiboot2)
+        ;;
+    *)
+        AC_MSG_ERROR([The passed cpu-vendor is not available for compilation])
+        ;;
+esac
 
 ############## WARNING: DRAGONS LIE AHEAD ######################
 #           ____ __

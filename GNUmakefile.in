@@ -35,6 +35,11 @@ override MKDIR_P      := @MKDIR_P@
 override INSTALL      := @INSTALL@
 override INSTALL_DATA := @INSTALL_DATA@
 
+# Target information.
+override target_cpu    := @target_cpu@
+override target_vendor := @target_vendor@
+override target_full   := $(target_cpu)-$(target_vendor)
+
 # Macros to make our build system still work from within paths with spaces
 # or other special characters.
 override SPACE := $(subst ,, )
@@ -50,7 +55,7 @@ all: $(OUTPUT)
 
 # Link rules for the final kernel executable.
 $(OUTPUT):
-	gprbuild -P ironclad.gpr -j$(PARALLELISM)
+	gprbuild --target=$(target_cpu)-linux-gnu -P ironclad.gpr -j$(PARALLELISM)
 
 .PHONY: docs
 docs: ironclad.info

@@ -24,12 +24,16 @@ The tools needed are:
 For building the project's binaries, a standard configure-make-make install is
 enough, like the following:
 
-./configure
+./configure --target=x86_64-multiboot2-elf # Or whatever other target.
 make
 make install
 
 Several flags are provided in configure for customizing kernel settings, one
 can check them with ./configure --help.
+
+The target has to always been specified, the vendor is used as the board to
+compile for, the OS field is a placeholder and not used, autoconf just wants
+it to be there.
 
 Documentation can be generated and installed with make docs and
 make install-docs respectively. gnatprove can be used for proofs using
