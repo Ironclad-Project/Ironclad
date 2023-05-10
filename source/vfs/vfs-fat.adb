@@ -76,7 +76,7 @@ package body VFS.FAT with SPARK_Mode => Off is
       (FS      : System.Address;
        Path    : String;
        Ino     : out File_Inode_Number;
-       Success : out Boolean)
+       Success : out FS_Status)
    is
       Data : constant FAT_Data_Acc := FAT_Data_Acc (Conv_1.To_Pointer (FS));
       Result     : FAT_File_Acc;
@@ -145,12 +145,12 @@ package body VFS.FAT with SPARK_Mode => Off is
       Result := new FAT_File'(Cluster, Inner_Type, Ent);
       Ino := File_Inode_Number (To_Integer
          (Conv_2.To_Address (Conv_2.Object_Pointer (Result))));
-      Success := True;
+      Success := FS_Success;
       return;
 
    <<Error_Return>>
       Ino     := 0;
-      Success := False;
+      Success := FS_Invalid_Value;
    end Open;
 
    procedure Close (FS : System.Address; Ino : File_Inode_Number) is
@@ -166,7 +166,7 @@ package body VFS.FAT with SPARK_Mode => Off is
        Ino       : File_Inode_Number;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out Boolean)
+       Success   : out FS_Status)
    is
       FS : constant FAT_Data_Acc := FAT_Data_Acc (Conv_1.To_Pointer (FS_Data));
       File : constant FAT_File_Acc := FAT_File_Acc
@@ -180,14 +180,14 @@ package body VFS.FAT with SPARK_Mode => Off is
    begin
       Ret_Count := 0;
       if File.Inner_Type /= File_Directory then
-         Success := False;
+         Success := FS_Invalid_Value;
          return;
       end if;
 
-      Success := True;
+      Success := FS_Success;
       loop
          if not Read_Directory_Entry (FS, Cluster, Index, Ent) then
-            Success := False;
+            Success := FS_IO_Failure;
             return;
          end if;
 
@@ -227,7 +227,7 @@ package body VFS.FAT with SPARK_Mode => Off is
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out Boolean)
+       Success   : out FS_Status)
    is
       FS : constant FAT_Data_Acc := FAT_Data_Acc (Conv_1.To_Pointer (FS_Data));
       File  : constant FAT_File_Acc := FAT_File_Acc
@@ -240,10 +240,11 @@ package body VFS.FAT with SPARK_Mode => Off is
       Step_Size      : Natural;
       Discard        : Natural;
       Final_Count    : Natural     := Data'Length;
+      Succ           : Boolean;
    begin
       Ret_Count := 0;
       if File.Inner_Type /= File_Regular then
-         Success := False;
+         Success := FS_Invalid_Value;
          return;
       end if;
 
@@ -251,7 +252,7 @@ package body VFS.FAT with SPARK_Mode => Off is
          Final_Count := Natural (Unsigned_64 (File.FS_Entry.Size) - Offset);
       end if;
 
-      Success := True;
+      Success := FS_Success;
       while Ret_Count < Final_Count loop
          Step_Size := Natural (Unsigned_64 (Final_Count) -
                       Unsigned_64 (Ret_Count));
@@ -271,14 +272,15 @@ package body VFS.FAT with SPARK_Mode => Off is
              Data      => Data (Data'First + Ret_Count ..
                                 Data'First + Ret_Count - 1 + Step_Size),
              Ret_Count => Discard,
-             Success   => Success);
-         if not Success then
+             Success   => Succ);
+         if not Succ then
+            Success := FS_IO_Failure;
             return;
          end if;
 
          Final_Offset := 0;
          if not Get_Next_Cluster (FS, Cluster, Cluster) then
-            Success := False;
+            Success := FS_IO_Failure;
             return;
          end if;
 
@@ -289,7 +291,7 @@ package body VFS.FAT with SPARK_Mode => Off is
    function Stat
       (Data : System.Address;
        Ino  : File_Inode_Number;
-       S    : out File_Stat) return Boolean
+       S    : out File_Stat) return FS_Status
    is
       package Align is new Lib.Alignment (Unsigned_32);
       FS   : constant FAT_Data_Acc := FAT_Data_Acc (Conv_1.To_Pointer (Data));
@@ -310,9 +312,9 @@ package body VFS.FAT with SPARK_Mode => Off is
           Creation_Time     => (0, 0),
           Modification_Time => (0, 0),
           Access_Time       => (0, 0));
-      return True;
+      return FS_Success;
    end Stat;
-
+   ----------------------------------------------------------------------------
    function Read_Directory_Entry
       (Data    : FAT_Data_Acc;
        Cluster : Unsigned_32;

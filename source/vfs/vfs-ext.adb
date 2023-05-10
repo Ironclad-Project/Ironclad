@@ -116,18 +116,19 @@ package body VFS.EXT with SPARK_Mode => Off is
       (FS      : System.Address;
        Path    : String;
        Ino     : out File_Inode_Number;
-       Success : out Boolean)
+       Success : out FS_Status)
    is
       Data   : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Name_Start                 : Natural;
       Target_Index, Parent_Index : Unsigned_32;
       Target_Inode, Parent_Inode : Inode;
+      Succ                       : Boolean;
    begin
       if not Data.Is_Read_Only then
          Lib.Synchronization.Seize (Data.Mutex);
       end if;
 
-      Success := Inner_Open_Inode
+      Succ := Inner_Open_Inode
          (Data         => Data,
           Path         => Path,
           Name_Start   => Name_Start,
@@ -136,7 +137,8 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Index => Parent_Index,
           Parent_Inode => Parent_Inode);
 
-      Ino := File_Inode_Number (Target_Index);
+      Ino     := File_Inode_Number (Target_Index);
+      Success := (if Succ then FS_Success else FS_Invalid_Value);
 
       if not Data.Is_Read_Only then
          Lib.Synchronization.Release (Data.Mutex);
@@ -147,7 +149,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       (FS   : System.Address;
        Path : String;
        Typ  : File_Type;
-       Mode : File_Mode) return Boolean
+       Mode : File_Mode) return FS_Status
    is
       Data     : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Perms    : constant  Unsigned_16 := Get_Permissions (File_Regular);
@@ -156,9 +158,14 @@ package body VFS.EXT with SPARK_Mode => Off is
       Target_Index, Parent_Index : Unsigned_32;
       Target_Inode, Parent_Inode : Inode;
       Success                    : Boolean;
+      Returned                   : FS_Status;
    begin
-      if Data.Is_Read_Only or Path'Length = 0 or Typ /= File_Regular then
-         return False;
+      if Data.Is_Read_Only then
+         return FS_RO_Failure;
+      elsif Path'Length = 0 then
+         return FS_Invalid_Value;
+      elsif Typ /= File_Regular then
+         return FS_Not_Supported;
       end if;
 
       Lib.Synchronization.Seize (Data.Mutex);
@@ -173,7 +180,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Index => Parent_Index,
           Parent_Inode => Parent_Inode);
       if Success or else Parent_Index = 0 or else Target_Index /= 0 then
-         Success := False;
+         Returned := FS_Invalid_Value;
          goto Cleanup;
       end if;
 
@@ -181,6 +188,7 @@ package body VFS.EXT with SPARK_Mode => Off is
          (FS_Data   => Data,
           Inode_Num => Target_Index);
       if not Success then
+         Returned := FS_IO_Failure;
          goto Cleanup;
       end if;
 
@@ -209,6 +217,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Result          => Target_Inode,
           Write_Operation => True);
       if not Success then
+         Returned := FS_IO_Failure;
          goto Cleanup;
       end if;
 
@@ -221,39 +230,45 @@ package body VFS.EXT with SPARK_Mode => Off is
           Dir_Type    => Dir_Type,
           Name        => Path (Name_Start .. Path'Last),
           Success     => Success);
+      Returned := (if Success then FS_Success else FS_IO_Failure);
 
    <<Cleanup>>
       Lib.Synchronization.Release (Data.Mutex);
-      return Success;
+      return Returned;
    end Create_Node;
 
    function Create_Symbolic_Link
       (FS           : System.Address;
        Path, Target : String;
-       Mode         : Unsigned_32) return Boolean
+       Mode         : Unsigned_32) return FS_Status
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       pragma Unreferenced (Mode);
    begin
-      if Data.Is_Read_Only or Path'Length = 0 or Target'Length = 0 then
-         return False;
+      if Data.Is_Read_Only then
+         return FS_RO_Failure;
+      elsif Path'Length = 0 or Target'Length = 0 then
+         return FS_Invalid_Value;
+      else
+         return FS_Not_Supported;
       end if;
-
-      return False;
    end Create_Symbolic_Link;
 
    function Create_Hard_Link
       (FS           : System.Address;
-       Path, Target : String) return Boolean
+       Path, Target : String) return FS_Status
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Name_Start                             : Natural;
       Path_Index, Target_Index, Parent_Index : Unsigned_32;
       Path_Inode, Target_Inode, Parent_Inode : Inode;
       Success                                : Boolean;
+      Returned                               : FS_Status;
    begin
-      if Data.Is_Read_Only or Path'Length = 0 then
-         return False;
+      if Data.Is_Read_Only then
+         return FS_RO_Failure;
+      elsif Path'Length = 0 or Target'Length = 0 then
+         return FS_Invalid_Value;
       end if;
 
       Lib.Synchronization.Seize (Data.Mutex);
@@ -268,6 +283,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Index => Parent_Index,
           Parent_Inode => Parent_Inode);
       if not Success then
+         Returned := FS_IO_Failure;
          goto Cleanup;
       end if;
 
@@ -281,7 +297,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Index => Parent_Index,
           Parent_Inode => Parent_Inode);
       if Success or else Parent_Index = 0 or else Target_Index /= 0 then
-         Success := False;
+         Returned := FS_Invalid_Value;
          goto Cleanup;
       end if;
 
@@ -292,6 +308,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Result          => Path_Inode,
           Write_Operation => False);
       if not Success then
+         Returned := FS_IO_Failure;
          goto Cleanup;
       end if;
       Path_Inode.Hard_Link_Count := Path_Inode.Hard_Link_Count + 1;
@@ -301,9 +318,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Result          => Path_Inode,
           Write_Operation => True);
       if not Success then
-         goto Cleanup;
-      end if;
-      if not Success then
+         Returned := FS_IO_Failure;
          goto Cleanup;
       end if;
 
@@ -316,16 +331,21 @@ package body VFS.EXT with SPARK_Mode => Off is
           Dir_Type    => Get_Dir_Type (File_Regular),
           Name        => Target (Name_Start .. Target'Last),
           Success     => Success);
+      if not Success then
+         Returned := FS_IO_Failure;
+      else
+         Returned := FS_Success;
+      end if;
 
    <<Cleanup>>
       Lib.Synchronization.Release (Data.Mutex);
-      return Success;
+      return Returned;
    end Create_Hard_Link;
 
    function Rename
       (FS             : System.Address;
        Source, Target : String;
-       Keep           : Boolean) return Boolean
+       Keep           : Boolean) return FS_Status
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Name_Start                               : Natural;
@@ -335,9 +355,12 @@ package body VFS.EXT with SPARK_Mode => Off is
       Source_Parent_Inode, Target_Parent_Inode : Inode;
       Target_Parent_Size                       : Unsigned_64;
       Success1, Success2                       : Boolean;
+      Returned                                 : FS_Status;
    begin
-      if Data.Is_Read_Only or Source'Length = 0 or Target'Length = 0 then
-         return False;
+      if Data.Is_Read_Only then
+         return FS_RO_Failure;
+      elsif Source'Length = 0 or Target'Length = 0 then
+         return FS_Invalid_Value;
       end if;
 
       Lib.Synchronization.Seize (Data.Mutex);
@@ -362,7 +385,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       --  Check that the source exists, that the parent of the target exists,
       --  and that we do not want to keep the file if it exists.
       if not Success1 or Target_Parent_Index = 0 or (Keep and Success2) then
-         Success1 := False;
+         Returned := FS_Invalid_Value;
          goto Cleanup;
       end if;
 
@@ -379,6 +402,7 @@ package body VFS.EXT with SPARK_Mode => Off is
              Added_Index => Target_Index,
              Success     => Success1);
          if not Success1 then
+            Returned := FS_IO_Failure;
             goto Cleanup;
          end if;
       end if;
@@ -393,21 +417,29 @@ package body VFS.EXT with SPARK_Mode => Off is
           Dir_Type    => Get_Dir_Type (File_Regular),
           Name        => Target (Name_Start .. Target'Last),
           Success     => Success1);
+      if not Success1 then
+         Returned := FS_IO_Failure;
+      else
+         Returned := FS_Success;
+      end if;
 
    <<Cleanup>>
       Lib.Synchronization.Release (Data.Mutex);
-      return Success1;
+      return Returned;
    end Rename;
 
-   function Unlink (FS : System.Address; Path : String) return Boolean is
+   function Unlink (FS : System.Address; Path : String) return FS_Status is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Name_Start               : Natural;
       Path_Index, Parent_Index : Unsigned_32;
       Path_Inode, Parent_Inode : Inode;
       Success                  : Boolean;
+      Returned                 : FS_Status;
    begin
-      if Data.Is_Read_Only or Path'Length = 0 then
-         return False;
+      if Data.Is_Read_Only then
+         return FS_RO_Failure;
+      elsif Path'Length = 0 then
+         return FS_Invalid_Value;
       end if;
 
       Lib.Synchronization.Seize (Data.Mutex);
@@ -421,6 +453,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Index => Parent_Index,
           Parent_Inode => Parent_Inode);
       if not Success then
+         Returned := FS_Invalid_Value;
          goto Cleanup;
       end if;
 
@@ -431,10 +464,15 @@ package body VFS.EXT with SPARK_Mode => Off is
           Inode_Index => Parent_Index,
           Added_Index => Path_Index,
           Success     => Success);
+      if not Success then
+         Returned := FS_IO_Failure;
+      else
+         Returned := FS_Success;
+      end if;
 
    <<Cleanup>>
       Lib.Synchronization.Release (Data.Mutex);
-      return Success;
+      return Returned;
    end Unlink;
 
    procedure Close (FS : System.Address; Ino : File_Inode_Number) is
@@ -449,26 +487,29 @@ package body VFS.EXT with SPARK_Mode => Off is
        Ino       : File_Inode_Number;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out Boolean)
+       Success   : out FS_Status)
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS_Data));
       Fetched_Inode : Inode;
       Curr_Index    : Unsigned_64;
       Next_Index    : Unsigned_64;
       Entity        : Directory_Entity;
+      Succ          : Boolean;
    begin
       Ret_Count := 0;
-      Success   := RW_Inode
+      Success   := FS_Success;
+      Succ      := RW_Inode
          (Data            => FS,
           Inode_Index     => Unsigned_32 (Ino),
           Result          => Fetched_Inode,
           Write_Operation => False);
-      if not Success then
+      if not Succ then
+         Success := FS_IO_Failure;
          return;
       end if;
 
       if Get_Inode_Type (Fetched_Inode.Permissions) /= File_Directory then
-         Success := False;
+         Success := FS_Invalid_Value;
          return;
       end if;
 
@@ -486,8 +527,8 @@ package body VFS.EXT with SPARK_Mode => Off is
              Inode_Index => Curr_Index,
              Entity      => Entity,
              Next_Index  => Next_Index,
-             Success     => Success);
-         if not Success then
+             Success     => Succ);
+         if not Succ then
             exit;
          end if;
 
@@ -497,7 +538,6 @@ package body VFS.EXT with SPARK_Mode => Off is
          end if;
          Ret_Count := Ret_Count + 1;
       end loop;
-      Success := True;
 
       if not FS.Is_Read_Only then
          Lib.Synchronization.Release (FS.Mutex);
@@ -542,23 +582,25 @@ package body VFS.EXT with SPARK_Mode => Off is
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out Boolean)
+       Success   : out FS_Status)
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS_Data));
       Fetched_Inode : Inode;
+      Succ : Boolean;
    begin
       Ret_Count := 0;
-      Success   := RW_Inode
+      Succ     := RW_Inode
          (Data            => FS,
           Inode_Index     => Unsigned_32 (Ino),
           Result          => Fetched_Inode,
           Write_Operation => False);
-      if not Success then
+      if not Succ then
+         Success := FS_IO_Failure;
          return;
       end if;
 
       if Get_Inode_Type (Fetched_Inode.Permissions) /= File_Regular then
-         Success := False;
+         Success := FS_Invalid_Value;
          return;
       end if;
 
@@ -573,11 +615,13 @@ package body VFS.EXT with SPARK_Mode => Off is
           Offset     => Offset,
           Data       => Data,
           Ret_Count  => Ret_Count,
-          Success    => Success);
+          Success    => Succ);
 
       if not FS.Is_Read_Only then
          Lib.Synchronization.Release (FS.Mutex);
       end if;
+
+      Success := (if Succ then FS_Success else FS_IO_Failure);
    end Read;
 
    procedure Write
@@ -586,25 +630,33 @@ package body VFS.EXT with SPARK_Mode => Off is
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
-       Success   : out Boolean)
+       Success   : out FS_Status)
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS_Data));
       Fetched_Inode : Inode;
+      Succ : Boolean;
    begin
       Ret_Count := 0;
-      Success   := RW_Inode
+      if FS.Is_Read_Only then
+         Success := FS_RO_Failure;
+         return;
+      end if;
+
+      Succ := RW_Inode
          (Data            => FS,
           Inode_Index     => Unsigned_32 (Ino),
           Result          => Fetched_Inode,
           Write_Operation => False);
-      if not Success then
+      if not Succ then
+         Success := FS_IO_Failure;
          return;
       end if;
 
-      if Get_Inode_Type (Fetched_Inode.Permissions) /= File_Regular or
-         FS.Is_Read_Only or Is_Immutable (Fetched_Inode)
+
+      if Is_Immutable (Fetched_Inode) or
+         Get_Inode_Type (Fetched_Inode.Permissions) /= File_Regular
       then
-         Success := False;
+         Success := FS_Invalid_Value;
          return;
       end if;
 
@@ -617,14 +669,15 @@ package body VFS.EXT with SPARK_Mode => Off is
           Offset     => Offset,
           Data       => Data,
           Ret_Count  => Ret_Count,
-          Success    => Success);
+          Success    => Succ);
       Lib.Synchronization.Release (FS.Mutex);
+      Success := (if Succ then FS_Success else FS_IO_Failure);
    end Write;
 
    function Stat
       (Data : System.Address;
        Ino  : File_Inode_Number;
-       S    : out File_Stat) return Boolean
+       S    : out File_Stat) return FS_Status
    is
       package Align is new Lib.Alignment (Unsigned_64);
       FS   : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
@@ -639,7 +692,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Result          => Inod,
           Write_Operation => False);
       if not Success then
-         return False;
+         return FS_IO_Failure;
       end if;
 
       Size := Get_Size (Inod, FS.Has_64bit_Filesizes);
@@ -654,19 +707,23 @@ package body VFS.EXT with SPARK_Mode => Off is
           Creation_Time     => (Unsigned_64 (Inod.Creation_Time_Epoch), 0),
           Modification_Time => (Unsigned_64 (Inod.Modified_Time_Epoch), 0),
           Access_Time       => (Unsigned_64 (Inod.Access_Time_Epoch),   0));
-      return True;
+      return FS_Success;
    end Stat;
 
    function Truncate
       (Data     : System.Address;
        Ino      : File_Inode_Number;
-       New_Size : Unsigned_64) return Boolean
+       New_Size : Unsigned_64) return FS_Status
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
       Fetched      : Inode;
       Fetched_Size : Unsigned_64;
       Success      : Boolean;
    begin
+      if FS.Is_Read_Only then
+         return FS_RO_Failure;
+      end if;
+
       Success := RW_Inode
          (Data            => FS,
           Inode_Index     => Unsigned_32 (Ino),
@@ -674,10 +731,9 @@ package body VFS.EXT with SPARK_Mode => Off is
           Write_Operation => False);
       if not Success                                          or else
          Get_Inode_Type (Fetched.Permissions) /= File_Regular or else
-         FS.Is_Read_Only                                      or else
          Is_Immutable (Fetched)
       then
-         return False;
+         return FS_Invalid_Value;
       end if;
 
       Lib.Synchronization.Seize (FS.Mutex);
@@ -710,14 +766,14 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
       Lib.Synchronization.Release (FS.Mutex);
-      return Success;
+      return (if Success then FS_Success else FS_IO_Failure);
    end Truncate;
 
    function IO_Control
       (Data : System.Address;
        Ino  : File_Inode_Number;
        Req  : Unsigned_64;
-       Arg  : System.Address) return Boolean
+       Arg  : System.Address) return FS_Status
    is
       EXT_GETFLAGS : constant := 16#5600#;
       EXT_SETFLAGS : constant := 16#5601#;
@@ -727,18 +783,21 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success : Boolean;
       Flags   : Unsigned_32 with Address => Arg;
    begin
+      if FS.Is_Read_Only then
+         return FS_RO_Failure;
+      end if;
+
       Success := RW_Inode
          (Data            => FS,
           Inode_Index     => Unsigned_32 (Ino),
           Result          => Inod,
           Write_Operation => False);
       if not Success then
-         return False;
+         return FS_IO_Failure;
       end if;
 
-      if Get_Inode_Type (Inod.Permissions) /= File_Regular or FS.Is_Read_Only
-      then
-         return False;
+      if Get_Inode_Type (Inod.Permissions) /= File_Regular then
+         return FS_Invalid_Value;
       end if;
 
       Lib.Synchronization.Seize (FS.Mutex);
@@ -757,23 +816,26 @@ package body VFS.EXT with SPARK_Mode => Off is
             Success := False;
       end case;
       Lib.Synchronization.Release (FS.Mutex);
-      return Success;
+      return (if Success then FS_Success else FS_IO_Failure);
    end IO_Control;
 
-   function Synchronize (Data : System.Address) return Boolean is
+   function Synchronize (Data : System.Address) return FS_Status is
       FS_Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
    begin
-      return Devices.Synchronize (FS_Data.Handle);
+      if Devices.Synchronize (FS_Data.Handle) then
+         return FS_Success;
+      else
+         return FS_IO_Failure;
+      end if;
    end Synchronize;
 
    function Synchronize
       (Data : System.Address;
-       Ino  : File_Inode_Number) return Boolean
+       Ino  : File_Inode_Number) return FS_Status
    is
       pragma Unreferenced (Ino);
-      FS_Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
    begin
-      return Devices.Synchronize (FS_Data.Handle);
+      return Synchronize (Data);
    end Synchronize;
    ----------------------------------------------------------------------------
    function Inner_Open_Inode

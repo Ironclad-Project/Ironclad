@@ -64,6 +64,8 @@ package body Userland.ELF with SPARK_Mode => Off is
        Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Parsed_ELF
    is
+      use VFS;
+
       Header       : ELF_Header;
       Header_Bytes : constant Natural := ELF_Header'Size / 8;
       Header_Data  : VFS.File.Operation_Data (1 .. Header_Bytes)
@@ -82,11 +84,12 @@ package body Userland.ELF with SPARK_Mode => Off is
          Exec_Stack => True
       );
       Ret_Count : Natural;
-      Success   : Boolean;
+      Discard   : Boolean;
+      Success   : FS_Status;
    begin
       --  Read and check the header.
       VFS.File.Read (File_D, Header_Data, Ret_Count, Success);
-      if not Success or Ret_Count /= Header_Bytes or
+      if Success /= FS_Success or Ret_Count /= Header_Bytes or
          Header.Identifier (1 .. 4) /= ELF_Signature
       then
          return Result;
@@ -112,9 +115,9 @@ package body Userland.ELF with SPARK_Mode => Off is
             return Result;
          end if;
 
-         VFS.File.Set_Position (File_D, Header.Program_Header_List, Success);
+         VFS.File.Set_Position (File_D, Header.Program_Header_List, Discard);
          VFS.File.Read (File_D, PHDRs_Data, Ret_Count, Success);
-         if not Success or Ret_Count /= Natural (RSize) then
+         if Success /= FS_Success or Ret_Count /= Natural (RSize) then
             return Result;
          end if;
 
@@ -146,16 +149,18 @@ package body Userland.ELF with SPARK_Mode => Off is
       (File_D : VFS.File.File_Acc;
        Header : Program_Header) return String_Acc
    is
+      use VFS;
       Discard  : Unsigned_64;
       Ret : constant String_Acc := new String (1 .. Header.File_Size_Bytes);
       Ret_Data : VFS.File.Operation_Data (1 .. Header.File_Size_Bytes)
          with Import, Address => Ret (1)'Address;
       Ret_Count : Natural;
-      Success   : Boolean;
+      Discard2  : Boolean;
+      Success   : FS_Status;
    begin
-      VFS.File.Set_Position (File_D, Header.Offset, Success);
+      VFS.File.Set_Position (File_D, Header.Offset, Discard2);
       VFS.File.Read (File_D, Ret_Data, Ret_Count, Success);
-      if Success and Ret_Count = Header.File_Size_Bytes then
+      if Success = FS_Success and Ret_Count = Header.File_Size_Bytes then
          return Ret;
       else
          return null;
@@ -169,6 +174,7 @@ package body Userland.ELF with SPARK_Mode => Off is
        Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Boolean
    is
+      use VFS;
       package Align1 is new Lib.Alignment (Unsigned_64);
       package Align2 is new Lib.Alignment (Integer_Address);
 
@@ -192,7 +198,8 @@ package body Userland.ELF with SPARK_Mode => Off is
          Write_Through  => False
       );
       Ret_Count : Natural;
-      Success   : Boolean;
+      Discard   : Boolean;
+      Success   : FS_Status;
    begin
       if not Memory.Virtual.Map_Range
          (Map      => Map,
@@ -207,8 +214,8 @@ package body Userland.ELF with SPARK_Mode => Off is
       end if;
 
       Load := (others => 0);
-      VFS.File.Set_Position (File_D, Header.Offset, Success);
+      VFS.File.Set_Position (File_D, Header.Offset, Discard);
       VFS.File.Read (File_D, Load2, Ret_Count, Success);
-      return Success and Ret_Count = Header.File_Size_Bytes;
+      return Success = FS_Success and Ret_Count = Header.File_Size_Bytes;
    end Load_Header;
 end Userland.ELF;

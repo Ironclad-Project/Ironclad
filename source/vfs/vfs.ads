@@ -56,7 +56,7 @@ package VFS is
    type Directory_Entities is array (Natural range <>) of Directory_Entity;
    ----------------------------------------------------------------------------
    --  Handle for interfacing with mounted FSs and FS types.
-   type FS_Type   is (FS_EXT, FS_FAT);
+   type FS_Type   is (FS_EXT, FS_FAT, FS_QNX);
    type FS_Handle is private;
    Error_Handle       : constant FS_Handle;
    Path_Buffer_Length : constant Natural;
@@ -134,17 +134,25 @@ package VFS is
    function Get_Backing_Device (Key : FS_Handle) return Device_Handle
       with Pre => Key /= Error_Handle;
    ----------------------------------------------------------------------------
+   --  Status returned from file operations as result.
+   type FS_Status is
+      (FS_Success,       --  Success, only good value for ease of checking.
+       FS_Invalid_Value, --  One of the passed values is no good.
+       FS_Not_Supported, --  The operation is not supported for this FS.
+       FS_RO_Failure,    --  The FS is read-only, but write access is needed.
+       FS_IO_Failure);   --  The underlying device errored out.
+
    --  Open a file with an absolute path inside the mount.
    --  @param Key     FS Handle to open.
    --  @param Path    Absolute path inside the mount, creation is not done.
    --  @param Ino     Found inode, if any.
-   --  @param Success True if found, False if not.
+   --  @param Success Returned status for the operation.
    --  @return Returned opaque pointer for the passed mount, Null in failure.
    procedure Open
       (Key     : FS_Handle;
        Path    : String;
        Ino     : out File_Inode_Number;
-       Success : out Boolean)
+       Success : out FS_Status)
       with Pre => Key /= Error_Handle;
 
    --  Create a file with an absolute path inside the mount.
@@ -152,12 +160,12 @@ package VFS is
    --  @param Path Absolute path inside the mount, must not exist.
    --  @param Typ  Type of file to create.
    --  @param Mode Mode to use for the created file.
-   --  @return True on success, False on failure.
+   --  @return Status for the operation.
    function Create_Node
       (Key  : FS_Handle;
        Path : String;
        Typ  : File_Type;
-       Mode : File_Mode) return Boolean
+       Mode : File_Mode) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Create a symlink with an absolute path inside the mount and a target.
@@ -165,21 +173,21 @@ package VFS is
    --  @param Path   Absolute path inside the mount, must not exist.
    --  @param Target Target of the symlink, it is not checked in any way.
    --  @param Mode   Mode to use for the created symlink.
-   --  @return True on success, False on failure.
+   --  @return Status for the operation.
    function Create_Symbolic_Link
       (Key          : FS_Handle;
        Path, Target : String;
-       Mode         : Unsigned_32) return Boolean
+       Mode         : Unsigned_32) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Create a hard link with an absolute path inside the mount and a target.
    --  @param Key    FS Handle to open.
    --  @param Path   Absolute path inside the mount, must not exist.
    --  @param Target Target of the symlink, it is not checked in any way.
-   --  @return True on success, False on failure.
+   --  @return Status for the operation.
    function Create_Hard_Link
       (Key          : FS_Handle;
-       Path, Target : String) return Boolean
+       Path, Target : String) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Rename two files.
@@ -187,19 +195,19 @@ package VFS is
    --  @param Source Absolute source path inside the mount, must not exist.
    --  @param Target Target of the mode, if it exists, it will be replaced.
    --  @param Keep   Keep the source instead of plainly renaming it.
-   --  @return True on success, False on failure.
+   --  @return Status for the operation.
    function Rename
       (Key    : FS_Handle;
        Source : String;
        Target : String;
-       Keep   : Boolean) return Boolean
+       Keep   : Boolean) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Queue a file for deletion inside a mount.
    --  @param Key  FS Handle to open.
    --  @param Path Absolute path inside the mount, must exist.
-   --  @return True on success, False on failure.
-   function Unlink (Key : FS_Handle; Path : String) return Boolean;
+   --  @return Status for the operation.
+   function Unlink (Key : FS_Handle; Path : String) return FS_Status;
 
    --  Signal to the FS we do not need this inode anymore.
    --  @param Key FS handle to operate on.
@@ -212,13 +220,13 @@ package VFS is
    --  @param Ino       Inode to operate on.
    --  @param Entities  Where to store the read entries, as many as possible.
    --  @param Ret_Count The count of entries, even if num > Entities'Length.
-   --  @param Success   True in success, False in failure.
+   --  @param Success   Status for the operation..
    procedure Read_Entries
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out Boolean)
+       Success   : out FS_Status)
       with Pre => Key /= Error_Handle;
 
    --  Read the entries of an opened directory.
@@ -226,7 +234,7 @@ package VFS is
    --  @param Ino       Inode to operate on.
    --  @param Entities  Where to store the read entries, as many as possible.
    --  @param Ret_Count The count of entries, even if num > Entities'Length.
-   --  @param Success   True in success, False in failure.
+   --  @param Success   Status for the operation.
    procedure Read_Symbolic_Link
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
@@ -240,14 +248,14 @@ package VFS is
    --  @param Offset    Offset to read from.
    --  @param Data      Place to write read data.
    --  @param Ret_Count How many items were read into Data until EOF.
-   --  @param Success   True on success, False on failure.
+   --  @param Success   Status for the operation.
    procedure Read
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out Boolean)
+       Success   : out FS_Status)
       with Pre => Key /= Error_Handle;
 
    --  Write to a regular file.
@@ -256,63 +264,64 @@ package VFS is
    --  @param Offset    Offset to write to.
    --  @param Data      Data to write
    --  @param Ret_Count How many items were written until EOF.
-   --  @param Success   True on success, False on failure.
+   --  @param Success   Status for the operation.
    procedure Write
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
-       Success   : out Boolean)
+       Success   : out FS_Status)
       with Pre => Key /= Error_Handle;
 
    --  Get the stat of a file.
    --  @param Key      FS Handle to open.
    --  @param Ino      Inode to operate on.
    --  @param Stat_Val Data to fetch.
-   --  @param Success  True on success, False on failure.
+   --  @param Success  Status for the operation.
    procedure Stat
       (Key      : FS_Handle;
        Ino      : File_Inode_Number;
        Stat_Val : out File_Stat;
-       Success  : out Boolean)
+       Success  : out FS_Status)
       with Pre => Key /= Error_Handle;
 
    --  Truncate a file to size 0.
    --  @param Key      FS Handle to open.
    --  @param Ino      Inode to operate on.
    --  @param New_Size New size for the file to adopt.
-   --  @return True on success, False on failure.
+   --  @return Status for the operation.
    function Truncate
       (Key      : FS_Handle;
        Ino      : File_Inode_Number;
-       New_Size : Unsigned_64) return Boolean;
+       New_Size : Unsigned_64) return FS_Status;
 
    --  Do an FS-specific ioctl on the inode.
    function IO_Control
       (Key     : FS_Handle;
        Ino     : File_Inode_Number;
        Request : Unsigned_64;
-       Arg     : System.Address) return Boolean
+       Arg     : System.Address) return FS_Status
       with Pre => Key /= Error_Handle;
 
-   --  Synchronize all FSs mounted on the system.
-   --  @return True on success or sync not available. False on driver failure.
+   --  Synchronize all FSs mounted on the system, FSs with no implemented
+   --  synchronization routines are ignored.
+   --  @return True on success. False if any FSs failed for IO reasons.
    function Synchronize return Boolean;
 
    --  Synchronize a whole FS driver-specific caches.
    --  @param Key FS Handle to open.
-   --  @return True on success or sync not available. False on driver failure.
-   function Synchronize (Key : FS_Handle) return Boolean
+   --  @return Status for the operation.
+   function Synchronize (Key : FS_Handle) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Synchronize the contents of a file cached by the FS driver.
    --  @param Key FS Handle to open.
    --  @param Ino Inode to operate on.
-   --  @return True on success or sync not available. False on driver failure.
+   --  @return Status for the operation.
    function Synchronize
       (Key : FS_Handle;
-       Ino : File_Inode_Number) return Boolean
+       Ino : File_Inode_Number) return FS_Status
       with Pre => Key /= Error_Handle;
    ----------------------------------------------------------------------------
    --  Check whether a path is absolute.

@@ -91,6 +91,31 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
    end Compound_AT_Path;
 
+   function Translate_Status
+      (Status         : VFS.FS_Status;
+       Success_Return : Unsigned_64;
+       Errno          : out Errno_Value) return Unsigned_64
+   is
+   begin
+      case Status is
+         when VFS.FS_Success =>
+            Errno := Error_No_Error;
+            return Success_Return;
+         when VFS.FS_Invalid_Value =>
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+         when VFS.FS_Not_Supported =>
+            Errno := Error_Not_Implemented;
+            return Unsigned_64'Last;
+         when VFS.FS_RO_Failure =>
+            Errno := Error_Read_Only_FS;
+            return Unsigned_64'Last;
+         when VFS.FS_IO_Failure =>
+            Errno := Error_IO;
+            return Unsigned_64'Last;
+      end case;
+   end Translate_Status;
+
    function Arch_PRCtl
       (Code     : Unsigned_64;
        Argument : Unsigned_64;
@@ -135,7 +160,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Dont_Follow       : constant Boolean := (Flags and O_NOFOLLOW) /= 0;
       Do_Append         : constant Boolean := (Flags and O_APPEND)   /= 0;
 
-      Success      : Boolean;
+      Discard      : Boolean;
+      Success      : VFS.FS_Status;
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
       Open_Mode    : VFS.File.Access_Mode;
@@ -209,11 +235,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       if Do_Append then
          VFS.File.Stat (Opened_File, Opened_Stat, Success);
-         if not Success then
+         if Success /= VFS.FS_Success then
             Errno := Error_Invalid_Seek;
             return Unsigned_64'Last;
          end if;
-         Set_Position (Opened_File, Opened_Stat.Byte_Size, Success);
+         Set_Position (Opened_File, Opened_Stat.Byte_Size, Discard);
       end if;
 
       New_Descr := new File_Description'(
@@ -226,6 +252,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64 (Returned_FD);
       else
          Close (New_Descr);
+         Lib.Messages.Put_Line ("Oplo1t");
          Errno := Error_Too_Many_Files;
          return Unsigned_64'Last;
       end if;
@@ -259,12 +286,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Map       : constant     Page_Map_Acc := Get_Common_Map (Curr_Proc);
       Final_Cnt : constant          Natural := Natural (Count);
       File      : File_Description_Acc;
-      File_Mode : Access_Mode;
       Data      : Operation_Data (1 .. Final_Cnt)
          with Import, Address => Buf_SAddr;
       Ret_Count : Natural;
-      Success   : Boolean;
-      Success1  : IPC.FIFO.Pipe_Status;
+      Success1  : VFS.FS_Status;
+      Success2  : IPC.FIFO.Pipe_Status;
    begin
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
@@ -279,23 +305,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case File.Description is
          when Description_File =>
-            File_Mode := Get_Access (File.Inner_File);
-            if File_Mode /= Read_Only and File_Mode /= Read_Write then
-               Errno := Error_Invalid_Value;
-               return Unsigned_64'Last;
-            else
-               VFS.File.Read (File.Inner_File, Data, Ret_Count, Success);
-               if not Success then
-                  Errno := Error_IO;
-                  return Unsigned_64'Last;
-               else
-                  Errno := Error_No_Error;
-                  return Unsigned_64 (Ret_Count);
-               end if;
-            end if;
+            VFS.File.Read (File.Inner_File, Data, Ret_Count, Success1);
+            return Translate_Status (Success1, Unsigned_64 (Ret_Count), Errno);
          when Description_Reader_FIFO =>
-            IPC.FIFO.Read (File.Inner_Reader_FIFO, Data, Ret_Count, Success1);
-            case Success1 is
+            IPC.FIFO.Read (File.Inner_Reader_FIFO, Data, Ret_Count, Success2);
+            case Success2 is
                when IPC.FIFO.Pipe_Success =>
                   Errno := Error_No_Error;
                   return Unsigned_64 (Ret_Count);
@@ -332,12 +346,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Map       : constant     Page_Map_Acc := Get_Common_Map (Curr_Proc);
       Final_Cnt : constant          Natural := Natural (Count);
       File      : File_Description_Acc;
-      File_Mode : Access_Mode;
       Data      : Operation_Data (1 .. Final_Cnt)
          with Import, Address => Buf_SAddr;
       Ret_Count : Natural;
-      Success   : Boolean;
-      Success1  : IPC.FIFO.Pipe_Status;
+      Success1  : VFS.FS_Status;
+      Success2  : IPC.FIFO.Pipe_Status;
    begin
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
@@ -352,23 +365,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case File.Description is
          when Description_File =>
-            File_Mode := Get_Access (File.Inner_File);
-            if File_Mode /= Write_Only and File_Mode /= Read_Write then
-               Errno := Error_Invalid_Value;
-               return Unsigned_64'Last;
-            else
-               VFS.File.Write (File.Inner_File, Data, Ret_Count, Success);
-               if not Success then
-                  Errno := Error_IO;
-                  return Unsigned_64'Last;
-               else
-                  Errno := Error_No_Error;
-                  return Unsigned_64 (Ret_Count);
-               end if;
-            end if;
+            VFS.File.Write (File.Inner_File, Data, Ret_Count, Success1);
+            return Translate_Status (Success1, Unsigned_64 (Ret_Count), Errno);
          when Description_Writer_FIFO =>
-            IPC.FIFO.Write (File.Inner_Writer_FIFO, Data, Ret_Count, Success1);
-            case Success1 is
+            IPC.FIFO.Write (File.Inner_Writer_FIFO, Data, Ret_Count, Success2);
+            case Success2 is
                when IPC.FIFO.Pipe_Success =>
                   Errno := Error_No_Error;
                   return Unsigned_64 (Ret_Count);
@@ -403,7 +404,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc     : constant PID := Arch.Local.Get_Current_Process;
       File     : File_Description_Acc;
       Stat_Val : VFS.File_Stat;
-      Success  : Boolean;
+      Success1 : VFS.FS_Status;
+      Success2 : Boolean;
    begin
       File := Get_File (Proc, File_D);
       if File = null then
@@ -413,37 +415,39 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case File.Description is
          when Description_File =>
-            VFS.File.Stat (File.Inner_File, Stat_Val, Success);
-            if Success then
-               case Whence is
-                  when SEEK_SET =>
-                     Set_Position (File.Inner_File, Offset, Success);
-                  when SEEK_CURRENT =>
-                     Set_Position
-                        (File.Inner_File,
-                         Get_Position (File.Inner_File) + Offset,
-                         Success);
-                  when SEEK_END =>
-                     Set_Position
-                        (File.Inner_File,
-                         Stat_Val.Byte_Size + Offset, Success);
-                  when others =>
-                     Errno := Error_Invalid_Value;
-                     return Unsigned_64'Last;
-               end case;
+            VFS.File.Stat (File.Inner_File, Stat_Val, Success1);
+            if Success1 /= VFS.FS_Success then
+               goto Invalid_Seek_Error;
+            end if;
 
-               if Success then
-                  Errno := Error_No_Error;
-                  return Get_Position (File.Inner_File);
-               else
-                  Errno := Error_Invalid_Seek;
+            case Whence is
+               when SEEK_SET =>
+                  Set_Position (File.Inner_File, Offset, Success2);
+               when SEEK_CURRENT =>
+                  Set_Position
+                     (File.Inner_File,
+                      Get_Position (File.Inner_File) + Offset,
+                      Success2);
+               when SEEK_END =>
+                  Set_Position
+                     (File.Inner_File,
+                      Stat_Val.Byte_Size + Offset, Success2);
+               when others =>
+                  Errno := Error_Invalid_Value;
                   return Unsigned_64'Last;
-               end if;
+            end case;
+
+            if Success2 then
+               Errno := Error_No_Error;
+               return Get_Position (File.Inner_File);
+            else
+               goto Invalid_Seek_Error;
             end if;
          when others =>
-            null;
+            goto Invalid_Seek_Error;
       end case;
 
+   <<Invalid_Seek_Error>>
       Errno := Error_Invalid_Seek;
       return Unsigned_64'Last;
    end Seek;
@@ -962,7 +966,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       File_Desc  : constant File_Description_Acc := Get_File (Proc, FD);
       Stat_Val   : VFS.File_Stat;
       ID         : Natural;
-      Success    : Boolean;
+      Success    : VFS.FS_Status;
       Stat_Buf   : Stat with Import, Address => Stat_SAddr;
    begin
       if not Check_Userland_Access (Map, Stat_IAddr, Stat'Size / 8) then
@@ -976,7 +980,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       case File_Desc.Description is
          when Description_File =>
             VFS.File.Stat (File_Desc.Inner_File, Stat_Val, Success);
-            if not Success then
+            if Success /= VFS.FS_Success then
                Errno := Error_Bad_File;
                return Unsigned_64'Last;
             end if;
@@ -1129,6 +1133,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Map   : constant         Page_Map_Acc := Get_Common_Map (Proc);
       File  : constant File_Description_Acc := Get_File (Proc, FD);
       Succ  : Boolean;
+      FSSuc : VFS.FS_Status;
    begin
       if not Check_Userland_Access (Map, I_Arg, 8) then
          Errno := Error_Would_Fault;
@@ -1140,7 +1145,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case File.Description is
          when Description_File =>
-            IO_Control (File.Inner_File, Request, S_Arg, Succ);
+            IO_Control (File.Inner_File, Request, S_Arg, FSSuc);
+            Succ := FSSuc = VFS.FS_Success;
          when Description_Primary_PTY =>
             PTY_IOCTL (File.Inner_Primary_PTY, Request, S_Arg, Succ);
          when Description_Secondary_PTY =>
@@ -1247,6 +1253,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Close (Returned);
          Close (Reader_Desc);
          Close (Writer_Desc);
+         Lib.Messages.Put_Line ("Oplo2t");
          Errno := Error_Too_Many_Files;
          return Unsigned_64'Last;
       else
@@ -1276,7 +1283,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Source_Path_L : Natural;
       Target_Path   : String (1 .. 1024);
       Target_Path_L : Natural;
-      Success       : Boolean;
+      Success       : VFS.FS_Status;
    begin
       if not Check_Userland_Access (Map, Src_IAddr, Source_Len) or
          not Check_Userland_Access (Map, Tgt_IAddr, Target_Len)
@@ -1318,14 +1325,23 @@ package body Userland.Syscall with SPARK_Mode => Off is
              Target_Path (1 .. Target_Path_L),
              Do_Keep,
              Success);
-
-         if Success then
-            Errno := Error_No_Error;
-            return 0;
-         else
-            Errno := Error_IO;
-            return Unsigned_64'Last;
-         end if;
+         case Success is
+            when VFS.FS_Success =>
+               Errno := Error_No_Error;
+               return 0;
+            when VFS.FS_Invalid_Value =>
+               Errno := Error_Invalid_Value;
+               return Unsigned_64'Last;
+            when VFS.FS_Not_Supported =>
+               Errno := Error_Not_Implemented;
+               return Unsigned_64'Last;
+            when VFS.FS_RO_Failure =>
+               Errno := Error_Read_Only_FS;
+               return Unsigned_64'Last;
+            when VFS.FS_IO_Failure =>
+               Errno := Error_IO;
+               return Unsigned_64'Last;
+         end case;
       end;
    end Rename;
 
@@ -1420,6 +1436,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   case KMnts (I).Inner_Type is
                      when FS_EXT => Mnts (I).FS_Type := MNT_EXT;
                      when FS_FAT => Mnts (I).FS_Type := MNT_FAT;
+                     when FS_QNX => Mnts (I).FS_Type := MNT_QNX;
                   end case;
                end loop;
 
@@ -1603,14 +1620,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
       case Command is
          when F_DUPFD | F_DUPFD_CLOEXEC =>
             New_File := Duplicate (File);
-            if not Add_File (Proc, New_File, Result_FD, Natural (Argument))
-            then
-               Errno := Error_Too_Many_Files;
-               return Unsigned_64'Last;
-            else
+            if Add_File (Proc, New_File, Result_FD, Natural (Argument)) then
                Returned               := Unsigned_64 (Result_FD);
                New_File.Close_On_Exec := Command = F_DUPFD_CLOEXEC;
-               return Unsigned_64 (Result_FD);
+            else
+               Errno := Error_Too_Many_Files;
+               return Unsigned_64'Last;
             end if;
          when F_GETFD =>
             if File.Close_On_Exec then
@@ -1924,6 +1939,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       case FSType is
          when MNT_EXT => Parsed_Typ := VFS.FS_EXT;
          when MNT_FAT => Parsed_Typ := VFS.FS_FAT;
+         when MNT_QNX => Parsed_Typ := VFS.FS_QNX;
          when others  =>
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
@@ -2073,7 +2089,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Buffer     : Dirents (1 .. Buff_Len) with Import, Address => Buff_Addr;
       Tmp_Buffer : VFS.Directory_Entities (1 .. Natural (Buff_Len));
       Read_Len   : Natural;
-      Success    : Boolean;
+      Success    : VFS.FS_Status;
       Proc : constant     PID := Arch.Local.Get_Current_Process;
       Map  : constant         Page_Map_Acc := Get_Common_Map (Proc);
       File : constant File_Description_Acc := Get_File (Proc, FD);
@@ -2087,7 +2103,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       VFS.File.Read_Entries (File.Inner_File, Tmp_Buffer, Read_Len, Success);
-      if not Success then
+      if Success /= VFS.FS_Success then
          Errno := Error_No_Entity;
          return Unsigned_64'Last;
       elsif Read_Len > Tmp_Buffer'Length then
@@ -2146,7 +2162,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path_L : Natural;
       Node_Type    : File_Type;
       Tmp_Mode     : constant File_Mode := File_Mode (Mode and 8#7777#);
-      Succ         : Boolean;
+      Status       : VFS.FS_Status;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
          Errno := Error_Would_Fault;
@@ -2178,14 +2194,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Node_Type := File_Regular;
       end if;
 
-      Create_Node (Final_Path (1 .. Final_Path_L), Node_Type, Tmp_Mode, Succ);
-      if Succ then
-         Errno := Error_No_Error;
-         return 0;
-      else
-         Errno := Error_IO;
-         return Unsigned_64'Last;
-      end if;
+      Create_Node
+         (Final_Path (1 .. Final_Path_L),
+          Node_Type,
+          Tmp_Mode,
+          Status);
+      case Status is
+         when VFS.FS_Success       => Errno := Error_No_Error; return 0;
+         when VFS.FS_Invalid_Value => Errno := Error_Invalid_Value;
+         when VFS.FS_Not_Supported => Errno := Error_Bad_Permissions;
+         when VFS.FS_RO_Failure    => Errno := Error_Read_Only_FS;
+         when VFS.FS_IO_Failure    => Errno := Error_IO;
+      end case;
+
+      return Unsigned_64'Last;
    end MakeNode;
 
    function Unlink
@@ -2194,13 +2216,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Path_Len  : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64
    is
-      Curr_Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Map        : constant     Page_Map_Acc := Get_Common_Map (Curr_Proc);
-      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
-      Path_SAddr : constant System.Address  := To_Address (Path_IAddr);
+      Curr_Proc    : constant PID := Arch.Local.Get_Current_Process;
+      Map          : constant    Page_Map_Acc := Get_Common_Map (Curr_Proc);
+      Path_IAddr   : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr   : constant System.Address  := To_Address (Path_IAddr);
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
-      Success      : Boolean;
+      Success      : VFS.FS_Status;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
          Errno := Error_Would_Fault;
@@ -2227,13 +2249,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end;
 
       VFS.File.Unlink (Final_Path (1 .. Final_Path_L), Success);
-      if Success then
-         Errno := Error_No_Error;
-         return 0;
-      else
-         Errno := Error_No_Entity;
-         return Unsigned_64'Last;
-      end if;
+      return Translate_Status (Success, 0, Errno);
    end Unlink;
 
    function Truncate
@@ -2243,7 +2259,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Proc    : constant     PID := Arch.Local.Get_Current_Process;
       File    : constant File_Description_Acc := Get_File (Proc, FD);
-      Success : Boolean;
+      Success : VFS.FS_Status;
    begin
       if File = null then
          Errno := Error_Bad_File;
@@ -2253,18 +2269,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
       case File.Description is
          when Description_File =>
             VFS.File.Truncate (File.Inner_File, New_Size, Success);
+            return Translate_Status (Success, 0, Errno);
          when others =>
             Errno := Error_Bad_File;
             return Unsigned_64'Last;
       end case;
-
-      if Success then
-         Errno := Error_No_Error;
-         return 0;
-      else
-         Errno := Error_Invalid_Value;
-         return Unsigned_64'Last;
-      end if;
    end Truncate;
 
    function Symlink
@@ -2284,7 +2293,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Targ_SAddr : constant   System.Address := To_Address (Targ_IAddr);
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
-      Success      : Boolean;
+      Success      : VFS.FS_Status;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) or
          not Check_Userland_Access (Map, Targ_IAddr, Target_Len)
@@ -2318,14 +2327,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          VFS.File.Create_Symbolic_Link
             (Final_Path (1 .. Final_Path_L),
              Targ, Unsigned_32 (Mode), Success);
-
-         if Success then
-            Errno := Error_No_Error;
-            return 0;
-         else
-            Errno := Error_IO;
-            return Unsigned_64'Last;
-         end if;
+         return Translate_Status (Success, 0, Errno);
       end;
    end Symlink;
 
@@ -2420,6 +2422,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Close (Primary_Desc);
          Close (Secondary_Desc);
          Errno := Error_Too_Many_Files;
+         Lib.Messages.Put_Line ("Oplo4t");
          return Unsigned_64'Last;
       else
          Errno := Error_No_Error;
@@ -2441,13 +2444,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case File.Description is
          when Description_File =>
-            if not VFS.File.Synchronize (File.Inner_File) then
-               Errno := Error_IO;
-               return Unsigned_64'Last;
-            else
-               Errno := Error_No_Error;
-               return 0;
-            end if;
+            return Translate_Status
+               (VFS.File.Synchronize (File.Inner_File), 0, Errno);
          when others =>
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
@@ -2473,7 +2471,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path1_L : Natural;
       Final_Path2   : String (1 .. 1024);
       Final_Path2_L : Natural;
-      Success       : Boolean;
+      Success       : VFS.FS_Status;
    begin
       if not Check_Userland_Access (Map, Src_IAddr, Source_Len) or
          not Check_Userland_Access (Map, Dst_IAddr, Desto_Len)
@@ -2514,14 +2512,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             (Final_Path1 (1 .. Final_Path1_L),
              Final_Path2 (1 .. Final_Path2_L),
              Success);
-
-         if Success then
-            Errno := Error_No_Error;
-            return 0;
-         else
-            Errno := Error_IO;
-            return Unsigned_64'Last;
-         end if;
+         return Translate_Status (Success, 0, Errno);
       end;
    end Link;
 

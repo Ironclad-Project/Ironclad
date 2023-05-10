@@ -52,10 +52,6 @@ package VFS.File with SPARK_Mode => Off is
        Success : out Boolean)
       with Pre => File /= null;
 
-   --  Files have an access mode, this function fetches it for the passed file.
-   function Get_Access (File : File_Acc) return Access_Mode
-      with Inline, Pre => File /= null;
-
    --  Devices in UNIX have a unique device ID, used for representing it in
    --  stat-s. This function fetches the one the file represents or
    --  where the file is contained.
@@ -73,12 +69,12 @@ package VFS.File with SPARK_Mode => Off is
    --  @param To_Read   File to read.
    --  @param Entities  Where to store the read entries, as many as possible.
    --  @param Ret_Count The count of entries, even if num > Entities'Length.
-   --  @param Success   True in success, False in failure.
+   --  @param Success   FS status of the operation.
    procedure Read_Entries
       (To_Read   : File_Acc;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out Boolean)
+       Success   : out FS_Status)
    with Pre => To_Read /= null;
 
    --  Read contents of a symbolic link.
@@ -96,7 +92,7 @@ package VFS.File with SPARK_Mode => Off is
       (To_Read   : File_Acc;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out Boolean)
+       Success   : out FS_Status)
       with Pre => To_Read /= null;
 
    --  Write to a file, and return the written count.
@@ -104,15 +100,15 @@ package VFS.File with SPARK_Mode => Off is
       (To_Write  : File_Acc;
        Data      : Operation_Data;
        Ret_Count : out Natural;
-       Success   : out Boolean)
+       Success   : out FS_Status)
       with Pre => To_Write /= null;
 
    --  Get the stat of the file.
-   procedure Stat (F : File_Acc; St : out File_Stat; Success : out Boolean)
+   procedure Stat (F : File_Acc; St : out File_Stat; Success : out FS_Status)
       with Pre => F /= null;
 
    --  Truncate the file to the passed size.
-   procedure Truncate (F : File_Acc; Size : Unsigned_64; Success : out Boolean)
+   procedure Truncate (F : File_Acc; Sz : Unsigned_64; Success : out FS_Status)
       with Pre => F /= null;
 
    --  IOCTL.
@@ -120,11 +116,11 @@ package VFS.File with SPARK_Mode => Off is
       (F        : File_Acc;
        Request  : Unsigned_64;
        Argument : System.Address;
-       Success  : out Boolean)
+       Success  : out FS_Status)
       with Pre => F /= null;
 
    --  Synchronize.
-   function Synchronize (F : File_Acc) return Boolean with Pre => F /= null;
+   function Synchronize (F : File_Acc) return FS_Status with Pre => F /= null;
 
    --  Mmap.
    function Mmap
@@ -146,25 +142,25 @@ package VFS.File with SPARK_Mode => Off is
       (Path    : String;
        Typ     : File_Type;
        Mode    : File_Mode;
-       Success : out Boolean);
+       Success : out FS_Status);
 
    procedure Create_Symbolic_Link
       (Path, Target : String;
        Mode         : Unsigned_32;
-       Success      : out Boolean);
+       Success      : out FS_Status);
 
    procedure Create_Hard_Link
       (Path, Target : String;
-       Success      : out Boolean);
+       Success      : out FS_Status);
 
    --  Rename files.
    procedure Rename
       (Source, Target : String;
        Keep           : Boolean;
-       Success        : out Boolean);
+       Success        : out FS_Status);
 
    --  Queue a file for unlinking.
-   procedure Unlink (Path : String; Success : out Boolean);
+   procedure Unlink (Path : String; Success : out FS_Status);
 
 private
 

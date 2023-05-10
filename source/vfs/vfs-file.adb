@@ -36,7 +36,7 @@ package body VFS.File with SPARK_Mode => Off is
       Last_Slash   : Natural := 0;
       Symlink      : String (1 .. 60);
       Symlink_Len  : Natural;
-      Discard      : Boolean;
+      Succ         : FS_Status;
    begin
       --  Default values.
       Is_Device    := False;
@@ -72,9 +72,10 @@ package body VFS.File with SPARK_Mode => Off is
          (Fetched_FS,
           Path (Path'First + Match_Count .. Path'Last),
           Fetched_File,
-          Success);
-      if Success then
-         Stat (Fetched_FS, Fetched_File, Fetched_Stat, Success);
+          Succ);
+      if Succ = FS_Success then
+         Stat (Fetched_FS, Fetched_File, Fetched_Stat, Succ);
+         Success := Succ = FS_Success;
       else
          Success := False;
          return;
@@ -186,11 +187,6 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Set_Position;
 
-   function Get_Access (File : File_Acc) return Access_Mode is
-   begin
-      return File.Flags;
-   end Get_Access;
-
    function Get_Device_ID (File : File_Acc) return Natural is
    begin
       return Devices.Get_Unique_ID (File.Dev_Data);
@@ -221,7 +217,7 @@ package body VFS.File with SPARK_Mode => Off is
       (To_Read   : File_Acc;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out Boolean)
+       Success   : out FS_Status)
    is
    begin
       if not To_Read.Is_Device then
@@ -232,7 +228,7 @@ package body VFS.File with SPARK_Mode => Off is
              Ret_Count => Ret_Count,
              Success   => Success);
       else
-         Success   := False;
+         Success   := FS_Invalid_Value;
          Ret_Count := 0;
          Entities  := (others =>
             (Inode_Number => 0,
@@ -264,13 +260,14 @@ package body VFS.File with SPARK_Mode => Off is
       (To_Read   : File_Acc;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out Boolean)
+       Success   : out FS_Status)
    is
+      Succ : Boolean;
    begin
       if To_Read.Flags = Write_Only then
          Data      := (others => 0);
          Ret_Count := 0;
-         Success   := False;
+         Success   := FS_Invalid_Value;
          return;
       end if;
 
@@ -288,10 +285,11 @@ package body VFS.File with SPARK_Mode => Off is
              Offset    => To_Read.Index,
              Data      => Data,
              Ret_Count => Ret_Count,
-             Success   => Success);
+             Success   => Succ);
+         Success := (if Succ then FS_Success else FS_IO_Failure);
       end if;
 
-      if Success then
+      if Success = FS_Success then
          To_Read.Index := To_Read.Index + Unsigned_64 (Ret_Count);
       end if;
    end Read;
@@ -300,12 +298,13 @@ package body VFS.File with SPARK_Mode => Off is
       (To_Write  : File_Acc;
        Data      : Operation_Data;
        Ret_Count : out Natural;
-       Success   : out Boolean)
+       Success   : out FS_Status)
    is
+      Succ : Boolean;
    begin
       if To_Write.Flags = Read_Only then
          Ret_Count := 0;
-         Success   := False;
+         Success   := FS_Invalid_Value;
          return;
       end if;
 
@@ -318,21 +317,22 @@ package body VFS.File with SPARK_Mode => Off is
              Ret_Count => Ret_Count,
              Success   => Success);
       else
-         Devices.Write (
-            Handle    => To_Write.Dev_Data,
-            Offset    => To_Write.Index,
-            Data      => Data,
-            Ret_Count => Ret_Count,
-            Success   => Success
-         );
+         Devices.Write
+            (Handle    => To_Write.Dev_Data,
+             Offset    => To_Write.Index,
+             Data      => Data,
+             Ret_Count => Ret_Count,
+             Success   => Succ);
+         Success := (if Succ then FS_Success else FS_IO_Failure);
       end if;
 
-      if Success then
+      if Success = FS_Success then
          To_Write.Index := To_Write.Index + Unsigned_64 (Ret_Count);
       end if;
    end Write;
 
-   procedure Stat (F : File_Acc; St : out File_Stat; Success : out Boolean) is
+   procedure Stat (F : File_Acc; St : out File_Stat; Success : out FS_Status)
+   is
       Is_Block                      : Boolean;
       Device_Type                   : File_Type;
       Block_Count                   : Unsigned_64;
@@ -362,17 +362,17 @@ package body VFS.File with SPARK_Mode => Off is
             Modification_Time => (0, 0),
             Access_Time       => (0, 0)
          );
-         Success := True;
+         Success := FS_Success;
       end if;
    end Stat;
 
-   procedure Truncate (F : File_Acc; Size : Unsigned_64; Success : out Boolean)
+   procedure Truncate (F : File_Acc; Sz : Unsigned_64; Success : out FS_Status)
    is
    begin
       if not F.Is_Device and F.Flags /= Read_Only then
-         Success := VFS.Truncate (F.FS_Data, F.File_Data, Size);
+         Success := VFS.Truncate (F.FS_Data, F.File_Data, Sz);
       else
-         Success := False;
+         Success := FS_Invalid_Value;
       end if;
    end Truncate;
 
@@ -380,20 +380,28 @@ package body VFS.File with SPARK_Mode => Off is
       (F        : File_Acc;
        Request  : Unsigned_64;
        Argument : System.Address;
-       Success  : out Boolean)
+       Success  : out FS_Status)
    is
    begin
       if F.Is_Device then
-         Success := Devices.IO_Control (F.Dev_Data, Request, Argument);
+         if Devices.IO_Control (F.Dev_Data, Request, Argument) then
+            Success := FS_Success;
+         else
+            Success := FS_Invalid_Value;
+         end if;
       else
          Success := VFS.IO_Control (F.FS_Data, F.File_Data, Request, Argument);
       end if;
    end IO_Control;
 
-   function Synchronize (F : File_Acc) return Boolean is
+   function Synchronize (F : File_Acc) return FS_Status is
    begin
       if F.Is_Device then
-         return Devices.Synchronize (F.Dev_Data);
+         if Devices.Synchronize (F.Dev_Data) then
+            return FS_Success;
+         else
+            return FS_IO_Failure;
+         end if;
       else
          return VFS.Synchronize (F.FS_Data, F.File_Data);
       end if;
@@ -439,7 +447,7 @@ package body VFS.File with SPARK_Mode => Off is
       (Path    : String;
        Typ     : File_Type;
        Mode    : File_Mode;
-       Success : out Boolean)
+       Success : out FS_Status)
    is
       Match_Count : Natural;
       Handle      : FS_Handle;
@@ -452,7 +460,7 @@ package body VFS.File with SPARK_Mode => Off is
    procedure Create_Symbolic_Link
       (Path, Target : String;
        Mode         : Unsigned_32;
-       Success      : out Boolean)
+       Success      : out FS_Status)
    is
       Match_Count : Natural;
       Handle      : FS_Handle;
@@ -464,7 +472,7 @@ package body VFS.File with SPARK_Mode => Off is
 
    procedure Create_Hard_Link
       (Path, Target : String;
-       Success      : out Boolean)
+       Success      : out FS_Status)
    is
       Match_Count : Natural;
       Handle      : FS_Handle;
@@ -479,7 +487,7 @@ package body VFS.File with SPARK_Mode => Off is
    procedure Rename
       (Source, Target : String;
        Keep           : Boolean;
-       Success        : out Boolean)
+       Success        : out FS_Status)
    is
       Match_Count : Natural;
       Handle      : FS_Handle;
@@ -492,7 +500,7 @@ package body VFS.File with SPARK_Mode => Off is
           Keep);
    end Rename;
 
-   procedure Unlink (Path : String; Success : out Boolean) is
+   procedure Unlink (Path : String; Success : out FS_Status) is
       Match_Count : Natural;
       Handle      : FS_Handle;
    begin

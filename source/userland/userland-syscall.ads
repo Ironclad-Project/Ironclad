@@ -20,6 +20,7 @@ with Arch.MMU;
 with IPC.PTY;
 with System;
 with Userland.Process; use Userland.Process;
+with VFS;
 
 package Userland.Syscall with SPARK_Mode => Off is
    --  Error conditions for syscalls.
@@ -40,6 +41,7 @@ package Userland.Syscall with SPARK_Mode => Off is
       Error_Not_Implemented, --  ENOSYS
       Error_Not_A_TTY,       --  ENOTTY
       Error_Bad_Permissions, --  EPERM
+      Error_Read_Only_FS,    --  EROFS
       Error_Invalid_Seek,    --  ESPIPE
       Error_Bad_Search,      --  ESRCH
       Error_Bad_File         --  EBADFD
@@ -60,6 +62,7 @@ package Userland.Syscall with SPARK_Mode => Off is
       Error_Not_Implemented => 1051,
       Error_Not_A_TTY       => 1058,
       Error_Bad_Permissions => 1063,
+      Error_Read_Only_FS    => 1068,
       Error_Invalid_Seek    => 1069,
       Error_Bad_Search      => 1070,
       Error_Bad_File        => 1081
@@ -421,6 +424,7 @@ package Userland.Syscall with SPARK_Mode => Off is
    --  Mount a filesystem.
    MNT_EXT : constant := 1;
    MNT_FAT : constant := 2;
+   MNT_QNX : constant := 3;
    MS_RDONLY : constant := 2#01#;
    function Mount
       (Source_Addr : Unsigned_64;
@@ -586,6 +590,12 @@ private
        Extension    : String;
        Result       : out String;
        Count        : out Natural);
+
+   --  Translate an FS_Status to Errno.
+   function Translate_Status
+      (Status         : VFS.FS_Status;
+       Success_Return : Unsigned_64;
+       Errno          : out Errno_Value) return Unsigned_64;
 
    --  Translate mmap permissions.
    function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions;

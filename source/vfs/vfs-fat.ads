@@ -25,7 +25,7 @@ package VFS.FAT with SPARK_Mode => Off is
       (FS      : System.Address;
        Path    : String;
        Ino     : out File_Inode_Number;
-       Success : out Boolean);
+       Success : out FS_Status);
 
    procedure Close (FS : System.Address; Ino : File_Inode_Number);
 
@@ -34,7 +34,7 @@ package VFS.FAT with SPARK_Mode => Off is
        Ino       : File_Inode_Number;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out Boolean);
+       Success   : out FS_Status);
 
    procedure Read
       (FS_Data   : System.Address;
@@ -42,12 +42,12 @@ package VFS.FAT with SPARK_Mode => Off is
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out Boolean);
+       Success   : out FS_Status);
 
    function Stat
       (Data : System.Address;
        Ino  : File_Inode_Number;
-       S    : out File_Stat) return Boolean;
+       S    : out File_Stat) return FS_Status;
 
 private
 

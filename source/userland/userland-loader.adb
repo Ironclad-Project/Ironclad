@@ -186,6 +186,7 @@ package body Userland.Loader with SPARK_Mode => Off is
        Environment : Environment_Arr;
        Proc        : PID) return Boolean
    is
+      use VFS;
       function Conv is new Ada.Unchecked_Conversion
          (Target => Userland.String_Acc, Source => VFS.File.String_Acc);
 
@@ -199,10 +200,11 @@ package body Userland.Loader with SPARK_Mode => Off is
       Char_Data : Operation_Data (1 .. 1)
          with Import, Address => Char'Address;
       Char_Len  : Natural;
-      Success   : Boolean;
+      Success   : VFS.FS_Status;
    begin
       Read (FD, Path_Data (1 .. 2), Path_Len, Success);
-      if not Success or Path_Len /= 2 or Path (1 .. 2) /= "#!" then
+      if Success /= VFS.FS_Success or Path_Len /= 2 or Path (1 .. 2) /= "#!"
+      then
          return False;
       end if;
 
@@ -210,7 +212,7 @@ package body Userland.Loader with SPARK_Mode => Off is
       Path_Len := 0;
       loop
          Read (FD, Char_Data, Char_Len, Success);
-         if not Success or Char_Len /= 1 then
+         if Success /= VFS.FS_Success or Char_Len /= 1 then
             return False;
          end if;
          case Char is
@@ -221,7 +223,7 @@ package body Userland.Loader with SPARK_Mode => Off is
       end loop;
       loop
          Read (FD, Char_Data, Char_Len, Success);
-         if not Success or Char_Len /= 1 then
+         if Success /= VFS.FS_Success or Char_Len /= 1 then
             return False;
          end if;
          case Char is
