@@ -20,10 +20,12 @@ with Arch.CPU;
 with Arch.Snippets;
 
 package body Devices.PS2Keyboard with SPARK_Mode => Off is
+   type Scancode_Arr is array (1 .. 10) of Unsigned_8;
+
    --  Globals to communicate with the interrupt routine.
-   Is_Reading    : Boolean with Volatile;
-   Has_Read      : Boolean with Volatile;
-   Read_Scancode : Unsigned_8;
+   Is_Reading     : Boolean      with Volatile;
+   Scancode_Count : Natural      with Volatile;
+   Scancodes      : Scancode_Arr with Volatile;
 
    function Init return Boolean is
       BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
@@ -121,29 +123,38 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
    is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
+      Copied : Natural;
    begin
-      if Data'Length = 0 then
-         Ret_Count := 0;
-         Success   := False;
+      Scancode_Count := 0;
+      Is_Reading     := True;
+      while Is_Reading loop
+         Arch.Snippets.Pause;
+      end loop;
+      Is_Reading := False;
+
+      if Scancode_Count > Data'Length then
+         Copied := Data'Length;
+      else
+         Copied := Scancode_Count;
       end if;
 
-      Has_Read   := False;
-      Is_Reading := True;
-      while not Has_Read loop
-         Arch.Snippets.Wait_For_Interrupt;
+      for I in 1 .. Copied loop
+         Data (Data'First + I - 1) := Scancodes (I);
       end loop;
-      Is_Reading        := False;
-      Data (Data'First) := Read_Scancode;
-      Ret_Count         := 1;
-      Success           := True;
+
+      Success   := True;
+      Ret_Count := Scancode_Count;
    end Read;
 
    procedure Keyboard_Handler is
       Input : constant Unsigned_8 := Arch.Snippets.Port_In (16#60#);
    begin
-      if Is_Reading then
-         Read_Scancode := Input;
-         Has_Read      := True;
+      if Is_Reading and Scancode_Count < Scancodes'Length then
+         Scancodes (Scancodes'First + Scancode_Count) := Input;
+         Scancode_Count := Scancode_Count + 1;
+         if Input /= 16#E0# then
+            Is_Reading := False;
+         end if;
       end if;
 
       Arch.APIC.LAPIC_EOI;
