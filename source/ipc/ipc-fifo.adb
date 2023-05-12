@@ -168,9 +168,10 @@ package body IPC.FIFO is
       end if;
 
       Lib.Synchronization.Seize (To_Read.Mutex);
-      if To_Read.Is_Read_Blocking and To_Read.Data_Count = 0 then
+      if not To_Read.Is_Read_Blocking and To_Read.Data_Count = 0 then
          Ret_Count := 0;
          Success   := Would_Block_Failure;
+         Lib.Synchronization.Release (To_Read.Mutex);
          return;
       end if;
 
@@ -201,26 +202,27 @@ package body IPC.FIFO is
       Len   : Natural := Data'Length;
       Final : Natural;
    begin
+      Lib.Synchronization.Seize (To_Write.Mutex);
+
       if To_Write.Reader_Refcount = 0 then
          Ret_Count := 0;
          Success   := Broken_Failure;
-         return;
+         goto Cleanup;
+      elsif not To_Write.Is_Write_Blocking and
+            To_Write.Data_Count = To_Write.Data'Length
+      then
+         Ret_Count := 0;
+         Success   := Would_Block_Failure;
+         goto Cleanup;
+      else
+         loop
+            Lib.Synchronization.Release (To_Write.Mutex);
+            Arch.Snippets.Pause;
+            Lib.Synchronization.Seize (To_Write.Mutex);
+            exit when To_Write.Data_Count /= To_Write.Data'Length;
+         end loop;
       end if;
 
-      if To_Write.Data_Count = To_Write.Data'Length then
-         if To_Write.Is_Write_Blocking then
-            loop
-               exit when To_Write.Data_Count /= To_Write.Data'Length;
-               Arch.Snippets.Pause;
-            end loop;
-         else
-            Ret_Count := 0;
-            Success   := Would_Block_Failure;
-            return;
-         end if;
-      end if;
-
-      Lib.Synchronization.Seize (To_Write.Mutex);
       if Len > To_Write.Data'Length or else
          Len + To_Write.Data_Count > To_Write.Data'Length
       then
@@ -233,9 +235,11 @@ package body IPC.FIFO is
       To_Write.Data (To_Write.Data_Count + 1 .. Final) :=
          Data (Data'First .. Data'First + Len - 1);
       To_Write.Data_Count := Final;
-      Lib.Synchronization.Release (To_Write.Mutex);
       Ret_Count := Len;
       Success   := Pipe_Success;
+
+   <<Cleanup>>
+      Lib.Synchronization.Release (To_Write.Mutex);
    end Write;
    ----------------------------------------------------------------------------
    procedure Common_Close (To_Close : in out Inner_Acc) is

@@ -40,6 +40,7 @@ procedure Main is
    Value_Len : Natural;
    Found     : Boolean;
    Init_File : File_Acc;
+   Init_PID  : PID;
 
    Init_Stdin  : constant String := "/dev/null";
    Init_Stdout : constant String := "/dev/debug";
@@ -82,13 +83,23 @@ begin
       Lib.Messages.Put_Line ("Booting init " & Value (1 .. Value_Len));
       Init_Arguments (1) := new String'(Value (1 .. Value_Len));
       Open (Value (1 .. Value_Len), Read_Only, Init_File);
-      if Init_File = null or else Userland.Loader.Start_Program
-         (Init_File, Init_Arguments, Init_Environment, Init_Stdin,
-          Init_Stdout, Init_Stdout) = Error_PID
-      then
-         Lib.Panic.Hard_Panic ("Could not start init");
+      if Init_File /= null then
+         Init_PID := Userland.Loader.Start_Program
+            (Init_File,
+             Init_Arguments,
+             Init_Environment,
+             Init_Stdin,
+             Init_Stdout,
+             Init_Stdout);
+         if Init_PID /= Error_PID then
+            Userland.Process.Set_Identifier (Init_PID, Value (1 .. Value_Len));
+         else
+            Lib.Panic.Hard_Panic ("Could not start init");
+         end if;
+         Close (Init_File);
+      else
+         Lib.Panic.Hard_Panic ("Init could not be opened");
       end if;
-      Close (Init_File);
    else
       Lib.Panic.Hard_Panic ("No init was specified");
    end if;
