@@ -1393,6 +1393,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                for I in 1 .. Ret loop
                   Procs (I) :=
                      (Identifier  => KProc (I).Identifier,
+                      Id_Len      => Unsigned_16 (KProc (I).Identifier_Len),
                       Parent_PID  => Unsigned_16 (Convert (KProc (I).Parent)),
                       Process_PID => Unsigned_16 (Convert (KProc (I).Process)),
                       Flags       => 0);

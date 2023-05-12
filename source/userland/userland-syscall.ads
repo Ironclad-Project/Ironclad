@@ -307,10 +307,11 @@ package Userland.Syscall with SPARK_Mode => Off is
    PROC_EXITED     : constant := 2#100#;
    type Proc_Info is record
       Identifier  : String (1 .. 20);
+      Id_Len      : Unsigned_16;
       Parent_PID  : Unsigned_16;
       Process_PID : Unsigned_16;
       Flags       : Unsigned_32;
-   end record;
+   end record with Pack;
    type Proc_Info_Arr is array (Natural range <>) of Proc_Info;
 
    type Mount_Info is record

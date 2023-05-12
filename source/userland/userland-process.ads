@@ -80,6 +80,7 @@ package Userland.Process with SPARK_Mode => Off is
    --  Information of a process.
    type Process_Info is record
       Identifier      : String (1 .. 20);
+      Identifier_Len  : Natural;
       Process         : PID;
       Parent          : PID;
       Is_Being_Traced : Boolean;
@@ -341,7 +342,7 @@ private
    Max_Process_Count : constant Natural := 256;
 
    Max_CWD_Length   : constant Natural := 100;
-   Max_Name_Length  : constant Natural := 100;
+   Max_Name_Length  : constant Natural :=  20;
    Max_Thread_Count : constant Natural :=  20;
    Max_File_Count   : constant Natural := 100;
 

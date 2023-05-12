@@ -1316,10 +1316,12 @@ is the count of bytes reserved in the array. The items have the structure:
 
 @example
 struct procinfo @{
+    char id[20];
+    uint16_t id_len;
     uint16_t ppid;
     uint16_t pid;
     uint32_t flags;
-@};
+@} __attribute__((packed));
 @end example
 
 The total number of processes is returned, even if it doesnt fit in the passed

@@ -73,6 +73,7 @@ package body Userland.Process with SPARK_Mode => Off is
             if Curr_Index < List'Length then
                List (List'First + Curr_Index) :=
                   (Identifier      => Registry (I).Identifier (1 .. 20),
+                   Identifier_Len  => Registry (I).Identifier_Len,
                    Process         => I,
                    Parent          => Registry (I).Parent,
                    Is_Being_Traced => Registry (I).Is_Traced,
