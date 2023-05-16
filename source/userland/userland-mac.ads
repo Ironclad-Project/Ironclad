@@ -29,7 +29,8 @@ package Userland.MAC is
       Can_Manage_Mounts     : Boolean;
       Can_Manage_Power      : Boolean;
       Can_Trace_Children    : Boolean;
-   end record with Pack, Size => 9;
+      Can_Change_UIDs       : Boolean;
+   end record;
 
    --  Permissions a filter can give.
    type Filter_Permissions is record
@@ -40,7 +41,7 @@ package Userland.MAC is
       Can_Execute       : Boolean; --  Execute permissions.
       Can_Append_Only   : Boolean; --  Can append only, conflicts with write.
       Can_Lock_Files    : Boolean; --  Can lock the affected files.
-   end record with Pack, Size => 7;
+   end record;
 
    --  Filter, that has a string used as absolute path and permissions.
    Filter_Path_Length : constant := 75;
@@ -63,11 +64,15 @@ package Userland.MAC is
       Filters : Filter_Arr (1 .. 30);
    end record;
 
-   --  Default permissions are none (PoLP).
+   --  Default permissions are all, and the user deescalates from there.
    Default_Permissions : constant Permissions :=
       (Action  => Deny,
-       Caps    => (others => False),
-       Filters => (others =>
+       Caps    => (others => True),
+       Filters => (1 =>
+         (Path   => (1 => '/', others => Ada.Characters.Latin_1.NUL),
+          Length => 1,
+          Perms  => (others => True)),
+                   others =>
          (Path   => (others => Ada.Characters.Latin_1.NUL),
           Length => 0,
           Perms  => (others => False))));

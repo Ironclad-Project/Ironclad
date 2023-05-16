@@ -206,6 +206,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := Set_Deadlines (State.RDI, State.RSI, Errno);
          when 23 =>
             Returned := Pipe (State.RDI, State.RSI, Errno);
+         when 24 =>
+            Returned := Get_UID (Errno);
          when 25 =>
             Returned := Rename (State.RDI, State.RSI, State.RDX, State.RCX,
                                 State.R8, State.R9, State.R10, Errno);
@@ -233,7 +235,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 35 =>
             Returned := Set_MAC_Capabilities (State.RDI, Errno);
          when 36 =>
-            Returned := Lock_MAC (Errno);
+            Returned := Get_MAC_Capabilities (Errno);
          when 37 =>
             Returned := Add_MAC_Filter (State.RDI, Errno);
          when 38 =>
@@ -273,6 +275,14 @@ package body Arch.Interrupts with SPARK_Mode => Off is
                                 Errno);
          when 57 =>
             Returned := Poll (State.RDI, State.RSI, State.RDX, Errno);
+         when 58 =>
+            Returned := Get_EUID (Errno);
+         when 59 =>
+            Returned := Set_UIDs (State.RDI, State.RSI, Errno);
+         when 60 =>
+            Returned := Fchmod (State.RDI, State.RSI, Errno);
+         when 61 =>
+            Returned := Umask (State.RDI, Errno);
          when others =>
             Returned := Unsigned_64'Last;
             Errno    := Error_Not_Implemented;
@@ -281,6 +291,18 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       --  Assign the return values.
       State.RAX := Returned;
       State.RDX := Unsigned_64 (Errno_Value'Enum_Rep (Errno));
+
+      --  Trace again.
+      if Is_Traced then
+         File := Get_File (Proc, Unsigned_64 (Tracer_FD));
+         if File /= null and then File.Description = Description_Writer_FIFO
+         then
+            Write (File.Inner_Writer_FIFO, State_Data, Ret_Count, Success);
+            while not Is_Empty (File.Inner_Writer_FIFO) loop
+               Scheduler.Yield;
+            end loop;
+         end if;
+      end if;
    end Syscall_Handler;
 
    procedure Scheduler_Handler (Num : Integer; State : not null ISR_GPRs_Acc)

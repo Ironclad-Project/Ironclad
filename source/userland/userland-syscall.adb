@@ -113,6 +113,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when VFS.FS_IO_Failure =>
             Errno := Error_IO;
             return Unsigned_64'Last;
+         when VFS.FS_Not_Allowed =>
+            Errno := Error_Bad_Permissions;
+            return Unsigned_64'Last;
       end case;
    end Translate_Status;
 
@@ -200,30 +203,28 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end;
 
-      if Is_MAC_Locked (Curr_Proc) then
-         File_Perms := MAC.Check_Path_Permissions
-            (Path    => Final_Path (1 .. Final_Path_L),
-             Filters => Get_MAC (Curr_Proc).Filters);
+      File_Perms := MAC.Check_Path_Permissions
+         (Path    => Final_Path (1 .. Final_Path_L),
+          Filters => Get_MAC (Curr_Proc).Filters);
 
-         case Open_Mode is
-            when VFS.File.Read_Write =>
-               if File_Perms.Can_Read and File_Perms.Can_Write then
-                  goto Resume;
-               end if;
-            when VFS.File.Read_Only =>
-               if File_Perms.Can_Read then
-                  goto Resume;
-               end if;
-            when VFS.File.Write_Only =>
-               if File_Perms.Can_Write then
-                  goto Resume;
-               end if;
-         end case;
+      case Open_Mode is
+         when VFS.File.Read_Write =>
+            if File_Perms.Can_Read and File_Perms.Can_Write then
+               goto Resume;
+            end if;
+         when VFS.File.Read_Only =>
+            if File_Perms.Can_Read then
+               goto Resume;
+            end if;
+         when VFS.File.Write_Only =>
+            if File_Perms.Can_Write then
+               goto Resume;
+            end if;
+      end case;
 
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("open", Curr_Proc);
-         return Unsigned_64'Last;
-      end if;
+      Errno := Error_Bad_Access;
+      Execute_MAC_Failure ("open", Curr_Proc);
+      return Unsigned_64'Last;
 
    <<Resume>>
       Open (Final_Path (1 .. Final_Path_L), Open_Mode, Opened_File,
@@ -252,7 +253,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64 (Returned_FD);
       else
          Close (New_Descr);
-         Lib.Messages.Put_Line ("Oplo1t");
          Errno := Error_Too_Many_Files;
          return Unsigned_64'Last;
       end if;
@@ -479,8 +479,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Map  : constant     Page_Map_Acc := Get_Common_Map (Proc);
       Final_Hint : Unsigned_64 := Hint;
    begin
-      if Is_MAC_Locked (Proc) and not Get_MAC (Proc).Caps.Can_Modify_Memory
-      then
+      if not Get_MAC (Proc).Caps.Can_Modify_Memory then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("mmap", Proc);
          return Unsigned_64'Last;
@@ -563,8 +562,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Addr : constant Physical_Address :=
          Memory.Virtual.Virtual_To_Physical (Map, Virtual_Address (Address));
    begin
-      if Is_MAC_Locked (Proc) and not Get_MAC (Proc).Caps.Can_Modify_Memory
-      then
+      if not Get_MAC (Proc).Caps.Can_Modify_Memory then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("munmap", Proc);
          return Unsigned_64'Last;
@@ -628,16 +626,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      if Is_MAC_Locked (Proc) then
-         File_Perms := MAC.Check_Path_Permissions
-            (Path    => Path,
-             Filters => Get_MAC (Proc).Filters);
-
-         if not File_Perms.Can_Execute then
-            Errno := Error_Bad_Access;
-            Execute_MAC_Failure ("exec", Proc);
-            return Unsigned_64'Last;
-         end if;
+      File_Perms := MAC.Check_Path_Permissions
+         (Path    => Path,
+          Filters => Get_MAC (Proc).Filters);
+      if not File_Perms.Can_Execute then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("exec", Proc);
+         return Unsigned_64'Last;
       end if;
 
       Open (Path, Read_Only, Path_File);
@@ -729,8 +724,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Use_Parent : constant Boolean := (Flags and CLONE_PARENT) /= 0;
       Do_Thread  : constant Boolean := (Flags and CLONE_THREAD) /= 0;
    begin
-      if Is_MAC_Locked (Parent) and not Get_MAC (Parent).Caps.Can_Spawn_Others
-      then
+      if not Get_MAC (Parent).Caps.Can_Spawn_Others then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("clone", Parent);
          return Unsigned_64'Last;
@@ -931,8 +925,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Name    : String (1 .. Len) with Import, Address => SAddr;
       Success : Boolean;
    begin
-      if Is_MAC_Locked (Proc) and not Get_MAC (Proc).Caps.Can_Manage_Networking
-      then
+      if not Get_MAC (Proc).Caps.Can_Manage_Networking then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("set_hostname", Proc);
          return Unsigned_64'Last;
@@ -1203,8 +1196,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc : constant PID := Arch.Local.Get_Current_Process;
       Thre : constant    Scheduler.TID := Arch.Local.Get_Current_Thread;
    begin
-      if Is_MAC_Locked (Proc) and not Get_MAC (Proc).Caps.Can_Change_Scheduling
-      then
+      if not Get_MAC (Proc).Caps.Can_Change_Scheduling then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("setdeadlines", Proc);
          return Unsigned_64'Last;
@@ -1253,7 +1245,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Close (Returned);
          Close (Reader_Desc);
          Close (Writer_Desc);
-         Lib.Messages.Put_Line ("Oplo2t");
          Errno := Error_Too_Many_Files;
          return Unsigned_64'Last;
       else
@@ -1261,6 +1252,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return 0;
       end if;
    end Pipe;
+
+   function Get_UID (Errno : out Errno_Value) return Unsigned_64 is
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Ret  : Unsigned_32;
+   begin
+      Userland.Process.Get_UID (Proc, Ret);
+      Errno := Error_No_Error;
+      return Unsigned_64 (Ret);
+   end Get_UID;
 
    function Rename
       (Source_FD   : Unsigned_64;
@@ -1325,23 +1325,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
              Target_Path (1 .. Target_Path_L),
              Do_Keep,
              Success);
-         case Success is
-            when VFS.FS_Success =>
-               Errno := Error_No_Error;
-               return 0;
-            when VFS.FS_Invalid_Value =>
-               Errno := Error_Invalid_Value;
-               return Unsigned_64'Last;
-            when VFS.FS_Not_Supported =>
-               Errno := Error_Not_Implemented;
-               return Unsigned_64'Last;
-            when VFS.FS_RO_Failure =>
-               Errno := Error_Read_Only_FS;
-               return Unsigned_64'Last;
-            when VFS.FS_IO_Failure =>
-               Errno := Error_IO;
-               return Unsigned_64'Last;
-         end case;
+         return Translate_Status (Success, 0, Errno);
       end;
    end Rename;
 
@@ -1399,9 +1383,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
                       Flags       => 0);
                   if KProc (I).Is_Being_Traced then
                      Procs (I).Flags := Procs (I).Flags or PROC_IS_TRACED;
-                  end if;
-                  if KProc (I).Is_MAC_Locked then
-                     Procs (I).Flags := Procs (I).Flags or PROC_MAC_LOCKED;
                   end if;
                   if KProc (I).Has_Exited then
                      Procs (I).Flags := Procs (I).Flags or PROC_EXITED;
@@ -1484,18 +1465,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
       then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
-      elsif Is_MAC_Locked (Proc) then
-         File_Perms := MAC.Check_Path_Permissions
-            (Path    => Path,
-             Filters => Get_MAC (Proc).Filters);
+      end if;
 
-         if not Get_MAC (Proc).Caps.Can_Spawn_Others or
-            not File_Perms.Can_Execute
-         then
-            Errno := Error_Bad_Access;
-            Execute_MAC_Failure ("spawn", Proc);
-            return Unsigned_64'Last;
-         end if;
+      File_Perms := MAC.Check_Path_Permissions
+         (Path    => Path,
+          Filters => Get_MAC (Proc).Filters);
+
+      if not Get_MAC (Proc).Caps.Can_Spawn_Others or not File_Perms.Can_Execute
+      then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("spawn", Proc);
+         return Unsigned_64'Last;
       end if;
 
       Open (Path, Read_Only, Path_File);
@@ -1585,11 +1565,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
       (Flags : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64
    is
-      Proc : constant PID := Arch.Local.Get_Current_Process;
-      Curr : constant Scheduler.TID    := Arch.Local.Get_Current_Thread;
+      Proc : constant           PID := Arch.Local.Get_Current_Process;
+      Curr : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
    begin
-      if Is_MAC_Locked (Proc) and not Get_MAC (Proc).Caps.Can_Change_Scheduling
-      then
+      if not Get_MAC (Proc).Caps.Can_Change_Scheduling then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("set_thread_sched", Proc);
          return Unsigned_64'Last;
@@ -1703,8 +1682,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Result : Cryptography.Random.Crypto_Data (1 .. Natural (Length / 4))
          with Import, Address => SAddr;
    begin
-      if Is_MAC_Locked (Proc) and not Get_MAC (Proc).Caps.Can_Access_Entropy
-      then
+      if not Get_MAC (Proc).Caps.Can_Access_Entropy then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("getrandom", Proc);
          return Unsigned_64'Last;
@@ -1729,8 +1707,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Flags : constant Arch.MMU.Page_Permissions := Get_Mmap_Prot (Protection);
       Addr  : constant Integer_Address := Integer_Address (Address);
    begin
-      if Is_MAC_Locked (Proc) and not Get_MAC (Proc).Caps.Can_Modify_Memory
-      then
+      if not Get_MAC (Proc).Caps.Can_Modify_Memory then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("mprotect", Proc);
          return Unsigned_64'Last;
@@ -1753,60 +1730,55 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       P     : constant PID := Arch.Local.Get_Current_Process;
       Perms :           MAC.Permissions := Get_MAC (P);
-      S1 : constant Boolean := (Bits and MAC_CAP_SCHED)   /= 0;
-      S2 : constant Boolean := (Bits and MAC_CAP_SPAWN)   /= 0;
-      S3 : constant Boolean := (Bits and MAC_CAP_ENTROPY) /= 0;
-      S4 : constant Boolean := (Bits and MAC_CAP_SYS_MEM) /= 0;
-      S5 : constant Boolean := (Bits and MAC_CAP_USE_NET) /= 0;
-      S6 : constant Boolean := (Bits and MAC_CAP_SYS_NET) /= 0;
-      S7 : constant Boolean := (Bits and MAC_CAP_SYS_MNT) /= 0;
-      S8 : constant Boolean := (Bits and MAC_CAP_SYS_PWR) /= 0;
-      S9 : constant Boolean := (Bits and MAC_CAP_PTRACE)  /= 0;
+      S1  : constant Boolean := (Bits and MAC_CAP_SCHED)   /= 0;
+      S2  : constant Boolean := (Bits and MAC_CAP_SPAWN)   /= 0;
+      S3  : constant Boolean := (Bits and MAC_CAP_ENTROPY) /= 0;
+      S4  : constant Boolean := (Bits and MAC_CAP_SYS_MEM) /= 0;
+      S5  : constant Boolean := (Bits and MAC_CAP_USE_NET) /= 0;
+      S6  : constant Boolean := (Bits and MAC_CAP_SYS_NET) /= 0;
+      S7  : constant Boolean := (Bits and MAC_CAP_SYS_MNT) /= 0;
+      S8  : constant Boolean := (Bits and MAC_CAP_SYS_PWR) /= 0;
+      S9  : constant Boolean := (Bits and MAC_CAP_PTRACE)  /= 0;
+      S10 : constant Boolean := (Bits and MAC_CAP_SETUID)  /= 0;
    begin
-      if Is_MAC_Locked (P) then
-         Perms.Caps := (
-            Can_Change_Scheduling => Perms.Caps.Can_Change_Scheduling and S1,
-            Can_Spawn_Others      => Perms.Caps.Can_Spawn_Others      and S2,
-            Can_Access_Entropy    => Perms.Caps.Can_Access_Entropy    and S3,
-            Can_Modify_Memory     => Perms.Caps.Can_Modify_Memory     and S4,
-            Can_Use_Networking    => Perms.Caps.Can_Use_Networking    and S5,
-            Can_Manage_Networking => Perms.Caps.Can_Manage_Networking and S6,
-            Can_Manage_Mounts     => Perms.Caps.Can_Manage_Mounts     and S7,
-            Can_Manage_Power      => Perms.Caps.Can_Manage_Power      and S8,
-            Can_Trace_Children    => Perms.Caps.Can_Trace_Children    and S9
-         );
-      else
-         Perms.Caps := (
-            Can_Change_Scheduling => S1,
-            Can_Spawn_Others      => S2,
-            Can_Access_Entropy    => S3,
-            Can_Modify_Memory     => S4,
-            Can_Use_Networking    => S5,
-            Can_Manage_Networking => S6,
-            Can_Manage_Mounts     => S7,
-            Can_Manage_Power      => S8,
-            Can_Trace_Children    => S9
-         );
-      end if;
+      Perms.Caps := (
+         Can_Change_Scheduling => Perms.Caps.Can_Change_Scheduling and S1,
+         Can_Spawn_Others      => Perms.Caps.Can_Spawn_Others      and S2,
+         Can_Access_Entropy    => Perms.Caps.Can_Access_Entropy    and S3,
+         Can_Modify_Memory     => Perms.Caps.Can_Modify_Memory     and S4,
+         Can_Use_Networking    => Perms.Caps.Can_Use_Networking    and S5,
+         Can_Manage_Networking => Perms.Caps.Can_Manage_Networking and S6,
+         Can_Manage_Mounts     => Perms.Caps.Can_Manage_Mounts     and S7,
+         Can_Manage_Power      => Perms.Caps.Can_Manage_Power      and S8,
+         Can_Trace_Children    => Perms.Caps.Can_Trace_Children    and S9,
+         Can_Change_UIDs       => Perms.Caps.Can_Change_UIDs       and S10
+      );
 
       Set_MAC (P, Perms);
       Errno := Error_No_Error;
       return 0;
    end Set_MAC_Capabilities;
 
-   function Lock_MAC (Errno : out Errno_Value) return Unsigned_64 is
-      Proc : constant PID := Arch.Local.Get_Current_Process;
+   function Get_MAC_Capabilities (Errno : out Errno_Value) return Unsigned_64
+   is
+      Proc : constant              PID := Arch.Local.Get_Current_Process;
+      Caps : constant MAC.Capabilities := Get_MAC (Proc).Caps;
+      Res  :               Unsigned_64 := 0;
    begin
-      if Is_MAC_Locked (Proc) then
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("lock_mac", Proc);
-         return Unsigned_64'Last;
-      else
-         Lock_MAC (Proc);
-         Errno := Error_No_Error;
-         return 0;
-      end if;
-   end Lock_MAC;
+      if Caps.Can_Change_Scheduling then Res := Res or MAC_CAP_SCHED;   end if;
+      if Caps.Can_Spawn_Others      then Res := Res or MAC_CAP_SPAWN;   end if;
+      if Caps.Can_Access_Entropy    then Res := Res or MAC_CAP_ENTROPY; end if;
+      if Caps.Can_Modify_Memory     then Res := Res or MAC_CAP_SYS_MEM; end if;
+      if Caps.Can_Use_Networking    then Res := Res or MAC_CAP_USE_NET; end if;
+      if Caps.Can_Manage_Networking then Res := Res or MAC_CAP_SYS_NET; end if;
+      if Caps.Can_Manage_Mounts     then Res := Res or MAC_CAP_SYS_MNT; end if;
+      if Caps.Can_Manage_Power      then Res := Res or MAC_CAP_SYS_PWR; end if;
+      if Caps.Can_Trace_Children    then Res := Res or MAC_CAP_PTRACE;  end if;
+      if Caps.Can_Change_UIDs       then Res := Res or MAC_CAP_SETUID;  end if;
+
+      Errno := Error_No_Error;
+      return Res;
+   end Get_MAC_Capabilities;
 
    function Add_MAC_Filter
       (Filter_Addr : Unsigned_64;
@@ -1864,12 +1836,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc  : constant PID := Arch.Local.Get_Current_Process;
       Perms :           MAC.Permissions := Get_MAC (Proc);
    begin
-      if Is_MAC_Locked (Proc) then
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("set_mac_enforcement", Proc);
-         return Unsigned_64'Last;
-      end if;
-
       case Action is
          when MAC_DENY            => Perms.Action := MAC.Deny;
          when MAC_DENY_AND_SCREAM => Perms.Action := MAC.Deny_And_Scream;
@@ -1930,8 +1896,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       then
          Errno := Error_String_Too_Long;
          return Unsigned_64'Last;
-      elsif Is_MAC_Locked (Proc) and not Get_MAC (Proc).Caps.Can_Manage_Mounts
-      then
+      elsif not Get_MAC (Proc).Caps.Can_Manage_Mounts then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("mount", Proc);
          return Unsigned_64'Last;
@@ -1980,9 +1945,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       elsif Path_Len > Unsigned_64 (Natural'Last) then
          Errno := Error_String_Too_Long;
          return Unsigned_64'Last;
-      elsif Is_MAC_Locked (Curr_Proc) and
-         not Get_MAC (Curr_Proc).Caps.Can_Manage_Mounts
-      then
+      elsif not Get_MAC (Curr_Proc).Caps.Can_Manage_Mounts then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("umount", Curr_Proc);
          return Unsigned_64'Last;
@@ -2050,14 +2013,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return Unsigned_64'Last;
          end if;
 
-         if Is_MAC_Locked (Proc) then
-            if not MAC.Check_Path_Permissions (Final_Path (1 .. Final_Path_L),
-               Get_MAC (Proc).Filters).Can_Read
-            then
-               Errno := Error_Bad_Access;
-               Execute_MAC_Failure ("readlink", Proc);
-               return Unsigned_64'Last;
-            end if;
+         if not MAC.Check_Path_Permissions (Final_Path (1 .. Final_Path_L),
+            Get_MAC (Proc).Filters).Can_Read
+         then
+            Errno := Error_Bad_Access;
+            Execute_MAC_Failure ("readlink", Proc);
+            return Unsigned_64'Last;
          end if;
 
          Open (Final_Path (1 .. Final_Path_L), Read_Only, Opened, False);
@@ -2164,6 +2125,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Node_Type    : File_Type;
       Tmp_Mode     : constant File_Mode := File_Mode (Mode and 8#7777#);
       Status       : VFS.FS_Status;
+      Umask        : VFS.File_Mode;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
          Errno := Error_Would_Fault;
@@ -2195,20 +2157,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Node_Type := File_Regular;
       end if;
 
+      Userland.Process.Get_Umask (Proc, Umask);
       Create_Node
-         (Final_Path (1 .. Final_Path_L),
-          Node_Type,
-          Tmp_Mode,
-          Status);
-      case Status is
-         when VFS.FS_Success       => Errno := Error_No_Error; return 0;
-         when VFS.FS_Invalid_Value => Errno := Error_Invalid_Value;
-         when VFS.FS_Not_Supported => Errno := Error_Bad_Permissions;
-         when VFS.FS_RO_Failure    => Errno := Error_Read_Only_FS;
-         when VFS.FS_IO_Failure    => Errno := Error_IO;
-      end case;
-
-      return Unsigned_64'Last;
+         (Path    => Final_Path (1 .. Final_Path_L),
+          Typ     => Node_Type,
+          Mode    => VFS.Apply_Umask (Tmp_Mode, Umask),
+          Success => Status);
+      return Translate_Status (Status, 0, Errno);
    end MakeNode;
 
    function Unlink
@@ -2423,7 +2378,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Close (Primary_Desc);
          Close (Secondary_Desc);
          Errno := Error_Too_Many_Files;
-         Lib.Messages.Put_Line ("Oplo4t");
          return Unsigned_64'Last;
       else
          Errno := Error_No_Error;
@@ -2531,8 +2485,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       if TProc = Error_PID or else Proc /= Get_Parent (TProc) then
          Errno := Error_Bad_Permissions;
          return Unsigned_64'Last;
-      elsif Is_MAC_Locked (Proc) and not Get_MAC (Proc).Caps.Can_Trace_Children
-      then
+      elsif not Get_MAC (Proc).Caps.Can_Trace_Children then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("ptrace", Proc);
          return Unsigned_64'Last;
@@ -2625,4 +2578,70 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Scheduler.Yield;
       end loop;
    end Poll;
+
+   function Get_EUID (Errno : out Errno_Value) return Unsigned_64 is
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Ret  : Unsigned_32;
+   begin
+      Userland.Process.Get_Effective_UID (Proc, Ret);
+      Errno := Error_No_Error;
+      return Unsigned_64 (Ret);
+   end Get_EUID;
+
+   function Set_UIDs
+      (UID   : Unsigned_64;
+       EUID  : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64
+   is
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+   begin
+      if not Get_MAC (Proc).Caps.Can_Change_UIDs then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("setuids", Proc);
+         return Unsigned_64'Last;
+      end if;
+
+      if UID <= Unsigned_64 (Unsigned_32'Last) then
+         Userland.Process.Set_UID (Proc, Unsigned_32 (UID));
+      end if;
+      if EUID <= Unsigned_64 (Unsigned_32'Last) then
+         Userland.Process.Set_Effective_UID (Proc, Unsigned_32 (EUID));
+      end if;
+
+      Errno := Error_No_Error;
+      return 0;
+   end Set_UIDs;
+
+   function Fchmod
+      (FD    : Unsigned_64;
+       Mode  : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64
+   is
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Desc : constant File_Description_Acc := Get_File (Proc, FD);
+      Succ : VFS.FS_Status;
+   begin
+      case Desc.Description is
+         when Description_File =>
+            Succ := VFS.File.Change_Mode (Desc.Inner_File, File_Mode (Mode));
+            Errno := Error_No_Error;
+            return Translate_Status (Succ, 0, Errno);
+         when others =>
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+      end case;
+   end Fchmod;
+
+   function Umask
+      (Mode  : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64
+   is
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Old  : File_Mode;
+   begin
+      Process.Get_Umask (Proc, Old);
+      Process.Set_Umask (Proc, File_Mode (Mode and 8#777#));
+      Errno := Error_No_Error;
+      return Unsigned_64 (Old);
+   end Umask;
 end Userland.Syscall;

@@ -79,6 +79,7 @@ Userland state and conditions
 
 Security and integrity facilities
 
+* Users and groups::                UIDs, EUIDs, GIDs, and all the fuzz.
 * Mandatory access control (MAC)::  MAC quickguide and configuration.
 * Integrity checks::                Userland integrity checks.
 
@@ -114,8 +115,7 @@ Syscalls
 * exit_thread::             Exit the calling thread.
 * getrandom::               Bypass /dev/random for avoiding DoS attacks.
 * mprotect::                Change memory permissions.
-* set_mac_capabilities::    Modify MAC capabilities.
-* lock_mac::                Lock MAC down.
+* mac_capabilities::        Get and set MAC capabilities.
 * add_mac_filter::          Configure MAC using filesystem-based filters.
 * set_mac_enforcement::     Set enforcement to follow on MAC violations.
 * mount::                   Mount partitions.
@@ -133,6 +133,10 @@ Syscalls
 * link::                    Create hard links.
 * ptrace::                  Trace and debug children processes.
 * poll::                    I/O event multiplexer.
+* getuid/geteuid::          Get the UID and the effective UID.
+* setuids::                 Set the UID and the effective UID.
+* fchmod::                  Change the mode of a file descriptor.
+* umask::                   Get and set the calling process umask.
 
 Filesystems support and interfaces
 
@@ -425,6 +429,18 @@ additionally loaded libraries at random offsets.
 This chapter digs into the various Ironclad-specific security and integrity
 features available for the user.
 
+@node Users and groups
+@section Users and groups
+
+As part of the UNIX-like package, Ironclad supports the traditional UID/EUID
+values per-process for basic access protection, both for files and syscalls.
+
+Unlike most UNIX systems, the @code{setuid} bit is fully ignored and not
+implemented, instead, as part of the mandatory access control facilities
+explained later, @code{MAC_CAP_SETUID} is provided, with similar functionality.
+
+Groups are not supported in any shape or form.
+
 @node Mandatory access control (MAC)
 @section Mandatory access control (MAC)
 
@@ -438,7 +454,7 @@ configurable actions to take on triggering illegal actions. These settings come
 in the form of capabilities and file filters.
 
 Capabilities are a set of coarse permissions that restrict a process on what it
-can and cannot do, they are configured using @ref{set_mac_capabilities}.
+can and cannot do, they are configured using @ref{mac_capabilities}.
 
 The available capability list is:
 
@@ -474,6 +490,10 @@ shutdown and reboot.
 
 @item MAC_CAP_PTRACE
 The process will be able to use ptrace on children processes.
+
+@item MAC_CAP_SETUID
+The process will be able to change its effective and global UIDs without
+checks.
 @end table
 
 Apart of capabilities, access to filesystem structures and permission
@@ -483,10 +503,8 @@ The method of acting on MAC violations and failures can be set by using
 @ref{set_mac_enforcement}. Possible values include denying requests, killing
 the offending part outright, or denying and additionally logging the event.
 
-Locking can be done with @ref{lock_mac}. Once locked, MAC settings come into
-effect. When locked, processes can only restrict themselves further, and not
-make their capabilities more permissive. Locking is not reversible and is
-inherited.
+Once booted, MAC is enabled and gives full access to everything, effectively
+being transparent, its up to the root user to further restrict it.
 
 @node Integrity checks
 @section Integrity checks
@@ -570,7 +588,7 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{pipe}.
 @item
-Empty.
+@xref{getuid/geteuid, getuid}.
 @item
 @xref{rename}.
 @item
@@ -592,9 +610,9 @@ Empty.
 @item
 @xref{sync}
 @item
-@xref{set_mac_capabilities}.
+@xref{mac_capabilities, set_mac_capabilities}.
 @item
-@xref{lock_mac}.
+@xref{mac_capabilities, get_mac_capabilities}.
 @item
 @xref{add_mac_filter}.
 @item
@@ -627,6 +645,14 @@ Unused.
 @xref{ptrace}
 @item
 @xref{poll}
+@item
+@xref{getuid/geteuid, geteuid}.
+@item
+@xref{setuids}
+@item
+@xref{fchmod}
+@item
+@xref{umask}
 @end enumerate
 
 @node Errno
@@ -1532,8 +1558,8 @@ sets the following errno:
 @code{EACCES}: MAC disallowed this.
 @end itemize
 
-@node set_mac_capabilities
-@section set_mac_capabilities
+@node mac_capabilities
+@section mac_capabilities
 
 @example
 #define MAC_CAP_SCHED   0b000000001
@@ -1546,32 +1572,17 @@ sets the following errno:
 #define MAC_CAP_SYS_PWR 0b010000000
 #define MAC_CAP_PTRACE  0b100000000
 
+unsigned long get_mac_capabilities(void);
 int set_mac_capabilities(unsigned long request);
 @end example
 
-This syscall sets MAC filters on the way described in
+These syscalls allow to fetch and set MAC capabilities on the way described in
 @ref{Mandatory access control (MAC)}.
 
-This syscall always returns @code{0} and does not fail, settings will just
-be ignored if permission to change them is not granted.
-
-@node lock_mac
-@section lock_mac
-
-@example
-int lock_mac(void);
-@end example
-
-This syscall locks MAC modification as described in
-@ref{Mandatory access control (MAC)}.
-
-The syscall returns @code{0} on success or @code{-1} on failure, with the
-following errno:
-
-@itemize @bullet
-@item
-@code{EACCES}: MAC was already locked.
-@end itemize
+Both syscalls cannot fail, @code{get_mac_capabilities} always returns the
+capabilities of the callee process and @code{set_mac_capabilities} always
+returns @code{0}, settings will just be ignored if permission to change them
+is not granted.
 
 @node add_mac_filter
 @section add_mac_filter
@@ -2086,6 +2097,76 @@ The passed pointers are not in addressable memory.
 @item EINVAL
 The passed values are not valid.
 @end table
+
+@node getuid/geteuid
+@section getuid/geteuid
+
+@example
+uid_t getuid(void);
+uid_t geteuid(void);
+@end example
+
+These syscalls fetch the UID and the effective UID of the calling process. They
+never fail.
+
+@node setuids
+@section setuids
+
+@example
+int setuids(uid_t uid, uid_t euid);
+@end example
+
+This syscall sets the UID and effective UID of the calling process, if any
+of them is @code{-1}, it will not be set. @code{MAC_CAP_SETUID} is required
+for this operation.
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EINVAL
+The passed values are not valid, or out of range.
+
+@item EACCES
+MAC did not allow this.
+@end table
+
+@node fchmod
+@section fchmod
+
+@example
+int fchmod(int fd, mode_t mode);
+@end example
+
+This syscall sets the mode for the passed FD taking umask into account.
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EINVAL
+The passed FD or mode is not valid.
+
+@item EACCES
+MAC did not allow this.
+@end table
+
+@node umask
+@section umask
+
+@example
+mode_t umask(mode_t mask);
+@end example
+
+This syscall sets the umask of the calling process to the passed mask AND'd
+with @code{777} in octal.
+
+The umask is used by the kernel when creating files in the name of the calling
+process. It marks permissions to be turned off from @code{mode} arguments
+passed by the user. The default value is @code{22} in octal, and is inherited
+from parent processes to children.
+
+This syscall never fails, it always returns the old mask before modification.
 
 @node Filesystems support and interfaces
 @chapter Filesystems support and interfaces

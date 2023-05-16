@@ -25,12 +25,15 @@ package VFS is
    --  consistent across different mounts, depending on the FS.
    type File_Inode_Number is new Unsigned_64;
 
+   --  Each inode has a mode. They are POSIX standard. uid, gid, and sticky
+   --  bits are ignored.
+   type File_Mode is new Natural range 8#000# .. 8#777#;
+
    --  Stat structure of a file, which describes the qualities of a file.
    type File_Timestamp is record
       Seconds_Since_Epoch    : Unsigned_64;
       Additional_Nanoseconds : Unsigned_64;
    end record;
-   type File_Mode is new Natural range 8#000# .. 8#7777#;
    type File_Type is (File_Regular, File_Directory, File_Symbolic_Link,
                       File_Character_Device, File_Block_Device);
    type File_Stat is record
@@ -139,6 +142,7 @@ package VFS is
       (FS_Success,       --  Success, only good value for ease of checking.
        FS_Invalid_Value, --  One of the passed values is no good.
        FS_Not_Supported, --  The operation is not supported for this FS.
+       FS_Not_Allowed,   --  Bad permissions for interacting with the inode.
        FS_RO_Failure,    --  The FS is read-only, but write access is needed.
        FS_IO_Failure);   --  The underlying device errored out.
 
@@ -147,12 +151,13 @@ package VFS is
    --  @param Path    Absolute path inside the mount, creation is not done.
    --  @param Ino     Found inode, if any.
    --  @param Success Returned status for the operation.
-   --  @return Returned opaque pointer for the passed mount, Null in failure.
+   --  @param User    UID to check against, 0 for root/bypass checks.
    procedure Open
       (Key     : FS_Handle;
        Path    : String;
        Ino     : out File_Inode_Number;
-       Success : out FS_Status)
+       Success : out FS_Status;
+       User    : Unsigned_32 := 0)
       with Pre => Key /= Error_Handle;
 
    --  Create a file with an absolute path inside the mount.
@@ -160,12 +165,14 @@ package VFS is
    --  @param Path Absolute path inside the mount, must not exist.
    --  @param Typ  Type of file to create.
    --  @param Mode Mode to use for the created file.
+   --  @param User UID to check against, 0 for root/bypass checks.
    --  @return Status for the operation.
    function Create_Node
       (Key  : FS_Handle;
        Path : String;
        Typ  : File_Type;
-       Mode : File_Mode) return FS_Status
+       Mode : File_Mode;
+       User : Unsigned_32 := 0) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Create a symlink with an absolute path inside the mount and a target.
@@ -173,21 +180,25 @@ package VFS is
    --  @param Path   Absolute path inside the mount, must not exist.
    --  @param Target Target of the symlink, it is not checked in any way.
    --  @param Mode   Mode to use for the created symlink.
+   --  @param User   UID to check against, 0 for root/bypass checks.
    --  @return Status for the operation.
    function Create_Symbolic_Link
       (Key          : FS_Handle;
        Path, Target : String;
-       Mode         : Unsigned_32) return FS_Status
+       Mode         : Unsigned_32;
+       User         : Unsigned_32 := 0) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Create a hard link with an absolute path inside the mount and a target.
    --  @param Key    FS Handle to open.
    --  @param Path   Absolute path inside the mount, must not exist.
    --  @param Target Target of the symlink, it is not checked in any way.
+   --  @param User   UID to check against, 0 for root/bypass checks.
    --  @return Status for the operation.
    function Create_Hard_Link
       (Key          : FS_Handle;
-       Path, Target : String) return FS_Status
+       Path, Target : String;
+       User         : Unsigned_32 := 0) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Rename two files.
@@ -195,19 +206,25 @@ package VFS is
    --  @param Source Absolute source path inside the mount, must not exist.
    --  @param Target Target of the mode, if it exists, it will be replaced.
    --  @param Keep   Keep the source instead of plainly renaming it.
+   --  @param User   UID to check against, 0 for root/bypass checks.
    --  @return Status for the operation.
    function Rename
       (Key    : FS_Handle;
        Source : String;
        Target : String;
-       Keep   : Boolean) return FS_Status
+       Keep   : Boolean;
+       User   : Unsigned_32 := 0) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Queue a file for deletion inside a mount.
    --  @param Key  FS Handle to open.
    --  @param Path Absolute path inside the mount, must exist.
+   --  @param User UID to check against, 0 for root/bypass checks.
    --  @return Status for the operation.
-   function Unlink (Key : FS_Handle; Path : String) return FS_Status;
+   function Unlink
+      (Key  : FS_Handle;
+       Path : String;
+       User : Unsigned_32 := 0) return FS_Status;
 
    --  Signal to the FS we do not need this inode anymore.
    --  @param Key FS handle to operate on.
@@ -220,13 +237,15 @@ package VFS is
    --  @param Ino       Inode to operate on.
    --  @param Entities  Where to store the read entries, as many as possible.
    --  @param Ret_Count The count of entries, even if num > Entities'Length.
-   --  @param Success   Status for the operation..
+   --  @param User      UID to check against, 0 for root/bypass checks.
+   --  @param Success   Status for the operation.
    procedure Read_Entries
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out FS_Status)
+       Success   : out FS_Status;
+       User      : Unsigned_32 := 0)
       with Pre => Key /= Error_Handle;
 
    --  Read the entries of an opened directory.
@@ -235,11 +254,13 @@ package VFS is
    --  @param Entities  Where to store the read entries, as many as possible.
    --  @param Ret_Count The count of entries, even if num > Entities'Length.
    --  @param Success   Status for the operation.
+   --  @param User      UID to check against, 0 for root/bypass checks.
    procedure Read_Symbolic_Link
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
        Path      : out String;
-       Ret_Count : out Natural)
+       Ret_Count : out Natural;
+       User      : Unsigned_32 := 0)
       with Pre => Key /= Error_Handle;
 
    --  Read from a regular file.
@@ -249,13 +270,15 @@ package VFS is
    --  @param Data      Place to write read data.
    --  @param Ret_Count How many items were read into Data until EOF.
    --  @param Success   Status for the operation.
+   --  @param User      UID to check against, 0 for root/bypass checks.
    procedure Read
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status)
+       Success   : out FS_Status;
+       User      : Unsigned_32 := 0)
       with Pre => Key /= Error_Handle;
 
    --  Write to a regular file.
@@ -265,13 +288,15 @@ package VFS is
    --  @param Data      Data to write
    --  @param Ret_Count How many items were written until EOF.
    --  @param Success   Status for the operation.
+   --  @param User      UID to check against, 0 for root/bypass checks.
    procedure Write
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status)
+       Success   : out FS_Status;
+       User      : Unsigned_32 := 0)
       with Pre => Key /= Error_Handle;
 
    --  Get the stat of a file.
@@ -279,29 +304,40 @@ package VFS is
    --  @param Ino      Inode to operate on.
    --  @param Stat_Val Data to fetch.
    --  @param Success  Status for the operation.
+   --  @param User      UID to check against, 0 for root/bypass checks.
    procedure Stat
       (Key      : FS_Handle;
        Ino      : File_Inode_Number;
        Stat_Val : out File_Stat;
-       Success  : out FS_Status)
+       Success  : out FS_Status;
+       User     : Unsigned_32 := 0)
       with Pre => Key /= Error_Handle;
 
    --  Truncate a file to size 0.
    --  @param Key      FS Handle to open.
    --  @param Ino      Inode to operate on.
    --  @param New_Size New size for the file to adopt.
+   --  @param User     UID to check against, 0 for root/bypass checks.
    --  @return Status for the operation.
    function Truncate
       (Key      : FS_Handle;
        Ino      : File_Inode_Number;
-       New_Size : Unsigned_64) return FS_Status;
+       New_Size : Unsigned_64;
+       User     : Unsigned_32 := 0) return FS_Status;
 
    --  Do an FS-specific ioctl on the inode.
+   --  @param Key      FS Handle to open.
+   --  @param Ino      Inode to operate on.
+   --  @param Request  FS-Specific request to issue.
+   --  @param Arg      Address of an optional argument for the FS.
+   --  @param User     UID to check against, 0 for root/bypass checks.
+   --  @return Status for the operation.
    function IO_Control
       (Key     : FS_Handle;
        Ino     : File_Inode_Number;
        Request : Unsigned_64;
-       Arg     : System.Address) return FS_Status
+       Arg     : System.Address;
+       User    : Unsigned_32 := 0) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Synchronize all FSs mounted on the system, FSs with no implemented
@@ -323,6 +359,18 @@ package VFS is
       (Key : FS_Handle;
        Ino : File_Inode_Number) return FS_Status
       with Pre => Key /= Error_Handle;
+
+   --  Change the mode of an inode.
+   --  @param Key  FS Handle to use.
+   --  @param Ino  Inode to change the mode of.
+   --  @param Mode Mode to change the inode to.
+   --  @param User UID to check against, 0 for root/bypass checks.
+   --  @return Status of the operation.
+   function Change_Mode
+      (Key  : FS_Handle;
+       Ino  : File_Inode_Number;
+       Mode : File_Mode;
+       User : Unsigned_32 := 0) return FS_Status;
    ----------------------------------------------------------------------------
    --  Check whether a path is absolute.
    --  @param Path to check.
@@ -347,6 +395,13 @@ package VFS is
        Extension : String;
        Result    : out String;
        Count     : out Natural);
+
+   --  Apply a umask to a mode.
+   --  @param Mode  Mode to use.
+   --  @param Umask Umask to use.
+   --  @return The resulting mode.
+   function Apply_Umask (Mode, Umask : File_Mode) return File_Mode is
+      (File_Mode (Unsigned_32 (Mode) and not Unsigned_32 (Umask)));
 
 private
 

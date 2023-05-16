@@ -77,7 +77,6 @@ package body Userland.Process with SPARK_Mode => Off is
                    Process         => I,
                    Parent          => Registry (I).Parent,
                    Is_Being_Traced => Registry (I).Is_Traced,
-                   Is_MAC_Locked   => Registry (I).Is_MAC_Locked,
                    Has_Exited      => Registry (I).Did_Exit);
                Curr_Index := Curr_Index + 1;
             end if;
@@ -105,20 +104,24 @@ package body Userland.Process with SPARK_Mode => Off is
                 others      => <>);
 
             if Parent /= Error_PID then
-               Registry (I).Is_MAC_Locked   := Registry (P).Is_MAC_Locked;
                Registry (I).Parent          := Parent;
                Registry (I).Stack_Base      := Registry (P).Stack_Base;
                Registry (I).Alloc_Base      := Registry (P).Alloc_Base;
                Registry (I).Current_Dir_Len := Registry (P).Current_Dir_Len;
                Registry (I).Current_Dir     := Registry (P).Current_Dir;
                Registry (I).Perms           := Registry (P).Perms;
+               Registry (I).User            := Registry (P).User;
+               Registry (I).Effective_User  := Registry (P).Effective_User;
+               Registry (I).Umask           := Registry (P).Umask;
             else
                Reroll_ASLR (PID (I));
-               Registry (I).Is_MAC_Locked   := False;
                Registry (I).Parent          := 0;
                Registry (I).Current_Dir_Len := 1;
                Registry (I).Current_Dir (1) := '/';
                Registry (I).Perms           := MAC.Default_Permissions;
+               Registry (I).User            := 0;
+               Registry (I).Effective_User  := 0;
+               Registry (I).Umask           := Default_Umask;
             end if;
 
             Returned := PID (I);
@@ -382,16 +385,6 @@ package body Userland.Process with SPARK_Mode => Off is
       Len := Length;
    end Get_CWD;
 
-   function Is_MAC_Locked (Proc : PID) return Boolean is
-   begin
-      return Registry (Proc).Is_MAC_Locked;
-   end Is_MAC_Locked;
-
-   procedure Lock_MAC (Proc : PID) is
-   begin
-      Registry (Proc).Is_MAC_Locked := True;
-   end Lock_MAC;
-
    function Get_MAC (Proc : PID) return MAC.Permissions is
    begin
       return Registry (Proc).Perms;
@@ -418,9 +411,17 @@ package body Userland.Process with SPARK_Mode => Off is
    end Get_Parent;
 
    procedure Set_Identifier (Proc : PID; Name : String) is
+      Length : Natural;
    begin
-      Registry (Proc).Identifier (1 .. Name'Length) := Name;
-      Registry (Proc).Identifier_Len := Name'Length;
+      if Name'Length > Max_Name_Length then
+         Length := Max_Name_Length;
+      else
+         Length := Name'Length;
+      end if;
+
+      Registry (Proc).Identifier_Len           := Length;
+      Registry (Proc).Identifier (1 .. Length) :=
+         Name (Name'First .. Name'First + Length - 1);
    end Set_Identifier;
 
    procedure Get_Identifier
@@ -440,6 +441,36 @@ package body Userland.Process with SPARK_Mode => Off is
          Registry (Proc).Identifier (1 .. Length);
       Len := Length;
    end Get_Identifier;
+
+   procedure Get_UID (Proc : PID; UID : out Unsigned_32) is
+   begin
+      UID := Registry (Proc).User;
+   end Get_UID;
+
+   procedure Set_UID (Proc : PID; UID : Unsigned_32) is
+   begin
+      Registry (Proc).User := UID;
+   end Set_UID;
+
+   procedure Get_Effective_UID (Proc : PID; EUID : out Unsigned_32) is
+   begin
+      EUID := Registry (Proc).Effective_User;
+   end Get_Effective_UID;
+
+   procedure Set_Effective_UID (Proc : PID; EUID : Unsigned_32) is
+   begin
+      Registry (Proc).Effective_User := EUID;
+   end Set_Effective_UID;
+
+   procedure Get_Umask (Proc : PID; Umask : out VFS.File_Mode) is
+   begin
+      Umask := Registry (Proc).Umask;
+   end Get_Umask;
+
+   procedure Set_Umask (Proc : PID; Umask : VFS.File_Mode) is
+   begin
+      Registry (Proc).Umask := Umask;
+   end Set_Umask;
 
    function Convert (Proc : PID) return Natural is
    begin

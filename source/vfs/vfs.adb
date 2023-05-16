@@ -202,7 +202,8 @@ package body VFS with SPARK_Mode => Off is
       (Key     : FS_Handle;
        Path    : String;
        Ino     : out File_Inode_Number;
-       Success : out FS_Status)
+       Success : out FS_Status;
+       User    : Unsigned_32 := 0)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -228,7 +229,8 @@ package body VFS with SPARK_Mode => Off is
       (Key  : FS_Handle;
        Path : String;
        Typ  : File_Type;
-       Mode : File_Mode) return FS_Status
+       Mode : File_Mode;
+       User : Unsigned_32 := 0) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -242,7 +244,8 @@ package body VFS with SPARK_Mode => Off is
    function Create_Symbolic_Link
       (Key          : FS_Handle;
        Path, Target : String;
-       Mode         : Unsigned_32) return FS_Status
+       Mode         : Unsigned_32;
+       User         : Unsigned_32 := 0) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -256,7 +259,8 @@ package body VFS with SPARK_Mode => Off is
 
    function Create_Hard_Link
       (Key          : FS_Handle;
-       Path, Target : String) return FS_Status
+       Path, Target : String;
+       User         : Unsigned_32 := 0) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -271,7 +275,8 @@ package body VFS with SPARK_Mode => Off is
       (Key    : FS_Handle;
        Source : String;
        Target : String;
-       Keep   : Boolean) return FS_Status
+       Keep   : Boolean;
+       User   : Unsigned_32 := 0) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -282,7 +287,10 @@ package body VFS with SPARK_Mode => Off is
       end case;
    end Rename;
 
-   function Unlink (Key : FS_Handle; Path : String) return FS_Status is
+   function Unlink
+      (Key  : FS_Handle;
+       Path : String;
+       User : Unsigned_32 := 0) return FS_Status is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT => return EXT.Unlink (Mounts (Key).FS_Data, Path);
@@ -304,7 +312,8 @@ package body VFS with SPARK_Mode => Off is
        Ino       : File_Inode_Number;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out FS_Status)
+       Success   : out FS_Status;
+       User      : Unsigned_32 := 0)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -332,7 +341,8 @@ package body VFS with SPARK_Mode => Off is
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
        Path      : out String;
-       Ret_Count : out Natural)
+       Ret_Count : out Natural;
+       User      : Unsigned_32 := 0)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -354,7 +364,8 @@ package body VFS with SPARK_Mode => Off is
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status)
+       Success   : out FS_Status;
+       User      : Unsigned_32 := 0)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -386,7 +397,8 @@ package body VFS with SPARK_Mode => Off is
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status)
+       Success   : out FS_Status;
+       User      : Unsigned_32 := 0)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -408,7 +420,8 @@ package body VFS with SPARK_Mode => Off is
       (Key      : FS_Handle;
        Ino      : File_Inode_Number;
        Stat_Val : out File_Stat;
-       Success  : out FS_Status)
+       Success  : out FS_Status;
+       User     : Unsigned_32 := 0)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -424,7 +437,8 @@ package body VFS with SPARK_Mode => Off is
    function Truncate
       (Key      : FS_Handle;
        Ino      : File_Inode_Number;
-       New_Size : Unsigned_64) return FS_Status
+       New_Size : Unsigned_64;
+       User     : Unsigned_32 := 0) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -439,7 +453,8 @@ package body VFS with SPARK_Mode => Off is
       (Key     : FS_Handle;
        Ino     : File_Inode_Number;
        Request : Unsigned_64;
-       Arg     : System.Address) return FS_Status
+       Arg     : System.Address;
+       User    : Unsigned_32 := 0) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -483,6 +498,19 @@ package body VFS with SPARK_Mode => Off is
          when others => return FS_Not_Supported;
       end case;
    end Synchronize;
+
+   function Change_Mode
+      (Key  : FS_Handle;
+       Ino  : File_Inode_Number;
+       Mode : File_Mode;
+       User : Unsigned_32 := 0) return FS_Status
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT => return FS_Not_Supported;
+         when others => return FS_Not_Supported;
+      end case;
+   end Change_Mode;
    ----------------------------------------------------------------------------
    function Is_Absolute (Path : String) return Boolean is
    begin

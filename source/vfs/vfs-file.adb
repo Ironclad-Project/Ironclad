@@ -407,6 +407,18 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Synchronize;
 
+   function Change_Mode
+      (F    : File_Acc;
+       Mode : File_Mode) return FS_Status
+   is
+   begin
+      if F.Is_Device then
+         return FS_Invalid_Value;
+      else
+         return VFS.Change_Mode (F.FS_Data, F.File_Data, Mode);
+      end if;
+   end Change_Mode;
+
    function Mmap
       (F           : File_Acc;
        Address     : Memory.Virtual_Address;

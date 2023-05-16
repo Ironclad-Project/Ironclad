@@ -40,6 +40,10 @@ package Userland.Process with SPARK_Mode => Off is
    Max_Thread_Count : constant Natural;
    Max_File_Count   : constant Natural;
 
+   --  Each process has a umask, inherited from the parent, with a default mask
+   --  for the first process.
+   Default_Umask : constant VFS.File_Mode;
+
    --  Each file held by the process follows this format.
    type File_Description_Type is
       (Description_Reader_FIFO,
@@ -84,7 +88,6 @@ package Userland.Process with SPARK_Mode => Off is
       Process         : PID;
       Parent          : PID;
       Is_Being_Traced : Boolean;
-      Is_MAC_Locked   : Boolean;
       Has_Exited      : Boolean;
    end record;
    type Process_Info_Arr is array (Natural range <>) of Process_Info;
@@ -278,17 +281,6 @@ package Userland.Process with SPARK_Mode => Off is
        Len  : out Natural)
       with Pre => Proc /= Error_PID;
 
-   --  Check whether MAC is locked.
-   --  @param Proc Process to get the info from.
-   --  @return True if locked, False if not.
-   function Is_MAC_Locked (Proc : PID) return Boolean
-      with Pre => Proc /= Error_PID;
-
-   --  Lock MAC.
-   --  @param Proc Process to lock.
-   procedure Lock_MAC (Proc : PID)
-      with Pre => Proc /= Error_PID;
-
    --  Get MAC permissions.
    --  @param Proc Process to get the info from.
    --  @return Permissions.
@@ -323,6 +315,36 @@ package Userland.Process with SPARK_Mode => Off is
        Len  : out Natural)
       with Pre => Proc /= Error_PID;
 
+   --  Get the process user id.
+   --  @param Proc Process to get the UID of.
+   --  @param UID  Returned UID.
+   procedure Get_UID (Proc : PID; UID : out Unsigned_32);
+
+   --  Set the process user id.
+   --  @param Proc Process to get the UID of.
+   --  @param UID  UID to set.
+   procedure Set_UID (Proc : PID; UID : Unsigned_32);
+
+   --  Get the process effective user id.
+   --  @param Proc Process to get the UID of.
+   --  @param EUID Returned UID.
+   procedure Get_Effective_UID (Proc : PID; EUID : out Unsigned_32);
+
+   --  Set the process effective user id.
+   --  @param Proc Process to get the UID of.
+   --  @param EUID EUID to set.
+   procedure Set_Effective_UID (Proc : PID; EUID : Unsigned_32);
+
+   --  Get the process umask.
+   --  @param Proc  Process to get the UID of.
+   --  @param Umask Returned umask.
+   procedure Get_Umask (Proc : PID; Umask : out VFS.File_Mode);
+
+   --  Set the process umask.
+   --  @param Proc  Process to get the UID of.
+   --  @param Umask umask to set without modification, no AND or anything.
+   procedure Set_Umask (Proc : PID; Umask : VFS.File_Mode);
+
    --  Convert a PID to an integer. The results will be reproducible for the
    --  same PIDs.
    --  @param Proc PID to convert, can be Error_PID.
@@ -346,9 +368,14 @@ private
    Max_Thread_Count : constant Natural :=  20;
    Max_File_Count   : constant Natural := 100;
 
+   Default_Umask : constant VFS.File_Mode := 8#22#;
+
    type Thread_Arr is array (1 .. Max_Thread_Count)   of Scheduler.TID;
    type File_Arr   is array (0 .. Max_File_Count - 1) of File_Description_Acc;
    type Process_Data is record
+      Umask           : VFS.File_Mode;
+      User            : Unsigned_32;
+      Effective_User  : Unsigned_32;
       Identifier      : String (1 .. Max_Name_Length);
       Identifier_Len  : Natural range 0 .. Max_Name_Length;
       Parent          : PID;
@@ -361,7 +388,6 @@ private
       Common_Map      : Memory.Virtual.Page_Map_Acc;
       Stack_Base      : Unsigned_64;
       Alloc_Base      : Unsigned_64;
-      Is_MAC_Locked   : Boolean;
       Perms           : MAC.Permissions;
       Did_Exit        : Boolean;
       Exit_Code       : Unsigned_8;

@@ -122,6 +122,11 @@ package VFS.File with SPARK_Mode => Off is
    --  Synchronize.
    function Synchronize (F : File_Acc) return FS_Status with Pre => F /= null;
 
+   --  Change the mode of a file.
+   function Change_Mode
+      (F    : File_Acc;
+       Mode : File_Mode) return FS_Status with Pre => F /= null;
+
    --  Mmap.
    function Mmap
       (F           : File_Acc;

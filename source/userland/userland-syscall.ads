@@ -279,6 +279,9 @@ package Userland.Syscall with SPARK_Mode => Off is
        Flags       : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
 
+   --  Get the current UID.
+   function Get_UID (Errno : out Errno_Value) return Unsigned_64;
+
    --  Rename files.
    RENAME_NOREPLACE : constant := 2#1#;
    function Rename
@@ -302,9 +305,8 @@ package Userland.Syscall with SPARK_Mode => Off is
    SC_LIST_PROCS    : constant := 8;
    SC_LIST_MOUNTS   : constant := 9;
 
-   PROC_IS_TRACED  : constant := 2#001#;
-   PROC_MAC_LOCKED : constant := 2#010#;
-   PROC_EXITED     : constant := 2#100#;
+   PROC_IS_TRACED : constant := 2#01#;
+   PROC_EXITED    : constant := 2#10#;
    type Proc_Info is record
       Identifier  : String (1 .. 20);
       Id_Len      : Unsigned_16;
@@ -381,21 +383,22 @@ package Userland.Syscall with SPARK_Mode => Off is
       Errno      : out Errno_Value) return Unsigned_64;
 
    --  Set MAC capabilities of the caller process.
-   MAC_CAP_SCHED   : constant := 2#000000001#;
-   MAC_CAP_SPAWN   : constant := 2#000000010#;
-   MAC_CAP_ENTROPY : constant := 2#000000100#;
-   MAC_CAP_SYS_MEM : constant := 2#000001000#;
-   MAC_CAP_USE_NET : constant := 2#000010000#;
-   MAC_CAP_SYS_NET : constant := 2#000100000#;
-   MAC_CAP_SYS_MNT : constant := 2#001000000#;
-   MAC_CAP_SYS_PWR : constant := 2#010000000#;
-   MAC_CAP_PTRACE  : constant := 2#100000000#;
+   MAC_CAP_SCHED   : constant := 2#0000000001#;
+   MAC_CAP_SPAWN   : constant := 2#0000000010#;
+   MAC_CAP_ENTROPY : constant := 2#0000000100#;
+   MAC_CAP_SYS_MEM : constant := 2#0000001000#;
+   MAC_CAP_USE_NET : constant := 2#0000010000#;
+   MAC_CAP_SYS_NET : constant := 2#0000100000#;
+   MAC_CAP_SYS_MNT : constant := 2#0001000000#;
+   MAC_CAP_SYS_PWR : constant := 2#0010000000#;
+   MAC_CAP_PTRACE  : constant := 2#0100000000#;
+   MAC_CAP_SETUID  : constant := 2#1000000000#;
    function Set_MAC_Capabilities
       (Bits  : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
 
-   --  Lock the MAC from further significant modification.
-   function Lock_MAC (Errno : out Errno_Value) return Unsigned_64;
+   --  Get the MAC capabilities of the caller process.
+   function Get_MAC_Capabilities (Errno : out Errno_Value) return Unsigned_64;
 
    --  Add a file MAC filter.
    type MAC_Filter is record
@@ -578,6 +581,26 @@ package Userland.Syscall with SPARK_Mode => Off is
        FDs_Count : Unsigned_64;
        Timeout   : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
+
+   --  Get the current effective UID.
+   function Get_EUID (Errno : out Errno_Value) return Unsigned_64;
+
+   --  Set the global and effective UIDs.
+   function Set_UIDs
+      (UID   : Unsigned_64;
+       EUID  : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64;
+
+   --  Change the mode of the passed file.
+   function Fchmod
+      (FD    : Unsigned_64;
+       Mode  : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64;
+
+   --  Change the umask of the calling process.
+   function Umask
+      (Mode  : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64;
 
 private
 
