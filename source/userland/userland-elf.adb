@@ -88,7 +88,7 @@ package body Userland.ELF with SPARK_Mode => Off is
       Success   : FS_Status;
    begin
       --  Read and check the header.
-      VFS.File.Read (File_D, Header_Data, Ret_Count, Success);
+      VFS.File.Read (File_D, Header_Data, Ret_Count, Success, 0);
       if Success /= FS_Success or Ret_Count /= Header_Bytes or
          Header.Identifier (1 .. 4) /= ELF_Signature
       then
@@ -116,7 +116,7 @@ package body Userland.ELF with SPARK_Mode => Off is
          end if;
 
          VFS.File.Set_Position (File_D, Header.Program_Header_List, Discard);
-         VFS.File.Read (File_D, PHDRs_Data, Ret_Count, Success);
+         VFS.File.Read (File_D, PHDRs_Data, Ret_Count, Success, 0);
          if Success /= FS_Success or Ret_Count /= Natural (RSize) then
             return Result;
          end if;
@@ -159,7 +159,7 @@ package body Userland.ELF with SPARK_Mode => Off is
       Success   : FS_Status;
    begin
       VFS.File.Set_Position (File_D, Header.Offset, Discard2);
-      VFS.File.Read (File_D, Ret_Data, Ret_Count, Success);
+      VFS.File.Read (File_D, Ret_Data, Ret_Count, Success, 0);
       if Success = FS_Success and Ret_Count = Header.File_Size_Bytes then
          return Ret;
       else
@@ -215,7 +215,7 @@ package body Userland.ELF with SPARK_Mode => Off is
 
       Load := (others => 0);
       VFS.File.Set_Position (File_D, Header.Offset, Discard);
-      VFS.File.Read (File_D, Load2, Ret_Count, Success);
+      VFS.File.Read (File_D, Load2, Ret_Count, Success, 0);
       return Success = FS_Success and Ret_Count = Header.File_Size_Bytes;
    end Load_Header;
 end Userland.ELF;

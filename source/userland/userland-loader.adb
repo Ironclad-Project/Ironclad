@@ -41,9 +41,9 @@ package body Userland.Loader with SPARK_Mode => Off is
       Stdin, StdOut, StdErr                : File_Acc;
       User_Stdin, User_StdOut, User_StdErr : File_Description_Acc;
    begin
-      Open (StdIn_Path,  Read_Only, Stdin);
-      Open (StdOut_Path, Write_Only, StdOut);
-      Open (StdErr_Path, Write_Only, StdErr);
+      Open (StdIn_Path,  Read_Only,  Stdin,  0);
+      Open (StdOut_Path, Write_Only, StdOut, 0);
+      Open (StdErr_Path, Write_Only, StdErr, 0);
 
       if Returned_PID = Error_PID then
          goto Error;
@@ -131,7 +131,7 @@ package body Userland.Loader with SPARK_Mode => Off is
          LD_Path (9 .. Loaded_ELF.Linker_Path.all'Length + 8) :=
             Loaded_ELF.Linker_Path (1 .. Loaded_ELF.Linker_Path.all'Length);
          Open (LD_Path (9 .. 7 + Loaded_ELF.Linker_Path.all'Length), Read_Only,
-               LD_File);
+               LD_File, 0);
          if LD_File = null then
             goto Error;
          end if;
@@ -202,7 +202,7 @@ package body Userland.Loader with SPARK_Mode => Off is
       Char_Len  : Natural;
       Success   : VFS.FS_Status;
    begin
-      Read (FD, Path_Data (1 .. 2), Path_Len, Success);
+      Read (FD, Path_Data (1 .. 2), Path_Len, Success, 0);
       if Success /= VFS.FS_Success or Path_Len /= 2 or Path (1 .. 2) /= "#!"
       then
          return False;
@@ -211,7 +211,7 @@ package body Userland.Loader with SPARK_Mode => Off is
       --  Format of a shebang: #!path [arg]newline
       Path_Len := 0;
       loop
-         Read (FD, Char_Data, Char_Len, Success);
+         Read (FD, Char_Data, Char_Len, Success, 0);
          if Success /= VFS.FS_Success or Char_Len /= 1 then
             return False;
          end if;
@@ -222,7 +222,7 @@ package body Userland.Loader with SPARK_Mode => Off is
          end case;
       end loop;
       loop
-         Read (FD, Char_Data, Char_Len, Success);
+         Read (FD, Char_Data, Char_Len, Success, 0);
          if Success /= VFS.FS_Success or Char_Len /= 1 then
             return False;
          end if;
@@ -247,7 +247,7 @@ package body Userland.Loader with SPARK_Mode => Off is
          end if;
          New_Args (I .. New_Args'Length) := Arguments;
          New_Args (I) := Conv (Get_Path (FD));
-         Open (Path (1 .. Path_Len), Read_Only, Banged);
+         Open (Path (1 .. Path_Len), Read_Only, Banged, 0);
          if Banged = null then
             return False;
          end if;

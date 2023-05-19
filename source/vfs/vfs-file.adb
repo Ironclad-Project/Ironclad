@@ -1,5 +1,5 @@
 --  vfs-file.adb: File creation and management.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -29,7 +29,8 @@ package body VFS.File with SPARK_Mode => Off is
        Fetched_FS   : out FS_Handle;
        Fetched_File : out File_Inode_Number;
        Success      : out Boolean;
-       Follow_Links : Boolean)
+       Follow_Links : Boolean;
+       User         : Unsigned_32)
    is
       Fetched_Stat : File_Stat;
       Match_Count  : Natural;
@@ -72,9 +73,10 @@ package body VFS.File with SPARK_Mode => Off is
          (Fetched_FS,
           Path (Path'First + Match_Count .. Path'Last),
           Fetched_File,
-          Succ);
+          Succ,
+          User);
       if Succ = FS_Success then
-         Stat (Fetched_FS, Fetched_File, Fetched_Stat, Succ);
+         Stat (Fetched_FS, Fetched_File, Fetched_Stat, Succ, User);
          Success := Succ = FS_Success;
       else
          Success := False;
@@ -89,7 +91,9 @@ package body VFS.File with SPARK_Mode => Off is
             (Key       => Fetched_FS,
              Ino       => Fetched_File,
              Path      => Symlink,
-             Ret_Count => Symlink_Len);
+             Ret_Count => Symlink_Len,
+             Success   => Succ,
+             User      => User);
 
          for I in Path'Range loop
             if Path (I) = '/' then
@@ -110,7 +114,8 @@ package body VFS.File with SPARK_Mode => Off is
                Fetched_FS,
                Fetched_File,
                Success,
-               Follow_Links
+               Follow_Links,
+               User
             );
          else
             Resolve_File (
@@ -120,7 +125,8 @@ package body VFS.File with SPARK_Mode => Off is
                Fetched_FS,
                Fetched_File,
                Success,
-               Follow_Links
+               Follow_Links,
+               User
             );
          end if;
       end if;
@@ -130,6 +136,7 @@ package body VFS.File with SPARK_Mode => Off is
       (Path         : String;
        Access_Flags : Access_Mode;
        Result       : out File_Acc;
+       User         : Unsigned_32;
        Follow_Links : Boolean := True)
    is
       Success      : Boolean;
@@ -145,7 +152,8 @@ package body VFS.File with SPARK_Mode => Off is
           Fetched_FS   => Fetched_FS,
           Fetched_File => Fetched_File,
           Success      => Success,
-          Follow_Links => Follow_Links);
+          Follow_Links => Follow_Links,
+          User         => User);
 
       if Success then
          Result := new File'(
@@ -217,7 +225,8 @@ package body VFS.File with SPARK_Mode => Off is
       (To_Read   : File_Acc;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out FS_Status)
+       Success   : out FS_Status;
+       User      : Unsigned_32)
    is
    begin
       if not To_Read.Is_Device then
@@ -226,7 +235,8 @@ package body VFS.File with SPARK_Mode => Off is
              Ino       => To_Read.File_Data,
              Entities  => Entities,
              Ret_Count => Ret_Count,
-             Success   => Success);
+             Success   => Success,
+             User      => User);
       else
          Success   := FS_Invalid_Value;
          Ret_Count := 0;
@@ -241,7 +251,9 @@ package body VFS.File with SPARK_Mode => Off is
    procedure Read_Symbolic_Link
       (To_Read   : File_Acc;
        Path      : out String;
-       Ret_Count : out Natural)
+       Ret_Count : out Natural;
+       Success   : out FS_Status;
+       User      : Unsigned_32)
    is
    begin
       if not To_Read.Is_Device then
@@ -249,10 +261,13 @@ package body VFS.File with SPARK_Mode => Off is
             (Key       => To_Read.FS_Data,
              Ino       => To_Read.File_Data,
              Path      => Path,
-             Ret_Count => Ret_Count);
+             Ret_Count => Ret_Count,
+             Success   => Success,
+             User      => User);
       else
          Path      := (others => ' ');
          Ret_Count := 0;
+         Success   := FS_Invalid_Value;
       end if;
    end Read_Symbolic_Link;
 
@@ -260,7 +275,8 @@ package body VFS.File with SPARK_Mode => Off is
       (To_Read   : File_Acc;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status)
+       Success   : out FS_Status;
+       User      : Unsigned_32)
    is
       Succ : Boolean;
    begin
@@ -278,8 +294,9 @@ package body VFS.File with SPARK_Mode => Off is
              Offset    => To_Read.Index,
              Data      => Data,
              Ret_Count => Ret_Count,
-             Success   => Success);
-      else
+             Success   => Success,
+             User      => User);
+      elsif User = 0 then
          Devices.Read
             (Handle    => To_Read.Dev_Data,
              Offset    => To_Read.Index,
@@ -287,6 +304,9 @@ package body VFS.File with SPARK_Mode => Off is
              Ret_Count => Ret_Count,
              Success   => Succ);
          Success := (if Succ then FS_Success else FS_IO_Failure);
+      else
+         Ret_Count := 0;
+         Success   := FS_Not_Allowed;
       end if;
 
       if Success = FS_Success then
@@ -298,7 +318,8 @@ package body VFS.File with SPARK_Mode => Off is
       (To_Write  : File_Acc;
        Data      : Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status)
+       Success   : out FS_Status;
+       User      : Unsigned_32)
    is
       Succ : Boolean;
    begin
@@ -315,8 +336,9 @@ package body VFS.File with SPARK_Mode => Off is
              Offset    => To_Write.Index,
              Data      => Data,
              Ret_Count => Ret_Count,
-             Success   => Success);
-      else
+             Success   => Success,
+             User      => User);
+      elsif User = 0 then
          Devices.Write
             (Handle    => To_Write.Dev_Data,
              Offset    => To_Write.Index,
@@ -324,6 +346,9 @@ package body VFS.File with SPARK_Mode => Off is
              Ret_Count => Ret_Count,
              Success   => Succ);
          Success := (if Succ then FS_Success else FS_IO_Failure);
+      else
+         Ret_Count := 0;
+         Success   := FS_Not_Allowed;
       end if;
 
       if Success = FS_Success then
@@ -331,7 +356,11 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Write;
 
-   procedure Stat (F : File_Acc; St : out File_Stat; Success : out FS_Status)
+   procedure Stat
+      (F       : File_Acc;
+       St      : out File_Stat;
+       Success : out FS_Status;
+       User    : Unsigned_32)
    is
       Is_Block                      : Boolean;
       Device_Type                   : File_Type;
@@ -339,7 +368,7 @@ package body VFS.File with SPARK_Mode => Off is
       Block_Size, Unique_Identifier : Natural;
    begin
       if not F.Is_Device then
-         VFS.Stat (F.FS_Data, F.File_Data, St, Success);
+         VFS.Stat (F.FS_Data, F.File_Data, St, Success, User);
       else
          Is_Block          := Devices.Is_Block_Device (F.Dev_Data);
          Block_Size        := Devices.Get_Block_Size  (F.Dev_Data);
@@ -366,11 +395,15 @@ package body VFS.File with SPARK_Mode => Off is
       end if;
    end Stat;
 
-   procedure Truncate (F : File_Acc; Sz : Unsigned_64; Success : out FS_Status)
+   procedure Truncate
+      (F  : File_Acc;
+       Sz : Unsigned_64;
+       Success : out FS_Status;
+       User    : Unsigned_32)
    is
    begin
       if not F.Is_Device and F.Flags /= Read_Only then
-         Success := VFS.Truncate (F.FS_Data, F.File_Data, Sz);
+         Success := VFS.Truncate (F.FS_Data, F.File_Data, Sz, User);
       else
          Success := FS_Invalid_Value;
       end if;
@@ -380,7 +413,8 @@ package body VFS.File with SPARK_Mode => Off is
       (F        : File_Acc;
        Request  : Unsigned_64;
        Argument : System.Address;
-       Success  : out FS_Status)
+       Success  : out FS_Status;
+       User     : Unsigned_32)
    is
    begin
       if F.Is_Device then
@@ -390,7 +424,8 @@ package body VFS.File with SPARK_Mode => Off is
             Success := FS_Invalid_Value;
          end if;
       else
-         Success := VFS.IO_Control (F.FS_Data, F.File_Data, Request, Argument);
+         Success := VFS.IO_Control
+            (F.FS_Data, F.File_Data, Request, Argument, User);
       end if;
    end IO_Control;
 
@@ -409,13 +444,14 @@ package body VFS.File with SPARK_Mode => Off is
 
    function Change_Mode
       (F    : File_Acc;
-       Mode : File_Mode) return FS_Status
+       Mode : File_Mode;
+       User : Unsigned_32) return FS_Status
    is
    begin
       if F.Is_Device then
          return FS_Invalid_Value;
       else
-         return VFS.Change_Mode (F.FS_Data, F.File_Data, Mode);
+         return VFS.Change_Mode (F.FS_Data, F.File_Data, Mode, User);
       end if;
    end Change_Mode;
 
@@ -425,10 +461,11 @@ package body VFS.File with SPARK_Mode => Off is
        Length      : Unsigned_64;
        Map_Read    : Boolean;
        Map_Write   : Boolean;
-       Map_Execute : Boolean) return Boolean
+       Map_Execute : Boolean;
+       User        : Unsigned_32) return Boolean
    is
    begin
-      if F.Is_Device then
+      if F.Is_Device and User = 0 then
          return Devices.Mmap (
             F.Dev_Data,
             Address,
@@ -445,10 +482,11 @@ package body VFS.File with SPARK_Mode => Off is
    function Munmap
       (F       : File_Acc;
        Address : Memory.Virtual_Address;
-       Length  : Unsigned_64) return Boolean
+       Length  : Unsigned_64;
+       User    : Unsigned_32) return Boolean
    is
    begin
-      if F.Is_Device then
+      if F.Is_Device and User = 0 then
          return Devices.Munmap (F.Dev_Data, Address, Length);
       else
          return False;
@@ -459,32 +497,37 @@ package body VFS.File with SPARK_Mode => Off is
       (Path    : String;
        Typ     : File_Type;
        Mode    : File_Mode;
-       Success : out FS_Status)
+       Success : out FS_Status;
+       User    : Unsigned_32)
    is
       Match_Count : Natural;
       Handle      : FS_Handle;
    begin
       Get_Mount (Path, Match_Count, Handle);
       Success := Create_Node
-         (Handle, Path (Path'First + Match_Count .. Path'Last), Typ, Mode);
+         (Handle, Path (Path'First + Match_Count .. Path'Last), Typ, Mode,
+          User);
    end Create_Node;
 
    procedure Create_Symbolic_Link
       (Path, Target : String;
        Mode         : Unsigned_32;
-       Success      : out FS_Status)
+       Success      : out FS_Status;
+       User         : Unsigned_32)
    is
       Match_Count : Natural;
       Handle      : FS_Handle;
    begin
       Get_Mount (Path, Match_Count, Handle);
       Success := Create_Symbolic_Link
-         (Handle, Path (Path'First + Match_Count .. Path'Last), Target, Mode);
+         (Handle, Path (Path'First + Match_Count .. Path'Last), Target, Mode,
+          User);
    end Create_Symbolic_Link;
 
    procedure Create_Hard_Link
       (Path, Target : String;
-       Success      : out FS_Status)
+       Success      : out FS_Status;
+       User         : Unsigned_32)
    is
       Match_Count : Natural;
       Handle      : FS_Handle;
@@ -493,13 +536,15 @@ package body VFS.File with SPARK_Mode => Off is
       Success := Create_Hard_Link
          (Handle,
           Path   (Path'First   + Match_Count ..   Path'Last),
-          Target (Target'First + Match_Count .. Target'Last));
+          Target (Target'First + Match_Count .. Target'Last),
+          User);
    end Create_Hard_Link;
 
    procedure Rename
       (Source, Target : String;
        Keep           : Boolean;
-       Success        : out FS_Status)
+       Success        : out FS_Status;
+       User           : Unsigned_32)
    is
       Match_Count : Natural;
       Handle      : FS_Handle;
@@ -509,14 +554,20 @@ package body VFS.File with SPARK_Mode => Off is
          (Handle,
           Source (Source'First + Match_Count .. Source'Last),
           Target (Target'First + Match_Count .. Target'Last),
-          Keep);
+          Keep,
+          User);
    end Rename;
 
-   procedure Unlink (Path : String; Success : out FS_Status) is
+   procedure Unlink
+      (Path    : String;
+       Success : out FS_Status;
+       User    : Unsigned_32)
+   is
       Match_Count : Natural;
       Handle      : FS_Handle;
    begin
       Get_Mount (Path, Match_Count, Handle);
-      Success := Unlink (Handle, Path (Path'First + Match_Count .. Path'Last));
+      Success := Unlink
+         (Handle, Path (Path'First + Match_Count .. Path'Last), User);
    end Unlink;
 end VFS.File;

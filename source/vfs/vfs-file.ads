@@ -1,5 +1,5 @@
 --  vfs-file.ads: File creation and management.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -18,12 +18,12 @@ with System;
 with Memory;
 
 package VFS.File with SPARK_Mode => Off is
-   --  A file represents an entity in disk, held by an FS.
-   --  This file abstraction is built for kernel-use and indirect userland use
-   --  thru purpose-built file descriptions.
+   --  The purpose of this abstraction is to provide a unified interface for
+   --  both devices and VFS files, and to hold a common position to preserve
+   --  across duplications via a refcount.
    --
    --  Emulation for /dev devices is provided, which are accessed just like
-   --  any file.
+   --  any file. R/W, ioctl, and mmap access are only allowed for UID 0.
 
    --  File type and access modes for a file to be opened with.
    type Access_Mode is (Read_Only, Write_Only, Read_Write);
@@ -35,6 +35,7 @@ package VFS.File with SPARK_Mode => Off is
       (Path         : String;
        Access_Flags : Access_Mode;
        Result       : out File_Acc;
+       User         : Unsigned_32;
        Follow_Links : Boolean := True);
 
    --  Get the full path of a file.
@@ -74,7 +75,8 @@ package VFS.File with SPARK_Mode => Off is
       (To_Read   : File_Acc;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out FS_Status)
+       Success   : out FS_Status;
+       User      : Unsigned_32)
    with Pre => To_Read /= null;
 
    --  Read contents of a symbolic link.
@@ -84,7 +86,9 @@ package VFS.File with SPARK_Mode => Off is
    procedure Read_Symbolic_Link
       (To_Read   : File_Acc;
        Path      : out String;
-       Ret_Count : out Natural)
+       Ret_Count : out Natural;
+       Success   : out FS_Status;
+       User      : Unsigned_32)
    with Pre => To_Read /= null;
 
    --  Read from a file, and return the read count.
@@ -92,7 +96,8 @@ package VFS.File with SPARK_Mode => Off is
       (To_Read   : File_Acc;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status)
+       Success   : out FS_Status;
+       User      : Unsigned_32)
       with Pre => To_Read /= null;
 
    --  Write to a file, and return the written count.
@@ -100,15 +105,24 @@ package VFS.File with SPARK_Mode => Off is
       (To_Write  : File_Acc;
        Data      : Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status)
+       Success   : out FS_Status;
+       User      : Unsigned_32)
       with Pre => To_Write /= null;
 
    --  Get the stat of the file.
-   procedure Stat (F : File_Acc; St : out File_Stat; Success : out FS_Status)
+   procedure Stat
+      (F       : File_Acc;
+       St      : out File_Stat;
+       Success : out FS_Status;
+       User    : Unsigned_32)
       with Pre => F /= null;
 
    --  Truncate the file to the passed size.
-   procedure Truncate (F : File_Acc; Sz : Unsigned_64; Success : out FS_Status)
+   procedure Truncate
+      (F  : File_Acc;
+       Sz : Unsigned_64;
+       Success : out FS_Status;
+       User    : Unsigned_32)
       with Pre => F /= null;
 
    --  IOCTL.
@@ -116,7 +130,8 @@ package VFS.File with SPARK_Mode => Off is
       (F        : File_Acc;
        Request  : Unsigned_64;
        Argument : System.Address;
-       Success  : out FS_Status)
+       Success  : out FS_Status;
+       User     : Unsigned_32)
       with Pre => F /= null;
 
    --  Synchronize.
@@ -125,7 +140,8 @@ package VFS.File with SPARK_Mode => Off is
    --  Change the mode of a file.
    function Change_Mode
       (F    : File_Acc;
-       Mode : File_Mode) return FS_Status with Pre => F /= null;
+       Mode : File_Mode;
+       User : Unsigned_32) return FS_Status;
 
    --  Mmap.
    function Mmap
@@ -134,38 +150,47 @@ package VFS.File with SPARK_Mode => Off is
        Length      : Unsigned_64;
        Map_Read    : Boolean;
        Map_Write   : Boolean;
-       Map_Execute : Boolean) return Boolean with Pre => F /= null;
+       Map_Execute : Boolean;
+       User        : Unsigned_32) return Boolean with Pre => F /= null;
 
    --  Munmap.
    function Munmap
       (F       : File_Acc;
        Address : Memory.Virtual_Address;
-       Length  : Unsigned_64) return Boolean with Pre => F /= null;
+       Length  : Unsigned_64;
+       User    : Unsigned_32) return Boolean with Pre => F /= null;
 
    --  Create several kinds of files.
    procedure Create_Node
       (Path    : String;
        Typ     : File_Type;
        Mode    : File_Mode;
-       Success : out FS_Status);
+       Success : out FS_Status;
+       User    : Unsigned_32);
 
    procedure Create_Symbolic_Link
       (Path, Target : String;
        Mode         : Unsigned_32;
-       Success      : out FS_Status);
+       Success      : out FS_Status;
+       User         : Unsigned_32);
 
    procedure Create_Hard_Link
       (Path, Target : String;
-       Success      : out FS_Status);
+       Success      : out FS_Status;
+       User         : Unsigned_32);
 
    --  Rename files.
    procedure Rename
       (Source, Target : String;
        Keep           : Boolean;
-       Success        : out FS_Status);
+       Success        : out FS_Status;
+       User           : Unsigned_32);
 
    --  Queue a file for unlinking.
-   procedure Unlink (Path : String; Success : out FS_Status);
+   procedure Unlink
+      (Path    : String;
+       Success : out FS_Status;
+       User    : Unsigned_32);
 
 private
 
@@ -187,5 +212,6 @@ private
        Fetched_FS   : out FS_Handle;
        Fetched_File : out File_Inode_Number;
        Success      : out Boolean;
-       Follow_Links : Boolean);
+       Follow_Links : Boolean;
+       User         : Unsigned_32);
 end VFS.File;

@@ -173,6 +173,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       New_Descr    : File_Description_Acc;
       File_Perms   : MAC.Filter_Permissions;
       Returned_FD  : Natural;
+      User         : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
          Errno := Error_Would_Fault;
@@ -227,7 +228,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
       return Unsigned_64'Last;
 
    <<Resume>>
-      Open (Final_Path (1 .. Final_Path_L), Open_Mode, Opened_File,
+      Userland.Process.Get_Effective_UID (Curr_Proc, User);
+
+      Open (Final_Path (1 .. Final_Path_L), Open_Mode, Opened_File, User,
             not Dont_Follow);
       if Opened_File = null then
          Errno := Error_No_Entity;
@@ -235,7 +238,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       if Do_Append then
-         VFS.File.Stat (Opened_File, Opened_Stat, Success);
+         VFS.File.Stat (Opened_File, Opened_Stat, Success, User);
          if Success /= VFS.FS_Success then
             Errno := Error_Invalid_Seek;
             return Unsigned_64'Last;
@@ -291,6 +294,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
       Success2  : IPC.FIFO.Pipe_Status;
+      User      : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
@@ -303,9 +307,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
+      Userland.Process.Get_Effective_UID (Curr_Proc, User);
+
       case File.Description is
          when Description_File =>
-            VFS.File.Read (File.Inner_File, Data, Ret_Count, Success1);
+            VFS.File.Read (File.Inner_File, Data, Ret_Count, Success1, User);
             return Translate_Status (Success1, Unsigned_64 (Ret_Count), Errno);
          when Description_Reader_FIFO =>
             IPC.FIFO.Read (File.Inner_Reader_FIFO, Data, Ret_Count, Success2);
@@ -351,6 +357,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
       Success2  : IPC.FIFO.Pipe_Status;
+      User      : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
@@ -363,9 +370,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
+      Process.Get_Effective_UID (Curr_Proc, User);
+
       case File.Description is
          when Description_File =>
-            VFS.File.Write (File.Inner_File, Data, Ret_Count, Success1);
+            VFS.File.Write (File.Inner_File, Data, Ret_Count, Success1, User);
             return Translate_Status (Success1, Unsigned_64 (Ret_Count), Errno);
          when Description_Writer_FIFO =>
             IPC.FIFO.Write (File.Inner_Writer_FIFO, Data, Ret_Count, Success2);
@@ -406,6 +415,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Stat_Val : VFS.File_Stat;
       Success1 : VFS.FS_Status;
       Success2 : Boolean;
+      User     : Unsigned_32;
    begin
       File := Get_File (Proc, File_D);
       if File = null then
@@ -413,9 +423,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
+      Userland.Process.Get_Effective_UID (Proc, User);
+
       case File.Description is
          when Description_File =>
-            VFS.File.Stat (File.Inner_File, Stat_Val, Success1);
+            VFS.File.Stat (File.Inner_File, Stat_Val, Success1, User);
             if Success1 /= VFS.FS_Success then
                goto Invalid_Seek_Error;
             end if;
@@ -530,7 +542,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
       else
          declare
             File : constant File_Description_Acc := Get_File (Proc, File_D);
+            User : Unsigned_32;
          begin
+            Process.Get_Effective_UID (Proc, User);
             if File.Description /= Description_File or else
                not VFS.File.Mmap (
                   F           => File.Inner_File,
@@ -538,7 +552,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   Length      => Length,
                   Map_Read    => True,
                   Map_Write   => not Map_Flags.Read_Only,
-                  Map_Execute => Map_Flags.Executable
+                  Map_Execute => Map_Flags.Executable,
+                  User        => User
                )
             then
                Errno := Error_Bad_File;
@@ -605,18 +620,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc    : constant PID := Arch.Local.Get_Current_Process;
       Map     : constant     Page_Map_Acc := Get_Common_Map (Proc);
       Tmp_Map : Memory.Virtual.Page_Map_Acc;
-
       Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
       Path       : String (1 .. Natural (Path_Len))
          with Import, Address => Path_SAddr;
       Path_File  : File_Acc;
       File_Perms : MAC.Filter_Permissions;
-
       Argv_IAddr : constant Integer_Address := Integer_Address (Argv_Addr);
       Argv_SAddr : constant  System.Address := To_Address (Argv_IAddr);
       Envp_IAddr : constant Integer_Address := Integer_Address (Envp_Addr);
       Envp_SAddr : constant  System.Address := To_Address (Envp_IAddr);
+      User       : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) or
          not Check_Userland_Access (Map, Argv_IAddr, Argv_Len) or
@@ -635,7 +649,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      Open (Path, Read_Only, Path_File);
+      Userland.Process.Get_Effective_UID (Proc, User);
+      Open (Path, Read_Only, Path_File, User);
       if Path_File = null then
          Errno := Error_No_Entity;
          return Unsigned_64'Last;
@@ -961,6 +976,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       ID         : Natural;
       Success    : VFS.FS_Status;
       Stat_Buf   : Stat with Import, Address => Stat_SAddr;
+      User       : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Stat_IAddr, Stat'Size / 8) then
          Errno := Error_Would_Fault;
@@ -970,9 +986,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
+      Userland.Process.Get_Effective_UID (Proc, User);
+
       case File_Desc.Description is
          when Description_File =>
-            VFS.File.Stat (File_Desc.Inner_File, Stat_Val, Success);
+            VFS.File.Stat (File_Desc.Inner_File, Stat_Val, Success, User);
             if Success /= VFS.FS_Success then
                Errno := Error_Bad_File;
                return Unsigned_64'Last;
@@ -1081,6 +1099,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
       File         : VFS.File.File_Acc;
+      User         : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, IAddr, Path_Len) then
          Errno := Error_Would_Fault;
@@ -1098,7 +1117,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      Open (Final_Path (1 .. Final_Path_L), VFS.File.Read_Only, File, False);
+      Userland.Process.Get_Effective_UID (Proc, User);
+      Open (Final_Path (1 .. Final_Path_L), VFS.File.Read_Only, File, User,
+            False);
       if File = null then
          Errno := Error_No_Entity;
          return Unsigned_64'Last;
@@ -1127,6 +1148,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       File  : constant File_Description_Acc := Get_File (Proc, FD);
       Succ  : Boolean;
       FSSuc : VFS.FS_Status;
+      User  : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, I_Arg, 8) then
          Errno := Error_Would_Fault;
@@ -1136,9 +1158,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
+      Userland.Process.Get_Effective_UID (Proc, User);
+
       case File.Description is
          when Description_File =>
-            IO_Control (File.Inner_File, Request, S_Arg, FSSuc);
+            IO_Control (File.Inner_File, Request, S_Arg, FSSuc, User);
             Succ := FSSuc = VFS.FS_Success;
          when Description_Primary_PTY =>
             PTY_IOCTL (File.Inner_Primary_PTY, Request, S_Arg, Succ);
@@ -1284,6 +1308,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Target_Path   : String (1 .. 1024);
       Target_Path_L : Natural;
       Success       : VFS.FS_Status;
+      User          : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Src_IAddr, Source_Len) or
          not Check_Userland_Access (Map, Tgt_IAddr, Target_Len)
@@ -1320,11 +1345,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return Unsigned_64'Last;
          end if;
 
+         Userland.Process.Get_Effective_UID (Proc, User);
          VFS.File.Rename
             (Source_Path (1 .. Source_Path_L),
              Target_Path (1 .. Target_Path_L),
              Do_Keep,
-             Success);
+             Success,
+             User);
          return Translate_Status (Success, 0, Errno);
       end;
    end Rename;
@@ -1454,6 +1481,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Path_File  : File_Acc;
       File_Perms : MAC.Filter_Permissions;
       Child      : PID;
+      User       : Unsigned_32;
       Argv_IAddr : constant Integer_Address := Integer_Address (Argv_Addr);
       Argv_SAddr : constant  System.Address := To_Address (Argv_IAddr);
       Envp_IAddr : constant Integer_Address := Integer_Address (Envp_Addr);
@@ -1478,7 +1506,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      Open (Path, Read_Only, Path_File);
+      Userland.Process.Get_Effective_UID (Proc, User);
+      Open (Path, Read_Only, Path_File, User);
       if Path_File = null then
          Errno := Error_No_Entity;
          return Unsigned_64'Last;
@@ -1983,6 +2012,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path_L : Natural;
       Opened       : VFS.File.File_Acc;
       Ret_Count    : Natural;
+      User         : Unsigned_32;
+      Status       : VFS.FS_Status;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) or
          not Check_Userland_Access (Map, Buffer_IAddr, Buffer_Len)
@@ -2021,21 +2052,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return Unsigned_64'Last;
          end if;
 
-         Open (Final_Path (1 .. Final_Path_L), Read_Only, Opened, False);
+         Userland.Process.Get_Effective_UID (Proc, User);
+
+         Open (Final_Path (1 .. Final_Path_L), Read_Only, Opened, User, False);
          if Opened = null then
             Errno := Error_No_Entity;
             return Unsigned_64'Last;
          end if;
 
-         VFS.File.Read_Symbolic_Link (Opened, Data, Ret_Count);
+         VFS.File.Read_Symbolic_Link (Opened, Data, Ret_Count, Status, User);
          Close (Opened);
-         if Ret_Count = 0 then
-            Errno := Error_Invalid_Value;
-            return Unsigned_64'Last;
-         else
-            Errno := Error_No_Error;
-            return Unsigned_64 (Ret_Count);
-         end if;
+         return Translate_Status (Status, Unsigned_64 (Ret_Count), Errno);
       end;
    end Readlink;
 
@@ -2052,6 +2079,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Tmp_Buffer : VFS.Directory_Entities (1 .. Natural (Buff_Len));
       Read_Len   : Natural;
       Success    : VFS.FS_Status;
+      User       : Unsigned_32;
       Proc : constant     PID := Arch.Local.Get_Current_Process;
       Map  : constant         Page_Map_Acc := Get_Common_Map (Proc);
       File : constant File_Description_Acc := Get_File (Proc, FD);
@@ -2064,7 +2092,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      VFS.File.Read_Entries (File.Inner_File, Tmp_Buffer, Read_Len, Success);
+      Userland.Process.Get_Effective_UID (Proc, User);
+      VFS.File.Read_Entries
+         (File.Inner_File, Tmp_Buffer, Read_Len, Success, User);
       if Success /= VFS.FS_Success then
          Errno := Error_No_Entity;
          return Unsigned_64'Last;
@@ -2126,6 +2156,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Tmp_Mode     : constant File_Mode := File_Mode (Mode and 8#7777#);
       Status       : VFS.FS_Status;
       Umask        : VFS.File_Mode;
+      User         : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
          Errno := Error_Would_Fault;
@@ -2157,12 +2188,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Node_Type := File_Regular;
       end if;
 
-      Userland.Process.Get_Umask (Proc, Umask);
+      Userland.Process.Get_Umask         (Proc, Umask);
+      Userland.Process.Get_Effective_UID (Proc, User);
       Create_Node
          (Path    => Final_Path (1 .. Final_Path_L),
           Typ     => Node_Type,
           Mode    => VFS.Apply_Umask (Tmp_Mode, Umask),
-          Success => Status);
+          Success => Status,
+          User    => User);
       return Translate_Status (Status, 0, Errno);
    end MakeNode;
 
@@ -2179,6 +2212,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
       Success      : VFS.FS_Status;
+      User         : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
          Errno := Error_Would_Fault;
@@ -2204,7 +2238,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end;
 
-      VFS.File.Unlink (Final_Path (1 .. Final_Path_L), Success);
+      Userland.Process.Get_Effective_UID (Curr_Proc, User);
+      VFS.File.Unlink (Final_Path (1 .. Final_Path_L), Success, User);
       return Translate_Status (Success, 0, Errno);
    end Unlink;
 
@@ -2216,15 +2251,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc    : constant     PID := Arch.Local.Get_Current_Process;
       File    : constant File_Description_Acc := Get_File (Proc, FD);
       Success : VFS.FS_Status;
+      User    : Unsigned_32;
    begin
       if File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
       end if;
 
+      Userland.Process.Get_Effective_UID (Proc, User);
       case File.Description is
          when Description_File =>
-            VFS.File.Truncate (File.Inner_File, New_Size, Success);
+            VFS.File.Truncate (File.Inner_File, New_Size, Success, User);
             return Translate_Status (Success, 0, Errno);
          when others =>
             Errno := Error_Bad_File;
@@ -2250,6 +2287,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path   : String (1 .. 1024);
       Final_Path_L : Natural;
       Success      : VFS.FS_Status;
+      User         : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) or
          not Check_Userland_Access (Map, Targ_IAddr, Target_Len)
@@ -2280,9 +2318,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return Unsigned_64'Last;
          end if;
 
+         Userland.Process.Get_Effective_UID (Proc, User);
          VFS.File.Create_Symbolic_Link
             (Final_Path (1 .. Final_Path_L),
-             Targ, Unsigned_32 (Mode), Success);
+             Targ, Unsigned_32 (Mode), Success, User);
          return Translate_Status (Success, 0, Errno);
       end;
    end Symlink;
@@ -2427,6 +2466,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Path2   : String (1 .. 1024);
       Final_Path2_L : Natural;
       Success       : VFS.FS_Status;
+      User          : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Src_IAddr, Source_Len) or
          not Check_Userland_Access (Map, Dst_IAddr, Desto_Len)
@@ -2463,10 +2503,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return Unsigned_64'Last;
          end if;
 
+         Userland.Process.Get_Effective_UID (Proc, User);
          VFS.File.Create_Hard_Link
             (Final_Path1 (1 .. Final_Path1_L),
              Final_Path2 (1 .. Final_Path2_L),
-             Success);
+             Success,
+             User);
          return Translate_Status (Success, 0, Errno);
       end;
    end Link;
@@ -2620,10 +2662,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc : constant PID := Arch.Local.Get_Current_Process;
       Desc : constant File_Description_Acc := Get_File (Proc, FD);
       Succ : VFS.FS_Status;
+      User : Unsigned_32;
    begin
+      Userland.Process.Get_Effective_UID (Proc, User);
       case Desc.Description is
          when Description_File =>
-            Succ := VFS.File.Change_Mode (Desc.Inner_File, File_Mode (Mode));
+            Succ := VFS.File.Change_Mode
+               (Desc.Inner_File, File_Mode (Mode), User);
             Errno := Error_No_Error;
             return Translate_Status (Succ, 0, Errno);
          when others =>

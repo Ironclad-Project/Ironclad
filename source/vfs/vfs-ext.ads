@@ -23,34 +23,42 @@ package VFS.EXT with SPARK_Mode => Off is
        Do_Read_Only : Boolean) return System.Address;
 
    procedure Unmount (FS : in out System.Address);
-
+   ----------------------------------------------------------------------------
    procedure Open
       (FS      : System.Address;
        Path    : String;
        Ino     : out File_Inode_Number;
-       Success : out FS_Status);
+       Success : out FS_Status;
+       User    : Unsigned_32);
 
    function Create_Node
       (FS   : System.Address;
        Path : String;
        Typ  : File_Type;
-       Mode : File_Mode) return FS_Status;
+       Mode : File_Mode;
+       User : Unsigned_32) return FS_Status;
 
    function Create_Symbolic_Link
       (FS           : System.Address;
        Path, Target : String;
-       Mode         : Unsigned_32) return FS_Status;
+       Mode         : Unsigned_32;
+       User         : Unsigned_32) return FS_Status;
 
    function Create_Hard_Link
       (FS           : System.Address;
-       Path, Target : String) return FS_Status;
+       Path, Target : String;
+       User         : Unsigned_32) return FS_Status;
 
    function Rename
       (FS             : System.Address;
        Source, Target : String;
-       Keep           : Boolean) return FS_Status;
+       Keep           : Boolean;
+       User           : Unsigned_32) return FS_Status;
 
-   function Unlink (FS : System.Address; Path : String) return FS_Status;
+   function Unlink
+      (FS   : System.Address;
+       Path : String;
+       User : Unsigned_32) return FS_Status;
 
    procedure Close (FS : System.Address; Ino : File_Inode_Number);
 
@@ -59,13 +67,16 @@ package VFS.EXT with SPARK_Mode => Off is
        Ino       : File_Inode_Number;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out FS_Status);
+       Success   : out FS_Status;
+       User      : Unsigned_32);
 
    procedure Read_Symbolic_Link
       (FS_Data   : System.Address;
        Ino       : File_Inode_Number;
        Path      : out String;
-       Ret_Count : out Natural);
+       Ret_Count : out Natural;
+       Success   : out FS_Status;
+       User      : Unsigned_32);
 
    procedure Read
       (FS_Data   : System.Address;
@@ -73,7 +84,8 @@ package VFS.EXT with SPARK_Mode => Off is
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status);
+       Success   : out FS_Status;
+       User      : Unsigned_32);
 
    procedure Write
       (FS_Data   : System.Address;
@@ -81,23 +93,33 @@ package VFS.EXT with SPARK_Mode => Off is
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status);
+       Success   : out FS_Status;
+       User      : Unsigned_32);
 
    function Stat
       (Data : System.Address;
        Ino  : File_Inode_Number;
-       S    : out File_Stat) return FS_Status;
+       S    : out File_Stat;
+       User : Unsigned_32) return FS_Status;
 
    function Truncate
       (Data     : System.Address;
        Ino      : File_Inode_Number;
-       New_Size : Unsigned_64) return FS_Status;
+       New_Size : Unsigned_64;
+       User     : Unsigned_32) return FS_Status;
 
    function IO_Control
       (Data : System.Address;
        Ino  : File_Inode_Number;
        Req  : Unsigned_64;
-       Arg  : System.Address) return FS_Status;
+       Arg  : System.Address;
+       User : Unsigned_32) return FS_Status;
+
+   function Change_Mode
+      (Data : System.Address;
+       Ino  : File_Inode_Number;
+       Mode : File_Mode;
+       User : Unsigned_32) return FS_Status;
 
    function Synchronize (Data : System.Address) return FS_Status;
 
@@ -442,4 +464,12 @@ private
       ((Ino.Flags and Flags_Append_Only) /= 0);
 
    procedure Act_On_Policy (Data : EXT_Data_Acc; Message : String);
+
+   function Check_User_Access
+      (User        : Unsigned_32;
+       Inod        : Inode;
+       Check_Read  : Boolean;
+       Check_Write : Boolean;
+       Check_Exec  : Boolean) return Boolean
+      with Pre => Check_Read or Check_Write;
 end VFS.EXT;

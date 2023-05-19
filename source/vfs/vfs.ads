@@ -157,7 +157,7 @@ package VFS is
        Path    : String;
        Ino     : out File_Inode_Number;
        Success : out FS_Status;
-       User    : Unsigned_32 := 0)
+       User    : Unsigned_32)
       with Pre => Key /= Error_Handle;
 
    --  Create a file with an absolute path inside the mount.
@@ -172,7 +172,7 @@ package VFS is
        Path : String;
        Typ  : File_Type;
        Mode : File_Mode;
-       User : Unsigned_32 := 0) return FS_Status
+       User : Unsigned_32) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Create a symlink with an absolute path inside the mount and a target.
@@ -186,7 +186,7 @@ package VFS is
       (Key          : FS_Handle;
        Path, Target : String;
        Mode         : Unsigned_32;
-       User         : Unsigned_32 := 0) return FS_Status
+       User         : Unsigned_32) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Create a hard link with an absolute path inside the mount and a target.
@@ -198,7 +198,7 @@ package VFS is
    function Create_Hard_Link
       (Key          : FS_Handle;
        Path, Target : String;
-       User         : Unsigned_32 := 0) return FS_Status
+       User         : Unsigned_32) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Rename two files.
@@ -213,7 +213,7 @@ package VFS is
        Source : String;
        Target : String;
        Keep   : Boolean;
-       User   : Unsigned_32 := 0) return FS_Status
+       User   : Unsigned_32) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Queue a file for deletion inside a mount.
@@ -224,7 +224,7 @@ package VFS is
    function Unlink
       (Key  : FS_Handle;
        Path : String;
-       User : Unsigned_32 := 0) return FS_Status;
+       User : Unsigned_32) return FS_Status;
 
    --  Signal to the FS we do not need this inode anymore.
    --  @param Key FS handle to operate on.
@@ -245,14 +245,14 @@ package VFS is
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out FS_Status;
-       User      : Unsigned_32 := 0)
+       User      : Unsigned_32)
       with Pre => Key /= Error_Handle;
 
-   --  Read the entries of an opened directory.
+   --  Read the contents of a symbolic link.
    --  @param Key       FS handle to operate on.
    --  @param Ino       Inode to operate on.
-   --  @param Entities  Where to store the read entries, as many as possible.
-   --  @param Ret_Count The count of entries, even if num > Entities'Length.
+   --  @param Path      Buffer to store the read path.
+   --  @param Ret_Count Symlink character count, even if num > Path'Length.
    --  @param Success   Status for the operation.
    --  @param User      UID to check against, 0 for root/bypass checks.
    procedure Read_Symbolic_Link
@@ -260,7 +260,8 @@ package VFS is
        Ino       : File_Inode_Number;
        Path      : out String;
        Ret_Count : out Natural;
-       User      : Unsigned_32 := 0)
+       Success   : out FS_Status;
+       User      : Unsigned_32)
       with Pre => Key /= Error_Handle;
 
    --  Read from a regular file.
@@ -278,7 +279,7 @@ package VFS is
        Data      : out Operation_Data;
        Ret_Count : out Natural;
        Success   : out FS_Status;
-       User      : Unsigned_32 := 0)
+       User      : Unsigned_32)
       with Pre => Key /= Error_Handle;
 
    --  Write to a regular file.
@@ -296,7 +297,7 @@ package VFS is
        Data      : Operation_Data;
        Ret_Count : out Natural;
        Success   : out FS_Status;
-       User      : Unsigned_32 := 0)
+       User      : Unsigned_32)
       with Pre => Key /= Error_Handle;
 
    --  Get the stat of a file.
@@ -310,7 +311,7 @@ package VFS is
        Ino      : File_Inode_Number;
        Stat_Val : out File_Stat;
        Success  : out FS_Status;
-       User     : Unsigned_32 := 0)
+       User     : Unsigned_32)
       with Pre => Key /= Error_Handle;
 
    --  Truncate a file to size 0.
@@ -323,7 +324,7 @@ package VFS is
       (Key      : FS_Handle;
        Ino      : File_Inode_Number;
        New_Size : Unsigned_64;
-       User     : Unsigned_32 := 0) return FS_Status;
+       User     : Unsigned_32) return FS_Status;
 
    --  Do an FS-specific ioctl on the inode.
    --  @param Key      FS Handle to open.
@@ -337,7 +338,7 @@ package VFS is
        Ino     : File_Inode_Number;
        Request : Unsigned_64;
        Arg     : System.Address;
-       User    : Unsigned_32 := 0) return FS_Status
+       User    : Unsigned_32) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Synchronize all FSs mounted on the system, FSs with no implemented
@@ -370,7 +371,7 @@ package VFS is
       (Key  : FS_Handle;
        Ino  : File_Inode_Number;
        Mode : File_Mode;
-       User : Unsigned_32 := 0) return FS_Status;
+       User : Unsigned_32) return FS_Status;
    ----------------------------------------------------------------------------
    --  Check whether a path is absolute.
    --  @param Path to check.

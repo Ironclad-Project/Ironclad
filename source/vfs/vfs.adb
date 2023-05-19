@@ -203,7 +203,7 @@ package body VFS with SPARK_Mode => Off is
        Path    : String;
        Ino     : out File_Inode_Number;
        Success : out FS_Status;
-       User    : Unsigned_32 := 0)
+       User    : Unsigned_32)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -212,7 +212,8 @@ package body VFS with SPARK_Mode => Off is
                (FS      => Mounts (Key).FS_Data,
                 Path    => Path,
                 Ino     => Ino,
-                Success => Success);
+                Success => Success,
+                User    => User);
          when FS_FAT =>
             FAT.Open
                (FS      => Mounts (Key).FS_Data,
@@ -230,12 +231,13 @@ package body VFS with SPARK_Mode => Off is
        Path : String;
        Typ  : File_Type;
        Mode : File_Mode;
-       User : Unsigned_32 := 0) return FS_Status
+       User : Unsigned_32) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.Create_Node (Mounts (Key).FS_Data, Path, Typ, Mode);
+            return EXT.Create_Node
+               (Mounts (Key).FS_Data, Path, Typ, Mode, User);
          when others =>
             return FS_Not_Supported;
       end case;
@@ -245,13 +247,13 @@ package body VFS with SPARK_Mode => Off is
       (Key          : FS_Handle;
        Path, Target : String;
        Mode         : Unsigned_32;
-       User         : Unsigned_32 := 0) return FS_Status
+       User         : Unsigned_32) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             return EXT.Create_Symbolic_Link
-               (Mounts (Key).FS_Data, Path, Target, Mode);
+               (Mounts (Key).FS_Data, Path, Target, Mode, User);
          when others =>
             return FS_Not_Supported;
       end case;
@@ -260,12 +262,13 @@ package body VFS with SPARK_Mode => Off is
    function Create_Hard_Link
       (Key          : FS_Handle;
        Path, Target : String;
-       User         : Unsigned_32 := 0) return FS_Status
+       User         : Unsigned_32) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.Create_Hard_Link (Mounts (Key).FS_Data, Path, Target);
+            return EXT.Create_Hard_Link
+               (Mounts (Key).FS_Data, Path, Target, User);
          when others =>
             return FS_Not_Supported;
       end case;
@@ -276,12 +279,13 @@ package body VFS with SPARK_Mode => Off is
        Source : String;
        Target : String;
        Keep   : Boolean;
-       User   : Unsigned_32 := 0) return FS_Status
+       User   : Unsigned_32) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.Rename (Mounts (Key).FS_Data, Source, Target, Keep);
+            return EXT.Rename
+               (Mounts (Key).FS_Data, Source, Target, Keep, User);
          when others =>
             return FS_Not_Supported;
       end case;
@@ -290,10 +294,10 @@ package body VFS with SPARK_Mode => Off is
    function Unlink
       (Key  : FS_Handle;
        Path : String;
-       User : Unsigned_32 := 0) return FS_Status is
+       User : Unsigned_32) return FS_Status is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT => return EXT.Unlink (Mounts (Key).FS_Data, Path);
+         when FS_EXT => return EXT.Unlink (Mounts (Key).FS_Data, Path, User);
          when others => return FS_Not_Supported;
       end case;
    end Unlink;
@@ -313,7 +317,7 @@ package body VFS with SPARK_Mode => Off is
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out FS_Status;
-       User      : Unsigned_32 := 0)
+       User      : Unsigned_32)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -323,7 +327,8 @@ package body VFS with SPARK_Mode => Off is
                 Ino,
                 Entities,
                 Ret_Count,
-                Success);
+                Success,
+                User);
          when FS_FAT =>
             FAT.Read_Entries
                (Mounts (Key).FS_Data,
@@ -342,19 +347,18 @@ package body VFS with SPARK_Mode => Off is
        Ino       : File_Inode_Number;
        Path      : out String;
        Ret_Count : out Natural;
-       User      : Unsigned_32 := 0)
+       Success   : out FS_Status;
+       User      : Unsigned_32)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             EXT.Read_Symbolic_Link
-               (Mounts (Key).FS_Data, Ino, Path, Ret_Count);
-         when FS_FAT =>
+               (Mounts (Key).FS_Data, Ino, Path, Ret_Count, Success, User);
+         when others =>
             Path      := (others => ' ');
             Ret_Count := 0;
-         when FS_QNX =>
-            Path      := (others => ' ');
-            Ret_Count := 0;
+            Success   := FS_Not_Supported;
       end case;
    end Read_Symbolic_Link;
 
@@ -365,7 +369,7 @@ package body VFS with SPARK_Mode => Off is
        Data      : out Operation_Data;
        Ret_Count : out Natural;
        Success   : out FS_Status;
-       User      : Unsigned_32 := 0)
+       User      : Unsigned_32)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -376,7 +380,8 @@ package body VFS with SPARK_Mode => Off is
                 Offset,
                 Data,
                 Ret_Count,
-                Success);
+                Success,
+                User);
          when FS_FAT =>
             FAT.Read
                (Mounts (Key).FS_Data,
@@ -398,7 +403,7 @@ package body VFS with SPARK_Mode => Off is
        Data      : Operation_Data;
        Ret_Count : out Natural;
        Success   : out FS_Status;
-       User      : Unsigned_32 := 0)
+       User      : Unsigned_32)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -409,7 +414,8 @@ package body VFS with SPARK_Mode => Off is
                 Offset,
                 Data,
                 Ret_Count,
-                Success);
+                Success,
+                User);
          when others =>
             Ret_Count := 0;
             Success   := FS_Not_Supported;
@@ -421,12 +427,12 @@ package body VFS with SPARK_Mode => Off is
        Ino      : File_Inode_Number;
        Stat_Val : out File_Stat;
        Success  : out FS_Status;
-       User     : Unsigned_32 := 0)
+       User     : Unsigned_32)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            Success := EXT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val);
+            Success := EXT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val, User);
          when FS_FAT =>
             Success := FAT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val);
          when FS_QNX =>
@@ -438,12 +444,12 @@ package body VFS with SPARK_Mode => Off is
       (Key      : FS_Handle;
        Ino      : File_Inode_Number;
        New_Size : Unsigned_64;
-       User     : Unsigned_32 := 0) return FS_Status
+       User     : Unsigned_32) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.Truncate (Mounts (Key).FS_Data, Ino, New_Size);
+            return EXT.Truncate (Mounts (Key).FS_Data, Ino, New_Size, User);
          when others =>
             return FS_Not_Supported;
       end case;
@@ -454,12 +460,13 @@ package body VFS with SPARK_Mode => Off is
        Ino     : File_Inode_Number;
        Request : Unsigned_64;
        Arg     : System.Address;
-       User    : Unsigned_32 := 0) return FS_Status
+       User    : Unsigned_32) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.IO_Control (Mounts (Key).FS_Data, Ino, Request, Arg);
+            return EXT.IO_Control
+               (Mounts (Key).FS_Data, Ino, Request, Arg, User);
          when others =>
             return FS_Not_Supported;
       end case;
@@ -503,12 +510,14 @@ package body VFS with SPARK_Mode => Off is
       (Key  : FS_Handle;
        Ino  : File_Inode_Number;
        Mode : File_Mode;
-       User : Unsigned_32 := 0) return FS_Status
+       User : Unsigned_32) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT => return FS_Not_Supported;
-         when others => return FS_Not_Supported;
+         when FS_EXT =>
+            return EXT.Change_Mode (Mounts (Key).FS_Data, Ino, Mode, User);
+         when others =>
+            return FS_Not_Supported;
       end case;
    end Change_Mode;
    ----------------------------------------------------------------------------
