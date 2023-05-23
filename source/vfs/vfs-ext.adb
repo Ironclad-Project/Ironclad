@@ -898,10 +898,12 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Synchronize;
 
    function Synchronize
-      (Data : System.Address;
-       Ino  : File_Inode_Number) return FS_Status
+      (Data      : System.Address;
+       Ino       : File_Inode_Number;
+       Data_Only : Boolean) return FS_Status
    is
       pragma Unreferenced (Ino);
+      pragma Unreferenced (Data_Only);
    begin
       return Synchronize (Data);
    end Synchronize;

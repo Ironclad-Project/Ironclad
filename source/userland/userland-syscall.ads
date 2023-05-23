@@ -543,6 +543,7 @@ package Userland.Syscall with SPARK_Mode => Off is
    --  Synchronize the data of a file, instead of system-wide.
    function FSync
       (FD    : Unsigned_64;
+       Flags : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
 
    --  Make a hard link.
@@ -606,14 +607,6 @@ private
 
    --  Do the actual exiting.
    procedure Do_Exit (Proc : PID; Code : Unsigned_8);
-
-   --  Handle AT_ directive.
-   procedure Compound_AT_Path
-      (AT_Directive : Natural;
-       Curr_Proc    : PID;
-       Extension    : String;
-       Result       : out String;
-       Count        : out Natural);
 
    --  Translate an FS_Status to Errno.
    function Translate_Status

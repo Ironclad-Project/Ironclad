@@ -266,7 +266,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 48 =>
             Returned := Open_PTY (State.RDI, State.RSI, State.RDX, Errno);
          when 49 =>
-            Returned := FSync (State.RDI, Errno);
+            Returned := FSync (State.RDI, State.RSI, Errno);
          when 50 =>
             Returned := Link (State.RDI, State.RSI, State.RDX, State.RCX,
                               State.R8, State.R9, Errno);

@@ -124,8 +124,9 @@ package VFS.EXT with SPARK_Mode => Off is
    function Synchronize (Data : System.Address) return FS_Status;
 
    function Synchronize
-      (Data : System.Address;
-       Ino  : File_Inode_Number) return FS_Status;
+      (Data      : System.Address;
+       Ino       : File_Inode_Number;
+       Data_Only : Boolean) return FS_Status;
 
 private
 

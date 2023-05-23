@@ -22,7 +22,8 @@ package IPC.PTY is
    --  PTYs are an IPC method meant to provide bidirectional communication
    --  between 2 read/write ports, along with that, what makes it special
    --  is storage and awareness of configurable termios data. Usually, the
-   --  ports are called master/slave, in Ironclad its primary/secondary.
+   --  ports are called master/slave, in Ironclad its primary/secondary. A
+   --  PTY must be closed twice, one for each end.
    --
    --  These properties make the most common use of PTYs terminal emulation
    --  and as building block for user interfaces. Only blocking operation is
@@ -39,10 +40,6 @@ package IPC.PTY is
    function Create
       (Termios     : Devices.TermIOs.Main_Data;
        Window_Size : Devices.TermIOs.Win_Size) return Inner_Acc;
-
-   --  Increase the refcount of the passed PTY.
-   --  @param P PTY to increase the refcount of.
-   procedure Increase_Refcount (P : Inner_Acc) with Pre => Is_Valid (P);
 
    --  Decrease the refcount of a PTY, if zero, free it.
    --  @param Closed PTY to decrease the refcount of.
@@ -103,7 +100,7 @@ private
       Primary_Pipe   : FIFO.Inner_Acc;
       Term_Info      : Devices.TermIOs.Main_Data;
       Term_Size      : Devices.TermIOs.Win_Size;
-      Refcount       : Natural;
+      Was_Closed     : Boolean;
    end record;
 
    function Is_Valid (P : Inner_Acc) return Boolean is

@@ -22,14 +22,16 @@ with Memory.Virtual;
 with Memory; use Memory;
 with Userland.ELF;
 with Scheduler; use Scheduler;
-with Ada.Unchecked_Conversion;
 with Userland.Memory_Locations;
 with Lib.Alignment;
 with Cryptography.Random;
+with Devices;
 
 package body Userland.Loader with SPARK_Mode => Off is
    function Start_Program
-      (FD          : File_Acc;
+      (Exec_Path   : String;
+       FS          : FS_Handle;
+       Ino         : File_Inode_Number;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        StdIn_Path  : String;
@@ -38,37 +40,35 @@ package body Userland.Loader with SPARK_Mode => Off is
    is
       Returned_PID : constant PID := Process.Create_Process;
       Discard      : Natural;
-      Stdin, StdOut, StdErr                : File_Acc;
       User_Stdin, User_StdOut, User_StdErr : File_Description_Acc;
    begin
-      Open (StdIn_Path,  Read_Only,  Stdin,  0);
-      Open (StdOut_Path, Write_Only, StdOut, 0);
-      Open (StdErr_Path, Write_Only, StdErr, 0);
-
       if Returned_PID = Error_PID then
          goto Error;
       end if;
       Process.Set_Common_Map (Returned_PID, Memory.Virtual.New_Map);
-      if not Start_Program (FD, Arguments, Environment, Returned_PID) or
-         Stdin = null or StdOut = null or StdErr = null
+      if not Start_Program (Exec_Path, FS, Ino, Arguments, Environment,
+                            Returned_PID)
       then
          goto Error_Process;
       end if;
 
       User_Stdin := new File_Description'(
-         Close_On_Exec => False,
-         Description   => Description_File,
-         Inner_File    => Stdin
+         Children_Count => 0,
+         Description    => Description_Device,
+         Inner_Dev_Pos  => 0,
+         Inner_Dev      => Devices.Fetch (StdIn_Path)
       );
       User_StdOut := new File_Description'(
-         Close_On_Exec => False,
-         Description   => Description_File,
-         Inner_File    => StdOut
+         Children_Count => 0,
+         Description    => Description_Device,
+         Inner_Dev_Pos  => 0,
+         Inner_Dev      => Devices.Fetch (StdOut_Path)
       );
       User_StdErr := new File_Description'(
-         Close_On_Exec => False,
-         Description   => Description_File,
-         Inner_File    => StdErr
+         Children_Count => 0,
+         Description    => Description_Device,
+         Inner_Dev_Pos  => 0,
+         Inner_Dev      => Devices.Fetch (StdErr_Path)
       );
 
       if not Process.Add_File (Returned_PID, User_Stdin,  Discard) or else
@@ -86,26 +86,21 @@ package body Userland.Loader with SPARK_Mode => Off is
    end Start_Program;
 
    function Start_Program
-      (FD          : File_Acc;
+      (Exec_Path   : String;
+       FS          : FS_Handle;
+       Ino         : File_Inode_Number;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        Proc        : PID) return Boolean
    is
-      Discard : Boolean;
    begin
-      if Start_ELF (FD, Arguments, Environment, Proc) then
-         return True;
-      end if;
-      Set_Position (FD, 0, Discard);
-      if Start_Shebang (FD, Arguments, Environment, Proc) then
-         return True;
-      end if;
-
-      return False;
+      return Start_ELF     (FS, Ino, Arguments, Environment, Proc) or else
+             Start_Shebang (Exec_Path, FS, Ino, Arguments, Environment, Proc);
    end Start_Program;
 
    function Start_ELF
-      (FD          : File_Acc;
+      (FS          : FS_Handle;
+       Ino         : File_Inode_Number;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        Proc        : PID) return Boolean
@@ -116,10 +111,12 @@ package body Userland.Loader with SPARK_Mode => Off is
       Entrypoint   : Virtual_Address;
       LD_Slide : Unsigned_64;
       LD_Path  : String (1 .. 100);
-      LD_File  : File_Acc;
+      LD_FS    : FS_Handle;
+      LD_Ino   : File_Inode_Number;
+      Success  : FS_Status;
    begin
       --  Load the executable.
-      Loaded_ELF := ELF.Load_ELF (FD, Process.Get_Common_Map (Proc),
+      Loaded_ELF := ELF.Load_ELF (FS, Ino, Process.Get_Common_Map (Proc),
          Memory_Locations.Program_Offset);
       if not Loaded_ELF.Was_Loaded then
          goto Error;
@@ -130,22 +127,22 @@ package body Userland.Loader with SPARK_Mode => Off is
          --  the spot using Path, which is absolute.
          LD_Path (9 .. Loaded_ELF.Linker_Path.all'Length + 8) :=
             Loaded_ELF.Linker_Path (1 .. Loaded_ELF.Linker_Path.all'Length);
-         Open (LD_Path (9 .. 7 + Loaded_ELF.Linker_Path.all'Length), Read_Only,
-               LD_File, 0);
-         if LD_File = null then
+         Open (LD_Path (9 .. 7 + Loaded_ELF.Linker_Path.all'Length), LD_FS,
+               LD_Ino, Success, 0);
+         if Success /= VFS.FS_Success then
             goto Error;
          end if;
          LD_Slide := Cryptography.Random.Get_Integer
             (Memory_Locations.LD_Offset_Min,
              Memory_Locations.LD_Offset_Max);
          LD_Slide := Aln.Align_Up (LD_Slide, Memory.Virtual.Page_Size);
-         LD_ELF := ELF.Load_ELF (LD_File, Process.Get_Common_Map (Proc),
+         LD_ELF := ELF.Load_ELF (LD_FS, LD_Ino, Process.Get_Common_Map (Proc),
                                  LD_Slide);
          Entrypoint := To_Integer (LD_ELF.Entrypoint);
          if not LD_ELF.Was_Loaded then
             goto Error;
          end if;
-         Close (LD_File);
+         Close (LD_FS, LD_Ino);
       else
          Entrypoint := To_Integer (Loaded_ELF.Entrypoint);
       end if;
@@ -181,37 +178,38 @@ package body Userland.Loader with SPARK_Mode => Off is
    end Start_ELF;
 
    function Start_Shebang
-      (FD          : File_Acc;
+      (Exec_Path   : String;
+       FS          : FS_Handle;
+       Ino         : File_Inode_Number;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        Proc        : PID) return Boolean
    is
-      use VFS;
-      function Conv is new Ada.Unchecked_Conversion
-         (Target => Userland.String_Acc, Source => VFS.File.String_Acc);
-
-      Path_Len  : Natural := 0;
-      Arg_Len   : Natural := 0;
+      Path_Len  :     Natural := 0;
+      Arg_Len   :     Natural := 0;
+      Pos       : Unsigned_64 := 0;
       Path      : String (1 .. 100);
-      Path_Data : Operation_Data (1 .. 100)
+      Path_Data : Devices.Operation_Data (1 .. 100)
          with Import, Address => Path'Address;
       Arg       : String (1 .. 100);
       Char      : Character;
-      Char_Data : Operation_Data (1 .. 1)
+      Char_Data : Devices.Operation_Data (1 .. 1)
          with Import, Address => Char'Address;
       Char_Len  : Natural;
       Success   : VFS.FS_Status;
    begin
-      Read (FD, Path_Data (1 .. 2), Path_Len, Success, 0);
+      Read (FS, Ino, 0, Path_Data (1 .. 2), Path_Len, Success, 0);
       if Success /= VFS.FS_Success or Path_Len /= 2 or Path (1 .. 2) /= "#!"
       then
          return False;
       end if;
+      Pos := Pos + Unsigned_64 (Path_Len);
 
       --  Format of a shebang: #!path [arg]newline
       Path_Len := 0;
       loop
-         Read (FD, Char_Data, Char_Len, Success, 0);
+         Read (FS, Ino, Pos, Char_Data, Char_Len, Success, 0);
+         Pos := Pos + Unsigned_64 (Char_Len);
          if Success /= VFS.FS_Success or Char_Len /= 1 then
             return False;
          end if;
@@ -222,7 +220,8 @@ package body Userland.Loader with SPARK_Mode => Off is
          end case;
       end loop;
       loop
-         Read (FD, Char_Data, Char_Len, Success, 0);
+         Read (FS, Ino, Pos, Char_Data, Char_Len, Success, 0);
+         Pos := Pos + Unsigned_64 (Char_Len);
          if Success /= VFS.FS_Success or Char_Len /= 1 then
             return False;
          end if;
@@ -234,10 +233,11 @@ package body Userland.Loader with SPARK_Mode => Off is
 
    <<Return_Shebang>>
       declare
-         Arg_Diff : constant Natural := (if Arg_Len = 0 then 1 else 2);
-         New_Args : Argument_Arr (1 .. Arguments'Length + Arg_Diff);
-         I        : Positive := 1;
-         Banged   : VFS.File.File_Acc;
+         Arg_Diff   : constant Natural := (if Arg_Len = 0 then 1 else 2);
+         New_Args   : Argument_Arr (1 .. Arguments'Length + Arg_Diff);
+         I          : Positive := 1;
+         Banged_FS  : FS_Handle;
+         Banged_Ino : File_Inode_Number;
       begin
          New_Args (I) := new String'(Path (1 .. Path_Len));
          I := I + 1;
@@ -246,13 +246,15 @@ package body Userland.Loader with SPARK_Mode => Off is
             I := I + 1;
          end if;
          New_Args (I .. New_Args'Length) := Arguments;
-         New_Args (I) := Conv (Get_Path (FD));
-         Open (Path (1 .. Path_Len), Read_Only, Banged, 0);
-         if Banged = null then
+         New_Args (I) := new String'(Exec_Path);
+         Open (Path (1 .. Path_Len), Banged_FS, Banged_Ino, Success, 0);
+         if Success /= FS_Success then
             return False;
          end if;
          return Start_Program (
-            Banged,
+            Exec_Path,
+            Banged_FS,
+            Banged_Ino,
             New_Args,
             Environment,
             Proc

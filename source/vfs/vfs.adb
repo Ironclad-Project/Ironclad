@@ -472,21 +472,6 @@ package body VFS with SPARK_Mode => Off is
       end case;
    end IO_Control;
 
-   function Synchronize return Boolean is
-      Final_Success : Boolean := True;
-   begin
-      Lib.Synchronization.Seize (Mounts_Mutex);
-      for I in Mounts'Range loop
-         if Mounts (I).Mounted_Dev /= Devices.Error_Handle then
-            if Synchronize (I) = FS_IO_Failure then
-               Final_Success := False;
-            end if;
-         end if;
-      end loop;
-      Lib.Synchronization.Release (Mounts_Mutex);
-      return Final_Success;
-   end Synchronize;
-
    function Synchronize (Key : FS_Handle) return FS_Status is
    begin
       case Mounts (Key).Mounted_FS is
@@ -496,13 +481,16 @@ package body VFS with SPARK_Mode => Off is
    end Synchronize;
 
    function Synchronize
-      (Key : FS_Handle;
-       Ino : File_Inode_Number) return FS_Status
+      (Key       : FS_Handle;
+       Ino       : File_Inode_Number;
+       Data_Only : Boolean) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT => return EXT.Synchronize (Mounts (Key).FS_Data, Ino);
-         when others => return FS_Not_Supported;
+         when FS_EXT =>
+            return EXT.Synchronize (Mounts (Key).FS_Data, Ino, Data_Only);
+         when others =>
+            return FS_Not_Supported;
       end case;
    end Synchronize;
 
@@ -520,6 +508,159 @@ package body VFS with SPARK_Mode => Off is
             return FS_Not_Supported;
       end case;
    end Change_Mode;
+   ----------------------------------------------------------------------------
+   procedure Open
+      (Path    : String;
+       Key     : out FS_Handle;
+       Ino     : out File_Inode_Number;
+       Success : out FS_Status;
+       User    : Unsigned_32;
+       Follow  : Boolean := True)
+   is
+      Matched      : Natural;
+      Last_Slash   : Natural := 0;
+      Symlink      : String (1 .. 60);
+      Symlink_Len  : Natural;
+      Fetched_Stat : File_Stat;
+   begin
+      Key := Error_Handle;
+      Ino := 0;
+
+      Get_Mount (Path, Matched, Key);
+      if Key = Error_Handle then
+         Success := FS_Invalid_Value;
+         return;
+      end if;
+
+      Open (Key, Path (Path'First + Matched .. Path'Last), Ino, Success, User);
+      if Success = FS_Success then
+         Stat (Key, Ino, Fetched_Stat, Success, User);
+         if Follow and Fetched_Stat.Type_Of_File = File_Symbolic_Link then
+            VFS.Read_Symbolic_Link
+               (Key       => Key,
+                Ino       => Ino,
+                Path      => Symlink,
+                Ret_Count => Symlink_Len,
+                Success   => Success,
+                User      => User);
+
+            for I in Path'Range loop
+               if Path (I) = '/' then
+                  Last_Slash := I;
+               end if;
+            end loop;
+
+            Close (Key, Ino);
+
+            if Symlink_Len = 0 then
+               Success := FS_Invalid_Value;
+            elsif Symlink (1) = '/' then
+               Open (Symlink (1 .. Symlink_Len), Key, Ino, Success, User);
+            else
+               Open (
+                  Path (Path'First .. Last_Slash) & Symlink (1 .. Symlink_Len),
+                  Key,
+                  Ino,
+                  Success,
+                  User
+               );
+            end if;
+         end if;
+      end if;
+   end Open;
+
+   function Synchronize return Boolean is
+      Final_Success : Boolean := True;
+   begin
+      Lib.Synchronization.Seize (Mounts_Mutex);
+      for I in Mounts'Range loop
+         if Mounts (I).Mounted_Dev /= Devices.Error_Handle then
+            if Synchronize (I) = FS_IO_Failure then
+               Final_Success := False;
+            end if;
+         end if;
+      end loop;
+      Lib.Synchronization.Release (Mounts_Mutex);
+      return Final_Success;
+   end Synchronize;
+
+   procedure Create_Node
+      (Path    : String;
+       Typ     : File_Type;
+       Mode    : File_Mode;
+       Success : out FS_Status;
+       User    : Unsigned_32)
+   is
+      Match_Count : Natural;
+      Handle      : FS_Handle;
+   begin
+      Get_Mount (Path, Match_Count, Handle);
+      Success := Create_Node
+         (Handle, Path (Path'First + Match_Count .. Path'Last), Typ, Mode,
+          User);
+   end Create_Node;
+
+   procedure Create_Symbolic_Link
+      (Path, Target : String;
+       Mode         : Unsigned_32;
+       Success      : out FS_Status;
+       User         : Unsigned_32)
+   is
+      Match_Count : Natural;
+      Handle      : FS_Handle;
+   begin
+      Get_Mount (Path, Match_Count, Handle);
+      Success := Create_Symbolic_Link
+         (Handle, Path (Path'First + Match_Count .. Path'Last), Target, Mode,
+          User);
+   end Create_Symbolic_Link;
+
+   procedure Create_Hard_Link
+      (Path, Target : String;
+       Success      : out FS_Status;
+       User         : Unsigned_32)
+   is
+      Match_Count : Natural;
+      Handle      : FS_Handle;
+   begin
+      Get_Mount (Path, Match_Count, Handle);
+      Success := Create_Hard_Link
+         (Handle,
+          Path   (Path'First   + Match_Count ..   Path'Last),
+          Target (Target'First + Match_Count .. Target'Last),
+          User);
+   end Create_Hard_Link;
+
+   procedure Rename
+      (Source, Target : String;
+       Keep           : Boolean;
+       Success        : out FS_Status;
+       User           : Unsigned_32)
+   is
+      Match_Count : Natural;
+      Handle      : FS_Handle;
+   begin
+      Get_Mount (Source, Match_Count, Handle);
+      Success := Rename
+         (Handle,
+          Source (Source'First + Match_Count .. Source'Last),
+          Target (Target'First + Match_Count .. Target'Last),
+          Keep,
+          User);
+   end Rename;
+
+   procedure Unlink
+      (Path    : String;
+       Success : out FS_Status;
+       User    : Unsigned_32)
+   is
+      Match_Count : Natural;
+      Handle      : FS_Handle;
+   begin
+      Get_Mount (Path, Match_Count, Handle);
+      Success := Unlink
+         (Handle, Path (Path'First + Match_Count .. Path'Last), User);
+   end Unlink;
    ----------------------------------------------------------------------------
    function Is_Absolute (Path : String) return Boolean is
    begin

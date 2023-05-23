@@ -1954,7 +1954,7 @@ following errno:
 @section fsync
 
 @example
-int fsync(int fd);
+int fsync(int fd, int flags);
 @end example
 
 The syscall does the same as @code{sync}, just only applied to @code{fd}. If
@@ -1963,6 +1963,10 @@ the passed file is a device, the device will flush its internal caches.
 If the file was just created, one might considering synchronizing the parent
 directory as well, as, depending on the FS and FS driver, parent directory
 entries are stored separately to the file, EXT-series filesystems come to mind.
+
+If @code{flags} is not zero, only the data of the passed descriptor will be
+guaranteed to be flushed, and not modified metadata, this can be used in
+order to minimize disk activity even further.
 
 The syscall returns @code{0} or @code{-1} on failure, with the errno:
 

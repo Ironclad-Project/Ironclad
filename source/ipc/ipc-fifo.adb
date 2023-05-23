@@ -29,8 +29,8 @@ package body IPC.FIFO is
    begin
       Data := new Devices.Operation_Data'(1 .. Default_Data_Length => 0);
       return new Inner'
-         (Reader_Refcount   => 1,
-          Writer_Refcount   => 1,
+         (Reader_Closed     => False,
+          Writer_Closed     => False,
           Mutex             => Lib.Synchronization.Unlocked_Semaphore,
           Is_Read_Blocking  => Is_Blocking,
           Is_Write_Blocking => Is_Blocking,
@@ -74,42 +74,20 @@ package body IPC.FIFO is
 
    function Is_Broken (P : Inner_Acc) return Boolean is
    begin
-      return P.Writer_Refcount = 0 or P.Reader_Refcount = 0;
+      return P.Writer_Closed or P.Reader_Closed;
    end Is_Broken;
-
-   procedure Increase_Reader_Refcount (P : Inner_Acc) is
-   begin
-      Lib.Synchronization.Seize (P.Mutex);
-      if P.Reader_Refcount /= Natural'Last then
-         P.Reader_Refcount := P.Reader_Refcount + 1;
-      end if;
-      Lib.Synchronization.Release (P.Mutex);
-   end Increase_Reader_Refcount;
-
-   procedure Increase_Writer_Refcount (P : Inner_Acc) is
-   begin
-      Lib.Synchronization.Seize (P.Mutex);
-      if P.Writer_Refcount /= Natural'Last then
-         P.Writer_Refcount := P.Writer_Refcount + 1;
-      end if;
-      Lib.Synchronization.Release (P.Mutex);
-   end Increase_Writer_Refcount;
 
    procedure Close_Reader (To_Close : in out Inner_Acc) is
    begin
       Lib.Synchronization.Seize (To_Close.Mutex);
-      if To_Close.Reader_Refcount /= 0 then
-         To_Close.Reader_Refcount := To_Close.Reader_Refcount - 1;
-      end if;
+      To_Close.Reader_Closed := True;
       Common_Close (To_Close);
    end Close_Reader;
 
    procedure Close_Writer (To_Close : in out Inner_Acc) is
    begin
       Lib.Synchronization.Seize (To_Close.Mutex);
-      if To_Close.Writer_Refcount /= 0 then
-         To_Close.Writer_Refcount := To_Close.Writer_Refcount - 1;
-      end if;
+      To_Close.Writer_Closed := True;
       Common_Close (To_Close);
    end Close_Writer;
 
@@ -154,7 +132,7 @@ package body IPC.FIFO is
    begin
       Data := (others => 0);
 
-      if To_Read.Writer_Refcount = 0 and To_Read.Data_Count = 0 then
+      if To_Read.Writer_Closed and To_Read.Data_Count = 0 then
          Ret_Count := 0;
          Success   := Pipe_Success;
          return;
@@ -204,7 +182,7 @@ package body IPC.FIFO is
    begin
       Lib.Synchronization.Seize (To_Write.Mutex);
 
-      if To_Write.Reader_Refcount = 0 then
+      if To_Write.Reader_Closed then
          Ret_Count := 0;
          Success   := Broken_Failure;
          goto Cleanup;
@@ -244,7 +222,7 @@ package body IPC.FIFO is
    ----------------------------------------------------------------------------
    procedure Common_Close (To_Close : in out Inner_Acc) is
    begin
-      if To_Close.Reader_Refcount = 0 and To_Close.Writer_Refcount = 0 then
+      if To_Close.Reader_Closed and To_Close.Writer_Closed then
          Free (To_Close.Data);
          Free (To_Close);
       else

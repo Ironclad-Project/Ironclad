@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with VFS.File; use VFS.File;
 with VFS;
 with Memory.Virtual;
 with Lib.Synchronization;
@@ -23,6 +22,7 @@ with Interfaces; use Interfaces;
 with Userland.MAC;
 with IPC.FIFO; use IPC.FIFO;
 with IPC.PTY;  use IPC.PTY;
+with Devices;
 
 package Userland.Process with SPARK_Mode => Off is
    --  A process is identifier by a PID (process identifier).
@@ -50,9 +50,12 @@ package Userland.Process with SPARK_Mode => Off is
        Description_Writer_FIFO,
        Description_Primary_PTY,
        Description_Secondary_PTY,
-       Description_File);
+       Description_Device,
+       Description_Inode);
+   type File_Description;
+   type File_Description_Acc is access all File_Description;
    type File_Description (Description : File_Description_Type) is record
-      Close_On_Exec : Boolean;
+      Children_Count : Natural;
       case Description is
          when Description_Reader_FIFO =>
             Inner_Reader_FIFO : IPC.FIFO.Inner_Acc;
@@ -62,11 +65,15 @@ package Userland.Process with SPARK_Mode => Off is
             Inner_Primary_PTY : IPC.PTY.Inner_Acc;
          when Description_Secondary_PTY =>
             Inner_Secondary_PTY : IPC.PTY.Inner_Acc;
-         when Description_File =>
-            Inner_File : VFS.File.File_Acc;
+         when Description_Device =>
+            Inner_Dev_Pos : Unsigned_64;
+            Inner_Dev     : Devices.Device_Handle;
+         when Description_Inode =>
+            Inner_Ino_Pos : Unsigned_64;
+            Inner_Ino_FS  : VFS.FS_Handle;
+            Inner_Ino     : VFS.File_Inode_Number;
       end case;
    end record;
-   type File_Description_Acc is access all File_Description;
 
    --  Initialize the process registry.
    procedure Init;
@@ -176,6 +183,25 @@ package Userland.Process with SPARK_Mode => Off is
    function Get_File
       (Process : PID;
        FD      : Unsigned_64) return File_Description_Acc
+      with Pre => Process /= Error_PID;
+
+   --  Get the Close on Exec flag for a file descriptor.
+   --  @param Process  Process to operate on.
+   --  @param FD       FD to check.
+   --- @return True if close on exec, false if not.
+   function Get_Close_On_Exec
+      (Process  : PID;
+       FD       : Unsigned_64) return Boolean
+      with Pre => Process /= Error_PID;
+
+   --  Set the Close on Exec flag for a file descriptor.
+   --  @param Process  Process to operate on.
+   --  @param FD       FD to set.
+   --- @param Is_Close True if close on exec, false if not.
+   procedure Set_Close_On_Exec
+      (Process  : PID;
+       FD       : Unsigned_64;
+       Is_Close : Boolean)
       with Pre => Process /= Error_PID;
 
    --  Remove a file from a process.
@@ -370,8 +396,13 @@ private
 
    Default_Umask : constant VFS.File_Mode := 8#22#;
 
+   type File_Descriptor is record
+      Close_On_Exec : Boolean;
+      Description   : File_Description_Acc;
+   end record;
+
    type Thread_Arr is array (1 .. Max_Thread_Count)   of Scheduler.TID;
-   type File_Arr   is array (0 .. Max_File_Count - 1) of File_Description_Acc;
+   type File_Arr   is array (0 .. Max_File_Count - 1) of File_Descriptor;
    type Process_Data is record
       Umask           : VFS.File_Mode;
       User            : Unsigned_32;

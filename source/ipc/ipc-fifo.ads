@@ -23,13 +23,13 @@ package IPC.FIFO is
    --  It's basically a buffer held in memory by the kernel, open for read and
    --  write, with independent settings for each operation.
    --
-   --  A FIFO has 2 sides, a write and read side, each one has separate
-   --  refcount, reduced when closed. The whole object is deallocated when both
-   --  reach 0.
-   --  If the read side's one goes down to 0, all subsequent writes will fail
-   --  until increased. Reads will continue working. This is done instead of a
-   --  global refcount in order to implement UNIXy behaviour easily. Do not
-   --  hope for the existance of SIGPIPE.
+   --  A FIFO has 2 sides, a write and read side, each one can be closed
+   --  separately. The whole object is deallocated when both are closed.
+   --
+   --  If the read side is closed, all subsequent writes will fail until
+   --  increased. Reads will continue working. This is done instead of a
+   --  in order to implement UNIXy behaviour easily. Do not hope for the
+   --  existance of SIGPIPE.
    --
    --  FIFOs can be used standalone or to implement other UNIXy interfaces
    --  like pipes or UNIX-domain sockets.
@@ -66,9 +66,7 @@ package IPC.FIFO is
    --  Check whether the FIFO is broken, that is, whether it has no readers.
    function Is_Broken (P : Inner_Acc) return Boolean with Pre => Is_Valid (P);
 
-   --  Increase the refcount or close the passed end.
-   procedure Increase_Reader_Refcount (P : Inner_Acc) with Pre => Is_Valid (P);
-   procedure Increase_Writer_Refcount (P : Inner_Acc) with Pre => Is_Valid (P);
+   --  Close the passed end.
    procedure Close_Reader (To_Close : in out Inner_Acc)
       with Pre => Is_Valid (To_Close);
    procedure Close_Writer (To_Close : in out Inner_Acc)
@@ -127,8 +125,8 @@ private
    Default_Data_Length : constant Natural := Memory.Virtual.Page_Size * 4;
    type Inner is record
       Mutex             : aliased Lib.Synchronization.Binary_Semaphore;
-      Reader_Refcount   : Natural;
-      Writer_Refcount   : Natural;
+      Reader_Closed     : Boolean;
+      Writer_Closed     : Boolean;
       Is_Read_Blocking  : Boolean;
       Is_Write_Blocking : Boolean;
       Data_Count        : Natural;

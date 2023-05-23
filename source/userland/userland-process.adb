@@ -99,7 +99,7 @@ package body Userland.Process with SPARK_Mode => Off is
                 Tracer_FD   => 0,
                 Exit_Code   => 0,
                 Thread_List => (others => 0),
-                File_Table  => (others => null),
+                File_Table  => (others => (False, null)),
                 Common_Map  => null,
                 others      => <>);
 
@@ -192,11 +192,10 @@ package body Userland.Process with SPARK_Mode => Off is
 
    function Is_Valid_File (Process : PID; FD : Unsigned_64) return Boolean is
    begin
-      if FD <= Unsigned_64 (File_Arr'Last) then
-         return Registry (Process).File_Table (Natural (FD)) /= null;
-      else
+      if FD > Unsigned_64 (File_Arr'Last) then
          return False;
       end if;
+      return Registry (Process).File_Table (Natural (FD)).Description /= null;
    end Is_Valid_File;
 
    function Add_File
@@ -207,8 +206,8 @@ package body Userland.Process with SPARK_Mode => Off is
    is
    begin
       for I in Start .. Registry (Process).File_Table'Last loop
-         if Registry (Process).File_Table (I) = null then
-            Registry (Process).File_Table (I) := File;
+         if Registry (Process).File_Table (I).Description = null then
+            Registry (Process).File_Table (I).Description := File;
             FD := I;
             return True;
          end if;
@@ -218,37 +217,25 @@ package body Userland.Process with SPARK_Mode => Off is
    end Add_File;
 
    function Duplicate (F : File_Description_Acc) return File_Description_Acc is
-      Ret : File_Description_Acc := null;
    begin
       if F /= null then
-         Ret := new File_Description'(F.all);
-         Ret.Close_On_Exec := False;
-         case Ret.Description is
-            when Description_Reader_FIFO =>
-               Increase_Reader_Refcount (Ret.Inner_Reader_FIFO);
-            when Description_Writer_FIFO =>
-               Increase_Writer_Refcount (Ret.Inner_Writer_FIFO);
-            when Description_Primary_PTY =>
-               IPC.PTY.Increase_Refcount (Ret.Inner_Primary_PTY);
-            when Description_Secondary_PTY =>
-               IPC.PTY.Increase_Refcount (Ret.Inner_Secondary_PTY);
-            when Description_File =>
-               Increase_Refcount (Ret.Inner_File);
-         end case;
+         F.Children_Count := F.Children_Count + 1;
       end if;
-      return Ret;
+      return F;
    end Duplicate;
 
    function Duplicate (Proc : PID; FD : Natural) return File_Description_Acc is
    begin
-      return Duplicate (Registry (Proc).File_Table (FD));
+      return Duplicate (Registry (Proc).File_Table (FD).Description);
    end Duplicate;
 
    procedure Duplicate_FD_Table (Process, Target : PID) is
    begin
       for I in Registry (Process).File_Table'Range loop
-         Registry (Target).File_Table (I) :=
-            Duplicate (Registry (Process).File_Table (I));
+         Registry (Target).File_Table (I).Close_On_Exec :=
+            Registry (Process).File_Table (I).Close_On_Exec;
+         Registry (Target).File_Table (I).Description :=
+            Duplicate (Registry (Process).File_Table (I).Description);
       end loop;
    end Duplicate_FD_Table;
 
@@ -257,14 +244,25 @@ package body Userland.Process with SPARK_Mode => Off is
          (File_Description, File_Description_Acc);
    begin
       if F /= null then
-         case F.Description is
-            when Description_Reader_FIFO => Close_Reader (F.Inner_Reader_FIFO);
-            when Description_Writer_FIFO => Close_Writer (F.Inner_Writer_FIFO);
-            when Description_Primary_PTY   => Close (F.Inner_Primary_PTY);
-            when Description_Secondary_PTY => Close (F.Inner_Secondary_PTY);
-            when Description_File          => Close (F.Inner_File);
-         end case;
-         Free (F);
+         if F.Children_Count = 0 then
+            case F.Description is
+               when Description_Reader_FIFO =>
+                  Close_Reader (F.Inner_Reader_FIFO);
+               when Description_Writer_FIFO =>
+                  Close_Writer (F.Inner_Writer_FIFO);
+               when Description_Primary_PTY =>
+                  Close (F.Inner_Primary_PTY);
+               when Description_Secondary_PTY =>
+                  Close (F.Inner_Secondary_PTY);
+               when Description_Device =>
+                  null;
+               when Description_Inode =>
+                  VFS.Close (F.Inner_Ino_FS, F.Inner_Ino);
+            end case;
+            Free (F);
+         else
+            F.Children_Count := F.Children_Count - 1;
+         end if;
          F := null;
       end if;
    end Close;
@@ -275,31 +273,58 @@ package body Userland.Process with SPARK_Mode => Off is
    is
    begin
       if FD <= Unsigned_64 (File_Arr'Last) then
-         return Registry (Process).File_Table (Natural (FD));
+         return Registry (Process).File_Table (Natural (FD)).Description;
       else
          return null;
       end if;
    end Get_File;
 
+   function Get_Close_On_Exec
+      (Process  : PID;
+       FD       : Unsigned_64) return Boolean
+   is
+   begin
+      if FD <= Unsigned_64 (File_Arr'Last) then
+         return Registry (Process).File_Table (Natural (FD)).Close_On_Exec;
+      else
+         return False;
+      end if;
+   end Get_Close_On_Exec;
+
+   procedure Set_Close_On_Exec
+      (Process  : PID;
+       FD       : Unsigned_64;
+       Is_Close : Boolean)
+   is
+   begin
+      if FD <= Unsigned_64 (File_Arr'Last) then
+         Registry (Process).File_Table (Natural (FD)).Close_On_Exec :=
+            Is_Close;
+      end if;
+   end Set_Close_On_Exec;
+
    procedure Remove_File (Process : PID; FD : Natural) is
    begin
       if FD <= File_Arr'Last then
-         Close (Registry (Process).File_Table (FD));
+         Close (Registry (Process).File_Table (FD).Description);
+         Registry (Process).File_Table (FD).Close_On_Exec := False;
       end if;
    end Remove_File;
 
    procedure Flush_Files (Process : PID) is
    begin
       for F of Registry (Process).File_Table loop
-         Close (F);
+         Close (F.Description);
+         F.Close_On_Exec := False;
       end loop;
    end Flush_Files;
 
    procedure Flush_Exec_Files (Process : PID) is
    begin
       for F of Registry (Process).File_Table loop
-         if F /= null and then F.Close_On_Exec then
-            Close (F);
+         if F.Description /= null and then F.Close_On_Exec then
+            Close (F.Description);
+            F.Close_On_Exec := False;
          end if;
       end loop;
    end Flush_Exec_Files;

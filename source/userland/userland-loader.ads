@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Userland.Process; use Userland.Process;
-with VFS.File;         use VFS.File;
+with VFS;              use VFS;
 
 package Userland.Loader with SPARK_Mode => Off is
    --  Start a program from a passed file, and create a process for it with
@@ -23,7 +23,9 @@ package Userland.Loader with SPARK_Mode => Off is
    --  The format of the file is guessed.
    --  Return the PID, or 0 if failure.
    function Start_Program
-      (FD          : File_Acc;
+      (Exec_Path   : String;
+       FS          : FS_Handle;
+       Ino         : File_Inode_Number;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        StdIn_Path  : String;
@@ -33,21 +35,26 @@ package Userland.Loader with SPARK_Mode => Off is
    --  Same as above but with an existing process instead.
    --  Returns true on success, false on failure.
    function Start_Program
-      (FD          : File_Acc;
+      (Exec_Path   : String;
+       FS          : FS_Handle;
+       Ino         : File_Inode_Number;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        Proc        : PID) return Boolean;
 
    --  Start specifically an ELF file.
    function Start_ELF
-      (FD          : File_Acc;
+      (FS          : FS_Handle;
+       Ino         : File_Inode_Number;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        Proc        : PID) return Boolean;
 
    --  Start specifically a shebang.
    function Start_Shebang
-      (FD          : File_Acc;
+      (Exec_Path   : String;
+       FS          : FS_Handle;
+       Ino         : File_Inode_Number;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        Proc        : PID) return Boolean;

@@ -20,6 +20,7 @@ with Memory; use Memory;
 with Interfaces.C;
 with Arch.MMU;
 with Lib.Alignment;
+with Devices;
 
 package body Userland.ELF with SPARK_Mode => Off is
    type ELF_ID_Field is array (Natural range <>) of Unsigned_8;
@@ -60,7 +61,8 @@ package body Userland.ELF with SPARK_Mode => Off is
    for ELF_Header'Size use 512;
 
    function Load_ELF
-      (File_D : VFS.File.File_Acc;
+      (FS     : VFS.FS_Handle;
+       Ino    : VFS.File_Inode_Number;
        Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Parsed_ELF
    is
@@ -68,7 +70,7 @@ package body Userland.ELF with SPARK_Mode => Off is
 
       Header       : ELF_Header;
       Header_Bytes : constant Natural := ELF_Header'Size / 8;
-      Header_Data  : VFS.File.Operation_Data (1 .. Header_Bytes)
+      Header_Data  : Devices.Operation_Data (1 .. Header_Bytes)
          with Import, Address => Header'Address;
 
       Result : Parsed_ELF := (
@@ -84,11 +86,13 @@ package body Userland.ELF with SPARK_Mode => Off is
          Exec_Stack => True
       );
       Ret_Count : Natural;
+      Pos       : Unsigned_64 := 0;
       Discard   : Boolean;
       Success   : FS_Status;
    begin
       --  Read and check the header.
-      VFS.File.Read (File_D, Header_Data, Ret_Count, Success, 0);
+      VFS.Read (FS, Ino, Pos, Header_Data, Ret_Count, Success, 0);
+      Pos := Pos + Unsigned_64 (Ret_Count);
       if Success /= FS_Success or Ret_Count /= Header_Bytes or
          Header.Identifier (1 .. 4) /= ELF_Signature
       then
@@ -108,15 +112,16 @@ package body Userland.ELF with SPARK_Mode => Off is
          HSize : constant Unsigned_64 :=
             Unsigned_64 (Header.Program_Header_Size);
          RSize : constant Unsigned_64 := HSize * PHDRs'Length;
-         PHDRs_Data : VFS.File.Operation_Data (1 .. Natural (RSize))
+         PHDRs_Data : Devices.Operation_Data (1 .. Natural (RSize))
             with Import, Address => PHDRs'Address;
       begin
          if HSize = 0 or PHDRs'Length = 0 then
             return Result;
          end if;
 
-         VFS.File.Set_Position (File_D, Header.Program_Header_List, Discard);
-         VFS.File.Read (File_D, PHDRs_Data, Ret_Count, Success, 0);
+         Pos := Header.Program_Header_List;
+         VFS.Read (FS, Ino, Pos, PHDRs_Data, Ret_Count, Success, 0);
+         Pos := Pos + Unsigned_64 (Ret_Count);
          if Success /= FS_Success or Ret_Count /= Natural (RSize) then
             return Result;
          end if;
@@ -124,13 +129,13 @@ package body Userland.ELF with SPARK_Mode => Off is
          for HDR of PHDRs loop
             case HDR.Segment_Type is
                when Program_Loadable_Segment =>
-                  if not Load_Header (File_D, HDR, Map, Base) then
+                  if not Load_Header (FS, Ino, HDR, Map, Base) then
                      return Result;
                   end if;
                when Program_Header_Table_Segment =>
                   Result.Vector.Program_Headers := Base + HDR.Virt_Address;
                when Program_Interpreter_Segment =>
-                  Result.Linker_Path := Get_Linker (File_D, HDR);
+                  Result.Linker_Path := Get_Linker (FS, Ino, HDR);
                when Program_GNU_Stack =>
                   Result.Exec_Stack := (HDR.Flags and Flags_Executable) /= 0;
                when others =>
@@ -146,20 +151,20 @@ package body Userland.ELF with SPARK_Mode => Off is
 
    --  Get the linker path string from a given interpreter program header.
    function Get_Linker
-      (File_D : VFS.File.File_Acc;
+      (FS     : VFS.FS_Handle;
+       Ino    : VFS.File_Inode_Number;
        Header : Program_Header) return String_Acc
    is
       use VFS;
       Discard  : Unsigned_64;
       Ret : constant String_Acc := new String (1 .. Header.File_Size_Bytes);
-      Ret_Data : VFS.File.Operation_Data (1 .. Header.File_Size_Bytes)
+      Ret_Data : Devices.Operation_Data (1 .. Header.File_Size_Bytes)
          with Import, Address => Ret (1)'Address;
       Ret_Count : Natural;
       Discard2  : Boolean;
       Success   : FS_Status;
    begin
-      VFS.File.Set_Position (File_D, Header.Offset, Discard2);
-      VFS.File.Read (File_D, Ret_Data, Ret_Count, Success, 0);
+      VFS.Read (FS, Ino, Header.Offset, Ret_Data, Ret_Count, Success, 0);
       if Success = FS_Success and Ret_Count = Header.File_Size_Bytes then
          return Ret;
       else
@@ -169,7 +174,8 @@ package body Userland.ELF with SPARK_Mode => Off is
 
    --  Load and map a loadable program header to memory.
    function Load_Header
-      (File_D : VFS.File.File_Acc;
+      (FS     : VFS.FS_Handle;
+       Ino    : VFS.File_Inode_Number;
        Header : Program_Header;
        Map    : Memory.Virtual.Page_Map_Acc;
        Base   : Unsigned_64) return Boolean
@@ -181,12 +187,12 @@ package body Userland.ELF with SPARK_Mode => Off is
       MisAlign : constant Unsigned_64 :=
          Header.Virt_Address and (Memory.Virtual.Page_Size - 1);
       Load_Size : constant Unsigned_64 := MisAlign + Header.Mem_Size_Bytes;
-      Load : VFS.File.Operation_Data (1 .. Natural (Load_Size))
+      Load : Devices.Operation_Data (1 .. Natural (Load_Size))
          with Import, Address => To_Address (Memory.Physical.Alloc
             (Interfaces.C.size_t (Load_Size)));
       Load_Addr : constant System.Address := Load'Address +
          Storage_Offset (MisAlign);
-      Load2 : VFS.File.Operation_Data (1 .. Header.File_Size_Bytes)
+      Load2 : Devices.Operation_Data (1 .. Header.File_Size_Bytes)
          with Import, Address => Load_Addr;
       ELF_Virtual : constant Virtual_Address :=
          Virtual_Address (Base + Header.Virt_Address);
@@ -214,8 +220,7 @@ package body Userland.ELF with SPARK_Mode => Off is
       end if;
 
       Load := (others => 0);
-      VFS.File.Set_Position (File_D, Header.Offset, Discard);
-      VFS.File.Read (File_D, Load2, Ret_Count, Success, 0);
+      VFS.Read (FS, Ino, Header.Offset, Load2, Ret_Count, Success, 0);
       return Success = FS_Success and Ret_Count = Header.File_Size_Bytes;
    end Load_Header;
 end Userland.ELF;

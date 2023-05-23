@@ -17,8 +17,7 @@
 with Arch;
 with Devices.Ramdev;
 with Devices;
-with VFS.File; use VFS.File;
-with VFS;
+with VFS; use VFS;
 with Lib.Cmdline;
 with Lib.Messages;
 with Lib.Panic;
@@ -33,20 +32,19 @@ with Config;
 procedure Main is
    pragma SPARK_Mode (Off);
 
-   Init_Arguments   : Userland.Argument_Arr (1 .. 1);
-   Init_Environment : Userland.Environment_Arr (1 .. 0);
-
-   Value     : String (1 .. 60);
-   Value_Len : Natural;
-   Found     : Boolean;
-   Init_File : File_Acc;
-   Init_PID  : PID;
-
-   Init_Stdin  : constant String := "/dev/null";
-   Init_Stdout : constant String := "/dev/debug";
-
-   Proto   : constant Arch.Boot_Information := Arch.Get_Info;
-   Cmdline : constant String := Proto.Cmdline (1 .. Proto.Cmdline_Len);
+   Init_Args   : Userland.Argument_Arr (1 .. 1);
+   Init_Env    : Userland.Environment_Arr (1 .. 0);
+   Value       : String (1 .. 60);
+   Value_Len   : Natural;
+   Found       : Boolean;
+   Init_FS     : VFS.FS_Handle;
+   Init_Ino    : VFS.File_Inode_Number;
+   Init_PID    : PID;
+   Success     : VFS.FS_Status;
+   Init_Stdin  : constant String := "null";
+   Init_Stdout : constant String := "debug";
+   Proto       : constant Arch.Boot_Information := Arch.Get_Info;
+   Cmdline     : constant String := Proto.Cmdline (1 .. Proto.Cmdline_Len);
 begin
    Lib.Messages.Put_Line (Config.Name & " version " & Config.Version);
    Lib.Messages.Put_Line ("Please report bugs/issues at " & Config.Bug_Site);
@@ -81,22 +79,18 @@ begin
       (Cmdline, Lib.Cmdline.Init_Key, Value, Found, Value_Len);
    if Found and Value_Len /= 0 then
       Lib.Messages.Put_Line ("Booting init " & Value (1 .. Value_Len));
-      Init_Arguments (1) := new String'(Value (1 .. Value_Len));
-      Open (Value (1 .. Value_Len), Read_Only, Init_File, 0);
-      if Init_File /= null then
+      Init_Args (1) := new String'(Value (1 .. Value_Len));
+      Open (Value (1 .. Value_Len), Init_FS, Init_Ino, Success, 0);
+      if Success = VFS.FS_Success then
          Init_PID := Userland.Loader.Start_Program
-            (Init_File,
-             Init_Arguments,
-             Init_Environment,
-             Init_Stdin,
-             Init_Stdout,
-             Init_Stdout);
+            (Value (1 .. Value_Len), Init_FS, Init_Ino, Init_Args, Init_Env,
+             Init_Stdin, Init_Stdout, Init_Stdout);
          if Init_PID /= Error_PID then
             Userland.Process.Set_Identifier (Init_PID, Value (1 .. Value_Len));
          else
             Lib.Panic.Hard_Panic ("Could not start init");
          end if;
-         Close (Init_File);
+         Close (Init_FS, Init_Ino);
       else
          Lib.Panic.Hard_Panic ("Init could not be opened");
       end if;

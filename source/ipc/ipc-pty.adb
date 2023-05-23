@@ -34,17 +34,8 @@ package body IPC.PTY is
           Primary_Pipe   => Prim,
           Term_Info      => Termios,
           Term_Size      => Window_Size,
-          Refcount       => 1);
+          Was_Closed     => False);
    end Create;
-
-   procedure Increase_Refcount (P : Inner_Acc) is
-   begin
-      Lib.Synchronization.Seize (P.Mutex);
-      if P.Refcount /= Natural'Last then
-         P.Refcount := P.Refcount + 1;
-      end if;
-      Lib.Synchronization.Release (P.Mutex);
-   end Increase_Refcount;
 
    procedure Close (Closed : in out Inner_Acc) is
       pragma Annotate
@@ -54,14 +45,12 @@ package body IPC.PTY is
           "Cannot verify that the pipes have only 1 reference, but they do");
    begin
       Lib.Synchronization.Seize (Closed.Mutex);
-      if Closed.Refcount /= 0 then
-         Closed.Refcount := Closed.Refcount - 1;
-      end if;
-      if Closed.Refcount = 0 then
+      if Closed.Was_Closed then
          FIFO.Close (Closed.Primary_Pipe);
          FIFO.Close (Closed.Secondary_Pipe);
          Free (Closed);
       else
+         Closed.Was_Closed := True;
          Lib.Synchronization.Release (Closed.Mutex);
       end if;
    end Close;

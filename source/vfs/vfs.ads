@@ -341,24 +341,21 @@ package VFS is
        User    : Unsigned_32) return FS_Status
       with Pre => Key /= Error_Handle;
 
-   --  Synchronize all FSs mounted on the system, FSs with no implemented
-   --  synchronization routines are ignored.
-   --  @return True on success. False if any FSs failed for IO reasons.
-   function Synchronize return Boolean;
-
-   --  Synchronize a whole FS driver-specific caches.
+   --  Synchronize the whole FS driver-specific caches and used device.
    --  @param Key FS Handle to open.
    --  @return Status for the operation.
    function Synchronize (Key : FS_Handle) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Synchronize the contents of a file cached by the FS driver.
-   --  @param Key FS Handle to open.
-   --  @param Ino Inode to operate on.
+   --  @param Key       FS Handle to open.
+   --  @param Ino       Inode to operate on.
+   --  @param Data_Only Flush only the data if possible, and not the metadata.
    --  @return Status for the operation.
    function Synchronize
-      (Key : FS_Handle;
-       Ino : File_Inode_Number) return FS_Status
+      (Key       : FS_Handle;
+       Ino       : File_Inode_Number;
+       Data_Only : Boolean) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Change the mode of an inode.
@@ -372,6 +369,84 @@ package VFS is
        Ino  : File_Inode_Number;
        Mode : File_Mode;
        User : Unsigned_32) return FS_Status;
+   ----------------------------------------------------------------------------
+   --  FS-independent versions of operations, that rely on the driver to search
+   --  for the appropiate FS, or operate on several FSes.
+
+   --  Open a file with an absolute path system-wide.
+   --  @param Path    Absolute path inside the mount, creation is not done.
+   --  @param Key     Guessed FS handle.
+   --  @param Ino     Found inode, if any.
+   --  @param Success Returned status for the operation.
+   --  @param User    UID to check against, 0 for root/bypass checks.
+   --  @param Follow  True for following symlinks, False for not following em.
+   procedure Open
+      (Path    : String;
+       Key     : out FS_Handle;
+       Ino     : out File_Inode_Number;
+       Success : out FS_Status;
+       User    : Unsigned_32;
+       Follow  : Boolean := True);
+
+   --  Synchronize all FSs mounted on the system, FSs with no implemented
+   --  synchronization routines are ignored.
+   --  @return True on success. False if any FSs failed for IO reasons.
+   function Synchronize return Boolean;
+
+   --  Create several kinds of files.
+   --  @param Path    System-wide absolute path.
+   --  @param Typ     File type to create.
+   --  @param Mode    Mode to set for the created inode.
+   --  @param Success Status of the operation.
+   --  @param User    UID to check against, 0 for root/bypass checks.
+   procedure Create_Node
+      (Path    : String;
+       Typ     : File_Type;
+       Mode    : File_Mode;
+       Success : out FS_Status;
+       User    : Unsigned_32);
+
+   --  Create a symbolic link.
+   --  @param Path    System-wide absolute path to create.
+   --  @param Target  Target to write to the symlink.
+   --  @param Mode    Mode to set for the created inode.
+   --  @param Success Status of the operation.
+   --  @param User    UID to check against, 0 for root/bypass checks.
+   procedure Create_Symbolic_Link
+      (Path, Target : String;
+       Mode         : Unsigned_32;
+       Success      : out FS_Status;
+       User         : Unsigned_32);
+
+   --  Create a hard link.
+   --  @param Path    System-wide absolute path to create.
+   --  @param Target  Target to write to the symlink.
+   --  @param Success Status of the operation.
+   --  @param User    UID to check against, 0 for root/bypass checks.
+   procedure Create_Hard_Link
+      (Path, Target : String;
+       Success      : out FS_Status;
+       User         : Unsigned_32);
+
+   --  Rename files.
+   --  @param Path    System-wide absolute path to rename.
+   --  @param Target  Name to set to the source.
+   --  @param Success Status of the operation.
+   --  @param User    UID to check against, 0 for root/bypass checks.
+   procedure Rename
+      (Source, Target : String;
+       Keep           : Boolean;
+       Success        : out FS_Status;
+       User           : Unsigned_32);
+
+   --  Queue a file for unlinking.
+   --  @param Path    System-wide absolute path to unlink.
+   --  @param Success Status of the operation.
+   --  @param User    UID to check against, 0 for root/bypass checks.
+   procedure Unlink
+      (Path    : String;
+       Success : out FS_Status;
+       User    : Unsigned_32);
    ----------------------------------------------------------------------------
    --  Check whether a path is absolute.
    --  @param Path to check.
