@@ -603,6 +603,15 @@ package Userland.Syscall with SPARK_Mode => Off is
       (Mode  : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
 
+   RB_HALT      : constant := 1;
+   RB_POWEROFF  : constant := 2;
+   RB_RESTART   : constant := 3;
+   RB_ERROR_RET : constant := 2#1#;
+   function Reboot
+      (Command : Unsigned_64;
+       Flags   : Unsigned_64;
+       Errno   : out Errno_Value) return Unsigned_64;
+
 private
 
    --  Do the actual exiting.

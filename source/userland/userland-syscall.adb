@@ -20,6 +20,7 @@ with Config;
 with System; use System;
 with Lib.Messages;
 with Lib;
+with Lib.Panic;
 with Networking;
 with Userland.Loader;
 with VFS; use VFS;
@@ -38,6 +39,7 @@ with IPC.PTY;  use IPC.PTY;
 with Devices;  use Devices;
 with Userland.Integrity;
 with Devices.TermIOs;
+with Arch.Power;
 
 package body Userland.Syscall with SPARK_Mode => Off is
    procedure Sys_Exit (Code : Unsigned_64; Errno : out Errno_Value) is
@@ -1182,11 +1184,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                                      Request, S_Arg, User);
             Succ := FSSuc = VFS.FS_Success;
          when Description_Device =>
-            if User = 0 then
-               Succ := IO_Control (File.Inner_Dev, Request, S_Arg);
-            else
-               Succ := False;
-            end if;
+            Succ := IO_Control (File.Inner_Dev, Request, S_Arg);
          when Description_Primary_PTY =>
             PTY_IOCTL (File.Inner_Primary_PTY, Request, S_Arg, Succ);
          when Description_Secondary_PTY =>
@@ -2707,6 +2705,42 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno := Error_No_Error;
       return Unsigned_64 (Old);
    end Umask;
+
+   function Reboot
+      (Command : Unsigned_64;
+       Flags   : Unsigned_64;
+       Errno   : out Errno_Value) return Unsigned_64
+   is
+      Proc    : constant     PID := Arch.Local.Get_Current_Process;
+      Do_Ret  : constant Boolean := (Flags and RB_ERROR_RET) /= 0;
+      Success : Arch.Power.Power_Status;
+   begin
+      if not Get_MAC (Proc).Caps.Can_Manage_Power then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("reboot", Proc);
+         return Unsigned_64'Last;
+      end if;
+
+      case Command is
+         when RB_HALT     => Success := Arch.Power.Halt;
+         when RB_POWEROFF => Success := Arch.Power.Poweroff;
+         when RB_RESTART  => Success := Arch.Power.Reboot;
+         when others =>
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+      end case;
+
+      --  If we are here, its because the functions failed.
+      if Do_Ret then
+         case Success is
+            when Arch.Power.Not_Supported => Errno := Error_Not_Implemented;
+            when Arch.Power.Failure       => Errno := Error_IO;
+         end case;
+         return Unsigned_64'Last;
+      else
+         Lib.Panic.Hard_Panic ("reboot() operation failed");
+      end if;
+   end Reboot;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin

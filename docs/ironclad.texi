@@ -137,6 +137,7 @@ Syscalls
 * setuids::                 Set the UID and the effective UID.
 * fchmod::                  Change the mode of a file descriptor.
 * umask::                   Get and set the calling process umask.
+* reboot::                  Machine power management.
 
 Filesystems support and interfaces
 
@@ -653,6 +654,8 @@ Unused.
 @xref{fchmod}
 @item
 @xref{umask}
+@item
+@xref{reboot}
 @end enumerate
 
 @node Errno
@@ -2171,6 +2174,53 @@ passed by the user. The default value is @code{22} in octal, and is inherited
 from parent processes to children.
 
 This syscall never fails, it always returns the old mask before modification.
+
+@node reboot
+@section reboot
+
+@example
+#define RB_HALT     1
+#define RB_POWEROFF 2
+#define RB_RESTART  3
+#define RB_ERROR_RET 0b1
+
+int reboot(int cmd, int flags);
+@end example
+
+This syscall does the passed action to the system's power management, the
+action is specified with @code{cmd}, it can be one of:
+
+@table @code
+@item RB_HALT
+System activity is terminated and the system will make all needed preparations,
+but power will not be cut off, instead, the user will have to do so, say, with
+the power button. Data syncing is up to the user.
+
+@item RB_POWEROFF
+The same as @code{RB_HALT} but actually cuts power.
+
+@item RB_RESTART
+The same as @code{RB_HALT} but at the end, the system will reboot.
+@end table
+
+If the operation fails internally, for any reason, the kernel will panic, for
+returning an error instead, one can use @code{RB_ERROR_RET} in @code{flags}.
+
+This syscall does not return on success, it will only return in the case of
+invalid value for @code{cmd}, before comitting to an operation, or by using
+@code{RB_ERROR_RET} as previously said. In error, @code{-1} will be returned,
+and errno will be set to:
+
+@table @code
+@item EINVAL
+The passed @code{cmd} is not valid.
+
+@item EACCES
+MAC did not allow this.
+
+@item EIO
+The operation failed internally.
+@end table
 
 @node Filesystems support and interfaces
 @chapter Filesystems support and interfaces
