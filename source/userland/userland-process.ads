@@ -66,12 +66,16 @@ package Userland.Process with SPARK_Mode => Off is
          when Description_Secondary_PTY =>
             Inner_Secondary_PTY : IPC.PTY.Inner_Acc;
          when Description_Device =>
-            Inner_Dev_Pos : Unsigned_64;
-            Inner_Dev     : Devices.Device_Handle;
+            Inner_Dev_Read  : Boolean;
+            Inner_Dev_Write : Boolean;
+            Inner_Dev_Pos   : Unsigned_64;
+            Inner_Dev       : Devices.Device_Handle;
          when Description_Inode =>
-            Inner_Ino_Pos : Unsigned_64;
-            Inner_Ino_FS  : VFS.FS_Handle;
-            Inner_Ino     : VFS.File_Inode_Number;
+            Inner_Ino_Read  : Boolean;
+            Inner_Ino_Write : Boolean;
+            Inner_Ino_Pos   : Unsigned_64;
+            Inner_Ino_FS    : VFS.FS_Handle;
+            Inner_Ino       : VFS.File_Inode_Number;
       end case;
    end record;
 
@@ -310,13 +314,13 @@ package Userland.Process with SPARK_Mode => Off is
    --  Get MAC permissions.
    --  @param Proc Process to get the info from.
    --  @return Permissions.
-   function Get_MAC (Proc : PID) return MAC.Permissions
+   function Get_MAC (Proc : PID) return MAC.Context
       with Pre => Proc /= Error_PID;
 
    --  Get MAC permissions.
    --  @param Proc  Process to get the info from.
    --  @param Perms Permissions to set.
-   procedure Set_MAC (Proc : PID; Perms : MAC.Permissions)
+   procedure Set_MAC (Proc : PID; Perms : MAC.Context)
       with Pre => Proc /= Error_PID;
 
    --  Get the parent PID of the process.
@@ -419,7 +423,7 @@ private
       Common_Map      : Memory.Virtual.Page_Map_Acc;
       Stack_Base      : Unsigned_64;
       Alloc_Base      : Unsigned_64;
-      Perms           : MAC.Permissions;
+      Perms           : MAC.Context;
       Did_Exit        : Boolean;
       Exit_Code       : Unsigned_8;
    end record;

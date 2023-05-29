@@ -116,7 +116,7 @@ Syscalls
 * getrandom::               Bypass /dev/random for avoiding DoS attacks.
 * mprotect::                Change memory permissions.
 * mac_capabilities::        Get and set MAC capabilities.
-* add_mac_filter::          Configure MAC using filesystem-based filters.
+* add_mac_permissions::     Configure MAC using filesystem-based filters.
 * set_mac_enforcement::     Set enforcement to follow on MAC violations.
 * mount::                   Mount partitions.
 * umount::                  Unmount partitions.
@@ -495,10 +495,13 @@ The process will be able to use ptrace on children processes.
 @item MAC_CAP_SETUID
 The process will be able to change its effective and global UIDs without
 checks.
+
+@item MAC_CAP_SYS_MAC
+The process will be able to add allowed inodes to the MAC definitions.
 @end table
 
 Apart of capabilities, access to filesystem structures and permission
-management can be done using @ref{add_mac_filter}.
+management can be done using @ref{add_mac_permissions}.
 
 The method of acting on MAC violations and failures can be set by using
 @ref{set_mac_enforcement}. Possible values include denying requests, killing
@@ -615,7 +618,7 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{mac_capabilities, get_mac_capabilities}.
 @item
-@xref{add_mac_filter}.
+@xref{add_mac_permissions}.
 @item
 @xref{set_mac_enforcement}
 @item
@@ -1565,15 +1568,17 @@ sets the following errno:
 @section mac_capabilities
 
 @example
-#define MAC_CAP_SCHED   0b000000001
-#define MAC_CAP_SPAWN   0b000000010
-#define MAC_CAP_ENTROPY 0b000000100
-#define MAC_CAP_SYS_MEM 0b000001000
-#define MAC_CAP_USE_NET 0b000010000
-#define MAC_CAP_SYS_NET 0b000100000
-#define MAC_CAP_SYS_MNT 0b001000000
-#define MAC_CAP_SYS_PWR 0b010000000
-#define MAC_CAP_PTRACE  0b100000000
+#define MAC_CAP_SCHED   0b00000000001
+#define MAC_CAP_SPAWN   0b00000000010
+#define MAC_CAP_ENTROPY 0b00000000100
+#define MAC_CAP_SYS_MEM 0b00000001000
+#define MAC_CAP_USE_NET 0b00000010000
+#define MAC_CAP_SYS_NET 0b00000100000
+#define MAC_CAP_SYS_MNT 0b00001000000
+#define MAC_CAP_SYS_PWR 0b00010000000
+#define MAC_CAP_PTRACE  0b00100000000
+#define MAC_CAP_SETUID  0b01000000000
+#define MAC_CAP_SYS_MAC 0b10000000000
 
 unsigned long get_mac_capabilities(void);
 int set_mac_capabilities(unsigned long request);
@@ -1587,32 +1592,35 @@ capabilities of the callee process and @code{set_mac_capabilities} always
 returns @code{0}, settings will just be ignored if permission to change them
 is not granted.
 
-@node add_mac_filter
-@section add_mac_filter
+@node add_mac_permissions
+@section add_mac_permissions
 
 @example
-#define MAC_FILTER_INC_FILES 0b0000001
-#define MAC_FILTER_INC_DIRS  0b0000010
-#define MAC_FILTER_R         0b0000100
-#define MAC_FILTER_W         0b0001000
-#define MAC_FILTER_EXEC      0b0010000
+#define MAC_PERM_CONTENTS 0b0000001
+#define MAC_PERM_READ     0b0000010
+#define MAC_PERM_WRITE    0b0000100
+#define MAC_PERM_EXEC     0b0001000
+#define MAC_PERM_APPEND   0b0010000
+#define MAC_PERM_FLOCK    0b0100000
+#define MAC_PERM_DEV      0b1000000
 
-struct mac_filter @{
-    char     path[75];
-    int      length;
-    uint32_t perms;
-@};
-
-int add_mac_filter(struct mac_filter *filter);
+int add_mac_permissions(const char *path, int flags);
 @end example
 
-This syscall adds file-based filters as described in
+This syscall adds permissions to access an inode or device as described in
 @ref{Mandatory access control (MAC)}.
+
+If @code{MAC_PERM_DEV} is used in @code{flags}, @code{path} must be the name
+of a device, without @code{/dev/}, else, it will be taken as a VFS inode. The
+other flags reflect permissions given to the added device or inode. All of them
+do not conflict.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:
 
 @itemize @bullet
+@item
+@code{EPERM}: MAC did not allow this.
 @item
 @code{EFAULT}: The passed pointer does not point to valid memory.
 @item

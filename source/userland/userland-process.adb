@@ -118,7 +118,7 @@ package body Userland.Process with SPARK_Mode => Off is
                Registry (I).Parent          := 0;
                Registry (I).Current_Dir_Len := 1;
                Registry (I).Current_Dir (1) := '/';
-               Registry (I).Perms           := MAC.Default_Permissions;
+               Registry (I).Perms           := MAC.Default_Context;
                Registry (I).User            := 0;
                Registry (I).Effective_User  := 0;
                Registry (I).Umask           := Default_Umask;
@@ -410,12 +410,12 @@ package body Userland.Process with SPARK_Mode => Off is
       Len := Length;
    end Get_CWD;
 
-   function Get_MAC (Proc : PID) return MAC.Permissions is
+   function Get_MAC (Proc : PID) return MAC.Context is
    begin
       return Registry (Proc).Perms;
    end Get_MAC;
 
-   procedure Set_MAC (Proc : PID; Perms : MAC.Permissions) is
+   procedure Set_MAC (Proc : PID; Perms : MAC.Context) is
    begin
       Registry (Proc).Perms := Perms;
    end Set_MAC;

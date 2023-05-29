@@ -38,6 +38,7 @@ package Userland.Syscall with SPARK_Mode => Off is
       Error_Too_Many_Files,  --  EMFILE
       Error_String_Too_Long, --  ENAMETOOLONG
       Error_No_Entity,       --  ENOENT
+      Error_No_Memory,       --  ENOMEM
       Error_Not_Implemented, --  ENOSYS
       Error_Not_A_TTY,       --  ENOTTY
       Error_Bad_Permissions, --  EPERM
@@ -59,6 +60,7 @@ package Userland.Syscall with SPARK_Mode => Off is
       Error_Too_Many_Files  => 1031,
       Error_String_Too_Long => 1036,
       Error_No_Entity       => 1043,
+      Error_No_Memory       => 1047,
       Error_Not_Implemented => 1051,
       Error_Not_A_TTY       => 1058,
       Error_Bad_Permissions => 1063,
@@ -383,16 +385,17 @@ package Userland.Syscall with SPARK_Mode => Off is
       Errno      : out Errno_Value) return Unsigned_64;
 
    --  Set MAC capabilities of the caller process.
-   MAC_CAP_SCHED   : constant := 2#0000000001#;
-   MAC_CAP_SPAWN   : constant := 2#0000000010#;
-   MAC_CAP_ENTROPY : constant := 2#0000000100#;
-   MAC_CAP_SYS_MEM : constant := 2#0000001000#;
-   MAC_CAP_USE_NET : constant := 2#0000010000#;
-   MAC_CAP_SYS_NET : constant := 2#0000100000#;
-   MAC_CAP_SYS_MNT : constant := 2#0001000000#;
-   MAC_CAP_SYS_PWR : constant := 2#0010000000#;
-   MAC_CAP_PTRACE  : constant := 2#0100000000#;
-   MAC_CAP_SETUID  : constant := 2#1000000000#;
+   MAC_CAP_SCHED   : constant := 2#00000000001#;
+   MAC_CAP_SPAWN   : constant := 2#00000000010#;
+   MAC_CAP_ENTROPY : constant := 2#00000000100#;
+   MAC_CAP_SYS_MEM : constant := 2#00000001000#;
+   MAC_CAP_USE_NET : constant := 2#00000010000#;
+   MAC_CAP_SYS_NET : constant := 2#00000100000#;
+   MAC_CAP_SYS_MNT : constant := 2#00001000000#;
+   MAC_CAP_SYS_PWR : constant := 2#00010000000#;
+   MAC_CAP_PTRACE  : constant := 2#00100000000#;
+   MAC_CAP_SETUID  : constant := 2#01000000000#;
+   MAC_CAP_SYS_MAC : constant := 2#10000000000#;
    function Set_MAC_Capabilities
       (Bits  : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
@@ -400,22 +403,19 @@ package Userland.Syscall with SPARK_Mode => Off is
    --  Get the MAC capabilities of the caller process.
    function Get_MAC_Capabilities (Errno : out Errno_Value) return Unsigned_64;
 
-   --  Add a file MAC filter.
-   type MAC_Filter is record
-      Path   : String (1 .. 75);
-      Length : Natural range 0 .. 75;
-      Perms  : Unsigned_32;
-   end record;
-   MAC_FILTER_CONTENTS : constant := 2#0000001#;
-   MAC_FILTER_DENY     : constant := 2#0000010#;
-   MAC_FILTER_READ     : constant := 2#0000100#;
-   MAC_FILTER_WRITE    : constant := 2#0001000#;
-   MAC_FILTER_EXEC     : constant := 2#0010000#;
-   MAC_FILTER_APPEND   : constant := 2#0100000#;
-   MAC_FILTER_FLOCK    : constant := 2#1000000#;
-   function Add_MAC_Filter
-      (Filter_Addr : Unsigned_64;
-       Errno       : out Errno_Value) return Unsigned_64;
+   --  Add a file to MAC.
+   MAC_PERM_CONTENTS : constant := 2#0000001#;
+   MAC_PERM_READ     : constant := 2#0000010#;
+   MAC_PERM_WRITE    : constant := 2#0000100#;
+   MAC_PERM_EXEC     : constant := 2#0001000#;
+   MAC_PERM_APPEND   : constant := 2#0010000#;
+   MAC_PERM_FLOCK    : constant := 2#0100000#;
+   MAC_PERM_DEV      : constant := 2#1000000#;
+   function Add_MAC_Permissions
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Flags     : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
 
    --  Set the enforcement policy of the MAC.
    MAC_DENY            : constant := 2#001#;

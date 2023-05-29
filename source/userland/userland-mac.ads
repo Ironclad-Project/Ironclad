@@ -14,11 +14,12 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Ada.Characters.Latin_1;
+with Devices; use Devices;
+with VFS;     use VFS;
 
 package Userland.MAC is
-   --  MAC (Mandatory Access Control) is configured by a bitmap of some
-   --  broad permissions, called capabilities (not to be confused with Linux).
+   --  Capabilities a process can have, which rule kinds of operations it can
+   --  access.
    type Capabilities is record
       Can_Change_Scheduling : Boolean;
       Can_Spawn_Others      : Boolean;
@@ -30,62 +31,132 @@ package Userland.MAC is
       Can_Manage_Power      : Boolean;
       Can_Trace_Children    : Boolean;
       Can_Change_UIDs       : Boolean;
+      Can_Manage_MAC        : Boolean;
    end record;
 
-   --  Permissions a filter can give.
-   type Filter_Permissions is record
-      Includes_Contents : Boolean; --  Affects contained files&directories.
-      Deny_Instead      : Boolean; --  Instead of allow whats passed, deny it.
+   --  Permissions a file can have.
+   type Permissions is record
+      Includes_Contents : Boolean; --  Affects children if a directory.
       Can_Read          : Boolean; --  Read permissions.
       Can_Write         : Boolean; --  Write permissions.
       Can_Execute       : Boolean; --  Execute permissions.
-      Can_Append_Only   : Boolean; --  Can append only, conflicts with write.
+      Can_Append_Only   : Boolean; --  Can open files append only.
       Can_Lock_Files    : Boolean; --  Can lock the affected files.
    end record;
 
-   --  Filter, that has a string used as absolute path and permissions.
+   --  When a MAC failure is encountered, we can do a series of things.
+   type Enforcement is
+      (Deny,            --  Just deny the operation with an appropiate error.
+       Deny_And_Scream, --  Deny and obnoxiously report the error.
+       Kill);           --  Don't panic process, but you are already dead.
+
+   --  Type to wrap all the storage and permissions for a MAC context.
+   type Context is private;
+   Default_Context : constant Context;
+
+   --  Get the associated action for enforcement with the context.
+   --  @param Ctx The context to operate on.
+   --  @return The enforcement.
+   function Get_Enforcement (Ctx : Context) return Enforcement;
+
+   --  Get the associated action for enforcement with the context.
+   --  @param Ctx The context to operate on.
+   --  @param Act The enforcement to set.
+   procedure Set_Enforcement (Ctx : in out Context; Act : Enforcement);
+
+   --  Get the capabilities on the passed context.
+   --  @param Ctx The context to operate on.
+   --  @return The capabilities.
+   function Get_Capabilities (Ctx : Context) return Capabilities;
+
+   --  Set the capabilities on the passed context.
+   --  @param Ctx  The context to operate on.
+   --  @param Caps Capabilities to set.
+   procedure Set_Capabilities (Ctx : in out Context; Caps : Capabilities);
+
+   --  Check permissions associated to an already added inode and FS combo.
+   --  If no files are added to the context with permissions, all files return
+   --  permission.
+   --  @param Data MAC instance to use.
+   --  @param FS   FS handle to check.
+   --  @param Ino  Inode to check.
+   --  @return Returned permissions.
+   function Check_Permissions
+      (Data : Context;
+       FS   : VFS.FS_Handle;
+       Ino  : VFS.File_Inode_Number) return Permissions;
+
+   --  Check permissions associated to an already added device.
+   --  If no files are added to the context with permissions, all files return
+   --  permission.
+   --  @param Data MAC instance to use.
+   --  @param Dev  Device to check.
+   --  @return Returned permissions.
+   function Check_Permissions
+      (Data : Context;
+       Dev  : Devices.Device_Handle) return Permissions;
+
+   --  Status one can return from an addition of a path to MAC permissions.
+   type Addition_Status is (Success, No_Space, Is_Conflicting);
+
+   --  Add an entity for MAC.
+   --  @param Data   MAC instance to modify.
+   --  @param FS     Filesystem to check.
+   --  @param Ino    Inode to check.
+   --  @param Perms  Permissions to add.
+   --  @param Status Status of the operation.
+   procedure Add_Entity
+      (Data   : in out Context;
+       FS     : VFS.FS_Handle;
+       Ino    : VFS.File_Inode_Number;
+       Perms  : Permissions;
+       Status : out Addition_Status)
+   with Pre => FS /= VFS.Error_Handle;
+
+   --  Add an entity for MAC.
+   --  @param Data   MAC instance to modify.
+   --  @param Dev    Device to check.
+   --  @param Perms  Permissions to add.
+   --  @param Status Status of the operation.
+   procedure Add_Entity
+      (Data   : in out Context;
+       Dev    : Devices.Device_Handle;
+       Perms  : Permissions;
+       Status : out Addition_Status)
+   with Pre => Dev /= Devices.Error_Handle;
+
+private
+
    Filter_Path_Length : constant := 75;
    type Filter is record
-      Path   : String (1 .. Filter_Path_Length);
-      Length : Natural range 0 .. 75;
-      Perms  : Filter_Permissions;
+      Is_Used   : Boolean;
+      Is_Device : Boolean;
+      FS        : VFS.FS_Handle;
+      Ino       : VFS.File_Inode_Number;
+      Dev       : Devices.Device_Handle;
+      Perms     : Permissions;
    end record;
 
-   --  An array of filters is just a list of filters.
-   --  If several rules cover the same directory, the more restrictive one
-   --  is used.
    type Filter_Arr is array (Natural range <>) of Filter;
-
-   --  Structure to pack together the MAC permissions of a process.
-   type Enforcement is (Deny, Deny_And_Scream, Kill);
-   type Permissions is record
+   type Context is record
       Action  : Enforcement;
       Caps    : Capabilities;
       Filters : Filter_Arr (1 .. 30);
    end record;
 
-   --  Default permissions are all, and the user deescalates from there.
-   Default_Permissions : constant Permissions :=
+   Default_Context : constant Context :=
       (Action  => Deny,
        Caps    => (others => True),
-       Filters => (1 =>
-         (Path   => (1 => '/', others => Ada.Characters.Latin_1.NUL),
-          Length => 1,
-          Perms  => (others => True)),
-                   others =>
-         (Path   => (others => Ada.Characters.Latin_1.NUL),
-          Length => 0,
-          Perms  => (others => False))));
+       Filters => (others =>
+         (Is_Used   => False,
+          Is_Device => False,
+          FS        => VFS.Error_Handle,
+          Ino       => 0,
+          Dev       => Devices.Error_Handle,
+          Perms     => (others => False))));
 
-   --  Check whether the passed filter conflicts with any on the list.
-   --  That means, it offers another set of permissions for an already
-   --  defined path (taking into account specifying permissions inside a dir).
-   function Is_Conflicting (F : Filter; Filters : Filter_Arr) return Boolean;
-
-   --  Check the permissions a path can be accessed with, it has to be an
-   --  absolute path.
-   function Check_Path_Permissions
-      (Path    : String;
-       Filters : Filter_Arr) return Filter_Permissions
-   with Pre => (Path'First <= Integer'Last - 75);
+   procedure Add_Filter
+      (Data   : in out Context;
+       Filt   : Filter;
+       Status : out Addition_Status);
 end Userland.MAC;

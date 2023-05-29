@@ -237,7 +237,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 36 =>
             Returned := Get_MAC_Capabilities (Errno);
          when 37 =>
-            Returned := Add_MAC_Filter (State.RDI, Errno);
+            Returned := Add_MAC_Permissions (State.RDI, State.RSI, State.RDX,
+                                             Errno);
          when 38 =>
             Returned := Set_MAC_Enforcement (State.RDI, Errno);
          when 39 =>

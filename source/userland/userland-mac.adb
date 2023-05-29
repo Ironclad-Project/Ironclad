@@ -14,83 +14,138 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with VFS;
-
 package body Userland.MAC is
    --  Unit passes GNATprove AoRTE, GNAT does not know this.
    pragma Suppress (All_Checks);
 
-   function Is_Conflicting (F : Filter; Filters : Filter_Arr) return Boolean is
+   function Get_Enforcement (Ctx : Context) return Enforcement is
    begin
-      if not VFS.Is_Canonical (F.Path (1 .. F.Length)) or
-         (F.Perms.Can_Append_Only and F.Perms.Can_Write)
-      then
-         return True;
-      end if;
+      return Ctx.Action;
+   end Get_Enforcement;
 
-      for It of Filters loop
-         --  Checking:
-         --  1: Same path, we would be redefining an existing filter.
-         --  2: Filter of contents of an already filtered dir.
-         --  3: Filtering a dir containing other filters.
-         --  TODO: This assumes well formed paths with no pending '/' or
-         --  anything, the user could theoretically not provide that.
-         if F.Path (1 .. F.Length) = It.Path (1 .. It.Length) then
-            return True;
-         elsif F.Length > It.Length and
-               F.Path (1 .. It.Length) = It.Path (1 .. It.Length)
-         then
-            return It.Perms.Includes_Contents;
-         elsif F.Length < It.Length and
-               F.Path (1 .. F.Length) = It.Path (1 .. F.Length)
-         then
-            return F.Perms.Includes_Contents;
-         end if;
-      end loop;
+   procedure Set_Enforcement (Ctx : in out Context; Act : Enforcement) is
+   begin
+      Ctx.Action := Act;
+   end Set_Enforcement;
 
-      return False;
-   end Is_Conflicting;
+   function Get_Capabilities (Ctx : Context) return Capabilities is
+   begin
+      return Ctx.Caps;
+   end Get_Capabilities;
 
-   function Check_Path_Permissions
-      (Path    : String;
-       Filters : Filter_Arr) return Filter_Permissions
+   procedure Set_Capabilities (Ctx : in out Context; Caps : Capabilities) is
+   begin
+      Ctx.Caps := Caps;
+   end Set_Capabilities;
+
+   function Check_Permissions
+      (Data : Context;
+       FS   : VFS.FS_Handle;
+       Ino  : VFS.File_Inode_Number) return Permissions
    is
-      Has_Matched        : Boolean := False;
-      Matched_Char_Count : Natural := 0;
-      Best_Match_Index   : Integer := Filters'First;
+      Has_Elements : Boolean := False;
    begin
-      if Path'Length = 0 then
-         goto Error_Return;
-      end if;
-
-      --  Check for best match, if any.
-      for I in Filters'Range loop
-         pragma Loop_Invariant (Best_Match_Index >= Filters'First and
-            Best_Match_Index <= Filters'Last);
-
-         if Path'Length >= Filters (I).Length and then
-            Filters (I).Path (1 .. Filters (I).Length) =
-            Path (Path'First .. Path'First + Filters (I).Length - 1)
-         then
-            if Matched_Char_Count < Filters (I).Length then
-               Has_Matched        := True;
-               Matched_Char_Count := Filters (I).Length;
-               Best_Match_Index   := I;
+      for E of Data.Filters loop
+         if E.Is_Used then
+            Has_Elements := True;
+            if not E.Is_Device and E.FS = FS and E.Ino = Ino then
+               return E.Perms;
             end if;
          end if;
       end loop;
 
-      --  Check for perfect matches or directories containing the path.
-      if Has_Matched then
-         if Matched_Char_Count = Path'Length then
-            return Filters (Best_Match_Index).Perms;
-         elsif Filters (Best_Match_Index).Perms.Includes_Contents then
-            return Filters (Best_Match_Index).Perms;
-         end if;
+      if Has_Elements then
+         return (others => False);
+      else
+         return (others => True);
       end if;
+   end Check_Permissions;
 
-   <<Error_Return>>
-      --  Default return is no permissions.
-      return (others => False);
-   end Check_Path_Permissions;
+   function Check_Permissions
+      (Data : Context;
+       Dev  : Devices.Device_Handle) return Permissions
+   is
+      Has_Elements : Boolean := False;
+   begin
+      for E of Data.Filters loop
+         if E.Is_Used then
+            Has_Elements := True;
+            if E.Is_Device and E.Dev = Dev then
+               return E.Perms;
+            end if;
+         end if;
+      end loop;
+
+      if Has_Elements then
+         return (others => False);
+      else
+         return (others => True);
+      end if;
+   end Check_Permissions;
+
+   procedure Add_Entity
+      (Data   : in out Context;
+       FS     : VFS.FS_Handle;
+       Ino    : VFS.File_Inode_Number;
+       Perms  : Permissions;
+       Status : out Addition_Status)
+   is
+   begin
+      for E of Data.Filters loop
+         if E.Is_Used and not E.Is_Device and E.FS = FS and E.Ino = Ino then
+            if Perms = E.Perms then
+               Status := Success;
+            else
+               Status := Is_Conflicting;
+            end if;
+            return;
+         end if;
+      end loop;
+
+      Add_Filter
+         (Data   => Data,
+          Filt   => (True, False, FS, Ino, Devices.Error_Handle, Perms),
+          Status => Status);
+   end Add_Entity;
+
+   procedure Add_Entity
+      (Data   : in out Context;
+       Dev    : Devices.Device_Handle;
+       Perms  : Permissions;
+       Status : out Addition_Status)
+   is
+   begin
+      for E of Data.Filters loop
+         if E.Is_Used and E.Is_Device and E.Dev = Dev then
+            if Perms = E.Perms then
+               Status := Success;
+            else
+               Status := Is_Conflicting;
+            end if;
+            return;
+         end if;
+      end loop;
+
+      Add_Filter
+         (Data   => Data,
+          Filt   => (True, True, VFS.Error_Handle, 0, Dev, Perms),
+          Status => Status);
+   end Add_Entity;
+   ----------------------------------------------------------------------------
+   procedure Add_Filter
+      (Data   : in out Context;
+       Filt   : Filter;
+       Status : out Addition_Status)
+   is
+   begin
+      for E of Data.Filters loop
+         if not E.Is_Used then
+            E      := Filt;
+            Status := Success;
+            return;
+         end if;
+      end loop;
+
+      Status := No_Space;
+   end Add_Filter;
 end Userland.MAC;
