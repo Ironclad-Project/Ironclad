@@ -48,7 +48,7 @@ package body Scheduler with SPARK_Mode => Off is
       Priority       : Positive;
       Run_Time       : Positive;
       Period         : Positive;
-      ASC_Not_Scheduled_Count : Natural;
+      ASC_Offset     : Natural;
    end record;
    type Thread_Info_Arr is array (TID range 1 .. 50) of Thread_Info;
 
@@ -255,7 +255,7 @@ package body Scheduler with SPARK_Mode => Off is
           Run_Time       => Default_Run_Time,
           Period         => Default_Period,
           Time_Since_Run => 0,
-          ASC_Not_Scheduled_Count => 0,
+          ASC_Offset     => 0,
           Priority       => <>);
 
       #if ArchName = """aarch64-stivale2"""
@@ -369,7 +369,8 @@ package body Scheduler with SPARK_Mode => Off is
       for Th of Thread_Pool.all loop
          if Th.Is_Present then
             Th.Time_Since_Run := 0;
-            Th.Priority := Periods_LCM / Th.Period;
+            Th.Priority       := Periods_LCM / Th.Period;
+            Th.ASC_Offset     := 0;
          end if;
       end loop;
 
@@ -382,7 +383,6 @@ package body Scheduler with SPARK_Mode => Off is
       Next_TID            : TID          := Current_TID;
       Current_Increment   : Natural := 0;
       Max_Available_Prio  : Natural := 0;
-      Active_Thread_Count : Natural := 0;
    begin
       --  Get how much time we come from running and update time since run.
       if Current_TID /= 0 then
@@ -402,39 +402,21 @@ package body Scheduler with SPARK_Mode => Off is
       --  for the thread that can run and has the highest priority that is not
       --  the current one. In the same sweep, update time since last run.
       for I in Thread_Pool'Range loop
-         if Thread_Pool (I).Is_Present then
-            Active_Thread_Count := Active_Thread_Count + 1;
-            if not Thread_Pool (I).Is_Running then
-               Thread_Pool (I).Time_Since_Run := Thread_Pool (I).Time_Since_Run
-                                               + Current_Increment;
+         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running then
+            Thread_Pool (I).Time_Since_Run := Thread_Pool (I).Time_Since_Run
+                                            + Current_Increment;
 
-               if Thread_Pool (I).Priority > Max_Available_Prio and
-                  Thread_Pool (I).Time_Since_Run >= Thread_Pool (I).Period
-               then
-                  Next_TID := I;
-                  Max_Available_Prio := Thread_Pool (I).Priority;
-               end if;
+            if Thread_Pool (I).Priority > Max_Available_Prio and
+               Thread_Pool (I).Time_Since_Run >= Thread_Pool (I).Period
+            then
+               Next_TID           := I;
+               Max_Available_Prio := Thread_Pool (I).Priority;
+            elsif Config.Support_Scheduler_ASC then
+               Thread_Pool (I).ASC_Offset := Thread_Pool (I).ASC_Offset + 1;
+               Thread_Pool (I).Priority   := Thread_Pool (I).Priority   + 1;
             end if;
          end if;
       end loop;
-
-      --  If anti-starvation corrections are enabled, keep track of the number
-      --  of cycles not scheduled, and if any thread is deemed starved, just
-      --  override Next_TID.
-      if Config.Support_Scheduler_ASC then
-         for I in Thread_Pool'Range loop
-            if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running
-            then
-               Thread_Pool (I).ASC_Not_Scheduled_Count :=
-                  Thread_Pool (I).ASC_Not_Scheduled_Count + 1;
-               if Thread_Pool (I).ASC_Not_Scheduled_Count > Active_Thread_Count
-               then
-                  Next_TID := I;
-                  exit;
-               end if;
-            end if;
-         end loop;
-      end if;
 
       --  Rearm for the next attempt if there are no available threads.
       if Next_TID = Current_TID then
@@ -451,11 +433,15 @@ package body Scheduler with SPARK_Mode => Off is
          Arch.Context.Save_FP_Context (Thread_Pool (Current_TID).FP_Region);
       end if;
 
-      --  Assign the next TID as our current one.
+      --  Assign the next TID as our current one and adjust ASC information.
       Arch.Local.Set_Current_Thread (Next_TID);
-      Thread_Pool (Next_TID).Is_Running := True;
-      Thread_Pool (Next_TID).ASC_Not_Scheduled_Count := 0;
-      Thread_Pool (Next_TID).Time_Since_Run := Thread_Pool (Next_TID).Run_Time;
+      Thread_Pool (Next_TID).Is_Running     := True;
+      Thread_Pool (Next_TID).Time_Since_Run := 0;
+      if Config.Support_Scheduler_ASC then
+         Thread_Pool (Next_TID).Priority := Thread_Pool (Next_TID).Priority -
+                                         Thread_Pool (Next_TID).ASC_Offset;
+         Thread_Pool (Next_TID).ASC_Offset := 0;
+      end if;
 
       --  Rearm the timer for next tick if we are not doing a monothread.
       Lib.Synchronization.Release (Scheduler_Mutex);
