@@ -20,6 +20,7 @@ with Lib.Synchronization; use Lib.Synchronization;
 with Lib.Alignment;
 with Memory.Virtual;
 with System; use System;
+with Lib.Messages;
 
 package body Memory.Physical with SPARK_Mode => Off is
    Block_Size :         constant := Memory.Virtual.Page_Size;
@@ -38,7 +39,15 @@ package body Memory.Physical with SPARK_Mode => Off is
    --  Header of each memory allocation.
    type Allocation_Header is record
       Block_Count : Size;
+      Signature   : Size;
    end record;
+
+   pragma Style_Checks (Off);
+   function Calculate_Signature (Count : Size) return Size is
+   begin
+      return Count xor 2#10001011101010#;
+   end Calculate_Signature;
+   pragma Style_Checks (On);
 
    procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map) is
       Adjusted_Length : Storage_Count  := 0;
@@ -173,7 +182,9 @@ package body Memory.Physical with SPARK_Mode => Off is
             Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
          Header : Allocation_Header with Import, Address => To_Address (Ret);
       begin
-         Header := (Block_Count => Blocks_To_Allocate);
+         Header :=
+            (Block_Count => Blocks_To_Allocate,
+             Signature   => Calculate_Signature (Blocks_To_Allocate));
          return Ret + Block_Size;
       end;
    end Alloc;
@@ -193,16 +204,22 @@ package body Memory.Physical with SPARK_Mode => Off is
 
       --  Free the blocks in the header.
       declare
-         Header_Address : constant System.Address :=
-            To_Address (Real_Address - Block_Size);
-         Header : Allocation_Header with Import, Address => Header_Address;
+         IAddr  : constant Integer_Address := Real_Address - Block_Size;
+         SAddr  : constant  System.Address := To_Address (IAddr);
+         Header : Allocation_Header with Import, Address => SAddr;
       begin
          Lib.Synchronization.Seize (Alloc_Mutex);
-         Free_Memory := Free_Memory + (Header.Block_Count * Block_Size);
-         Real_Block := Unsigned_64 (Real_Address - Memory_Offset) / Block_Size;
-         for I in 1 .. Header.Block_Count loop
-            Bitmap_Body (Real_Block + Unsigned_64 (I - 1)) := Block_Free;
-         end loop;
+
+         if Calculate_Signature (Header.Block_Count) = Header.Signature then
+            Real_Block  := Unsigned_64 (IAddr - Memory_Offset) / Block_Size;
+            Free_Memory := Free_Memory + (Header.Block_Count * Block_Size);
+            for I in 1 .. Header.Block_Count loop
+               Bitmap_Body (Real_Block + Unsigned_64 (I - 1)) := Block_Free;
+            end loop;
+         else
+            Lib.Messages.Warn ("Tried to deallocate a corrupted block!");
+         end if;
+
          Lib.Synchronization.Release (Alloc_Mutex);
       end;
    end Free;
