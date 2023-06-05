@@ -57,7 +57,7 @@ package body Userland.MAC is
       if Has_Elements then
          return (others => False);
       else
-         return (others => True);
+         return (Can_Append_Only => False, others => True);
       end if;
    end Check_Permissions;
 
@@ -79,7 +79,7 @@ package body Userland.MAC is
       if Has_Elements then
          return (others => False);
       else
-         return (others => True);
+         return (Can_Append_Only => False, others => True);
       end if;
    end Check_Permissions;
 
