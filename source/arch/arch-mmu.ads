@@ -68,9 +68,7 @@ package Arch.MMU with SPARK_Mode => Off is
          PML4_Level : PML4;
       end record;
    #elsif ArchName = """x86_64-multiboot2"""
-      Page_Size_4K : constant := 16#1000#;
-      Page_Size_2M : constant := 16#200000#;
-      Page_Size    : constant := Page_Size_4K;
+      Page_Size : constant := 16#1000#;
       type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
       type PML4_Acc is access PML4;
       type Page_Table is record
@@ -91,9 +89,9 @@ package Arch.MMU with SPARK_Mode => Off is
           Index               : Unsigned_64;
           Create_If_Not_Found : Boolean) return Physical_Address;
       function Get_Page
-         (Map               : Page_Table_Acc;
-          Virtual           : Virtual_Address;
-          Allocate, Is_2MiB : Boolean) return Virtual_Address;
+         (Map      : Page_Table_Acc;
+          Virtual  : Virtual_Address;
+          Allocate : Boolean) return Virtual_Address;
       function Flags_To_Bitmap (Perm : Page_Permissions) return Unsigned_16;
       procedure Destroy_Level (Entry_Body : Unsigned_64; Level : Integer);
    #end if;
@@ -105,16 +103,20 @@ package Arch.MMU with SPARK_Mode => Off is
 
    --  Create or destroy maps, return Null_Address or False on failure.
    function Create_Table return Page_Table_Acc;
-   procedure Destroy_Table (Map : in out Page_Table_Acc);
+   procedure Destroy_Table (Map : in out Page_Table_Acc)
+      with Pre => Map /= null, Post => Map = null;
 
    --  Make the passed map active, will return False on failure.
-   function Make_Active (Map : Page_Table_Acc) return Boolean;
-   function Is_Active (Map : Page_Table_Acc) return Boolean;
+   function Make_Active (Map : Page_Table_Acc) return Boolean
+      with Pre => Map /= null;
+   function Is_Active (Map : Page_Table_Acc) return Boolean
+      with Pre => Map /= null;
 
    --  Do translation for a single address, this function does not fail.
    function Translate_Address
       (Map     : Page_Table_Acc;
-       Virtual : System.Address) return System.Address;
+       Virtual : System.Address) return System.Address
+      with Pre => Map /= null;
 
    --  Map, remap, or unmap a range, will return False on failure.
    function Map_Range
@@ -122,16 +124,21 @@ package Arch.MMU with SPARK_Mode => Off is
        Physical_Start : System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
-       Permissions    : Page_Permissions) return Boolean;
+       Permissions    : Page_Permissions) return Boolean
+      with Pre => Map /= null;
+
    function Remap_Range
       (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count;
-       Permissions   : Page_Permissions) return Boolean;
+       Permissions   : Page_Permissions) return Boolean
+      with Pre => Map /= null;
+
    function Unmap_Range
       (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
-       Length        : Storage_Count) return Boolean;
+       Length        : Storage_Count) return Boolean
+      with Pre => Map /= null;
 
    --  Issue TLB flushes apart of the ones natural to the mapping process.
    --  Example: Several CPUs run the same pagemap, etc.
