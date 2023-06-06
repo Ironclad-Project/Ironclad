@@ -39,7 +39,7 @@ to navigate the often cryptic and scary Ada code.
 @menu
 * Introduction::                       Project overview and bug reporting.
 * Boot-time command-line options::     Command-line options.
-* Embedded facilities and RTC::        Interfaces for embedded and RTC work.
+* Scheduling and RTC::                 Scheduling methodology and features.
 * Memory allocation algorithms::       The available allocation algorithms.
 * Userland state and conditions::      Userland state and conditions.
 * Security and integrity facilities::  Ironclad-specific security facilities.
@@ -62,20 +62,21 @@ Boot-time command-line options
 * Format::                 Description of the format.
 * List::                   List of all the available cmdline arguments.
 
-Embedded facilities and RTC
+Scheduling and RTC
 
-* Ticks and other interruptions::     Thread interruptions to expect.
-* Scheduling and predictability::     Scheduling in Ironclad in depth.
+* Ticks and other interruptions::      Thread interruptions to expect.
+* Scheduling and predictability::      Scheduling in Ironclad in depth.
+* Anti-Starvation Corrections (ASC)::  Uses and consequences of enabling ASC.
 
 Memory allocation algorithms
 
-* standard::             The standard allocator.
-* alloconly::            The low profile allocator that does not free.
+* standard::   The standard allocator.
+* alloconly::  The low profile allocator that does not free.
 
 Userland state and conditions
 
-* Program loading and ld.so::  Format of the loaded programs.
-* Memory layout::              Layout of the memory in userland.
+* Program loading::  Format of the loaded programs.
+* Memory layout::    Layout of memory in userland.
 
 Security and integrity facilities
 
@@ -269,24 +270,24 @@ The program will be started with @code{stdin} set to @code{/dev/null}, and
 @code{stdout} and @code{stderr} set to @code{/dev/debug}.
 @end table
 
-@node Embedded facilities and RTC
-@chapter Embedded facilities and RTC
+@node Scheduling and RTC
+@chapter Scheduling and RTC
 
-Ironclad supports several features geared towards embedded and real time work,
-this section approaches what to expect and how to interact with the features.
+Ironclad is built around hard real-time work, this chapter explains how that
+is accomplished along with how scheduling works, predictability of it, and
+other useful related features.
 
 @node Ticks and other interruptions
 @section Ticks and other interruptions
 
-Ironclad will not interrupt your running thread for timer or heartbeats, in
-that way, ironclad is tickless.
+Ironclad will not interrupt a running thread for timers or heartbeats, if
+necessary, at the expense of performance by, for example, using polling instead
+of interrupt-based operation for device drivers.
 
-However, Ironclad can interrupt a process for scheduling-related stops, this
-is totally normal and can introduce substantial delays on systems with a lot
-of processes, or introduce jitter on systems that desire absolutely 0 stops.
-
-For how to get around scheduling-related ticks, read about @code{THREAD_MONO}
-at @pxref{Scheduling and predictability}.
+A thread, however, may be interrupted for task-switching, which is needed for
+scheduling to work. This will not be an issue for most operations, but if the
+user desires absolutely 0 interruptions and/or jitter, one can use
+@code{THREAD_MONO}, explained at @pxref{Scheduling and predictability}.
 
 @node Scheduling and predictability
 @section Scheduling and predictability
@@ -359,15 +360,30 @@ of every longer period. For example, a harmonic set of 3 tasks periods is
 @subsection Monothreading
 
 Scheduling in Ironclad supports creating critical sections backed by the kernel
-using @pxref{thread_sched} and @code{THREAD_MONO}.
+using @pxref{thread_sched} and @code{THREAD_MONO}. This feature can be thought
+of as optional cooperative scheduling.
 
-This flag will make the scheduler not preemt at all from the thread until
-rqeuested, by using @xref{sched_yield} or relinquishing execution in any other
-similar way. Doing that will not reset the flag, but it will allow the system
-to search for another possibly preemtible thread.
+The flag will make the scheduler not preemt at all from the thread until
+requested. A task switch can be requested using @xref{sched_yield} or
+relinquishing execution in any other similar way. Doing that will not reset the
+flag, but it will allow the system to search for another thread.
 
-Note that this flag only applies to the core to request the scheduling, other
-cores in the system will continue to preempt as usual.
+@node Anti-Starvation Corrections (ASC)
+@section Anti-Starvation Corrections (ASC)
+
+Due to the nature of hard real-time and some design decisions, userland is
+vulnerable to deadlocks and other starvation issues if priorities are not
+set carefully. For avoiding this, ASC is available for use, which implements
+some basic ageing of thread priorities when not scheduled for a while, among
+others.
+
+This feature may in turn effectively make Ironclad not hard real-time, in the
+meaning that deadlines may be not respected, but that is the price to pay for
+avoiding starvation.
+
+These measures can be easily enabled or disabled at build time, and only affect
+the scheduler, the rest of the system will work out as defined in the rest of
+the document regardless of choice.
 
 @node Memory allocation algorithms
 @chapter Memory allocation algorithms
@@ -403,14 +419,16 @@ standard option.
 Ironclad places several requirements on loaded userland programs, from the
 format of which, to memory layout.
 
-@node Program loading and ld.so
-@section Program loading and ld.so
+@node Program loading
+@section Program loading
 
 Loaded programs must be under the ELF64 format, other formats may be supported
-in the future. Loaded programs can be relocatable or not.
+in the future. Loaded programs can be static or relocatable.
 
-@code{ld.so} is a special case, it's loaded from the information on the headers
-of the primary loaded program, and is assumed to be relocatable (static-PIE).
+@code{ld.so}, or any other linker program detailed on the interpreter segment
+of the ELF executable will be a special case, it is assumed to be relocatable.
+
+There is support for GNU stack program headers.
 
 @node Memory layout
 @section Memory layout

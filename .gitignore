@@ -19,10 +19,12 @@ obj
 gnatprove
 ironclad.info
 ironclad.aux
-ironclad.pdf
 ironclad.log
 ironclad.toc
 ironclad.fls
+ironclad.html
+ironclad.dvi
+ironclad.info
 ironclad
 tests/obj
 tests/run_tests
@@ -36,4 +38,3 @@ config.log
 config.status
 configure
 configure~
-ironclad_html
