@@ -37,4 +37,5 @@ config.log
 config.status
 configure
 configure~
+rts.gpr
 rtsdir
