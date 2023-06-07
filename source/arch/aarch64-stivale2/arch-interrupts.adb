@@ -1,5 +1,5 @@
 --  arch-exceptions.adb: Interrupt utilities.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -158,9 +158,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 35 =>
             Returned := Set_MAC_Capabilities (State.X0, Errno);
          when 36 =>
-            Returned := Lock_MAC (Errno);
+            Returned := Get_MAC_Capabilities (Errno);
          when 37 =>
-            Returned := Add_MAC_Filter (State.X0, Errno);
+            Returned := Add_MAC_Permissions (State.X0, State.X1, State.X2,
+                                             Errno);
          when 38 =>
             Returned := Set_MAC_Enforcement (State.X0, Errno);
          when 39 =>
@@ -188,7 +189,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 48 =>
             Returned := Open_PTY (State.X0, State.X1, State.X2, Errno);
          when 49 =>
-            Returned := FSync (State.X0, Errno);
+            Returned := FSync (State.X0, State.X1, Errno);
          when 50 =>
             Returned := Link (State.X0, State.X1, State.X2, State.X3,
                               State.X4, State.X5, Errno);
