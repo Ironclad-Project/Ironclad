@@ -1,4 +1,4 @@
---  ironclad.gpr.in: Project's building script.
+--  rts.gpr.in: Project's RTS building script.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-project Ironclad is
+library project RTS is
    --  Compilation flags.
    type Arch_Name is ("aarch64-stivale2", "sparc-leon3", "x86_64-multiboot2");
    Arch : Arch_Name := "@target_cpu@-@target_vendor@";
@@ -22,39 +22,21 @@ project Ironclad is
    Asm_Flags        := "@ASFLAGS@";
    Linker_Flags     := "@LDFLAGS@";
 
-   --  Set directories and files.
-   for Source_Dirs use (
-      "@SRCDIR@/source/arch/" & Arch,
-      "@SRCDIR@/source/arch",
-      "@SRCDIR@/source/cryptography",
-      "@SRCDIR@/source/devices",
-      "@SRCDIR@/source/ipc",
-      "@SRCDIR@/source/lib",
-      "@SRCDIR@/source/memory/" & "@MEMORY_ALLOCONLY@",
-      "@SRCDIR@/source/memory",
-      "@SRCDIR@/source/networking",
-      "@SRCDIR@/source/userland",
-      "@SRCDIR@/source/vfs",
-      "@SRCDIR@/source"
-   );
-   for Object_Dir use "obj";
-   for Exec_Dir use ".";
-   for Main use ("main.adb");
-   for Languages use ("Ada", "Asm_Cpp");
    for Create_Missing_Dirs use "True";
+   for Source_Dirs use ("rtsdir/adainclude");
+   for Object_Dir use "rtsdir/obj";
+
+   for Languages use ("Ada");
 
    package Builder is
-      for Executable ("main.adb") use "ironclad";
+      for Global_Configuration_Pragmas use "@SRCDIR@/source/pragmas.adc";
+      for Switches ("Ada") use ("-nostdlib", "-nostdinc");
    end Builder;
 
    package Compiler is
       Base_Ada_Switches := Split (Ada_Flags, " ") & (
-         "-fno-stack-protector", "-fno-stack-check",
-         "-gnateDIroncladName=""" & "@PACKAGE_NAME@"      & """",
-         "-gnateDVersion="""      & "@PACKAGE_VERSION@"   & """",
-         "-gnateDBugSite="""      & "@PACKAGE_BUGREPORT@" & """",
-         "-gnateDArchName="""     & Arch                  & """",
-         "-gnateDSCHED_ASC="      & "@SCHED_ASC@"
+         "-fno-stack-protector", "-fno-stack-check", "-nostdlib", "-nostdinc",
+         "-gnatg"
       );
       Base_Asm_Switches := Split (Asm_Flags, " ");
 
@@ -79,31 +61,10 @@ project Ironclad is
                "-fno-pie", "-fno-pic", "-mno-red-zone", "-mcmodel=kernel"
             );
       end case;
-
-      for Local_Configuration_Pragmas use "@SRCDIR@/source/pragmas.adc";
    end Compiler;
 
-   package Linker is
-      Base_Link_Switches := Split (Linker_Flags, " ") & (
-         "-T@SRCDIR@/source/arch/" & Arch & "/linker.ld", "-nostdlib"
-      );
-
-      case Arch is
-         when "aarch64-stivale2" =>
-            for Switches ("Ada") use Base_Link_Switches & (
-               "-zmax-page-size=0x1000", "-static", "-Wl,-zmuldefs",
-               "-fno-pie", "-fno-pic", "-lgcc"
-            );
-         when "sparc-leon3" =>
-            for Switches ("Ada") use Base_Link_Switches & (
-               "-zmax-page-size=0x1000", "-static", "-Wl,-zmuldefs",
-               "-fno-pie", "-fno-pic"
-            );
-         when "x86_64-multiboot2" =>
-            for Switches ("Ada") use Base_Link_Switches & (
-               "-static", "-zmax-page-size=0x1000",
-               "-Wl,--undefined=multiboot2,-zmuldefs"
-            );
-      end case;
-   end Linker;
-end Ironclad;
+   for Library_Dir  use "rtsdir/adalib";
+   for Library_Kind use "static";
+   for Library_Name use "gnat";
+   for Runtime ("Ada") use "rtsdir";
+end RTS;

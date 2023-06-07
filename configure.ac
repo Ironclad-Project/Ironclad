@@ -70,7 +70,7 @@ m4_define([GET_PROG], [
     test "x$$1" = "x" && $1="DEFAULT_$1"
     AC_CHECK_PROG([$1_FOUND], [$$1], [$$1])
     if ! test "x$$1_FOUND" = "x$$1"; then
-      AC_MSG_ERROR([$3 not found, please install $3 or set $1 to a valid executable])
+      AC_MSG_WARN([$3 not found, please install $3 or set $1 to a valid executable])
     fi
 ])
 
@@ -93,29 +93,16 @@ case $target_cpu-$target_vendor in
         AC_MSG_ERROR([$target_cpu-$target_vendor is not available for compilation])
         ;;
 esac
-############## WARNING: DRAGONS LIE AHEAD #####################################
-#           ____ __
-#          { --.\  |          .)%%%)%%
-#           '-._\\ | (\___   %)%%(%%(%%%
-#               `\\|{/ ^ _)-%(%%%%)%%;%%%
-#           .'^^^^^^^  /`    %%)%%%%)%%%'
-#          //\   ) ,  /       '%%%%(%%'
-#    ,  _.'/  `\<-- \<
-#     `^^^`     ^^   ^^
 ###############################################################################
-# So you see, gprbuild loves linking with -lgnat-XX where XX is the system
-# version, this is not always provided by the distributions.
-# (because why would they). Since we need nothing from them apart of their
-# existance and gprbuild in all of its wisdom will not let us remove the flag
-# in any human way possible, we are just gonna generate every possible file
-# from libgnat-1.a to libgnat-99.a. Thats 100 years of GCC.
-mkdir -p libgnat-hack
-touch libgnat-hack/libgnat.a
-for i in $(seq 99); do
-   touch libgnat-hack/libgnat-$i.a
-done
+# Prepare an RTS from the cooked, pretty sources in the kernel.
+mkdir -p rtsdir
+mkdir -p rtsdir/adainclude
+mkdir -p rtsdir/adalib
+cp $SRCDIR/source/rts/*.adb rtsdir/adainclude
+cp $SRCDIR/source/rts/*.ads rtsdir/adainclude
+cp $SRCDIR/source/rts/$target_cpu-$target_vendor/*.ads rtsdir/adainclude
 ###############################################################################
 # Finalize the settings and output the files.
 AC_PREFIX_DEFAULT([/usr/local])
-AC_CONFIG_FILES([GNUmakefile ironclad.gpr])
+AC_CONFIG_FILES([GNUmakefile ironclad.gpr rts.gpr])
 AC_OUTPUT

@@ -30,11 +30,6 @@ SECTIONS {
     PHYSICAL_BASE = 2M;
     . = VIRTUAL_BASE;
 
-    /DISCARD/ : {
-        *libgnat*:*(*)
-        *b__main.o(*)
-    }
-
     /* Position in the front required by spec. */
     .multiboot2 : AT (ADDR (.multiboot2) - VIRTUAL_BASE + PHYSICAL_BASE) {
         KEEP(*(.multiboot2))

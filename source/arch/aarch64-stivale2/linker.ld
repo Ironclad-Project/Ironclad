@@ -28,13 +28,6 @@ PHDRS
 SECTIONS {
     . = 0xFFFFFFFF80000000 + 1M;
 
-    /DISCARD/ : {
-        *libgnat*:*(*)
-        *b__main.o(*)
-    }
-
-    . = ALIGN(4K);
-
     /* Actual kernel. */
     .text : {
         *(.text .text.*)

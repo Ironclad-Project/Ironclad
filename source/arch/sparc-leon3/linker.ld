@@ -28,10 +28,6 @@ PHDRS
 SECTIONS {
     . = 16K;
 
-    /DISCARD/ : {
-        *libgnat.a:*(*)
-    }
-
     /* Actual kernel. */
     .text : {
         *(.text .text.*)
