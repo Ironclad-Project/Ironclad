@@ -45,6 +45,10 @@ is
    --  @param Use_Hex Whether to use hexadecimal or decimal for printing.
    procedure Put (Message : Integer; Pad, Use_Hex : Boolean := False)
       with Global => (In_Out => Message_State);
+   procedure Put (Message : Integer_32; Pad, Use_Hex : Boolean := False)
+      with Global => (In_Out => Message_State);
+   procedure Put (Message : Unsigned_32; Pad, Use_Hex : Boolean := False)
+      with Global => (In_Out => Message_State);
    procedure Put (Message : Integer_64; Pad, Use_Hex : Boolean := False)
       with Global => (In_Out => Message_State);
    procedure Put (Message : Unsigned_64; Pad, Use_Hex : Boolean := False)

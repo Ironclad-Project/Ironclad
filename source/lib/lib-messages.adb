@@ -82,6 +82,59 @@ is
       end if;
    end Put;
 
+   procedure Put (Message : Unsigned_32; Pad, Use_Hex : Boolean := False) is
+      Conversion : constant String  := "0123456789ABCDEF";
+      To_Convert : Unsigned_32      := Message;
+      Base       : Unsigned_32      := 10;
+      Char_Limit : Natural          := 20;
+      Written    : Integer          := 0;
+      Result     : String (1 .. 20) := (others => Ada.Characters.Latin_1.NUL);
+   begin
+      Lib.Synchronization.Seize (Messages_Mutex);
+      if Use_Hex then
+         Arch.Debug.Print ("0x");
+         Base       := 16;
+         Char_Limit := 8;
+      end if;
+
+      if To_Convert = 0 then
+         Result (1) := '0';
+         Written    := 1;
+      else
+         while To_Convert /= 0 and Written < Char_Limit loop
+            pragma Loop_Invariant (Written >= 0 and Written <= Result'Length);
+            Written          := Written + 1;
+            Result (Written) := Conversion (Integer (To_Convert rem Base) + 1);
+            To_Convert       := To_Convert / Base;
+         end loop;
+      end if;
+
+      if Pad then
+         for I in Written + 1 .. Char_Limit loop
+            Arch.Debug.Print ('0');
+         end loop;
+      end if;
+
+      for I in reverse 1 .. Written loop
+         Arch.Debug.Print (Result (I));
+      end loop;
+      Lib.Synchronization.Release (Messages_Mutex);
+   end Put;
+
+   procedure Put (Message : Integer_32; Pad, Use_Hex : Boolean := False) is
+   begin
+      if Message < 0 then
+         Put ('-');
+      end if;
+
+      --  Check for possible overflow.
+      if Message = Integer_32'First then
+         Put (Unsigned_32 (Integer_32'Last + 1), Pad, Use_Hex);
+      else
+         Put (Unsigned_32 (abs Message), Pad, Use_Hex);
+      end if;
+   end Put;
+
    procedure Put (Message : Unsigned_64; Pad, Use_Hex : Boolean := False) is
       Conversion : constant String  := "0123456789ABCDEF";
       To_Convert : Unsigned_64      := Message;

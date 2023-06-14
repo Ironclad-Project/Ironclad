@@ -16,7 +16,11 @@
 
 project Ironclad is
    --  Compilation flags.
-   type Arch_Name is ("aarch64-stivale2", "sparc-leon3", "x86_64-multiboot2");
+   type Arch_Name is
+      ("aarch64-stivale2",
+       "arm-raspi2b",
+       "sparc-leon3",
+       "x86_64-multiboot2");
    Arch : Arch_Name := "@target_cpu@-@target_vendor@";
    Ada_Flags        := "@ADAFLAGS@";
    Asm_Flags        := "@ASFLAGS@";
@@ -65,6 +69,14 @@ project Ironclad is
                "-march=armv8-a"
             );
             for Switches ("Asm_Cpp") use Base_Asm_Switches;
+         when "arm-raspi2b" =>
+            for Switches ("Ada") use Base_Ada_Switches & (
+               "-static", "-fno-pie", "-fpic", "-mgeneral-regs-only",
+               "-mcpu=cortex-a7"
+            );
+            for Switches ("Asm_Cpp") use Base_Asm_Switches & (
+               "-mcpu=cortex-a7"
+            );
          when "sparc-leon3" =>
             for Switches ("Ada") use Base_Ada_Switches & (
                "-mcpu=leon3", "-static", "-fno-pie", "-fno-pic"
@@ -90,6 +102,11 @@ project Ironclad is
 
       case Arch is
          when "aarch64-stivale2" =>
+            for Switches ("Ada") use Base_Link_Switches & (
+               "-zmax-page-size=0x1000", "-static", "-Wl,-zmuldefs",
+               "-fno-pie", "-fno-pic", "-lgcc"
+            );
+         when "arm-raspi2b" =>
             for Switches ("Ada") use Base_Link_Switches & (
                "-zmax-page-size=0x1000", "-static", "-Wl,-zmuldefs",
                "-fno-pie", "-fno-pic", "-lgcc"

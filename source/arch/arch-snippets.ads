@@ -49,6 +49,8 @@ package Arch.Snippets is
    --  equivalent code for no reason.
    #if ArchName = """aarch64-stivale2"""
       function Get_Exception_Syndrome return Unsigned_64 with Inline;
+   #elsif ArchName = """arm-raspi2b"""
+      function Get_Exception_Syndrome return Unsigned_64 with Inline;
    #elsif ArchName = """sparc-leon3"""
    #elsif ArchName = """x86_64-multiboot2"""
       procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) with Inline;

@@ -21,6 +21,9 @@ package Arch.Context with SPARK_Mode => Off is
    #if ArchName = """aarch64-stivale2"""
       subtype GP_Context is Arch.Interrupts.Frame;
       type    FP_Context is array (1 .. 512) of Unsigned_8;
+   #elsif ArchName = """arm-raspi2b"""
+      subtype GP_Context is Arch.Interrupts.Frame;
+      type    FP_Context is array (1 .. 512) of Unsigned_8;
    #elsif ArchName = """sparc-leon3"""
       --  FIXME: Alignment should be 16, but GCC does not align then?
       subtype GP_Context is Arch.Interrupts.ISR_GPRs;

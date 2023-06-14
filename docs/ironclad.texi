@@ -149,6 +149,7 @@ Devices and their properties
 
 * Common devices::             Devices common to all architectures and targets.
 * aarch64-stivale2 devices::   Devices specific to aarch64-stivale2.
+* arm-raspi2b devices::        Devices specific to arm-raspi2b.
 * sparc-leon3 devices::        Devices specific to sparc-leon3.
 * x86_64-multiboot2 devices::  Devices specific to x86_64-multiboot2.
 
@@ -2308,7 +2309,8 @@ instead, the block count and block size values of @code{stat} are used.
 @node Common devices
 @section Common devices
 
-These are devices exposed in Ironclad regardless of target system.
+These are devices exposed in Ironclad regardless of target system when
+present, with standardized interfaces.
 
 @subsection debug
 
@@ -2383,6 +2385,26 @@ settings.
 
 The default baud for the device is set to be @code{115200}.
 
+@node arm-raspi2b devices
+@section arm-raspi2b devices
+
+@subsection uart
+
+@code{uart} supports read and write operations for the PL011 UART device
+featured on the board on GPIOs 14 and 15 (pins 8 and 10).
+
+Baud and other settings can be set by using the @code{termios}, note that
+most of the fields are not implemented, only the ones related to input stream
+settings.
+
+The default baud for the device is set to be @code{115200}.
+
+@subsection watchdog
+
+@code{watchdog} represents the hardware watchdog included with the board.
+Writing to it will reset it, @code{ioctl} operations may be used for
+timeout configuration and starting/stopping it.
+
 @node sparc-leon3 devices
 @section sparc-leon3 devices
 
@@ -2431,8 +2453,8 @@ PS2MOUSE_SET_SAMPLE_RATE = 4
 
 ioctl(mouse, PS2MOUSE_2_1_SCALING, ignored);  // Enable 2:1 scaling.
 ioctl(mouse, PS2MOUSE_1_1_SCALING, ignored);  // Enable 1:1 scaling.
-ioctl(mouse, PS2MOUSE_SET_RES, resolution);   // Set resolution (0 - 3).
-ioctl(mouse, PS2MOUSE_SET_SAMPLE_RATE, rate); // Set sample rate (0 - 200).
+ioctl(mouse, PS2MOUSE_SET_RES, resolution);   // (0 - 3).
+ioctl(mouse, PS2MOUSE_SET_SAMPLE_RATE, rate); // (0 - 200).
 @end example
 
 Valid resolutions and sample rates are values for the PS2 controller, else

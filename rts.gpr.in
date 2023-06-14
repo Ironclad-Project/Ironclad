@@ -16,7 +16,11 @@
 
 library project RTS is
    --  Compilation flags.
-   type Arch_Name is ("aarch64-stivale2", "sparc-leon3", "x86_64-multiboot2");
+   type Arch_Name is
+      ("aarch64-stivale2",
+       "arm-raspi2b",
+       "sparc-leon3",
+       "x86_64-multiboot2");
    Arch : Arch_Name := "@target_cpu@-@target_vendor@";
    Ada_Flags        := "@ADAFLAGS@";
    Asm_Flags        := "@ASFLAGS@";
@@ -45,6 +49,12 @@ library project RTS is
             for Switches ("Ada") use Base_Ada_Switches & (
                "-static", "-fno-pie", "-fno-pic", "-mgeneral-regs-only",
                "-march=armv8-a"
+            );
+            for Switches ("Asm_Cpp") use Base_Asm_Switches;
+         when "arm-raspi2b" =>
+            for Switches ("Ada") use Base_Ada_Switches & (
+               "-static", "-fno-pie", "-fpic", "-mgeneral-regs-only",
+               "-mcpu=cortex-a7"
             );
             for Switches ("Asm_Cpp") use Base_Asm_Switches;
          when "sparc-leon3" =>

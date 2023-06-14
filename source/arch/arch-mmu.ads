@@ -60,6 +60,16 @@ package Arch.MMU with SPARK_Mode => Off is
           Virtual  : Integer_Address;
           Allocate : Boolean) return Integer_Address;
       function Get_Bits (Permissions : Page_Permissions) return Unsigned_64;
+   #elsif ArchName = """arm-raspi2b"""
+      Page_Size : constant := 16#1000#;
+      type Page_Level is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
+      type Page_Level_Acc is access Page_Level;
+      type Page_Table is record
+         TTBR0 : Page_Level;
+         TTBR1 : Page_Level;
+      end record;
+
+      procedure Set_MMU_State;
    #elsif ArchName = """sparc-leon3"""
       Page_Size : constant := 16#1000#;
       type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
