@@ -196,7 +196,7 @@ package body VFS.EXT with SPARK_Mode => Off is
 
       Target_Inode :=
          (Permissions         => Perms or Unsigned_16 (Mode),
-          UID                 => 0,
+          UID                 => Unsigned_16 (User),
           Size_Low            => 0,
           Access_Time_Epoch   => 0,
           Creation_Time_Epoch => 0,
@@ -722,6 +722,8 @@ package body VFS.EXT with SPARK_Mode => Off is
          (Unique_Identifier => Ino,
           Type_Of_File      => Get_Inode_Type (Inod.Permissions),
           Mode              => File_Mode (Inod.Permissions and 8#777#),
+          UID               => Unsigned_32 (Inod.UID),
+          GID               => Unsigned_32 (Inod.GID),
           Hard_Link_Count   => Positive (Inod.Hard_Link_Count),
           Byte_Size         => Size,
           IO_Block_Size     => Get_Block_Size (FS.Handle),
@@ -886,6 +888,48 @@ package body VFS.EXT with SPARK_Mode => Off is
       Lib.Synchronization.Release (FS.Mutex);
       return Result;
    end Change_Mode;
+
+   function Change_Owner
+      (Data  : System.Address;
+       Ino   : File_Inode_Number;
+       Owner : Unsigned_32;
+       Group : Unsigned_32;
+       User  : Unsigned_32) return FS_Status
+   is
+      FS      : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
+      Inod    : Inode;
+      Success : Boolean;
+      Result  : FS_Status;
+   begin
+      if FS.Is_Read_Only then
+         return FS_RO_Failure;
+      end if;
+
+      Lib.Synchronization.Seize (FS.Mutex);
+
+      Success := RW_Inode
+         (Data            => FS,
+          Inode_Index     => Unsigned_32 (Ino),
+          Result          => Inod,
+          Write_Operation => False);
+      if not Success then
+         Result := FS_IO_Failure;
+      elsif not Check_User_Access (User, Inod, False, True, False) then
+         Result := FS_Not_Allowed;
+      else
+         Inod.UID := Unsigned_16 (Owner);
+         Inod.GID := Unsigned_16 (Group);
+         Success          := RW_Inode
+            (Data            => FS,
+             Inode_Index     => Unsigned_32 (Ino),
+             Result          => Inod,
+             Write_Operation => True);
+         Result := (if Success then FS_Success else FS_IO_Failure);
+      end if;
+
+      Lib.Synchronization.Release (FS.Mutex);
+      return Result;
+   end Change_Owner;
 
    function Synchronize (Data : System.Address) return FS_Status is
       FS_Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));

@@ -612,6 +612,13 @@ package Userland.Syscall with SPARK_Mode => Off is
        Flags   : Unsigned_64;
        Errno   : out Errno_Value) return Unsigned_64;
 
+   --  Change the mode of the passed file.
+   function Fchown
+      (FD    : Unsigned_64;
+       User  : Unsigned_64;
+       Group : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64;
+
 private
 
    --  Do the actual exiting.

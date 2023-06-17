@@ -40,6 +40,8 @@ package VFS is
       Unique_Identifier : File_Inode_Number;
       Type_Of_File      : File_Type;
       Mode              : File_Mode;
+      UID               : Unsigned_32;
+      GID               : Unsigned_32;
       Hard_Link_Count   : Positive;
       Byte_Size         : Unsigned_64;
       IO_Block_Size     : Natural;
@@ -369,6 +371,20 @@ package VFS is
        Ino  : File_Inode_Number;
        Mode : File_Mode;
        User : Unsigned_32) return FS_Status;
+
+   --  Change the owner of an inode.
+   --  @param Key  FS Handle to use.
+   --  @param Ino  Inode to change the mode of.
+   --  @param Owner Owner to change ownership to.
+   --  @param Group Group to change ownership to.
+   --  @param User UID to check against, 0 for root/bypass checks.
+   --  @return Status of the operation.
+   function Change_Owner
+      (Key   : FS_Handle;
+       Ino   : File_Inode_Number;
+       Owner : Unsigned_32;
+       Group : Unsigned_32;
+       User  : Unsigned_32) return FS_Status;
    ----------------------------------------------------------------------------
    --  FS-independent versions of operations, that rely on the driver to search
    --  for the appropiate FS, or operate on several FSes.

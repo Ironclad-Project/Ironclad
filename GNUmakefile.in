@@ -134,13 +134,10 @@ dist:
 # Install artifacts and other files to their final locations.
 .PHONY: install
 install: all
-	$(INSTALL) -d '$(call SHESCAPE,$(DESTDIR)$(datarootdir))/$(PACKAGE_TARNAME)'
-	$(INSTALL_DATA) $(OUTPUT) '$(call SHESCAPE,$(DESTDIR)$(datarootdir))/$(PACKAGE_TARNAME)/'
-
-.PHONY: install-docs
-install-docs: docs
 	$(INSTALL) -d '$(call SHESCAPE,$(DESTDIR)$(infodir))'
 	$(INSTALL) -d '$(call SHESCAPE,$(DESTDIR)$(docdir))'
+	$(INSTALL) -d '$(call SHESCAPE,$(DESTDIR)$(datarootdir))/$(PACKAGE_TARNAME)'
+	$(INSTALL_DATA) $(OUTPUT) '$(call SHESCAPE,$(DESTDIR)$(datarootdir))/$(PACKAGE_TARNAME)/'
 	$(INSTALL_DATA) ironclad.info '$(call SHESCAPE,$(DESTDIR)$(infodir))/'
 
 # Install and strip executables.

@@ -508,6 +508,23 @@ package body VFS with SPARK_Mode => Off is
             return FS_Not_Supported;
       end case;
    end Change_Mode;
+
+   function Change_Owner
+      (Key   : FS_Handle;
+       Ino   : File_Inode_Number;
+       Owner : Unsigned_32;
+       Group : Unsigned_32;
+       User  : Unsigned_32) return FS_Status
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT =>
+            return EXT.Change_Owner
+               (Mounts (Key).FS_Data, Ino, Owner, Group, User);
+         when others =>
+            return FS_Not_Supported;
+      end case;
+   end Change_Owner;
    ----------------------------------------------------------------------------
    procedure Open
       (Path    : String;

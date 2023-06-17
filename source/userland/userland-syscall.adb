@@ -997,8 +997,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Inode_Number  => Unsigned_64 (Stat_Val.Unique_Identifier),
                Mode          => Unsigned_32 (Stat_Val.Mode),
                Number_Links  => Unsigned_32 (Stat_Val.Hard_Link_Count),
-               UID           => 0,
-               GID           => 0,
+               UID           => Stat_Val.UID,
+               GID           => Stat_Val.GID,
                Inner_Device  => Unsigned_64 (ID),
                File_Size     => Stat_Val.Byte_Size,
                Access_Time   =>
@@ -1991,13 +1991,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Target : String (1 .. Natural (Target_Len))
             with Import, Address => Tgt_Addr;
       begin
-         if not VFS.Mount (Source, Target, Parsed_Typ, Do_RO) then
+         if VFS.Mount (Source, Target, Parsed_Typ, Do_RO) then
+            Errno := Error_No_Error;
+            return 0;
+         else
             Errno := Error_IO;
             return Unsigned_64'Last;
          end if;
-
-         Errno := Error_No_Error;
-         return 0;
       end;
    end Mount;
 
@@ -2746,7 +2746,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when Description_Inode =>
             Succ := VFS.Change_Mode
                (Desc.Inner_Ino_FS, Desc.Inner_Ino, File_Mode (Mode), User);
-            Errno := Error_No_Error;
             return Translate_Status (Succ, 0, Errno);
          when others =>
             Errno := Error_Invalid_Value;
@@ -2802,6 +2801,33 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Lib.Panic.Hard_Panic ("reboot() operation failed");
       end if;
    end Reboot;
+
+   function Fchown
+      (FD    : Unsigned_64;
+       User  : Unsigned_64;
+       Group : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64
+   is
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Desc : constant File_Description_Acc := Get_File (Proc, FD);
+      Succ : VFS.FS_Status;
+      Usr  : Unsigned_32;
+   begin
+      Userland.Process.Get_Effective_UID (Proc, Usr);
+      case Desc.Description is
+         when Description_Inode =>
+            Succ := VFS.Change_Owner
+               (Desc.Inner_Ino_FS,
+                Desc.Inner_Ino,
+                Unsigned_32 (User  and 16#FFFFFFFF#),
+                Unsigned_32 (Group and 16#FFFFFFFF#),
+                Usr);
+            return Translate_Status (Succ, 0, Errno);
+         when others =>
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+      end case;
+   end Fchown;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin

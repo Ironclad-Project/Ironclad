@@ -121,6 +121,13 @@ package VFS.EXT with SPARK_Mode => Off is
        Mode : File_Mode;
        User : Unsigned_32) return FS_Status;
 
+   function Change_Owner
+      (Data  : System.Address;
+       Ino   : File_Inode_Number;
+       Owner : Unsigned_32;
+       Group : Unsigned_32;
+       User  : Unsigned_32) return FS_Status;
+
    function Synchronize (Data : System.Address) return FS_Status;
 
    function Synchronize
