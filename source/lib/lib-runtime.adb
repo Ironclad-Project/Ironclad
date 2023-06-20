@@ -19,64 +19,19 @@ with Lib.Panic;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body Lib.Runtime with SPARK_Mode => Off is
-   pragma Suppress (All_Checks); --  Failing a check here would just make
-                                 --  it recursive, we are already panicking.
+   --  Failing a check here would just make it infinitely recursive.
+   pragma Suppress (All_Checks);
 
-   procedure Access_Check (File : System.Address; Line : Integer) is
+   procedure Last_Chance_Handler (File : System.Address; Line : Integer) is
+      File_String : String (1 .. Lib.C_String_Length (File))
+         with Address => File, Import;
    begin
-      Print_Exception ("Access check failure", File, Line);
-   end Access_Check;
-
-   procedure Index_Check (File : System.Address; Line : Integer) is
-   begin
-      Print_Exception ("Index check failure", File, Line);
-   end Index_Check;
-
-   procedure Range_Check (File : System.Address; Line : Integer) is
-   begin
-      Print_Exception ("Range check failure", File, Line);
-   end Range_Check;
-
-   procedure Accessib_Check (File : System.Address; Line : Integer) is
-   begin
-      Print_Exception ("Accessibility check failure", File, Line);
-   end Accessib_Check;
-
-   procedure Overflow_Check (File : System.Address; Line : Integer) is
-   begin
-      Print_Exception ("Overflow check failure", File, Line);
-   end Overflow_Check;
-
-   procedure Large_Object_Check (File : System.Address; Line : Integer) is
-   begin
-      Print_Exception ("Large object check failure", File, Line);
-   end Large_Object_Check;
-
-   procedure Invalid_Data_Check (File : System.Address; Line : Integer) is
-   begin
-      Print_Exception ("Invalid data check failure", File, Line);
-   end Invalid_Data_Check;
-
-   procedure Length_Check (File : System.Address; Line : Integer) is
-   begin
-      Print_Exception ("Length check failure", File, Line);
-   end Length_Check;
-
-   procedure Divide_By_Zero_Check (File : System.Address; Line : Integer) is
-   begin
-      Print_Exception ("Divide by zero check failure", File, Line);
-   end Divide_By_Zero_Check;
-
-   procedure Assert_Failure (Message : String) is
-   begin
-      Lib.Panic.Hard_Panic (Message);
-   end Assert_Failure;
-
-   procedure Discriminant_Check (File : System.Address; Line : Integer) is
-   begin
-      Print_Exception ("Discriminant check failure", File, Line);
-   end Discriminant_Check;
-
+      Lib.Messages.Put      ("Exception triggered at " & File_String & ":");
+      Lib.Messages.Put      (Line);
+      Lib.Messages.Put_Line ("");
+      Lib.Panic.Hard_Panic  ("Generic Ada exception triggered");
+   end Last_Chance_Handler;
+   ----------------------------------------------------------------------------
    function MemCmp (S1, S2 : System.Address; Size : size_t) return int is
       Str1 : array (1 .. Size) of Unsigned_8 with Address => S1, Import;
       Str2 : array (1 .. Size) of Unsigned_8 with Address => S2, Import;
@@ -140,26 +95,4 @@ package body Lib.Runtime with SPARK_Mode => Off is
       end loop;
       return Desto;
    end MemSet;
-
-   function GetAuxVal (Value : Natural) return Natural is
-      pragma Unreferenced (Value);
-   begin
-      return 0;
-   end GetAuxVal;
-
-   procedure Print_Exception
-      (Message      : String;
-       File_Address : System.Address;
-       Line_Number  : Integer)
-   is
-      File_Length : constant Natural := Lib.C_String_Length (File_Address);
-      File_String : String (1 .. File_Length)
-         with Address => File_Address, Import;
-   begin
-      Lib.Messages.Put_Line ("");
-      Lib.Messages.Put      ("Exception triggered at " & File_String & ": ");
-      Lib.Messages.Put      (Line_Number);
-      Lib.Messages.Put_Line ("");
-      Lib.Panic.Hard_Panic  (Message);
-   end Print_Exception;
 end Lib.Runtime;

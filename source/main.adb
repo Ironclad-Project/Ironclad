@@ -44,7 +44,7 @@ procedure Main is
    Init_Stdin  : constant String := "null";
    Init_Stdout : constant String := "debug";
    Proto       : constant Arch.Boot_Information := Arch.Get_Info;
-   Cmdline     : constant String := Proto.Cmdline (1 .. Proto.Cmdline_Len);
+   Cmdline     : String renames Proto.Cmdline (1 .. Proto.Cmdline_Len);
 begin
    Lib.Messages.Put_Line (Config.Name & " version " & Config.Version);
    Lib.Messages.Put_Line ("Please report bugs/issues at " & Config.Bug_Site);
