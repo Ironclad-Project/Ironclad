@@ -61,8 +61,7 @@ package body Devices.SATA with SPARK_Mode => Off is
                 Sync        => Sync'Access,
                 Sync_Range  => Sync_Range'Access,
                 IO_Control  => null,
-                Mmap        => null,
-                Munmap      => null), Base_Name, Success);
+                Mmap        => null), Base_Name, Success);
             if not Success or else
                not Partitions.Parse_Partitions (Base_Name, Fetch (Base_Name))
             then

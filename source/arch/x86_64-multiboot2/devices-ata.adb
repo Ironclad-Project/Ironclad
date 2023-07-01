@@ -1,5 +1,5 @@
 --  devices-ata.adb: ATA driver.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -41,8 +41,7 @@ package body Devices.ATA with SPARK_Mode => Off is
                 Sync        => Sync'Access,
                 Sync_Range  => Sync_Range'Access,
                 IO_Control  => null,
-                Mmap        => null,
-                Munmap      => null), Base_Name, Success);
+                Mmap        => null), Base_Name, Success);
             if not Success or else
                not Partitions.Parse_Partitions (Base_Name, Fetch (Base_Name))
             then

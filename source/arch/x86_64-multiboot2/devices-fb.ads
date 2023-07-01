@@ -1,5 +1,5 @@
---  devices-bootfb.ads: Boot-time memory framebuffer driver.
---  Copyright (C) 2021 streaksu
+--  devices-fb.ads: Boot-time memory framebuffer driver.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -28,10 +28,8 @@ private
        Argument : System.Address) return Boolean;
 
    function Mmap
-      (Data        : System.Address;
-       Address     : Memory.Virtual_Address;
-       Length      : Unsigned_64;
-       Map_Read    : Boolean;
-       Map_Write   : Boolean;
-       Map_Execute : Boolean) return Boolean;
+      (Data    : System.Address;
+       Address : Memory.Virtual_Address;
+       Length  : Unsigned_64;
+       Flags   : Arch.MMU.Page_Permissions) return Boolean;
 end Devices.FB;

@@ -43,23 +43,58 @@ package Memory.Virtual with SPARK_Mode => Off is
    --  @return True if loaded, False if not loaded.
    function Is_Loaded (Map : Page_Map_Acc) return Boolean;
 
-   --  Map, remap, or unmap a range of memory.
+   --  Map a range of physical memory to virtual memory.
+   --  @param Map      Map to allocate.
+   --  @param Virtual  Virtual address to map.
+   --  @param Physical Physical address to map.
+   --  @param Length   Length of the region in bytes.
+   --  @param Flags    Flags of the region.
    --  @return True on success, False on failure.
    function Map_Range
-      (Map      : Page_Map_Acc;
-       Virtual  : Virtual_Address;
-       Physical : Physical_Address;
-       Length   : Unsigned_64;
-       Flags    : Arch.MMU.Page_Permissions) return Boolean;
+      (Map       : Page_Map_Acc;
+       Virtual   : Virtual_Address;
+       Physical  : Physical_Address;
+       Length    : Unsigned_64;
+       Flags     : Arch.MMU.Page_Permissions) return Boolean;
+
+   --  Remap a range of virtual memory with different permissions.
+   --  @param Map      Map to allocate.
+   --  @param Virtual  Virtual address to remap.
+   --  @param Length   Length of the region in bytes.
+   --  @param Flags    Flags of the region.
+   --  @return True on success, False on failure.
    function Remap_Range
       (Map     : Page_Map_Acc;
        Virtual : Virtual_Address;
        Length  : Unsigned_64;
        Flags   : Arch.MMU.Page_Permissions) return Boolean;
+
+   --  Unmap a range of virtual memory with different permissions.
+   --  @param Map     Map to allocate.
+   --  @param Virtual Virtual address to unmap.
+   --  @param Length  Length of the region in bytes.
+   --  @return True on success, False on failure.
    function Unmap_Range
       (Map     : Page_Map_Acc;
        Virtual : Virtual_Address;
        Length  : Unsigned_64) return Boolean;
+
+   --  Map a range of memory to an internally allocated physical region.
+   --  @param Map Map to allocate.
+   --  @param Virtual Virtual address to map the allocated region to.
+   --  @param Length  Length of the region in bytes.
+   --  @param Flags   Flags of the region.
+   --  @param Writing Mapped access to the allocated memory for the kernel on
+   --                 all mappings, it must be unmapped on its own, this
+   --                 exists for supporting editing regions allocated for
+   --                 other maps than your own.
+   --  @return True on success, False on failure.
+   function Map_Memory_Backed_Region
+      (Map     : Page_Map_Acc;
+       Virtual : Virtual_Address;
+       Length  : Unsigned_64;
+       Flags   : Arch.MMU.Page_Permissions;
+       Writing : out Virtual_Address) return Boolean;
 
    --  Create a new map ready for loading. The kernel will be mapped and
    --  loading it will not cause accessing kernel addresses to fault.
@@ -82,15 +117,30 @@ package Memory.Virtual with SPARK_Mode => Off is
 
    --  Check whether the loaded map can access the passed address + length
    --  from userland with the passed map.
+   --  @param Addr       Address to check.
+   --  @param Byte_Count Length of the window to check in bytes.
+   --  @return True if accessable, False if the access would not be allowed.
    function Check_Userland_Access
       (Map        : Page_Map_Acc;
        Addr       : Virtual_Address;
+       Byte_Count : Unsigned_64) return Boolean;
+
+   --  Check whether userland can map the passed address whatsoever, used
+   --  to ensure the survival of the kernel against hostile mappings. The
+   --  actual map does not matter, as we do not guard against userland on
+   --  userland aggressions (stop hitting yourself!).
+   --  @param Addr       Address to check.
+   --  @param Byte_Count Length of the window to check in bytes.
+   --  @return True if mappable, False if the mapping would be illegal.
+   function Check_Userland_Mappability
+      (Addr       : Virtual_Address;
        Byte_Count : Unsigned_64) return Boolean;
 
 private
 
    type Mapping_Range is record
       Is_Present     : Boolean;
+      Is_Allocated   : Boolean;
       Virtual_Start  : Virtual_Address;
       Physical_Start : Physical_Address;
       Length         : Unsigned_64;
@@ -102,4 +152,13 @@ private
       Inner      : Arch.MMU.Page_Table_Acc;
       Map_Ranges : Mapping_Range_Arr (1 .. 100);
    end record;
+
+   --  Inner map function shared by memory backed and standard mappings.
+   function Inner_Map_Range
+      (Map          : Page_Map_Acc;
+       Virtual      : Virtual_Address;
+       Physical     : Physical_Address;
+       Length       : Unsigned_64;
+       Flags        : Arch.MMU.Page_Permissions;
+       Is_Allocated : Boolean) return Boolean;
 end Memory.Virtual;

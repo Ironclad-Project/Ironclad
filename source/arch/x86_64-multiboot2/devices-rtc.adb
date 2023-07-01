@@ -1,5 +1,5 @@
 --  devices-rtc.adb: RTC driver.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -30,19 +30,17 @@ package body Devices.RTC with SPARK_Mode => Off is
    CMOS_Config      : constant := 16#0B#;
 
    function Init return Boolean is
-      Device : constant Resource := (
-         Data        => System.Null_Address,
-         Is_Block    => False,
-         Block_Size  => 4096,
-         Block_Count => 0,
-         Sync        => null,
-         Sync_Range  => null,
-         Read        => null,
-         Write       => null,
-         IO_Control  => IO_Control'Access,
-         Mmap        => null,
-         Munmap      => null
-      );
+      Device : constant Resource :=
+         (Data        => System.Null_Address,
+          Is_Block    => False,
+          Block_Size  => 4096,
+          Block_Count => 0,
+          Sync        => null,
+          Sync_Range  => null,
+          Read        => null,
+          Write       => null,
+          IO_Control  => IO_Control'Access,
+          Mmap        => null);
       Success : Boolean;
    begin
       Register (Device, "rtc", Success);
@@ -82,29 +80,27 @@ package body Devices.RTC with SPARK_Mode => Off is
 
       case Request is
          when IO_Control_RTC_RD_TIME =>
-            Re := (
-               TM_Sec  => Unsigned_32 (Get_RTC_Data (CMOS_Seconds)),
-               TM_Min  => Unsigned_32 (Get_RTC_Data (CMOS_Minute)),
-               TM_Hour => Unsigned_32 (Get_RTC_Data (CMOS_Hour)),
-               TM_MDay => Unsigned_32 (Get_RTC_Data (CMOS_Day)),
-               TM_Mon  => Unsigned_32 (Get_RTC_Data (CMOS_Month)),
-               TM_Year => Unsigned_32 (Get_RTC_Data (CMOS_Year)),
-               others  => 0
-            );
+            Re :=
+               (TM_Sec  => Unsigned_32 (Get_RTC_Data (CMOS_Seconds)),
+                TM_Min  => Unsigned_32 (Get_RTC_Data (CMOS_Minute)),
+                TM_Hour => Unsigned_32 (Get_RTC_Data (CMOS_Hour)),
+                TM_MDay => Unsigned_32 (Get_RTC_Data (CMOS_Day)),
+                TM_Mon  => Unsigned_32 (Get_RTC_Data (CMOS_Month)),
+                TM_Year => Unsigned_32 (Get_RTC_Data (CMOS_Year)),
+                others  => 0);
 
             --  Convert BCD to binary values.
             --  For hour, we must maintain the highest bit for 24h conversion.
             if (Temp and 4) = 0 then
-               Re := (
-                  TM_Sec  => From_BCD (Re.TM_Sec),
-                  TM_Min  => From_BCD (Re.TM_Min),
-                  TM_Hour => From_BCD (Re.TM_Hour and 16#7F#) or
+               Re :=
+                  (TM_Sec  => From_BCD (Re.TM_Sec),
+                   TM_Min  => From_BCD (Re.TM_Min),
+                   TM_Hour => From_BCD (Re.TM_Hour and 16#7F#) or
                              (Re.TM_Hour and 16#80#),
-                  TM_MDay => From_BCD (Re.TM_MDay),
-                  TM_Mon  => From_BCD (Re.TM_Mon),
-                  TM_Year => From_BCD (Re.TM_Year),
-                  others  => <>
-               );
+                   TM_MDay => From_BCD (Re.TM_MDay),
+                   TM_Mon  => From_BCD (Re.TM_Mon),
+                   TM_Year => From_BCD (Re.TM_Year),
+                   others  => <>);
             end if;
 
             --  Convert 12 hour clock to 24 hour clock if necessary.
@@ -129,15 +125,14 @@ package body Devices.RTC with SPARK_Mode => Off is
 
             --  Convert BCD to binary values and set the PM flag.
             if (Temp and 4) = 0 then
-               Re := (
-                  TM_Sec  => To_BCD (Re.TM_Sec),
-                  TM_Min  => To_BCD (Re.TM_Min),
-                  TM_Hour => To_BCD (Re.TM_Hour),
-                  TM_MDay => To_BCD (Re.TM_MDay),
-                  TM_Mon  => To_BCD (Re.TM_Mon),
-                  TM_Year => To_BCD (Re.TM_Year),
-                  others  => <>
-               );
+               Re :=
+                  (TM_Sec  => To_BCD (Re.TM_Sec),
+                   TM_Min  => To_BCD (Re.TM_Min),
+                   TM_Hour => To_BCD (Re.TM_Hour),
+                   TM_MDay => To_BCD (Re.TM_MDay),
+                   TM_Mon  => To_BCD (Re.TM_Mon),
+                   TM_Year => To_BCD (Re.TM_Year),
+                   others  => <>);
             end if;
             Re.TM_Hour := Re.TM_Hour or Shift_Left (Boolean'Pos (Is_PM), 8);
 

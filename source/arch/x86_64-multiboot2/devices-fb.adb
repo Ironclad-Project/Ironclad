@@ -1,5 +1,5 @@
---  devices-bootmfb.adb: Boot-time memory framebuffer driver.
---  Copyright (C) 2021 streaksu
+--  devices-fb.adb: Boot-time memory framebuffer driver.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@ with Arch.MMU;
 with Arch.CPU;
 with Arch.Multiboot2; use Arch.Multiboot2;
 with Memory.Virtual;  use Memory.Virtual;
-with Lib.Alignment;
 with Userland.Process;
 
 package body Devices.FB with SPARK_Mode => Off is
@@ -92,83 +91,59 @@ package body Devices.FB with SPARK_Mode => Off is
    type Internal_FB_Data_Acc is access Internal_FB_Data;
 
    function Init return Boolean is
-      package Align is new Lib.Alignment (Integer_Address);
-      Aligned, Len : Integer_Address;
-      Device       : Resource;
-      Data         : constant Internal_FB_Data_Acc := new Internal_FB_Data;
-      Fb           : constant Framebuffer_Tag      := Get_Framebuffer;
-      Success      : Boolean;
+      Device  : Resource;
+      Data    : constant Internal_FB_Data_Acc := new Internal_FB_Data;
+      Fb      : constant Framebuffer_Tag      := Get_Framebuffer;
+      Success : Boolean;
    begin
       --  Translate the multiboot information into fbdev info and register.
-      Data.all := (
-         Multiboot_Data => Fb,
-         Fixed_Info => (
-            ID           => "Multiboot 2" & (12 .. 16 => NUL),
-            SMem_Start   => 0,
-            SMem_Length  => Fb.Pitch * Fb.Height,
-            FB_Type      => FB_TYPE_PACKED_PIXELS,
-            Type_Aux     => 0,
-            Visual       => FB_VISUAL_TRUECOLOR,
-            X_Pan_Step   => 0,
-            Y_Pan_Step   => 0,
-            Y_Wrap_Step  => 0,
-            Line_Length  => 0,
-            MMIO_Start   => 0,
-            MMIO_Length  => 0,
-            Accel        => 0,
-            Capabilities => 0
-         ),
-         Variable_Info => (
-            X_Res          => Fb.Width,
-            Y_Res          => Fb.Height,
-            X_Res_Virtual  => Fb.Width,
-            Y_Res_Virtual  => Fb.Height,
-            Bits_Per_Pixel => Unsigned_32 (Fb.BPP),
-            Activate       => FB_ACTIVATE_NOW,
-            VMode          => FB_VMODE_NONINTERLACED,
-            Width          => Unsigned_32'Last,
-            Height         => Unsigned_32'Last,
-            Red            => (16, 8, 0), --  TODO: These 4 are hardcoded.
-            Green          => (08, 8, 0), --  They can be fetched from
-            Blue           => (00, 8, 0), --  multiboot2 instead, which is
-            Transp         => (24, 8, 0), --  a bit painful in all honesty.
-            others         => 0
-         )
-      );
+      Data.all :=
+         (Multiboot_Data => Fb,
+          Fixed_Info =>
+            (ID           => "Multiboot 2" & (12 .. 16 => NUL),
+             SMem_Start   => 0,
+             SMem_Length  => Fb.Pitch * Fb.Height,
+             FB_Type      => FB_TYPE_PACKED_PIXELS,
+             Type_Aux     => 0,
+             Visual       => FB_VISUAL_TRUECOLOR,
+             X_Pan_Step   => 0,
+             Y_Pan_Step   => 0,
+             Y_Wrap_Step  => 0,
+             Line_Length  => 0,
+             MMIO_Start   => 0,
+             MMIO_Length  => 0,
+             Accel        => 0,
+             Capabilities => 0),
+         Variable_Info =>
+            (X_Res          => Fb.Width,
+             Y_Res          => Fb.Height,
+             X_Res_Virtual  => Fb.Width,
+             Y_Res_Virtual  => Fb.Height,
+             Bits_Per_Pixel => Unsigned_32 (Fb.BPP),
+             Activate       => FB_ACTIVATE_NOW,
+             VMode          => FB_VMODE_NONINTERLACED,
+             Width          => Unsigned_32'Last,
+             Height         => Unsigned_32'Last,
+             Red            => (16, 8, 0), --  TODO: These 4 are hardcoded.
+             Green          => (08, 8, 0), --  They can be fetched from
+             Blue           => (00, 8, 0), --  multiboot2 instead, which is
+             Transp         => (24, 8, 0), --  a bit painful in all honesty.
+             others         => 0));
 
-      Device := (
-         Data        => Data.all'Address,
-         Is_Block    => False,
-         Block_Size  => 4096,
-         Block_Count => 0,
-         Sync        => null,
-         Sync_Range  => null,
-         Read        => null,
-         Write       => null,
-         IO_Control  => IO_Control'Access,
-         Mmap        => Mmap'Access,
-         Munmap      => null
-      );
+      Device :=
+         (Data        => Data.all'Address,
+          Is_Block    => False,
+          Block_Size  => 4096,
+          Block_Count => 0,
+          Sync        => null,
+          Sync_Range  => null,
+          Read        => null,
+          Write       => null,
+          IO_Control  => IO_Control'Access,
+          Mmap        => Mmap'Access);
 
-      --  Identity-map the framebuffer in case we are requested to access it by
-      --  userland.
-      Aligned := Align.Align_Down (To_Integer (Fb.Address), Page_Size);
-      Len     := Integer_Address (Fb.Height * Fb.Pitch) +
-                 (To_Integer (Fb.Address) - Aligned);
       Register (Device, "fb0", Success);
-      return Success and then Memory.Virtual.Map_Range (
-         Map      => Memory.Virtual.Get_Kernel_Map,
-         Virtual  => Aligned + Memory_Offset,
-         Physical => Aligned,
-         Length   => Unsigned_64 (Align.Align_Up (Len, Page_Size)),
-         Flags    => (
-            User_Accesible => False,
-            Read_Only      => True,
-            Executable     => False,
-            Global         => True,
-            Write_Through  => True
-         )
-      );
+      return Success;
    end Init;
 
    function IO_Control
@@ -195,31 +170,19 @@ package body Devices.FB with SPARK_Mode => Off is
    end IO_Control;
 
    function Mmap
-      (Data        : System.Address;
-       Address     : Memory.Virtual_Address;
-       Length      : Unsigned_64;
-       Map_Read    : Boolean;
-       Map_Write   : Boolean;
-       Map_Execute : Boolean) return Boolean
+      (Data    : System.Address;
+       Address : Memory.Virtual_Address;
+       Length  : Unsigned_64;
+       Flags   : Arch.MMU.Page_Permissions) return Boolean
    is
-      pragma Unreferenced (Map_Read); --  We cannot really map not read lol.
-
       Dev_Data : Internal_FB_Data with Import, Address => Data;
-      Fb_Flags : constant Arch.MMU.Page_Permissions := (
-         User_Accesible => True,
-         Read_Only      => not Map_Write,
-         Executable     => Map_Execute,
-         Global         => False,
-         Write_Through  => True
-      );
    begin
-      return Memory.Virtual.Map_Range (
-         Map      => Userland.Process.Get_Common_Map
-                     (Arch.CPU.Get_Local.Current_Process),
-         Virtual  => Address,
-         Physical => To_Integer (Dev_Data.Multiboot_Data.Address),
-         Length   => Length,
-         Flags    => Fb_Flags
-      );
+      return Memory.Virtual.Map_Range
+         (Map      => Userland.Process.Get_Common_Map
+                      (Arch.CPU.Get_Local.Current_Process),
+          Virtual  => Address,
+          Physical => To_Integer (Dev_Data.Multiboot_Data.Address),
+          Length   => Length,
+          Flags    => Flags);
    end Mmap;
 end Devices.FB;

@@ -25,7 +25,7 @@ package Arch.MMU with SPARK_Mode => Off is
       Executable     : Boolean; --  Will store executable code.
       Global         : Boolean; --  Hint for global (TLB optimization).
       Write_Through  : Boolean; --  Hint for write-combining + write-through.
-   end record;
+   end record with Pack, Size => 5;
 
    --  FIXME: We use gnatprep for setting up architecture-specific details.
    --  There are probably more idiomatic ways to do this, but for this small

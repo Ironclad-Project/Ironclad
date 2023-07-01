@@ -1,5 +1,5 @@
 --  devices-partitions.adb: Split a block device into partitions.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -291,8 +291,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
          Read        => Read'Access,
          Write       => Write'Access,
          IO_Control  => null,
-         Mmap        => null,
-         Munmap      => null
+         Mmap        => null
       ), Name & (1 => 'p', 2 => Character'Val (Index + Character'Pos ('0'))),
          Success);
       return Success;

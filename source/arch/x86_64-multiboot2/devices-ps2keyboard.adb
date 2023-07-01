@@ -1,5 +1,5 @@
 --  devices-ps2keyboard.adb: PS2 keyboard driver.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -68,19 +68,17 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
          Write_PS2 (16#64#, 16#A8#);
       end if;
 
-      Device := (
-         Data        => System.Null_Address,
-         Is_Block    => False,
-         Block_Size  => 4096,
-         Block_Count => 0,
-         Sync        => null,
-         Sync_Range  => null,
-         Read        => Read'Access,
-         Write       => null,
-         IO_Control  => null,
-         Mmap        => null,
-         Munmap      => null
-      );
+      Device :=
+         (Data        => System.Null_Address,
+          Is_Block    => False,
+          Block_Size  => 4096,
+          Block_Count => 0,
+          Sync        => null,
+          Sync_Range  => null,
+          Read        => Read'Access,
+          Write       => null,
+          IO_Control  => null,
+          Mmap        => null);
 
       Register (Device, "ps2keyboard", Success);
       return Success;

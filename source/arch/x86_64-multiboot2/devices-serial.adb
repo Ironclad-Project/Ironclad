@@ -1,5 +1,5 @@
 --  devices-serial.adb: Serial driver.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -39,47 +39,38 @@ package body Devices.Serial with SPARK_Mode => Off is
       for I in COM_Ports'Range loop
          --  Check if the port exists by writting a value and checking.
          Arch.Snippets.Port_Out (COM_Ports (I) + 7, 16#55#);
-         if Arch.Snippets.Port_In (COM_Ports (I) + 7) /= 16#55# then
-            goto End_Port;
+         if Arch.Snippets.Port_In (COM_Ports (I) + 7) = 16#55# then
+            --  Disable all interrupts, set baud enable interrupts and FIFO.
+            Arch.Snippets.Port_Out (COM_Ports (I) + 1, 16#00#);
+            Set_Baud (COM_Ports (I), Default_Baud);
+            Arch.Snippets.Port_Out (COM_Ports (I) + 2, 16#C7#);
+            Arch.Snippets.Port_Out (COM_Ports (I) + 4, 16#0B#);
+
+            --  Add the device.
+            declare
+               Device_Name : String (1 .. 7)       := "serial0";
+               Discard     : Boolean               := False;
+               Device      : Resource;
+               Data        : constant COM_Root_Acc := new COM_Root'
+                  (Mutex => Lib.Synchronization.Unlocked_Semaphore,
+                   Port  => COM_Ports (I),
+                   Baud  => Default_Baud);
+            begin
+               Device_Name (7) := Character'Val (I + Character'Pos ('0'));
+               Device :=
+                  (Data        => Data.all'Address,
+                   Is_Block    => False,
+                   Block_Size  => 4096,
+                   Block_Count => 0,
+                   Sync        => null,
+                   Sync_Range  => null,
+                   Read        => Read'Access,
+                   Write       => Write'Access,
+                   IO_Control  => IO_Control'Access,
+                   Mmap        => null);
+               Register (Device, Device_Name, Discard);
+            end;
          end if;
-
-         --  Disable all interrupts, set baud enable interrupts and FIFO.
-         Arch.Snippets.Port_Out (COM_Ports (I) + 1, 16#00#);
-         Set_Baud (COM_Ports (I), Default_Baud);
-         Arch.Snippets.Port_Out (COM_Ports (I) + 2, 16#C7#);
-         Arch.Snippets.Port_Out (COM_Ports (I) + 4, 16#0B#);
-
-         --  Add the device.
-         declare
-            Data        : constant COM_Root_Acc := new COM_Root;
-            Device_Name : String (1 .. 7)       := "serial0";
-            Discard     : Boolean               := False;
-            Device      : Resource;
-         begin
-            Device_Name (7) := Character'Val (I + Character'Pos ('0'));
-            Data.all := (
-               Mutex => Lib.Synchronization.Unlocked_Semaphore,
-               Port  => COM_Ports (I),
-               Baud  => Default_Baud
-            );
-
-            Device := (
-               Data        => Data.all'Address,
-               Is_Block    => False,
-               Block_Size  => 4096,
-               Block_Count => 0,
-               Sync        => null,
-               Sync_Range  => null,
-               Read        => Read'Access,
-               Write       => Write'Access,
-               IO_Control  => IO_Control'Access,
-               Mmap        => null,
-               Munmap      => null
-            );
-
-            Register (Device, Device_Name, Discard);
-         end;
-      <<End_Port>>
       end loop;
       return True;
    end Init;

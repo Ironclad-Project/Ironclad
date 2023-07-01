@@ -17,6 +17,7 @@
 with System;
 with Interfaces; use Interfaces;
 with Memory;
+with Arch.MMU;
 
 package Devices is
    --  Data to operate with read-write.
@@ -57,16 +58,10 @@ package Devices is
           Request  : Unsigned_64;
           Argument : System.Address) return Boolean;
       Mmap : access function
-         (Key         : System.Address;
-          Address     : Memory.Virtual_Address;
-          Length      : Unsigned_64;
-          Map_Read    : Boolean;
-          Map_Write   : Boolean;
-          Map_Execute : Boolean) return Boolean;
-      Munmap : access function
          (Key     : System.Address;
           Address : Memory.Virtual_Address;
-          Length  : Unsigned_64) return Boolean;
+          Length  : Unsigned_64;
+          Flags   : Arch.MMU.Page_Permissions) return Boolean;
    end record;
 
    --  Handle for interfacing with devices, and device conditions.
@@ -184,23 +179,10 @@ package Devices is
    --  @param Length   Length in bytes of the mapping.
    --  @result True in success, False if not supported or failed.
    function Mmap
-      (Handle      : Device_Handle;
-       Address     : Memory.Virtual_Address;
-       Length      : Unsigned_64;
-       Map_Read    : Boolean;
-       Map_Write   : Boolean;
-       Map_Execute : Boolean) return Boolean
-      with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
-
-   --  Do a device-specific memory unmap request.
-   --  @param Handle   Handle to operate on, must be valid.
-   --  @param Address  Virtual address to unmap device memory from.
-   --  @param Length   Length in bytes to unmap.
-   --  @result True in success, False if not supported or failed.
-   function Munmap
       (Handle  : Device_Handle;
        Address : Memory.Virtual_Address;
-       Length  : Unsigned_64) return Boolean
+       Length  : Unsigned_64;
+       Flags   : Arch.MMU.Page_Permissions) return Boolean
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
    --  Ghost function for checking whether the device handling is initialized.

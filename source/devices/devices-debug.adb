@@ -1,5 +1,5 @@
 --  devices-debugdev.adb: Driver for debug utilities.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -21,21 +21,19 @@ package body Devices.Debug is
    pragma Suppress (All_Checks);
 
    procedure Init (Success : out Boolean) is
-      Device  : Resource;
+      Device : Resource;
    begin
-      Device := (
-         Data        => System.Null_Address,
-         Is_Block    => False,
-         Block_Size  => 4096,
-         Block_Count => 0,
-         Read        => null,
-         Write       => Write'Access,
-         Sync        => null,
-         Sync_Range  => null,
-         IO_Control  => null,
-         Mmap        => null,
-         Munmap      => null
-      );
+      Device :=
+         (Data        => System.Null_Address,
+          Is_Block    => False,
+          Block_Size  => 4096,
+          Block_Count => 0,
+          Read        => null,
+          Write       => Write'Access,
+          Sync        => null,
+          Sync_Range  => null,
+          IO_Control  => null,
+          Mmap        => null);
       Register (Device, "debug", Success);
    end Init;
 

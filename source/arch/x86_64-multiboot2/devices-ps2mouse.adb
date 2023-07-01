@@ -1,5 +1,5 @@
 --  devices-ps2mouse.adb: PS2 mouse driver.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -79,19 +79,17 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
       Mouse_Write (16#F4#);
       Unused := Mouse_Read;
 
-      Device := (
-         Data        => System.Null_Address,
-         Is_Block    => False,
-         Block_Size  => 4096,
-         Block_Count => 0,
-         Sync        => null,
-         Sync_Range  => null,
-         Read        => Read'Access,
-         Write       => null,
-         IO_Control  => IO_Control'Access,
-         Mmap        => null,
-         Munmap      => null
-      );
+      Device :=
+         (Data        => System.Null_Address,
+          Is_Block    => False,
+          Block_Size  => 4096,
+          Block_Count => 0,
+          Sync        => null,
+          Sync_Range  => null,
+          Read        => Read'Access,
+          Write       => null,
+          IO_Control  => IO_Control'Access,
+          Mmap        => null);
 
       Register (Device, "ps2mouse", Success);
       return Success;

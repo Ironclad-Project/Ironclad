@@ -1,5 +1,5 @@
 --  scheduler.adb: Scheduler.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -87,11 +87,6 @@ package body Scheduler with SPARK_Mode => Off is
        PID        : Natural;
        Exec_Stack : Boolean := True) return TID
    is
-      User_Stack_8  : constant Thread_Stack_Acc := new Thread_Stack;
-      User_Stack_64 : Thread_Stack_64 with Address => User_Stack_8.all'Address;
-      Index_8       : Natural := User_Stack_8'Last;
-      Index_64      : Natural := User_Stack_8'Last;
-
       Stack_Permissions : constant Arch.MMU.Page_Permissions := (
          User_Accesible => True,
          Read_Only      => False,
@@ -102,95 +97,104 @@ package body Scheduler with SPARK_Mode => Off is
       New_TID  : TID;
       GP_State : Arch.Context.GP_Context;
       FP_State : Arch.Context.FP_Context;
+      Result   : Virtual_Address;
    begin
       --  Initialize thread state. Start by mapping the user stack.
-      if not Memory.Virtual.Map_Range (
+      if not Memory.Virtual.Map_Memory_Backed_Region (
          Map,
          Virtual_Address (Stack_Top),
-         To_Integer (User_Stack_8.all'Address) - Memory_Offset,
          Stack_Size,
-         Stack_Permissions
+         Stack_Permissions,
+         Result
       )
       then
          goto Error_1;
       end if;
 
-      --  Load env into the stack.
-      for En of reverse Env loop
-         User_Stack_8 (Index_8) := 0;
-         Index_8 := Index_8 - 1;
-         for C of reverse En.all loop
-            User_Stack_8 (Index_8) := Character'Pos (C);
+      declare
+         User_Stack_8  : Thread_Stack    with Address => To_Address (Result);
+         User_Stack_64 : Thread_Stack_64 with Address => To_Address (Result);
+         Index_8       : Natural := User_Stack_8'Last;
+         Index_64      : Natural := User_Stack_8'Last;
+      begin
+         --  Load env into the stack.
+         for En of reverse Env loop
+            User_Stack_8 (Index_8) := 0;
             Index_8 := Index_8 - 1;
+            for C of reverse En.all loop
+               User_Stack_8 (Index_8) := Character'Pos (C);
+               Index_8 := Index_8 - 1;
+            end loop;
          end loop;
-      end loop;
 
-      --  Load argv into the stack.
-      for Arg of reverse Args loop
-         User_Stack_8 (Index_8) := 0;
-         Index_8 := Index_8 - 1;
-         for C of reverse Arg.all loop
-            User_Stack_8 (Index_8) := Character'Pos (C);
+         --  Load argv into the stack.
+         for Arg of reverse Args loop
+            User_Stack_8 (Index_8) := 0;
             Index_8 := Index_8 - 1;
+            for C of reverse Arg.all loop
+               User_Stack_8 (Index_8) := Character'Pos (C);
+               Index_8 := Index_8 - 1;
+            end loop;
          end loop;
-      end loop;
 
-      --  Get the equivalent 64-bit stack index and align it to 16 bytes.
-      Index_64 := (Index_8 / 8) - ((Index_8 / 8) mod 16);
-      Index_64 := Index_64 - ((Args'Length + Env'Length + 3) mod 2);
+         --  Get the equivalent 64-bit stack index and align it to 16 bytes.
+         Index_64 := (Index_8 / 8) - ((Index_8 / 8) mod 16);
+         Index_64 := Index_64 - ((Args'Length + Env'Length + 3) mod 2);
 
-      --  Load auxval.
-      User_Stack_64 (Index_64 - 0) := 0;
-      User_Stack_64 (Index_64 - 1) := Userland.ELF.Auxval_Null;
-      User_Stack_64 (Index_64 - 2) := Vector.Entrypoint;
-      User_Stack_64 (Index_64 - 3) := Userland.ELF.Auxval_Entrypoint;
-      User_Stack_64 (Index_64 - 4) := Vector.Program_Headers;
-      User_Stack_64 (Index_64 - 5) := Userland.ELF.Auxval_Program_Headers;
-      User_Stack_64 (Index_64 - 6) := Vector.Program_Header_Count;
-      User_Stack_64 (Index_64 - 7) := Userland.ELF.Auxval_Header_Count;
-      User_Stack_64 (Index_64 - 8) := Vector.Program_Header_Size;
-      User_Stack_64 (Index_64 - 9) := Userland.ELF.Auxval_Header_Size;
-      Index_64 := Index_64 - 10;
+         --  Load auxval.
+         User_Stack_64 (Index_64 - 0) := 0;
+         User_Stack_64 (Index_64 - 1) := Userland.ELF.Auxval_Null;
+         User_Stack_64 (Index_64 - 2) := Vector.Entrypoint;
+         User_Stack_64 (Index_64 - 3) := Userland.ELF.Auxval_Entrypoint;
+         User_Stack_64 (Index_64 - 4) := Vector.Program_Headers;
+         User_Stack_64 (Index_64 - 5) := Userland.ELF.Auxval_Program_Headers;
+         User_Stack_64 (Index_64 - 6) := Vector.Program_Header_Count;
+         User_Stack_64 (Index_64 - 7) := Userland.ELF.Auxval_Header_Count;
+         User_Stack_64 (Index_64 - 8) := Vector.Program_Header_Size;
+         User_Stack_64 (Index_64 - 9) := Userland.ELF.Auxval_Header_Size;
+         Index_64 := Index_64 - 10;
 
-      --  Load envp taking into account the pointers at the beginning.
-      Index_8 := User_Stack_8'Last;
-      User_Stack_64 (Index_64) := 0; --  Null at the end of envp.
-      Index_64 := Index_64 - 1;
-      for En of reverse Env loop
-         Index_8 := (Index_8 - En.all'Length) - 1;
-         User_Stack_64 (Index_64) := Stack_Top + Unsigned_64 (Index_8);
+         --  Load envp taking into account the pointers at the beginning.
+         Index_8 := User_Stack_8'Last;
+         User_Stack_64 (Index_64) := 0; --  Null at the end of envp.
          Index_64 := Index_64 - 1;
-      end loop;
+         for En of reverse Env loop
+            Index_8 := (Index_8 - En.all'Length) - 1;
+            User_Stack_64 (Index_64) := Stack_Top + Unsigned_64 (Index_8);
+            Index_64 := Index_64 - 1;
+         end loop;
 
-      --  Load argv into the stack.
-      User_Stack_64 (Index_64) := 0; --  Null at the end of argv.
-      Index_64 := Index_64 - 1;
-      for Arg of reverse Args loop
-         Index_8 := (Index_8 - Arg.all'Length) - 1;
-         User_Stack_64 (Index_64) := Stack_Top + Unsigned_64 (Index_8);
+         --  Load argv into the stack.
+         User_Stack_64 (Index_64) := 0; --  Null at the end of argv.
          Index_64 := Index_64 - 1;
-      end loop;
+         for Arg of reverse Args loop
+            Index_8 := (Index_8 - Arg.all'Length) - 1;
+            User_Stack_64 (Index_64) := Stack_Top + Unsigned_64 (Index_8);
+            Index_64 := Index_64 - 1;
+         end loop;
 
-      --  Write argc and we are done!
-      User_Stack_64 (Index_64) := Args'Length;
-      Index_64 := Index_64 - 1;
+         --  Write argc and we are done!
+         User_Stack_64 (Index_64) := Args'Length;
+         Index_64 := Index_64 - 1;
 
-      --  Initialize context information.
-      Arch.Context.Init_GP_Context (
-         GP_State,
-         To_Address (Integer_Address (Stack_Top + Unsigned_64 (Index_64 * 8))),
-         To_Address (Address)
-      );
-      Arch.Context.Init_FP_Context (FP_State);
-      New_TID := Create_User_Thread
-         (GP_State => GP_State,
-          FP_State => FP_State,
-          Map       => Map,
-          PID       => PID,
-          TCB       => System.Null_Address);
-      if New_TID /= 0 then
-         return New_TID;
-      end if;
+         --  Initialize context information.
+         Arch.Context.Init_GP_Context (
+            GP_State,
+            To_Address (Integer_Address (Stack_Top +
+                                         Unsigned_64 (Index_64 * 8))),
+            To_Address (Address)
+         );
+         Arch.Context.Init_FP_Context (FP_State);
+         New_TID := Create_User_Thread
+            (GP_State => GP_State,
+             FP_State => FP_State,
+             Map       => Map,
+             PID       => PID,
+             TCB       => System.Null_Address);
+         if New_TID /= 0 then
+            return New_TID;
+         end if;
+      end;
 
    <<Error_1>>
       return 0;

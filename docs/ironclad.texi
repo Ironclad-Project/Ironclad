@@ -940,7 +940,8 @@ int munmap(void *address, size_t length);
 @code{mmap} creates a new mapping in the virtual address space of the calling
 process. An address can be passed, if it is @code{null}, then the kernel gets
 to choose the address, else, it is taken as a hint about where to place the
-mapping.
+mapping. If a section of the mapping overlaps an existing mapping, it will be
+ignored.
 
 @code{hint} and @code{length} are required to be aligned to page boundaries
 for the running architecture, else it will fail.
@@ -949,24 +950,24 @@ for the running architecture, else it will fail.
 
 @itemize @bullet
 @item
-@code{PROT_NONE} (0b0000): No specific protection.
+@code{PROT_READ} (0b00001): Read permissions.
 
 @item
-@code{PROT_READ} (0b0001): Read permissions.
+@code{PROT_WRITE} (0b00010): Write permissions.
 
 @item
-@code{PROT_WRITE} (0b0010): Write permissions.
+@code{MAP_FIXED} (0b00100): Use hint as a hard requirement.
 
 @item
-@code{MAP_FIXED} (0b0100): Use hint as a hard requirement.
+@code{MAP_ANON} (0b01000): Mapping is not backed by any file.
 
 @item
-@code{MAP_ANON} (0b1000): Mapping is not backed by any file.
+@code{MAP_WC} (0b10000): Map using write-combining when possible.
 @end itemize
 
 @code{munmap} will unmap a range for the virtual address space of the calling
 process, this values must be the same as passed and returned by @code{mmap},
-partial unmapping is not allowed.
+partial unmapping is allowed.
 
 @code{mmap} returns a pointer to the allocated area, or @code{-1} on failure.
 @code{munmap} returns @code{0} on success, @code{-1} on failure. Both functions
@@ -975,6 +976,9 @@ set the following errno:
 @itemize @bullet
 @item
 @code{EINVAL}: Bad hints or parameters.
+
+@item
+@code{ENOMEM}: The operation could not be completed due to a lack of memory.
 
 @item
 @code{EACCES}: MAC disallowed this.

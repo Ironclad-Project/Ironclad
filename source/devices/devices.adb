@@ -210,34 +210,17 @@ package body Devices is
    end IO_Control;
 
    function Mmap
-      (Handle      : Device_Handle;
-       Address     : Memory.Virtual_Address;
-       Length      : Unsigned_64;
-       Map_Read    : Boolean;
-       Map_Write   : Boolean;
-       Map_Execute : Boolean) return Boolean
+      (Handle  : Device_Handle;
+       Address : Memory.Virtual_Address;
+       Length  : Unsigned_64;
+       Flags   : Arch.MMU.Page_Permissions) return Boolean
    is
    begin
       if Devices_Data (Handle).Contents.Mmap /= null then
          return Devices_Data (Handle).Contents.Mmap
-            (Devices_Data (Handle).Contents.Data,
-             Address, Length, Map_Read, Map_Write, Map_Execute);
+            (Devices_Data (Handle).Contents.Data, Address, Length, Flags);
       else
          return False;
       end if;
    end Mmap;
-
-   function Munmap
-      (Handle  : Device_Handle;
-       Address : Memory.Virtual_Address;
-       Length  : Unsigned_64) return Boolean
-   is
-   begin
-      if Devices_Data (Handle).Contents.Munmap /= null then
-         return Devices_Data (Handle).Contents.Munmap
-            (Devices_Data (Handle).Contents.Data, Address, Length);
-      else
-         return False;
-      end if;
-   end Munmap;
 end Devices;

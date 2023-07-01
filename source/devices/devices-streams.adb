@@ -1,5 +1,5 @@
 --  devices-streams.adb: Virtual stream devices.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -23,33 +23,29 @@ package body Devices.Streams is
       Zerodev : Resource;
       Success_1, Success_2 : Boolean;
    begin
-      Nulldev := (
-         Data        => System.Null_Address,
-         Is_Block    => False,
-         Block_Size  => 4096,
-         Block_Count => 0,
-         Read        => Null_Read'Access,
-         Write       => Null_Write'Access,
-         Sync        => null,
-         Sync_Range  => null,
-         IO_Control  => null,
-         Mmap        => null,
-         Munmap      => null
-      );
+      Nulldev :=
+         (Data        => System.Null_Address,
+          Is_Block    => False,
+          Block_Size  => 4096,
+          Block_Count => 0,
+          Read        => Null_Read'Access,
+          Write       => Null_Write'Access,
+          Sync        => null,
+          Sync_Range  => null,
+          IO_Control  => null,
+          Mmap        => null);
 
-      Zerodev := (
-         Data        => System.Null_Address,
-         Is_Block    => False,
-         Block_Size  => 4096,
-         Block_Count => 0,
-         Read        => Zero_Read'Access,
-         Write       => Zero_Write'Access,
-         Sync        => null,
-         Sync_Range  => null,
-         IO_Control  => null,
-         Mmap        => null,
-         Munmap      => null
-      );
+      Zerodev :=
+         (Data        => System.Null_Address,
+          Is_Block    => False,
+          Block_Size  => 4096,
+          Block_Count => 0,
+          Read        => Zero_Read'Access,
+          Write       => Zero_Write'Access,
+          Sync        => null,
+          Sync_Range  => null,
+          IO_Control  => null,
+          Mmap        => null);
 
       Register (Nulldev, "null", Success_1);
       Register (Zerodev, "zero", Success_2);

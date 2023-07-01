@@ -29,7 +29,6 @@ with Memory.Virtual; use Memory.Virtual;
 with Memory.Physical;
 with Memory; use Memory;
 with Ada.Unchecked_Deallocation;
-with Interfaces.C;
 with Arch.Hooks;
 with Arch.Local;
 with Cryptography.Random;
@@ -471,11 +470,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno      : out Errno_Value) return Unsigned_64
    is
       pragma Unreferenced (Offset);
-      Map_Flags : constant Arch.MMU.Page_Permissions :=
-         Get_Mmap_Prot (Protection);
-      Proc : constant PID := Arch.Local.Get_Current_Process;
-      Map  : constant     Page_Map_Acc := Get_Common_Map (Proc);
+      Perms : constant Arch.MMU.Page_Permissions :=
+         Get_Mmap_Prot (Protection, Flags);
+      Proc  : constant PID := Arch.Local.Get_Current_Process;
+      Map   : constant Page_Map_Acc := Get_Common_Map (Proc);
       Final_Hint : Unsigned_64 := Hint;
+      Ignored    : Virtual_Address;
+      File       : File_Description_Acc;
+      User       : Unsigned_32;
    begin
       if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Modify_Memory then
          Errno := Error_Bad_Access;
@@ -491,7 +493,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       --  Check for our own hint if none was provided.
       if Hint = 0 then
-         if (Flags and Map_Fixed) /= 0 then
+         if (Flags and MAP_FIXED) /= 0 then
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
          else
@@ -500,60 +502,50 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end if;
 
+      --  Check the address is good.
+      if not Check_Userland_Mappability (Virtual_Address (Final_Hint), Length)
+      then
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      end if;
+
       --  Do mmap anon or pass it to the VFS.
-      if (Flags and Map_Anon) /= 0 then
-         declare
-            Addr : constant Virtual_Address :=
-               Memory.Physical.Alloc (Interfaces.C.size_t (Length));
-            Allocated : array (1 .. Length) of Unsigned_8
-               with Import, Address => To_Address (Addr);
-         begin
-            Allocated := (others => 0);
-            if not Memory.Virtual.Map_Range (
-               Map,
-               Virtual_Address (Final_Hint),
-               Addr - Memory_Offset,
-               Length,
-               Map_Flags
-            )
+      if (Flags and MAP_ANON) /= 0 then
+         if Map_Memory_Backed_Region
+            (Map,
+             Virtual_Address (Final_Hint),
+             Length,
+             Perms,
+             Ignored)
+         then
+            Errno := Error_No_Error;
+            return Final_Hint;
+         else
+            Errno := Error_No_Memory;
+            return Unsigned_64'Last;
+         end if;
+      else
+         File := Get_File (Proc, File_D);
+         Process.Get_Effective_UID (Proc, User);
+         if User /= 0 then
+            Errno := Error_Bad_Access;
+            return Unsigned_64'Last;
+         end if;
+
+         if File.Description = Description_Device then
+            if Devices.Mmap
+               (Handle      => File.Inner_Dev,
+                Address     => Virtual_Address (Final_Hint),
+                Length      => Length,
+                Flags       => Perms)
             then
-               --  I dont really know what to return in this case.
-               Errno := Error_Invalid_Value;
-               return Unsigned_64'Last;
-            else
                Errno := Error_No_Error;
                return Final_Hint;
             end if;
-         end;
-      else
-         declare
-            File : constant File_Description_Acc := Get_File (Proc, File_D);
-            User : Unsigned_32;
-         begin
-            Process.Get_Effective_UID (Proc, User);
-            if User /= 0 then
-               Errno := Error_Bad_Access;
-               return Unsigned_64'Last;
-            end if;
+         end if;
 
-            if File.Description = Description_Device then
-               if Devices.Mmap (
-                  Handle      => File.Inner_Dev,
-                  Address     => Virtual_Address (Final_Hint),
-                  Length      => Length,
-                  Map_Read    => True,
-                  Map_Write   => not Map_Flags.Read_Only,
-                  Map_Execute => Map_Flags.Executable
-               )
-               then
-                  Errno := Error_No_Error;
-                  return Final_Hint;
-               end if;
-            end if;
-
-            Errno := Error_Bad_File;
-            return Unsigned_64'Last;
-         end;
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
       end if;
    end Mmap;
 
@@ -562,11 +554,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Length     : Unsigned_64;
        Errno      : out Errno_Value) return Unsigned_64
    is
-      pragma Unreferenced (Length);
-      Proc : constant PID := Arch.Local.Get_Current_Process;
-      Map  : constant     Page_Map_Acc := Get_Common_Map (Proc);
-      Addr : constant Physical_Address :=
-         Memory.Virtual.Virtual_To_Physical (Map, Virtual_Address (Address));
+      Proc : constant             PID := Arch.Local.Get_Current_Process;
+      Map  : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      Addr : constant Virtual_Address := Virtual_Address (Address);
    begin
       if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Modify_Memory then
          Errno := Error_Bad_Access;
@@ -574,12 +564,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
 
-      --  We only support MAP_ANON and MAP_FIXED, so we can just assume we want
-      --  to free.
-      --  TODO: Actually unmap, not only free.
-      Memory.Physical.Free (Interfaces.C.size_t (Addr));
-      Errno := Error_No_Error;
-      return 0;
+      if Unmap_Range (Map, Addr, Length) then
+         Errno := Error_No_Error;
+         return 0;
+      else
+         Errno := Error_Invalid_Value;
+         return Unsigned_64'Last;
+      end if;
    end Munmap;
 
    function Get_PID (Errno : out Errno_Value) return Unsigned_64 is
@@ -694,6 +685,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          if not Userland.Loader.Start_Program (Path, Path_FS, Path_Ino, Args,
                                                Env, Proc)
          then
+            Set_Common_Map (Proc, Tmp_Map);
             Errno := Error_Bad_Access;
             return Unsigned_64'Last;
          end if;
@@ -1760,7 +1752,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Proc  : constant PID := Arch.Local.Get_Current_Process;
       Map   : constant Page_Map_Acc     := Get_Common_Map (Proc);
-      Flags : constant Arch.MMU.Page_Permissions := Get_Mmap_Prot (Protection);
+      Flags : constant Arch.MMU.Page_Permissions :=
+         Get_Mmap_Prot (Protection, 0);
       Addr  : constant Integer_Address := Integer_Address (Address);
    begin
       if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Modify_Memory then
@@ -2856,14 +2849,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
       return Unsigned_64'Last;
    end Translate_Status;
 
-   function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions is
+   function Get_Mmap_Prot
+      (Prot  : Unsigned_64;
+       Perms : Unsigned_64) return Arch.MMU.Page_Permissions is
    begin
       return
          (User_Accesible => True,
-          Read_Only      => (P and Protection_Write)    = 0,
-          Executable     => (P and Protection_Execute) /= 0,
+          Read_Only      => (Prot and PROT_WRITE) = 0,
+          Executable     => (Prot and PROT_EXEC) /= 0,
           Global         => False,
-          Write_Through  => False);
+          Write_Through  => (Perms and MAP_WC) /= 0);
    end Get_Mmap_Prot;
 
    procedure Execute_MAC_Failure (Name : String; Curr_Proc : PID) is

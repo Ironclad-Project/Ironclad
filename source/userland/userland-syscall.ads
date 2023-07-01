@@ -25,50 +25,48 @@ with VFS;
 package Userland.Syscall with SPARK_Mode => Off is
    --  Error conditions for syscalls.
    --  The representation values are arbitrary.
-   type Errno_Value is (
-      Error_No_Error,        --  No error
-      Error_Not_Big_Enough,  --  ERANGE
-      Error_Bad_Access,      --  EACCES
-      Error_Would_Block,     --  EAGAIN
-      Error_Busy,            --  EBUSY
-      Error_Child,           --  ECHILD
-      Error_Would_Fault,     --  EFAULT
-      Error_Invalid_Value,   --  EINVAL
-      Error_IO,              --  EIO
-      Error_Too_Many_Files,  --  EMFILE
-      Error_String_Too_Long, --  ENAMETOOLONG
-      Error_No_Entity,       --  ENOENT
-      Error_No_Memory,       --  ENOMEM
-      Error_Not_Implemented, --  ENOSYS
-      Error_Not_A_TTY,       --  ENOTTY
-      Error_Bad_Permissions, --  EPERM
-      Error_Read_Only_FS,    --  EROFS
-      Error_Invalid_Seek,    --  ESPIPE
-      Error_Bad_Search,      --  ESRCH
-      Error_Bad_File         --  EBADFD
-   );
-   for Errno_Value use (
-      Error_No_Error        => 0,
-      Error_Not_Big_Enough  => 3,
-      Error_Bad_Access      => 1002,
-      Error_Would_Block     => 1006,
-      Error_Busy            => 1010,
-      Error_Child           => 1012,
-      Error_Would_Fault     => 1020,
-      Error_Invalid_Value   => 1026,
-      Error_IO              => 1027,
-      Error_Too_Many_Files  => 1031,
-      Error_String_Too_Long => 1036,
-      Error_No_Entity       => 1043,
-      Error_No_Memory       => 1047,
-      Error_Not_Implemented => 1051,
-      Error_Not_A_TTY       => 1058,
-      Error_Bad_Permissions => 1063,
-      Error_Read_Only_FS    => 1068,
-      Error_Invalid_Seek    => 1069,
-      Error_Bad_Search      => 1070,
-      Error_Bad_File        => 1081
-   );
+   type Errno_Value is
+      (Error_No_Error,        --  No error
+       Error_Not_Big_Enough,  --  ERANGE
+       Error_Bad_Access,      --  EACCES
+       Error_Would_Block,     --  EAGAIN
+       Error_Busy,            --  EBUSY
+       Error_Child,           --  ECHILD
+       Error_Would_Fault,     --  EFAULT
+       Error_Invalid_Value,   --  EINVAL
+       Error_IO,              --  EIO
+       Error_Too_Many_Files,  --  EMFILE
+       Error_String_Too_Long, --  ENAMETOOLONG
+       Error_No_Entity,       --  ENOENT
+       Error_No_Memory,       --  ENOMEM
+       Error_Not_Implemented, --  ENOSYS
+       Error_Not_A_TTY,       --  ENOTTY
+       Error_Bad_Permissions, --  EPERM
+       Error_Read_Only_FS,    --  EROFS
+       Error_Invalid_Seek,    --  ESPIPE
+       Error_Bad_Search,      --  ESRCH
+       Error_Bad_File);       --  EBADFD
+   for Errno_Value use
+      (Error_No_Error        => 0,
+       Error_Not_Big_Enough  => 3,
+       Error_Bad_Access      => 1002,
+       Error_Would_Block     => 1006,
+       Error_Busy            => 1010,
+       Error_Child           => 1012,
+       Error_Would_Fault     => 1020,
+       Error_Invalid_Value   => 1026,
+       Error_IO              => 1027,
+       Error_Too_Many_Files  => 1031,
+       Error_String_Too_Long => 1036,
+       Error_No_Entity       => 1043,
+       Error_No_Memory       => 1047,
+       Error_Not_Implemented => 1051,
+       Error_Not_A_TTY       => 1058,
+       Error_Bad_Permissions => 1063,
+       Error_Read_Only_FS    => 1068,
+       Error_Invalid_Seek    => 1069,
+       Error_Bad_Search      => 1070,
+       Error_Bad_File        => 1081);
 
    --  AT_ directives for path-relative syscalls.
    AT_FDCWD : constant := Natural'Last;
@@ -126,10 +124,12 @@ package Userland.Syscall with SPARK_Mode => Off is
        Errno  : out Errno_Value) return Unsigned_64;
 
    --  Mmap, the one and only.
-   Protection_Write   : constant := 2#010#;
-   Protection_Execute : constant := 2#100#;
-   Map_Fixed : constant := 2#0100#;
-   Map_Anon  : constant := 2#1000#;
+   PROT_READ  : constant := 2#00001#;
+   PROT_WRITE : constant := 2#00010#;
+   PROT_EXEC  : constant := 2#00100#;
+   MAP_FIXED  : constant := 2#00100#;
+   MAP_ANON   : constant := 2#01000#;
+   MAP_WC     : constant := 2#10000#;
    function Mmap
       (Hint       : Unsigned_64;
        Length     : Unsigned_64;
@@ -631,7 +631,9 @@ private
        Errno          : out Errno_Value) return Unsigned_64;
 
    --  Translate mmap permissions.
-   function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions;
+   function Get_Mmap_Prot
+      (Prot  : Unsigned_64;
+       Perms : Unsigned_64) return Arch.MMU.Page_Permissions;
 
    --  Execute the policy chose by the user for the process.
    procedure Execute_MAC_Failure (Name : String; Curr_Proc : PID);

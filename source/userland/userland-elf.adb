@@ -15,9 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System.Storage_Elements; use System.Storage_Elements;
-with Memory.Physical;
 with Memory; use Memory;
-with Interfaces.C;
 with Arch.MMU;
 with Lib.Alignment;
 with Devices;
@@ -187,13 +185,6 @@ package body Userland.ELF with SPARK_Mode => Off is
       MisAlign : constant Unsigned_64 :=
          Header.Virt_Address and (Memory.Virtual.Page_Size - 1);
       Load_Size : constant Unsigned_64 := MisAlign + Header.Mem_Size_Bytes;
-      Load : Devices.Operation_Data (1 .. Natural (Load_Size))
-         with Import, Address => To_Address (Memory.Physical.Alloc
-            (Interfaces.C.size_t (Load_Size)));
-      Load_Addr : constant System.Address := Load'Address +
-         Storage_Offset (MisAlign);
-      Load2 : Devices.Operation_Data (1 .. Header.File_Size_Bytes)
-         with Import, Address => Load_Addr;
       ELF_Virtual : constant Virtual_Address :=
          Virtual_Address (Base + Header.Virt_Address);
       Flags : constant Arch.MMU.Page_Permissions := (
@@ -206,21 +197,31 @@ package body Userland.ELF with SPARK_Mode => Off is
       Ret_Count : Natural;
       Discard   : Boolean;
       Success   : FS_Status;
+      Result    : Virtual_Address;
    begin
-      if not Memory.Virtual.Map_Range
-         (Map      => Map,
-          Virtual  => Align2.Align_Down (ELF_Virtual,
-                      Memory.Virtual.Page_Size),
-          Physical => Align2.Align_Down (To_Integer (Load'Address) -
-                      Memory.Memory_Offset, Memory.Virtual.Page_Size),
-          Length   => Align1.Align_Up (Load_Size, Memory.Virtual.Page_Size),
-          Flags    => Flags)
+      if not Memory.Virtual.Check_Userland_Mappability (ELF_Virtual, Load_Size)
       then
          return False;
       end if;
 
-      Load := (others => 0);
-      VFS.Read (FS, Ino, Header.Offset, Load2, Ret_Count, Success, 0);
-      return Success = FS_Success and Ret_Count = Header.File_Size_Bytes;
+      if not Memory.Virtual.Map_Memory_Backed_Region
+         (Map      => Map,
+          Virtual  => Align2.Align_Down (ELF_Virtual,
+                      Memory.Virtual.Page_Size),
+          Length   => Align1.Align_Up (Load_Size, Memory.Virtual.Page_Size),
+          Flags    => Flags,
+          Writing  => Result)
+      then
+         return False;
+      end if;
+
+      declare
+         Load2 : Devices.Operation_Data (1 .. Header.File_Size_Bytes)
+            with Import, Address => To_Address (Result) +
+                                    Storage_Offset (MisAlign);
+      begin
+         VFS.Read (FS, Ino, Header.Offset, Load2, Ret_Count, Success, 0);
+         return Success = FS_Success and Ret_Count = Header.File_Size_Bytes;
+      end;
    end Load_Header;
 end Userland.ELF;

@@ -51,24 +51,21 @@ package body Devices.Ramdev is
    function Init_Module (Module : Arch.Boot_RAM_File) return Resource is
       package A is new Lib.Alignment (Unsigned_64);
       Device : Resource;
-      Data   : constant Ramdev_Data_Acc := new Ramdev_Data'(
-         Start_Address => Module.Start,
-         Size          => Unsigned_64 (Module.Length)
-      );
+      Data   : constant Ramdev_Data_Acc := new Ramdev_Data'
+         (Start_Address => Module.Start,
+          Size          => Unsigned_64 (Module.Length));
    begin
-      Device := (
-         Data        => Data.all'Address,
-         Is_Block    => False,
-         Block_Size  => 4096,
-         Block_Count => A.Divide_Round_Up (Data.Size, 4096),
-         Read        => Read'Access,
-         Write       => null,
-         Sync        => null,
-         Sync_Range  => null,
-         IO_Control  => null,
-         Mmap        => null,
-         Munmap      => null
-      );
+      Device :=
+         (Data        => Data.all'Address,
+          Is_Block    => False,
+          Block_Size  => 4096,
+          Block_Count => A.Divide_Round_Up (Data.Size, 4096),
+          Read        => Read'Access,
+          Write       => null,
+          Sync        => null,
+          Sync_Range  => null,
+          IO_Control  => null,
+          Mmap        => null);
 
       return Device;
    end Init_Module;
