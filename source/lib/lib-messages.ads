@@ -1,5 +1,5 @@
 --  lib-messages.ads: Convenient and safe interface for printing debug output.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
+with Interfaces; use Interfaces;
 
 package Lib.Messages with
    Abstract_State => Message_State,

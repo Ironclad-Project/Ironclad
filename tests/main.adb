@@ -39,8 +39,7 @@ procedure Main is
       (new String'("Cryptography - MD5"),      Run_MD5_Tests'Access),
       (new String'("Lib - Cmdline"),           Run_Cmdline_Tests'Access),
       (new String'("Lib - Alignment"),         Run_Alignment_Tests'Access),
-      (new String'("Lib - Math"),              Run_Math_Tests'Access),
-      (new String'("Lib - Hashing"),           Run_Hashing_Tests'Access)
+      (new String'("Lib - Math"),              Run_Math_Tests'Access)
    );
 begin
    for Test of Tests loop

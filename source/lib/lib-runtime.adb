@@ -17,6 +17,7 @@
 with Lib.Messages;
 with Lib.Panic;
 with System.Storage_Elements; use System.Storage_Elements;
+with Interfaces;              use Interfaces;
 
 package body Lib.Runtime with SPARK_Mode => Off is
    --  Failing a check here would just make it infinitely recursive.
