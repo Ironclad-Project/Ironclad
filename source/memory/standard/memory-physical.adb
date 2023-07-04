@@ -174,7 +174,7 @@ package body Memory.Physical with SPARK_Mode => Off is
 
       --  Set statistic, global variables, the allocation header and return.
       Bitmap_Last_Used := First_Found_Index;
-      Free_Memory      := Free_Memory - Size;
+      Free_Memory      := Free_Memory - (Blocks_To_Allocate * Block_Size);
       Lib.Synchronization.Release (Alloc_Mutex);
 
       declare

@@ -168,7 +168,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          File_Perms := MAC.Check_Permissions (Get_MAC (Curr_Proc), Opened_FS,
                                               Opened_Ino);
          New_Descr  := new File_Description'
-            (Children_Count => 0,
+            (Children_Count  => 0,
              Description     => Description_Inode,
              Inner_Ino_Read  => Do_Read,
              Inner_Ino_Write => Do_Write,
@@ -1493,6 +1493,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Path_FS    : FS_Handle;
       Path_Ino   : File_Inode_Number;
       Success    : FS_Status;
+      Succ       : Boolean;
       File_Perms : MAC.Permissions;
       Child      : PID;
       User       : Unsigned_32;
@@ -1574,12 +1575,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Set_Common_Map (Child, Memory.Virtual.New_Map);
 
          --  Start the actual program.
-         if not Userland.Loader.Start_Program (Path, Path_FS, Path_Ino, Args,
-                                               Env, Child)
-         then
-            Errno := Error_Bad_Access;
-            return Unsigned_64'Last;
-         end if;
+         Succ := Userland.Loader.Start_Program
+            (Exec_Path   => Path,
+             FS          => Path_FS,
+             Ino         => Path_Ino,
+             Arguments   => Args,
+             Environment => Env,
+             Proc        => Child);
 
          for Arg of Args loop
             Free (Arg);
@@ -1588,8 +1590,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Free (En);
          end loop;
 
-         Errno := Error_No_Error;
-         return Unsigned_64 (Convert (Child));
+         if Succ then
+            Errno := Error_No_Error;
+            return Unsigned_64 (Convert (Child));
+         else
+            Errno := Error_Bad_Access;
+            return Unsigned_64'Last;
+         end if;
       end;
    end Spawn;
 

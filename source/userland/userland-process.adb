@@ -218,9 +218,7 @@ package body Userland.Process with SPARK_Mode => Off is
 
    function Duplicate (F : File_Description_Acc) return File_Description_Acc is
    begin
-      if F /= null then
-         F.Children_Count := F.Children_Count + 1;
-      end if;
+      F.Children_Count := F.Children_Count + 1;
       return F;
    end Duplicate;
 
@@ -230,12 +228,17 @@ package body Userland.Process with SPARK_Mode => Off is
    end Duplicate;
 
    procedure Duplicate_FD_Table (Process, Target : PID) is
+      Proc_Table   : File_Arr renames Registry (Process).File_Table;
+      Target_Table : File_Arr renames Registry (Target).File_Table;
    begin
-      for I in Registry (Process).File_Table'Range loop
-         Registry (Target).File_Table (I).Close_On_Exec :=
-            Registry (Process).File_Table (I).Close_On_Exec;
-         Registry (Target).File_Table (I).Description :=
-            Duplicate (Registry (Process).File_Table (I).Description);
+      for I in Proc_Table'Range loop
+         Target_Table (I).Close_On_Exec := Proc_Table (I).Close_On_Exec;
+         if Proc_Table (I).Description /= null then
+            Target_Table (I).Description :=
+               Duplicate (Proc_Table (I).Description);
+         else
+            Proc_Table (I).Description := null;
+         end if;
       end loop;
    end Duplicate_FD_Table;
 
@@ -243,28 +246,20 @@ package body Userland.Process with SPARK_Mode => Off is
       procedure Free is new Ada.Unchecked_Deallocation
          (File_Description, File_Description_Acc);
    begin
-      if F /= null then
-         if F.Children_Count = 0 then
-            case F.Description is
-               when Description_Reader_FIFO =>
-                  Close_Reader (F.Inner_Reader_FIFO);
-               when Description_Writer_FIFO =>
-                  Close_Writer (F.Inner_Writer_FIFO);
-               when Description_Primary_PTY =>
-                  Close (F.Inner_Primary_PTY);
-               when Description_Secondary_PTY =>
-                  Close (F.Inner_Secondary_PTY);
-               when Description_Device =>
-                  null;
-               when Description_Inode =>
-                  VFS.Close (F.Inner_Ino_FS, F.Inner_Ino);
-            end case;
-            Free (F);
-         else
-            F.Children_Count := F.Children_Count - 1;
-         end if;
-         F := null;
+      if F.Children_Count = 0 then
+         case F.Description is
+            when Description_Reader_FIFO => Close_Reader (F.Inner_Reader_FIFO);
+            when Description_Writer_FIFO => Close_Writer (F.Inner_Writer_FIFO);
+            when Description_Primary_PTY => Close (F.Inner_Primary_PTY);
+            when Description_Secondary_PTY => Close (F.Inner_Secondary_PTY);
+            when Description_Device => null;
+            when Description_Inode => VFS.Close (F.Inner_Ino_FS, F.Inner_Ino);
+         end case;
+         Free (F);
+      else
+         F.Children_Count := F.Children_Count - 1;
       end if;
+      F := null;
    end Close;
 
    function Get_File
@@ -314,7 +309,9 @@ package body Userland.Process with SPARK_Mode => Off is
    procedure Flush_Files (Process : PID) is
    begin
       for F of Registry (Process).File_Table loop
-         Close (F.Description);
+         if F.Description /= null then
+            Close (F.Description);
+         end if;
          F.Close_On_Exec := False;
       end loop;
    end Flush_Files;

@@ -104,3 +104,5 @@ interrupt_thunk_list:
     THUNK %i
     .set i,i+1
 .endr
+
+.section .note.GNU-stack, "", %progbits

@@ -1,5 +1,5 @@
 --  arch-apic.adb: IO/LAPIC driver.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ with Lib.Panic;
 
 package body Arch.APIC with SPARK_Mode => Off is
    LAPIC_MSR                         : constant := 16#01B#;
+   LAPIC_Base                       : constant := Memory_Offset + 16#FEE00000#;
    LAPIC_EOI_Register                : constant := 16#0B0#;
    LAPIC_Spurious_Register           : constant := 16#0F0#;
    LAPIC_ICR0_Register               : constant := 16#300#;
@@ -30,10 +31,7 @@ package body Arch.APIC with SPARK_Mode => Off is
    LAPIC_Timer_Init_Counter_Register : constant := 16#380#;
    LAPIC_Timer_Curr_Counter_Register : constant := 16#390#;
    LAPIC_Timer_Divisor_Register      : constant := 16#3E0#;
-
-   LAPIC_Base : constant := 16#FEE00000#;
-
-   LAPIC_Timer_2_Divisor : constant := 0;
+   LAPIC_Timer_2_Divisor             : constant := 0;
 
    procedure Init_LAPIC is
       MSR_Read : constant Unsigned_64 := Arch.Snippets.Read_MSR (LAPIC_MSR);
@@ -41,7 +39,7 @@ package body Arch.APIC with SPARK_Mode => Off is
    begin
       --  We assume the LAPIC base for performance reasons.
       --  Check the assumption is right tho.
-      if (MSR_Read and 16#FFFFF000#) /= LAPIC_Base then
+      if (MSR_Read and 16#FFFFF000#) /= LAPIC_Base - Memory_Offset then
          Lib.Panic.Hard_Panic ("Odd LAPIC base encountered");
       end if;
 
@@ -97,7 +95,8 @@ package body Arch.APIC with SPARK_Mode => Off is
        Hz           : Unsigned_64;
        Microseconds : Unsigned_64)
    is
-      Ticks : constant Unsigned_64 := Microseconds * (Hz / 1000000);
+      Ms    : Unsigned_64 renames Microseconds;
+      Ticks : constant Unsigned_64 := (Ms * (Hz / 1000000) and 16#FFFFFFFF#);
    begin
       LAPIC_Timer_Stop;
       LAPIC_Write (LAPIC_Timer_Register, (Unsigned_32 (Vector) - 1));
@@ -110,29 +109,19 @@ package body Arch.APIC with SPARK_Mode => Off is
       LAPIC_Write (LAPIC_EOI_Register, 0);
    end LAPIC_EOI;
 
-   function Get_LAPIC_Base return Virtual_Address is
-   begin
-      --  We assume the LAPIC base for performance reasons.
-      --  This assumption is checked correct at initialization.
-      return Virtual_Address (Memory_Offset + LAPIC_Base);
-   end Get_LAPIC_Base;
-
    function LAPIC_Read (Register : Unsigned_32) return Unsigned_32 is
-      Base       : constant System.Address := To_Address (Get_LAPIC_Base);
-      Value_Addr : constant System.Address := Base + Storage_Offset (Register);
-      Value_Mem  : Unsigned_32 with Address => Value_Addr, Volatile;
+      Value_Mem : Unsigned_32 with Import, Volatile,
+         Address => To_Address (LAPIC_Base + Integer_Address (Register));
    begin
       return Value_Mem;
    end LAPIC_Read;
 
    procedure LAPIC_Write (Register : Unsigned_32; Value : Unsigned_32) is
-      Base       : constant System.Address := To_Address (Get_LAPIC_Base);
-      Value_Addr : constant System.Address := Base + Storage_Offset (Register);
-      Value_Mem  : Unsigned_32 with Address => Value_Addr, Volatile;
+      Value_Mem : Unsigned_32 with Import, Volatile,
+         Address => To_Address (LAPIC_Base + Integer_Address (Register));
    begin
       Value_Mem := Value;
    end LAPIC_Write;
-
    ----------------------------------------------------------------------------
    IOAPIC_VER_Register : constant := 1;
 

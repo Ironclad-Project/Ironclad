@@ -95,7 +95,7 @@ start:
 .section .bss
 .align 16
 stack:
-    .space 0x10000
+    .space 0x4000
 stack_top:
 
 .section .rodata
@@ -150,3 +150,5 @@ gdt_end:
 gdt_pointer:
     .word (gdt_end - gdt) - 1
     .quad ADJUST_ADDR(gdt)
+
+.section .note.GNU-stack, "", %progbits

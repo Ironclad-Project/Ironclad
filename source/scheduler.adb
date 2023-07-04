@@ -26,13 +26,16 @@ with Arch.Snippets;
 with Lib.Messages;
 with Lib;
 with Config;
+with Ada.Unchecked_Deallocation;
 
 package body Scheduler with SPARK_Mode => Off is
    --  Thread information.
-   Stack_Size : constant := 16#100000#;
+   Stack_Size : constant := 16#40000#;
    type Thread_Stack     is array (1 ..       Stack_Size) of Unsigned_8;
    type Thread_Stack_64  is array (1 .. (Stack_Size / 8)) of Unsigned_64;
    type Thread_Stack_Acc is access Thread_Stack;
+   procedure Free is new Ada.Unchecked_Deallocation
+      (Thread_Stack, Thread_Stack_Acc);
 
    type Thread_Info is record
       State          : Arch.Context.GP_Context;
@@ -50,11 +53,13 @@ package body Scheduler with SPARK_Mode => Off is
       Period         : Positive;
       ASC_Offset     : Natural;
    end record;
-   type Thread_Info_Arr is array (TID range 1 .. 50) of Thread_Info;
+
+   type Thread_Info_Arr     is array (TID range 1 .. 50) of Thread_Info;
+   type Thread_Info_Arr_Acc is access Thread_Info_Arr;
 
    --  Storing scheduler information independent from scheduling algo.
    Scheduler_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
-   Thread_Pool     : access Thread_Info_Arr;
+   Thread_Pool     : Thread_Info_Arr_Acc;
 
    --  Default period and run time (in microseconds).
    Default_Run_Time : constant :=  3000;
@@ -344,42 +349,8 @@ package body Scheduler with SPARK_Mode => Off is
    begin
       Arch.Snippets.Disable_Interrupts;
       Delete_Thread (Arch.Local.Get_Current_Thread);
-      Arch.Local.Set_Current_Thread (0);
       Idle_Core;
    end Bail;
-
-   function Update_Priorities return Boolean is
-      Periods_LCM    : Positive := 1;
-      Total_Run_Time : Natural  := 0;
-      Temp           : Natural;
-   begin
-      --  Find period LCM, lowest period, and total run time of all available
-      --  tasks.
-      for Th of Thread_Pool.all loop
-         if Th.Is_Present then
-            Periods_LCM := Lib.Least_Common_Multiple (Periods_LCM, Th.Period);
-            Total_Run_Time := Total_Run_Time + Th.Run_Time;
-         end if;
-      end loop;
-
-      --  Check validity using Least upper bound -> Inf = ln 2 = (aprox 69%).
-      Temp := Total_Run_Time / (Periods_LCM / 100);
-      if Temp > 69 then
-         Lib.Messages.Warn ("Usage% > 69%. Tasks might not be schedulable!");
-      end if;
-
-      --  Now that we know all the data is valid, update the priorities.
-      --  The lower the period, the higher the priority.
-      for Th of Thread_Pool.all loop
-         if Th.Is_Present then
-            Th.Time_Since_Run := 0;
-            Th.Priority       := Periods_LCM / Th.Period;
-            Th.ASC_Offset     := 0;
-         end if;
-      end loop;
-
-      return True;
-   end Update_Priorities;
 
    procedure Scheduler_ISR (State : Arch.Context.GP_Context) is
       Did_Seize           : Boolean;
@@ -430,11 +401,17 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       --  We found a suitable TID, so we save state and start context switch.
-      if Current_TID /= 0 and then Thread_Pool (Current_TID).Is_Present then
-         Thread_Pool (Current_TID).Is_Running  := False;
-         Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
-         Thread_Pool (Current_TID).State       := State;
-         Arch.Context.Save_FP_Context (Thread_Pool (Current_TID).FP_Region);
+      --  If we come from a non present thread, free it.
+      if Current_TID /= 0 then
+         Thread_Pool (Current_TID).Is_Running := False;
+
+         if Thread_Pool (Current_TID).Is_Present then
+            Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
+            Thread_Pool (Current_TID).State       := State;
+            Arch.Context.Save_FP_Context (Thread_Pool (Current_TID).FP_Region);
+         elsif Thread_Pool (Current_TID).Kernel_Stack /= null then
+            Free (Thread_Pool (Current_TID).Kernel_Stack);
+         end if;
       end if;
 
       --  Assign the next TID as our current one and adjust ASC information.
@@ -464,6 +441,39 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_Region);
       Arch.Context.Load_GP_Context (Thread_Pool (Next_TID).State);
    end Scheduler_ISR;
+   ----------------------------------------------------------------------------
+   function Update_Priorities return Boolean is
+      Periods_LCM    : Positive := 1;
+      Total_Run_Time : Natural  := 0;
+      Temp           : Natural;
+   begin
+      --  Find period LCM, lowest period, and total run time of all available
+      --  tasks.
+      for Th of Thread_Pool.all loop
+         if Th.Is_Present then
+            Periods_LCM := Lib.Least_Common_Multiple (Periods_LCM, Th.Period);
+            Total_Run_Time := Total_Run_Time + Th.Run_Time;
+         end if;
+      end loop;
+
+      --  Check validity using Least upper bound -> Inf = ln 2 = (aprox 69%).
+      Temp := Total_Run_Time / (Periods_LCM / 100);
+      if Temp > 69 then
+         Lib.Messages.Warn ("Usage% > 69%. Tasks might not be schedulable!");
+      end if;
+
+      --  Now that we know all the data is valid, update the priorities.
+      --  The lower the period, the higher the priority.
+      for Th of Thread_Pool.all loop
+         if Th.Is_Present then
+            Th.Time_Since_Run := 0;
+            Th.Priority       := Periods_LCM / Th.Period;
+            Th.ASC_Offset     := 0;
+         end if;
+      end loop;
+
+      return True;
+   end Update_Priorities;
 
    function Is_Thread_Present (Thread : TID) return Boolean is
    begin
