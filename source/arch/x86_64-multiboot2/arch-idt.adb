@@ -71,10 +71,9 @@ package body Arch.IDT with SPARK_Mode => Off is
 
    --  Thunk list and the isr table, the thunk list containts a list of thunks
    --  to be loaded to the idt that directly call the elements in isr_table.
-   Thunk_List : array (IDT_Index) of System.Address
-      with Import, External_Name => "interrupt_thunk_list";
-   ISR_Table : array (IDT_Index) of System.Address
-      with Export, External_Name => "isr_table";
+   type Addr_List is array (IDT_Index) of System.Address with Pack;
+   Thunk_List : Addr_List with Import, External_Name => "interrupt_thunk_list";
+   ISR_Table  : Addr_List with Export, External_Name => "isr_table";
 
    procedure Init is
    begin
@@ -101,7 +100,7 @@ package body Arch.IDT with SPARK_Mode => Off is
                 Interrupts.Panic_Handler'Address);
 
       --  Prepare the pointer and load the IDT.
-      Global_Pointer := (Global_IDT'Size - 1, Global_IDT'Address);
+      Global_Pointer := ((Global_IDT'Size / 8) - 1, Global_IDT'Address);
       Load_IDT;
    end Init;
 

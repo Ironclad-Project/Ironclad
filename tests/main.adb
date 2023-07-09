@@ -34,7 +34,7 @@ procedure Main is
    end record;
 
    Failed_Num : Natural := 0;
-   Tests : constant array (1 .. 6) of Test_Data := (
+   Tests : constant array (1 .. 5) of Test_Data := (
       (new String'("Cryptography - Chacha20"), Run_Chacha20_Tests'Access),
       (new String'("Cryptography - MD5"),      Run_MD5_Tests'Access),
       (new String'("Lib - Cmdline"),           Run_Cmdline_Tests'Access),
