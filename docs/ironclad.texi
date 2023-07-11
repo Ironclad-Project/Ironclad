@@ -139,6 +139,8 @@ Syscalls
 * fchmod::                  Change the mode of a file descriptor.
 * umask::                   Get and set the calling process umask.
 * reboot::                  Machine power management.
+* fchown::                  Change ownership of a file descriptor.
+* pread/pwrite::            Atomic read and write from file descriptors.
 
 Filesystems support and interfaces
 
@@ -678,6 +680,12 @@ Unused.
 @xref{umask}
 @item
 @xref{reboot}
+@item
+@xref{fchown}
+@item
+@xref{pread/pwrite, pread}.
+@item
+@xref{pread/pwrite, pwrite}.
 @end enumerate
 
 @node Errno
@@ -2252,6 +2260,63 @@ MAC did not allow this.
 @item EIO
 The operation failed internally.
 @end table
+
+@node fchown
+@section fchown
+
+@example
+int fchown(int fd, uint32_t user, uint32_t group);
+@end example
+
+This syscall sets the owner's UID and GID for the passed FD.
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EINVAL
+The passed FD or the user and group were not valid.
+
+@item EACCES
+MAC did not allow this.
+
+@item EBADF
+The passed file is valid but it was not a physical file in a filesystem.
+@end table
+
+@node pread/pwrite
+@section pread/pwrite
+
+@example
+ssize_t pread(int fd, void *buffer, size_t count, off_t offset);
+ssize_t pwrite(int fd, void *buffer, size_t count, off_t offset);
+@end example
+
+These syscalls do the same as @code{read} and @code{write} respectively, but
+instead of using the description's saved location for data access, they use the
+passed @code{offset}, and do not update it at the end of the operation.
+@code{fd} must point to a seekable file.
+
+These syscalls are made for use in multithreaded applications, as having more
+than one thread updating file locations for a shared file description can lead
+to sudden catharsis.
+
+These syscalls returns the number of bytes operated on, or @code{-1} on
+failure. errno is to be set to:
+
+@itemize @bullet
+@item
+@code{EBADF}: Bad file descriptor.
+
+@item
+@code{EFAULT}: The passed buffer is not accessible.
+
+@item
+@code{EINVAL}: The passed fd is not suitable for the operation.
+
+@item
+@code{EIO}: The requested operation failed at the device level.
+@end itemize
 
 @node Filesystems support and interfaces
 @chapter Filesystems support and interfaces

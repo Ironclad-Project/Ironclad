@@ -619,6 +619,22 @@ package Userland.Syscall with SPARK_Mode => Off is
        Group : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64;
 
+   --  Read from the passed offset.
+   function PRead
+      (File_D : Unsigned_64;
+       Buffer : Unsigned_64;
+       Count  : Unsigned_64;
+       Offset : Unsigned_64;
+       Errno  : out Errno_Value) return Unsigned_64;
+
+   --  Write from the passed offset.
+   function PWrite
+      (File_D : Unsigned_64;
+       Buffer : Unsigned_64;
+       Count  : Unsigned_64;
+       Offset : Unsigned_64;
+       Errno  : out Errno_Value) return Unsigned_64;
+
 private
 
    --  Do the actual exiting.

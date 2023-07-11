@@ -288,6 +288,12 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := Reboot (State.RDI, State.RSI, Errno);
          when 63 =>
             Returned := Fchown (State.RDI, State.RSI, State.RDX, Errno);
+         when 64 =>
+            Returned := PRead (State.RDI, State.RSI, State.RDX, State.RCX,
+                               Errno);
+         when 65 =>
+            Returned := PWrite (State.RDI, State.RSI, State.RDX, State.RCX,
+                                Errno);
          when others =>
             Returned := Unsigned_64'Last;
             Errno    := Error_Not_Implemented;
