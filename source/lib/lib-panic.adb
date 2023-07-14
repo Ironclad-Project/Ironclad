@@ -25,8 +25,8 @@ is
    Panic_Mutex : aliased Synchronization.Binary_Semaphore :=
       Synchronization.Unlocked_Semaphore;
 
-   Hard_Panic_Color : constant String := Ada.Characters.Latin_1.ESC & "[31m";
-   Reset_Color      : constant String := Ada.Characters.Latin_1.ESC & "[0m";
+   HP : constant String := Ada.Characters.Latin_1.ESC & "[31m";
+   RC : constant String := Ada.Characters.Latin_1.ESC & "[0m";
 
    procedure Hard_Panic (Message : String) is
    begin
@@ -37,17 +37,16 @@ is
       Arch.Hooks.Panic_SMP_Hook;
 
       --  Print the error and lights out.
-      Lib.Messages.Put_Line ("                   --:::-+*.            ");
-      Lib.Messages.Put_Line ("  ....             =%%%%%%:++==..:+#:   ");
-      Lib.Messages.Put_Line ("+*+++++**++=-.      +:%%%%%=+%%%:.-%%.  ");
-      Lib.Messages.Put_Line ("--=+++=-----=**+.   .+:%%%%*-%%%:.-%%   ");
-      Lib.Messages.Put_Line ("-=++++++----#@@=#-   -:=%%%%:%%%-.:%%:  ");
-      Lib.Messages.Put_Line ("++++++++*@@==%%-+#=   +.%%%#:%%%-.:%%#  ");
-      Lib.Messages.Put_Line ("+++++++--+==*%%**-#   .+*-   *%%=..#%%+ ");
-      Lib.Messages.Put_Line ("+++++++=----====-=%    -:            .- ");
-      Lib.Messages.Put_Line ("++++++++=---=+++++%     +               ");
-      Lib.Messages.Put      (Hard_Panic_Color & "Hard panic: " & Reset_Color);
-      Lib.Messages.Put_Line (Message);
+      Messages.Put_Line (HP & "                   --:::-+*.            " & RC);
+      Messages.Put_Line (HP & "  ....             =%%%%%%:++==..:+#:   " & RC);
+      Messages.Put_Line (HP & "+*+++++**++=-.      +:%%%%%=+%%%:.-%%.  " & RC);
+      Messages.Put_Line (HP & "--=+++=-----=**+.   .+:%%%%*-%%%:.-%%   " & RC);
+      Messages.Put_Line (HP & "-=++++++----#@@=#-   -:=%%%%:%%%-.:%%:  " & RC);
+      Messages.Put_Line (HP & "++++++++*@@==%%-+#=   +.%%%#:%%%-.:%%#  " & RC);
+      Messages.Put_Line (HP & "+++++++--+==*%%**-#   .+*-   *%%=..#%%+ " & RC);
+      Messages.Put_Line (HP & "+++++++=----====-=%    -:            .- " & RC);
+      Messages.Put_Line (HP & "++++++++=---=+++++%     +               " & RC);
+      Messages.Put_Line (HP & "Hard panic: " & Message & RC);
       Arch.Snippets.HCF;
    end Hard_Panic;
 end Lib.Panic;

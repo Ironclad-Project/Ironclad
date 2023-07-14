@@ -28,6 +28,13 @@ with Cryptography.Random;
 with Devices;
 
 package body Userland.Loader with SPARK_Mode => Off is
+   Do_ASLR : Boolean := True;
+
+   procedure Disable_ASLR is
+   begin
+      Do_ASLR := False;
+   end Disable_ASLR;
+
    function Start_Program
       (Exec_Path   : String;
        FS          : FS_Handle;
@@ -138,10 +145,14 @@ package body Userland.Loader with SPARK_Mode => Off is
          if Success /= VFS.FS_Success then
             goto Error;
          end if;
-         LD_Slide := Cryptography.Random.Get_Integer
-            (Memory_Locations.LD_Offset_Min,
-             Memory_Locations.LD_Offset_Max);
-         LD_Slide := Aln.Align_Up (LD_Slide, Memory.Virtual.Page_Size);
+         if Do_ASLR then
+            LD_Slide := Cryptography.Random.Get_Integer
+               (Memory_Locations.LD_Offset_Min,
+                Memory_Locations.LD_Offset_Max);
+            LD_Slide := Aln.Align_Up (LD_Slide, Memory.Virtual.Page_Size);
+         else
+            LD_Slide := Memory_Locations.LD_Offset_Min;
+         end if;
          LD_ELF := ELF.Load_ELF (LD_FS, LD_Ino, Process.Get_Common_Map (Proc),
                                  LD_Slide);
          Entrypoint := To_Integer (LD_ELF.Entrypoint);
@@ -160,14 +171,9 @@ package body Userland.Loader with SPARK_Mode => Off is
              Env        => Environment,
              Map        => Process.Get_Common_Map (Proc),
              Vector     => Loaded_ELF.Vector,
-             Stack_Top  => Process.Get_Stack_Base (Proc),
              PID        => Process.Convert (Proc),
              Exec_Stack => Loaded_ELF.Exec_Stack);
       begin
-         --  TODO: Do not hardcode stack size.
-         Process.Set_Stack_Base (Proc, Process.Get_Stack_Base (Proc) +
-                                 16#200000#);
-
          if Returned_TID = 0 then
             goto Error;
          end if;

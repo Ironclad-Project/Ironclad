@@ -2992,15 +2992,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Get_Mmap_Prot;
 
    procedure Execute_MAC_Failure (Name : String; Curr_Proc : PID) is
-      Discard : Errno_Value;
+      Discard    : Errno_Value;
+      PID_Buffer : Lib.Messages.Translated_String;
+      PID_Len    : Natural;
    begin
       case MAC.Get_Enforcement (Get_MAC (Curr_Proc)) is
          when MAC.Deny =>
             null;
          when MAC.Deny_And_Scream =>
-            Lib.Messages.Put      ("PID: ");
-            Lib.Messages.Put      (Convert (Curr_Proc));
-            Lib.Messages.Put_Line (", MAC failure: " & Name);
+            Lib.Messages.Image
+               (Unsigned_32 (Convert (Curr_Proc)), PID_Buffer, PID_Len);
+            Lib.Messages.Put_Line (PID_Buffer & " MAC failure " & Name);
          when MAC.Kill =>
             --  TODO: Kill and not exit, once we have such a thing.
             --  The semantics of SIGTERM and SIGKILL matter.

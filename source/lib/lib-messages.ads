@@ -1,4 +1,4 @@
---  lib-messages.ads: Convenient and safe interface for printing debug output.
+--  lib-messages.ads: Utilities for reporting messages to the user.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
 with Interfaces; use Interfaces;
 
 package Lib.Messages with
@@ -29,35 +28,34 @@ is
    --  @param Message String to print to append with a new line.
    procedure Put_Line (Message : String)
       with Global => (In_Out => Message_State);
+   ----------------------------------------------------------------------------
+   --  Types for translation strings.
+   subtype Translated_String is String (1 .. 20);
+   subtype Translated_Length is Natural range 0 .. 20;
 
-   --  Prints a string to debug outputs.
-   --  @param Message String to print.
-   procedure Put (Message : String)
-      with Global => (In_Out => Message_State);
+   --  Put the value of an integer into a buffer, starting from the end.
+   --  @param Value   Value to translate.
+   --  @param Buffer  Buffer to build.
+   --  @param Length  Written length.
+   --  @param Use_Hex True for hex, false for decimal.
+   procedure Image
+      (Value   : Unsigned_32;
+       Buffer  : out Translated_String;
+       Length  : out Translated_Length;
+       Use_Hex : Boolean := False);
 
-   --  Prints a character.
-   --  @param Message Character to print.
-   procedure Put (Message : Character)
-      with Global => (In_Out => Message_State);
+   --  Put the value of an integer into a buffer, starting from the end.
+   --  @param Value   Value to translate.
+   --  @param Buffer  Buffer to build.
+   --  @param Length  Written length.
+   --  @param Use_Hex True for hex, false for decimal.
+   procedure Image
+      (Value   : Unsigned_64;
+       Buffer  : out Translated_String;
+       Length  : out Translated_Length;
+       Use_Hex : Boolean := False);
 
-   --  Prints an integer to debug outputs.
-   --  @param Message Integer to print.
-   --  @param Pad Whether to pad the message with zeros or not.
-   --  @param Use_Hex Whether to use hexadecimal or decimal for printing.
-   procedure Put (Message : Integer; Pad, Use_Hex : Boolean := False)
-      with Global => (In_Out => Message_State);
-   procedure Put (Message : Integer_32; Pad, Use_Hex : Boolean := False)
-      with Global => (In_Out => Message_State);
-   procedure Put (Message : Unsigned_32; Pad, Use_Hex : Boolean := False)
-      with Global => (In_Out => Message_State);
-   procedure Put (Message : Integer_64; Pad, Use_Hex : Boolean := False)
-      with Global => (In_Out => Message_State);
-   procedure Put (Message : Unsigned_64; Pad, Use_Hex : Boolean := False)
-      with Global => (In_Out => Message_State);
+private
 
-   --  Prints an address to debug outputs, always hexadecimal.
-   --  @param Message Address to print.
-   --  @param Pad Whether to pad the message with zeros or not.
-   procedure Put (Message : System.Address; Pad : Boolean := False)
-      with Global => (In_Out => Message_State);
+   procedure Print_Timestamp_And_Lock;
 end Lib.Messages;

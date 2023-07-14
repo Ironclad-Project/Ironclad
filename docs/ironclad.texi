@@ -271,6 +271,15 @@ Device to mount as root, if any.
 Path to a program that will be booted by the kernel when finished loading.
 The program will be started with @code{stdin} set to @code{/dev/null}, and
 @code{stdout} and @code{stderr} set to @code{/dev/debug}.
+
+@item noprogaslr
+The offset of loaded programs in virtual memory is randomized when loading if
+possible, this option disables it system-wide at boot time and hardcodes it to
+the lowest available value.
+
+@item nolocaslr
+The same as @code{noprogaslr} but applied to memory locations like stacks
+and memory allocation.
 @end table
 
 @node Scheduling and RTC

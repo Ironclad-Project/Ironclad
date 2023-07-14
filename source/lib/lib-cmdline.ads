@@ -1,5 +1,5 @@
---  lib-messages.ads: Library for parsing command line options.
---  Copyright (C) 2021 streaksu
+--  lib-cmdline.ads: Parsing command line options.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -16,8 +16,10 @@
 
 package Lib.Cmdline is
    --  Some notable keys specified in the documentation.
-   Root_Key : constant String := "root"; --  Device to use as /.
-   Init_Key : constant String := "init"; --  Init to load.
+   Root_Key         : constant String := "root"; --  Device to use as /.
+   Init_Key         : constant String := "init"; --  Init to load.
+   No_Program_ASLR  : constant String := "noprogaslr"; --  Program ASLR.
+   No_Location_ASLR : constant String := "nolocaslr";  --  Location ASLR.
 
    --  Get the value of a key.
    --  @param Cmdline Command line to search in.

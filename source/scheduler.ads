@@ -42,7 +42,6 @@ package Scheduler with SPARK_Mode => Off is
        Env        : Userland.Environment_Arr;
        Map        : Memory.Virtual.Page_Map_Acc;
        Vector     : Userland.ELF.Auxval;
-       Stack_Top  : Unsigned_64;
        PID        : Natural;
        Exec_Stack : Boolean := True) return TID;
 

@@ -88,7 +88,6 @@ package body Scheduler with SPARK_Mode => Off is
        Env        : Userland.Environment_Arr;
        Map        : Memory.Virtual.Page_Map_Acc;
        Vector     : Userland.ELF.Auxval;
-       Stack_Top  : Unsigned_64;
        PID        : Natural;
        Exec_Stack : Boolean := True) return TID
    is
@@ -99,12 +98,17 @@ package body Scheduler with SPARK_Mode => Off is
          Global         => False,
          Write_Through  => False
       );
-      New_TID  : TID;
-      GP_State : Arch.Context.GP_Context;
-      FP_State : Arch.Context.FP_Context;
-      Result   : Virtual_Address;
+      New_TID   : TID;
+      GP_State  : Arch.Context.GP_Context;
+      FP_State  : Arch.Context.FP_Context;
+      Result    : Virtual_Address;
+      Stack_Top : Unsigned_64;
    begin
       --  Initialize thread state. Start by mapping the user stack.
+      Stack_Top := Userland.Process.Get_Stack_Base
+         (Userland.Process.Convert (PID));
+      Userland.Process.Set_Stack_Base
+         (Userland.Process.Convert (PID), Stack_Top + Stack_Size);
       if not Memory.Virtual.Map_Memory_Backed_Region (
          Map,
          Virtual_Address (Stack_Top),
@@ -190,6 +194,7 @@ package body Scheduler with SPARK_Mode => Off is
             To_Address (Address)
          );
          Arch.Context.Init_FP_Context (FP_State);
+
          New_TID := Create_User_Thread
             (GP_State => GP_State,
              FP_State => FP_State,

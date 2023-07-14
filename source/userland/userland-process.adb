@@ -24,11 +24,18 @@ package body Userland.Process with SPARK_Mode => Off is
    procedure Free is new Ada.Unchecked_Deallocation
       (Process_Data, Process_Data_Acc);
 
+   Do_ASLR : Boolean := True;
+
    procedure Init is
    begin
       Registry := new Process_Arr'(others => null);
       Lib.Synchronization.Release (Registry_Mutex);
    end Init;
+
+   procedure Disable_ASLR is
+   begin
+      Do_ASLR := False;
+   end Disable_ASLR;
 
    function Get_Process_Count return Natural is
       Count : Natural := 0;
@@ -176,15 +183,20 @@ package body Userland.Process with SPARK_Mode => Off is
       package Aln is new Lib.Alignment (Unsigned_64);
       Rand_Addr, Rand_Jump : Unsigned_64;
    begin
-      Rand_Addr := Cryptography.Random.Get_Integer
-         (Memory_Locations.Mmap_Anon_Min,
-          Memory_Locations.Mmap_Anon_Max);
-      Rand_Jump := Cryptography.Random.Get_Integer
-         (Memory_Locations.Stack_Jump_Min,
-          Memory_Locations.Stack_Jump_Max);
+      if Do_ASLR then
+         Rand_Addr := Cryptography.Random.Get_Integer
+            (Memory_Locations.Mmap_Anon_Min,
+             Memory_Locations.Mmap_Anon_Max);
+         Rand_Jump := Cryptography.Random.Get_Integer
+            (Memory_Locations.Stack_Jump_Min,
+             Memory_Locations.Stack_Jump_Max);
 
-      Rand_Addr := Aln.Align_Up (Rand_Addr, Memory.Virtual.Page_Size);
-      Rand_Jump := Aln.Align_Up (Rand_Jump, Memory.Virtual.Page_Size);
+         Rand_Addr := Aln.Align_Up (Rand_Addr, Memory.Virtual.Page_Size);
+         Rand_Jump := Aln.Align_Up (Rand_Jump, Memory.Virtual.Page_Size);
+      else
+         Rand_Addr := Memory_Locations.Mmap_Anon_Min;
+         Rand_Jump := Memory_Locations.Stack_Jump_Min;
+      end if;
 
       Registry (Process).Alloc_Base := Rand_Addr;
       Registry (Process).Stack_Base := Rand_Addr + Rand_Jump;

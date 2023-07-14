@@ -1,5 +1,5 @@
---  lib-messages.ads: Parsing command line options.
---  Copyright (C) 2021 streaksu
+--  lib-cmdline.adb: Parsing command line options.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by

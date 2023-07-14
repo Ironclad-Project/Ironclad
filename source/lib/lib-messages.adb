@@ -1,5 +1,5 @@
 --  lib-messages.adb: Utilities for reporting messages to the user.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -15,8 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Characters.Latin_1;
-with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Debug;
+with Arch.Snippets;
 with Lib.Synchronization;
 
 package body Lib.Messages with
@@ -32,7 +32,7 @@ is
       Header_Str : constant String := Ada.Characters.Latin_1.ESC & "[35m";
       Reset_Str  : constant String := Ada.Characters.Latin_1.ESC & "[0m";
    begin
-      Lib.Synchronization.Seize (Messages_Mutex);
+      Print_Timestamp_And_Lock;
       Arch.Debug.Print (Header_Str & "Warning" & Reset_Str & ": ");
       Arch.Debug.Print (Message);
       Arch.Debug.Print (Ada.Characters.Latin_1.CR);
@@ -42,140 +42,55 @@ is
 
    procedure Put_Line (Message : String) is
    begin
-      Lib.Synchronization.Seize (Messages_Mutex);
+      Print_Timestamp_And_Lock;
       Arch.Debug.Print (Message);
       Arch.Debug.Print (Ada.Characters.Latin_1.CR);
       Arch.Debug.Print (Ada.Characters.Latin_1.LF);
       Lib.Synchronization.Release (Messages_Mutex);
    end Put_Line;
-
-   procedure Put (Message : String) is
+   ----------------------------------------------------------------------------
+   procedure Image
+      (Value   : Unsigned_32;
+       Buffer  : out Translated_String;
+       Length  : out Translated_Length;
+       Use_Hex : Boolean := False)
+   is
    begin
-      Lib.Synchronization.Seize (Messages_Mutex);
-      Arch.Debug.Print (Message);
-      Lib.Synchronization.Release (Messages_Mutex);
-   end Put;
+      Image (Unsigned_64 (Value), Buffer, Length, Use_Hex);
+   end Image;
 
-   procedure Put (Message : Character) is
+   procedure Image
+      (Value   : Unsigned_64;
+       Buffer  : out Translated_String;
+       Length  : out Translated_Length;
+       Use_Hex : Boolean := False)
+   is
+      Conversion : constant      String := "0123456789ABCDEF";
+      To_Convert :          Unsigned_64 := Value;
+      Base       : constant Unsigned_64 := (if Use_Hex then 16 else 10);
+      Current    :              Natural := Buffer'Last;
    begin
-      Lib.Synchronization.Seize (Messages_Mutex);
-      Arch.Debug.Print (Message);
-      Lib.Synchronization.Release (Messages_Mutex);
-   end Put;
+      Buffer := (others => '0');
+      while To_Convert /= 0 loop
+         pragma Loop_Invariant
+            (To_Convert rem Base >= Unsigned_64 (Conversion'First - 1) and
+             To_Convert rem Base <= Unsigned_64 (Conversion'Last  - 1) and
+             Current >= Buffer'First                                   and
+             Current <= Buffer'Last);
 
-   procedure Put (Message : Integer; Pad, Use_Hex : Boolean := False) is
-   begin
-      Put (Integer_64 (Message), Pad, Use_Hex);
-   end Put;
-
-   procedure Put (Message : Integer_64; Pad, Use_Hex : Boolean := False) is
-   begin
-      if Message < 0 then
-         Put ('-');
-      end if;
-
-      --  Check for possible overflow.
-      if Message = Integer_64'First then
-         Put (Unsigned_64 (Integer_64'Last + 1), Pad, Use_Hex);
-      else
-         Put (Unsigned_64 (abs Message), Pad, Use_Hex);
-      end if;
-   end Put;
-
-   procedure Put (Message : Unsigned_32; Pad, Use_Hex : Boolean := False) is
-      Conversion : constant String  := "0123456789ABCDEF";
-      To_Convert : Unsigned_32      := Message;
-      Base       : Unsigned_32      := 10;
-      Char_Limit : Natural          := 20;
-      Written    : Integer          := 0;
-      Result     : String (1 .. 20) := (others => Ada.Characters.Latin_1.NUL);
-   begin
-      Lib.Synchronization.Seize (Messages_Mutex);
-      if Use_Hex then
-         Arch.Debug.Print ("0x");
-         Base       := 16;
-         Char_Limit := 8;
-      end if;
-
-      if To_Convert = 0 then
-         Result (1) := '0';
-         Written    := 1;
-      else
-         while To_Convert /= 0 and Written < Char_Limit loop
-            pragma Loop_Invariant (Written >= 0 and Written <= Result'Length);
-            Written          := Written + 1;
-            Result (Written) := Conversion (Integer (To_Convert rem Base) + 1);
-            To_Convert       := To_Convert / Base;
-         end loop;
-      end if;
-
-      if Pad then
-         for I in Written + 1 .. Char_Limit loop
-            Arch.Debug.Print ('0');
-         end loop;
-      end if;
-
-      for I in reverse 1 .. Written loop
-         Arch.Debug.Print (Result (I));
+         Buffer (Current) := Conversion (Integer (To_Convert rem Base) + 1);
+         To_Convert       := To_Convert / Base;
+         Current          := Current - 1;
       end loop;
-      Lib.Synchronization.Release (Messages_Mutex);
-   end Put;
-
-   procedure Put (Message : Integer_32; Pad, Use_Hex : Boolean := False) is
+      Length := Buffer'Length - Current;
+   end Image;
+   ----------------------------------------------------------------------------
+   procedure Print_Timestamp_And_Lock is
+      Stp     : Translated_String;
+      Stp_Len : Natural;
    begin
-      if Message < 0 then
-         Put ('-');
-      end if;
-
-      --  Check for possible overflow.
-      if Message = Integer_32'First then
-         Put (Unsigned_32 (Integer_32'Last + 1), Pad, Use_Hex);
-      else
-         Put (Unsigned_32 (abs Message), Pad, Use_Hex);
-      end if;
-   end Put;
-
-   procedure Put (Message : Unsigned_64; Pad, Use_Hex : Boolean := False) is
-      Conversion : constant String  := "0123456789ABCDEF";
-      To_Convert : Unsigned_64      := Message;
-      Base       : Unsigned_64      := 10;
-      Char_Limit : Natural          := 20;
-      Written    : Integer          := 0;
-      Result     : String (1 .. 20) := (others => Ada.Characters.Latin_1.NUL);
-   begin
+      Image (Arch.Snippets.Read_Cycles, Stp, Stp_Len, True);
       Lib.Synchronization.Seize (Messages_Mutex);
-      if Use_Hex then
-         Arch.Debug.Print ("0x");
-         Base       := 16;
-         Char_Limit := 16;
-      end if;
-
-      if To_Convert = 0 then
-         Result (1) := '0';
-         Written    := 1;
-      else
-         while To_Convert /= 0 and Written < Char_Limit loop
-            pragma Loop_Invariant (Written >= 0 and Written <= Result'Length);
-            Written          := Written + 1;
-            Result (Written) := Conversion (Integer (To_Convert rem Base) + 1);
-            To_Convert       := To_Convert / Base;
-         end loop;
-      end if;
-
-      if Pad then
-         for I in Written + 1 .. Char_Limit loop
-            Arch.Debug.Print ('0');
-         end loop;
-      end if;
-
-      for I in reverse 1 .. Written loop
-         Arch.Debug.Print (Result (I));
-      end loop;
-      Lib.Synchronization.Release (Messages_Mutex);
-   end Put;
-
-   procedure Put (Message : System.Address; Pad : Boolean := False) is
-   begin
-      Put (Unsigned_64 (To_Integer (Message)), Pad, True);
-   end Put;
+      Arch.Debug.Print ("(" & Stp (Stp'Last - Stp_Len + 1 .. Stp'Last) & ") ");
+   end Print_Timestamp_And_Lock;
 end Lib.Messages;

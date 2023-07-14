@@ -46,8 +46,8 @@ procedure Main is
    Proto       : constant Arch.Boot_Information := Arch.Get_Info;
    Cmdline     : String renames Proto.Cmdline (1 .. Proto.Cmdline_Len);
 begin
-   Lib.Messages.Put_Line (Config.Name & " version " & Config.Version);
-   Lib.Messages.Put_Line ("Please report bugs/issues at " & Config.Bug_Site);
+   Lib.Messages.Put_Line (Config.Name & " " & Config.Version);
+   Lib.Messages.Put_Line ("Please report bugs at " & Config.Bug_Site);
    Lib.Messages.Put_Line ("Command line: '" & Cmdline & "'");
 
    --  Initialize several subsystems.
@@ -63,6 +63,14 @@ begin
    --  Initialize the scheduler.
    if not Scheduler.Init then
       Lib.Panic.Hard_Panic ("Could not initialize the scheduler");
+   end if;
+
+   --  Before loading stuff, check if the user wants us to do something funky.
+   if Lib.Cmdline.Is_Key_Present (Cmdline, Lib.Cmdline.No_Program_ASLR) then
+      Userland.Loader.Disable_ASLR;
+   end if;
+   if Lib.Cmdline.Is_Key_Present (Cmdline, Lib.Cmdline.No_Location_ASLR) then
+      Userland.Process.Disable_ASLR;
    end if;
 
    --  Mount a root if specified.

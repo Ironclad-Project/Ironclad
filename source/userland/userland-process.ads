@@ -82,6 +82,9 @@ package Userland.Process with SPARK_Mode => Off is
    --  Initialize the process registry.
    procedure Init;
 
+   --  Disable location ASLR when creating processes.
+   procedure Disable_ASLR;
+
    --  Get a count of all the processes registered in the system.
    function Get_Process_Count return Natural;
 

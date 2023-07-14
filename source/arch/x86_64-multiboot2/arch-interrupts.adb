@@ -30,6 +30,8 @@ with Devices;
 package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
    is
+      Discard    : Natural;
+      Val_Buffer : Lib.Messages.Translated_String;
       Exception_Text : constant array (0 .. 30) of String (1 .. 3) := (
          0  => "#DE", 1  => "#DB", 2  => "???", 3  => "#BP",
          4  => "#OF", 5  => "#BR", 6  => "#UD", 7  => "#NM",
@@ -41,70 +43,46 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       );
    begin
       if State.Error_Code /= 0 then
-         Lib.Messages.Put ("Error code: ");
-         Lib.Messages.Put (State.Error_Code, False, True);
-         Lib.Messages.Put_Line ("");
+         Lib.Messages.Image (State.Error_Code, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("Error code : " & Val_Buffer);
       end if;
 
-      Lib.Messages.Put ("RAX: ");
-      Lib.Messages.Put (State.RAX, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("RBX: ");
-      Lib.Messages.Put (State.RBX, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("RCX: ");
-      Lib.Messages.Put (State.RCX, True, True);
-      Lib.Messages.Put_Line ("");
-
-      Lib.Messages.Put ("RDX: ");
-      Lib.Messages.Put (State.RDX, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("RSI: ");
-      Lib.Messages.Put (State.RSI, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("RDI: ");
-      Lib.Messages.Put (State.RDI, True, True);
-      Lib.Messages.Put_Line ("");
-
-      Lib.Messages.Put ("RBP: ");
-      Lib.Messages.Put (State.RBP, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put (" R8: ");
-      Lib.Messages.Put (State.R8, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put (" R9: ");
-      Lib.Messages.Put (State.R9, True, True);
-      Lib.Messages.Put_Line ("");
-
-      Lib.Messages.Put ("R10: ");
-      Lib.Messages.Put (State.R10, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("R11: ");
-      Lib.Messages.Put (State.R11, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("R12: ");
-      Lib.Messages.Put (State.R12, True, True);
-      Lib.Messages.Put_Line ("");
-
-      Lib.Messages.Put ("R13: ");
-      Lib.Messages.Put (State.R13, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("R14: ");
-      Lib.Messages.Put (State.R14, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("R15: ");
-      Lib.Messages.Put (State.R15, True, True);
-      Lib.Messages.Put_Line ("");
-
-      Lib.Messages.Put ("RIP: ");
-      Lib.Messages.Put (State.RIP, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("RSP: ");
-      Lib.Messages.Put (State.RSP, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("CR2: ");
-      Lib.Messages.Put (Snippets.Read_CR2, True, True);
-      Lib.Messages.Put_Line ("");
+      Lib.Messages.Image (State.RAX, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("RAX : " & Val_Buffer);
+      Lib.Messages.Image (State.RBX, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("RBX : " & Val_Buffer);
+      Lib.Messages.Image (State.RCX, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("RCX : " & Val_Buffer);
+      Lib.Messages.Image (State.RDX, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("RDX : " & Val_Buffer);
+      Lib.Messages.Image (State.RSI, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("RSI : " & Val_Buffer);
+      Lib.Messages.Image (State.RDI, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("RDI : " & Val_Buffer);
+      Lib.Messages.Image (State.RBP, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("RBP : " & Val_Buffer);
+      Lib.Messages.Image (State.R8, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R8  : " & Val_Buffer);
+      Lib.Messages.Image (State.R9, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R9  : " & Val_Buffer);
+      Lib.Messages.Image (State.R10, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R10 : " & Val_Buffer);
+      Lib.Messages.Image (State.R11, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R11 : " & Val_Buffer);
+      Lib.Messages.Image (State.R12, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R12 : " & Val_Buffer);
+      Lib.Messages.Image (State.R13, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R13 : " & Val_Buffer);
+      Lib.Messages.Image (State.R14, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R14 : " & Val_Buffer);
+      Lib.Messages.Image (State.R15, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R15 : " & Val_Buffer);
+      Lib.Messages.Image (State.RIP, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("RIP : " & Val_Buffer);
+      Lib.Messages.Image (State.RSP, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("RSP : " & Val_Buffer);
+      Lib.Messages.Image (Snippets.Read_CR2, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("CR2 : " & Val_Buffer);
 
       --  Check whether we have to panic or just exit the thread.
       --  We can check we are in userland by checking whether the passed CS

@@ -24,13 +24,16 @@ package body Lib.Runtime with SPARK_Mode => Off is
    pragma Suppress (All_Checks);
 
    procedure Last_Chance_Handler (File : System.Address; Line : Integer) is
+      Line_Len    : Natural;
+      Line_Buffer : Messages.Translated_String;
       File_String : String (1 .. Lib.C_String_Length (File))
          with Address => File, Import;
    begin
-      Lib.Messages.Put      ("Exception triggered at " & File_String & ":");
-      Lib.Messages.Put      (Line);
-      Lib.Messages.Put_Line ("");
-      Lib.Panic.Hard_Panic  ("Generic Ada exception triggered");
+      Messages.Image (Unsigned_32 (Line), Line_Buffer, Line_Len);
+      Lib.Panic.Hard_Panic
+         ("Generic Ada exception triggered at " &
+          File_String & ":" &
+          Line_Buffer (Line_Buffer'Last - Line_Len + 1 .. Line_Buffer'Last));
    end Last_Chance_Handler;
    ----------------------------------------------------------------------------
    function MemCmp (S1, S2 : System.Address; Size : size_t) return int is
