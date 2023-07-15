@@ -57,14 +57,26 @@ package IPC.FIFO is
    procedure Set_Write_Blocking (P : Inner_Acc; B : Boolean)
       with Inline, Pre => Is_Valid (P);
 
+   --  Poll the state of a FIFO reader.
+   procedure Poll_Reader
+      (P         : Inner_Acc;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean;
+       Is_Broken : out Boolean)
+      with Pre => Is_Valid (P);
+
+   --  Poll the state of a FIFO writer.
+   procedure Poll_Writer
+      (P         : Inner_Acc;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean;
+       Is_Broken : out Boolean)
+      with Pre => Is_Valid (P);
+
    --  Check whether the FIFO is empty.
    function Is_Empty (P : Inner_Acc) return Boolean with Pre => Is_Valid (P);
-
-   --  Check whether the FIFO is full.
-   function Is_Full (P : Inner_Acc) return Boolean with Pre => Is_Valid (P);
-
-   --  Check whether the FIFO is broken, that is, whether it has no readers.
-   function Is_Broken (P : Inner_Acc) return Boolean with Pre => Is_Valid (P);
 
    --  Close the passed end.
    procedure Close_Reader (To_Close : in out Inner_Acc)

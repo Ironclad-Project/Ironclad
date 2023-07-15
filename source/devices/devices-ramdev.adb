@@ -50,12 +50,11 @@ package body Devices.Ramdev is
 
    function Init_Module (Module : Arch.Boot_RAM_File) return Resource is
       package A is new Lib.Alignment (Unsigned_64);
-      Device : Resource;
       Data   : constant Ramdev_Data_Acc := new Ramdev_Data'
          (Start_Address => Module.Start,
           Size          => Unsigned_64 (Module.Length));
    begin
-      Device :=
+      return
          (Data        => Data.all'Address,
           Is_Block    => False,
           Block_Size  => 4096,
@@ -65,9 +64,8 @@ package body Devices.Ramdev is
           Sync        => null,
           Sync_Range  => null,
           IO_Control  => null,
-          Mmap        => null);
-
-      return Device;
+          Mmap        => null,
+          Poll        => null);
    end Init_Module;
 
    procedure Read

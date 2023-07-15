@@ -62,20 +62,38 @@ package body IPC.FIFO is
       Lib.Synchronization.Release (P.Mutex);
    end Set_Write_Blocking;
 
+   procedure Poll_Reader
+      (P         : Inner_Acc;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean;
+       Is_Broken : out Boolean)
+   is
+   begin
+      Can_Read  := not Is_Empty (P);
+      Can_Write := False;
+      Is_Error  := False;
+      Is_Broken := P.Writer_Closed or P.Reader_Closed;
+   end Poll_Reader;
+
+   procedure Poll_Writer
+      (P         : Inner_Acc;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean;
+       Is_Broken : out Boolean)
+   is
+   begin
+      Can_Read  := False;
+      Can_Write := P.Data_Count /= P.Data'Length;
+      Is_Error  := False;
+      Is_Broken := False;
+   end Poll_Writer;
+
    function Is_Empty (P : Inner_Acc) return Boolean is
    begin
       return P.Data_Count = 0;
    end Is_Empty;
-
-   function Is_Full (P : Inner_Acc) return Boolean is
-   begin
-      return P.Data_Count = P.Data'Length;
-   end Is_Full;
-
-   function Is_Broken (P : Inner_Acc) return Boolean is
-   begin
-      return P.Writer_Closed or P.Reader_Closed;
-   end Is_Broken;
 
    procedure Close_Reader (To_Close : in out Inner_Acc) is
    begin

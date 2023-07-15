@@ -95,6 +95,28 @@ package body IPC.PTY is
       FIFO.Write (To_Write.Primary_Pipe, Data, Ret_Count, Discard);
    end Write_Secondary;
 
+   procedure Poll_Primary
+      (P         : Inner_Acc;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean)
+   is
+      Disc1, Disc2, Disc3 : Boolean;
+   begin
+      FIFO.Poll_Reader (P.Primary_Pipe, Can_Read, Disc1, Disc2, Disc3);
+      FIFO.Poll_Writer (P.Primary_Pipe, Disc1, Can_Write, Disc2, Disc3);
+   end Poll_Primary;
+
+   procedure Poll_Secondary
+      (P         : Inner_Acc;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean)
+   is
+      Disc1, Disc2, Disc3 : Boolean;
+   begin
+      FIFO.Poll_Reader (P.Secondary_Pipe, Can_Read, Disc1, Disc2, Disc3);
+      FIFO.Poll_Writer (P.Secondary_Pipe, Disc1, Can_Write, Disc2, Disc3);
+   end Poll_Secondary;
+
    procedure Get_TermIOs (P : Inner_Acc; T : out Devices.TermIOs.Main_Data) is
    begin
       Lib.Synchronization.Seize (P.Mutex);

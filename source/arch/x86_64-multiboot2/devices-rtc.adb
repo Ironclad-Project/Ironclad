@@ -40,7 +40,8 @@ package body Devices.RTC with SPARK_Mode => Off is
           Read        => null,
           Write       => null,
           IO_Control  => IO_Control'Access,
-          Mmap        => null);
+          Mmap        => null,
+          Poll        => null);
       Success : Boolean;
    begin
       Register (Device, "rtc", Success);

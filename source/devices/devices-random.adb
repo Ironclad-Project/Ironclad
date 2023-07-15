@@ -31,7 +31,8 @@ package body Devices.Random is
           Sync        => null,
           Sync_Range  => null,
           IO_Control  => null,
-          Mmap        => null);
+          Mmap        => null,
+          Poll        => null);
       Success_1, Success_2 : Boolean;
    begin
       Register (Random_Res, "random",  Success_1);

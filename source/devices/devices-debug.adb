@@ -33,7 +33,8 @@ package body Devices.Debug is
           Sync        => null,
           Sync_Range  => null,
           IO_Control  => null,
-          Mmap        => null);
+          Mmap        => null,
+          Poll        => null);
       Register (Device, "debug", Success);
    end Init;
 

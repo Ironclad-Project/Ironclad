@@ -2109,7 +2109,7 @@ This syscall allows to wait for a series of events to happen to the passed
 FDs, in a manner similar to POSIX's @code{select}.
 
 @code{fds} is an array of @code{nfds} length of @code{pollfd} structures. Each
-structure represents one FD, for which @code{events} is a bitmap of events
+structure represents one FD, for which @code{events} is a list of events
 to wait for and @code{revents} is a bitmap written by the kernel to indicate
 which events of the waited ones did happen. If the FD of an structure is
 negative, that is, it has the first bit set, it is ignored, and @code{revents}
@@ -2126,11 +2126,12 @@ The passed FD will not block when written to (a sensible amount).
 
 @item POLLERR
 Only for @code{revents}, it is set in the case of error waiting, or if the FD
-is a pipe and the connection is broken with no data pending.
+is a pipe and the connection is broken, or if the passed FD is valid but does
+not support poll operations.
 
 @item POLLHUP
 Only for @code{revents}, it is set in the case of the passed FD having lost
-connection, or the FD being a broken pipe, but still having data pending.
+connection, or the FD being a broken pipe.
 
 @item POLLNVAL
 Only for @code{revents}, equivalent of @code{EBADFD}, that is, the passed FD

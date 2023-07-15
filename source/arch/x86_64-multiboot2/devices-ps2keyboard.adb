@@ -31,7 +31,6 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
       BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
       Index     : Arch.IDT.IRQ_Index;
       Data      : Unsigned_8;
-      Device    : Resource;
       Success   : Boolean;
    begin
       --  Set the interrupt up, which is always the 34 (we are 1 based).
@@ -68,19 +67,18 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
          Write_PS2 (16#64#, 16#A8#);
       end if;
 
-      Device :=
-         (Data        => System.Null_Address,
-          Is_Block    => False,
-          Block_Size  => 4096,
-          Block_Count => 0,
-          Sync        => null,
-          Sync_Range  => null,
-          Read        => Read'Access,
-          Write       => null,
-          IO_Control  => null,
-          Mmap        => null);
-
-      Register (Device, "ps2keyboard", Success);
+      Register
+         ((Data        => System.Null_Address,
+           Is_Block    => False,
+           Block_Size  => 4096,
+           Block_Count => 0,
+           Sync        => null,
+           Sync_Range  => null,
+           Read        => Read'Access,
+           Write       => null,
+           IO_Control  => null,
+           Mmap        => null,
+           Poll        => null), "ps2keyboard", Success);
       return Success;
    end Init;
 

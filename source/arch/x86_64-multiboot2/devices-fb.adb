@@ -140,7 +140,8 @@ package body Devices.FB with SPARK_Mode => Off is
           Read        => null,
           Write       => null,
           IO_Control  => IO_Control'Access,
-          Mmap        => Mmap'Access);
+          Mmap        => Mmap'Access,
+          Poll        => null);
 
       Register (Device, "fb0", Success);
       return Success;

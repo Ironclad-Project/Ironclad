@@ -291,7 +291,8 @@ package body Devices.Partitions with SPARK_Mode => Off is
          Read        => Read'Access,
          Write       => Write'Access,
          IO_Control  => null,
-         Mmap        => null
+         Mmap        => null,
+         Poll        => null
       ), Name & (1 => 'p', 2 => Character'Val (Index + Character'Pos ('0'))),
          Success);
       return Success;

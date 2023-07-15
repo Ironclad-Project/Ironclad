@@ -49,7 +49,6 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
       BSP_LAPIC    : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
       Index        : Arch.IDT.IRQ_Index;
       Data, Unused : Unsigned_8;
-      Device       : Resource;
       Success      : Boolean;
    begin
       --  Set the interrupt up, which is always the 45 (we are 1 based).
@@ -79,19 +78,18 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
       Mouse_Write (16#F4#);
       Unused := Mouse_Read;
 
-      Device :=
-         (Data        => System.Null_Address,
-          Is_Block    => False,
-          Block_Size  => 4096,
-          Block_Count => 0,
-          Sync        => null,
-          Sync_Range  => null,
-          Read        => Read'Access,
-          Write       => null,
-          IO_Control  => IO_Control'Access,
-          Mmap        => null);
-
-      Register (Device, "ps2mouse", Success);
+      Register
+         ((Data        => System.Null_Address,
+           Is_Block    => False,
+           Block_Size  => 4096,
+           Block_Count => 0,
+           Sync        => null,
+           Sync_Range  => null,
+           Read        => Read'Access,
+           Write       => null,
+           IO_Control  => IO_Control'Access,
+           Mmap        => null,
+           Poll        => null), "ps2mouse", Success);
       return Success;
    end Init;
 

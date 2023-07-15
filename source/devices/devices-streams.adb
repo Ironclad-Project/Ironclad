@@ -19,36 +19,32 @@ package body Devices.Streams is
    pragma Suppress (All_Checks);
 
    procedure Init (Success : out Boolean) is
-      Nulldev : Resource;
-      Zerodev : Resource;
       Success_1, Success_2 : Boolean;
    begin
-      Nulldev :=
-         (Data        => System.Null_Address,
-          Is_Block    => False,
-          Block_Size  => 4096,
-          Block_Count => 0,
-          Read        => Null_Read'Access,
-          Write       => Null_Write'Access,
-          Sync        => null,
-          Sync_Range  => null,
-          IO_Control  => null,
-          Mmap        => null);
-
-      Zerodev :=
-         (Data        => System.Null_Address,
-          Is_Block    => False,
-          Block_Size  => 4096,
-          Block_Count => 0,
-          Read        => Zero_Read'Access,
-          Write       => Zero_Write'Access,
-          Sync        => null,
-          Sync_Range  => null,
-          IO_Control  => null,
-          Mmap        => null);
-
-      Register (Nulldev, "null", Success_1);
-      Register (Zerodev, "zero", Success_2);
+      Register
+         ((Data        => System.Null_Address,
+           Is_Block    => False,
+           Block_Size  => 4096,
+           Block_Count => 0,
+           Read        => Null_Read'Access,
+           Write       => Null_Write'Access,
+           Sync        => null,
+           Sync_Range  => null,
+           IO_Control  => null,
+           Mmap        => null,
+           Poll        => null), "null", Success_1);
+      Register
+         ((Data        => System.Null_Address,
+           Is_Block    => False,
+           Block_Size  => 4096,
+           Block_Count => 0,
+           Read        => Zero_Read'Access,
+           Write       => Zero_Write'Access,
+           Sync        => null,
+           Sync_Range  => null,
+           IO_Control  => null,
+           Mmap        => null,
+           Poll        => null), "zero", Success_2);
       Success := Success_1 and Success_2;
    end Init;
    ----------------------------------------------------------------------------

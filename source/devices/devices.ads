@@ -62,6 +62,11 @@ package Devices is
           Address : Memory.Virtual_Address;
           Length  : Unsigned_64;
           Flags   : Arch.MMU.Page_Permissions) return Boolean;
+      Poll : access procedure
+         (Handle    : System.Address;
+          Can_Read  : out Boolean;
+          Can_Write : out Boolean;
+          Is_Error  : out Boolean);
    end record;
 
    --  Handle for interfacing with devices, and device conditions.
@@ -183,6 +188,18 @@ package Devices is
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64;
        Flags   : Arch.MMU.Page_Permissions) return Boolean
+      with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
+
+   --  Do a device-specific polling for status.
+   --  @param Handle    Handle to operate on, must be valid.
+   --  @param Can_Read  True if the device can read right now.
+   --  @param Can_Write True if the device can write right now.
+   --  @param Is_Error  True if the device is in an error state.
+   procedure Poll
+      (Handle    : Device_Handle;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean)
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
    --  Ghost function for checking whether the device handling is initialized.

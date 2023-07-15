@@ -73,6 +73,20 @@ package IPC.PTY is
        Ret_Count : out Natural)
       with Pre => Is_Valid (To_Write);
 
+   --  Poll the state of a PTY's primary end.
+   procedure Poll_Primary
+      (P         : Inner_Acc;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean)
+      with Pre => Is_Valid (P);
+
+   --  Poll the state of a PTY's secondary end.
+   procedure Poll_Secondary
+      (P         : Inner_Acc;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean)
+      with Pre => Is_Valid (P);
+
    --  Get the termios data for the PTY.
    procedure Get_TermIOs (P : Inner_Acc; T : out Devices.TermIOs.Main_Data)
       with Pre => Is_Valid (P);

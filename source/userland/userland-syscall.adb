@@ -2637,6 +2637,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Count :                   Natural := 0;
       File  : File_Description_Acc;
       FDs   : Poll_FDs (1 .. FDs_Count) with Import, Address => SAddr;
+      Can_Read, Can_Write, Is_Error, Is_Broken : Boolean;
    begin
       if not Check_Userland_Access (Map, IAddr, FDs'Size / 8) then
          Errno := Error_Would_Fault;
@@ -2664,24 +2665,46 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
             --  Fill out events depending on the file type.
             case File.Description is
+               when Description_Device =>
+                  Devices.Poll (File.Inner_Dev, Can_Read, Can_Write, Is_Error);
+                  Is_Broken := False;
                when Description_Reader_FIFO =>
-                  if Is_Broken (File.Inner_Reader_FIFO) then
-                     Polled.Out_Events := POLLHUP;
-                  end if;
-                  if (Polled.Events and POLLIN) /= 0 then
-                     if not Is_Empty (File.Inner_Reader_FIFO) then
-                        Polled.Out_Events := Polled.Out_Events or POLLIN;
-                     end if;
-                  end if;
+                  IPC.FIFO.Poll_Reader
+                     (File.Inner_Reader_FIFO,
+                      Can_Read, Can_Write, Is_Error, Is_Broken);
                when Description_Writer_FIFO =>
-                  if (Polled.Events and POLLOUT) /= 0 then
-                     if Is_Empty (File.Inner_Writer_FIFO) then
-                        Polled.Out_Events := POLLOUT;
-                     end if;
-                  end if;
+                  IPC.FIFO.Poll_Writer
+                     (File.Inner_Writer_FIFO,
+                      Can_Read, Can_Write, Is_Error, Is_Broken);
+               when Description_Primary_PTY =>
+                  IPC.PTY.Poll_Primary
+                     (File.Inner_Primary_PTY, Can_Read, Can_Write);
+                  Is_Error  := False;
+                  Is_Broken := False;
+               when Description_Secondary_PTY =>
+                  IPC.PTY.Poll_Secondary
+                     (File.Inner_Secondary_PTY, Can_Read, Can_Write);
+                  Is_Error  := False;
+                  Is_Broken := False;
                when others =>
-                  Polled.Out_Events := POLLERR;
+                  Can_Read  := False;
+                  Can_Write := False;
+                  Is_Error  := True;
+                  Is_Broken := False;
             end case;
+
+            if Can_Read and (Polled.Events and POLLIN) /= 0 then
+               Polled.Out_Events := Polled.Out_Events or POLLIN;
+            end if;
+            if Can_Write and (Polled.Events and POLLOUT) /= 0 then
+               Polled.Out_Events := Polled.Out_Events or POLLOUT;
+            end if;
+            if Is_Error then
+               Polled.Out_Events := Polled.Out_Events or POLLERR;
+            end if;
+            if Is_Broken then
+               Polled.Out_Events := Polled.Out_Events or POLLHUP;
+            end if;
 
          <<End_Iter>>
             if Polled.Out_Events /= 0 then

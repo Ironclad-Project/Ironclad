@@ -223,4 +223,22 @@ package body Devices is
          return False;
       end if;
    end Mmap;
+
+   procedure Poll
+      (Handle    : Device_Handle;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean)
+   is
+   begin
+      if Devices_Data (Handle).Contents.Poll /= null then
+         Devices_Data (Handle).Contents.Poll
+            (Devices_Data (Handle).Contents.Data, Can_Read, Can_Write,
+             Is_Error);
+      else
+         Can_Read  := False;
+         Can_Write := False;
+         Is_Error  := True;
+      end if;
+   end Poll;
 end Devices;

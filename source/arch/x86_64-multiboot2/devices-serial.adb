@@ -14,62 +14,45 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Synchronization;
-with Scheduler;
+with System.Address_To_Access_Conversions;
 with Devices.TermIOs;
 with Arch.Snippets;
 
 package body Devices.Serial with SPARK_Mode => Off is
-   --  COM ports, the first 2 ones are almost sure to be at that address, the
-   --  rest are a bit spoty, so we must not forget to test all of them.
-   COM_Ports : constant array (1 .. 4) of Unsigned_16 :=
-      (16#3F8#, 16#2F8#, 16#3E8#, 16#2E8#);
-
-   --  Inner COM port root data.
-   type COM_Root is record
-      Mutex : aliased Lib.Synchronization.Binary_Semaphore;
-      Port  : Unsigned_16;
-      Baud  : Unsigned_32;
-   end record;
-   type COM_Root_Acc is access COM_Root;
+   package C1 is new System.Address_To_Access_Conversions (COM_Root);
 
    function Init return Boolean is
-      Default_Baud : constant := 115200;
+      Device_Name : String (1 .. 7) := "serial0";
+      Discard     : Boolean;
+      Device      : Resource;
+      Data        : COM_Root_Acc;
    begin
       for I in COM_Ports'Range loop
          --  Check if the port exists by writting a value and checking.
-         Arch.Snippets.Port_Out (COM_Ports (I) + 7, 16#55#);
-         if Arch.Snippets.Port_In (COM_Ports (I) + 7) = 16#55# then
-            --  Disable all interrupts, set baud enable interrupts and FIFO.
-            Arch.Snippets.Port_Out (COM_Ports (I) + 1, 16#00#);
+         Arch.Snippets.Port_Out (COM_Ports (I) + Scratch, 16#55#);
+         if Arch.Snippets.Port_In (COM_Ports (I) + Scratch) = 16#55# then
+            --  Disable all interrupts, set baud and FIFO.
+            Arch.Snippets.Port_Out (COM_Ports (I) + Interrupt_Enable, 16#00#);
             Set_Baud (COM_Ports (I), Default_Baud);
-            Arch.Snippets.Port_Out (COM_Ports (I) + 2, 16#C7#);
-            Arch.Snippets.Port_Out (COM_Ports (I) + 4, 16#0B#);
+            Arch.Snippets.Port_Out (COM_Ports (I) + Interrupt_ID,  16#C7#);
+            Arch.Snippets.Port_Out (COM_Ports (I) + Modem_Control, 2#11#);
 
             --  Add the device.
-            declare
-               Device_Name : String (1 .. 7)       := "serial0";
-               Discard     : Boolean               := False;
-               Device      : Resource;
-               Data        : constant COM_Root_Acc := new COM_Root'
-                  (Mutex => Lib.Synchronization.Unlocked_Semaphore,
-                   Port  => COM_Ports (I),
-                   Baud  => Default_Baud);
-            begin
-               Device_Name (7) := Character'Val (I + Character'Pos ('0'));
-               Device :=
-                  (Data        => Data.all'Address,
-                   Is_Block    => False,
-                   Block_Size  => 4096,
-                   Block_Count => 0,
-                   Sync        => null,
-                   Sync_Range  => null,
-                   Read        => Read'Access,
-                   Write       => Write'Access,
-                   IO_Control  => IO_Control'Access,
-                   Mmap        => null);
-               Register (Device, Device_Name, Discard);
-            end;
+            Data := new COM_Root'(COM_Ports (I), Default_Baud);
+            Device_Name (7) := Character'Val (I + Character'Pos ('0'));
+            Device :=
+               (Data        => C1.To_Address (C1.Object_Pointer (Data)),
+                Is_Block    => False,
+                Block_Size  => 4096,
+                Block_Count => 0,
+                Sync        => null,
+                Sync_Range  => null,
+                Read        => Read'Access,
+                Write       => Write'Access,
+                IO_Control  => IO_Control'Access,
+                Mmap        => null,
+                Poll        => Poll'Access);
+            Register (Device, Device_Name, Discard);
          end if;
       end loop;
       return True;
@@ -82,21 +65,15 @@ package body Devices.Serial with SPARK_Mode => Off is
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
-      Did_Seize : Boolean;
-      COM       : COM_Root with Address => Key;
+      COM : COM_Root with Import, Address => Key;
       pragma Unreferenced (Offset);
    begin
-      loop
-         Lib.Synchronization.Try_Seize (COM.Mutex, Did_Seize);
-         exit when Did_Seize;
-         Scheduler.Yield;
-      end loop;
-
       for I of Data loop
-         I := Fetch_Data (COM.Port);
+         while not Can_Receive (COM.Port) loop
+            Arch.Snippets.Pause;
+         end loop;
+         I := Arch.Snippets.Port_In (COM.Port);
       end loop;
-
-      Lib.Synchronization.Release (COM.Mutex);
       Ret_Count := Data'Length;
       Success   := True;
    end Read;
@@ -108,20 +85,15 @@ package body Devices.Serial with SPARK_Mode => Off is
        Ret_Count : out Natural;
        Success   : out Boolean)
    is
-      Did_Seize  : Boolean;
-      COM        : COM_Root with Address => Key;
+      COM : COM_Root with Import, Address => Key;
       pragma Unreferenced (Offset);
    begin
-      loop
-         Lib.Synchronization.Try_Seize (COM.Mutex, Did_Seize);
-         exit when Did_Seize;
-         Scheduler.Yield;
-      end loop;
-
       for I of Data loop
-         Transmit_Data (COM.Port, I);
+         while not Can_Transmit (COM.Port) loop
+            Arch.Snippets.Pause;
+         end loop;
+         Arch.Snippets.Port_Out (COM.Port, I);
       end loop;
-      Lib.Synchronization.Release (COM.Mutex);
       Ret_Count := Data'Length;
       Success   := True;
    end Write;
@@ -133,59 +105,60 @@ package body Devices.Serial with SPARK_Mode => Off is
    is
       COM      : COM_Root          with Import, Address => Data;
       Returned : TermIOs.Main_Data with Import, Address => Argument;
-      Success  : Boolean := False;
+      Success  : Boolean;
    begin
-      Lib.Synchronization.Seize (COM.Mutex);
       case Request is
          when TermIOs.TCGETS =>
-            Returned := (
-               Input_Modes   => <>,
-               Output_Modes  => <>,
-               Control_Modes => <>,
-               Local_Mode    => <>,
-               Special_Chars => <>,
-               Input_Baud    => COM.Baud,
-               Output_Baud   => COM.Baud
-            );
+            Returned :=
+               (Input_Modes   => <>,
+                Output_Modes  => <>,
+                Control_Modes => <>,
+                Local_Mode    => <>,
+                Special_Chars => <>,
+                Input_Baud    => COM.Baud,
+                Output_Baud   => COM.Baud);
             Success := True;
          when TermIOs.TCSETS | TermIOs.TCSETSW | TermIOs.TCSETSF =>
             Set_Baud (COM.Port, Returned.Output_Baud);
             COM.Baud := Returned.Output_Baud;
-            Success := True;
+            Success  := True;
          when others =>
-            null;
+            Success := False;
       end case;
-      Lib.Synchronization.Release (COM.Mutex);
       return Success;
    end IO_Control;
 
-   procedure Transmit_Data (Port : Unsigned_16; Data : Unsigned_8) is
+   procedure Poll
+      (Data      : System.Address;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean)
+   is
+      COM : COM_Root with Import, Address => Data;
    begin
-      while not ((Arch.Snippets.Port_In (Port + 5) and 2#01000000#) /= 0) loop
-         Arch.Snippets.Pause;
-      end loop;
-      Arch.Snippets.Port_Out (Port, Data);
-   end Transmit_Data;
+      Can_Write := Can_Transmit (COM.Port);
+      Can_Read  := Can_Receive  (COM.Port);
+      Is_Error  := False;
+   end Poll;
+   ----------------------------------------------------------------------------
+   function Can_Receive (Port : Unsigned_16) return Boolean is
+   begin
+      return (Arch.Snippets.Port_In (Port + Line_Status) and 2#00000001#) /= 0;
+   end Can_Receive;
 
-   function Fetch_Data (Port : Unsigned_16) return Unsigned_8 is
+   function Can_Transmit (Port : Unsigned_16) return Boolean is
    begin
-      while not ((Arch.Snippets.Port_In (Port + 5) and 2#00000001#) /= 0) loop
-         Arch.Snippets.Pause;
-      end loop;
-      return Arch.Snippets.Port_In (Port);
-   end Fetch_Data;
+      return (Arch.Snippets.Port_In (Port + Line_Status) and 2#01000000#) /= 0;
+   end Can_Transmit;
 
    procedure Set_Baud (Port : Unsigned_16; Baud : Unsigned_32) is
-      New_Divisor : constant Unsigned_32 := 115200 / Baud;
-      Low_Divisor : constant Unsigned_32 := Shift_Right (New_Divisor, 8);
-
-      Low8  : constant Unsigned_8 := Unsigned_8 (New_Divisor and 16#FF#);
-      High8 : constant Unsigned_8 := Unsigned_8 (Low_Divisor and 16#FF#);
+      New_Div : constant Unsigned_32 := 115200 / Baud;
+      Low_Div : constant Unsigned_32 := Shift_Right (New_Div, 8);
    begin
       --  Enable DLAB and set the low and high parts of the divisor.
-      Arch.Snippets.Port_Out (Port + 3, 16#80#);
-      Arch.Snippets.Port_Out (Port + 0, Low8);
-      Arch.Snippets.Port_Out (Port + 1, High8);
-      Arch.Snippets.Port_Out (Port + 3, 16#03#);
+      Arch.Snippets.Port_Out (Port + Line_Control, 16#80#);
+      Arch.Snippets.Port_Out (Port + DLAB_0, Unsigned_8 (New_Div and 16#FF#));
+      Arch.Snippets.Port_Out (Port + DLAB_1, Unsigned_8 (Low_Div and 16#FF#));
+      Arch.Snippets.Port_Out (Port + Line_Control, 16#03#);
    end Set_Baud;
 end Devices.Serial;
