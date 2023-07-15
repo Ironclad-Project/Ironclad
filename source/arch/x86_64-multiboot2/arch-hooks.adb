@@ -26,12 +26,14 @@ with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
 with Arch.Interrupts;
 with Interfaces; use Interfaces;
+with Devices.i6300ESB;
 
 package body Arch.Hooks with SPARK_Mode => Off is
    function Devices_Hook return Boolean is
    begin
       return Devices.ATA.Init         and then
              Devices.FB.Init          and then
+             Devices.i6300ESB.Init    and then
              Devices.PS2Keyboard.Init and then
              Devices.PS2Mouse.Init    and then
              Devices.RTC.Init         and then

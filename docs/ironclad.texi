@@ -1255,6 +1255,10 @@ int ioctl(int fd, unsigned long request, void *argument);
 This syscall manipulates the underlying device parameters of special files. It
 allows a device-dependent API for fetching and setting several modes.
 
+Despite not all ioctl calls needing a specific value for their arguments, due
+to current limitations, all arguments must point to valid memory, regardless
+of whether it ends up used or not.
+
 @code{ioctl} returns @code{0} on success and @code{-1} on failure, and sets the
 following errno:
 
@@ -2559,6 +2563,30 @@ most of the fields are not implemented as the serial devices are not ttys but
 just byte streams.
 
 The default baud for all ports is set to be @code{115200}.
+
+@subsection i6300esb
+
+@code{i6300esb} is a hardware watchdog featured in a lot of intel hardware, it
+can be reset by using @code{write} and can be configured using
+@code{ioctl} like:
+
+@example
+WDOG_START     = 1 // Start the count.
+WDOG_STOP      = 2 // Stop the count.
+WDOG_HEARTBEAT = 3 // Reset and set a new heartbeat period in seconds.
+
+ioctl(wdog, WDOG_START, ignored); // Enable 2:1 scaling.
+ioctl(wdog, WDOG_STOP,  ignored); // Enable 1:1 scaling.
+ioctl(wdog, WDOG_HEARTBEAT, pointer_to_uint32_t);
+@end example
+
+There is no default heartbeat count, so be sure to configure it if you do not
+want mayhem. Access to reset and configuration can be restricted by using
+MAC.
+
+While this piece of hardware allows for hooking up interrupts and reboot
+separately when the timer expires, Ironclad right now will only reboot when
+the timer expires.
 
 @node GNU Free Documentation License
 @appendix GNU Free Documentation License
