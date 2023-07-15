@@ -25,6 +25,7 @@ ironclad.fls
 ironclad.html
 ironclad.dvi
 ironclad.info
+ironclad.info.gz
 ironclad
 tests/obj
 tests/run_tests
