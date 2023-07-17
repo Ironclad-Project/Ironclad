@@ -23,7 +23,6 @@ with Lib;
 with Lib.Panic;
 with Networking;
 with Userland.Loader;
-with VFS; use VFS;
 with Scheduler; use Scheduler;
 with Memory.Virtual; use Memory.Virtual;
 with Memory.Physical;
@@ -35,10 +34,9 @@ with Cryptography.Random;
 with Userland.MAC;
 with IPC.FIFO; use IPC.FIFO;
 with IPC.PTY;  use IPC.PTY;
-with Devices;  use Devices;
-with Userland.Integrity;
 with Devices.TermIOs;
 with Arch.Power;
+with Devices; use Devices;
 
 package body Userland.Syscall with SPARK_Mode => Off is
    procedure Sys_Exit (Code : Unsigned_64; Errno : out Errno_Value) is
@@ -595,113 +593,33 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Envp_Len  : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64
    is
-      procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
-      type Arg_Arr is array (Natural range <>) of Unsigned_64;
-
-      Th      : constant    Scheduler.TID := Arch.Local.Get_Current_Thread;
+      Th      : constant TID := Arch.Local.Get_Current_Thread;
       Proc    : constant PID := Arch.Local.Get_Current_Process;
-      Map     : constant     Page_Map_Acc := Get_Common_Map (Proc);
       Tmp_Map : Memory.Virtual.Page_Map_Acc;
-      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
-      Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
-      Path       : String (1 .. Natural (Path_Len))
-         with Import, Address => Path_SAddr;
-      Path_FS    : FS_Handle;
-      Path_Ino   : File_Inode_Number;
-      File_Perms : MAC.Permissions;
-      Argv_IAddr : constant Integer_Address := Integer_Address (Argv_Addr);
-      Argv_SAddr : constant  System.Address := To_Address (Argv_IAddr);
-      Envp_IAddr : constant Integer_Address := Integer_Address (Envp_Addr);
-      Envp_SAddr : constant  System.Address := To_Address (Envp_IAddr);
-      User       : Unsigned_32;
-      Success    : FS_Status;
+      Success : Boolean;
    begin
-      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) or
-         not Check_Userland_Access (Map, Argv_IAddr, Argv_Len) or
-         not Check_Userland_Access (Map, Envp_IAddr, Envp_Len)
-      then
-         Errno := Error_Would_Fault;
-         return Unsigned_64'Last;
-      end if;
+      --  Flush our threads and keep the previous map just in case.
+      Userland.Process.Flush_Threads (Proc);
+      Tmp_Map := Get_Common_Map (Proc);
 
-      Userland.Process.Get_Effective_UID (Proc, User);
-      Open (Path, Path_FS, Path_Ino, Success, User);
-      if Success /= VFS.FS_Success then
-         Errno := Error_No_Entity;
-         return Unsigned_64'Last;
-      end if;
-
-      File_Perms := MAC.Check_Permissions (Get_MAC (Proc), Path_FS, Path_Ino);
-      if not File_Perms.Can_Execute then
-         VFS.Close (Path_FS, Path_Ino);
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("exec", Proc);
-         return Unsigned_64'Last;
-      end if;
-
-      declare
-         Argv : Arg_Arr (1 .. Natural (Argv_Len))
-            with Import, Address => Argv_SAddr;
-         Envp : Arg_Arr (1 .. Natural (Envp_Len))
-            with Import, Address => Envp_SAddr;
-         Args : Userland.Argument_Arr    (1 .. Argv'Length);
-         Env  : Userland.Environment_Arr (1 .. Envp'Length);
-      begin
-         for I in Argv'Range loop
-            declare
-               Addr : constant System.Address :=
-                  To_Address (Integer_Address (Argv (I)));
-               Arg_Length : constant Natural := Lib.C_String_Length (Addr);
-               Arg_String : String (1 .. Arg_Length)
-                  with Import, Address => Addr;
-            begin
-               Args (I) := new String'(Arg_String);
-            end;
-         end loop;
-         for I in Envp'Range loop
-            declare
-               Addr : constant System.Address :=
-                  To_Address (Integer_Address (Envp (I)));
-               Arg_Length : constant Natural := Lib.C_String_Length (Addr);
-               Arg_String : String (1 .. Arg_Length)
-                  with Import, Address => Addr;
-            begin
-               Env (I) := new String'(Arg_String);
-            end;
-         end loop;
-
-         --  Free state.
-         Userland.Process.Flush_Threads (Proc);
-         Userland.Process.Flush_Exec_Files (Proc);
-
-         --  Create a new map for the process.
-         Userland.Process.Reroll_ASLR (Proc);
-         Set_Identifier (Proc, Args (1).all);
-
-         Tmp_Map := Get_Common_Map (Proc);
-         Set_Common_Map (Proc, Memory.Virtual.New_Map);
-
-         --  Start the actual program.
-         if not Userland.Loader.Start_Program (Path, Path_FS, Path_Ino, Args,
-                                               Env, Proc)
-         then
-            Set_Common_Map (Proc, Tmp_Map);
-            Errno := Error_Bad_Access;
-            return Unsigned_64'Last;
-         end if;
-
-         for Arg of Args loop
-            Free (Arg);
-         end loop;
-         for En of Env loop
-            Free (En);
-         end loop;
-
+      Success := Exec_Into_Process
+         (Path_Addr => Path_Addr,
+          Path_Len  => Path_Len,
+          Argv_Addr => Argv_Addr,
+          Argv_Len  => Argv_Len,
+          Envp_Addr => Envp_Addr,
+          Envp_Len  => Envp_Len,
+          Proc      => Proc,
+          Errno     => Errno);
+      if Success then
          --  Free critical state now that we know wont be running.
          Userland.Process.Remove_Thread (Proc, Th);
          Memory.Virtual.Delete_Map (Tmp_Map);
          Scheduler.Bail;
-      end;
+      else
+         Set_Common_Map (Proc, Tmp_Map);
+         return Unsigned_64'Last;
+      end if;
    end Exec;
 
    function Clone
@@ -880,38 +798,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno := Error_No_Error;
       return Final_Waited_PID;
    end Wait;
-
-   function Uname
-      (Address : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64
-   is
-      Proc     : constant PID := Arch.Local.Get_Current_Process;
-      Map      : constant     Page_Map_Acc := Get_Common_Map (Proc);
-      IAddr    : constant Integer_Address  := Integer_Address (Address);
-      SAddr    : constant  System.Address  := To_Address (IAddr);
-      UTS      : UTS_Name with Import, Address => SAddr;
-      Host_Len : Networking.Hostname_Len;
-   begin
-      if not Check_Userland_Access (Map, IAddr, UTS'Size / 8) then
-         Errno := Error_Would_Fault;
-         return Unsigned_64'Last;
-      end if;
-
-      Networking.Get_Hostname (UTS.Node_Name, Host_Len);
-      UTS.Node_Name (Host_Len + 1) := Ada.Characters.Latin_1.NUL;
-
-      UTS.System_Name (1 .. Config.Name'Length + 1) :=
-         Config.Name & Ada.Characters.Latin_1.NUL;
-      UTS.Release (1 .. Config.Version'Length + 1) :=
-         Config.Version & Ada.Characters.Latin_1.NUL;
-      UTS.Version (1 .. Config.Version'Length + 1) :=
-         Config.Version & Ada.Characters.Latin_1.NUL;
-      UTS.Machine (1 .. Config.Arch_Name'Length + 1) :=
-         Config.Arch_Name & Ada.Characters.Latin_1.NUL;
-
-      Errno := Error_No_Error;
-      return 0;
-   end Uname;
 
    function Set_Hostname
       (Address : Unsigned_64;
@@ -1463,6 +1349,32 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
                Result := Unsigned_64 (Ret);
             end;
+         when SC_UNAME =>
+            declare
+               IAddr    : constant Integer_Address := Integer_Address (Addr);
+               SAddr    : constant  System.Address := To_Address (IAddr);
+               UTS      : UTS_Name with Import, Address => SAddr;
+               Host_Len : Networking.Hostname_Len;
+            begin
+               if not Check_Userland_Access (Map, IAddr, UTS'Size / 8) then
+                  Errno := Error_Would_Fault;
+                  return Unsigned_64'Last;
+               end if;
+
+               Networking.Get_Hostname (UTS.Node_Name, Host_Len);
+               UTS.Node_Name (Host_Len + 1) := Ada.Characters.Latin_1.NUL;
+
+               UTS.System_Name (1 .. Config.Name'Length + 1) :=
+                  Config.Name & Ada.Characters.Latin_1.NUL;
+               UTS.Release (1 .. Config.Version'Length + 1) :=
+                  Config.Version & Ada.Characters.Latin_1.NUL;
+               UTS.Version (1 .. Config.Version'Length + 1) :=
+                  Config.Version & Ada.Characters.Latin_1.NUL;
+               UTS.Machine (1 .. Config.Arch_Name'Length + 1) :=
+                  Config.Arch_Name & Ada.Characters.Latin_1.NUL;
+
+               Result := 0;
+            end;
          when others =>
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
@@ -1481,55 +1393,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Envp_Len  : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64
    is
-      procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
-      type Arg_Arr is array (Natural range <>) of Unsigned_64;
-
-      Proc       : constant PID := Arch.Local.Get_Current_Process;
-      Map        : constant Page_Map_Acc     := Get_Common_Map (Proc);
-      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
-      Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
-      Path       : String (1 .. Natural (Path_Len))
-         with Import, Address => Path_SAddr;
-      Path_FS    : FS_Handle;
-      Path_Ino   : File_Inode_Number;
-      Success    : FS_Status;
-      Succ       : Boolean;
-      File_Perms : MAC.Permissions;
-      Child      : PID;
-      User       : Unsigned_32;
-      Argv_IAddr : constant Integer_Address := Integer_Address (Argv_Addr);
-      Argv_SAddr : constant  System.Address := To_Address (Argv_IAddr);
-      Envp_IAddr : constant Integer_Address := Integer_Address (Envp_Addr);
-      Envp_SAddr : constant  System.Address := To_Address (Envp_IAddr);
+      Proc    : constant PID := Arch.Local.Get_Current_Process;
+      Success : Boolean;
+      Child   : PID;
    begin
-      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) or
-         not Check_Userland_Access (Map, Argv_IAddr, Argv_Len) or
-         not Check_Userland_Access (Map, Envp_IAddr, Envp_Len)
-      then
-         Errno := Error_Would_Fault;
-         return Unsigned_64'Last;
-      end if;
-
-      if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Spawn_Others then
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("spawn", Proc);
-         return Unsigned_64'Last;
-      end if;
-
-      Userland.Process.Get_Effective_UID (Proc, User);
-      Open (Path, Path_FS, Path_Ino, Success, User);
-      if Success /= VFS.FS_Success then
-         Errno := Error_No_Entity;
-         return Unsigned_64'Last;
-      end if;
-
-      File_Perms := MAC.Check_Permissions (Get_MAC (Proc), Path_FS, Path_Ino);
-      if not File_Perms.Can_Execute then
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("spawn", Proc);
-         return Unsigned_64'Last;
-      end if;
-
       Child := Create_Process (Proc);
       if Child = Error_PID then
          Errno := Error_Would_Block;
@@ -1538,66 +1405,21 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       Duplicate_FD_Table (Proc, Child);
 
-      declare
-         Argv : Arg_Arr (1 .. Natural (Argv_Len))
-            with Import, Address => Argv_SAddr;
-         Envp : Arg_Arr (1 .. Natural (Envp_Len))
-            with Import, Address => Envp_SAddr;
-         Args : Userland.Argument_Arr    (1 .. Argv'Length);
-         Env  : Userland.Environment_Arr (1 .. Envp'Length);
-      begin
-         for I in Argv'Range loop
-            declare
-               Addr : constant System.Address :=
-                  To_Address (Integer_Address (Argv (I)));
-               Arg_Length : constant Natural := Lib.C_String_Length (Addr);
-               Arg_String : String (1 .. Arg_Length)
-                  with Import, Address => Addr;
-            begin
-               Args (I) := new String'(Arg_String);
-            end;
-         end loop;
-         for I in Envp'Range loop
-            declare
-               Addr : constant System.Address :=
-                  To_Address (Integer_Address (Envp (I)));
-               Arg_Length : constant Natural := Lib.C_String_Length (Addr);
-               Arg_String : String (1 .. Arg_Length)
-                  with Import, Address => Addr;
-            begin
-               Env (I) := new String'(Arg_String);
-            end;
-         end loop;
-
-         --  Create a new map for the process.
-         Userland.Process.Flush_Exec_Files (Child);
-         Userland.Process.Reroll_ASLR (Child);
-         Set_Common_Map (Child, Memory.Virtual.New_Map);
-
-         --  Start the actual program.
-         Succ := Userland.Loader.Start_Program
-            (Exec_Path   => Path,
-             FS          => Path_FS,
-             Ino         => Path_Ino,
-             Arguments   => Args,
-             Environment => Env,
-             Proc        => Child);
-
-         for Arg of Args loop
-            Free (Arg);
-         end loop;
-         for En of Env loop
-            Free (En);
-         end loop;
-
-         if Succ then
-            Errno := Error_No_Error;
-            return Unsigned_64 (Convert (Child));
-         else
-            Errno := Error_Bad_Access;
-            return Unsigned_64'Last;
-         end if;
-      end;
+      Success := Exec_Into_Process
+         (Path_Addr => Path_Addr,
+          Path_Len  => Path_Len,
+          Argv_Addr => Argv_Addr,
+          Argv_Len  => Argv_Len,
+          Envp_Addr => Envp_Addr,
+          Envp_Len  => Envp_Len,
+          Proc      => Child,
+          Errno     => Errno);
+      if Success then
+         return Unsigned_64 (Convert (Child));
+      else
+         Errno := Error_Bad_Access;
+         return Unsigned_64'Last;
+      end if;
    end Spawn;
 
    function Get_Thread_Sched
@@ -2397,43 +2219,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end;
    end Symlink;
 
-   function Integrity_Setup
-      (Command  : Unsigned_64;
-       Argument : Unsigned_64;
-       Errno    : out Errno_Value) return Unsigned_64
-   is
-      P : Integrity.Policy;
-   begin
-      case Command is
-         when INTEGRITY_SET_POLICY =>
-            case Argument is
-               when INTEGRITY_POLICY_WARN  => P := Integrity.Policy_Warn;
-               when INTEGRITY_POLICY_PANIC => P := Integrity.Policy_Panic;
-               when others                 => goto Error;
-            end case;
-            Integrity.Set_Policy (P);
-         when INTEGRITY_ONESHOT =>
-            Integrity.Run_Checks;
-         when INTEGRITY_FREE_MEMORY =>
-            Integrity.Set_Free_Memory (Memory.Size (Argument));
-         when INTEGRITY_MAX_PROC =>
-            if Argument > Unsigned_64 (Process.Max_Process_Count) then
-               Integrity.Set_Max_Processes_Check (Process.Max_Process_Count);
-            else
-               Integrity.Set_Max_Processes_Check (Natural (Argument));
-            end if;
-         when others =>
-            goto Error;
-      end case;
-
-      Errno := Error_No_Error;
-      return 0;
-
-   <<Error>>
-      Errno := Error_Invalid_Value;
-      return Unsigned_64'Last;
-   end Integrity_Setup;
-
    function Open_PTY
       (Result_Addr  : Unsigned_64;
        Termios_Addr : Unsigned_64;
@@ -3001,6 +2786,125 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end case;
       return Unsigned_64'Last;
    end Translate_Status;
+
+   function Exec_Into_Process
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Argv_Addr : Unsigned_64;
+       Argv_Len  : Unsigned_64;
+       Envp_Addr : Unsigned_64;
+       Envp_Len  : Unsigned_64;
+       Proc      : PID;
+       Errno     : out Errno_Value) return Boolean
+   is
+      procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
+      type Arg_Arr is array (Natural range <>) of Unsigned_64;
+
+      Map        : constant Page_Map_Acc     := Get_Common_Map (Proc);
+      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
+      Path       : String (1 .. Natural (Path_Len))
+         with Import, Address => Path_SAddr;
+      Path_FS    : FS_Handle;
+      Path_Ino   : File_Inode_Number;
+      Success    : FS_Status;
+      Succ       : Boolean;
+      File_Perms : MAC.Permissions;
+      User       : Unsigned_32;
+      Argv_IAddr : constant Integer_Address := Integer_Address (Argv_Addr);
+      Argv_SAddr : constant  System.Address := To_Address (Argv_IAddr);
+      Envp_IAddr : constant Integer_Address := Integer_Address (Envp_Addr);
+      Envp_SAddr : constant  System.Address := To_Address (Envp_IAddr);
+   begin
+      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) or
+         not Check_Userland_Access (Map, Argv_IAddr, Argv_Len) or
+         not Check_Userland_Access (Map, Envp_IAddr, Envp_Len)
+      then
+         Errno := Error_Would_Fault;
+         return False;
+      elsif not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Spawn_Others then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("spawn", Proc);
+         return False;
+      end if;
+
+      Userland.Process.Get_Effective_UID (Proc, User);
+      Open (Path, Path_FS, Path_Ino, Success, User);
+      if Success /= VFS.FS_Success then
+         Errno := Error_No_Entity;
+         return False;
+      end if;
+
+      File_Perms := MAC.Check_Permissions (Get_MAC (Proc), Path_FS, Path_Ino);
+      if not File_Perms.Can_Execute then
+         VFS.Close (Path_FS, Path_Ino);
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("exec", Proc);
+         return False;
+      end if;
+
+      declare
+         Argv : Arg_Arr (1 .. Natural (Argv_Len))
+            with Import, Address => Argv_SAddr;
+         Envp : Arg_Arr (1 .. Natural (Envp_Len))
+            with Import, Address => Envp_SAddr;
+         Args : Userland.Argument_Arr    (1 .. Argv'Length);
+         Env  : Userland.Environment_Arr (1 .. Envp'Length);
+      begin
+         for I in Argv'Range loop
+            declare
+               Addr : constant System.Address :=
+                  To_Address (Integer_Address (Argv (I)));
+               Arg_Length : constant Natural := Lib.C_String_Length (Addr);
+               Arg_String : String (1 .. Arg_Length)
+                  with Import, Address => Addr;
+            begin
+               Args (I) := new String'(Arg_String);
+            end;
+         end loop;
+         for I in Envp'Range loop
+            declare
+               Addr : constant System.Address :=
+                  To_Address (Integer_Address (Envp (I)));
+               Arg_Length : constant Natural := Lib.C_String_Length (Addr);
+               Arg_String : String (1 .. Arg_Length)
+                  with Import, Address => Addr;
+            begin
+               Env (I) := new String'(Arg_String);
+            end;
+         end loop;
+
+         --  Create a new map for the process and reroll ASLR.
+         Userland.Process.Flush_Exec_Files (Proc);
+         Userland.Process.Reroll_ASLR (Proc);
+         Set_Common_Map (Proc, Memory.Virtual.New_Map);
+         Set_Identifier (Proc, Args (1).all);
+
+         --  Start the actual program.
+         Succ := Userland.Loader.Start_Program
+            (Exec_Path   => Path,
+             FS          => Path_FS,
+             Ino         => Path_Ino,
+             Arguments   => Args,
+             Environment => Env,
+             Proc        => Proc);
+
+         for Arg of Args loop
+            Free (Arg);
+         end loop;
+         for En of Env loop
+            Free (En);
+         end loop;
+
+         if Succ then
+            Errno := Error_No_Error;
+            return True;
+         else
+            Errno := Error_Bad_Access;
+            return False;
+         end if;
+      end;
+   end Exec_Into_Process;
 
    function Get_Mmap_Prot
       (Prot  : Unsigned_64;

@@ -82,7 +82,6 @@ Security and integrity facilities
 
 * Users and groups::                UIDs, EUIDs, GIDs, and all the fuzz.
 * Mandatory access control (MAC)::  MAC quickguide and configuration.
-* Integrity checks::                Userland integrity checks.
 
 Syscalls
 
@@ -99,7 +98,6 @@ Syscalls
 * exec::                    Launching new programs.
 * clone::                   Create new processes and threads.
 * wait::                    Waiting for execution of a child to finish.
-* uname::                   Fetch basic system information.
 * sethostname::             Hostname setting.
 * unlink::                  Queue files for deletion.
 * fstat::                   Fetch file information.
@@ -128,7 +126,6 @@ Syscalls
 * truncate::                Truncate the contents of a file to an offset.
 * mkdir::                   Create directories.
 * symlink::                 Create symbolic links.
-* integrity_setup::         Setup and configure integrity checks.
 * openpty::                 Create pseudoterminals.
 * fsync::                   Synchronize file-specific caches.
 * link::                    Create hard links.
@@ -540,19 +537,6 @@ the offending part outright, or denying and additionally logging the event.
 Once booted, MAC is enabled and gives full access to everything, effectively
 being transparent, its up to the root user to further restrict it.
 
-@node Integrity checks
-@section Integrity checks
-
-Ironclad provides facilities for running configurable userland-wide checks
-configurable using the @code{integrity_setup} system call.
-
-Both in-demand and interrupt-based solutions are provided. The in-demand
-solution is triggered by direct syscall use, it has the advantage of being
-interrupt-free, which makes runtime analysis and realtime overall much easier.
-The interrupt-driven kernel one offers convenience and being independent
-from userland altogether. When using the interrupt-based kernel solution,
-watchdog hardware may be used internally.
-
 @node Syscalls
 @chapter Syscalls
 
@@ -602,7 +586,7 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{wait}.
 @item
-@xref{uname}.
+Unused.
 @item
 @xref{sethostname}.
 @item
@@ -668,7 +652,7 @@ Unused.
 @item
 @xref{symlink}.
 @item
-@xref{integrity_setup}.
+Unused.
 @item
 @xref{openpty}.
 @item
@@ -1109,25 +1093,6 @@ following errno:
 @code{EINVAL}: The passed options are not correct or the passed PID is @code{0}
 @end itemize
 
-@node uname
-@section uname
-
-@example
-struct utsname @{
-    char sysname[65];  // Kernel name (e.g., "Ironclad")
-    char nodename[65]; // Hostname of the machine.
-    char release[65];  // Kernel release (e.g., "2.6.28")
-    char version[65];  // Kernel configuration date for debug purposes.
-    char machine[65];  // Hardware identifier (e.g., "x86")
-@};
-
-int uname(struct utsname *name);
-@end example
-
-This syscall reports kernel information, like version, name, and hostname.
-It returns @code{0} on success, and @code{-1} on failure, with the only errno
-being @code{EFAULT} if the passed pointer is in an invalid address.
-
 @node sethostname
 @section sethostname
 
@@ -1373,6 +1338,7 @@ codes set on failure are:
 #define SC_TOTAL_PAGES   7 // Total amount of installed memory pages.
 #define SC_LIST_PROCS    8 // List all processes of the system.
 #define SC_LIST_MOUNTS   9 // List all mountpoints of the system.
+#define SC_UNAME        10 // Fetch basic system information.
 
 long int sysconf(int request, uintptr_t addr, uintptr_t len);
 @end example
@@ -1420,6 +1386,22 @@ struct mountinfo @{
 
 The total number of mounts is returned, even if it doesnt fit in the passed
 array.
+
+@item
+@code{SC_UNAME}: @code{addr} points to the following structure, and @code{len}
+is the length in bytes of said structure:
+
+@example
+struct utsname @{
+    char sysname[65];  // Kernel name (e.g., "Ironclad")
+    char nodename[65]; // Hostname of the machine.
+    char release[65];  // Kernel release (e.g., "2.6.28")
+    char version[65];  // Kernel configuration date for debug purposes.
+    char machine[65];  // Hardware identifier (e.g., "x86")
+@};
+@end example
+
+In success, the returned value will be @code{0}.
 @end itemize
 
 The syscall return the requested information on success and @code{-1} on
@@ -1436,7 +1418,7 @@ The errno codes set on failure are:
 @section spawn
 
 @example
-pid_t spawn(const char *path, int path_len, char *const argv[], int argv_len, char *const envp[], envp_len);
+pid_t spawn(const char *path, int path_len, char *const argv[], int argv_len, char *const envp[], int envp_len);
 @end example
 
 This syscalls does exactly the same as a @code{fork}+@code{exec}, but faster
@@ -1926,59 +1908,6 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 passed mode is invalid.
 @item
 @code{EIO}: Internal error.
-@end itemize
-
-@node integrity_setup
-@section integrity_setup
-
-@example
-#define INTEGRITY_SET_POLICY    1
-#define INTEGRITY_RUN_YOURSELF  2
-#define INTEGRITY_STOP_YOURSELF 3
-#define INTEGRITY_ONESHOT       4
-#define INTEGRITY_FREE_MEMORY   5
-#define INTEGRITY_MAX_PROC      6
-
-#define INTEGRITY_POLICY_WARN  1
-#define INTEGRITY_POLICY_PANIC 2
-
-int integrity_setup(int request, uint64_t argument);
-@end example
-
-The syscall configures the integrity check facilities.
-
-@code{request} can be one of the following:
-
-@itemize @bullet
-@item
-@code{INTEGRITY_SET_POLICY (1)}: Set the failure policy to the value passed in
-@code{argument}, which has to be one of the @code{INTEGRITY_POLICY_} family.
-
-@item
-@code{INTEGRITY_RUN_YOURSELF (2)}: Tell the kernel to launch the kernel-side
-periodic integrity checks, @code{argument} is the ms deadline for each test.
-
-@item
-@code{INTEGRITY_STOP_YOURSELF (3)}: Tell the kernel to stop the kernel-side
-checks.
-
-@item
-@code{INTEGRITY_ONESHOT (4)}: Run the checks.
-
-@item
-@code{INTEGRITY_FREE_MEMORY (5)}: Check for at least @code{argument} free
-bytes of memory next check.
-
-@item
-@code{INTEGRITY_MAX_PROC (6)}: Check that the total number of processes in
-the system does not equal or exceed @code{argument}.
-@end itemize
-
-The syscall returns @code{0} or @code{-1} on failure, with the following errno:
-
-@itemize @bullet
-@item
-@code{EINVAL}: Invalid configuration value combination.
 @end itemize
 
 @node openpty

@@ -164,8 +164,6 @@ package body Arch.Interrupts with SPARK_Mode => Off is
                                State.R8,  State.all,  FP_State, Errno);
          when 13 =>
             Returned := Wait (State.RDI, State.RSI, State.RDX, Errno);
-         when 14 =>
-            Returned := Uname (State.RDI, Errno);
          when 15 =>
             Returned := Set_Hostname (State.RDI, State.RSI, Errno);
          when 16 =>
@@ -240,8 +238,6 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Returned := Symlink
                (State.RDI, State.RSI, State.RDX, State.RCX, State.R8, State.R9,
                 Errno);
-         when 47 =>
-            Returned := Integrity_Setup (State.RDI, State.RSI, Errno);
          when 48 =>
             Returned := Open_PTY (State.RDI, State.RSI, State.RDX, Errno);
          when 49 =>

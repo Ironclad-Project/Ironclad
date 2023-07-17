@@ -20,7 +20,7 @@ with Arch.MMU;
 with IPC.PTY;
 with System;
 with Userland.Process; use Userland.Process;
-with VFS;
+with VFS;              use VFS;
 
 package Userland.Syscall with SPARK_Mode => Off is
    --  Error conditions for syscalls.
@@ -183,18 +183,7 @@ package Userland.Syscall with SPARK_Mode => Off is
        Options    : Unsigned_64;
        Errno      : out Errno_Value) return Unsigned_64;
 
-   --  uname.
-   type UTS_Name is record
-      System_Name : String (1 .. 65);
-      Node_Name   : String (1 .. 65);
-      Release     : String (1 .. 65);
-      Version     : String (1 .. 65);
-      Machine     : String (1 .. 65);
-   end record;
-   function Uname
-      (Address : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64;
-
+   --  Set hostname.
    function Set_Hostname
       (Address : Unsigned_64;
        Length  : Unsigned_64;
@@ -306,6 +295,7 @@ package Userland.Syscall with SPARK_Mode => Off is
    SC_TOTAL_PAGES   : constant := 7;
    SC_LIST_PROCS    : constant := 8;
    SC_LIST_MOUNTS   : constant := 9;
+   SC_UNAME         : constant := 10;
 
    PROC_IS_TRACED : constant := 2#01#;
    PROC_EXITED    : constant := 2#10#;
@@ -327,6 +317,14 @@ package Userland.Syscall with SPARK_Mode => Off is
       Location_Len : Unsigned_32;
    end record;
    type Mount_Info_Arr is array (Natural range <>) of Mount_Info;
+
+   type UTS_Name is record
+      System_Name : String (1 .. 65);
+      Node_Name   : String (1 .. 65);
+      Release     : String (1 .. 65);
+      Version     : String (1 .. 65);
+      Machine     : String (1 .. 65);
+   end record;
 
    function Sysconf
       (Request : Unsigned_64;
@@ -519,20 +517,6 @@ package Userland.Syscall with SPARK_Mode => Off is
        Mode        : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
 
-   --  Communicate and control with the integrity checks.
-   INTEGRITY_SET_POLICY    : constant := 1;
-   INTEGRITY_RUN_YOURSELF  : constant := 2;
-   INTEGRITY_STOP_YOURSELF : constant := 3;
-   INTEGRITY_ONESHOT       : constant := 4;
-   INTEGRITY_FREE_MEMORY   : constant := 5;
-   INTEGRITY_MAX_PROC      : constant := 6;
-   INTEGRITY_POLICY_WARN   : constant := 1;
-   INTEGRITY_POLICY_PANIC  : constant := 2;
-   function Integrity_Setup
-      (Command  : Unsigned_64;
-       Argument : Unsigned_64;
-       Errno    : out Errno_Value) return Unsigned_64;
-
    --  Create a pair of ptys.
    function Open_PTY
       (Result_Addr  : Unsigned_64;
@@ -645,6 +629,17 @@ private
       (Status         : VFS.FS_Status;
        Success_Return : Unsigned_64;
        Errno          : out Errno_Value) return Unsigned_64;
+
+   --  Execute a path, with an argv and envp into the passed process.
+   function Exec_Into_Process
+      (Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Argv_Addr : Unsigned_64;
+       Argv_Len  : Unsigned_64;
+       Envp_Addr : Unsigned_64;
+       Envp_Len  : Unsigned_64;
+       Proc      : PID;
+       Errno     : out Errno_Value) return Boolean;
 
    --  Translate mmap permissions.
    function Get_Mmap_Prot
