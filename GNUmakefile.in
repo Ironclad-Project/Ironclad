@@ -96,8 +96,8 @@ run_tests:
 
 .PHONY: prove
 prove:
-	$(GNATPROVE) -U --prover=cvc4,altergo,z3 --mode=all -j$(PARALLELISM) \
-		-P '$(call SHESCAPE,$(SRCDIR))'/ironclad.gpr
+	$(GNATPROVE) -U --prover=cvc4,altergo,z3 --mode=all --counterexamples=on \
+		-j$(PARALLELISM) -P '$(call SHESCAPE,$(SRCDIR))'/ironclad.gpr
 ###############################################################################
 # Rules for cleaning build and configuration artifacts
 .PHONY: clean

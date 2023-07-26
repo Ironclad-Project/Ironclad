@@ -64,7 +64,7 @@ package IPC.FIFO is
        Can_Write : out Boolean;
        Is_Error  : out Boolean;
        Is_Broken : out Boolean)
-      with Pre => Is_Valid (P);
+      with Pre => Is_Valid (P), Post => Is_Valid (P);
 
    --  Poll the state of a FIFO writer.
    procedure Poll_Writer
@@ -80,13 +80,13 @@ package IPC.FIFO is
 
    --  Close the passed end.
    procedure Close_Reader (To_Close : in out Inner_Acc)
-      with Pre => Is_Valid (To_Close);
+      with Pre => Is_Valid (To_Close), Post => To_Close = null;
    procedure Close_Writer (To_Close : in out Inner_Acc)
-      with Pre => Is_Valid (To_Close);
+      with Pre => Is_Valid (To_Close), Post => To_Close = null;
 
    --  Non-specific one just closes both reader and writer.
    procedure Close (To_Close : in out Inner_Acc)
-      with Pre => Is_Valid (To_Close);
+      with Pre => Is_Valid (To_Close), Post => To_Close = null;
 
    --  Get the current size of a FIFO.
    --  @param P    FIFO to configure.
@@ -100,7 +100,7 @@ package IPC.FIFO is
    --  @param Success True in success, False if there was a failure or the
    --  passed size would cause data loss.
    procedure Set_Size (P : Inner_Acc; Size : Natural; Success : out Boolean)
-      with Pre => Is_Valid (P);
+      with Pre => (Is_Valid (P) and Size < Natural'Last - 100);
 
    --  Returned status of a pipe operation.
    type Pipe_Status is (Pipe_Success, Broken_Failure, Would_Block_Failure);
@@ -146,8 +146,11 @@ private
    end record;
 
    function Is_Valid (P : Inner_Acc) return Boolean is
-      (P /= null and then P.Data /= null);
+      (P      /= null                and then
+       P.Data /= null                and then
+       P.Data_Count <= P.Data'Length and then
+       P.Data'First = 1);
 
    procedure Common_Close (To_Close : in out Inner_Acc)
-      with Pre => To_Close /= null;
+      with Pre => To_Close /= null, Post => To_Close = null;
 end IPC.FIFO;

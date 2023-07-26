@@ -98,6 +98,7 @@ Syscalls
 * exec::                    Launching new programs.
 * clone::                   Create new processes and threads.
 * wait::                    Waiting for execution of a child to finish.
+* socket::                  Create sockets.
 * sethostname::             Hostname setting.
 * unlink::                  Queue files for deletion.
 * fstat::                   Fetch file information.
@@ -124,12 +125,16 @@ Syscalls
 * sync::                    Synchronize device caches.
 * mknod::                   Create several kinds of files.
 * truncate::                Truncate the contents of a file to an offset.
+* bind::                    Bind sockets to locations.
 * mkdir::                   Create directories.
 * symlink::                 Create symbolic links.
+* connect::                 Connect a socket.
 * openpty::                 Create pseudoterminals.
 * fsync::                   Synchronize file-specific caches.
 * link::                    Create hard links.
 * ptrace::                  Trace and debug children processes.
+* listen::                  Listen for connections to a socket.
+* accept::                  Accept socket connections.
 * poll::                    I/O event multiplexer.
 * getuid/geteuid::          Get the UID and the effective UID.
 * setuids::                 Set the UID and the effective UID.
@@ -143,6 +148,7 @@ Filesystems support and interfaces
 
 * Extended FileSystem::    EXT-series filesystems (ext2, ext3, ext4).
 * File Allocation Table::  FAT-series filesystems.
+* QNX4 FileSystem::        The default filesystem of QNX4 Neutrino.
 
 Devices and their properties
 
@@ -472,17 +478,16 @@ Groups are not supported in any shape or form.
 @node Mandatory access control (MAC)
 @section Mandatory access control (MAC)
 
-Mandatory access control (MAC) is one of the main components of Ironclad
-security. It does not necesarily help with preventing breaches of security, but
-minimizes the things a breached process can do, when configured correctly.
+Mandatory access control (MAC) is one of the main components of Ironclad's
+security. It does not necesarily help with preventing breaches, but, when
+configured correctly, it can help mitigate consequences to a massive degree.
 
-MAC in Ironclad consists on a series of settings inherited from process to
-process, with only more restrictive priviledge escalations allowed, with
-configurable actions to take on triggering illegal actions. These settings come
-in the form of capabilities and file filters.
+MAC in Ironclad consists on a series of settings inherited from parent process
+to children, These settings come in the form of capabilities and file filters.
 
 Capabilities are a set of coarse permissions that restrict a process on what it
-can and cannot do, they are configured using @ref{mac_capabilities}.
+can and cannot do, only more restrictive capability escalations are allowed,
+they are configured using @ref{mac_capabilities}.
 
 The available capability list is:
 
@@ -527,15 +532,17 @@ checks.
 The process will be able to add allowed inodes to the MAC definitions.
 @end table
 
-Apart of capabilities, access to filesystem structures and permission
-management can be done using @ref{add_mac_permissions}.
+Access to inodes and devices can be granted using @ref{add_mac_permissions}.
 
-The method of acting on MAC violations and failures can be set by using
-@ref{set_mac_enforcement}. Possible values include denying requests, killing
-the offending part outright, or denying and additionally logging the event.
+The action to take on MAC violations can be set with @ref{set_mac_enforcement}.
+Possible values include denying requests, killing the offending part outright,
+or denying and additionally logging the event.
 
-Once booted, MAC is enabled and gives full access to everything, effectively
-being transparent, its up to the root user to further restrict it.
+Once booted, MAC is enabled and gives full access to all capabilities, and
+offers full access to all inodes and devices. It is up to userland to further
+restrict access, and for those settings to trickle down to children processes.
+File access enforcement will kick in only once the first filter is added with
+@ref{add_mac_permissions}.
 
 @node Syscalls
 @chapter Syscalls
@@ -586,7 +593,7 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @xref{wait}.
 @item
-Unused.
+@xref{socket}.
 @item
 @xref{sethostname}.
 @item
@@ -648,11 +655,11 @@ Unused.
 @item
 @xref{truncate}.
 @item
-Unused.
+@xref{bind}.
 @item
 @xref{symlink}.
 @item
-Unused.
+@xref{connect}
 @item
 @xref{openpty}.
 @item
@@ -660,7 +667,17 @@ Unused.
 @item
 @xref{link}.
 @item
-@xref{ptrace}
+@xref{ptrace}.
+@item
+@xref{listen}.
+@item
+@xref{accept}.
+@item
+Empty.
+@item
+Empty.
+@item
+Empty.
 @item
 @xref{poll}
 @item
@@ -1093,6 +1110,56 @@ following errno:
 @code{EINVAL}: The passed options are not correct or the passed PID is @code{0}
 @end itemize
 
+@node socket
+@section socket
+
+@example
+#define AF_UNIX       3
+#define SOCK_DGRAM    0b000000000000000001
+#define SOCK_RAW      0b000000000000000010
+#define SOCK_STREAM   0b000000000000000100
+#define SOCK_NONBLOCK 0b010000000000000000
+#define SOCK_CLOEXEC  0b100000000000000000
+
+int socket(int domain, int type, int protocol);
+@end example
+
+This syscall for creating sockets, the passed fields can be used for selecting
+the type of socket to create. The available sockets type are:
+
+@itemize @bullet
+@item
+@code{AF_UNIX (3)}: UNIX domain socket for local communication, this sockets
+can be unnamed or bound to filesystem paths.
+
+The address of a UNIX domain socket takes the shape of
+
+@example
+struct sockaddr_un @{
+   uint32_t sun_family; // AF_UNIX.
+   char path[];         // Must be null terminated.
+@};
+@end example
+
+@code{type} can be one of @code{SOCK_DGRAM} or @code{SOCK_STREAM}. The
+difference between eachother is that datagram sockets preserve message
+boundaries while stream sockets work in streams of data, like a pipe would.
+@end itemize
+
+Any socket type may have @code{type} be OR'ed with @code{SOCK_NONBLOCK} or
+@code{SOCK_CLOEXEC} for setting the created socket nonblock or cloese on exec
+respectively.
+
+The syscall returns the resulting FD or @code{-1} on failure, with the
+following errno:
+
+@itemize @bullet
+@item
+@code{EINVAL}: Invalid combination of flags.
+@item
+@code{EMFILE}: No available file descriptor slots.
+@end itemize
+
 @node sethostname
 @section sethostname
 
@@ -1362,6 +1429,7 @@ struct procinfo @{
     uint16_t id_len;
     uint16_t ppid;
     uint16_t pid;
+    uint32_t uid;
     uint32_t flags;
 @} __attribute__((packed));
 @end example
@@ -1418,12 +1486,19 @@ The errno codes set on failure are:
 @section spawn
 
 @example
-pid_t spawn(const char *path, int path_len, char *const argv[], int argv_len, char *const envp[], int envp_len);
+pid_t spawn(const char *path, int path_len, char *const argv[],
+   int argv_len, char *const envp[], int envp_len, uint64_t *caps);
 @end example
 
 This syscalls does exactly the same as a @code{fork}+@code{exec}, but faster
-and more efficiently. It has the same returns as @code{fork} and @code{spawn}
-together.
+and more efficiently, given it doesnt need to copy the address space just
+to overwrite it. Semantics on whats shared and whats not shared from
+parent to child are the same as if a @code{fork} was used.
+
+The argument @code{caps}, if not @code{NULL}, points to a capability set in
+the same format as @ref{mac_capabilities}. This can be useful for deescalating
+capabilities in the same convenient way as a call to @code{mac_capabilities} in
+between @code{fork} and @code{exec} could.
 
 @node thread_sched
 @section thread_sched
@@ -1870,6 +1945,36 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @code{EINVAL}: @code{new_size} could not be set.
 @end itemize
 
+@node bind
+@section bind
+
+@example
+struct sockaddr @{
+   uint32_t sun_family; // AF values of socket().
+   char data[];
+@};
+
+int bind(int sockfd, const struct sockaddr *addr, unsigned int addrlen);
+@end example
+
+This syscall assigns a global address to the passed socket, the meaning and
+nature of the address depends on the passed socket.
+
+The actual structure passed for the @code{addr} argument will depend on
+the address family, @code{sockaddr} is a catch-all placeholder value.
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@itemize @bullet
+@item
+@code{EINVAL}: Invalid address, may be already in use.
+@item
+@code{EFAULT}: Bad memory address.
+@item
+@code{EBADFD}: The passed FD is not a socket.
+@end itemize
+
 @node mkdir
 @section mkdir
 
@@ -1908,6 +2013,32 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 passed mode is invalid.
 @item
 @code{EIO}: Internal error.
+@end itemize
+
+@node connect
+@section connect
+
+@example
+int connect(int sockfd, const struct sockaddr *addr, unsigned int addrlen);
+@end example
+
+This syscall connects the passed socket to the passed global address.
+
+If the passed socket is datagram-based, then @code{addr} is the address to
+which datagrams are sent by default, and the only address from which datagrams
+are received. If the socket is stream-based, the syscall attempts to make a
+connection to the socket that is bound to the address specified by @code{addr}.
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@itemize @bullet
+@item
+@code{EINVAL}: Invalid address, may not be bound.
+@item
+@code{EFAULT}: Bad memory address.
+@item
+@code{EBADFD}: The passed FD is not a socket.
 @end itemize
 
 @node openpty
@@ -2017,6 +2148,58 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @code{EPERM}: @code{pid} is not a child or does not exist.
 @item
 @code{EINVAL}: @code{request} is not valid.
+@end itemize
+
+@node listen
+@section listen
+
+@example
+int listen(int sockfd, int backlog);
+@end example
+
+This syscall marks the passed socket as a passive socket, that is, as a socket
+that will be used to accept incoming connection requests using @code{accept}.
+
+The passed socket must be stream based, as these are the only sockets with a
+true sense of connection.
+
+@code{backlog} is a recommendation as to the maximum length to which the
+queue of pending connections for @code{sockfd} may grow. If a connection
+request arrives when the queue is full, depending on the protocols involved,
+the client may receive an error or the connection may be ignored so that a
+later reattempt at connection succeeds.
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@itemize @bullet
+@item
+@code{EINVAL}: Invalid value for backlog.
+@item
+@code{EBADFD}: The passed FD is not a socket.
+@end itemize
+
+@node accept
+@section accept
+
+@example
+int accept(int sockfd, const struct sockaddr *addr, int *addrlen, int flags);
+@end example
+
+This syscall takes the first connection request of @code{sockfd} and creates
+a new connected socket with the flags in @code{flags} (@code{SOCK_NONBLOCK} and
+@code{SOCK_CLOEXEC}). @code{addr} is used for writing the address of the
+connection request. @code{addrlen} must be the length of the available buffer,
+and it will be written to be the actual length copied.
+
+The syscall returns the added FD on success or @code{-1} on failure, with the
+following errno:
+
+@itemize @bullet
+@item
+@code{EINVAL}: Invalid value for backlog.
+@item
+@code{EBADFD}: The passed FD is not a socket and listening.
 @end itemize
 
 @node poll
@@ -2298,6 +2481,11 @@ ioctl(fd, EXT_SETFLAGS, pointer_to_u32); // Set EXT's flags inode field.
 
 Ironclad's FAT support is really rough. Only read-only FAT32 is supported.
 No special @code{ioctl} calls are provided. Long filenames are not supported.
+
+@node QNX4 FileSystem
+@section QNX4 FileSystem
+
+Stubbed, please ignore!
 
 @node Devices and their properties
 @chapter Devices and their properties

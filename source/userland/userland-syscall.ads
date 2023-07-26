@@ -21,6 +21,7 @@ with IPC.PTY;
 with System;
 with Userland.Process; use Userland.Process;
 with VFS;              use VFS;
+with IPC.Socket;       use IPC.Socket;
 
 package Userland.Syscall with SPARK_Mode => Off is
    --  Error conditions for syscalls.
@@ -183,6 +184,19 @@ package Userland.Syscall with SPARK_Mode => Off is
        Options    : Unsigned_64;
        Errno      : out Errno_Value) return Unsigned_64;
 
+   --  Create a socket.
+   AF_UNIX       : constant := 3;
+   SOCK_DGRAM    : constant := 2#000000000000000001#;
+   SOCK_RAW      : constant := 2#000000000000000010#;
+   SOCK_STREAM   : constant := 2#000000000000000100#;
+   SOCK_NONBLOCK : constant := 2#010000000000000000#;
+   SOCK_CLOEXEC  : constant := 2#100000000000000000#;
+   function Socket
+      (Domain   : Unsigned_64;
+       DataType : Unsigned_64;
+       Protocol : Unsigned_64;
+       Errno    : out Errno_Value) return Unsigned_64;
+
    --  Set hostname.
    function Set_Hostname
       (Address : Unsigned_64;
@@ -304,6 +318,7 @@ package Userland.Syscall with SPARK_Mode => Off is
       Id_Len      : Unsigned_16;
       Parent_PID  : Unsigned_16;
       Process_PID : Unsigned_16;
+      UID         : Unsigned_32;
       Flags       : Unsigned_32;
    end record with Pack;
    type Proc_Info_Arr is array (Natural range <>) of Proc_Info;
@@ -340,6 +355,7 @@ package Userland.Syscall with SPARK_Mode => Off is
        Argv_Len  : Unsigned_64;
        Envp_Addr : Unsigned_64;
        Envp_Len  : Unsigned_64;
+       Caps_Addr : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
 
    --  Managing scheduling of a thread.
@@ -507,6 +523,20 @@ package Userland.Syscall with SPARK_Mode => Off is
        New_Size : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64;
 
+   --  Bind a socket to an address.
+   type SockAddr_UNIX (Length : Natural) is record
+      Sun_Family : Unsigned_32;
+      Path       : String (1 .. Length);
+   end record;
+   for SockAddr_UNIX use record
+      Sun_Family at 0 range 0 .. 31;
+   end record;
+   function Bind
+      (Sock_FD   : Unsigned_64;
+       Addr_Addr : Unsigned_64;
+       Addr_Len  : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
+
    --  Create a symbolic link.
    function Symlink
       (Dir_FD      : Unsigned_64;
@@ -516,6 +546,13 @@ package Userland.Syscall with SPARK_Mode => Off is
        Target_Len  : Unsigned_64;
        Mode        : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
+
+   --  Connect a socket to an address.
+   function Connect
+      (Sock_FD   : Unsigned_64;
+       Addr_Addr : Unsigned_64;
+       Addr_Len  : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
 
    --  Create a pair of ptys.
    function Open_PTY
@@ -548,6 +585,20 @@ package Userland.Syscall with SPARK_Mode => Off is
        Traced_Addr : Unsigned_64;
        Result_Addr : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64;
+
+   --  Turn a socket into a passive listener for connections.
+   function Listen
+      (Sock_FD : Unsigned_64;
+       Backlog : Unsigned_64;
+       Errno   : out Errno_Value) return Unsigned_64;
+
+   --  Accept a connection.
+   function Sys_Accept
+      (Sock_FD   : Unsigned_64;
+       Addr_Addr : Unsigned_64;
+       Addr_Len  : Unsigned_64;
+       Flags     : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64;
 
    --  Poll on a series of events.
    POLLIN   : constant := 2#00000001#;
@@ -630,6 +681,11 @@ private
        Success_Return : Unsigned_64;
        Errno          : out Errno_Value) return Unsigned_64;
 
+   function Translate_Status
+      (Status         : IPC.Socket.Socket_Status;
+       Success_Return : Unsigned_64;
+       Errno          : out Errno_Value) return Unsigned_64;
+
    --  Execute a path, with an argv and envp into the passed process.
    function Exec_Into_Process
       (Path_Addr : Unsigned_64;
@@ -655,4 +711,7 @@ private
        Request  : Unsigned_64;
        Argument : System.Address;
        Success  : out Boolean);
+
+   --  Set MAC capabilities for a process from a bitmap.
+   procedure Set_MAC_Capabilities (Proc : PID; Bits : Unsigned_64);
 end Userland.Syscall;

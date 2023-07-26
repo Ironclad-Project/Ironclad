@@ -230,6 +230,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Success1  : VFS.FS_Status;
       Success2  : IPC.FIFO.Pipe_Status;
       Success3  : Boolean;
+      Success4  : IPC.Socket.Socket_Status;
       User      : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
@@ -295,6 +296,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when Description_Writer_FIFO =>
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
+         when Description_Socket =>
+            IPC.Socket.Read (File.Inner_Socket, Data, Ret_Count, Success4);
+            return Translate_Status (Success4, Unsigned_64 (Ret_Count), Errno);
       end case;
    end Read;
 
@@ -316,6 +320,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Success1  : VFS.FS_Status;
       Success2  : IPC.FIFO.Pipe_Status;
       Success3  : Boolean;
+      Success4  : IPC.Socket.Socket_Status;
       User      : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
@@ -383,6 +388,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when Description_Reader_FIFO =>
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
+         when Description_Socket =>
+            IPC.Socket.Write (File.Inner_Socket, Data, Ret_Count, Success4);
+            return Translate_Status (Success4, Unsigned_64 (Ret_Count), Errno);
       end case;
    end Write;
 
@@ -799,6 +807,64 @@ package body Userland.Syscall with SPARK_Mode => Off is
       return Final_Waited_PID;
    end Wait;
 
+   function Socket
+      (Domain   : Unsigned_64;
+       DataType : Unsigned_64;
+       Protocol : Unsigned_64;
+       Errno    : out Errno_Value) return Unsigned_64
+   is
+      Proc     : constant     PID := Arch.Local.Get_Current_Process;
+      Cloexec  : constant Boolean := (DataType and SOCK_CLOEXEC)  /= 0;
+      Block    : constant Boolean := (DataType and SOCK_NONBLOCK) /= 0;
+      Returned : Natural;
+      Desc     : File_Description_Acc;
+      New_Sock : IPC.Socket.Socket_Acc;
+      Dom      : IPC.Socket.Domain;
+      Data     : IPC.Socket.DataType;
+      Proto    : IPC.Socket.Protocol;
+   begin
+      case Domain is
+         when AF_UNIX => Dom := IPC.Socket.UNIX;
+         when others  => goto Invalid_Value_Return;
+      end case;
+
+      case DataType and 16#FFF# is
+         when SOCK_STREAM => Data := IPC.Socket.Stream;
+         when SOCK_DGRAM  => Data := IPC.Socket.Datagram;
+         when others      => goto Invalid_Value_Return;
+      end case;
+
+      case Protocol is
+         when 0      => Proto := IPC.Socket.Default;
+         when others => goto Invalid_Value_Return;
+      end case;
+
+      New_Sock := IPC.Socket.Create (Dom, Data, Proto);
+      if New_Sock = null then
+         goto Invalid_Value_Return;
+      end if;
+
+      IPC.Socket.Set_Blocking (New_Sock, Block);
+      Desc := new File_Description'
+         (Children_Count => 0,
+          Description    => Description_Socket,
+          Inner_Socket   => New_Sock);
+      if Userland.Process.Add_File (Proc, Desc, Returned) then
+         Set_Close_On_Exec (Proc, Unsigned_64 (Returned), Cloexec);
+         Errno := Error_No_Error;
+         return Unsigned_64 (Returned);
+      else
+         Close (New_Sock);
+         Close (Desc);
+         Errno := Error_Too_Many_Files;
+         return Unsigned_64'Last;
+      end if;
+
+   <<Invalid_Value_Return>>
+      Errno := Error_Invalid_Value;
+      return Unsigned_64'Last;
+   end Socket;
+
    function Set_Hostname
       (Address : Unsigned_64;
        Length  : Unsigned_64;
@@ -947,6 +1013,21 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Block_Size    => 512,
                Block_Count   => 1
             );
+         when Description_Socket =>
+            Stat_Buf :=
+               (Device_Number => 0,
+                Inode_Number  => 1,
+                Mode          => Stat_ISOCK,
+                Number_Links  => 1,
+                UID           => 0,
+                GID           => 0,
+                Inner_Device  => 1,
+                File_Size     => 512,
+                Access_Time   => (Seconds => 0, Nanoseconds => 0),
+                Modify_Time   => (Seconds => 0, Nanoseconds => 0),
+                Create_Time   => (Seconds => 0, Nanoseconds => 0),
+                Block_Size    => 512,
+                Block_Count   => 1);
       end case;
 
       Errno := Error_No_Error;
@@ -1305,6 +1386,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                       Id_Len      => Unsigned_16 (KProc (I).Identifier_Len),
                       Parent_PID  => Unsigned_16 (Convert (KProc (I).Parent)),
                       Process_PID => Unsigned_16 (Convert (KProc (I).Process)),
+                      UID         => KProc (I).User,
                       Flags       => 0);
                   if KProc (I).Is_Being_Traced then
                      Procs (I).Flags := Procs (I).Flags or PROC_IS_TRACED;
@@ -1391,12 +1473,24 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Argv_Len  : Unsigned_64;
        Envp_Addr : Unsigned_64;
        Envp_Len  : Unsigned_64;
+       Caps_Addr : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64
    is
-      Proc    : constant PID := Arch.Local.Get_Current_Process;
-      Success : Boolean;
-      Child   : PID;
+      Proc       : constant             PID := Arch.Local.Get_Current_Process;
+      Map        : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      Caps_IAddr : constant Integer_Address := Integer_Address (Caps_Addr);
+      Set_Caps   : constant         Boolean := Caps_IAddr /= 0;
+      Caps       : Unsigned_64 with Import, Address => To_Address (Caps_IAddr);
+      Success    : Boolean;
+      Child      : PID;
    begin
+      if Set_Caps and then
+         not Check_Userland_Access (Map, Caps_IAddr, Unsigned_64'Size / 8)
+      then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      end if;
+
       Child := Create_Process (Proc);
       if Child = Error_PID then
          Errno := Error_Would_Block;
@@ -1414,12 +1508,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
           Envp_Len  => Envp_Len,
           Proc      => Child,
           Errno     => Errno);
-      if Success then
-         return Unsigned_64 (Convert (Child));
-      else
+      if not Success then
          Errno := Error_Bad_Access;
          return Unsigned_64'Last;
       end if;
+
+      if Set_Caps then
+         Set_MAC_Capabilities (Child, Caps);
+      end if;
+
+      return Unsigned_64 (Convert (Child));
    end Spawn;
 
    function Get_Thread_Sched
@@ -1606,36 +1704,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       (Bits  : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64
    is
-      P     :     constant PID := Arch.Local.Get_Current_Process;
-      Perms :      MAC.Context := Get_MAC (P);
-      Caps  : MAC.Capabilities := MAC.Get_Capabilities (Perms);
-      S1  : constant Boolean := (Bits and MAC_CAP_SCHED)   /= 0;
-      S2  : constant Boolean := (Bits and MAC_CAP_SPAWN)   /= 0;
-      S3  : constant Boolean := (Bits and MAC_CAP_ENTROPY) /= 0;
-      S4  : constant Boolean := (Bits and MAC_CAP_SYS_MEM) /= 0;
-      S5  : constant Boolean := (Bits and MAC_CAP_USE_NET) /= 0;
-      S6  : constant Boolean := (Bits and MAC_CAP_SYS_NET) /= 0;
-      S7  : constant Boolean := (Bits and MAC_CAP_SYS_MNT) /= 0;
-      S8  : constant Boolean := (Bits and MAC_CAP_SYS_PWR) /= 0;
-      S9  : constant Boolean := (Bits and MAC_CAP_PTRACE)  /= 0;
-      S10 : constant Boolean := (Bits and MAC_CAP_SETUID)  /= 0;
-      S11 : constant Boolean := (Bits and MAC_CAP_SYS_MAC) /= 0;
    begin
-      Caps :=
-         (Can_Change_Scheduling => Caps.Can_Change_Scheduling and S1,
-          Can_Spawn_Others      => Caps.Can_Spawn_Others      and S2,
-          Can_Access_Entropy    => Caps.Can_Access_Entropy    and S3,
-          Can_Modify_Memory     => Caps.Can_Modify_Memory     and S4,
-          Can_Use_Networking    => Caps.Can_Use_Networking    and S5,
-          Can_Manage_Networking => Caps.Can_Manage_Networking and S6,
-          Can_Manage_Mounts     => Caps.Can_Manage_Mounts     and S7,
-          Can_Manage_Power      => Caps.Can_Manage_Power      and S8,
-          Can_Trace_Children    => Caps.Can_Trace_Children    and S9,
-          Can_Change_UIDs       => Caps.Can_Change_UIDs       and S10,
-          Can_Manage_MAC        => Caps.Can_Manage_MAC        and S11);
-
-      MAC.Set_Capabilities (Perms, Caps);
-      Set_MAC (P, Perms);
+      Set_MAC_Capabilities (Arch.Local.Get_Current_Process, Bits);
       Errno := Error_No_Error;
       return 0;
    end Set_MAC_Capabilities;
@@ -2157,6 +2227,45 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end case;
    end Truncate;
 
+   function Bind
+      (Sock_FD   : Unsigned_64;
+       Addr_Addr : Unsigned_64;
+       Addr_Len  : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64
+   is
+      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
+      File  : constant File_Description_Acc := Get_File (Proc, Sock_FD);
+      IAddr : constant      Integer_Address := Integer_Address (Addr_Addr);
+      SAddr : constant       System.Address := To_Address (IAddr);
+   begin
+      if File = null or else File.Description /= Description_Socket then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      elsif not Check_Userland_Access (Get_Common_Map (Proc), IAddr, Addr_Len)
+      then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      end if;
+
+      declare
+         --  FIXME: Ideally, this wouldnt be neccesary, because addr_len is
+         --  meant to cover for the string as well. But software like Xorg
+         --  dislikes the notion of passing correct arguments. This opens
+         --  us up to some memory faulting shinenigans. Sigh.
+         Addr_SAddr : constant System.Address := SAddr + 4;
+         Addr_CLen  : constant Natural := Lib.C_String_Length (Addr_SAddr);
+         Addr : String (1 .. Addr_CLen) with Import, Address => Addr_SAddr;
+      begin
+         if IPC.Socket.Bind (File.Inner_Socket, Addr) then
+            Errno := Error_No_Error;
+            return 0;
+         else
+            Errno := Error_IO;
+            return Unsigned_64'Last;
+         end if;
+      end;
+   end Bind;
+
    function Symlink
       (Dir_FD      : Unsigned_64;
        Path_Addr   : Unsigned_64;
@@ -2218,6 +2327,45 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Translate_Status (Success, 0, Errno);
       end;
    end Symlink;
+
+   function Connect
+      (Sock_FD   : Unsigned_64;
+       Addr_Addr : Unsigned_64;
+       Addr_Len  : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64
+   is
+      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
+      File  : constant File_Description_Acc := Get_File (Proc, Sock_FD);
+      IAddr : constant      Integer_Address := Integer_Address (Addr_Addr);
+      SAddr : constant       System.Address := To_Address (IAddr);
+   begin
+      if File = null or else File.Description /= Description_Socket then
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      elsif not Check_Userland_Access (Get_Common_Map (Proc), IAddr, Addr_Len)
+      then
+         Errno := Error_Would_Fault;
+         return Unsigned_64'Last;
+      end if;
+
+      declare
+         --  FIXME: Ideally, this wouldnt be neccesary, because addr_len is
+         --  meant to cover for the string as well. But software like Xorg
+         --  dislikes the notion of passing correct arguments. This opens
+         --  us up to some memory faulting shinenigans. Sigh.
+         Addr_SAddr : constant System.Address := SAddr + 4;
+         Addr_CLen  : constant Natural := Lib.C_String_Length (Addr_SAddr);
+         Addr : String (1 .. Addr_CLen) with Import, Address => Addr_SAddr;
+      begin
+         if IPC.Socket.Connect (File.Inner_Socket, Addr) then
+            Errno := Error_No_Error;
+            return 0;
+         else
+            Errno := Error_IO;
+            return Unsigned_64'Last;
+         end if;
+      end;
+   end Connect;
 
    function Open_PTY
       (Result_Addr  : Unsigned_64;
@@ -2406,6 +2554,70 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno := Error_No_Error;
       return 0;
    end PTrace;
+
+   function Listen
+      (Sock_FD : Unsigned_64;
+       Backlog : Unsigned_64;
+       Errno   : out Errno_Value) return Unsigned_64
+   is
+      Proc : constant                  PID := Arch.Local.Get_Current_Process;
+      File : constant File_Description_Acc := Get_File (Proc, Sock_FD);
+   begin
+      if File /= null and then File.Description = Description_Socket then
+         if IPC.Socket.Listen (File.Inner_Socket, Natural (Backlog)) then
+            Errno := Error_No_Error;
+            return 0;
+         else
+            Errno := Error_Invalid_Value;
+            return Unsigned_64'Last;
+         end if;
+      else
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+   end Listen;
+
+   function Sys_Accept
+      (Sock_FD   : Unsigned_64;
+       Addr_Addr : Unsigned_64;
+       Addr_Len  : Unsigned_64;
+       Flags     : Unsigned_64;
+       Errno     : out Errno_Value) return Unsigned_64
+   is
+      pragma Unreferenced (Addr_Addr);
+      pragma Unreferenced (Addr_Len);
+      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
+      File  : constant File_Description_Acc := Get_File (Proc, Sock_FD);
+      CExec : constant              Boolean := (Flags and SOCK_CLOEXEC)  /= 0;
+      Block : constant              Boolean := (Flags and SOCK_NONBLOCK) /= 0;
+      Desc  : File_Description_Acc;
+      Sock  : Socket_Acc;
+      Ret   : Natural;
+   begin
+      if File /= null and then File.Description = Description_Socket then
+         Sock := IPC.Socket.Accept_Connection (File.Inner_Socket);
+         if Sock /= null then
+            IPC.Socket.Set_Blocking (Sock, Block);
+            Desc := new File_Description'(Description_Socket, 0, Sock);
+            if Userland.Process.Add_File (Proc, Desc, Ret) then
+               Set_Close_On_Exec (Proc, Unsigned_64 (Ret), CExec);
+               Errno := Error_No_Error;
+               return Unsigned_64 (Ret);
+            else
+               Close (Sock);
+               Close (Desc);
+               Errno := Error_Too_Many_Files;
+               return Unsigned_64'Last;
+            end if;
+         else
+            Errno := Error_Would_Block;
+            return Unsigned_64'Last;
+         end if;
+      else
+         Errno := Error_Bad_File;
+         return Unsigned_64'Last;
+      end if;
+   end Sys_Accept;
 
    function Poll
       (FDs_Addr  : Unsigned_64;
@@ -2787,6 +2999,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
       return Unsigned_64'Last;
    end Translate_Status;
 
+   function Translate_Status
+      (Status         : IPC.Socket.Socket_Status;
+       Success_Return : Unsigned_64;
+       Errno          : out Errno_Value) return Unsigned_64
+   is
+   begin
+      case Status is
+         when Plain_Success => Errno := Error_No_Error; return Success_Return;
+         when Is_Bad_Type   => Errno := Error_Invalid_Value;
+         when Would_Block   => Errno := Error_Would_Block;
+      end case;
+      return Unsigned_64'Last;
+   end Translate_Status;
+
    function Exec_Into_Process
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
@@ -2961,4 +3187,35 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Success := False;
       end case;
    end PTY_IOCTL;
+
+   procedure Set_MAC_Capabilities (Proc : PID; Bits : Unsigned_64) is
+      Perms :               MAC.Context := Get_MAC (Proc);
+      Caps  : constant MAC.Capabilities := MAC.Get_Capabilities (Perms);
+   begin
+      MAC.Set_Capabilities
+         (Perms,
+          (Can_Change_Scheduling => Caps.Can_Change_Scheduling
+            and ((Bits and MAC_CAP_SCHED)   /= 0),
+           Can_Spawn_Others      => Caps.Can_Spawn_Others
+            and ((Bits and MAC_CAP_SPAWN)   /= 0),
+           Can_Access_Entropy    => Caps.Can_Access_Entropy
+            and ((Bits and MAC_CAP_ENTROPY) /= 0),
+           Can_Modify_Memory     => Caps.Can_Modify_Memory
+            and ((Bits and MAC_CAP_SYS_MEM) /= 0),
+           Can_Use_Networking    => Caps.Can_Use_Networking
+            and ((Bits and MAC_CAP_USE_NET) /= 0),
+           Can_Manage_Networking => Caps.Can_Manage_Networking
+            and ((Bits and MAC_CAP_SYS_NET) /= 0),
+           Can_Manage_Mounts     => Caps.Can_Manage_Mounts
+            and ((Bits and MAC_CAP_SYS_MNT) /= 0),
+           Can_Manage_Power      => Caps.Can_Manage_Power
+            and ((Bits and MAC_CAP_SYS_PWR) /= 0),
+           Can_Trace_Children    => Caps.Can_Trace_Children
+            and ((Bits and MAC_CAP_PTRACE)  /= 0),
+           Can_Change_UIDs       => Caps.Can_Change_UIDs
+            and ((Bits and MAC_CAP_SETUID)  /= 0),
+           Can_Manage_MAC        => Caps.Can_Manage_MAC
+            and ((Bits and MAC_CAP_SYS_MAC) /= 0)));
+      Set_MAC (Proc, Perms);
+   end Set_MAC_Capabilities;
 end Userland.Syscall;

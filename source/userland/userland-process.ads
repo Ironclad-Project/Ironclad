@@ -20,8 +20,9 @@ with Lib.Synchronization;
 with Scheduler; use Scheduler;
 with Interfaces; use Interfaces;
 with Userland.MAC;
-with IPC.FIFO; use IPC.FIFO;
-with IPC.PTY;  use IPC.PTY;
+with IPC.FIFO;   use IPC.FIFO;
+with IPC.PTY;    use IPC.PTY;
+with IPC.Socket; use IPC.Socket;
 with Devices;
 
 package Userland.Process with SPARK_Mode => Off is
@@ -51,7 +52,8 @@ package Userland.Process with SPARK_Mode => Off is
        Description_Primary_PTY,
        Description_Secondary_PTY,
        Description_Device,
-       Description_Inode);
+       Description_Inode,
+       Description_Socket);
    type File_Description;
    type File_Description_Acc is access all File_Description;
    type File_Description (Description : File_Description_Type) is record
@@ -76,6 +78,8 @@ package Userland.Process with SPARK_Mode => Off is
             Inner_Ino_Pos   : Unsigned_64;
             Inner_Ino_FS    : VFS.FS_Handle;
             Inner_Ino       : VFS.File_Inode_Number;
+         when Description_Socket =>
+            Inner_Socket : IPC.Socket.Socket_Acc;
       end case;
    end record;
 
@@ -101,6 +105,7 @@ package Userland.Process with SPARK_Mode => Off is
       Identifier_Len  : Natural;
       Process         : PID;
       Parent          : PID;
+      User            : Unsigned_32;
       Is_Being_Traced : Boolean;
       Has_Exited      : Boolean;
    end record;

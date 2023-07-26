@@ -17,7 +17,7 @@
 with Interfaces; use Interfaces;
 with Memory;     use Memory;
 
-package Arch.MMU with SPARK_Mode => Off is
+package Arch.MMU is
    --  Permissions used for mapping.
    type Page_Permissions is record
       User_Accesible : Boolean; --  User accesible.

@@ -83,6 +83,7 @@ package body Userland.Process with SPARK_Mode => Off is
                    Identifier_Len  => Registry (I).Identifier_Len,
                    Process         => I,
                    Parent          => Registry (I).Parent,
+                   User            => Registry (I).User,
                    Is_Being_Traced => Registry (I).Is_Traced,
                    Has_Exited      => Registry (I).Did_Exit);
                Curr_Index := Curr_Index + 1;
@@ -266,6 +267,7 @@ package body Userland.Process with SPARK_Mode => Off is
             when Description_Secondary_PTY => Close (F.Inner_Secondary_PTY);
             when Description_Device => null;
             when Description_Inode => VFS.Close (F.Inner_Ino_FS, F.Inner_Ino);
+            when Description_Socket => Close (F.Inner_Socket);
          end case;
          Free (F);
       else

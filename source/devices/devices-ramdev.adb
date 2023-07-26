@@ -17,14 +17,7 @@
 with System; use System;
 with Lib.Alignment;
 
-package body Devices.Ramdev is
-   --  Unit passes GNATprove AoRTE, GNAT does not know this.
-   pragma Suppress (All_Checks);
-   pragma Warnings
-      (GNATprove, Off,
-       "indirect writes to*through a potential alias are ignored",
-       Reason => "Device data is immutable once initialized");
-
+package body Devices.Ramdev with SPARK_Mode => Off is
    --  Ramdev data.
    type Ramdev_Data is record
       Start_Address : System.Address;

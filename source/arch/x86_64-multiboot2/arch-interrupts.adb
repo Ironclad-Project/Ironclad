@@ -164,6 +164,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
                                State.R8,  State.all,  FP_State, Errno);
          when 13 =>
             Returned := Wait (State.RDI, State.RSI, State.RDX, Errno);
+         when 14 =>
+            Returned := Socket (State.RDI, State.RSI, State.RDX, Errno);
          when 15 =>
             Returned := Set_Hostname (State.RDI, State.RSI, Errno);
          when 16 =>
@@ -190,8 +192,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 26 =>
             Returned := Sysconf (State.RDI, State.RSI, State.RDX, Errno);
          when 27 =>
-            Returned := Spawn (State.RDI, State.RSI, State.RDX,
-                               State.RCX, State.R8, State.R9, Errno);
+            Returned := Spawn (State.RDI, State.RSI, State.RDX, State.RCX,
+                               State.R8, State.R9, State.R10, Errno);
          when 28 =>
             Returned := Get_Thread_Sched (Errno);
          when 29 =>
@@ -234,10 +236,14 @@ package body Arch.Interrupts with SPARK_Mode => Off is
                (State.RDI, State.RSI, State.RDX, State.RCX, State.R8, Errno);
          when 44 =>
             Returned := Truncate (State.RDI, State.RSI, Errno);
+         when 45 =>
+            Returned := Bind (State.RDI, State.RSI, State.RDX, Errno);
          when 46 =>
             Returned := Symlink
                (State.RDI, State.RSI, State.RDX, State.RCX, State.R8, State.R9,
                 Errno);
+         when 47 =>
+            Returned := Connect (State.RDI, State.RSI, State.RDX, Errno);
          when 48 =>
             Returned := Open_PTY (State.RDI, State.RSI, State.RDX, Errno);
          when 49 =>
@@ -248,6 +254,11 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 51 =>
             Returned := PTrace (State.RDI, State.RSI, State.RDX, State.RCX,
                                 Errno);
+         when 52 =>
+            Returned := Listen (State.RDI, State.RSI, Errno);
+         when 53 =>
+            Returned := Sys_Accept (State.RDI, State.RSI, State.RDX, State.RCX,
+                                    Errno);
          when 57 =>
             Returned := Poll (State.RDI, State.RSI, State.RDX, Errno);
          when 58 =>

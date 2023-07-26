@@ -71,13 +71,8 @@ is
       Current    :              Natural := Buffer'Last;
    begin
       Buffer := (others => '0');
-      while To_Convert /= 0 loop
-         pragma Loop_Invariant
-            (To_Convert rem Base >= Unsigned_64 (Conversion'First - 1) and
-             To_Convert rem Base <= Unsigned_64 (Conversion'Last  - 1) and
-             Current >= Buffer'First                                   and
-             Current <= Buffer'Last);
-
+      while To_Convert /= 0 and Current >= Buffer'First loop
+         pragma Loop_Invariant (Current <= Buffer'Last);
          Buffer (Current) := Conversion (Integer (To_Convert rem Base) + 1);
          To_Convert       := To_Convert / Base;
          Current          := Current - 1;

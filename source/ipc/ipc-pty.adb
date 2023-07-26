@@ -38,11 +38,6 @@ package body IPC.PTY is
    end Create;
 
    procedure Close (Closed : in out Inner_Acc) is
-      pragma Annotate
-         (GNATprove,
-          False_Positive,
-          "memory leak",
-          "Cannot verify that the pipes have only 1 reference, but they do");
    begin
       Lib.Synchronization.Seize (Closed.Mutex);
       if Closed.Was_Closed then
@@ -100,10 +95,11 @@ package body IPC.PTY is
        Can_Read  : out Boolean;
        Can_Write : out Boolean)
    is
-      Disc1, Disc2, Disc3 : Boolean;
+      Prim : FIFO.Inner_Acc renames P.Primary_Pipe;
+      Discard_1, Discard_2, Discard_3 : Boolean;
    begin
-      FIFO.Poll_Reader (P.Primary_Pipe, Can_Read, Disc1, Disc2, Disc3);
-      FIFO.Poll_Writer (P.Primary_Pipe, Disc1, Can_Write, Disc2, Disc3);
+      FIFO.Poll_Reader (Prim, Can_Read,  Discard_1, Discard_2, Discard_3);
+      FIFO.Poll_Writer (Prim, Discard_1, Can_Write, Discard_2, Discard_3);
    end Poll_Primary;
 
    procedure Poll_Secondary
@@ -111,10 +107,11 @@ package body IPC.PTY is
        Can_Read  : out Boolean;
        Can_Write : out Boolean)
    is
-      Disc1, Disc2, Disc3 : Boolean;
+      Snd : FIFO.Inner_Acc renames P.Secondary_Pipe;
+      Discard_1, Discard_2, Discard_3 : Boolean;
    begin
-      FIFO.Poll_Reader (P.Secondary_Pipe, Can_Read, Disc1, Disc2, Disc3);
-      FIFO.Poll_Writer (P.Secondary_Pipe, Disc1, Can_Write, Disc2, Disc3);
+      FIFO.Poll_Reader (Snd, Can_Read,  Discard_1, Discard_2, Discard_3);
+      FIFO.Poll_Writer (Snd, Discard_1, Can_Write, Discard_2, Discard_3);
    end Poll_Secondary;
 
    procedure Get_TermIOs (P : Inner_Acc; T : out Devices.TermIOs.Main_Data) is

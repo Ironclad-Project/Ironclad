@@ -50,19 +50,12 @@ package body Devices.Random is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
       DLen : constant Natural := Data'Length;
-      Len  : constant Natural := (if DLen > 4096 then 4096 else DLen / 4);
+      Len  : constant Natural := (if DLen > 4096 then 4096 / 4 else DLen / 4);
+      Idx  :          Natural := (if Data'Length /= 0 then Data'First else 0);
       Temp : Cryptography.Random.Crypto_Data (1 .. Len);
-      Idx  : Natural;
    begin
       Data := (others => 0);
 
-      if Len = 0 then
-         Ret_Count := 0;
-         Success   := True;
-         return;
-      end if;
-
-      Idx := Data'First;
       Cryptography.Random.Fill_Data (Temp);
       for V of Temp loop
          pragma Loop_Invariant (Idx >= Data'First and Idx <= Data'Last - 3);
@@ -70,7 +63,7 @@ package body Devices.Random is
          Data (Idx + 1) := Unsigned_8 (Shift_Right (V and 16#00FF0000#, 16));
          Data (Idx + 2) := Unsigned_8 (Shift_Right (V and 16#0000FF00#,  8));
          Data (Idx + 3) := Unsigned_8 (Shift_Right (V and 16#000000FF#,  0));
-         if Idx < Natural'Last - 4 then
+         if Idx < Data'Last - 3 then
             Idx := Idx + 4;
          end if;
       end loop;

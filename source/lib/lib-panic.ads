@@ -23,6 +23,6 @@ is
    --  Will report the issue and then lock up the system, for situations that
    --  are too risky or unrecoverable.
    procedure Hard_Panic (Message : String)
-      with No_Return, Global => (In_Out => (Panic_State,
-         Messages.Message_State));
+      with Pre => Message'Length <= 100, No_Return,
+           Global => (In_Out => (Panic_State, Messages.Message_State));
 end Lib.Panic;

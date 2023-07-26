@@ -111,10 +111,10 @@ package body IPC.FIFO is
 
    procedure Close (To_Close : in out Inner_Acc) is
    begin
-      Close_Reader (To_Close);
-      if To_Close /= null and then To_Close.Data /= null then
-         Close_Writer (To_Close);
-      end if;
+      Lib.Synchronization.Seize (To_Close.Mutex);
+      To_Close.Reader_Closed := True;
+      To_Close.Writer_Closed := True;
+      Common_Close (To_Close);
    end Close;
 
    procedure Get_Size (P : Inner_Acc; Size : out Natural) is
@@ -174,6 +174,9 @@ package body IPC.FIFO is
       if Final_Len > To_Read.Data_Count then
          Final_Len := To_Read.Data_Count;
       end if;
+      if Data'First > Natural'Last - Final_Len then
+         Final_Len := Natural'Last - Data'First;
+      end if;
 
       Data (Data'First .. Data'First + Final_Len - 1) :=
          To_Read.Data (1 .. Final_Len);
@@ -181,7 +184,11 @@ package body IPC.FIFO is
          for J in To_Read.Data'First .. To_Read.Data'Last - 1 loop
             To_Read.Data (J) := To_Read.Data (J + 1);
          end loop;
-         To_Read.Data_Count := To_Read.Data_Count - 1;
+         if To_Read.Data_Count > 0 then
+            To_Read.Data_Count := To_Read.Data_Count - 1;
+         else
+            exit;
+         end if;
       end loop;
 
       Lib.Synchronization.Release (To_Read.Mutex);
@@ -220,11 +227,15 @@ package body IPC.FIFO is
       end if;
 
       if Len > To_Write.Data'Length or else
-         Len + To_Write.Data_Count > To_Write.Data'Length
+         Len > To_Write.Data'Length - To_Write.Data_Count
       then
          Final := To_Write.Data'Length;
          Len   := To_Write.Data'Length - To_Write.Data_Count;
       else
+         Final := To_Write.Data_Count + Len;
+      end if;
+      if Data'First > Natural'Last - Len then
+         Len   := Natural'Last - Data'First;
          Final := To_Write.Data_Count + Len;
       end if;
 
@@ -239,6 +250,11 @@ package body IPC.FIFO is
    end Write;
    ----------------------------------------------------------------------------
    procedure Common_Close (To_Close : in out Inner_Acc) is
+      pragma Annotate
+         (GNATprove,
+          False_Positive,
+          "memory leak",
+          "Cannot verify that the pipes have only 1 reference, but they do");
    begin
       if To_Close.Reader_Closed and To_Close.Writer_Closed then
          Free (To_Close.Data);
@@ -246,5 +262,6 @@ package body IPC.FIFO is
       else
          Lib.Synchronization.Release (To_Close.Mutex);
       end if;
+      To_Close := null;
    end Common_Close;
 end IPC.FIFO;
