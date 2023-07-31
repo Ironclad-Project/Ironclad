@@ -24,74 +24,75 @@ with Userland.Syscall; use Userland.Syscall;
 with Arch.Snippets;
 with Arch.Local;
 with Userland.Process; use Userland.Process;
+with Userland.Corefile;
 with IPC.FIFO; use IPC.FIFO;
 with Devices;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
    is
-      Discard    : Natural;
-      Val_Buffer : Lib.Messages.Translated_String;
-      Exception_Text : constant array (0 .. 30) of String (1 .. 3) := (
-         0  => "#DE", 1  => "#DB", 2  => "???", 3  => "#BP",
-         4  => "#OF", 5  => "#BR", 6  => "#UD", 7  => "#NM",
-         8  => "#DF", 9  => "???", 10 => "#TS", 11 => "#NP",
-         12 => "#SS", 13 => "#GP", 14 => "#PF", 15 => "???",
-         16 => "#MF", 17 => "#AC", 18 => "#MC", 19 => "#XM",
-         20 => "#VE", 21 => "#CP", 22 .. 27 => "???",
-         28 => "#HV", 29 => "#VC", 30 => "#SX"
-      );
+      N              : Integer renames Num;
+      Discard        : Natural;
+      Val_Buffer     : Lib.Messages.Translated_String;
+      Exception_Text : constant array (0 .. 30) of String (1 .. 3) :=
+         (0  => "#DE", 1  => "#DB", 2  => "???", 3  => "#BP",
+          4  => "#OF", 5  => "#BR", 6  => "#UD", 7  => "#NM",
+          8  => "#DF", 9  => "???", 10 => "#TS", 11 => "#NP",
+          12 => "#SS", 13 => "#GP", 14 => "#PF", 15 => "???",
+          16 => "#MF", 17 => "#AC", 18 => "#MC", 19 => "#XM",
+          20 => "#VE", 21 => "#CP", 22 .. 27 => "???",
+          28 => "#HV", 29 => "#VC", 30 => "#SX");
    begin
-      if State.Error_Code /= 0 then
-         Lib.Messages.Image (State.Error_Code, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("Error code : " & Val_Buffer);
-      end if;
-
-      Lib.Messages.Image (State.RAX, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("RAX : " & Val_Buffer);
-      Lib.Messages.Image (State.RBX, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("RBX : " & Val_Buffer);
-      Lib.Messages.Image (State.RCX, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("RCX : " & Val_Buffer);
-      Lib.Messages.Image (State.RDX, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("RDX : " & Val_Buffer);
-      Lib.Messages.Image (State.RSI, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("RSI : " & Val_Buffer);
-      Lib.Messages.Image (State.RDI, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("RDI : " & Val_Buffer);
-      Lib.Messages.Image (State.RBP, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("RBP : " & Val_Buffer);
-      Lib.Messages.Image (State.R8, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("R8  : " & Val_Buffer);
-      Lib.Messages.Image (State.R9, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("R9  : " & Val_Buffer);
-      Lib.Messages.Image (State.R10, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("R10 : " & Val_Buffer);
-      Lib.Messages.Image (State.R11, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("R11 : " & Val_Buffer);
-      Lib.Messages.Image (State.R12, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("R12 : " & Val_Buffer);
-      Lib.Messages.Image (State.R13, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("R13 : " & Val_Buffer);
-      Lib.Messages.Image (State.R14, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("R14 : " & Val_Buffer);
-      Lib.Messages.Image (State.R15, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("R15 : " & Val_Buffer);
-      Lib.Messages.Image (State.RIP, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("RIP : " & Val_Buffer);
-      Lib.Messages.Image (State.RSP, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("RSP : " & Val_Buffer);
-      Lib.Messages.Image (Snippets.Read_CR2, Val_Buffer, Discard, True);
-      Lib.Messages.Put_Line ("CR2 : " & Val_Buffer);
-
       --  Check whether we have to panic or just exit the thread.
       --  We can check we are in userland by checking whether the passed CS
       --  is our user code segment or'ed by 3.
-      --  TODO: Send a SIGSEGV instead of just stopping execution for user.
+      --  TODO: Send a SIGSEGV instead of just exiting.
       if State.CS = (GDT.User_Code64_Segment or 3) then
          Lib.Messages.Put_Line ("Userland " & Exception_Text (Num));
-         Scheduler.Bail;
+         Userland.Corefile.Generate_Corefile (Context.GP_Context (State.all));
+         Do_Exit (Local.Get_Current_Process, Unsigned_8'Last - Unsigned_8 (N));
       else
+         if State.Error_Code /= 0 then
+            Lib.Messages.Image (State.Error_Code, Val_Buffer, Discard, True);
+            Lib.Messages.Put_Line ("Error code : " & Val_Buffer);
+         end if;
+
+         Lib.Messages.Image (State.RAX, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("RAX : " & Val_Buffer);
+         Lib.Messages.Image (State.RBX, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("RBX : " & Val_Buffer);
+         Lib.Messages.Image (State.RCX, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("RCX : " & Val_Buffer);
+         Lib.Messages.Image (State.RDX, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("RDX : " & Val_Buffer);
+         Lib.Messages.Image (State.RSI, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("RSI : " & Val_Buffer);
+         Lib.Messages.Image (State.RDI, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("RDI : " & Val_Buffer);
+         Lib.Messages.Image (State.RBP, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("RBP : " & Val_Buffer);
+         Lib.Messages.Image (State.R8, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("R8  : " & Val_Buffer);
+         Lib.Messages.Image (State.R9, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("R9  : " & Val_Buffer);
+         Lib.Messages.Image (State.R10, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("R10 : " & Val_Buffer);
+         Lib.Messages.Image (State.R11, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("R11 : " & Val_Buffer);
+         Lib.Messages.Image (State.R12, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("R12 : " & Val_Buffer);
+         Lib.Messages.Image (State.R13, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("R13 : " & Val_Buffer);
+         Lib.Messages.Image (State.R14, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("R14 : " & Val_Buffer);
+         Lib.Messages.Image (State.R15, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("R15 : " & Val_Buffer);
+         Lib.Messages.Image (State.RIP, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("RIP : " & Val_Buffer);
+         Lib.Messages.Image (State.RSP, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("RSP : " & Val_Buffer);
+         Lib.Messages.Image (Snippets.Read_CR2, Val_Buffer, Discard, True);
+         Lib.Messages.Put_Line ("CR2 : " & Val_Buffer);
          Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Num));
       end if;
    end Exception_Handler;
@@ -259,6 +260,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 53 =>
             Returned := Sys_Accept (State.RDI, State.RSI, State.RDX, State.RCX,
                                     Errno);
+         when 54 =>
+            Returned := Get_RLimit (State.RDI, Errno);
+         when 55 =>
+            Returned := Set_RLimit (State.RDI, State.RSI, Errno);
          when 57 =>
             Returned := Poll (State.RDI, State.RSI, State.RDX, Errno);
          when 58 =>

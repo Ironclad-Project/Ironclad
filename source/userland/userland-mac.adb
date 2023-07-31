@@ -131,6 +131,29 @@ package body Userland.MAC is
           Filt   => (True, True, VFS.Error_Handle, 0, Dev, Perms),
           Status => Status);
    end Add_Entity;
+
+   function Get_Limit
+      (Data     : Context;
+       Resource : Limit_Type) return Limit_Value
+   is
+   begin
+      return Data.Limits (Resource);
+   end Get_Limit;
+
+   procedure Set_Limit
+      (Data      : in out Context;
+       Resource  : Limit_Type;
+       Limit     : Limit_Value;
+       Could_Set : out Boolean)
+   is
+   begin
+      if Limit <= Data.Limits (Resource) then
+         Data.Limits (Resource) := Limit;
+         Could_Set              := True;
+      else
+         Could_Set := False;
+      end if;
+   end Set_Limit;
    ----------------------------------------------------------------------------
    procedure Add_Filter
       (Data   : in out Context;

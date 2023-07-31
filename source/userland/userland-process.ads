@@ -166,6 +166,12 @@ package Userland.Process with SPARK_Mode => Off is
        Start   : Natural := 0) return Boolean
       with Pre => Process /= Error_PID;
 
+   --  Get the count of file descriptors held by the process.
+   --  @param Process Process to add a file to.
+   --  @return Number of file descriptors held by the process.
+   function Get_File_Count (Process : PID) return Natural
+      with Pre => Process /= Error_PID;
+
    --  Duplicate an individual file.
    --  @param File File to duplicate.
    --  @return Duplicated file, or null if error'd out.

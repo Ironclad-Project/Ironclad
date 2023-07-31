@@ -229,6 +229,17 @@ package body Userland.Process with SPARK_Mode => Off is
       return False;
    end Add_File;
 
+   function Get_File_Count (Process : PID) return Natural is
+      Count_Of_FDs : Natural := 0;
+   begin
+      for Ent of Registry (Process).File_Table loop
+         if Ent.Description = null then
+            Count_Of_FDs := Count_Of_FDs + 1;
+         end if;
+      end loop;
+      return Count_Of_FDs;
+   end Get_File_Count;
+
    function Duplicate (F : File_Description_Acc) return File_Description_Acc is
    begin
       F.Children_Count := F.Children_Count + 1;

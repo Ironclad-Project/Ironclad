@@ -19,6 +19,7 @@ with Arch.Context;
 with Arch.MMU;
 with IPC.PTY;
 with System;
+with Userland.MAC;
 with Userland.Process; use Userland.Process;
 with VFS;              use VFS;
 with IPC.Socket;       use IPC.Socket;
@@ -600,6 +601,24 @@ package Userland.Syscall with SPARK_Mode => Off is
        Flags     : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64;
 
+   --  Get a resource limit.
+   RLIMIT_CORE   : constant := 1;
+   RLIMIT_CPU    : constant := 2;
+   RLIMIT_DATA   : constant := 3;
+   RLIMIT_FSIZE  : constant := 4;
+   RLIMIT_NOFILE : constant := 5;
+   RLIMIT_STACK  : constant := 6;
+   RLIMIT_AS     : constant := 7;
+   function Get_RLimit
+      (Limit : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64;
+
+   --  Set a resource limit.
+   function Set_RLimit
+      (Limit : Unsigned_64;
+       Data  : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64;
+
    --  Poll on a series of events.
    POLLIN   : constant := 2#00000001#;
    POLLOUT  : constant := 2#00000010#;
@@ -670,10 +689,11 @@ package Userland.Syscall with SPARK_Mode => Off is
        Offset : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64;
 
-private
-
-   --  Do the actual exiting.
+   --  Exit the current process in a POSIX standard-compliant way with the
+   --  provided code.
    procedure Do_Exit (Proc : PID; Code : Unsigned_8);
+
+private
 
    --  Translate an FS_Status to Errno.
    function Translate_Status
@@ -714,4 +734,16 @@ private
 
    --  Set MAC capabilities for a process from a bitmap.
    procedure Set_MAC_Capabilities (Proc : PID; Bits : Unsigned_64);
+
+   --  Transform a rlimit into a MAC limit.
+   function MAC_Syscall_To_Kernel
+      (Val   : Unsigned_64;
+       Limit : out MAC.Limit_Type) return Boolean;
+
+   --  Check limits and then add file.
+   function Check_Add_File
+      (Process : PID;
+       File    : File_Description_Acc;
+       FD      : out Natural;
+       Start   : Natural := 0) return Boolean;
 end Userland.Syscall;

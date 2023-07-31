@@ -14,8 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Devices; use Devices;
-with VFS;     use VFS;
+with Interfaces; use Interfaces;
+with Devices;    use Devices;
+with VFS;        use VFS;
 
 package Userland.MAC is
    --  Capabilities a process can have, which rule kinds of operations it can
@@ -49,6 +50,17 @@ package Userland.MAC is
       (Deny,            --  Just deny the operation with an appropiate error.
        Deny_And_Scream, --  Deny and obnoxiously report the error.
        Kill);           --  Don't panic process, but you are already dead.
+
+   --  MAC allows specifying limits for several resources.
+   type Limit_Value is new Unsigned_64;
+   type Limit_Type  is
+      (Core_Size_Limit,    --  Core file dump size limit.
+       CPU_Time_Limit,     --  Total CPU time in seconds.
+       Data_Size_Limit,    --  Total data segment size.
+       File_Size_Limit,    --  Total file size.
+       Opened_File_Limit,  --  Limit on opened file descriptor for the process.
+       Stack_Size_Limit,   --  Limit on stack size.
+       Memory_Size_Limit); --  Limit on total memory size (not only data).
 
    --  Type to wrap all the storage and permissions for a MAC context.
    type Context is private;
@@ -125,6 +137,25 @@ package Userland.MAC is
        Status : out Addition_Status)
    with Pre => Dev /= Devices.Error_Handle;
 
+   --  Get the limit of a resource.
+   --  @param Data     MAC instance to modify.
+   --  @param Resource Resource to limit.
+   --  @param Limit    Limit of the resource.
+   function Get_Limit
+      (Data     : Context;
+       Resource : Limit_Type) return Limit_Value;
+
+   --  Set the limit of a resource.
+   --  @param Data      MAC instance to modify.
+   --  @param Resource  Resource to limit.
+   --  @param Limit     Limit of the resource.
+   --  @param Could_Set True if the value was lower than previous and was set.
+   procedure Set_Limit
+      (Data      : in out Context;
+       Resource  : Limit_Type;
+       Limit     : Limit_Value;
+       Could_Set : out Boolean);
+
 private
 
    Filter_Path_Length : constant := 75;
@@ -138,15 +169,18 @@ private
    end record;
 
    type Filter_Arr is array (Natural range <>) of Filter;
+   type Limit_Arr  is array (Limit_Type)       of Limit_Value;
    type Context is record
       Action  : Enforcement;
       Caps    : Capabilities;
+      Limits  : Limit_Arr;
       Filters : Filter_Arr (1 .. 30);
    end record;
 
    Default_Context : constant Context :=
       (Action  => Deny,
        Caps    => (others => True),
+       Limits  => (others => Limit_Value'Last),
        Filters => (others =>
          (Is_Used   => False,
           Is_Device => False,

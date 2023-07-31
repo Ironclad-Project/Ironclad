@@ -612,9 +612,13 @@ package body VFS with SPARK_Mode => Off is
       Handle      : FS_Handle;
    begin
       Get_Mount (Path, Match_Count, Handle);
-      Success := Create_Node
-         (Handle, Path (Path'First + Match_Count .. Path'Last), Typ, Mode,
-          User);
+      if Handle /= Error_Handle then
+         Success := Create_Node
+            (Handle, Path (Path'First + Match_Count .. Path'Last), Typ, Mode,
+             User);
+      else
+         Success := FS_Invalid_Value;
+      end if;
    end Create_Node;
 
    procedure Create_Symbolic_Link
@@ -627,9 +631,13 @@ package body VFS with SPARK_Mode => Off is
       Handle      : FS_Handle;
    begin
       Get_Mount (Path, Match_Count, Handle);
-      Success := Create_Symbolic_Link
-         (Handle, Path (Path'First + Match_Count .. Path'Last), Target, Mode,
-          User);
+      if Handle /= Error_Handle then
+         Success := Create_Symbolic_Link
+            (Handle, Path (Path'First + Match_Count .. Path'Last), Target,
+             Mode, User);
+      else
+         Success := FS_Invalid_Value;
+      end if;
    end Create_Symbolic_Link;
 
    procedure Create_Hard_Link
@@ -641,11 +649,15 @@ package body VFS with SPARK_Mode => Off is
       Handle      : FS_Handle;
    begin
       Get_Mount (Path, Match_Count, Handle);
-      Success := Create_Hard_Link
-         (Handle,
-          Path   (Path'First   + Match_Count ..   Path'Last),
-          Target (Target'First + Match_Count .. Target'Last),
-          User);
+      if Handle /= Error_Handle then
+         Success := Create_Hard_Link
+            (Handle,
+             Path   (Path'First   + Match_Count ..   Path'Last),
+             Target (Target'First + Match_Count .. Target'Last),
+             User);
+      else
+         Success := FS_Invalid_Value;
+      end if;
    end Create_Hard_Link;
 
    procedure Rename
@@ -658,12 +670,16 @@ package body VFS with SPARK_Mode => Off is
       Handle      : FS_Handle;
    begin
       Get_Mount (Source, Match_Count, Handle);
-      Success := Rename
-         (Handle,
-          Source (Source'First + Match_Count .. Source'Last),
-          Target (Target'First + Match_Count .. Target'Last),
-          Keep,
-          User);
+      if Handle /= Error_Handle then
+         Success := Rename
+            (Handle,
+             Source (Source'First + Match_Count .. Source'Last),
+             Target (Target'First + Match_Count .. Target'Last),
+             Keep,
+             User);
+      else
+         Success := FS_Invalid_Value;
+      end if;
    end Rename;
 
    procedure Unlink
@@ -675,8 +691,12 @@ package body VFS with SPARK_Mode => Off is
       Handle      : FS_Handle;
    begin
       Get_Mount (Path, Match_Count, Handle);
-      Success := Unlink
-         (Handle, Path (Path'First + Match_Count .. Path'Last), User);
+      if Handle /= Error_Handle then
+         Success := Unlink
+            (Handle, Path (Path'First + Match_Count .. Path'Last), User);
+      else
+         Success := FS_Invalid_Value;
+      end if;
    end Unlink;
    ----------------------------------------------------------------------------
    function Is_Absolute (Path : String) return Boolean is

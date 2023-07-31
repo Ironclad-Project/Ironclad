@@ -1,7 +1,7 @@
 \input texinfo
 @setfilename ironclad.info
 @documentencoding UTF-8
-@settitle Kernel interfaces
+@settitle Ironclad User's Guide
 
 @copying
 Copyright @copyright{} 2023 streaksu
@@ -17,8 +17,8 @@ Documentation License''.
 @end copying
 
 @titlepage
-@title Ironclad kernel and userland interface
-@subtitle Methods to interface with the kernel from boot-time and userland.
+@title Ironclad User's Guide
+@subtitle Userland interfaces and devices, features, and kernel internals.
 @author streaksu
 @page
 @vskip 0pt plus 1filll
@@ -28,21 +28,24 @@ Documentation License''.
 
 @ifnottex
 @node Top
-@top Ironclad
+@top Ironclad User's Guide
 
-This manual documents interfaces and devices Ironclad exposes, without having
-to navigate the often cryptic and scary Ada code.
+This manual documents usage of Ironclad, interfaces and devices it exposes to
+userland, and discusses kernel internals, without having to navigate the often
+cryptic and scary Ada code.
 
 @insertcopying
 @end ifnottex
 
 @menu
 * Introduction::                       Project overview and bug reporting.
+* Installation and target support::    Installation and hardware support.
 * Boot-time command-line options::     Command-line options.
 * Scheduling and RTC::                 Scheduling methodology and features.
 * Memory allocation algorithms::       The available allocation algorithms.
 * Userland state and conditions::      Userland state and conditions.
 * Security and integrity facilities::  Ironclad-specific security facilities.
+* Debugging facilities::               Ironclad-specific debugging facilities.
 * Syscalls::                           Listings and explanation of syscalls.
 * Filesystems support and interfaces:: Filesystems supported by the kernel.
 * Devices and their properties::       Devices exposed by the kernel.
@@ -56,6 +59,13 @@ Introduction
 * How to contribute::    How to contribute code to the kernel.
 * Error reporting::      How to report issues with the kernel.
 * Formal verification::  Current state of the formal verification effort.
+
+Installation and target support
+
+* aarch64-stivale2 support::   aarch64-stivale2 installation and support.
+* arm-raspi2b support::        arm-raspi2b installation and support.
+* sparc-leon3 support::        sparc-leon3 installation and support.
+* x86_64-multiboot2 devices::  x86_64-multiboot2 installation and support.
 
 Boot-time command-line options
 
@@ -82,10 +92,16 @@ Security and integrity facilities
 
 * Users and groups::                UIDs, EUIDs, GIDs, and all the fuzz.
 * Mandatory access control (MAC)::  MAC quickguide and configuration.
+* Resource limits::                 Limits on resources built into MAC.
+
+Debugging facilities
+
+* Corefile and process dumping::    Format of dumped files, and settings.
+* Program tracing::                 Details on program tracing.
 
 Syscalls
 
-* x86_64::                  x86_64 syscall ABI and table.
+* x86_64-multiboot2::       x86_64-multiboot2 syscall ABI and table.
 * Errno::                   Error conditions and their values.
 * exit::                    Exit the callee process.
 * arch_prctl::              Interacting with architectural thread-local data.
@@ -93,7 +109,7 @@ Syscalls
 * close::                   Closing file descriptors.
 * read/write::              Read and write from file descriptors.
 * seek::                    Modify and fetch file offsets.
-* mmap/munmap::             Manage memory regions.
+* mmap/mprotect/munmap::    Manage memory regions.
 * getpid/getppid::          Get the PIDs of the caller.
 * exec::                    Launching new programs.
 * clone::                   Create new processes and threads.
@@ -114,12 +130,10 @@ Syscalls
 * fcntl::                   Multiplexed operations for files.
 * exit_thread::             Exit the calling thread.
 * getrandom::               Bypass /dev/random for avoiding DoS attacks.
-* mprotect::                Change memory permissions.
 * mac_capabilities::        Get and set MAC capabilities.
 * add_mac_permissions::     Configure MAC using filesystem-based filters.
 * set_mac_enforcement::     Set enforcement to follow on MAC violations.
-* mount::                   Mount partitions.
-* umount::                  Unmount partitions.
+* mount/umount::            Mount and unmount partitions.
 * readlink::                Read the contents of a symlink.
 * getdents::                Get directory entries.
 * sync::                    Synchronize device caches.
@@ -135,6 +149,7 @@ Syscalls
 * ptrace::                  Trace and debug children processes.
 * listen::                  Listen for connections to a socket.
 * accept::                  Accept socket connections.
+* getrlimit/setrlimit::     Get and set resource limits.
 * poll::                    I/O event multiplexer.
 * getuid/geteuid::          Get the UID and the effective UID.
 * setuids::                 Set the UID and the effective UID.
@@ -195,34 +210,25 @@ interested, please get involved in improving this manual.
 Thanks for considering contributing to Ironclad, it means a lot.
 
 There are several ways one can help the Ironclad project, from writing and
-correcting documentation to contributing source.
+correcting documentation to contributing source code.
 
-For submitting patches, be it for Ironclad's webpages, kernel code, or
-documentation, please submit the patch to the project's
+For submitting code or documentation patches, be it for Ironclad's webpages,
+or the kernel repository itself, please submit the patch to the project's
 @url{https://savannah.nongnu.org/patch/?group=ironclad, patch manager},
-(@url{https://savannah.nongnu.org/patch/?group=ironclad&func=additem, create an item}).
-
-If prefered, one can send a patch in
+(@url{https://savannah.nongnu.org/patch/?group=ironclad&func=additem, create an item}). If prefered, one can send a patch to
 @email{bug-ironclad@@nongnu.org, bug-ironclad}.
 
-When contributing code, it's good to keep in mind these guidelines:
+Need some inspiration? What about...
 
-@enumerate
+@itemize
 @item
-One may only contribute code that complies with the project's license, or code
-ruled by GPL-compatible licenses under certain conditions, its the
-responsability of the contributor to ensure this is the case.
-
+...a port to a target you would want Ironclad to run for?
 @item
-Add license headers and detail the authors of the code. For files with a main
-author and small touches being done on top of it, you can update the authors in
-the copyright to `Copyright (C) 2022 [main author's name], et. al.`, or add
-your name or pseudonym for a major contribution to the comma-separated list.
-
+...a translation of this documentation to another language?
 @item
-It goes a long way to add the relevant documentation as comments and standalone
-documentation. You can end up saving others a lot of time!
-@end enumerate
+...testing the kernel with @url{https://github.com/streaksu/Gloire, Gloire}
+and report issues you may find?
+@end itemize
 
 @node Error reporting
 @section Error reporting
@@ -242,6 +248,54 @@ as many of the kernel facilities as possible.
 This is done with the goal of ensure the absence of errors in a crucial system
 component like the kernel, and for ensuring the suitability of Ironclad for
 embedded and mission critical tasks.
+
+@node Installation and target support
+@chapter Installation and target support
+
+This chapter delves on what hardware configurations Ironclad supports and how
+to get Ironclad running on those platforms.
+
+Ironclad hardware support is divided in targets, which are combos of
+an architecture and board that are supported in tandem, along with any
+accompaning hardware, some hardware is supported regardless of the underlying
+target, @ref{Common devices}.
+
+@node aarch64-stivale2 support
+@section aarch64-stivale2 support
+
+aarch64 systems are supported using the stivale2 boot protocol, any
+stivale2 compliant aarch64 bootloader like sabaton will boot it just fine.
+
+For supported devices and how they are abstracted,
+@ref{aarch64-stivale2 devices}.
+
+@node arm-raspi2b support
+@section arm-raspi2b support
+
+Raspberry Pi 2b boards are supported, the image can be loaded straight from
+the firmware by putting it in the boot partition with the same names and
+configuration that a Linux image would use.
+
+For supported devices and how they are abstracted, @ref{arm-raspi2b devices}.
+
+@node sparc-leon3 support
+@section sparc-leon3 support
+
+LEON3 boards, based on SPARCv8 processors, are supported, in this case, the
+kernel must be loaded straight from the board's firmware, no bootloaders are
+needed.
+
+For supported devices and how they are abstracted, @ref{sparc-leon3 devices}.
+
+@node x86_64-multiboot2 support
+@section x86_64-multiboot2 support
+
+x86_64 systems are supported using the multiboot2 boot protocol, any
+multiboot2 compliant bootloader like GNU GRUB or Limine will be able to boot
+it just fine.
+
+For supported devices and how they are abstracted,
+@ref{x86_64-multiboot2 devices}.
 
 @node Boot-time command-line options
 @chapter Boot-time command-line options
@@ -529,7 +583,8 @@ The process will be able to change its effective and global UIDs without
 checks.
 
 @item MAC_CAP_SYS_MAC
-The process will be able to add allowed inodes to the MAC definitions.
+The process will be able to add allowed inodes to the MAC definitions, along
+with modifying hard limits for system resources.
 @end table
 
 Access to inodes and devices can be granted using @ref{add_mac_permissions}.
@@ -544,14 +599,51 @@ restrict access, and for those settings to trickle down to children processes.
 File access enforcement will kick in only once the first filter is added with
 @ref{add_mac_permissions}.
 
+@node Resource limits
+@section Resource limits
+
+As part of the UNIX-like package, Ironclad supports various resource limits
+that, in the case of Ironclad, are built inside MAC, and are passed down like
+MAC capabilities (@pxref{Mandatory access control (MAC)}).
+@xref{getrlimit/setrlimit}
+
+@node Debugging facilities
+@chapter Debugging facilities
+
+This chapter digs into the various Ironclad-specific debugging features
+available for the user.
+
+@node Corefile and process dumping
+@section Corefile and process dumping
+
+Ironclad implements corefile dumping when a process irreparably crashes, which
+can be controlled and entirely disabled if wanted with the related limits, see
+@ref{Resource limits}.
+
+Corefiles are only generated if the file does not exist already, files are
+never overwritten, the path is:
+
+@example
+/tmp/<faulting PID>.core
+@end example
+
+It is not configurable. The format so far is just an architecture-specific
+register dump, but in the future a standard ELF format will replace it.
+
+@node Program tracing
+@section Program tracing
+
+Ironclad allows tracing children processes for a variety of information, MAC
+willing, see @ref{ptrace}.
+
 @node Syscalls
 @chapter Syscalls
 
 Syscalls in Ironclad have an architecture-dependent ABI, here is a list of the
 supported architectures and the ABI for each of them.
 
-@node x86_64
-@section x86_64
+@node x86_64-multiboot2
+@section x86_64-multiboot2
 
 Syscalls are invoked in Ironclad by triggering an interrupt to vector
 @code{0x80}.
@@ -565,137 +657,137 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 
 @enumerate 0
 @item
-@xref{exit}.
+@ref{exit}.
 @item
-@xref{arch_prctl}.
+@ref{arch_prctl}.
 @item
-@xref{open, open}.
+@ref{open}.
 @item
-@xref{close, close}.
+@ref{close}.
 @item
-@xref{read/write, read}.
+@ref{read/write, read}.
 @item
-@xref{read/write, write}.
+@ref{read/write, write}.
 @item
-@xref{seek}.
+@ref{seek}.
 @item
-@xref{mmap/munmap, mmap}.
+@ref{mmap/mprotect/munmap, mmap}.
 @item
-@xref{mmap/munmap, munmap}.
+@ref{mmap/mprotect/munmap, munmap}.
 @item
-@xref{getpid/getppid, getpid}.
+@ref{getpid/getppid, getpid}.
 @item
-@xref{getpid/getppid, getppid}.
+@ref{getpid/getppid, getppid}.
 @item
-@xref{exec}.
+@ref{exec}.
 @item
-@xref{clone}.
+@ref{clone}.
 @item
-@xref{wait}.
+@ref{wait}.
 @item
-@xref{socket}.
+@ref{socket}.
 @item
-@xref{sethostname}.
+@ref{sethostname}.
 @item
-@xref{unlink}
+@ref{unlink}.
 @item
-@pxref{fstat, fstat}.
+@ref{fstat}.
 @item
-@xref{getcwd/chdir, getcwd}.
+@ref{getcwd/chdir, getcwd}.
 @item
-@xref{getcwd/chdir, chdir}.
+@ref{getcwd/chdir, chdir}.
 @item
-@xref{ioctl}.
+@ref{ioctl}.
 @item
-@xref{sched_yield}.
+@ref{sched_yield}.
 @item
-@xref{set_deadlines}.
+@ref{set_deadlines}.
 @item
-@xref{pipe}.
+@ref{pipe}.
 @item
-@xref{getuid/geteuid, getuid}.
+@ref{getuid/geteuid, getuid}.
 @item
-@xref{rename}.
+@ref{rename}.
 @item
-@xref{sysconf}.
+@ref{sysconf}.
 @item
-@xref{spawn}.
+@ref{spawn}.
 @item
-@xref{thread_sched, get_thread_sched}.
+@ref{thread_sched, get_thread_sched}.
 @item
-@xref{thread_sched, set_thread_sched}.
+@ref{thread_sched, set_thread_sched}.
 @item
-@xref{fcntl}.
+@ref{fcntl}.
 @item
-@xref{exit_thread}.
+@ref{exit_thread}.
 @item
-@xref{getrandom}.
+@ref{getrandom}.
 @item
-@xref{mprotect}.
+@ref{mmap/mprotect/munmap, mprotect}.
 @item
-@xref{sync}
+@ref{sync}.
 @item
-@xref{mac_capabilities, set_mac_capabilities}.
+@ref{mac_capabilities, set_mac_capabilities}.
 @item
-@xref{mac_capabilities, get_mac_capabilities}.
+@ref{mac_capabilities, get_mac_capabilities}.
 @item
-@xref{add_mac_permissions}.
+@ref{add_mac_permissions}.
 @item
-@xref{set_mac_enforcement}
+@ref{set_mac_enforcement}.
 @item
-@xref{mount}.
+@ref{mount/umount, mount}.
 @item
-@xref{umount}.
+@ref{mount/umount, umount}.
 @item
-@xref{readlink}.
+@ref{readlink}.
 @item
-@xref{getdents}.
+@ref{getdents}.
 @item
-@xref{mknod}.
+@ref{mknod}.
 @item
-@xref{truncate}.
+@ref{truncate}.
 @item
-@xref{bind}.
+@ref{bind}.
 @item
-@xref{symlink}.
+@ref{symlink}.
 @item
-@xref{connect}
+@ref{connect}.
 @item
-@xref{openpty}.
+@ref{openpty}.
 @item
-@xref{fsync}.
+@ref{fsync}.
 @item
-@xref{link}.
+@ref{link}.
 @item
-@xref{ptrace}.
+@ref{ptrace}.
 @item
-@xref{listen}.
+@ref{listen}.
 @item
-@xref{accept}.
+@ref{accept}.
+@item
+@ref{getrlimit/setrlimit, getrlimit}.
+@item
+@ref{getrlimit/setrlimit, setrlimit}.
 @item
 Empty.
 @item
-Empty.
+@ref{poll}.
 @item
-Empty.
+@ref{getuid/geteuid, geteuid}.
 @item
-@xref{poll}
+@ref{setuids}.
 @item
-@xref{getuid/geteuid, geteuid}.
+@ref{fchmod}.
 @item
-@xref{setuids}
+@ref{umask}.
 @item
-@xref{fchmod}
+@ref{reboot}.
 @item
-@xref{umask}
+@ref{fchown}.
 @item
-@xref{reboot}
+@ref{pread/pwrite, pread}.
 @item
-@xref{fchown}
-@item
-@xref{pread/pwrite, pread}.
-@item
-@xref{pread/pwrite, pwrite}.
+@ref{pread/pwrite, pwrite}.
 @end enumerate
 
 @node Errno
@@ -947,11 +1039,13 @@ be set to:
 @code{ESPIPE}: @code{seek} was called on a TTY or a pipe.
 @end itemize
 
-@node mmap/munmap
-@section mmap/munmap
+@node mmap/mprotect/munmap
+@section mmap/mprotect/munmap
 
 @example
-void *mmap(void *hint, size_t length, int protection, int flags, int fd, off_t offset);
+void *mmap(void *hint, size_t length, int protection, int flags, int fd,
+   off_t offset);
+int mprotect(void *addr, size_t len, int prot);
 int munmap(void *address, size_t length);
 @end example
 
@@ -987,9 +1081,13 @@ for the running architecture, else it will fail.
 process, this values must be the same as passed and returned by @code{mmap},
 partial unmapping is allowed.
 
+@code{mprotect} allows to change the permission of a range of memory of the
+passed length pointed by @code{addr}, previously mapped by the caller.
+The format of @code{prot} is the same as @code{mmap}.
+
 @code{mmap} returns a pointer to the allocated area, or @code{-1} on failure.
-@code{munmap} returns @code{0} on success, @code{-1} on failure. Both functions
-set the following errno:
+@code{munmap} and @code{mprotect} both returns @code{0} on success and
+@code{-1} on failure. All the functions set the following errno:
 
 @itemize @bullet
 @item
@@ -1641,30 +1739,6 @@ sets the following errno:
 @code{EACCES}: MAC disallowed this.
 @end itemize
 
-@node mprotect
-@section mprotect
-
-@example
-int mprotect(void *addr, size_t len, int prot);
-@end example
-
-This syscall allows to change the permission of a range of memory of the passed
-length pointed by @code{addr}, previously mapped by the caller. The format of
-@code{prot} is the same as @code{mmap}.
-
-@code{addr} and @code{len} must be aligned to an architecture-valid alignment.
-
-The syscall returns the @code{0} on success or @code{-1} on failure, and
-sets the following errno:
-
-@itemize @bullet
-@item
-@code{EFAULT}: @code{addr} points to invalid memory.
-
-@item
-@code{EACCES}: MAC disallowed this.
-@end itemize
-
 @node mac_capabilities
 @section mac_capabilities
 
@@ -1753,23 +1827,28 @@ following errno:
 @code{EACCES}: MAC was locked.
 @end itemize
 
-@node mount
-@section mount
+@node mount/umount
+@section mount/umount
 
 @example
 #define MNT_FAT   1
 #define MNT_EXT   2
 #define MS_RDONLY 1
 
+#define MNT_FORCE 1
+
 int mount(const char *source, int source_len, const char *target,
           int target_len, int fs_type, unsigned long flags);
+int umount(const char *target, int target_len, int flags);
 @end example
 
-This syscall mounts filesystems. @code{source} is the source device while
-@code{target} is where to mount in the global virtual filesystem.
+These syscalls mount and unmount filesystems. For @code{mount}, @code{source}
+is the source device while @code{target} is where to mount in the
+global virtual filesystem. For @code{umount}, @code{target} is the path to
+unmount.
 
-@code{fs_type} can be one of the following values to choose the filesystem type
-to mount, it must be specified, detection is not done.
+For @code{mount}, @code{fs_type} can be one of the following values to choose
+the filesystem type to mount, it must be specified, detection is not done.
 
 @itemize @bullet
 @item
@@ -1780,7 +1859,14 @@ to mount, it must be specified, detection is not done.
 
 @code{flags} may contain @code{MS_RDONLY} to force mounting read-only mounting.
 
-The syscall returns @code{0} on success or @code{-1} on failure, with the
+For @code{umount}, @code{flags} allows the following options:
+
+@itemize @bullet
+@item
+@code{MNT_FORCE}: Unmount the filesystem even if busy, can cause data loss.
+@end itemize
+
+These syscalls returns @code{0} on success or @code{-1} on failure, with the
 following errno:
 
 @itemize @bullet
@@ -1790,35 +1876,9 @@ following errno:
 @code{EACCES}: MAC forbid this operation.
 @item
 @code{EINVAL}: Wrong arguments.
-@end itemize
-
-@node umount
-@section umount
-
-@example
-#define MNT_FORCE 1
-
-int umount(const char *target, int target_len, int flags);
-@end example
-
-This syscalls unmount FSs. @code{target} is the path to unmount, while
-@code{flags} allows the following options:
-
-@itemize @bullet
 @item
-@code{MNT_FORCE}: Unmount the filesystem even if busy, can cause data loss.
-@end itemize
-
-The syscall returns @code{0} on success or @code{-1} on failure, with the
-following errno:
-
-@itemize @bullet
-@item
-@code{EFAULT}: Incorrect addresses for the string arguments.
-@item
-@code{EACCES}: MAC forbid this operation.
-@item
-@code{EBUSY}: The mount is busy, and @code{MNT_FORCE} was not passed.
+@code{EBUSY}: For @code{umount}, the mount is busy, and @code{MNT_FORCE} was
+not passed.
 @end itemize
 
 @node readlink
@@ -2200,6 +2260,60 @@ following errno:
 @code{EINVAL}: Invalid value for backlog.
 @item
 @code{EBADFD}: The passed FD is not a socket and listening.
+@end itemize
+
+@node getrlimit/setrlimit
+@section getrlimit/setrlimit
+
+@example
+#define RLIMIT_CORE   1 // Size of core files, 0 for disabling.
+#define RLIMIT_CPU    2 // CPU time limit in seconds.
+#define RLIMIT_DATA   3 // Data segment size in bytes.
+#define RLIMIT_FSIZE  4 // Maximum file size in bytes.
+#define RLIMIT_NOFILE 5 // Maximum number of open file descriptors.
+#define RLIMIT_STACK  6 // Maximum stack size in bytes.
+#define RLIMIT_AS     7 // Maximum memory size in bytes.
+
+uint64_t getrlimit(int resource);
+int setrlimit(int resource, uint64_t limit);
+@end example
+
+This syscall fetches and sets current limits for a specified resource, limits
+can only be lowered, are inherited from parent to children, and start
+maxed out.
+
+When a limit is reached, the operation that would reach or exceed it will fail
+like the following:
+
+@itemize @bullet
+@item
+@code{RLIMIT_CORE}: Core files exceeding this size will be truncated, with 0,
+core files are not generated.
+@item
+@code{RLIMIT_CPU}: Once the limit is passed, the process is killed.
+@item
+@code{RLIMIT_DATA}: @code{mmap} or other allocation syscalls will fail with
+@code{ENOMEM}.
+@item
+@code{RLIMIT_FSIZE}: System call growing the file fails with @code{EFBIG}.
+@item
+@code{RLIMIT_NOFILE}: Adding a new file descriptor fails with @code{EMFILE}.
+@item
+@code{RLIMIT_STACK}: The operation will fail, and a @code{SIGSEGV} will be
+generated.
+@item
+@code{RLIMIT_AS}: Same as @code{RLIMIT_DATA}.
+@end itemize
+
+@code{setrlimit} returns @code{0} on success or @code{-1} on failure. For
+@code{getrlimit}, @code{0} is a valid return so checking errno is necessary.
+Both report the following errno:
+
+@itemize @bullet
+@item
+@code{EINVAL}: Invalid value for resource.
+@item
+@code{EPERM}: MAC did not allow the operation.
 @end itemize
 
 @node poll

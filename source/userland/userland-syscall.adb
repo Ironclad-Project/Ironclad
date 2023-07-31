@@ -31,7 +31,6 @@ with Ada.Unchecked_Deallocation;
 with Arch.Hooks;
 with Arch.Local;
 with Cryptography.Random;
-with Userland.MAC;
 with IPC.FIFO; use IPC.FIFO;
 with IPC.PTY;  use IPC.PTY;
 with Devices.TermIOs;
@@ -184,7 +183,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("open", Curr_Proc);
          return Unsigned_64'Last;
-      elsif Userland.Process.Add_File (Curr_Proc, New_Descr, Returned_FD) then
+      elsif Check_Add_File (Curr_Proc, New_Descr, Returned_FD) then
          Process.Set_Close_On_Exec (Curr_Proc, Unsigned_64 (Returned_FD),
                                     Do_Close_On_Exec);
          Errno := Error_No_Error;
@@ -436,6 +435,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
             Result := File.Inner_Ino_Pos;
          when Description_Device =>
+            if not Devices.Is_Block_Device (File.Inner_Dev) then
+               goto Invalid_Seek_Error;
+            end if;
+
             case Whence is
                when SEEK_SET =>
                   File.Inner_Dev_Pos := Offset;
@@ -849,7 +852,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          (Children_Count => 0,
           Description    => Description_Socket,
           Inner_Socket   => New_Sock);
-      if Userland.Process.Add_File (Proc, Desc, Returned) then
+      if Check_Add_File (Proc, Desc, Returned) then
          Set_Close_On_Exec (Proc, Unsigned_64 (Returned), Cloexec);
          Errno := Error_No_Error;
          return Unsigned_64 (Returned);
@@ -1238,8 +1241,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Description       => Description_Writer_FIFO,
          Inner_Writer_FIFO => Returned
       );
-      if not Userland.Process.Add_File (Proc, Reader_Desc, Res (1)) or
-         not Userland.Process.Add_File (Proc, Writer_Desc, Res (2))
+      if not Check_Add_File (Proc, Reader_Desc, Res (1)) or
+         not Check_Add_File (Proc, Writer_Desc, Res (2))
       then
          Close (Returned);
          Close (Reader_Desc);
@@ -1573,7 +1576,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       case Command is
          when F_DUPFD | F_DUPFD_CLOEXEC =>
             New_File := Duplicate (File);
-            if Add_File (Proc, New_File, Result_FD, Natural (Argument)) then
+            if Check_Add_File (Proc, New_File, Result_FD, Natural (Argument))
+            then
                Returned               := Unsigned_64 (Result_FD);
                Process.Set_Close_On_Exec (Proc, Unsigned_64 (Result_FD),
                                           Command = F_DUPFD_CLOEXEC);
@@ -2412,8 +2416,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Description         => Description_Secondary_PTY,
          Inner_Secondary_PTY => Result_PTY
       );
-      if not Userland.Process.Add_File (Proc, Primary_Desc,   Result (1)) or
-         not Userland.Process.Add_File (Proc, Secondary_Desc, Result (2))
+      if not Check_Add_File (Proc, Primary_Desc,   Result (1)) or
+         not Check_Add_File (Proc, Secondary_Desc, Result (2))
       then
          Close (Result_PTY);
          Close (Result_PTY);
@@ -2599,7 +2603,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          if Sock /= null then
             IPC.Socket.Set_Blocking (Sock, Block);
             Desc := new File_Description'(Description_Socket, 0, Sock);
-            if Userland.Process.Add_File (Proc, Desc, Ret) then
+            if Check_Add_File (Proc, Desc, Ret) then
                Set_Close_On_Exec (Proc, Unsigned_64 (Ret), CExec);
                Errno := Error_No_Error;
                return Unsigned_64 (Ret);
@@ -2618,6 +2622,49 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       end if;
    end Sys_Accept;
+
+   function Get_RLimit
+      (Limit : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64
+   is
+      Proc     : constant PID := Arch.Local.Get_Current_Process;
+      Resource : MAC.Limit_Type;
+   begin
+      if MAC_Syscall_To_Kernel (Limit, Resource) then
+         Errno := Error_No_Error;
+         return Unsigned_64 (MAC.Get_Limit (Get_MAC (Proc), Resource));
+      end if;
+
+      Errno := Error_Invalid_Value;
+      return Unsigned_64'Last;
+   end Get_RLimit;
+
+   function Set_RLimit
+      (Limit : Unsigned_64;
+       Data  : Unsigned_64;
+       Errno : out Errno_Value) return Unsigned_64
+   is
+      Success  : Boolean;
+      Proc     : constant   PID := Arch.Local.Get_Current_Process;
+      Proc_MAC :    MAC.Context := Get_MAC (Proc);
+      Resource : MAC.Limit_Type;
+   begin
+      if MAC_Syscall_To_Kernel (Limit, Resource) then
+         MAC.Set_Limit
+            (Data      => Proc_MAC,
+             Resource  => Resource,
+             Limit     => MAC.Limit_Value (Data),
+             Could_Set => Success);
+         Set_MAC (Proc, Proc_MAC);
+         if Success then
+            Errno := Error_No_Error;
+            return 0;
+         end if;
+      end if;
+
+      Errno := Error_Invalid_Value;
+      return Unsigned_64'Last;
+   end Set_RLimit;
 
    function Poll
       (FDs_Addr  : Unsigned_64;
@@ -3218,4 +3265,39 @@ package body Userland.Syscall with SPARK_Mode => Off is
             and ((Bits and MAC_CAP_SYS_MAC) /= 0)));
       Set_MAC (Proc, Perms);
    end Set_MAC_Capabilities;
+
+   function MAC_Syscall_To_Kernel
+      (Val   : Unsigned_64;
+       Limit : out MAC.Limit_Type) return Boolean
+   is
+   begin
+      case Val is
+         when RLIMIT_CORE   => Limit := MAC.Core_Size_Limit;
+         when RLIMIT_CPU    => Limit := MAC.CPU_Time_Limit;
+         when RLIMIT_DATA   => Limit := MAC.Data_Size_Limit;
+         when RLIMIT_FSIZE  => Limit := MAC.File_Size_Limit;
+         when RLIMIT_NOFILE => Limit := MAC.Opened_File_Limit;
+         when RLIMIT_STACK  => Limit := MAC.Stack_Size_Limit;
+         when RLIMIT_AS     => Limit := MAC.Memory_Size_Limit;
+         when others        => Limit := MAC.Opened_File_Limit; return False;
+      end case;
+      return True;
+   end MAC_Syscall_To_Kernel;
+
+   function Check_Add_File
+      (Process : PID;
+       File    : File_Description_Acc;
+       FD      : out Natural;
+       Start   : Natural := 0) return Boolean
+   is
+   begin
+      if Unsigned_64 (Get_File_Count (Process)) <
+         Unsigned_64 (MAC.Get_Limit (Get_MAC (Process), MAC.Opened_File_Limit))
+      then
+         return Add_File (Process, File, FD, Start);
+      else
+         FD := 0;
+         return False;
+      end if;
+   end Check_Add_File;
 end Userland.Syscall;
