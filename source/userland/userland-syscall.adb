@@ -31,7 +31,6 @@ with Ada.Unchecked_Deallocation;
 with Arch.Hooks;
 with Arch.Local;
 with Cryptography.Random;
-with IPC.FIFO; use IPC.FIFO;
 with IPC.PTY;  use IPC.PTY;
 with Devices.TermIOs;
 with Arch.Power;
@@ -216,86 +215,86 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
-      Curr_Proc : constant             PID := Arch.Local.Get_Current_Process;
-      Map       : constant    Page_Map_Acc := Get_Common_Map (Curr_Proc);
-      Final_Cnt : constant         Natural := Natural (Count);
-      File      : File_Description_Acc;
+      Proc      : constant             PID := Arch.Local.Get_Current_Process;
+      Map       : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      File      : constant File_Description_Acc := Get_File (Proc, File_D);
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
       Success2  : IPC.FIFO.Pipe_Status;
       Success3  : Boolean;
       Success4  : IPC.Socket.Socket_Status;
       User      : Unsigned_32;
-      Data      : Devices.Operation_Data (1 .. Final_Cnt)
-         with Import, Address => Buf_SAddr;
+      Final_Cnt : Natural;
    begin
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
-      end if;
-
-      File := Userland.Process.Get_File (Curr_Proc, File_D);
-      if File = null then
+      elsif File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
+      elsif Count > Unsigned_64 (Natural'Last) then
+         Final_Cnt := Natural'Last;
+      else
+         Final_Cnt := Natural (Count);
       end if;
 
-      Userland.Process.Get_Effective_UID (Curr_Proc, User);
+      Userland.Process.Get_Effective_UID (Proc, User);
 
-      case File.Description is
-         when Description_Device =>
-            if not File.Inner_Dev_Read then
-               Errno := Error_Invalid_Value;
-               return Unsigned_64'Last;
-            end if;
-            Devices.Read (File.Inner_Dev, File.Inner_Dev_Pos, Data, Ret_Count,
-                          Success3);
-            if Success3 then
-               File.Inner_Dev_Pos := File.Inner_Dev_Pos +
-                                     Unsigned_64 (Ret_Count);
-               Errno := Error_No_Error;
-               return Unsigned_64 (Ret_Count);
-            else
-               Errno := Error_IO;
-               return Unsigned_64'Last;
-            end if;
-         when Description_Inode =>
-            if not File.Inner_Ino_Read then
-               Errno := Error_Invalid_Value;
-               return Unsigned_64'Last;
-            end if;
-            VFS.Read (File.Inner_Ino_FS, File.Inner_Ino, File.Inner_Ino_Pos,
-                      Data, Ret_Count, Success1, User);
-            File.Inner_Ino_Pos := File.Inner_Ino_Pos + Unsigned_64 (Ret_Count);
-            return Translate_Status (Success1, Unsigned_64 (Ret_Count), Errno);
-         when Description_Reader_FIFO =>
-            IPC.FIFO.Read (File.Inner_Reader_FIFO, Data, Ret_Count, Success2);
-            case Success2 is
-               when IPC.FIFO.Pipe_Success =>
-                  Errno := Error_No_Error;
-                  return Unsigned_64 (Ret_Count);
-               when IPC.FIFO.Broken_Failure =>
+      declare
+         Data : Devices.Operation_Data (1 .. Final_Cnt)
+            with Import, Address => Buf_SAddr;
+      begin
+         case File.Description is
+            when Description_Device =>
+               if not File.Inner_Dev_Read then
                   Errno := Error_Invalid_Value;
                   return Unsigned_64'Last;
-               when IPC.FIFO.Would_Block_Failure =>
-                  Errno := Error_Would_Block;
+               end if;
+               Devices.Read
+                  (File.Inner_Dev, File.Inner_Dev_Pos, Data, Ret_Count,
+                   Success3);
+               if Success3 then
+                  File.Inner_Dev_Pos := File.Inner_Dev_Pos +
+                                        Unsigned_64 (Ret_Count);
+                  Errno := Error_No_Error;
+                  return Unsigned_64 (Ret_Count);
+               else
+                  Errno := Error_IO;
                   return Unsigned_64'Last;
-            end case;
-         when Description_Primary_PTY =>
-            IPC.PTY.Read_Primary (File.Inner_Primary_PTY, Data, Ret_Count);
-            Errno := Error_No_Error;
-            return Unsigned_64 (Ret_Count);
-         when Description_Secondary_PTY =>
-            IPC.PTY.Read_Secondary (File.Inner_Secondary_PTY, Data, Ret_Count);
-            Errno := Error_No_Error;
-            return Unsigned_64 (Ret_Count);
-         when Description_Writer_FIFO =>
-            Errno := Error_Invalid_Value;
-            return Unsigned_64'Last;
-         when Description_Socket =>
-            IPC.Socket.Read (File.Inner_Socket, Data, Ret_Count, Success4);
-            return Translate_Status (Success4, Unsigned_64 (Ret_Count), Errno);
-      end case;
+               end if;
+            when Description_Inode =>
+               if not File.Inner_Ino_Read then
+                  Errno := Error_Invalid_Value;
+                  return Unsigned_64'Last;
+               end if;
+               VFS.Read (File.Inner_Ino_FS, File.Inner_Ino, File.Inner_Ino_Pos,
+                         Data, Ret_Count, Success1, User);
+               File.Inner_Ino_Pos := File.Inner_Ino_Pos +
+                                     Unsigned_64 (Ret_Count);
+               return Translate_Status
+                  (Success1, Unsigned_64 (Ret_Count), Errno);
+            when Description_Reader_FIFO =>
+               Read (File.Inner_Reader_FIFO, Data, Ret_Count, Success2);
+               return Translate_Status (Success2, Unsigned_64 (Ret_Count),
+                                        Errno);
+            when Description_Primary_PTY =>
+               IPC.PTY.Read_Primary (File.Inner_Primary_PTY, Data, Ret_Count);
+               Errno := Error_No_Error;
+               return Unsigned_64 (Ret_Count);
+            when Description_Secondary_PTY =>
+               IPC.PTY.Read_Secondary
+                  (File.Inner_Secondary_PTY, Data, Ret_Count);
+               Errno := Error_No_Error;
+               return Unsigned_64 (Ret_Count);
+            when Description_Writer_FIFO =>
+               Errno := Error_Invalid_Value;
+               return Unsigned_64'Last;
+            when Description_Socket =>
+               IPC.Socket.Read (File.Inner_Socket, Data, Ret_Count, Success4);
+               return Translate_Status
+                  (Success4, Unsigned_64 (Ret_Count), Errno);
+         end case;
+      end;
    end Read;
 
    function Write
@@ -306,88 +305,93 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
-      Curr_Proc : constant             PID := Arch.Local.Get_Current_Process;
-      Map       : constant    Page_Map_Acc := Get_Common_Map (Curr_Proc);
-      Final_Cnt : constant         Natural := Natural (Count);
-      File      : File_Description_Acc;
+      Proc      : constant             PID := Arch.Local.Get_Current_Process;
+      Map       : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      File      : constant File_Description_Acc := Get_File (Proc, File_D);
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
       Success2  : IPC.FIFO.Pipe_Status;
       Success3  : Boolean;
       Success4  : IPC.Socket.Socket_Status;
       User      : Unsigned_32;
-      Data      : Devices.Operation_Data (1 .. Final_Cnt)
-         with Import, Address => Buf_SAddr;
+      Final_Cnt : Natural;
    begin
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
-      end if;
-
-      File := Userland.Process.Get_File (Curr_Proc, File_D);
-      if File = null then
+      elsif File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
+      elsif Count > Unsigned_64 (Natural'Last) then
+         Final_Cnt := Natural'Last;
+      else
+         Final_Cnt := Natural (Count);
       end if;
 
-      Process.Get_Effective_UID (Curr_Proc, User);
+      Process.Get_Effective_UID (Proc, User);
 
-      case File.Description is
-         when Description_Device =>
-            if not File.Inner_Dev_Write then
-               Errno := Error_Invalid_Value;
-               return Unsigned_64'Last;
-            end if;
-
-            Devices.Write (File.Inner_Dev, File.Inner_Dev_Pos, Data, Ret_Count,
-                           Success3);
-            if Success3 then
-               File.Inner_Dev_Pos := File.Inner_Dev_Pos +
-                                     Unsigned_64 (Ret_Count);
-               Errno := Error_No_Error;
-               return Unsigned_64 (Ret_Count);
-            else
-               Errno := Error_IO;
-               return Unsigned_64'Last;
-            end if;
-         when Description_Inode =>
-            if not File.Inner_Ino_Write then
-               Errno := Error_Invalid_Value;
-               return Unsigned_64'Last;
-            end if;
-            VFS.Write (File.Inner_Ino_FS, File.Inner_Ino, File.Inner_Ino_Pos,
-                       Data, Ret_Count, Success1, User);
-            File.Inner_Ino_Pos := File.Inner_Ino_Pos + Unsigned_64 (Ret_Count);
-            return Translate_Status (Success1, Unsigned_64 (Ret_Count), Errno);
-         when Description_Writer_FIFO =>
-            IPC.FIFO.Write (File.Inner_Writer_FIFO, Data, Ret_Count, Success2);
-            case Success2 is
-               when IPC.FIFO.Pipe_Success =>
-                  Errno := Error_No_Error;
-                  return Unsigned_64 (Ret_Count);
-               when IPC.FIFO.Broken_Failure =>
+      declare
+         Data : Devices.Operation_Data (1 .. Final_Cnt)
+            with Import, Address => Buf_SAddr;
+      begin
+         case File.Description is
+            when Description_Device =>
+               if not File.Inner_Dev_Write then
                   Errno := Error_Invalid_Value;
                   return Unsigned_64'Last;
-               when IPC.FIFO.Would_Block_Failure =>
-                  Errno := Error_Would_Block;
+               end if;
+
+               Devices.Write
+                  (File.Inner_Dev, File.Inner_Dev_Pos, Data, Ret_Count,
+                   Success3);
+               if Success3 then
+                  File.Inner_Dev_Pos := File.Inner_Dev_Pos +
+                                        Unsigned_64 (Ret_Count);
+                  Errno := Error_No_Error;
+                  return Unsigned_64 (Ret_Count);
+               else
+                  Errno := Error_IO;
                   return Unsigned_64'Last;
-            end case;
-         when Description_Primary_PTY =>
-            IPC.PTY.Write_Primary (File.Inner_Primary_PTY, Data, Ret_Count);
-            Errno := Error_No_Error;
-            return Unsigned_64 (Ret_Count);
-         when Description_Secondary_PTY =>
-            IPC.PTY.Write_Secondary
-               (File.Inner_Secondary_PTY, Data, Ret_Count);
-            Errno := Error_No_Error;
-            return Unsigned_64 (Ret_Count);
-         when Description_Reader_FIFO =>
-            Errno := Error_Invalid_Value;
-            return Unsigned_64'Last;
-         when Description_Socket =>
-            IPC.Socket.Write (File.Inner_Socket, Data, Ret_Count, Success4);
-            return Translate_Status (Success4, Unsigned_64 (Ret_Count), Errno);
-      end case;
+               end if;
+            when Description_Inode =>
+               if not File.Inner_Ino_Write then
+                  Errno := Error_Invalid_Value;
+                  return Unsigned_64'Last;
+               elsif File.Inner_Ino_Pos + Unsigned_64 (Final_Cnt) >
+                  Unsigned_64 (Get_Limit (Proc, MAC.File_Size_Limit))
+               then
+                  Errno := Error_File_Too_Big;
+                  return Unsigned_64'Last;
+               end if;
+
+               VFS.Write (File.Inner_Ino_FS, File.Inner_Ino,
+                          File.Inner_Ino_Pos, Data, Ret_Count, Success1, User);
+               File.Inner_Ino_Pos := File.Inner_Ino_Pos +
+                                     Unsigned_64 (Ret_Count);
+               return Translate_Status (Success1, Unsigned_64 (Ret_Count),
+                                        Errno);
+            when Description_Writer_FIFO =>
+               Write (File.Inner_Writer_FIFO, Data, Ret_Count, Success2);
+               return Translate_Status (Success2, Unsigned_64 (Ret_Count),
+                                        Errno);
+            when Description_Primary_PTY =>
+               IPC.PTY.Write_Primary (File.Inner_Primary_PTY, Data, Ret_Count);
+               Errno := Error_No_Error;
+               return Unsigned_64 (Ret_Count);
+            when Description_Secondary_PTY =>
+               IPC.PTY.Write_Secondary
+                  (File.Inner_Secondary_PTY, Data, Ret_Count);
+               Errno := Error_No_Error;
+               return Unsigned_64 (Ret_Count);
+            when Description_Reader_FIFO =>
+               Errno := Error_Invalid_Value;
+               return Unsigned_64'Last;
+            when Description_Socket =>
+               IPC.Socket.Write (File.Inner_Socket, Data, Ret_Count, Success4);
+               return Translate_Status
+                  (Success4, Unsigned_64 (Ret_Count), Errno);
+         end case;
+      end;
    end Write;
 
    function Seek
@@ -2900,58 +2904,64 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Offset : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64
    is
-      Buf_IAddr : constant  Integer_Address := Integer_Address (Buffer);
-      Buf_SAddr : constant   System.Address := To_Address (Buf_IAddr);
-      Curr_Proc : constant PID := Arch.Local.Get_Current_Process;
-      Map       : constant     Page_Map_Acc := Get_Common_Map (Curr_Proc);
-      Final_Cnt : constant          Natural := Natural (Count);
-      File      : File_Description_Acc;
-      Data      : Devices.Operation_Data (1 .. Final_Cnt)
-         with Import, Address => Buf_SAddr;
+      Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
+      Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
+      Proc      : constant             PID := Arch.Local.Get_Current_Process;
+      Map       : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      File      : constant File_Description_Acc := Get_File (Proc, File_D);
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
       Success3  : Boolean;
       User      : Unsigned_32;
+      Final_Cnt : Natural;
    begin
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
-      end if;
-
-      File := Userland.Process.Get_File (Curr_Proc, File_D);
-      if File = null then
+      elsif File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
+      elsif Count > Unsigned_64 (Natural'Last) then
+         Final_Cnt := Natural'Last;
+      else
+         Final_Cnt := Natural (Count);
       end if;
 
-      Userland.Process.Get_Effective_UID (Curr_Proc, User);
+      Userland.Process.Get_Effective_UID (Proc, User);
 
-      case File.Description is
-         when Description_Device =>
-            if not File.Inner_Dev_Read then
+      declare
+         Data : Devices.Operation_Data (1 .. Final_Cnt)
+            with Import, Address => Buf_SAddr;
+      begin
+         case File.Description is
+            when Description_Device =>
+               if not File.Inner_Dev_Read then
+                  Errno := Error_Invalid_Value;
+                  return Unsigned_64'Last;
+               end if;
+               Devices.Read
+                  (File.Inner_Dev, Offset, Data, Ret_Count, Success3);
+               if Success3 then
+                  Errno := Error_No_Error;
+                  return Unsigned_64 (Ret_Count);
+               else
+                  Errno := Error_IO;
+                  return Unsigned_64'Last;
+               end if;
+            when Description_Inode =>
+               if not File.Inner_Ino_Read then
+                  Errno := Error_Invalid_Value;
+                  return Unsigned_64'Last;
+               end if;
+               VFS.Read (File.Inner_Ino_FS, File.Inner_Ino, Offset,
+                         Data, Ret_Count, Success1, User);
+               return Translate_Status (Success1, Unsigned_64 (Ret_Count),
+                                        Errno);
+            when others =>
                Errno := Error_Invalid_Value;
                return Unsigned_64'Last;
-            end if;
-            Devices.Read (File.Inner_Dev, Offset, Data, Ret_Count, Success3);
-            if Success3 then
-               Errno := Error_No_Error;
-               return Unsigned_64 (Ret_Count);
-            else
-               Errno := Error_IO;
-               return Unsigned_64'Last;
-            end if;
-         when Description_Inode =>
-            if not File.Inner_Ino_Read then
-               Errno := Error_Invalid_Value;
-               return Unsigned_64'Last;
-            end if;
-            VFS.Read (File.Inner_Ino_FS, File.Inner_Ino, Offset,
-                      Data, Ret_Count, Success1, User);
-            return Translate_Status (Success1, Unsigned_64 (Ret_Count), Errno);
-         when others =>
-            Errno := Error_Invalid_Value;
-            return Unsigned_64'Last;
-      end case;
+         end case;
+      end;
    end PRead;
 
    function PWrite
@@ -2961,59 +2971,71 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Offset : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64
    is
-      Buf_IAddr : constant  Integer_Address := Integer_Address (Buffer);
-      Buf_SAddr : constant   System.Address := To_Address (Buf_IAddr);
-      Curr_Proc : constant PID := Arch.Local.Get_Current_Process;
-      Map       : constant     Page_Map_Acc := Get_Common_Map (Curr_Proc);
-      Final_Cnt : constant          Natural := Natural (Count);
-      File      : File_Description_Acc;
-      Data      : Devices.Operation_Data (1 .. Final_Cnt)
-         with Import, Address => Buf_SAddr;
+      Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
+      Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
+      Proc      : constant             PID := Arch.Local.Get_Current_Process;
+      Map       : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      File      : constant File_Description_Acc := Get_File (Proc, File_D);
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
       Success3  : Boolean;
       User      : Unsigned_32;
+      Final_Cnt : Natural;
    begin
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
          return Unsigned_64'Last;
-      end if;
-
-      File := Userland.Process.Get_File (Curr_Proc, File_D);
-      if File = null then
+      elsif File = null then
          Errno := Error_Bad_File;
          return Unsigned_64'Last;
+      elsif Count > Unsigned_64 (Natural'Last) then
+         Final_Cnt := Natural'Last;
+      else
+         Final_Cnt := Natural (Count);
       end if;
 
-      Process.Get_Effective_UID (Curr_Proc, User);
+      Process.Get_Effective_UID (Proc, User);
 
-      case File.Description is
-         when Description_Device =>
-            if not File.Inner_Dev_Write then
+      declare
+         Data : Devices.Operation_Data (1 .. Final_Cnt)
+            with Import, Address => Buf_SAddr;
+      begin
+         case File.Description is
+            when Description_Device =>
+               if not File.Inner_Dev_Write then
+                  Errno := Error_Invalid_Value;
+                  return Unsigned_64'Last;
+               end if;
+
+               Devices.Write
+                  (File.Inner_Dev, Offset, Data, Ret_Count, Success3);
+               if Success3 then
+                  Errno := Error_No_Error;
+                  return Unsigned_64 (Ret_Count);
+               else
+                  Errno := Error_IO;
+                  return Unsigned_64'Last;
+               end if;
+            when Description_Inode =>
+               if not File.Inner_Ino_Write then
+                  Errno := Error_Invalid_Value;
+                  return Unsigned_64'Last;
+               elsif Offset + Unsigned_64 (Final_Cnt) >
+                  Unsigned_64 (Get_Limit (Proc, MAC.File_Size_Limit))
+               then
+                  Errno := Error_File_Too_Big;
+                  return Unsigned_64'Last;
+               end if;
+
+               VFS.Write (File.Inner_Ino_FS, File.Inner_Ino, Offset,
+                          Data, Ret_Count, Success1, User);
+               return Translate_Status (Success1, Unsigned_64 (Ret_Count),
+                                        Errno);
+            when others =>
                Errno := Error_Invalid_Value;
                return Unsigned_64'Last;
-            end if;
-
-            Devices.Write (File.Inner_Dev, Offset, Data, Ret_Count, Success3);
-            if Success3 then
-               Errno := Error_No_Error;
-               return Unsigned_64 (Ret_Count);
-            else
-               Errno := Error_IO;
-               return Unsigned_64'Last;
-            end if;
-         when Description_Inode =>
-            if not File.Inner_Ino_Write then
-               Errno := Error_Invalid_Value;
-               return Unsigned_64'Last;
-            end if;
-            VFS.Write (File.Inner_Ino_FS, File.Inner_Ino, Offset,
-                       Data, Ret_Count, Success1, User);
-            return Translate_Status (Success1, Unsigned_64 (Ret_Count), Errno);
-         when others =>
-            Errno := Error_Invalid_Value;
-            return Unsigned_64'Last;
-      end case;
+         end case;
+      end;
    end PWrite;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
@@ -3053,6 +3075,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when Plain_Success => Errno := Error_No_Error; return Success_Return;
          when Is_Bad_Type   => Errno := Error_Invalid_Value;
          when Would_Block   => Errno := Error_Would_Block;
+      end case;
+      return Unsigned_64'Last;
+   end Translate_Status;
+
+   function Translate_Status
+      (Status         : IPC.FIFO.Pipe_Status;
+       Success_Return : Unsigned_64;
+       Errno          : out Errno_Value) return Unsigned_64
+   is
+   begin
+      case Status is
+         when Pipe_Success   => Errno := Error_No_Error; return Success_Return;
+         when Broken_Failure => Errno := Error_Invalid_Value;
+         when Would_Block_Failure => Errno := Error_Would_Block;
       end case;
       return Unsigned_64'Last;
    end Translate_Status;

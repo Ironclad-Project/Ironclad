@@ -1132,7 +1132,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    is
       Final_Length : Natural;
       Str_Data     : Operation_Data (1 .. Path'Length)
-         with Address => Ino.Blocks'Address;
+         with Import, Address => Ino.Blocks'Address;
    begin
       Final_Length := Natural (File_Size);
       if Final_Length > 60 then
@@ -1161,7 +1161,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Tmp_Index : Unsigned_64;
       Tmp_Type  : File_Type;
       Dir_Data  : Operation_Data (1 .. Directory_Entry'Size / 8)
-         with Address => Dir'Address;
+         with Import, Address => Dir'Address;
    begin
       Read_From_Inode
          (FS_Data    => FS_Data,
@@ -1180,7 +1180,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       declare
          Dir_Name  : String (1 .. Natural (Dir.Name_Length));
          Name_Data : Operation_Data (1 .. Dir_Name'Length)
-            with Address => Dir_Name'Address;
+            with Import, Address => Dir_Name'Address;
       begin
          Tmp_Index := Inode_Index + (Directory_Entry'Size / 8);
          if (FS_Data.Super.Required_Features and Required_Directory_Types) /= 0
@@ -1228,7 +1228,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Ret_Count  : Natural;
       Success    : Boolean;
       Super_Data : Operation_Data (1 .. Superblock'Size / 8)
-         with Address => Super'Address;
+         with Import, Address => Super'Address;
    begin
       if Write_Operation then
          Devices.Write
@@ -1259,8 +1259,8 @@ package body VFS.EXT with SPARK_Mode => Off is
       Offset      : Unsigned_32 := Data.Block_Size;
       Ret_Count   : Natural;
       Success     : Boolean;
-      Result_Data : Operation_Data (1 .. Descr_Size) with Address =>
-         Result'Address;
+      Result_Data : Operation_Data (1 .. Descr_Size)
+         with Import, Address => Result'Address;
    begin
       if Data.Block_Size < 2048 then
          Offset := Offset * 2;
@@ -1303,8 +1303,8 @@ package body VFS.EXT with SPARK_Mode => Off is
       Offset      : Unsigned_32;
       Ret_Count   : Natural;
       Success     : Boolean;
-      Result_Data : Operation_Data (1 .. Inode'Size / 8) with Address =>
-         Result'Address;
+      Result_Data : Operation_Data (1 .. Inode'Size / 8)
+         with Import, Address => Result'Address;
    begin
       Table_Index      := (Inode_Index - 1) mod Data.Super.Inodes_Per_Group;
       Descriptor_Index := (Inode_Index - 1) / Data.Super.Inodes_Per_Group;
@@ -1359,11 +1359,11 @@ package body VFS.EXT with SPARK_Mode => Off is
       Single_Indirect_Index : Unsigned_32;
 
       Single_Indirect_Index_Data : Operation_Data (1 .. 4)
-         with Address => Single_Indirect_Index'Address;
+         with Import, Address => Single_Indirect_Index'Address;
       Indirect_Block_Data : Operation_Data (1 .. 4)
-         with Address => Indirect_Block'Address;
+         with Import, Address => Indirect_Block'Address;
       Block_Index_Data : Operation_Data (1 .. 4)
-         with Address => Block_Index'Address;
+         with Import, Address => Block_Index'Address;
 
       Discard_1 : Natural;
       Discard_2 : Boolean;
@@ -1660,11 +1660,11 @@ package body VFS.EXT with SPARK_Mode => Off is
       Temp                  : Unsigned_32;
 
       Single_Indirect_Index_Data : Operation_Data (1 .. 4)
-         with Address => Single_Indirect_Index'Address;
+         with Import, Address => Single_Indirect_Index'Address;
       Indirect_Block_Data : Operation_Data (1 .. 4)
-         with Address => Indirect_Block'Address;
+         with Import, Address => Indirect_Block'Address;
       DBlock_Data : Operation_Data (1 .. 4)
-         with Address => DBlock'Address;
+         with Import, Address => DBlock'Address;
 
       Discard_1 : Natural;
       Discard_2 : Boolean;
@@ -2072,7 +2072,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       while Offset < Natural (Inode_Size) loop
          declare
             Ent : Directory_Entry
-               with Address => Buffer (Buffer'First + Offset)'Address;
+               with Import, Address => Buffer (Buffer'First + Offset)'Address;
          begin
             Contracted :=
                ((Directory_Entry'Size / 8) +
@@ -2082,12 +2082,12 @@ package body VFS.EXT with SPARK_Mode => Off is
             if Available >= Required then
                Ent.Entry_Count := Unsigned_16 (Contracted);
                declare
-                  Ent2 : Directory_Entry with Address =>
+                  Ent2 : Directory_Entry with Import, Address =>
                      Buffer (Buffer'First + Offset +
                                   Natural (Contracted))'Address;
                   Name_Buf : String (1 .. Name'Length) with Address =>
                      Buffer (Buffer'First + Offset + Natural (Contracted) +
-                             (Directory_Entry'Size / 8))'Address;
+                             (Directory_Entry'Size / 8))'Address, Import;
                begin
                   Ent2 :=
                      (Inode_Index => Added_Index,

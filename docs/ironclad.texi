@@ -821,6 +821,9 @@ The passed value is not a child process.
 @item EFAULT (1020)
 The passed value would make the program fault.
 
+@item EFBIG (1021)
+File too large, or an attempt to surpass the limit on file size was issued.
+
 @item EINVAL (1026)
 The passed value is not valid for the called syscall.
 
@@ -1003,6 +1006,10 @@ failure. errno is to be set to:
 
 @item
 @code{EINVAL}: The passed fd is not suitable for the operation.
+
+@item
+@code{EFBIG}: When writing, the issued write would surpass the process
+file size limit.
 
 @item
 @code{EIO}: The requested operation failed at the device level.
@@ -2543,22 +2550,8 @@ These syscalls are made for use in multithreaded applications, as having more
 than one thread updating file locations for a shared file description can lead
 to sudden catharsis.
 
-These syscalls returns the number of bytes operated on, or @code{-1} on
-failure. errno is to be set to:
-
-@itemize @bullet
-@item
-@code{EBADF}: Bad file descriptor.
-
-@item
-@code{EFAULT}: The passed buffer is not accessible.
-
-@item
-@code{EINVAL}: The passed fd is not suitable for the operation.
-
-@item
-@code{EIO}: The requested operation failed at the device level.
-@end itemize
+These syscalls return the same values and errno as the non-p variants.
+@ref{read/write}.
 
 @node Filesystems support and interfaces
 @chapter Filesystems support and interfaces

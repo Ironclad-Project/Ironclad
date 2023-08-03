@@ -23,6 +23,7 @@ with Userland.MAC;
 with Userland.Process; use Userland.Process;
 with VFS;              use VFS;
 with IPC.Socket;       use IPC.Socket;
+with IPC.FIFO;         use IPC.FIFO;
 
 package Userland.Syscall with SPARK_Mode => Off is
    --  Error conditions for syscalls.
@@ -35,6 +36,7 @@ package Userland.Syscall with SPARK_Mode => Off is
        Error_Busy,            --  EBUSY
        Error_Child,           --  ECHILD
        Error_Would_Fault,     --  EFAULT
+       Error_File_Too_Big,    --  EFBIG
        Error_Invalid_Value,   --  EINVAL
        Error_IO,              --  EIO
        Error_Too_Many_Files,  --  EMFILE
@@ -56,6 +58,7 @@ package Userland.Syscall with SPARK_Mode => Off is
        Error_Busy            => 1010,
        Error_Child           => 1012,
        Error_Would_Fault     => 1020,
+       Error_File_Too_Big    => 1021,
        Error_Invalid_Value   => 1026,
        Error_IO              => 1027,
        Error_Too_Many_Files  => 1031,
@@ -703,6 +706,11 @@ private
 
    function Translate_Status
       (Status         : IPC.Socket.Socket_Status;
+       Success_Return : Unsigned_64;
+       Errno          : out Errno_Value) return Unsigned_64;
+
+   function Translate_Status
+      (Status         : IPC.FIFO.Pipe_Status;
        Success_Return : Unsigned_64;
        Errno          : out Errno_Value) return Unsigned_64;
 
