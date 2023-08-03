@@ -58,7 +58,8 @@ package VFS is
       Name_Len     : Natural;
       Type_Of_File : File_Type;
    end record;
-   type Directory_Entities is array (Natural range <>) of Directory_Entity;
+   type Directory_Entities     is array (Natural range <>) of Directory_Entity;
+   type Directory_Entities_Acc is access Directory_Entities;
    ----------------------------------------------------------------------------
    --  Handle for interfacing with mounted FSs and FS types.
    type FS_Type   is (FS_EXT, FS_FAT, FS_QNX);

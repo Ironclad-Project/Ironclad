@@ -302,6 +302,7 @@ private
       Fragment_Address    at 0 range 896 .. 927;
       OS_Specific_Value_2 at 0 range 928 .. 1023;
    end record;
+   type Inode_Acc is access Inode;
 
    type Directory_Entry is record
       Inode_Index : Unsigned_32;

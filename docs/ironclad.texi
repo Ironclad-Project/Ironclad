@@ -511,6 +511,8 @@ will be randomized on load time following
 and must not be relied upon. It is up to @code{ld.so} to optionally place
 additionally loaded libraries at random offsets.
 
+The stack is a fixed @code{128 KiB} in size.
+
 @node Security and integrity facilities
 @chapter Security and integrity facilities
 

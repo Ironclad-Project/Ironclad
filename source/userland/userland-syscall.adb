@@ -39,10 +39,9 @@ with Devices; use Devices;
 
 package body Userland.Syscall with SPARK_Mode => Off is
    procedure Sys_Exit (Code : Unsigned_64; Errno : out Errno_Value) is
-      Proc : constant PID := Arch.Local.Get_Current_Process;
    begin
       Errno := Error_No_Error;
-      Do_Exit (Proc, Unsigned_8 (Code and 16#FF#));
+      Do_Exit (Arch.Local.Get_Current_Process, Unsigned_8 (Code and 16#FF#));
    end Sys_Exit;
 
    function Arch_PRCtl
@@ -50,10 +49,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Argument : Unsigned_64;
        Errno    : out Errno_Value) return Unsigned_64
    is
-      Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Map   : constant     Page_Map_Acc := Get_Common_Map (Proc);
-      I_Arg : constant  Integer_Address := Integer_Address (Argument);
-      S_Arg : constant   System.Address := To_Address (I_Arg);
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      Map   : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      I_Arg : constant Integer_Address := Integer_Address (Argument);
+      S_Arg : constant  System.Address := To_Address (I_Arg);
    begin
       if not Check_Userland_Access (Map, I_Arg, 8) then
          Errno := Error_Would_Fault;
@@ -79,19 +78,18 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Flags     : Unsigned_64;
        Errno     : out Errno_Value) return Unsigned_64
    is
-      Path_IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
-      Path_SAddr : constant   System.Address := To_Address (Path_IAddr);
-      Curr_Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Map        : constant     Page_Map_Acc := Get_Common_Map (Curr_Proc);
-      Do_Close_On_Exec  : constant Boolean := (Flags and O_CLOEXEC)  /= 0;
-      Do_Read           : constant Boolean := (Flags and O_RDONLY)   /= 0;
-      Do_Write          : constant Boolean := (Flags and O_WRONLY)   /= 0;
-      Dont_Follow       : constant Boolean := (Flags and O_NOFOLLOW) /= 0;
-      Do_Append         : constant Boolean := (Flags and O_APPEND)   /= 0;
-
+      Path_IAddr  : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr  : constant  System.Address := To_Address (Path_IAddr);
+      Curr_Proc   : constant             PID := Arch.Local.Get_Current_Process;
+      Map         : constant    Page_Map_Acc := Get_Common_Map (Curr_Proc);
+      Do_Cloexec  : constant         Boolean := (Flags and O_CLOEXEC)  /= 0;
+      Do_Read     : constant         Boolean := (Flags and O_RDONLY)   /= 0;
+      Do_Write    : constant         Boolean := (Flags and O_WRONLY)   /= 0;
+      Dont_Follow : constant         Boolean := (Flags and O_NOFOLLOW) /= 0;
+      Do_Append   : constant         Boolean := (Flags and O_APPEND)   /= 0;
       Discard      : Boolean;
       Success      : VFS.FS_Status;
-      Final_Path   : String (1 .. 1024);
+      Final_Path   : String (1 .. 512);
       Final_Path_L : Natural;
       CWD          : String (1 .. Process.Max_CWD_Length);
       CWD_Len      : Natural;
@@ -140,7 +138,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return Unsigned_64'Last;
          end if;
 
-         File_Perms := MAC.Check_Permissions (Get_MAC (Curr_Proc), Opened_Dev);
+         File_Perms := Check_Permissions (Curr_Proc, Opened_Dev);
          New_Descr  := new File_Description'
             (Children_Count  => 0,
              Description     => Description_Device,
@@ -162,8 +160,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Opened_Stat.Byte_Size := 0;
          end if;
 
-         File_Perms := MAC.Check_Permissions (Get_MAC (Curr_Proc), Opened_FS,
-                                              Opened_Ino);
+         File_Perms := Check_Permissions (Curr_Proc, Opened_FS, Opened_Ino);
          New_Descr  := new File_Description'
             (Children_Count  => 0,
              Description     => Description_Inode,
@@ -185,7 +182,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return Unsigned_64'Last;
       elsif Check_Add_File (Curr_Proc, New_Descr, Returned_FD) then
          Process.Set_Close_On_Exec (Curr_Proc, Unsigned_64 (Returned_FD),
-                                    Do_Close_On_Exec);
+                                    Do_Cloexec);
          Errno := Error_No_Error;
          return Unsigned_64 (Returned_FD);
       else
@@ -217,20 +214,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Count  : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64
    is
-      Buf_IAddr : constant  Integer_Address := Integer_Address (Buffer);
-      Buf_SAddr : constant   System.Address := To_Address (Buf_IAddr);
-      Curr_Proc : constant PID := Arch.Local.Get_Current_Process;
-      Map       : constant     Page_Map_Acc := Get_Common_Map (Curr_Proc);
-      Final_Cnt : constant          Natural := Natural (Count);
+      Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
+      Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
+      Curr_Proc : constant             PID := Arch.Local.Get_Current_Process;
+      Map       : constant    Page_Map_Acc := Get_Common_Map (Curr_Proc);
+      Final_Cnt : constant         Natural := Natural (Count);
       File      : File_Description_Acc;
-      Data      : Devices.Operation_Data (1 .. Final_Cnt)
-         with Import, Address => Buf_SAddr;
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
       Success2  : IPC.FIFO.Pipe_Status;
       Success3  : Boolean;
       Success4  : IPC.Socket.Socket_Status;
       User      : Unsigned_32;
+      Data      : Devices.Operation_Data (1 .. Final_Cnt)
+         with Import, Address => Buf_SAddr;
    begin
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
@@ -307,20 +304,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Count  : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64
    is
-      Buf_IAddr : constant  Integer_Address := Integer_Address (Buffer);
-      Buf_SAddr : constant   System.Address := To_Address (Buf_IAddr);
-      Curr_Proc : constant PID := Arch.Local.Get_Current_Process;
-      Map       : constant     Page_Map_Acc := Get_Common_Map (Curr_Proc);
-      Final_Cnt : constant          Natural := Natural (Count);
+      Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
+      Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
+      Curr_Proc : constant             PID := Arch.Local.Get_Current_Process;
+      Map       : constant    Page_Map_Acc := Get_Common_Map (Curr_Proc);
+      Final_Cnt : constant         Natural := Natural (Count);
       File      : File_Description_Acc;
-      Data      : Devices.Operation_Data (1 .. Final_Cnt)
-         with Import, Address => Buf_SAddr;
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
       Success2  : IPC.FIFO.Pipe_Status;
       Success3  : Boolean;
       Success4  : IPC.Socket.Socket_Status;
       User      : Unsigned_32;
+      Data      : Devices.Operation_Data (1 .. Final_Cnt)
+         with Import, Address => Buf_SAddr;
    begin
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
@@ -488,7 +485,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       File       : File_Description_Acc;
       User       : Unsigned_32;
    begin
-      if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Modify_Memory then
+      if not Get_Capabilities (Proc).Can_Modify_Memory then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("mmap", Proc);
          return Unsigned_64'Last;
@@ -567,7 +564,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Map  : constant    Page_Map_Acc := Get_Common_Map (Proc);
       Addr : constant Virtual_Address := Virtual_Address (Address);
    begin
-      if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Modify_Memory then
+      if not Get_Capabilities (Proc).Can_Modify_Memory then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("munmap", Proc);
          return Unsigned_64'Last;
@@ -624,6 +621,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
           Errno     => Errno);
       if Success then
          --  Free critical state now that we know wont be running.
+         Success := Memory.Virtual.Make_Active (Get_Common_Map (Proc));
          Userland.Process.Remove_Thread (Proc, Th);
          Memory.Virtual.Delete_Map (Tmp_Map);
          Scheduler.Bail;
@@ -654,7 +652,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Use_Parent : constant Boolean := (Flags and CLONE_PARENT) /= 0;
       Do_Thread  : constant Boolean := (Flags and CLONE_THREAD) /= 0;
    begin
-      if not MAC.Get_Capabilities (Get_MAC (Parent)).Can_Spawn_Others then
+      if not Get_Capabilities (Parent).Can_Spawn_Others then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("clone", Parent);
          return Unsigned_64'Last;
@@ -881,7 +879,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Name    : String (1 .. Len) with Import, Address => SAddr;
       Success : Boolean;
    begin
-      if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Manage_Networking then
+      if not Get_Capabilities (Proc).Can_Manage_Networking then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("set_hostname", Proc);
          return Unsigned_64'Last;
@@ -1042,11 +1040,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Length : Unsigned_64;
        Errno  : out Errno_Value) return Unsigned_64
    is
-      Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Map   : constant     Page_Map_Acc := Get_Common_Map (Proc);
-      IAddr : constant  Integer_Address := Integer_Address (Buffer);
-      SAddr : constant   System.Address := To_Address (IAddr);
-      Len   :                   Natural := Natural (Length);
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      Map   : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      IAddr : constant Integer_Address := Integer_Address (Buffer);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      Len   :                  Natural := Natural (Length);
       Path  : String (1 .. Len) with Import, Address => SAddr;
    begin
       if not Check_Userland_Access (Map, IAddr, Length) then
@@ -1077,7 +1075,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       SAddr : constant   System.Address := To_Address (IAddr);
       Proc  : constant PID := Arch.Local.Get_Current_Process;
       Map   : constant     Page_Map_Acc := Get_Common_Map (Proc);
-      Final_Path   : String (1 .. 1024);
+      Final_Path   : String (1 .. 512);
       Final_Path_L : Natural;
       CWD          : String (1 .. Process.Max_CWD_Length);
       CWD_Len      : Natural;
@@ -1195,10 +1193,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
       (Run_Time, Period : Unsigned_64;
        Errno : out Errno_Value) return Unsigned_64
    is
-      Proc : constant PID := Arch.Local.Get_Current_Process;
-      Thre : constant    Scheduler.TID := Arch.Local.Get_Current_Thread;
+      Proc : constant           PID := Arch.Local.Get_Current_Process;
+      Thre : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
    begin
-      if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Change_Scheduling then
+      if not Get_Capabilities (Proc).Can_Change_Scheduling then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("setdeadlines", Proc);
          return Unsigned_64'Last;
@@ -1544,7 +1542,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc : constant           PID := Arch.Local.Get_Current_Process;
       Curr : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
    begin
-      if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Change_Scheduling then
+      if not Get_Capabilities (Proc).Can_Change_Scheduling then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("set_thread_sched", Proc);
          return Unsigned_64'Last;
@@ -1654,14 +1652,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Length  : Unsigned_64;
       Errno   : out Errno_Value) return Unsigned_64
    is
-      Proc   : constant PID := Arch.Local.Get_Current_Process;
+      Proc   : constant              PID := Arch.Local.Get_Current_Process;
       Map    : constant Page_Map_Acc     := Get_Common_Map (Proc);
       IAddr  : constant  Integer_Address := Integer_Address (Address);
       SAddr  : constant   System.Address := To_Address (IAddr);
       Result : Cryptography.Random.Crypto_Data (1 .. Natural (Length / 4))
          with Import, Address => SAddr;
    begin
-      if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Access_Entropy then
+      if not Get_Capabilities (Proc).Can_Access_Entropy then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("getrandom", Proc);
          return Unsigned_64'Last;
@@ -1687,7 +1685,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Get_Mmap_Prot (Protection, 0);
       Addr  : constant Integer_Address := Integer_Address (Address);
    begin
-      if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Modify_Memory then
+      if not Get_Capabilities (Proc).Can_Modify_Memory then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("mprotect", Proc);
          return Unsigned_64'Last;
@@ -1717,7 +1715,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
    function Get_MAC_Capabilities (Errno : out Errno_Value) return Unsigned_64
    is
       Pro  : constant              PID := Arch.Local.Get_Current_Process;
-      Caps : constant MAC.Capabilities := MAC.Get_Capabilities (Get_MAC (Pro));
+      Caps : constant MAC.Capabilities := Get_Capabilities (Pro);
       Res  :               Unsigned_64 := 0;
    begin
       if Caps.Can_Change_Scheduling then Res := Res or MAC_CAP_SCHED;   end if;
@@ -1745,7 +1743,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc   : constant             PID := Arch.Local.Get_Current_Process;
       Map    : constant    Page_Map_Acc := Get_Common_Map (Proc);
       Addr   : constant Integer_Address := Integer_Address (Path_Addr);
-      Ctx    :              MAC.Context := Get_MAC (Proc);
       Perms  : MAC.Permissions;
       Status : MAC.Addition_Status;
       FS_Status : VFS.FS_Status;
@@ -1755,7 +1752,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Path   : String (1 .. Natural (Path_Len))
          with Import, Address => To_Address (Addr);
    begin
-      if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Manage_MAC then
+      if not Get_Capabilities (Proc).Can_Manage_MAC then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("add_mac_perms", Proc);
          return Unsigned_64'Last;
@@ -1778,8 +1775,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Errno := Error_Invalid_Value;
             return Unsigned_64'Last;
          end if;
-         MAC.Add_Entity
-            (Data   => Ctx,
+         Add_Entity
+            (Proc   => Proc,
              Dev    => Devices.Fetch (Path),
              Perms  => Perms,
              Status => Status);
@@ -1788,8 +1785,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          if FS_Status /= VFS.FS_Success then
             return Translate_Status (FS_Status, 0, Errno);
          end if;
-         MAC.Add_Entity
-            (Data   => Ctx,
+         Add_Entity
+            (Proc   => Proc,
              FS     => FS,
              Ino    => Ino,
              Perms  => Perms,
@@ -1798,10 +1795,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       case Status is
-         when MAC.Success =>
-            Set_MAC (Proc, Ctx);
-            Errno := Error_No_Error;
-            return 0;
+         when MAC.Success        => Errno := Error_No_Error; return 0;
          when MAC.No_Space       => Errno := Error_No_Memory;
          when MAC.Is_Conflicting => Errno := Error_Invalid_Value;
       end case;
@@ -1814,10 +1808,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno  : out Errno_Value) return Unsigned_64
    is
       Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Perms :  MAC.Context := Get_MAC (Proc);
       Act   : MAC.Enforcement;
    begin
-      if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Manage_MAC then
+      if not Get_Capabilities (Proc).Can_Manage_MAC then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("set_mac_enforcement", Proc);
          return Unsigned_64'Last;
@@ -1832,8 +1825,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return Unsigned_64'Last;
       end case;
 
-      MAC.Set_Enforcement (Perms, Act);
-      Set_MAC (Proc, Perms);
+      Set_Enforcement (Proc, Act);
       Errno := Error_No_Error;
       return 0;
    end Set_MAC_Enforcement;
@@ -1866,7 +1858,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       then
          Errno := Error_String_Too_Long;
          return Unsigned_64'Last;
-      elsif not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Manage_Mounts then
+      elsif not Get_Capabilities (Proc).Can_Manage_Mounts then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("mount", Proc);
          return Unsigned_64'Last;
@@ -1915,8 +1907,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       elsif Path_Len > Unsigned_64 (Natural'Last) then
          Errno := Error_String_Too_Long;
          return Unsigned_64'Last;
-      elsif not MAC.Get_Capabilities (Get_MAC (Curr_Proc)).Can_Manage_Mounts
-      then
+      elsif not Get_Capabilities (Curr_Proc).Can_Manage_Mounts then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("umount", Curr_Proc);
          return Unsigned_64'Last;
@@ -1950,7 +1941,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Buffer_IAddr : constant Integer_Address := Integer_Address (Buffer_Addr);
       Path_Add     : constant System.Address  := To_Address (Path_IAddr);
       Buffer_Add   : constant System.Address  := To_Address (Buffer_IAddr);
-      Final_Path   : String (1 .. 1024);
+      Final_Path   : String (1 .. 512);
       Final_Path_L : Natural;
       CWD          : String (1 .. Process.Max_CWD_Length);
       CWD_Len      : Natural;
@@ -2002,8 +1993,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return Unsigned_64'Last;
          end if;
 
-         File_Perms := MAC.Check_Permissions (Get_MAC (Proc), Opened_FS,
-                                              Opened_Ino);
+         File_Perms := Check_Permissions (Proc, Opened_FS, Opened_Ino);
          if not File_Perms.Can_Read then
             Errno := Error_Bad_Access;
             Execute_MAC_Failure ("readlink", Proc);
@@ -2023,17 +2013,21 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Buffer_Len  : Unsigned_64;
        Errno       : out Errno_Value) return Unsigned_64
    is
+      procedure Free is new Ada.Unchecked_Deallocation
+         (Directory_Entities, Directory_Entities_Acc);
+
       Buff_IAddr : constant Integer_Address := Integer_Address (Buffer_Addr);
       Buff_Addr  : constant System.Address  := To_Address (Buff_IAddr);
       Buff_Len   : constant Unsigned_64     := Buffer_Len / (Dirent'Size / 8);
+      Proc       : constant     PID := Arch.Local.Get_Current_Process;
+      Map        : constant         Page_Map_Acc := Get_Common_Map (Proc);
+      File       : constant File_Description_Acc := Get_File (Proc, FD);
+      Tmp_Buffer : VFS.Directory_Entities_Acc;
       Buffer     : Dirents (1 .. Buff_Len) with Import, Address => Buff_Addr;
-      Tmp_Buffer : VFS.Directory_Entities (1 .. Natural (Buff_Len));
       Read_Len   : Natural;
       Success    : VFS.FS_Status;
       User       : Unsigned_32;
-      Proc : constant     PID := Arch.Local.Get_Current_Process;
-      Map  : constant         Page_Map_Acc := Get_Common_Map (Proc);
-      File : constant File_Description_Acc := Get_File (Proc, FD);
+      Returned   : Unsigned_64;
    begin
       if not Check_Userland_Access (Map, Buff_IAddr, Buffer_Len) then
          Errno := Error_Would_Fault;
@@ -2044,24 +2038,26 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       Userland.Process.Get_Effective_UID (Proc, User);
-      VFS.Read_Entries (File.Inner_Ino_FS, File.Inner_Ino, Tmp_Buffer,
+      Tmp_Buffer := new VFS.Directory_Entities (1 .. Natural (Buff_Len));
+      VFS.Read_Entries (File.Inner_Ino_FS, File.Inner_Ino, Tmp_Buffer.all,
                         Read_Len, Success, User);
       if Success /= VFS.FS_Success then
-         Errno := Error_No_Entity;
-         return Unsigned_64'Last;
+         Errno    := Error_No_Entity;
+         Returned := Unsigned_64'Last;
+         goto Cleanup;
       elsif Read_Len > Tmp_Buffer'Length then
-         Errno := Error_Invalid_Value;
-         return Unsigned_64'Last;
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         goto Cleanup;
       end if;
 
       for I in 1 .. Read_Len loop
-         Buffer (Unsigned_64 (I)) := (
-            D_Ino    => Tmp_Buffer (I).Inode_Number,
-            D_Off    => (Dirent'Size / 8) * Unsigned_64 (I),
-            D_Reclen => Dirent'Size / 8,
-            D_Type   => 0,
-            D_Name   => (others => Ada.Characters.Latin_1.NUL)
-         );
+         Buffer (Unsigned_64 (I)) :=
+            (D_Ino    => Tmp_Buffer (I).Inode_Number,
+             D_Off    => (Dirent'Size / 8) * Unsigned_64 (I),
+             D_Reclen => Dirent'Size / 8,
+             D_Type   => 0,
+             D_Name   => (others => Ada.Characters.Latin_1.NUL));
          Buffer (Unsigned_64 (I)).D_Name (1 .. Tmp_Buffer (I).Name_Len)
             := Tmp_Buffer (I).Name_Buffer (1 .. Tmp_Buffer (I).Name_Len);
          Buffer (Unsigned_64 (I)).D_Type :=
@@ -2073,8 +2069,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
                when File_Block_Device     => DT_BLK);
       end loop;
 
-      Errno := Error_No_Error;
-      return Unsigned_64 (Read_Len * (Dirent'Size / 8));
+      Errno    := Error_No_Error;
+      Returned := Unsigned_64 (Read_Len * (Dirent'Size / 8));
+
+   <<Cleanup>>
+      Free (Tmp_Buffer);
+      return Returned;
    end GetDEnts;
 
    function Sync (Errno : out Errno_Value) return Unsigned_64 is
@@ -2103,7 +2103,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Path_SAddr : constant   System.Address := To_Address (Path_IAddr);
       CWD          : String (1 .. Process.Max_CWD_Length);
       CWD_Len      : Natural;
-      Final_Path   : String (1 .. 1024);
+      Final_Path   : String (1 .. 512);
       Final_Path_L : Natural;
       Node_Type    : File_Type;
       Tmp_Mode     : constant File_Mode := File_Mode (Mode and 8#7777#);
@@ -2167,7 +2167,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Path_SAddr   : constant System.Address  := To_Address (Path_IAddr);
       CWD          : String (1 .. Process.Max_CWD_Length);
       CWD_Len      : Natural;
-      Final_Path   : String (1 .. 1024);
+      Final_Path   : String (1 .. 512);
       Final_Path_L : Natural;
       Success      : VFS.FS_Status;
       User         : Unsigned_32;
@@ -2287,7 +2287,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Targ_SAddr : constant   System.Address := To_Address (Targ_IAddr);
       CWD          : String (1 .. Process.Max_CWD_Length);
       CWD_Len      : Natural;
-      Final_Path   : String (1 .. 1024);
+      Final_Path   : String (1 .. 512);
       Final_Path_L : Natural;
       Success      : VFS.FS_Status;
       User         : Unsigned_32;
@@ -2541,7 +2541,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       if TProc = Error_PID or else Proc /= Get_Parent (TProc) then
          Errno := Error_Bad_Permissions;
          return Unsigned_64'Last;
-      elsif not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Trace_Children then
+      elsif not Get_Capabilities (Proc).Can_Trace_Children then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("ptrace", Proc);
          return Unsigned_64'Last;
@@ -2632,7 +2632,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
    begin
       if MAC_Syscall_To_Kernel (Limit, Resource) then
          Errno := Error_No_Error;
-         return Unsigned_64 (MAC.Get_Limit (Get_MAC (Proc), Resource));
+         return Unsigned_64 (Get_Limit (Proc, Resource));
       end if;
 
       Errno := Error_Invalid_Value;
@@ -2645,17 +2645,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno : out Errno_Value) return Unsigned_64
    is
       Success  : Boolean;
-      Proc     : constant   PID := Arch.Local.Get_Current_Process;
-      Proc_MAC :    MAC.Context := Get_MAC (Proc);
       Resource : MAC.Limit_Type;
    begin
       if MAC_Syscall_To_Kernel (Limit, Resource) then
-         MAC.Set_Limit
-            (Data      => Proc_MAC,
+         Process.Set_Limit
+            (Proc      => Arch.Local.Get_Current_Process,
              Resource  => Resource,
              Limit     => MAC.Limit_Value (Data),
              Could_Set => Success);
-         Set_MAC (Proc, Proc_MAC);
          if Success then
             Errno := Error_No_Error;
             return 0;
@@ -2781,7 +2778,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Proc : constant PID := Arch.Local.Get_Current_Process;
    begin
-      if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Change_UIDs then
+      if not Get_Capabilities (Proc).Can_Change_UIDs then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("setuids", Proc);
          return Unsigned_64'Last;
@@ -2842,7 +2839,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Do_Ret  : constant Boolean := (Flags and RB_ERROR_RET) /= 0;
       Success : Arch.Power.Power_Status;
    begin
-      if not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Manage_Power then
+      if not Get_Capabilities (Proc).Can_Manage_Power then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("reboot", Proc);
          return Unsigned_64'Last;
@@ -3073,7 +3070,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
       type Arg_Arr is array (Natural range <>) of Unsigned_64;
 
-      Map        : constant Page_Map_Acc     := Get_Common_Map (Proc);
+      Map        : constant    Page_Map_Acc := Get_Common_Map (Proc);
       Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
       Path       : String (1 .. Natural (Path_Len))
@@ -3095,7 +3092,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       then
          Errno := Error_Would_Fault;
          return False;
-      elsif not MAC.Get_Capabilities (Get_MAC (Proc)).Can_Spawn_Others then
+      elsif not Get_Capabilities (Proc).Can_Spawn_Others then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("spawn", Proc);
          return False;
@@ -3108,7 +3105,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return False;
       end if;
 
-      File_Perms := MAC.Check_Permissions (Get_MAC (Proc), Path_FS, Path_Ino);
+      File_Perms := Check_Permissions (Proc, Path_FS, Path_Ino);
       if not File_Perms.Can_Execute then
          VFS.Close (Path_FS, Path_Ino);
          Errno := Error_Bad_Access;
@@ -3196,7 +3193,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       PID_Buffer : Lib.Messages.Translated_String;
       PID_Len    : Natural;
    begin
-      case MAC.Get_Enforcement (Get_MAC (Curr_Proc)) is
+      case Get_Enforcement (Curr_Proc) is
          when MAC.Deny =>
             null;
          when MAC.Deny_And_Scream =>
@@ -3236,11 +3233,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end PTY_IOCTL;
 
    procedure Set_MAC_Capabilities (Proc : PID; Bits : Unsigned_64) is
-      Perms :               MAC.Context := Get_MAC (Proc);
-      Caps  : constant MAC.Capabilities := MAC.Get_Capabilities (Perms);
+      Caps : constant MAC.Capabilities := Get_Capabilities (Proc);
    begin
-      MAC.Set_Capabilities
-         (Perms,
+      Set_Capabilities
+         (Proc,
           (Can_Change_Scheduling => Caps.Can_Change_Scheduling
             and ((Bits and MAC_CAP_SCHED)   /= 0),
            Can_Spawn_Others      => Caps.Can_Spawn_Others
@@ -3263,7 +3259,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
             and ((Bits and MAC_CAP_SETUID)  /= 0),
            Can_Manage_MAC        => Caps.Can_Manage_MAC
             and ((Bits and MAC_CAP_SYS_MAC) /= 0)));
-      Set_MAC (Proc, Perms);
    end Set_MAC_Capabilities;
 
    function MAC_Syscall_To_Kernel
@@ -3292,7 +3287,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
    begin
       if Unsigned_64 (Get_File_Count (Process)) <
-         Unsigned_64 (MAC.Get_Limit (Get_MAC (Process), MAC.Opened_File_Limit))
+         Unsigned_64 (Get_Limit (Process, MAC.Opened_File_Limit))
       then
          return Add_File (Process, File, FD, Start);
       else

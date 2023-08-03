@@ -29,13 +29,14 @@ with Config;
 with Ada.Unchecked_Deallocation;
 
 package body Scheduler with SPARK_Mode => Off is
-   --  Thread information.
-   Stack_Size : constant := 16#40000#;
+   Stack_Size  : constant := 16#20000#; --  Fat userland needs fat 128KiB.
+   Kernel_Size : constant := 16#02000#; --  Fashionably small stack for the us!
    type Thread_Stack     is array (1 ..       Stack_Size) of Unsigned_8;
    type Thread_Stack_64  is array (1 .. (Stack_Size / 8)) of Unsigned_64;
-   type Thread_Stack_Acc is access Thread_Stack;
+   type Kernel_Stack     is array (1 ..      Kernel_Size) of Unsigned_8;
+   type Kernel_Stack_Acc is access Kernel_Stack;
    procedure Free is new Ada.Unchecked_Deallocation
-      (Thread_Stack, Thread_Stack_Acc);
+      (Kernel_Stack, Kernel_Stack_Acc);
 
    type Thread_Info is record
       State          : Arch.Context.GP_Context;
@@ -44,7 +45,7 @@ package body Scheduler with SPARK_Mode => Off is
       Is_Monothread  : Boolean;
       TCB_Pointer    : System.Address;
       PageMap        : Memory.Virtual.Page_Map_Acc;
-      Kernel_Stack   : Thread_Stack_Acc;
+      Kernel_Stack   : Kernel_Stack_Acc;
       FP_Region      : Arch.Context.FP_Context;
       Process        : Userland.Process.PID;
       Time_Since_Run : Natural;
@@ -121,27 +122,27 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       declare
-         User_Stack_8  : Thread_Stack    with Address => To_Address (Result);
-         User_Stack_64 : Thread_Stack_64 with Address => To_Address (Result);
-         Index_8       : Natural := User_Stack_8'Last;
-         Index_64      : Natural := User_Stack_8'Last;
+         Stk_8  : Thread_Stack    with Import, Address => To_Address (Result);
+         Stk_64 : Thread_Stack_64 with Import, Address => To_Address (Result);
+         Index_8  : Natural := Stk_8'Last;
+         Index_64 : Natural := Stk_64'Last;
       begin
          --  Load env into the stack.
          for En of reverse Env loop
-            User_Stack_8 (Index_8) := 0;
+            Stk_8 (Index_8) := 0;
             Index_8 := Index_8 - 1;
             for C of reverse En.all loop
-               User_Stack_8 (Index_8) := Character'Pos (C);
+               Stk_8 (Index_8) := Character'Pos (C);
                Index_8 := Index_8 - 1;
             end loop;
          end loop;
 
          --  Load argv into the stack.
          for Arg of reverse Args loop
-            User_Stack_8 (Index_8) := 0;
+            Stk_8 (Index_8) := 0;
             Index_8 := Index_8 - 1;
             for C of reverse Arg.all loop
-               User_Stack_8 (Index_8) := Character'Pos (C);
+               Stk_8 (Index_8) := Character'Pos (C);
                Index_8 := Index_8 - 1;
             end loop;
          end loop;
@@ -151,48 +152,47 @@ package body Scheduler with SPARK_Mode => Off is
          Index_64 := Index_64 - ((Args'Length + Env'Length + 3) mod 2);
 
          --  Load auxval.
-         User_Stack_64 (Index_64 - 0) := 0;
-         User_Stack_64 (Index_64 - 1) := Userland.ELF.Auxval_Null;
-         User_Stack_64 (Index_64 - 2) := Vector.Entrypoint;
-         User_Stack_64 (Index_64 - 3) := Userland.ELF.Auxval_Entrypoint;
-         User_Stack_64 (Index_64 - 4) := Vector.Program_Headers;
-         User_Stack_64 (Index_64 - 5) := Userland.ELF.Auxval_Program_Headers;
-         User_Stack_64 (Index_64 - 6) := Vector.Program_Header_Count;
-         User_Stack_64 (Index_64 - 7) := Userland.ELF.Auxval_Header_Count;
-         User_Stack_64 (Index_64 - 8) := Vector.Program_Header_Size;
-         User_Stack_64 (Index_64 - 9) := Userland.ELF.Auxval_Header_Size;
+         Stk_64 (Index_64 - 0) := 0;
+         Stk_64 (Index_64 - 1) := Userland.ELF.Auxval_Null;
+         Stk_64 (Index_64 - 2) := Vector.Entrypoint;
+         Stk_64 (Index_64 - 3) := Userland.ELF.Auxval_Entrypoint;
+         Stk_64 (Index_64 - 4) := Vector.Program_Headers;
+         Stk_64 (Index_64 - 5) := Userland.ELF.Auxval_Program_Headers;
+         Stk_64 (Index_64 - 6) := Vector.Program_Header_Count;
+         Stk_64 (Index_64 - 7) := Userland.ELF.Auxval_Header_Count;
+         Stk_64 (Index_64 - 8) := Vector.Program_Header_Size;
+         Stk_64 (Index_64 - 9) := Userland.ELF.Auxval_Header_Size;
          Index_64 := Index_64 - 10;
 
          --  Load envp taking into account the pointers at the beginning.
-         Index_8 := User_Stack_8'Last;
-         User_Stack_64 (Index_64) := 0; --  Null at the end of envp.
+         Index_8 := Stk_8'Last;
+         Stk_64 (Index_64) := 0; --  Null at the end of envp.
          Index_64 := Index_64 - 1;
          for En of reverse Env loop
             Index_8 := (Index_8 - En.all'Length) - 1;
-            User_Stack_64 (Index_64) := Stack_Top + Unsigned_64 (Index_8);
+            Stk_64 (Index_64) := Stack_Top + Unsigned_64 (Index_8);
             Index_64 := Index_64 - 1;
          end loop;
 
          --  Load argv into the stack.
-         User_Stack_64 (Index_64) := 0; --  Null at the end of argv.
+         Stk_64 (Index_64) := 0; --  Null at the end of argv.
          Index_64 := Index_64 - 1;
          for Arg of reverse Args loop
             Index_8 := (Index_8 - Arg.all'Length) - 1;
-            User_Stack_64 (Index_64) := Stack_Top + Unsigned_64 (Index_8);
+            Stk_64 (Index_64) := Stack_Top + Unsigned_64 (Index_8);
             Index_64 := Index_64 - 1;
          end loop;
 
          --  Write argc and we are done!
-         User_Stack_64 (Index_64) := Args'Length;
+         Stk_64 (Index_64) := Args'Length;
          Index_64 := Index_64 - 1;
 
          --  Initialize context information.
-         Arch.Context.Init_GP_Context (
-            GP_State,
-            To_Address (Integer_Address (Stack_Top +
-                                         Unsigned_64 (Index_64 * 8))),
-            To_Address (Address)
-         );
+         Arch.Context.Init_GP_Context
+            (GP_State,
+             To_Address (Integer_Address (Stack_Top +
+                                          Unsigned_64 (Index_64 * 8))),
+             To_Address (Address));
          Arch.Context.Init_FP_Context (FP_State);
 
          New_TID := Create_User_Thread
@@ -220,11 +220,10 @@ package body Scheduler with SPARK_Mode => Off is
       GP_State : Arch.Context.GP_Context;
       FP_State : Arch.Context.FP_Context;
    begin
-      Arch.Context.Init_GP_Context (
-         GP_State,
-         To_Address (Integer_Address (Stack_Addr)),
-         To_Address (Address)
-      );
+      Arch.Context.Init_GP_Context
+         (GP_State,
+          To_Address (Integer_Address (Stack_Addr)),
+          To_Address (Address));
       Arch.Context.Init_FP_Context (FP_State);
       return Create_User_Thread
          (GP_State => GP_State,
@@ -261,7 +260,7 @@ package body Scheduler with SPARK_Mode => Off is
           Is_Running     => False,
           Is_Monothread  => False,
           PageMap        => Map,
-          Kernel_Stack   => new Thread_Stack,
+          Kernel_Stack   => new Kernel_Stack,
           TCB_Pointer    => TCB,
           State          => GP_State,
           FP_Region      => FP_State,
@@ -441,7 +440,7 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
       Arch.Local.Set_Current_Process (Thread_Pool (Next_TID).Process);
       Arch.Local.Set_Kernel_Stack
-         (Thread_Pool (Next_TID).Kernel_Stack (Thread_Stack'Last)'Address);
+         (Thread_Pool (Next_TID).Kernel_Stack (Kernel_Stack'Last)'Address);
       Arch.Local.Load_TCB (Thread_Pool (Next_TID).TCB_Pointer);
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_Region);
       Arch.Context.Load_GP_Context (Thread_Pool (Next_TID).State);

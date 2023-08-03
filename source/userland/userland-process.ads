@@ -1,5 +1,5 @@
---  userland-process.ads: Specification of the process registry and handler.
---  Copyright (C) 2021 streaksu
+--  userland-process.ads: Process registry, PIDs, and all the fuzz.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -325,18 +325,6 @@ package Userland.Process with SPARK_Mode => Off is
        Len  : out Natural)
       with Pre => Proc /= Error_PID;
 
-   --  Get MAC permissions.
-   --  @param Proc Process to get the info from.
-   --  @return Permissions.
-   function Get_MAC (Proc : PID) return MAC.Context
-      with Pre => Proc /= Error_PID;
-
-   --  Get MAC permissions.
-   --  @param Proc  Process to get the info from.
-   --  @param Perms Permissions to set.
-   procedure Set_MAC (Proc : PID; Perms : MAC.Context)
-      with Pre => Proc /= Error_PID;
-
    --  Get the parent PID of the process.
    --  @param Proc Process to get the info from.
    --  @return Parent PID, or Error_PID if no parent.
@@ -400,6 +388,49 @@ package Userland.Process with SPARK_Mode => Off is
    --  @param Proc Integer to convert.
    --  @return The converted PID.
    function Convert (Proc : Natural) return PID;
+   ----------------------------------------------------------------------------
+   --  These functions are wrappers for MAC behaviour, getters and setters
+   --  would be expensive given the nature of "hey imma just check this" of
+   --  MAC and the size of the structures involved.
+   --  It is a bit boilerplaty though, sorry.
+
+   function Get_Enforcement (Proc : PID) return MAC.Enforcement;
+   procedure Set_Enforcement (Proc : PID; Act : MAC.Enforcement);
+
+   function Get_Capabilities (Proc : PID) return MAC.Capabilities;
+   procedure Set_Capabilities (Proc : PID; Caps : MAC.Capabilities);
+
+   function Check_Permissions
+      (Proc : PID;
+       FS   : VFS.FS_Handle;
+       Ino  : VFS.File_Inode_Number) return MAC.Permissions;
+
+   function Check_Permissions
+      (Proc : PID;
+       Dev  : Devices.Device_Handle) return MAC.Permissions;
+
+   procedure Add_Entity
+      (Proc   : PID;
+       FS     : VFS.FS_Handle;
+       Ino    : VFS.File_Inode_Number;
+       Perms  : MAC.Permissions;
+       Status : out MAC.Addition_Status);
+
+   procedure Add_Entity
+      (Proc   : PID;
+       Dev    : Devices.Device_Handle;
+       Perms  : MAC.Permissions;
+       Status : out MAC.Addition_Status);
+
+   function Get_Limit
+      (Proc     : PID;
+       Resource : MAC.Limit_Type) return MAC.Limit_Value;
+
+   procedure Set_Limit
+      (Proc      : PID;
+       Resource  : MAC.Limit_Type;
+       Limit     : MAC.Limit_Value;
+       Could_Set : out Boolean);
 
 private
 

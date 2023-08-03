@@ -1,5 +1,5 @@
---  userland-process.adb: Process registry and handler.
---  Copyright (C) 2021 streaksu
+--  userland-process.adb: Process registry, PIDs, and all the fuzz.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -432,16 +432,6 @@ package body Userland.Process with SPARK_Mode => Off is
       Len := Length;
    end Get_CWD;
 
-   function Get_MAC (Proc : PID) return MAC.Context is
-   begin
-      return Registry (Proc).Perms;
-   end Get_MAC;
-
-   procedure Set_MAC (Proc : PID; Perms : MAC.Context) is
-   begin
-      Registry (Proc).Perms := Perms;
-   end Set_MAC;
-
    function Get_Alloc_Base (Process : PID) return Unsigned_64 is
    begin
       return Registry (Process).Alloc_Base;
@@ -534,4 +524,80 @@ package body Userland.Process with SPARK_Mode => Off is
          return Error_PID;
       end if;
    end Convert;
+   ----------------------------------------------------------------------------
+   function Get_Enforcement (Proc : PID) return MAC.Enforcement is
+   begin
+      return MAC.Get_Enforcement (Registry (Proc).Perms);
+   end Get_Enforcement;
+
+   procedure Set_Enforcement (Proc : PID; Act : MAC.Enforcement) is
+   begin
+      MAC.Set_Enforcement (Registry (Proc).Perms, Act);
+   end Set_Enforcement;
+
+   function Get_Capabilities (Proc : PID) return MAC.Capabilities is
+   begin
+      return MAC.Get_Capabilities (Registry (Proc).Perms);
+   end Get_Capabilities;
+
+   procedure Set_Capabilities (Proc : PID; Caps : MAC.Capabilities) is
+   begin
+      MAC.Set_Capabilities (Registry (Proc).Perms, Caps);
+   end Set_Capabilities;
+
+   function Check_Permissions
+      (Proc : PID;
+       FS   : VFS.FS_Handle;
+       Ino  : VFS.File_Inode_Number) return MAC.Permissions
+   is
+   begin
+      return MAC.Check_Permissions (Registry (Proc).Perms, FS, Ino);
+   end Check_Permissions;
+
+   function Check_Permissions
+      (Proc : PID;
+       Dev  : Devices.Device_Handle) return MAC.Permissions
+   is
+   begin
+      return MAC.Check_Permissions (Registry (Proc).Perms, Dev);
+   end Check_Permissions;
+
+   procedure Add_Entity
+      (Proc   : PID;
+       FS     : VFS.FS_Handle;
+       Ino    : VFS.File_Inode_Number;
+       Perms  : MAC.Permissions;
+       Status : out MAC.Addition_Status)
+   is
+   begin
+      MAC.Add_Entity (Registry (Proc).Perms, FS, Ino, Perms, Status);
+   end Add_Entity;
+
+   procedure Add_Entity
+      (Proc   : PID;
+       Dev    : Devices.Device_Handle;
+       Perms  : MAC.Permissions;
+       Status : out MAC.Addition_Status)
+   is
+   begin
+      MAC.Add_Entity (Registry (Proc).Perms, Dev, Perms, Status);
+   end Add_Entity;
+
+   function Get_Limit
+      (Proc     : PID;
+       Resource : MAC.Limit_Type) return MAC.Limit_Value
+   is
+   begin
+      return MAC.Get_Limit (Registry (Proc).Perms, Resource);
+   end Get_Limit;
+
+   procedure Set_Limit
+      (Proc      : PID;
+       Resource  : MAC.Limit_Type;
+       Limit     : MAC.Limit_Value;
+       Could_Set : out Boolean)
+   is
+   begin
+      MAC.Set_Limit (Registry (Proc).Perms, Resource, Limit, Could_Set);
+   end Set_Limit;
 end Userland.Process;

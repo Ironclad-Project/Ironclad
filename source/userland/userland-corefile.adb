@@ -17,18 +17,17 @@
 with Devices;
 with Interfaces; use Interfaces;
 with Arch.Local;
-with Userland.Process;
-with Userland.MAC; use Userland.MAC;
+with Userland.Process; use Userland.Process;
+with Userland.MAC;     use Userland.MAC;
 with Lib.Messages;
 with VFS; use VFS;
 
 package body Userland.Corefile with SPARK_Mode => Off is
    procedure Generate_Corefile (Ctx : Arch.Context.GP_Context) is
       Proc     : constant Process.PID := Arch.Local.Get_Current_Process;
-      Proc_MAC : constant MAC.Context := Process.Get_MAC (Proc);
       PID_Val  : constant Unsigned_64 := Unsigned_64 (Process.Convert (Proc));
-      Core_Lim : constant Limit_Value := Get_Limit (Proc_MAC, Core_Size_Limit);
-      File_Lim :          Limit_Value := Get_Limit (Proc_MAC, File_Size_Limit);
+      Core_Lim : constant Limit_Value := Get_Limit (Proc, Core_Size_Limit);
+      File_Lim :          Limit_Value := Get_Limit (Proc, File_Size_Limit);
       PID_Len  : Natural;
       PID_Buf  : Lib.Messages.Translated_String;
       Success  : VFS.FS_Status;

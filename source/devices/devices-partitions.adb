@@ -367,10 +367,13 @@ package body Devices.Partitions with SPARK_Mode => Off is
    end Write;
 
    function Sync (Key : System.Address) return Boolean is
-      Part : Partition_Data_Acc;
+      Part : constant Partition_Data_Acc :=
+         Partition_Data_Acc (Con1.To_Pointer (Key));
    begin
-      Part := Partition_Data_Acc (Con1.To_Pointer (Key));
-      return Devices.Synchronize (Part.Inner_Device);
+      return Devices.Synchronize
+         (Handle => Part.Inner_Device,
+          Offset => Part.LBA_Offset * Unsigned_64 (Part.Block_Size),
+          Count  => Part.LBA_Length * Unsigned_64 (Part.Block_Size));
    end Sync;
 
    function Sync_Range
@@ -378,9 +381,12 @@ package body Devices.Partitions with SPARK_Mode => Off is
        Offset : Unsigned_64;
        Count  : Unsigned_64) return Boolean
    is
-      Part : Partition_Data_Acc;
+      Part : constant Partition_Data_Acc :=
+         Partition_Data_Acc (Con1.To_Pointer (Key));
    begin
-      Part := Partition_Data_Acc (Con1.To_Pointer (Key));
-      return Devices.Synchronize (Part.Inner_Device, Offset, Count);
+      return Devices.Synchronize
+         (Handle => Part.Inner_Device,
+          Offset => (Part.LBA_Offset * Unsigned_64 (Part.Block_Size)) + Offset,
+          Count  => Count);
    end Sync_Range;
 end Devices.Partitions;

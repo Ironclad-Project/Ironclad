@@ -1,5 +1,5 @@
 # arch-start.S: multiboot2 header and bootstrap.
-# Copyright (C) 2021 streaksu
+# Copyright (C) 2023 streaksu
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -95,7 +95,7 @@ start:
 .section .bss
 .align 16
 stack:
-    .space 0x10000
+    .space 0x4000
 stack_top:
 
 .section .rodata
