@@ -22,8 +22,6 @@ with Memory;
 with Memory.Virtual;
 
 package body Arch.Multiboot2 with SPARK_Mode => Off is
-   Is_Cached   : Boolean := False;
-   Cached_Info : Boot_Information;
    Cached_RSDP : ACPI.RSDP;
    Cached_FB   : Framebuffer_Tag;
 
@@ -37,20 +35,12 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
       return Cached_RSDP;
    end Get_RSDP;
 
-   function Translate_Proto (Proto : Header_Acc) return Boot_Information is
+   procedure Translate_Proto (Proto : Header_Acc) is
       package Align is new Lib.Alignment (Unsigned_32);
 
       Current_Tag_Addr : System.Address;
       Highest_Address  : Integer_Address := 0;
    begin
-      if Proto = null then
-         if Is_Cached then
-            return Cached_Info;
-         else
-            Lib.Panic.Hard_Panic ("No cached proto");
-         end if;
-      end if;
-
       Current_Tag_Addr := Proto.Start_Of_Tags'Address;
       loop
          declare
@@ -75,7 +65,7 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
       --  Get the sub 1mib region address.
       --  Addresses of entries are not touched because later everything under
       --  1MiB is nuked.
-      for E of Cached_Info.Memmap (1 .. Cached_Info.Memmap_Len) loop
+      for E of Global_Info.Memmap (1 .. Global_Info.Memmap_Len) loop
          if E.MemType = Memory_Free and To_Integer (E.Start) <= 16#100000# then
             if To_Integer (E.Start) >= 16#1000# and
                E.Length >= Max_Sub_1MiB_Size
@@ -99,7 +89,7 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
       --  more efficiently, more smart, and in all aspects better if we just
       --  actually corrected the mmap instead of discarding most of it.
       Highest_Address := 16#500000#;
-      for E of Cached_Info.RAM_Files (1 .. Cached_Info.RAM_Files_Len) loop
+      for E of Global_Info.RAM_Files (1 .. Global_Info.RAM_Files_Len) loop
          if To_Integer (E.Start + E.Length) - Memory.Memory_Offset >
             Highest_Address
          then
@@ -107,7 +97,7 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
                - Memory.Memory_Offset;
          end if;
       end loop;
-      for E of Cached_Info.Memmap (1 .. Cached_Info.Memmap_Len) loop
+      for E of Global_Info.Memmap (1 .. Global_Info.Memmap_Len) loop
          if To_Integer (E.Start) < Highest_Address and
             To_Integer (E.Start + E.Length) >= Highest_Address
          then
@@ -116,18 +106,15 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
             E.Start  := To_Address (Highest_Address);
          end if;
       end loop;
-      for E of Cached_Info.Memmap (1 .. Cached_Info.Memmap_Len) loop
+      for E of Global_Info.Memmap (1 .. Global_Info.Memmap_Len) loop
          if To_Integer (E.Start) < Highest_Address then
             E.Length := 0;
          end if;
       end loop;
 
       --  Clean the memmap and return.
-      Cached_Info.Memmap_Len := Clean_Memmap
-         (Cached_Info.Memmap (1 .. Cached_Info.Memmap_Len));
-
-      Is_Cached := True;
-      return Cached_Info;
+      Global_Info.Memmap_Len := Clean_Memmap
+         (Global_Info.Memmap (1 .. Global_Info.Memmap_Len));
    end Translate_Proto;
 
    procedure Process_Cmdline (Tag_Addr : System.Address) is
@@ -136,8 +123,8 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
       Cmdline_Len  : constant Natural := Lib.C_String_Length (Cmdline_Addr);
       Cmdline : String (1 .. Cmdline_Len) with Address => Cmdline_Addr;
    begin
-      Cached_Info.Cmdline (1 .. Cmdline_Len) := Cmdline;
-      Cached_Info.Cmdline_Len := Cmdline_Len;
+      Global_Info.Cmdline (1 .. Cmdline_Len) := Cmdline;
+      Global_Info.Cmdline_Len := Cmdline_Len;
    end Process_Cmdline;
 
    procedure Process_Module (Tag_Addr : System.Address) is
@@ -147,8 +134,8 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
       Length : constant Unsigned_64 :=
          Unsigned_64 (Tag.End_Address - Tag.Start_Address);
    begin
-      Cached_Info.RAM_Files_Len := Cached_Info.RAM_Files_Len + 1;
-      Cached_Info.RAM_Files (Cached_Info.RAM_Files_Len) := (
+      Global_Info.RAM_Files_Len := Global_Info.RAM_Files_Len + 1;
+      Global_Info.RAM_Files (Global_Info.RAM_Files_Len) := (
          Start  => To_Address (Integer_Address (Start)),
          Length => Storage_Count (Length)
       );
@@ -162,7 +149,7 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
    begin
       loop
          exit when Offset >= Storage_Count (Map.TagInfo.Size - (128 / 8)) or
-                   Cached_Info.Memmap_Len = Cached_Info.Memmap'Length;
+                   Global_Info.Memmap_Len = Global_Info.Memmap'Length;
 
          declare
             Ent : Memmap_Entry with Import, Address => Start_Addr + Offset;
@@ -172,8 +159,8 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
             else
                Type_Entry := Memory_Reserved;
             end if;
-            Cached_Info.Memmap_Len := Cached_Info.Memmap_Len + 1;
-            Cached_Info.Memmap (Cached_Info.Memmap_Len) := (
+            Global_Info.Memmap_Len := Global_Info.Memmap_Len + 1;
+            Global_Info.Memmap (Global_Info.Memmap_Len) := (
                Start   => To_Address (Integer_Address (Ent.Base)),
                Length  => Storage_Count (Ent.Length),
                MemType => Type_Entry

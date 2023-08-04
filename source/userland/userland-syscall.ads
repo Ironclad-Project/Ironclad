@@ -25,7 +25,7 @@ with VFS;              use VFS;
 with IPC.Socket;       use IPC.Socket;
 with IPC.FIFO;         use IPC.FIFO;
 
-package Userland.Syscall with SPARK_Mode => Off is
+package Userland.Syscall is
    --  Error conditions for syscalls.
    --  The representation values are arbitrary.
    type Errno_Value is
@@ -77,13 +77,17 @@ package Userland.Syscall with SPARK_Mode => Off is
    AT_FDCWD : constant := Natural'Last;
 
    --  Exit the callee thread, flushing open files.
-   procedure Sys_Exit (Code : Unsigned_64; Errno : out Errno_Value);
+   procedure Sys_Exit
+      (Code     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Set arch-specific thread state.
-   function Arch_PRCtl
+   procedure Arch_PRCtl
       (Code     : Unsigned_64;
        Argument : Unsigned_64;
-       Errno    : out Errno_Value) return Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Open a file.
    O_RDONLY   : constant := 2#000001#;
@@ -92,41 +96,46 @@ package Userland.Syscall with SPARK_Mode => Off is
    O_CLOEXEC  : constant := 2#001000#;
    O_NOFOLLOW : constant := 2#010000#;
    O_NONBLOCK : constant := 2#100000#;
-   function Open
+   procedure Open
       (Dir_FD    : Unsigned_64;
        Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Flags     : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  Close a file.
-   function Close
-      (File_D : Unsigned_64;
-       Errno  : out Errno_Value) return Unsigned_64;
+   procedure Close
+      (File_D   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Read from a file.
-   function Read
-      (File_D : Unsigned_64;
-       Buffer : Unsigned_64;
-       Count  : Unsigned_64;
-       Errno  : out Errno_Value) return Unsigned_64;
+   procedure Read
+      (File_D   : Unsigned_64;
+       Buffer   : Unsigned_64;
+       Count    : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Write to a file.
-   function Write
-      (File_D : Unsigned_64;
-       Buffer : Unsigned_64;
-       Count  : Unsigned_64;
-       Errno  : out Errno_Value) return Unsigned_64;
+   procedure Write
+      (File_D   : Unsigned_64;
+       Buffer   : Unsigned_64;
+       Count    : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Operate with the file offset.
    SEEK_SET     : constant := 1;
    SEEK_CURRENT : constant := 2;
    SEEK_END     : constant := 4;
-   function Seek
-      (File_D : Unsigned_64;
-       Offset : Unsigned_64;
-       Whence : Unsigned_64;
-       Errno  : out Errno_Value) return Unsigned_64;
+   procedure Seek
+      (File_D   : Unsigned_64;
+       Offset   : Unsigned_64;
+       Whence   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Mmap, the one and only.
    PROT_READ  : constant := 2#00001#;
@@ -135,58 +144,63 @@ package Userland.Syscall with SPARK_Mode => Off is
    MAP_FIXED  : constant := 2#00100#;
    MAP_ANON   : constant := 2#01000#;
    MAP_WC     : constant := 2#10000#;
-   function Mmap
+   procedure Mmap
       (Hint       : Unsigned_64;
        Length     : Unsigned_64;
        Protection : Unsigned_64;
        Flags      : Unsigned_64;
        File_D     : Unsigned_64;
        Offset     : Unsigned_64;
-       Errno      : out Errno_Value) return Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    --  Mmap^-1
-   function Munmap
-      (Address    : Unsigned_64;
-       Length     : Unsigned_64;
-       Errno      : out Errno_Value) return Unsigned_64;
+   procedure Munmap
+      (Address  : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Get the callee PID.
-   function Get_PID (Errno : out Errno_Value) return Unsigned_64;
+   procedure Get_PID (Returned : out Unsigned_64; Errno : out Errno_Value);
 
    --  Get the PID of the parent of the callee.
-   function Get_Parent_PID (Errno : out Errno_Value) return Unsigned_64;
+   procedure Get_PPID (Returned : out Unsigned_64; Errno : out Errno_Value);
 
    --  Execute.
-   function Exec
+   procedure Exec
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Argv_Addr : Unsigned_64;
        Argv_Len  : Unsigned_64;
        Envp_Addr : Unsigned_64;
        Envp_Len  : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  Create processes and threads with different flavours.
    CLONE_PARENT : constant := 2#01#;
    CLONE_THREAD : constant := 2#10#;
-   function Clone
-      (Callback  : Unsigned_64;
-       Call_Arg  : Unsigned_64;
-       Stack     : Unsigned_64;
-       Flags     : Unsigned_64;
-       TLS_Addr  : Unsigned_64;
-       GP_State  : Arch.Context.GP_Context;
-       FP_State  : Arch.Context.FP_Context;
-       Errno     : out Errno_Value) return Unsigned_64;
+   procedure Clone
+      (Callback : Unsigned_64;
+       Call_Arg : Unsigned_64;
+       Stack    : Unsigned_64;
+       Flags    : Unsigned_64;
+       TLS_Addr : Unsigned_64;
+       GP_State : Arch.Context.GP_Context;
+       FP_State : Arch.Context.FP_Context;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Wait.
    WNOHANG     : constant := 2#0000000010#;
    Wait_EXITED : constant := 2#1000000000#;
-   function Wait
+   procedure Wait
       (Waited_PID : Unsigned_64;
        Exit_Addr  : Unsigned_64;
        Options    : Unsigned_64;
-       Errno      : out Errno_Value) return Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    --  Create a socket.
    AF_UNIX       : constant := 3;
@@ -195,17 +209,19 @@ package Userland.Syscall with SPARK_Mode => Off is
    SOCK_STREAM   : constant := 2#000000000000000100#;
    SOCK_NONBLOCK : constant := 2#010000000000000000#;
    SOCK_CLOEXEC  : constant := 2#100000000000000000#;
-   function Socket
+   procedure Socket
       (Domain   : Unsigned_64;
        DataType : Unsigned_64;
        Protocol : Unsigned_64;
-       Errno    : out Errno_Value) return Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Set hostname.
-   function Set_Hostname
-      (Address : Unsigned_64;
-       Length  : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64;
+   procedure Set_Hostname
+      (Address  : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Stat.
    type Time_Spec is record
@@ -250,50 +266,57 @@ package Userland.Syscall with SPARK_Mode => Off is
       Block_Count   at 0 range 832 .. 895;
    end record;
    for Stat'Size use 896;
-   function FStat
+   procedure FStat
       (FD        : Unsigned_64;
        Stat_Addr : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  Get current working directory.
-   function Get_CWD
-      (Buffer : Unsigned_64;
-       Length : Unsigned_64;
-       Errno  : out Errno_Value) return Unsigned_64;
+   procedure Get_CWD
+      (Buffer   : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Get current working directory.
-   function Chdir
+   procedure Chdir
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  IO control.
-   function IOCTL
+   procedure IOCTL
       (FD       : Unsigned_64;
        Request  : Unsigned_64;
        Argument : Unsigned_64;
-       Errno    : out Errno_Value) return Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Yield.
-   function Sched_Yield (Errno : out Errno_Value) return Unsigned_64;
+   procedure Sched_Yield (Returned : out Unsigned_64; Errno : out Errno_Value);
 
    --  Change scheduling deadlines.
-   function Set_Deadlines
-      (Run_Time, Period : Unsigned_64;
-       Errno : out Errno_Value) return Unsigned_64;
+   procedure Set_Deadlines
+      (Run_Time : Unsigned_64;
+       Period   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Create a pair of pipes.
-   function Pipe
+   procedure Pipe
       (Result_Addr : Unsigned_64;
        Flags       : Unsigned_64;
-       Errno       : out Errno_Value) return Unsigned_64;
+       Returned    : out Unsigned_64;
+       Errno       : out Errno_Value);
 
    --  Get the current UID.
-   function Get_UID (Errno : out Errno_Value) return Unsigned_64;
+   procedure Get_UID (Returned : out Unsigned_64; Errno : out Errno_Value);
 
    --  Rename files.
    RENAME_NOREPLACE : constant := 2#1#;
-   function Rename
+   procedure Rename
       (Source_FD   : Unsigned_64;
        Source_Addr : Unsigned_64;
        Source_Len  : Unsigned_64;
@@ -301,7 +324,8 @@ package Userland.Syscall with SPARK_Mode => Off is
        Target_Addr : Unsigned_64;
        Target_Len  : Unsigned_64;
        Flags       : Unsigned_64;
-       Errno       : out Errno_Value) return Unsigned_64;
+       Returned    : out Unsigned_64;
+       Errno       : out Errno_Value);
 
    --  Fetch some system information.
    SC_PAGESIZE      : constant := 1;
@@ -345,14 +369,15 @@ package Userland.Syscall with SPARK_Mode => Off is
       Machine     : String (1 .. 65);
    end record;
 
-   function Sysconf
-      (Request : Unsigned_64;
-       Addr    : Unsigned_64;
-       Length  : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64;
+   procedure Sysconf
+      (Request  : Unsigned_64;
+       Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Spawn a process just like fork+exec would.
-   function Spawn
+   procedure Spawn
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Argv_Addr : Unsigned_64;
@@ -360,15 +385,18 @@ package Userland.Syscall with SPARK_Mode => Off is
        Envp_Addr : Unsigned_64;
        Envp_Len  : Unsigned_64;
        Caps_Addr : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  Managing scheduling of a thread.
    Thread_MONO : constant := 2#1#;
-   function Get_Thread_Sched
-      (Errno : out Errno_Value) return Unsigned_64;
-   function Set_Thread_Sched
-      (Flags : Unsigned_64;
-       Errno : out Errno_Value) return Unsigned_64;
+   procedure Get_Thread_Sched
+      (Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+   procedure Set_Thread_Sched
+      (Flags    : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Multiplexed operation for files.
    FD_CLOEXEC      : constant := 1;
@@ -380,27 +408,30 @@ package Userland.Syscall with SPARK_Mode => Off is
    F_SETFL         : constant := 6;
    F_GETPIPE_SZ    : constant := 7;
    F_SETPIPE_SZ    : constant := 8;
-   function Fcntl
+   procedure Fcntl
       (FD       : Unsigned_64;
        Command  : Unsigned_64;
        Argument : Unsigned_64;
-       Errno    : out Errno_Value) return Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Exit the callee thread.
-   procedure Exit_Thread (Errno : out Errno_Value);
+   procedure Exit_Thread (Returned : out Unsigned_64; Errno : out Errno_Value);
 
    --  Bypassing /dev/(u)random for getting random data.
-   function Get_Random
-     (Address : Unsigned_64;
-      Length  : Unsigned_64;
-      Errno   : out Errno_Value) return Unsigned_64;
+   procedure Get_Random
+     (Address  : Unsigned_64;
+      Length   : Unsigned_64;
+      Returned : out Unsigned_64;
+      Errno    : out Errno_Value);
 
    --  Change protection from memory regions.
-   function MProtect
+   procedure MProtect
      (Address    : Unsigned_64;
       Length     : Unsigned_64;
       Protection : Unsigned_64;
-      Errno      : out Errno_Value) return Unsigned_64;
+      Returned   : out Unsigned_64;
+      Errno      : out Errno_Value);
 
    --  Set MAC capabilities of the caller process.
    MAC_CAP_SCHED   : constant := 2#00000000001#;
@@ -414,12 +445,15 @@ package Userland.Syscall with SPARK_Mode => Off is
    MAC_CAP_PTRACE  : constant := 2#00100000000#;
    MAC_CAP_SETUID  : constant := 2#01000000000#;
    MAC_CAP_SYS_MAC : constant := 2#10000000000#;
-   function Set_MAC_Capabilities
-      (Bits  : Unsigned_64;
-       Errno : out Errno_Value) return Unsigned_64;
+   procedure Set_MAC_Capabilities
+      (Bits     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Get the MAC capabilities of the caller process.
-   function Get_MAC_Capabilities (Errno : out Errno_Value) return Unsigned_64;
+   procedure Get_MAC_Capabilities
+      (Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Add a file to MAC.
    MAC_PERM_CONTENTS : constant := 2#0000001#;
@@ -429,50 +463,55 @@ package Userland.Syscall with SPARK_Mode => Off is
    MAC_PERM_APPEND   : constant := 2#0010000#;
    MAC_PERM_FLOCK    : constant := 2#0100000#;
    MAC_PERM_DEV      : constant := 2#1000000#;
-   function Add_MAC_Permissions
+   procedure Add_MAC_Permissions
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Flags     : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  Set the enforcement policy of the MAC.
    MAC_DENY            : constant := 2#001#;
    MAC_DENY_AND_SCREAM : constant := 2#010#;
    MAC_KILL            : constant := 2#100#;
-   function Set_MAC_Enforcement
-      (Action : Unsigned_64;
-       Errno  : out Errno_Value) return Unsigned_64;
+   procedure Set_MAC_Enforcement
+      (Action   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Mount a filesystem.
    MNT_EXT : constant := 1;
    MNT_FAT : constant := 2;
    MNT_QNX : constant := 3;
    MS_RDONLY : constant := 2#01#;
-   function Mount
+   procedure Mount
       (Source_Addr : Unsigned_64;
        Source_Len  : Unsigned_64;
        Target_Addr : Unsigned_64;
        Target_Len  : Unsigned_64;
        FSType      : Unsigned_64;
        Flags       : Unsigned_64;
-       Errno       : out Errno_Value) return Unsigned_64;
+       Returned    : out Unsigned_64;
+       Errno       : out Errno_Value);
 
    --  Unmount a filesystem.
    MNT_FORCE : constant := 1;
-   function Umount
+   procedure Umount
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Flags     : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  Read the contents of a symlink.
-   function Readlink
+   procedure Readlink
       (Dir_FD      : Unsigned_64;
        Path_Addr   : Unsigned_64;
        Path_Len    : Unsigned_64;
        Buffer_Addr : Unsigned_64;
        Buffer_Len  : Unsigned_64;
-       Errno       : out Errno_Value) return Unsigned_64;
+       Returned    : out Unsigned_64;
+       Errno       : out Errno_Value);
 
    --  Get directory entities.
    DT_FIFO : constant := 1;
@@ -496,36 +535,40 @@ package Userland.Syscall with SPARK_Mode => Off is
       D_Name   at 0 range 152 .. 639;
    end record;
    type Dirents is array (Unsigned_64 range <>) of Dirent with Pack;
-   function GetDEnts
+   procedure GetDEnts
       (FD          : Unsigned_64;
        Buffer_Addr : Unsigned_64;
        Buffer_Len  : Unsigned_64;
-       Errno       : out Errno_Value) return Unsigned_64;
+       Returned    : out Unsigned_64;
+       Errno       : out Errno_Value);
 
    --  Synchronize devices and kernel caches.
-   function Sync (Errno : out Errno_Value) return Unsigned_64;
+   procedure Sync (Returned : out Unsigned_64; Errno : out Errno_Value);
 
    --  Create a node, be it a file, directory, or others (not links).
-   function MakeNode
+   procedure MakeNode
       (Dir_FD    : Unsigned_64;
        Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Mode      : Unsigned_64;
        Dev       : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  Unlinks a file.
-   function Unlink
+   procedure Unlink
       (Dir_FD    : Unsigned_64;
        Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  Truncates a file to a new size.
-   function Truncate
+   procedure Truncate
       (FD       : Unsigned_64;
        New_Size : Unsigned_64;
-       Errno    : out Errno_Value) return Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Bind a socket to an address.
    type SockAddr_UNIX (Length : Natural) is record
@@ -535,74 +578,83 @@ package Userland.Syscall with SPARK_Mode => Off is
    for SockAddr_UNIX use record
       Sun_Family at 0 range 0 .. 31;
    end record;
-   function Bind
+   procedure Bind
       (Sock_FD   : Unsigned_64;
        Addr_Addr : Unsigned_64;
        Addr_Len  : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  Create a symbolic link.
-   function Symlink
+   procedure Symlink
       (Dir_FD      : Unsigned_64;
        Path_Addr   : Unsigned_64;
        Path_Len    : Unsigned_64;
        Target_Addr : Unsigned_64;
        Target_Len  : Unsigned_64;
        Mode        : Unsigned_64;
-       Errno       : out Errno_Value) return Unsigned_64;
+       Returned    : out Unsigned_64;
+       Errno       : out Errno_Value);
 
    --  Connect a socket to an address.
-   function Connect
+   procedure Connect
       (Sock_FD   : Unsigned_64;
        Addr_Addr : Unsigned_64;
        Addr_Len  : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  Create a pair of ptys.
-   function Open_PTY
+   procedure Open_PTY
       (Result_Addr  : Unsigned_64;
        Termios_Addr : Unsigned_64;
        Window_Addr  : Unsigned_64;
-       Errno        : out Errno_Value) return Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value);
 
    --  Synchronize the data of a file, instead of system-wide.
-   function FSync
-      (FD    : Unsigned_64;
-       Flags : Unsigned_64;
-       Errno : out Errno_Value) return Unsigned_64;
+   procedure FSync
+      (FD       : Unsigned_64;
+       Flags    : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Make a hard link.
-   function Link
+   procedure Link
       (Source_Dir  : Unsigned_64;
        Source_Addr : Unsigned_64;
        Source_Len  : Unsigned_64;
        Desto_Dir   : Unsigned_64;
        Desto_Addr  : Unsigned_64;
        Desto_Len   : Unsigned_64;
-       Errno       : out Errno_Value) return Unsigned_64;
+       Returned    : out Unsigned_64;
+       Errno       : out Errno_Value);
 
    --  Trace process, with several debug utilities.
    PTRACE_SYSCALL_PIPE : constant := 1;
-   function PTrace
+   procedure PTrace
       (Request     : Unsigned_64;
        Traced_PID  : Unsigned_64;
        Traced_Addr : Unsigned_64;
        Result_Addr : Unsigned_64;
-       Errno       : out Errno_Value) return Unsigned_64;
+       Returned    : out Unsigned_64;
+       Errno       : out Errno_Value);
 
    --  Turn a socket into a passive listener for connections.
-   function Listen
-      (Sock_FD : Unsigned_64;
-       Backlog : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64;
+   procedure Listen
+      (Sock_FD  : Unsigned_64;
+       Backlog  : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Accept a connection.
-   function Sys_Accept
+   procedure Sys_Accept
       (Sock_FD   : Unsigned_64;
        Addr_Addr : Unsigned_64;
        Addr_Len  : Unsigned_64;
        Flags     : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  Get a resource limit.
    RLIMIT_CORE   : constant := 1;
@@ -612,15 +664,17 @@ package Userland.Syscall with SPARK_Mode => Off is
    RLIMIT_NOFILE : constant := 5;
    RLIMIT_STACK  : constant := 6;
    RLIMIT_AS     : constant := 7;
-   function Get_RLimit
-      (Limit : Unsigned_64;
-       Errno : out Errno_Value) return Unsigned_64;
+   procedure Get_RLimit
+      (Limit    : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Set a resource limit.
-   function Set_RLimit
-      (Limit : Unsigned_64;
-       Data  : Unsigned_64;
-       Errno : out Errno_Value) return Unsigned_64;
+   procedure Set_RLimit
+      (Limit    : Unsigned_64;
+       Data     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Poll on a series of events.
    POLLIN   : constant := 2#00000001#;
@@ -634,63 +688,71 @@ package Userland.Syscall with SPARK_Mode => Off is
       Out_Events : Unsigned_16;
    end record with Size => 64;
    type Poll_FDs is array (Unsigned_64 range <>) of Poll_FD;
-   function Poll
+   procedure Poll
       (FDs_Addr  : Unsigned_64;
        FDs_Count : Unsigned_64;
        Timeout   : Unsigned_64;
-       Errno     : out Errno_Value) return Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  Get the current effective UID.
-   function Get_EUID (Errno : out Errno_Value) return Unsigned_64;
+   procedure Get_EUID (Returned : out Unsigned_64; Errno : out Errno_Value);
 
    --  Set the global and effective UIDs.
-   function Set_UIDs
-      (UID   : Unsigned_64;
-       EUID  : Unsigned_64;
-       Errno : out Errno_Value) return Unsigned_64;
+   procedure Set_UIDs
+      (UID      : Unsigned_64;
+       EUID     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Change the mode of the passed file.
-   function Fchmod
-      (FD    : Unsigned_64;
-       Mode  : Unsigned_64;
-       Errno : out Errno_Value) return Unsigned_64;
+   procedure Fchmod
+      (FD       : Unsigned_64;
+       Mode     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Change the umask of the calling process.
-   function Umask
-      (Mode  : Unsigned_64;
-       Errno : out Errno_Value) return Unsigned_64;
+   procedure Umask
+      (Mode     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    RB_HALT      : constant := 1;
    RB_POWEROFF  : constant := 2;
    RB_RESTART   : constant := 3;
    RB_ERROR_RET : constant := 2#1#;
-   function Reboot
-      (Command : Unsigned_64;
-       Flags   : Unsigned_64;
-       Errno   : out Errno_Value) return Unsigned_64;
+   procedure Reboot
+      (Command  : Unsigned_64;
+       Flags    : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Change the mode of the passed file.
-   function Fchown
-      (FD    : Unsigned_64;
-       User  : Unsigned_64;
-       Group : Unsigned_64;
-       Errno : out Errno_Value) return Unsigned_64;
+   procedure Fchown
+      (FD       : Unsigned_64;
+       User     : Unsigned_64;
+       Group    : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Read from the passed offset.
-   function PRead
-      (File_D : Unsigned_64;
-       Buffer : Unsigned_64;
-       Count  : Unsigned_64;
-       Offset : Unsigned_64;
-       Errno  : out Errno_Value) return Unsigned_64;
+   procedure PRead
+      (File_D   : Unsigned_64;
+       Buffer   : Unsigned_64;
+       Count    : Unsigned_64;
+       Offset   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Write from the passed offset.
-   function PWrite
-      (File_D : Unsigned_64;
-       Buffer : Unsigned_64;
-       Count  : Unsigned_64;
-       Offset : Unsigned_64;
-       Errno  : out Errno_Value) return Unsigned_64;
+   procedure PWrite
+      (File_D   : Unsigned_64;
+       Buffer   : Unsigned_64;
+       Count    : Unsigned_64;
+       Offset   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.
@@ -699,23 +761,26 @@ package Userland.Syscall with SPARK_Mode => Off is
 private
 
    --  Translate an FS_Status to Errno.
-   function Translate_Status
+   procedure Translate_Status
       (Status         : VFS.FS_Status;
        Success_Return : Unsigned_64;
-       Errno          : out Errno_Value) return Unsigned_64;
+       Returned       : out Unsigned_64;
+       Errno          : out Errno_Value);
 
-   function Translate_Status
+   procedure Translate_Status
       (Status         : IPC.Socket.Socket_Status;
        Success_Return : Unsigned_64;
-       Errno          : out Errno_Value) return Unsigned_64;
+       Returned       : out Unsigned_64;
+       Errno          : out Errno_Value);
 
-   function Translate_Status
+   procedure Translate_Status
       (Status         : IPC.FIFO.Pipe_Status;
        Success_Return : Unsigned_64;
-       Errno          : out Errno_Value) return Unsigned_64;
+       Returned       : out Unsigned_64;
+       Errno          : out Errno_Value);
 
    --  Execute a path, with an argv and envp into the passed process.
-   function Exec_Into_Process
+   procedure Exec_Into_Process
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
        Argv_Addr : Unsigned_64;
@@ -723,7 +788,8 @@ private
        Envp_Addr : Unsigned_64;
        Envp_Len  : Unsigned_64;
        Proc      : PID;
-       Errno     : out Errno_Value) return Boolean;
+       Success   : out Boolean;
+       Errno     : out Errno_Value);
 
    --  Translate mmap permissions.
    function Get_Mmap_Prot
@@ -744,14 +810,16 @@ private
    procedure Set_MAC_Capabilities (Proc : PID; Bits : Unsigned_64);
 
    --  Transform a rlimit into a MAC limit.
-   function MAC_Syscall_To_Kernel
-      (Val   : Unsigned_64;
-       Limit : out MAC.Limit_Type) return Boolean;
+   procedure MAC_Syscall_To_Kernel
+      (Val     : Unsigned_64;
+       Success : out Boolean;
+       Limit   : out MAC.Limit_Type);
 
    --  Check limits and then add file.
-   function Check_Add_File
+   procedure Check_Add_File
       (Process : PID;
        File    : File_Description_Acc;
+       Success : out Boolean;
        FD      : out Natural;
-       Start   : Natural := 0) return Boolean;
+       Start   : Natural := 0);
 end Userland.Syscall;

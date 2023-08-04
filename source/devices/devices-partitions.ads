@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Devices.Partitions with SPARK_Mode => Off is
+package Devices.Partitions is
    --  Register the partitions of the passed device as separate devices.
    --  The resulting support read/write, and that's it.
    --  @param Name Name to prepend all partitions with, p<index> will be added.
@@ -28,14 +28,16 @@ package Devices.Partitions with SPARK_Mode => Off is
 private
 
    --  Scan partitions for GPT and MBR.
-   function Parse_GPT_Partitions
-      (Name                 : String;
-       Dev                  : Device_Handle;
-       Found_Any_Partitions : out Boolean) return Boolean;
-   function Parse_MBR_Partitions
-      (Name                 : String;
-       Dev                  : Device_Handle;
-       Found_Any_Partitions : out Boolean) return Boolean;
+   procedure Parse_GPT_Partitions
+      (Name             : String;
+       Dev              : Device_Handle;
+       Found_Partitions : out Boolean;
+       Success          : out Boolean);
+   procedure Parse_MBR_Partitions
+      (Name             : String;
+       Dev              : Device_Handle;
+       Found_Partitions : out Boolean;
+       Success          : out Boolean);
 
    --  Register data for a partition.
    type Partition_Data is record

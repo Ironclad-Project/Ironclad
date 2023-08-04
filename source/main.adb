@@ -43,7 +43,7 @@ procedure Main is
    Success     : VFS.FS_Status;
    Init_Stdin  : constant String := "null";
    Init_Stdout : constant String := "debug";
-   Proto       : constant Arch.Boot_Information := Arch.Get_Info;
+   Proto       : Arch.Boot_Information renames Arch.Global_Info;
    Cmdline     : String renames Proto.Cmdline (1 .. Proto.Cmdline_Len);
 begin
    Lib.Messages.Put_Line (Config.Name & " " & Config.Version);

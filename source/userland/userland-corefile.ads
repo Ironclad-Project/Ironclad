@@ -16,7 +16,7 @@
 
 with Arch.Context;
 
-package Userland.Corefile with SPARK_Mode => Off is
+package Userland.Corefile is
    --  Generate a corefile for the current process and passed context.
    procedure Generate_Corefile (Ctx : Arch.Context.GP_Context);
 end Userland.Corefile;

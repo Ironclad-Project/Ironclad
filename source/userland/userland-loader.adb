@@ -20,7 +20,7 @@ with System;
 with System.Storage_Elements; use System.Storage_Elements;
 with Memory.Virtual;
 with Memory; use Memory;
-with Userland.ELF;
+with Userland.ELF; use Userland.ELF;
 with Scheduler; use Scheduler;
 with Userland.Memory_Locations;
 with Lib.Alignment;
@@ -45,10 +45,12 @@ package body Userland.Loader with SPARK_Mode => Off is
        StdOut_Path : String;
        StdErr_Path : String) return PID
    is
-      Returned_PID : constant PID := Process.Create_Process;
+      Returned_PID : PID;
       Discard      : Natural;
+      Success1, Success2, Success3         : Boolean;
       User_Stdin, User_StdOut, User_StdErr : File_Description_Acc;
    begin
+      Process.Create_Process (Error_PID, Returned_PID);
       if Returned_PID = Error_PID then
          goto Error;
       end if;
@@ -59,38 +61,35 @@ package body Userland.Loader with SPARK_Mode => Off is
          goto Error_Process;
       end if;
 
-      User_Stdin := new File_Description'(
-         Children_Count  => 0,
-         Description     => Description_Device,
-         Inner_Dev_Read  => True,
-         Inner_Dev_Write => False,
-         Inner_Dev_Pos   => 0,
-         Inner_Dev       => Devices.Fetch (StdIn_Path)
-      );
-      User_StdOut := new File_Description'(
-         Children_Count  => 0,
-         Description     => Description_Device,
-         Inner_Dev_Read  => False,
-         Inner_Dev_Write => True,
-         Inner_Dev_Pos   => 0,
-         Inner_Dev       => Devices.Fetch (StdOut_Path)
-      );
-      User_StdErr := new File_Description'(
-         Children_Count  => 0,
-         Description     => Description_Device,
-         Inner_Dev_Read  => False,
-         Inner_Dev_Write => True,
-         Inner_Dev_Pos   => 0,
-         Inner_Dev       => Devices.Fetch (StdErr_Path)
-      );
+      User_Stdin := new File_Description'
+         (Children_Count  => 0,
+          Description     => Description_Device,
+          Inner_Dev_Read  => True,
+          Inner_Dev_Write => False,
+          Inner_Dev_Pos   => 0,
+          Inner_Dev       => Devices.Fetch (StdIn_Path));
+      User_StdOut := new File_Description'
+         (Children_Count  => 0,
+          Description     => Description_Device,
+          Inner_Dev_Read  => False,
+          Inner_Dev_Write => True,
+          Inner_Dev_Pos   => 0,
+          Inner_Dev       => Devices.Fetch (StdOut_Path));
+      User_StdErr := new File_Description'
+         (Children_Count  => 0,
+          Description     => Description_Device,
+          Inner_Dev_Read  => False,
+          Inner_Dev_Write => True,
+          Inner_Dev_Pos   => 0,
+          Inner_Dev       => Devices.Fetch (StdErr_Path));
 
-      if not Process.Add_File (Returned_PID, User_Stdin,  Discard) or else
-         not Process.Add_File (Returned_PID, User_StdOut, Discard) or else
-         not Process.Add_File (Returned_PID, User_StdErr, Discard)
-      then
-         goto Error_Process;
+      Process.Add_File (Returned_PID, User_Stdin,  Discard, Success1);
+      Process.Add_File (Returned_PID, User_StdOut, Discard, Success2);
+      Process.Add_File (Returned_PID, User_StdErr, Discard, Success3);
+
+      if Success1 and Success2 and Success3 then
+         return Returned_PID;
       end if;
-      return Returned_PID;
 
    <<Error_Process>>
       Process.Delete_Process (Returned_PID);
@@ -127,6 +126,7 @@ package body Userland.Loader with SPARK_Mode => Off is
       LD_FS    : FS_Handle;
       LD_Ino   : File_Inode_Number;
       Success  : FS_Status;
+      Success2 : Boolean;
    begin
       --  Load the executable.
       Loaded_ELF := ELF.Load_ELF (FS, Ino, Process.Get_Common_Map (Proc),
@@ -178,7 +178,8 @@ package body Userland.Loader with SPARK_Mode => Off is
             goto Error;
          end if;
 
-         if not Process.Add_Thread (Proc, Returned_TID) then
+         Process.Add_Thread (Proc, Returned_TID, Success2);
+         if not Success2 then
             Scheduler.Delete_Thread (Returned_TID);
             goto Error;
          end if;

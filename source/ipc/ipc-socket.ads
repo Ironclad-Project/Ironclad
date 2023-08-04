@@ -18,7 +18,7 @@ with Lib.Synchronization;
 with Devices;
 with Memory.Virtual;
 
-package IPC.Socket with SPARK_Mode => Off is
+package IPC.Socket is
    --  Implementation for Ironclad of the quintessential epitome of POSIX IPC.
    --  Sockets are to UNIX as ketchup is to mcdonald's fries.
 

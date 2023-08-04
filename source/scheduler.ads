@@ -22,7 +22,7 @@ with Userland;
 with Userland.ELF;
 with Arch.Context;
 
-package Scheduler with SPARK_Mode => Off is
+package Scheduler is
    --  True if the scheduler is initialized.
    Is_Initialized : Boolean with Volatile;
 

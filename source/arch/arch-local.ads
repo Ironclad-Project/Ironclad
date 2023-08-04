@@ -17,7 +17,7 @@
 with Scheduler; use Scheduler;
 with Userland.Process;
 
-package Arch.Local with SPARK_Mode => Off is
+package Arch.Local is
    --  Forcing reschedules using architecture-specific methods.
    procedure Reschedule_In (Microseconds : Natural);
    procedure Reschedule_ASAP;

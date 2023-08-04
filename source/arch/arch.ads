@@ -1,5 +1,5 @@
---  arch.ads: Specification of the architecture-specific package.
---  Copyright (C) 2021 streaksu
+--  arch.ads: Architecture-specific information.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -18,14 +18,11 @@ with System;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package Arch is
-   --  Boot information passed to the freestanding parts of the kernel.
-
    --  Memory map for the kernel, it must be sorted and have no gaps.
-   type Boot_Memory_Type is (
-      Memory_Free,     --  Memory free for use by the allocators.
-      Memory_Reserved, --  MMIO addresses or memory tables.
-      Memory_Kernel    --  Memory occupied by the kernel or RAM files.
-   );
+   type Boot_Memory_Type is
+      (Memory_Free,     --  Memory free for use by the allocators.
+       Memory_Reserved, --  MMIO addresses or memory tables.
+       Memory_Kernel);  --  Memory occupied by the kernel or RAM files.
    type Boot_Memory_Region is record
       Start   : System.Address;
       Length  : Storage_Count;
@@ -50,5 +47,6 @@ package Arch is
       RAM_Files_Len : Natural range 0 .. 4;
    end record;
 
-   function Get_Info return Boot_Information;
+   --  Global variable holding platform information.
+   Global_Info : Boot_Information;
 end Arch;

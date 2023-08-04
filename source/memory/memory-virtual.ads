@@ -18,7 +18,7 @@ with Interfaces; use Interfaces;
 with Lib.Synchronization;
 with Arch.MMU; use Arch.MMU;
 
-package Memory.Virtual with SPARK_Mode => Off is
+package Memory.Virtual is
    --  Minimum page size the kernel supports. Operations on memory using
    --  the rest of the package should be ideally aligned to this value.
    Page_Size : constant := Arch.MMU.Page_Size;
@@ -88,13 +88,14 @@ package Memory.Virtual with SPARK_Mode => Off is
    --                 all mappings, it must be unmapped on its own, this
    --                 exists for supporting editing regions allocated for
    --                 other maps than your own.
-   --  @return True on success, False on failure.
-   function Map_Memory_Backed_Region
+   --  @param Success True on success, False on failure.
+   procedure Map_Memory_Backed_Region
       (Map     : Page_Map_Acc;
        Virtual : Virtual_Address;
        Length  : Unsigned_64;
        Flags   : Arch.MMU.Page_Permissions;
-       Writing : out Virtual_Address) return Boolean;
+       Writing : out Virtual_Address;
+       Success : out Boolean);
 
    --  Create a new map ready for loading. The kernel will be mapped and
    --  loading it will not cause accessing kernel addresses to fault.

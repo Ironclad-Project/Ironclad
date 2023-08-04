@@ -17,7 +17,7 @@
 with Userland.Process; use Userland.Process;
 with VFS;              use VFS;
 
-package Userland.Loader with SPARK_Mode => Off is
+package Userland.Loader is
    --  By default, the offsets of loaded programs are randomized, this
    --  behaviour can be disabled at boottime.
    procedure Disable_ASLR;

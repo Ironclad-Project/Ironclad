@@ -102,7 +102,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
    type GPT_Entries is array (Natural range <>) of GPT_Partition_Entry;
 
    --  Datatypes for easing reading sectors up.
-   procedure Free_Sector is new Ada.Unchecked_Deallocation
+   procedure Free is new Ada.Unchecked_Deallocation
       (Devices.Operation_Data, Devices.Operation_Data_Acc);
 
    --  Packages for conversions.
@@ -114,26 +114,26 @@ package body Devices.Partitions with SPARK_Mode => Off is
       (Name : String;
        Dev  : Device_Handle) return Boolean
    is
-      Found_Any_Partitions : Boolean;
+      Success, Found_Partitions : Boolean;
    begin
       if not Devices.Is_Block_Device (Dev) then
          return False;
       end if;
 
-      if not Parse_GPT_Partitions (Name, Dev, Found_Any_Partitions) then
-         return False;
-      end if;
-      if Found_Any_Partitions then
+      Parse_GPT_Partitions (Name, Dev, Found_Partitions, Success);
+      if Success and Found_Partitions then
          return True;
       end if;
 
-      return Parse_MBR_Partitions (Name, Dev, Found_Any_Partitions);
+      Parse_MBR_Partitions (Name, Dev, Found_Partitions, Success);
+      return Success;
    end Parse_Partitions;
 
-   function Parse_GPT_Partitions
-      (Name                 : String;
-       Dev                  : Device_Handle;
-       Found_Any_Partitions : out Boolean) return Boolean
+   procedure Parse_GPT_Partitions
+      (Name             : String;
+       Dev              : Device_Handle;
+       Found_Partitions : out Boolean;
+       Success          : out Boolean)
    is
       Block_Size : constant Natural := Devices.Get_Block_Size (Dev);
       Sector : Devices.Operation_Data_Acc :=
@@ -147,10 +147,10 @@ package body Devices.Partitions with SPARK_Mode => Off is
       Block            : Natural := 0;
       I                : Natural := 1;
       Added_Index      : Natural := 1;
-      Success          : Boolean := True;
       Block_Return     : Natural;
    begin
-      Found_Any_Partitions := False;
+      Success          := True;
+      Found_Partitions := False;
       Devices.Read
          (Handle    => Dev,
           Offset    => Unsigned_64 (Block_Size),
@@ -194,7 +194,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
                   goto Return_End;
                end if;
                if Partition.Type_GUID /= 0 then
-                  Found_Any_Partitions := True;
+                  Found_Partitions := True;
                   Part := new Partition_Data'(
                      Inner_Device => Dev,
                      Block_Size   => Block_Size,
@@ -216,14 +216,14 @@ package body Devices.Partitions with SPARK_Mode => Off is
       end loop;
 
    <<Return_End>>
-      Free_Sector (Sector);
-      return Success;
+      Free (Sector);
    end Parse_GPT_Partitions;
 
-   function Parse_MBR_Partitions
-      (Name                 : String;
-       Dev                  : Device_Handle;
-       Found_Any_Partitions : out Boolean) return Boolean
+   procedure Parse_MBR_Partitions
+      (Name             : String;
+       Dev              : Device_Handle;
+       Found_Partitions : out Boolean;
+       Success          : out Boolean)
    is
       Block_Size : constant Natural := Devices.Get_Block_Size (Dev);
       Sector : Devices.Operation_Data_Acc :=
@@ -231,10 +231,10 @@ package body Devices.Partitions with SPARK_Mode => Off is
       S_Addr : constant System.Address  := Sector.all'Address;
       MBR     : MBR_Data_Acc;
       Part    : Partition_Data_Acc;
-      Success : Boolean := True;
       Block_Return : Natural;
    begin
-      Found_Any_Partitions := False;
+      Success          := True;
+      Found_Partitions := False;
       Devices.Read
          (Handle    => Dev,
           Offset    => 0,
@@ -254,13 +254,12 @@ package body Devices.Partitions with SPARK_Mode => Off is
 
       for I in MBR.Entries'Range loop
          if MBR.Entries (I).Sector_Count /= 0 then
-            Found_Any_Partitions := True;
-            Part := new Partition_Data'(
-               Inner_Device => Dev,
-               Block_Size   => Block_Size,
-               LBA_Offset   => Unsigned_64 (MBR.Entries (I).First_Sector),
-               LBA_Length   => Unsigned_64 (MBR.Entries (I).Sector_Count)
-            );
+            Found_Partitions := True;
+            Part := new Partition_Data'
+               (Inner_Device => Dev,
+                Block_Size   => Block_Size,
+                LBA_Offset   => Unsigned_64 (MBR.Entries (I).First_Sector),
+                LBA_Length   => Unsigned_64 (MBR.Entries (I).Sector_Count));
             if not Set_Part (Name, I, Block_Size, Part) then
                Success := False;
                goto Return_End;
@@ -269,8 +268,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
       end loop;
 
    <<Return_End>>
-      Free_Sector (Sector);
-      return Success;
+      Free (Sector);
    end Parse_MBR_Partitions;
 
    function Set_Part

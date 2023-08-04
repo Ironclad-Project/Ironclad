@@ -25,7 +25,7 @@ with IPC.PTY;    use IPC.PTY;
 with IPC.Socket; use IPC.Socket;
 with Devices;
 
-package Userland.Process with SPARK_Mode => Off is
+package Userland.Process is
    --  A process is identifier by a PID (process identifier).
    --  In order to obtain a classical integer that can be used for reporting
    --  or userland passing, PIDs can be converted to integers using functions
@@ -55,7 +55,7 @@ package Userland.Process with SPARK_Mode => Off is
        Description_Inode,
        Description_Socket);
    type File_Description;
-   type File_Description_Acc is access all File_Description;
+   type File_Description_Acc is access File_Description;
    type File_Description (Description : File_Description_Type) is record
       Children_Count : Natural;
       case Description is
@@ -89,15 +89,15 @@ package Userland.Process with SPARK_Mode => Off is
    --  Disable location ASLR when creating processes.
    procedure Disable_ASLR;
 
-   --  Get a count of all the processes registered in the system.
-   function Get_Process_Count return Natural;
-
    --  Query children for the passed process.
    --  @param Proc Process to search the children for.
    --  @param Buf  Where to write the children.
-   --  @return Count of children, even if it does not fit.
+   --  @param Len  Count of children, even if it does not fit.
    type Children_Arr is array (Natural range <>) of PID;
-   function Get_Children (Proc : PID; Buf : out Children_Arr) return Natural;
+   procedure Get_Children
+      (Proc : PID;
+       Buf  : out Children_Arr;
+       Len  : out Natural);
 
    --  Information of a process.
    type Process_Info is record
@@ -117,19 +117,22 @@ package Userland.Process with SPARK_Mode => Off is
    procedure List_All (List : out Process_Info_Arr; Total : out Natural);
 
    --  Create an empty process, a parent may be passed for getting some data.
-   --  @param Parent Parent of the process, or Error_PID for none.
-   --  @return PID if successful, or Error_PID if not successful.
-   function Create_Process (Parent : PID := Error_PID) return PID;
+   --  @param Parent   Parent of the process, or Error_PID for none.
+   --  @param Returned PID if successful, or Error_PID if not successful.
+   procedure Create_Process (Parent : PID; Returned : out PID);
 
    --  Delete a process.
    --  @param Process Process to delete.
    procedure Delete_Process (Process : PID) with Pre => Process /= Error_PID;
 
    --  Add a thread to the process.
-   --  @param Proc   Process to add a thread.
-   --  @param Thread Thread to add.
-   --  @return True on success, False on failure.
-   function Add_Thread (Proc : PID; Thread : Scheduler.TID) return Boolean
+   --  @param Proc    Process to add a thread.
+   --  @param Thread  Thread to add.
+   --  @param Success True on success, False on failure.
+   procedure Add_Thread
+      (Proc    : PID;
+       Thread  : Scheduler.TID;
+       Success : out Boolean)
       with Pre => Proc /= Error_PID;
 
    --  Remove a thread from the process.
@@ -157,13 +160,14 @@ package Userland.Process with SPARK_Mode => Off is
    --  @param Process Process to add a file to.
    --  @param File    File to add.
    --  @param FD      FD registered.
+   --  @param Success True on success, False if no slots are available.
    --  @param Start   Start allocating by the passed FD.
-   --  @return True on success, False, for example, if no slots are available.
-   function Add_File
+   procedure Add_File
       (Process : PID;
        File    : File_Description_Acc;
        FD      : out Natural;
-       Start   : Natural := 0) return Boolean
+       Success : out Boolean;
+       Start   : Natural := 0)
       with Pre => Process /= Error_PID;
 
    --  Get the count of file descriptors held by the process.
@@ -173,16 +177,11 @@ package Userland.Process with SPARK_Mode => Off is
       with Pre => Process /= Error_PID;
 
    --  Duplicate an individual file.
-   --  @param File File to duplicate.
-   --  @return Duplicated file, or null if error'd out.
-   function Duplicate (F : File_Description_Acc) return File_Description_Acc;
-
-   --  Duplicate an individual file that resides in a process FD.
-   --  @param Proc Process to use.
-   --  @param FD   Slot to duplicate.
-   --  @return Duplicated file, or null if error'd out or the slot was empty.
-   function Duplicate (Proc : PID; FD : Natural) return File_Description_Acc
-      with Pre => Proc /= Error_PID;
+   --  @param File   File to duplicate.
+   --  @param Result Duplicated file, or null if error'd out.
+   procedure Duplicate
+      (F      : File_Description_Acc;
+       Result : out File_Description_Acc);
 
    --  Duplicate an entire process table to another process.
    --  @param Process Process to use.
@@ -309,10 +308,13 @@ package Userland.Process with SPARK_Mode => Off is
       with Pre => Process /= Error_PID;
 
    --  Set the current working directory.
-   --  @param Proc Process to set the CWD of.
-   --  @param CWD  Path to set, it is not checked.
-   --  @return True if succesful, False if it did not fit, between others.
-   function Set_CWD (Proc : PID; CWD : String) return Boolean
+   --  @param Proc    Process to set the CWD of.
+   --  @param CWD     Path to set, it is not checked.
+   --  @param Success True if succesful, False if it did not fit, or others.
+   procedure Set_CWD
+      (Proc    : PID;
+       CWD     : String;
+       Success : out Boolean)
       with Pre => Proc /= Error_PID;
 
    --  Get the current working directory.

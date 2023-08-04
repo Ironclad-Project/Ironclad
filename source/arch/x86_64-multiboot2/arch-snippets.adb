@@ -15,6 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System.Machine_Code; use System.Machine_Code;
+with Arch.Entrypoint;
+pragma Unreferenced (Arch.Entrypoint);
 
 package body Arch.Snippets with SPARK_Mode => Off is
    procedure HCF is

@@ -19,7 +19,7 @@ with Interfaces; use Interfaces;
 with VFS;
 with Memory.Virtual;
 
-package Userland.ELF with SPARK_Mode => Off is
+package Userland.ELF is
    type String_Acc is access String;
 
    --  Auxval values.
@@ -38,7 +38,7 @@ package Userland.ELF with SPARK_Mode => Off is
    type Parsed_ELF is record
       Was_Loaded  : Boolean;
       Entrypoint  : System.Address;
-      Linker_Path : access String;
+      Linker_Path : String_Acc;
       Vector      : Auxval;
       Exec_Stack  : Boolean;
    end record;

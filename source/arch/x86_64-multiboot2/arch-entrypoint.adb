@@ -29,11 +29,14 @@ with Memory.Virtual;
 
 package body Arch.Entrypoint with SPARK_Mode => Off is
    procedure Bootstrap_Main (Proto : Multiboot2.Header_Acc) is
-      Info : constant Boot_Information := Multiboot2.Translate_Proto (Proto);
+      Info : Boot_Information renames Global_Info;
    begin
       --  Initialize architectural state first.
       GDT.Init;
       IDT.Init;
+
+      --  Translate the multiboot2 protocol.
+      Multiboot2.Translate_Proto (Proto);
 
       --  Initialize the allocators.
       Memory.Physical.Init_Allocator (Info.Memmap (1 .. Info.Memmap_Len));

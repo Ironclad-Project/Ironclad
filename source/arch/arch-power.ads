@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Arch.Power with SPARK_Mode => Off is
+package Arch.Power is
    --  Possible returns of a power-related function.
    type Power_Status is (Not_Supported, Failure);
 

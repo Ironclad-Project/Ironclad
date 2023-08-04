@@ -92,32 +92,32 @@ package body Scheduler with SPARK_Mode => Off is
        PID        : Natural;
        Exec_Stack : Boolean := True) return TID
    is
-      Stack_Permissions : constant Arch.MMU.Page_Permissions := (
-         User_Accesible => True,
-         Read_Only      => False,
-         Executable     => Exec_Stack,
-         Global         => False,
-         Write_Through  => False
-      );
+      Stack_Permissions : constant Arch.MMU.Page_Permissions :=
+         (User_Accesible => True,
+          Read_Only      => False,
+          Executable     => Exec_Stack,
+          Global         => False,
+          Write_Through  => False);
       New_TID   : TID;
       GP_State  : Arch.Context.GP_Context;
       FP_State  : Arch.Context.FP_Context;
       Result    : Virtual_Address;
       Stack_Top : Unsigned_64;
+      Success   : Boolean;
    begin
       --  Initialize thread state. Start by mapping the user stack.
       Stack_Top := Userland.Process.Get_Stack_Base
          (Userland.Process.Convert (PID));
       Userland.Process.Set_Stack_Base
          (Userland.Process.Convert (PID), Stack_Top + Stack_Size);
-      if not Memory.Virtual.Map_Memory_Backed_Region (
-         Map,
-         Virtual_Address (Stack_Top),
-         Stack_Size,
-         Stack_Permissions,
-         Result
-      )
-      then
+      Memory.Virtual.Map_Memory_Backed_Region
+         (Map,
+          Virtual_Address (Stack_Top),
+          Stack_Size,
+          Stack_Permissions,
+          Result,
+          Success);
+      if not Success then
          goto Error_1;
       end if;
 

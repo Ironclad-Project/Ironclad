@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 
-package Arch.Interrupts with SPARK_Mode => Off is
+package Arch.Interrupts is
    --  Passed to every interrupt called ever as an access.
    type ISR_GPRs is record
       --  Pushed by us.

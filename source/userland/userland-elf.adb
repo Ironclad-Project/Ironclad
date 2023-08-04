@@ -194,24 +194,25 @@ package body Userland.ELF with SPARK_Mode => Off is
          Global         => False,
          Write_Through  => False
       );
-      Ret_Count : Natural;
-      Discard   : Boolean;
-      Success   : FS_Status;
-      Result    : Virtual_Address;
+      Ret_Count  : Natural;
+      Success1   : Boolean;
+      Success2   : FS_Status;
+      Result     : Virtual_Address;
    begin
       if not Memory.Virtual.Check_Userland_Mappability (ELF_Virtual, Load_Size)
       then
          return False;
       end if;
 
-      if not Memory.Virtual.Map_Memory_Backed_Region
+      Memory.Virtual.Map_Memory_Backed_Region
          (Map      => Map,
           Virtual  => Align2.Align_Down (ELF_Virtual,
                       Memory.Virtual.Page_Size),
           Length   => Align1.Align_Up (Load_Size, Memory.Virtual.Page_Size),
           Flags    => Flags,
-          Writing  => Result)
-      then
+          Writing  => Result,
+          Success  => Success1);
+      if not Success1 then
          return False;
       end if;
 
@@ -220,8 +221,8 @@ package body Userland.ELF with SPARK_Mode => Off is
             with Import, Address => To_Address (Result) +
                                     Storage_Offset (MisAlign);
       begin
-         VFS.Read (FS, Ino, Header.Offset, Load2, Ret_Count, Success, 0);
-         return Success = FS_Success and Ret_Count = Header.File_Size_Bytes;
+         VFS.Read (FS, Ino, Header.Offset, Load2, Ret_Count, Success2, 0);
+         return Success2 = FS_Success and Ret_Count = Header.File_Size_Bytes;
       end;
    end Load_Header;
 end Userland.ELF;

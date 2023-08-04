@@ -129,14 +129,14 @@ package body Memory.Virtual with SPARK_Mode => Off is
       return Success;
    end Unmap_Range;
 
-   function Map_Memory_Backed_Region
+   procedure Map_Memory_Backed_Region
       (Map     : Page_Map_Acc;
        Virtual : Virtual_Address;
        Length  : Unsigned_64;
        Flags   : Arch.MMU.Page_Permissions;
-       Writing : out Virtual_Address) return Boolean
+       Writing : out Virtual_Address;
+       Success : out Boolean)
    is
-      Success : Boolean;
       Addr : constant Virtual_Address :=
          Memory.Physical.Alloc (Interfaces.C.size_t (Length));
       Allocated : array (1 .. Length) of Unsigned_8
@@ -156,8 +156,6 @@ package body Memory.Virtual with SPARK_Mode => Off is
          Memory.Physical.Free (Interfaces.C.size_t (Addr));
          Writing := 0;
       end if;
-
-      return Success;
    end Map_Memory_Backed_Region;
 
    function New_Map return Page_Map_Acc is
@@ -187,20 +185,22 @@ package body Memory.Virtual with SPARK_Mode => Off is
 
    function Fork_Map (Map : Page_Map_Acc) return Page_Map_Acc is
       type Page_Data is array (Unsigned_64 range <>) of Unsigned_8;
-      Forked : Page_Map_Acc := New_Map;
-      Addr   : Virtual_Address;
+      Forked  : Page_Map_Acc := New_Map;
+      Addr    : Virtual_Address;
+      Success : Boolean;
    begin
       Lib.Synchronization.Seize (Map.Mutex);
       for Mapping of Map.Map_Ranges loop
          if Mapping.Is_Present then
             if Mapping.Is_Allocated then
-               if not Map_Memory_Backed_Region
+               Map_Memory_Backed_Region
                   (Forked,
                    Mapping.Virtual_Start,
                    Mapping.Length,
                    Mapping.Flags,
-                   Addr)
-               then
+                   Addr,
+                   Success);
+               if not Success then
                   Delete_Map (Forked);
                   goto Cleanup;
                end if;

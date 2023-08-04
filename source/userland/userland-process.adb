@@ -37,27 +37,20 @@ package body Userland.Process with SPARK_Mode => Off is
       Do_ASLR := False;
    end Disable_ASLR;
 
-   function Get_Process_Count return Natural is
-      Count : Natural := 0;
+   procedure Get_Children
+      (Proc : PID;
+       Buf  : out Children_Arr;
+       Len  : out Natural)
+   is
+      Index : Natural := 0;
    begin
-      Lib.Synchronization.Seize (Registry_Mutex);
-      for I in Registry.all'Range loop
-         if Registry (I) /= null then
-            Count := Count + 1;
-         end if;
-      end loop;
-      Lib.Synchronization.Release (Registry_Mutex);
-      return Count;
-   end Get_Process_Count;
-
-   function Get_Children (Proc : PID; Buf : out Children_Arr) return Natural is
-      Count, Index : Natural := 0;
-   begin
+      Buf := (others => Error_PID);
+      Len := 0;
       Lib.Synchronization.Seize (Registry_Mutex);
       for I in Registry.all'Range loop
          if Registry (I) /= null and then Registry (I).Parent = Proc
          then
-            Count := Count + 1;
+            Len := Len + 1;
             if Index < Buf'Length then
                Buf (Buf'First + Index) := I;
                Index                   := Index + 1;
@@ -65,12 +58,20 @@ package body Userland.Process with SPARK_Mode => Off is
          end if;
       end loop;
       Lib.Synchronization.Release (Registry_Mutex);
-      return Count;
    end Get_Children;
 
    procedure List_All (List : out Process_Info_Arr; Total : out Natural) is
       Curr_Index : Natural := 0;
    begin
+      List :=
+         (others =>
+            (Identifier      => (others => ' '),
+             Identifier_Len  => 0,
+             Process         => Error_PID,
+             Parent          => 0,
+             User            => 0,
+             Is_Being_Traced => False,
+             Has_Exited      => False));
       Total := 0;
 
       Lib.Synchronization.Seize (Registry_Mutex);
@@ -93,23 +94,33 @@ package body Userland.Process with SPARK_Mode => Off is
       Lib.Synchronization.Release (Registry_Mutex);
    end List_All;
 
-   function Create_Process (Parent : PID := Error_PID) return PID is
+   procedure Create_Process (Parent : PID; Returned : out PID) is
       P : PID renames Parent;
-      Returned : PID := Error_PID;
    begin
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Returned := Error_PID;
 
+      Lib.Synchronization.Seize (Registry_Mutex);
       for I in Registry.all'Range loop
          if Registry (I) = null then
             Registry (I) := new Process_Data'
-               (Did_Exit    => False,
-                Is_Traced   => False,
-                Tracer_FD   => 0,
-                Exit_Code   => 0,
-                Thread_List => (others => 0),
-                File_Table  => (others => (False, null)),
-                Common_Map  => null,
-                others      => <>);
+               (Umask           => Default_Umask,
+                User            => 0,
+                Effective_User  => 0,
+                Identifier      => (others => ' '),
+                Identifier_Len  => 0,
+                Parent          => 0,
+                Is_Traced       => False,
+                Tracer_FD       => 0,
+                Current_Dir     => (1 => '/', others => ' '),
+                Current_Dir_Len => 1,
+                Thread_List     => (others => 0),
+                File_Table      => (others => (False, null)),
+                Common_Map      => null,
+                Stack_Base      => 0,
+                Alloc_Base      => 0,
+                Perms           => MAC.Default_Context,
+                Did_Exit        => False,
+                Exit_Code       => 0);
 
             if Parent /= Error_PID then
                Registry (I).Parent          := Parent;
@@ -123,22 +134,13 @@ package body Userland.Process with SPARK_Mode => Off is
                Registry (I).Umask           := Registry (P).Umask;
             else
                Reroll_ASLR (PID (I));
-               Registry (I).Parent          := 0;
-               Registry (I).Current_Dir_Len := 1;
-               Registry (I).Current_Dir (1) := '/';
-               Registry (I).Perms           := MAC.Default_Context;
-               Registry (I).User            := 0;
-               Registry (I).Effective_User  := 0;
-               Registry (I).Umask           := Default_Umask;
             end if;
 
             Returned := PID (I);
             exit;
          end if;
       end loop;
-
       Lib.Synchronization.Release (Registry_Mutex);
-      return Returned;
    end Create_Process;
 
    procedure Delete_Process (Process : PID) is
@@ -148,15 +150,20 @@ package body Userland.Process with SPARK_Mode => Off is
       Lib.Synchronization.Release (Registry_Mutex);
    end Delete_Process;
 
-   function Add_Thread (Proc : PID; Thread : Scheduler.TID) return Boolean is
+   procedure Add_Thread
+      (Proc    : PID;
+       Thread  : Scheduler.TID;
+       Success : out Boolean)
+   is
    begin
       for I in Registry (Proc).Thread_List'Range loop
          if Registry (Proc).Thread_List (I) = 0 then
             Registry (Proc).Thread_List (I) := Thread;
-            return True;
+            Success := True;
+            return;
          end if;
       end loop;
-      return False;
+      Success := False;
    end Add_Thread;
 
    procedure Remove_Thread (Proc : PID; Thread : Scheduler.TID) is
@@ -211,22 +218,24 @@ package body Userland.Process with SPARK_Mode => Off is
       return Registry (Process).File_Table (Natural (FD)).Description /= null;
    end Is_Valid_File;
 
-   function Add_File
+   procedure Add_File
       (Process : PID;
        File    : File_Description_Acc;
        FD      : out Natural;
-       Start   : Natural := 0) return Boolean
+       Success : out Boolean;
+       Start   : Natural := 0)
    is
    begin
       for I in Start .. Registry (Process).File_Table'Last loop
          if Registry (Process).File_Table (I).Description = null then
             Registry (Process).File_Table (I).Description := File;
-            FD := I;
-            return True;
+            FD      := I;
+            Success := True;
+            return;
          end if;
       end loop;
-      FD := 0;
-      return False;
+      FD      := 0;
+      Success := False;
    end Add_File;
 
    function Get_File_Count (Process : PID) return Natural is
@@ -240,28 +249,31 @@ package body Userland.Process with SPARK_Mode => Off is
       return Count_Of_FDs;
    end Get_File_Count;
 
-   function Duplicate (F : File_Description_Acc) return File_Description_Acc is
+   procedure Duplicate
+      (F      : File_Description_Acc;
+       Result : out File_Description_Acc)
+   is
+      pragma SPARK_Mode (Off);
    begin
-      F.Children_Count := F.Children_Count + 1;
-      return F;
-   end Duplicate;
-
-   function Duplicate (Proc : PID; FD : Natural) return File_Description_Acc is
-   begin
-      return Duplicate (Registry (Proc).File_Table (FD).Description);
+      if F.Children_Count /= Natural'Last then
+         F.Children_Count := F.Children_Count + 1;
+         Result := F;
+      else
+         Result := null;
+      end if;
    end Duplicate;
 
    procedure Duplicate_FD_Table (Process, Target : PID) is
-      Proc_Table   : File_Arr renames Registry (Process).File_Table;
-      Target_Table : File_Arr renames Registry (Target).File_Table;
    begin
-      for I in Proc_Table'Range loop
-         Target_Table (I).Close_On_Exec := Proc_Table (I).Close_On_Exec;
-         if Proc_Table (I).Description /= null then
-            Target_Table (I).Description :=
-               Duplicate (Proc_Table (I).Description);
+      for I in Registry (Process).File_Table'Range loop
+         Registry (Target).File_Table (I).Close_On_Exec :=
+            Registry (Process).File_Table (I).Close_On_Exec;
+         if Registry (Process).File_Table (I).Description /= null then
+            Duplicate
+               (Registry (Process).File_Table (I).Description,
+                Registry (Target).File_Table (I).Description);
          else
-            Proc_Table (I).Description := null;
+            Registry (Target).File_Table (I).Description := null;
          end if;
       end loop;
    end Duplicate_FD_Table;
@@ -407,11 +419,15 @@ package body Userland.Process with SPARK_Mode => Off is
       Code     := Registry (Process).Exit_Code;
    end Check_Exit;
 
-   function Set_CWD (Proc : PID; CWD : String) return Boolean is
+   procedure Set_CWD
+      (Proc    : PID;
+       CWD     : String;
+       Success : out Boolean)
+   is
    begin
       Registry (Proc).Current_Dir (1 .. CWD'Length) := CWD;
       Registry (Proc).Current_Dir_Len               := CWD'Length;
-      return True;
+      Success := True;
    end Set_CWD;
 
    procedure Get_CWD
@@ -421,6 +437,8 @@ package body Userland.Process with SPARK_Mode => Off is
    is
       Length : Natural;
    begin
+      CWD := (others => ' ');
+
       if CWD'Length > Registry (Proc).Current_Dir_Len then
          Length := Registry (Proc).Current_Dir_Len;
       else
@@ -468,6 +486,8 @@ package body Userland.Process with SPARK_Mode => Off is
    is
       Length : Natural;
    begin
+      ID := (others => ' ');
+
       if ID'Length > Registry (Proc).Identifier_Len then
          Length := Registry (Proc).Identifier_Len;
       else

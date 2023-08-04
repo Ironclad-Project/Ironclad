@@ -132,158 +132,153 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       --  Arguments can be RDI, RSI, RDX, RCX, R8, R9, and R10, in that order.
       case State.RAX is
          when 0 =>
-            Sys_Exit (State.RDI, Errno);
-            Returned := 0;
+            Sys_Exit (State.RDI, Returned, Errno);
          when 1 =>
-            Returned := Arch_PRCtl (State.RDI, State.RSI, Errno);
+            Arch_PRCtl (State.RDI, State.RSI, Returned, Errno);
          when 2 =>
-            Returned := Open
-               (State.RDI, State.RSI, State.RDX, State.RCX, Errno);
+            Open
+               (State.RDI, State.RSI, State.RDX, State.RCX, Returned, Errno);
          when 3 =>
-            Returned := Close (State.RDI, Errno);
+            Close (State.RDI, Returned, Errno);
          when 4 =>
-            Returned := Read (State.RDI, State.RSI, State.RDX, Errno);
+            Read (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 5 =>
-            Returned := Write (State.RDI, State.RSI, State.RDX, Errno);
+            Write (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 6 =>
-            Returned := Seek (State.RDI, State.RSI, State.RDX, Errno);
+            Seek (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 7 =>
-            Returned := Mmap (State.RDI, State.RSI, State.RDX,
-                                      State.RCX, State.R8, State.R9, Errno);
+            Mmap (State.RDI, State.RSI, State.RDX,
+                  State.RCX, State.R8, State.R9, Returned, Errno);
          when 8 =>
-            Returned := Munmap (State.RDI, State.RSI, Errno);
+            Munmap (State.RDI, State.RSI, Returned, Errno);
          when 9 =>
-            Returned := Get_PID (Errno);
+            Get_PID (Returned, Errno);
          when 10 =>
-            Returned := Get_Parent_PID (Errno);
+            Get_PPID (Returned, Errno);
          when 11 =>
-            Returned := Exec (State.RDI, State.RSI, State.RDX,
-                              State.RCX, State.R8, State.R9, Errno);
+            Exec (State.RDI, State.RSI, State.RDX,
+                  State.RCX, State.R8, State.R9, Returned, Errno);
          when 12 =>
             Context.Save_FP_Context (FP_State);
-            Returned := Clone (State.RDI, State.RSI, State.RDX, State.RCX,
-                               State.R8,  State.all,  FP_State, Errno);
+            Clone (State.RDI, State.RSI, State.RDX, State.RCX,
+                   State.R8,  State.all,  FP_State, Returned, Errno);
          when 13 =>
-            Returned := Wait (State.RDI, State.RSI, State.RDX, Errno);
+            Wait (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 14 =>
-            Returned := Socket (State.RDI, State.RSI, State.RDX, Errno);
+            Socket (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 15 =>
-            Returned := Set_Hostname (State.RDI, State.RSI, Errno);
+            Set_Hostname (State.RDI, State.RSI, Returned, Errno);
          when 16 =>
-            Returned := Unlink (State.RDI, State.RSI, State.RDX, Errno);
+            Unlink (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 17 =>
-            Returned := FStat (State.RDI, State.RSI, Errno);
+            FStat (State.RDI, State.RSI, Returned, Errno);
          when 18 =>
-            Returned := Get_CWD (State.RDI, State.RSI, Errno);
+            Get_CWD (State.RDI, State.RSI, Returned, Errno);
          when 19 =>
-            Returned := Chdir (State.RDI, State.RSI, Errno);
+            Chdir (State.RDI, State.RSI, Returned, Errno);
          when 20 =>
-            Returned := IOCTL (State.RDI, State.RSI, State.RDX, Errno);
+            IOCTL (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 21 =>
-            Returned := Sched_Yield (Errno);
+            Sched_Yield (Returned, Errno);
          when 22 =>
-            Returned := Set_Deadlines (State.RDI, State.RSI, Errno);
+            Set_Deadlines (State.RDI, State.RSI, Returned, Errno);
          when 23 =>
-            Returned := Pipe (State.RDI, State.RSI, Errno);
+            Pipe (State.RDI, State.RSI, Returned, Errno);
          when 24 =>
-            Returned := Get_UID (Errno);
+            Get_UID (Returned, Errno);
          when 25 =>
-            Returned := Rename (State.RDI, State.RSI, State.RDX, State.RCX,
-                                State.R8, State.R9, State.R10, Errno);
+            Rename (State.RDI, State.RSI, State.RDX, State.RCX,
+                    State.R8, State.R9, State.R10, Returned, Errno);
          when 26 =>
-            Returned := Sysconf (State.RDI, State.RSI, State.RDX, Errno);
+            Sysconf (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 27 =>
-            Returned := Spawn (State.RDI, State.RSI, State.RDX, State.RCX,
-                               State.R8, State.R9, State.R10, Errno);
+            Spawn (State.RDI, State.RSI, State.RDX, State.RCX,
+                   State.R8, State.R9, State.R10, Returned, Errno);
          when 28 =>
-            Returned := Get_Thread_Sched (Errno);
+            Get_Thread_Sched (Returned, Errno);
          when 29 =>
-            Returned := Set_Thread_Sched (State.RDI, Errno);
+            Set_Thread_Sched (State.RDI, Returned, Errno);
          when 30 =>
-            Returned := Fcntl (State.RDI, State.RSI, State.RDX, Errno);
+            Fcntl (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 31 =>
-            Exit_Thread (Errno);
-            Returned := 0;
+            Exit_Thread (Returned, Errno);
          when 32 =>
-            Returned := Get_Random (State.RDI, State.RSI, Errno);
+            Get_Random (State.RDI, State.RSI, Returned, Errno);
          when 33 =>
-            Returned := MProtect (State.RDI, State.RSI, State.RDX,
-                                          Errno);
+            MProtect (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 34 =>
-            Returned := Sync (Errno);
+            Sync (Returned, Errno);
          when 35 =>
-            Returned := Set_MAC_Capabilities (State.RDI, Errno);
+            Set_MAC_Capabilities (State.RDI, Returned, Errno);
          when 36 =>
-            Returned := Get_MAC_Capabilities (Errno);
+            Get_MAC_Capabilities (Returned, Errno);
          when 37 =>
-            Returned := Add_MAC_Permissions (State.RDI, State.RSI, State.RDX,
-                                             Errno);
+            Add_MAC_Permissions (State.RDI, State.RSI, State.RDX, Returned,
+                                 Errno);
          when 38 =>
-            Returned := Set_MAC_Enforcement (State.RDI, Errno);
+            Set_MAC_Enforcement (State.RDI, Returned, Errno);
          when 39 =>
-            Returned := Mount (State.RDI, State.RSI, State.RDX,
-                                       State.RCX, State.R8, State.R9, Errno);
+            Mount (State.RDI, State.RSI, State.RDX, State.RCX, State.R8,
+                   State.R9, Returned, Errno);
          when 40 =>
-            Returned := Umount
-               (State.RDI, State.RSI, State.RDX, Errno);
+            Umount (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 41 =>
-            Returned := Readlink (State.RDI, State.RSI, State.RDX,
-                                          State.RCX, State.R8, Errno);
+            Readlink (State.RDI, State.RSI, State.RDX,
+                      State.RCX, State.R8, Returned, Errno);
          when 42 =>
-            Returned := GetDEnts (State.RDI, State.RSI, State.RDX,
-                                          Errno);
+            GetDEnts (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 43 =>
-            Returned := MakeNode
-               (State.RDI, State.RSI, State.RDX, State.RCX, State.R8, Errno);
+            MakeNode (State.RDI, State.RSI, State.RDX, State.RCX, State.R8,
+                      Returned, Errno);
          when 44 =>
-            Returned := Truncate (State.RDI, State.RSI, Errno);
+            Truncate (State.RDI, State.RSI, Returned, Errno);
          when 45 =>
-            Returned := Bind (State.RDI, State.RSI, State.RDX, Errno);
+            Bind (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 46 =>
-            Returned := Symlink
+            Symlink
                (State.RDI, State.RSI, State.RDX, State.RCX, State.R8, State.R9,
-                Errno);
+                Returned, Errno);
          when 47 =>
-            Returned := Connect (State.RDI, State.RSI, State.RDX, Errno);
+            Connect (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 48 =>
-            Returned := Open_PTY (State.RDI, State.RSI, State.RDX, Errno);
+            Open_PTY (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 49 =>
-            Returned := FSync (State.RDI, State.RSI, Errno);
+            FSync (State.RDI, State.RSI, Returned, Errno);
          when 50 =>
-            Returned := Link (State.RDI, State.RSI, State.RDX, State.RCX,
-                              State.R8, State.R9, Errno);
+            Link (State.RDI, State.RSI, State.RDX, State.RCX,
+                  State.R8, State.R9, Returned, Errno);
          when 51 =>
-            Returned := PTrace (State.RDI, State.RSI, State.RDX, State.RCX,
+            PTrace (State.RDI, State.RSI, State.RDX, State.RCX, Returned,
                                 Errno);
          when 52 =>
-            Returned := Listen (State.RDI, State.RSI, Errno);
+            Listen (State.RDI, State.RSI, Returned, Errno);
          when 53 =>
-            Returned := Sys_Accept (State.RDI, State.RSI, State.RDX, State.RCX,
+            Sys_Accept (State.RDI, State.RSI, State.RDX, State.RCX, Returned,
                                     Errno);
          when 54 =>
-            Returned := Get_RLimit (State.RDI, Errno);
+            Get_RLimit (State.RDI, Returned, Errno);
          when 55 =>
-            Returned := Set_RLimit (State.RDI, State.RSI, Errno);
+            Set_RLimit (State.RDI, State.RSI, Returned, Errno);
          when 57 =>
-            Returned := Poll (State.RDI, State.RSI, State.RDX, Errno);
+            Poll (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 58 =>
-            Returned := Get_EUID (Errno);
+            Get_EUID (Returned, Errno);
          when 59 =>
-            Returned := Set_UIDs (State.RDI, State.RSI, Errno);
+            Set_UIDs (State.RDI, State.RSI, Returned, Errno);
          when 60 =>
-            Returned := Fchmod (State.RDI, State.RSI, Errno);
+            Fchmod (State.RDI, State.RSI, Returned, Errno);
          when 61 =>
-            Returned := Umask (State.RDI, Errno);
+            Umask (State.RDI, Returned, Errno);
          when 62 =>
-            Returned := Reboot (State.RDI, State.RSI, Errno);
+            Reboot (State.RDI, State.RSI, Returned, Errno);
          when 63 =>
-            Returned := Fchown (State.RDI, State.RSI, State.RDX, Errno);
+            Fchown (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 64 =>
-            Returned := PRead (State.RDI, State.RSI, State.RDX, State.RCX,
-                               Errno);
+            PRead (State.RDI, State.RSI, State.RDX, State.RCX, Returned,
+                   Errno);
          when 65 =>
-            Returned := PWrite (State.RDI, State.RSI, State.RDX, State.RCX,
-                                Errno);
+            PWrite (State.RDI, State.RSI, State.RDX, State.RCX, Returned,
+                    Errno);
          when others =>
             Returned := Unsigned_64'Last;
             Errno    := Error_Not_Implemented;

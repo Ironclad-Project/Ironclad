@@ -17,7 +17,7 @@
 with Interfaces; use Interfaces;
 with Arch.Interrupts;
 
-package Arch.Context with SPARK_Mode => Off is
+package Arch.Context is
    #if ArchName = """aarch64-stivale2"""
       subtype GP_Context is Arch.Interrupts.Frame;
       type    FP_Context is array (1 .. 512) of Unsigned_8;

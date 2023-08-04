@@ -165,8 +165,7 @@ package Arch.Multiboot2 with SPARK_Mode => Off is
 
    --  Translate a multiboot2 header into architecture info.
    --  @param Proto Pointer to translate, if null, return cached or panic.
-   --  @return Translated protocol.
-   function Translate_Proto (Proto : Header_Acc) return Boot_Information;
+   procedure Translate_Proto (Proto : Header_Acc);
 
 private
 
