@@ -758,6 +758,10 @@ package Userland.Syscall is
    --  provided code.
    procedure Do_Exit (Proc : PID; Code : Unsigned_8);
 
+   --  Pre and post syscall hook.
+   procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context);
+   procedure Post_Syscall_Hook (State : Arch.Context.GP_Context);
+
 private
 
    --  Translate an FS_Status to Errno.

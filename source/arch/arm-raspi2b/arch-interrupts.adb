@@ -18,12 +18,7 @@ with Lib.Panic;
 with Lib.Messages;
 with Arch.Snippets;
 with Userland.Syscall; use Userland.Syscall;
-with Arch.Local;
-with Userland.Process; use Userland.Process;
-with IPC.FIFO; use IPC.FIFO;
-with Devices;
 with Arch.Context;
-with Scheduler;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Reset_Handler (State : in out Frame) is
@@ -37,236 +32,280 @@ package body Arch.Interrupts with SPARK_Mode => Off is
    end UD_Handler;
 
    procedure SWI_Handler (State : in out Frame) is
-      Proc     : constant PID := Arch.Local.Get_Current_Process;
       Returned : Unsigned_64;
       Errno    : Errno_Value;
       FP_State : Context.FP_Context;
-      File     : File_Description_Acc;
-      State_Data : Devices.Operation_Data (1 .. State'Size / 8)
-         with Import, Address => State'Address;
-      Success   : IPC.FIFO.Pipe_Status;
-      Ret_Count : Natural;
-      Tracer_FD : Natural;
-      Is_Traced : Boolean;
    begin
       Arch.Snippets.Enable_Interrupts;
 
-      --  Check if we have to write the syscall info somewhere.
-      Userland.Process.Get_Traced_Info (Proc, Is_Traced, Tracer_FD);
-      if Is_Traced then
-         File := Get_File (Proc, Unsigned_64 (Tracer_FD));
-         if File /= null and then File.Description = Description_Writer_FIFO
-         then
-            Write (File.Inner_Writer_FIFO, State_Data, Ret_Count, Success);
-            while not Is_Empty (File.Inner_Writer_FIFO) loop
-               Scheduler.Yield;
-            end loop;
-         end if;
-      end if;
+      --  Pre syscall hook.
+      Pre_Syscall_Hook (Context.GP_Context (State));
 
       --  Call the inner syscall.
-      --  R0: return value. R8: syscall number. R1: errno. R0 - R7: args.
-      case State.R8 is
+      --  R0: return value. R4: syscall number. R1: errno. R0 - R7: args.
+      case State.R4 is
          when 0 =>
-            Sys_Exit (Unsigned_64 (State.R0), Errno);
-            Returned := 0;
+            Sys_Exit (Unsigned_64 (State.R0), Returned, Errno);
          when 1 =>
-            Returned := Arch_PRCtl
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1), Errno);
+            Arch_PRCtl
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
          when 2 =>
-            Returned := Open
+            Open
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Unsigned_64 (State.R3), Errno);
+                Unsigned_64 (State.R2), Unsigned_64 (State.R3),
+                Returned, Errno);
          when 3 =>
-            Returned := Close (Unsigned_64 (State.R0), Errno);
+            Close (Unsigned_64 (State.R0), Returned, Errno);
          when 4 =>
-            Returned := Read
+            Read
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Errno);
+                Unsigned_64 (State.R2), Returned, Errno);
          when 5 =>
-            Returned := Write
+            Write
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Errno);
+                Unsigned_64 (State.R2), Returned, Errno);
          when 6 =>
-            Returned := Seek
+            Seek
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Errno);
+                Unsigned_64 (State.R2), Returned, Errno);
          when 7 =>
-            Returned := Mmap
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Unsigned_64 (State.R3),
-                Unsigned_64 (State.R4), Unsigned_64 (State.R5), Errno);
-         when 8 =>
-            Returned := Munmap
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1), Errno);
-         when 9 =>
-            Returned := Get_PID (Errno);
-         when 10 =>
-            Returned := Get_Parent_PID (Errno);
-         when 11 =>
-            Returned := Exec
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Unsigned_64 (State.R3),
-                Unsigned_64 (State.R4), Unsigned_64 (State.R5), Errno);
-         when 12 =>
-            Context.Save_FP_Context (FP_State);
-            Returned := Clone
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Unsigned_64 (State.R3),
-                Unsigned_64 (State.R4), State, FP_State, Errno);
-         when 13 =>
-            Returned := Wait
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Errno);
-         when 14 =>
-            Returned := Uname (Unsigned_64 (State.R0), Errno);
-         when 15 =>
-            Returned := Set_Hostname
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1), Errno);
-         when 16 =>
-            Returned := Unlink
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Errno);
-         when 17 =>
-            Returned := FStat
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1), Errno);
-         when 18 =>
-            Returned := Get_CWD
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1), Errno);
-         when 19 =>
-            Returned := Chdir
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1), Errno);
-         when 20 =>
-            Returned := IOCTL
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Errno);
-         when 21 =>
-            Returned := Sched_Yield (Errno);
-         when 22 =>
-            Returned := Set_Deadlines
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1), Errno);
-         when 23 =>
-            Returned := Pipe
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1), Errno);
-         when 25 =>
-            Returned := Rename
+            Mmap
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
                 Unsigned_64 (State.R2), Unsigned_64 (State.R3),
                 Unsigned_64 (State.R4), Unsigned_64 (State.R5),
-                Unsigned_64 (State.R6), Errno);
+                Returned, Errno);
+         when 8 =>
+            Munmap
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
+         when 9 =>
+            Get_PID (Returned, Errno);
+         when 10 =>
+            Get_PPID (Returned, Errno);
+         when 11 =>
+            Exec
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Unsigned_64 (State.R2), Unsigned_64 (State.R3),
+                Unsigned_64 (State.R4), Unsigned_64 (State.R5),
+                Returned, Errno);
+         when 12 =>
+            Context.Save_FP_Context (FP_State);
+            Clone
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Unsigned_64 (State.R2), Unsigned_64 (State.R3),
+                Unsigned_64 (State.R4), State, FP_State, Returned, Errno);
+         when 13 =>
+            Wait
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Unsigned_64 (State.R2), Returned, Errno);
+         when 14 =>
+            Socket
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Unsigned_64 (State.R2), Returned, Errno);
+         when 15 =>
+            Set_Hostname
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
+         when 16 =>
+            Unlink
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Unsigned_64 (State.R2), Returned, Errno);
+         when 17 =>
+            FStat
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
+         when 18 =>
+            Get_CWD
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
+         when 19 =>
+            Chdir
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
+         when 20 =>
+            IOCTL
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Unsigned_64 (State.R2), Returned, Errno);
+         when 21 =>
+            Sched_Yield (Returned, Errno);
+         when 22 =>
+            Set_Deadlines
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
+         when 23 =>
+            Pipe
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
+         when 24 =>
+            Get_UID (Returned, Errno);
+         when 25 =>
+            Rename
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Unsigned_64 (State.R2), Unsigned_64 (State.R3),
+                Unsigned_64 (State.R4), Unsigned_64 (State.R5),
+                Unsigned_64 (State.R6), Returned, Errno);
          when 26 =>
-            Returned := Sysconf
+            Sysconf
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Errno);
+                Unsigned_64 (State.R2), Returned, Errno);
          when 27 =>
-            Returned := Spawn
+            Spawn
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
                 Unsigned_64 (State.R2), Unsigned_64 (State.R3),
-                Unsigned_64 (State.R4), Unsigned_64 (State.R5), Errno);
+                Unsigned_64 (State.R4), Unsigned_64 (State.R5),
+                Unsigned_64 (State.R6), Returned, Errno);
          when 28 =>
-            Returned := Get_Thread_Sched (Errno);
+            Get_Thread_Sched (Returned, Errno);
          when 29 =>
-            Returned := Set_Thread_Sched (Unsigned_64 (State.R0), Errno);
+            Set_Thread_Sched (Unsigned_64 (State.R0), Returned, Errno);
          when 30 =>
-            Returned := Fcntl
+            Fcntl
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Errno);
+                Unsigned_64 (State.R2), Returned, Errno);
          when 31 =>
-            Exit_Thread (Errno);
-            Returned := 0;
+            Exit_Thread (Returned, Errno);
          when 32 =>
-            Returned := Get_Random
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1), Errno);
+            Get_Random
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
          when 33 =>
-            Returned := MProtect
+            MProtect
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Errno);
+                Unsigned_64 (State.R2), Returned, Errno);
          when 34 =>
-            Returned := Sync (Errno);
+            Sync (Returned, Errno);
          when 35 =>
-            Returned := Set_MAC_Capabilities (Unsigned_64 (State.R0), Errno);
+            Set_MAC_Capabilities (Unsigned_64 (State.R0), Returned, Errno);
          when 36 =>
-            Returned := Get_MAC_Capabilities (Errno);
+            Get_MAC_Capabilities (Returned, Errno);
          when 37 =>
-            Returned := Add_MAC_Permissions
+            Add_MAC_Permissions
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Errno);
+                Unsigned_64 (State.R2), Returned, Errno);
          when 38 =>
-            Returned := Set_MAC_Enforcement (Unsigned_64 (State.R0), Errno);
+            Set_MAC_Enforcement (Unsigned_64 (State.R0), Returned, Errno);
          when 39 =>
-            Returned := Mount
+            Mount
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
                 Unsigned_64 (State.R2), Unsigned_64 (State.R3),
-                Unsigned_64 (State.R4), Unsigned_64 (State.R5), Errno);
+                Unsigned_64 (State.R4), Unsigned_64 (State.R5),
+                Returned, Errno);
          when 40 =>
-            Returned := Umount
+            Umount
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Errno);
+                Unsigned_64 (State.R2), Returned, Errno);
          when 41 =>
-            Returned := Readlink
+            Readlink
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
                 Unsigned_64 (State.R2), Unsigned_64 (State.R3),
-                Unsigned_64 (State.R4), Errno);
+                Unsigned_64 (State.R4), Returned, Errno);
          when 42 =>
-            Returned := GetDEnts
+            GetDEnts
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Errno);
+                Unsigned_64 (State.R2), Returned, Errno);
          when 43 =>
-            Returned := MakeNode
+            MakeNode
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
                 Unsigned_64 (State.R2), Unsigned_64 (State.R3),
-                Unsigned_64 (State.R4), Errno);
+                Unsigned_64 (State.R4), Returned, Errno);
          when 44 =>
-            Returned := Truncate
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1), Errno);
+            Truncate
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
+         when 45 =>
+            Bind
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Unsigned_64 (State.R2), Returned, Errno);
          when 46 =>
-            Returned := Symlink
+            Symlink
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
                 Unsigned_64 (State.R2), Unsigned_64 (State.R3),
-                Unsigned_64 (State.R4), Unsigned_64 (State.R5), Errno);
+                Unsigned_64 (State.R4), Unsigned_64 (State.R5),
+                Returned, Errno);
          when 47 =>
-            Returned := Integrity_Setup
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1), Errno);
-         when 48 =>
-            Returned := Open_PTY
+            Connect
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Errno);
+                Unsigned_64 (State.R2), Returned, Errno);
+         when 48 =>
+            Open_PTY
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Unsigned_64 (State.R2), Returned, Errno);
          when 49 =>
-            Returned := FSync
-               (Unsigned_64 (State.R0), Unsigned_64 (State.R1), Errno);
+            FSync
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
          when 50 =>
-            Returned := Link
+            Link
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
                 Unsigned_64 (State.R2), Unsigned_64 (State.R3),
-                Unsigned_64 (State.R4), Unsigned_64 (State.R5), Errno);
+                Unsigned_64 (State.R4), Unsigned_64 (State.R5),
+                Returned, Errno);
          when 51 =>
-            Returned := PTrace
+            PTrace
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Unsigned_64 (State.R3), Errno);
+                Unsigned_64 (State.R2), Unsigned_64 (State.R3),
+                Returned, Errno);
+         when 52 =>
+            Listen
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
+         when 53 =>
+            Sys_Accept
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Unsigned_64 (State.R2), Unsigned_64 (State.R3),
+                Returned, Errno);
+         when 54 =>
+            Get_RLimit (Unsigned_64 (State.R0), Returned, Errno);
+         when 55 =>
+            Set_RLimit
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
          when 57 =>
-            Returned := Poll
+            Poll
                (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
-                Unsigned_64 (State.R2), Errno);
+                Unsigned_64 (State.R2), Returned, Errno);
+         when 58 =>
+            Get_EUID (Returned, Errno);
+         when 59 =>
+            Set_UIDs
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
+         when 60 =>
+            Fchmod
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
+         when 61 =>
+            Umask (Unsigned_64 (State.R0), Returned, Errno);
+         when 62 =>
+            Reboot
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Returned, Errno);
+         when 63 =>
+            Fchown
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Unsigned_64 (State.R2), Returned, Errno);
+         when 64 =>
+            PRead
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Unsigned_64 (State.R2), Unsigned_64 (State.R3),
+                Returned, Errno);
+         when 65 =>
+            PWrite
+               (Unsigned_64 (State.R0), Unsigned_64 (State.R1),
+                Unsigned_64 (State.R2), Unsigned_64 (State.R3),
+                Returned, Errno);
          when others =>
             Returned := Unsigned_64'Last;
             Errno    := Error_Not_Implemented;
       end case;
 
       --  Assign the return values.
-      State.R0 := Unsigned_32 (Returned);
+      State.R0 := Unsigned_32 (Returned and 16#FFFFFFFF#);
       State.R1 := Unsigned_32 (Errno_Value'Enum_Rep (Errno));
 
-      --  Trace again.
-      if Is_Traced then
-         File := Get_File (Proc, Unsigned_64 (Tracer_FD));
-         if File /= null and then File.Description = Description_Writer_FIFO
-         then
-            Write (File.Inner_Writer_FIFO, State_Data, Ret_Count, Success);
-            while not Is_Empty (File.Inner_Writer_FIFO) loop
-               Scheduler.Yield;
-            end loop;
-         end if;
-      end if;
+      --  Post syscall hook.
+      Post_Syscall_Hook (Context.GP_Context (State));
    end SWI_Handler;
 
    procedure Prefetch_Handler (State : in out Frame) is
@@ -290,59 +329,41 @@ package body Arch.Interrupts with SPARK_Mode => Off is
    end FIQ_Handler;
 
    procedure Print_Fatal (Fr : Frame; Message : String) is
+      Discard    : Natural;
+      Val_Buffer : Lib.Messages.Translated_String;
    begin
-      Lib.Messages.Put (" R0: ");
-      Lib.Messages.Put (Fr.R0, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put (" R1: ");
-      Lib.Messages.Put (Fr.R1, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put (" R2: ");
-      Lib.Messages.Put (Fr.R2, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put (" R3: ");
-      Lib.Messages.Put (Fr.R3, True, True);
-      Lib.Messages.Put_Line ("");
-
-      Lib.Messages.Put (" R4: ");
-      Lib.Messages.Put (Fr.R4, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put (" R5: ");
-      Lib.Messages.Put (Fr.R5, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put (" R6: ");
-      Lib.Messages.Put (Fr.R6, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put (" R7: ");
-      Lib.Messages.Put (Fr.R7, True, True);
-      Lib.Messages.Put_Line ("");
-
-      Lib.Messages.Put (" R8: ");
-      Lib.Messages.Put (Fr.R8, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put (" R9: ");
-      Lib.Messages.Put (Fr.R9, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("R10: ");
-      Lib.Messages.Put (Fr.R10, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("R11: ");
-      Lib.Messages.Put (Fr.R11, True, True);
-      Lib.Messages.Put_Line ("");
-
-      Lib.Messages.Put ("R12: ");
-      Lib.Messages.Put (Fr.R12, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("R13: ");
-      Lib.Messages.Put (Fr.R13, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("R14: ");
-      Lib.Messages.Put (Fr.R14, True, True);
-      Lib.Messages.Put (" ");
-      Lib.Messages.Put ("R15: ");
-      Lib.Messages.Put (Fr.R15, True, True);
-      Lib.Messages.Put_Line (" ");
-
+      Lib.Messages.Image (Fr.R0, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R0 : " & Val_Buffer);
+      Lib.Messages.Image (Fr.R1, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R1 : " & Val_Buffer);
+      Lib.Messages.Image (Fr.R2, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R2 : " & Val_Buffer);
+      Lib.Messages.Image (Fr.R3, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R3 : " & Val_Buffer);
+      Lib.Messages.Image (Fr.R4, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R4 : " & Val_Buffer);
+      Lib.Messages.Image (Fr.R5, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R5 : " & Val_Buffer);
+      Lib.Messages.Image (Fr.R6, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R6 : " & Val_Buffer);
+      Lib.Messages.Image (Fr.R7, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R7 : " & Val_Buffer);
+      Lib.Messages.Image (Fr.R4, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R4 : " & Val_Buffer);
+      Lib.Messages.Image (Fr.R5, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R5 : " & Val_Buffer);
+      Lib.Messages.Image (Fr.R6, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R6: " & Val_Buffer);
+      Lib.Messages.Image (Fr.R11, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R11: " & Val_Buffer);
+      Lib.Messages.Image (Fr.R12, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R12: " & Val_Buffer);
+      Lib.Messages.Image (Fr.R13, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R13: " & Val_Buffer);
+      Lib.Messages.Image (Fr.R14, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R14: " & Val_Buffer);
+      Lib.Messages.Image (Fr.R15, Val_Buffer, Discard, True);
+      Lib.Messages.Put_Line ("R15: " & Val_Buffer);
       Lib.Panic.Hard_Panic (Message);
    end Print_Fatal;
 end Arch.Interrupts;

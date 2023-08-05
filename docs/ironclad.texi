@@ -101,6 +101,7 @@ Debugging facilities
 
 Syscalls
 
+* arm-raspi2b::             arm-raspi2b syscall ABI and table.
 * x86_64-multiboot2::       x86_64-multiboot2 syscall ABI and table.
 * Errno::                   Error conditions and their values.
 * exit::                    Exit the callee process.
@@ -644,14 +645,306 @@ willing, see @ref{ptrace}.
 Syscalls in Ironclad have an architecture-dependent ABI, here is a list of the
 supported architectures and the ABI for each of them.
 
+@node aarch64-stivale2
+@section aarch64-stivale2
+
+Syscalls are invoked in Ironclad by using @code{swi}.
+
+The index of the syscall is passed over @code{%x8}, while the return value is
+returned in @code{%x0}, errno is returned in @code{%x9}, arguments are passed
+over @code{%x0} to @code{r7}.
+
+The list of syscalls ordered by their index in @code{x8} for the platform is:
+
+@enumerate 0
+@item
+@ref{exit}.
+@item
+@ref{arch_prctl}.
+@item
+@ref{open}.
+@item
+@ref{close}.
+@item
+@ref{read/write, read}.
+@item
+@ref{read/write, write}.
+@item
+@ref{seek}.
+@item
+@ref{mmap/mprotect/munmap, mmap}.
+@item
+@ref{mmap/mprotect/munmap, munmap}.
+@item
+@ref{getpid/getppid, getpid}.
+@item
+@ref{getpid/getppid, getppid}.
+@item
+@ref{exec}.
+@item
+@ref{clone}.
+@item
+@ref{wait}.
+@item
+@ref{socket}.
+@item
+@ref{sethostname}.
+@item
+@ref{unlink}.
+@item
+@ref{fstat}.
+@item
+@ref{getcwd/chdir, getcwd}.
+@item
+@ref{getcwd/chdir, chdir}.
+@item
+@ref{ioctl}.
+@item
+@ref{sched_yield}.
+@item
+@ref{set_deadlines}.
+@item
+@ref{pipe}.
+@item
+@ref{getuid/geteuid, getuid}.
+@item
+@ref{rename}.
+@item
+@ref{sysconf}.
+@item
+@ref{spawn}.
+@item
+@ref{thread_sched, get_thread_sched}.
+@item
+@ref{thread_sched, set_thread_sched}.
+@item
+@ref{fcntl}.
+@item
+@ref{exit_thread}.
+@item
+@ref{getrandom}.
+@item
+@ref{mmap/mprotect/munmap, mprotect}.
+@item
+@ref{sync}.
+@item
+@ref{mac_capabilities, set_mac_capabilities}.
+@item
+@ref{mac_capabilities, get_mac_capabilities}.
+@item
+@ref{add_mac_permissions}.
+@item
+@ref{set_mac_enforcement}.
+@item
+@ref{mount/umount, mount}.
+@item
+@ref{mount/umount, umount}.
+@item
+@ref{readlink}.
+@item
+@ref{getdents}.
+@item
+@ref{mknod}.
+@item
+@ref{truncate}.
+@item
+@ref{bind}.
+@item
+@ref{symlink}.
+@item
+@ref{connect}.
+@item
+@ref{openpty}.
+@item
+@ref{fsync}.
+@item
+@ref{link}.
+@item
+@ref{ptrace}.
+@item
+@ref{listen}.
+@item
+@ref{accept}.
+@item
+@ref{getrlimit/setrlimit, getrlimit}.
+@item
+@ref{getrlimit/setrlimit, setrlimit}.
+@item
+Empty.
+@item
+@ref{poll}.
+@item
+@ref{getuid/geteuid, geteuid}.
+@item
+@ref{setuids}.
+@item
+@ref{fchmod}.
+@item
+@ref{umask}.
+@item
+@ref{reboot}.
+@item
+@ref{fchown}.
+@item
+@ref{pread/pwrite, pread}.
+@item
+@ref{pread/pwrite, pwrite}.
+@end enumerate
+
+@node arm-raspi2b
+@section arm-raspi2b
+
+Syscalls are invoked in Ironclad by using @code{swi}.
+
+The index of the syscall is passed over @code{%r4}, while the return value is
+returned in @code{%r0}, errno is returned in @code{%r1}, arguments are passed
+over @code{%r0} to @code{r7}.
+
+The list of syscalls ordered by their index in @code{r4} for the platform is:
+
+@enumerate 0
+@item
+@ref{exit}.
+@item
+@ref{arch_prctl}.
+@item
+@ref{open}.
+@item
+@ref{close}.
+@item
+@ref{read/write, read}.
+@item
+@ref{read/write, write}.
+@item
+@ref{seek}.
+@item
+@ref{mmap/mprotect/munmap, mmap}.
+@item
+@ref{mmap/mprotect/munmap, munmap}.
+@item
+@ref{getpid/getppid, getpid}.
+@item
+@ref{getpid/getppid, getppid}.
+@item
+@ref{exec}.
+@item
+@ref{clone}.
+@item
+@ref{wait}.
+@item
+@ref{socket}.
+@item
+@ref{sethostname}.
+@item
+@ref{unlink}.
+@item
+@ref{fstat}.
+@item
+@ref{getcwd/chdir, getcwd}.
+@item
+@ref{getcwd/chdir, chdir}.
+@item
+@ref{ioctl}.
+@item
+@ref{sched_yield}.
+@item
+@ref{set_deadlines}.
+@item
+@ref{pipe}.
+@item
+@ref{getuid/geteuid, getuid}.
+@item
+@ref{rename}.
+@item
+@ref{sysconf}.
+@item
+@ref{spawn}.
+@item
+@ref{thread_sched, get_thread_sched}.
+@item
+@ref{thread_sched, set_thread_sched}.
+@item
+@ref{fcntl}.
+@item
+@ref{exit_thread}.
+@item
+@ref{getrandom}.
+@item
+@ref{mmap/mprotect/munmap, mprotect}.
+@item
+@ref{sync}.
+@item
+@ref{mac_capabilities, set_mac_capabilities}.
+@item
+@ref{mac_capabilities, get_mac_capabilities}.
+@item
+@ref{add_mac_permissions}.
+@item
+@ref{set_mac_enforcement}.
+@item
+@ref{mount/umount, mount}.
+@item
+@ref{mount/umount, umount}.
+@item
+@ref{readlink}.
+@item
+@ref{getdents}.
+@item
+@ref{mknod}.
+@item
+@ref{truncate}.
+@item
+@ref{bind}.
+@item
+@ref{symlink}.
+@item
+@ref{connect}.
+@item
+@ref{openpty}.
+@item
+@ref{fsync}.
+@item
+@ref{link}.
+@item
+@ref{ptrace}.
+@item
+@ref{listen}.
+@item
+@ref{accept}.
+@item
+@ref{getrlimit/setrlimit, getrlimit}.
+@item
+@ref{getrlimit/setrlimit, setrlimit}.
+@item
+Empty.
+@item
+@ref{poll}.
+@item
+@ref{getuid/geteuid, geteuid}.
+@item
+@ref{setuids}.
+@item
+@ref{fchmod}.
+@item
+@ref{umask}.
+@item
+@ref{reboot}.
+@item
+@ref{fchown}.
+@item
+@ref{pread/pwrite, pread}.
+@item
+@ref{pread/pwrite, pwrite}.
+@end enumerate
+
 @node x86_64-multiboot2
 @section x86_64-multiboot2
 
 Syscalls are invoked in Ironclad by triggering an interrupt to vector
 @code{0x80}.
 
-The index of the syscall is passed on @code{%rax}, while the return value is
-returned on @code{%rax}, errno is returned on @code{%rdx}, arguments are passed
+The index of the syscall is passed over @code{%rax}, while the return value is
+returned in @code{%rax}, errno is returned on @code{%rdx}, arguments are passed
 over @code{%rdi}, @code{%rsi}, @code{%rdx}, @code{%rcx}, @code{%r8},
 @code{%r9}, and @code{%r10}, following the SysV ABI.
 

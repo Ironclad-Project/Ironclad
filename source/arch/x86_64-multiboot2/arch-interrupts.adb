@@ -23,10 +23,7 @@ with Scheduler;
 with Userland.Syscall; use Userland.Syscall;
 with Arch.Snippets;
 with Arch.Local;
-with Userland.Process; use Userland.Process;
 with Userland.Corefile;
-with IPC.FIFO; use IPC.FIFO;
-with Devices;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
@@ -98,33 +95,15 @@ package body Arch.Interrupts with SPARK_Mode => Off is
    end Exception_Handler;
 
    procedure Syscall_Handler (Num : Integer; State : not null ISR_GPRs_Acc) is
-      Proc     : constant PID := Arch.Local.Get_Current_Process;
       Returned : Unsigned_64;
       Errno    : Errno_Value;
       FP_State : Context.FP_Context;
-      File     : File_Description_Acc;
-      State_Data : Devices.Operation_Data (1 .. State.all'Size / 8)
-         with Import, Address => State.all'Address;
-      Success   : IPC.FIFO.Pipe_Status;
-      Ret_Count : Natural;
-      Tracer_FD : Natural;
-      Is_Traced : Boolean;
       pragma Unreferenced (Num);
    begin
       Arch.Snippets.Enable_Interrupts;
 
-      --  Check if we have to write the syscall info somewhere.
-      Userland.Process.Get_Traced_Info (Proc, Is_Traced, Tracer_FD);
-      if Is_Traced then
-         File := Get_File (Proc, Unsigned_64 (Tracer_FD));
-         if File /= null and then File.Description = Description_Writer_FIFO
-         then
-            Write (File.Inner_Writer_FIFO, State_Data, Ret_Count, Success);
-            while not Is_Empty (File.Inner_Writer_FIFO) loop
-               Scheduler.Yield;
-            end loop;
-         end if;
-      end if;
+      --  Pre syscall hook.
+      Pre_Syscall_Hook (Context.GP_Context (State.all));
 
       --  Call the inner syscall.
       --  RAX is the return value, as well as the syscall number.
@@ -288,17 +267,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       State.RAX := Returned;
       State.RDX := Unsigned_64 (Errno_Value'Enum_Rep (Errno));
 
-      --  Trace again.
-      if Is_Traced then
-         File := Get_File (Proc, Unsigned_64 (Tracer_FD));
-         if File /= null and then File.Description = Description_Writer_FIFO
-         then
-            Write (File.Inner_Writer_FIFO, State_Data, Ret_Count, Success);
-            while not Is_Empty (File.Inner_Writer_FIFO) loop
-               Scheduler.Yield;
-            end loop;
-         end if;
-      end if;
+      --  Post syscall hook.
+      Post_Syscall_Hook (Context.GP_Context (State.all));
    end Syscall_Handler;
 
    procedure Scheduler_Handler (Num : Integer; State : not null ISR_GPRs_Acc)

@@ -23,8 +23,23 @@ with Devices.UART;
 
 package body Arch.Entrypoint with SPARK_Mode => Off is
    procedure Bootstrap_Main is
-      Info : constant Boot_Information := Get_Info;
+      Info    : Boot_Information renames Global_Info;
+      End_Val : Natural with Import, External_Name => "__end";
+      SAddr   : constant Storage_Count :=
+         Storage_Count (To_Integer (End_Val'Address));
    begin
+      Global_Info :=
+         (Cmdline       => (others => <>),
+          Cmdline_Len   => 0,
+          Memmap        =>
+            (1      => (To_Address (16#0000#),     16#8000#, Memory_Reserved),
+             2      => (To_Address (16#8000#),        SAddr, Memory_Kernel),
+             3      => (                 Addr, 16#3F000000#, Memory_Free),
+             others => <>),
+          Memmap_Len    => 3,
+          RAM_Files     => (others => <>),
+          RAM_Files_Len => 0);
+
       Devices.UART.Configure;
 
       Memory.Physical.Init_Allocator (Info.Memmap (1 .. Info.Memmap_Len));

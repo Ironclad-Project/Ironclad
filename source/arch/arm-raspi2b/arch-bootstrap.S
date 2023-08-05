@@ -139,5 +139,5 @@ exception_handler fiq_handler
 .section .bss
 .align 16
 stack:
-    .space 0x10000
+    .space 0x4000
 stack_top:

@@ -3281,7 +3281,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end case;
       end;
    end PWrite;
-   ----------------------------------------------------------------------------
+
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
       --  Remove all state but the return value and keep the zombie around
@@ -3292,6 +3292,34 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Scheduler.Bail;
    end Do_Exit;
 
+   procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context) is
+      Proc       : constant PID := Arch.Local.Get_Current_Process;
+      File       : File_Description_Acc;
+      Success    : IPC.FIFO.Pipe_Status;
+      Ret_Count  : Natural;
+      Tracer_FD  : Natural;
+      Is_Traced  : Boolean;
+      State_Data : Devices.Operation_Data (1 .. State'Size / 8)
+         with Import, Address => State'Address;
+   begin
+      Userland.Process.Get_Traced_Info (Proc, Is_Traced, Tracer_FD);
+      if Is_Traced then
+         File := Get_File (Proc, Unsigned_64 (Tracer_FD));
+         if File /= null and then File.Description = Description_Writer_FIFO
+         then
+            Write (File.Inner_Writer_FIFO, State_Data, Ret_Count, Success);
+            while not Is_Empty (File.Inner_Writer_FIFO) loop
+               Scheduler.Yield;
+            end loop;
+         end if;
+      end if;
+   end Pre_Syscall_Hook;
+
+   procedure Post_Syscall_Hook (State : Arch.Context.GP_Context) is
+   begin
+      Pre_Syscall_Hook (State);
+   end Post_Syscall_Hook;
+   ----------------------------------------------------------------------------
    procedure Translate_Status
       (Status         : VFS.FS_Status;
        Success_Return : Unsigned_64;
