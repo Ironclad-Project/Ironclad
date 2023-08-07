@@ -1787,7 +1787,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Map    : constant Page_Map_Acc     := Get_Common_Map (Proc);
       IAddr  : constant  Integer_Address := Integer_Address (Address);
       SAddr  : constant   System.Address := To_Address (IAddr);
-      Result : Cryptography.Random.Crypto_Data (1 .. Natural (Length / 4))
+      Result : Cryptography.Random.Crypto_Data (1 .. Natural (Length))
          with Import, Address => SAddr;
    begin
       if not Get_Capabilities (Proc).Can_Access_Entropy then

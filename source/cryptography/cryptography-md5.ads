@@ -18,17 +18,16 @@ with Interfaces; use Interfaces;
 
 package Cryptography.MD5 is
    --  MD5 manages 512-bit blocks.
+   type MD5_Hash   is array (1 .. 4) of Unsigned_32;
    type MD5_Block  is array (Unsigned_32 range 0 .. 15) of Unsigned_32;
    type MD5_Blocks is array (Natural range <>) of MD5_Block;
 
    --  Digest a string of binary data into a 128-bit hash.
    --  Data is taken already padded according to what MD5 mandates.
-   function Digest (Data : MD5_Blocks) return Unsigned_128;
+   function Digest (Data : MD5_Blocks) return MD5_Hash;
 
-   --  Digest a string of binary data into a string-version of an MD5 hash.
-   --  Ready for comparing with others in the standard format.
    subtype MD5_String is String (1 .. 32);
-   function Digest (Data : MD5_Blocks) return MD5_String;
+   function To_String (Hash : MD5_Hash) return MD5_String;
 
 private
 

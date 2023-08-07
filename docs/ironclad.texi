@@ -56,9 +56,10 @@ cryptic and scary Ada code.
 
 Introduction
 
-* How to contribute::    How to contribute code to the kernel.
-* Error reporting::      How to report issues with the kernel.
-* Formal verification::  Current state of the formal verification effort.
+* How to contribute::        How to contribute code to the kernel.
+* Porting to new targets::   Small guide on porting to new targets.
+* Error reporting::          How to report issues with the kernel.
+* Formal verification::      Current state of the formal verification effort.
 
 Installation and target support
 
@@ -230,6 +231,13 @@ Need some inspiration? What about...
 ...testing the kernel with @url{https://github.com/streaksu/Gloire, Gloire}
 and report issues you may find?
 @end itemize
+
+@node Porting to new targets
+@section Porting to new targets
+
+All architecture-specific code is contained in the @code{arch} directory, all
+that is needed is adding code there, wire build instructions, and writing
+documentation.
 
 @node Error reporting
 @section Error reporting

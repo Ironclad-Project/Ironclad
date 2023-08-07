@@ -39,7 +39,13 @@ package Arch.Context is
       (Ctx        : out GP_Context;
        Stack      : System.Address;
        Start_Addr : System.Address);
+
+   --  Load the passed context.
    procedure Load_GP_Context (Ctx : GP_Context) with No_Return;
+
+   --  When creating a thread, in success, some registers usually have to be
+   --  set for success conditions, and said status is expected in userland.
+   procedure Success_Fork_Result (Ctx : in out GP_Context);
 
    --  Save and restore floating-point context.
    procedure Init_FP_Context (Ctx : out FP_Context);

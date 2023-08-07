@@ -65,6 +65,11 @@ package body Arch.Context with SPARK_Mode => Off is
       loop null; end loop;
    end Load_GP_Context;
 
+   procedure Success_Fork_Result (Ctx : in out GP_Context) is
+   begin
+      Ctx.RAX := 0;
+   end Success_Fork_Result;
+
    procedure Init_FP_Context (Ctx : out FP_Context) is
       FPU_Word : constant Unsigned_32 := 2#1100111111#;
       MXCSR    : constant Unsigned_64 := 2#1111110000000#;

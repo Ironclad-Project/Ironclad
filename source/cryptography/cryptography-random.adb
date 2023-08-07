@@ -19,7 +19,6 @@ with Memory.Physical; use Memory.Physical;
 with Arch.Snippets;
 with Memory; use Memory;
 with Cryptography.Chacha20;
-with Cryptography.MD5;
 
 package body Cryptography.Random is
    --  The core of our RNG is Chacha20-based. We just create a keystream with a
@@ -27,23 +26,20 @@ package body Cryptography.Random is
    --  invocation, the nonce is randomized each block, block id is incremental.
    --  As long as the key and nonce remain secret, future key streams should
    --  not be predictable.
+   --  TODO: Please, more entropy!
 
    --  Unit passes GNATprove AoRTE, GNAT does not know this.
    pragma Suppress (All_Checks);
 
    procedure Fill_Data (Data : out Crypto_Data) is
       type Seed is record
-         Seed1 : Unsigned_128;
-         Seed2 : Unsigned_128;
+         Seed1 : MD5.MD5_Hash;
+         Seed2 : MD5.MD5_Hash;
       end record with Size => 256;
       function To_Seed is new Ada.Unchecked_Conversion (Seed, Chacha20.Key);
 
       --  Seed every time a new chain of random numbers is requested.
-      S : constant Seed := (
-         --  Binary value of "RNGSealOfQuality" in ASCII.
-         Seed1 => 16#524e475365616c4f665175616c697479#,
-         Seed2 => Get_Seed
-      );
+      S : constant Seed := (Seed1 => Get_Seed, Seed2 => Get_Seed);
       Temp        : Unsigned_64;
       Cha_Block   : Chacha20.Block := (others => 0);
       Index       : Natural     := Cha_Block'Last + 1;
@@ -51,22 +47,29 @@ package body Cryptography.Random is
    begin
       for Value of Data loop
          if Index > Cha_Block'Last then
-            Temp        := Unsigned_64 (Get_Seed and 16#FFFFFFFFFFFFFFFF#);
+            Temp        := Arch.Snippets.Read_Cycles;
             Cha_Block   := Chacha20.Gen_Key (To_Seed (S), Temp, Block_Index);
             Index       := Cha_Block'First;
             Block_Index := Block_Index + 1;
          end if;
 
-         Value := Cha_Block (Index);
+         Value := Unsigned_8 (Cha_Block (Index) and 16#FF#);
          Index := Index + 1;
       end loop;
    end Fill_Data;
 
    function Get_Integer return Unsigned_64 is
-      Data : Crypto_Data (1 .. 2);
+      Data : Crypto_Data (1 .. 8);
    begin
       Fill_Data (Data);
-      return Shift_Left (Unsigned_64 (Data (1)), 32) or Unsigned_64 (Data (2));
+      return Shift_Left (Unsigned_64 (Data (1)), 56) or
+             Shift_Left (Unsigned_64 (Data (2)), 48) or
+             Shift_Left (Unsigned_64 (Data (3)), 40) or
+             Shift_Left (Unsigned_64 (Data (4)), 32) or
+             Shift_Left (Unsigned_64 (Data (5)), 24) or
+             Shift_Left (Unsigned_64 (Data (6)), 16) or
+             Shift_Left (Unsigned_64 (Data (7)),  8) or
+             Shift_Left (Unsigned_64 (Data (8)),  0);
    end Get_Integer;
 
    function Get_Integer (Min, Max : Unsigned_64) return Unsigned_64 is
@@ -74,10 +77,7 @@ package body Cryptography.Random is
       return (Get_Integer mod (Max + 1 - Min)) + Min;
    end Get_Integer;
 
-   --  TODO: More entropy, please.
-   function Get_Seed return Unsigned_128 is
-      pragma SPARK_Mode (Off);
-
+   function Get_Seed return MD5.MD5_Hash is
       Cycles  : Unsigned_64;
       Used    : Unsigned_64;
       Stats   : Memory.Physical.Statistics;

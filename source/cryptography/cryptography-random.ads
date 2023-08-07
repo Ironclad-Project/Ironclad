@@ -15,10 +15,11 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
+with Cryptography.MD5;
 
 package Cryptography.Random is
    --  Fill a region in memory with random data.
-   type Crypto_Data is array (Natural range <>) of Unsigned_32;
+   type Crypto_Data is array (Natural range <>) of Unsigned_8;
    procedure Fill_Data (Data : out Crypto_Data);
 
    --  Get random integers with optional ranges.
@@ -32,5 +33,5 @@ package Cryptography.Random is
                     "Counterexample works, could be a gnatprove bug?");
 private
 
-   function Get_Seed return Unsigned_128 with Global => null;
+   function Get_Seed return MD5.MD5_Hash;
 end Cryptography.Random;

@@ -60,7 +60,8 @@ package body Devices.Partitions with SPARK_Mode => Off is
       Backup_LBA              : Unsigned_64;
       First_Usable_LBA        : Unsigned_64;
       Last_Usable_LBA         : Unsigned_64;
-      GUID                    : Unsigned_128;
+      GUID_High               : Unsigned_64;
+      GUID_Low                : Unsigned_64;
       Partition_Entry_LBA     : Unsigned_64;
       Number_Of_Partitions    : Unsigned_32;
       Partition_Entry_Size    : Unsigned_32;
@@ -76,7 +77,8 @@ package body Devices.Partitions with SPARK_Mode => Off is
       Backup_LBA              at 0 range 256 .. 319;
       First_Usable_LBA        at 0 range 320 .. 383;
       Last_Usable_LBA         at 0 range 384 .. 447;
-      GUID                    at 0 range 448 .. 575;
+      GUID_High               at 0 range 448 .. 511;
+      GUID_Low                at 0 range 512 .. 575;
       Partition_Entry_LBA     at 0 range 576 .. 639;
       Number_Of_Partitions    at 0 range 640 .. 671;
       Partition_Entry_Size    at 0 range 672 .. 703;
@@ -84,20 +86,24 @@ package body Devices.Partitions with SPARK_Mode => Off is
    end record;
    type GPT_Header_Acc is access all GPT_Header;
    type GPT_Partition_Entry is record
-      Type_GUID      : Unsigned_128;
-      Unique_GUID    : Unsigned_128;
-      Starting_LBA   : Unsigned_64;
-      Ending_LBA     : Unsigned_64;
-      Attributes     : Unsigned_64;
-      Partition_Name : Wide_String (1 .. 36);
+      Type_GUID_High   : Unsigned_64;
+      Type_GUID_Low    : Unsigned_64;
+      Unique_GUID_High : Unsigned_64;
+      Unique_GUID_Low  : Unsigned_64;
+      Starting_LBA     : Unsigned_64;
+      Ending_LBA       : Unsigned_64;
+      Attributes       : Unsigned_64;
+      Partition_Name   : Wide_String (1 .. 36);
    end record with Size => 1024;
    for GPT_Partition_Entry use record
-      Type_GUID      at 0 range   0 ..  127;
-      Unique_GUID    at 0 range 128 ..  255;
-      Starting_LBA   at 0 range 256 ..  319;
-      Ending_LBA     at 0 range 320 ..  383;
-      Attributes     at 0 range 384 ..  447;
-      Partition_Name at 0 range 448 .. 1023;
+      Type_GUID_High   at 0 range   0 ..   63;
+      Type_GUID_Low    at 0 range  64 ..  127;
+      Unique_GUID_High at 0 range 128 ..  191;
+      Unique_GUID_Low  at 0 range 192 ..  255;
+      Starting_LBA     at 0 range 256 ..  319;
+      Ending_LBA       at 0 range 320 ..  383;
+      Attributes       at 0 range 384 ..  447;
+      Partition_Name   at 0 range 448 .. 1023;
    end record;
    type GPT_Entries is array (Natural range <>) of GPT_Partition_Entry;
 
@@ -193,7 +199,9 @@ package body Devices.Partitions with SPARK_Mode => Off is
                   Success := True;
                   goto Return_End;
                end if;
-               if Partition.Type_GUID /= 0 then
+               if Partition.Type_GUID_High /= 0 and
+                  Partition.Type_GUID_Low  /= 0
+               then
                   Found_Partitions := True;
                   Part := new Partition_Data'(
                      Inner_Device => Dev,

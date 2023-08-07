@@ -271,13 +271,7 @@ package body Scheduler with SPARK_Mode => Off is
           ASC_Offset     => 0,
           Priority       => <>);
 
-      #if ArchName = """aarch64-stivale2"""
-         Thread_Pool (New_TID).State.X0 := 0;
-      #elsif ArchName = """sparc-leon3"""
-         Thread_Pool (New_TID).State.RAX := 0;
-      #elsif ArchName = """x86_64-multiboot2"""
-         Thread_Pool (New_TID).State.RAX := 0;
-      #end if;
+      Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).State);
 
       if not Update_Priorities then
          Thread_Pool (New_TID).Is_Present := False;

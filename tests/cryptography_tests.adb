@@ -64,7 +64,9 @@ package body Cryptography_Tests is
       );
    begin
       for I in MD5_Tests'Range loop
-         if MD5_Tests (I).Expected /= Digest (MD5_Tests (I).Data.all) then
+         if MD5_Tests (I).Expected /=
+            To_String (Digest (MD5_Tests (I).Data.all))
+         then
             raise Crypto_Exception with Integer'Image (I) & " did not match";
          end if;
       end loop;
