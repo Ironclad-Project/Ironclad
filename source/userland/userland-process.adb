@@ -199,8 +199,8 @@ package body Userland.Process with SPARK_Mode => Off is
             (Memory_Locations.Stack_Jump_Min,
              Memory_Locations.Stack_Jump_Max);
 
-         Rand_Addr := Aln.Align_Up (Rand_Addr, Memory.Virtual.Page_Size);
-         Rand_Jump := Aln.Align_Up (Rand_Jump, Memory.Virtual.Page_Size);
+         Rand_Addr := Aln.Align_Up (Rand_Addr, Arch.MMU.Page_Size);
+         Rand_Jump := Aln.Align_Up (Rand_Jump, Arch.MMU.Page_Size);
       else
          Rand_Addr := Memory_Locations.Mmap_Anon_Min;
          Rand_Jump := Memory_Locations.Stack_Jump_Min;
@@ -363,12 +363,12 @@ package body Userland.Process with SPARK_Mode => Off is
       end loop;
    end Flush_Exec_Files;
 
-   procedure Set_Common_Map (Proc : PID; Map : Memory.Virtual.Page_Map_Acc) is
+   procedure Set_Common_Map (Proc : PID; Map : Arch.MMU.Page_Table_Acc) is
    begin
       Registry (Proc).Common_Map := Map;
    end Set_Common_Map;
 
-   function Get_Common_Map (Proc : PID) return Memory.Virtual.Page_Map_Acc is
+   function Get_Common_Map (Proc : PID) return Arch.MMU.Page_Table_Acc is
    begin
       return Registry (Proc).Common_Map;
    end Get_Common_Map;

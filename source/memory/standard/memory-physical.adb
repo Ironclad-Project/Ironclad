@@ -18,12 +18,12 @@ with Interfaces; use Interfaces;
 with Lib.Panic;
 with Lib.Synchronization; use Lib.Synchronization;
 with Lib.Alignment;
-with Memory.Virtual;
+with Arch.MMU;
 with System; use System;
 with Lib.Messages;
 
 package body Memory.Physical with SPARK_Mode => Off is
-   Block_Size :         constant := Memory.Virtual.Page_Size;
+   Block_Size :         constant := Arch.MMU.Page_Size;
    Block_Free : constant Boolean := True;
    Block_Used : constant Boolean := False;
    type Bitmap is array (Unsigned_64 range <>) of Boolean with Pack;

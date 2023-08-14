@@ -85,7 +85,7 @@ project Ironclad is
          when "x86_64-multiboot2" =>
             for Switches ("Ada") use Base_Ada_Switches & (
                "-fno-pie", "-fno-pic", "-mgeneral-regs-only", "-mno-red-zone",
-               "-mcmodel=kernel"
+               "-mcmodel=kernel", "-fcf-protection"
             );
             for Switches ("Asm_Cpp") use Base_Asm_Switches & (
                "-fno-pie", "-fno-pic", "-mno-red-zone", "-mcmodel=kernel"

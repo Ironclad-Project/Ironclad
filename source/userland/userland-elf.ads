@@ -17,7 +17,7 @@
 with System;
 with Interfaces; use Interfaces;
 with VFS;
-with Memory.Virtual;
+with Arch.MMU;
 
 package Userland.ELF is
    type String_Acc is access String;
@@ -48,7 +48,7 @@ package Userland.ELF is
    function Load_ELF
       (FS     : VFS.FS_Handle;
        Ino    : VFS.File_Inode_Number;
-       Map    : Memory.Virtual.Page_Map_Acc;
+       Map    : Arch.MMU.Page_Table_Acc;
        Base   : Unsigned_64) return Parsed_ELF;
 
 private
@@ -95,6 +95,6 @@ private
       (FS     : VFS.FS_Handle;
        Ino    : VFS.File_Inode_Number;
        Header : Program_Header;
-       Map    : Memory.Virtual.Page_Map_Acc;
+       Map    : Arch.MMU.Page_Table_Acc;
        Base   : Unsigned_64) return Boolean;
 end Userland.ELF;

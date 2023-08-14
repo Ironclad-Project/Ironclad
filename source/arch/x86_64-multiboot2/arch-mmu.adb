@@ -1,5 +1,5 @@
 --  arch-mmu.adb: Architecture-specific MMU code.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -20,21 +20,401 @@ with Arch.Snippets;
 with Memory.Physical;
 
 package body Arch.MMU with SPARK_Mode => Off is
-   function Get_Address_Components
-      (Virtual : Virtual_Address) return Address_Components
-   is
-      Addr   : constant Unsigned_64 := Unsigned_64 (Virtual);
-      PML4_E : constant Unsigned_64 := Addr and Shift_Left (16#1FF#, 39);
-      PML3_E : constant Unsigned_64 := Addr and Shift_Left (16#1FF#, 30);
-      PML2_E : constant Unsigned_64 := Addr and Shift_Left (16#1FF#, 21);
-      PML1_E : constant Unsigned_64 := Addr and Shift_Left (16#1FF#, 12);
-   begin
-      return (PML4_Entry => Shift_Right (PML4_E, 39),
-              PML3_Entry => Shift_Right (PML3_E, 30),
-              PML2_Entry => Shift_Right (PML2_E, 21),
-              PML1_Entry => Shift_Right (PML1_E, 12));
-   end Get_Address_Components;
+   --  Bits in the 4K page entries.
+   Page_P     : constant Unsigned_64 := Shift_Left (1,  0);
+   Page_RW    : constant Unsigned_64 := Shift_Left (1,  1);
+   Page_U     : constant Unsigned_64 := Shift_Left (1,  2);
+   Page_C     : constant Unsigned_64 := Shift_Left (1,  3);
+   Page_PAT   : constant Unsigned_64 := Shift_Left (1,  7);
+   Page_G     : constant Unsigned_64 := Shift_Left (1,  8);
+   --  Page_ALLOC : constant Unsigned_64 := Shift_Left (1,  9); --  Custom.
+   Page_NX    : constant Unsigned_64 := Shift_Left (1, 63);
 
+   function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
+      NX_Flags : constant Page_Permissions :=
+         (Is_User_Accesible => False,
+          Can_Read          => True,
+          Can_Write         => True,
+          Can_Execute       => False,
+          Is_Global         => True,
+          Is_Write_Combine  => False);
+      X_Flags : constant Page_Permissions :=
+         (Is_User_Accesible => False,
+          Can_Read          => True,
+          Can_Write         => True,
+          Can_Execute       => True,
+          Is_Global         => True,
+          Is_Write_Combine  => False);
+      First_MiB        : constant := 16#000100000#;
+      Hardcoded_Region : constant := 16#100000000#;
+   begin
+      --  Initialize the kernel pagemap.
+      MMU.Kernel_Table := new Page_Table'
+         (PML4_Level => (others => 0),
+          Mutex      => Lib.Synchronization.Unlocked_Semaphore,
+          Map_Ranges => (others => (Is_Present => False, others => <>)));
+
+      --  Map the first 4KiB - 1 MiB not NX, because we have the smp bootstrap
+      --  there and else hell will break loose.
+      if not Inner_Map_Range
+         (Map            => Kernel_Table,
+          Physical_Start => To_Address (Page_Size),
+          Virtual_Start  => To_Address (Page_Size),
+          Length         => First_MiB - Page_Size,
+          Permissions    => X_Flags)
+      then
+         return False;
+      end if;
+
+      --  Map the rest of the first 4 GiB to the window and identity mapped.
+      --  This is done instead of following the pagemap to ensure that all
+      --  I/O and memory tables that may not be in the memmap are mapped.
+      if not Inner_Map_Range
+         (Map            => Kernel_Table,
+          Physical_Start => To_Address (First_MiB),
+          Virtual_Start  => To_Address (First_MiB),
+          Length         => Hardcoded_Region - First_MiB,
+          Permissions    => NX_Flags)
+      or not Inner_Map_Range
+         (Map            => Kernel_Table,
+          Physical_Start => To_Address (First_MiB),
+          Virtual_Start  => To_Address (First_MiB + Memory_Offset),
+          Length         => Hardcoded_Region - First_MiB,
+          Permissions    => NX_Flags)
+      then
+         return False;
+      end if;
+
+      --  Map the memmap memory to the memory window and identity
+      for E of Memmap loop
+         if not Inner_Map_Range
+            (Map            => Kernel_Table,
+             Physical_Start => To_Address (To_Integer (E.Start)),
+             Virtual_Start  => To_Address (To_Integer (E.Start) +
+                                           Memory_Offset),
+             Length         => Storage_Offset (E.Length),
+             Permissions    => NX_Flags)
+         then
+            return False;
+         end if;
+      end loop;
+
+      --  Map 128MiB of kernel.
+      if not Inner_Map_Range
+         (Map            => Kernel_Table,
+          Physical_Start => To_Address (16#200000#),
+          Virtual_Start  => To_Address (Kernel_Offset),
+          Length         => 16#7000000#,
+          Permissions    => X_Flags)
+      then
+         return False;
+      end if;
+
+      --  Load the kernel table at last.
+      return Make_Active (Kernel_Table);
+   end Init;
+
+   function Fork_Table (Map : Page_Table_Acc) return Page_Table_Acc is
+      type Page_Data is array (Storage_Count range <>) of Unsigned_8;
+
+      Addr    : System.Address;
+      Success : Boolean;
+      Result  : Page_Table_Acc := new Page_Table'
+         (PML4_Level => (others => 0),
+          Mutex      => Lib.Synchronization.Unlocked_Semaphore,
+          Map_Ranges => (others => (Is_Present => False, others => <>)));
+   begin
+      Lib.Synchronization.Seize (Map.Mutex);
+
+      --  Clone the higher half, which is the same in all maps.
+      Result.PML4_Level (257 .. 512) := Map.PML4_Level (257 .. 512);
+
+      --  Duplicate the rest of maps, which are mostly going to be lower half.
+      for Mapping of Map.Map_Ranges loop
+         if Mapping.Is_Present then
+            if Mapping.Is_Allocated then
+               Map_Allocated_Range
+                  (Map            => Result,
+                   Physical_Start => Addr,
+                   Virtual_Start  => Mapping.Virtual_Start,
+                   Length         => Mapping.Length,
+                   Permissions    => Mapping.Flags,
+                   Success        => Success);
+               if not Success then
+                  Destroy_Table (Result);
+                  goto Cleanup;
+               end if;
+
+               declare
+                  New_Data : Page_Data (1 .. Mapping.Length) with Import,
+                  Address => Addr;
+                  Original_Data : Page_Data (1 .. Mapping.Length) with Import,
+                  Address => To_Address (To_Integer (Mapping.Physical_Start) +
+                                         Memory_Offset);
+               begin
+                  New_Data := Original_Data;
+               end;
+            else
+               if not Map_Range
+                  (Map            => Result,
+                   Physical_Start => Mapping.Physical_Start,
+                   Virtual_Start  => Mapping.Virtual_Start,
+                   Length         => Mapping.Length,
+                   Permissions    => Mapping.Flags)
+               then
+                  Destroy_Table (Result);
+                  goto Cleanup;
+               end if;
+            end if;
+         end if;
+      end loop;
+
+   <<Cleanup>>
+      Lib.Synchronization.Release (Map.Mutex);
+      return Result;
+   end Fork_Table;
+
+   procedure Destroy_Table (Map : in out Page_Table_Acc) is
+      procedure F is new Ada.Unchecked_Deallocation
+         (Page_Table, Page_Table_Acc);
+   begin
+      Lib.Synchronization.Seize (Map.Mutex);
+      for Mapping of Map.Map_Ranges loop
+         if Mapping.Is_Present and Mapping.Is_Allocated then
+            Physical.Free (Interfaces.C.size_t
+               (To_Integer (Mapping.Physical_Start)));
+         end if;
+      end loop;
+
+      for I in 1 .. 256 loop
+         Destroy_Level (Map.PML4_Level (I), 3);
+      end loop;
+      F (Map);
+   end Destroy_Table;
+
+   function Make_Active (Map : Page_Table_Acc) return Boolean is
+      Val : constant Unsigned_64 :=
+         Unsigned_64 (To_Integer (Map.PML4_Level'Address) - Memory_Offset);
+   begin
+      if Arch.Snippets.Read_CR3 /= Val then
+         Arch.Snippets.Write_CR3 (Val);
+      end if;
+      return True;
+   end Make_Active;
+
+   procedure Translate_Address
+      (Map                : Page_Table_Acc;
+       Virtual            : System.Address;
+       Length             : Storage_Count;
+       Physical           : out System.Address;
+       Is_Mapped          : out Boolean;
+       Is_User_Accessible : out Boolean;
+       Is_Readable        : out Boolean;
+       Is_Writeable       : out Boolean;
+       Is_Executable      : out Boolean)
+   is
+      pragma Unreferenced (Length);
+
+      Addr      : constant Integer_Address := To_Integer (Virtual);
+      Page_Addr : constant Virtual_Address := Get_Page (Map, Addr, False);
+      Page      : Unsigned_64 with Address => To_Address (Page_Addr), Import;
+   begin
+      Lib.Synchronization.Seize (Map.Mutex);
+      if Page_Addr /= Memory.Null_Address and (Page and Page_P) /= 0 then
+         Physical           := To_Address (Clean_Entry (Page));
+         Is_Mapped          := True;
+         Is_User_Accessible := (Page and Page_U) /= 0;
+         Is_Readable        := True;
+         Is_Writeable       := (Page and Page_RW) /= 0;
+         Is_Executable      := (Page and Page_NX) = 0;
+      else
+         Physical           := System.Null_Address;
+         Is_Mapped          := False;
+         Is_User_Accessible := False;
+         Is_Readable        := False;
+         Is_Writeable       := False;
+         Is_Executable      := False;
+      end if;
+      Lib.Synchronization.Release (Map.Mutex);
+   end Translate_Address;
+
+   function Map_Range
+      (Map            : Page_Table_Acc;
+       Physical_Start : System.Address;
+       Virtual_Start  : System.Address;
+       Length         : Storage_Count;
+       Permissions    : Page_Permissions) return Boolean
+   is
+      Success : Boolean := False;
+   begin
+      Lib.Synchronization.Seize (Map.Mutex);
+
+      for Mapping of Map.Map_Ranges loop
+         if not Mapping.Is_Present then
+            Mapping :=
+               (Is_Present     => True,
+                Is_Allocated   => False,
+                Virtual_Start  => Virtual_Start,
+                Physical_Start => Physical_Start,
+                Length         => Length,
+                Flags          => Permissions);
+            goto Actually_Map;
+         end if;
+      end loop;
+      goto Ret;
+
+   <<Actually_Map>>
+      Success := Inner_Map_Range
+         (Map            => Map,
+          Physical_Start => Physical_Start,
+          Virtual_Start  => Virtual_Start,
+          Length         => Length,
+          Permissions    => Permissions);
+
+   <<Ret>>
+      Lib.Synchronization.Release (Map.Mutex);
+      return Success;
+   end Map_Range;
+
+   procedure Map_Allocated_Range
+      (Map            : Page_Table_Acc;
+       Physical_Start : out System.Address;
+       Virtual_Start  : System.Address;
+       Length         : Storage_Count;
+       Permissions    : Page_Permissions;
+       Success        : out Boolean)
+   is
+      Addr : constant Virtual_Address :=
+         Memory.Physical.Alloc (Interfaces.C.size_t (Length));
+      Allocated : array (1 .. Length) of Unsigned_8
+         with Import, Address => To_Address (Addr);
+   begin
+      Success := False;
+      Lib.Synchronization.Seize (Map.Mutex);
+
+      for Mapping of Map.Map_Ranges loop
+         if not Mapping.Is_Present then
+            Mapping :=
+               (Is_Present     => True,
+                Is_Allocated   => True,
+                Virtual_Start  => Virtual_Start,
+                Physical_Start => To_Address (Addr - Memory.Memory_Offset),
+                Length         => Length,
+                Flags          => Permissions);
+            goto Actually_Map;
+         end if;
+      end loop;
+      goto Ret;
+
+   <<Actually_Map>>
+      Success := Inner_Map_Range
+         (Map            => Map,
+          Physical_Start => To_Address (Addr - Memory.Memory_Offset),
+          Virtual_Start  => Virtual_Start,
+          Length         => Length,
+          Permissions    => Permissions);
+
+   <<Ret>>
+      if Success then
+         Allocated      := (others => 0);
+         Physical_Start := To_Address (Addr);
+      else
+         Memory.Physical.Free (Interfaces.C.size_t (Addr));
+         Physical_Start := System.Null_Address;
+      end if;
+      Lib.Synchronization.Release (Map.Mutex);
+   end Map_Allocated_Range;
+
+   function Remap_Range
+      (Map           : Page_Table_Acc;
+       Virtual_Start : System.Address;
+       Length        : Storage_Count;
+       Permissions   : Page_Permissions) return Boolean
+   is
+      Flags   : constant     Unsigned_64 := Flags_To_Bitmap (Permissions);
+      Virt    : Virtual_Address          := To_Integer (Virtual_Start);
+      Final   : constant Virtual_Address := Virt + Virtual_Address (Length);
+      Addr    : Virtual_Address;
+      Success : Boolean := False;
+   begin
+      Lib.Synchronization.Seize (Map.Mutex);
+
+      for Mapping of Map.Map_Ranges loop
+         if Mapping.Is_Present and then Mapping.Virtual_Start = Virtual_Start
+         then
+            Mapping.Flags := Permissions;
+            goto Actually_Remap;
+         end if;
+      end loop;
+      goto Ret;
+
+   <<Actually_Remap>>
+      while Virt < Final loop
+         Addr := Get_Page (Map, Virt, False);
+
+         declare
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            if Addr /= 0 then
+               Entry_Body := Unsigned_64 (Clean_Entry (Entry_Body)) or Flags;
+            end if;
+         end;
+
+         Virt := Virt + Page_Size;
+      end loop;
+      Flush_Global_TLBs (Virtual_Start, Length);
+      Success := True;
+
+   <<Ret>>
+      Lib.Synchronization.Release (Map.Mutex);
+      return Success;
+   end Remap_Range;
+
+   function Unmap_Range
+      (Map           : Page_Table_Acc;
+       Virtual_Start : System.Address;
+       Length        : Storage_Count) return Boolean
+   is
+      Virt    : Virtual_Address          := To_Integer (Virtual_Start);
+      Final   : constant Virtual_Address := Virt + Virtual_Address (Length);
+      Addr    : Virtual_Address;
+      Success : Boolean := False;
+   begin
+      Lib.Synchronization.Seize (Map.Mutex);
+      for Mapping of Map.Map_Ranges loop
+         if Mapping.Is_Present and then Mapping.Virtual_Start = Virtual_Start
+         then
+            Mapping.Is_Present := False;
+            if Mapping.Is_Allocated then
+               Physical.Free (Interfaces.C.size_t
+                  (To_Integer (Mapping.Physical_Start)));
+            end if;
+            goto Actually_Unmap;
+         end if;
+      end loop;
+      goto Ret;
+
+   <<Actually_Unmap>>
+      while Virt < Final loop
+         Addr := Get_Page (Map, Virt, False);
+
+         declare
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            if Addr /= 0 then
+               Entry_Body := Entry_Body and not Page_P;
+            end if;
+         end;
+         Virt := Virt + Page_Size;
+      end loop;
+      Flush_Global_TLBs (Virtual_Start, Length);
+      Success := True;
+
+   <<Ret>>
+      Lib.Synchronization.Release (Map.Mutex);
+      return Success;
+   end Unmap_Range;
+   ----------------------------------------------------------------------------
    function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address is
    begin
       return Physical_Address (Entry_Body and 16#FFFFFFF000#);
@@ -50,7 +430,7 @@ package body Arch.MMU with SPARK_Mode => Off is
       Entry_Body : Unsigned_64 with Address => To_Address (Entry_Addr), Import;
    begin
       --  Check whether the entry is present.
-      if (Entry_Body and 1) /= 0 then
+      if (Entry_Body and Page_P) /= 0 then
          return Clean_Entry (Entry_Body);
       elsif Create_If_Not_Found then
          --  Allocate and put some default flags.
@@ -59,11 +439,12 @@ package body Arch.MMU with SPARK_Mode => Off is
             New_Entry_Addr : constant Physical_Address :=
                To_Integer (New_Entry.all'Address) - Memory_Offset;
          begin
-            Entry_Body := Unsigned_64 (New_Entry_Addr) or 2#111#;
+            Entry_Body := Unsigned_64 (New_Entry_Addr) or Page_P or Page_U or
+                          Page_RW;
             return New_Entry_Addr;
          end;
       end if;
-      return Null_Address;
+      return Memory.Null_Address;
    end Get_Next_Level;
 
    function Get_Page
@@ -71,326 +452,101 @@ package body Arch.MMU with SPARK_Mode => Off is
        Virtual  : Virtual_Address;
        Allocate : Boolean) return Virtual_Address
    is
-      Addr  : constant Address_Components := Get_Address_Components (Virtual);
+      Addr : constant Unsigned_64 := Unsigned_64 (Virtual);
+      PML4_Entry : constant Unsigned_64 :=
+         Shift_Right (Addr and Shift_Left (16#1FF#, 39), 39);
+      PML3_Entry : constant Unsigned_64 :=
+         Shift_Right (Addr and Shift_Left (16#1FF#, 30), 30);
+      PML2_Entry : constant Unsigned_64 :=
+         Shift_Right (Addr and Shift_Left (16#1FF#, 21), 21);
+      PML1_Entry : constant Unsigned_64 :=
+         Shift_Right (Addr and Shift_Left (16#1FF#, 12), 12);
       Addr4 : constant Physical_Address :=
          To_Integer (Map.PML4_Level'Address) - Memory_Offset;
-      Addr3, Addr2, Addr1 : Physical_Address := Null_Address;
+      Addr3, Addr2, Addr1 : Physical_Address := Memory.Null_Address;
    begin
       --  Find the entries.
-      Addr3 := Get_Next_Level (Addr4, Addr.PML4_Entry, Allocate);
-      if Addr3 = Null_Address then
+      Addr3 := Get_Next_Level (Addr4, PML4_Entry, Allocate);
+      if Addr3 = Memory.Null_Address then
          goto Error_Return;
       end if;
-      Addr2 := Get_Next_Level (Addr3, Addr.PML3_Entry, Allocate);
-      if Addr2 = Null_Address then
+      Addr2 := Get_Next_Level (Addr3, PML3_Entry, Allocate);
+      if Addr2 = Memory.Null_Address then
          goto Error_Return;
       end if;
-      Addr1 := Get_Next_Level (Addr2, Addr.PML2_Entry, Allocate);
-      if Addr1 = Null_Address then
+      Addr1 := Get_Next_Level (Addr2, PML2_Entry, Allocate);
+      if Addr1 = Memory.Null_Address then
          goto Error_Return;
       end if;
-      return Addr1 + Memory_Offset + (Physical_Address (Addr.PML1_Entry) * 8);
+      return Addr1 + Memory_Offset + (Physical_Address (PML1_Entry) * 8);
 
    <<Error_Return>>
-      return Null_Address;
+      return Memory.Null_Address;
    end Get_Page;
 
-   function Flags_To_Bitmap (Perm : Page_Permissions) return Unsigned_16 is
-      RW  : constant Unsigned_16 := (if not Perm.Read_Only  then 1 else 0);
-      U   : constant Unsigned_16 := (if Perm.User_Accesible then 1 else 0);
-      PWT : constant Unsigned_16 := (if Perm.Write_Through  then 1 else 0);
-      G   : constant Unsigned_16 := (if Perm.Global         then 1 else 0);
-   begin
-      return Shift_Left (G,   8) or
-             Shift_Left (PWT, 7) or --  PAT.
-             Shift_Left (PWT, 3) or --  Cache disable.
-             Shift_Left (U,   2) or
-             Shift_Left (RW,  1) or
-             1;                     --  Present bit.
-   end Flags_To_Bitmap;
-
-   function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
-      NX_Flags : constant Page_Permissions := (
-         User_Accesible => False,
-         Read_Only      => False,
-         Executable     => False,
-         Global         => True,
-         Write_Through  => False
-      );
-      X_Flags : constant Page_Permissions := (
-         User_Accesible => NX_Flags.User_Accesible,
-         Read_Only      => NX_Flags.Read_Only,
-         Executable     => not NX_Flags.Executable,
-         Global         => NX_Flags.Global,
-         Write_Through  => NX_Flags.Write_Through
-      );
-      First_MiB        : constant := 16#000100000#;
-      Hardcoded_Region : constant := 16#100000000#;
-   begin
-      --  Initialize the kernel pagemap.
-      MMU.Kernel_Table := new Page_Table'(PML4_Level => (others => 0));
-
-      --  Map the first 4KiB - 1 MiB not NX, because we have the smp bootstrap
-      --  there and else hell will break loose.
-      if not Map_Range (
-         Map            => MMU.Kernel_Table,
-         Physical_Start => To_Address (Page_Size),
-         Virtual_Start  => To_Address (Page_Size),
-         Length         => First_MiB - Page_Size,
-         Permissions    => X_Flags
-      )
-      then
-         return False;
-      end if;
-
-      --  Map the rest of the first 4 GiB to the window and identity mapped.
-      --  This is done instead of following the pagemap to ensure that all
-      --  I/O and memory tables that may not be in the memmap are mapped.
-      if not Map_Range (
-         Map            => MMU.Kernel_Table,
-         Physical_Start => To_Address (First_MiB),
-         Virtual_Start  => To_Address (First_MiB),
-         Length         => Hardcoded_Region - First_MiB,
-         Permissions    => NX_Flags
-      )
-      or not Map_Range (
-         Map            => MMU.Kernel_Table,
-         Physical_Start => To_Address (First_MiB),
-         Virtual_Start  => To_Address (First_MiB + Memory_Offset),
-         Length         => Hardcoded_Region - First_MiB,
-         Permissions    => NX_Flags
-      )
-      then
-         return False;
-      end if;
-
-      --  Map the memmap memory to the memory window and identity
-      for E of Memmap loop
-         if not Map_Range (
-            Map            => MMU.Kernel_Table,
-            Physical_Start => To_Address (To_Integer (E.Start)),
-            Virtual_Start => To_Address (To_Integer (E.Start) + Memory_Offset),
-            Length         => Storage_Offset (E.Length),
-            Permissions    => NX_Flags
-         )
-         then
-            return False;
-         end if;
-      end loop;
-
-      --  Map 128MiB of kernel.
-      return Map_Range (
-         Map            => MMU.Kernel_Table,
-         Physical_Start => To_Address (16#200000#),
-         Virtual_Start  => To_Address (Kernel_Offset),
-         Length         => 16#7000000#,
-         Permissions    => X_Flags
-      );
-   end Init;
-
-   function Create_Table return Page_Table_Acc is
-      Map : constant Page_Table_Acc := new Page_Table;
-   begin
-      Map.PML4_Level   (1 .. 256) := (others => 0);
-      Map.PML4_Level (257 .. 512) := MMU.Kernel_Table.PML4_Level (257 .. 512);
-      return Map;
-   end Create_Table;
-
-   procedure Destroy_Level (Entry_Body : Unsigned_64; Level : Integer) is
-      Addr : constant Integer_Address := Clean_Entry (Entry_Body);
-      PML  : PML4 with Import, Address => To_Address (Memory_Offset + Addr);
-   begin
-      if (Entry_Body and 1) /= 0 then
-         if Level > 1 then
-            for E of PML loop
-               if (E and 1) /= 0 then
-                  Destroy_Level (E, Level - 1);
-               end if;
-            end loop;
-         end if;
-         Memory.Physical.Free (Interfaces.C.size_t (Addr));
-      end if;
-   end Destroy_Level;
-
-   procedure Destroy_Table (Map : in out Page_Table_Acc) is
-      procedure F is new Ada.Unchecked_Deallocation
-         (Page_Table, Page_Table_Acc);
-   begin
-      for I in 1 .. 256 loop
-         Destroy_Level (Map.PML4_Level (I), 3);
-      end loop;
-      F (Map);
-   end Destroy_Table;
-
-   function Make_Active (Map : Page_Table_Acc) return Boolean is
-      Val : Unsigned_64;
-   begin
-      Val := Unsigned_64 (To_Integer (Map.PML4_Level'Address) - Memory_Offset);
-      if Arch.Snippets.Read_CR3 /= Val then
-         Arch.Snippets.Write_CR3 (Val);
-      end if;
-      return True;
-   end Make_Active;
-
-   function Is_Active (Map : Page_Table_Acc) return Boolean is
-      Current : constant Unsigned_64 := Arch.Snippets.Read_CR3;
-      PAddr : constant Integer_Address := To_Integer (Map.PML4_Level'Address);
-   begin
-      return Current = Unsigned_64 (PAddr - Memory_Offset);
-   end Is_Active;
-
-   function Translate_Address
-      (Map     : Page_Table_Acc;
-       Virtual : System.Address) return System.Address
-   is
-      Addr  : constant Integer_Address := To_Integer (Virtual);
-      Addr1 : constant Virtual_Address := Get_Page (Map, Addr, False);
-      Searched1 : Unsigned_64 with Address => To_Address (Addr1), Import;
-   begin
-      if Addr1 /= Null_Address and then (Shift_Right (Searched1, 7) and 1) /= 0
-      then
-         return To_Address (Clean_Entry (Searched1));
-      else
-         return System.Null_Address;
-      end if;
-   end Translate_Address;
-
-   function Map_Range
+   function Inner_Map_Range
       (Map            : Page_Table_Acc;
        Physical_Start : System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
        Permissions    : Page_Permissions) return Boolean
    is
-      Flags : constant Unsigned_16 := Flags_To_Bitmap (Permissions);
-      NX    : constant Unsigned_64 := Boolean'Pos (not Permissions.Executable);
-      Mask  : Unsigned_64;
-
+      Flags : constant     Unsigned_64 := Flags_To_Bitmap (Permissions);
       Virt  : Virtual_Address          := To_Integer (Virtual_Start);
       Phys  : Virtual_Address          := To_Integer (Physical_Start);
       Final : constant Virtual_Address := Virt + Virtual_Address (Length);
       Addr  : Virtual_Address;
    begin
-      if (Phys   mod Page_Size /= 0) or (Virt mod Page_Size /= 0) or
-         (Length mod Page_Size /= 0)
-      then
-         return False;
-      end if;
-
       while Virt < Final loop
          Addr := Get_Page (Map, Virt, True);
-         Mask := Unsigned_64 (Flags) or Shift_Left (NX, 63);
 
          declare
             Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
          begin
-            Entry_Body := Unsigned_64 (Phys) or Mask;
+            Entry_Body := Unsigned_64 (Phys) or Flags;
          end;
 
          Virt := Virt + Page_Size;
          Phys := Phys + Page_Size;
       end loop;
-
       return True;
-   end Map_Range;
+   end Inner_Map_Range;
 
-   function Remap_Range
-      (Map           : Page_Table_Acc;
-       Virtual_Start : System.Address;
-       Length        : Storage_Count;
-       Permissions   : Page_Permissions) return Boolean
-   is
-      Flags : constant Unsigned_16 := Flags_To_Bitmap (Permissions);
-      NX    : constant Unsigned_64 := Boolean'Pos (not Permissions.Executable);
-      Mask  : Unsigned_64;
-
-      Virt  : Virtual_Address          := To_Integer (Virtual_Start);
-      Final : constant Virtual_Address := Virt + Virtual_Address (Length);
-      Addr  : Virtual_Address;
+   function Flags_To_Bitmap (Perm : Page_Permissions) return Unsigned_64 is
    begin
-      if (Virt mod Page_Size /= 0) or (Length mod Page_Size /= 0) then
-         return False;
+      return
+         (if Perm.Can_Execute       then 0                  else Page_NX) or
+         (if Perm.Can_Write         then Page_RW            else       0) or
+         (if Perm.Is_Global         then Page_G             else       0) or
+         (if Perm.Is_Write_Combine  then Page_PAT or Page_C else       0) or
+         (if Perm.Is_User_Accesible then Page_U             else       0) or
+         Page_P;
+   end Flags_To_Bitmap;
+
+   procedure Destroy_Level (Entry_Body : Unsigned_64; Level : Integer) is
+      Addr : constant Integer_Address := Clean_Entry (Entry_Body);
+      PML  : PML4 with Import, Address => To_Address (Memory_Offset + Addr);
+   begin
+      if Level > 1 then
+         if (Entry_Body and Page_P) /= 0 then
+            for E of PML loop
+               Destroy_Level (E, Level - 1);
+            end loop;
+         end if;
+         Memory.Physical.Free (Interfaces.C.size_t (Addr));
       end if;
+   end Destroy_Level;
 
-      while Virt < Final loop
-         Addr := Get_Page (Map, Virt, False);
-         Mask := Unsigned_64 (Flags) or Shift_Left (NX, 63);
-
-         declare
-            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
-         begin
-            if Addr /= 0 then
-               Entry_Body := Unsigned_64 (Clean_Entry (Entry_Body)) or Mask;
-            end if;
-         end;
-
-         Virt := Virt + Page_Size;
-      end loop;
-
-      if Is_Active (Map) then
-         Flush_Local_TLB (Virtual_Start, Length);
-      end if;
-
-      return True;
-   end Remap_Range;
-
-   function Unmap_Range
-      (Map           : Page_Table_Acc;
-       Virtual_Start : System.Address;
-       Length        : Storage_Count) return Boolean
-   is
-      Virt  : Virtual_Address          := To_Integer (Virtual_Start);
-      Final : constant Virtual_Address := Virt + Virtual_Address (Length);
-      Addr  : Virtual_Address;
-   begin
-      if Map = null or (Virt mod Page_Size /= 0) or (Length mod Page_Size /= 0)
-      then
-         return False;
-      end if;
-
-      while Virt < Final loop
-         Addr := Get_Page (Map, Virt, False);
-
-         declare
-            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
-         begin
-            if Addr /= 0 then
-               Entry_Body := Entry_Body and 0;
-            end if;
-         end;
-         Virt := Virt + Page_Size;
-      end loop;
-
-      if Is_Active (Map) then
-         Flush_Local_TLB (Virtual_Start, Length);
-      end if;
-
-      return True;
-   end Unmap_Range;
-
-   procedure Flush_Local_TLB (Addr : System.Address) is
-   begin
-      Snippets.Invalidate_Page (To_Integer (Addr));
-   end Flush_Local_TLB;
-
-   procedure Flush_Local_TLB (Addr : System.Address; Len : Storage_Count) is
-      Curr : Storage_Count := 0;
-   begin
-      while Curr < Len loop
-         Snippets.Invalidate_Page (To_Integer (Addr + Curr));
-         Curr := Curr + Page_Size;
-      end loop;
-   end Flush_Local_TLB;
-
-   --  TODO: Code this 2 bad boys once the VMM makes use of them.
-
-   procedure Flush_Global_TLBs (Addr : System.Address) is
-   begin
-      null;
-   end Flush_Global_TLBs;
+   --  TODO: Code this bad boy once the VMM makes use of them.
 
    procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count) is
+      Final : constant System.Address := Addr + Len;
+      Curr  :          System.Address := Addr;
    begin
-      null;
+      --  First, invalidate for ourselves.
+      while To_Integer (Curr) < To_Integer (Final) loop
+         Snippets.Invalidate_Page (To_Integer (Curr));
+         Curr := Curr + Page_Size;
+      end loop;
    end Flush_Global_TLBs;
 end Arch.MMU;

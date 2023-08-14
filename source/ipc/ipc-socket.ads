@@ -16,7 +16,7 @@
 
 with Lib.Synchronization;
 with Devices;
-with Memory.Virtual;
+with Arch.MMU;
 
 package IPC.Socket is
    --  Implementation for Ironclad of the quintessential epitome of POSIX IPC.
@@ -99,7 +99,7 @@ private
       Is_Blocking    : Boolean;
       Connected      : Socket_Acc;
       Pending_Accept : Socket_Acc;
-      Data           : Devices.Operation_Data (1 .. Memory.Virtual.Page_Size);
+      Data           : Devices.Operation_Data (1 .. Arch.MMU.Page_Size);
    end record;
 
    Bind_Path_Max : constant := 100;

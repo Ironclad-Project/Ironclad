@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with VFS;
-with Memory.Virtual;
+with Arch.MMU;
 with Lib.Synchronization;
 with Scheduler; use Scheduler;
 with Interfaces; use Interfaces;
@@ -238,13 +238,13 @@ package Userland.Process is
    --  Set the virtual map associated with the process.
    --  @param Proc Process to operate on.
    --  @param Map  Map to assign.
-   procedure Set_Common_Map (Proc : PID; Map : Memory.Virtual.Page_Map_Acc)
+   procedure Set_Common_Map (Proc : PID; Map : Arch.MMU.Page_Table_Acc)
       with Pre => Proc /= Error_PID;
 
    --  Get the virtual map associated with the process.
    --  @param Proc Process to operate on.
    --  @return The map.
-   function Get_Common_Map (Proc : PID) return Memory.Virtual.Page_Map_Acc
+   function Get_Common_Map (Proc : PID) return Arch.MMU.Page_Table_Acc
       with Pre => Proc /= Error_PID;
 
    --  Get the stack base of the process.
@@ -467,7 +467,7 @@ private
       Current_Dir_Len : Natural range 0 .. Max_CWD_Length;
       Thread_List     : Thread_Arr;
       File_Table      : File_Arr;
-      Common_Map      : Memory.Virtual.Page_Map_Acc;
+      Common_Map      : Arch.MMU.Page_Table_Acc;
       Stack_Base      : Unsigned_64;
       Alloc_Base      : Unsigned_64;
       Perms           : MAC.Context;

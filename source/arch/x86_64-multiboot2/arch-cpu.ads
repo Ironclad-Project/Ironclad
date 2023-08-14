@@ -51,7 +51,6 @@ private
    procedure Init_Core (Core_Number : Positive; LAPIC_ID : Unsigned_8)
       with Convention => C, Export, External_Name => "init_core";
    procedure Init_Common (Core_Number : Positive; LAPIC : Unsigned_32);
-   function Supports_UMIP return Boolean;
    function Get_BSP_LAPIC_ID return Unsigned_32;
    procedure Delay_Execution (Cycles : Unsigned_64);
 end Arch.CPU;

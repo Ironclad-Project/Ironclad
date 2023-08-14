@@ -18,7 +18,7 @@ with Ada.Characters.Latin_1;
 with Interfaces; use Interfaces;
 with System;
 with System.Storage_Elements; use System.Storage_Elements;
-with Memory.Virtual;
+with Arch.MMU;
 with Memory; use Memory;
 with Userland.ELF; use Userland.ELF;
 with Scheduler; use Scheduler;
@@ -54,7 +54,9 @@ package body Userland.Loader with SPARK_Mode => Off is
       if Returned_PID = Error_PID then
          goto Error;
       end if;
-      Process.Set_Common_Map (Returned_PID, Memory.Virtual.New_Map);
+      Process.Set_Common_Map
+         (Returned_PID,
+          Arch.MMU.Fork_Table (Arch.MMU.Kernel_Table));
       if not Start_Program (Exec_Path, FS, Ino, Arguments, Environment,
                             Returned_PID)
       then
@@ -149,7 +151,7 @@ package body Userland.Loader with SPARK_Mode => Off is
             LD_Slide := Cryptography.Random.Get_Integer
                (Memory_Locations.LD_Offset_Min,
                 Memory_Locations.LD_Offset_Max);
-            LD_Slide := Aln.Align_Up (LD_Slide, Memory.Virtual.Page_Size);
+            LD_Slide := Aln.Align_Up (LD_Slide, Arch.MMU.Page_Size);
          else
             LD_Slide := Memory_Locations.LD_Offset_Min;
          end if;
@@ -166,13 +168,12 @@ package body Userland.Loader with SPARK_Mode => Off is
 
       declare
          Returned_TID : constant Scheduler.TID := Scheduler.Create_User_Thread
-            (Address    => Entrypoint,
-             Args       => Arguments,
-             Env        => Environment,
-             Map        => Process.Get_Common_Map (Proc),
-             Vector     => Loaded_ELF.Vector,
-             PID        => Process.Convert (Proc),
-             Exec_Stack => Loaded_ELF.Exec_Stack);
+            (Address => Entrypoint,
+             Args    => Arguments,
+             Env     => Environment,
+             Map     => Process.Get_Common_Map (Proc),
+             Vector  => Loaded_ELF.Vector,
+             PID     => Process.Convert (Proc));
       begin
          if Returned_TID = 0 then
             goto Error;

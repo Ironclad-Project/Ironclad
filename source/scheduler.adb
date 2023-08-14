@@ -20,7 +20,6 @@ with Lib.Panic;
 with System.Storage_Elements; use System.Storage_Elements;
 with Userland.Process;
 with Arch;
-with Arch.MMU;
 with Arch.Local;
 with Arch.Snippets;
 with Lib.Messages;
@@ -44,7 +43,7 @@ package body Scheduler with SPARK_Mode => Off is
       Is_Running     : Boolean;
       Is_Monothread  : Boolean;
       TCB_Pointer    : System.Address;
-      PageMap        : Memory.Virtual.Page_Map_Acc;
+      PageMap        : Arch.MMU.Page_Table_Acc;
       Kernel_Stack   : Kernel_Stack_Acc;
       FP_Region      : Arch.Context.FP_Context;
       Process        : Userland.Process.PID;
@@ -84,24 +83,25 @@ package body Scheduler with SPARK_Mode => Off is
    end Idle_Core;
 
    function Create_User_Thread
-      (Address    : Virtual_Address;
-       Args       : Userland.Argument_Arr;
-       Env        : Userland.Environment_Arr;
-       Map        : Memory.Virtual.Page_Map_Acc;
-       Vector     : Userland.ELF.Auxval;
-       PID        : Natural;
-       Exec_Stack : Boolean := True) return TID
+      (Address : Virtual_Address;
+       Args    : Userland.Argument_Arr;
+       Env     : Userland.Environment_Arr;
+       Map     : Arch.MMU.Page_Table_Acc;
+       Vector  : Userland.ELF.Auxval;
+       PID     : Natural) return TID
    is
       Stack_Permissions : constant Arch.MMU.Page_Permissions :=
-         (User_Accesible => True,
-          Read_Only      => False,
-          Executable     => Exec_Stack,
-          Global         => False,
-          Write_Through  => False);
+         (Is_User_Accesible => True,
+          Can_Read          => True,
+          Can_Write         => True,
+          Can_Execute       => False,
+          Is_Global         => False,
+          Is_Write_Combine  => False);
+
       New_TID   : TID;
       GP_State  : Arch.Context.GP_Context;
       FP_State  : Arch.Context.FP_Context;
-      Result    : Virtual_Address;
+      Result    : System.Address;
       Stack_Top : Unsigned_64;
       Success   : Boolean;
    begin
@@ -110,20 +110,20 @@ package body Scheduler with SPARK_Mode => Off is
          (Userland.Process.Convert (PID));
       Userland.Process.Set_Stack_Base
          (Userland.Process.Convert (PID), Stack_Top + Stack_Size);
-      Memory.Virtual.Map_Memory_Backed_Region
-         (Map,
-          Virtual_Address (Stack_Top),
-          Stack_Size,
-          Stack_Permissions,
-          Result,
-          Success);
+      Arch.MMU.Map_Allocated_Range
+         (Map            => Map,
+          Physical_Start => Result,
+          Virtual_Start  => To_Address (Virtual_Address (Stack_Top)),
+          Length         => Stack_Size,
+          Permissions    => Stack_Permissions,
+          Success        => Success);
       if not Success then
          goto Error_1;
       end if;
 
       declare
-         Stk_8  : Thread_Stack    with Import, Address => To_Address (Result);
-         Stk_64 : Thread_Stack_64 with Import, Address => To_Address (Result);
+         Stk_8  : Thread_Stack    with Import, Address => Result;
+         Stk_64 : Thread_Stack_64 with Import, Address => Result;
          Index_8  : Natural := Stk_8'Last;
          Index_64 : Natural := Stk_64'Last;
       begin
@@ -212,7 +212,7 @@ package body Scheduler with SPARK_Mode => Off is
 
    function Create_User_Thread
       (Address    : Virtual_Address;
-       Map        : Memory.Virtual.Page_Map_Acc;
+       Map        : Arch.MMU.Page_Table_Acc;
        Stack_Addr : Unsigned_64;
        TLS_Addr   : Unsigned_64;
        PID        : Natural) return TID
@@ -236,7 +236,7 @@ package body Scheduler with SPARK_Mode => Off is
    function Create_User_Thread
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
-       Map      : Memory.Virtual.Page_Map_Acc;
+       Map      : Arch.MMU.Page_Table_Acc;
        PID      : Natural;
        TCB      : System.Address) return TID
    is
@@ -429,7 +429,7 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       --  Reset state.
-      if not Memory.Virtual.Make_Active (Thread_Pool (Next_TID).PageMap) then
+      if not Arch.MMU.Make_Active (Thread_Pool (Next_TID).PageMap) then
          Lib.Panic.Hard_Panic ("Could not make reschedule map active");
       end if;
       Arch.Local.Set_Current_Process (Thread_Pool (Next_TID).Process);

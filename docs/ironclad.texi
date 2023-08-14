@@ -94,6 +94,7 @@ Security and integrity facilities
 * Users and groups::                UIDs, EUIDs, GIDs, and all the fuzz.
 * Mandatory access control (MAC)::  MAC quickguide and configuration.
 * Resource limits::                 Limits on resources built into MAC.
+* Miscellaneous measures::          Miscelaneous security measures.
 
 Debugging facilities
 
@@ -506,8 +507,6 @@ in the future. Loaded programs can be static or relocatable.
 @code{ld.so}, or any other linker program detailed on the interpreter segment
 of the ELF executable will be a special case, it is assumed to be relocatable.
 
-There is support for GNU stack program headers.
-
 @node Memory layout
 @section Memory layout
 
@@ -520,7 +519,7 @@ will be randomized on load time following
 and must not be relied upon. It is up to @code{ld.so} to optionally place
 additionally loaded libraries at random offsets.
 
-The stack is a fixed @code{128 KiB} in size.
+The stack is a fixed @code{128 KiB} in size, and is not executable, by default.
 
 @node Security and integrity facilities
 @chapter Security and integrity facilities
@@ -617,6 +616,15 @@ As part of the UNIX-like package, Ironclad supports various resource limits
 that, in the case of Ironclad, are built inside MAC, and are passed down like
 MAC capabilities (@pxref{Mandatory access control (MAC)}).
 @xref{getrlimit/setrlimit}
+
+@node Miscellaneous measures
+@section Miscellaneous measures
+
+@subsection W^X
+
+Ironclad does not allow mapping memory sections write and execute at the same
+time, this helps mitigate several kinds of memory corruption vulnerabilities
+by making it much harder to transform them into arbitrary code execution.
 
 @node Debugging facilities
 @chapter Debugging facilities

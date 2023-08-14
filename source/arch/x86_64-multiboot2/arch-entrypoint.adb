@@ -25,7 +25,7 @@ with Arch.CPU;
 with Lib.Panic;
 with Memory.Physical;
 with Main;
-with Memory.Virtual;
+with Arch.MMU;
 
 package body Arch.Entrypoint with SPARK_Mode => Off is
    procedure Bootstrap_Main (Proto : Multiboot2.Header_Acc) is
@@ -38,9 +38,9 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
       --  Translate the multiboot2 protocol.
       Multiboot2.Translate_Proto (Proto);
 
-      --  Initialize the allocators.
+      --  Initialize the allocators and MMU.
       Memory.Physical.Init_Allocator (Info.Memmap (1 .. Info.Memmap_Len));
-      if not Memory.Virtual.Init (Info.Memmap (1 .. Info.Memmap_Len)) then
+      if not Arch.MMU.Init (Info.Memmap (1 .. Info.Memmap_Len)) then
          Lib.Panic.Hard_Panic ("The VMM could not be initialized");
       end if;
 

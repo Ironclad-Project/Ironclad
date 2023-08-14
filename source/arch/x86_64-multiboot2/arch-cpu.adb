@@ -21,7 +21,6 @@ with Arch.ACPI;
 with Arch.Multiboot2;
 with Arch.MMU;
 with Arch.IDT;
-with Memory.Virtual;
 with Arch.Snippets;
 
 package body Arch.CPU with SPARK_Mode => Off is
@@ -162,7 +161,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       --  Load the global GDT, IDT, mappings, and LAPIC.
       GDT.Load_GDT;
       IDT.Load_IDT;
-      Discard := Memory.Virtual.Make_Active (Memory.Virtual.Get_Kernel_Map);
+      Discard := Arch.MMU.Make_Active (Arch.MMU.Kernel_Table);
       APIC.Init_LAPIC;
 
       --  Load several goodies.
@@ -175,10 +174,13 @@ package body Arch.CPU with SPARK_Mode => Off is
 
    procedure Init_Common (Core_Number : Positive; LAPIC : Unsigned_32) is
       PAT_MSR  : constant := 16#00000277#;
+      UCET_MSR : constant := 16#6A0#;
+      SCET_MSR : constant := 16#6A2#;
 
       CR0 : Unsigned_64 := Snippets.Read_CR0;
       CR4 : Unsigned_64 := Snippets.Read_CR4;
       PAT : Unsigned_64 := Snippets.Read_MSR (PAT_MSR);
+      EAX, EBX, ECX, EDX : Unsigned_32;
 
       Locals_Addr : constant Unsigned_64 :=
          Unsigned_64 (To_Integer (Core_Locals (Core_Number)'Address));
@@ -188,9 +190,17 @@ package body Arch.CPU with SPARK_Mode => Off is
       CR0 := (CR0 and (not Shift_Left (1, 2))) or Shift_Left (1, 1);
       CR4 := CR4 or Shift_Left (3, 9);
 
-      --  Enable UMIP if present.
-      if Supports_UMIP then
-         CR4 := CR4 or Shift_Left (1, 11);
+      --  Enable several features if present.
+      Snippets.Get_CPUID (7, 0, EAX, EBX, ECX, EDX);
+      if (ECX and Shift_Left (1, 2)) /= 0 then
+         CR4 := CR4 or Shift_Left (1, 11); --  UMIP.
+      end if;
+      if (EBX and Shift_Left (1, 7)) /= 0 then
+         CR4 := CR4 or Shift_Left (1, 20); --  SMEP.
+      end if;
+      if (EDX and Shift_Left (1, 20)) /= 0 then
+         Snippets.Write_MSR (UCET_MSR, 2#100#); --  Enable just IBT.
+         Snippets.Write_MSR (SCET_MSR, 2#100#); --  Enable just IBT.
       end if;
 
       --  Initialise the PAT (write-protect / write-combining).
@@ -217,13 +227,6 @@ package body Arch.CPU with SPARK_Mode => Off is
       --  Load the TSS.
       GDT.Load_TSS (Core_Locals (Core_Number).Core_TSS'Address);
    end Init_Common;
-
-   function Supports_UMIP return Boolean is
-      EAX, EBX, ECX, EDX : Unsigned_32;
-   begin
-      Snippets.Get_CPUID (7, 0, EAX, EBX, ECX, EDX);
-      return (ECX and 2#100#) /= 0;
-   end Supports_UMIP;
 
    function Get_BSP_LAPIC_ID return Unsigned_32 is
       EAX, EBX, ECX, EDX : Unsigned_32;

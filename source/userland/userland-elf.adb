@@ -16,9 +16,9 @@
 
 with System.Storage_Elements; use System.Storage_Elements;
 with Memory; use Memory;
-with Arch.MMU;
 with Lib.Alignment;
 with Devices;
+with Userland.Syscall;
 
 package body Userland.ELF with SPARK_Mode => Off is
    type ELF_ID_Field is array (Natural range <>) of Unsigned_8;
@@ -61,7 +61,7 @@ package body Userland.ELF with SPARK_Mode => Off is
    function Load_ELF
       (FS     : VFS.FS_Handle;
        Ino    : VFS.File_Inode_Number;
-       Map    : Memory.Virtual.Page_Map_Acc;
+       Map    : Arch.MMU.Page_Table_Acc;
        Base   : Unsigned_64) return Parsed_ELF
    is
       use VFS;
@@ -175,7 +175,7 @@ package body Userland.ELF with SPARK_Mode => Off is
       (FS     : VFS.FS_Handle;
        Ino    : VFS.File_Inode_Number;
        Header : Program_Header;
-       Map    : Memory.Virtual.Page_Map_Acc;
+       Map    : Arch.MMU.Page_Table_Acc;
        Base   : Unsigned_64) return Boolean
    is
       use VFS;
@@ -183,43 +183,44 @@ package body Userland.ELF with SPARK_Mode => Off is
       package Align2 is new Lib.Alignment (Integer_Address);
 
       MisAlign : constant Unsigned_64 :=
-         Header.Virt_Address and (Memory.Virtual.Page_Size - 1);
+         Header.Virt_Address and (Arch.MMU.Page_Size - 1);
       Load_Size : constant Unsigned_64 := MisAlign + Header.Mem_Size_Bytes;
       ELF_Virtual : constant Virtual_Address :=
          Virtual_Address (Base + Header.Virt_Address);
       Flags : constant Arch.MMU.Page_Permissions := (
-         User_Accesible => True,
-         Read_Only      => (Header.Flags and Flags_Write)       = 0,
-         Executable     => (Header.Flags and Flags_Executable) /= 0,
-         Global         => False,
-         Write_Through  => False
-      );
+         Is_User_Accesible => True,
+         Can_Read          => (Header.Flags and Flags_Read)       /= 0,
+         Can_Write         => (Header.Flags and Flags_Write)      /= 0,
+         Can_Execute       => (Header.Flags and Flags_Executable) /= 0,
+         Is_Global         => False,
+         Is_Write_Combine  => False);
       Ret_Count  : Natural;
       Success1   : Boolean;
       Success2   : FS_Status;
-      Result     : Virtual_Address;
+      Result     : System.Address;
    begin
-      if not Memory.Virtual.Check_Userland_Mappability (ELF_Virtual, Load_Size)
+      if not Userland.Syscall.Check_Userland_Mappability
+         (ELF_Virtual, Load_Size)
       then
          return False;
       end if;
 
-      Memory.Virtual.Map_Memory_Backed_Region
-         (Map      => Map,
-          Virtual  => Align2.Align_Down (ELF_Virtual,
-                      Memory.Virtual.Page_Size),
-          Length   => Align1.Align_Up (Load_Size, Memory.Virtual.Page_Size),
-          Flags    => Flags,
-          Writing  => Result,
-          Success  => Success1);
+      Arch.MMU.Map_Allocated_Range
+         (Map             => Map,
+          Virtual_Start   => To_Address (Align2.Align_Down (ELF_Virtual,
+                                         Arch.MMU.Page_Size)),
+          Length          => Storage_Count (Align1.Align_Up (Load_Size,
+                                            Arch.MMU.Page_Size)),
+          Permissions     => Flags,
+          Physical_Start  => Result,
+          Success         => Success1);
       if not Success1 then
          return False;
       end if;
 
       declare
          Load2 : Devices.Operation_Data (1 .. Header.File_Size_Bytes)
-            with Import, Address => To_Address (Result) +
-                                    Storage_Offset (MisAlign);
+            with Import, Address => Result + Storage_Offset (MisAlign);
       begin
          VFS.Read (FS, Ino, Header.Offset, Load2, Ret_Count, Success2, 0);
          return Success2 = FS_Success and Ret_Count = Header.File_Size_Bytes;

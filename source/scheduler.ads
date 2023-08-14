@@ -16,10 +16,10 @@
 
 with System;
 with Interfaces; use Interfaces;
-with Memory.Virtual;
 with Memory; use Memory;
 with Userland;
 with Userland.ELF;
+with Arch.MMU;
 with Arch.Context;
 
 package Scheduler is
@@ -37,18 +37,17 @@ package Scheduler is
    --  Return thread ID or 0 on failure.
    type TID is new Natural;
    function Create_User_Thread
-      (Address    : Virtual_Address;
-       Args       : Userland.Argument_Arr;
-       Env        : Userland.Environment_Arr;
-       Map        : Memory.Virtual.Page_Map_Acc;
-       Vector     : Userland.ELF.Auxval;
-       PID        : Natural;
-       Exec_Stack : Boolean := True) return TID;
+      (Address : Virtual_Address;
+       Args    : Userland.Argument_Arr;
+       Env     : Userland.Environment_Arr;
+       Map     : Arch.MMU.Page_Table_Acc;
+       Vector  : Userland.ELF.Auxval;
+       PID     : Natural) return TID;
 
    --  Create a userland thread with no arguments.
    function Create_User_Thread
       (Address    : Virtual_Address;
-       Map        : Memory.Virtual.Page_Map_Acc;
+       Map        : Arch.MMU.Page_Table_Acc;
        Stack_Addr : Unsigned_64;
        TLS_Addr   : Unsigned_64;
        PID        : Natural) return TID;
@@ -57,7 +56,7 @@ package Scheduler is
    function Create_User_Thread
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
-       Map      : Memory.Virtual.Page_Map_Acc;
+       Map      : Arch.MMU.Page_Table_Acc;
        PID      : Natural;
        TCB      : System.Address) return TID;
 

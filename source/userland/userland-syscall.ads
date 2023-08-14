@@ -20,6 +20,7 @@ with Arch.MMU;
 with IPC.PTY;
 with System;
 with Userland.MAC;
+with Memory;
 with Userland.Process; use Userland.Process;
 with VFS;              use VFS;
 with IPC.Socket;       use IPC.Socket;
@@ -762,6 +763,11 @@ package Userland.Syscall is
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context);
    procedure Post_Syscall_Hook (State : Arch.Context.GP_Context);
 
+   --  Check whether an address may be mapped by the user.
+   function Check_Userland_Mappability
+      (Addr       : Memory.Virtual_Address;
+       Byte_Count : Unsigned_64) return Boolean;
+
 private
 
    --  Translate an FS_Status to Errno.
@@ -826,4 +832,9 @@ private
        Success : out Boolean;
        FD      : out Natural;
        Start   : Natural := 0);
+
+   function Check_Userland_Access
+      (Map        : Arch.MMU.Page_Table_Acc;
+       Addr       : Memory.Virtual_Address;
+       Byte_Count : Unsigned_64) return Boolean;
 end Userland.Syscall;

@@ -19,7 +19,7 @@ with Lib;
 with Lib.Panic;
 with Lib.Alignment;
 with Memory;
-with Memory.Virtual;
+with Arch.MMU;
 
 package body Arch.Multiboot2 with SPARK_Mode => Off is
    Cached_RSDP : ACPI.RSDP;
@@ -194,11 +194,11 @@ package body Arch.Multiboot2 with SPARK_Mode => Off is
          if E.Length /= 0 then
             Value    := To_Integer (E.Start);
             E.Start  := To_Address
-               (A.Align_Up (Value, Memory.Virtual.Page_Size));
+               (A.Align_Up (Value, Arch.MMU.Page_Size));
             E.Length := E.Length -
                Storage_Count (To_Integer (E.Start) - Value);
             E.Length := Storage_Count (A.Align_Down
-               (Integer_Address (E.Length), Memory.Virtual.Page_Size));
+               (Integer_Address (E.Length), Arch.MMU.Page_Size));
          end if;
       end loop;
 

@@ -24,7 +24,7 @@ with Lib.Panic;
 with Networking;
 with Userland.Loader;
 with Scheduler; use Scheduler;
-with Memory.Virtual; use Memory.Virtual;
+with Arch.MMU; use Arch.MMU;
 with Memory.Physical;
 with Memory; use Memory;
 with Ada.Unchecked_Deallocation;
@@ -55,7 +55,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno    : out Errno_Value)
    is
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
-      Map   : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      Map   : constant  Page_Table_Acc := Get_Common_Map (Proc);
       I_Arg : constant Integer_Address := Integer_Address (Argument);
       S_Arg : constant  System.Address := To_Address (I_Arg);
    begin
@@ -84,7 +84,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Path_IAddr  : constant Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr  : constant  System.Address := To_Address (Path_IAddr);
       Curr_Proc   : constant             PID := Arch.Local.Get_Current_Process;
-      Map         : constant    Page_Map_Acc := Get_Common_Map (Curr_Proc);
+      Map         : constant    Page_Table_Acc := Get_Common_Map (Curr_Proc);
       Do_Cloexec  : constant         Boolean := (Flags and O_CLOEXEC)  /= 0;
       Do_Read     : constant         Boolean := (Flags and O_RDONLY)   /= 0;
       Do_Write    : constant         Boolean := (Flags and O_WRONLY)   /= 0;
@@ -232,7 +232,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
-      Map       : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      Map       : constant    Page_Table_Acc := Get_Common_Map (Proc);
       File      : constant File_Description_Acc := Get_File (Proc, File_D);
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
@@ -333,7 +333,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
-      Map       : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      Map       : constant    Page_Table_Acc := Get_Common_Map (Proc);
       File      : constant File_Description_Acc := Get_File (Proc, File_D);
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
@@ -521,9 +521,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Perms : constant Arch.MMU.Page_Permissions :=
          Get_Mmap_Prot (Protection, Flags);
       Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Map   : constant Page_Map_Acc := Get_Common_Map (Proc);
+      Map   : constant Page_Table_Acc := Get_Common_Map (Proc);
       Final_Hint : Unsigned_64 := Hint;
-      Ignored    : Virtual_Address;
+      Ignored    : System.Address;
       File       : File_Description_Acc;
       User       : Unsigned_32;
       Success    : Boolean;
@@ -564,13 +564,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       --  Do mmap anon or pass it to the VFS.
       if (Flags and MAP_ANON) /= 0 then
-         Map_Memory_Backed_Region
-            (Map,
-             Virtual_Address (Final_Hint),
-             Length,
-             Perms,
-             Ignored,
-             Success);
+         Map_Allocated_Range
+            (Map => Map,
+             Virtual_Start  => To_Address (Virtual_Address (Final_Hint)),
+             Length         => Storage_Count (Length),
+             Permissions    => Perms,
+             Physical_Start => Ignored,
+             Success        => Success);
          if Success then
             Errno := Error_No_Error;
             Returned := Final_Hint;
@@ -614,9 +614,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value)
    is
-      Proc : constant             PID := Arch.Local.Get_Current_Process;
-      Map  : constant    Page_Map_Acc := Get_Common_Map (Proc);
-      Addr : constant Virtual_Address := Virtual_Address (Address);
+      Proc : constant            PID := Arch.Local.Get_Current_Process;
+      Map  : constant Page_Table_Acc := Get_Common_Map (Proc);
+      Addr : constant System.Address := To_Address (Virtual_Address (Address));
    begin
       if not Get_Capabilities (Proc).Can_Modify_Memory then
          Errno := Error_Bad_Access;
@@ -625,7 +625,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return;
       end if;
 
-      if Unmap_Range (Map, Addr, Length) then
+      if Unmap_Range (Map, Addr, Storage_Count (Length)) then
          Errno := Error_No_Error;
          Returned := 0;
       else
@@ -660,7 +660,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Th      : constant TID := Arch.Local.Get_Current_Thread;
       Proc    : constant PID := Arch.Local.Get_Current_Process;
-      Tmp_Map : Memory.Virtual.Page_Map_Acc;
+      Tmp_Map : Arch.MMU.Page_Table_Acc;
       Success : Boolean;
    begin
       --  Flush our threads and keep the previous map just in case.
@@ -679,9 +679,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
           Errno     => Errno);
       if Success then
          --  Free critical state now that we know wont be running.
-         Success := Memory.Virtual.Make_Active (Get_Common_Map (Proc));
+         Success := Arch.MMU.Make_Active (Get_Common_Map (Proc));
          Userland.Process.Remove_Thread (Proc, Th);
-         Memory.Virtual.Delete_Map (Tmp_Map);
+         Arch.MMU.Destroy_Table (Tmp_Map);
          Scheduler.Bail;
       else
          Set_Common_Map (Proc, Tmp_Map);
@@ -747,7 +747,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Get_Identifier (Parent, Id, Id_Len);
          Set_Identifier (Child, Id (1 .. Id_Len));
 
-         Set_Common_Map (Child, Fork_Map (Get_Common_Map (Parent)));
+         Set_Common_Map (Child, Fork_Table (Get_Common_Map (Parent)));
          if Get_Common_Map (Child) = null then
             goto Block_Error;
          end if;
@@ -788,7 +788,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       Addr : constant Integer_Address  := Integer_Address (Exit_Addr);
       Proc : constant PID := Arch.Local.Get_Current_Process;
-      Map  :              Page_Map_Acc := Get_Common_Map (Proc);
+      Map  :              Page_Table_Acc := Get_Common_Map (Proc);
       Exit_Value : Unsigned_32 with Address => To_Address (Addr), Import;
       Waited : PID;
       Final_Waited_PID : Unsigned_64 := Waited_PID;
@@ -876,7 +876,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       --  Now that we got the exit code, finally allow the process to die.
       Map := Get_Common_Map (Waited);
-      Memory.Virtual.Delete_Map       (Map);
+      Arch.MMU.Destroy_Table          (Map);
       Userland.Process.Delete_Process (Waited);
       Errno := Error_No_Error;
       Returned := Final_Waited_PID;
@@ -950,7 +950,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno    : out Errno_Value)
    is
       Proc    : constant PID := Arch.Local.Get_Current_Process;
-      Map     : constant     Page_Map_Acc := Get_Common_Map (Proc);
+      Map     : constant     Page_Table_Acc := Get_Common_Map (Proc);
       Len     : constant          Natural := Natural (Length);
       IAddr   : constant  Integer_Address := Integer_Address (Address);
       SAddr   : constant   System.Address := To_Address (IAddr);
@@ -988,7 +988,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno     : out Errno_Value)
    is
       Proc       : constant PID := Arch.Local.Get_Current_Process;
-      Map        : constant     Page_Map_Acc := Get_Common_Map (Proc);
+      Map        : constant     Page_Table_Acc := Get_Common_Map (Proc);
       Stat_IAddr : constant  Integer_Address := Integer_Address (Stat_Addr);
       Stat_SAddr : constant   System.Address := To_Address (Stat_IAddr);
       File_Desc  : constant File_Description_Acc := Get_File (Proc, FD);
@@ -1126,7 +1126,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno    : out Errno_Value)
    is
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
-      Map   : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      Map   : constant    Page_Table_Acc := Get_Common_Map (Proc);
       IAddr : constant Integer_Address := Integer_Address (Buffer);
       SAddr : constant  System.Address := To_Address (IAddr);
       Len   :                  Natural := Natural (Length);
@@ -1160,7 +1160,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
       SAddr : constant   System.Address := To_Address (IAddr);
       Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Map   : constant     Page_Map_Acc := Get_Common_Map (Proc);
+      Map   : constant     Page_Table_Acc := Get_Common_Map (Proc);
       Final_Path   : String (1 .. 512);
       Final_Path_L : Natural;
       CWD          : String (1 .. Process.Max_CWD_Length);
@@ -1228,7 +1228,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       I_Arg : constant      Integer_Address := Integer_Address (Argument);
       S_Arg : constant       System.Address := To_Address (I_Arg);
       Proc  : constant     PID := Arch.Local.Get_Current_Process;
-      Map   : constant         Page_Map_Acc := Get_Common_Map (Proc);
+      Map   : constant         Page_Table_Acc := Get_Common_Map (Proc);
       File  : constant File_Description_Acc := Get_File (Proc, FD);
       Succ  : Boolean;
       FSSuc : VFS.FS_Status;
@@ -1320,7 +1320,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       Ad   : constant Integer_Address  := Integer_Address (Result_Addr);
       Proc : constant PID := Arch.Local.Get_Current_Process;
-      Map  : constant Page_Map_Acc     := Get_Common_Map (Proc);
+      Map  : constant Page_Table_Acc     := Get_Common_Map (Proc);
       Res  : array (1 .. 2) of Integer with Import, Address => To_Address (Ad);
       Returned2 : IPC.FIFO.Inner_Acc;
       Succ1, Succ2 : Boolean;
@@ -1378,7 +1378,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno       : out Errno_Value)
    is
       Proc      : constant PID := Arch.Local.Get_Current_Process;
-      Map       : constant     Page_Map_Acc := Get_Common_Map (Proc);
+      Map       : constant     Page_Table_Acc := Get_Common_Map (Proc);
       Src_IAddr : constant  Integer_Address := Integer_Address (Source_Addr);
       Src_SAddr : constant   System.Address := To_Address (Src_IAddr);
       Tgt_IAddr : constant  Integer_Address := Integer_Address (Target_Addr);
@@ -1453,7 +1453,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno    : out Errno_Value)
    is
       Proc   : constant PID := Arch.Local.Get_Current_Process;
-      Map    : constant     Page_Map_Acc := Get_Common_Map (Proc);
+      Map    : constant     Page_Table_Acc := Get_Common_Map (Proc);
       Stats  : Memory.Physical.Statistics;
       Result : Unsigned_64;
    begin
@@ -1593,7 +1593,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno     : out Errno_Value)
    is
       Proc       : constant             PID := Arch.Local.Get_Current_Process;
-      Map        : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      Map        : constant    Page_Table_Acc := Get_Common_Map (Proc);
       Caps_IAddr : constant Integer_Address := Integer_Address (Caps_Addr);
       Set_Caps   : constant         Boolean := Caps_IAddr /= 0;
       Caps       : Unsigned_64 with Import, Address => To_Address (Caps_IAddr);
@@ -1784,7 +1784,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno    : out Errno_Value)
    is
       Proc   : constant              PID := Arch.Local.Get_Current_Process;
-      Map    : constant Page_Map_Acc     := Get_Common_Map (Proc);
+      Map    : constant Page_Table_Acc     := Get_Common_Map (Proc);
       IAddr  : constant  Integer_Address := Integer_Address (Address);
       SAddr  : constant   System.Address := To_Address (IAddr);
       Result : Cryptography.Random.Crypto_Data (1 .. Natural (Length))
@@ -1812,10 +1812,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno      : out Errno_Value)
    is
       Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Map   : constant Page_Map_Acc     := Get_Common_Map (Proc);
+      Map   : constant Page_Table_Acc     := Get_Common_Map (Proc);
       Flags : constant Arch.MMU.Page_Permissions :=
          Get_Mmap_Prot (Protection, 0);
-      Addr  : constant Integer_Address := Integer_Address (Address);
+      Addr : constant System.Address := To_Address (Integer_Address (Address));
    begin
       if not Get_Capabilities (Proc).Can_Modify_Memory then
          Errno := Error_Bad_Access;
@@ -1824,9 +1824,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return;
       end if;
 
-      if not Check_Userland_Access (Map, Addr, Length) or else
-         not Remap_Range (Map, Addr, Length, Flags)
-      then
+      if not Remap_Range (Map, Addr, Storage_Count (Length), Flags) then
          Errno := Error_Would_Fault;
          Returned := Unsigned_64'Last;
          return;
@@ -1879,7 +1877,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno     : out Errno_Value)
    is
       Proc   : constant             PID := Arch.Local.Get_Current_Process;
-      Map    : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      Map    : constant    Page_Table_Acc := Get_Common_Map (Proc);
       Addr   : constant Integer_Address := Integer_Address (Path_Addr);
       Perms  : MAC.Permissions;
       Status : MAC.Addition_Status;
@@ -1989,7 +1987,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno       : out Errno_Value)
    is
       Proc       : constant PID := Arch.Local.Get_Current_Process;
-      Map        : constant     Page_Map_Acc := Get_Common_Map (Proc);
+      Map        : constant     Page_Table_Acc := Get_Common_Map (Proc);
       Src_IAddr  : constant  Integer_Address := Integer_Address (Source_Addr);
       Tgt_IAddr  : constant  Integer_Address := Integer_Address (Target_Addr);
       Src_Addr   : constant   System.Address := To_Address (Src_IAddr);
@@ -2051,7 +2049,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno     : out Errno_Value)
    is
       Curr_Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Map        : constant     Page_Map_Acc := Get_Common_Map (Curr_Proc);
+      Map        : constant     Page_Table_Acc := Get_Common_Map (Curr_Proc);
       Path_IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr : constant  System.Address  := To_Address (Path_IAddr);
       Flag_Force : constant Boolean := (Flags and MNT_FORCE) /= 0;
@@ -2096,7 +2094,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno       : out Errno_Value)
    is
       Proc : constant PID := Arch.Local.Get_Current_Process;
-      Map  : constant     Page_Map_Acc := Get_Common_Map (Proc);
+      Map  : constant     Page_Table_Acc := Get_Common_Map (Proc);
       Path_IAddr   : constant Integer_Address := Integer_Address (Path_Addr);
       Buffer_IAddr : constant Integer_Address := Integer_Address (Buffer_Addr);
       Path_Add     : constant System.Address  := To_Address (Path_IAddr);
@@ -2187,7 +2185,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Buff_Addr  : constant System.Address  := To_Address (Buff_IAddr);
       Buff_Len   : constant Unsigned_64     := Buffer_Len / (Dirent'Size / 8);
       Proc       : constant     PID := Arch.Local.Get_Current_Process;
-      Map        : constant         Page_Map_Acc := Get_Common_Map (Proc);
+      Map        : constant         Page_Table_Acc := Get_Common_Map (Proc);
       File       : constant File_Description_Acc := Get_File (Proc, FD);
       Tmp_Buffer : VFS.Directory_Entities_Acc;
       Buffer     : Dirents (1 .. Buff_Len) with Import, Address => Buff_Addr;
@@ -2267,7 +2265,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       pragma Unreferenced (Dev);
 
       Proc       : constant PID := Arch.Local.Get_Current_Process;
-      Map        : constant     Page_Map_Acc := Get_Common_Map (Proc);
+      Map        : constant     Page_Table_Acc := Get_Common_Map (Proc);
       Path_IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr : constant   System.Address := To_Address (Path_IAddr);
       CWD          : String (1 .. Process.Max_CWD_Length);
@@ -2336,7 +2334,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno     : out Errno_Value)
    is
       Curr_Proc    : constant PID := Arch.Local.Get_Current_Process;
-      Map          : constant    Page_Map_Acc := Get_Common_Map (Curr_Proc);
+      Map          : constant    Page_Table_Acc := Get_Common_Map (Curr_Proc);
       Path_IAddr   : constant Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr   : constant System.Address  := To_Address (Path_IAddr);
       CWD          : String (1 .. Process.Max_CWD_Length);
@@ -2464,7 +2462,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno       : out Errno_Value)
    is
       Proc       : constant PID := Arch.Local.Get_Current_Process;
-      Map        : constant     Page_Map_Acc := Get_Common_Map (Proc);
+      Map        : constant     Page_Table_Acc := Get_Common_Map (Proc);
       Path_IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr : constant   System.Address := To_Address (Path_IAddr);
       Targ_IAddr : constant  Integer_Address := Integer_Address (Target_Addr);
@@ -2576,7 +2574,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Win_IAddr : constant  Integer_Address := Integer_Address (Window_Addr);
       Win_SAddr : constant   System.Address := To_Address (Win_IAddr);
       Proc      : constant              PID := Arch.Local.Get_Current_Process;
-      Map       : constant     Page_Map_Acc := Get_Common_Map (Proc);
+      Map       : constant     Page_Table_Acc := Get_Common_Map (Proc);
 
       Result_PTY     : IPC.PTY.Inner_Acc;
       Primary_Desc   : File_Description_Acc;
@@ -2663,7 +2661,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno       : out Errno_Value)
    is
       Proc      : constant PID := Arch.Local.Get_Current_Process;
-      Map       : constant     Page_Map_Acc := Get_Common_Map (Proc);
+      Map       : constant     Page_Table_Acc := Get_Common_Map (Proc);
       Src_IAddr : constant  Integer_Address := Integer_Address (Source_Addr);
       Src_SAddr : constant   System.Address := To_Address (Src_IAddr);
       Dst_IAddr : constant  Integer_Address := Integer_Address (Desto_Addr);
@@ -2891,7 +2889,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       pragma Unreferenced (Timeout);
 
       Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Map   : constant     Page_Map_Acc := Get_Common_Map (Proc);
+      Map   : constant     Page_Table_Acc := Get_Common_Map (Proc);
       IAddr : constant  Integer_Address := Integer_Address (FDs_Addr);
       SAddr : constant   System.Address := To_Address (IAddr);
       Count :                   Natural := 0;
@@ -3135,7 +3133,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
-      Map       : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      Map       : constant    Page_Table_Acc := Get_Common_Map (Proc);
       File      : constant File_Description_Acc := Get_File (Proc, File_D);
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
@@ -3210,7 +3208,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
-      Map       : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      Map       : constant    Page_Table_Acc := Get_Common_Map (Proc);
       File      : constant File_Description_Acc := Get_File (Proc, File_D);
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
@@ -3391,7 +3389,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
       type Arg_Arr is array (Natural range <>) of Unsigned_64;
 
-      Map        : constant    Page_Map_Acc := Get_Common_Map (Proc);
+      Map        : constant    Page_Table_Acc := Get_Common_Map (Proc);
       Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
       Path       : String (1 .. Natural (Path_Len))
@@ -3472,7 +3470,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          --  Create a new map for the process and reroll ASLR.
          Userland.Process.Flush_Exec_Files (Proc);
          Userland.Process.Reroll_ASLR (Proc);
-         Set_Common_Map (Proc, Memory.Virtual.New_Map);
+         Set_Common_Map
+            (Proc, Arch.MMU.Fork_Table (Arch.MMU.Kernel_Table));
          Set_Identifier (Proc, Args (1).all);
 
          --  Start the actual program.
@@ -3508,11 +3507,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Perms : Unsigned_64) return Arch.MMU.Page_Permissions is
    begin
       return
-         (User_Accesible => True,
-          Read_Only      => (Prot and PROT_WRITE) = 0,
-          Executable     => (Prot and PROT_EXEC) /= 0,
-          Global         => False,
-          Write_Through  => (Perms and MAP_WC) /= 0);
+         (Is_User_Accesible => True,
+          Can_Read          => (Prot and PROT_READ)  /= 0,
+          Can_Write         => (Prot and PROT_WRITE) /= 0,
+          Can_Execute       => (Prot and PROT_EXEC)  /= 0,
+          Is_Global         => False,
+          Is_Write_Combine  => (Perms and MAP_WC) /= 0);
    end Get_Mmap_Prot;
 
    procedure Execute_MAC_Failure (Name : String; Curr_Proc : PID) is
@@ -3624,4 +3624,35 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Success := False;
       end if;
    end Check_Add_File;
+
+   function Check_Userland_Access
+      (Map        : Arch.MMU.Page_Table_Acc;
+       Addr       : Memory.Virtual_Address;
+       Byte_Count : Unsigned_64) return Boolean
+   is
+      Result : System.Address;
+      Is_Mapped, Is_Readable, Is_Writeable, Is_Executable : Boolean;
+      Is_User_Accessible : Boolean;
+   begin
+      Arch.MMU.Translate_Address
+         (Map                => Map,
+          Virtual            => To_Address (Addr),
+          Length             => Storage_Count (Byte_Count),
+          Physical           => Result,
+          Is_Mapped          => Is_Mapped,
+          Is_User_Accessible => Is_User_Accessible,
+          Is_Readable        => Is_Readable,
+          Is_Writeable       => Is_Writeable,
+          Is_Executable      => Is_Executable);
+      return Is_User_Accessible;
+   end Check_Userland_Access;
+
+   function Check_Userland_Mappability
+      (Addr       : Memory.Virtual_Address;
+       Byte_Count : Unsigned_64) return Boolean
+   is
+   begin
+      return Addr                                < Memory_Offset and then
+             Addr + Virtual_Address (Byte_Count) < Memory_Offset;
+   end Check_Userland_Mappability;
 end Userland.Syscall;

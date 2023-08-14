@@ -21,7 +21,6 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Arch.MMU;
 with Arch.CPU;
 with Arch.Multiboot2; use Arch.Multiboot2;
-with Memory.Virtual;  use Memory.Virtual;
 with Userland.Process;
 
 package body Devices.FB with SPARK_Mode => Off is
@@ -178,12 +177,12 @@ package body Devices.FB with SPARK_Mode => Off is
    is
       Dev_Data : Internal_FB_Data with Import, Address => Data;
    begin
-      return Memory.Virtual.Map_Range
-         (Map      => Userland.Process.Get_Common_Map
-                      (Arch.CPU.Get_Local.Current_Process),
-          Virtual  => Address,
-          Physical => To_Integer (Dev_Data.Multiboot_Data.Address),
-          Length   => Length,
-          Flags    => Flags);
+      return Arch.MMU.Map_Range
+         (Map              => Userland.Process.Get_Common_Map
+                              (Arch.CPU.Get_Local.Current_Process),
+          Virtual_Start    => To_Address (Address),
+          Physical_Start   => Dev_Data.Multiboot_Data.Address,
+          Length           => Storage_Count (Length),
+          Permissions      => Flags);
    end Mmap;
 end Devices.FB;
