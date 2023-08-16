@@ -158,17 +158,21 @@ package body IPC.FIFO is
 
       if To_Read.Is_Read_Blocking then
          loop
-            exit when To_Read.Data_Count /= 0;
+            if To_Read.Data_Count /= 0 then
+               Lib.Synchronization.Seize (To_Read.Mutex);
+               exit when To_Read.Data_Count /= 0;
+               Lib.Synchronization.Release (To_Read.Mutex);
+            end if;
             Arch.Snippets.Pause;
          end loop;
-      end if;
-
-      Lib.Synchronization.Seize (To_Read.Mutex);
-      if not To_Read.Is_Read_Blocking and To_Read.Data_Count = 0 then
-         Ret_Count := 0;
-         Success   := Would_Block_Failure;
-         Lib.Synchronization.Release (To_Read.Mutex);
-         return;
+      else
+         Lib.Synchronization.Seize (To_Read.Mutex);
+         if To_Read.Data_Count = 0 then
+            Ret_Count := 0;
+            Success   := Would_Block_Failure;
+            Lib.Synchronization.Release (To_Read.Mutex);
+            return;
+         end if;
       end if;
 
       if Final_Len > To_Read.Data_Count then
@@ -205,25 +209,29 @@ package body IPC.FIFO is
       Len   : Natural := Data'Length;
       Final : Natural;
    begin
-      Lib.Synchronization.Seize (To_Write.Mutex);
-
       if To_Write.Reader_Closed then
          Ret_Count := 0;
          Success   := Broken_Failure;
-         goto Cleanup;
-      elsif not To_Write.Is_Write_Blocking and
-            To_Write.Data_Count = To_Write.Data'Length
-      then
-         Ret_Count := 0;
-         Success   := Would_Block_Failure;
-         goto Cleanup;
-      else
+         return;
+      end if;
+
+      if To_Write.Is_Write_Blocking then
          loop
-            Lib.Synchronization.Release (To_Write.Mutex);
+            if To_Write.Data_Count /= To_Write.Data'Length then
+               Lib.Synchronization.Seize (To_Write.Mutex);
+               exit when To_Write.Data_Count /= To_Write.Data'Length;
+               Lib.Synchronization.Release (To_Write.Mutex);
+            end if;
             Arch.Snippets.Pause;
-            Lib.Synchronization.Seize (To_Write.Mutex);
-            exit when To_Write.Data_Count /= To_Write.Data'Length;
          end loop;
+      else
+         Lib.Synchronization.Seize (To_Write.Mutex);
+         if To_Write.Data_Count = 0 then
+            Ret_Count := 0;
+            Success   := Would_Block_Failure;
+            Lib.Synchronization.Release (To_Write.Mutex);
+            return;
+         end if;
       end if;
 
       if Len > To_Write.Data'Length or else
@@ -245,7 +253,6 @@ package body IPC.FIFO is
       Ret_Count := Len;
       Success   := Pipe_Success;
 
-   <<Cleanup>>
       Lib.Synchronization.Release (To_Write.Mutex);
    end Write;
    ----------------------------------------------------------------------------

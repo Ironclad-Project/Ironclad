@@ -58,6 +58,14 @@ package body Devices.Serial with SPARK_Mode => Off is
       return True;
    end Init;
 
+   procedure Write_COM1 (C : Character) is
+   begin
+      while not Can_Transmit (COM_Ports (COM_Ports'First)) loop
+         Arch.Snippets.Pause;
+      end loop;
+      Arch.Snippets.Port_Out (COM_Ports (COM_Ports'First), Character'Pos (C));
+   end Write_COM1;
+   ----------------------------------------------------------------------------
    procedure Read
       (Key       : System.Address;
        Offset    : Unsigned_64;

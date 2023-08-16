@@ -15,8 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Devices.TermIOs;
-with IPC.FIFO;
 with Lib.Synchronization;
+with Arch.MMU;
 
 package IPC.PTY is
    --  PTYs are an IPC method meant to provide bidirectional communication
@@ -109,16 +109,17 @@ package IPC.PTY is
 private
 
    type Inner is record
-      Mutex          : aliased Lib.Synchronization.Binary_Semaphore;
-      Secondary_Pipe : FIFO.Inner_Acc;
-      Primary_Pipe   : FIFO.Inner_Acc;
-      Term_Info      : Devices.TermIOs.Main_Data;
-      Term_Size      : Devices.TermIOs.Win_Size;
-      Was_Closed     : Boolean;
+      Primary_Mutex     : aliased Lib.Synchronization.Binary_Semaphore;
+      Secondary_Mutex   : aliased Lib.Synchronization.Binary_Semaphore;
+      Global_Data_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+      Term_Info         : Devices.TermIOs.Main_Data;
+      Term_Size         : Devices.TermIOs.Win_Size;
+      Was_Closed        : Boolean;
+      Primary_Length    : Natural range 0 .. Arch.MMU.Page_Size;
+      Secondary_Length  : Natural range 0 .. Arch.MMU.Page_Size;
+      Primary_Data      : Devices.Operation_Data (1 .. Arch.MMU.Page_Size);
+      Secondary_Data    : Devices.Operation_Data (1 .. Arch.MMU.Page_Size);
    end record;
 
-   function Is_Valid (P : Inner_Acc) return Boolean is
-      (P /= null                        and then
-       FIFO.Is_Valid (P.Secondary_Pipe) and then
-       FIFO.Is_Valid (P.Primary_Pipe));
+   function Is_Valid (P : Inner_Acc) return Boolean is (P /= null);
 end IPC.PTY;

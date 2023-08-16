@@ -213,28 +213,52 @@ package body Arch.MMU with SPARK_Mode => Off is
        Is_Writeable       : out Boolean;
        Is_Executable      : out Boolean)
    is
-      pragma Unreferenced (Length);
-
-      Addr      : constant Integer_Address := To_Integer (Virtual);
-      Page_Addr : constant Virtual_Address := Get_Page (Map, Addr, False);
-      Page      : Unsigned_64 with Address => To_Address (Page_Addr), Import;
+      Virt       : Virtual_Address          := To_Integer (Virtual);
+      Final      : constant Virtual_Address := Virt + Virtual_Address (Length);
+      Page_Addr  : Virtual_Address;
+      First_Iter : Boolean := True;
    begin
       Lib.Synchronization.Seize (Map.Mutex);
-      if Page_Addr /= Memory.Null_Address and (Page and Page_P) /= 0 then
-         Physical           := To_Address (Clean_Entry (Page));
-         Is_Mapped          := True;
-         Is_User_Accessible := (Page and Page_U) /= 0;
-         Is_Readable        := True;
-         Is_Writeable       := (Page and Page_RW) /= 0;
-         Is_Executable      := (Page and Page_NX) = 0;
-      else
-         Physical           := System.Null_Address;
-         Is_Mapped          := False;
-         Is_User_Accessible := False;
-         Is_Readable        := False;
-         Is_Writeable       := False;
-         Is_Executable      := False;
-      end if;
+      Physical           := System.Null_Address;
+      Is_Mapped          := False;
+      Is_User_Accessible := False;
+      Is_Readable        := False;
+      Is_Writeable       := False;
+      Is_Executable      := False;
+
+      while Virt < Final loop
+         Page_Addr := Get_Page (Map, Virt, False);
+         declare
+            Page : Unsigned_64 with Address => To_Address (Page_Addr), Import;
+         begin
+            if First_Iter then
+               if Page_Addr /= 0 then
+                  Physical           := To_Address (Clean_Entry (Page));
+                  Is_Mapped          := (Page and Page_P) /= 0;
+                  Is_User_Accessible := (Page and Page_U) /= 0;
+                  Is_Readable        := True;
+                  Is_Writeable       := (Page and Page_RW) /= 0;
+                  Is_Executable      := (Page and Page_NX) = 0;
+               end if;
+               First_Iter := False;
+            elsif Page_Addr = 0                                      or else
+                  (Is_Mapped          and ((Page and Page_P)   = 0)) or else
+                  (Is_User_Accessible and ((Page and Page_U)   = 0)) or else
+                  (Is_Writeable       and ((Page and Page_RW)  = 0)) or else
+                  (Is_Executable      and ((Page and Page_NX) /= 0))
+            then
+               Physical           := System.Null_Address;
+               Is_Mapped          := False;
+               Is_User_Accessible := False;
+               Is_Readable        := False;
+               Is_Writeable       := False;
+               Is_Executable      := False;
+               exit;
+            end if;
+         end;
+         Virt := Virt + Page_Size;
+      end loop;
+
       Lib.Synchronization.Release (Map.Mutex);
    end Translate_Address;
 
@@ -533,8 +557,8 @@ package body Arch.MMU with SPARK_Mode => Off is
                Destroy_Level (E, Level - 1);
             end loop;
          end if;
-         Memory.Physical.Free (Interfaces.C.size_t (Addr));
       end if;
+      Memory.Physical.Free (Interfaces.C.size_t (Addr));
    end Destroy_Level;
 
    --  TODO: Code this bad boy once the VMM makes use of them.

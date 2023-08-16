@@ -18,6 +18,9 @@ package Devices.Serial with SPARK_Mode => Off is
    --  Initialize the serial devices.
    function Init return Boolean;
 
+   --  Little function for debug printing.
+   procedure Write_COM1 (C : Character);
+
 private
 
    type COM_Root is record

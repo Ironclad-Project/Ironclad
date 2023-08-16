@@ -14,18 +14,12 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Snippets;
-with Interfaces; use Interfaces;
+with Devices.Serial;
 
 package body Arch.Debug with SPARK_Mode => Off is
-   COM1 : constant := 16#3F8#;
-
    procedure Print (Message : Character) is
    begin
-      while (Snippets.Port_In (16#3F8# + 5) and 16#20#) = 0 loop
-         null;
-      end loop;
-      Snippets.Port_Out (COM1, Character'Pos (Message));
+      Devices.Serial.Write_COM1 (Message);
    end Print;
 
    procedure Print (Message : String) is
