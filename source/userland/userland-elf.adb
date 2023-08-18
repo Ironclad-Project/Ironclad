@@ -199,9 +199,9 @@ package body Userland.ELF with SPARK_Mode => Off is
       Success2   : FS_Status;
       Result     : System.Address;
    begin
-      if not Userland.Syscall.Check_Userland_Mappability
-         (ELF_Virtual, Load_Size)
-      then
+      Success1 := Userland.Syscall.Check_Userland_Mappability
+         (Map, ELF_Virtual, Load_Size);
+      if not Success1 or (Flags.Can_Execute and Flags.Can_Write) then
          return False;
       end if;
 

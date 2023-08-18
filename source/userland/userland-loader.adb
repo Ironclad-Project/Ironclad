@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Characters.Latin_1;
+with Ada.Unchecked_Deallocation;
 with Interfaces; use Interfaces;
 with System;
 with System.Storage_Elements; use System.Storage_Elements;
@@ -199,6 +200,8 @@ package body Userland.Loader with SPARK_Mode => Off is
        Environment : Environment_Arr;
        Proc        : PID) return Boolean
    is
+      procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
+
       Path_Len  :     Natural := 0;
       Arg_Len   :     Natural := 0;
       Pos       : Unsigned_64 := 0;
@@ -211,6 +214,7 @@ package body Userland.Loader with SPARK_Mode => Off is
          with Import, Address => Char'Address;
       Char_Len  : Natural;
       Success   : VFS.FS_Status;
+      Returned  : Boolean;
    begin
       Read (FS, Ino, 0, Path_Data (1 .. 2), Path_Len, Success, 0);
       if Success /= VFS.FS_Success or Path_Len /= 2 or Path (1 .. 2) /= "#!"
@@ -265,14 +269,26 @@ package body Userland.Loader with SPARK_Mode => Off is
          if Success /= FS_Success then
             return False;
          end if;
-         return Start_Program (
-            Exec_Path,
-            Banged_FS,
-            Banged_Ino,
-            New_Args,
-            Environment,
-            Proc
-         );
+
+         Returned := Start_Program
+            (Exec_Path   => Exec_Path,
+             FS          => Banged_FS,
+             Ino         => Banged_Ino,
+             Arguments   => New_Args,
+             Environment => Environment,
+             Proc        => Proc);
+
+         --  Rewalk the steps to free.
+         I := 1;
+         Free (New_Args (I));
+         I := I + 1;
+         if Arg_Len /= 0 then
+            Free (New_Args (I));
+            I := I + 1;
+         end if;
+         Free (New_Args (I));
+
+         return Returned;
       end;
    end Start_Shebang;
 end Userland.Loader;

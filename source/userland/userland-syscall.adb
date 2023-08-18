@@ -520,8 +520,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       pragma Unreferenced (Offset);
       Perms : constant Arch.MMU.Page_Permissions :=
          Get_Mmap_Prot (Protection, Flags);
-      Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Map   : constant Page_Table_Acc := Get_Common_Map (Proc);
+      Proc       : constant            PID := Arch.Local.Get_Current_Process;
+      Map        : constant Page_Table_Acc := Get_Common_Map (Proc);
       Final_Hint : Unsigned_64 := Hint;
       Ignored    : System.Address;
       File       : File_Description_Acc;
@@ -531,6 +531,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
       if not Get_Capabilities (Proc).Can_Modify_Memory then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("mmap", Proc);
+         Returned := Unsigned_64'Last;
+         return;
+      elsif (Perms.Can_Write and Perms.Can_Execute) or
+            (Hint   mod Page_Size /= 0)             or
+            (Length mod Page_Size /= 0)
+      then
+         Errno    := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
          return;
       end if;
@@ -555,7 +562,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       --  Check the address is good.
-      if not Check_Userland_Mappability (Virtual_Address (Final_Hint), Length)
+      if not Check_Userland_Mappability
+         (Map, Virtual_Address (Final_Hint), Length)
       then
          Errno := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
@@ -784,45 +792,33 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned                       : out Unsigned_64;
        Errno                          : out Errno_Value)
    is
-      --  TODO: Support things like WCONTINUE once signals work.
-
-      Addr : constant Integer_Address  := Integer_Address (Exit_Addr);
-      Proc : constant PID := Arch.Local.Get_Current_Process;
-      Map  :              Page_Table_Acc := Get_Common_Map (Proc);
+      Addr       : constant Integer_Address := Integer_Address (Exit_Addr);
+      Proc       : constant             PID := Arch.Local.Get_Current_Process;
+      Dont_Hang  : constant         Boolean := (Options and WNOHANG) /= 0;
+      Map        :           Page_Table_Acc := Get_Common_Map (Proc);
+      Waited     : PID;
+      Children   : Process.Children_Arr (1 .. 25);
+      Count      : Natural;
+      Did_Exit   : Boolean;
+      Error_Code : Unsigned_8;
       Exit_Value : Unsigned_32 with Address => To_Address (Addr), Import;
-      Waited : PID;
-      Final_Waited_PID : Unsigned_64 := Waited_PID;
-      Dont_Hang : constant Boolean := (Options and WNOHANG) /= 0;
-      Children       : Process.Children_Arr (1 .. 50);
-      Children_Count : Natural;
-      Did_Exit       : Boolean;
-      Error_Code     : Unsigned_8;
    begin
-      --  Fail on having to wait on the process group, we dont support that.
-      if Waited_PID = 0 then
-         Errno := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
-      --  Check whether there is anything to wait.
-      Process.Get_Children (Proc, Children, Children_Count);
-      if Children_Count = 0 then
-         Errno := Error_Child;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
       --  If -1, we have to wait for any of the children, else, wait for the
       --  passed PID.
       if Waited_PID = Unsigned_64 (Unsigned_32'Last) then
+         Process.Get_Children (Proc, Children, Count);
+         if Count = 0 then
+            Errno    := Error_Child;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
          loop
-            for PID_Item of Children (1 .. Children_Count) loop
+            for PID_Item of Children (1 .. Count) loop
                Waited := PID_Item;
                if Waited /= Error_PID then
                   Check_Exit (Waited, Did_Exit, Error_Code);
                   if Did_Exit then
-                     Final_Waited_PID := Unsigned_64 (Convert (PID_Item));
                      goto Waited_Exited;
                   end if;
                end if;
@@ -834,19 +830,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Scheduler.Yield;
          end loop;
       else
-         --  Check the process is actually our child.
-         if Get_Parent (Convert (Natural (Waited_PID))) /= Proc then
-            Errno := Error_Child;
+         Waited := Userland.Process.Convert (Natural (Waited_PID));
+         if Get_Parent (Waited) /= Proc then
+            Errno    := Error_Child;
             Returned := Unsigned_64'Last;
             return;
          end if;
 
-         Waited := Userland.Process.Convert (Natural (Waited_PID));
          if Waited /= Error_PID then
             loop
                Check_Exit (Waited, Did_Exit, Error_Code);
                if Did_Exit then
-                  Final_Waited_PID := Waited_PID;
                   goto Waited_Exited;
                end if;
                if Dont_Hang then
@@ -859,7 +853,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       --  If we get here, it means we are not blocking, and that the
       --  process has not exited, so lets return what we have to.
-      Errno := Error_No_Error;
+      Errno    := Error_No_Error;
       Returned := 0;
       return;
 
@@ -867,7 +861,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       --  Set the return value if we are to.
       if Exit_Value'Address /= System.Null_Address then
          if not Check_Userland_Access (Map, Addr, 4) then
-            Errno := Error_Would_Fault;
+            Errno    := Error_Would_Fault;
             Returned := Unsigned_64'Last;
             return;
          end if;
@@ -878,8 +872,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Map := Get_Common_Map (Waited);
       Arch.MMU.Destroy_Table          (Map);
       Userland.Process.Delete_Process (Waited);
-      Errno := Error_No_Error;
-      Returned := Final_Waited_PID;
+
+      Errno    := Error_No_Error;
+      Returned := Unsigned_64 (Convert (Waited));
    end Wait;
 
    procedure Socket
@@ -1820,6 +1815,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
       if not Get_Capabilities (Proc).Can_Modify_Memory then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("mprotect", Proc);
+         Returned := Unsigned_64'Last;
+         return;
+      elsif (Flags.Can_Write and Flags.Can_Execute) or
+            (Address mod Page_Size /= 0)            or
+            (Length  mod Page_Size /= 0)
+      then
+         Errno    := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
          return;
       end if;
@@ -3648,11 +3650,28 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Check_Userland_Access;
 
    function Check_Userland_Mappability
-      (Addr       : Memory.Virtual_Address;
+      (Map        : Arch.MMU.Page_Table_Acc;
+       Addr       : Memory.Virtual_Address;
        Byte_Count : Unsigned_64) return Boolean
    is
+      Result : System.Address;
+      Is_Mapped, Is_Readable, Is_Writeable, Is_Executable : Boolean;
+      Is_User_Accessible : Boolean;
    begin
-      return Addr                                < Memory_Offset and then
-             Addr + Virtual_Address (Byte_Count) < Memory_Offset;
+      if Addr + Virtual_Address (Byte_Count) > Memory_Offset then
+         return False;
+      end if;
+
+      Arch.MMU.Translate_Address
+         (Map                => Map,
+          Virtual            => To_Address (Addr),
+          Length             => Storage_Count (Byte_Count),
+          Physical           => Result,
+          Is_Mapped          => Is_Mapped,
+          Is_User_Accessible => Is_User_Accessible,
+          Is_Readable        => Is_Readable,
+          Is_Writeable       => Is_Writeable,
+          Is_Executable      => Is_Executable);
+      return not Is_Mapped;
    end Check_Userland_Mappability;
 end Userland.Syscall;

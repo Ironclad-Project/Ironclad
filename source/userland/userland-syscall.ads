@@ -765,7 +765,8 @@ package Userland.Syscall is
 
    --  Check whether an address may be mapped by the user.
    function Check_Userland_Mappability
-      (Addr       : Memory.Virtual_Address;
+      (Map        : Arch.MMU.Page_Table_Acc;
+       Addr       : Memory.Virtual_Address;
        Byte_Count : Unsigned_64) return Boolean;
 
 private

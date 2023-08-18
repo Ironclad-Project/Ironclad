@@ -443,7 +443,6 @@ package body Scheduler with SPARK_Mode => Off is
    function Update_Priorities return Boolean is
       Periods_LCM    : Positive := 1;
       Total_Run_Time : Natural  := 0;
-      Temp           : Natural;
    begin
       --  Find period LCM, lowest period, and total run time of all available
       --  tasks.
@@ -455,8 +454,7 @@ package body Scheduler with SPARK_Mode => Off is
       end loop;
 
       --  Check validity using Least upper bound -> Inf = ln 2 = (aprox 69%).
-      Temp := Total_Run_Time / (Periods_LCM / 100);
-      if Temp > 69 then
+      if Total_Run_Time / (Periods_LCM / 100) > 69 then
          Lib.Messages.Warn ("Usage% > 69%. Tasks might not be schedulable!");
       end if;
 
