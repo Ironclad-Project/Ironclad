@@ -16,19 +16,39 @@
 
 with Arch.Snippets; use Arch.Snippets;
 with System.Address_To_Access_Conversions;
+with System.Storage_Elements; use System.Storage_Elements;
 with Lib.Messages;
 with Devices.Partitions;
+with Arch.PCI;
 
 package body Devices.ATA with SPARK_Mode => Off is
    package Con is new System.Address_To_Access_Conversions (ATA_Data);
 
    function Init return Boolean is
+      PCI_Dev    : Arch.PCI.PCI_Device;
+      PCI_BAR0   : Arch.PCI.Base_Address_Register;
+      PCI_BAR2   : Arch.PCI.Base_Address_Register;
       Base_Name  : String := "ata0";
       Drive_Data : ATA_Data_Acc;
       Success    : Boolean;
+      Pair_Ports : array (0 .. 1) of Unsigned_16;
    begin
+      if not Arch.PCI.Search_Device (16#1#, 16#1#, 16#80#, PCI_Dev) then
+         return True;
+      end if;
+
+      if not Arch.PCI.Get_BAR (PCI_Dev, 0, PCI_BAR0) then
+         PCI_BAR0.Base := 16#1F0#;
+      end if;
+      if not Arch.PCI.Get_BAR (PCI_Dev, 2, PCI_BAR2) then
+         PCI_BAR2.Base := 16#170#;
+      end if;
+
+      Pair_Ports (0) := Unsigned_16 (PCI_BAR0.Base and 16#FFFF#);
+      Pair_Ports (1) := Unsigned_16 (PCI_BAR2.Base and 16#FFFF#);
+
       for I in 0 .. 3 loop
-         Drive_Data := Init_Port (I);
+         Drive_Data := Init_Port (Pair_Ports (I / 2), (I mod 2) = 0);
          if Drive_Data /= null then
             Base_Name (4) := Character'Val (I + 1 + Character'Pos ('0'));
             Register (
@@ -53,9 +73,10 @@ package body Devices.ATA with SPARK_Mode => Off is
       return True;
    end Init;
 
-   function Init_Port (Port_Index : Natural) return ATA_Data_Acc is
-      Base_Port         : constant Unsigned_16 := Pair_Ports (Port_Index / 2);
-      Is_Master         : constant Boolean     := (Port_Index mod 2) = 0;
+   function Init_Port
+      (Base_Port : Unsigned_16;
+       Is_Master : Boolean) return ATA_Data_Acc
+   is
       Data_Port         : constant Unsigned_16 := Base_Port;
       Error_Port        : constant Unsigned_16 := Base_Port + 16#001#;
       Sector_Count_Port : constant Unsigned_16 := Base_Port + 16#002#;

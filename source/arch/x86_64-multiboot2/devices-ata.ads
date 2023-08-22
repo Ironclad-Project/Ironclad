@@ -22,10 +22,6 @@ package Devices.ATA with SPARK_Mode => Off is
 
 private
 
-   --  ATA drives come in pairs, master and slave, and usually found in one of
-   --  these 2 ports.
-   Pair_Ports : constant array (0 .. 1) of Unsigned_16 := (16#1F0#, 16#170#);
-
    --  Data stored for each drive.
    Sector_Size : constant := 512;
    subtype Sector_Data is Operation_Data (1 .. Sector_Size);
@@ -57,7 +53,9 @@ private
    type ATA_Data_Acc is access all ATA_Data;
 
    --  Probe a port and return an initialized ATA drive, or null if not found.
-   function Init_Port (Port_Index : Natural) return ATA_Data_Acc;
+   function Init_Port
+      (Base_Port : Unsigned_16;
+       Is_Master : Boolean) return ATA_Data_Acc;
 
    --  Read a single sector.
    function Read_Sector
