@@ -1,5 +1,5 @@
---  userland-elf.ads: Specification of the ELF loading library.
---  Copyright (C) 2021 streaksu
+--  userland-elf.ads: ELF loading library.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -85,6 +85,43 @@ private
       Alignment       at 0 range 384 .. 447;
    end record;
    for Program_Header'Size use 448;
+
+   type ELF_ID_Field is array (Natural range <>) of Unsigned_8;
+   ELF_Signature : constant ELF_ID_Field (1 .. 4) :=
+      (16#7F#, Character'Pos ('E'), Character'Pos ('L'), Character'Pos ('F'));
+   type ELF_Header is record
+      Identifier           : ELF_ID_Field (1 .. 16);
+      ELF_Type             : Unsigned_16;
+      Machine              : Unsigned_16;
+      Version              : Unsigned_32;
+      Entrypoint           : System.Address;
+      Program_Header_List  : Unsigned_64;
+      Section_Header_List  : Unsigned_64;
+      Flags                : Unsigned_32;
+      Header_Size          : Unsigned_16;
+      Program_Header_Size  : Unsigned_16;
+      Program_Header_Count : Unsigned_16;
+      Section_Header_Size  : Unsigned_16;
+      Section_Header_Count : Unsigned_16;
+      Section_Names_Index  : Unsigned_16;
+   end record;
+   for ELF_Header use record
+      Identifier           at 0 range   0 .. 127;
+      ELF_Type             at 0 range 128 .. 143;
+      Machine              at 0 range 144 .. 159;
+      Version              at 0 range 160 .. 191;
+      Entrypoint           at 0 range 192 .. 255;
+      Program_Header_List  at 0 range 256 .. 319;
+      Section_Header_List  at 0 range 320 .. 383;
+      Flags                at 0 range 384 .. 415;
+      Header_Size          at 0 range 416 .. 431;
+      Program_Header_Size  at 0 range 432 .. 447;
+      Program_Header_Count at 0 range 448 .. 463;
+      Section_Header_Size  at 0 range 464 .. 479;
+      Section_Header_Count at 0 range 480 .. 495;
+      Section_Names_Index  at 0 range 496 .. 511;
+   end record;
+   for ELF_Header'Size use 512;
 
    function Get_Linker
       (FS     : VFS.FS_Handle;
