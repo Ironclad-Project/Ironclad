@@ -2196,62 +2196,63 @@ package body Userland.Syscall with SPARK_Mode => Off is
       User       : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Buff_IAddr, Buffer_Len) then
-         Errno := Error_Would_Fault;
          Returned := Unsigned_64'Last;
-         return;
+         Errno    := Error_Would_Fault;
       elsif File = null or else File.Description /= Description_Inode then
-         Errno := Error_Bad_File;
          Returned := Unsigned_64'Last;
-         return;
+         Errno    := Error_Bad_File;
+      else
+         Userland.Process.Get_Effective_UID (Proc, User);
+         Tmp_Buffer := new VFS.Directory_Entities (1 .. Natural (Buff_Len));
+         VFS.Read_Entries
+            (Key       => File.Inner_Ino_FS,
+             Ino       => File.Inner_Ino,
+             Offset    => Natural (File.Inner_Ino_Pos),
+             Entities  => Tmp_Buffer.all,
+             Ret_Count => Read_Len,
+             Success   => Success,
+             User      => User);
+
+         if Success = VFS.FS_Success then
+            File.Inner_Ino_Pos := File.Inner_Ino_Pos + Unsigned_64 (Read_Len);
+
+            for I in 1 .. Read_Len loop
+               Buffer (Unsigned_64 (I)) :=
+                  (D_Ino    => Tmp_Buffer (I).Inode_Number,
+                   D_Off    => (Dirent'Size / 8) * Unsigned_64 (I),
+                   D_Reclen => Dirent'Size / 8,
+                   D_Type   => 0,
+                   D_Name   => (others => Ada.Characters.Latin_1.NUL));
+               Buffer (Unsigned_64 (I)).D_Name (1 .. Tmp_Buffer (I).Name_Len)
+                  := Tmp_Buffer (I).Name_Buffer (1 .. Tmp_Buffer (I).Name_Len);
+               Buffer (Unsigned_64 (I)).D_Type :=
+                  (case Tmp_Buffer (I).Type_Of_File is
+                     when File_Regular          => DT_REG,
+                     when File_Directory        => DT_DIR,
+                     when File_Symbolic_Link    => DT_LNK,
+                     when File_Character_Device => DT_CHR,
+                     when File_Block_Device     => DT_BLK);
+            end loop;
+
+            Returned := Unsigned_64 (Read_Len * (Dirent'Size / 8));
+            Errno    := Error_No_Error;
+         else
+            Returned := Unsigned_64'Last;
+            Errno    := Error_No_Entity;
+         end if;
+
+         Free (Tmp_Buffer);
       end if;
-
-      Userland.Process.Get_Effective_UID (Proc, User);
-      Tmp_Buffer := new VFS.Directory_Entities (1 .. Natural (Buff_Len));
-      VFS.Read_Entries (File.Inner_Ino_FS, File.Inner_Ino, Tmp_Buffer.all,
-                        Read_Len, Success, User);
-      if Success /= VFS.FS_Success then
-         Errno    := Error_No_Entity;
-         Returned := Unsigned_64'Last;
-         goto Cleanup;
-      elsif Read_Len > Tmp_Buffer'Length then
-         Errno    := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         goto Cleanup;
-      end if;
-
-      for I in 1 .. Read_Len loop
-         Buffer (Unsigned_64 (I)) :=
-            (D_Ino    => Tmp_Buffer (I).Inode_Number,
-             D_Off    => (Dirent'Size / 8) * Unsigned_64 (I),
-             D_Reclen => Dirent'Size / 8,
-             D_Type   => 0,
-             D_Name   => (others => Ada.Characters.Latin_1.NUL));
-         Buffer (Unsigned_64 (I)).D_Name (1 .. Tmp_Buffer (I).Name_Len)
-            := Tmp_Buffer (I).Name_Buffer (1 .. Tmp_Buffer (I).Name_Len);
-         Buffer (Unsigned_64 (I)).D_Type :=
-            (case Tmp_Buffer (I).Type_Of_File is
-               when File_Regular          => DT_REG,
-               when File_Directory        => DT_DIR,
-               when File_Symbolic_Link    => DT_LNK,
-               when File_Character_Device => DT_CHR,
-               when File_Block_Device     => DT_BLK);
-      end loop;
-
-      Errno    := Error_No_Error;
-      Returned := Unsigned_64 (Read_Len * (Dirent'Size / 8));
-
-   <<Cleanup>>
-      Free (Tmp_Buffer);
    end GetDEnts;
 
    procedure Sync (Returned : out Unsigned_64; Errno : out Errno_Value) is
    begin
-      if not VFS.Synchronize then
-         Errno := Error_IO;
-         Returned := Unsigned_64'Last;
-      else
-         Errno := Error_No_Error;
+      if VFS.Synchronize then
+         Errno    := Error_No_Error;
          Returned := 0;
+      else
+         Errno    := Error_IO;
+         Returned := Unsigned_64'Last;
       end if;
    end Sync;
 

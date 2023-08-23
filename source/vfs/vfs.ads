@@ -238,6 +238,7 @@ package VFS is
    --  Read the entries of an opened directory.
    --  @param Key       FS handle to operate on.
    --  @param Ino       Inode to operate on.
+   --  @param Offset    Offset to start from.
    --  @param Entities  Where to store the read entries, as many as possible.
    --  @param Ret_Count The count of entries, even if num > Entities'Length.
    --  @param User      UID to check against, 0 for root/bypass checks.
@@ -245,6 +246,7 @@ package VFS is
    procedure Read_Entries
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
+       Offset    : Natural;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out FS_Status;

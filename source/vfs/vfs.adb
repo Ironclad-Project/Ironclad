@@ -314,6 +314,7 @@ package body VFS with SPARK_Mode => Off is
    procedure Read_Entries
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
+       Offset    : Natural;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out FS_Status;
@@ -325,6 +326,7 @@ package body VFS with SPARK_Mode => Off is
             EXT.Read_Entries
                (Mounts (Key).FS_Data,
                 Ino,
+                Offset,
                 Entities,
                 Ret_Count,
                 Success,
@@ -333,6 +335,7 @@ package body VFS with SPARK_Mode => Off is
             FAT.Read_Entries
                (Mounts (Key).FS_Data,
                 Ino,
+                Offset,
                 Entities,
                 Ret_Count,
                 Success);

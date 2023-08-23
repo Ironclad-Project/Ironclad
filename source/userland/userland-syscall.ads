@@ -280,7 +280,7 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
-   --  Get current working directory.
+   --  Set current working directory.
    procedure Chdir
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;

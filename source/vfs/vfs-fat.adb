@@ -164,6 +164,7 @@ package body VFS.FAT with SPARK_Mode => Off is
    procedure Read_Entries
       (FS_Data   : System.Address;
        Ino       : File_Inode_Number;
+       Offset    : Natural;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out FS_Status)
@@ -203,7 +204,9 @@ package body VFS.FAT with SPARK_Mode => Off is
          end if;
 
          --  TODO: Handle LFN.
-         if (Ent.Attributes and Directory_LFN) /= Directory_LFN then
+         if Index >= Unsigned_64 (Offset) and
+            (Ent.Attributes and Directory_LFN) /= Directory_LFN
+         then
             if Ret_Count < Entities'Length then
                Composed_Len := Compose_Path (Ent, Composed);
                Temp := Entities'First + Ret_Count;

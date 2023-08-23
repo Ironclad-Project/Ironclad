@@ -516,6 +516,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    procedure Read_Entries
       (FS_Data   : System.Address;
        Ino       : File_Inode_Number;
+       Offset    : Natural;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out FS_Status;
@@ -525,6 +526,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Fetched_Inode : Inode_Acc := new Inode;
       Curr_Index    : Unsigned_64;
       Next_Index    : Unsigned_64;
+      Entry_Count   : Unsigned_64;
       Entity        : Directory_Entity;
       Succ          : Boolean;
    begin
@@ -555,8 +557,9 @@ package body VFS.EXT with SPARK_Mode => Off is
          Lib.Synchronization.Seize (FS.Mutex);
       end if;
 
-      Curr_Index := 0;
-      Next_Index := 0;
+      Curr_Index  := 0;
+      Next_Index  := 0;
+      Entry_Count := 0;
       loop
          Inner_Read_Entry
             (FS_Data     => FS,
@@ -571,10 +574,15 @@ package body VFS.EXT with SPARK_Mode => Off is
          end if;
 
          Curr_Index := Next_Index;
-         if Ret_Count < Entities'Length then
-            Entities (Entities'First + Ret_Count) := Entity;
+         if Entry_Count >= Unsigned_64 (Offset) then
+            if Ret_Count < Entities'Length then
+               Entities (Entities'First + Ret_Count) := Entity;
+            else
+               exit;
+            end if;
+            Ret_Count := Ret_Count + 1;
          end if;
-         Ret_Count := Ret_Count + 1;
+         Entry_Count := Entry_Count + 1;
       end loop;
 
       if not FS.Is_Read_Only then
