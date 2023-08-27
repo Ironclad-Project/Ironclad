@@ -312,9 +312,9 @@ package Userland.Process is
    --  @param CWD     Path to set, it is not checked.
    --  @param Success True if succesful, False if it did not fit, or others.
    procedure Set_CWD
-      (Proc    : PID;
-       CWD     : String;
-       Success : out Boolean)
+      (Proc : PID;
+       FS   : VFS.FS_Handle;
+       Ino  : VFS.File_Inode_Number)
       with Pre => Proc /= Error_PID;
 
    --  Get the current working directory.
@@ -323,8 +323,8 @@ package Userland.Process is
    --  @param Len  Length of the CWD, even if bigger than CWD'Length.
    procedure Get_CWD
       (Proc : PID;
-       CWD  : out String;
-       Len  : out Natural)
+       FS   : out VFS.FS_Handle;
+       Ino  : out VFS.File_Inode_Number)
       with Pre => Proc /= Error_PID;
 
    --  Get the parent PID of the process.
@@ -463,8 +463,8 @@ private
       Parent          : PID;
       Is_Traced       : Boolean;
       Tracer_FD       : Natural range 0 .. Max_File_Count - 1;
-      Current_Dir     : String (1 .. Max_CWD_Length);
-      Current_Dir_Len : Natural range 0 .. Max_CWD_Length;
+      Current_Dir_FS  : VFS.FS_Handle;
+      Current_Dir_Ino : VFS.File_Inode_Number;
       Thread_List     : Thread_Arr;
       File_Table      : File_Arr;
       Common_Map      : Arch.MMU.Page_Table_Acc;

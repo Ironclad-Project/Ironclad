@@ -151,10 +151,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Unlink (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 17 =>
             FStat (State.RDI, State.RSI, Returned, Errno);
-         when 18 =>
-            Get_CWD (State.RDI, State.RSI, Returned, Errno);
          when 19 =>
-            Chdir (State.RDI, State.RSI, Returned, Errno);
+            Chdir (State.RDI, Returned, Errno);
          when 20 =>
             IOCTL (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 21 =>

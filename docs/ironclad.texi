@@ -47,7 +47,7 @@ cryptic and scary Ada code.
 * Security and integrity facilities::  Ironclad-specific security facilities.
 * Debugging facilities::               Ironclad-specific debugging facilities.
 * Syscalls::                           Listings and explanation of syscalls.
-* Filesystems support and interfaces:: Filesystems supported by the kernel.
+* Filesystem support and interfaces::  VFS details and supported filesystems.
 * Devices and their properties::       Devices exposed by the kernel.
 * GNU Free Documentation License::     Copying and sharing this manual.
 
@@ -121,7 +121,7 @@ Syscalls
 * sethostname::             Hostname setting.
 * unlink::                  Queue files for deletion.
 * fstat::                   Fetch file information.
-* getcwd/chdir::            Current working directory manipulation.
+* chdir::                   Current working directory manipulation.
 * ioctl::                   IO multiplexer.
 * sched_yield::             Relinquish CPU time.
 * set_deadlines::           Manage scheduler deadlines.
@@ -162,7 +162,7 @@ Syscalls
 * fchown::                  Change ownership of a file descriptor.
 * pread/pwrite::            Atomic read and write from file descriptors.
 
-Filesystems support and interfaces
+Filesystem support and interfaces
 
 * Extended FileSystem::    EXT-series filesystems (ext2, ext3, ext4).
 * File Allocation Table::  FAT-series filesystems.
@@ -710,9 +710,9 @@ The list of syscalls ordered by their index in @code{x8} for the platform is:
 @item
 @ref{fstat}.
 @item
-@ref{getcwd/chdir, getcwd}.
+Empty.
 @item
-@ref{getcwd/chdir, chdir}.
+@ref{chdir}.
 @item
 @ref{ioctl}.
 @item
@@ -856,9 +856,9 @@ The list of syscalls ordered by their index in @code{r4} for the platform is:
 @item
 @ref{fstat}.
 @item
-@ref{getcwd/chdir, getcwd}.
+Empty.
 @item
-@ref{getcwd/chdir, chdir}.
+@ref{chdir}.
 @item
 @ref{ioctl}.
 @item
@@ -1004,9 +1004,9 @@ The list of syscalls ordered by their index in @code{rax} for the platform is:
 @item
 @ref{fstat}.
 @item
-@ref{getcwd/chdir, getcwd}.
+Empty.
 @item
-@ref{getcwd/chdir, chdir}.
+@ref{chdir}.
 @item
 @ref{ioctl}.
 @item
@@ -1652,45 +1652,22 @@ This syscalls return information about an already opened file.
 @code{EFAULT}: The passed address for the path or stat buffer is not valid.
 @end itemize
 
-@node getcwd/chdir
-@section getcwd/chdir
+@node chdir
+@section chdir
 
 @example
-char *getcwd(char *buf, size_t size);
-int chdir(const char *path, int path_len);
+int chdir(int fd);
 @end example
 
-This syscalls manage the current working directory of the callee process.
-@code{getcwd} will fetch it as an absolute path, while chdir will set it with
-a C-style string.
+This syscalls will set the callee's process current working directory to
+the passed FD, which must point to a directory.
 
-@code{getcwd} returns a pointer to the string passed, or @code{NULL} if the
-string is not big enough, including @code{NUL}, and sets the following errno:
-
-@itemize @bullet
-@item
-@code{EINVAL}: The passed length is 0.
-
-@item
-@code{ERANGE}: The passed buffer + size is not big enough for the path, and it
-is safe to reallocate and try again.
-
-@item
-@code{EFAULT}: The passed buffer has a bad address.
-@end itemize
-
-@code{chdir} returns @code{0} on success and @code{-1} on failure, with the
+The syscall returns @code{0} on success and @code{-1} on failure, with the
 following errno:
 
 @itemize @bullet
 @item
-@code{EFAULT}: The passed path points to a bad address.
-
-@item
-@code{ENAMETOOLONG}: The passed path is too long.
-
-@item
-@code{ENOTDIR}: The passed path is not a directory or has 0 length.
+@code{EBADFD}: The passed descriptor is not a valid directory.
 @end itemize
 
 @node ioctl
@@ -2863,10 +2840,20 @@ to sudden catharsis.
 These syscalls return the same values and errno as the non-p variants.
 @ref{read/write}.
 
-@node Filesystems support and interfaces
-@chapter Filesystems support and interfaces
+@node Filesystem support and interfaces
+@chapter Filesystem support and interfaces
 
-Ironclad supports a series of filesystems, with filesystem-specific quirks at
+Ironclad's VFS is pretty barebones, so some features are not supported quite
+well yet. Some of the affected features are:
+
+@itemize @bullet
+@item
+Mountpoints may not be visible when contained within another mountpoint.
+@item
+Symbolic links do not work accross mount points, just like hard links.
+@end itemize
+
+Support for several filesystems is provided, with filesystem-specific quirks at
 times, and exposes interfaces with @code{ioctl} calls.
 
 @node Extended FileSystem

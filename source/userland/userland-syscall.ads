@@ -273,19 +273,11 @@ package Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
 
-   --  Get current working directory.
-   procedure Get_CWD
-      (Buffer   : Unsigned_64;
-       Length   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
-
    --  Set current working directory.
    procedure Chdir
-      (Path_Addr : Unsigned_64;
-       Path_Len  : Unsigned_64;
-       Returned  : out Unsigned_64;
-       Errno     : out Errno_Value);
+      (FD       : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  IO control.
    procedure IOCTL
@@ -838,4 +830,10 @@ private
       (Map        : Arch.MMU.Page_Table_Acc;
        Addr       : Memory.Virtual_Address;
        Byte_Count : Unsigned_64) return Boolean;
+
+   procedure Resolve_AT_Directive
+      (Proc   : PID;
+       Dir_FD : Unsigned_64;
+       FS     : out VFS.FS_Handle;
+       Ino    : out VFS.File_Inode_Number);
 end Userland.Syscall;

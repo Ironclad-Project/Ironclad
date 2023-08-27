@@ -111,8 +111,8 @@ package body Userland.Process with SPARK_Mode => Off is
                 Parent          => 0,
                 Is_Traced       => False,
                 Tracer_FD       => 0,
-                Current_Dir     => (1 => '/', others => ' '),
-                Current_Dir_Len => 1,
+                Current_Dir_FS  => VFS.Error_Handle,
+                Current_Dir_Ino => 0,
                 Thread_List     => (others => 0),
                 File_Table      => (others => (False, null)),
                 Common_Map      => null,
@@ -126,8 +126,8 @@ package body Userland.Process with SPARK_Mode => Off is
                Registry (I).Parent          := Parent;
                Registry (I).Stack_Base      := Registry (P).Stack_Base;
                Registry (I).Alloc_Base      := Registry (P).Alloc_Base;
-               Registry (I).Current_Dir_Len := Registry (P).Current_Dir_Len;
-               Registry (I).Current_Dir     := Registry (P).Current_Dir;
+               Registry (I).Current_Dir_FS  := Registry (P).Current_Dir_FS;
+               Registry (I).Current_Dir_Ino := Registry (P).Current_Dir_Ino;
                Registry (I).Perms           := Registry (P).Perms;
                Registry (I).User            := Registry (P).User;
                Registry (I).Effective_User  := Registry (P).Effective_User;
@@ -420,34 +420,23 @@ package body Userland.Process with SPARK_Mode => Off is
    end Check_Exit;
 
    procedure Set_CWD
-      (Proc    : PID;
-       CWD     : String;
-       Success : out Boolean)
+      (Proc : PID;
+       FS   : VFS.FS_Handle;
+       Ino  : VFS.File_Inode_Number)
    is
    begin
-      Registry (Proc).Current_Dir (1 .. CWD'Length) := CWD;
-      Registry (Proc).Current_Dir_Len               := CWD'Length;
-      Success := True;
+      Registry (Proc).Current_Dir_FS  := FS;
+      Registry (Proc).Current_Dir_Ino := Ino;
    end Set_CWD;
 
    procedure Get_CWD
       (Proc : PID;
-       CWD  : out String;
-       Len  : out Natural)
+       FS   : out VFS.FS_Handle;
+       Ino  : out VFS.File_Inode_Number)
    is
-      Length : Natural;
    begin
-      CWD := (others => ' ');
-
-      if CWD'Length > Registry (Proc).Current_Dir_Len then
-         Length := Registry (Proc).Current_Dir_Len;
-      else
-         Length := CWD'Length;
-      end if;
-
-      CWD (CWD'First .. CWD'First + Length - 1) :=
-         Registry (Proc).Current_Dir (1 .. Length);
-      Len := Length;
+      FS  := Registry (Proc).Current_Dir_FS;
+      Ino := Registry (Proc).Current_Dir_Ino;
    end Get_CWD;
 
    function Get_Alloc_Base (Process : PID) return Unsigned_64 is

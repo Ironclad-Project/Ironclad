@@ -114,18 +114,22 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Unmount;
    ----------------------------------------------------------------------------
    procedure Open
-      (FS      : System.Address;
-       Path    : String;
-       Ino     : out File_Inode_Number;
-       Success : out FS_Status;
-       User    : Unsigned_32)
+      (FS        : System.Address;
+       Relative  : File_Inode_Number;
+       Path      : String;
+       Ino       : out File_Inode_Number;
+       Success   : out FS_Status;
+       User      : Unsigned_32;
+       Do_Follow : Boolean)
    is
-      Data   : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Name_Start                 : Natural;
       Target_Index, Parent_Index : Unsigned_32;
-      Target_Inode : Inode_Acc := new Inode;
-      Parent_Inode : Inode_Acc := new Inode;
+      Target_Inode               : Inode_Acc := new Inode;
+      Parent_Inode               : Inode_Acc := new Inode;
       Succ                       : Boolean;
+      Symlink                    : String (1 .. 60);
+      Symlink_Len, Last_Slash    : Natural;
    begin
       if not Data.Is_Read_Only then
          Lib.Synchronization.Seize (Data.Mutex);
@@ -133,12 +137,72 @@ package body VFS.EXT with SPARK_Mode => Off is
 
       Succ := Inner_Open_Inode
          (Data         => Data,
+          Relative     => Unsigned_32 (Relative),
           Path         => Path,
           Name_Start   => Name_Start,
           Target_Index => Target_Index,
           Target_Inode => Target_Inode.all,
           Parent_Index => Parent_Index,
           Parent_Inode => Parent_Inode.all);
+
+      if Succ and Do_Follow and
+         Get_Inode_Type (Target_Inode.Permissions) = File_Symbolic_Link
+      then
+         Inner_Read_Symbolic_Link
+            (Target_Inode.all,
+             Get_Size (Target_Inode.all, Data.Has_64bit_Filesizes),
+             Symlink,
+             Symlink_Len);
+
+         if not Data.Is_Read_Only then
+            Lib.Synchronization.Release (Data.Mutex);
+         end if;
+
+         Free (Target_Inode);
+         Free (Parent_Inode);
+
+         if Is_Absolute (Symlink (1 .. Symlink_Len)) then
+            Open
+               (FS        => FS,
+                Relative  => Relative,
+                Path      => Symlink (1 .. Symlink_Len),
+                Ino       => Ino,
+                Success   => Success,
+                User      => User,
+                Do_Follow => Do_Follow);
+
+         else
+            Last_Slash := Path'First;
+            for I in Path'Range loop
+               if Path (I) = '/' then
+                  Last_Slash := I;
+               end if;
+            end loop;
+
+            if Path (Last_Slash) = '/' then
+               Open
+                  (FS        => FS,
+                   Relative  => Relative,
+                   Path      => Path (Path'First .. Last_Slash) &
+                                Symlink (1 .. Symlink_Len),
+                   Ino       => Ino,
+                   Success   => Success,
+                   User      => User,
+                   Do_Follow => Do_Follow);
+            else
+               Open
+                  (FS        => FS,
+                   Relative  => Relative,
+                   Path      => Path (Path'First .. Last_Slash) & "/" &
+                                Symlink (1 .. Symlink_Len),
+                   Ino       => Ino,
+                   Success   => Success,
+                   User      => User,
+                   Do_Follow => Do_Follow);
+            end if;
+         end if;
+         return;
+      end if;
 
       Ino     := File_Inode_Number (Target_Index);
       Success := (if Succ then FS_Success else FS_Invalid_Value);
@@ -152,11 +216,12 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Open;
 
    function Create_Node
-      (FS   : System.Address;
-       Path : String;
-       Typ  : File_Type;
-       Mode : File_Mode;
-       User : Unsigned_32) return FS_Status
+      (FS       : System.Address;
+       Relative : File_Inode_Number;
+       Path     : String;
+       Typ      : File_Type;
+       Mode     : File_Mode;
+       User     : Unsigned_32) return FS_Status
    is
       Data     : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Perms    : constant  Unsigned_16 := Get_Permissions (File_Regular);
@@ -181,6 +246,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       --  Checking the file doesn't exist but the parent is found.
       Success := Inner_Open_Inode
          (Data         => Data,
+          Relative     => Unsigned_32 (Relative),
           Path         => Path,
           Name_Start   => Name_Start,
           Target_Index => Target_Index,
@@ -248,13 +314,16 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Create_Node;
 
    function Create_Symbolic_Link
-      (FS           : System.Address;
-       Path, Target : String;
-       Mode         : Unsigned_32;
-       User         : Unsigned_32) return FS_Status
+      (FS       : System.Address;
+       Relative : File_Inode_Number;
+       Path     : String;
+       Target   : String;
+       Mode     : Unsigned_32;
+       User     : Unsigned_32) return FS_Status
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       pragma Unreferenced (Mode);
+      pragma Unreferenced (Relative);
    begin
       if Data.Is_Read_Only then
          return FS_RO_Failure;
@@ -266,9 +335,12 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Create_Symbolic_Link;
 
    function Create_Hard_Link
-      (FS           : System.Address;
-       Path, Target : String;
-       User         : Unsigned_32) return FS_Status
+      (FS              : System.Address;
+       Relative_Path   : File_Inode_Number;
+       Path            : String;
+       Relative_Target : File_Inode_Number;
+       Target          : String;
+       User            : Unsigned_32) return FS_Status
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Name_Start                             : Natural;
@@ -290,6 +362,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       --  Open the source.
       Success := Inner_Open_Inode
          (Data         => Data,
+          Relative     => Unsigned_32 (Relative_Path),
           Path         => Path,
           Name_Start   => Name_Start,
           Target_Index => Path_Index,
@@ -304,6 +377,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       --  Checking the target file doesn't exist but the parent is found.
       Success := Inner_Open_Inode
          (Data         => Data,
+          Relative     => Unsigned_32 (Relative_Target),
           Path         => Target,
           Name_Start   => Name_Start,
           Target_Index => Target_Index,
@@ -360,10 +434,13 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Create_Hard_Link;
 
    function Rename
-      (FS             : System.Address;
-       Source, Target : String;
-       Keep           : Boolean;
-       User           : Unsigned_32) return FS_Status
+      (FS              : System.Address;
+       Relative_Source : File_Inode_Number;
+       Source          : String;
+       Relative_Target : File_Inode_Number;
+       Target          : String;
+       Keep            : Boolean;
+       User            : Unsigned_32) return FS_Status
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Name_Start                               : Natural;
@@ -387,6 +464,7 @@ package body VFS.EXT with SPARK_Mode => Off is
 
       Success1 := Inner_Open_Inode
          (Data         => Data,
+          Relative     => Unsigned_32 (Relative_Source),
           Path         => Source,
           Name_Start   => Name_Start,
           Target_Index => Source_Index,
@@ -395,6 +473,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Inode => Source_Parent_Inode.all);
       Success2 := Inner_Open_Inode
          (Data         => Data,
+          Relative     => Unsigned_32 (Relative_Target),
           Path         => Target,
           Name_Start   => Name_Start,
           Target_Index => Target_Index,
@@ -453,9 +532,10 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Rename;
 
    function Unlink
-      (FS   : System.Address;
-       Path : String;
-       User : Unsigned_32) return FS_Status
+      (FS       : System.Address;
+       Relative : File_Inode_Number;
+       Path     : String;
+       User     : Unsigned_32) return FS_Status
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Name_Start               : Natural;
@@ -475,6 +555,7 @@ package body VFS.EXT with SPARK_Mode => Off is
 
       Success := Inner_Open_Inode
          (Data         => Data,
+          Relative     => Unsigned_32 (Relative),
           Path         => Path,
           Name_Start   => Name_Start,
           Target_Index => Path_Index,
@@ -1011,6 +1092,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    ----------------------------------------------------------------------------
    function Inner_Open_Inode
       (Data         : EXT_Data_Acc;
+       Relative     : Unsigned_32;
        Path         : String;
        Name_Start   : out Natural;
        Target_Index : out Unsigned_32;
@@ -1027,20 +1109,48 @@ package body VFS.EXT with SPARK_Mode => Off is
       Symlink                : String (1 .. 60);
       Symlink_Len            : Natural;
    begin
-      Name_Start   := 0;
-      Target_Index := Root_Inode;
-      Target_Inode := Data.Root;
-      Parent_Index := Root_Inode;
-      Parent_Inode := Data.Root;
-      Target_Sz    := Get_Size (Target_Inode, Data.Has_64bit_Filesizes);
-      Target_Type  := File_Directory;
+      Name_Start := 0;
+      if Is_Absolute (Path) then
+         Target_Index := Root_Inode;
+         Target_Inode := Data.Root;
+         Parent_Index := Root_Inode;
+         Parent_Inode := Data.Root;
+         Target_Sz    := Get_Size (Target_Inode, Data.Has_64bit_Filesizes);
+         Target_Type  := File_Directory;
 
-      if Path'Length = 0 then
-         goto Perfect_Hit_Return;
+         if Path'Length = 1 then
+            goto Perfect_Hit_Return;
+         end if;
+
+         First_I := Path'First + 1;
+         Last_I  := Path'First + 1;
+      elsif Path'Length > 0 then
+         Success := RW_Inode
+            (Data            => Data,
+             Inode_Index     => Relative,
+             Result          => Target_Inode,
+             Write_Operation => False);
+         if not Success or else
+            Get_Inode_Type (Target_Inode.Permissions) /= File_Directory
+         then
+            goto Absolute_Miss_Return;
+         end if;
+
+         Target_Index := Relative;
+         Parent_Index := Relative;
+         Parent_Inode := Target_Inode;
+         Target_Sz    := Get_Size (Target_Inode, Data.Has_64bit_Filesizes);
+         Target_Type  := File_Directory;
+
+         if Path'Length = 0 then
+            goto Perfect_Hit_Return;
+         end if;
+
+         First_I := Path'First;
+         Last_I  := Path'First;
+      else
+         goto Absolute_Miss_Return;
       end if;
-
-      First_I := Path'First;
-      Last_I  := Path'First;
 
       while Last_I < Path'Last loop
          while Last_I <= Path'Last and then Path (Last_I) /= '/' loop
@@ -1103,6 +1213,7 @@ package body VFS.EXT with SPARK_Mode => Off is
 
                   return Inner_Open_Inode
                      (Data,
+                      Relative,
                       Symlink (1 .. Symlink_Len) & Path (Last_I .. Path'Last),
                       Name_Start,
                       Target_Index,

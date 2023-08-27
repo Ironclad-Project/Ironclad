@@ -95,6 +95,8 @@ begin
              Init_Stdin, Init_Stdout, Init_Stdout);
          if Init_PID /= Error_PID then
             Userland.Process.Set_Identifier (Init_PID, Value (1 .. Value_Len));
+            Open ("/", Init_FS, Init_Ino, Success, 0);
+            Userland.Process.Set_CWD (Init_PID, Init_FS, Init_Ino);
          else
             Lib.Panic.Hard_Panic ("Could not start init");
          end if;

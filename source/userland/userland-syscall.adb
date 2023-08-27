@@ -84,26 +84,23 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Path_IAddr  : constant Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr  : constant  System.Address := To_Address (Path_IAddr);
       Curr_Proc   : constant             PID := Arch.Local.Get_Current_Process;
-      Map         : constant    Page_Table_Acc := Get_Common_Map (Curr_Proc);
+      Map         : constant  Page_Table_Acc := Get_Common_Map (Curr_Proc);
       Do_Cloexec  : constant         Boolean := (Flags and O_CLOEXEC)  /= 0;
       Do_Read     : constant         Boolean := (Flags and O_RDONLY)   /= 0;
       Do_Write    : constant         Boolean := (Flags and O_WRONLY)   /= 0;
       Dont_Follow : constant         Boolean := (Flags and O_NOFOLLOW) /= 0;
       Do_Append   : constant         Boolean := (Flags and O_APPEND)   /= 0;
-      Discard      : Boolean;
-      Success      : VFS.FS_Status;
-      Final_Path   : String (1 .. 512);
-      Final_Path_L : Natural;
-      CWD          : String (1 .. Process.Max_CWD_Length);
-      CWD_Len      : Natural;
-      Opened_FS    : VFS.FS_Handle;
-      Opened_Ino   : VFS.File_Inode_Number;
-      Opened_Dev   : Devices.Device_Handle;
-      Opened_Stat  : VFS.File_Stat;
-      New_Descr    : File_Description_Acc;
-      File_Perms   : MAC.Permissions;
-      Returned_FD  : Natural;
-      User         : Unsigned_32;
+      Discard     : Boolean;
+      Success     : VFS.FS_Status;
+      CWD_FS      : VFS.FS_Handle;
+      CWD_Ino     : VFS.File_Inode_Number;
+      Opened_Ino  : VFS.File_Inode_Number;
+      Opened_Dev  : Devices.Device_Handle;
+      Opened_Stat : VFS.File_Stat;
+      New_Descr   : File_Description_Acc;
+      File_Perms  : MAC.Permissions;
+      Returned_FD : Natural;
+      User        : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
          Returned := Unsigned_64'Last;
@@ -113,72 +110,63 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Returned := Unsigned_64'Last;
          Errno    := Error_String_Too_Long;
          return;
-      elsif Dir_FD /= AT_FDCWD then
-         Returned := Unsigned_64'Last;
-         Errno    := Error_Not_Implemented;
-         return;
       end if;
+
+      Userland.Process.Get_Effective_UID (Curr_Proc, User);
 
       declare
          Path : String (1 .. Natural (Path_Len))
             with Import, Address => Path_SAddr;
       begin
-         Process.Get_CWD (Curr_Proc, CWD, CWD_Len);
-         Compound_Path
-            (Base      => CWD (1 .. CWD_Len),
-             Extension => Path,
-             Result    => Final_Path,
-             Count     => Final_Path_L);
-         if Final_Path_L = 0 then
-            Returned := Unsigned_64'Last;
-            Errno    := Error_String_Too_Long;
-            return;
+         if Path'Length > 5 and then Path (1 .. 5) = "/dev/" then
+            Opened_Dev := Devices.Fetch (Path (6 .. Path'Last));
+            if Opened_Dev = Devices.Error_Handle then
+               Returned := Unsigned_64'Last;
+               Errno    := Error_No_Entity;
+               return;
+            end if;
+
+            File_Perms := Check_Permissions (Curr_Proc, Opened_Dev);
+            New_Descr  := new File_Description'
+               (Children_Count  => 0,
+                Description     => Description_Device,
+                Inner_Dev_Read  => Do_Read,
+                Inner_Dev_Write => Do_Write,
+                Inner_Dev_Pos   => 0,
+                Inner_Dev       => Opened_Dev);
+         else
+            Resolve_AT_Directive (Curr_Proc, Dir_FD, CWD_FS, CWD_Ino);
+            if CWD_FS = VFS.Error_Handle then
+               Returned := Unsigned_64'Last;
+               Errno    := Error_Bad_File;
+               return;
+            end if;
+
+            VFS.Open (CWD_FS, CWD_Ino, Path, Opened_Ino, Success, User,
+                      not Dont_Follow);
+            if Success /= VFS.FS_Success then
+               Returned := Unsigned_64'Last;
+               Errno    := Error_No_Entity;
+               return;
+            end if;
+
+            if Do_Append then
+               VFS.Stat (CWD_FS, Opened_Ino, Opened_Stat, Success, User);
+            else
+               Opened_Stat.Byte_Size := 0;
+            end if;
+
+            File_Perms := Check_Permissions (Curr_Proc, CWD_FS, Opened_Ino);
+            New_Descr  := new File_Description'
+               (Children_Count  => 0,
+                Description     => Description_Inode,
+                Inner_Ino_Read  => Do_Read,
+                Inner_Ino_Write => Do_Write,
+                Inner_Ino_FS    => CWD_FS,
+                Inner_Ino_Pos   => Opened_Stat.Byte_Size,
+                Inner_Ino       => Opened_Ino);
          end if;
       end;
-
-      Userland.Process.Get_Effective_UID (Curr_Proc, User);
-
-      if Final_Path_L > 5 and then Final_Path (1 .. 5) = "/dev/" then
-         Opened_Dev := Devices.Fetch (Final_Path (6 .. Final_Path_L));
-         if Opened_Dev = Devices.Error_Handle then
-            Returned := Unsigned_64'Last;
-            Errno    := Error_No_Entity;
-            return;
-         end if;
-
-         File_Perms := Check_Permissions (Curr_Proc, Opened_Dev);
-         New_Descr  := new File_Description'
-            (Children_Count  => 0,
-             Description     => Description_Device,
-             Inner_Dev_Read  => Do_Read,
-             Inner_Dev_Write => Do_Write,
-             Inner_Dev_Pos   => 0,
-             Inner_Dev       => Opened_Dev);
-      else
-         VFS.Open (Final_Path (1 .. Final_Path_L), Opened_FS, Opened_Ino,
-                   Success, User, not Dont_Follow);
-         if Success /= VFS.FS_Success then
-            Returned := Unsigned_64'Last;
-            Errno    := Error_No_Entity;
-            return;
-         end if;
-
-         if Do_Append then
-            VFS.Stat (Opened_FS, Opened_Ino, Opened_Stat, Success, User);
-         else
-            Opened_Stat.Byte_Size := 0;
-         end if;
-
-         File_Perms := Check_Permissions (Curr_Proc, Opened_FS, Opened_Ino);
-         New_Descr  := new File_Description'
-            (Children_Count  => 0,
-             Description     => Description_Inode,
-             Inner_Ino_Read  => Do_Read,
-             Inner_Ino_Write => Do_Write,
-             Inner_Ino_FS    => Opened_FS,
-             Inner_Ino_Pos   => Opened_Stat.Byte_Size,
-             Inner_Ino       => Opened_Ino);
-      end if;
 
       if (not Do_Read   and not Do_Write)             or
          (Do_Read       and not File_Perms.Can_Read)  or
@@ -1114,103 +1102,34 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Returned := 0;
    end FStat;
 
-   procedure Get_CWD
-      (Buffer   : Unsigned_64;
-       Length   : Unsigned_64;
+   procedure Chdir
+      (FD       : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc  : constant             PID := Arch.Local.Get_Current_Process;
-      Map   : constant    Page_Table_Acc := Get_Common_Map (Proc);
-      IAddr : constant Integer_Address := Integer_Address (Buffer);
-      SAddr : constant  System.Address := To_Address (IAddr);
-      Len   :                  Natural := Natural (Length);
-      Path  : String (1 .. Len) with Import, Address => SAddr;
+      Proc : constant                  PID := Arch.Local.Get_Current_Process;
+      Desc : constant File_Description_Acc := Get_File (Proc, FD);
+      St   : VFS.File_Stat;
+      Succ : FS_Status;
+      User : Unsigned_32;
    begin
-      if not Check_Userland_Access (Map, IAddr, Length) then
-         Errno := Error_Would_Fault;
-         Returned := 0;
-      end if;
-      if Len = 0 then
-         Errno := Error_Invalid_Value;
-         Returned := 0;
-      end if;
-
-      Get_CWD (Proc, Path, Len);
-      if Len <= Path'Length then
-         Errno := Error_No_Error;
-         Returned := Buffer;
-      else
-         Errno := Error_Not_Big_Enough;
-         Returned := 0;
-      end if;
-   end Get_CWD;
-
-   procedure Chdir
-      (Path_Addr : Unsigned_64;
-       Path_Len  : Unsigned_64;
-       Returned  : out Unsigned_64;
-       Errno     : out Errno_Value)
-   is
-      IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
-      SAddr : constant   System.Address := To_Address (IAddr);
-      Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Map   : constant     Page_Table_Acc := Get_Common_Map (Proc);
-      Final_Path   : String (1 .. 512);
-      Final_Path_L : Natural;
-      CWD          : String (1 .. Process.Max_CWD_Length);
-      CWD_Len      : Natural;
-      File_FS      : FS_Handle;
-      File_Ino     : File_Inode_Number;
-      Success      : FS_Status;
-      Succ         : Boolean;
-      User         : Unsigned_32;
-   begin
-      if not Check_Userland_Access (Map, IAddr, Path_Len) then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Path_Len > Unsigned_64 (Natural'Last) then
-         Errno := Error_String_Too_Long;
+      if Desc = null or else Desc.Description /= Description_Inode then
+         Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
          return;
       end if;
-
-      declare
-         Path : String (1 .. Natural (Path_Len)) with Import, Address => SAddr;
-      begin
-         Process.Get_CWD (Proc, CWD, CWD_Len);
-         Compound_Path
-            (Base      => CWD (1 .. CWD_Len),
-             Extension => Path,
-             Result    => Final_Path,
-             Count     => Final_Path_L);
-         if Final_Path_L = 0 then
-            Errno := Error_String_Too_Long;
-            Returned := Unsigned_64'Last;
-            return;
-         end if;
-      end;
 
       Userland.Process.Get_Effective_UID (Proc, User);
-      Open (Final_Path (1 .. Final_Path_L), File_FS, File_Ino, Success, User,
-            False);
-      if Success /= VFS.FS_Success then
-         Errno := Error_No_Entity;
+      VFS.Stat (Desc.Inner_Ino_FS, Desc.Inner_Ino, St, Succ, User);
+      if Succ /= VFS.FS_Success or else St.Type_Of_File /= File_Directory then
+         Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
          return;
       end if;
 
-      Close (File_FS, File_Ino);
-      Set_CWD (Proc, Final_Path (1 .. Final_Path_L), Succ);
-      if Succ then
-         Errno := Error_No_Error;
-         Returned := 0;
-      else
-         Errno := Error_String_Too_Long;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
+      Set_CWD (Proc, Desc.Inner_Ino_FS, Desc.Inner_Ino);
+      Errno    := Error_No_Error;
+      Returned := 0;
    end Chdir;
 
    procedure IOCTL
@@ -1372,21 +1291,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned    : out Unsigned_64;
        Errno       : out Errno_Value)
    is
-      Proc      : constant PID := Arch.Local.Get_Current_Process;
-      Map       : constant     Page_Table_Acc := Get_Common_Map (Proc);
+      Proc      : constant              PID := Arch.Local.Get_Current_Process;
+      Map       : constant   Page_Table_Acc := Get_Common_Map (Proc);
       Src_IAddr : constant  Integer_Address := Integer_Address (Source_Addr);
       Src_SAddr : constant   System.Address := To_Address (Src_IAddr);
       Tgt_IAddr : constant  Integer_Address := Integer_Address (Target_Addr);
       Tgt_SAddr : constant   System.Address := To_Address (Tgt_IAddr);
       Do_Keep   : constant Boolean := (Flags and RENAME_NOREPLACE) /= 0;
-      CWD           : String (1 .. Process.Max_CWD_Length);
-      CWD_Len       : Natural;
-      Source_Path   : String (1 .. 1024);
-      Source_Path_L : Natural;
-      Target_Path   : String (1 .. 1024);
-      Target_Path_L : Natural;
-      Success       : VFS.FS_Status;
-      User          : Unsigned_32;
+      Src_FS, Tgt_FS   : VFS.FS_Handle;
+      Src_Ino, Tgt_Ino : VFS.File_Inode_Number;
+      Success          : VFS.FS_Status;
+      User             : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Src_IAddr, Source_Len) or
          not Check_Userland_Access (Map, Tgt_IAddr, Target_Len)
@@ -1400,10 +1315,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno := Error_String_Too_Long;
          Returned := Unsigned_64'Last;
          return;
-      elsif Source_FD /= AT_FDCWD or Target_FD /= AT_FDCWD then
-         Errno := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
       end if;
 
       declare
@@ -1412,30 +1323,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Tgt : String (1 .. Natural (Target_Len))
             with Import, Address => Tgt_SAddr;
       begin
-         Process.Get_CWD (Proc, CWD, CWD_Len);
-         Compound_Path
-            (Base      => CWD (1 .. CWD_Len),
-             Extension => Src,
-             Result    => Source_Path,
-             Count     => Source_Path_L);
-         Compound_Path
-            (Base      => CWD (1 .. CWD_Len),
-             Extension => Tgt,
-             Result    => Target_Path,
-             Count     => Target_Path_L);
-         if Source_Path_L = 0 or Target_Path_L = 0 then
-            Errno := Error_String_Too_Long;
+         Userland.Process.Get_Effective_UID (Proc, User);
+         Resolve_AT_Directive (Proc, Source_FD, Src_FS, Src_Ino);
+         Resolve_AT_Directive (Proc, Target_FD, Tgt_FS, Tgt_Ino);
+         if Src_FS = VFS.Error_Handle or else
+            Tgt_FS = VFS.Error_Handle or else
+            Src_FS /= Tgt_FS
+         then
+            Errno    := Error_Bad_File;
             Returned := Unsigned_64'Last;
             return;
          end if;
 
-         Userland.Process.Get_Effective_UID (Proc, User);
-         VFS.Rename
-            (Source_Path (1 .. Source_Path_L),
-             Target_Path (1 .. Target_Path_L),
-             Do_Keep,
-             Success,
-             User);
+         Success := Rename (Src_FS, Src_Ino, Src, Tgt_Ino, Tgt, Do_Keep, User);
          Translate_Status (Success, 0, Returned, Errno);
       end;
    end Rename;
@@ -2095,17 +1995,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned    : out Unsigned_64;
        Errno       : out Errno_Value)
    is
-      Proc : constant PID := Arch.Local.Get_Current_Process;
-      Map  : constant     Page_Table_Acc := Get_Common_Map (Proc);
+      Proc         : constant            PID := Arch.Local.Get_Current_Process;
+      Map          : constant  Page_Table_Acc := Get_Common_Map (Proc);
       Path_IAddr   : constant Integer_Address := Integer_Address (Path_Addr);
       Buffer_IAddr : constant Integer_Address := Integer_Address (Buffer_Addr);
-      Path_Add     : constant System.Address  := To_Address (Path_IAddr);
-      Buffer_Add   : constant System.Address  := To_Address (Buffer_IAddr);
-      Final_Path   : String (1 .. 512);
-      Final_Path_L : Natural;
-      CWD          : String (1 .. Process.Max_CWD_Length);
-      CWD_Len      : Natural;
-      Opened_FS    : FS_Handle;
+      Path_Add     : constant  System.Address := To_Address (Path_IAddr);
+      Buffer_Add   : constant  System.Address := To_Address (Buffer_IAddr);
+      CWD_FS       : VFS.FS_Handle;
+      CWD_Ino      : VFS.File_Inode_Number;
       Opened_Ino   : File_Inode_Number;
       Ret_Count    : Natural;
       User         : Unsigned_32;
@@ -2123,10 +2020,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno := Error_String_Too_Long;
          Returned := Unsigned_64'Last;
          return;
-      elsif Dir_FD /= AT_FDCWD then
-         Errno := Error_String_Too_Long;
-         Returned := Unsigned_64'Last;
-         return;
       end if;
 
       declare
@@ -2136,29 +2029,22 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Data : String (1 .. Natural (Buffer_Len))
             with Import, Address => Buffer_Add;
       begin
-         Process.Get_CWD (Proc, CWD, CWD_Len);
-         Compound_Path
-            (Base      => CWD (1 .. CWD_Len),
-             Extension => Path,
-             Result    => Final_Path,
-             Count     => Final_Path_L);
-         if Final_Path_L = 0 then
-            Errno := Error_String_Too_Long;
+         Process.Get_Effective_UID (Proc, User);
+         Resolve_AT_Directive (Proc, Dir_FD, CWD_FS, CWD_Ino);
+         if CWD_FS = VFS.Error_Handle then
             Returned := Unsigned_64'Last;
+            Errno    := Error_Bad_File;
             return;
          end if;
 
-         Userland.Process.Get_Effective_UID (Proc, User);
-
-         Open (Final_Path (1 .. Final_Path_L), Opened_FS, Opened_Ino, Status,
-               User, False);
+         VFS.Open (CWD_FS, CWD_Ino, Path, Opened_Ino, Status, User, False);
          if Status /= VFS.FS_Success then
             Errno := Error_No_Entity;
             Returned := Unsigned_64'Last;
             return;
          end if;
 
-         File_Perms := Check_Permissions (Proc, Opened_FS, Opened_Ino);
+         File_Perms := Check_Permissions (Proc, CWD_FS, Opened_Ino);
          if not File_Perms.Can_Read then
             Errno := Error_Bad_Access;
             Execute_MAC_Failure ("readlink", Proc);
@@ -2166,9 +2052,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return;
          end if;
 
-         VFS.Read_Symbolic_Link (Opened_FS, Opened_Ino, Data, Ret_Count,
+         VFS.Read_Symbolic_Link (CWD_FS, Opened_Ino, Data, Ret_Count,
                                  Status, User);
-         Close (Opened_FS, Opened_Ino);
+         Close (CWD_FS, Opened_Ino);
          Translate_Status (Status, Unsigned_64 (Ret_Count), Returned, Errno);
       end;
    end Readlink;
@@ -2267,19 +2153,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
    is
       pragma Unreferenced (Dev);
 
-      Proc       : constant PID := Arch.Local.Get_Current_Process;
-      Map        : constant     Page_Table_Acc := Get_Common_Map (Proc);
+      Proc       : constant              PID := Arch.Local.Get_Current_Process;
+      Map        : constant   Page_Table_Acc := Get_Common_Map (Proc);
       Path_IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr : constant   System.Address := To_Address (Path_IAddr);
-      CWD          : String (1 .. Process.Max_CWD_Length);
-      CWD_Len      : Natural;
-      Final_Path   : String (1 .. 512);
-      Final_Path_L : Natural;
-      Node_Type    : File_Type;
-      Tmp_Mode     : constant File_Mode := File_Mode (Mode and 8#7777#);
-      Status       : VFS.FS_Status;
-      Umask        : VFS.File_Mode;
-      User         : Unsigned_32;
+      CWD_FS     : VFS.FS_Handle;
+      CWD_Ino    : VFS.File_Inode_Number;
+      Node_Type  : File_Type;
+      Tmp_Mode   : constant File_Mode := File_Mode (Mode and 8#7777#);
+      Status     : VFS.FS_Status;
+      Umask      : VFS.File_Mode;
+      User       : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
          Errno := Error_Would_Fault;
@@ -2289,44 +2173,37 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno := Error_String_Too_Long;
          Returned := Unsigned_64'Last;
          return;
-      elsif Dir_FD /= AT_FDCWD then
-         Errno := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
       end if;
 
       declare
          Path : String (1 .. Natural (Path_Len))
             with Import, Address => Path_SAddr;
       begin
-         Process.Get_CWD (Proc, CWD, CWD_Len);
-         Compound_Path
-            (Base      => CWD (1 .. CWD_Len),
-             Extension => Path,
-             Result    => Final_Path,
-             Count     => Final_Path_L);
-         if Final_Path_L = 0 then
-            Errno := Error_String_Too_Long;
+         Process.Get_Effective_UID (Proc, User);
+         Resolve_AT_Directive (Proc, Dir_FD, CWD_FS, CWD_Ino);
+         if CWD_FS = VFS.Error_Handle then
             Returned := Unsigned_64'Last;
+            Errno    := Error_Bad_File;
             return;
          end if;
+
+         if (Mode and Stat_IFDIR) /= 0 then
+            Node_Type := File_Directory;
+         else
+            Node_Type := File_Regular;
+         end if;
+
+         Userland.Process.Get_Umask         (Proc, Umask);
+         Userland.Process.Get_Effective_UID (Proc, User);
+         Status := Create_Node
+            (Key      => CWD_FS,
+             Relative => CWD_Ino,
+             Path     => Path,
+             Typ      => Node_Type,
+             Mode     => VFS.Apply_Umask (Tmp_Mode, Umask),
+             User     => User);
+         Translate_Status (Status, 0, Returned, Errno);
       end;
-
-      if (Mode and Stat_IFDIR) /= 0 then
-         Node_Type := File_Directory;
-      else
-         Node_Type := File_Regular;
-      end if;
-
-      Userland.Process.Get_Umask         (Proc, Umask);
-      Userland.Process.Get_Effective_UID (Proc, User);
-      Create_Node
-         (Path    => Final_Path (1 .. Final_Path_L),
-          Typ     => Node_Type,
-          Mode    => VFS.Apply_Umask (Tmp_Mode, Umask),
-          Success => Status,
-          User    => User);
-      Translate_Status (Status, 0, Returned, Errno);
    end MakeNode;
 
    procedure Unlink
@@ -2336,16 +2213,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      Curr_Proc    : constant PID := Arch.Local.Get_Current_Process;
-      Map          : constant    Page_Table_Acc := Get_Common_Map (Curr_Proc);
-      Path_IAddr   : constant Integer_Address := Integer_Address (Path_Addr);
-      Path_SAddr   : constant System.Address  := To_Address (Path_IAddr);
-      CWD          : String (1 .. Process.Max_CWD_Length);
-      CWD_Len      : Natural;
-      Final_Path   : String (1 .. 512);
-      Final_Path_L : Natural;
-      Success      : VFS.FS_Status;
-      User         : Unsigned_32;
+      Curr_Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      Map        : constant  Page_Table_Acc := Get_Common_Map (Curr_Proc);
+      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant System.Address  := To_Address (Path_IAddr);
+      CWD_FS     : VFS.FS_Handle;
+      CWD_Ino    : VFS.File_Inode_Number;
+      Success    : VFS.FS_Status;
+      User       : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
          Errno := Error_Would_Fault;
@@ -2355,32 +2230,23 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno := Error_String_Too_Long;
          Returned := Unsigned_64'Last;
          return;
-      elsif Dir_FD /= AT_FDCWD then
-         Errno := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
       end if;
 
       declare
          Path : String (1 .. Natural (Path_Len))
             with Import, Address => Path_SAddr;
       begin
-         Process.Get_CWD (Curr_Proc, CWD, CWD_Len);
-         Compound_Path
-            (Base      => CWD (1 .. CWD_Len),
-             Extension => Path,
-             Result    => Final_Path,
-             Count     => Final_Path_L);
-         if Final_Path_L = 0 then
-            Errno := Error_String_Too_Long;
+         Process.Get_Effective_UID (Curr_Proc, User);
+         Resolve_AT_Directive (Curr_Proc, Dir_FD, CWD_FS, CWD_Ino);
+         if CWD_FS = VFS.Error_Handle then
             Returned := Unsigned_64'Last;
+            Errno    := Error_Bad_File;
             return;
          end if;
-      end;
 
-      Userland.Process.Get_Effective_UID (Curr_Proc, User);
-      VFS.Unlink (Final_Path (1 .. Final_Path_L), Success, User);
-      Translate_Status (Success, 0, Returned, Errno);
+         Success := VFS.Unlink (CWD_FS, CWD_Ino, Path, User);
+         Translate_Status (Success, 0, Returned, Errno);
+      end;
    end Unlink;
 
    procedure Truncate
@@ -2464,18 +2330,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned    : out Unsigned_64;
        Errno       : out Errno_Value)
    is
-      Proc       : constant PID := Arch.Local.Get_Current_Process;
-      Map        : constant     Page_Table_Acc := Get_Common_Map (Proc);
+      Proc       : constant              PID := Arch.Local.Get_Current_Process;
+      Map        : constant   Page_Table_Acc := Get_Common_Map (Proc);
       Path_IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr : constant   System.Address := To_Address (Path_IAddr);
       Targ_IAddr : constant  Integer_Address := Integer_Address (Target_Addr);
       Targ_SAddr : constant   System.Address := To_Address (Targ_IAddr);
-      CWD          : String (1 .. Process.Max_CWD_Length);
-      CWD_Len      : Natural;
-      Final_Path   : String (1 .. 512);
-      Final_Path_L : Natural;
-      Success      : VFS.FS_Status;
-      User         : Unsigned_32;
+      CWD_FS     : VFS.FS_Handle;
+      CWD_Ino    : VFS.File_Inode_Number;
+      Success    : VFS.FS_Status;
+      User       : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) or
          not Check_Userland_Access (Map, Targ_IAddr, Target_Len)
@@ -2489,10 +2353,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno := Error_String_Too_Long;
          Returned := Unsigned_64'Last;
          return;
-      elsif Dir_FD /= AT_FDCWD then
-         Errno := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
       end if;
 
       declare
@@ -2501,22 +2361,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Targ : String (1 .. Natural (Target_Len))
             with Import, Address => Targ_SAddr;
       begin
-         Process.Get_CWD (Proc, CWD, CWD_Len);
-         Compound_Path
-            (Base      => CWD (1 .. CWD_Len),
-             Extension => Path,
-             Result    => Final_Path,
-             Count     => Final_Path_L);
-         if Final_Path_L = 0 then
-            Errno := Error_String_Too_Long;
+         Process.Get_Effective_UID (Proc, User);
+         Resolve_AT_Directive (Proc, Dir_FD, CWD_FS, CWD_Ino);
+         if CWD_FS = VFS.Error_Handle then
             Returned := Unsigned_64'Last;
+            Errno    := Error_Bad_File;
             return;
          end if;
 
-         Userland.Process.Get_Effective_UID (Proc, User);
-         VFS.Create_Symbolic_Link
-            (Final_Path (1 .. Final_Path_L),
-             Targ, Unsigned_32 (Mode), Success, User);
+         Success := VFS.Create_Symbolic_Link
+            (CWD_FS, CWD_Ino, Path, Targ, Unsigned_32 (Mode), User);
          Translate_Status (Success, 0, Returned, Errno);
       end;
    end Symlink;
@@ -2669,14 +2523,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Src_SAddr : constant   System.Address := To_Address (Src_IAddr);
       Dst_IAddr : constant  Integer_Address := Integer_Address (Desto_Addr);
       Dst_SAddr : constant   System.Address := To_Address (Dst_IAddr);
-      CWD           : String (1 .. Process.Max_CWD_Length);
-      CWD_Len       : Natural;
-      Final_Path1   : String (1 .. 1024);
-      Final_Path1_L : Natural;
-      Final_Path2   : String (1 .. 1024);
-      Final_Path2_L : Natural;
-      Success       : VFS.FS_Status;
-      User          : Unsigned_32;
+      Src_FS, Dst_FS   : VFS.FS_Handle;
+      Src_Ino, Dst_Ino : VFS.File_Inode_Number;
+      Success          : VFS.FS_Status;
+      User             : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Src_IAddr, Source_Len) or
          not Check_Userland_Access (Map, Dst_IAddr, Desto_Len)
@@ -2690,10 +2540,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno := Error_String_Too_Long;
          Returned := Unsigned_64'Last;
          return;
-      elsif Source_Dir /= AT_FDCWD or Desto_Dir /= AT_FDCWD then
-         Errno := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
       end if;
 
       declare
@@ -2702,29 +2548,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Dst : String (1 ..  Natural (Desto_Len))
             with Import, Address => Dst_SAddr;
       begin
-         Process.Get_CWD (Proc, CWD, CWD_Len);
-         Compound_Path
-            (Base      => CWD (1 .. CWD_Len),
-             Extension => Src,
-             Result    => Final_Path1,
-             Count     => Final_Path1_L);
-         Compound_Path
-            (Base      => CWD (1 .. CWD_Len),
-             Extension => Dst,
-             Result    => Final_Path2,
-             Count     => Final_Path2_L);
-         if Final_Path1_L = 0 or Final_Path2_L = 0 then
-            Errno := Error_String_Too_Long;
+         Process.Get_Effective_UID (Proc, User);
+         Resolve_AT_Directive (Proc, Source_Dir, Src_FS, Src_Ino);
+         Resolve_AT_Directive (Proc, Desto_Dir,  Dst_FS, Dst_Ino);
+         if Src_FS = VFS.Error_Handle or else
+            Dst_FS = VFS.Error_Handle or else
+            Src_FS /= Dst_FS
+         then
             Returned := Unsigned_64'Last;
+            Errno    := Error_Bad_File;
             return;
          end if;
 
-         Userland.Process.Get_Effective_UID (Proc, User);
-         VFS.Create_Hard_Link
-            (Final_Path1 (1 .. Final_Path1_L),
-             Final_Path2 (1 .. Final_Path2_L),
-             Success,
-             User);
+         Success := Create_Hard_Link
+            (Src_FS, Src_Ino, Src, Dst_Ino, Dst, User);
          Translate_Status (Success, 0, Returned, Errno);
       end;
    end Link;
@@ -3675,4 +3512,26 @@ package body Userland.Syscall with SPARK_Mode => Off is
           Is_Executable      => Is_Executable);
       return not Is_Mapped;
    end Check_Userland_Mappability;
+
+   procedure Resolve_AT_Directive
+      (Proc   : PID;
+       Dir_FD : Unsigned_64;
+       FS     : out VFS.FS_Handle;
+       Ino    : out VFS.File_Inode_Number)
+   is
+      Descr : File_Description_Acc;
+   begin
+      if Dir_FD = AT_FDCWD then
+         Process.Get_CWD (Proc, FS, Ino);
+      else
+         Descr := Get_File (Proc, Dir_FD);
+         if Descr = null or else Descr.Description /= Description_Inode then
+            FS  := VFS.Error_Handle;
+            Ino := 0;
+         else
+            FS  := Descr.Inner_Ino_FS;
+            Ino := Descr.Inner_Ino;
+         end if;
+      end if;
+   end Resolve_AT_Directive;
 end Userland.Syscall;

@@ -25,40 +25,52 @@ package VFS.EXT with SPARK_Mode => Off is
    procedure Unmount (FS : in out System.Address);
    ----------------------------------------------------------------------------
    procedure Open
-      (FS      : System.Address;
-       Path    : String;
-       Ino     : out File_Inode_Number;
-       Success : out FS_Status;
-       User    : Unsigned_32);
+      (FS        : System.Address;
+       Relative  : File_Inode_Number;
+       Path      : String;
+       Ino       : out File_Inode_Number;
+       Success   : out FS_Status;
+       User      : Unsigned_32;
+       Do_Follow : Boolean);
 
    function Create_Node
-      (FS   : System.Address;
-       Path : String;
-       Typ  : File_Type;
-       Mode : File_Mode;
-       User : Unsigned_32) return FS_Status;
+      (FS       : System.Address;
+       Relative : File_Inode_Number;
+       Path     : String;
+       Typ      : File_Type;
+       Mode     : File_Mode;
+       User     : Unsigned_32) return FS_Status;
 
    function Create_Symbolic_Link
-      (FS           : System.Address;
-       Path, Target : String;
-       Mode         : Unsigned_32;
-       User         : Unsigned_32) return FS_Status;
+      (FS       : System.Address;
+       Relative : File_Inode_Number;
+       Path     : String;
+       Target   : String;
+       Mode     : Unsigned_32;
+       User     : Unsigned_32) return FS_Status;
 
    function Create_Hard_Link
-      (FS           : System.Address;
-       Path, Target : String;
-       User         : Unsigned_32) return FS_Status;
+      (FS              : System.Address;
+       Relative_Path   : File_Inode_Number;
+       Path            : String;
+       Relative_Target : File_Inode_Number;
+       Target          : String;
+       User            : Unsigned_32) return FS_Status;
 
    function Rename
-      (FS             : System.Address;
-       Source, Target : String;
-       Keep           : Boolean;
-       User           : Unsigned_32) return FS_Status;
+      (FS              : System.Address;
+       Relative_Source : File_Inode_Number;
+       Source          : String;
+       Relative_Target : File_Inode_Number;
+       Target          : String;
+       Keep            : Boolean;
+       User            : Unsigned_32) return FS_Status;
 
    function Unlink
-      (FS   : System.Address;
-       Path : String;
-       User : Unsigned_32) return FS_Status;
+      (FS       : System.Address;
+       Relative : File_Inode_Number;
+       Path     : String;
+       User     : Unsigned_32) return FS_Status;
 
    procedure Close (FS : System.Address; Ino : File_Inode_Number);
 
@@ -339,6 +351,7 @@ private
 
    function Inner_Open_Inode
       (Data         : EXT_Data_Acc;
+       Relative     : Unsigned_32;
        Path         : String;
        Name_Start   : out Natural;
        Target_Index : out Unsigned_32;

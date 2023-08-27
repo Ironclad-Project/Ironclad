@@ -146,11 +146,8 @@ package body VFS with SPARK_Mode => Off is
       end loop;
       Lib.Synchronization.Release (Mounts_Mutex);
 
-      if Match > 1           and then
-         Path'Length > Match and then
-         Path (Path'First + Match) = '/'
-      then
-         Match := Match + 1;
+      if Match > 0 then
+         Match := Match - 1;
       end if;
    end Get_Mount;
 
@@ -199,21 +196,25 @@ package body VFS with SPARK_Mode => Off is
    end Get_Backing_Device;
    ----------------------------------------------------------------------------
    procedure Open
-      (Key     : FS_Handle;
-       Path    : String;
-       Ino     : out File_Inode_Number;
-       Success : out FS_Status;
-       User    : Unsigned_32)
+      (Key       : FS_Handle;
+       Relative  : File_Inode_Number;
+       Path      : String;
+       Ino       : out File_Inode_Number;
+       Success   : out FS_Status;
+       User      : Unsigned_32;
+       Do_Follow : Boolean := True)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             EXT.Open
-               (FS      => Mounts (Key).FS_Data,
-                Path    => Path,
-                Ino     => Ino,
-                Success => Success,
-                User    => User);
+               (FS        => Mounts (Key).FS_Data,
+                Relative  => Relative,
+                Path      => Path,
+                Ino       => Ino,
+                Success   => Success,
+                User      => User,
+                Do_Follow => Do_Follow);
          when FS_FAT =>
             FAT.Open
                (FS      => Mounts (Key).FS_Data,
@@ -227,78 +228,92 @@ package body VFS with SPARK_Mode => Off is
    end Open;
 
    function Create_Node
-      (Key  : FS_Handle;
-       Path : String;
-       Typ  : File_Type;
-       Mode : File_Mode;
-       User : Unsigned_32) return FS_Status
+      (Key      : FS_Handle;
+       Relative : File_Inode_Number;
+       Path     : String;
+       Typ      : File_Type;
+       Mode     : File_Mode;
+       User     : Unsigned_32) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             return EXT.Create_Node
-               (Mounts (Key).FS_Data, Path, Typ, Mode, User);
+               (Mounts (Key).FS_Data, Relative, Path, Typ, Mode, User);
          when others =>
             return FS_Not_Supported;
       end case;
    end Create_Node;
 
    function Create_Symbolic_Link
-      (Key          : FS_Handle;
-       Path, Target : String;
-       Mode         : Unsigned_32;
-       User         : Unsigned_32) return FS_Status
+      (Key      : FS_Handle;
+       Relative : File_Inode_Number;
+       Path     : String;
+       Target   : String;
+       Mode     : Unsigned_32;
+       User     : Unsigned_32) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             return EXT.Create_Symbolic_Link
-               (Mounts (Key).FS_Data, Path, Target, Mode, User);
+               (Mounts (Key).FS_Data, Relative, Path, Target, Mode, User);
          when others =>
             return FS_Not_Supported;
       end case;
    end Create_Symbolic_Link;
 
    function Create_Hard_Link
-      (Key          : FS_Handle;
-       Path, Target : String;
-       User         : Unsigned_32) return FS_Status
+      (Key             : FS_Handle;
+       Relative_Path   : File_Inode_Number;
+       Path            : String;
+       Relative_Target : File_Inode_Number;
+       Target          : String;
+       User            : Unsigned_32) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             return EXT.Create_Hard_Link
-               (Mounts (Key).FS_Data, Path, Target, User);
+               (Mounts (Key).FS_Data, Relative_Path, Path, Relative_Target,
+                Target, User);
          when others =>
             return FS_Not_Supported;
       end case;
    end Create_Hard_Link;
 
    function Rename
-      (Key    : FS_Handle;
-       Source : String;
-       Target : String;
-       Keep   : Boolean;
-       User   : Unsigned_32) return FS_Status
+      (Key             : FS_Handle;
+       Relative_Source : File_Inode_Number;
+       Source          : String;
+       Relative_Target : File_Inode_Number;
+       Target          : String;
+       Keep            : Boolean;
+       User            : Unsigned_32) return FS_Status
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             return EXT.Rename
-               (Mounts (Key).FS_Data, Source, Target, Keep, User);
+               (Mounts (Key).FS_Data, Relative_Source, Source, Relative_Target,
+                Target, Keep, User);
          when others =>
             return FS_Not_Supported;
       end case;
    end Rename;
 
    function Unlink
-      (Key  : FS_Handle;
-       Path : String;
-       User : Unsigned_32) return FS_Status is
+      (Key      : FS_Handle;
+       Relative : File_Inode_Number;
+       Path     : String;
+       User     : Unsigned_32) return FS_Status
+   is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT => return EXT.Unlink (Mounts (Key).FS_Data, Path, User);
-         when others => return FS_Not_Supported;
+         when FS_EXT =>
+            return EXT.Unlink (Mounts (Key).FS_Data, Relative, Path, User);
+         when others =>
+            return FS_Not_Supported;
       end case;
    end Unlink;
 
@@ -530,62 +545,25 @@ package body VFS with SPARK_Mode => Off is
    end Change_Owner;
    ----------------------------------------------------------------------------
    procedure Open
-      (Path    : String;
-       Key     : out FS_Handle;
-       Ino     : out File_Inode_Number;
-       Success : out FS_Status;
-       User    : Unsigned_32;
-       Follow  : Boolean := True)
+      (Path      : String;
+       Key       : out FS_Handle;
+       Ino       : out File_Inode_Number;
+       Success   : out FS_Status;
+       User      : Unsigned_32;
+       Do_Follow : Boolean := True)
    is
-      Matched      : Natural;
-      Last_Slash   : Natural := 0;
-      Symlink      : String (1 .. 60);
-      Symlink_Len  : Natural;
-      Fetched_Stat : File_Stat;
+      Match_Count : Natural;
    begin
-      Key := Error_Handle;
-      Ino := 0;
-
-      Get_Mount (Path, Matched, Key);
-      if Key = Error_Handle then
+      Get_Mount (Path, Match_Count, Key);
+      if Key /= Error_Handle then
+         Open
+            (Key,
+             0,
+             Path   (Path'First   + Match_Count ..   Path'Last),
+             Ino, Success, User, Do_Follow);
+      else
+         Ino     := 0;
          Success := FS_Invalid_Value;
-         return;
-      end if;
-
-      Open (Key, Path (Path'First + Matched .. Path'Last), Ino, Success, User);
-      if Success = FS_Success then
-         Stat (Key, Ino, Fetched_Stat, Success, User);
-         if Follow and Fetched_Stat.Type_Of_File = File_Symbolic_Link then
-            VFS.Read_Symbolic_Link
-               (Key       => Key,
-                Ino       => Ino,
-                Path      => Symlink,
-                Ret_Count => Symlink_Len,
-                Success   => Success,
-                User      => User);
-
-            for I in Path'Range loop
-               if Path (I) = '/' then
-                  Last_Slash := I;
-               end if;
-            end loop;
-
-            Close (Key, Ino);
-
-            if Symlink_Len = 0 then
-               Success := FS_Invalid_Value;
-            elsif Symlink (1) = '/' then
-               Open (Symlink (1 .. Symlink_Len), Key, Ino, Success, User);
-            else
-               Open (
-                  Path (Path'First .. Last_Slash) & Symlink (1 .. Symlink_Len),
-                  Key,
-                  Ino,
-                  Success,
-                  User
-               );
-            end if;
-         end if;
       end if;
    end Open;
 
@@ -617,8 +595,8 @@ package body VFS with SPARK_Mode => Off is
       Get_Mount (Path, Match_Count, Handle);
       if Handle /= Error_Handle then
          Success := Create_Node
-            (Handle, Path (Path'First + Match_Count .. Path'Last), Typ, Mode,
-             User);
+            (Handle, 0, Path (Path'First + Match_Count .. Path'Last), Typ,
+             Mode, User);
       else
          Success := FS_Invalid_Value;
       end if;
@@ -636,8 +614,8 @@ package body VFS with SPARK_Mode => Off is
       Get_Mount (Path, Match_Count, Handle);
       if Handle /= Error_Handle then
          Success := Create_Symbolic_Link
-            (Handle, Path (Path'First + Match_Count .. Path'Last), Target,
-             Mode, User);
+            (Handle, 0, Path (Path'First + Match_Count .. Path'Last),
+             Target, Mode, User);
       else
          Success := FS_Invalid_Value;
       end if;
@@ -655,8 +633,8 @@ package body VFS with SPARK_Mode => Off is
       if Handle /= Error_Handle then
          Success := Create_Hard_Link
             (Handle,
-             Path   (Path'First   + Match_Count ..   Path'Last),
-             Target (Target'First + Match_Count .. Target'Last),
+             0, Path   (Path'First   + Match_Count ..   Path'Last),
+             0, Target (Target'First + Match_Count .. Target'Last),
              User);
       else
          Success := FS_Invalid_Value;
@@ -676,8 +654,8 @@ package body VFS with SPARK_Mode => Off is
       if Handle /= Error_Handle then
          Success := Rename
             (Handle,
-             Source (Source'First + Match_Count .. Source'Last),
-             Target (Target'First + Match_Count .. Target'Last),
+             0, Source (Source'First + Match_Count .. Source'Last),
+             0, Target (Target'First + Match_Count .. Target'Last),
              Keep,
              User);
       else
@@ -696,7 +674,7 @@ package body VFS with SPARK_Mode => Off is
       Get_Mount (Path, Match_Count, Handle);
       if Handle /= Error_Handle then
          Success := Unlink
-            (Handle, Path (Path'First + Match_Count .. Path'Last), User);
+            (Handle, 0, Path (Path'First + Match_Count .. Path'Last), User);
       else
          Success := FS_Invalid_Value;
       end if;

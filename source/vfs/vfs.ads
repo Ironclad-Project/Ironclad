@@ -150,84 +150,104 @@ package VFS is
        FS_IO_Failure);   --  The underlying device errored out.
 
    --  Open a file with an absolute path inside the mount.
-   --  @param Key     FS Handle to open.
-   --  @param Path    Absolute path inside the mount, creation is not done.
-   --  @param Ino     Found inode, if any.
-   --  @param Success Returned status for the operation.
-   --  @param User    UID to check against, 0 for root/bypass checks.
+   --  @param Key       FS Handle to open.
+   --  @param Relative  Relative directory inode to open from.
+   --  @param Path      Path to be accessed inside Relative, or absolute.
+   --  @param Ino       Found inode, if any.
+   --  @param Success   Returned status for the operation.
+   --  @param User      UID to check against, 0 for root/bypass checks.
+   --  @param Do_Follow If true, follow symlinks, hard links are always used.
    procedure Open
-      (Key     : FS_Handle;
-       Path    : String;
-       Ino     : out File_Inode_Number;
-       Success : out FS_Status;
-       User    : Unsigned_32)
+      (Key       : FS_Handle;
+       Relative  : File_Inode_Number;
+       Path      : String;
+       Ino       : out File_Inode_Number;
+       Success   : out FS_Status;
+       User      : Unsigned_32;
+       Do_Follow : Boolean := True)
       with Pre => Key /= Error_Handle;
 
-   --  Create a file with an absolute path inside the mount.
-   --  @param Key  FS Handle to open.
-   --  @param Path Absolute path inside the mount, must not exist.
-   --  @param Typ  Type of file to create.
-   --  @param Mode Mode to use for the created file.
-   --  @param User UID to check against, 0 for root/bypass checks.
+   --  Create an inode inside a mount.
+   --  @param Key      FS Handle to open.
+   --  @param Relative Relative directory inode to create from.
+   --  @param Path     Path to be created inside Relative, or absolute.
+   --  @param Typ      Type of file to create.
+   --  @param Mode     Mode to use for the created file.
+   --  @param User     UID to check against, 0 for root/bypass checks.
    --  @return Status for the operation.
    function Create_Node
-      (Key  : FS_Handle;
-       Path : String;
-       Typ  : File_Type;
-       Mode : File_Mode;
-       User : Unsigned_32) return FS_Status
+      (Key      : FS_Handle;
+       Relative : File_Inode_Number;
+       Path     : String;
+       Typ      : File_Type;
+       Mode     : File_Mode;
+       User     : Unsigned_32) return FS_Status
       with Pre => Key /= Error_Handle;
 
-   --  Create a symlink with an absolute path inside the mount and a target.
-   --  @param Key    FS Handle to open.
-   --  @param Path   Absolute path inside the mount, must not exist.
-   --  @param Target Target of the symlink, it is not checked in any way.
-   --  @param Mode   Mode to use for the created symlink.
-   --  @param User   UID to check against, 0 for root/bypass checks.
+   --  Create a symlink with a target inside a mount.
+   --  @param Key      FS Handle to open.
+   --  @param Relative Relative directory inode to create from.
+   --  @param Path     Path to be created inside Relative, or absolute.
+   --  @param Target   Target of the symlink, it is not checked in any way.
+   --  @param Mode     Mode to use for the created symlink.
+   --  @param User     UID to check against, 0 for root/bypass checks.
    --  @return Status for the operation.
    function Create_Symbolic_Link
-      (Key          : FS_Handle;
-       Path, Target : String;
-       Mode         : Unsigned_32;
-       User         : Unsigned_32) return FS_Status
+      (Key      : FS_Handle;
+       Relative : File_Inode_Number;
+       Path     : String;
+       Target   : String;
+       Mode     : Unsigned_32;
+       User     : Unsigned_32) return FS_Status
       with Pre => Key /= Error_Handle;
 
-   --  Create a hard link with an absolute path inside the mount and a target.
-   --  @param Key    FS Handle to open.
-   --  @param Path   Absolute path inside the mount, must not exist.
-   --  @param Target Target of the symlink, it is not checked in any way.
-   --  @param User   UID to check against, 0 for root/bypass checks.
+   --  Create a hard link inside a mount with a target.
+   --  @param Key             FS Handle to open.
+   --  @param Relative_Path   Relative directory inode to create from.
+   --  @param Path            Path inside the mount, must not exist.
+   --  @param Relative_Target Relative directory inode to link to.
+   --  @param Target          Target of the link, must exist.
+   --  @param User            UID to check against, 0 for root/bypass checks.
    --  @return Status for the operation.
    function Create_Hard_Link
-      (Key          : FS_Handle;
-       Path, Target : String;
-       User         : Unsigned_32) return FS_Status
+      (Key             : FS_Handle;
+       Relative_Path   : File_Inode_Number;
+       Path            : String;
+       Relative_Target : File_Inode_Number;
+       Target          : String;
+       User            : Unsigned_32) return FS_Status
       with Pre => Key /= Error_Handle;
 
-   --  Rename two files.
-   --  @param Key    FS Handle to open.
-   --  @param Source Absolute source path inside the mount, must not exist.
-   --  @param Target Target of the mode, if it exists, it will be replaced.
-   --  @param Keep   Keep the source instead of plainly renaming it.
-   --  @param User   UID to check against, 0 for root/bypass checks.
+   --  Rename a file to a target, optionally keeping it in the process.
+   --  @param Key             FS Handle to open.
+   --  @param Relative_Source Relative directory inode to create from.
+   --  @param Source          Path to be renamed inside Relative, or absolute.
+   --  @param Relative_Target Relative directory inode to rename to.
+   --  @param Target          Target of the rename, must not exist.
+   --  @param Keep            Keep the source instead of plainly renaming it.
+   --  @param User            UID to check against, 0 for root/bypass checks.
    --  @return Status for the operation.
    function Rename
-      (Key    : FS_Handle;
-       Source : String;
-       Target : String;
-       Keep   : Boolean;
-       User   : Unsigned_32) return FS_Status
+      (Key             : FS_Handle;
+       Relative_Source : File_Inode_Number;
+       Source          : String;
+       Relative_Target : File_Inode_Number;
+       Target          : String;
+       Keep            : Boolean;
+       User            : Unsigned_32) return FS_Status
       with Pre => Key /= Error_Handle;
 
    --  Queue a file for deletion inside a mount.
-   --  @param Key  FS Handle to open.
-   --  @param Path Absolute path inside the mount, must exist.
-   --  @param User UID to check against, 0 for root/bypass checks.
+   --  @param Key      FS Handle to open.
+   --  @param Relative Relative directory inode to unlink from.
+   --  @param Path     Absolute path inside the mount, must exist.
+   --  @param User     UID to check against, 0 for root/bypass checks.
    --  @return Status for the operation.
    function Unlink
-      (Key  : FS_Handle;
-       Path : String;
-       User : Unsigned_32) return FS_Status;
+      (Key      : FS_Handle;
+       Relative : File_Inode_Number;
+       Path     : String;
+       User     : Unsigned_32) return FS_Status;
 
    --  Signal to the FS we do not need this inode anymore.
    --  @param Key FS handle to operate on.
@@ -393,19 +413,19 @@ package VFS is
    --  for the appropiate FS, or operate on several FSes.
 
    --  Open a file with an absolute path system-wide.
-   --  @param Path    Absolute path inside the mount, creation is not done.
-   --  @param Key     Guessed FS handle.
-   --  @param Ino     Found inode, if any.
-   --  @param Success Returned status for the operation.
-   --  @param User    UID to check against, 0 for root/bypass checks.
-   --  @param Follow  True for following symlinks, False for not following em.
+   --  @param Path       Absolute path inside the mount, creation is not done.
+   --  @param Key        Guessed FS handle.
+   --  @param Ino        Found inode, if any.
+   --  @param Success    Returned status for the operation.
+   --  @param User       UID to check against, 0 for root/bypass checks.
+   --  @param Do_Follow  True to follow symlinks, False for not following em.
    procedure Open
-      (Path    : String;
-       Key     : out FS_Handle;
-       Ino     : out File_Inode_Number;
-       Success : out FS_Status;
-       User    : Unsigned_32;
-       Follow  : Boolean := True);
+      (Path      : String;
+       Key       : out FS_Handle;
+       Ino       : out File_Inode_Number;
+       Success   : out FS_Status;
+       User      : Unsigned_32;
+       Do_Follow : Boolean := True);
 
    --  Synchronize all FSs mounted on the system, FSs with no implemented
    --  synchronization routines are ignored.
@@ -432,10 +452,11 @@ package VFS is
    --  @param Success Status of the operation.
    --  @param User    UID to check against, 0 for root/bypass checks.
    procedure Create_Symbolic_Link
-      (Path, Target : String;
-       Mode         : Unsigned_32;
-       Success      : out FS_Status;
-       User         : Unsigned_32);
+      (Path    : String;
+       Target  : String;
+       Mode    : Unsigned_32;
+       Success : out FS_Status;
+       User    : Unsigned_32);
 
    --  Create a hard link.
    --  @param Path    System-wide absolute path to create.
@@ -443,9 +464,10 @@ package VFS is
    --  @param Success Status of the operation.
    --  @param User    UID to check against, 0 for root/bypass checks.
    procedure Create_Hard_Link
-      (Path, Target : String;
-       Success      : out FS_Status;
-       User         : Unsigned_32);
+      (Path    : String;
+       Target  : String;
+       Success : out FS_Status;
+       User    : Unsigned_32);
 
    --  Rename files.
    --  @param Path    System-wide absolute path to rename.
@@ -453,10 +475,11 @@ package VFS is
    --  @param Success Status of the operation.
    --  @param User    UID to check against, 0 for root/bypass checks.
    procedure Rename
-      (Source, Target : String;
-       Keep           : Boolean;
-       Success        : out FS_Status;
-       User           : Unsigned_32);
+      (Source  : String;
+       Target  : String;
+       Keep    : Boolean;
+       Success : out FS_Status;
+       User    : Unsigned_32);
 
    --  Queue a file for unlinking.
    --  @param Path    System-wide absolute path to unlink.
