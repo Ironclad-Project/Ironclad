@@ -38,7 +38,6 @@ cryptic and scary Ada code.
 @end ifnottex
 
 @menu
-* Introduction::                       Project overview and bug reporting.
 * Installation and target support::    Installation and hardware support.
 * Boot-time command-line options::     Command-line options.
 * Scheduling and RTC::                 Scheduling methodology and features.
@@ -53,13 +52,6 @@ cryptic and scary Ada code.
 
 @detailmenu
 --- The Detailed Node Listing ---
-
-Introduction
-
-* How to contribute::        How to contribute code to the kernel.
-* Porting to new targets::   Small guide on porting to new targets.
-* Error reporting::          How to report issues with the kernel.
-* Formal verification::      Current state of the formal verification effort.
 
 Installation and target support
 
@@ -178,86 +170,6 @@ Devices and their properties
 
 @end detailmenu
 @end menu
-
-@node Introduction
-@chapter Introduction
-
-Ironclad is a partially formally verified real-time kernel, with a small
-footprint, for general-purpose and embedded OSes, written in SPARK and Ada.
-
-Some of the supported features are:
-@itemize
-@item
-A familiar POSIX-compatible interface
-@item
-True simultaneous multitasking
-@item
-Complex virtual and physical memory support, VFS support
-@item
-Resiliency and small footprint
-@item
-Partial gold-level formal verification
-@item
-Advanced cryptography and a security-centered architecture
-@item
-Hard real-time scheduling and real-time oriented features
-@end itemize
-
-This manual is a work in progress: many sections make no attempt to
-explain basic concepts in a way suitable for novices. Thus, if you are
-interested, please get involved in improving this manual.
-
-@node How to contribute
-@section How to contribute
-
-Thanks for considering contributing to Ironclad, it means a lot.
-
-There are several ways one can help the Ironclad project, from writing and
-correcting documentation to contributing source code.
-
-For submitting code or documentation patches, be it for Ironclad's webpages,
-or the kernel repository itself, please submit the patch to the project's
-@url{https://savannah.nongnu.org/patch/?group=ironclad, patch manager},
-(@url{https://savannah.nongnu.org/patch/?group=ironclad&func=additem, create an item}). If prefered, one can send a patch to
-@email{bug-ironclad@@nongnu.org, bug-ironclad}.
-
-Need some inspiration? What about...
-
-@itemize
-@item
-...a port to a target you would want Ironclad to run for?
-@item
-...a translation of this documentation to another language?
-@item
-...testing the kernel with @url{https://github.com/streaksu/Gloire, Gloire}
-and report issues you may find?
-@end itemize
-
-@node Porting to new targets
-@section Porting to new targets
-
-All architecture-specific code is contained in the @code{arch} directory, all
-that is needed is adding code there, wire build instructions, and writing
-documentation.
-
-@node Error reporting
-@section Error reporting
-
-Ironclad is a fairly new project at the end of the day, so things are prone to
-fail. Once an issue arises, one can open a bug report at the
-@url{https://savannah.nongnu.org/bugs/?group=ironclad, project's bug tracker},
-(@url{https://savannah.nongnu.org/bugs/?group=ironclad&func=additem, create an item}).
-
-@node Formal verification
-@section Formal verification
-
-Ironclad is in an ongoing process to raise its verification
-level to @url{https://docs.adacore.com/spark2014-docs/html/ug/en/usage_scenarios.html#levels-of-spark-use, a mix of silver and gold level} for
-as many of the kernel facilities as possible.
-
-This is done with the goal of ensure the absence of errors in a crucial system
-component like the kernel, and for ensuring the suitability of Ironclad for
-embedded and mission critical tasks.
 
 @node Installation and target support
 @chapter Installation and target support

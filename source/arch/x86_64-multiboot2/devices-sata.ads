@@ -41,9 +41,9 @@ private
       FIS_Upper          : Unsigned_32;
       Interrupt_Status   : Unsigned_32;
       Interrupt_Enable   : Unsigned_32;
-      Command_And_Status : Unsigned_32 with Volatile;
+      Command_And_Status : Unsigned_32;
       Reserved_1         : Unsigned_32;
-      Task_File_Data     : Unsigned_32 with Volatile;
+      Task_File_Data     : Unsigned_32;
       Signature          : Unsigned_32;
       SATA_Status        : Unsigned_32;
       SATA_Control       : Unsigned_32;
@@ -54,7 +54,7 @@ private
       FIS_Switch_Control : Unsigned_32;
       Reserved_2         : HBA_Padding (1 .. 44);
       Vendor_Specific    : HBA_Padding (1 .. 16);
-   end record;
+   end record with Volatile;
 
    type HBA_Port_Acc is access all HBA_Port with Volatile;
    type HBA_Port_Arr is array (Natural range <>) of aliased HBA_Port with Pack;
@@ -74,7 +74,7 @@ private
       Reserved_1          : HBA_Padding (1 .. 116);
       Vendor_Specific     : HBA_Padding (1 .. 96);
       Ports               : HBA_Port_Arr (1 .. Ports_Per_Controller);
-   end record;
+   end record with Volatile;
    type HBA_Memory_Acc is access all HBA_Memory;
 
    type Unsigned_4 is mod 2 ** 4;
@@ -94,7 +94,7 @@ private
       CTBA          : Unsigned_32;
       CTBAU         : Unsigned_32;
       Reserved_2    : HBA_Padding (1 .. 16);
-   end record with Size => 256;
+   end record with Size => 256, Volatile;
    for HBA_Command_Header use record
       Control_Flags at 0 range   0 ..   4;
       A             at 0 range   5 ..   5;
@@ -138,7 +138,7 @@ private
       Reserved   : HBA_Padding (1 .. 48);
       PRDT       : HBA_PRDTL;
       Padding    : HBA_Padding (1 .. 3952); --  Padding to 4k.
-   end record with Size => 32768;
+   end record with Size => 32768, Volatile;
    for HBA_Command_TBL use record
       FIS_Buffer at 0 range    0 ..   511;
       Command    at 0 range  512 ..   639;
@@ -152,7 +152,7 @@ private
    type HBA_Command_Area is record
       Headers : HBA_Command_Headers (1 .. Ports_Per_Controller);
       Padding : HBA_Padding (1 .. 3072); --  Padding so it is 4k aligned.
-   end record with Size => 32768;
+   end record with Size => 32768, Volatile;
    for HBA_Command_Area use record
       Headers at 0 range    0 ..  8191;
       Padding at 0 range 8192 .. 32767;
@@ -178,7 +178,7 @@ private
       Buffer_Offset      : Unsigned_32;
       Transfer_Count     : Unsigned_32;
       Reserved_5         : Unsigned_32;
-   end record with Size => 224;
+   end record with Size => 224, Volatile;
    for FIS_DMA_Setup use record
       FIS_Type           at 0 range   0 ..   7;
       PMPort             at 0 range   8 ..  11;
@@ -217,7 +217,7 @@ private
       New_Status         : Unsigned_8;
       Transfer_Count     : Unsigned_8;
       Reserved_5         : HBA_Padding (1 .. 2);
-   end record with Size => 152;
+   end record with Size => 152, Volatile;
    for FIS_PIO_Setup use record
       FIS_Type           at 0 range   0 ..   7;
       PMPort             at 0 range   8 ..  11;
@@ -265,7 +265,7 @@ private
       Command_Completion : Unsigned_8;
       Control            : Unsigned_8;
       Reserved_4         : HBA_Padding (1 .. 4);
-   end record with Size => 160;
+   end record with Size => 160, Volatile;
    for FIS_Host_To_Device use record
       FIS_Type           at 0 range   0 ..   7;
       PMPort             at 0 range   8 ..  11;
@@ -310,7 +310,7 @@ private
       Count_Low          : Unsigned_8;
       Count_High         : Unsigned_8;
       Reserved_4         : HBA_Padding (1 .. 6);
-   end record with Size => 160;
+   end record with Size => 160, Volatile;
    for FIS_Device_To_Host use record
       FIS_Type           at 0 range   0 ..   7;
       PMPort             at 0 range   8 ..  11;
@@ -343,7 +343,7 @@ private
       SDB_FIS    : HBA_Padding (1 .. 8);
       U_FIS      : HBA_Padding (1 .. 64);
       Reserved_4 : HBA_Padding (1 .. 96);
-   end record with Size => 2040;
+   end record with Size => 2048, Volatile;
    for HBA_FIS use record
       DS_FIS     at 0 range    0 ..  223;
       Reserved_1 at 0 range  224 ..  255;
