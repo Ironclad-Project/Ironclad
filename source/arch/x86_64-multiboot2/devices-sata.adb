@@ -192,58 +192,46 @@ package body Devices.SATA with SPARK_Mode => Off is
       end if;
 
       Tmp := (FIS_Host_To_Device'Size / 8) / 4;
-      Drive.Command_Area.Headers (Slot) :=
-         (Control_Flags => Unsigned_5 (Tmp),
-          A             => False,
-          W             => Is_Write,
-          P             => False,
-          R             => False,
-          B             => False,
-          C             => False,
-          PMPort        => 0,
-          PRDTL         => 1,
-          Reserved_1    => False,
-          PRDBC         => 0,
-          Reserved_2    => (others => 0),
-          CTBA          => Drive.Command_Area.Headers (Slot).CTBA,
-          CTBAU         => Drive.Command_Area.Headers (Slot).CTBAU);
+      Drive.Command_Area.Headers (Slot).Control_Flags := Unsigned_5 (Tmp);
+      Drive.Command_Area.Headers (Slot).A := False;
+      Drive.Command_Area.Headers (Slot).W := Is_Write;
+      Drive.Command_Area.Headers (Slot).P := False;
+      Drive.Command_Area.Headers (Slot).R := False;
+      Drive.Command_Area.Headers (Slot).B := False;
+      Drive.Command_Area.Headers (Slot).C := False;
+      Drive.Command_Area.Headers (Slot).PMPort := 0;
+      Drive.Command_Area.Headers (Slot).PRDTL  := 1;
+      Drive.Command_Area.Headers (Slot).PRDBC  := 0;
 
       --  Fill the command table of the header with the command.
-      Drive.Command_TBLs (Slot).all :=
-         (FIS_Buffer => (others => 0),
-          Command    => (others => 0),
-          Reserved   => (others => 0),
-          PRDT       => (DBA    => Unsigned_32 (Data_Addr and 16#FFFFFFFF#),
-                         DBAU   => Unsigned_32 (Shift_Right (Data_Addr, 32)),
-                         DBC    => 511,
-                         I      => True,
-                         others => <>),
-          Padding    => (others => <>));
+      Drive.Command_TBLs (Slot).FIS_Buffer := (others => 0);
+      Drive.Command_TBLs (Slot).Command := (others => 0);
+      Drive.Command_TBLs (Slot).PRDT.DBA :=
+         Unsigned_32 (Data_Addr and 16#FFFFFFFF#);
+      Drive.Command_TBLs (Slot).PRDT.DBAU :=
+         Unsigned_32 (Shift_Right (Data_Addr, 32));
+      Drive.Command_TBLs (Slot).PRDT.DBC := 511;
+      Drive.Command_TBLs (Slot).PRDT.I := True;
 
       --  Fill the identify FIS.
       FIS_Ptr := C3.To_Pointer (Drive.Command_TBLs (Slot).FIS_Buffer'Address);
-      FIS_Ptr.all :=
-         (FIS_Type           => FIS_Type_H2D,
-          PMPort             => 0,
-          Reserved_1         => False,
-          Reserved_2         => False,
-          Reserved_3         => False,
-          Command_Or_Control => True,
-          Command            => Command,
-          Feature_Low        => 0,
-          LBA0               => Unsigned_8 (L0),
-          LBA1               => Unsigned_8 (L1),
-          LBA2               => Unsigned_8 (L2),
-          Device             => (if Is_Identify then 0 else Shift_Left (1, 6)),
-          LBA3               => Unsigned_8 (L3),
-          LBA4               => Unsigned_8 (L4),
-          LBA5               => Unsigned_8 (L5),
-          Feature_High       => 0,
-          Count_Low          => (if Is_Identify then 0 else 1),
-          Count_High         => 0,
-          Command_Completion => 0,
-          Control            => 0,
-          Reserved_4         => (others => 0));
+      FIS_Ptr.FIS_Type := FIS_Type_H2D;
+      FIS_Ptr.PMPort := 0;
+      FIS_Ptr.Command_Or_Control := True;
+      FIS_Ptr.Command := Command;
+      FIS_Ptr.Feature_Low := 0;
+      FIS_Ptr.LBA0 := Unsigned_8 (L0);
+      FIS_Ptr.LBA1 := Unsigned_8 (L1);
+      FIS_Ptr.LBA2 :=  Unsigned_8 (L2);
+      FIS_Ptr.Device := (if Is_Identify then 0 else Shift_Left (1, 6));
+      FIS_Ptr.LBA3 := Unsigned_8 (L3);
+      FIS_Ptr.LBA4 := Unsigned_8 (L4);
+      FIS_Ptr.LBA5 := Unsigned_8 (L5);
+      FIS_Ptr.Feature_High := 0;
+      FIS_Ptr.Count_Low := (if Is_Identify then 0 else 1);
+      FIS_Ptr.Count_High := 0;
+      FIS_Ptr.Command_Completion := 0;
+      FIS_Ptr.Control := 0;
 
       --  Wait for completion.
       Spin := 0;
