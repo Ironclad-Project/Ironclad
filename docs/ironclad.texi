@@ -868,12 +868,11 @@ Empty.
 @node x86_64-multiboot2
 @section x86_64-multiboot2
 
-Syscalls are invoked in Ironclad by triggering an interrupt to vector
-@code{0x80}.
+Syscalls are invoked in Ironclad by using @code{syscall}.
 
 The index of the syscall is passed over @code{%rax}, while the return value is
 returned in @code{%rax}, errno is returned on @code{%rdx}, arguments are passed
-over @code{%rdi}, @code{%rsi}, @code{%rdx}, @code{%rcx}, @code{%r8},
+over @code{%rdi}, @code{%rsi}, @code{%rdx}, @code{%r12}, @code{%r8},
 @code{%r9}, and @code{%r10}, following the SysV ABI.
 
 The list of syscalls ordered by their index in @code{rax} for the platform is:

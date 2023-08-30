@@ -24,13 +24,22 @@ package Arch.CPU with SPARK_Mode => Off is
    type Core_Local;
    type Core_Local_Acc is access all Core_Local;
    type Core_Local is record
+      --  Do not move the following members used in assembly code.
       Self            : Core_Local_Acc; --  Here for performance reasons.
+      Kernel_Stack    : Unsigned_64;
+      User_Stack      : Unsigned_64;
+      --  End of members not to move.
       Number          : Positive;       --  Core number, 1 based.
       LAPIC_ID        : Unsigned_32;    --  LAPIC ID of the core.
       LAPIC_Timer_Hz  : Unsigned_64;
       Core_TSS        : Arch.GDT.TSS;
       Current_Thread  : Scheduler.TID;
       Current_Process : Userland.Process.PID;
+   end record;
+   for Core_Local use record
+      Self         at 0 range   0 ..  63;
+      Kernel_Stack at 0 range  64 .. 127;
+      User_Stack   at 0 range 128 .. 191;
    end record;
 
    --  Core locals and the number of cores, used as an index for the former.

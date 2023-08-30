@@ -173,17 +173,32 @@ package body Arch.CPU with SPARK_Mode => Off is
    end Init_Core;
 
    procedure Init_Common (Core_Number : Positive; LAPIC : Unsigned_32) is
-      PAT_MSR  : constant := 16#00000277#;
-      UCET_MSR : constant := 16#6A0#;
-      SCET_MSR : constant := 16#6A2#;
+      PAT_MSR   : constant := 16#00000277#;
+      EFER_MSR  : constant := 16#C0000080#;
+      STAR_MSR  : constant := 16#C0000081#;
+      LSTAR_MSR : constant := 16#C0000082#;
+      FMASK_MSR : constant := 16#C0000084#;
+      UCET_MSR  : constant := 16#000006A0#;
+      SCET_MSR  : constant := 16#000006A2#;
 
-      CR0 : Unsigned_64 := Snippets.Read_CR0;
-      CR4 : Unsigned_64 := Snippets.Read_CR4;
-      PAT : Unsigned_64 := Snippets.Read_MSR (PAT_MSR);
+      CR0   : Unsigned_64 := Snippets.Read_CR0;
+      CR4   : Unsigned_64 := Snippets.Read_CR4;
+      PAT   : Unsigned_64 := Snippets.Read_MSR (PAT_MSR);
+      EFER  : Unsigned_64 := Snippets.Read_MSR (EFER_MSR);
+      STAR  : Unsigned_64;
+      LSTAR : Unsigned_64;
+      FMASK : Unsigned_64;
       EAX, EBX, ECX, EDX : Unsigned_32;
 
       Locals_Addr : constant Unsigned_64 :=
          Unsigned_64 (To_Integer (Core_Locals (Core_Number)'Address));
+
+      type Stack is array (1 .. 32768) of Unsigned_8;
+      type Stack_Acc is access Stack;
+      New_Stk : constant Stack_Acc := new Stack;
+      New_Stk_Top : constant System.Address := New_Stk (New_Stk'Last)'Address;
+
+      procedure Syscall_Entry with Import, External_Name => "syscall_entry";
    begin
       --  Enable WP and SSE/2.
       CR0 := CR0 or Shift_Left (1, 16);
@@ -203,6 +218,12 @@ package body Arch.CPU with SPARK_Mode => Off is
          Snippets.Write_MSR (SCET_MSR, 2#100#); --  Enable just IBT.
       end if;
 
+      --  Enable SYSCALL instructions.
+      EFER  := EFER or 1;
+      STAR  := 16#0033002800000000#;
+      LSTAR := Unsigned_64 (To_Integer (Syscall_Entry'Address));
+      FMASK := Unsigned_64 (not Unsigned_32 (2));
+
       --  Initialise the PAT (write-protect / write-combining).
       PAT := PAT and (16#FFFFFFFF#);
       PAT := PAT or  Shift_Left (Unsigned_64 (16#0105#), 32);
@@ -211,6 +232,10 @@ package body Arch.CPU with SPARK_Mode => Off is
       Snippets.Write_CR0 (CR0);
       Snippets.Write_CR4 (CR4);
       Snippets.Write_MSR (PAT_MSR, PAT);
+      Snippets.Write_MSR (EFER_MSR, EFER);
+      Snippets.Write_MSR (STAR_MSR, STAR);
+      Snippets.Write_MSR (LSTAR_MSR, LSTAR);
+      Snippets.Write_MSR (FMASK_MSR, FMASK);
 
       --  Prepare the core local structure and set it in GS.
       Core_Locals (Core_Number) :=
@@ -225,6 +250,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       Snippets.Write_Kernel_GS (Locals_Addr);
 
       --  Load the TSS.
+      Core_Locals (Core_Number).Core_TSS.Stack_Ring0 := New_Stk_Top;
       GDT.Load_TSS (Core_Locals (Core_Number).Core_TSS'Address);
    end Init_Common;
 

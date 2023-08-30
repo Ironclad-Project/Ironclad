@@ -47,10 +47,12 @@ package body Arch.Local with SPARK_Mode => Off is
       Snippets.Write_FS (Unsigned_64 (To_Integer (TCB)));
    end Load_TCB;
 
-   procedure Set_Kernel_Stack (Stack : System.Address) is
+   procedure Set_Stacks (User_Stack, Kernel_Stack : System.Address) is
    begin
-      CPU.Get_Local.Core_TSS.Stack_Ring0 := Stack;
-   end Set_Kernel_Stack;
+      --  CPU.Get_Local.Core_TSS.Stack_Ring0 := Kernel_Stack;
+      CPU.Get_Local.User_Stack   := Unsigned_64 (To_Integer (User_Stack));
+      CPU.Get_Local.Kernel_Stack := Unsigned_64 (To_Integer (Kernel_Stack));
+   end Set_Stacks;
 
    function Get_Current_Thread return Scheduler.TID is
    begin

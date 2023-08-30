@@ -24,6 +24,7 @@ with Arch.Local;
 with Arch.Snippets;
 with Lib.Messages;
 with Lib;
+with Arch.CPU;
 with Config;
 with Ada.Unchecked_Deallocation;
 
@@ -45,6 +46,7 @@ package body Scheduler with SPARK_Mode => Off is
       TCB_Pointer    : System.Address;
       PageMap        : Arch.MMU.Page_Table_Acc;
       Kernel_Stack   : Kernel_Stack_Acc;
+      User_Stack     : Unsigned_64;
       FP_Region      : Arch.Context.FP_Context;
       Process        : Userland.Process.PID;
       Time_Since_Run : Natural;
@@ -261,6 +263,7 @@ package body Scheduler with SPARK_Mode => Off is
           Is_Monothread  => False,
           PageMap        => Map,
           Kernel_Stack   => new Kernel_Stack,
+          User_Stack     => 0,
           TCB_Pointer    => TCB,
           State          => GP_State,
           FP_Region      => FP_State,
@@ -406,6 +409,8 @@ package body Scheduler with SPARK_Mode => Off is
          if Thread_Pool (Current_TID).Is_Present then
             Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
             Thread_Pool (Current_TID).State       := State;
+            Thread_Pool (Current_TID).User_Stack :=
+                Arch.CPU.Get_Local.User_Stack;
             Arch.Context.Save_FP_Context (Thread_Pool (Current_TID).FP_Region);
          elsif Thread_Pool (Current_TID).Kernel_Stack /= null then
             Free (Thread_Pool (Current_TID).Kernel_Stack);
@@ -433,8 +438,9 @@ package body Scheduler with SPARK_Mode => Off is
          Lib.Panic.Hard_Panic ("Could not make reschedule map active");
       end if;
       Arch.Local.Set_Current_Process (Thread_Pool (Next_TID).Process);
-      Arch.Local.Set_Kernel_Stack
-         (Thread_Pool (Next_TID).Kernel_Stack (Kernel_Stack'Last)'Address);
+      Arch.Local.Set_Stacks
+         (To_Address (Integer_Address (Thread_Pool (Next_TID).User_Stack)),
+          Thread_Pool (Next_TID).Kernel_Stack (Kernel_Stack'Last)'Address);
       Arch.Local.Load_TCB (Thread_Pool (Next_TID).TCB_Pointer);
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_Region);
       Arch.Context.Load_GP_Context (Thread_Pool (Next_TID).State);

@@ -94,11 +94,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       end if;
    end Exception_Handler;
 
-   procedure Syscall_Handler (Num : Integer; State : not null ISR_GPRs_Acc) is
+   procedure Syscall_Handler (State : not null ISR_GPRs_Acc) is
       Returned : Unsigned_64;
       Errno    : Errno_Value;
       FP_State : Context.FP_Context;
-      pragma Unreferenced (Num);
    begin
       Arch.Snippets.Enable_Interrupts;
 
@@ -108,7 +107,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       --  Call the inner syscall.
       --  RAX is the return value, as well as the syscall number.
       --  RDX is the returned errno.
-      --  Arguments can be RDI, RSI, RDX, RCX, R8, R9, and R10, in that order.
+      --  Arguments can be RDI, RSI, RDX, R12, R8, R9, and R10, in that order.
       case State.RAX is
          when 0 =>
             Sys_Exit (State.RDI, Returned, Errno);
@@ -116,7 +115,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Arch_PRCtl (State.RDI, State.RSI, Returned, Errno);
          when 2 =>
             Open
-               (State.RDI, State.RSI, State.RDX, State.RCX, Returned, Errno);
+               (State.RDI, State.RSI, State.RDX, State.R12, Returned, Errno);
          when 3 =>
             Close (State.RDI, Returned, Errno);
          when 4 =>
@@ -127,7 +126,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Seek (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 7 =>
             Mmap (State.RDI, State.RSI, State.RDX,
-                  State.RCX, State.R8, State.R9, Returned, Errno);
+                  State.R12, State.R8, State.R9, Returned, Errno);
          when 8 =>
             Munmap (State.RDI, State.RSI, Returned, Errno);
          when 9 =>
@@ -136,10 +135,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Get_PPID (Returned, Errno);
          when 11 =>
             Exec (State.RDI, State.RSI, State.RDX,
-                  State.RCX, State.R8, State.R9, Returned, Errno);
+                  State.R12, State.R8, State.R9, Returned, Errno);
          when 12 =>
             Context.Save_FP_Context (FP_State);
-            Clone (State.RDI, State.RSI, State.RDX, State.RCX,
+            Clone (State.RDI, State.RSI, State.RDX, State.R12,
                    State.R8,  State.all,  FP_State, Returned, Errno);
          when 13 =>
             Wait (State.RDI, State.RSI, State.RDX, Returned, Errno);
@@ -164,12 +163,12 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 24 =>
             Get_UID (Returned, Errno);
          when 25 =>
-            Rename (State.RDI, State.RSI, State.RDX, State.RCX,
+            Rename (State.RDI, State.RSI, State.RDX, State.R12,
                     State.R8, State.R9, State.R10, Returned, Errno);
          when 26 =>
             Sysconf (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 27 =>
-            Spawn (State.RDI, State.RSI, State.RDX, State.RCX,
+            Spawn (State.RDI, State.RSI, State.RDX, State.R12,
                    State.R8, State.R9, State.R10, Returned, Errno);
          when 28 =>
             Get_Thread_Sched (Returned, Errno);
@@ -195,17 +194,17 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 38 =>
             Set_MAC_Enforcement (State.RDI, Returned, Errno);
          when 39 =>
-            Mount (State.RDI, State.RSI, State.RDX, State.RCX, State.R8,
+            Mount (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
                    State.R9, Returned, Errno);
          when 40 =>
             Umount (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 41 =>
             Readlink (State.RDI, State.RSI, State.RDX,
-                      State.RCX, State.R8, Returned, Errno);
+                      State.R12, State.R8, Returned, Errno);
          when 42 =>
             GetDEnts (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 43 =>
-            MakeNode (State.RDI, State.RSI, State.RDX, State.RCX, State.R8,
+            MakeNode (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
                       Returned, Errno);
          when 44 =>
             Truncate (State.RDI, State.RSI, Returned, Errno);
@@ -213,7 +212,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Bind (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 46 =>
             Symlink
-               (State.RDI, State.RSI, State.RDX, State.RCX, State.R8, State.R9,
+               (State.RDI, State.RSI, State.RDX, State.R12, State.R8, State.R9,
                 Returned, Errno);
          when 47 =>
             Connect (State.RDI, State.RSI, State.RDX, Returned, Errno);
@@ -222,15 +221,15 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 49 =>
             FSync (State.RDI, State.RSI, Returned, Errno);
          when 50 =>
-            Link (State.RDI, State.RSI, State.RDX, State.RCX,
+            Link (State.RDI, State.RSI, State.RDX, State.R12,
                   State.R8, State.R9, Returned, Errno);
          when 51 =>
-            PTrace (State.RDI, State.RSI, State.RDX, State.RCX, Returned,
+            PTrace (State.RDI, State.RSI, State.RDX, State.R12, Returned,
                                 Errno);
          when 52 =>
             Listen (State.RDI, State.RSI, Returned, Errno);
          when 53 =>
-            Sys_Accept (State.RDI, State.RSI, State.RDX, State.RCX, Returned,
+            Sys_Accept (State.RDI, State.RSI, State.RDX, State.R12, Returned,
                                     Errno);
          when 54 =>
             Get_RLimit (State.RDI, Returned, Errno);
@@ -251,10 +250,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 63 =>
             Fchown (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 64 =>
-            PRead (State.RDI, State.RSI, State.RDX, State.RCX, Returned,
+            PRead (State.RDI, State.RSI, State.RDX, State.R12, Returned,
                    Errno);
          when 65 =>
-            PWrite (State.RDI, State.RSI, State.RDX, State.RCX, Returned,
+            PWrite (State.RDI, State.RSI, State.RDX, State.R12, Returned,
                     Errno);
          when others =>
             Returned := Unsigned_64'Last;
@@ -267,6 +266,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
 
       --  Post syscall hook.
       Post_Syscall_Hook (Context.GP_Context (State.all));
+
+      Arch.Snippets.Disable_Interrupts;
    end Syscall_Handler;
 
    procedure Scheduler_Handler (Num : Integer; State : not null ISR_GPRs_Acc)

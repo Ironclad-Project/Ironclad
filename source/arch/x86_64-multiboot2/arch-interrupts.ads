@@ -74,8 +74,8 @@ package Arch.Interrupts is
       with Convention => C;
 
    --  Entrypoint of the syscall dispatcher.
-   procedure Syscall_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
-      with Convention => C;
+   procedure Syscall_Handler (State : not null ISR_GPRs_Acc)
+      with Export, Convention => C, External_Name => "syscall_handler";
 
    --  Entrypoint for the scheduler handler.
    Scheduler_Interrupt : constant := 16#82#;

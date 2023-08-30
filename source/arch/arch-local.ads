@@ -26,8 +26,8 @@ package Arch.Local is
    function Fetch_TCB return System.Address;
    procedure Load_TCB (TCB : System.Address);
 
-   --  Set the kernel stack for return from userland.
-   procedure Set_Kernel_Stack (Stack : System.Address);
+   --  Set the user and kernel stack for return from userland.
+   procedure Set_Stacks (User_Stack, Kernel_Stack : System.Address);
 
    --  Fetch and set the current thread and process.
    function Get_Current_Thread return Scheduler.TID;
