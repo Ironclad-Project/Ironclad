@@ -87,12 +87,11 @@ ironclad.dvi: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi
 ###############################################################################
 # Rules for checks and formal verification.
 .PHONY: check
-check: run_tests
-	'$(call SHESCAPE,$(SRCDIR))'/tests/run_tests
-	$(MAKE) prove
+check: checkstack prove
 
-run_tests:
-	$(GPRBUILD) -P '$(call SHESCAPE,$(SRCDIR))'/tests/ironclad_tests.gpr -j$(PARALLELISM)
+.PHONY: checkstack
+checkstack: $(OUTPUT)
+	objdump -d $(OUTPUT) | perl '$(call SHESCAPE,$(SRCDIR))'/scripts/checkstack.pl ${target_full}
 
 .PHONY: prove
 prove:
