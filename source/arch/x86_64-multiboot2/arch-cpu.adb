@@ -1,5 +1,5 @@
 --  arch-cpu.adb: CPU management routines.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -24,6 +24,9 @@ with Arch.IDT;
 with Arch.Snippets;
 
 package body Arch.CPU with SPARK_Mode => Off is
+   type Interrupt_Stack is array (1 .. 16#2000#) of Unsigned_8;
+   type Interrupt_Stack_Acc is access Interrupt_Stack;
+
    procedure Init_Cores is
       Addr : constant Virtual_Address := ACPI.FindTable (ACPI.MADT_Signature);
       MADT           : ACPI.MADT with Address => To_Address (Addr);
@@ -31,6 +34,8 @@ package body Arch.CPU with SPARK_Mode => Off is
       Current_Byte   : Unsigned_32          := 0;
       BSP_LAPIC_ID   : constant Unsigned_32 := Get_BSP_LAPIC_ID;
       Index          : Positive;
+      New_Stk : constant Interrupt_Stack_Acc := new Interrupt_Stack;
+      New_Stk_Top : constant System.Address := New_Stk (New_Stk'Last)'Address;
    begin
       --  Count of how many cores are there.
       Core_Count := 1;
@@ -56,7 +61,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       --  Initialize the locals list, and initialize the cores.
       Current_Byte := 0;
       Core_Locals  := new Core_Local_Arr (1 .. Core_Count);
-      Init_Common (1, BSP_LAPIC_ID);
+      Init_Common (1, BSP_LAPIC_ID, Unsigned_64 (To_Integer (New_Stk_Top)));
 
       Index := 1;
       while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
@@ -93,9 +98,7 @@ package body Arch.CPU with SPARK_Mode => Off is
 
    procedure Core_Bootstrap (Core_Number : Positive; LAPIC_ID : Unsigned_8) is
       --  Stack of the core.
-      type Stack is array (1 .. 32768) of Unsigned_8;
-      type Stack_Acc is access Stack;
-      New_Stk : constant Stack_Acc := new Stack;
+      New_Stk : constant Interrupt_Stack_Acc := new Interrupt_Stack;
       New_Stk_Top : constant System.Address := New_Stk (New_Stk'Last)'Address;
 
       --  Trampoline addresses and data.
@@ -134,13 +137,12 @@ package body Arch.CPU with SPARK_Mode => Off is
    begin
       --  FIXME: Shouldnt be copied every time, only once is enough.
       Trampoline_Data := Original_Trampoline;
-      Trampoline_Info := (
-         Page_Map    => Unsigned_32 (Pagemap_Addr),
-         Final_Stack => Unsigned_64 (To_Integer (New_Stk_Top)),
-         Core_Number => Unsigned_64 (Core_Number),
-         LAPIC_ID    => Unsigned_64 (LAPIC_ID),
-         Booted_Flag => 0
-      );
+      Trampoline_Info :=
+         (Page_Map    => Unsigned_32 (Pagemap_Addr),
+          Final_Stack => Unsigned_64 (To_Integer (New_Stk_Top)),
+          Core_Number => Unsigned_64 (Core_Number),
+          LAPIC_ID    => Unsigned_64 (LAPIC_ID),
+          Booted_Flag => 0);
 
       APIC.LAPIC_Send_IPI_Raw (Unsigned_32 (LAPIC_ID), 16#4500#);
       Delay_Execution (10000000);
@@ -155,7 +157,11 @@ package body Arch.CPU with SPARK_Mode => Off is
       end loop;
    end Core_Bootstrap;
 
-   procedure Init_Core (Core_Number : Positive; LAPIC_ID : Unsigned_8) is
+   procedure Init_Core
+      (Core_Number : Positive;
+       LAPIC_ID    : Unsigned_8;
+       Stack_Top   : Unsigned_64)
+   is
       Discard : Boolean;
    begin
       --  Load the global GDT, IDT, mappings, and LAPIC.
@@ -165,14 +171,18 @@ package body Arch.CPU with SPARK_Mode => Off is
       APIC.Init_LAPIC;
 
       --  Load several goodies.
-      Init_Common (Core_Number, Unsigned_32 (LAPIC_ID));
+      Init_Common (Core_Number, Unsigned_32 (LAPIC_ID), Stack_Top);
 
       --  Send the core to idle, waiting for the scheduler to tell it to do
       --  something, from here, we lose control. Farewell, core.
       Scheduler.Idle_Core;
    end Init_Core;
 
-   procedure Init_Common (Core_Number : Positive; LAPIC : Unsigned_32) is
+   procedure Init_Common
+      (Core_Number : Positive;
+       LAPIC       : Unsigned_32;
+       Stack_Top   : Unsigned_64)
+   is
       PAT_MSR   : constant := 16#00000277#;
       EFER_MSR  : constant := 16#C0000080#;
       STAR_MSR  : constant := 16#C0000081#;
@@ -192,11 +202,6 @@ package body Arch.CPU with SPARK_Mode => Off is
 
       Locals_Addr : constant Unsigned_64 :=
          Unsigned_64 (To_Integer (Core_Locals (Core_Number)'Address));
-
-      type Stack is array (1 .. 32768) of Unsigned_8;
-      type Stack_Acc is access Stack;
-      New_Stk : constant Stack_Acc := new Stack;
-      New_Stk_Top : constant System.Address := New_Stk (New_Stk'Last)'Address;
 
       procedure Syscall_Entry with Import, External_Name => "syscall_entry";
    begin
@@ -250,7 +255,8 @@ package body Arch.CPU with SPARK_Mode => Off is
       Snippets.Write_Kernel_GS (Locals_Addr);
 
       --  Load the TSS.
-      Core_Locals (Core_Number).Core_TSS.Stack_Ring0 := New_Stk_Top;
+      Core_Locals (Core_Number).Core_TSS.Stack_Ring0 :=
+         To_Address (Integer_Address (Stack_Top));
       GDT.Load_TSS (Core_Locals (Core_Number).Core_TSS'Address);
    end Init_Common;
 

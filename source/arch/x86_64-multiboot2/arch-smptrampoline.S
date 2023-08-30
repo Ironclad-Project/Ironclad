@@ -100,6 +100,7 @@ smp_trampoline_start:
     mov (passed_info_final_stack - smp_trampoline_start)(%rbx), %rsp
     mov (passed_info_core_number - smp_trampoline_start)(%rbx), %rdi
     mov (passed_info_lapic_id    - smp_trampoline_start)(%rbx), %rsi
+    mov (passed_info_final_stack - smp_trampoline_start)(%rbx), %rdx
     mov $1, %eax
     lock xchg %rax, (passed_info_booted_flag - smp_trampoline_start)(%rbx)
     mov $init_core, %rax

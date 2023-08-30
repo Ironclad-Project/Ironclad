@@ -73,3 +73,4 @@ syscall_entry:
     swapgs
     sysretq
 
+.section .note.GNU-stack, "", %progbits

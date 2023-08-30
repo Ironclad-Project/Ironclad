@@ -1,5 +1,5 @@
---  arch-cpu.ads: Specification of CPU management routines.
---  Copyright (C) 2021 streaksu
+--  arch-cpu.ads: CPU management routines.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -57,9 +57,15 @@ package Arch.CPU with SPARK_Mode => Off is
 private
 
    procedure Core_Bootstrap (Core_Number : Positive; LAPIC_ID : Unsigned_8);
-   procedure Init_Core (Core_Number : Positive; LAPIC_ID : Unsigned_8)
+   procedure Init_Core
+      (Core_Number : Positive;
+       LAPIC_ID    : Unsigned_8;
+       Stack_Top   : Unsigned_64)
       with Convention => C, Export, External_Name => "init_core";
-   procedure Init_Common (Core_Number : Positive; LAPIC : Unsigned_32);
+   procedure Init_Common
+      (Core_Number : Positive;
+       LAPIC       : Unsigned_32;
+       Stack_Top   : Unsigned_64);
    function Get_BSP_LAPIC_ID return Unsigned_32;
    procedure Delay_Execution (Cycles : Unsigned_64);
 end Arch.CPU;
