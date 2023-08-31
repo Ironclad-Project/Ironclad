@@ -1,5 +1,5 @@
 --  arch-hooks.adb: Architecture-specific hooks for several utilities.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 with Devices.FB;
 with Devices.PS2Mouse;
 with Devices.PS2Keyboard;
+with Devices.PC_Speaker;
 with Devices.ATA;
 with Devices.SATA;
 with Devices.Serial;
@@ -34,6 +35,7 @@ package body Arch.Hooks with SPARK_Mode => Off is
       return Devices.ATA.Init         and then
              Devices.FB.Init          and then
              Devices.i6300ESB.Init    and then
+             Devices.PC_Speaker.Init  and then
              Devices.PS2Keyboard.Init and then
              Devices.PS2Mouse.Init    and then
              Devices.RTC.Init         and then
@@ -65,6 +67,11 @@ package body Arch.Hooks with SPARK_Mode => Off is
             end if;
          end loop;
       end if;
+
+      for I in 1 .. 3 loop
+         Devices.PC_Speaker.Beep (1000);
+         Devices.PC_Speaker.Beep (500);
+      end loop;
    end Panic_SMP_Hook;
 
    function Get_Active_Core_Count return Positive is
