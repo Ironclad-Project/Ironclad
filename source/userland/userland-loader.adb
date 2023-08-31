@@ -1,5 +1,5 @@
 --  userland-loader.adb: Program loader.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -215,6 +215,10 @@ package body Userland.Loader with SPARK_Mode => Off is
       Char_Len  : Natural;
       Success   : VFS.FS_Status;
       Returned  : Boolean;
+      Banged_FS  : FS_Handle;
+      Banged_Ino : File_Inode_Number;
+      Path_Acc   : String_Acc;
+      Arg_Acc    : String_Acc;
    begin
       Read (FS, Ino, 0, Path_Data (1 .. 2), Path_Len, Success, 0);
       if Success /= VFS.FS_Success or Path_Len /= 2 or Path (1 .. 2) /= "#!"
@@ -250,45 +254,34 @@ package body Userland.Loader with SPARK_Mode => Off is
       end loop;
 
    <<Return_Shebang>>
-      declare
-         Arg_Diff   : constant Natural := (if Arg_Len = 0 then 1 else 2);
-         New_Args   : Argument_Arr (1 .. Arguments'Length + Arg_Diff);
-         I          : Positive := 1;
-         Banged_FS  : FS_Handle;
-         Banged_Ino : File_Inode_Number;
-      begin
-         New_Args (I) := new String'(Path (1 .. Path_Len));
-         I := I + 1;
-         if Arg_Len /= 0 then
-            New_Args (I) := new String'(Arg (1 .. Arg_Len));
-            I := I + 1;
-         end if;
-         New_Args (I .. New_Args'Length) := Arguments;
-         New_Args (I) := new String'(Exec_Path);
-         Open (Path (1 .. Path_Len), Banged_FS, Banged_Ino, Success, 0);
-         if Success /= FS_Success then
-            return False;
-         end if;
+      Open (Path (1 .. Path_Len), Banged_FS, Banged_Ino, Success, 0);
+      if Success /= FS_Success then
+         return False;
+      end if;
 
+      Path_Acc := new String'(Path (1 .. Path_Len));
+      Arg_Acc  := new String'(Arg  (1 .. Arg_Len));
+
+      if Arg_Len /= 0 then
          Returned := Start_Program
             (Exec_Path   => Exec_Path,
              FS          => Banged_FS,
              Ino         => Banged_Ino,
-             Arguments   => New_Args,
+             Arguments   => (Path_Acc, Arg_Acc) & Arguments,
              Environment => Environment,
              Proc        => Proc);
+      else
+         Returned := Start_Program
+            (Exec_Path   => Exec_Path,
+             FS          => Banged_FS,
+             Ino         => Banged_Ino,
+             Arguments   => (Path_Acc) & Arguments,
+             Environment => Environment,
+             Proc        => Proc);
+      end if;
 
-         --  Rewalk the steps to free.
-         I := 1;
-         Free (New_Args (I));
-         I := I + 1;
-         if Arg_Len /= 0 then
-            Free (New_Args (I));
-            I := I + 1;
-         end if;
-         Free (New_Args (I));
-
-         return Returned;
-      end;
+      Free (Path_Acc);
+      Free (Arg_Acc);
+      return Returned;
    end Start_Shebang;
 end Userland.Loader;

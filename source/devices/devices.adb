@@ -1,5 +1,5 @@
---  Devices_Data.adb: Device management.
---  Copyright (C) 2021 streaksu
+--  devices.adb: Device management.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -28,16 +28,10 @@ package body Devices is
       pragma SPARK_Mode (Off); --  Some devices here are not verified.
       Success : Boolean;
    begin
-      Devices_Data := new Device_Arr'(others =>
-         (Is_Present => False,
-          Name       => (others => ' '),
-          Name_Len   => 0,
-          Contents   =>
-            (Data        => System.Null_Address,
-             Is_Block    => False,
-             Block_Size  => 0,
-             Block_Count => 0,
-             others      => <>)));
+      Devices_Data := new Device_Arr;
+      for Dev of Devices_Data.all loop
+         Dev.Is_Present := False;
+      end loop;
 
       Random.Init (Success);
       if not Success then goto Panic_Error; end if;

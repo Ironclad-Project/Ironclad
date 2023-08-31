@@ -69,8 +69,10 @@ package body Scheduler with SPARK_Mode => Off is
 
    function Init return Boolean is
    begin
-      Thread_Pool := new Thread_Info_Arr'(others =>
-         (Is_Present => False, Kernel_Stack => null, others => <>));
+      Thread_Pool := new Thread_Info_Arr;
+      for Th of Thread_Pool.all loop
+         Th := (Is_Present => False, Kernel_Stack => null, others => <>);
+      end loop;
       Is_Initialized := True;
       Lib.Synchronization.Release (Scheduler_Mutex);
       return True;
@@ -256,23 +258,20 @@ package body Scheduler with SPARK_Mode => Off is
       goto End_Return;
 
    <<Found_TID>>
-      --  Initialize the state, be sure to zero out RAX for the return value.
-      Thread_Pool (New_TID) :=
-         (Is_Present     => True,
-          Is_Running     => False,
-          Is_Monothread  => False,
-          PageMap        => Map,
-          Kernel_Stack   => new Kernel_Stack,
-          User_Stack     => 0,
-          TCB_Pointer    => TCB,
-          State          => GP_State,
-          FP_Region      => FP_State,
-          Process        => Userland.Process.Convert (PID),
-          Run_Time       => Default_Run_Time,
-          Period         => Default_Period,
-          Time_Since_Run => 0,
-          ASC_Offset     => 0,
-          Priority       => <>);
+      Thread_Pool (New_TID).Is_Present := True;
+      Thread_Pool (New_TID).Is_Running := False;
+      Thread_Pool (New_TID).Is_Monothread := False;
+      Thread_Pool (New_TID).PageMap := Map;
+      Thread_Pool (New_TID).Kernel_Stack := new Kernel_Stack;
+      Thread_Pool (New_TID).User_Stack := 0;
+      Thread_Pool (New_TID).TCB_Pointer := TCB;
+      Thread_Pool (New_TID).State := GP_State;
+      Thread_Pool (New_TID).FP_Region := FP_State;
+      Thread_Pool (New_TID).Process := Userland.Process.Convert (PID);
+      Thread_Pool (New_TID).Run_Time := Default_Run_Time;
+      Thread_Pool (New_TID).Period := Default_Period;
+      Thread_Pool (New_TID).Time_Since_Run := 0;
+      Thread_Pool (New_TID).ASC_Offset := 0;
 
       Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).State);
 
