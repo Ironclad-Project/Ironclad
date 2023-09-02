@@ -15,8 +15,10 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Context;
+with VFS;
 
 package Userland.Corefile is
    --  Generate a corefile for the current process and passed context.
-   procedure Generate_Corefile (Ctx : Arch.Context.GP_Context);
+   procedure Generate_Corefile (Ctx : Arch.Context.GP_Context)
+      with Pre => VFS.Is_Initialized;
 end Userland.Corefile;

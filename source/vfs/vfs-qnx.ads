@@ -16,10 +16,11 @@
 
 with System;
 
-package VFS.QNX with SPARK_Mode => Off is
-   function Probe
+package VFS.QNX is
+   procedure Probe
       (Handle       : Device_Handle;
-       Do_Read_Only : Boolean) return System.Address;
+       Do_Read_Only : Boolean;
+       Data_Addr    : out System.Address);
 
    procedure Unmount (FS : in out System.Address);
 end VFS.QNX;

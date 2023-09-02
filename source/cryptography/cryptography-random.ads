@@ -1,5 +1,5 @@
 --  cryptography-random.ads: The random number generator of the kernel.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -23,15 +23,15 @@ package Cryptography.Random is
    procedure Fill_Data (Data : out Crypto_Data);
 
    --  Get random integers with optional ranges.
-   function Get_Integer return Unsigned_64;
+   procedure Get_Integer (Result : out Unsigned_64);
 
    --  FIXME: Fix this annotation.
-   function Get_Integer (Min, Max : Unsigned_64) return Unsigned_64
+   procedure Get_Integer (Min, Max : Unsigned_64; Result : out Unsigned_64)
       with Pre  => Max >= Min and Max <= Unsigned_64'Last - 1,
-           Post => Min <= Get_Integer'Result and Get_Integer'Result <= Max;
+           Post => Min <= Result and Result <= Max;
    pragma Annotate (GNATprove, False_Positive, "postcondition might fail",
                     "Counterexample works, could be a gnatprove bug?");
 private
 
-   function Get_Seed return MD5.MD5_Hash;
+   procedure Get_Seed (Seed : out MD5.MD5_Hash);
 end Cryptography.Random;

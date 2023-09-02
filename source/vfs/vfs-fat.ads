@@ -14,10 +14,11 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package VFS.FAT with SPARK_Mode => Off is
-   function Probe
+package VFS.FAT is
+   procedure Probe
       (Handle       : Device_Handle;
-       Do_Read_Only : Boolean) return System.Address;
+       Do_Read_Only : Boolean;
+       Data_Addr    : out System.Address);
 
    procedure Unmount (FS : in out System.Address);
 
@@ -45,10 +46,11 @@ package VFS.FAT with SPARK_Mode => Off is
        Ret_Count : out Natural;
        Success   : out FS_Status);
 
-   function Stat
-      (Data : System.Address;
-       Ino  : File_Inode_Number;
-       S    : out File_Stat) return FS_Status;
+   procedure Stat
+      (Data    : System.Address;
+       Ino     : File_Inode_Number;
+       S       : out File_Stat;
+       Success : out FS_Status);
 
 private
 
@@ -176,24 +178,27 @@ private
    end record;
    type FAT_File_Acc is access all FAT_File;
 
-   function Read_Directory_Entry
+   procedure Read_Directory_Entry
       (Data    : FAT_Data_Acc;
        Cluster : Unsigned_32;
        Index   : Unsigned_64;
-       Result  : out Directory_Entry) return Boolean;
+       Result  : out Directory_Entry;
+       Success : out Boolean);
 
-   function Get_Next_Cluster
+   procedure Get_Next_Cluster
       (Data          : FAT_Data_Acc;
        Cluster_Index : Unsigned_32;
-       Returned      : out Unsigned_32) return Boolean;
+       Returned      : out Unsigned_32;
+       Success       : out Boolean);
 
    function Are_Paths_Equal
       (Base : String;
        Ent  : Directory_Entry) return Boolean;
 
-   function Compose_Path
+   procedure Compose_Path
       (Ent    : Directory_Entry;
-       Result : out String) return Natural;
+       Result : out String;
+       Length : out Natural);
 
    function Sector_To_Disk_Offset (Sector : Unsigned_32) return Unsigned_64
       is (Unsigned_64 (Sector) * Sector_Size);

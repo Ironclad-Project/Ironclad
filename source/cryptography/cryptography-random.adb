@@ -1,5 +1,5 @@
 --  cryptography-random.adb: The random number generator of the kernel.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -39,12 +39,15 @@ package body Cryptography.Random is
       function To_Seed is new Ada.Unchecked_Conversion (Seed, Chacha20.Key);
 
       --  Seed every time a new chain of random numbers is requested.
-      S : constant Seed := (Seed1 => Get_Seed, Seed2 => Get_Seed);
+      S           : Seed;
       Temp        : Unsigned_64;
       Cha_Block   : Chacha20.Block := (others => 0);
       Index       : Natural     := Cha_Block'Last + 1;
       Block_Index : Unsigned_64 := 0;
    begin
+      Get_Seed (S.Seed1);
+      Get_Seed (S.Seed2);
+
       for Value of Data loop
          if Index > Cha_Block'Last then
             Temp        := Arch.Snippets.Read_Cycles;
@@ -58,26 +61,27 @@ package body Cryptography.Random is
       end loop;
    end Fill_Data;
 
-   function Get_Integer return Unsigned_64 is
+   procedure Get_Integer (Result : out Unsigned_64) is
       Data : Crypto_Data (1 .. 8);
    begin
       Fill_Data (Data);
-      return Shift_Left (Unsigned_64 (Data (1)), 56) or
-             Shift_Left (Unsigned_64 (Data (2)), 48) or
-             Shift_Left (Unsigned_64 (Data (3)), 40) or
-             Shift_Left (Unsigned_64 (Data (4)), 32) or
-             Shift_Left (Unsigned_64 (Data (5)), 24) or
-             Shift_Left (Unsigned_64 (Data (6)), 16) or
-             Shift_Left (Unsigned_64 (Data (7)),  8) or
-             Shift_Left (Unsigned_64 (Data (8)),  0);
+      Result := Shift_Left (Unsigned_64 (Data (1)), 56) or
+                Shift_Left (Unsigned_64 (Data (2)), 48) or
+                Shift_Left (Unsigned_64 (Data (3)), 40) or
+                Shift_Left (Unsigned_64 (Data (4)), 32) or
+                Shift_Left (Unsigned_64 (Data (5)), 24) or
+                Shift_Left (Unsigned_64 (Data (6)), 16) or
+                Shift_Left (Unsigned_64 (Data (7)),  8) or
+                Shift_Left (Unsigned_64 (Data (8)),  0);
    end Get_Integer;
 
-   function Get_Integer (Min, Max : Unsigned_64) return Unsigned_64 is
+   procedure Get_Integer (Min, Max : Unsigned_64; Result : out Unsigned_64) is
    begin
-      return (Get_Integer mod (Max + 1 - Min)) + Min;
+      Get_Integer (Result);
+      Result := (Result mod (Max + 1 - Min)) + Min;
    end Get_Integer;
 
-   function Get_Seed return MD5.MD5_Hash is
+   procedure Get_Seed (Seed : out MD5.MD5_Hash) is
       Cycles  : Unsigned_64;
       Used    : Unsigned_64;
       Stats   : Memory.Physical.Statistics;
@@ -94,6 +98,6 @@ package body Cryptography.Random is
          14 => 128,
          others => 0
       ));
-      return MD5.Digest (To_Hash);
+      Seed := MD5.Digest (To_Hash);
    end Get_Seed;
 end Cryptography.Random;

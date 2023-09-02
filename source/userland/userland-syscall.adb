@@ -1163,8 +1163,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       case File.Description is
          when Description_Inode =>
             if File.Inner_Ino_Read and File.Inner_Ino_Write then
-               FSSuc := VFS.IO_Control (File.Inner_Ino_FS, File.Inner_Ino,
-                                        Request, S_Arg, User);
+               VFS.IO_Control (File.Inner_Ino_FS, File.Inner_Ino,
+                               Request, S_Arg, User, FSSuc);
                Succ := FSSuc = VFS.FS_Success;
             else
                Succ := False;
@@ -1335,7 +1335,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return;
          end if;
 
-         Success := Rename (Src_FS, Src_Ino, Src, Tgt_Ino, Tgt, Do_Keep, User);
+         Rename (Src_FS, Src_Ino, Src, Tgt_Ino, Tgt, Do_Keep, User, Success);
          Translate_Status (Success, 0, Returned, Errno);
       end;
    end Rename;
@@ -1927,12 +1927,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end case;
 
       declare
-         Source : String (1 .. Natural (Source_Len))
+         Success : Boolean;
+         Source  : String (1 .. Natural (Source_Len))
             with Import, Address => Src_Addr;
          Target : String (1 .. Natural (Target_Len))
             with Import, Address => Tgt_Addr;
       begin
-         if VFS.Mount (Source, Target, Parsed_Typ, Do_RO) then
+         VFS.Mount (Source, Target, Parsed_Typ, Do_RO, Success);
+         if Success then
             Errno := Error_No_Error;
             Returned := 0;
          else
@@ -1972,10 +1974,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       declare
-         Path : String (1 .. Natural (Path_Len))
+         Success : Boolean;
+         Path    : String (1 .. Natural (Path_Len))
             with Import, Address => Path_SAddr;
       begin
-         if VFS.Unmount (Path, Flag_Force) then
+         VFS.Unmount (Path, Flag_Force, Success);
+         if Success then
             Errno := Error_No_Error;
             Returned := 0;
          else
@@ -2132,8 +2136,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end GetDEnts;
 
    procedure Sync (Returned : out Unsigned_64; Errno : out Errno_Value) is
+      Success : Boolean;
    begin
-      if VFS.Synchronize then
+      VFS.Synchronize (Success);
+      if Success then
          Errno    := Error_No_Error;
          Returned := 0;
       else
@@ -2195,13 +2201,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
          Userland.Process.Get_Umask         (Proc, Umask);
          Userland.Process.Get_Effective_UID (Proc, User);
-         Status := Create_Node
+         Create_Node
             (Key      => CWD_FS,
              Relative => CWD_Ino,
              Path     => Path,
              Typ      => Node_Type,
              Mode     => VFS.Apply_Umask (Tmp_Mode, Umask),
-             User     => User);
+             User     => User,
+             Status   => Status);
          Translate_Status (Status, 0, Returned, Errno);
       end;
    end MakeNode;
@@ -2244,7 +2251,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return;
          end if;
 
-         Success := VFS.Unlink (CWD_FS, CWD_Ino, Path, User);
+         VFS.Unlink (CWD_FS, CWD_Ino, Path, User, Success);
          Translate_Status (Success, 0, Returned, Errno);
       end;
    end Unlink;
@@ -2269,8 +2276,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Userland.Process.Get_Effective_UID (Proc, User);
       case File.Description is
          when Description_Inode =>
-            Success := VFS.Truncate (File.Inner_Ino_FS, File.Inner_Ino,
-                                     New_Size, User);
+            VFS.Truncate
+               (File.Inner_Ino_FS, File.Inner_Ino, New_Size, User, Success);
             Translate_Status (Success, 0, Returned, Errno);
          when others =>
             Errno := Error_Bad_File;
@@ -2560,8 +2567,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return;
          end if;
 
-         Success := Create_Hard_Link
-            (Src_FS, Src_Ino, Src, Dst_Ino, Dst, User);
+         Create_Hard_Link (Src_FS, Src_Ino, Src, Dst_Ino, Dst, User, Success);
          Translate_Status (Success, 0, Returned, Errno);
       end;
    end Link;
@@ -2871,8 +2877,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Userland.Process.Get_Effective_UID (Proc, User);
       case Desc.Description is
          when Description_Inode =>
-            Succ := VFS.Change_Mode
-               (Desc.Inner_Ino_FS, Desc.Inner_Ino, File_Mode (Mode), User);
+            VFS.Change_Mode
+               (Desc.Inner_Ino_FS, Desc.Inner_Ino, File_Mode (Mode), User,
+                Succ);
             Translate_Status (Succ, 0, Returned, Errno);
          when others =>
             Errno := Error_Invalid_Value;
@@ -2949,12 +2956,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Userland.Process.Get_Effective_UID (Proc, Usr);
       case Desc.Description is
          when Description_Inode =>
-            Succ := VFS.Change_Owner
+            VFS.Change_Owner
                (Desc.Inner_Ino_FS,
                 Desc.Inner_Ino,
                 Unsigned_32 (User  and 16#FFFFFFFF#),
                 Unsigned_32 (Group and 16#FFFFFFFF#),
-                Usr);
+                Usr,
+                Succ);
             Translate_Status (Succ, 0, Returned, Errno);
          when others =>
             Errno := Error_Invalid_Value;

@@ -102,8 +102,6 @@ prove:
 .PHONY: clean
 clean:
 	rm -rf $(OUTPUT) obj gnatprove '$(call SHESCAPE,$(SRCDIR))'/tests/obj \
-		'$(call SHESCAPE,$(SRCDIR))'/tests/gnatprove                       \
-		'$(call SHESCAPE,$(SRCDIR))'/tests/run_tests                       \
 		'$(call SHESCAPE,$(SRCDIR))'/source/rts/obj                        \
 		'$(call SHESCAPE,$(SRCDIR))'/source/rts/adalib                     \
 		ironclad.info ironclad.html ironclad.dvi ironclad.log ironclad.toc \

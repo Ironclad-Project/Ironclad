@@ -16,10 +16,7 @@
 
 with Cryptography.Random;
 
-package body Devices.Random is
-   --  Unit passes GNATprove AoRTE, GNAT does not know this.
-   pragma Suppress (All_Checks);
-
+package body Devices.Random with SPARK_Mode => Off is
    procedure Init (Success : out Boolean) is
       Random_Res : constant Resource :=
          (Data        => System.Null_Address,

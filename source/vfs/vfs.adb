@@ -19,8 +19,11 @@ with VFS.FAT;
 with VFS.QNX;
 with Ada.Characters.Latin_1;
 
-package body VFS with SPARK_Mode => Off is
+package body VFS is
+   pragma Suppress (All_Checks); --  Unit passes SPARK AoRTE.
+
    procedure Init is
+      pragma SPARK_Mode (Off);
    begin
       Mounts := new Mount_Registry'(others =>
          (Mounted_Dev => Devices.Error_Handle,
@@ -31,31 +34,37 @@ package body VFS with SPARK_Mode => Off is
       Mounts_Mutex := Lib.Synchronization.Unlocked_Semaphore;
    end Init;
 
-   function Mount
+   procedure Mount
       (Device_Name  : String;
        Mount_Path   : String;
-       Do_Read_Only : Boolean) return Boolean
+       Do_Read_Only : Boolean;
+       Success      : out Boolean)
    is
+      pragma SPARK_Mode (Off);
    begin
-      return Mount (Device_Name, Mount_Path, FS_EXT, Do_Read_Only) or else
-             Mount (Device_Name, Mount_Path, FS_FAT, Do_Read_Only);
+      Mount (Device_Name, Mount_Path, FS_EXT, Do_Read_Only, Success);
+      if not Success then
+         Mount (Device_Name, Mount_Path, FS_FAT, Do_Read_Only, Success);
+      end if;
    end Mount;
 
-   function Mount
+   procedure Mount
       (Device_Name  : String;
        Mount_Path   : String;
        FS           : FS_Type;
-       Do_Read_Only : Boolean) return Boolean
+       Do_Read_Only : Boolean;
+       Success      : out Boolean)
    is
       Dev     : constant Device_Handle := Devices.Fetch (Device_Name);
-      FS_Data : System.Address         := System.Null_Address;
-      Free_I  : FS_Handle              := VFS.Error_Handle;
+      Free_I  :              FS_Handle := VFS.Error_Handle;
+      FS_Data : System.Address;
    begin
       if not Is_Absolute (Mount_Path)           or
          Mount_Path'Length > Path_Buffer_Length or
          Dev = Devices.Error_Handle
       then
-         return False;
+         Success := False;
+         return;
       end if;
 
       Lib.Synchronization.Seize (Mounts_Mutex);
@@ -72,16 +81,11 @@ package body VFS with SPARK_Mode => Off is
       end if;
 
       case FS is
-         when FS_EXT =>
-            FS_Data := VFS.EXT.Probe (Dev, Do_Read_Only);
-            Mounts (Free_I).Mounted_FS := FS_EXT;
-         when FS_FAT =>
-            FS_Data := VFS.FAT.Probe (Dev, Do_Read_Only);
-            Mounts (Free_I).Mounted_FS := FS_FAT;
-         when FS_QNX =>
-            FS_Data := VFS.QNX.Probe (Dev, Do_Read_Only);
-            Mounts (Free_I).Mounted_FS := FS_QNX;
+         when FS_EXT => VFS.EXT.Probe (Dev, Do_Read_Only, FS_Data);
+         when FS_FAT => VFS.FAT.Probe (Dev, Do_Read_Only, FS_Data);
+         when FS_QNX => VFS.QNX.Probe (Dev, Do_Read_Only, FS_Data);
       end case;
+      Mounts (Free_I).Mounted_FS := FS;
 
       if FS_Data /= System.Null_Address then
          Mounts (Free_I).FS_Data := FS_Data;
@@ -94,12 +98,12 @@ package body VFS with SPARK_Mode => Off is
 
    <<Return_End>>
       Lib.Synchronization.Release (Mounts_Mutex);
-      return Free_I /= VFS.Error_Handle;
+      Success := Free_I /= VFS.Error_Handle;
    end Mount;
 
-   function Unmount (Path : String; Force : Boolean) return Boolean is
-      Success : Boolean := False;
+   procedure Unmount (Path : String; Force : Boolean; Success : out Boolean) is
    begin
+      Success := False;
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev /= Devices.Error_Handle and then
@@ -120,7 +124,6 @@ package body VFS with SPARK_Mode => Off is
       end loop;
    <<Return_End>>
       Lib.Synchronization.Release (Mounts_Mutex);
-      return Success;
    end Unmount;
 
    procedure Get_Mount
@@ -134,9 +137,10 @@ package body VFS with SPARK_Mode => Off is
 
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
-         if Mounts (I).Mounted_Dev /= Devices.Error_Handle and then
-            Path'Length >= Mounts (I).Path_Length          and then
-            Match < Mounts (I).Path_Length                 and then
+         if Mounts (I).Mounted_Dev /= Devices.Error_Handle     and then
+            Path'Length >= Mounts (I).Path_Length              and then
+            Match < Mounts (I).Path_Length                     and then
+            Path'First < Natural'Last - Mounts (I).Path_Length and then
             Mounts (I).Path_Buffer (1 .. Mounts (I).Path_Length) =
             Path (Path'First .. Path'First + Mounts (I).Path_Length - 1)
          then
@@ -152,11 +156,15 @@ package body VFS with SPARK_Mode => Off is
    end Get_Mount;
 
    procedure List_All (List : out Mountpoint_Info_Arr; Total : out Natural) is
+      pragma Annotate (GNATprove, False_Positive, "range check might fail",
+                       "in List? how?");
+
       Curr_Index        : Natural := 0;
       Dev_Name          : String (1 .. Devices.Max_Name_Length);
       Dev_Len, Path_Len : Natural;
    begin
       Total := 0;
+      List  := (others => (FS_EXT, (others => ' '), 0, (others => ' '), 0));
 
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
@@ -167,12 +175,19 @@ package body VFS with SPARK_Mode => Off is
                Path_Len := Mounts (I).Path_Length;
 
                List (List'First + Curr_Index) :=
-                  (Inner_Type => Mounts (I).Mounted_FS,
-                   Source     => Dev_Name (1 .. 20),
-                   Source_Len => Dev_Len,
-                   Location   => Mounts (I).Path_Buffer (1 .. Path_Len) &
-                            (Path_Len + 1 .. 20 => Ada.Characters.Latin_1.NUL),
+                  (Inner_Type   => Mounts (I).Mounted_FS,
+                   Source       => Dev_Name (1 .. 20),
+                   Source_Len   => Dev_Len,
+                   Location     => (others => Ada.Characters.Latin_1.NUL),
                    Location_Len => Path_Len);
+               if Path_Len <= List (List'First + Curr_Index).Location'Length
+               then
+                  List (List'First + Curr_Index).Location (1 .. Path_Len) :=
+                     Mounts (I).Path_Buffer (1 .. Path_Len);
+               else
+                  List (List'First + Curr_Index).Location (1 .. 20) :=
+                     Mounts (I).Path_Buffer (1 .. 20);
+               end if;
                Curr_Index := Curr_Index + 1;
             end if;
          end if;
@@ -227,21 +242,22 @@ package body VFS with SPARK_Mode => Off is
       end case;
    end Open;
 
-   function Create_Node
+   procedure Create_Node
       (Key      : FS_Handle;
        Relative : File_Inode_Number;
        Path     : String;
        Typ      : File_Type;
        Mode     : File_Mode;
-       User     : Unsigned_32) return FS_Status
+       User     : Unsigned_32;
+       Status   : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.Create_Node
-               (Mounts (Key).FS_Data, Relative, Path, Typ, Mode, User);
+            EXT.Create_Node
+               (Mounts (Key).FS_Data, Relative, Path, Typ, Mode, User, Status);
          when others =>
-            return FS_Not_Supported;
+            Status := FS_Not_Supported;
       end case;
    end Create_Node;
 
@@ -253,67 +269,73 @@ package body VFS with SPARK_Mode => Off is
        Mode     : Unsigned_32;
        User     : Unsigned_32) return FS_Status
    is
+      Status : FS_Status;
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.Create_Symbolic_Link
-               (Mounts (Key).FS_Data, Relative, Path, Target, Mode, User);
+            EXT.Create_Symbolic_Link
+               (Mounts (Key).FS_Data, Relative, Path, Target, Mode, User,
+                Status);
          when others =>
-            return FS_Not_Supported;
+            Status := FS_Not_Supported;
       end case;
+      return Status;
    end Create_Symbolic_Link;
 
-   function Create_Hard_Link
+   procedure Create_Hard_Link
       (Key             : FS_Handle;
        Relative_Path   : File_Inode_Number;
        Path            : String;
        Relative_Target : File_Inode_Number;
        Target          : String;
-       User            : Unsigned_32) return FS_Status
+       User            : Unsigned_32;
+       Status          : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.Create_Hard_Link
+            EXT.Create_Hard_Link
                (Mounts (Key).FS_Data, Relative_Path, Path, Relative_Target,
-                Target, User);
+                Target, User, Status);
          when others =>
-            return FS_Not_Supported;
+            Status := FS_Not_Supported;
       end case;
    end Create_Hard_Link;
 
-   function Rename
+   procedure Rename
       (Key             : FS_Handle;
        Relative_Source : File_Inode_Number;
        Source          : String;
        Relative_Target : File_Inode_Number;
        Target          : String;
        Keep            : Boolean;
-       User            : Unsigned_32) return FS_Status
+       User            : Unsigned_32;
+       Status          : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.Rename
+            EXT.Rename
                (Mounts (Key).FS_Data, Relative_Source, Source, Relative_Target,
-                Target, Keep, User);
+                Target, Keep, User, Status);
          when others =>
-            return FS_Not_Supported;
+            Status := FS_Not_Supported;
       end case;
    end Rename;
 
-   function Unlink
+   procedure Unlink
       (Key      : FS_Handle;
        Relative : File_Inode_Number;
        Path     : String;
-       User     : Unsigned_32) return FS_Status
+       User     : Unsigned_32;
+       Status   : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.Unlink (Mounts (Key).FS_Data, Relative, Path, User);
+            EXT.Unlink (Mounts (Key).FS_Data, Relative, Path, User, Status);
          when others =>
-            return FS_Not_Supported;
+            Status := FS_Not_Supported;
       end case;
    end Unlink;
 
@@ -355,6 +377,7 @@ package body VFS with SPARK_Mode => Off is
                 Ret_Count,
                 Success);
          when FS_QNX =>
+            Entities  := (others => (0, (others => ' '), 0, File_Regular));
             Ret_Count := 0;
             Success   := FS_Not_Supported;
       end case;
@@ -409,6 +432,7 @@ package body VFS with SPARK_Mode => Off is
                 Ret_Count,
                 Success);
          when FS_QNX =>
+            Data      := (others => 0);
             Ret_Count := 0;
             Success   := FS_Not_Supported;
       end case;
@@ -450,43 +474,58 @@ package body VFS with SPARK_Mode => Off is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            Success := EXT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val, User);
+            EXT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val, User, Success);
          when FS_FAT =>
-            Success := FAT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val);
+            FAT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val, Success);
          when FS_QNX =>
+            Stat_Val :=
+               (Unique_Identifier => 0,
+                Type_Of_File      => File_Regular,
+                Mode              => 0,
+                UID               => 0,
+                GID               => 0,
+                Hard_Link_Count   => 1,
+                Byte_Size         => 0,
+                IO_Block_Size     => 0,
+                IO_Block_Count    => 0,
+                Creation_Time     => (0, 0),
+                Modification_Time => (0, 0),
+                Access_Time       => (0, 0));
             Success := FS_Not_Supported;
       end case;
    end Stat;
 
-   function Truncate
+   procedure Truncate
       (Key      : FS_Handle;
        Ino      : File_Inode_Number;
        New_Size : Unsigned_64;
-       User     : Unsigned_32) return FS_Status
+       User     : Unsigned_32;
+       Status   : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.Truncate (Mounts (Key).FS_Data, Ino, New_Size, User);
+            EXT.Truncate (Mounts (Key).FS_Data, Ino, New_Size, User, Status);
          when others =>
-            return FS_Not_Supported;
+            Status := FS_Not_Supported;
       end case;
    end Truncate;
 
-   function IO_Control
+   procedure IO_Control
       (Key     : FS_Handle;
        Ino     : File_Inode_Number;
        Request : Unsigned_64;
        Arg     : System.Address;
-       User    : Unsigned_32) return FS_Status
+       User    : Unsigned_32;
+       Status  : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.IO_Control
-               (Mounts (Key).FS_Data, Ino, Request, Arg, User);
+            EXT.IO_Control
+               (Mounts (Key).FS_Data, Ino, Request, Arg, User, Status);
          when others =>
-            return FS_Not_Supported;
+            Status := FS_Not_Supported;
       end case;
    end IO_Control;
 
@@ -512,35 +551,37 @@ package body VFS with SPARK_Mode => Off is
       end case;
    end Synchronize;
 
-   function Change_Mode
-      (Key  : FS_Handle;
-       Ino  : File_Inode_Number;
-       Mode : File_Mode;
-       User : Unsigned_32) return FS_Status
+   procedure Change_Mode
+      (Key    : FS_Handle;
+       Ino    : File_Inode_Number;
+       Mode   : File_Mode;
+       User   : Unsigned_32;
+       Status : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.Change_Mode (Mounts (Key).FS_Data, Ino, Mode, User);
+            EXT.Change_Mode (Mounts (Key).FS_Data, Ino, Mode, User, Status);
          when others =>
-            return FS_Not_Supported;
+            Status := FS_Not_Supported;
       end case;
    end Change_Mode;
 
-   function Change_Owner
-      (Key   : FS_Handle;
-       Ino   : File_Inode_Number;
-       Owner : Unsigned_32;
-       Group : Unsigned_32;
-       User  : Unsigned_32) return FS_Status
+   procedure Change_Owner
+      (Key    : FS_Handle;
+       Ino    : File_Inode_Number;
+       Owner  : Unsigned_32;
+       Group  : Unsigned_32;
+       User   : Unsigned_32;
+       Status : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            return EXT.Change_Owner
-               (Mounts (Key).FS_Data, Ino, Owner, Group, User);
+            EXT.Change_Owner
+               (Mounts (Key).FS_Data, Ino, Owner, Group, User, Status);
          when others =>
-            return FS_Not_Supported;
+            Status := FS_Not_Supported;
       end case;
    end Change_Owner;
    ----------------------------------------------------------------------------
@@ -555,31 +596,33 @@ package body VFS with SPARK_Mode => Off is
       Match_Count : Natural;
    begin
       Get_Mount (Path, Match_Count, Key);
-      if Key /= Error_Handle then
+      if Key /= Error_Handle and Path'First < Natural'Last - Match_Count
+      then
          Open
             (Key,
              0,
-             Path   (Path'First   + Match_Count ..   Path'Last),
+             Path (Path'First + Match_Count .. Path'Last),
              Ino, Success, User, Do_Follow);
       else
+         Key     := Error_Handle;
          Ino     := 0;
          Success := FS_Invalid_Value;
       end if;
    end Open;
 
-   function Synchronize return Boolean is
-      Final_Success : Boolean := True;
+   procedure Synchronize (Success : out Boolean) is
    begin
+      Success := True;
+
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev /= Devices.Error_Handle then
             if Synchronize (I) = FS_IO_Failure then
-               Final_Success := False;
+               Success := False;
             end if;
          end if;
       end loop;
       Lib.Synchronization.Release (Mounts_Mutex);
-      return Final_Success;
    end Synchronize;
 
    procedure Create_Node
@@ -593,10 +636,11 @@ package body VFS with SPARK_Mode => Off is
       Handle      : FS_Handle;
    begin
       Get_Mount (Path, Match_Count, Handle);
-      if Handle /= Error_Handle then
-         Success := Create_Node
+      if Handle /= Error_Handle and Path'First < Natural'Last - Match_Count
+      then
+         Create_Node
             (Handle, 0, Path (Path'First + Match_Count .. Path'Last), Typ,
-             Mode, User);
+             Mode, User, Success);
       else
          Success := FS_Invalid_Value;
       end if;
@@ -612,7 +656,8 @@ package body VFS with SPARK_Mode => Off is
       Handle      : FS_Handle;
    begin
       Get_Mount (Path, Match_Count, Handle);
-      if Handle /= Error_Handle then
+      if Handle /= Error_Handle and Path'First < Natural'Last - Match_Count
+      then
          Success := Create_Symbolic_Link
             (Handle, 0, Path (Path'First + Match_Count .. Path'Last),
              Target, Mode, User);
@@ -630,12 +675,16 @@ package body VFS with SPARK_Mode => Off is
       Handle      : FS_Handle;
    begin
       Get_Mount (Path, Match_Count, Handle);
-      if Handle /= Error_Handle then
-         Success := Create_Hard_Link
+      if Handle /= Error_Handle                    and
+         Path'First   < Natural'Last - Match_Count and
+         Target'First < Natural'Last - Match_Count
+      then
+         Create_Hard_Link
             (Handle,
              0, Path   (Path'First   + Match_Count ..   Path'Last),
              0, Target (Target'First + Match_Count .. Target'Last),
-             User);
+             User,
+             Success);
       else
          Success := FS_Invalid_Value;
       end if;
@@ -651,13 +700,17 @@ package body VFS with SPARK_Mode => Off is
       Handle      : FS_Handle;
    begin
       Get_Mount (Source, Match_Count, Handle);
-      if Handle /= Error_Handle then
-         Success := Rename
+      if Handle /= Error_Handle                    and
+         Source'First < Natural'Last - Match_Count and
+         Target'First < Natural'Last - Match_Count
+      then
+         Rename
             (Handle,
              0, Source (Source'First + Match_Count .. Source'Last),
              0, Target (Target'First + Match_Count .. Target'Last),
              Keep,
-             User);
+             User,
+             Success);
       else
          Success := FS_Invalid_Value;
       end if;
@@ -672,9 +725,11 @@ package body VFS with SPARK_Mode => Off is
       Handle      : FS_Handle;
    begin
       Get_Mount (Path, Match_Count, Handle);
-      if Handle /= Error_Handle then
-         Success := Unlink
-            (Handle, 0, Path (Path'First + Match_Count .. Path'Last), User);
+      if Handle /= Error_Handle and Path'First < Natural'Last - Match_Count
+      then
+         Unlink
+            (Handle, 0, Path (Path'First + Match_Count .. Path'Last), User,
+             Success);
       else
          Success := FS_Invalid_Value;
       end if;
@@ -684,68 +739,4 @@ package body VFS with SPARK_Mode => Off is
    begin
       return Path'Length >= 1 and then Path (Path'First) = '/';
    end Is_Absolute;
-
-   function Is_Canonical (Path : String) return Boolean is
-      Previous : Character := ' ';
-   begin
-      if not Is_Absolute (Path) or else
-         (Path'Length > 1 and Path (Path'Last) = '/')
-      then
-         return False;
-      end if;
-
-      for C of Path loop
-         if Previous = '/' and C = '/' then
-            return False;
-         end if;
-         Previous := C;
-      end loop;
-
-      return True;
-   end Is_Canonical;
-
-   procedure Compound_Path
-      (Base      : String;
-       Extension : String;
-       Result    : out String;
-       Count     : out Natural)
-   is
-      Curr_Index :   Natural;
-      Previous   : Character;
-   begin
-      --  Actually compound the paths.
-      if Is_Absolute (Extension) and Result'Length >= Extension'Length then
-         Count := Extension'Length;
-         Result (Result'First .. Result'First - 1 + Count) := Extension;
-      elsif Result'Length >= Base'Length + Extension'Length + 1 then
-         Count := Base'Length + Extension'Length + 1;
-         Result (Result'First .. Result'First - 1 + Count) :=
-            Base & "/" & Extension;
-      else
-         Count := 0;
-         return;
-      end if;
-
-      --  Clean the path.
-      Curr_Index := Result'First;
-      Previous   := ' ';
-      loop
-         if Previous = '/' and Result (Curr_Index) = '/' then
-            Result (Curr_Index - 1 .. Result'First - 2 + Count) :=
-               Result (Curr_Index .. Result'First - 1 + Count);
-            Count := Count - 1;
-         else
-            Curr_Index := Curr_Index + 1;
-         end if;
-         if Curr_Index = Result'First + Count + 1 then
-            exit;
-         else
-            Previous := Result (Curr_Index - 1);
-         end if;
-      end loop;
-
-      if Count > 1 and then Result (Result'First - 1 + Count) = '/' then
-         Count := Count - 1;
-      end if;
-   end Compound_Path;
 end VFS;

@@ -25,12 +25,12 @@ package body VFS.FAT with SPARK_Mode => Off is
    procedure Free_1 is new Ada.Unchecked_Deallocation (FAT_Data, FAT_Data_Acc);
    procedure Free_2 is new Ada.Unchecked_Deallocation (FAT_File, FAT_File_Acc);
 
-   function Probe
+   procedure Probe
       (Handle       : Device_Handle;
-       Do_Read_Only : Boolean) return System.Address
+       Do_Read_Only : Boolean;
+       Data_Addr    : out System.Address)
    is
       pragma Unreferenced (Do_Read_Only);
-
       Data      : FAT_Data_Acc;
       BP        : BIOS_Parameter_Block;
       BP_Data   : Operation_Data (1 .. BP'Size / 8) with Address => BP'Address;
@@ -47,7 +47,8 @@ package body VFS.FAT with SPARK_Mode => Off is
          BP.Boot_Signature /= Boot_Signature        or
          (BP.Signature /= Signature_1 and BP.Signature /= Signature_2)
       then
-         return System.Null_Address;
+         Data_Addr := System.Null_Address;
+         return;
       end if;
 
       Data := new FAT_Data'
@@ -62,7 +63,7 @@ package body VFS.FAT with SPARK_Mode => Off is
          Data.Sector_Count := BP.Large_Sector_Count;
       end if;
 
-      return Conv_1.To_Address (Conv_1.Object_Pointer (Data));
+      Data_Addr := Conv_1.To_Address (Conv_1.Object_Pointer (Data));
    end Probe;
 
    procedure Unmount (FS : in out System.Address) is
@@ -86,6 +87,7 @@ package body VFS.FAT with SPARK_Mode => Off is
       Ent        : Directory_Entry;
       First_I    : Natural;
       Last_I     : Natural;
+      Success2   : Boolean;
    begin
       if Path'Length = 0 then
          goto End_Return;
@@ -108,13 +110,15 @@ package body VFS.FAT with SPARK_Mode => Off is
 
          Index := 0;
          loop
-            if not Read_Directory_Entry (Data, Cluster, Index, Ent) then
+            Read_Directory_Entry (Data, Cluster, Index, Ent, Success2);
+            if not Success2 then
                goto Error_Return;
             end if;
 
             if Index = Unsigned_64 (Data.BPB.Sectors_Per_Cluster) * 16 then
                Index := 0;
-               if not Get_Next_Cluster (Data, Cluster, Cluster) then
+               Get_Next_Cluster (Data, Cluster, Cluster, Success2);
+               if not Success2 then
                   goto Error_Return;
                end if;
             end if;
@@ -178,6 +182,7 @@ package body VFS.FAT with SPARK_Mode => Off is
       Composed     : String (1 .. 12);
       Composed_Len : Natural;
       Temp         : Natural;
+      Success2     : Boolean;
    begin
       Ret_Count := 0;
       if File.Inner_Type /= File_Directory then
@@ -187,14 +192,16 @@ package body VFS.FAT with SPARK_Mode => Off is
 
       Success := FS_Success;
       loop
-         if not Read_Directory_Entry (FS, Cluster, Index, Ent) then
+         Read_Directory_Entry (FS, Cluster, Index, Ent, Success2);
+         if not Success2 then
             Success := FS_IO_Failure;
             return;
          end if;
 
          if Index = Unsigned_64 (FS.BPB.Sectors_Per_Cluster) * 16 then
             Index := 0;
-            if not Get_Next_Cluster (FS, Cluster, Cluster) then
+            Get_Next_Cluster (FS, Cluster, Cluster, Success2);
+            if not Success2 then
                return;
             end if;
          end if;
@@ -208,7 +215,7 @@ package body VFS.FAT with SPARK_Mode => Off is
             (Ent.Attributes and Directory_LFN) /= Directory_LFN
          then
             if Ret_Count < Entities'Length then
-               Composed_Len := Compose_Path (Ent, Composed);
+               Compose_Path (Ent, Composed, Composed_Len);
                Temp := Entities'First + Ret_Count;
                Entities (Temp).Inode_Number :=
                   Unsigned_64 (Ent.First_Cluster_Low);
@@ -282,7 +289,8 @@ package body VFS.FAT with SPARK_Mode => Off is
          end if;
 
          Final_Offset := 0;
-         if not Get_Next_Cluster (FS, Cluster, Cluster) then
+         Get_Next_Cluster (FS, Cluster, Cluster, Succ);
+         if not Succ then
             Success := FS_IO_Failure;
             return;
          end if;
@@ -291,10 +299,11 @@ package body VFS.FAT with SPARK_Mode => Off is
       end loop;
    end Read;
 
-   function Stat
-      (Data : System.Address;
-       Ino  : File_Inode_Number;
-       S    : out File_Stat) return FS_Status
+   procedure Stat
+      (Data    : System.Address;
+       Ino     : File_Inode_Number;
+       S       : out File_Stat;
+       Success : out FS_Status)
    is
       package Align is new Lib.Alignment (Unsigned_32);
       FS   : constant FAT_Data_Acc := FAT_Data_Acc (Conv_1.To_Pointer (Data));
@@ -317,18 +326,18 @@ package body VFS.FAT with SPARK_Mode => Off is
           Creation_Time     => (0, 0),
           Modification_Time => (0, 0),
           Access_Time       => (0, 0));
-      return FS_Success;
+      Success := FS_Success;
    end Stat;
    ----------------------------------------------------------------------------
-   function Read_Directory_Entry
+   procedure Read_Directory_Entry
       (Data    : FAT_Data_Acc;
        Cluster : Unsigned_32;
        Index   : Unsigned_64;
-       Result  : out Directory_Entry) return Boolean
+       Result  : out Directory_Entry;
+       Success : out Boolean)
    is
       Offset      : Unsigned_64;
       Ret_Count   : Natural;
-      Success     : Boolean;
       Result_Data : Operation_Data (1 .. Directory_Entry'Size / 8)
          with Address => Result'Address;
    begin
@@ -343,17 +352,17 @@ package body VFS.FAT with SPARK_Mode => Off is
           Data      => Result_Data,
           Ret_Count => Ret_Count,
           Success   => Success);
-      return Success and Ret_Count = Result_Data'Length;
+      Success := Success and Ret_Count = Result_Data'Length;
    end Read_Directory_Entry;
 
-   function Get_Next_Cluster
+   procedure Get_Next_Cluster
       (Data          : FAT_Data_Acc;
        Cluster_Index : Unsigned_32;
-       Returned      : out Unsigned_32) return Boolean
+       Returned      : out Unsigned_32;
+       Success       : out Boolean)
    is
       Limit, Offset : Unsigned_64;
       Ret_Count     : Natural;
-      Success       : Boolean;
       Returned_Data : Operation_Data (1 .. 4) with Address => Returned'Address;
    begin
       Limit  := (Unsigned_64 (Data.BPB.Sectors_Per_FAT) * Sector_Size) / 4;
@@ -361,20 +370,20 @@ package body VFS.FAT with SPARK_Mode => Off is
 
       if Unsigned_64 (Cluster_Index) >= Limit then
          Returned := 0;
-         return False;
+         Success  := False;
+      else
+         Devices.Read
+            (Handle    => Data.Handle,
+             Offset    => Offset + (Unsigned_64 (Cluster_Index) * 4),
+             Data      => Returned_Data,
+             Ret_Count => Ret_Count,
+             Success   => Success);
+         if not Success or Ret_Count /= Returned_Data'Length then
+            Success := False;
+         else
+            Success := Returned < 16#FFFFFFF8#;
+         end if;
       end if;
-
-      Devices.Read
-         (Handle    => Data.Handle,
-          Offset    => Offset + (Unsigned_64 (Cluster_Index) * 4),
-          Data      => Returned_Data,
-          Ret_Count => Ret_Count,
-          Success   => Success);
-      if not Success or Ret_Count /= Returned_Data'Length then
-         return False;
-      end if;
-
-      return Returned < 16#FFFFFFF8#;
    end Get_Next_Cluster;
 
    function Are_Paths_Equal
@@ -392,13 +401,14 @@ package body VFS.FAT with SPARK_Mode => Off is
          end if;
       end loop;
 
-      Composed_Len := Compose_Path (Ent, Composed);
+      Compose_Path (Ent, Composed, Composed_Len);
       return Base_Copy = Composed (1 .. Composed_Len);
    end Are_Paths_Equal;
 
-   function Compose_Path
+   procedure Compose_Path
       (Ent    : Directory_Entry;
-       Result : out String) return Natural
+       Result : out String;
+       Length : out Natural)
    is
       Ret          : Natural;
       Ent_Name_Len : Natural  := 0;
@@ -429,6 +439,6 @@ package body VFS.FAT with SPARK_Mode => Off is
             Ent.File_Name (1 .. Ent_Name_Len);
       end if;
 
-      return Ret;
+      Length := Ret;
    end Compose_Path;
 end VFS.FAT;

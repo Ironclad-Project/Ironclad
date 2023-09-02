@@ -149,9 +149,10 @@ package body Userland.Loader with SPARK_Mode => Off is
             goto Error;
          end if;
          if Do_ASLR then
-            LD_Slide := Cryptography.Random.Get_Integer
+            Cryptography.Random.Get_Integer
                (Memory_Locations.LD_Offset_Min,
-                Memory_Locations.LD_Offset_Max);
+                Memory_Locations.LD_Offset_Max,
+                LD_Slide);
             LD_Slide := Aln.Align_Up (LD_Slide, Arch.MMU.Page_Size);
          else
             LD_Slide := Memory_Locations.LD_Offset_Min;

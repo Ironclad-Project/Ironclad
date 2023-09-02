@@ -68,35 +68,44 @@ package VFS is
    Path_Buffer_Length : constant Natural;
 
    --  Initialize the internal VFS registries.
-   procedure Init;
+   procedure Init with Post => Is_Initialized = True;
 
    --  Mount the passed device name into the passed path, guessing the FS.
    --  @param Device_Name  Name of the device (/dev/<name>).
    --  @param Mount_Path   Absolute path for mounting.
    --  @param Do_Read_Only Force to mount read only.
-   --  @return True on success, False on failure.
-   function Mount
+   --  @param Success      True on success, False on failure.
+   procedure Mount
       (Device_Name  : String;
        Mount_Path   : String;
-       Do_Read_Only : Boolean) return Boolean;
+       Do_Read_Only : Boolean;
+       Success      : out Boolean)
+      with Pre => Device_Name'Length <= Devices.Max_Name_Length and
+                  Devices.Is_Initialized                        and
+                  Is_Initialized;
 
    --  Mount the passed device name into the passed path.
    --  @param Device_Name  Name of the device (/dev/<name>).
    --  @param Mount_Path   Absolute path for mounting.
    --  @param FS           FS Type to mount as.
    --  @param Do_Read_Only Force to mount read only.
-   --  @return True on success, False on failure.
-   function Mount
+   --  @param Success      True on success, False on failure.
+   procedure Mount
       (Device_Name  : String;
        Mount_Path   : String;
        FS           : FS_Type;
-       Do_Read_Only : Boolean) return Boolean;
+       Do_Read_Only : Boolean;
+       Success      : out Boolean)
+      with Pre => Device_Name'Length <= Devices.Max_Name_Length and
+                  Devices.Is_Initialized                        and
+                  Is_Initialized;
 
    --  Unmount a mount, syncing when possible.
-   --  @param Path  Path of the mount to unmount.
-   --  @param Force Whether to unmount even if busy.
-   --  @return True on success, False if busy or non present.
-   function Unmount (Path : String; Force : Boolean) return Boolean;
+   --  @param Path    Path of the mount to unmount.
+   --  @param Force   Whether to unmount even if busy.
+   --  @param Success True on success, False if busy or non present.
+   procedure Unmount (Path : String; Force : Boolean; Success : out Boolean)
+      with Pre => Is_Initialized;
 
    --  Get a best-matching mount for the passed path.
    --  @param Path   Path to search a mount for.
@@ -105,7 +114,8 @@ package VFS is
    procedure Get_Mount
       (Path   : String;
        Match  : out Natural;
-       Handle : out FS_Handle);
+       Handle : out FS_Handle)
+      with Pre => Is_Initialized;
 
    --  Information of a process.
    type Mountpoint_Info is record
@@ -120,25 +130,26 @@ package VFS is
    --  List all mountpoints on the system.
    --  @param List  Where to write all the mount information.
    --  @param Total Total count of mountpoints, even if it is > List'Length.
-   procedure List_All (List : out Mountpoint_Info_Arr; Total : out Natural);
+   procedure List_All (List : out Mountpoint_Info_Arr; Total : out Natural)
+      with Pre => Devices.Is_Initialized and Is_Initialized;
 
    --  Get the backing FS type.
    --  @param Key Key to use to fetch the info.
    --  @return The FS type, will be a placeholder if the key is not valid.
    function Get_Backing_FS (Key : FS_Handle) return FS_Type
-      with Pre => Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Get the backing data of the FS.
    --  @param Key Key to use to fetch the info.
    --  @return The FS data, or System.Null_Address if not a valid key.
    function Get_Backing_FS_Data (Key : FS_Handle) return System.Address
-      with Pre => Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Get the backing device of a mount.
    --  @param Key Key to use to fetch the info.
    --  @return The backing device.
    function Get_Backing_Device (Key : FS_Handle) return Device_Handle
-      with Pre => Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle;
    ----------------------------------------------------------------------------
    --  Status returned from file operations as result.
    type FS_Status is
@@ -165,7 +176,7 @@ package VFS is
        Success   : out FS_Status;
        User      : Unsigned_32;
        Do_Follow : Boolean := True)
-      with Pre => Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Create an inode inside a mount.
    --  @param Key      FS Handle to open.
@@ -174,15 +185,16 @@ package VFS is
    --  @param Typ      Type of file to create.
    --  @param Mode     Mode to use for the created file.
    --  @param User     UID to check against, 0 for root/bypass checks.
-   --  @return Status for the operation.
-   function Create_Node
+   --  @param Status   Status for the operation.
+   procedure Create_Node
       (Key      : FS_Handle;
        Relative : File_Inode_Number;
        Path     : String;
        Typ      : File_Type;
        Mode     : File_Mode;
-       User     : Unsigned_32) return FS_Status
-      with Pre => Key /= Error_Handle;
+       User     : Unsigned_32;
+       Status   : out FS_Status)
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Create a symlink with a target inside a mount.
    --  @param Key      FS Handle to open.
@@ -199,7 +211,7 @@ package VFS is
        Target   : String;
        Mode     : Unsigned_32;
        User     : Unsigned_32) return FS_Status
-      with Pre => Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Create a hard link inside a mount with a target.
    --  @param Key             FS Handle to open.
@@ -208,15 +220,16 @@ package VFS is
    --  @param Relative_Target Relative directory inode to link to.
    --  @param Target          Target of the link, must exist.
    --  @param User            UID to check against, 0 for root/bypass checks.
-   --  @return Status for the operation.
-   function Create_Hard_Link
+   --  @param Status          Status for the operation.
+   procedure Create_Hard_Link
       (Key             : FS_Handle;
        Relative_Path   : File_Inode_Number;
        Path            : String;
        Relative_Target : File_Inode_Number;
        Target          : String;
-       User            : Unsigned_32) return FS_Status
-      with Pre => Key /= Error_Handle;
+       User            : Unsigned_32;
+       Status          : out FS_Status)
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Rename a file to a target, optionally keeping it in the process.
    --  @param Key             FS Handle to open.
@@ -226,34 +239,37 @@ package VFS is
    --  @param Target          Target of the rename, must not exist.
    --  @param Keep            Keep the source instead of plainly renaming it.
    --  @param User            UID to check against, 0 for root/bypass checks.
-   --  @return Status for the operation.
-   function Rename
+   --  @param Status          Status for the operation.
+   procedure Rename
       (Key             : FS_Handle;
        Relative_Source : File_Inode_Number;
        Source          : String;
        Relative_Target : File_Inode_Number;
        Target          : String;
        Keep            : Boolean;
-       User            : Unsigned_32) return FS_Status
-      with Pre => Key /= Error_Handle;
+       User            : Unsigned_32;
+       Status          : out FS_Status)
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Queue a file for deletion inside a mount.
    --  @param Key      FS Handle to open.
    --  @param Relative Relative directory inode to unlink from.
    --  @param Path     Absolute path inside the mount, must exist.
    --  @param User     UID to check against, 0 for root/bypass checks.
-   --  @return Status for the operation.
-   function Unlink
+   --  @param Status   Status for the operation.
+   procedure Unlink
       (Key      : FS_Handle;
        Relative : File_Inode_Number;
        Path     : String;
-       User     : Unsigned_32) return FS_Status;
+       User     : Unsigned_32;
+       Status   : out FS_Status)
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Signal to the FS we do not need this inode anymore.
    --  @param Key FS handle to operate on.
    --  @param Ino Inode to signal to close.
    procedure Close (Key : FS_Handle; Ino : File_Inode_Number)
-      with Pre => Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Read the entries of an opened directory.
    --  @param Key       FS handle to operate on.
@@ -271,7 +287,7 @@ package VFS is
        Ret_Count : out Natural;
        Success   : out FS_Status;
        User      : Unsigned_32)
-      with Pre => Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Read the contents of a symbolic link.
    --  @param Key       FS handle to operate on.
@@ -287,7 +303,7 @@ package VFS is
        Ret_Count : out Natural;
        Success   : out FS_Status;
        User      : Unsigned_32)
-      with Pre => Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Read from a regular file.
    --  @param Key       FS Handle to open.
@@ -305,7 +321,7 @@ package VFS is
        Ret_Count : out Natural;
        Success   : out FS_Status;
        User      : Unsigned_32)
-      with Pre => Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Write to a regular file.
    --  @param Key       FS Handle to open.
@@ -323,7 +339,7 @@ package VFS is
        Ret_Count : out Natural;
        Success   : out FS_Status;
        User      : Unsigned_32)
-      with Pre => Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Get the stat of a file.
    --  @param Key      FS Handle to open.
@@ -337,40 +353,43 @@ package VFS is
        Stat_Val : out File_Stat;
        Success  : out FS_Status;
        User     : Unsigned_32)
-      with Pre => Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Truncate a file to size 0.
    --  @param Key      FS Handle to open.
    --  @param Ino      Inode to operate on.
    --  @param New_Size New size for the file to adopt.
    --  @param User     UID to check against, 0 for root/bypass checks.
-   --  @return Status for the operation.
-   function Truncate
+   --  @param Status   Status for the operation.
+   procedure Truncate
       (Key      : FS_Handle;
        Ino      : File_Inode_Number;
        New_Size : Unsigned_64;
-       User     : Unsigned_32) return FS_Status;
+       User     : Unsigned_32;
+       Status   : out FS_Status)
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Do an FS-specific ioctl on the inode.
-   --  @param Key      FS Handle to open.
-   --  @param Ino      Inode to operate on.
-   --  @param Request  FS-Specific request to issue.
-   --  @param Arg      Address of an optional argument for the FS.
-   --  @param User     UID to check against, 0 for root/bypass checks.
-   --  @return Status for the operation.
-   function IO_Control
+   --  @param Key     FS Handle to open.
+   --  @param Ino     Inode to operate on.
+   --  @param Request FS-Specific request to issue.
+   --  @param Arg     Address of an optional argument for the FS.
+   --  @param User    UID to check against, 0 for root/bypass checks.
+   --  @param Status  Status for the operation.
+   procedure IO_Control
       (Key     : FS_Handle;
        Ino     : File_Inode_Number;
        Request : Unsigned_64;
        Arg     : System.Address;
-       User    : Unsigned_32) return FS_Status
-      with Pre => Key /= Error_Handle;
+       User    : Unsigned_32;
+       Status  : out FS_Status)
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Synchronize the whole FS driver-specific caches and used device.
    --  @param Key FS Handle to open.
    --  @return Status for the operation.
    function Synchronize (Key : FS_Handle) return FS_Status
-      with Pre => Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Synchronize the contents of a file cached by the FS driver.
    --  @param Key       FS Handle to open.
@@ -381,33 +400,37 @@ package VFS is
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
        Data_Only : Boolean) return FS_Status
-      with Pre => Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Change the mode of an inode.
-   --  @param Key  FS Handle to use.
-   --  @param Ino  Inode to change the mode of.
-   --  @param Mode Mode to change the inode to.
-   --  @param User UID to check against, 0 for root/bypass checks.
-   --  @return Status of the operation.
-   function Change_Mode
-      (Key  : FS_Handle;
-       Ino  : File_Inode_Number;
-       Mode : File_Mode;
-       User : Unsigned_32) return FS_Status;
+   --  @param Key    FS Handle to use.
+   --  @param Ino    Inode to change the mode of.
+   --  @param Mode   Mode to change the inode to.
+   --  @param User   UID to check against, 0 for root/bypass checks.
+   --  @param Status Status of the operation.
+   procedure Change_Mode
+      (Key    : FS_Handle;
+       Ino    : File_Inode_Number;
+       Mode   : File_Mode;
+       User   : Unsigned_32;
+       Status : out FS_Status)
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Change the owner of an inode.
-   --  @param Key  FS Handle to use.
-   --  @param Ino  Inode to change the mode of.
-   --  @param Owner Owner to change ownership to.
-   --  @param Group Group to change ownership to.
-   --  @param User UID to check against, 0 for root/bypass checks.
-   --  @return Status of the operation.
-   function Change_Owner
-      (Key   : FS_Handle;
-       Ino   : File_Inode_Number;
-       Owner : Unsigned_32;
-       Group : Unsigned_32;
-       User  : Unsigned_32) return FS_Status;
+   --  @param Key    FS Handle to use.
+   --  @param Ino    Inode to change the mode of.
+   --  @param Owner  Owner to change ownership to.
+   --  @param Group  Group to change ownership to.
+   --  @param User   UID to check against, 0 for root/bypass checks.
+   --  @param Status Status of the operation.
+   procedure Change_Owner
+      (Key    : FS_Handle;
+       Ino    : File_Inode_Number;
+       Owner  : Unsigned_32;
+       Group  : Unsigned_32;
+       User   : Unsigned_32;
+       Status : out FS_Status)
+      with Pre => Is_Initialized and Key /= Error_Handle;
    ----------------------------------------------------------------------------
    --  FS-independent versions of operations, that rely on the driver to search
    --  for the appropiate FS, or operate on several FSes.
@@ -425,12 +448,15 @@ package VFS is
        Ino       : out File_Inode_Number;
        Success   : out FS_Status;
        User      : Unsigned_32;
-       Do_Follow : Boolean := True);
+       Do_Follow : Boolean := True)
+      with Pre  => Is_Initialized,
+           Post => (if Success = FS_Success then Key /= Error_Handle else True);
 
    --  Synchronize all FSs mounted on the system, FSs with no implemented
    --  synchronization routines are ignored.
-   --  @return True on success. False if any FSs failed for IO reasons.
-   function Synchronize return Boolean;
+   --  @param Success True on success. False if any FSs failed for IO reasons.
+   procedure Synchronize (Success : out Boolean)
+      with Pre => Is_Initialized;
 
    --  Create several kinds of files.
    --  @param Path    System-wide absolute path.
@@ -443,7 +469,8 @@ package VFS is
        Typ     : File_Type;
        Mode    : File_Mode;
        Success : out FS_Status;
-       User    : Unsigned_32);
+       User    : Unsigned_32)
+      with Pre => Is_Initialized;
 
    --  Create a symbolic link.
    --  @param Path    System-wide absolute path to create.
@@ -456,7 +483,8 @@ package VFS is
        Target  : String;
        Mode    : Unsigned_32;
        Success : out FS_Status;
-       User    : Unsigned_32);
+       User    : Unsigned_32)
+      with Pre => Is_Initialized;
 
    --  Create a hard link.
    --  @param Path    System-wide absolute path to create.
@@ -467,7 +495,8 @@ package VFS is
       (Path    : String;
        Target  : String;
        Success : out FS_Status;
-       User    : Unsigned_32);
+       User    : Unsigned_32)
+      with Pre => Is_Initialized;
 
    --  Rename files.
    --  @param Path    System-wide absolute path to rename.
@@ -479,7 +508,8 @@ package VFS is
        Target  : String;
        Keep    : Boolean;
        Success : out FS_Status;
-       User    : Unsigned_32);
+       User    : Unsigned_32)
+      with Pre => Is_Initialized;
 
    --  Queue a file for unlinking.
    --  @param Path    System-wide absolute path to unlink.
@@ -488,31 +518,13 @@ package VFS is
    procedure Unlink
       (Path    : String;
        Success : out FS_Status;
-       User    : Unsigned_32);
+       User    : Unsigned_32)
+      with Pre => Is_Initialized;
    ----------------------------------------------------------------------------
    --  Check whether a path is absolute.
    --  @param Path to check.
    --  @return True if absolute, False if not.
    function Is_Absolute (Path : String) return Boolean;
-
-   --  Check whether a path is canonical, that is, whether the path is the
-   --  shortest form it could be, symlinks, ., and .., are not checked.
-   --  @param Path Path to check.
-   --  @return True if canonical, False if not.
-   function Is_Canonical (Path : String) return Boolean;
-
-   --  Compound 2 components of a path, a base, and an extension.
-   --  If the extension is absolute, the base will not be used.
-   --  The resulting path will be cleaned a bit in order to be made canonical.
-   --  @param Base      First component to use.
-   --  @param Extension Component to append to extension, if not absolute.
-   --  @param Result    Where to write as much of the path as possible.
-   --  @param Count     Length of the made path, if it fits, or 0 in failure.
-   procedure Compound_Path
-      (Base      : String;
-       Extension : String;
-       Result    : out String;
-       Count     : out Natural);
 
    --  Apply a umask to a mode.
    --  @param Mode  Mode to use.
@@ -520,6 +532,9 @@ package VFS is
    --  @return The resulting mode.
    function Apply_Umask (Mode, Umask : File_Mode) return File_Mode is
       (File_Mode (Unsigned_32 (Mode) and not Unsigned_32 (Umask)));
+   ----------------------------------------------------------------------------
+   --  Ghost function for checking whether the vfs handling is initialized.
+   function Is_Initialized return Boolean with Ghost;
 
 private
 
@@ -540,4 +555,6 @@ private
 
    Mounts       : Mount_Registry_Acc;
    Mounts_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+
+   function Is_Initialized return Boolean is (Mounts /= null);
 end VFS;

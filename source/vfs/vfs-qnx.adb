@@ -15,14 +15,15 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body VFS.QNX with SPARK_Mode => Off is
-   function Probe
+   procedure Probe
       (Handle       : Device_Handle;
-       Do_Read_Only : Boolean) return System.Address
+       Do_Read_Only : Boolean;
+       Data_Addr    : out System.Address)
    is
       pragma Unreferenced (Handle);
       pragma Unreferenced (Do_Read_Only);
    begin
-      return Null_Address;
+      Data_Addr := Null_Address;
    end Probe;
 
    procedure Unmount (FS : in out System.Address) is

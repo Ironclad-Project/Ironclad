@@ -192,12 +192,14 @@ package body Userland.Process with SPARK_Mode => Off is
       Rand_Addr, Rand_Jump : Unsigned_64;
    begin
       if Do_ASLR then
-         Rand_Addr := Cryptography.Random.Get_Integer
+         Cryptography.Random.Get_Integer
             (Memory_Locations.Mmap_Anon_Min,
-             Memory_Locations.Mmap_Anon_Max);
-         Rand_Jump := Cryptography.Random.Get_Integer
+             Memory_Locations.Mmap_Anon_Max,
+             Rand_Addr);
+         Cryptography.Random.Get_Integer
             (Memory_Locations.Stack_Jump_Min,
-             Memory_Locations.Stack_Jump_Max);
+             Memory_Locations.Stack_Jump_Max,
+             Rand_Jump);
 
          Rand_Addr := Aln.Align_Up (Rand_Addr, Arch.MMU.Page_Size);
          Rand_Jump := Aln.Align_Up (Rand_Jump, Arch.MMU.Page_Size);

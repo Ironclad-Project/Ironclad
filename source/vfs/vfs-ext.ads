@@ -17,10 +17,11 @@
 with System;
 with Lib.Synchronization;
 
-package VFS.EXT with SPARK_Mode => Off is
-   function Probe
+package VFS.EXT is
+   procedure Probe
       (Handle       : Device_Handle;
-       Do_Read_Only : Boolean) return System.Address;
+       Do_Read_Only : Boolean;
+       Data_Addr    : out System.Address);
 
    procedure Unmount (FS : in out System.Address);
    ----------------------------------------------------------------------------
@@ -33,44 +34,49 @@ package VFS.EXT with SPARK_Mode => Off is
        User      : Unsigned_32;
        Do_Follow : Boolean);
 
-   function Create_Node
+   procedure Create_Node
       (FS       : System.Address;
        Relative : File_Inode_Number;
        Path     : String;
        Typ      : File_Type;
        Mode     : File_Mode;
-       User     : Unsigned_32) return FS_Status;
+       User     : Unsigned_32;
+       Status   : out FS_Status);
 
-   function Create_Symbolic_Link
+   procedure Create_Symbolic_Link
       (FS       : System.Address;
        Relative : File_Inode_Number;
        Path     : String;
        Target   : String;
        Mode     : Unsigned_32;
-       User     : Unsigned_32) return FS_Status;
+       User     : Unsigned_32;
+       Status   : out FS_Status);
 
-   function Create_Hard_Link
+   procedure Create_Hard_Link
       (FS              : System.Address;
        Relative_Path   : File_Inode_Number;
        Path            : String;
        Relative_Target : File_Inode_Number;
        Target          : String;
-       User            : Unsigned_32) return FS_Status;
+       User            : Unsigned_32;
+       Status          : out FS_Status);
 
-   function Rename
+   procedure Rename
       (FS              : System.Address;
        Relative_Source : File_Inode_Number;
        Source          : String;
        Relative_Target : File_Inode_Number;
        Target          : String;
        Keep            : Boolean;
-       User            : Unsigned_32) return FS_Status;
+       User            : Unsigned_32;
+       Status          : out FS_Status);
 
-   function Unlink
+   procedure Unlink
       (FS       : System.Address;
        Relative : File_Inode_Number;
        Path     : String;
-       User     : Unsigned_32) return FS_Status;
+       User     : Unsigned_32;
+       Status   : out FS_Status);
 
    procedure Close (FS : System.Address; Ino : File_Inode_Number);
 
@@ -109,37 +115,42 @@ package VFS.EXT with SPARK_Mode => Off is
        Success   : out FS_Status;
        User      : Unsigned_32);
 
-   function Stat
-      (Data : System.Address;
-       Ino  : File_Inode_Number;
-       S    : out File_Stat;
-       User : Unsigned_32) return FS_Status;
+   procedure Stat
+      (Data    : System.Address;
+       Ino     : File_Inode_Number;
+       S       : out File_Stat;
+       User    : Unsigned_32;
+       Success : out FS_Status);
 
-   function Truncate
+   procedure Truncate
       (Data     : System.Address;
        Ino      : File_Inode_Number;
        New_Size : Unsigned_64;
-       User     : Unsigned_32) return FS_Status;
+       User     : Unsigned_32;
+       Status   : out FS_Status);
 
-   function IO_Control
-      (Data : System.Address;
-       Ino  : File_Inode_Number;
-       Req  : Unsigned_64;
-       Arg  : System.Address;
-       User : Unsigned_32) return FS_Status;
+   procedure IO_Control
+      (Data   : System.Address;
+       Ino    : File_Inode_Number;
+       Req    : Unsigned_64;
+       Arg    : System.Address;
+       User   : Unsigned_32;
+       Status : out FS_Status);
 
-   function Change_Mode
-      (Data : System.Address;
-       Ino  : File_Inode_Number;
-       Mode : File_Mode;
-       User : Unsigned_32) return FS_Status;
+   procedure Change_Mode
+      (Data   : System.Address;
+       Ino    : File_Inode_Number;
+       Mode   : File_Mode;
+       User   : Unsigned_32;
+       Status : out FS_Status);
 
-   function Change_Owner
-      (Data  : System.Address;
-       Ino   : File_Inode_Number;
-       Owner : Unsigned_32;
-       Group : Unsigned_32;
-       User  : Unsigned_32) return FS_Status;
+   procedure Change_Owner
+      (Data   : System.Address;
+       Ino    : File_Inode_Number;
+       Owner  : Unsigned_32;
+       Group  : Unsigned_32;
+       User   : Unsigned_32;
+       Status : out FS_Status);
 
    function Synchronize (Data : System.Address) return FS_Status;
 
@@ -349,7 +360,7 @@ private
 
    Root_Inode : constant := 2;
 
-   function Inner_Open_Inode
+   procedure Inner_Open_Inode
       (Data         : EXT_Data_Acc;
        Relative     : Unsigned_32;
        Path         : String;
@@ -357,7 +368,8 @@ private
        Target_Index : out Unsigned_32;
        Target_Inode : out Inode;
        Parent_Index : out Unsigned_32;
-       Parent_Inode : out Inode) return Boolean;
+       Parent_Inode : out Inode;
+       Success      : out Boolean);
 
    procedure Inner_Read_Symbolic_Link
       (Ino       : Inode;
@@ -374,23 +386,26 @@ private
        Next_Index  : out Unsigned_64;
        Success     : out Boolean);
 
-   function RW_Superblock
+   procedure RW_Superblock
       (Handle          : Device_Handle;
        Offset          : Unsigned_64;
        Super           : in out Superblock;
-       Write_Operation : Boolean) return Boolean;
+       Write_Operation : Boolean;
+       Success         : out Boolean);
 
-   function RW_Block_Group_Descriptor
+   procedure RW_Block_Group_Descriptor
       (Data             : EXT_Data_Acc;
        Descriptor_Index : Unsigned_32;
        Result           : in out Block_Group_Descriptor;
-       Write_Operation  : Boolean) return Boolean;
+       Write_Operation  : Boolean;
+       Success          : out Boolean);
 
-   function RW_Inode
+   procedure RW_Inode
       (Data            : EXT_Data_Acc;
        Inode_Index     : Unsigned_32;
        Result          : in out Inode;
-       Write_Operation : Boolean) return Boolean;
+       Write_Operation : Boolean;
+       Success         : out Boolean);
 
    function Get_Block_Index
       (FS_Data     : EXT_Data_Acc;
@@ -416,36 +431,41 @@ private
        Ret_Count   : out Natural;
        Success     : out Boolean);
 
-   function Grow_Inode
+   procedure Grow_Inode
       (FS_Data     : EXT_Data_Acc;
        Inode_Data  : in out Inode;
        Inode_Num   : Unsigned_32;
        Start       : Unsigned_64;
-       Count       : Unsigned_64) return Boolean;
+       Count       : Unsigned_64;
+       Success     : out Boolean);
 
-   function Assign_Inode_Blocks
+   procedure Assign_Inode_Blocks
       (FS_Data     : EXT_Data_Acc;
        Inode_Data  : in out Inode;
        Inode_Num   : Unsigned_32;
        Start_Blk   : Unsigned_32;
-       Block_Count : Unsigned_32) return Boolean;
+       Block_Count : Unsigned_32;
+       Success     : out Boolean);
 
-   function Wire_Inode_Blocks
+   procedure Wire_Inode_Blocks
       (FS_Data     : EXT_Data_Acc;
        Inode_Data  : in out Inode;
        Inode_Num   : Unsigned_32;
        Block_Index : Unsigned_32;
-       Wired_Block : Unsigned_32) return Boolean;
+       Wired_Block : Unsigned_32;
+       Success     : out Boolean);
 
-   function Allocate_Block_For_Inode
+   procedure Allocate_Block_For_Inode
       (FS_Data    : EXT_Data_Acc;
        Inode_Data : in out Inode;
        Inode_Num  : Unsigned_32;
-       Ret_Block  : out Unsigned_32) return Boolean;
+       Ret_Block  : out Unsigned_32;
+       Success    : out Boolean);
 
-   function Allocate_Inode
+   procedure Allocate_Inode
       (FS_Data   : EXT_Data_Acc;
-       Inode_Num : out Unsigned_32) return Boolean;
+       Inode_Num : out Unsigned_32;
+       Success   : out Boolean);
 
    procedure Add_Directory_Entry
       (FS_Data     : EXT_Data_Acc;
@@ -479,10 +499,11 @@ private
 
    function Get_Size (Ino : Inode; Is_64_Bits : Boolean) return Unsigned_64;
 
-   function Set_Size
+   procedure Set_Size
       (Ino        : in out Inode;
        New_Size   : Unsigned_64;
-       Is_64_Bits : Boolean) return Boolean;
+       Is_64_Bits : Boolean;
+       Success    : out Boolean);
 
    function Is_Immutable (Ino : Inode) return Boolean is
       ((Ino.Flags and Flags_Immutable) /= 0);

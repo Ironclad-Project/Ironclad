@@ -247,11 +247,16 @@ package body IPC.FIFO is
          Final := To_Write.Data_Count + Len;
       end if;
 
-      To_Write.Data (To_Write.Data_Count + 1 .. Final) :=
-         Data (Data'First .. Data'First + Len - 1);
-      To_Write.Data_Count := Final;
-      Ret_Count := Len;
-      Success   := Pipe_Success;
+      if To_Write.Data_Count /= Natural'Last then
+         To_Write.Data (To_Write.Data_Count + 1 .. Final) :=
+            Data (Data'First .. Data'First + Len - 1);
+         To_Write.Data_Count := Final;
+         Ret_Count := Len;
+         Success   := Pipe_Success;
+      else
+         Ret_Count := 0;
+         Success   := Would_Block_Failure;
+      end if;
 
       Lib.Synchronization.Release (To_Write.Mutex);
    end Write;
