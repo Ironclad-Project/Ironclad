@@ -175,9 +175,10 @@ package body Userland.Loader with SPARK_Mode => Off is
              Env     => Environment,
              Map     => Process.Get_Common_Map (Proc),
              Vector  => Loaded_ELF.Vector,
+             Cluster => Scheduler.Convert (1),
              PID     => Process.Convert (Proc));
       begin
-         if Returned_TID = 0 then
+         if Returned_TID = Error_TID then
             goto Error;
          end if;
 

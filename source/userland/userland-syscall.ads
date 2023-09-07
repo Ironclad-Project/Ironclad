@@ -188,6 +188,7 @@ package Userland.Syscall is
        Stack    : Unsigned_64;
        Flags    : Unsigned_64;
        TLS_Addr : Unsigned_64;
+       Cluster  : Unsigned_64;
        GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
        Returned : out Unsigned_64;
@@ -290,10 +291,9 @@ package Userland.Syscall is
    --  Yield.
    procedure Sched_Yield (Returned : out Unsigned_64; Errno : out Errno_Value);
 
-   --  Change scheduling deadlines.
-   procedure Set_Deadlines
-      (Run_Time : Unsigned_64;
-       Period   : Unsigned_64;
+   --  Delete a thread cluster.
+   procedure Delete_Thread_Cluster
+      (Cluster  : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
@@ -381,15 +381,19 @@ package Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
 
-   --  Managing scheduling of a thread.
-   Thread_MONO : constant := 2#1#;
-   procedure Get_Thread_Sched
-      (Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
-   procedure Set_Thread_Sched
-      (Flags    : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
+   --  Get the current thread id.
+   procedure Get_TID (Returned : out Unsigned_64; Errno : out Errno_Value);
+
+   --  Manage an existing thread cluster or create a new one.
+   SCHED_RR   : constant := 2#01#;
+   SCHED_COOP : constant := 2#10#;
+   procedure Manage_Thread_Cluster
+      (Cluster    : Unsigned_64;
+       Flags      : Unsigned_64;
+       Quantum    : Unsigned_64;
+       Percentage : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    --  Multiplexed operation for files.
    FD_CLOEXEC      : constant := 1;

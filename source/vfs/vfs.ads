@@ -450,7 +450,8 @@ package VFS is
        User      : Unsigned_32;
        Do_Follow : Boolean := True)
       with Pre  => Is_Initialized,
-           Post => (if Success = FS_Success then Key /= Error_Handle else True);
+           Post => (if Success = FS_Success then
+                    Key /= Error_Handle else True);
 
    --  Synchronize all FSs mounted on the system, FSs with no implemented
    --  synchronization routines are ignored.

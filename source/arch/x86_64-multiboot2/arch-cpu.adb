@@ -248,7 +248,7 @@ package body Arch.CPU with SPARK_Mode => Off is
           Number          => Core_Number,
           LAPIC_ID        => LAPIC,
           LAPIC_Timer_Hz  => APIC.LAPIC_Timer_Calibrate,
-          Current_Thread  => 0,
+          Current_Thread  => Scheduler.Error_TID,
           Current_Process => Userland.Process.Error_PID,
           others          => <>);
       Snippets.Write_GS        (Locals_Addr);

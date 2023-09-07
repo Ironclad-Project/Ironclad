@@ -1,4 +1,4 @@
---  scheduler.adb: Scheduler.
+--  scheduler.adb: Thread scheduler.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -22,10 +22,9 @@ with Userland.Process;
 with Arch;
 with Arch.Local;
 with Arch.Snippets;
-with Lib.Messages;
 with Lib;
+with Lib.Messages;
 with Arch.CPU;
-with Config;
 with Ada.Unchecked_Deallocation;
 
 package body Scheduler with SPARK_Mode => Off is
@@ -38,41 +37,55 @@ package body Scheduler with SPARK_Mode => Off is
    procedure Free is new Ada.Unchecked_Deallocation
       (Kernel_Stack, Kernel_Stack_Acc);
 
-   type Thread_Info is record
-      State          : Arch.Context.GP_Context;
-      Is_Present     : Boolean;
-      Is_Running     : Boolean;
-      Is_Monothread  : Boolean;
-      TCB_Pointer    : System.Address;
-      PageMap        : Arch.MMU.Page_Table_Acc;
-      Kernel_Stack   : Kernel_Stack_Acc;
-      User_Stack     : Unsigned_64;
-      FP_Region      : Arch.Context.FP_Context;
-      Process        : Userland.Process.PID;
-      Time_Since_Run : Natural;
-      Priority       : Positive;
-      Run_Time       : Positive;
-      Period         : Positive;
-      ASC_Offset     : Natural;
+   type Thread_Cluster is record
+      Is_Present : Boolean;
+      Algorithm  : Cluster_Algorithm;
+      RR_Quantum : Natural;
+      Percentage : Natural range 0 .. 100;
+      Progress   : Natural range 0 .. 100;
    end record;
+   type Cluster_Arr is array (TCID range 1 .. TCID'Last) of Thread_Cluster;
+   type Cluster_Arr_Acc is access Cluster_Arr;
 
-   type Thread_Info_Arr     is array (TID range 1 .. 50) of Thread_Info;
+   type Thread_Info is record
+      Is_Present    : Boolean;
+      Is_Running    : Boolean;
+      Cluster       : TCID;
+      TCB_Pointer   : System.Address;
+      PageMap       : Arch.MMU.Page_Table_Acc;
+      Kernel_Stack  : Kernel_Stack_Acc;
+      User_Stack    : Unsigned_64;
+      GP_State      : Arch.Context.GP_Context;
+      FP_State      : Arch.Context.FP_Context;
+      Process       : Userland.Process.PID;
+   end record;
+   type Thread_Info_Arr     is array (TID range 1 .. TID'Last) of Thread_Info;
    type Thread_Info_Arr_Acc is access Thread_Info_Arr;
 
    --  Storing scheduler information independent from scheduling algo.
    Scheduler_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+   Cluster_Pool    : Cluster_Arr_Acc;
    Thread_Pool     : Thread_Info_Arr_Acc;
-
-   --  Default period and run time (in microseconds).
-   Default_Run_Time : constant :=  3000;
-   Default_Period   : constant := 10000;
 
    function Init return Boolean is
    begin
-      Thread_Pool := new Thread_Info_Arr;
+      --  Initialize registries.
+      Thread_Pool  := new Thread_Info_Arr;
+      Cluster_Pool := new Cluster_Arr;
       for Th of Thread_Pool.all loop
-         Th := (Is_Present => False, Kernel_Stack => null, others => <>);
+         Th.Is_Present   := False;
+         Th.Kernel_Stack := null;
       end loop;
+      for Cl of Cluster_Pool.all loop
+         Cl.Is_Present := False;
+      end loop;
+
+      --  Create the default cluster.
+      Cluster_Pool (Cluster_Pool'First).Is_Present := True;
+      Cluster_Pool (Cluster_Pool'First).Algorithm  := Cluster_RR;
+      Cluster_Pool (Cluster_Pool'First).RR_Quantum := 4000;
+      Cluster_Pool (Cluster_Pool'First).Percentage := 100;
+
       Is_Initialized := True;
       Lib.Synchronization.Release (Scheduler_Mutex);
       return True;
@@ -81,7 +94,7 @@ package body Scheduler with SPARK_Mode => Off is
    procedure Idle_Core is
    begin
       while not Is_Initialized loop Arch.Snippets.Pause; end loop;
-      Arch.Local.Reschedule_In (Default_Run_Time);
+      Arch.Local.Reschedule_ASAP;
       Arch.Snippets.Enable_Interrupts;
       loop Arch.Snippets.Wait_For_Interrupt; end loop;
    end Idle_Core;
@@ -92,6 +105,7 @@ package body Scheduler with SPARK_Mode => Off is
        Env     : Userland.Environment_Arr;
        Map     : Arch.MMU.Page_Table_Acc;
        Vector  : Userland.ELF.Auxval;
+       Cluster : TCID;
        PID     : Natural) return TID
    is
       Stack_Permissions : constant Arch.MMU.Page_Permissions :=
@@ -204,14 +218,15 @@ package body Scheduler with SPARK_Mode => Off is
              FP_State => FP_State,
              Map       => Map,
              PID       => PID,
+             Cluster   => Cluster,
              TCB       => System.Null_Address);
-         if New_TID /= 0 then
+         if New_TID /= Error_TID then
             return New_TID;
          end if;
       end;
 
    <<Error_1>>
-      return 0;
+      return Error_TID;
    end Create_User_Thread;
 
    function Create_User_Thread
@@ -219,6 +234,7 @@ package body Scheduler with SPARK_Mode => Off is
        Map        : Arch.MMU.Page_Table_Acc;
        Stack_Addr : Unsigned_64;
        TLS_Addr   : Unsigned_64;
+       Cluster    : TCID;
        PID        : Natural) return TID
    is
       GP_State : Arch.Context.GP_Context;
@@ -234,6 +250,7 @@ package body Scheduler with SPARK_Mode => Off is
           FP_State => FP_State,
           Map      => Map,
           PID      => PID,
+          Cluster  => Cluster,
           TCB      => To_Address (Integer_Address (TLS_Addr)));
    end Create_User_Thread;
 
@@ -241,10 +258,11 @@ package body Scheduler with SPARK_Mode => Off is
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
        Map      : Arch.MMU.Page_Table_Acc;
+       Cluster  : TCID;
        PID      : Natural;
        TCB      : System.Address) return TID
    is
-      New_TID : TID := 0;
+      New_TID : TID := Error_TID;
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex);
 
@@ -260,25 +278,16 @@ package body Scheduler with SPARK_Mode => Off is
    <<Found_TID>>
       Thread_Pool (New_TID).Is_Present := True;
       Thread_Pool (New_TID).Is_Running := False;
-      Thread_Pool (New_TID).Is_Monothread := False;
+      Thread_Pool (New_TID).Cluster := Cluster;
       Thread_Pool (New_TID).PageMap := Map;
       Thread_Pool (New_TID).Kernel_Stack := new Kernel_Stack;
       Thread_Pool (New_TID).User_Stack := 0;
       Thread_Pool (New_TID).TCB_Pointer := TCB;
-      Thread_Pool (New_TID).State := GP_State;
-      Thread_Pool (New_TID).FP_Region := FP_State;
+      Thread_Pool (New_TID).GP_State := GP_State;
+      Thread_Pool (New_TID).FP_State := FP_State;
       Thread_Pool (New_TID).Process := Userland.Process.Convert (PID);
-      Thread_Pool (New_TID).Run_Time := Default_Run_Time;
-      Thread_Pool (New_TID).Period := Default_Period;
-      Thread_Pool (New_TID).Time_Since_Run := 0;
-      Thread_Pool (New_TID).ASC_Offset := 0;
 
-      Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).State);
-
-      if not Update_Priorities then
-         Thread_Pool (New_TID).Is_Present := False;
-         New_TID := 0;
-      end if;
+      Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).GP_State);
 
    <<End_Return>>
       Lib.Synchronization.Release (Scheduler_Mutex);
@@ -287,58 +296,12 @@ package body Scheduler with SPARK_Mode => Off is
 
    procedure Delete_Thread (Thread : TID) is
    begin
-      if Is_Thread_Present (Thread) then
+      if Thread_Pool (Thread).Is_Present then
          Lib.Synchronization.Seize (Scheduler_Mutex);
          Thread_Pool (Thread).Is_Present := False;
          Lib.Synchronization.Release (Scheduler_Mutex);
       end if;
    end Delete_Thread;
-
-   function Set_Deadlines
-      (Thread : TID; Run_Time, Period : Positive) return Boolean
-   is
-      Ret : Boolean;
-      Old_Run_Time, Old_Period : Positive;
-   begin
-      if Run_Time > Period or not Is_Thread_Present (Thread) then
-         return False;
-      end if;
-
-      Lib.Synchronization.Seize (Scheduler_Mutex);
-      Old_Run_Time := Thread_Pool (Thread).Run_Time;
-      Old_Period   := Thread_Pool (Thread).Period;
-      Thread_Pool (Thread).Run_Time := Run_Time;
-      Thread_Pool (Thread).Period   := Period;
-
-      Ret := Update_Priorities;
-      if not Ret then
-         Thread_Pool (Thread).Run_Time := Old_Run_Time;
-         Thread_Pool (Thread).Period   := Old_Period;
-      end if;
-
-      Lib.Synchronization.Release (Scheduler_Mutex);
-      return Ret;
-   end Set_Deadlines;
-
-   function Is_Mono_Thread (Thread : TID) return Boolean is
-      Ret : Boolean := False;
-   begin
-      if Is_Thread_Present (Thread) then
-         Lib.Synchronization.Seize (Scheduler_Mutex);
-         Ret := Thread_Pool (Thread).Is_Monothread;
-         Lib.Synchronization.Release (Scheduler_Mutex);
-      end if;
-      return Ret;
-   end Is_Mono_Thread;
-
-   procedure Set_Mono_Thread (Thread : TID; Is_Mono : Boolean) is
-   begin
-      if Is_Thread_Present (Thread) then
-         Lib.Synchronization.Seize (Scheduler_Mutex);
-         Thread_Pool (Thread).Is_Monothread := Is_Mono;
-         Lib.Synchronization.Release (Scheduler_Mutex);
-      end if;
-   end Set_Mono_Thread;
 
    procedure Yield is
    begin
@@ -351,86 +314,169 @@ package body Scheduler with SPARK_Mode => Off is
       Delete_Thread (Arch.Local.Get_Current_Thread);
       Idle_Core;
    end Bail;
-
-   procedure Scheduler_ISR (State : Arch.Context.GP_Context) is
-      Did_Seize           : Boolean;
-      Current_TID         : constant TID := Arch.Local.Get_Current_Thread;
-      Next_TID            : TID          := Current_TID;
-      Current_Increment   : Natural := 0;
-      Max_Available_Prio  : Natural := 0;
+   ----------------------------------------------------------------------------
+   function Set_Scheduling_Algorithm
+      (Cluster : TCID;
+       Algo    : Cluster_Algorithm;
+       Quantum : Natural) return Boolean
+   is
    begin
-      --  Get how much time we come from running and update time since run.
-      if Current_TID /= 0 then
-         Current_Increment := Thread_Pool (Current_TID).Run_Time;
-      else
-         Current_Increment := Default_Run_Time;
-      end if;
+      Cluster_Pool (Cluster).Algorithm  := Algo;
+      Cluster_Pool (Cluster).RR_Quantum := Quantum;
+      return True;
+   end Set_Scheduling_Algorithm;
 
-      --  Try to lock before we do modifications.
-      Lib.Synchronization.Try_Seize (Scheduler_Mutex, Did_Seize);
-      if not Did_Seize then
-         Arch.Local.Reschedule_In (Current_Increment);
-         return;
-      end if;
-
-      --  Get the next thread for execution by searching on the thread pool
-      --  for the thread that can run and has the highest priority that is not
-      --  the current one. In the same sweep, update time since last run.
-      for I in Thread_Pool'Range loop
-         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running then
-            Thread_Pool (I).Time_Since_Run := Thread_Pool (I).Time_Since_Run
-                                            + Current_Increment;
-
-            if Thread_Pool (I).Priority > Max_Available_Prio and
-               Thread_Pool (I).Time_Since_Run >= Thread_Pool (I).Period
-            then
-               Next_TID           := I;
-               Max_Available_Prio := Thread_Pool (I).Priority;
-            elsif Config.Support_Scheduler_ASC then
-               Thread_Pool (I).ASC_Offset := Thread_Pool (I).ASC_Offset + 1;
-               Thread_Pool (I).Priority   := Thread_Pool (I).Priority   + 1;
-            end if;
+   function Set_Time_Slice (Cluster : TCID; Per : Natural) return Boolean is
+      Consumed : Natural := 0;
+   begin
+      for I in Cluster_Pool'Range loop
+         if Cluster_Pool (I).Is_Present and I /= Cluster then
+            Consumed := Consumed + Cluster_Pool (I).Percentage;
          end if;
       end loop;
 
-      --  Rearm for the next attempt if there are no available threads.
-      if Next_TID = Current_TID then
+      if Cluster_Pool (Cluster).Is_Present and Per <= (100 - Consumed) then
+         Cluster_Pool (Cluster).Percentage := Per;
+         return True;
+      else
+         return False;
+      end if;
+   end Set_Time_Slice;
+
+   function Create_Cluster return TCID is
+   begin
+      for I in Cluster_Pool'Range loop
+         if not Cluster_Pool (I).Is_Present then
+            Cluster_Pool (I) :=
+               (Is_Present => True,
+                Algorithm  => Cluster_RR,
+                RR_Quantum => 4000,
+                Percentage => 0,
+                Progress   => 0);
+            return I;
+         end if;
+      end loop;
+
+      return Error_TCID;
+   end Create_Cluster;
+
+   function Delete_Cluster (Cluster : TCID) return Boolean is
+   begin
+      if Cluster_Pool (Cluster).Is_Present then
+         Cluster_Pool (Cluster).Is_Present := False;
+         return True;
+      else
+         return False;
+      end if;
+   end Delete_Cluster;
+   ----------------------------------------------------------------------------
+   procedure Scheduler_ISR (State : Arch.Context.GP_Context) is
+      Current_TID  : constant TID := Arch.Local.Get_Current_Thread;
+      Next_TID     :          TID := Error_TID;
+      Curr_Cluster :         TCID := Error_TCID;
+      Next_Cluster :         TCID := Error_TCID;
+      Timeout      :      Natural;
+   begin
+      Lib.Synchronization.Seize (Scheduler_Mutex);
+
+      --  Establish the current cluster, if any.
+      if Current_TID /= Error_TID then
+         Curr_Cluster := Thread_Pool (Current_TID).Cluster;
+      end if;
+
+      --  If we come from a cluster, and said cluster still has available time,
+      --  we schedule a new thread from the cluster, if it has no time, search
+      --  for another cluster with time, if none have time, idle.
+      --
+      --  If we come from no cluster, we just need to search for the first
+      --  available task, and let the rest pick up from there.
+      if Curr_Cluster /= Error_TCID then
+         --  Find the next cluster.
+         if Cluster_Pool (Curr_Cluster).Percentage >
+            Cluster_Pool (Curr_Cluster).Progress
+         then
+            Next_Cluster := Curr_Cluster;
+         else
+            Lib.Messages.Warn ("We should not get here!");
+         end if;
+
+         --  Find the next thread from said cluster using the algorithm.
+         --  Cluter_Cooperative finds new threads the same way as RR, so we
+         --  do not need to handle it especially.
+         for I in Current_TID + 1 .. Thread_Pool'Last loop
+            if Thread_Pool (I).Is_Present     and
+               not Thread_Pool (I).Is_Running and
+               Thread_Pool (I).Cluster = Next_Cluster
+            then
+               Next_TID := I;
+               goto Found_TID_TCID_Combo;
+            end if;
+         end loop;
+         if Current_TID /= Error_TID then
+            for I in Thread_Pool'First .. Current_TID loop
+               if Thread_Pool (I).Is_Present     and
+                  not Thread_Pool (I).Is_Running and
+                  Thread_Pool (I).Cluster = Next_Cluster
+               then
+                  Next_TID := I;
+                  goto Found_TID_TCID_Combo;
+               end if;
+            end loop;
+            if Thread_Pool (Current_TID).Cluster = Next_Cluster then
+               Next_TID := Current_TID;
+               goto Found_TID_TCID_Combo;
+            end if;
+         end if;
+      else
+         for I in Thread_Pool'Range loop
+            if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running
+            then
+               Next_TID := I;
+               Next_Cluster := Thread_Pool (I).Cluster;
+               goto Found_TID_TCID_Combo;
+            end if;
+         end loop;
+      end if;
+
+      Lib.Synchronization.Release (Scheduler_Mutex);
+      Idle_Core;
+
+   <<Found_TID_TCID_Combo>>
+      --  Get the timeout.
+      case Cluster_Pool (Next_Cluster).Algorithm is
+         when Cluster_RR => Timeout := Cluster_Pool (Next_Cluster).RR_Quantum;
+         when Cluster_Cooperative => Timeout := 0;
+      end case;
+
+      --  Optimization if we are scheduling the same thread.
+      if Current_TID = Next_TID then
+         Arch.Local.Reschedule_In (Timeout);
          Lib.Synchronization.Release (Scheduler_Mutex);
-         Arch.Local.Reschedule_In (Current_Increment);
          return;
       end if;
 
-      --  We found a suitable TID, so we save state and start context switch.
-      --  If we come from a non present thread, free it.
-      if Current_TID /= 0 then
+      --  Save state.
+      if Current_TID /= Error_TID then
          Thread_Pool (Current_TID).Is_Running := False;
 
          if Thread_Pool (Current_TID).Is_Present then
             Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
-            Thread_Pool (Current_TID).State       := State;
+            Thread_Pool (Current_TID).GP_State    := State;
             Thread_Pool (Current_TID).User_Stack :=
                 Arch.CPU.Get_Local.User_Stack;
-            Arch.Context.Save_FP_Context (Thread_Pool (Current_TID).FP_Region);
+            Arch.Context.Save_FP_Context (Thread_Pool (Current_TID).FP_State);
          elsif Thread_Pool (Current_TID).Kernel_Stack /= null then
             Free (Thread_Pool (Current_TID).Kernel_Stack);
          end if;
       end if;
 
-      --  Assign the next TID as our current one and adjust ASC information.
+      --  Assign the next TID.
       Arch.Local.Set_Current_Thread (Next_TID);
-      Thread_Pool (Next_TID).Is_Running     := True;
-      Thread_Pool (Next_TID).Time_Since_Run := 0;
-      if Config.Support_Scheduler_ASC then
-         Thread_Pool (Next_TID).Priority := Thread_Pool (Next_TID).Priority -
-                                         Thread_Pool (Next_TID).ASC_Offset;
-         Thread_Pool (Next_TID).ASC_Offset := 0;
-      end if;
+      Thread_Pool (Next_TID).Is_Running := True;
 
-      --  Rearm the timer for next tick if we are not doing a monothread.
+      --  Rearm the timer for next tick and unlock.
+      Arch.Local.Reschedule_In (Timeout);
       Lib.Synchronization.Release (Scheduler_Mutex);
-      if not Thread_Pool (Next_TID).Is_Monothread then
-         Arch.Local.Reschedule_In (Thread_Pool (Next_TID).Run_Time);
-      end if;
 
       --  Reset state.
       if not Arch.MMU.Make_Active (Thread_Pool (Next_TID).PageMap) then
@@ -441,45 +487,7 @@ package body Scheduler with SPARK_Mode => Off is
          (To_Address (Integer_Address (Thread_Pool (Next_TID).User_Stack)),
           Thread_Pool (Next_TID).Kernel_Stack (Kernel_Stack'Last)'Address);
       Arch.Local.Load_TCB (Thread_Pool (Next_TID).TCB_Pointer);
-      Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_Region);
-      Arch.Context.Load_GP_Context (Thread_Pool (Next_TID).State);
+      Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_State);
+      Arch.Context.Load_GP_Context (Thread_Pool (Next_TID).GP_State);
    end Scheduler_ISR;
-   ----------------------------------------------------------------------------
-   function Update_Priorities return Boolean is
-      Periods_LCM    : Positive := 1;
-      Total_Run_Time : Natural  := 0;
-   begin
-      --  Find period LCM, lowest period, and total run time of all available
-      --  tasks.
-      for Th of Thread_Pool.all loop
-         if Th.Is_Present then
-            Periods_LCM := Lib.Least_Common_Multiple (Periods_LCM, Th.Period);
-            Total_Run_Time := Total_Run_Time + Th.Run_Time;
-         end if;
-      end loop;
-
-      --  Check validity using Least upper bound -> Inf = ln 2 = (aprox 69%).
-      if Total_Run_Time / (Periods_LCM / 100) > 69 then
-         Lib.Messages.Warn ("Usage% > 69%. Tasks might not be schedulable!");
-      end if;
-
-      --  Now that we know all the data is valid, update the priorities.
-      --  The lower the period, the higher the priority.
-      for Th of Thread_Pool.all loop
-         if Th.Is_Present then
-            Th.Time_Since_Run := 0;
-            Th.Priority       := Periods_LCM / Th.Period;
-            Th.ASC_Offset     := 0;
-         end if;
-      end loop;
-
-      return True;
-   end Update_Priorities;
-
-   function Is_Thread_Present (Thread : TID) return Boolean is
-   begin
-      return Thread >= TID (Thread_Pool'First) and then
-             Thread <= TID (Thread_Pool'Last)  and then
-             Thread_Pool (Thread).Is_Present;
-   end Is_Thread_Present;
 end Scheduler;

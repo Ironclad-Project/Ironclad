@@ -113,7 +113,7 @@ package body Userland.Process with SPARK_Mode => Off is
                 Tracer_FD       => 0,
                 Current_Dir_FS  => VFS.Error_Handle,
                 Current_Dir_Ino => 0,
-                Thread_List     => (others => 0),
+                Thread_List     => (others => Error_TID),
                 File_Table      => (others => (False, null)),
                 Common_Map      => null,
                 Stack_Base      => 0,
@@ -157,7 +157,7 @@ package body Userland.Process with SPARK_Mode => Off is
    is
    begin
       for I in Registry (Proc).Thread_List'Range loop
-         if Registry (Proc).Thread_List (I) = 0 then
+         if Registry (Proc).Thread_List (I) = Error_TID then
             Registry (Proc).Thread_List (I) := Thread;
             Success := True;
             return;
@@ -170,7 +170,7 @@ package body Userland.Process with SPARK_Mode => Off is
    begin
       for I in Registry (Proc).Thread_List'Range loop
          if Registry (Proc).Thread_List (I) = Thread then
-            Registry (Proc).Thread_List (I) := 0;
+            Registry (Proc).Thread_List (I) := Error_TID;
             exit;
          end if;
       end loop;
@@ -180,10 +180,10 @@ package body Userland.Process with SPARK_Mode => Off is
       Current_Thread : constant TID := Arch.Local.Get_Current_Thread;
    begin
       for Thread of Registry (Proc).Thread_List loop
-         if Thread /= Current_Thread then
+         if Thread /= Current_Thread and then Thread /= Error_TID then
             Scheduler.Delete_Thread (Thread);
          end if;
-         Thread := 0;
+         Thread := Error_TID;
       end loop;
    end Flush_Threads;
 

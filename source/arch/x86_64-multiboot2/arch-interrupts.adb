@@ -139,7 +139,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 12 =>
             Context.Save_FP_Context (FP_State);
             Clone (State.RDI, State.RSI, State.RDX, State.R12,
-                   State.R8,  State.all,  FP_State, Returned, Errno);
+                   State.R8, State.R9, State.all,  FP_State, Returned, Errno);
          when 13 =>
             Wait (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 14 =>
@@ -157,7 +157,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 21 =>
             Sched_Yield (Returned, Errno);
          when 22 =>
-            Set_Deadlines (State.RDI, State.RSI, Returned, Errno);
+            Delete_Thread_Cluster (State.RDI, Returned, Errno);
          when 23 =>
             Pipe (State.RDI, State.RSI, Returned, Errno);
          when 24 =>
@@ -171,9 +171,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Spawn (State.RDI, State.RSI, State.RDX, State.R12,
                    State.R8, State.R9, State.R10, Returned, Errno);
          when 28 =>
-            Get_Thread_Sched (Returned, Errno);
+            Get_TID (Returned, Errno);
          when 29 =>
-            Set_Thread_Sched (State.RDI, Returned, Errno);
+            Manage_Thread_Cluster (State.RDI, State.RSI, State.RDX, State.R12,
+                                   Returned, Errno);
          when 30 =>
             Fcntl (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 31 =>

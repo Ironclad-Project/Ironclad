@@ -67,9 +67,9 @@ Boot-time command-line options
 
 Scheduling and RTC
 
-* Ticks and other interruptions::      Thread interruptions to expect.
-* Scheduling and predictability::      Scheduling in Ironclad in depth.
-* Anti-Starvation Corrections (ASC)::  Uses and consequences of enabling ASC.
+* Ticks and other interruptions::    Thread interruptions to expect.
+* Scheduling basics::                 Algorithms used in Ironclad.
+* Thread clustering and management::  Thread clusters in Ironclad.
 
 Memory allocation algorithms
 
@@ -116,12 +116,13 @@ Syscalls
 * chdir::                   Current working directory manipulation.
 * ioctl::                   IO multiplexer.
 * sched_yield::             Relinquish CPU time.
-* set_deadlines::           Manage scheduler deadlines.
+* delete_tcluster::         Delete thread clusters.
 * pipe::                    Create pipes.
 * rename::                  Rename a file.
 * sysconf::                 Fetch general system parameters and information.
 * spawn::                   Fork+exec power incarnate.
-* thread_sched::            Manage scheduler-related thread permissions.
+* gettid::                  Get the current thread id.
+* manage_tcluster::         Manage and create thread clusters.
 * fcntl::                   Multiplexed operations for files.
 * exit_thread::             Exit the calling thread.
 * getrandom::               Bypass /dev/random for avoiding DoS attacks.
@@ -278,103 +279,38 @@ of interrupt-based operation for device drivers.
 A thread, however, may be interrupted for task-switching, which is needed for
 scheduling to work. This will not be an issue for most operations, but if the
 user desires absolutely 0 interruptions and/or jitter, one can use
-@code{THREAD_MONO}, explained at @pxref{Scheduling and predictability}.
 
-@node Scheduling and predictability
-@section Scheduling and predictability
+@node Scheduling basics
+@section Scheduling basics
 
-Scheduling in Ironclad is done using Rate-Monotonic Scheduling (RMS).
+Scheduling in Ironclad is based on time sharing, under this idea, threads in
+Ironclad are divided on groups that are a percentage of the overall CPU time.
 
-RMS is an optimal fixed-priority policy where the higher the frequency of a
-task, the higher is its priority. This approach allows Ironclad to provide
-scheduling guarantees for hard real time applications.
+@node Thread clustering and management
+@section Thread clustering and management
 
-@subsection Predictability and guarantees
+The divisions explain at @ref{Scheduling basics} are called thread clusters in
+Ironclad. Thread clusters rule over a group of threads, regardless of their
+process of origin, and allow specifiying an algorithm and a percentage over
+all the CPU time.
 
-The sequence of scheduled tasks is fully predictable. Once priorities are
-assigned using RMS, higher priority threads will interrupt lower priority
-threads according to their periods, specified using @pxref{set_deadlines}.
-
-Thanks to RMS, deadlines are mathematically guaranteed to be met as long as an
-upper bound of CPU time utilization is not exceeded. Said bound can be
-calculated using the number of tasks following the schedulability test:
-
-@displaymath
-\sum_{i=1}^{n}{U_i}=\sum_{i=1}^{n}{C_i \over T_i}\leq n([2^{1/n}]-1)
-@end displaymath
-
-Where:
-
-@table @math
-@item U_i
-CPU time utilization of a thread.
-@item C_i
-CPU time needed by the thread.
-@item T_i
-Period of the thread.
-@item n
-Number of threads to be scheduled.
-@end table
-
-When the number of threads tends to infinity, the condition tends to:
-
-@displaymath
-\lim_{n\rightarrow\infty}n([2^{1/n}]-1)=\ln 2\approx 0.693147\ldots
-@end displaymath
-
-The kernel will just always compare with this approximated value for
-simplicity and due to floating-point limitations. If this quick test is not
-passed, the kernel will warn about it, but will not refuse to schedule, since
-the user might know better, or may not want to respect deadlines at all.
-
-Since the kernel leaves the responsability (and priviledge) of ensuring a
-correct scheduling setup to the user, this opens the door to a number of tricks
-to break through the 69% usage ceiling, while keeping deadlines alive and well.
+The algorithm of a cluster only affects how threads inside the cluster are
+scheduled. The available algorithms are:
 
 @table @code
-@item Harmonic chains and task periods
-Thanks to the @url{https://ieeexplore.ieee.org/document/160369, work of Kuo and Mok},
-we know that for harmonic sets of tasks, the schedulability test becomes:
+@item SCHED_RR
+A flat round robin with no priorities, one can specify a quantum for tasks
+to use while rotating.
 
-@displaymath
-\sum_{i=1}^{n}{U_i}=\sum_{i=1}^{n}{C_i \over T_i}\leq K([2^{1/K}]-1)
-@end displaymath
-
-Where @math{K} is the number of harmonic sets, for @math{1}, the utilization
-becomes 100%.
-
-A harmonic set of tasks is the set where every task evenly divides the period
-of every longer period. For example, a harmonic set of 3 tasks periods is
-@code{@{20, 60, 120@}}
+@item SCHED_COOP
+Cooperative scheduling, the scheduler will not attempt to preempt unless
+explicitly requested by exiting or yielding.
 @end table
 
-@subsection Monothreading
-
-Scheduling in Ironclad supports creating critical sections backed by the kernel
-using @pxref{thread_sched} and @code{THREAD_MONO}. This feature can be thought
-of as optional cooperative scheduling.
-
-The flag will make the scheduler not preemt at all from the thread until
-requested. A task switch can be requested using @xref{sched_yield} or
-relinquishing execution in any other similar way. Doing that will not reset the
-flag, but it will allow the system to search for another thread.
-
-@node Anti-Starvation Corrections (ASC)
-@section Anti-Starvation Corrections (ASC)
-
-Due to the nature of hard real-time and some design decisions, userland is
-vulnerable to deadlocks and other starvation issues if priorities are not
-set carefully. For avoiding this, ASC is available for use, which implements
-some basic ageing of thread priorities when not scheduled for a while, among
-others.
-
-This feature may in turn effectively make Ironclad not hard real-time, in the
-meaning that deadlines may be not respected, but that is the price to pay for
-avoiding starvation.
-
-These measures can be easily enabled or disabled at build time, and only affect
-the scheduler, the rest of the system will work out as defined in the rest of
-the document regardless of choice.
+At startup, Ironclad will have a single cluster assigned to 100% of execution
+time, configured to use a flat RR with a reasonable quantum with cluster number
+@code{1}. Software is free to modify it however it sees fit, it is just
+provided in order to have some natural-ish behaviour for running software.
 
 @node Memory allocation algorithms
 @chapter Memory allocation algorithms
@@ -630,7 +566,7 @@ Empty.
 @item
 @ref{sched_yield}.
 @item
-@ref{set_deadlines}.
+@ref{delete_tcluster}.
 @item
 @ref{pipe}.
 @item
@@ -642,9 +578,9 @@ Empty.
 @item
 @ref{spawn}.
 @item
-@ref{thread_sched, get_thread_sched}.
+@ref{gettid}.
 @item
-@ref{thread_sched, set_thread_sched}.
+@ref{manage_tcluster}.
 @item
 @ref{fcntl}.
 @item
@@ -776,7 +712,7 @@ Empty.
 @item
 @ref{sched_yield}.
 @item
-@ref{set_deadlines}.
+@ref{delete_tcluster}.
 @item
 @ref{pipe}.
 @item
@@ -788,9 +724,9 @@ Empty.
 @item
 @ref{spawn}.
 @item
-@ref{thread_sched, get_thread_sched}.
+@ref{gettid}.
 @item
-@ref{thread_sched, set_thread_sched}.
+@ref{manage_tcluster}.
 @item
 @ref{fcntl}.
 @item
@@ -923,7 +859,7 @@ Empty.
 @item
 @ref{sched_yield}.
 @item
-@ref{set_deadlines}.
+@ref{delete_tcluster}.
 @item
 @ref{pipe}.
 @item
@@ -935,9 +871,9 @@ Empty.
 @item
 @ref{spawn}.
 @item
-@ref{thread_sched, get_thread_sched}.
+@ref{gettid}.
 @item
-@ref{thread_sched, set_thread_sched}.
+@ref{manage_tcluster}.
 @item
 @ref{fcntl}.
 @item
@@ -1622,27 +1558,22 @@ Its up for the kernel how far in the queue of execution this thread will go.
 This syscall returns @code{0} always, as it never fails, this is done for
 compatibility with POSIX instead of having a @code{void} return type.
 
-@node set_deadlines
-@section set_deadlines
+@node delete_tcluster
+@section delete_tcluster
 
 @example
-int set_deadlines(int run_time, int period);
+int delete_tcluster(int cluster);
 @end example
 
-This syscalls sets the run time and period of the calling thread, the meaning
-of this is explained in @xref{Scheduling and predictability}.
-
-The units of both runtime and period are microseconds.
+This syscall deletes the passed thread cluster, will only succeed if the
+cluster has no associated threads.
 
 The syscall returns @code{0} on success and @code{-1} on failure, with the
 following errno:
 
 @itemize @bullet
 @item
-@code{EACCES}: MAC did not allow the operation.
-@item
-@code{EINVAL}: Bad period or runtime make system not schedulable, or are
-nonsensical.
+@code{EINVAL}: The passed cluster does not exist or still has threads.
 @end itemize
 
 @node pipe
@@ -1804,30 +1735,35 @@ the same format as @ref{mac_capabilities}. This can be useful for deescalating
 capabilities in the same convenient way as a call to @code{mac_capabilities} in
 between @code{fork} and @code{exec} could.
 
-@node thread_sched
-@section thread_sched
+@node gettid
+@section gettid
 
 @example
-int get_thread_sched(void);
-int set_thread_sched(int flags);
+int gettid(void);
 @end example
 
-This syscalls manage scheduling properties of the callee thread. Both functions
-operate on a bitmap with the following bits
+This syscall returns the current thread id. It never fails.
 
-@itemize @bullet
-@item
-@code{THREAD_MONO (0b1)}: Marks whether the thread is a monothread, see
-@xref{Scheduling and predictability} for details.
-@end itemize
+@node manage_tcluster
+@section manage_tcluster
 
-@code{get_thread_sched} returns the flags and does not fail, while
-@code{set_thread_sched} returns @code{0} on success and @code{-1} on failure,
-with the following errno:
+@example
+#define SCHED_RR   0b01
+#define SCHED_COOP 0b10
+
+int manage_tcluster(int cluster, int flags, int quantum, int percentage);
+@end example
+
+This syscall sets settings for the passed cluster.
+
+The syscall returns @code{0} on success and @code{-1} on failure, with the
+following errno:
 
 @itemize @bullet
 @item
 @code{EACCES}: MAC did not allow the operation.
+@item
+@code{EINVAL}: One of the passed values was not correct.
 @end itemize
 
 @node fcntl
