@@ -129,13 +129,14 @@ package body VFS.EXT with SPARK_Mode => Off is
        Do_Follow : Boolean)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Name_Start                 : Natural;
-      Target_Index, Parent_Index : Unsigned_32;
-      Target_Inode               : Inode_Acc := new Inode;
-      Parent_Inode               : Inode_Acc := new Inode;
-      Succ                       : Boolean;
-      Symlink                    : String (1 .. 60);
-      Symlink_Len, Last_Slash    : Natural;
+      Name_Start : Natural;
+      Target_Index : Unsigned_32;
+      Parent_Index : Unsigned_32;
+      Target_Inode : Inode_Acc := new Inode;
+      Parent_Inode : Inode_Acc := new Inode;
+      Succ : Boolean;
+      Symlink : String (1 .. 60);
+      Symlink_Len : Natural;
    begin
       if not Data.Is_Read_Only then
          Lib.Synchronization.Seize (Data.Mutex);
@@ -165,9 +166,6 @@ package body VFS.EXT with SPARK_Mode => Off is
             Lib.Synchronization.Release (Data.Mutex);
          end if;
 
-         Free (Target_Inode);
-         Free (Parent_Inode);
-
          if Is_Absolute (Symlink (1 .. Symlink_Len)) then
             Open
                (FS        => FS,
@@ -179,34 +177,14 @@ package body VFS.EXT with SPARK_Mode => Off is
                 Do_Follow => Do_Follow);
 
          else
-            Last_Slash := Path'First;
-            for I in Path'Range loop
-               if Path (I) = '/' then
-                  Last_Slash := I;
-               end if;
-            end loop;
-
-            if Path (Last_Slash) = '/' then
-               Open
-                  (FS        => FS,
-                   Relative  => Relative,
-                   Path      => Path (Path'First .. Last_Slash) &
-                                Symlink (1 .. Symlink_Len),
-                   Ino       => Ino,
-                   Success   => Success,
-                   User      => User,
-                   Do_Follow => Do_Follow);
-            else
-               Open
-                  (FS        => FS,
-                   Relative  => Relative,
-                   Path      => Path (Path'First .. Last_Slash) & "/" &
-                                Symlink (1 .. Symlink_Len),
-                   Ino       => Ino,
-                   Success   => Success,
-                   User      => User,
-                   Do_Follow => Do_Follow);
-            end if;
+            Open
+               (FS        => FS,
+                Relative  => File_Inode_Number (Parent_Index),
+                Path      => Symlink (1 .. Symlink_Len),
+                Ino       => Ino,
+                Success   => Success,
+                User      => User,
+                Do_Follow => Do_Follow);
          end if;
          return;
       end if;
@@ -1048,6 +1026,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Inod    : Inode_Acc := new Inode;
       Success : Boolean;
       Result  : FS_Status;
+      Typ     : File_Type;
    begin
       if FS.Is_Read_Only then
          Free (Inod);
@@ -1068,7 +1047,8 @@ package body VFS.EXT with SPARK_Mode => Off is
       elsif not Check_User_Access (User, Inod.all, False, True, False) then
          Result := FS_Not_Allowed;
       else
-         Inod.Permissions := Unsigned_16 (Mode);
+         Typ              := Get_Inode_Type (Inod.Permissions);
+         Inod.Permissions := Get_Permissions (Typ) or Unsigned_16 (Mode);
          RW_Inode
             (Data            => FS,
              Inode_Index     => Unsigned_32 (Ino),
@@ -1215,7 +1195,7 @@ package body VFS.EXT with SPARK_Mode => Off is
          goto Absolute_Miss_Return;
       end if;
 
-      while Last_I < Path'Last loop
+      while Last_I <= Path'Last loop
          while Last_I <= Path'Last and then Path (Last_I) /= '/' loop
             Last_I := Last_I + 1;
          end loop;
