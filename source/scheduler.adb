@@ -58,6 +58,7 @@ package body Scheduler with SPARK_Mode => Off is
       GP_State      : Arch.Context.GP_Context;
       FP_State      : Arch.Context.FP_Context;
       Process       : Userland.Process.PID;
+      Yield_Mutex   : aliased Lib.Synchronization.Binary_Semaphore;
    end record;
    type Thread_Info_Arr     is array (TID range 1 .. TID'Last) of Thread_Info;
    type Thread_Info_Arr_Acc is access Thread_Info_Arr;
@@ -286,6 +287,7 @@ package body Scheduler with SPARK_Mode => Off is
       Thread_Pool (New_TID).GP_State := GP_State;
       Thread_Pool (New_TID).FP_State := FP_State;
       Thread_Pool (New_TID).Process := Userland.Process.Convert (PID);
+      Lib.Synchronization.Release (Thread_Pool (New_TID).Yield_Mutex);
 
       Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).GP_State);
 
@@ -304,8 +306,14 @@ package body Scheduler with SPARK_Mode => Off is
    end Delete_Thread;
 
    procedure Yield is
+      Curr_TID : constant TID := Arch.Local.Get_Current_Thread;
    begin
-      Arch.Local.Reschedule_ASAP;
+      if Curr_TID /= Error_TID then
+         Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex);
+         Arch.Local.Reschedule_ASAP;
+         Lib.Synchronization.Seize   (Thread_Pool (Curr_TID).Yield_Mutex);
+         Lib.Synchronization.Release (Thread_Pool (Curr_TID).Yield_Mutex);
+      end if;
    end Yield;
 
    procedure Bail is
@@ -379,9 +387,10 @@ package body Scheduler with SPARK_Mode => Off is
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex);
 
-      --  Establish the current cluster, if any.
+      --  Establish the current cluster, if any, and do thread preparations.
       if Current_TID /= Error_TID then
          Curr_Cluster := Thread_Pool (Current_TID).Cluster;
+         Lib.Synchronization.Release (Thread_Pool (Current_TID).Yield_Mutex);
       end if;
 
       --  If we come from a cluster, and said cluster still has available time,
@@ -439,7 +448,8 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       Lib.Synchronization.Release (Scheduler_Mutex);
-      Idle_Core;
+      Arch.Local.Reschedule_ASAP;
+      return;
 
    <<Found_TID_TCID_Combo>>
       --  Get the timeout.
