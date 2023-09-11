@@ -1111,6 +1111,64 @@ package body VFS.EXT with SPARK_Mode => Off is
       Status := Result;
    end Change_Owner;
 
+   procedure Check_Access
+      (Data        : System.Address;
+       Ino         : File_Inode_Number;
+       Exists_Only : Boolean;
+       Can_Read    : Boolean;
+       Can_Write   : Boolean;
+       Can_Exec    : Boolean;
+       User        : Unsigned_32;
+       Status      : out FS_Status)
+   is
+      FS      : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
+      Inod    : Inode_Acc := new Inode;
+      Success : Boolean;
+      Result  : FS_Status;
+      Can_R   : Boolean;
+      Can_W   : Boolean;
+      Can_X   : Boolean;
+   begin
+      if not FS.Is_Read_Only then
+         Lib.Synchronization.Seize (FS.Mutex);
+      end if;
+
+      RW_Inode
+         (Data            => FS,
+          Inode_Index     => Unsigned_32 (Ino),
+          Result          => Inod.all,
+          Write_Operation => False,
+          Success         => Success);
+      if not Success then
+         Result := FS_IO_Failure;
+         goto Cleanup;
+      elsif Exists_Only then
+         Result := FS_Success;
+         goto Cleanup;
+      end if;
+
+      Can_R := Check_User_Access (User, Inod.all, True, False, False);
+      Can_W := Check_User_Access (User, Inod.all, False, True, False);
+      Can_X := Check_User_Access (User, Inod.all, False, False, True);
+
+      if (Can_Read  and not Can_R) or
+         (Can_Write and not Can_W) or
+         (Can_Exec  and not Can_X)
+      then
+         Result := FS_Not_Allowed;
+      else
+         Result := FS_Success;
+      end if;
+
+   <<Cleanup>>
+      if not FS.Is_Read_Only then
+         Lib.Synchronization.Release (FS.Mutex);
+      end if;
+
+      Free (Inod);
+      Status := Result;
+   end Check_Access;
+
    function Synchronize (Data : System.Address) return FS_Status is
       FS_Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
    begin

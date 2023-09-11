@@ -149,7 +149,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 16 =>
             Unlink (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 17 =>
-            FStat (State.RDI, State.RSI, Returned, Errno);
+            FStat (State.RDI, State.RSI, State.RDX, State.R12,
+                   State.R8, Returned, Errno);
          when 19 =>
             Chdir (State.RDI, Returned, Errno);
          when 20 =>
@@ -236,6 +237,9 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Get_RLimit (State.RDI, Returned, Errno);
          when 55 =>
             Set_RLimit (State.RDI, State.RSI, Returned, Errno);
+         when 56 =>
+            FAccess (State.RDI, State.RSI, State.RDX, State.R12,
+                    State.R8, Returned, Errno);
          when 57 =>
             Poll (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 58 =>
@@ -243,13 +247,15 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 59 =>
             Set_UIDs (State.RDI, State.RSI, Returned, Errno);
          when 60 =>
-            Fchmod (State.RDI, State.RSI, Returned, Errno);
+            Fchmod (State.RDI, State.RSI, State.RDX, State.R12,
+                    State.R8, Returned, Errno);
          when 61 =>
             Umask (State.RDI, Returned, Errno);
          when 62 =>
             Reboot (State.RDI, State.RSI, Returned, Errno);
          when 63 =>
-            Fchown (State.RDI, State.RSI, State.RDX, Returned, Errno);
+            Fchown (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
+                    State.R9, Returned, Errno);
          when 64 =>
             PRead (State.RDI, State.RSI, State.RDX, State.R12, Returned,
                    Errno);

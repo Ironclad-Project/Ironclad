@@ -152,6 +152,16 @@ package VFS.EXT is
        User   : Unsigned_32;
        Status : out FS_Status);
 
+   procedure Check_Access
+      (Data        : System.Address;
+       Ino         : File_Inode_Number;
+       Exists_Only : Boolean;
+       Can_Read    : Boolean;
+       Can_Write   : Boolean;
+       Can_Exec    : Boolean;
+       User        : Unsigned_32;
+       Status      : out FS_Status);
+
    function Synchronize (Data : System.Address) return FS_Status;
 
    function Synchronize

@@ -74,8 +74,11 @@ package Userland.Syscall is
        Error_Bad_Search      => 1070,
        Error_Bad_File        => 1081);
 
-   --  AT_ directives for path-relative syscalls.
-   AT_FDCWD : constant := Natural'Last;
+   --  AT_ directives for path-relative syscalls and common flags.
+   AT_FDCWD            : constant := Natural'Last;
+   AT_EMPTY_PATH       : constant := 2#01#;
+   AT_SYMLINK_NOFOLLOW : constant := 2#10#;
+   AT_EACCESS          : constant := 512;
 
    --  Exit the callee thread, flushing open files.
    procedure Sys_Exit
@@ -269,8 +272,11 @@ package Userland.Syscall is
    end record;
    for Stat'Size use 896;
    procedure FStat
-      (FD        : Unsigned_64;
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
        Stat_Addr : Unsigned_64;
+       Flags     : Unsigned_64;
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
 
@@ -331,6 +337,7 @@ package Userland.Syscall is
    SC_LIST_PROCS    : constant := 8;
    SC_LIST_MOUNTS   : constant := 9;
    SC_UNAME         : constant := 10;
+   SC_CHILD_MAX     : constant := 11;
 
    PROC_IS_TRACED : constant := 2#01#;
    PROC_EXITED    : constant := 2#10#;
@@ -673,6 +680,20 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
+   --  Check access to files.
+   F_OK : constant := 2#0001#;
+   R_OK : constant := 2#0010#;
+   W_OK : constant := 2#0100#;
+   X_OK : constant := 2#1000#;
+   procedure FAccess
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Mode      : Unsigned_64;
+       Flags     : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
+
    --  Poll on a series of events.
    POLLIN   : constant := 2#00000001#;
    POLLOUT  : constant := 2#00000010#;
@@ -704,10 +725,13 @@ package Userland.Syscall is
 
    --  Change the mode of the passed file.
    procedure Fchmod
-      (FD       : Unsigned_64;
-       Mode     : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Mode      : Unsigned_64;
+       Flags     : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  Change the umask of the calling process.
    procedure Umask
@@ -727,11 +751,14 @@ package Userland.Syscall is
 
    --  Change the mode of the passed file.
    procedure Fchown
-      (FD       : Unsigned_64;
-       User     : Unsigned_64;
-       Group    : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       User      : Unsigned_64;
+       Group     : Unsigned_64;
+       Flags     : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
 
    --  Read from the passed offset.
    procedure PRead

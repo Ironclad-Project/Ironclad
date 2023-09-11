@@ -146,6 +146,7 @@ Syscalls
 * listen::                  Listen for connections to a socket.
 * accept::                  Accept socket connections.
 * getrlimit/setrlimit::     Get and set resource limits.
+* access::                  Check file access permissions and existance.
 * poll::                    I/O event multiplexer.
 * getuid/geteuid::          Get the UID and the effective UID.
 * setuids::                 Set the UID and the effective UID.
@@ -634,7 +635,7 @@ Empty.
 @item
 @ref{getrlimit/setrlimit, setrlimit}.
 @item
-Empty.
+@ref{access}.
 @item
 @ref{poll}.
 @item
@@ -780,7 +781,7 @@ Empty.
 @item
 @ref{getrlimit/setrlimit, setrlimit}.
 @item
-Empty.
+@ref{access}.
 @item
 @ref{poll}.
 @item
@@ -927,7 +928,7 @@ Empty.
 @item
 @ref{getrlimit/setrlimit, setrlimit}.
 @item
-Empty.
+@ref{access}.
 @item
 @ref{poll}.
 @item
@@ -1481,10 +1482,14 @@ struct stat @{
     blkcnt_t st_blocks;
 @};
 
-int fstat(int fd, struct stat *statbuf);
+int fstat(int dir_fd, char *path, int len, struct stat *statbuf,
+   int flags);
 @end example
 
-This syscalls return information about an already opened file.
+This syscalls return information about a file, be it an already opened one with
+@code{dir_fd} and @code{AT_EMPTY_PATH} in @code{flags}, or by relatively
+opening, either following or not following symlinks with
+@code{AT_SYMLINK_NOFOLLOW}.
 
 @code{0} is returned on success, @code{-1} on failure, with the following errno:
 
@@ -1641,6 +1646,7 @@ codes set on failure are:
 #define SC_LIST_PROCS    8 // List all processes of the system.
 #define SC_LIST_MOUNTS   9 // List all mountpoints of the system.
 #define SC_UNAME        10 // Fetch basic system information.
+#define SC_CHILD_MAX    11 // Maximum number of children for a given user.
 
 long int sysconf(int request, uintptr_t addr, uintptr_t len);
 @end example
@@ -2459,6 +2465,53 @@ Both report the following errno:
 @code{EPERM}: MAC did not allow the operation.
 @end itemize
 
+@node access
+@section access
+
+@example
+#define F_OK 0b0001
+#define R_OK 0b0010
+#define W_OK 0b0100
+#define X_OK 0b1000
+
+#define AT_EACCESS 512
+
+int access(int dir_fd, char *path, int len, mode_t mode, int flags);
+@end example
+
+This syscall whether the callee process can access the passed file against
+POSIX file permissions and Ironclad's MAC. What to check for is specified in
+@code{mode} as an ORd list, as such:
+
+@itemize @bullet
+@item
+@code{F_OK}: When passed, only file existance will be checked.
+@item
+@code{R_OK}: When passed, read permissions will be checked.
+@item
+@code{W_OK}: When passed, write permissions will be checked.
+@item
+@code{X_OK}: When passed, execute permissions will be checked.
+@end itemize
+
+Permissions are checked with the real user and group IDs, instead of the
+effective ones, that behaviour can be changed by passing @code{AT_EACCESS} in
+@code{flags}, which can also be used for other common AT flags.
+@code{AT_EMPTY_PATH} is not accepted because that does not make any sense with
+this syscall.
+
+The syscall returns @code{0} on success when the passed mode is checked valid,
+or @code{-1} on check failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EBADF}: @code{dirfd} is not valid.
+@item
+@code{ENOENT}: The requested file does not exist.
+@item
+@code{EACCES}: The access is not allowed.
+@end itemize
+
 @node poll
 @section poll
 
@@ -2564,10 +2617,11 @@ MAC did not allow this.
 @section fchmod
 
 @example
-int fchmod(int fd, mode_t mode);
+int fchmod(int dir_fd, char *path, int len, mode_t mode, int flags);
 @end example
 
-This syscall sets the mode for the passed FD taking umask into account.
+This syscall sets the mode for the passed arguments in the same way
+@ref{fstat} fetches information for the passed arguments.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:
@@ -2648,10 +2702,12 @@ The operation failed internally.
 @section fchown
 
 @example
-int fchown(int fd, uint32_t user, uint32_t group);
+int fchown(int dir_fd, char *path, int len, uint32_t user, uint32_t group,
+   int flags);
 @end example
 
-This syscall sets the owner's UID and GID for the passed FD.
+This syscall sets the owner's UID and GID for the passed arguments in the same
+way @ref{fstat} fetches information for the passed arguments.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:

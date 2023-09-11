@@ -21,6 +21,7 @@ with System; use System;
 with Lib.Messages;
 with Lib;
 with Lib.Panic;
+with Lib.Alignment;
 with Networking;
 with Userland.Loader;
 with Scheduler; use Scheduler;
@@ -970,8 +971,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Set_Hostname;
 
    procedure FStat
-      (FD        : Unsigned_64;
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
        Stat_Addr : Unsigned_64;
+       Flags     : Unsigned_64;
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
@@ -979,131 +983,171 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Map        : constant     Page_Table_Acc := Get_Common_Map (Proc);
       Stat_IAddr : constant  Integer_Address := Integer_Address (Stat_Addr);
       Stat_SAddr : constant   System.Address := To_Address (Stat_IAddr);
-      File_Desc  : constant File_Description_Acc := Get_File (Proc, FD);
+      Path_IAddr : constant  Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant   System.Address := To_Address (Path_IAddr);
+      File_Desc  : File_Description_Acc;
       Stat_Val   : VFS.File_Stat;
       ID         : Natural;
+      FS         : VFS.FS_Handle;
+      D_Ino, Ino : VFS.File_Inode_Number;
       Success    : VFS.FS_Status;
       Stat_Buf   : Stat with Import, Address => Stat_SAddr;
       User       : Unsigned_32;
    begin
-      if not Check_Userland_Access (Map, Stat_IAddr, Stat'Size / 8) then
+      if not Check_Userland_Access (Map, Stat_IAddr, Stat'Size / 8) or else
+         not Check_Userland_Access (Map, Path_IAddr, Path_Len)
+      then
          Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif File_Desc = null then
-         Errno := Error_Bad_File;
          Returned := Unsigned_64'Last;
          return;
       end if;
 
       Userland.Process.Get_Effective_UID (Proc, User);
 
-      case File_Desc.Description is
-         when Description_Inode =>
-            VFS.Stat (File_Desc.Inner_Ino_FS, File_Desc.Inner_Ino, Stat_Val,
-                      Success, User);
-            if Success /= VFS.FS_Success then
-               Errno := Error_Bad_File;
+      if (Flags and AT_EMPTY_PATH) /= 0 then
+         File_Desc := Get_File (Proc, Dir_FD);
+         if File_Desc = null then
+            Errno := Error_Bad_File;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         case File_Desc.Description is
+            when Description_Inode =>
+               FS  := File_Desc.Inner_Ino_FS;
+               Ino := File_Desc.Inner_Ino;
+            when Description_Device =>
+               ID := Devices.Get_Unique_ID (File_Desc.Inner_Dev);
+               Stat_Buf :=
+                  (Device_Number => Unsigned_64 (ID),
+                   Inode_Number  => Unsigned_64 (ID),
+                   Mode          => 8#644#,
+                   Number_Links  => 1,
+                   UID           => 0,
+                   GID           => 0,
+                   Inner_Device  => Unsigned_64 (ID),
+                   File_Size     => 512,
+                   Access_Time   => (0, 0),
+                   Modify_Time   => (0, 0),
+                   Create_Time   => (0, 0),
+                   Block_Size    =>
+                     Unsigned_64 (Get_Block_Size (File_Desc.Inner_Dev)),
+                   Block_Count   => Get_Block_Count (File_Desc.Inner_Dev));
+
+               --  Set the access part of mode.
+               if Devices.Is_Block_Device (File_Desc.Inner_Dev) then
+                  Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFBLK;
+               else
+                  Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFCHR;
+               end if;
+               goto Success_Return;
+            when Description_Reader_FIFO | Description_Writer_FIFO |
+                 Description_Primary_PTY | Description_Secondary_PTY =>
+               Stat_Buf :=
+                  (Device_Number => 0,
+                   Inode_Number  => 1,
+                   Mode          => Stat_IFIFO,
+                   Number_Links  => 1,
+                   UID           => 0,
+                   GID           => 0,
+                   Inner_Device  => 1,
+                   File_Size     => 512,
+                   Access_Time   => (Seconds => 0, Nanoseconds => 0),
+                   Modify_Time   => (Seconds => 0, Nanoseconds => 0),
+                   Create_Time   => (Seconds => 0, Nanoseconds => 0),
+                   Block_Size    => 512,
+                   Block_Count   => 1);
+               goto Success_Return;
+            when Description_Socket =>
+               Stat_Buf :=
+                  (Device_Number => 0,
+                   Inode_Number  => 1,
+                   Mode          => Stat_ISOCK,
+                   Number_Links  => 1,
+                   UID           => 0,
+                   GID           => 0,
+                   Inner_Device  => 1,
+                   File_Size     => 512,
+                   Access_Time   => (Seconds => 0, Nanoseconds => 0),
+                   Modify_Time   => (Seconds => 0, Nanoseconds => 0),
+                   Create_Time   => (Seconds => 0, Nanoseconds => 0),
+                   Block_Size    => 512,
+                   Block_Count   => 1);
+               goto Success_Return;
+         end case;
+      else
+         declare
+            Path : String (1 .. Natural (Path_Len))
+               with Import, Address => Path_SAddr;
+         begin
+            Resolve_AT_Directive (Proc, Dir_FD, FS, D_Ino);
+            if FS = VFS.Error_Handle then
+               Errno    := Error_Bad_File;
                Returned := Unsigned_64'Last;
                return;
             end if;
 
-            ID := Get_Unique_ID (Get_Backing_Device (File_Desc.Inner_Ino_FS));
-            Stat_Buf := (
-               Device_Number => Unsigned_64 (ID),
-               Inode_Number  => Unsigned_64 (Stat_Val.Unique_Identifier),
-               Mode          => Unsigned_32 (Stat_Val.Mode),
-               Number_Links  => Unsigned_32 (Stat_Val.Hard_Link_Count),
-               UID           => Stat_Val.UID,
-               GID           => Stat_Val.GID,
-               Inner_Device  => Unsigned_64 (ID),
-               File_Size     => Stat_Val.Byte_Size,
-               Access_Time   =>
-                  (Stat_Val.Access_Time.Seconds_Since_Epoch,
-                   Stat_Val.Access_Time.Additional_Nanoseconds),
-               Modify_Time   =>
-                  (Stat_Val.Modification_Time.Seconds_Since_Epoch,
-                   Stat_Val.Modification_Time.Additional_Nanoseconds),
-               Create_Time   =>
-                  (Stat_Val.Creation_Time.Seconds_Since_Epoch,
-                   Stat_Val.Creation_Time.Additional_Nanoseconds),
-               Block_Size    => Unsigned_64 (Stat_Val.IO_Block_Size),
-               Block_Count   => Stat_Val.IO_Block_Count
-            );
-
-            --  Set the access part of mode.
-            case Stat_Val.Type_Of_File is
-               when VFS.File_Regular =>
-                  Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFREG;
-               when VFS.File_Directory =>
-                  Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFDIR;
-               when VFS.File_Symbolic_Link =>
-                  Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFLNK;
-               when VFS.File_Character_Device =>
-                  Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFCHR;
-               when VFS.File_Block_Device =>
-                  Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFBLK;
-            end case;
-         when Description_Device =>
-            ID := Devices.Get_Unique_ID (File_Desc.Inner_Dev);
-            Stat_Buf := (
-               Device_Number => Unsigned_64 (ID),
-               Inode_Number  => Unsigned_64 (ID),
-               Mode          => 8#644#,
-               Number_Links  => 1,
-               UID           => 0,
-               GID           => 0,
-               Inner_Device  => Unsigned_64 (ID),
-               File_Size     => 512,
-               Access_Time   => (0, 0),
-               Modify_Time   => (0, 0),
-               Create_Time   => (0, 0),
-               Block_Size    =>
-                  Unsigned_64 (Devices.Get_Block_Size (File_Desc.Inner_Dev)),
-               Block_Count   => Devices.Get_Block_Count (File_Desc.Inner_Dev)
-            );
-
-            --  Set the access part of mode.
-            if Devices.Is_Block_Device (File_Desc.Inner_Dev) then
-               Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFBLK;
-            else
-               Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFCHR;
+            VFS.Open
+               (Key       => FS,
+                Relative  => D_Ino,
+                Path      => Path,
+                Ino       => Ino,
+                Success   => Success,
+                User      => User,
+                Do_Follow => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
+            if Success /= VFS.FS_Success then
+               Errno    := Error_No_Entity;
+               Returned := Unsigned_64'Last;
+               return;
             end if;
-         when Description_Reader_FIFO | Description_Writer_FIFO |
-              Description_Primary_PTY | Description_Secondary_PTY =>
-            Stat_Buf := (
-               Device_Number => 0,
-               Inode_Number  => 1,
-               Mode          => Stat_IFIFO,
-               Number_Links  => 1,
-               UID           => 0,
-               GID           => 0,
-               Inner_Device  => 1,
-               File_Size     => 512,
-               Access_Time   => (Seconds => 0, Nanoseconds => 0),
-               Modify_Time   => (Seconds => 0, Nanoseconds => 0),
-               Create_Time   => (Seconds => 0, Nanoseconds => 0),
-               Block_Size    => 512,
-               Block_Count   => 1
-            );
-         when Description_Socket =>
-            Stat_Buf :=
-               (Device_Number => 0,
-                Inode_Number  => 1,
-                Mode          => Stat_ISOCK,
-                Number_Links  => 1,
-                UID           => 0,
-                GID           => 0,
-                Inner_Device  => 1,
-                File_Size     => 512,
-                Access_Time   => (Seconds => 0, Nanoseconds => 0),
-                Modify_Time   => (Seconds => 0, Nanoseconds => 0),
-                Create_Time   => (Seconds => 0, Nanoseconds => 0),
-                Block_Size    => 512,
-                Block_Count   => 1);
+         end;
+      end if;
+
+      VFS.Stat (FS, Ino, Stat_Val, Success, User);
+      if Success /= VFS.FS_Success then
+         Errno := Error_Bad_File;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      ID := Get_Unique_ID (Get_Backing_Device (FS));
+      Stat_Buf :=
+         (Device_Number => Unsigned_64 (ID),
+          Inode_Number  => Unsigned_64 (Stat_Val.Unique_Identifier),
+          Mode          => Unsigned_32 (Stat_Val.Mode),
+          Number_Links  => Unsigned_32 (Stat_Val.Hard_Link_Count),
+          UID           => Stat_Val.UID,
+          GID           => Stat_Val.GID,
+          Inner_Device  => Unsigned_64 (ID),
+          File_Size     => Stat_Val.Byte_Size,
+          Access_Time   =>
+             (Stat_Val.Access_Time.Seconds_Since_Epoch,
+              Stat_Val.Access_Time.Additional_Nanoseconds),
+          Modify_Time   =>
+             (Stat_Val.Modification_Time.Seconds_Since_Epoch,
+              Stat_Val.Modification_Time.Additional_Nanoseconds),
+          Create_Time   =>
+             (Stat_Val.Creation_Time.Seconds_Since_Epoch,
+              Stat_Val.Creation_Time.Additional_Nanoseconds),
+          Block_Size    => Unsigned_64 (Stat_Val.IO_Block_Size),
+          Block_Count   => Stat_Val.IO_Block_Count);
+
+      --  Set the access part of mode.
+      case Stat_Val.Type_Of_File is
+         when VFS.File_Regular =>
+            Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFREG;
+         when VFS.File_Directory =>
+            Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFDIR;
+         when VFS.File_Symbolic_Link =>
+            Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFLNK;
+         when VFS.File_Character_Device =>
+            Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFCHR;
+         when VFS.File_Block_Device =>
+            Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFBLK;
       end case;
 
-      Errno := Error_No_Error;
+   <<Success_Return>>
+      Errno    := Error_No_Error;
       Returned := 0;
    end FStat;
 
@@ -1371,6 +1415,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when SC_TOTAL_PAGES =>
             Memory.Physical.Get_Statistics (Stats);
             Result := Unsigned_64 (Stats.Total) / Page_Size;
+         when SC_CHILD_MAX =>
+            Result := Unsigned_64 (Process.Max_Process_Count);
          when SC_LIST_PROCS =>
             declare
                IAddr : constant Integer_Address := Integer_Address (Addr);
@@ -2753,6 +2799,86 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Returned := Unsigned_64'Last;
    end Set_RLimit;
 
+   procedure FAccess
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Mode      : Unsigned_64;
+       Flags     : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
+   is
+      Proc        : constant             PID := Arch.Local.Get_Current_Process;
+      Map         : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      Path_IAddr  : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr  : constant  System.Address := To_Address (Path_IAddr);
+      FS          : VFS.FS_Handle;
+      D_Ino, Ino  : VFS.File_Inode_Number;
+      Succ        : VFS.FS_Status;
+      User        : Unsigned_32;
+      File_Perms  : MAC.Permissions;
+   begin
+      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif Path_Len > Unsigned_64 (Natural'Last) then
+         Errno    := Error_String_Too_Long;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if (Flags and AT_EACCESS) /= 0 then
+         Process.Get_Effective_UID (Proc, User);
+      else
+         Process.Get_UID (Proc, User);
+      end if;
+
+      declare
+         Path : String (1 .. Natural (Path_Len))
+               with Import, Address => Path_SAddr;
+      begin
+         Resolve_AT_Directive (Proc, Dir_FD, FS, D_Ino);
+         if FS = VFS.Error_Handle then
+            Errno    := Error_Bad_File;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         VFS.Open
+            (Key       => FS,
+             Relative  => D_Ino,
+             Path      => Path,
+             Ino       => Ino,
+             Success   => Succ,
+             User      => User,
+             Do_Follow => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
+         if Succ /= VFS.FS_Success then
+            Errno    := Error_No_Entity;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         File_Perms := Check_Permissions (Proc, FS, Ino);
+         if not File_Perms.Can_Write then
+            Errno    := Error_Bad_Access;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+      end;
+
+      VFS.Check_Access
+         (Key         => FS,
+          Ino         => Ino,
+          Exists_Only => (Mode and F_OK) /= 0,
+          Can_Read    => (Mode and R_OK) /= 0,
+          Can_Write   => (Mode and W_OK) /= 0,
+          Can_Exec    => (Mode and X_OK) /= 0,
+          User        => User,
+          Status      => Succ);
+      Translate_Status (Succ, 0, Returned, Errno);
+   end FAccess;
+
    procedure Poll
       (FDs_Addr  : Unsigned_64;
        FDs_Count : Unsigned_64;
@@ -2890,27 +3016,84 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Set_UIDs;
 
    procedure Fchmod
-      (FD       : Unsigned_64;
-       Mode     : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Mode      : Unsigned_64;
+       Flags     : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
    is
-      Proc : constant PID := Arch.Local.Get_Current_Process;
-      Desc : constant File_Description_Acc := Get_File (Proc, FD);
-      Succ : VFS.FS_Status;
-      User : Unsigned_32;
+      Proc        : constant             PID := Arch.Local.Get_Current_Process;
+      Map         : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      Path_IAddr  : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr  : constant  System.Address := To_Address (Path_IAddr);
+      FS          : VFS.FS_Handle;
+      D_Ino, Ino  : VFS.File_Inode_Number;
+      Succ        : VFS.FS_Status;
+      User        : Unsigned_32;
+      File_Desc   : File_Description_Acc;
+      File_Perms  : MAC.Permissions;
    begin
-      Userland.Process.Get_Effective_UID (Proc, User);
-      case Desc.Description is
-         when Description_Inode =>
-            VFS.Change_Mode
-               (Desc.Inner_Ino_FS, Desc.Inner_Ino, File_Mode (Mode), User,
-                Succ);
-            Translate_Status (Succ, 0, Returned, Errno);
-         when others =>
-            Errno := Error_Invalid_Value;
+      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif Path_Len > Unsigned_64 (Natural'Last) then
+         Errno    := Error_String_Too_Long;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Process.Get_Effective_UID (Proc, User);
+
+      if (Flags and AT_EMPTY_PATH) /= 0 then
+         File_Desc := Get_File (Proc, Dir_FD);
+         if File_Desc = null or else File_Desc.Description /= Description_Inode
+         then
+            Errno    := Error_Bad_File;
             Returned := Unsigned_64'Last;
-      end case;
+            return;
+         end if;
+         FS  := File_Desc.Inner_Ino_FS;
+         Ino := File_Desc.Inner_Ino;
+      else
+         declare
+            Path : String (1 .. Natural (Path_Len))
+               with Import, Address => Path_SAddr;
+         begin
+            Resolve_AT_Directive (Proc, Dir_FD, FS, D_Ino);
+            if FS = VFS.Error_Handle then
+               Errno    := Error_Bad_File;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+
+            VFS.Open
+               (Key       => FS,
+                Relative  => D_Ino,
+                Path      => Path,
+                Ino       => Ino,
+                Success   => Succ,
+                User      => User,
+                Do_Follow => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
+            if Succ /= VFS.FS_Success then
+               Errno    := Error_No_Entity;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+
+            File_Perms := Check_Permissions (Proc, FS, Ino);
+            if not File_Perms.Can_Write then
+               Errno    := Error_Bad_Access;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         end;
+      end if;
+
+      VFS.Change_Mode (FS, Ino, File_Mode (Mode), User, Succ);
+      Translate_Status (Succ, 0, Returned, Errno);
    end Fchmod;
 
    procedure Umask
@@ -2968,32 +3151,91 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Reboot;
 
    procedure Fchown
-      (FD       : Unsigned_64;
-       User     : Unsigned_64;
-       Group    : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       User      : Unsigned_64;
+       Group     : Unsigned_64;
+       Flags     : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
    is
-      Proc : constant PID := Arch.Local.Get_Current_Process;
-      Desc : constant File_Description_Acc := Get_File (Proc, FD);
-      Succ : VFS.FS_Status;
-      Usr  : Unsigned_32;
+      Proc        : constant             PID := Arch.Local.Get_Current_Process;
+      Map         : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      Path_IAddr  : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr  : constant  System.Address := To_Address (Path_IAddr);
+      FS          : VFS.FS_Handle;
+      D_Ino, Ino  : VFS.File_Inode_Number;
+      Succ        : VFS.FS_Status;
+      Usr         : Unsigned_32;
+      File_Desc   : File_Description_Acc;
+      File_Perms  : MAC.Permissions;
    begin
-      Userland.Process.Get_Effective_UID (Proc, Usr);
-      case Desc.Description is
-         when Description_Inode =>
-            VFS.Change_Owner
-               (Desc.Inner_Ino_FS,
-                Desc.Inner_Ino,
-                Unsigned_32 (User  and 16#FFFFFFFF#),
-                Unsigned_32 (Group and 16#FFFFFFFF#),
-                Usr,
-                Succ);
-            Translate_Status (Succ, 0, Returned, Errno);
-         when others =>
-            Errno := Error_Invalid_Value;
+      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif Path_Len > Unsigned_64 (Natural'Last) then
+         Errno    := Error_String_Too_Long;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Process.Get_Effective_UID (Proc, Usr);
+
+      if (Flags and AT_EMPTY_PATH) /= 0 then
+         File_Desc := Get_File (Proc, Dir_FD);
+         if File_Desc = null or else File_Desc.Description /= Description_Inode
+         then
+            Errno    := Error_Bad_File;
             Returned := Unsigned_64'Last;
-      end case;
+            return;
+         end if;
+         FS  := File_Desc.Inner_Ino_FS;
+         Ino := File_Desc.Inner_Ino;
+      else
+         declare
+            Path : String (1 .. Natural (Path_Len))
+               with Import, Address => Path_SAddr;
+         begin
+            Resolve_AT_Directive (Proc, Dir_FD, FS, D_Ino);
+            if FS = VFS.Error_Handle then
+               Errno    := Error_Bad_File;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+
+            VFS.Open
+               (Key       => FS,
+                Relative  => D_Ino,
+                Path      => Path,
+                Ino       => Ino,
+                Success   => Succ,
+                User      => Usr,
+                Do_Follow => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
+            if Succ /= VFS.FS_Success then
+               Errno    := Error_No_Entity;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+
+            File_Perms := Check_Permissions (Proc, FS, Ino);
+            if not File_Perms.Can_Write then
+               Errno    := Error_Bad_Access;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         end;
+      end if;
+
+      VFS.Change_Owner
+         (FS,
+          Ino,
+          Unsigned_32 (User  and 16#FFFFFFFF#),
+          Unsigned_32 (Group and 16#FFFFFFFF#),
+          Usr,
+          Succ);
+      Translate_Status (Succ, 0, Returned, Errno);
    end Fchown;
 
    procedure PRead
@@ -3504,14 +3746,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Addr       : Memory.Virtual_Address;
        Byte_Count : Unsigned_64) return Boolean
    is
+      package Al is new Lib.Alignment (Unsigned_64);
+      Length : Unsigned_64;
       Result : System.Address;
       Is_Mapped, Is_Readable, Is_Writeable, Is_Executable : Boolean;
       Is_User_Accessible : Boolean;
    begin
+      Length := Al.Align_Up (Byte_Count + 1, Arch.MMU.Page_Size);
       Arch.MMU.Translate_Address
          (Map                => Map,
           Virtual            => To_Address (Addr),
-          Length             => Storage_Count (Byte_Count),
+          Length             => Storage_Count (Length),
           Physical           => Result,
           Is_Mapped          => Is_Mapped,
           Is_User_Accessible => Is_User_Accessible,

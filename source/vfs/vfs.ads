@@ -431,6 +431,26 @@ package VFS is
        User   : Unsigned_32;
        Status : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
+
+   --  Check access of for an inode.
+   --  @param Key         FS Handle to use.
+   --  @param Ino         Inode to change the mode of.
+   --  @param Exists_Only If True, only check for existance.
+   --  @param Can_Read    If True, check for the ability to read.
+   --  @param Can_Write   If True, check for the ability to write.
+   --  @param Can_Exec    If True, check for the ability to execute.
+   --  @param User        UID to check against, 0 for root/bypass checks.
+   --  @param Status      Status of the operation.
+   procedure Check_Access
+      (Key         : FS_Handle;
+       Ino         : File_Inode_Number;
+       Exists_Only : Boolean;
+       Can_Read    : Boolean;
+       Can_Write   : Boolean;
+       Can_Exec    : Boolean;
+       User        : Unsigned_32;
+       Status      : out FS_Status)
+      with Pre => Is_Initialized and Key /= Error_Handle;
    ----------------------------------------------------------------------------
    --  FS-independent versions of operations, that rely on the driver to search
    --  for the appropiate FS, or operate on several FSes.
@@ -469,55 +489,6 @@ package VFS is
       (Path    : String;
        Typ     : File_Type;
        Mode    : File_Mode;
-       Success : out FS_Status;
-       User    : Unsigned_32)
-      with Pre => Is_Initialized;
-
-   --  Create a symbolic link.
-   --  @param Path    System-wide absolute path to create.
-   --  @param Target  Target to write to the symlink.
-   --  @param Mode    Mode to set for the created inode.
-   --  @param Success Status of the operation.
-   --  @param User    UID to check against, 0 for root/bypass checks.
-   procedure Create_Symbolic_Link
-      (Path    : String;
-       Target  : String;
-       Mode    : Unsigned_32;
-       Success : out FS_Status;
-       User    : Unsigned_32)
-      with Pre => Is_Initialized;
-
-   --  Create a hard link.
-   --  @param Path    System-wide absolute path to create.
-   --  @param Target  Target to write to the symlink.
-   --  @param Success Status of the operation.
-   --  @param User    UID to check against, 0 for root/bypass checks.
-   procedure Create_Hard_Link
-      (Path    : String;
-       Target  : String;
-       Success : out FS_Status;
-       User    : Unsigned_32)
-      with Pre => Is_Initialized;
-
-   --  Rename files.
-   --  @param Path    System-wide absolute path to rename.
-   --  @param Target  Name to set to the source.
-   --  @param Success Status of the operation.
-   --  @param User    UID to check against, 0 for root/bypass checks.
-   procedure Rename
-      (Source  : String;
-       Target  : String;
-       Keep    : Boolean;
-       Success : out FS_Status;
-       User    : Unsigned_32)
-      with Pre => Is_Initialized;
-
-   --  Queue a file for unlinking.
-   --  @param Path    System-wide absolute path to unlink.
-   --  @param Success Status of the operation.
-   --  @param User    UID to check against, 0 for root/bypass checks.
-   procedure Unlink
-      (Path    : String;
        Success : out FS_Status;
        User    : Unsigned_32)
       with Pre => Is_Initialized;

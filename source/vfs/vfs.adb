@@ -584,6 +584,27 @@ package body VFS is
             Status := FS_Not_Supported;
       end case;
    end Change_Owner;
+
+   procedure Check_Access
+      (Key         : FS_Handle;
+       Ino         : File_Inode_Number;
+       Exists_Only : Boolean;
+       Can_Read    : Boolean;
+       Can_Write   : Boolean;
+       Can_Exec    : Boolean;
+       User        : Unsigned_32;
+       Status      : out FS_Status)
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT =>
+            EXT.Check_Access
+               (Mounts (Key).FS_Data, Ino, Exists_Only, Can_Read, Can_Write,
+                Can_Exec, User, Status);
+         when others =>
+            Status := FS_Not_Supported;
+      end case;
+   end Check_Access;
    ----------------------------------------------------------------------------
    procedure Open
       (Path      : String;
@@ -645,95 +666,6 @@ package body VFS is
          Success := FS_Invalid_Value;
       end if;
    end Create_Node;
-
-   procedure Create_Symbolic_Link
-      (Path, Target : String;
-       Mode         : Unsigned_32;
-       Success      : out FS_Status;
-       User         : Unsigned_32)
-   is
-      Match_Count : Natural;
-      Handle      : FS_Handle;
-   begin
-      Get_Mount (Path, Match_Count, Handle);
-      if Handle /= Error_Handle and Path'First < Natural'Last - Match_Count
-      then
-         Success := Create_Symbolic_Link
-            (Handle, 0, Path (Path'First + Match_Count .. Path'Last),
-             Target, Mode, User);
-      else
-         Success := FS_Invalid_Value;
-      end if;
-   end Create_Symbolic_Link;
-
-   procedure Create_Hard_Link
-      (Path, Target : String;
-       Success      : out FS_Status;
-       User         : Unsigned_32)
-   is
-      Match_Count : Natural;
-      Handle      : FS_Handle;
-   begin
-      Get_Mount (Path, Match_Count, Handle);
-      if Handle /= Error_Handle                    and
-         Path'First   < Natural'Last - Match_Count and
-         Target'First < Natural'Last - Match_Count
-      then
-         Create_Hard_Link
-            (Handle,
-             0, Path   (Path'First   + Match_Count ..   Path'Last),
-             0, Target (Target'First + Match_Count .. Target'Last),
-             User,
-             Success);
-      else
-         Success := FS_Invalid_Value;
-      end if;
-   end Create_Hard_Link;
-
-   procedure Rename
-      (Source, Target : String;
-       Keep           : Boolean;
-       Success        : out FS_Status;
-       User           : Unsigned_32)
-   is
-      Match_Count : Natural;
-      Handle      : FS_Handle;
-   begin
-      Get_Mount (Source, Match_Count, Handle);
-      if Handle /= Error_Handle                    and
-         Source'First < Natural'Last - Match_Count and
-         Target'First < Natural'Last - Match_Count
-      then
-         Rename
-            (Handle,
-             0, Source (Source'First + Match_Count .. Source'Last),
-             0, Target (Target'First + Match_Count .. Target'Last),
-             Keep,
-             User,
-             Success);
-      else
-         Success := FS_Invalid_Value;
-      end if;
-   end Rename;
-
-   procedure Unlink
-      (Path    : String;
-       Success : out FS_Status;
-       User    : Unsigned_32)
-   is
-      Match_Count : Natural;
-      Handle      : FS_Handle;
-   begin
-      Get_Mount (Path, Match_Count, Handle);
-      if Handle /= Error_Handle and Path'First < Natural'Last - Match_Count
-      then
-         Unlink
-            (Handle, 0, Path (Path'First + Match_Count .. Path'Last), User,
-             Success);
-      else
-         Success := FS_Invalid_Value;
-      end if;
-   end Unlink;
    ----------------------------------------------------------------------------
    function Is_Absolute (Path : String) return Boolean is
    begin
