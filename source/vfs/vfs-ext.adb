@@ -19,6 +19,7 @@ with Lib.Panic;
 with Lib.Alignment;
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
+with Ada.Characters.Latin_1;
 
 package body VFS.EXT with SPARK_Mode => Off is
    package   Conv is new System.Address_To_Access_Conversions (EXT_Data);
@@ -210,23 +211,30 @@ package body VFS.EXT with SPARK_Mode => Off is
        Status   : out FS_Status)
    is
       Data     : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Perms    : constant  Unsigned_16 := Get_Permissions (File_Regular);
-      Dir_Type : constant   Unsigned_8 := Get_Dir_Type (File_Regular);
+      Perms    : constant  Unsigned_16 := Get_Permissions (Typ);
+      Dir_Type : constant   Unsigned_8 := Get_Dir_Type (Typ);
       Name_Start                 : Natural;
       Target_Index, Parent_Index : Unsigned_32;
       Target_Inode : Inode_Acc := new Inode;
       Parent_Inode : Inode_Acc := new Inode;
+      Descriptor : Block_Group_Descriptor;
+      Desc_Index : Unsigned_32;
+      Ent       : Directory_Entry;
+      Ent_Data  : Operation_Data (1 .. Ent'Size / 8)
+         with Import, Address => Ent'Address;
+      Name      : String (1 .. 2);
+      Name_Data : Operation_Data (1 .. 2)
+         with Import, Address => Name'Address;
       Success                    : Boolean;
       Returned                   : FS_Status;
+
+      Has_64bit_Sz : Boolean renames Data.Has_64bit_Filesizes;
    begin
       if Data.Is_Read_Only then
          Returned := FS_RO_Failure;
          goto Cleanup_No_Lock;
       elsif Path'Length = 0 then
          Returned := FS_Invalid_Value;
-         goto Cleanup_No_Lock;
-      elsif Typ /= File_Regular then
-         Returned := FS_Not_Supported;
          goto Cleanup_No_Lock;
       end if;
 
@@ -276,26 +284,98 @@ package body VFS.EXT with SPARK_Mode => Off is
           Size_High           => 0,
           Fragment_Address    => 0,
           OS_Specific_Value_2 => (others => 0));
+
+      Add_Directory_Entry
+         (FS_Data     => Data,
+          Inode_Data  => Parent_Inode.all,
+          Inode_Size  => Get_Size (Parent_Inode.all, Has_64bit_Sz),
+          Inode_Index => Parent_Index,
+          Added_Index => Target_Index,
+          Dir_Type    => Dir_Type,
+          Name        => Path (Name_Start .. Path'Last),
+          Success     => Success);
+      if not Success then
+         Returned := FS_IO_Failure;
+         goto Cleanup;
+      end if;
+
+      if Typ = File_Directory then
+         Ent := (Target_Index, 12, 1, Dir_Type);
+         Write_To_Inode
+            (FS_Data     => Data,
+             Inode_Data  => Target_Inode.all,
+             Inode_Num   => Target_Index,
+             Inode_Size  => Get_Size (Target_Inode.all, Has_64bit_Sz),
+             Offset      => 0,
+             Data        => Ent_Data,
+             Ret_Count   => Name_Start,
+             Success     => Success);
+         Name := ('.', Ada.Characters.Latin_1.NUL);
+         Write_To_Inode
+            (FS_Data     => Data,
+             Inode_Data  => Target_Inode.all,
+             Inode_Num   => Target_Index,
+             Inode_Size  => Get_Size (Target_Inode.all, Has_64bit_Sz),
+             Offset      => 8,
+             Data        => Name_Data,
+             Ret_Count   => Name_Start,
+             Success     => Success);
+
+         Ent :=
+            (Inode_Index => Parent_Index,
+             Entry_Count => Unsigned_16 (Data.Block_Size) - 12,
+             Name_Length => 2,
+             Dir_Type    => Dir_Type);
+         Write_To_Inode
+            (FS_Data     => Data,
+             Inode_Data  => Target_Inode.all,
+             Inode_Num   => Target_Index,
+             Inode_Size  => Get_Size (Target_Inode.all, Has_64bit_Sz),
+             Offset      => 12,
+             Data        => Ent_Data,
+             Ret_Count   => Name_Start,
+             Success     => Success);
+         Name := "..";
+         Write_To_Inode
+            (FS_Data     => Data,
+             Inode_Data  => Target_Inode.all,
+             Inode_Num   => Target_Index,
+             Inode_Size  => Get_Size (Target_Inode.all, Has_64bit_Sz),
+             Offset      => 12 + (Ent'Size / 8),
+             Data        => Name_Data,
+             Ret_Count   => Name_Start,
+             Success     => Success);
+
+         Desc_Index := Target_Index - 1 / Data.Super.Inodes_Per_Group;
+         RW_Block_Group_Descriptor
+            (Data             => Data,
+             Descriptor_Index => Desc_Index,
+             Result           => Descriptor,
+             Write_Operation  => False,
+             Success          => Success);
+         Descriptor.Directory_Count := Descriptor.Directory_Count + 1;
+         RW_Block_Group_Descriptor
+            (Data             => Data,
+             Descriptor_Index => Desc_Index,
+             Result           => Descriptor,
+             Write_Operation  => True,
+             Success          => Success);
+         Parent_Inode.Hard_Link_Count := Parent_Inode.Hard_Link_Count + 1;
+         Target_Inode.Hard_Link_Count := Target_Inode.Hard_Link_Count + 1;
+      end if;
+
       RW_Inode
          (Data            => Data,
           Inode_Index     => Target_Index,
           Result          => Target_Inode.all,
           Write_Operation => True,
           Success         => Success);
-      if not Success then
-         Returned := FS_IO_Failure;
-         goto Cleanup;
-      end if;
-
-      Add_Directory_Entry
-         (FS_Data     => Data,
-          Inode_Data  => Parent_Inode.all,
-          Inode_Size  => Get_Size (Parent_Inode.all, Data.Has_64bit_Filesizes),
-          Inode_Index => Parent_Index,
-          Added_Index => Target_Index,
-          Dir_Type    => Dir_Type,
-          Name        => Path (Name_Start .. Path'Last),
-          Success     => Success);
+      RW_Inode
+         (Data            => Data,
+          Inode_Index     => Parent_Index,
+          Result          => Parent_Inode.all,
+          Write_Operation => True,
+          Success         => Success);
       Returned := (if Success then FS_Success else FS_IO_Failure);
 
    <<Cleanup>>
