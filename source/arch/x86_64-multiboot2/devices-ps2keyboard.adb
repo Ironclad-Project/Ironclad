@@ -18,6 +18,7 @@ with Arch.IDT;
 with Arch.APIC;
 with Arch.CPU;
 with Arch.Snippets;
+with Scheduler;
 
 package body Devices.PS2Keyboard with SPARK_Mode => Off is
    type Scancode_Arr is array (1 .. 10) of Unsigned_8;
@@ -85,7 +86,7 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
    function Read_PS2 return Unsigned_8 is
    begin
       while (Arch.Snippets.Port_In (16#64#) and 1) = 0 loop
-         Arch.Snippets.Pause;
+         Scheduler.Yield_If_Able;
       end loop;
       return Arch.Snippets.Port_In (16#60#);
    end Read_PS2;
@@ -93,7 +94,7 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
    procedure Write_PS2 (Port : Unsigned_16; Value : Unsigned_8) is
    begin
       while (Arch.Snippets.Port_In (16#64#) and 2) /= 0 loop
-         Arch.Snippets.Pause;
+         Scheduler.Yield_If_Able;
       end loop;
       Arch.Snippets.Port_Out (Port, Value);
    end Write_PS2;
@@ -124,7 +125,7 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
       Scancode_Count := 0;
       Is_Reading     := True;
       while Is_Reading loop
-         Arch.Snippets.Pause;
+         Scheduler.Yield_If_Able;
       end loop;
       Is_Reading := False;
 

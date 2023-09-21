@@ -18,8 +18,9 @@ with Arch;
 with Arch.IDT;
 with Arch.APIC;
 with Arch.CPU;
-with Ada.Unchecked_Conversion;
 with Arch.Snippets;
+with Ada.Unchecked_Conversion;
+with Scheduler;
 
 package body Devices.PS2Mouse with SPARK_Mode => Off is
    --  For return.
@@ -218,7 +219,7 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
    begin
       for I in 1 .. 100_000 loop
          exit when (Arch.Snippets.Port_In (16#64#) and Shift_Left (1, 0)) /= 0;
-         Arch.Snippets.Pause;
+         Scheduler.Yield_If_Able;
       end loop;
    end Mouse_Wait_Read;
 
@@ -226,7 +227,7 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
    begin
       for I in 1 .. 100_000 loop
          exit when (Arch.Snippets.Port_In (16#64#) and Shift_Left (1, 1)) = 0;
-         Arch.Snippets.Pause;
+         Scheduler.Yield_If_Able;
       end loop;
    end Mouse_Wait_Write;
 

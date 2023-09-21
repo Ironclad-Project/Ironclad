@@ -16,12 +16,11 @@
 
 with Lib.Synchronization;
 with Devices;
-with Arch.MMU;
 
 package IPC.Socket is
-   --  Implementation for Ironclad of the quintessential epitome of POSIX IPC.
-   --  Sockets are to UNIX as ketchup is to mcdonald's fries.
-
+   --  Here lies the implementation of the quintessential POSIX IPC, be it
+   --  local IPC or remote internet access.
+   --
    --  A socket is defined by a domain, type, and protocol, these are the ones
    --  we support.
    type Domain   is (UNIX);
@@ -29,43 +28,135 @@ package IPC.Socket is
    type Protocol is (Default);
 
    --  Data structures to define a socket.
-   type Socket     is private;
+   type Socket (Dom : Domain; Typ : DataType; Proto : Protocol) is private;
    type Socket_Acc is access Socket;
 
-   --  Create a fresh socket. The socket is made blocking by default.
+   --  Create a fresh socket.
+   --  @param Dom         Domain of the socket.
+   --  @param Typ         Type of socket.
+   --  @param Proto       Socket protocol, or default for default values.
+   --  @param Is_Blocking True if blocking, False if not blocking.
    --  @return The socket on success, null on failure.
    function Create
-      (Dom   : Domain;
-       Typ   : DataType;
-       Proto : Protocol) return Socket_Acc;
+      (Dom         : Domain;
+       Typ         : DataType;
+       Proto       : Protocol;
+       Is_Blocking : Boolean := True) return Socket_Acc;
 
-   --  Close it possible.
-   procedure Close (To_Close : in out Socket_Acc) with Pre => To_Close /= null;
+   --  Get the type of a socket, which is good to know because only some
+   --  sockets implement some operations!
+   --  @param Sock Socket to check.
+   --  @return Data type of the socket.
+   function Get_Type (Sock : Socket_Acc) return DataType
+      with Pre => Sock /= null;
 
-   --  Get and set whether the passed socket is blocking or non blocking.
-   function Is_Blocking (P : Socket_Acc) return Boolean with Pre => P /= null;
-   procedure Set_Blocking (P : Socket_Acc; B : Boolean) with Pre => P /= null;
+   --  Close the socket, if possible.
+   --  @param To_Close Socket to free and close, will be always set to null.
+   procedure Close (To_Close : in out Socket_Acc)
+      with Pre => To_Close /= null, Post => To_Close = null;
 
-   --  Bind a socket to a string (ideally a path).
+   --  Get whether the socket is blocking.
+   --  @param Sock Socket to check.
+   --  @return True if blocking, False if not.
+   function Is_Blocking (Sock : Socket_Acc) return Boolean
+      with Pre => Sock /= null;
+
+   --  Set whether the socket is blocking.
+   --  @param Sock        Socket to modify.
+   --  @param Is_Blocking True if blocking, False if not.
+   procedure Set_Blocking (Sock : Socket_Acc; Is_Blocking : Boolean)
+      with Pre => Sock /= null;
+
+   --  Poll the availability of operations that can be done to a socket.
+   --  @param Sock      Socket to operate on.
+   --  @param Can_Read  True if a read operation would not block.
+   --  @param Can_Write True if a write operation would not block.
+   --  @param Is_Broken True if the other end has closed.
+   --  @param Is_Error  True if an error condition was triggered.
+   procedure Poll
+      (Sock      : Socket_Acc;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Broken : out Boolean;
+       Is_Error  : out Boolean)
+      with Pre => Sock /= null;
+
+   --  Get the address of the passed socket. Since only UNIX sockets
+   --  are supported, these functions handle paths.
+   --  @param Sock    Socket to get the address of.
+   --  @param Path    Buffer to write the fetched path.
+   --  @param Length  Output path length, may be bigger if not fit.
+   --  @param Success True in success, False if not supported / not bound.
+   procedure Get_Bound
+      (Sock    : Socket_Acc;
+       Path    : out String;
+       Length  : out Natural;
+       Success : out Boolean)
+      with Pre => Sock /= null;
+
+   --  Get the address of the passed socket's peer.
+   --  @param Sock    Socket to get the address of.
+   --  @param Path    Buffer to write the fetched path.
+   --  @param Length  Output path length, may be bigger if not fit.
+   --  @param Success True in success, False if not supported / not connected.
+   procedure Get_Peer
+      (Sock    : Socket_Acc;
+       Path    : out String;
+       Length  : out Natural;
+       Success : out Boolean)
+      with Pre => Sock /= null;
+
+   --  Bind a socket to an address, since we only support UNIX sockets, this
+   --  takes the shape of a path, but will probably change in the future.
+   --  @param Sock Socket to bind to an address.
+   --  @param Path Path to bind the socket to, must be unique.
    --  @return True on success, False on failure.
    function Bind (Sock : Socket_Acc; Path : String) return Boolean
       with Pre => Sock /= null;
 
-   --  Connect a socket to a string previously bound.
+   --  Connect a socket to a socket previously bound with Bind.
+   --  This process initiates the handshake that the other end will continue
+   --  with its functions Listen and Accept, unless blocking, this function
+   --  will block until accepted.
+   --  @param Sock Socket to use to connect.
+   --  @param Path Previously bound path to connect to.
    --  @return True on success, False on failure.
-   function Connect (Sock : Socket_Acc; Path : String) return Boolean;
+   function Connect (Sock : Socket_Acc; Path : String) return Boolean
+      with Pre => Sock /= null;
+
+   --  Disconnect the socket from all or part of a duplex connection (TX-RX).
+   --  @param Sock             Socket to disconnect
+   --  @param Do_Receptions    If True, disable future RX for this connection.
+   --  @param Do_Transmissions If True, disable future TX for this connection.
+   --  @return True on success, False on failure (not connected?).
+   function Shutdown
+      (Sock             : Socket_Acc;
+       Do_Receptions    : Boolean;
+       Do_Transmissions : Boolean) return Boolean;
 
    --  Make a socket into a listener, which makes the socket only able of
-   --  accepting connections using Accept. Only stream sockets can be used.
+   --  accepting connections using Accept. Only stream sockets can be used for
+   --  this operation, as this operation lacks meaning otherwise.
+   --  @param Sock    Socket to use for listening.
+   --  @param Backlog Hint as to how many connections to prepare for.
    --  @return True on success, False on failure.
    function Listen (Sock : Socket_Acc; Backlog : Natural) return Boolean
-      with Pre => Sock /= null;
+      with Pre => Sock /= null and then Get_Type (Sock) = Stream;
 
-   --  Accept a new connection, creating a connected socket for it.
-   --  @return The new connection socket, or null if non-blocking and none
-   --  are available.
-   function Accept_Connection (Sock : Socket_Acc) return Socket_Acc
-      with Pre => Sock /= null;
+   --  Accept a new connection, creating a connected socket for interfacing
+   --  with it. If blocking, the operation will block.
+   --  @param Sock                Server listening socket to use for accepting.
+   --  @param Is_Blocking         True to make the accepted socket blocking.
+   --  @param Peer_Address        Address of the connected socket.
+   --  @param Peer_Address_Length Stored length, may be longer if doesnt fit.
+   --  @param Result              New accepted socket, or null on failure.
+   procedure Accept_Connection
+      (Sock                : Socket_Acc;
+       Is_Blocking         : Boolean := True;
+       Peer_Address        : out String;
+       Peer_Address_Length : out Natural;
+       Result              : out Socket_Acc)
+      with Pre => Sock /= null and then Get_Type (Sock) = Stream;
 
    --  Returned status of a socket operation.
    type Socket_Status is
@@ -73,33 +164,49 @@ package IPC.Socket is
        Is_Bad_Type,   --  A listener is needed but the socket is not one, etc.
        Would_Block);  --  The socket would block, and we don't want that.
 
-   --  Read and write.
+   --  Read from a socket.
+   --  @param Sock      Socket to read from, or its connection.
+   --  @param Data      Data to read to.
+   --  @param Ret_Count Count of data read.
+   --  @param Success   Resulting status of the operation.
    procedure Read
-      (To_Read   : Socket_Acc;
+      (Sock      : Socket_Acc;
        Data      : out Devices.Operation_Data;
        Ret_Count : out Natural;
        Success   : out Socket_Status)
-      with Pre => To_Read /= null;
+      with Pre => Sock /= null;
 
+   --  Write to a socket.
+   --  @param Sock      Socket to write to, or its connection.
+   --  @param Data      Data to write.
+   --  @param Ret_Count Count of written data.
+   --  @param Success   Resulting status of the operation.
    procedure Write
-      (To_Write  : Socket_Acc;
+      (Sock      : Socket_Acc;
        Data      : Devices.Operation_Data;
        Ret_Count : out Natural;
        Success   : out Socket_Status)
-      with Pre => To_Write /= null;
+      with Pre => Sock /= null;
 
 private
 
-   type Socket is record
-      Mutex          : aliased Lib.Synchronization.Binary_Semaphore;
-      Inner_Domain   : Domain;
-      Inner_Type     : DataType;
-      Inner_Protocol : Protocol;
-      Is_Listener    : Boolean;
-      Is_Blocking    : Boolean;
-      Connected      : Socket_Acc;
-      Pending_Accept : Socket_Acc;
-      Data           : Devices.Operation_Data (1 .. Arch.MMU.Page_Size);
+   Default_Socket_Size : constant := 16#2000#;
+
+   type Socket (Dom : Domain; Typ : DataType; Proto : Protocol) is record
+      Mutex       : aliased Lib.Synchronization.Binary_Semaphore;
+      Is_Blocking : Boolean;
+      Data        : Devices.Operation_Data (1 .. Default_Socket_Size);
+      Data_Length : Natural range 0 .. Default_Socket_Size;
+
+      case Typ is
+         when Stream =>
+            Is_Listener    : Boolean;
+            Connected      : Socket_Acc;
+            Pending_Accept : Socket_Acc;
+            Established    : Socket_Acc;
+         when Datagram =>
+            Simple_Connected : Socket_Acc;
+      end case;
    end record;
 
    Bind_Path_Max : constant := 100;

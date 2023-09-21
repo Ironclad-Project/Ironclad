@@ -68,6 +68,9 @@ package Scheduler is
    --  Removes a thread, kernel or user, from existance (if it exists).
    procedure Delete_Thread (Thread : TID);
 
+   --  If yieldable, yield, else just return.
+   procedure Yield_If_Able;
+
    --  Give up the rest of our execution time and go back to rescheduling.
    procedure Yield;
 
@@ -82,9 +85,10 @@ package Scheduler is
        Cluster_Cooperative); --  Cluster will do cooperative scheduling.
 
    function Set_Scheduling_Algorithm
-      (Cluster : TCID;
-       Algo    : Cluster_Algorithm;
-       Quantum : Natural) return Boolean;
+      (Cluster          : TCID;
+       Algo             : Cluster_Algorithm;
+       Quantum          : Natural;
+       Is_Interruptible : Boolean) return Boolean;
 
    function Set_Time_Slice (Cluster : TCID; Per : Natural) return Boolean;
 

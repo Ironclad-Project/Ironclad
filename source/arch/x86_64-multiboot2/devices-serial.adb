@@ -17,6 +17,7 @@
 with System.Address_To_Access_Conversions;
 with Devices.TermIOs;
 with Arch.Snippets;
+with Scheduler;
 
 package body Devices.Serial with SPARK_Mode => Off is
    package C1 is new System.Address_To_Access_Conversions (COM_Root);
@@ -61,7 +62,7 @@ package body Devices.Serial with SPARK_Mode => Off is
    procedure Write_COM1 (C : Character) is
    begin
       while not Can_Transmit (COM_Ports (COM_Ports'First)) loop
-         Arch.Snippets.Pause;
+         Scheduler.Yield_If_Able;
       end loop;
       Arch.Snippets.Port_Out (COM_Ports (COM_Ports'First), Character'Pos (C));
    end Write_COM1;
@@ -78,7 +79,7 @@ package body Devices.Serial with SPARK_Mode => Off is
    begin
       for I of Data loop
          while not Can_Receive (COM.Port) loop
-            Arch.Snippets.Pause;
+            Scheduler.Yield_If_Able;
          end loop;
          I := Arch.Snippets.Port_In (COM.Port);
       end loop;
@@ -98,7 +99,7 @@ package body Devices.Serial with SPARK_Mode => Off is
    begin
       for I of Data loop
          while not Can_Transmit (COM.Port) loop
-            Arch.Snippets.Pause;
+            Scheduler.Yield_If_Able;
          end loop;
          Arch.Snippets.Port_Out (COM.Port, I);
       end loop;

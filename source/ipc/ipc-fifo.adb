@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Unchecked_Deallocation;
-with Arch.Snippets;
+with Scheduler;
 
 package body IPC.FIFO is
    pragma Suppress (All_Checks);
@@ -163,7 +163,7 @@ package body IPC.FIFO is
                exit when To_Read.Data_Count /= 0;
                Lib.Synchronization.Release (To_Read.Mutex);
             end if;
-            Arch.Snippets.Pause;
+            Scheduler.Yield_If_Able;
          end loop;
       else
          Lib.Synchronization.Seize (To_Read.Mutex);
@@ -222,7 +222,7 @@ package body IPC.FIFO is
                exit when To_Write.Data_Count /= To_Write.Data'Length;
                Lib.Synchronization.Release (To_Write.Mutex);
             end if;
-            Arch.Snippets.Pause;
+            Scheduler.Yield_If_Able;
          end loop;
       else
          Lib.Synchronization.Seize (To_Write.Mutex);

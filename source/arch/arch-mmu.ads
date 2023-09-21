@@ -235,7 +235,7 @@ private
       type Page_Table is record
          PML4_Level : PML4;
          Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
-         Map_Ranges : Mapping_Range_Arr (1 .. 100);
+         Map_Ranges : Mapping_Range_Arr (1 .. 300);
       end record;
 
       function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address;

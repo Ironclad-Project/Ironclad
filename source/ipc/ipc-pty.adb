@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Unchecked_Deallocation;
-with Arch.Snippets;
+with Scheduler;
 
 package body IPC.PTY is
    pragma Suppress (All_Checks);
@@ -70,7 +70,7 @@ package body IPC.PTY is
             exit when To_Read.Primary_Length /= 0;
             Lib.Synchronization.Release (To_Read.Primary_Mutex);
          end if;
-         Arch.Snippets.Pause;
+         Scheduler.Yield_If_Able;
       end loop;
 
       if Final_Len > To_Read.Primary_Length then
@@ -113,7 +113,7 @@ package body IPC.PTY is
                       To_Write.Secondary_Data'Length;
             Lib.Synchronization.Release (To_Write.Secondary_Mutex);
          end if;
-         Arch.Snippets.Pause;
+         Scheduler.Yield_If_Able;
       end loop;
 
       if Len > To_Write.Secondary_Data'Length or else
@@ -152,7 +152,7 @@ package body IPC.PTY is
             exit when To_Read.Secondary_Length /= 0;
             Lib.Synchronization.Release (To_Read.Secondary_Mutex);
          end if;
-         Arch.Snippets.Pause;
+         Scheduler.Yield_If_Able;
       end loop;
 
       if Final_Len > To_Read.Secondary_Length then
@@ -195,7 +195,7 @@ package body IPC.PTY is
             exit when To_Write.Primary_Length /= To_Write.Primary_Data'Length;
             Lib.Synchronization.Release (To_Write.Primary_Mutex);
          end if;
-         Arch.Snippets.Pause;
+         Scheduler.Yield_If_Able;
       end loop;
 
       if Len > To_Write.Primary_Data'Length or else

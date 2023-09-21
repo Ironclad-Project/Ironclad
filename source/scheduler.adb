@@ -38,11 +38,12 @@ package body Scheduler with SPARK_Mode => Off is
       (Kernel_Stack, Kernel_Stack_Acc);
 
    type Thread_Cluster is record
-      Is_Present : Boolean;
-      Algorithm  : Cluster_Algorithm;
-      RR_Quantum : Natural;
-      Percentage : Natural range 0 .. 100;
-      Progress   : Natural range 0 .. 100;
+      Is_Present       : Boolean;
+      Algorithm        : Cluster_Algorithm;
+      RR_Quantum       : Natural;
+      Is_Interruptible : Boolean;
+      Percentage       : Natural range 0 .. 100;
+      Progress         : Natural range 0 .. 100;
    end record;
    type Cluster_Arr is array (TCID range 1 .. TCID'Last) of Thread_Cluster;
    type Cluster_Arr_Acc is access Cluster_Arr;
@@ -82,10 +83,11 @@ package body Scheduler with SPARK_Mode => Off is
       end loop;
 
       --  Create the default cluster.
-      Cluster_Pool (Cluster_Pool'First).Is_Present := True;
-      Cluster_Pool (Cluster_Pool'First).Algorithm  := Cluster_RR;
-      Cluster_Pool (Cluster_Pool'First).RR_Quantum := 4000;
-      Cluster_Pool (Cluster_Pool'First).Percentage := 100;
+      Cluster_Pool (Cluster_Pool'First).Is_Present       := True;
+      Cluster_Pool (Cluster_Pool'First).Algorithm        := Cluster_RR;
+      Cluster_Pool (Cluster_Pool'First).Is_Interruptible := True;
+      Cluster_Pool (Cluster_Pool'First).RR_Quantum       := 4000;
+      Cluster_Pool (Cluster_Pool'First).Percentage       := 100;
 
       Is_Initialized := True;
       Lib.Synchronization.Release (Scheduler_Mutex);
@@ -305,6 +307,16 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
    end Delete_Thread;
 
+   procedure Yield_If_Able is
+      Curr_TID : constant TID := Arch.Local.Get_Current_Thread;
+   begin
+      if Curr_TID /= Error_TID and then
+         Cluster_Pool (Thread_Pool (Curr_TID).Cluster).Is_Interruptible
+      then
+         Yield;
+      end if;
+   end Yield_If_Able;
+
    procedure Yield is
       Curr_TID : constant TID := Arch.Local.Get_Current_Thread;
    begin
@@ -324,13 +336,15 @@ package body Scheduler with SPARK_Mode => Off is
    end Bail;
    ----------------------------------------------------------------------------
    function Set_Scheduling_Algorithm
-      (Cluster : TCID;
-       Algo    : Cluster_Algorithm;
-       Quantum : Natural) return Boolean
+      (Cluster          : TCID;
+       Algo             : Cluster_Algorithm;
+       Quantum          : Natural;
+       Is_Interruptible : Boolean) return Boolean
    is
    begin
-      Cluster_Pool (Cluster).Algorithm  := Algo;
-      Cluster_Pool (Cluster).RR_Quantum := Quantum;
+      Cluster_Pool (Cluster).Algorithm        := Algo;
+      Cluster_Pool (Cluster).RR_Quantum       := Quantum;
+      Cluster_Pool (Cluster).Is_Interruptible := Is_Interruptible;
       return True;
    end Set_Scheduling_Algorithm;
 
@@ -356,11 +370,12 @@ package body Scheduler with SPARK_Mode => Off is
       for I in Cluster_Pool'Range loop
          if not Cluster_Pool (I).Is_Present then
             Cluster_Pool (I) :=
-               (Is_Present => True,
-                Algorithm  => Cluster_RR,
-                RR_Quantum => 4000,
-                Percentage => 0,
-                Progress   => 0);
+               (Is_Present       => True,
+                Algorithm        => Cluster_RR,
+                Is_Interruptible => False,
+                RR_Quantum       => 4000,
+                Percentage       => 0,
+                Progress         => 0);
             return I;
          end if;
       end loop;

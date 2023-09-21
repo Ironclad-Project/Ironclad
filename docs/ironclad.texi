@@ -95,8 +95,7 @@ Debugging facilities
 
 Syscalls
 
-* arm-raspi2b::             arm-raspi2b syscall ABI and table.
-* x86_64-multiboot2::       x86_64-multiboot2 syscall ABI and table.
+* Table and target quirks:: Syscall table and architectural ABI.
 * Errno::                   Error conditions and their values.
 * exit::                    Exit the callee process.
 * arch_prctl::              Interacting with architectural thread-local data.
@@ -155,6 +154,9 @@ Syscalls
 * reboot::                  Machine power management.
 * fchown::                  Change ownership of a file descriptor.
 * pread/pwrite::            Atomic read and write from file descriptors.
+* getsockname::             Get address of a bound socket.
+* getpeername::             Get address of a socket's peer.
+* shutdown::                Disconnect socket from its peer.
 
 Filesystem support and interfaces
 
@@ -308,10 +310,16 @@ Cooperative scheduling, the scheduler will not attempt to preempt unless
 explicitly requested by exiting or yielding.
 @end table
 
-At startup, Ironclad will have a single cluster assigned to 100% of execution
-time, configured to use a flat RR with a reasonable quantum with cluster number
-@code{1}. Software is free to modify it however it sees fit, it is just
-provided in order to have some natural-ish behaviour for running software.
+Additionally, by using the @code{SCHED_INTR} flag, a cluster can be configured
+to be interruptible, which makes the kernel able to interrupt and break the
+specified quantum in order to increase performance and responsiveness during
+waits. The same rules as normal scheduling apply for these interruptions.
+
+At startup, Ironclad will have a single interruptible cluster assigned to 100%
+of execution time, configured to use a flat RR with a reasonable quantum with
+cluster number @code{1}. Software is free to modify it however it sees fit, it
+is just provided in order to have some natural-ish behaviour for running
+software.
 
 @node Memory allocation algorithms
 @chapter Memory allocation algorithms
@@ -507,11 +515,158 @@ willing, see @ref{ptrace}.
 @node Syscalls
 @chapter Syscalls
 
-Syscalls in Ironclad have an architecture-dependent ABI, here is a list of the
-supported architectures and the ABI for each of them.
+Syscall are the main method for userland to interface with the kernel's
+facilities, this section delves into the mechanism and how it works.
 
-@node aarch64-stivale2
-@section aarch64-stivale2
+@node Table and target quirks
+@section Table and target quirks
+
+Syscalls in Ironclad have an architecture-dependent ABI, but the table and its
+indexes are always the same, this is done to simplify development. and here is a list of the
+supported architectures and the ABI for each of them. Here is the table:
+
+@enumerate 0
+@item
+@ref{exit}.
+@item
+@ref{arch_prctl}.
+@item
+@ref{open}.
+@item
+@ref{close}.
+@item
+@ref{read/write, read}.
+@item
+@ref{read/write, write}.
+@item
+@ref{seek}.
+@item
+@ref{mmap/mprotect/munmap, mmap}.
+@item
+@ref{mmap/mprotect/munmap, munmap}.
+@item
+@ref{getpid/getppid, getpid}.
+@item
+@ref{getpid/getppid, getppid}.
+@item
+@ref{exec}.
+@item
+@ref{clone}.
+@item
+@ref{wait}.
+@item
+@ref{socket}.
+@item
+@ref{sethostname}.
+@item
+@ref{unlink}.
+@item
+@ref{fstat}.
+@item
+Empty.
+@item
+@ref{chdir}.
+@item
+@ref{ioctl}.
+@item
+@ref{sched_yield}.
+@item
+@ref{delete_tcluster}.
+@item
+@ref{pipe}.
+@item
+@ref{getuid/geteuid, getuid}.
+@item
+@ref{rename}.
+@item
+@ref{sysconf}.
+@item
+@ref{spawn}.
+@item
+@ref{gettid}.
+@item
+@ref{manage_tcluster}.
+@item
+@ref{fcntl}.
+@item
+@ref{exit_thread}.
+@item
+@ref{getrandom}.
+@item
+@ref{mmap/mprotect/munmap, mprotect}.
+@item
+@ref{sync}.
+@item
+@ref{mac_capabilities, set_mac_capabilities}.
+@item
+@ref{mac_capabilities, get_mac_capabilities}.
+@item
+@ref{add_mac_permissions}.
+@item
+@ref{set_mac_enforcement}.
+@item
+@ref{mount/umount, mount}.
+@item
+@ref{mount/umount, umount}.
+@item
+@ref{readlink}.
+@item
+@ref{getdents}.
+@item
+@ref{mknod}.
+@item
+@ref{truncate}.
+@item
+@ref{bind}.
+@item
+@ref{symlink}.
+@item
+@ref{connect}.
+@item
+@ref{openpty}.
+@item
+@ref{fsync}.
+@item
+@ref{link}.
+@item
+@ref{ptrace}.
+@item
+@ref{listen}.
+@item
+@ref{accept}.
+@item
+@ref{getrlimit/setrlimit, getrlimit}.
+@item
+@ref{getrlimit/setrlimit, setrlimit}.
+@item
+@ref{access}.
+@item
+@ref{poll}.
+@item
+@ref{getuid/geteuid, geteuid}.
+@item
+@ref{setuids}.
+@item
+@ref{fchmod}.
+@item
+@ref{umask}.
+@item
+@ref{reboot}.
+@item
+@ref{fchown}.
+@item
+@ref{pread/pwrite, pread}.
+@item
+@ref{pread/pwrite, pwrite}.
+@item
+@ref{getsockname}.
+@item
+@ref{getpeername}.
+@item
+@ref{shutdown}.
+@end enumerate
+
+@subsection aarch64-stivale2
 
 Syscalls are invoked in Ironclad by using @code{swi}.
 
@@ -519,145 +674,7 @@ The index of the syscall is passed over @code{%x8}, while the return value is
 returned in @code{%x0}, errno is returned in @code{%x9}, arguments are passed
 over @code{%x0} to @code{r7}.
 
-The list of syscalls ordered by their index in @code{x8} for the platform is:
-
-@enumerate 0
-@item
-@ref{exit}.
-@item
-@ref{arch_prctl}.
-@item
-@ref{open}.
-@item
-@ref{close}.
-@item
-@ref{read/write, read}.
-@item
-@ref{read/write, write}.
-@item
-@ref{seek}.
-@item
-@ref{mmap/mprotect/munmap, mmap}.
-@item
-@ref{mmap/mprotect/munmap, munmap}.
-@item
-@ref{getpid/getppid, getpid}.
-@item
-@ref{getpid/getppid, getppid}.
-@item
-@ref{exec}.
-@item
-@ref{clone}.
-@item
-@ref{wait}.
-@item
-@ref{socket}.
-@item
-@ref{sethostname}.
-@item
-@ref{unlink}.
-@item
-@ref{fstat}.
-@item
-Empty.
-@item
-@ref{chdir}.
-@item
-@ref{ioctl}.
-@item
-@ref{sched_yield}.
-@item
-@ref{delete_tcluster}.
-@item
-@ref{pipe}.
-@item
-@ref{getuid/geteuid, getuid}.
-@item
-@ref{rename}.
-@item
-@ref{sysconf}.
-@item
-@ref{spawn}.
-@item
-@ref{gettid}.
-@item
-@ref{manage_tcluster}.
-@item
-@ref{fcntl}.
-@item
-@ref{exit_thread}.
-@item
-@ref{getrandom}.
-@item
-@ref{mmap/mprotect/munmap, mprotect}.
-@item
-@ref{sync}.
-@item
-@ref{mac_capabilities, set_mac_capabilities}.
-@item
-@ref{mac_capabilities, get_mac_capabilities}.
-@item
-@ref{add_mac_permissions}.
-@item
-@ref{set_mac_enforcement}.
-@item
-@ref{mount/umount, mount}.
-@item
-@ref{mount/umount, umount}.
-@item
-@ref{readlink}.
-@item
-@ref{getdents}.
-@item
-@ref{mknod}.
-@item
-@ref{truncate}.
-@item
-@ref{bind}.
-@item
-@ref{symlink}.
-@item
-@ref{connect}.
-@item
-@ref{openpty}.
-@item
-@ref{fsync}.
-@item
-@ref{link}.
-@item
-@ref{ptrace}.
-@item
-@ref{listen}.
-@item
-@ref{accept}.
-@item
-@ref{getrlimit/setrlimit, getrlimit}.
-@item
-@ref{getrlimit/setrlimit, setrlimit}.
-@item
-@ref{access}.
-@item
-@ref{poll}.
-@item
-@ref{getuid/geteuid, geteuid}.
-@item
-@ref{setuids}.
-@item
-@ref{fchmod}.
-@item
-@ref{umask}.
-@item
-@ref{reboot}.
-@item
-@ref{fchown}.
-@item
-@ref{pread/pwrite, pread}.
-@item
-@ref{pread/pwrite, pwrite}.
-@end enumerate
-
-@node arm-raspi2b
-@section arm-raspi2b
+@subsection arm-raspi2b
 
 Syscalls are invoked in Ironclad by using @code{swi}.
 
@@ -665,145 +682,11 @@ The index of the syscall is passed over @code{%r4}, while the return value is
 returned in @code{%r0}, errno is returned in @code{%r1}, arguments are passed
 over @code{%r0} to @code{r7}.
 
-The list of syscalls ordered by their index in @code{r4} for the platform is:
+@subsection sparc-leon3
 
-@enumerate 0
-@item
-@ref{exit}.
-@item
-@ref{arch_prctl}.
-@item
-@ref{open}.
-@item
-@ref{close}.
-@item
-@ref{read/write, read}.
-@item
-@ref{read/write, write}.
-@item
-@ref{seek}.
-@item
-@ref{mmap/mprotect/munmap, mmap}.
-@item
-@ref{mmap/mprotect/munmap, munmap}.
-@item
-@ref{getpid/getppid, getpid}.
-@item
-@ref{getpid/getppid, getppid}.
-@item
-@ref{exec}.
-@item
-@ref{clone}.
-@item
-@ref{wait}.
-@item
-@ref{socket}.
-@item
-@ref{sethostname}.
-@item
-@ref{unlink}.
-@item
-@ref{fstat}.
-@item
-Empty.
-@item
-@ref{chdir}.
-@item
-@ref{ioctl}.
-@item
-@ref{sched_yield}.
-@item
-@ref{delete_tcluster}.
-@item
-@ref{pipe}.
-@item
-@ref{getuid/geteuid, getuid}.
-@item
-@ref{rename}.
-@item
-@ref{sysconf}.
-@item
-@ref{spawn}.
-@item
-@ref{gettid}.
-@item
-@ref{manage_tcluster}.
-@item
-@ref{fcntl}.
-@item
-@ref{exit_thread}.
-@item
-@ref{getrandom}.
-@item
-@ref{mmap/mprotect/munmap, mprotect}.
-@item
-@ref{sync}.
-@item
-@ref{mac_capabilities, set_mac_capabilities}.
-@item
-@ref{mac_capabilities, get_mac_capabilities}.
-@item
-@ref{add_mac_permissions}.
-@item
-@ref{set_mac_enforcement}.
-@item
-@ref{mount/umount, mount}.
-@item
-@ref{mount/umount, umount}.
-@item
-@ref{readlink}.
-@item
-@ref{getdents}.
-@item
-@ref{mknod}.
-@item
-@ref{truncate}.
-@item
-@ref{bind}.
-@item
-@ref{symlink}.
-@item
-@ref{connect}.
-@item
-@ref{openpty}.
-@item
-@ref{fsync}.
-@item
-@ref{link}.
-@item
-@ref{ptrace}.
-@item
-@ref{listen}.
-@item
-@ref{accept}.
-@item
-@ref{getrlimit/setrlimit, getrlimit}.
-@item
-@ref{getrlimit/setrlimit, setrlimit}.
-@item
-@ref{access}.
-@item
-@ref{poll}.
-@item
-@ref{getuid/geteuid, geteuid}.
-@item
-@ref{setuids}.
-@item
-@ref{fchmod}.
-@item
-@ref{umask}.
-@item
-@ref{reboot}.
-@item
-@ref{fchown}.
-@item
-@ref{pread/pwrite, pread}.
-@item
-@ref{pread/pwrite, pwrite}.
-@end enumerate
+The syscall mechanism for leon3 is yet to be implemented. Sorry!
 
-@node x86_64-multiboot2
-@section x86_64-multiboot2
+@subsection x86_64-multiboot2
 
 Syscalls are invoked in Ironclad by using @code{syscall}.
 
@@ -811,143 +694,6 @@ The index of the syscall is passed over @code{%rax}, while the return value is
 returned in @code{%rax}, errno is returned on @code{%rdx}, arguments are passed
 over @code{%rdi}, @code{%rsi}, @code{%rdx}, @code{%r12}, @code{%r8},
 @code{%r9}, and @code{%r10}, following the SysV ABI.
-
-The list of syscalls ordered by their index in @code{rax} for the platform is:
-
-@enumerate 0
-@item
-@ref{exit}.
-@item
-@ref{arch_prctl}.
-@item
-@ref{open}.
-@item
-@ref{close}.
-@item
-@ref{read/write, read}.
-@item
-@ref{read/write, write}.
-@item
-@ref{seek}.
-@item
-@ref{mmap/mprotect/munmap, mmap}.
-@item
-@ref{mmap/mprotect/munmap, munmap}.
-@item
-@ref{getpid/getppid, getpid}.
-@item
-@ref{getpid/getppid, getppid}.
-@item
-@ref{exec}.
-@item
-@ref{clone}.
-@item
-@ref{wait}.
-@item
-@ref{socket}.
-@item
-@ref{sethostname}.
-@item
-@ref{unlink}.
-@item
-@ref{fstat}.
-@item
-Empty.
-@item
-@ref{chdir}.
-@item
-@ref{ioctl}.
-@item
-@ref{sched_yield}.
-@item
-@ref{delete_tcluster}.
-@item
-@ref{pipe}.
-@item
-@ref{getuid/geteuid, getuid}.
-@item
-@ref{rename}.
-@item
-@ref{sysconf}.
-@item
-@ref{spawn}.
-@item
-@ref{gettid}.
-@item
-@ref{manage_tcluster}.
-@item
-@ref{fcntl}.
-@item
-@ref{exit_thread}.
-@item
-@ref{getrandom}.
-@item
-@ref{mmap/mprotect/munmap, mprotect}.
-@item
-@ref{sync}.
-@item
-@ref{mac_capabilities, set_mac_capabilities}.
-@item
-@ref{mac_capabilities, get_mac_capabilities}.
-@item
-@ref{add_mac_permissions}.
-@item
-@ref{set_mac_enforcement}.
-@item
-@ref{mount/umount, mount}.
-@item
-@ref{mount/umount, umount}.
-@item
-@ref{readlink}.
-@item
-@ref{getdents}.
-@item
-@ref{mknod}.
-@item
-@ref{truncate}.
-@item
-@ref{bind}.
-@item
-@ref{symlink}.
-@item
-@ref{connect}.
-@item
-@ref{openpty}.
-@item
-@ref{fsync}.
-@item
-@ref{link}.
-@item
-@ref{ptrace}.
-@item
-@ref{listen}.
-@item
-@ref{accept}.
-@item
-@ref{getrlimit/setrlimit, getrlimit}.
-@item
-@ref{getrlimit/setrlimit, setrlimit}.
-@item
-@ref{access}.
-@item
-@ref{poll}.
-@item
-@ref{getuid/geteuid, geteuid}.
-@item
-@ref{setuids}.
-@item
-@ref{fchmod}.
-@item
-@ref{umask}.
-@item
-@ref{reboot}.
-@item
-@ref{fchown}.
-@item
-@ref{pread/pwrite, pread}.
-@item
-@ref{pread/pwrite, pwrite}.
-@end enumerate
 
 @node Errno
 @section Errno
@@ -957,9 +703,6 @@ depth. When a syscall does not error out, it returns the value 0 on the errno
 field. Here is a table of all the possible errno and its values and meaning:
 
 @table @code
-@item ENOERR (0)
-There was no error, this is displayed for completeness.
-
 @item ERANGE (3)
 The passed value was not big enough.
 
@@ -1001,6 +744,10 @@ The requested syscall or flag is not implemented.
 
 @item ENOTTY (1058)
 The passed argument is not a TTY.
+
+@item ENOTSUPP (1060)
+The passed argument is valid, but does not implement the operation. Mostly
+used for sockets and other networking elements when dealing with protocols.
 
 @item EPERM (1063)
 Bad permissions.
@@ -1754,8 +1501,9 @@ This syscall returns the current thread id. It never fails.
 @section manage_tcluster
 
 @example
-#define SCHED_RR   0b01
-#define SCHED_COOP 0b10
+#define SCHED_RR   0b001
+#define SCHED_COOP 0b010
+#define SCHED_INTR 0b100
 
 int manage_tcluster(int cluster, int flags, int quantum, int percentage);
 @end example
@@ -2386,6 +2134,8 @@ following errno:
 @code{EINVAL}: Invalid value for backlog.
 @item
 @code{EBADFD}: The passed FD is not a socket.
+@item
+@code{ENOTSUPP}: The passed FD is a socket, but it is not a stream socket.
 @end itemize
 
 @node accept
@@ -2409,6 +2159,8 @@ following errno:
 @code{EINVAL}: Invalid value for backlog.
 @item
 @code{EBADFD}: The passed FD is not a socket and listening.
+@item
+@code{ENOTSUPP}: The passed FD is a socket, but it is not a stream socket.
 @end itemize
 
 @node getrlimit/setrlimit
@@ -2742,6 +2494,83 @@ to sudden catharsis.
 
 These syscalls return the same values and errno as the non-p variants.
 @ref{read/write}.
+
+@node getsockname
+@section getsockname
+
+@example
+int getsockname(int sockfd, struct sockaddr *restrict addr, socklen_t *restrict addrlen);
+@end example
+
+This syscall fetches the address of an already bound socket.
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EINVAL
+The passed FD was a non bound socket.
+
+@item EBADF
+The passed file is valid but it was not a physical file in a filesystem.
+@end table
+
+@node getpeername
+@section getpeername
+
+@example
+int getpeername(int sockfd, struct sockaddr *restrict addr, socklen_t *restrict addrlen);
+@end example
+
+This syscall fetches the address of a socket's peer.
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EINVAL
+The passed FD was a non bound socket.
+
+@item EBADF
+The passed file is valid but it was not a physical file in a filesystem.
+@end table
+
+@node shutdown
+@section shutdown
+
+@example
+#define SHUT_RD   0b01
+#define SHUT_RDWR 0b10
+#define SHUT_WR   0b11
+
+int shutdown(int sockfd, int how);
+@end example
+
+This syscall stops transmission or reception for a socket from a peer.
+
+@code{how} signals how to stop communication, it can be the following values:
+
+@table @code
+@item SHUT_RD
+Further receiving will not be allowed.
+
+@item SHUT_WR
+Further transmitting will not be allowed.
+
+@item SHUT_RDWR
+Further receiving and transmitting will not be allowed.
+@end table
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EINVAL
+The passed FD was a non bound socket.
+
+@item EBADF
+The passed file is valid but it was not a physical file in a filesystem.
+@end table
 
 @node Filesystem support and interfaces
 @chapter Filesystem support and interfaces

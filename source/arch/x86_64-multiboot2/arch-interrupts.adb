@@ -262,6 +262,12 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 65 =>
             PWrite (State.RDI, State.RSI, State.RDX, State.R12, Returned,
                     Errno);
+         when 66 =>
+            Get_Sock_Name (State.RDI, State.RSI, State.RDX, Returned, Errno);
+         when 67 =>
+            Get_Peer_Name (State.RDI, State.RSI, State.RDX, Returned, Errno);
+         when 68 =>
+            Shutdown (State.RDI, State.RSI, Returned, Errno);
          when others =>
             Returned := Unsigned_64'Last;
             Errno    := Error_Not_Implemented;

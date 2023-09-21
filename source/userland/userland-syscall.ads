@@ -45,7 +45,9 @@ package Userland.Syscall is
        Error_No_Entity,       --  ENOENT
        Error_No_Memory,       --  ENOMEM
        Error_Not_Implemented, --  ENOSYS
+       Error_Not_Connected,   --  ENOTCONN
        Error_Not_A_TTY,       --  ENOTTY
+       Error_Not_Supported,   --  ENOTSUPP
        Error_Bad_Permissions, --  EPERM
        Error_Read_Only_FS,    --  EROFS
        Error_Invalid_Seek,    --  ESPIPE
@@ -67,7 +69,9 @@ package Userland.Syscall is
        Error_No_Entity       => 1043,
        Error_No_Memory       => 1047,
        Error_Not_Implemented => 1051,
+       Error_Not_Connected   => 1052,
        Error_Not_A_TTY       => 1058,
+       Error_Not_Supported   => 1060,
        Error_Bad_Permissions => 1063,
        Error_Read_Only_FS    => 1068,
        Error_Invalid_Seek    => 1069,
@@ -392,8 +396,9 @@ package Userland.Syscall is
    procedure Get_TID (Returned : out Unsigned_64; Errno : out Errno_Value);
 
    --  Manage an existing thread cluster or create a new one.
-   SCHED_RR   : constant := 2#01#;
-   SCHED_COOP : constant := 2#10#;
+   SCHED_RR   : constant := 2#001#;
+   SCHED_COOP : constant := 2#010#;
+   SCHED_INTR : constant := 2#100#;
    procedure Manage_Thread_Cluster
       (Cluster    : Unsigned_64;
        Flags      : Unsigned_64;
@@ -775,6 +780,29 @@ package Userland.Syscall is
        Buffer   : Unsigned_64;
        Count    : Unsigned_64;
        Offset   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure Get_Sock_Name
+      (Sock_FD   : Unsigned_64;
+       Addr_Addr : Unsigned_64;
+       Addr_Len  : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
+
+   procedure Get_Peer_Name
+      (Sock_FD   : Unsigned_64;
+       Addr_Addr : Unsigned_64;
+       Addr_Len  : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
+
+   SHUT_RD   : constant := 2#01#;
+   SHUT_RDWR : constant := 2#10#;
+   SHUT_WR   : constant := 2#11#;
+   procedure Shutdown
+      (Sock_FD  : Unsigned_64;
+       How      : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 

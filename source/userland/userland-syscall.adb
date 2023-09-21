@@ -823,6 +823,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             if Dont_Hang then
                exit;
             end if;
+            Scheduler.Yield_If_Able;
          end loop;
       else
          Waited := Userland.Process.Convert (Natural (Waited_PID));
@@ -841,6 +842,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                if Dont_Hang then
                   exit;
                end if;
+               Scheduler.Yield_If_Able;
             end loop;
          end if;
       end if;
@@ -878,16 +880,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc      : constant     PID := Arch.Local.Get_Current_Process;
-      Cloexec   : constant Boolean := (DataType and SOCK_CLOEXEC)  /= 0;
-      Block     : constant Boolean := (DataType and SOCK_NONBLOCK) /= 0;
-      Returned2 : Natural;
-      Succ      : Boolean;
-      Desc      : File_Description_Acc;
-      New_Sock  : IPC.Socket.Socket_Acc;
-      Dom       : IPC.Socket.Domain;
-      Data      : IPC.Socket.DataType;
-      Proto     : IPC.Socket.Protocol;
+      Proc       : constant     PID := Arch.Local.Get_Current_Process;
+      Cloexec    : constant Boolean := (DataType and SOCK_CLOEXEC)  /= 0;
+      Dont_Block : constant Boolean := (DataType and SOCK_NONBLOCK) /= 0;
+      Returned2  : Natural;
+      Succ       : Boolean;
+      Desc       : File_Description_Acc;
+      New_Sock   : IPC.Socket.Socket_Acc;
+      Dom        : IPC.Socket.Domain;
+      Data       : IPC.Socket.DataType;
+      Proto      : IPC.Socket.Protocol;
    begin
       case Domain is
          when AF_UNIX => Dom := IPC.Socket.UNIX;
@@ -905,12 +907,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when others => goto Invalid_Value_Return;
       end case;
 
-      New_Sock := IPC.Socket.Create (Dom, Data, Proto);
+      New_Sock := IPC.Socket.Create (Dom, Data, Proto, not Dont_Block);
       if New_Sock = null then
          goto Invalid_Value_Return;
       end if;
 
-      IPC.Socket.Set_Blocking (New_Sock, Block);
       Desc := new File_Description'
          (Children_Count => 0,
           Description    => Description_Socket,
@@ -918,17 +919,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Check_Add_File (Proc, Desc, Succ, Returned2);
       if Succ then
          Set_Close_On_Exec (Proc, Unsigned_64 (Returned2), Cloexec);
-         Errno := Error_No_Error;
+         Errno    := Error_No_Error;
          Returned := Unsigned_64 (Returned2);
       else
          Close (New_Sock);
          Close (Desc);
-         Errno := Error_Too_Many_Files;
+         Errno    := Error_Too_Many_Files;
          Returned := Unsigned_64'Last;
       end if;
 
+      return;
+
    <<Invalid_Value_Return>>
-      Errno := Error_Invalid_Value;
+      Errno    := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
    end Socket;
 
@@ -1628,7 +1631,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
          goto Invalid_Value_Error;
       end if;
 
-      if not Set_Scheduling_Algorithm (Clsr, Algo, Natural (Quantum)) then
+      if not Set_Scheduling_Algorithm
+         (Clsr, Algo, Natural (Quantum), (Flags and SCHED_INTR) /= 0)
+      then
          goto Invalid_Value_Error;
       end if;
       if not Set_Time_Slice (Clsr, Natural (Percentage)) then
@@ -1662,6 +1667,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Returned := Unsigned_64'Last;
          return;
       end if;
+
       Returned := 0;
 
       case Command is
@@ -1682,6 +1688,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
             if Get_Close_On_Exec (Proc, FD) then
                Returned := FD_CLOEXEC;
             end if;
+         when F_SETFD =>
+            Process.Set_Close_On_Exec (Proc, FD,
+               (Argument and FD_CLOEXEC) /= 0);
          when F_GETFL =>
             case File.Description is
                when Description_Reader_FIFO =>
@@ -1692,12 +1701,29 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   if Is_Write_Blocking (File.Inner_Writer_FIFO) then
                      Returned := O_NONBLOCK;
                   end if;
-               when others =>
+               when Description_Socket =>
+                  if Is_Blocking (File.Inner_Socket) then
+                     Returned := O_NONBLOCK;
+                  end if;
+               when Description_Primary_PTY | Description_Secondary_PTY |
+                    Description_Device      | Description_Inode =>
                   null;
             end case;
-         when F_SETFD =>
-            Process.Set_Close_On_Exec (Proc, FD,
-               (Argument and FD_CLOEXEC) /= 0);
+         when F_SETFL =>
+            case File.Description is
+               when Description_Reader_FIFO =>
+                  Set_Read_Blocking
+                     (File.Inner_Reader_FIFO, (Argument and O_NONBLOCK) /= 0);
+               when Description_Writer_FIFO =>
+                  Set_Write_Blocking
+                     (File.Inner_Reader_FIFO, (Argument and O_NONBLOCK) /= 0);
+               when Description_Socket =>
+                  Set_Blocking
+                     (File.Inner_Socket, (Argument and O_NONBLOCK) /= 0);
+               when Description_Primary_PTY | Description_Secondary_PTY |
+                    Description_Device      | Description_Inode =>
+                  null;
+            end case;
          when F_GETPIPE_SZ =>
             case File.Description is
                when Description_Reader_FIFO =>
@@ -2240,7 +2266,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       CWD_FS     : VFS.FS_Handle;
       CWD_Ino    : VFS.File_Inode_Number;
       Node_Type  : File_Type;
-      Tmp_Mode   : constant File_Mode := File_Mode (Mode and 8#7777#);
+      Tmp_Mode   : constant File_Mode := File_Mode (Mode and 8#777#);
       Status     : VFS.FS_Status;
       Umask      : VFS.File_Mode;
       User       : Unsigned_32;
@@ -2692,7 +2718,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc : constant                  PID := Arch.Local.Get_Current_Process;
       File : constant File_Description_Acc := Get_File (Proc, Sock_FD);
    begin
-      if File /= null and then File.Description = Description_Socket then
+      if File = null or else File.Description /= Description_Socket then
+         Errno    := Error_Bad_File;
+         Returned := Unsigned_64'Last;
+      elsif Get_Type (File.Inner_Socket) /= IPC.Socket.Stream then
+         Errno    := Error_Not_Supported;
+         Returned := Unsigned_64'Last;
+      else
          if IPC.Socket.Listen (File.Inner_Socket, Natural (Backlog)) then
             Errno := Error_No_Error;
             Returned := 0;
@@ -2700,9 +2732,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Errno := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
          end if;
-      else
-         Errno := Error_Bad_File;
-         Returned := Unsigned_64'Last;
       end if;
    end Listen;
 
@@ -2714,42 +2743,72 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Addr_Addr);
-      pragma Unreferenced (Addr_Len);
-
-      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
+      Proc  : constant                PID := Arch.Local.Get_Current_Process;
+      Map   : constant     Page_Table_Acc := Get_Common_Map (Proc);
       File  : constant File_Description_Acc := Get_File (Proc, Sock_FD);
       CExec : constant              Boolean := (Flags and SOCK_CLOEXEC)  /= 0;
       Block : constant              Boolean := (Flags and SOCK_NONBLOCK) /= 0;
+      A_IAddr  : constant  Integer_Address := Integer_Address (Addr_Addr);
+      A_SAddr  : constant   System.Address := To_Address (A_IAddr);
+      AL_IAddr : constant  Integer_Address := Integer_Address (Addr_Len);
+      AL_SAddr : constant   System.Address := To_Address (AL_IAddr);
       Desc  : File_Description_Acc;
       Sock  : Socket_Acc;
       Ret   : Natural;
       Succ  : Boolean;
    begin
-      if File /= null and then File.Description = Description_Socket then
-         Sock := IPC.Socket.Accept_Connection (File.Inner_Socket);
-         if Sock /= null then
-            IPC.Socket.Set_Blocking (Sock, Block);
-            Desc := new File_Description'(Description_Socket, 0, Sock);
-            Check_Add_File (Proc, Desc, Succ, Ret);
-            if Succ then
-               Set_Close_On_Exec (Proc, Unsigned_64 (Ret), CExec);
-               Errno := Error_No_Error;
-               Returned := Unsigned_64 (Ret);
-            else
-               Close (Sock);
-               Close (Desc);
-               Errno := Error_Too_Many_Files;
-               Returned := Unsigned_64'Last;
-            end if;
+      if File = null or else File.Description /= Description_Socket then
+         Errno    := Error_Bad_File;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif not Check_Userland_Access (Map, AL_IAddr, Natural'Size / 8) then
+         goto Would_Fault_Error;
+      elsif Get_Type (File.Inner_Socket) /= IPC.Socket.Stream then
+         Errno    := Error_Not_Supported;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      declare
+         Address_Len : Natural with Import, Address => AL_SAddr;
+         Address : String (1 .. Address_Len) with Import, Address => A_SAddr;
+      begin
+         if not Check_Userland_Access (Map, A_IAddr, Unsigned_64 (Address_Len))
+         then
+            goto Would_Fault_Error;
+         end if;
+
+         Accept_Connection
+            (Sock                => File.Inner_Socket,
+             Is_Blocking         => not Block,
+             Peer_Address        => Address,
+             Peer_Address_Length => Address_Len,
+             Result              => Sock);
+      end;
+
+      if Sock /= null then
+         Desc := new File_Description'(Description_Socket, 0, Sock);
+         Check_Add_File (Proc, Desc, Succ, Ret);
+         if Succ then
+            Set_Close_On_Exec (Proc, Unsigned_64 (Ret), CExec);
+            Errno    := Error_No_Error;
+            Returned := Unsigned_64 (Ret);
          else
-            Errno := Error_Would_Block;
+            Close (Sock);
+            Close (Desc);
+            Errno    := Error_Too_Many_Files;
             Returned := Unsigned_64'Last;
          end if;
       else
-         Errno := Error_Bad_File;
+         Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
       end if;
+
+      return;
+
+   <<Would_Fault_Error>>
+      Errno    := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
    end Sys_Accept;
 
    procedure Get_RLimit
@@ -2886,13 +2945,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Timeout);
-
       Proc  : constant PID := Arch.Local.Get_Current_Process;
       Map   : constant     Page_Table_Acc := Get_Common_Map (Proc);
       IAddr : constant  Integer_Address := Integer_Address (FDs_Addr);
       SAddr : constant   System.Address := To_Address (IAddr);
       Count :                   Natural := 0;
+      Idx   :               Unsigned_64 := 0;
       File  : File_Description_Acc;
       FDs   : Poll_FDs (1 .. FDs_Count) with Import, Address => SAddr;
       Can_Read, Can_Write, Is_Error, Is_Broken : Boolean;
@@ -2902,12 +2960,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Returned := Unsigned_64'Last;
          return;
       elsif FDs'Length = 0 then
-         Errno := Error_No_Error;
-         Returned := 0;
-         return;
+         goto Normal_Empty_Exit;
       end if;
 
-      loop
+      while Idx <= Timeout loop
          for Polled of FDs loop
             Polled.Out_Events := 0;
 
@@ -2946,10 +3002,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
                      (File.Inner_Secondary_PTY, Can_Read, Can_Write);
                   Is_Error  := False;
                   Is_Broken := False;
-               when others =>
-                  Can_Read  := False;
-                  Can_Write := False;
-                  Is_Error  := True;
+               when Description_Socket =>
+                  IPC.Socket.Poll
+                     (File.Inner_Socket, Can_Read, Can_Write, Is_Broken,
+                      Is_Error);
+               when Description_Inode =>
+                  Can_Read  := True;
+                  Can_Write := True;
+                  Is_Error  := False;
                   Is_Broken := False;
             end case;
 
@@ -2977,7 +3037,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Returned := Unsigned_64 (Count);
             return;
          end if;
+
+         Idx := Idx + 1;
+         Scheduler.Yield_If_Able;
       end loop;
+
+   <<Normal_Empty_Exit>>
+      Errno := Error_No_Error;
+      Returned := 0;
    end Poll;
 
    procedure Get_EUID (Returned : out Unsigned_64; Errno : out Errno_Value) is
@@ -3092,7 +3159,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end;
       end if;
 
-      VFS.Change_Mode (FS, Ino, File_Mode (Mode), User, Succ);
+
+      VFS.Change_Mode
+         (Key    => FS,
+          Ino    => Ino,
+          Mode   => File_Mode (Mode and Unsigned_64 (File_Mode'Last)),
+          User   => User,
+          Status => Succ);
       Translate_Status (Succ, 0, Returned, Errno);
    end Fchmod;
 
@@ -3396,6 +3469,146 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end;
    end PWrite;
 
+   procedure Get_Sock_Name
+      (Sock_FD   : Unsigned_64;
+       Addr_Addr : Unsigned_64;
+       Addr_Len  : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
+   is
+      Proc   : constant                  PID := Arch.Local.Get_Current_Process;
+      Map    : constant       Page_Table_Acc := Get_Common_Map (Proc);
+      File   : constant File_Description_Acc := Get_File (Proc, Sock_FD);
+      AIAddr : constant      Integer_Address := Integer_Address (Addr_Addr);
+      ASAddr : constant       System.Address := To_Address (AIAddr);
+      LIAddr : constant      Integer_Address := Integer_Address (Addr_Len);
+      LSAddr : constant       System.Address := To_Address (LIAddr);
+      Succ   : Boolean;
+   begin
+      if File = null or else File.Description /= Description_Socket then
+         Errno    := Error_Bad_File;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif not Check_Userland_Access (Map, LIAddr, Natural'Size / 8) then
+         goto Would_Fault_Error;
+      end if;
+
+      declare
+         Length : Natural with Import, Address => LSAddr;
+      begin
+         if not Check_Userland_Access (Map, AIAddr, Unsigned_64 (Length)) then
+            goto Would_Fault_Error;
+         end if;
+
+         declare
+            Path : String (1 .. Length) with Import, Address => ASAddr;
+         begin
+            IPC.Socket.Get_Bound (File.Inner_Socket, Path, Length, Succ);
+            if Succ then
+               Errno    := Error_No_Error;
+               Returned := 0;
+            else
+               Errno    := Error_Invalid_Value;
+               Returned := Unsigned_64'Last;
+            end if;
+            return;
+         end;
+      end;
+
+   <<Would_Fault_Error>>
+      Errno    := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
+   end Get_Sock_Name;
+
+   procedure Get_Peer_Name
+      (Sock_FD   : Unsigned_64;
+       Addr_Addr : Unsigned_64;
+       Addr_Len  : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
+   is
+      Proc   : constant                  PID := Arch.Local.Get_Current_Process;
+      Map    : constant       Page_Table_Acc := Get_Common_Map (Proc);
+      File   : constant File_Description_Acc := Get_File (Proc, Sock_FD);
+      AIAddr : constant      Integer_Address := Integer_Address (Addr_Addr);
+      ASAddr : constant       System.Address := To_Address (AIAddr);
+      LIAddr : constant      Integer_Address := Integer_Address (Addr_Len);
+      LSAddr : constant       System.Address := To_Address (LIAddr);
+      Succ   : Boolean;
+   begin
+      if File = null or else File.Description /= Description_Socket then
+         Errno    := Error_Bad_File;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif not Check_Userland_Access (Map, LIAddr, Natural'Size / 8) then
+         goto Would_Fault_Error;
+      end if;
+
+      declare
+         Length : Natural with Import, Address => LSAddr;
+      begin
+         if not Check_Userland_Access (Map, AIAddr, Unsigned_64 (Length)) then
+            goto Would_Fault_Error;
+         end if;
+
+         declare
+            Path : String (1 .. Length) with Import, Address => ASAddr;
+         begin
+            IPC.Socket.Get_Peer (File.Inner_Socket, Path, Length, Succ);
+            if Succ then
+               Errno    := Error_No_Error;
+               Returned := 0;
+            else
+               Errno    := Error_Not_Connected;
+               Returned := Unsigned_64'Last;
+            end if;
+            return;
+         end;
+      end;
+
+   <<Would_Fault_Error>>
+      Errno    := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
+   end Get_Peer_Name;
+
+   procedure Shutdown
+      (Sock_FD  : Unsigned_64;
+       How      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc : constant                  PID := Arch.Local.Get_Current_Process;
+      File : constant File_Description_Acc := Get_File (Proc, Sock_FD);
+      Succ : Boolean;
+   begin
+      if File = null or else File.Description /= Description_Socket then
+         Errno    := Error_Bad_File;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      case How is
+         when SHUT_RD =>
+            Succ := IPC.Socket.Shutdown (File.Inner_Socket, True, False);
+         when SHUT_WR =>
+            Succ := IPC.Socket.Shutdown (File.Inner_Socket, False, True);
+         when SHUT_RDWR =>
+            Succ := IPC.Socket.Shutdown (File.Inner_Socket, True, True);
+         when others =>
+            Errno    := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
+            return;
+      end case;
+
+      if Succ then
+         Errno    := Error_No_Error;
+         Returned := 0;
+      else
+         Errno    := Error_Not_Connected;
+         Returned := Unsigned_64'Last;
+      end if;
+   end Shutdown;
+
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
       --  Remove all state but the return value and keep the zombie around
@@ -3423,7 +3636,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          then
             Write (File.Inner_Writer_FIFO, State_Data, Ret_Count, Success);
             while not Is_Empty (File.Inner_Writer_FIFO) loop
-               Scheduler.Yield;
+               Scheduler.Yield_If_Able;
             end loop;
          end if;
       end if;
