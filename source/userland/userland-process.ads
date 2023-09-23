@@ -189,6 +189,12 @@ package Userland.Process is
    procedure Duplicate_FD_Table (Process, Target : PID)
       with Pre => (Process /= Error_PID) and (Target /= Error_PID);
 
+   --  Duplicate the standard 0, 1, and 2 file descriptors.
+   --  @param Process Process to use.
+   --  @param Target  Target process.
+   procedure Duplicate_Standard_FDs (Process, Target : PID)
+      with Pre => (Process /= Error_PID) and (Target /= Error_PID);
+
    --  Close and free an individual file.
    --  @param F File to operate on.
    procedure Close (F : in out File_Description_Acc);

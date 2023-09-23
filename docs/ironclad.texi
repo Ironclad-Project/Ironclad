@@ -119,7 +119,7 @@ Syscalls
 * pipe::                    Create pipes.
 * rename::                  Rename a file.
 * sysconf::                 Fetch general system parameters and information.
-* spawn::                   Fork+exec power incarnate.
+* spawn::                   clone+exec power incarnate.
 * gettid::                  Get the current thread id.
 * manage_tcluster::         Manage and create thread clusters.
 * fcntl::                   Multiplexed operations for files.
@@ -1476,15 +1476,29 @@ pid_t spawn(const char *path, int path_len, char *const argv[],
    int argv_len, char *const envp[], int envp_len, uint64_t *caps);
 @end example
 
-This syscalls does exactly the same as a @code{fork}+@code{exec}, but faster
-and more efficiently, given it doesnt need to copy the address space just
-to overwrite it. Semantics on whats shared and whats not shared from
-parent to child are the same as if a @code{fork} was used.
+This syscall spawns a child process in a way similar to what a
+@code{clone}+@code{exec} could be used for, but more efficiently, given it
+doesn't need to copy the address space just to overwrite it, and only forking
+the first 3 standard file descriptors instead all of them.
 
 The argument @code{caps}, if not @code{NULL}, points to a capability set in
 the same format as @ref{mac_capabilities}. This can be useful for deescalating
 capabilities in the same convenient way as a call to @code{mac_capabilities} in
-between @code{fork} and @code{exec} could.
+between @code{clone} and @code{exec} could.
+
+The syscall returns the created PID on success and @code{0} on failure, with
+the errno codes being:
+
+@itemize @bullet
+@item
+@code{EAGAIN}: The system could not create the process right now.
+
+@item
+@code{EFAULT}: One or more of the passed arguments point to invalid memory.
+
+@item
+@code{EACCES}: MAC disallowed this.
+@end itemize
 
 @node gettid
 @section gettid
@@ -2042,8 +2056,9 @@ The syscall returns @code{0} or @code{-1} on failure, with the errno:
 
 @itemize @bullet
 @item
-@code{EINVAL}: The passed file does not exist or points to a non-flushable
-entity, like a pipe or pseudoterminal.
+@code{EBADF}: The passed file is not open.
+@item
+@code{EINVAL}: The passed points to a non-synchronizable entity.
 @item
 @code{EIO}: FS or device error while flushing.
 @end itemize

@@ -380,7 +380,7 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
-   --  Spawn a process just like fork+exec would.
+   --  Spawn a process just like clone+exec would.
    procedure Spawn
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;

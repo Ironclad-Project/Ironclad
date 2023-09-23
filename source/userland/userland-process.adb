@@ -280,6 +280,21 @@ package body Userland.Process with SPARK_Mode => Off is
       end loop;
    end Duplicate_FD_Table;
 
+   procedure Duplicate_Standard_FDs (Process, Target : PID) is
+   begin
+      for I in 0 .. 2 loop
+         Registry (Target).File_Table (I).Close_On_Exec :=
+            Registry (Process).File_Table (I).Close_On_Exec;
+         if Registry (Process).File_Table (I).Description /= null then
+            Duplicate
+               (Registry (Process).File_Table (I).Description,
+                Registry (Target).File_Table (I).Description);
+         else
+            Registry (Target).File_Table (I).Description := null;
+         end if;
+      end loop;
+   end Duplicate_Standard_FDs;
+
    procedure Close (F : in out File_Description_Acc) is
       procedure Free is new Ada.Unchecked_Deallocation
          (File_Description, File_Description_Acc);

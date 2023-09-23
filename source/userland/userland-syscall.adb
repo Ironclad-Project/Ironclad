@@ -1537,30 +1537,18 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      Proc       : constant             PID := Arch.Local.Get_Current_Process;
-      Map        : constant    Page_Table_Acc := Get_Common_Map (Proc);
-      Caps_IAddr : constant Integer_Address := Integer_Address (Caps_Addr);
-      Set_Caps   : constant         Boolean := Caps_IAddr /= 0;
-      Caps       : Unsigned_64 with Import, Address => To_Address (Caps_IAddr);
-      Success    : Boolean;
-      Child      : PID;
+      Proc    : constant PID := Arch.Local.Get_Current_Process;
+      Success : Boolean;
+      Child   : PID;
    begin
-      if Set_Caps and then
-         not Check_Userland_Access (Map, Caps_IAddr, Unsigned_64'Size / 8)
-      then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
       Create_Process (Proc, Child);
       if Child = Error_PID then
-         Errno := Error_Would_Block;
+         Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
          return;
       end if;
 
-      Duplicate_FD_Table (Proc, Child);
+      Duplicate_Standard_FDs (Proc, Child);
 
       Exec_Into_Process
          (Path_Addr => Path_Addr,
@@ -1573,16 +1561,28 @@ package body Userland.Syscall with SPARK_Mode => Off is
           Success   => Success,
           Errno     => Errno);
       if not Success then
-         Errno := Error_Bad_Access;
+         Errno    := Error_Bad_Access;
          Returned := Unsigned_64'Last;
          return;
       end if;
 
-      if Set_Caps then
-         Set_MAC_Capabilities (Child, Caps);
+      if Caps_Addr /= 0 then
+         declare
+            Map    : constant  Page_Table_Acc := Get_Common_Map (Proc);
+            CIAddr : constant Integer_Address := Integer_Address (Caps_Addr);
+            Caps   : Unsigned_64 with Import, Address => To_Address (CIAddr);
+         begin
+            if Check_Userland_Access (Map, CIAddr, Unsigned_64'Size / 8) then
+               Set_MAC_Capabilities (Child, Caps);
+            else
+               Errno    := Error_Would_Fault;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         end;
       end if;
 
-      Errno := Error_No_Error;
+      Errno    := Error_No_Error;
       Returned := Unsigned_64 (Convert (Child));
    end Spawn;
 
@@ -2599,7 +2599,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Succ : VFS.FS_Status;
    begin
       if File = null then
-         Errno := Error_Bad_File;
+         Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
          return;
       end if;
@@ -2608,8 +2608,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when Description_Inode =>
             Succ := VFS.Synchronize (File.Inner_Ino_FS, File.Inner_Ino, Data);
             Translate_Status (Succ, 0, Returned, Errno);
+         when Description_Device =>
+            if Devices.Synchronize (File.Inner_Dev) then
+               Errno    := Error_No_Error;
+               Returned := 0;
+            else
+               Errno    := Error_IO;
+               Returned := Unsigned_64'Last;
+            end if;
          when others =>
-            Errno := Error_Invalid_Value;
+            Errno    := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
       end case;
    end FSync;
