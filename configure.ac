@@ -31,16 +31,10 @@ AC_ARG_ENABLE([werror],
     [AS_HELP_STRING([--enable-werror], [treat warnings as errors])],
     [werror_state="$enableval"])
 
-SCHED_ASC="True"
-AC_ARG_ENABLE([asc],
-    [AS_HELP_STRING([--disable-asc], [Disable anti-starvation corrections (ASC)])],
-    [test "$enableval" = "no" && SCHED_ASC="False"])
-AC_SUBST([SCHED_ASC])
-
-MEMORY_ALLOCONLY="standard"
+MEMORY_ALLOCONLY="False"
 AC_ARG_ENABLE([alloconly],
     [AS_HELP_STRING([--enable-alloconly], [Use the alloconly allocator instead of standard])],
-    [test "$enableval" = "yes" && MEMORY_ALLOCONLY="alloconly"])
+    [test "$enableval" = "yes" && MEMORY_ALLOCONLY="True"])
 AC_SUBST([MEMORY_ALLOCONLY])
 
 m4_define([DEFAULT_ADAFLAGS], [-g -O2 -pipe -gnaty -Wall -Wextra])
@@ -77,6 +71,10 @@ m4_define([GET_PROG], [
 AC_PROG_MKDIR_P
 AC_PROG_INSTALL
 
+GET_PROG([PERL], [perl], [perl])
+GET_PROG([OBJDUMP], [objdump], [objdump])
+GET_PROG([GZIP], [gzip], [gzip])
+GET_PROG([STRIP], [strip], [strip])
 GET_PROG([MAKEINFO], [makeinfo], [makeinfo])
 GET_PROG([TEXI2DVI], [texi2dvi], [texi2dvi])
 GET_PROG([TEXI2HTML], [makeinfo --no-split --html], [texi2html])

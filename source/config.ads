@@ -25,5 +25,5 @@ package Config is
    Bug_Site  : constant String := $BugSite;
 
    --  Configuration for system internals.
-   Support_Scheduler_ASC : constant Boolean := $SCHED_ASC;
+   Support_Alloc_Only : constant Boolean := $ALLOCONLY;
 end Config;

@@ -40,6 +40,10 @@ override TEXI2HTML    := @TEXI2HTML@
 override TEXI2DVI     := @TEXI2DVI@
 override GPRBUILD     := @GPRBUILD@
 override GNATPROVE    := @GNATPROVE@
+override PERL         := @PERL@
+override OBJDUMP      := @OBJDUMP@
+override GZIP         := @GZIP@
+override STRIP        := @STRIP@
 
 # Target information.
 override target_cpu    := @target_cpu@
@@ -68,7 +72,7 @@ $(OUTPUT):
 info: ironclad.info.gz
 
 ironclad.info.gz: ironclad.info
-	gzip -c $< > $@
+	$(GZIP) -c $< > $@
 
 ironclad.info: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi
 	$(MAKEINFO) $< -o $@
@@ -91,7 +95,7 @@ check: checkstack prove
 
 .PHONY: checkstack
 checkstack: $(OUTPUT)
-	objdump -d $(OUTPUT) | perl '$(call SHESCAPE,$(SRCDIR))'/scripts/checkstack.pl ${target_full}
+	$(OBJDUMP) -d $(OUTPUT) | $(PERL) '$(call SHESCAPE,$(SRCDIR))'/scripts/checkstack.pl ${target_full}
 
 .PHONY: prove
 prove:
@@ -143,7 +147,7 @@ install: all
 # Install and strip executables.
 .PHONY: install-strip
 install-strip: install
-	strip '$(call SHESCAPE,$(DESTDIR)$(datarootdir))/$(PACKAGE_TARNAME)'/"$$(basename '$(OUTPUT)')"
+	$(STRIP) '$(call SHESCAPE,$(DESTDIR)$(datarootdir))/$(PACKAGE_TARNAME)'/"$$(basename '$(OUTPUT)')"
 ###############################################################################
 # Uninstall previously installed files and executables.
 .PHONY: uninstall

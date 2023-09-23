@@ -21,6 +21,7 @@ with Lib.Alignment;
 with Arch.MMU;
 with System; use System;
 with Lib.Messages;
+with Config;
 
 package body Memory.Physical with SPARK_Mode => Off is
    Block_Size :         constant := Arch.MMU.Page_Size;
@@ -136,8 +137,13 @@ package body Memory.Physical with SPARK_Mode => Off is
          Size := 1;
       end if;
 
+      --  Calculate how many blocks to allocate, if we are doing alloconly, we
+      --  do not need to use blocks for headers and checksums.
       Size               := Align.Align_Up (Size, Block_Size);
-      Blocks_To_Allocate := (Size / Block_Size) + 1;
+      Blocks_To_Allocate := Size / Block_Size;
+      if not Config.Support_Alloc_Only then
+         Blocks_To_Allocate := Blocks_To_Allocate + 1;
+      end if;
 
       --  Search for contiguous blocks, as many as needed.
       Lib.Synchronization.Seize (Alloc_Mutex);
@@ -177,15 +183,21 @@ package body Memory.Physical with SPARK_Mode => Off is
       Free_Memory      := Free_Memory - (Blocks_To_Allocate * Block_Size);
       Lib.Synchronization.Release (Alloc_Mutex);
 
+      --  If we are doing alloc only, we only have to return the allocated
+      --  address, else, we have to actually fill the header and checksums.
       declare
          Ret : constant Virtual_Address :=
             Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
          Header : Allocation_Header with Import, Address => To_Address (Ret);
       begin
-         Header :=
-            (Block_Count => Blocks_To_Allocate,
-             Signature   => Calculate_Signature (Blocks_To_Allocate));
-         return Ret + Block_Size;
+         if Config.Support_Alloc_Only then
+            return Ret;
+         else
+            Header :=
+               (Block_Count => Blocks_To_Allocate,
+                Signature   => Calculate_Signature (Blocks_To_Allocate));
+            return Ret + Block_Size;
+         end if;
       end;
    end Alloc;
 
@@ -196,7 +208,7 @@ package body Memory.Physical with SPARK_Mode => Off is
          with Address => To_Address (Bitmap_Address), Import;
    begin
       --  Ensure the address is in the higher half and not null.
-      if Real_Address = 0 then
+      if Real_Address = 0 or Config.Support_Alloc_Only then
          return;
       elsif Real_Address < Memory_Offset then
          Real_Address := Real_Address + Memory_Offset;

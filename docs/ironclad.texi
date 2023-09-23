@@ -41,7 +41,7 @@ cryptic and scary Ada code.
 * Installation and target support::    Installation and hardware support.
 * Boot-time command-line options::     Command-line options.
 * Scheduling and RTC::                 Scheduling methodology and features.
-* Memory allocation algorithms::       The available allocation algorithms.
+* Memory architecture::                Memory architecture of the kernel.
 * Userland state and conditions::      Userland state and conditions.
 * Security and integrity facilities::  Ironclad-specific security facilities.
 * Debugging facilities::               Ironclad-specific debugging facilities.
@@ -71,10 +71,10 @@ Scheduling and RTC
 * Scheduling basics::                 Algorithms used in Ironclad.
 * Thread clustering and management::  Thread clusters in Ironclad.
 
-Memory allocation algorithms
+Memory architecture
 
-* standard::   The standard allocator.
-* alloconly::  The low profile allocator that does not free.
+* Physical memory allocation::  How the kernel goes about allocating memory.
+* Virtual memory::              Virtual memory architecture.
 
 Userland state and conditions
 
@@ -321,33 +321,31 @@ cluster number @code{1}. Software is free to modify it however it sees fit, it
 is just provided in order to have some natural-ish behaviour for running
 software.
 
-@node Memory allocation algorithms
-@chapter Memory allocation algorithms
+@node Memory architecture
+@chapter Memory architecture
 
 Ironclad features several memory allocator choices for use, the chosen
 allocator will be used both for kernel and userland allocations.
 
-@node standard
-@section standard
+@node Physical memory allocation
+@section Physical memory allocation
 
 The standard allocator is a general purpose allocator for your average
 everyday allocator needs. Its internally implemented as a bitmap allocator with
-page-sized blocks and a quick cache for small objects.
+page-sized blocks and a quick cache for small objects, along with some quick
+hardening features, like checksums.
 
-For more specialized uses, other allocators are bound to do better, but this
-one is a safe bet.
+An alloconly option is provided, which features several optimizations on top
+of the usual allocator in order to save memory and tune operation, for usecases
+where nor userland nor the kernel are wanted to dealocate memory at all.
 
-@node alloconly
-@section alloconly
+@node Virtual memory
+@section Virtual memory
 
-The 'alloconly' allocator is faster and uses way less memory than the standard
-allocator, while not being able to free as its biggest trade-off. It is
-internally implemented as a singly linked list of bump allocators.
-
-This allocator is appropiate for embedded applications that are recommended
-to allocate all the program will ever need at the beggining of its execution,
-or for debugging memory management, as its a much simpler allocator than the
-standard option.
+The virtual memory architecture of Ironclad is quite simple, given the need
+to avoid things like complex virtual memory management which could influence
+predictability with page-related interrupts, and similar features. For the same
+reason, memory overcommiting is not allowed.
 
 @node Userland state and conditions
 @chapter Userland state and conditions
