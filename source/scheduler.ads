@@ -84,6 +84,8 @@ package Scheduler is
       (Cluster_RR,           --  Cluster will do a non-priority round robin.
        Cluster_Cooperative); --  Cluster will do cooperative scheduling.
 
+   function Get_Cluster (Thread : TID) return TCID;
+
    function Set_Scheduling_Algorithm
       (Cluster          : TCID;
        Algo             : Cluster_Algorithm;
@@ -104,6 +106,27 @@ package Scheduler is
    function Convert (Group : TCID) return Natural;
    function Convert (Value : Natural) return TID;
    function Convert (Value : Natural) return TCID;
+
+   type Thread_Listing is record
+      Thread  : TID;
+      Cluster : TCID;
+      Proc    : Natural;
+   end record;
+   type Thread_Listing_Arr is array (Natural range <>) of Thread_Listing;
+
+   type Cluster_Listing is record
+      Cluster      : TCID;
+      Cluster_Algo : Cluster_Algorithm;
+      Cluster_Int  : Boolean;
+      Cluster_Quan : Natural;
+   end record;
+   type Cluster_Listing_Arr is array (Natural range <>) of Cluster_Listing;
+
+   --  List all threads on the system.
+   --  @param List  Where to write all the thread information.
+   --  @param Total Total count of processes, even if it is > List'Length.
+   procedure List_All (List : out Thread_Listing_Arr; Total : out Natural);
+   procedure List_All (List : out Cluster_Listing_Arr; Total : out Natural);
 
 private
 

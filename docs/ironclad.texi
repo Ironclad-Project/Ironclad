@@ -1381,17 +1381,19 @@ codes set on failure are:
 @section sysconf
 
 @example
-#define SC_PAGESIZE      1 // Page size of the system.
-#define SC_OPEN_MAX      2 // Maximum amount of files per process.
-#define SC_HOST_NAME_MAX 3 // Maximum length of hostnames.
-#define SC_AVPHYS_PAGES  4 // Number of free physical pages.
-#define SC_PHYS_PAGES    5 // Number of total available pages.
-#define SC_NPROC_ONLN    6 // Number of processors active and used.
-#define SC_TOTAL_PAGES   7 // Total amount of installed memory pages.
-#define SC_LIST_PROCS    8 // List all processes of the system.
-#define SC_LIST_MOUNTS   9 // List all mountpoints of the system.
-#define SC_UNAME        10 // Fetch basic system information.
-#define SC_CHILD_MAX    11 // Maximum number of children for a given user.
+#define SC_PAGESIZE       1 // Page size of the system.
+#define SC_OPEN_MAX       2 // Maximum amount of files per process.
+#define SC_HOST_NAME_MAX  3 // Maximum length of hostnames.
+#define SC_AVPHYS_PAGES   4 // Number of free physical pages.
+#define SC_PHYS_PAGES     5 // Number of total available pages.
+#define SC_NPROC_ONLN     6 // Number of processors active and used.
+#define SC_TOTAL_PAGES    7 // Total amount of installed memory pages.
+#define SC_LIST_PROCS     8 // List all processes of the system.
+#define SC_LIST_MOUNTS    9 // List all mountpoints of the system.
+#define SC_UNAME         10 // Fetch basic system information.
+#define SC_CHILD_MAX     11 // Maximum number of children for the user.
+#define SC_LIST_THREADS  12 // List all threads of the system.
+#define SC_LIST_CLUSTERS 13 // List all thread clusters of the system.
 
 long int sysconf(int request, uintptr_t addr, uintptr_t len);
 @end example
@@ -1450,12 +1452,43 @@ struct utsname @{
     char sysname[65];  // Kernel name (e.g., "Ironclad")
     char nodename[65]; // Hostname of the machine.
     char release[65];  // Kernel release (e.g., "2.6.28")
-    char version[65];  // Kernel configuration date for debug purposes.
+    char version[65];  // Kernel release, again.
     char machine[65];  // Hardware identifier (e.g., "x86")
 @};
 @end example
 
 In success, the returned value will be @code{0}.
+
+@item
+@code{SC_LIST_THREADS}: @code{addr} points to an array of items, and @code{len}
+is the count of bytes reserved in the array. The items have the structure:
+
+@example
+struct threadinfo @{
+    uint16_t tid;
+    uint16_t tcid;
+    uint16_t pid;
+@};
+@end example
+
+The total number of threads is returned, even if it doesnt fit in the passed
+array.
+
+@item
+@code{SC_LIST_CLUSTERS}: @code{addr} points to an array of items, and
+@code{len} is the count of bytes reserved in the array. The items have the
+structure:
+
+@example
+struct tclusterinfo @{
+    uint16_t tcid;
+    uint16_t tflags;
+    uint16_t tquantum;
+@};
+@end example
+
+The total number of thread clusters is returned, even if it doesnt fit in the
+passed array.
 @end itemize
 
 The syscall return the requested information on success and @code{-1} on

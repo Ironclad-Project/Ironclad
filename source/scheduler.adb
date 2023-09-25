@@ -335,6 +335,11 @@ package body Scheduler with SPARK_Mode => Off is
       Idle_Core;
    end Bail;
    ----------------------------------------------------------------------------
+   function Get_Cluster (Thread : TID) return TCID is
+   begin
+      return Thread_Pool (Thread).Cluster;
+   end Get_Cluster;
+
    function Set_Scheduling_Algorithm
       (Cluster          : TCID;
        Algo             : Cluster_Algorithm;
@@ -392,6 +397,50 @@ package body Scheduler with SPARK_Mode => Off is
          return False;
       end if;
    end Delete_Cluster;
+   ----------------------------------------------------------------------------
+   procedure List_All (List : out Thread_Listing_Arr; Total : out Natural) is
+      Curr_Index : Natural := 0;
+   begin
+      List  := (others => (Error_TID, Error_TCID, 0));
+      Total := 0;
+
+      Lib.Synchronization.Seize (Scheduler_Mutex);
+      for I in Thread_Pool.all'Range loop
+         if Thread_Pool (I).Is_Present then
+            Total := Total + 1;
+            if Curr_Index < Thread_Pool'Length then
+               List (List'First + Curr_Index) :=
+                  (I, Thread_Pool (I).Cluster,
+                   Userland.Process.Convert (Thread_Pool (I).Process));
+               Curr_Index := Curr_Index + 1;
+            end if;
+         end if;
+      end loop;
+      Lib.Synchronization.Release (Scheduler_Mutex);
+   end List_All;
+
+   procedure List_All (List : out Cluster_Listing_Arr; Total : out Natural) is
+      Curr_Index : Natural := 0;
+   begin
+      List  := (others => (Error_TCID, Cluster_RR, False, 0));
+      Total := 0;
+
+      Lib.Synchronization.Seize (Scheduler_Mutex);
+      for I in Cluster_Pool.all'Range loop
+         if Cluster_Pool (I).Is_Present then
+            Total := Total + 1;
+            if Curr_Index < Thread_Pool'Length then
+               List (List'First + Curr_Index) :=
+                  (I,
+                   Cluster_Pool (I).Algorithm,
+                   Cluster_Pool (I).Is_Interruptible,
+                   Cluster_Pool (I).RR_Quantum);
+               Curr_Index := Curr_Index + 1;
+            end if;
+         end if;
+      end loop;
+      Lib.Synchronization.Release (Scheduler_Mutex);
+   end List_All;
    ----------------------------------------------------------------------------
    procedure Scheduler_ISR (State : Arch.Context.GP_Context) is
       Current_TID  : constant TID := Arch.Local.Get_Current_Thread;

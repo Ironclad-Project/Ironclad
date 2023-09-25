@@ -1395,11 +1395,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc   : constant PID := Arch.Local.Get_Current_Process;
-      Map    : constant     Page_Table_Acc := Get_Common_Map (Proc);
+      Proc   : constant             PID := Arch.Local.Get_Current_Process;
+      Map    : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      IAddr  : constant Integer_Address := Integer_Address (Addr);
+      SAddr  : constant  System.Address := To_Address (IAddr);
       Stats  : Memory.Physical.Statistics;
       Result : Unsigned_64;
    begin
+      --  Simple request that do not use the memory argument.
       case Request is
          when SC_PAGESIZE =>
             Result := Page_Size;
@@ -1420,22 +1423,29 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Result := Unsigned_64 (Stats.Total) / Page_Size;
          when SC_CHILD_MAX =>
             Result := Unsigned_64 (Process.Max_Process_Count);
+         when others =>
+            goto Not_Matched;
+      end case;
+
+      goto Success_Return;
+
+   <<Not_Matched>>
+      --  Requests that use the memory argument, for common checking.
+      if not Check_Userland_Access (Map, IAddr, Length) then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      case Request is
          when SC_LIST_PROCS =>
             declare
-               IAddr : constant Integer_Address := Integer_Address (Addr);
-               SAddr : constant  System.Address := To_Address (IAddr);
                Len   : constant Natural :=
                   Natural (Length / (Process_Info'Size / 8));
                Procs : Proc_Info_Arr (1 .. Len) with Import, Address => SAddr;
                KProc : Process_Info_Arr (1 .. Len);
                Ret   : Natural;
             begin
-               if not Check_Userland_Access (Map, IAddr, Length) then
-                  Errno := Error_Would_Fault;
-                  Returned := Unsigned_64'Last;
-                  return;
-               end if;
-
                List_All (KProc, Ret);
                for I in 1 .. Ret loop
                   Procs (I) :=
@@ -1457,20 +1467,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
             end;
          when SC_LIST_MOUNTS =>
             declare
-               IAddr : constant Integer_Address := Integer_Address (Addr);
-               SAddr : constant  System.Address := To_Address (IAddr);
                Len   : constant Natural :=
                   Natural (Length / (Mount_Info'Size / 8));
                Mnts  : Mount_Info_Arr (1 .. Len) with Import, Address => SAddr;
                KMnts : Mountpoint_Info_Arr (1 .. Len);
                Ret   : Natural;
             begin
-               if not Check_Userland_Access (Map, IAddr, Length) then
-                  Errno := Error_Would_Fault;
-                  Returned := Unsigned_64'Last;
-                  return;
-               end if;
-
                List_All (KMnts, Ret);
                for I in 1 .. Ret loop
                   Mnts (I) :=
@@ -1491,17 +1493,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
             end;
          when SC_UNAME =>
             declare
-               IAddr    : constant Integer_Address := Integer_Address (Addr);
-               SAddr    : constant  System.Address := To_Address (IAddr);
                UTS      : UTS_Name with Import, Address => SAddr;
                Host_Len : Networking.Hostname_Len;
             begin
-               if not Check_Userland_Access (Map, IAddr, UTS'Size / 8) then
-                  Errno := Error_Would_Fault;
-                  Returned := Unsigned_64'Last;
-                  return;
-               end if;
-
                Networking.Get_Hostname (UTS.Node_Name, Host_Len);
                UTS.Node_Name (Host_Len + 1) := Ada.Characters.Latin_1.NUL;
 
@@ -1516,13 +1510,59 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
                Result := 0;
             end;
+         when SC_LIST_THREADS =>
+            declare
+               Len   : constant Natural :=
+                  Natural (Length / (Thread_Info'Size / 8));
+               Ths  : Thread_Info_Arr (1 .. Len) with Import, Address => SAddr;
+               KThs : Scheduler.Thread_Listing_Arr (1 .. Len);
+               Ret  : Natural;
+            begin
+               List_All (KThs, Ret);
+               for I in 1 .. Ret loop
+                  Ths (I) :=
+                     (Thread_Id   => Unsigned_16 (Convert (KThs (I).Thread)),
+                      Cluster_Id  => Unsigned_16 (Convert (KThs (I).Cluster)),
+                      Process_PID => Unsigned_16 (KThs (I).Proc));
+               end loop;
+
+               Result := Unsigned_64 (Ret);
+            end;
+         when SC_LIST_CLUSTERS =>
+            declare
+               Len   : constant Natural :=
+                  Natural (Length / (Thread_Info'Size / 8));
+               Ths : Cluster_Info_Arr (1 .. Len) with Import, Address => SAddr;
+               KThs : Scheduler.Cluster_Listing_Arr (1 .. Len);
+               Ret  : Natural;
+            begin
+               List_All (KThs, Ret);
+               for I in 1 .. Ret loop
+                  Ths (I) :=
+                     (Cluster_Id => Unsigned_16 (Convert (KThs (I).Cluster)),
+                      Cluster_Fl => 0,
+                      Cluster_Q  => Unsigned_16 (KThs (I).Cluster_Quan));
+                  case KThs (I).Cluster_Algo is
+                     when Cluster_RR =>
+                        Ths (I).Cluster_Fl := SCHED_RR;
+                     when Cluster_Cooperative =>
+                        Ths (I).Cluster_Fl := SCHED_COOP;
+                  end case;
+                  if KThs (I).Cluster_Int then
+                     Ths (I).Cluster_Fl := Ths (I).Cluster_Fl or SCHED_INTR;
+                  end if;
+               end loop;
+
+               Result := Unsigned_64 (Ret);
+            end;
          when others =>
-            Errno := Error_Invalid_Value;
+            Errno    := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
             return;
       end case;
 
-      Errno := Error_No_Error;
+   <<Success_Return>>
+      Errno    := Error_No_Error;
       Returned := Result;
    end Sysconf;
 
@@ -3629,11 +3669,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context) is
       Proc       : constant PID := Arch.Local.Get_Current_Process;
+      Thread     : constant TID := Arch.Local.Get_Current_Thread;
       File       : File_Description_Acc;
       Success    : IPC.FIFO.Pipe_Status;
       Ret_Count  : Natural;
       Tracer_FD  : Natural;
       Is_Traced  : Boolean;
+      Thread_Id  : constant Unsigned_16 := Unsigned_16 (Convert (Thread));
+      Threa_Data : Devices.Operation_Data (1 .. Thread_Id'Size / 8)
+         with Import, Address => Thread_Id'Address;
       State_Data : Devices.Operation_Data (1 .. State'Size / 8)
          with Import, Address => State'Address;
    begin
@@ -3642,6 +3686,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          File := Get_File (Proc, Unsigned_64 (Tracer_FD));
          if File /= null and then File.Description = Description_Writer_FIFO
          then
+            Write (File.Inner_Writer_FIFO, Threa_Data, Ret_Count, Success);
             Write (File.Inner_Writer_FIFO, State_Data, Ret_Count, Success);
             while not Is_Empty (File.Inner_Writer_FIFO) loop
                Scheduler.Yield_If_Able;

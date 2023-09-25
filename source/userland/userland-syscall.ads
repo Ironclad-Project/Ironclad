@@ -342,6 +342,8 @@ package Userland.Syscall is
    SC_LIST_MOUNTS   : constant := 9;
    SC_UNAME         : constant := 10;
    SC_CHILD_MAX     : constant := 11;
+   SC_LIST_THREADS  : constant := 12;
+   SC_LIST_CLUSTERS : constant := 13;
 
    PROC_IS_TRACED : constant := 2#01#;
    PROC_EXITED    : constant := 2#10#;
@@ -372,6 +374,20 @@ package Userland.Syscall is
       Version     : String (1 .. 65);
       Machine     : String (1 .. 65);
    end record;
+
+   type Thread_Info is record
+      Thread_Id   : Unsigned_16;
+      Cluster_Id  : Unsigned_16;
+      Process_PID : Unsigned_16;
+   end record with Pack;
+   type Thread_Info_Arr is array (Natural range <>) of Thread_Info;
+
+   type Cluster_Info is record
+      Cluster_Id : Unsigned_16;
+      Cluster_Fl : Unsigned_16;
+      Cluster_Q  : Unsigned_16;
+   end record with Pack;
+   type Cluster_Info_Arr is array (Natural range <>) of Cluster_Info;
 
    procedure Sysconf
       (Request  : Unsigned_64;
