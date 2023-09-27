@@ -157,6 +157,7 @@ Syscalls
 * getsockname::             Get address of a bound socket.
 * getpeername::             Get address of a socket's peer.
 * shutdown::                Disconnect socket from its peer.
+* futex::                   Fast userland mutexes.
 
 Filesystem support and interfaces
 
@@ -662,6 +663,8 @@ Empty.
 @ref{getpeername}.
 @item
 @ref{shutdown}.
+@item
+@ref{futex}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -2616,6 +2619,73 @@ The passed FD was a non bound socket.
 
 @item EBADF
 The passed file is valid but it was not a physical file in a filesystem.
+@end table
+
+@node futex
+@section futex
+
+@example
+struct futex_item @{
+    uint64_t addr;
+    uint32_t expected;
+    uint32_t flags;
+@};
+
+#define FUTEX_WAIT 1
+#define FUTEX_WAKE 2
+
+int futex(int operation, struct futex_item *futexes, size_t count,
+    struct timespec *time);
+@end example
+
+This syscall helps implement fast userland mutexes (futexes!). It is typically
+used as a blocking construct in the context of shared-memory synchronization.
+
+When using futexes, the majority of the synchronization operations are
+performed in user space by atomically testing for a 32-bit value. User-space is
+to use @code{futex} only when it is likely that the program has to block for a
+longer time until the condition becomes true. Other @code{futex} operations
+can be used to wake any processes or threads waiting for an address.
+
+When executing a futex operation that requests to block a thread, the kernel
+will block only if the futex contents has the value that the call suplied under
+@code{expected}. The loading of the futex's contents and comparison of that
+value are atomic, and will be totally ordered with respect to concurrent
+operations performed by other threads on the same futex contents. Thus, the
+futex contents are used to connect the synchronization in user space with the
+implementation of blocking by the kernel. Analogously to an atomic
+compare-and-exchange operation that potentially changes shared memory, blocking
+via a futex is an atomic compare-and-block operation. When blocked, the kernel
+will calmly wait for waking by @code{FUTEX_WAKE}, waking is not automatic once
+the values are acquired.
+
+Note that no explicit initialization or destruction is necessary to use
+futexes; the kernel maintains a futex only while operations such as
+@code{FUTEX_WAIT} are being performed on particular futex contents.
+
+When compared with other implementations like Linux's, Ironclad's allows for
+waiting and waking several futexes at once, this is done as to ease handling
+several futexes at once.
+
+The available futex operations are:
+
+@table @code
+@item FUTEX_WAIT
+The passed values in futexes will be waited for.
+
+@item FUTEX_WAKE
+The passed values in futexes will be woken up.
+@end table
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EFAULT
+The passed addresses would fault if accessed.
+
+@item EINVAL
+The passed operation is not valid.
 @end table
 
 @node Filesystem support and interfaces

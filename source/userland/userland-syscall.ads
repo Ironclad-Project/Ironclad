@@ -822,6 +822,24 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
+   --  Fast mutexes (yes, really!).
+   FUTEX_WAIT : constant := 1;
+   FUTEX_WAKE : constant := 2;
+
+   type Futex_Item is record
+      Address  : Unsigned_64;
+      Expected : Unsigned_32;
+      Flags    : Unsigned_32;
+   end record;
+   type Futex_Item_Arr is array (Natural range <>) of Futex_Item;
+   procedure Futex
+      (Operation : Unsigned_64;
+       Address   : Unsigned_64;
+       Count     : Unsigned_64;
+       Timeout   : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
+   ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.
    procedure Do_Exit (Proc : PID; Code : Unsigned_8);

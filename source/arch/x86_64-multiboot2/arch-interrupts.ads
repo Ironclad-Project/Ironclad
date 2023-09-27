@@ -42,7 +42,7 @@ package Arch.Interrupts is
       RFLAGS     : Unsigned_64;
       RSP        : Unsigned_64;
       SS         : Unsigned_64;
-   end record with Convention => C;
+   end record with Size => 1344;
    for ISR_GPRs use record
       RAX        at 0 range    0 ..   63;
       RBX        at 0 range   64 ..  127;
@@ -66,7 +66,6 @@ package Arch.Interrupts is
       RSP        at 0 range 1216 .. 1279;
       SS         at 0 range 1280 .. 1343;
    end record;
-   for ISR_GPRs'Size use 1344;
    type ISR_GPRs_Acc is access ISR_GPRs;
 
    --  Generic handler for exceptions.

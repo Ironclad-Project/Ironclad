@@ -33,6 +33,7 @@ with Arch.Hooks;
 with Arch.Local;
 with Cryptography.Random;
 with IPC.PTY;  use IPC.PTY;
+with IPC.Futex;
 with Devices.TermIOs;
 with Arch.Power;
 with Devices; use Devices;
@@ -2998,7 +2999,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       IAddr : constant  Integer_Address := Integer_Address (FDs_Addr);
       SAddr : constant   System.Address := To_Address (IAddr);
       Count :                   Natural := 0;
-      Idx   :               Unsigned_64 := 0;
       File  : File_Description_Acc;
       FDs   : Poll_FDs (1 .. FDs_Count) with Import, Address => SAddr;
       Can_Read, Can_Write, Is_Error, Is_Broken : Boolean;
@@ -3011,7 +3011,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          goto Normal_Empty_Exit;
       end if;
 
-      while Idx <= Timeout loop
+      loop
          for Polled of FDs loop
             Polled.Out_Events := 0;
 
@@ -3080,13 +3080,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
             end if;
          end loop;
 
-         if Count /= 0 then
-            Errno := Error_No_Error;
+         if Count /= 0 or Timeout = 0 then
+            Errno    := Error_No_Error;
             Returned := Unsigned_64 (Count);
             return;
          end if;
 
-         Idx := Idx + 1;
          Scheduler.Yield_If_Able;
       end loop;
 
@@ -3657,6 +3656,75 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
    end Shutdown;
 
+   procedure Futex
+      (Operation : Unsigned_64;
+       Address   : Unsigned_64;
+       Count     : Unsigned_64;
+       Timeout   : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
+   is
+      pragma Unreferenced (Timeout);
+
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      Map   : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      IAddr : constant Integer_Address := Integer_Address (Address);
+      SAddr : constant  System.Address := To_Address (IAddr);
+   begin
+      if not Check_Userland_Access (Map, IAddr, Count * (Futex_Item'Size / 8))
+      then
+         goto Would_Fault_Error;
+      elsif Count > Unsigned_64 (Natural'Last) then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      declare
+         Cnt     : constant Natural := Natural (Count);
+         Items   : Futex_Item_Arr (1 .. Cnt) with Import, Address => SAddr;
+         Futexes : IPC.Futex.Element_Arr (1 .. Cnt);
+         IA      : Integer_Address;
+      begin
+         for I in Items'Range loop
+            IA := Integer_Address (Items (I).Address);
+            if not Check_Userland_Access (Map, IA, Unsigned_32'Size / 8) then
+               goto Would_Fault_Error;
+            end if;
+
+            declare
+               V : aliased Unsigned_32 with Import, Address => To_Address (IA);
+            begin
+               Futexes (I) := (V'Unchecked_Access, Items (I).Expected);
+            end;
+         end loop;
+
+         case Operation is
+            when FUTEX_WAIT =>
+               if IPC.Futex.Wait (Futexes) then
+                  Returned := 0;
+                  Errno    := Error_No_Error;
+               else
+                  Returned := Unsigned_64'Last;
+                  Errno    := Error_No_Memory;
+               end if;
+            when FUTEX_WAKE =>
+               IPC.Futex.Wake (Futexes);
+            when others =>
+               Returned := Unsigned_64'Last;
+               Errno    := Error_Invalid_Value;
+         end case;
+      end;
+
+      Returned := 0;
+      Errno    := Error_No_Error;
+      return;
+
+   <<Would_Fault_Error>>
+      Errno    := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
+   end Futex;
+   ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
       --  Remove all state but the return value and keep the zombie around
@@ -3668,6 +3736,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Do_Exit;
 
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context) is
+      type Trace_Info is record
+         Thread : Unsigned_16;
+         State  : Arch.Context.GP_Context;
+      end record with Pack;
+
       Proc       : constant PID := Arch.Local.Get_Current_Process;
       Thread     : constant TID := Arch.Local.Get_Current_Thread;
       File       : File_Description_Acc;
@@ -3675,22 +3748,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Ret_Count  : Natural;
       Tracer_FD  : Natural;
       Is_Traced  : Boolean;
-      Thread_Id  : constant Unsigned_16 := Unsigned_16 (Convert (Thread));
-      Threa_Data : Devices.Operation_Data (1 .. Thread_Id'Size / 8)
-         with Import, Address => Thread_Id'Address;
-      State_Data : Devices.Operation_Data (1 .. State'Size / 8)
-         with Import, Address => State'Address;
+      TInfo      : Trace_Info;
+      TInfo_Data : Devices.Operation_Data (1 .. TInfo'Size / 8)
+         with Import, Address => TInfo'Address;
    begin
       Userland.Process.Get_Traced_Info (Proc, Is_Traced, Tracer_FD);
       if Is_Traced then
          File := Get_File (Proc, Unsigned_64 (Tracer_FD));
          if File /= null and then File.Description = Description_Writer_FIFO
          then
-            Write (File.Inner_Writer_FIFO, Threa_Data, Ret_Count, Success);
-            Write (File.Inner_Writer_FIFO, State_Data, Ret_Count, Success);
             while not Is_Empty (File.Inner_Writer_FIFO) loop
                Scheduler.Yield_If_Able;
             end loop;
+            TInfo := (Unsigned_16 (Convert (Thread)), State);
+            Write (File.Inner_Writer_FIFO, TInfo_Data, Ret_Count, Success);
          end if;
       end if;
    end Pre_Syscall_Hook;
