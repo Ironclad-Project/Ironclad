@@ -14,7 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Scheduler; use Scheduler;
+with Scheduler;  use Scheduler;
+with Interfaces; use Interfaces;
 with Userland.Process;
 
 package Arch.Local is
@@ -34,4 +35,31 @@ package Arch.Local is
    function Get_Current_Process return Userland.Process.PID;
    procedure Set_Current_Thread (Thread : Scheduler.TID);
    procedure Set_Current_Process (Proc : Userland.Process.PID);
+   ----------------------------------------------------------------------------
+   --  Types of clocks managed by the architecture.
+   type Clock_Type is
+      (Clock_Real_Time,   --  Wall time, subject to system time being changed.
+       Clock_Monotonic);  --  Only goes forward, unsettable, inexorable.
+
+   --  Get the resolution of the passed clock.
+   procedure Get_Resolution
+      (Clock       : Clock_Type;
+       Seconds     : out Unsigned_64;
+       Nanoseconds : out Unsigned_64;
+       Success     : out Boolean);
+
+   --  Get the time from the passed clock.
+   procedure Get_Time
+      (Clock       : Clock_Type;
+       Seconds     : out Unsigned_64;
+       Nanoseconds : out Unsigned_64;
+       Success     : out Boolean);
+
+   --  Set the time for the passed clock.
+   procedure Set_Time
+      (Clock       : Clock_Type;
+       Seconds     : Unsigned_64;
+       Nanoseconds : Unsigned_64;
+       Success     : out Boolean)
+      with Pre => Clock /= Clock_Monotonic;
 end Arch.Local;

@@ -821,9 +821,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                end if;
             end loop;
 
-            if Dont_Hang then
-               exit;
-            end if;
+            exit when Dont_Hang;
             Scheduler.Yield_If_Able;
          end loop;
       else
@@ -840,9 +838,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                if Did_Exit then
                   goto Waited_Exited;
                end if;
-               if Dont_Hang then
-                  exit;
-               end if;
+               exit when Dont_Hang;
                Scheduler.Yield_If_Able;
             end loop;
          end if;
@@ -2994,104 +2990,127 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Map   : constant     Page_Table_Acc := Get_Common_Map (Proc);
-      IAddr : constant  Integer_Address := Integer_Address (FDs_Addr);
-      SAddr : constant   System.Address := To_Address (IAddr);
-      Count :                   Natural := 0;
-      File  : File_Description_Acc;
-      FDs   : Poll_FDs (1 .. FDs_Count) with Import, Address => SAddr;
-      Can_Read, Can_Write, Is_Error, Is_Broken : Boolean;
+      Proc       : constant             PID := Arch.Local.Get_Current_Process;
+      Map        : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      FIAddr     : constant Integer_Address := Integer_Address (FDs_Addr);
+      FSAddr     : constant  System.Address := To_Address (FIAddr);
+      TIAddr     : constant Integer_Address := Integer_Address (Timeout);
+      TSAddr     : constant  System.Address := To_Address (TIAddr);
+      Size_FD    : constant     Unsigned_64 := FDs_Count * (Poll_FD'Size / 8);
+      Count      :                  Natural := 0;
+      Discard    : Boolean;
+      File       : File_Description_Acc;
+      Curr_Sec   : Unsigned_64;
+      Curr_NSec  : Unsigned_64;
+      Final_Sec  : Unsigned_64;
+      Final_NSec : Unsigned_64;
+      Can_Read   : Boolean;
+      Can_Write  : Boolean;
+      Is_Error   : Boolean;
+      Is_Broken  : Boolean;
    begin
-      if not Check_Userland_Access (Map, IAddr, FDs'Size / 8) then
-         Errno := Error_Would_Fault;
+      if not Check_Userland_Access (Map, FIAddr, Size_FD) or else
+         not Check_Userland_Access (Map, TIAddr, Time_Spec'Size / 8)
+      then
+         Errno    := Error_Would_Fault;
          Returned := Unsigned_64'Last;
          return;
-      elsif FDs'Length = 0 then
+      elsif FDs_Count = 0 then
          goto Normal_Empty_Exit;
       end if;
 
-      loop
-         for Polled of FDs loop
-            Polled.Out_Events := 0;
+      Arch.Local.Get_Time (Arch.Local.Clock_Monotonic, Final_Sec, Final_NSec,
+                           Discard);
 
-            --  We are to ignore the FD if its negative.
-            if (Polled.FD and Shift_Left (1, 31)) /= 0 then
-               goto End_Iter;
-            end if;
+      declare
+         FDs  : Poll_FDs (1 .. FDs_Count) with Import, Address => FSAddr;
+         Time : Time_Spec                 with Import, Address => TSAddr;
+      begin
+         Increment (Final_Sec, Final_NSec, Time.Seconds, Time.Nanoseconds);
 
-            --  Check the FD actually points to anything valuable.
-            File := Get_File (Proc, Unsigned_64 (Polled.FD));
-            if File = null then
-               Polled.Out_Events := POLLNVAL;
-               goto End_Iter;
-            end if;
+         loop
+            for Polled of FDs loop
+               Polled.Out_Events := 0;
 
-            --  Fill out events depending on the file type.
-            case File.Description is
-               when Description_Device =>
-                  Devices.Poll (File.Inner_Dev, Can_Read, Can_Write, Is_Error);
-                  Is_Broken := False;
-               when Description_Reader_FIFO =>
-                  IPC.FIFO.Poll_Reader
-                     (File.Inner_Reader_FIFO,
-                      Can_Read, Can_Write, Is_Error, Is_Broken);
-               when Description_Writer_FIFO =>
-                  IPC.FIFO.Poll_Writer
-                     (File.Inner_Writer_FIFO,
-                      Can_Read, Can_Write, Is_Error, Is_Broken);
-               when Description_Primary_PTY =>
-                  IPC.PTY.Poll_Primary
-                     (File.Inner_Primary_PTY, Can_Read, Can_Write);
-                  Is_Error  := False;
-                  Is_Broken := False;
-               when Description_Secondary_PTY =>
-                  IPC.PTY.Poll_Secondary
-                     (File.Inner_Secondary_PTY, Can_Read, Can_Write);
-                  Is_Error  := False;
-                  Is_Broken := False;
-               when Description_Socket =>
-                  IPC.Socket.Poll
-                     (File.Inner_Socket, Can_Read, Can_Write, Is_Broken,
-                      Is_Error);
-               when Description_Inode =>
-                  Can_Read  := True;
-                  Can_Write := True;
-                  Is_Error  := False;
-                  Is_Broken := False;
-            end case;
+               --  We are to ignore the FD if its negative.
+               if (Polled.FD and Shift_Left (1, 31)) /= 0 then
+                  goto End_Iter;
+               end if;
 
-            if Can_Read and (Polled.Events and POLLIN) /= 0 then
-               Polled.Out_Events := Polled.Out_Events or POLLIN;
-            end if;
-            if Can_Write and (Polled.Events and POLLOUT) /= 0 then
-               Polled.Out_Events := Polled.Out_Events or POLLOUT;
-            end if;
-            if Is_Error then
-               Polled.Out_Events := Polled.Out_Events or POLLERR;
-            end if;
-            if Is_Broken then
-               Polled.Out_Events := Polled.Out_Events or POLLHUP;
-            end if;
+               --  Check the FD actually points to anything valuable.
+               File := Get_File (Proc, Unsigned_64 (Polled.FD));
+               if File = null then
+                  Polled.Out_Events := POLLNVAL;
+                  goto End_Iter;
+               end if;
 
-         <<End_Iter>>
-            if Polled.Out_Events /= 0 then
-               Count := Count + 1;
-            end if;
+               --  Fill out events depending on the file type.
+               case File.Description is
+                  when Description_Device =>
+                     Devices.Poll (File.Inner_Dev, Can_Read, Can_Write,
+                                   Is_Error);
+                     Is_Broken := False;
+                  when Description_Reader_FIFO =>
+                     IPC.FIFO.Poll_Reader
+                        (File.Inner_Reader_FIFO,
+                         Can_Read, Can_Write, Is_Error, Is_Broken);
+                  when Description_Writer_FIFO =>
+                     IPC.FIFO.Poll_Writer
+                        (File.Inner_Writer_FIFO,
+                         Can_Read, Can_Write, Is_Error, Is_Broken);
+                  when Description_Primary_PTY =>
+                     IPC.PTY.Poll_Primary
+                        (File.Inner_Primary_PTY, Can_Read, Can_Write);
+                     Is_Error  := False;
+                     Is_Broken := False;
+                  when Description_Secondary_PTY =>
+                     IPC.PTY.Poll_Secondary
+                        (File.Inner_Secondary_PTY, Can_Read, Can_Write);
+                     Is_Error  := False;
+                     Is_Broken := False;
+                  when Description_Socket =>
+                     IPC.Socket.Poll
+                        (File.Inner_Socket, Can_Read, Can_Write, Is_Broken,
+                         Is_Error);
+                  when Description_Inode =>
+                     Can_Read  := True;
+                     Can_Write := True;
+                     Is_Error  := False;
+                     Is_Broken := False;
+               end case;
+
+               if Can_Read and (Polled.Events and POLLIN) /= 0 then
+                  Polled.Out_Events := Polled.Out_Events or POLLIN;
+               end if;
+               if Can_Write and (Polled.Events and POLLOUT) /= 0 then
+                  Polled.Out_Events := Polled.Out_Events or POLLOUT;
+               end if;
+               if Is_Error then
+                  Polled.Out_Events := Polled.Out_Events or POLLERR;
+               end if;
+               if Is_Broken then
+                  Polled.Out_Events := Polled.Out_Events or POLLHUP;
+               end if;
+
+            <<End_Iter>>
+               if Polled.Out_Events /= 0 then
+                  Count := Count + 1;
+               end if;
+            end loop;
+
+            Arch.Local.Get_Time (Arch.Local.Clock_Monotonic, Curr_Sec,
+                                 Curr_NSec, Discard);
+
+            exit when Count /= 0 or
+                       Compare (Curr_Sec, Curr_NSec, Final_Sec, Final_NSec);
+
+            Scheduler.Yield_If_Able;
          end loop;
-
-         if Count /= 0 or Timeout = 0 then
-            Errno    := Error_No_Error;
-            Returned := Unsigned_64 (Count);
-            return;
-         end if;
-
-         Scheduler.Yield_If_Able;
-      end loop;
+      end;
 
    <<Normal_Empty_Exit>>
-      Errno := Error_No_Error;
-      Returned := 0;
+      Errno    := Error_No_Error;
+      Returned := Unsigned_64 (Count);
    end Poll;
 
    procedure Get_EUID (Returned : out Unsigned_64; Errno : out Errno_Value) is
@@ -3724,6 +3743,63 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
    end Futex;
+
+   procedure Clock
+      (Operation : Unsigned_64;
+       Clock_ID  : Unsigned_64;
+       Address   : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      Map   : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      IAddr : constant Integer_Address := Integer_Address (Address);
+      Clock : Arch.Local.Clock_Type;
+      Succ  : Boolean;
+   begin
+      if not Check_Userland_Access (Map, IAddr, Time_Spec'Size / 8) then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Would_Fault;
+         return;
+      end if;
+
+      case Clock_ID is
+         when CLOCK_MONOTONIC => Clock := Arch.Local.Clock_Monotonic;
+         when CLOCK_REALTIME  => Clock := Arch.Local.Clock_Real_Time;
+         when others =>
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Invalid_Value;
+            return;
+      end case;
+
+      declare
+         Spec : Time_Spec with Import, Address => To_Address (IAddr);
+      begin
+         case Operation is
+            when CLOCK_GETRES =>
+               Arch.Local.Get_Resolution
+                  (Clock, Spec.Seconds, Spec.Nanoseconds, Succ);
+            when CLOCK_GETTIME =>
+               Arch.Local.Get_Time
+                  (Clock, Spec.Seconds, Spec.Nanoseconds, Succ);
+            when CLOCK_SETTIME =>
+               Arch.Local.Set_Time
+                  (Clock, Spec.Seconds, Spec.Nanoseconds, Succ);
+            when others =>
+               Returned := Unsigned_64'Last;
+               Errno    := Error_Invalid_Value;
+               return;
+         end case;
+
+         if Succ then
+            Returned := 0;
+            Errno    := Error_No_Error;
+         else
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Invalid_Value;
+         end if;
+      end;
+   end Clock;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
@@ -4150,4 +4226,26 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end if;
    end Resolve_AT_Directive;
+
+   function Compare
+      (Seconds1, Nanoseconds1 : Unsigned_64;
+       Seconds2, Nanoseconds2 : Unsigned_64) return Boolean
+   is
+   begin
+      return (Seconds1 * 1000) + (Nanoseconds1 / 1_000_000) >=
+             (Seconds2 * 1000) + (Nanoseconds2 / 1_000_000);
+   end Compare;
+
+   procedure Increment
+      (Seconds1, Nanoseconds1 : in out Unsigned_64;
+       Seconds2, Nanoseconds2 : Unsigned_64)
+   is
+   begin
+      Nanoseconds1 := Nanoseconds1 + Nanoseconds2;
+      Seconds1     := Seconds1     + Seconds2;
+      Seconds1     := Seconds1 + (Nanoseconds1 / 1_000_000);
+      while Nanoseconds1 >= 1_000_000 loop
+         Nanoseconds1 := Nanoseconds1 - 1_000_000;
+      end loop;
+   end Increment;
 end Userland.Syscall;

@@ -35,11 +35,6 @@ package Arch.Snippets is
    --  Processor hint for optimizing spinlocks and another cache-intensitive
    --  situations.
    procedure Pause with Inline;
-
-   --  Get a rough value of the number of cycles the system has gone thru.
-   --  The value is not guaranteed to be linear, or even changing, it is only
-   --  to be used for statistical or entropy purposes.
-   function Read_Cycles return Unsigned_64 with Inline;
    ----------------------------------------------------------------------------
    --  Architecture-specific snippets.
    --  FIXME: We use gnatprep for setting up architecture-specific snppets.
@@ -77,6 +72,7 @@ package Arch.Snippets is
       function Read_Kernel_GS return Unsigned_64 with Inline;
       procedure Write_Kernel_GS (Value : Unsigned_64) with Inline;
       procedure Swap_GS with Inline;
+      function Read_Cycles return Unsigned_64 with Inline;
       procedure Get_CPUID
          (Leaf, Subleaf : Unsigned_32;
           EAX, EBX, ECX, EDX : out Unsigned_32);

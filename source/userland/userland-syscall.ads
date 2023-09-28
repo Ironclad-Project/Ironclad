@@ -839,6 +839,19 @@ package Userland.Syscall is
        Timeout   : Unsigned_64;
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
+
+   --  Clock operations.
+   CLOCK_REALTIME  : constant := 0;
+   CLOCK_MONOTONIC : constant := 1;
+   CLOCK_GETRES    : constant := 0;
+   CLOCK_GETTIME   : constant := 1;
+   CLOCK_SETTIME   : constant := 2;
+   procedure Clock
+      (Operation : Unsigned_64;
+       Clock_ID  : Unsigned_64;
+       Address   : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.
@@ -929,4 +942,12 @@ private
        Dir_FD : Unsigned_64;
        FS     : out VFS.FS_Handle;
        Ino    : out VFS.File_Inode_Number);
+
+   function Compare
+      (Seconds1, Nanoseconds1 : Unsigned_64;
+       Seconds2, Nanoseconds2 : Unsigned_64) return Boolean;
+
+   procedure Increment
+      (Seconds1, Nanoseconds1 : in out Unsigned_64;
+       Seconds2, Nanoseconds2 : Unsigned_64);
 end Userland.Syscall;

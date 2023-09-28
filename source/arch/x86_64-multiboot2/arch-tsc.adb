@@ -1,5 +1,5 @@
---  devices-rtc.ads: RTC driver.
---  Copyright (C) 2021 streaksu
+--  arch-tsc.adb: TSC driver.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,19 +14,19 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Devices.RTC with SPARK_Mode => Off is
-   --  Initialize the device.
-   function Init return Boolean;
+with Arch.Snippets;
 
-private
+package body Arch.TSC with SPARK_Mode => Off is
+   procedure Get_Resolution (Seconds, Nanoseconds : out Unsigned_64) is
+   begin
+      Seconds     := 0;
+      Nanoseconds := 1;
+   end Get_Resolution;
 
-   function IO_Control
-      (Data     : System.Address;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean;
-
-   function Get_RTC_Data (Register : Unsigned_8) return Unsigned_8;
-   procedure Set_RTC_Data (Register, Data : Unsigned_8);
-   function To_BCD (Num : Unsigned_32) return Unsigned_32;
-   function From_BCD (Num : Unsigned_32) return Unsigned_32;
-end Devices.RTC;
+   procedure Get_Time (Seconds, Nanoseconds : out Unsigned_64) is
+      Cycles : constant Unsigned_64 := Snippets.Read_Cycles;
+   begin
+      Seconds     := Cycles / 1_000_000_000;
+      Nanoseconds := Cycles mod 1_000_000_000;
+   end Get_Time;
+end Arch.TSC;

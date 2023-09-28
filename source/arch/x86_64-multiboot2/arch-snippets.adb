@@ -48,7 +48,7 @@ package body Arch.Snippets with SPARK_Mode => Off is
    begin
       Asm ("pause", Volatile => True);
    end Pause;
-
+   ----------------------------------------------------------------------------
    function Read_Cycles return Unsigned_64 is
       High : Unsigned_32;
       Low  : Unsigned_32;
@@ -59,7 +59,7 @@ package body Arch.Snippets with SPARK_Mode => Off is
           Volatile => True);
       return Shift_Left (Unsigned_64 (High), 32) or Unsigned_64 (Low);
    end Read_Cycles;
-   ----------------------------------------------------------------------------
+
    procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) is
    begin
       Asm ("outb %0, %1",

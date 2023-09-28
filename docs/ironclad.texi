@@ -158,6 +158,7 @@ Syscalls
 * getpeername::             Get address of a socket's peer.
 * shutdown::                Disconnect socket from its peer.
 * futex::                   Fast userland mutexes.
+* clock::                   Clock and time operations.
 
 Filesystem support and interfaces
 
@@ -665,6 +666,8 @@ Empty.
 @ref{shutdown}.
 @item
 @ref{futex}.
+@item
+@ref{clock}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -2329,7 +2332,7 @@ struct pollfd @{
    uint16_t revents;
 @};
 
-int poll(struct pollfd *fds, nfds_t nfds, int timeout);
+int poll(struct pollfd *fds, nfds_t nfds, struct timespec *timeout);
 @end example
 
 This syscall allows to wait for a series of events to happen to the passed
@@ -2365,10 +2368,8 @@ Only for @code{revents}, equivalent of @code{EBADFD}, that is, the passed FD
 is not valid.
 @end table
 
-@code{timeout} argument specifies the number of milliseconds that the syscall
-should block waiting for a file descriptor to become ready. The call will block
-until either a file descriptor gets an event, the call is interrupted by a
-signal handler, or the timeout expires.
+The call will block until either a file descriptor gets an event, the call is
+interrupted by a signal handler, or the timeout expires.
 
 The syscall returns the number of FDs to have an event happen on success or
 @code{-1} on failure, with the following errno:
@@ -2688,6 +2689,59 @@ The passed addresses would fault if accessed.
 The passed operation is not valid.
 @end table
 
+@node clock
+@section clock
+
+@example
+#define CLOCK_REALTIME  0
+#define CLOCK_MONOTONIC 1
+#define CLOCK_GETRES    0
+#define CLOCK_GETTIME   1
+#define CLOCK_SETTIME   2
+
+int clock(int operation, int clock_id, struct timespec *time);
+@end example
+
+This syscall fetches or sets epoch dates for each of the supported clocks.
+Clock is passed in @code{clock_id}, with the following values.
+
+@table @code
+@item CLOCK_REALTIME
+Wall-clock, may jump forward and back thanks to time setting.
+
+@item CLOCK_MONOTONIC
+Clock that only moves forward, and is unaffected by NTP or adjustements. It
+starts from an unspecified, target-dependent point in time, usually boot.
+
+Unlike Linux, it is still counted during suspend.
+@end table
+
+@code{operation} specifies what to do, as such:
+
+@table @code
+@item CLOCK_GETRES
+Load the resolution of the passed clock on the contents of @code{time}.
+
+@item CLOCK_GETTIME
+Load the epoch date of the passed clock on the contents of @code{time}.
+
+@item CLOCK_SETTIME
+Set the epoch date of the passed clock to the contents of @code{time}, not
+supported for @code{CLOCK_MONOTONIC}. Underlying hardware will always be
+updated.
+@end table
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EFAULT
+@code{time} points to non accessible memory.
+
+@item EINVAL
+One of the passed values is not valid.
+@end table
+
 @node Filesystem support and interfaces
 @chapter Filesystem support and interfaces
 
@@ -2798,32 +2852,6 @@ discarded.
 
 @code{zero} returns exclusively a stream of zeros when read, and all write
 operations are discarded.
-
-@subsection rtc
-
-@code{/dev/rtc} exposes the hardware RTC in an architecture independent manner.
-
-The device does not allow any file operations but the following @code{ioctl}:
-
-The time structures handled represent ready-to-use, calendar timestamps.
-
-@example
-RTC_RD_TIME  = 1 // Reads time to the passed structure.
-RTC_SET_TIME = 2 // Sets the RTC to the passed time.
-struct rtc_time @{
-    int tm_sec;
-    int tm_min;
-    int tm_hour;
-    int tm_mday;
-    int tm_mon;
-    int tm_year;
-    int tm_wday;     /* unused */
-    int tm_yday;     /* unused */
-    int tm_isdst;    /* unused */
-@};
-
-ioctl(rtc, ..., pointer_to_rtc_time)
-@end example
 
 @node aarch64-stivale2 devices
 @section aarch64-stivale2 devices

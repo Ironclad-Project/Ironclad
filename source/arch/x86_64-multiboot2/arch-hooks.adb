@@ -21,7 +21,6 @@ with Devices.PC_Speaker;
 with Devices.ATA;
 with Devices.SATA;
 with Devices.Serial;
-with Devices.RTC;
 with Arch.Snippets;
 with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
@@ -38,7 +37,6 @@ package body Arch.Hooks with SPARK_Mode => Off is
              Devices.PC_Speaker.Init  and then
              Devices.PS2Keyboard.Init and then
              Devices.PS2Mouse.Init    and then
-             Devices.RTC.Init         and then
              Devices.SATA.Init        and then
              Devices.Serial.Init;
    end Devices_Hook;

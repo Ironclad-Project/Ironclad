@@ -18,7 +18,8 @@ with Arch.CPU;
 with Arch.APIC;
 with Arch.Snippets;
 with Arch.Interrupts;
-with Interfaces; use Interfaces;
+with Arch.RTC;
+with Arch.TSC;
 
 package body Arch.Local with SPARK_Mode => Off is
    procedure Reschedule_In (Microseconds : Natural) is
@@ -73,4 +74,57 @@ package body Arch.Local with SPARK_Mode => Off is
    begin
       CPU.Get_Local.Current_Process := Proc;
    end Set_Current_Process;
+   ----------------------------------------------------------------------------
+   procedure Get_Resolution
+      (Clock       : Clock_Type;
+       Seconds     : out Unsigned_64;
+       Nanoseconds : out Unsigned_64;
+       Success     : out Boolean)
+   is
+   begin
+      case Clock is
+         when Clock_Real_Time =>
+            Seconds     := RTC.Resolution_Hz;
+            Nanoseconds := 0;
+            Success     := True;
+         when Clock_Monotonic =>
+            TSC.Get_Resolution (Seconds, Nanoseconds);
+            Success := True;
+      end case;
+   end Get_Resolution;
+
+   procedure Get_Time
+      (Clock       : Clock_Type;
+       Seconds     : out Unsigned_64;
+       Nanoseconds : out Unsigned_64;
+       Success     : out Boolean)
+   is
+   begin
+      case Clock is
+         when Clock_Real_Time =>
+            RTC.Get_Time (Seconds);
+            Nanoseconds := 0;
+            Success     := True;
+         when Clock_Monotonic =>
+            TSC.Get_Time (Seconds, Nanoseconds);
+            Success := True;
+      end case;
+   end Get_Time;
+
+   procedure Set_Time
+      (Clock       : Clock_Type;
+       Seconds     : Unsigned_64;
+       Nanoseconds : Unsigned_64;
+       Success     : out Boolean)
+   is
+      pragma Unreferenced (Nanoseconds);
+   begin
+      case Clock is
+         when Clock_Real_Time =>
+            RTC.Set_Time (Seconds);
+            Success := True;
+         when Clock_Monotonic =>
+            Success := False;
+      end case;
+   end Set_Time;
 end Arch.Local;
