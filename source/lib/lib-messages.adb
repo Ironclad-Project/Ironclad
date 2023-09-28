@@ -16,7 +16,7 @@
 
 with Ada.Characters.Latin_1;
 with Arch.Debug;
-with Arch.Snippets;
+with Arch.Local;
 with Lib.Synchronization;
 
 package body Lib.Messages with
@@ -83,8 +83,12 @@ is
    procedure Print_Timestamp_And_Lock is
       Stp     : Translated_String;
       Stp_Len : Natural;
+      Sec, NSec : Unsigned_64;
+      Discard : Boolean;
    begin
-      Image (Arch.Snippets.Read_Cycles, Stp, Stp_Len, True);
+      Arch.Local.Get_Time (Arch.Local.Clock_Monotonic, Sec, NSec, Discard);
+      Image ((Sec * 1000) + (NSec / 1_000_000), Stp, Stp_Len);
+
       Lib.Synchronization.Seize (Messages_Mutex);
       Arch.Debug.Print ("(" & Stp (Stp'Last - Stp_Len + 1 .. Stp'Last) & ") ");
    end Print_Timestamp_And_Lock;

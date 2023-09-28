@@ -16,7 +16,7 @@
 
 with Ada.Unchecked_Conversion;
 with Memory.Physical; use Memory.Physical;
-with Arch.Snippets;
+with Arch.Local;
 with Memory; use Memory;
 with Cryptography.Chacha20;
 
@@ -44,13 +44,15 @@ package body Cryptography.Random is
       Cha_Block   : Chacha20.Block := (others => 0);
       Index       : Natural     := Cha_Block'Last + 1;
       Block_Index : Unsigned_64 := 0;
+      Discard     : Unsigned_64;
+      D           : Boolean;
    begin
       Get_Seed (S.Seed1);
       Get_Seed (S.Seed2);
 
       for Value of Data loop
          if Index > Cha_Block'Last then
-            Temp        := Arch.Snippets.Read_Cycles;
+            Arch.Local.Get_Time (Arch.Local.Clock_Monotonic, Discard, Temp, D);
             Cha_Block   := Chacha20.Gen_Key (To_Seed (S), Temp, Block_Index);
             Index       := Cha_Block'First;
             Block_Index := Block_Index + 1;
@@ -82,19 +84,21 @@ package body Cryptography.Random is
    end Get_Integer;
 
    procedure Get_Seed (Seed : out MD5.MD5_Hash) is
-      Cycles  : Unsigned_64;
+      Success : Boolean;
+      Discard : Unsigned_64;
+      NSec    : Unsigned_64;
       Used    : Unsigned_64;
       Stats   : Memory.Physical.Statistics;
       To_Hash : MD5.MD5_Blocks (1 .. 1);
    begin
       Get_Statistics (Stats);
-      Cycles  := Arch.Snippets.Read_Cycles;
+      Arch.Local.Get_Time (Arch.Local.Clock_Monotonic, Discard, NSec, Success);
       Used    := Unsigned_64 (Stats.Available - Stats.Free);
       To_Hash := (0 => (
-         0  => Unsigned_32 (Shift_Right (Cycles, 32) and 16#FFFFFFFF#),
-         1  => Unsigned_32 (Cycles                   and 16#FFFFFFFF#),
-         2  => Unsigned_32 (Shift_Right (Used, 32)   and 16#FFFFFFFF#),
-         3  => Unsigned_32 (Used                     and 16#FFFFFFFF#),
+         0  => Unsigned_32 (Shift_Right (NSec, 32) and 16#FFFFFFFF#),
+         1  => Unsigned_32 (NSec and 16#FFFFFFFF#),
+         2  => Unsigned_32 (Shift_Right (Used, 32) and 16#FFFFFFFF#),
+         3  => Unsigned_32 (Used and 16#FFFFFFFF#),
          14 => 128,
          others => 0
       ));
