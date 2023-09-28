@@ -30,7 +30,6 @@ with Memory.Physical;
 with Memory; use Memory;
 with Ada.Unchecked_Deallocation;
 with Arch.Hooks;
-with Arch.Local;
 with Cryptography.Random;
 with IPC.PTY;  use IPC.PTY;
 with IPC.Futex;
@@ -3761,16 +3760,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Returned := Unsigned_64'Last;
          Errno    := Error_Would_Fault;
          return;
+      elsif not Get_Capabilities (Proc).Can_Use_Clocks then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("clock", Proc);
+         Returned := Unsigned_64'Last;
+         return;
       end if;
 
-      case Clock_ID is
-         when CLOCK_MONOTONIC => Clock := Arch.Local.Clock_Monotonic;
-         when CLOCK_REALTIME  => Clock := Arch.Local.Clock_Real_Time;
-         when others =>
-            Returned := Unsigned_64'Last;
-            Errno    := Error_Invalid_Value;
-            return;
-      end case;
+      Get_Clock (Clock_ID, Clock, Succ);
+      if not Succ then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Invalid_Value;
+         return;
+      end if;
 
       declare
          Spec : Time_Spec with Import, Address => To_Address (IAddr);
@@ -3800,6 +3802,69 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end;
    end Clock;
+
+   procedure Clock_Nanosleep
+      (Clock_ID     : Unsigned_64;
+       Flags        : Unsigned_64;
+       Request_Addr : Unsigned_64;
+       Remain_Addr  : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      Proc     : constant             PID := Arch.Local.Get_Current_Process;
+      Map      : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      ReqIAddr : constant Integer_Address := Integer_Address (Request_Addr);
+      RemIAddr : constant Integer_Address := Integer_Address (Remain_Addr);
+      Clock    : Arch.Local.Clock_Type;
+      Success  : Boolean;
+   begin
+      if not Check_Userland_Access (Map, ReqIAddr, Time_Spec'Size / 8) or
+         not Check_Userland_Access (Map, RemIAddr, Time_Spec'Size / 8)
+      then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Would_Fault;
+         return;
+      elsif not Get_Capabilities (Proc).Can_Use_Clocks then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("clock_nanosleep", Proc);
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Get_Clock (Clock_ID, Clock, Success);
+      if not Success then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Invalid_Value;
+         return;
+      end if;
+
+      declare
+         Request     : Time_Spec with Import, Address => To_Address (ReqIAddr);
+         Remaining   : Time_Spec with Import, Address => To_Address (RemIAddr);
+         CSec, CNSec : Unsigned_64;
+         FSec, FNSec : Unsigned_64;
+      begin
+         if (Flags and TIMER_ABSTIME) /= 0 then
+            FSec  := Request.Seconds;
+            FNSec := Request.Nanoseconds;
+         else
+            Arch.Local.Get_Time (Clock, FSec, FNSec, Success);
+            Increment (FSec, FNSec, Request.Seconds, Request.Nanoseconds);
+         end if;
+
+         loop
+            Arch.Local.Get_Time (Clock, CSec, CNSec, Success);
+            exit when Compare (CSec, CNSec, FSec, FNSec);
+            Scheduler.Yield_If_Able;
+         end loop;
+
+         Remaining.Seconds := 0;
+         Remaining.Nanoseconds := 0;
+
+         Returned := 0;
+         Errno    := Error_No_Error;
+      end;
+   end Clock_Nanosleep;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
@@ -4093,28 +4158,18 @@ package body Userland.Syscall with SPARK_Mode => Off is
    begin
       Set_Capabilities
          (Proc,
-          (Can_Change_Scheduling => Caps.Can_Change_Scheduling
-            and ((Bits and MAC_CAP_SCHED)   /= 0),
-           Can_Spawn_Others      => Caps.Can_Spawn_Others
-            and ((Bits and MAC_CAP_SPAWN)   /= 0),
-           Can_Access_Entropy    => Caps.Can_Access_Entropy
-            and ((Bits and MAC_CAP_ENTROPY) /= 0),
-           Can_Modify_Memory     => Caps.Can_Modify_Memory
-            and ((Bits and MAC_CAP_SYS_MEM) /= 0),
-           Can_Use_Networking    => Caps.Can_Use_Networking
-            and ((Bits and MAC_CAP_USE_NET) /= 0),
-           Can_Manage_Networking => Caps.Can_Manage_Networking
-            and ((Bits and MAC_CAP_SYS_NET) /= 0),
-           Can_Manage_Mounts     => Caps.Can_Manage_Mounts
-            and ((Bits and MAC_CAP_SYS_MNT) /= 0),
-           Can_Manage_Power      => Caps.Can_Manage_Power
-            and ((Bits and MAC_CAP_SYS_PWR) /= 0),
-           Can_Trace_Children    => Caps.Can_Trace_Children
-            and ((Bits and MAC_CAP_PTRACE)  /= 0),
-           Can_Change_UIDs       => Caps.Can_Change_UIDs
-            and ((Bits and MAC_CAP_SETUID)  /= 0),
-           Can_Manage_MAC        => Caps.Can_Manage_MAC
-            and ((Bits and MAC_CAP_SYS_MAC) /= 0)));
+          (Caps.Can_Change_Scheduling and ((Bits and MAC_CAP_SCHED)   /= 0),
+           Caps.Can_Spawn_Others      and ((Bits and MAC_CAP_SPAWN)   /= 0),
+           Caps.Can_Access_Entropy    and ((Bits and MAC_CAP_ENTROPY) /= 0),
+           Caps.Can_Modify_Memory     and ((Bits and MAC_CAP_SYS_MEM) /= 0),
+           Caps.Can_Use_Networking    and ((Bits and MAC_CAP_USE_NET) /= 0),
+           Caps.Can_Manage_Networking and ((Bits and MAC_CAP_SYS_NET) /= 0),
+           Caps.Can_Manage_Mounts     and ((Bits and MAC_CAP_SYS_MNT) /= 0),
+           Caps.Can_Manage_Power      and ((Bits and MAC_CAP_SYS_PWR) /= 0),
+           Caps.Can_Trace_Children    and ((Bits and MAC_CAP_PTRACE)  /= 0),
+           Caps.Can_Change_UIDs       and ((Bits and MAC_CAP_SETUID)  /= 0),
+           Caps.Can_Manage_MAC        and ((Bits and MAC_CAP_SYS_MAC) /= 0),
+           Caps.Can_Use_Clocks        and ((Bits and MAC_CAP_CLOCK)   /= 0)));
    end Set_MAC_Capabilities;
 
    procedure MAC_Syscall_To_Kernel
@@ -4231,9 +4286,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
       (Seconds1, Nanoseconds1 : Unsigned_64;
        Seconds2, Nanoseconds2 : Unsigned_64) return Boolean
    is
+      Sec1 : constant Unsigned_64 := Seconds1 + (Nanoseconds1 / 1_000_000_000);
+      Sec2 : constant Unsigned_64 := Seconds2 + (Nanoseconds2 / 1_000_000_000);
+      NSec1 : constant Unsigned_64 := Nanoseconds1 mod 1_000_000_000;
+      NSec2 : constant Unsigned_64 := Nanoseconds2 mod 1_000_000_000;
    begin
-      return (Seconds1 * 1000) + (Nanoseconds1 / 1_000_000) >=
-             (Seconds2 * 1000) + (Nanoseconds2 / 1_000_000);
+      return (Sec1 > Sec2) or ((Sec1 = Sec2) and (NSec1 > NSec2));
    end Compare;
 
    procedure Increment
@@ -4241,11 +4299,26 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Seconds2, Nanoseconds2 : Unsigned_64)
    is
    begin
+      Seconds1     := Seconds1 + Seconds2;
       Nanoseconds1 := Nanoseconds1 + Nanoseconds2;
-      Seconds1     := Seconds1     + Seconds2;
-      Seconds1     := Seconds1 + (Nanoseconds1 / 1_000_000);
-      while Nanoseconds1 >= 1_000_000 loop
-         Nanoseconds1 := Nanoseconds1 - 1_000_000;
-      end loop;
+      Seconds1     := Seconds1 + (Nanoseconds1 / 1_000_000_000);
+      Nanoseconds1 := Nanoseconds1 mod 1_000_000_000;
    end Increment;
+
+   procedure Get_Clock
+      (Clock_ID : Unsigned_64;
+       Clock    : out Arch.Local.Clock_Type;
+      Success   : out Boolean)
+   is
+   begin
+      case Clock_ID is
+         when CLOCK_MONOTONIC => Clock := Arch.Local.Clock_Monotonic;
+         when CLOCK_REALTIME  => Clock := Arch.Local.Clock_Real_Time;
+         when others =>
+            Clock   := Arch.Local.Clock_Real_Time;
+            Success := False;
+            return;
+      end case;
+      Success := True;
+   end Get_Clock;
 end Userland.Syscall;

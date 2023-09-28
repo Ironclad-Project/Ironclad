@@ -33,6 +33,7 @@ package Userland.MAC is
       Can_Trace_Children    : Boolean;
       Can_Change_UIDs       : Boolean;
       Can_Manage_MAC        : Boolean;
+      Can_Use_Clocks        : Boolean;
    end record;
 
    --  Permissions a file can have.

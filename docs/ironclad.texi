@@ -159,6 +159,7 @@ Syscalls
 * shutdown::                Disconnect socket from its peer.
 * futex::                   Fast userland mutexes.
 * clock::                   Clock and time operations.
+* clock_nanosleep::         Sleep on a clock.
 
 Filesystem support and interfaces
 
@@ -452,6 +453,12 @@ checks.
 @item MAC_CAP_SYS_MAC
 The process will be able to add allowed inodes to the MAC definitions, along
 with modifying hard limits for system resources.
+
+@item MAC_CAP_CLOCK
+The process will be able to access clocks syscalls like @ref{clock} or
+@code{clock_nanosleep}, as well as setting the time of clocks that can do so.
+This is provided as reading clock time can sometimes be used as a way to
+coordinate attacks.
 @end table
 
 Access to inodes and devices can be granted using @ref{add_mac_permissions}.
@@ -2740,6 +2747,45 @@ following errno:
 
 @item EINVAL
 One of the passed values is not valid.
+@end table
+
+@node clock_nanosleep
+@section clock_nanosleep
+
+@example
+#define TIMER_ABSTIME 1
+
+int clock_nanosleep(int clock_id, int flags, struct timespec *time,
+   struct timespec *remaining);
+@end example
+
+This syscall sleeps the callee thread for the passed time with the requested
+clock. If interrupted by a signal or similar, it returns the remaining time
+that could not be waited.
+
+Unlike what POSIX mandates, this syscall will always need @code{remaining} to
+be a valid structure. @code{clock_id} takes the same value as @ref{clock}.
+
+@code{flags} can be one of the following:
+
+@table @code
+@item TIMER_ABSTIME
+Instead of an increment on top of the current time, @code{time} is taken as an
+absolute time (ideally in the future!).
+@end table
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EFAULT
+@code{time} or @code{remaining} point to non accessible memory.
+
+@item EINVAL
+One of the passed values is not valid.
+
+@item EPERM
+MAC did not allow this.
 @end table
 
 @node Filesystem support and interfaces

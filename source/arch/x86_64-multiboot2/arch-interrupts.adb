@@ -273,6 +273,9 @@ package body Arch.Interrupts with SPARK_Mode => Off is
                    Returned, Errno);
          when 70 =>
             Clock (State.RDI, State.RSI, State.RDX, Returned, Errno);
+         when 71 =>
+            Clock_Nanosleep (State.RDI, State.RSI, State.RDX, State.R12,
+                             Returned, Errno);
          when others =>
             Returned := Unsigned_64'Last;
             Errno    := Error_Not_Implemented;
