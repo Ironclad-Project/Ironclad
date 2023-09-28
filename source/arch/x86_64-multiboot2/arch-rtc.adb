@@ -95,9 +95,9 @@ package body Arch.RTC with SPARK_Mode => Off is
       (Days, Months, Years : Integer_64) return Unsigned_64 is
    begin
       return Unsigned_64
-         ((1461 * (Years + 4800 + (Months - 14)       / 12))  / 4  +
-          (367  * (Months - 2 - 12 * ((Months - 14)   / 12))) / 12 -
-          (3    * ((Years + 4900 + (Months - 14) /12) / 100)) / 4 +
+         ((1461 * (Years + 4800 + (Months - 14)        / 12))  / 4  +
+          (367  * (Months - 2 - 12 * ((Months - 14)    / 12))) / 12 -
+          (3    * ((Years + 4900 + (Months - 14) / 12) / 100)) / 4 +
           Days - 32075);
    end Get_Julian_Day;
 
