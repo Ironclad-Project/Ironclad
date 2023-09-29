@@ -96,9 +96,9 @@ esac
 mkdir -p rtsdir
 mkdir -p rtsdir/adainclude
 mkdir -p rtsdir/adalib
-cp $SRCDIR/source/rts/*.adb rtsdir/adainclude
-cp $SRCDIR/source/rts/*.ads rtsdir/adainclude
-cp $SRCDIR/source/rts/$target_cpu-$target_vendor/*.ads rtsdir/adainclude
+cp "$SRCDIR"/source/rts/*.adb rtsdir/adainclude
+cp "$SRCDIR"/source/rts/*.ads rtsdir/adainclude
+cp "$SRCDIR"/source/rts/$target_cpu-$target_vendor/*.ads rtsdir/adainclude
 ###############################################################################
 # Finalize the settings and output the files.
 AC_PREFIX_DEFAULT([/usr/local])

@@ -72,22 +72,22 @@ $(OUTPUT):
 info: ironclad.info.gz
 
 ironclad.info.gz: ironclad.info
-	$(GZIP) -c $< > $@
+	$(GZIP) -c '$(call SHESCAPE,$<)' > '$(call SHESCAPE,$@)'
 
 ironclad.info: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi
-	$(MAKEINFO) $< -o $@
+	$(MAKEINFO) '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 
 .PHONY: html
 html: ironclad.html
 
 ironclad.html: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi
-	$(TEXI2HTML) $< -o $@
+	$(TEXI2HTML) '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 
 .PHONY: dvi
 dvi: ironclad.dvi
 
 ironclad.dvi: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi
-	$(TEXI2DVI) $< -o $@
+	$(TEXI2DVI) '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 ###############################################################################
 # Rules for checks and formal verification.
 .PHONY: check
