@@ -76,6 +76,17 @@ package Scheduler is
 
    --  Make the callee thread be dequed.
    procedure Bail with No_Return;
+
+   --  Get runtime times of the thread.
+   procedure Get_Runtime_Times
+      (Thread : TID;
+       System_Seconds, System_Nanoseconds : out Unsigned_64;
+       User_Seconds, User_Nanoseconds     : out Unsigned_64);
+
+   --  Signal to the scheduler that a thread has entered or exited kernel
+   --  space (for time keeping reasons).
+   procedure Signal_Kernel_Entry (Thread : TID);
+   procedure Signal_Kernel_Exit (Thread : TID);
    ----------------------------------------------------------------------------
    --  Cluster creation, deletion, and management.
 

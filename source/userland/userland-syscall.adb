@@ -20,11 +20,11 @@ with Config;
 with System; use System;
 with Lib.Messages;
 with Lib;
+with Lib.Time;
 with Lib.Panic;
 with Lib.Alignment;
 with Networking;
 with Userland.Loader;
-with Scheduler; use Scheduler;
 with Arch.MMU; use Arch.MMU;
 with Memory.Physical;
 with Memory; use Memory;
@@ -1805,6 +1805,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
    begin
       Errno := Error_No_Error;
       Returned := 0;
+      Userland.Process.Remove_Thread
+         (Arch.Local.Get_Current_Process, Arch.Local.Get_Current_Thread);
       Scheduler.Bail;
    end Exit_Thread;
 
@@ -3025,7 +3027,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          FDs  : Poll_FDs (1 .. FDs_Count) with Import, Address => FSAddr;
          Time : Time_Spec                 with Import, Address => TSAddr;
       begin
-         Increment (Final_Sec, Final_NSec, Time.Seconds, Time.Nanoseconds);
+         Lib.Time.Increment (Final_Sec, Final_NSec, Time.Seconds,
+                             Time.Nanoseconds);
 
          loop
             for Polled of FDs loop
@@ -3100,8 +3103,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Arch.Local.Get_Time (Arch.Local.Clock_Monotonic, Curr_Sec,
                                  Curr_NSec, Discard);
 
-            exit when Count /= 0 or
-                       Compare (Curr_Sec, Curr_NSec, Final_Sec, Final_NSec);
+            exit when Count /= 0 or Lib.Time.Is_Greater_Equal (Curr_Sec,
+               Curr_NSec, Final_Sec, Final_NSec);
 
             Scheduler.Yield_If_Able;
          end loop;
@@ -3849,12 +3852,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
             FNSec := Request.Nanoseconds;
          else
             Arch.Local.Get_Time (Clock, FSec, FNSec, Success);
-            Increment (FSec, FNSec, Request.Seconds, Request.Nanoseconds);
+            Lib.Time.Increment (FSec, FNSec, Request.Seconds,
+                                Request.Nanoseconds);
          end if;
 
          loop
             Arch.Local.Get_Time (Clock, CSec, CNSec, Success);
-            exit when Compare (CSec, CNSec, FSec, FNSec);
+            exit when Lib.Time.Is_Greater_Equal (CSec, CNSec, FSec, FNSec);
             Scheduler.Yield_If_Able;
          end loop;
 
@@ -3865,6 +3869,45 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno    := Error_No_Error;
       end;
    end Clock_Nanosleep;
+
+   procedure Get_RUsage
+      (Who        : Unsigned_64;
+       Usage_Addr : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      Map   : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      IAddr : constant Integer_Address := Integer_Address (Usage_Addr);
+   begin
+      if not Check_Userland_Access (Map, IAddr, RUsage'Size / 8) then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Would_Fault;
+         return;
+      end if;
+
+      declare
+         Usage : RUsage with Import, Address => To_Address (IAddr);
+      begin
+         case Who is
+            when RUSAGE_SELF =>
+               Process.Get_Runtime_Times (Proc, Usage.System_Time.Seconds,
+                  Usage.System_Time.Nanoseconds, Usage.User_Time.Seconds,
+                  Usage.User_Time.Nanoseconds);
+            when RUSAGE_CHILDREN =>
+               Process.Get_Children_Runtimes
+                  (Proc, Usage.System_Time.Seconds,
+                   Usage.System_Time.Nanoseconds, Usage.User_Time.Seconds,
+                   Usage.User_Time.Nanoseconds);
+            when others =>
+               Returned := Unsigned_64'Last;
+               Errno    := Error_Invalid_Value;
+               return;
+         end case;
+         Returned := 0;
+         Errno    := Error_No_Error;
+      end;
+   end Get_RUsage;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
@@ -3873,17 +3916,34 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Userland.Process.Flush_Threads (Proc);
       Userland.Process.Flush_Files   (Proc);
       Userland.Process.Issue_Exit    (Proc, Code);
+      Userland.Process.Remove_Thread (Proc, Arch.Local.Get_Current_Thread);
       Scheduler.Bail;
    end Do_Exit;
 
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context) is
+      Thread  : constant TID := Arch.Local.Get_Current_Thread;
+   begin
+      Scheduler.Signal_Kernel_Entry (Thread);
+      Common_Syscall_Hook (Thread, State);
+   end Pre_Syscall_Hook;
+
+   procedure Post_Syscall_Hook (State : Arch.Context.GP_Context) is
+      Thread  : constant TID := Arch.Local.Get_Current_Thread;
+   begin
+      Common_Syscall_Hook (Thread, State);
+      Scheduler.Signal_Kernel_Exit (Thread);
+   end Post_Syscall_Hook;
+   ----------------------------------------------------------------------------
+   procedure Common_Syscall_Hook
+      (Thread : TID;
+       State  : Arch.Context.GP_Context)
+   is
       type Trace_Info is record
          Thread : Unsigned_16;
          State  : Arch.Context.GP_Context;
       end record with Pack;
 
       Proc       : constant PID := Arch.Local.Get_Current_Process;
-      Thread     : constant TID := Arch.Local.Get_Current_Thread;
       File       : File_Description_Acc;
       Success    : IPC.FIFO.Pipe_Status;
       Ret_Count  : Natural;
@@ -3905,13 +3965,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Write (File.Inner_Writer_FIFO, TInfo_Data, Ret_Count, Success);
          end if;
       end if;
-   end Pre_Syscall_Hook;
+   end Common_Syscall_Hook;
 
-   procedure Post_Syscall_Hook (State : Arch.Context.GP_Context) is
-   begin
-      Pre_Syscall_Hook (State);
-   end Post_Syscall_Hook;
-   ----------------------------------------------------------------------------
    procedure Translate_Status
       (Status         : VFS.FS_Status;
        Success_Return : Unsigned_64;
@@ -4282,33 +4337,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
    end Resolve_AT_Directive;
 
-   function Compare
-      (Seconds1, Nanoseconds1 : Unsigned_64;
-       Seconds2, Nanoseconds2 : Unsigned_64) return Boolean
-   is
-      Sec1 : constant Unsigned_64 := Seconds1 + (Nanoseconds1 / 1_000_000_000);
-      Sec2 : constant Unsigned_64 := Seconds2 + (Nanoseconds2 / 1_000_000_000);
-      NSec1 : constant Unsigned_64 := Nanoseconds1 mod 1_000_000_000;
-      NSec2 : constant Unsigned_64 := Nanoseconds2 mod 1_000_000_000;
-   begin
-      return (Sec1 > Sec2) or ((Sec1 = Sec2) and (NSec1 > NSec2));
-   end Compare;
-
-   procedure Increment
-      (Seconds1, Nanoseconds1 : in out Unsigned_64;
-       Seconds2, Nanoseconds2 : Unsigned_64)
-   is
-   begin
-      Seconds1     := Seconds1 + Seconds2;
-      Nanoseconds1 := Nanoseconds1 + Nanoseconds2;
-      Seconds1     := Seconds1 + (Nanoseconds1 / 1_000_000_000);
-      Nanoseconds1 := Nanoseconds1 mod 1_000_000_000;
-   end Increment;
-
    procedure Get_Clock
       (Clock_ID : Unsigned_64;
        Clock    : out Arch.Local.Clock_Type;
-      Success   : out Boolean)
+       Success  : out Boolean)
    is
    begin
       case Clock_ID is

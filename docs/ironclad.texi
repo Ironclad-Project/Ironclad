@@ -160,6 +160,7 @@ Syscalls
 * futex::                   Fast userland mutexes.
 * clock::                   Clock and time operations.
 * clock_nanosleep::         Sleep on a clock.
+* getrusage::               Get resource usage for the process.
 
 Filesystem support and interfaces
 
@@ -675,6 +676,10 @@ Empty.
 @ref{futex}.
 @item
 @ref{clock}.
+@item
+@ref{clock_nanosleep}.
+@item
+@ref{getrusage}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -2786,6 +2791,51 @@ One of the passed values is not valid.
 
 @item EPERM
 MAC did not allow this.
+@end table
+
+@node getrusage
+@section getrusage
+
+@example
+#define RUSAGE_SELF 1
+#define RUSAGE_CHILDREN 2
+
+struct rusage @{
+    struct timeval ru_utime; // user CPU time used.
+    struct timeval ru_stime; // system CPU time used.
+@};
+
+int getusage(int who, struct rusage *usage);
+@end example
+
+This syscall gets the use of several resources by a process.
+
+Unlike what POSIX mandates, this syscall will always need @code{remaining} to
+be a valid structure. @code{clock_id} takes the same value as @ref{clock}.
+
+Due to implementation details, for now, system time does include waiting time,
+but given this syscall's information is merely advisory, it may be changed
+later.
+
+@code{who} establishes who to request the information for, it can be one of:
+
+@table @code
+@item RUSAGE_SELF
+Get information for the callee process.
+
+@item RUSAGE_CHILDREN
+Get information for all of the children processes.
+@end table
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EFAULT
+@code{usage} point to non accessible memory.
+
+@item EINVAL
+@code{who} was not valid.
 @end table
 
 @node Filesystem support and interfaces

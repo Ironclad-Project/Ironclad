@@ -23,6 +23,7 @@ with Arch;
 with Arch.Local;
 with Arch.Snippets;
 with Lib;
+with Lib.Time;
 with Lib.Messages;
 with Arch.CPU;
 with Ada.Unchecked_Deallocation;
@@ -60,6 +61,14 @@ package body Scheduler with SPARK_Mode => Off is
       FP_State      : Arch.Context.FP_Context;
       Process       : Userland.Process.PID;
       Yield_Mutex   : aliased Lib.Synchronization.Binary_Semaphore;
+      System_Sec    : Unsigned_64;
+      System_NSec   : Unsigned_64;
+      User_Sec      : Unsigned_64;
+      User_NSec     : Unsigned_64;
+      System_Tmp_Sec  : Unsigned_64;
+      System_Tmp_NSec : Unsigned_64;
+      User_Tmp_Sec : Unsigned_64;
+      User_Tmp_NSec : Unsigned_64;
    end record;
    type Thread_Info_Arr     is array (TID range 1 .. TID'Last) of Thread_Info;
    type Thread_Info_Arr_Acc is access Thread_Info_Arr;
@@ -289,6 +298,15 @@ package body Scheduler with SPARK_Mode => Off is
       Thread_Pool (New_TID).GP_State := GP_State;
       Thread_Pool (New_TID).FP_State := FP_State;
       Thread_Pool (New_TID).Process := Userland.Process.Convert (PID);
+      Thread_Pool (New_TID).System_Sec := 0;
+      Thread_Pool (New_TID).System_NSec := 0;
+      Thread_Pool (New_TID).User_Sec := 0;
+      Thread_Pool (New_TID).User_NSec :=
+         Unsigned_64 (Cluster_Pool (Cluster).RR_Quantum) * 1000;
+      Thread_Pool (New_TID).System_Tmp_Sec := 0;
+      Thread_Pool (New_TID).System_Tmp_NSec := 0;
+      Thread_Pool (New_TID).User_Tmp_Sec := 0;
+      Thread_Pool (New_TID).User_Tmp_NSec := 0;
       Lib.Synchronization.Release (Thread_Pool (New_TID).Yield_Mutex);
 
       Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).GP_State);
@@ -320,12 +338,10 @@ package body Scheduler with SPARK_Mode => Off is
    procedure Yield is
       Curr_TID : constant TID := Arch.Local.Get_Current_Thread;
    begin
-      if Curr_TID /= Error_TID then
-         Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex);
-         Arch.Local.Reschedule_ASAP;
-         Lib.Synchronization.Seize   (Thread_Pool (Curr_TID).Yield_Mutex);
-         Lib.Synchronization.Release (Thread_Pool (Curr_TID).Yield_Mutex);
-      end if;
+      Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex);
+      Arch.Local.Reschedule_ASAP;
+      Lib.Synchronization.Seize   (Thread_Pool (Curr_TID).Yield_Mutex);
+      Lib.Synchronization.Release (Thread_Pool (Curr_TID).Yield_Mutex);
    end Yield;
 
    procedure Bail is
@@ -334,6 +350,60 @@ package body Scheduler with SPARK_Mode => Off is
       Delete_Thread (Arch.Local.Get_Current_Thread);
       Idle_Core;
    end Bail;
+
+   procedure Get_Runtime_Times
+      (Thread : TID;
+       System_Seconds, System_Nanoseconds : out Unsigned_64;
+       User_Seconds, User_Nanoseconds     : out Unsigned_64)
+   is
+   begin
+      System_Seconds := Thread_Pool (Thread).System_Sec;
+      System_Nanoseconds := Thread_Pool (Thread).System_NSec;
+      User_Seconds := Thread_Pool (Thread).User_Sec;
+      User_Nanoseconds := Thread_Pool (Thread).User_NSec;
+   end Get_Runtime_Times;
+
+   procedure Signal_Kernel_Entry (Thread : TID) is
+      T1, T2  : Unsigned_64;
+      Discard : Boolean;
+   begin
+      Arch.Local.Get_Time (Arch.Local.Clock_Monotonic, T1, T2, Discard);
+
+      Thread_Pool (Thread).System_Tmp_Sec := T1;
+      Thread_Pool (Thread).System_Tmp_NSec := T2;
+
+      Lib.Time.Substract
+         (T1, T2,
+          Thread_Pool (Thread).User_Tmp_Sec,
+          Thread_Pool (Thread).User_Tmp_NSec);
+      Lib.Time.Increment
+         (Thread_Pool (Thread).User_Sec, Thread_Pool (Thread).User_NSec,
+          T1, T2);
+   end Signal_Kernel_Entry;
+
+   procedure Signal_Kernel_Exit (Thread : TID) is
+      Temp_Sec, Temp_NSec : Unsigned_64;
+      Discard : Boolean;
+   begin
+      Arch.Local.Get_Time
+         (Arch.Local.Clock_Monotonic, Temp_Sec, Temp_NSec, Discard);
+
+      Thread_Pool (Thread).User_Tmp_Sec := Temp_Sec;
+      Thread_Pool (Thread).User_Tmp_NSec := Temp_NSec;
+
+      if Thread_Pool (Thread).System_Tmp_Sec /= 0 or
+         Thread_Pool (Thread).System_Tmp_NSec /= 0
+      then
+         Lib.Time.Substract
+            (Seconds1     => Temp_Sec,
+             Nanoseconds1 => Temp_NSec,
+             Seconds2     => Thread_Pool (Thread).System_Tmp_Sec,
+             Nanoseconds2 => Thread_Pool (Thread).System_Tmp_NSec);
+         Lib.Time.Increment
+            (Thread_Pool (Thread).System_Sec, Thread_Pool (Thread).System_NSec,
+             Temp_Sec, Temp_NSec);
+      end if;
+   end Signal_Kernel_Exit;
    ----------------------------------------------------------------------------
    function Get_Cluster (Thread : TID) return TCID is
    begin
@@ -448,6 +518,7 @@ package body Scheduler with SPARK_Mode => Off is
       Curr_Cluster :         TCID := Error_TCID;
       Next_Cluster :         TCID := Error_TCID;
       Timeout      :      Natural;
+      Discard      :      Boolean;
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex);
 
@@ -547,6 +618,17 @@ package body Scheduler with SPARK_Mode => Off is
       --  Assign the next TID.
       Arch.Local.Set_Current_Thread (Next_TID);
       Thread_Pool (Next_TID).Is_Running := True;
+
+      --  Set the last time of entry to userland if none.
+      if Thread_Pool (Next_TID).User_Tmp_Sec = 0 and
+         Thread_Pool (Next_TID).User_Tmp_NSec = 0
+      then
+         Arch.Local.Get_Time
+            (Arch.Local.Clock_Monotonic,
+             Thread_Pool (Next_TID).User_Tmp_Sec,
+             Thread_Pool (Next_TID).User_Tmp_NSec,
+             Discard);
+      end if;
 
       --  Rearm the timer for next tick and unlock.
       Arch.Local.Reschedule_In (Timeout);

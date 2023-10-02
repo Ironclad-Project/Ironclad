@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Lib.Time;
 with Lib.Alignment;
 with Ada.Unchecked_Deallocation;
 with Arch.Local;
@@ -120,7 +121,8 @@ package body Userland.Process with SPARK_Mode => Off is
                 Alloc_Base      => 0,
                 Perms           => MAC.Default_Context,
                 Did_Exit        => False,
-                Exit_Code       => 0);
+                Exit_Code       => 0,
+                others          => 0);
 
             if Parent /= Error_PID then
                Registry (I).Parent          := Parent;
@@ -150,6 +152,44 @@ package body Userland.Process with SPARK_Mode => Off is
       Lib.Synchronization.Release (Registry_Mutex);
    end Delete_Process;
 
+   procedure Get_Runtime_Times
+      (Proc : PID;
+       System_Seconds, System_Nanoseconds : out Unsigned_64;
+       User_Seconds, User_Nanoseconds     : out Unsigned_64)
+   is
+      Temp1, Temp2, Temp3, Temp4 : Unsigned_64;
+   begin
+      System_Seconds := 0;
+      System_Nanoseconds := 0;
+      User_Seconds := 0;
+      User_Nanoseconds := 0;
+
+      for Th of Registry (Proc).Thread_List loop
+         if Th /= Error_TID then
+            Scheduler.Get_Runtime_Times (Th, Temp1, Temp2, Temp3, Temp4);
+            System_Seconds := System_Seconds + Temp1;
+            System_Nanoseconds := System_Nanoseconds + Temp2;
+            User_Seconds := User_Seconds + Temp3;
+            User_Nanoseconds := User_Nanoseconds + Temp4;
+         end if;
+      end loop;
+
+      Lib.Time.Normalize (System_Seconds, System_Nanoseconds);
+      Lib.Time.Normalize (User_Seconds, User_Nanoseconds);
+   end Get_Runtime_Times;
+
+   procedure Get_Children_Runtimes
+      (Proc : PID;
+       System_Seconds, System_Nanoseconds : out Unsigned_64;
+       User_Seconds, User_Nanoseconds     : out Unsigned_64)
+   is
+   begin
+      System_Seconds := Registry (Proc).Children_SSec;
+      System_Nanoseconds := Registry (Proc).Children_SNSec;
+      User_Seconds := Registry (Proc).Children_USec;
+      User_Nanoseconds := Registry (Proc).Children_UNSec;
+   end Get_Children_Runtimes;
+
    procedure Add_Thread
       (Proc    : PID;
        Thread  : Scheduler.TID;
@@ -167,10 +207,20 @@ package body Userland.Process with SPARK_Mode => Off is
    end Add_Thread;
 
    procedure Remove_Thread (Proc : PID; Thread : Scheduler.TID) is
+      Temp1, Temp2, Temp3, Temp4 : Unsigned_64;
    begin
       for I in Registry (Proc).Thread_List'Range loop
          if Registry (Proc).Thread_List (I) = Thread then
             Registry (Proc).Thread_List (I) := Error_TID;
+            Scheduler.Get_Runtime_Times (Thread, Temp1, Temp2, Temp3, Temp4);
+            Lib.Time.Increment
+               (Registry (Registry (Proc).Parent).Children_SSec,
+                Registry (Registry (Proc).Parent).Children_SNSec,
+                Temp1, Temp2);
+            Lib.Time.Increment
+               (Registry (Registry (Proc).Parent).Children_USec,
+                Registry (Registry (Proc).Parent).Children_UNSec,
+                Temp3, Temp4);
             exit;
          end if;
       end loop;
@@ -178,10 +228,24 @@ package body Userland.Process with SPARK_Mode => Off is
 
    procedure Flush_Threads (Proc : PID) is
       Current_Thread : constant TID := Arch.Local.Get_Current_Thread;
+      Temp1, Temp2, Temp3, Temp4 : Unsigned_64;
    begin
       for Thread of Registry (Proc).Thread_List loop
-         if Thread /= Current_Thread and then Thread /= Error_TID then
-            Scheduler.Delete_Thread (Thread);
+         if Thread /= Error_TID then
+            Scheduler.Get_Runtime_Times (Thread, Temp1, Temp2, Temp3, Temp4);
+
+            Lib.Time.Increment
+               (Registry (Registry (Proc).Parent).Children_SSec,
+                Registry (Registry (Proc).Parent).Children_SNSec,
+                Temp1, Temp2);
+            Lib.Time.Increment
+               (Registry (Registry (Proc).Parent).Children_USec,
+                Registry (Registry (Proc).Parent).Children_UNSec,
+                Temp3, Temp4);
+
+            if Thread /= Current_Thread then
+               Scheduler.Delete_Thread (Thread);
+            end if;
          end if;
          Thread := Error_TID;
       end loop;

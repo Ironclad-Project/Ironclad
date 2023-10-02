@@ -125,6 +125,18 @@ package Userland.Process is
    --  @param Process Process to delete.
    procedure Delete_Process (Process : PID) with Pre => Process /= Error_PID;
 
+   --  Get runtime of all the threads owned by the process;
+   procedure Get_Runtime_Times
+      (Proc : PID;
+       System_Seconds, System_Nanoseconds : out Unsigned_64;
+       User_Seconds, User_Nanoseconds     : out Unsigned_64);
+
+   --  Get runtime of all children processes that have exited.
+   procedure Get_Children_Runtimes
+      (Proc : PID;
+       System_Seconds, System_Nanoseconds : out Unsigned_64;
+       User_Seconds, User_Nanoseconds     : out Unsigned_64);
+
    --  Add a thread to the process.
    --  @param Proc    Process to add a thread.
    --  @param Thread  Thread to add.
@@ -479,6 +491,10 @@ private
       Perms           : MAC.Context;
       Did_Exit        : Boolean;
       Exit_Code       : Unsigned_8;
+      Children_SSec   : Unsigned_64;
+      Children_SNSec  : Unsigned_64;
+      Children_USec   : Unsigned_64;
+      Children_UNSec  : Unsigned_64;
    end record;
    type Process_Data_Acc is access Process_Data;
    type Process_Arr     is array (PID range 1 .. PID'Last) of Process_Data_Acc;

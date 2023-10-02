@@ -20,6 +20,7 @@ with Arch.MMU;
 with Arch.Local;
 with IPC.PTY;
 with System;
+with Scheduler; use Scheduler;
 with Userland.MAC;
 with Memory;
 with Userland.Process; use Userland.Process;
@@ -864,6 +865,20 @@ package Userland.Syscall is
        Remain_Addr  : Unsigned_64;
        Returned     : out Unsigned_64;
        Errno        : out Errno_Value);
+
+   --   Get usage statistics for the callee process.
+   type RUsage is record
+      User_Time   : Time_Spec;
+      System_Time : Time_Spec;
+   end record;
+
+   RUSAGE_SELF     : constant := 1;
+   RUSAGE_CHILDREN : constant := 2;
+   procedure Get_RUsage
+      (Who        : Unsigned_64;
+       Usage_Addr : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.
@@ -880,6 +895,10 @@ package Userland.Syscall is
        Byte_Count : Unsigned_64) return Boolean;
 
 private
+
+   procedure Common_Syscall_Hook
+      (Thread : TID;
+       State  : Arch.Context.GP_Context);
 
    --  Translate an FS_Status to Errno.
    procedure Translate_Status
@@ -955,16 +974,8 @@ private
        FS     : out VFS.FS_Handle;
        Ino    : out VFS.File_Inode_Number);
 
-   function Compare
-      (Seconds1, Nanoseconds1 : Unsigned_64;
-       Seconds2, Nanoseconds2 : Unsigned_64) return Boolean;
-
-   procedure Increment
-      (Seconds1, Nanoseconds1 : in out Unsigned_64;
-       Seconds2, Nanoseconds2 : Unsigned_64);
-
    procedure Get_Clock
       (Clock_ID : Unsigned_64;
        Clock    : out Arch.Local.Clock_Type;
-      Success   : out Boolean);
+       Success  : out Boolean);
 end Userland.Syscall;
