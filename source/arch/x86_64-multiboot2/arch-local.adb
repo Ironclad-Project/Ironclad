@@ -50,7 +50,6 @@ package body Arch.Local with SPARK_Mode => Off is
 
    procedure Set_Stacks (User_Stack, Kernel_Stack : System.Address) is
    begin
-      --  CPU.Get_Local.Core_TSS.Stack_Ring0 := Kernel_Stack;
       CPU.Get_Local.User_Stack   := Unsigned_64 (To_Integer (User_Stack));
       CPU.Get_Local.Kernel_Stack := Unsigned_64 (To_Integer (Kernel_Stack));
    end Set_Stacks;
@@ -84,8 +83,7 @@ package body Arch.Local with SPARK_Mode => Off is
    begin
       case Clock is
          when Clock_Real_Time =>
-            Seconds     := RTC.Resolution_Hz;
-            Nanoseconds := 0;
+            RTC.Get_Resolution (Seconds, Nanoseconds);
             Success     := True;
          when Clock_Monotonic =>
             TSC.Get_Resolution (Seconds, Nanoseconds);
@@ -102,9 +100,8 @@ package body Arch.Local with SPARK_Mode => Off is
    begin
       case Clock is
          when Clock_Real_Time =>
-            RTC.Get_Time (Seconds);
-            Nanoseconds := 0;
-            Success     := True;
+            RTC.Get_Time (Seconds, Nanoseconds);
+            Success := True;
          when Clock_Monotonic =>
             TSC.Get_Time (Seconds, Nanoseconds);
             Success := True;
@@ -117,11 +114,10 @@ package body Arch.Local with SPARK_Mode => Off is
        Nanoseconds : Unsigned_64;
        Success     : out Boolean)
    is
-      pragma Unreferenced (Nanoseconds);
    begin
       case Clock is
          when Clock_Real_Time =>
-            RTC.Set_Time (Seconds);
+            RTC.Set_Time (Seconds, Nanoseconds);
             Success := True;
          when Clock_Monotonic =>
             Success := False;

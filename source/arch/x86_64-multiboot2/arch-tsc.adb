@@ -24,7 +24,7 @@ package body Arch.TSC with SPARK_Mode => Off is
    end Get_Resolution;
 
    procedure Get_Time (Seconds, Nanoseconds : out Unsigned_64) is
-      Cycles : constant Unsigned_64 := Snippets.Read_Cycles;
+      Cycles : constant Unsigned_64 := Snippets.Read_Cycles / 2;
    begin
       Seconds     := Cycles / 1_000_000_000;
       Nanoseconds := Cycles mod 1_000_000_000;
