@@ -15,9 +15,17 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Lib.Time is
+   --  Unit passes GNATprove AoRTE, GNAT does not know this.
+   pragma Suppress (All_Checks);
+
    procedure Normalize (Seconds, Nanoseconds : in out Unsigned_64) is
+      Nanosecond_Seconds : constant Unsigned_64 := Nanoseconds / USec_Per_Sec;
    begin
-      Seconds := Seconds + (Nanoseconds / USec_Per_Sec);
+      if Seconds <= Unsigned_64'Last - Nanosecond_Seconds then
+         Seconds := Seconds + Nanosecond_Seconds;
+      else
+         Seconds := Unsigned_64'Last;
+      end if;
       Nanoseconds := Nanoseconds mod USec_Per_Sec;
    end Normalize;
 
@@ -35,12 +43,13 @@ package body Lib.Time is
       (Seconds1, Nanoseconds1 : in out Unsigned_64;
        Seconds2, Nanoseconds2 : Unsigned_64)
    is
-      Final : constant Unsigned_64 :=
-         ((Seconds1 * USec_Per_Sec) + Nanoseconds1) -
-         ((Seconds2 * USec_Per_Sec) + Nanoseconds2);
    begin
-      Seconds1 := Final / USec_Per_Sec;
-      Nanoseconds1 := Final mod USec_Per_Sec;
+      Seconds1 := Seconds1 - Seconds2;
+      if Nanoseconds1 < Nanoseconds2 then
+         Seconds1 := Seconds1 - 1;
+         Nanoseconds1 := USec_Per_Sec + Nanoseconds1;
+      end if;
+      Nanoseconds1 := Nanoseconds1 - Nanoseconds2;
    end Substract;
 
    function Is_Greater_Equal (S1, NS1, S2, NS2 : Unsigned_64) return Boolean is

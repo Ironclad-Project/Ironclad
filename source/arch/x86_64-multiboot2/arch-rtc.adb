@@ -15,8 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Snippets;
-with Arch.TSC;
-with Lib.Time;
 
 package body Arch.RTC with SPARK_Mode => Off is
    CMOS_Base_Port   : constant := 16#70#;
@@ -31,46 +29,6 @@ package body Arch.RTC with SPARK_Mode => Off is
    CMOS_Year        : constant := 16#09#;
    CMOS_Config      : constant := 16#0B#;
 
-   Has_Synchronized : Boolean := False;
-   Timestamp_Seconds     : Unsigned_64;
-   Timestamp_Nanoseconds : Unsigned_64;
-   Stored_Seconds        : Unsigned_64;
-   Stored_Nanoseconds    : Unsigned_64;
-
-   procedure Get_Resolution (Seconds, Nanoseconds : out Unsigned_64) is
-   begin
-      TSC.Get_Resolution (Seconds, Nanoseconds);
-   end Get_Resolution;
-
-   procedure Get_Time (Seconds, Nanoseconds : out Unsigned_64) is
-      Temp1, Temp2 : Unsigned_64;
-   begin
-      if not Has_Synchronized then
-         Get_RTC_Date (Stored_Seconds);
-         Stored_Nanoseconds := 0;
-         TSC.Get_Time (Timestamp_Seconds, Timestamp_Nanoseconds);
-         Has_Synchronized := True;
-         Seconds := Stored_Seconds;
-         Nanoseconds := Stored_Nanoseconds;
-      else
-         TSC.Get_Time (Temp1, Temp2);
-
-         Lib.Time.Substract
-            (Temp1, Temp2, Timestamp_Seconds, Timestamp_Nanoseconds);
-         Seconds := Stored_Seconds + Temp1;
-         Nanoseconds := Stored_Nanoseconds + Temp2;
-      end if;
-   end Get_Time;
-
-   procedure Set_Time (Seconds, Nanoseconds : Unsigned_64) is
-   begin
-      Stored_Seconds := Seconds;
-      Stored_Nanoseconds := Nanoseconds;
-      TSC.Get_Time (Timestamp_Seconds, Timestamp_Nanoseconds);
-      Has_Synchronized := True;
-      Set_RTC_Date (Seconds);
-   end Set_Time;
-   ----------------------------------------------------------------------------
    procedure Get_RTC_Date (Epoch_Seconds : out Unsigned_64) is
       Temp : constant Unsigned_8 := Get_RTC_Data (CMOS_Config);
       Seconds : Unsigned_32;
@@ -132,7 +90,7 @@ package body Arch.RTC with SPARK_Mode => Off is
       --  TODO: Implement.
       null;
    end Set_RTC_Date;
-
+   ----------------------------------------------------------------------------
    function Get_Julian_Day
       (Days, Months, Years : Integer_64) return Unsigned_64 is
    begin

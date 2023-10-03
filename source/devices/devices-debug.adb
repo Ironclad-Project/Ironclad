@@ -16,10 +16,7 @@
 
 with Arch.Debug;
 
-package body Devices.Debug is
-   --  Unit passes GNATprove AoRTE, GNAT does not know this.
-   pragma Suppress (All_Checks);
-
+package body Devices.Debug with SPARK_Mode => Off is
    procedure Init (Success : out Boolean) is
       Device : Resource;
    begin

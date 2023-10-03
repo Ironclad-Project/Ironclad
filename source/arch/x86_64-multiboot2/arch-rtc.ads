@@ -17,14 +17,11 @@
 with Interfaces; use Interfaces;
 
 package Arch.RTC with SPARK_Mode => Off is
-   procedure Get_Resolution (Seconds, Nanoseconds : out Unsigned_64);
-   procedure Get_Time (Seconds, Nanoseconds : out Unsigned_64);
-   procedure Set_Time (Seconds, Nanoseconds : Unsigned_64);
+   procedure Get_RTC_Date (Epoch_Seconds : out Unsigned_64);
+   procedure Set_RTC_Date (Epoch_Seconds : Unsigned_64);
 
 private
 
-   procedure Get_RTC_Date (Epoch_Seconds : out Unsigned_64);
-   procedure Set_RTC_Date (Epoch_Seconds : Unsigned_64);
    function Get_Julian_Day
       (Days, Months, Years : Integer_64) return Unsigned_64;
    function Get_RTC_Data (Register : Unsigned_8) return Unsigned_8;

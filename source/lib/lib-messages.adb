@@ -15,8 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Characters.Latin_1;
-with Arch.Debug;
-with Arch.Local;
 with Lib.Synchronization;
 
 package body Lib.Messages with
@@ -84,9 +82,8 @@ is
       Stp     : Translated_String;
       Stp_Len : Natural;
       Sec, NSec : Unsigned_64;
-      Discard : Boolean;
    begin
-      Arch.Local.Get_Time (Arch.Local.Clock_Monotonic, Sec, NSec, Discard);
+      Arch.Clocks.Get_Monotonic_Time (Sec, NSec);
       Image ((Sec * 1000) + (NSec / 1_000_000), Stp, Stp_Len);
 
       Lib.Synchronization.Seize (Messages_Mutex);

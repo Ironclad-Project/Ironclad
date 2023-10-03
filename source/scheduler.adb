@@ -21,6 +21,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Userland.Process;
 with Arch;
 with Arch.Local;
+with Arch.Clocks;
 with Arch.Snippets;
 with Lib;
 with Lib.Time;
@@ -367,7 +368,7 @@ package body Scheduler with SPARK_Mode => Off is
       T1, T2  : Unsigned_64;
       Discard : Boolean;
    begin
-      Arch.Local.Get_Time (Arch.Local.Clock_Monotonic, T1, T2, Discard);
+      Arch.Clocks.Get_Monotonic_Time (T1, T2);
 
       Thread_Pool (Thread).System_Tmp_Sec := T1;
       Thread_Pool (Thread).System_Tmp_NSec := T2;
@@ -383,10 +384,8 @@ package body Scheduler with SPARK_Mode => Off is
 
    procedure Signal_Kernel_Exit (Thread : TID) is
       Temp_Sec, Temp_NSec : Unsigned_64;
-      Discard : Boolean;
    begin
-      Arch.Local.Get_Time
-         (Arch.Local.Clock_Monotonic, Temp_Sec, Temp_NSec, Discard);
+      Arch.Clocks.Get_Monotonic_Time (Temp_Sec, Temp_NSec);
 
       Thread_Pool (Thread).User_Tmp_Sec := Temp_Sec;
       Thread_Pool (Thread).User_Tmp_NSec := Temp_NSec;
@@ -623,11 +622,9 @@ package body Scheduler with SPARK_Mode => Off is
       if Thread_Pool (Next_TID).User_Tmp_Sec = 0 and
          Thread_Pool (Next_TID).User_Tmp_NSec = 0
       then
-         Arch.Local.Get_Time
-            (Arch.Local.Clock_Monotonic,
-             Thread_Pool (Next_TID).User_Tmp_Sec,
-             Thread_Pool (Next_TID).User_Tmp_NSec,
-             Discard);
+         Arch.Clocks.Get_Monotonic_Time
+            (Thread_Pool (Next_TID).User_Tmp_Sec,
+             Thread_Pool (Next_TID).User_Tmp_NSec);
       end if;
 
       --  Rearm the timer for next tick and unlock.

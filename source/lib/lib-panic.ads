@@ -15,14 +15,19 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Lib.Messages;
+with Arch.Debug;
+with Arch.Clocks;
 
 package Lib.Panic with
    Abstract_State => Panic_State,
    Initializes    => Panic_State
 is
-   --  Will report the issue and then lock up the system, for situations that
-   --  are too risky or unrecoverable.
+   --  For situations that are too risky for recovery!
+   --  @param Message Message to print before halting the system.
    procedure Hard_Panic (Message : String)
-      with Pre => Message'Length <= 100, No_Return,
-           Global => (In_Out => (Panic_State, Messages.Message_State));
+      with Global =>
+         (In_Out => (Panic_State, Arch.Debug.Debug_State,
+                     Arch.Clocks.Monotonic_Clock_State,
+                     Messages.Message_State)),
+           Pre => Message'Length <= 100, No_Return;
 end Lib.Panic;

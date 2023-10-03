@@ -17,7 +17,6 @@
 with Interfaces; use Interfaces;
 with Arch.Context;
 with Arch.MMU;
-with Arch.Local;
 with IPC.PTY;
 with System;
 with Scheduler; use Scheduler;
@@ -973,9 +972,4 @@ private
        Dir_FD : Unsigned_64;
        FS     : out VFS.FS_Handle;
        Ino    : out VFS.File_Inode_Number);
-
-   procedure Get_Clock
-      (Clock_ID : Unsigned_64;
-       Clock    : out Arch.Local.Clock_Type;
-       Success  : out Boolean);
 end Userland.Syscall;

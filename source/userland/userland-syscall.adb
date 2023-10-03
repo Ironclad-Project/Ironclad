@@ -26,6 +26,8 @@ with Lib.Alignment;
 with Networking;
 with Userland.Loader;
 with Arch.MMU; use Arch.MMU;
+with Arch.Clocks;
+with Arch.Local;
 with Memory.Physical;
 with Memory; use Memory;
 with Ada.Unchecked_Deallocation;
@@ -3020,8 +3022,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          goto Normal_Empty_Exit;
       end if;
 
-      Arch.Local.Get_Time (Arch.Local.Clock_Monotonic, Final_Sec, Final_NSec,
-                           Discard);
+      Arch.Clocks.Get_Monotonic_Time (Final_Sec, Final_NSec);
 
       declare
          FDs  : Poll_FDs (1 .. FDs_Count) with Import, Address => FSAddr;
@@ -3100,9 +3101,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                end if;
             end loop;
 
-            Arch.Local.Get_Time (Arch.Local.Clock_Monotonic, Curr_Sec,
-                                 Curr_NSec, Discard);
-
+            Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_NSec);
             exit when Count /= 0 or Lib.Time.Is_Greater_Equal (Curr_Sec,
                Curr_NSec, Final_Sec, Final_NSec);
 
@@ -3756,8 +3755,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
       Map   : constant  Page_Table_Acc := Get_Common_Map (Proc);
       IAddr : constant Integer_Address := Integer_Address (Address);
-      Clock : Arch.Local.Clock_Type;
-      Succ  : Boolean;
    begin
       if not Check_Userland_Access (Map, IAddr, Time_Spec'Size / 8) then
          Returned := Unsigned_64'Last;
@@ -3770,40 +3767,52 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return;
       end if;
 
-      Get_Clock (Clock_ID, Clock, Succ);
-      if not Succ then
-         Returned := Unsigned_64'Last;
-         Errno    := Error_Invalid_Value;
-         return;
-      end if;
-
       declare
          Spec : Time_Spec with Import, Address => To_Address (IAddr);
       begin
          case Operation is
             when CLOCK_GETRES =>
-               Arch.Local.Get_Resolution
-                  (Clock, Spec.Seconds, Spec.Nanoseconds, Succ);
+               case Clock_ID is
+                  when CLOCK_MONOTONIC =>
+                     Arch.Clocks.Get_Monotonic_Resolution
+                        (Spec.Seconds, Spec.Nanoseconds);
+                  when CLOCK_REALTIME =>
+                     Arch.Clocks.Get_Real_Time_Resolution
+                        (Spec.Seconds, Spec.Nanoseconds);
+                  when others =>
+                     goto Invalid_Value_Error;
+               end case;
             when CLOCK_GETTIME =>
-               Arch.Local.Get_Time
-                  (Clock, Spec.Seconds, Spec.Nanoseconds, Succ);
+               case Clock_ID is
+                  when CLOCK_MONOTONIC =>
+                     Arch.Clocks.Get_Monotonic_Time
+                        (Spec.Seconds, Spec.Nanoseconds);
+                  when CLOCK_REALTIME =>
+                     Arch.Clocks.Get_Real_Time
+                        (Spec.Seconds, Spec.Nanoseconds);
+                  when others =>
+                     goto Invalid_Value_Error;
+               end case;
             when CLOCK_SETTIME =>
-               Arch.Local.Set_Time
-                  (Clock, Spec.Seconds, Spec.Nanoseconds, Succ);
+               case Clock_ID is
+                  when CLOCK_REALTIME =>
+                     Arch.Clocks.Set_Real_Time
+                        (Spec.Seconds, Spec.Nanoseconds);
+                  when others =>
+                     goto Invalid_Value_Error;
+               end case;
             when others =>
-               Returned := Unsigned_64'Last;
-               Errno    := Error_Invalid_Value;
-               return;
+               goto Invalid_Value_Error;
          end case;
-
-         if Succ then
-            Returned := 0;
-            Errno    := Error_No_Error;
-         else
-            Returned := Unsigned_64'Last;
-            Errno    := Error_Invalid_Value;
-         end if;
       end;
+
+      Returned := 0;
+      Errno := Error_No_Error;
+      return;
+
+   <<Invalid_Value_Error>>
+      Returned := Unsigned_64'Last;
+      Errno    := Error_Invalid_Value;
    end Clock;
 
    procedure Clock_Nanosleep
@@ -3818,8 +3827,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Map      : constant  Page_Table_Acc := Get_Common_Map (Proc);
       ReqIAddr : constant Integer_Address := Integer_Address (Request_Addr);
       RemIAddr : constant Integer_Address := Integer_Address (Remain_Addr);
-      Clock    : Arch.Local.Clock_Type;
-      Success  : Boolean;
    begin
       if not Check_Userland_Access (Map, ReqIAddr, Time_Spec'Size / 8) or
          not Check_Userland_Access (Map, RemIAddr, Time_Spec'Size / 8)
@@ -3834,13 +3841,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return;
       end if;
 
-      Get_Clock (Clock_ID, Clock, Success);
-      if not Success then
-         Returned := Unsigned_64'Last;
-         Errno    := Error_Invalid_Value;
-         return;
-      end if;
-
       declare
          Request     : Time_Spec with Import, Address => To_Address (ReqIAddr);
          Remaining   : Time_Spec with Import, Address => To_Address (RemIAddr);
@@ -3851,13 +3851,21 @@ package body Userland.Syscall with SPARK_Mode => Off is
             FSec  := Request.Seconds;
             FNSec := Request.Nanoseconds;
          else
-            Arch.Local.Get_Time (Clock, FSec, FNSec, Success);
+            if Clock_ID = CLOCK_MONOTONIC then
+               Arch.Clocks.Get_Monotonic_Time (FSec, FNSec);
+            else
+               Arch.Clocks.Get_Real_Time (FSec, FNSec);
+            end if;
             Lib.Time.Increment (FSec, FNSec, Request.Seconds,
                                 Request.Nanoseconds);
          end if;
 
          loop
-            Arch.Local.Get_Time (Clock, CSec, CNSec, Success);
+            if Clock_ID = CLOCK_MONOTONIC then
+               Arch.Clocks.Get_Monotonic_Time (CSec, CNSec);
+            else
+               Arch.Clocks.Get_Real_Time (CSec, CNSec);
+            end if;
             exit when Lib.Time.Is_Greater_Equal (CSec, CNSec, FSec, FNSec);
             Scheduler.Yield_If_Able;
          end loop;
@@ -4336,21 +4344,4 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
       end if;
    end Resolve_AT_Directive;
-
-   procedure Get_Clock
-      (Clock_ID : Unsigned_64;
-       Clock    : out Arch.Local.Clock_Type;
-       Success  : out Boolean)
-   is
-   begin
-      case Clock_ID is
-         when CLOCK_MONOTONIC => Clock := Arch.Local.Clock_Monotonic;
-         when CLOCK_REALTIME  => Clock := Arch.Local.Clock_Real_Time;
-         when others =>
-            Clock   := Arch.Local.Clock_Real_Time;
-            Success := False;
-            return;
-      end case;
-      Success := True;
-   end Get_Clock;
 end Userland.Syscall;

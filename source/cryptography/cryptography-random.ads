@@ -34,4 +34,5 @@ package Cryptography.Random is
 private
 
    procedure Get_Seed (Seed : out MD5.MD5_Hash);
+   procedure Collapse_Time (Collapsed : out Unsigned_64);
 end Cryptography.Random;

@@ -16,7 +16,7 @@
 
 with Ada.Unchecked_Conversion;
 with Memory.Physical; use Memory.Physical;
-with Arch.Local;
+with Arch.Clocks;
 with Memory; use Memory;
 with Cryptography.Chacha20;
 
@@ -45,14 +45,13 @@ package body Cryptography.Random is
       Index       : Natural     := Cha_Block'Last + 1;
       Block_Index : Unsigned_64 := 0;
       Discard     : Unsigned_64;
-      D           : Boolean;
    begin
       Get_Seed (S.Seed1);
       Get_Seed (S.Seed2);
 
       for Value of Data loop
          if Index > Cha_Block'Last then
-            Arch.Local.Get_Time (Arch.Local.Clock_Monotonic, Discard, Temp, D);
+            Collapse_Time (Temp);
             Cha_Block   := Chacha20.Gen_Key (To_Seed (S), Temp, Block_Index);
             Index       := Cha_Block'First;
             Block_Index := Block_Index + 1;
@@ -84,19 +83,18 @@ package body Cryptography.Random is
    end Get_Integer;
 
    procedure Get_Seed (Seed : out MD5.MD5_Hash) is
-      Success : Boolean;
-      Discard : Unsigned_64;
-      NSec    : Unsigned_64;
+      Time    : Unsigned_64;
       Used    : Unsigned_64;
       Stats   : Memory.Physical.Statistics;
       To_Hash : MD5.MD5_Blocks (1 .. 1);
    begin
       Get_Statistics (Stats);
-      Arch.Local.Get_Time (Arch.Local.Clock_Monotonic, Discard, NSec, Success);
+      Collapse_Time (Time);
+
       Used    := Unsigned_64 (Stats.Available - Stats.Free);
       To_Hash := (0 => (
-         0  => Unsigned_32 (Shift_Right (NSec, 32) and 16#FFFFFFFF#),
-         1  => Unsigned_32 (NSec and 16#FFFFFFFF#),
+         0  => Unsigned_32 (Shift_Right (Time, 32) and 16#FFFFFFFF#),
+         1  => Unsigned_32 (Time and 16#FFFFFFFF#),
          2  => Unsigned_32 (Shift_Right (Used, 32) and 16#FFFFFFFF#),
          3  => Unsigned_32 (Used and 16#FFFFFFFF#),
          14 => 128,
@@ -104,4 +102,11 @@ package body Cryptography.Random is
       ));
       Seed := MD5.Digest (To_Hash);
    end Get_Seed;
+
+   procedure Collapse_Time (Collapsed : out Unsigned_64) is
+      Sec, NSec : Unsigned_64;
+   begin
+      Arch.Clocks.Get_Monotonic_Time (Sec, NSec);
+      Collapsed := Shift_Left (Sec, 32) or NSec;
+   end Collapse_Time;
 end Cryptography.Random;

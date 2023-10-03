@@ -14,7 +14,22 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Arch.Debug is
-   procedure Print (Message : Character);
-   procedure Print (Message : String);
+package Arch.Debug with
+   Abstract_State => Debug_State,
+   Initializes => Debug_State
+is
+   --  These functions print values to a target-specific debug channel, which
+   --  could take the shape of anything, from a serial port to a network
+   --  packet.
+   --  It comes with its own abstracted state for ease of modeling.
+
+   --  Print a character message.
+   --  @param Message Character to print.
+   procedure Print (Message : Character)
+      with Global => (In_Out => Debug_State);
+
+   --  Print a string message (!!!!!!!NOT ATOMICALLY!!!!!!!).
+   --  @param Message String to print.
+   procedure Print (Message : String)
+      with Global => (In_Out => Debug_State);
 end Arch.Debug;

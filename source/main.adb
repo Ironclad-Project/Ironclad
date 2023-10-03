@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch;
+with Arch.Clocks;
 with Devices.Ramdev;
 with Devices;
 with VFS; use VFS;
@@ -46,6 +47,9 @@ procedure Main is
    Proto       : Arch.Boot_Information renames Arch.Global_Info;
    Cmdline     : String renames Proto.Cmdline (1 .. Proto.Cmdline_Len);
 begin
+   --  Initialize several printing-needed subsystems.
+   Arch.Clocks.Initialize_Sources;
+
    Lib.Messages.Put_Line (Config.Name & " " & Config.Version);
    Lib.Messages.Put_Line ("Please report bugs at " & Config.Bug_Site);
    Lib.Messages.Put_Line ("Command line: '" & Cmdline & "'");

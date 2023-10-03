@@ -15,6 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
+with Arch.Clocks;
+with Arch.Debug;
 
 package Lib.Messages with
    Abstract_State => Message_State,
@@ -22,12 +24,19 @@ package Lib.Messages with
 is
    --  Print a warning message to debug outputs and add a newline.
    --  @param Message String to print appending a newline.
-   procedure Warn (Message : String) with Global => (In_Out => Message_State);
+   procedure Warn (Message : String)
+      with Global => (In_Out => (
+         Arch.Clocks.Monotonic_Clock_State,
+         Arch.Debug.Debug_State,
+         Message_State));
 
    --  Prints a string to debug outputs and adds a newline.
    --  @param Message String to print to append with a new line.
    procedure Put_Line (Message : String)
-      with Global => (In_Out => Message_State);
+      with Global => (In_Out => (
+         Arch.Clocks.Monotonic_Clock_State,
+         Arch.Debug.Debug_State,
+         Message_State));
    ----------------------------------------------------------------------------
    --  Types for translation strings.
    subtype Translated_String is String (1 .. 20);
@@ -57,5 +66,9 @@ is
 
 private
 
-   procedure Print_Timestamp_And_Lock;
+   procedure Print_Timestamp_And_Lock
+      with Global => (In_Out => (
+         Arch.Clocks.Monotonic_Clock_State,
+         Arch.Debug.Debug_State,
+         Message_State));
 end Lib.Messages;
