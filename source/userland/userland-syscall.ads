@@ -22,6 +22,7 @@ with System;
 with Scheduler; use Scheduler;
 with Userland.MAC;
 with Memory;
+with Networking;
 with Userland.Process; use Userland.Process;
 with VFS;              use VFS;
 with IPC.Socket;       use IPC.Socket;
@@ -213,6 +214,8 @@ package Userland.Syscall is
        Errno      : out Errno_Value);
 
    --  Create a socket.
+   AF_INET       : constant := 1;
+   AF_INET6      : constant := 2;
    AF_UNIX       : constant := 3;
    SOCK_DGRAM    : constant := 2#000000000000000001#;
    SOCK_RAW      : constant := 2#000000000000000010#;
@@ -345,6 +348,7 @@ package Userland.Syscall is
    SC_CHILD_MAX     : constant := 11;
    SC_LIST_THREADS  : constant := 12;
    SC_LIST_CLUSTERS : constant := 13;
+   SC_LIST_NETINTER : constant := 14;
 
    PROC_IS_TRACED : constant := 2#01#;
    PROC_EXITED    : constant := 2#10#;
@@ -389,6 +393,19 @@ package Userland.Syscall is
       Cluster_Q  : Unsigned_16;
    end record with Pack;
    type Cluster_Info_Arr is array (Natural range <>) of Cluster_Info;
+
+   NETINTR_BLOCKED : constant := 1;
+
+   type Interface_Info is record
+      Name        : String (1 .. 65);
+      Flags       : Unsigned_64;
+      MAC         : Networking.MAC_Address;
+      IPv4        : Networking.IPv4_Address;
+      IPv4_Subnet : Networking.IPv4_Address;
+      IPv6        : Networking.IPv6_Address;
+      IPv6_Subnet : Networking.IPv6_Address;
+   end record with Pack;
+   type Interface_Arr is array (Natural range <>) of Interface_Info;
 
    procedure Sysconf
       (Request  : Unsigned_64;
@@ -598,12 +615,10 @@ package Userland.Syscall is
        Errno    : out Errno_Value);
 
    --  Bind a socket to an address.
-   type SockAddr_UNIX (Length : Natural) is record
+   type SockAddr_UNIX is record
       Sun_Family : Unsigned_32;
-      Path       : String (1 .. Length);
-   end record;
-   for SockAddr_UNIX use record
-      Sun_Family at 0 range 0 .. 31;
+      Length     : Unsigned_32;
+      Path       : System.Address;
    end record;
    procedure Bind
       (Sock_FD   : Unsigned_64;

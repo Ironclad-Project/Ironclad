@@ -14,9 +14,10 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Devices.Debug;
+with Devices.Loopback;
 with Devices.Random;
 with Devices.Streams;
-with Devices.Debug;
 with Lib.Panic;
 with Arch.Hooks;
 
@@ -33,11 +34,14 @@ package body Devices is
          Dev.Is_Present := False;
       end loop;
 
+
+      Debug.Init (Success);
+      if not Success then goto Panic_Error; end if;
+      Loopback.Init (Success);
+      if not Success then goto Panic_Error; end if;
       Random.Init (Success);
       if not Success then goto Panic_Error; end if;
       Streams.Init (Success);
-      if not Success then goto Panic_Error; end if;
-      Debug.Init (Success);
       if not Success or else not Arch.Hooks.Devices_Hook then
          goto Panic_Error;
       end if;

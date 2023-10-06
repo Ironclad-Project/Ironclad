@@ -168,6 +168,12 @@ Filesystem support and interfaces
 * File Allocation Table::  FAT-series filesystems.
 * QNX4 FileSystem::        The default filesystem of QNX4 Neutrino.
 
+Networking
+
+* Layering::             What Ironclad provides in terms of the OSI model.
+* Interface handling::   How interfaces work inside Ironclad.
+* Loopback::             Loopback device use and specification.
+
 Devices and their properties
 
 * Common devices::             Devices common to all architectures and targets.
@@ -1412,6 +1418,7 @@ codes set on failure are:
 #define SC_CHILD_MAX     11 // Maximum number of children for the user.
 #define SC_LIST_THREADS  12 // List all threads of the system.
 #define SC_LIST_CLUSTERS 13 // List all thread clusters of the system.
+#define SC_LIST_NETINTER 14 // List all network interfaces.
 
 long int sysconf(int request, uintptr_t addr, uintptr_t len);
 @end example
@@ -1506,6 +1513,26 @@ struct tclusterinfo @{
 @end example
 
 The total number of thread clusters is returned, even if it doesnt fit in the
+passed array.
+
+@item
+@code{SC_LIST_NETINTER}: @code{addr} points to an array of items, and
+@code{len} is the count of bytes reserved in the array. The items have the
+structure:
+
+@example
+struct netinterface @{
+    char device[64]; // null terminated.
+    uint64_t flags;
+    uint8_t mac_addr[6];
+    uint8_t ip4_addr[4];
+    uint8_t ip4_subnet[4];
+    uint8_t ip6_addr[16];
+    uint8_t ip6_subnet[16];
+@};
+@end example
+
+The total number of interfaces is returned, even if it doesnt fit in the
 passed array.
 @end itemize
 
@@ -2891,6 +2918,55 @@ No special @code{ioctl} calls are provided. Long filenames are not supported.
 
 Stubbed, please ignore!
 
+@node Networking
+@chapter Networking
+
+This chapter gives all the details on how Ironclad handles networking.
+
+@node Layering
+@section Layering
+
+The OSI model, as per the X.200 recommendation, defines 7 layers:
+
+@example
+| No. | Layer Name   | Example technologies                 |
+| +++ | ++++++++++++ | ++++++++++++++++++++++++++++++++++++ |
+| 7   | Application  | WebSocket, HL7                       |
+| 6   | Presentation | Idk I do embedded, weird stuff here  |
+| 5   | Session      | Sockets, Named pipes, NetBIOS (eek!) |
+| 4   | Transport    | TCP, UDP, NBF                        |
+| 3   | Network      | IP, IPSec, ICMP                      |
+| 2   | Data link    | ARP, NDP, MAC                        |
+| 1   | Physical     | Ethernet, WiFi, Bluetooth            |
+@end example
+
+Ironclad aims to provide all the way to the @strong{session} layer, no more!
+(and no less). The main interface for networking used to interface with that
+layer will be the socket. For learning about sockets, @ref{socket}.
+
+@node Interface handling
+@section Interface handling
+
+Ironclad registers one interface per valid device plus one for a loopback
+device. New addresses cannot be added manually, they may only be added and
+removde by the kernel. Some parameters are available for user control though,
+including per-interface configuration and enabling and disabling.
+
+All interfaces but @code{loopback} will be disabled by default, that is, they
+will be setup and ready to go, but will refuse connectivity via kernel block,
+as a security measure to avoid unexpected connectivity. They will need manual
+enabling.
+
+@node Loopback
+@section Loopback
+
+The loopback device is a special, virtual network interface meant to be used
+mainly for diagnostics and troubleshooting, along for enabling connecting to
+servers running on the local machine.
+
+Loopback will always feature the associated IP addresses @code{127.0.0.1/8} and
+@code{::1/128}. These addresses will not be able to be changed.
+
 @node Devices and their properties
 @chapter Devices and their properties
 
@@ -2921,6 +2997,11 @@ present, with standardized interfaces.
 @code{/dev/debug} wraps architecture-specific debug output channels for use
 with file operations. For x86-based targets, this is COM0, for ARM-based
 and SPARC-based targets, this is UART.
+
+@subsection loopback
+
+@code{/dev/loopback} is the network loopback device, explained on
+@ref{Loopback}.
 
 @subsection ramdev
 

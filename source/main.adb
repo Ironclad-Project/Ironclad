@@ -26,6 +26,7 @@ with Userland.Loader;
 with Userland.Process; use Userland.Process;
 with Userland;
 with Scheduler;
+with Networking;
 with Lib.Runtime;
 pragma Unreferenced (Lib.Runtime);
 with Config;
@@ -55,6 +56,7 @@ begin
    Lib.Messages.Put_Line ("Command line: '" & Cmdline & "'");
 
    --  Initialize several subsystems.
+   Networking.Initialize;
    Userland.Process.Init;
    Devices.Init;
    VFS.Init;

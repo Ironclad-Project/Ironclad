@@ -23,7 +23,6 @@ with Lib;
 with Lib.Time;
 with Lib.Panic;
 with Lib.Alignment;
-with Networking;
 with Userland.Loader;
 with Arch.MMU; use Arch.MMU;
 with Arch.Clocks;
@@ -1407,7 +1406,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when SC_OPEN_MAX =>
             Result := Unsigned_64 (Process.Max_File_Count);
          when SC_HOST_NAME_MAX =>
-            Result := Networking.Hostname_Max_Len;
+            Result := Unsigned_64 (Networking.Hostname_Max_Len);
          when SC_AVPHYS_PAGES =>
             Memory.Physical.Get_Statistics (Stats);
             Result := Unsigned_64 (Stats.Free) / Page_Size;
@@ -1492,7 +1491,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when SC_UNAME =>
             declare
                UTS      : UTS_Name with Import, Address => SAddr;
-               Host_Len : Networking.Hostname_Len;
+               Host_Len : Natural;
             begin
                Networking.Get_Hostname (UTS.Node_Name, Host_Len);
                UTS.Node_Name (Host_Len + 1) := Ada.Characters.Latin_1.NUL;
@@ -1553,6 +1552,33 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
                Result := Unsigned_64 (Ret);
             end;
+         when SC_LIST_NETINTER =>
+            declare
+               Len   : constant Natural :=
+                  Natural (Length / (Interface_Info'Size / 8));
+               Ths  : Interface_Arr (1 .. Len) with Import, Address => SAddr;
+               KThs : Networking.Interface_Arr (1 .. Len);
+               Ret  : Natural;
+               NLen : Natural;
+            begin
+               Networking.List_Interfaces (KThs, Ret);
+               for I in 1 .. Ret loop
+                  Fetch_Name (KThs (I).Handle, Ths (I).Name (1 .. 64), NLen);
+                  Ths (I).Name (NLen + 1) := Ada.Characters.Latin_1.NUL;
+                  if KThs (I).Is_Blocked then
+                     Ths (I).Flags := NETINTR_BLOCKED;
+                  else
+                     Ths (I).Flags := 0;
+                  end if;
+                  Ths (I).MAC := KThs (I).MAC;
+                  Ths (I).IPv4 := KThs (I).IPv4;
+                  Ths (I).IPv4_Subnet := KThs (I).IPv4_Subnet;
+                  Ths (I).IPv6 := KThs (I).IPv6;
+                  Ths (I).IPv6_Subnet := KThs (I).IPv6_Subnet;
+               end loop;
+
+               Result := Unsigned_64 (Ret);
+            end;
          when others =>
             Errno    := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
@@ -1563,7 +1589,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno    := Error_No_Error;
       Returned := Result;
    end Sysconf;
-
    procedure Spawn
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
