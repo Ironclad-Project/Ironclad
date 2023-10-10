@@ -63,12 +63,14 @@ package body Networking is
    ----------------------------------------------------------------------------
    type Inner_Interface is record
       Handle     : Device_Handle;
+      MAC        : MAC_Address;
       Is_Blocked : Boolean;
    end record;
    type Inner_Arr is array (1 .. Max_Interface_Count) of Inner_Interface;
 
    Interfaces_Lock : aliased Binary_Semaphore := Unlocked_Semaphore;
-   Interfaces      : Inner_Arr := (others => (Devices.Error_Handle, True));
+   Interfaces      : Inner_Arr :=
+      (others => (Devices.Error_Handle, (others => 0), True));
 
    procedure Register_Interface
       (Interfaced : Devices.Device_Handle;
@@ -79,13 +81,48 @@ package body Networking is
       Seize (Interfaces_Lock);
       for Int of Interfaces loop
          if Int.Handle = Devices.Error_Handle then
-            Int := (Interfaced, True);
-            Success := True;
+            Int.Handle := Interfaced;
+            Int.Is_Blocked := True;
+            Success := IO_Control (Interfaced, NET_GETMAC, Int.MAC'Address);
             exit;
          end if;
       end loop;
       Release (Interfaces_Lock);
    end Register_Interface;
+
+   procedure Get_Interface_Address
+      (Interfaced : Devices.Device_Handle;
+       IP         : out IPv4_Address)
+   is
+      IP_Sub : IPv4_Address;
+   begin
+      IP := (others => 0);
+      Seize (Interfaces_Lock);
+      for Int of Interfaces loop
+         if Int.Handle = Interfaced then
+            ARP.Lookup (Int.MAC, IP, IP_Sub);
+            exit;
+         end if;
+      end loop;
+      Release (Interfaces_Lock);
+   end Get_Interface_Address;
+
+   procedure Get_Interface_Address
+      (Interfaced : Devices.Device_Handle;
+       IP         : out IPv6_Address)
+   is
+      IP_Sub : IPv6_Address;
+   begin
+      IP := (others => 0);
+      Seize (Interfaces_Lock);
+      for Int of Interfaces loop
+         if Int.Handle = Interfaced then
+            ARP.Lookup (Int.MAC, IP, IP_Sub);
+            exit;
+         end if;
+      end loop;
+      Release (Interfaces_Lock);
+   end Get_Interface_Address;
 
    procedure Block
       (Interfaced : Devices.Device_Handle;
@@ -105,6 +142,56 @@ package body Networking is
       Release (Interfaces_Lock);
    end Block;
 
+   procedure Get_Suitable_Interface
+      (IP         : IPv4_Address;
+       Interfaced : out Devices.Device_Handle)
+   is
+      IP_Sub : IPv4_Address;
+      IP2    : IPv4_Address;
+   begin
+      Interfaced := Devices.Error_Handle;
+      Seize (Interfaces_Lock);
+      for Int of Interfaces loop
+         if Int.Handle /= Devices.Error_Handle and not Int.Is_Blocked then
+            ARP.Lookup (Int.MAC, IP2, IP_Sub);
+            for I in IP_Sub'Range loop
+               if IP_Sub (I) /= 0 and then IP (I) /= IP2 (I) then
+                  goto End_Iter;
+               end if;
+            end loop;
+            Interfaced := Int.Handle;
+            exit;
+         <<End_Iter>>
+         end if;
+      end loop;
+      Release (Interfaces_Lock);
+   end Get_Suitable_Interface;
+
+   procedure Get_Suitable_Interface
+      (IP         : IPv6_Address;
+       Interfaced : out Devices.Device_Handle)
+   is
+      IP_Sub : IPv6_Address;
+      IP2    : IPv6_Address;
+   begin
+      Interfaced := Devices.Error_Handle;
+      Seize (Interfaces_Lock);
+      for Int of Interfaces loop
+         if Int.Handle /= Devices.Error_Handle and not Int.Is_Blocked then
+            ARP.Lookup (Int.MAC, IP2, IP_Sub);
+            for I in IP_Sub'Range loop
+               if IP_Sub (I) /= 0 and then IP (I) /= IP2 (I) then
+                  goto End_Iter;
+               end if;
+            end loop;
+            Interfaced := Int.Handle;
+            exit;
+         <<End_Iter>>
+         end if;
+      end loop;
+      Release (Interfaces_Lock);
+   end Get_Suitable_Interface;
+
    procedure Set_Addresses
       (Interfaced  : Devices.Device_Handle;
        IPv4        : IPv4_Address;
@@ -113,14 +200,12 @@ package body Networking is
        IPv6_Subnet : IPv6_Address;
        Success     : out Boolean)
    is
-      MAC : MAC_Address;
    begin
       Success := False;
       Seize (Interfaces_Lock);
       for Int of Interfaces loop
          if Int.Handle = Interfaced then
-            Success := IO_Control (Interfaced, NET_GETMAC, MAC'Address);
-            ARP.Add_Static (MAC, IPv4, IPv4_Subnet, IPv6, IPv6_Subnet);
+            ARP.Add_Static (Int.MAC, IPv4, IPv4_Subnet, IPv6, IPv6_Subnet);
             Success := True;
             exit;
          end if;
@@ -130,7 +215,6 @@ package body Networking is
 
    procedure List_Interfaces (Buffer : out Interface_Arr; Len : out Natural) is
       Curr_Index : Natural := 0;
-      Discard    : Boolean;
    begin
       Len := 0;
       Buffer := (others =>
@@ -151,11 +235,7 @@ package body Networking is
                   Interfaces (I).Handle;
                Buffer (Buffer'First + Curr_Index).Is_Blocked :=
                   Interfaces (I).Is_Blocked;
-
-               Discard := IO_Control
-                  (Interfaces (I).Handle,
-                   NET_GETMAC,
-                   Buffer (Buffer'First + Curr_Index).MAC'Address);
+               Buffer (Buffer'First + Curr_Index).MAC := Interfaces (I).MAC;
 
                ARP.Lookup
                   (Buffer (Buffer'First + Curr_Index).MAC,

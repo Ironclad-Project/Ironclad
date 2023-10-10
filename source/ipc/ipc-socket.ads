@@ -15,33 +15,50 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Lib.Synchronization;
-with Devices;
+with Devices; use Devices;
+with Networking;
 
 package IPC.Socket is
    --  Here lies the implementation of the quintessential POSIX IPC, be it
    --  local IPC or remote internet access.
-   --
-   --  A socket is defined by a domain, type, and protocol, these are the ones
-   --  we support.
-   type Domain   is (UNIX);
-   type DataType is (Stream, Datagram);
-   type Protocol is (Default);
+
+   type Domain is
+      (IPv4,  --  IPv4-based networking.
+       IPv6,  --  IPv6-based networking.
+       UNIX); --  UNIX-domain sockets for local IPC.
+
+   type DataType is
+      (Stream,   --  Connection-based streams. TCP for networked domains.
+       Datagram, --  Connection-less datagrams. UDP for networked domains.
+       Raw);     --  Raw non-cleaned packets, not always available (UNIX).
 
    --  Data structures to define a socket.
-   type Socket (Dom : Domain; Typ : DataType; Proto : Protocol) is private;
+   type Socket (Dom : Domain; Typ : DataType) is private;
    type Socket_Acc is access Socket;
+
+   --  Returned status of a socket operation.
+   type Socket_Status is
+      (Plain_Success, --  Unconditional success.
+       Is_Bad_Type,   --  A listener is needed but the socket is not one, etc.
+       Would_Block);  --  The socket would block, and we don't want that.
+   ----------------------------------------------------------------------------
+   --  Socket independent operations.
 
    --  Create a fresh socket.
    --  @param Dom         Domain of the socket.
    --  @param Typ         Type of socket.
-   --  @param Proto       Socket protocol, or default for default values.
    --  @param Is_Blocking True if blocking, False if not blocking.
    --  @return The socket on success, null on failure.
    function Create
       (Dom         : Domain;
        Typ         : DataType;
-       Proto       : Protocol;
        Is_Blocking : Boolean := True) return Socket_Acc;
+
+   --  Get the domain of a socket, which is good to know because data changes.
+   --  @param Sock Socket to check.
+   --  @return Domain of the socket.
+   function Get_Domain (Sock : Socket_Acc) return Domain
+      with Pre => Sock /= null;
 
    --  Get the type of a socket, which is good to know because only some
    --  sockets implement some operations!
@@ -81,89 +98,6 @@ package IPC.Socket is
        Is_Error  : out Boolean)
       with Pre => Sock /= null;
 
-   --  Get the address of the passed socket. Since only UNIX sockets
-   --  are supported, these functions handle paths.
-   --  @param Sock    Socket to get the address of.
-   --  @param Path    Buffer to write the fetched path.
-   --  @param Length  Output path length, may be bigger if not fit.
-   --  @param Success True in success, False if not supported / not bound.
-   procedure Get_Bound
-      (Sock    : Socket_Acc;
-       Path    : out String;
-       Length  : out Natural;
-       Success : out Boolean)
-      with Pre => Sock /= null;
-
-   --  Get the address of the passed socket's peer.
-   --  @param Sock    Socket to get the address of.
-   --  @param Path    Buffer to write the fetched path.
-   --  @param Length  Output path length, may be bigger if not fit.
-   --  @param Success True in success, False if not supported / not connected.
-   procedure Get_Peer
-      (Sock    : Socket_Acc;
-       Path    : out String;
-       Length  : out Natural;
-       Success : out Boolean)
-      with Pre => Sock /= null;
-
-   --  Bind a socket to an address, since we only support UNIX sockets, this
-   --  takes the shape of a path, but will probably change in the future.
-   --  @param Sock Socket to bind to an address.
-   --  @param Path Path to bind the socket to, must be unique.
-   --  @return True on success, False on failure.
-   function Bind (Sock : Socket_Acc; Path : String) return Boolean
-      with Pre => Sock /= null;
-
-   --  Connect a socket to a socket previously bound with Bind.
-   --  This process initiates the handshake that the other end will continue
-   --  with its functions Listen and Accept, unless blocking, this function
-   --  will block until accepted.
-   --  @param Sock Socket to use to connect.
-   --  @param Path Previously bound path to connect to.
-   --  @return True on success, False on failure.
-   function Connect (Sock : Socket_Acc; Path : String) return Boolean
-      with Pre => Sock /= null;
-
-   --  Disconnect the socket from all or part of a duplex connection (TX-RX).
-   --  @param Sock             Socket to disconnect
-   --  @param Do_Receptions    If True, disable future RX for this connection.
-   --  @param Do_Transmissions If True, disable future TX for this connection.
-   --  @return True on success, False on failure (not connected?).
-   function Shutdown
-      (Sock             : Socket_Acc;
-       Do_Receptions    : Boolean;
-       Do_Transmissions : Boolean) return Boolean;
-
-   --  Make a socket into a listener, which makes the socket only able of
-   --  accepting connections using Accept. Only stream sockets can be used for
-   --  this operation, as this operation lacks meaning otherwise.
-   --  @param Sock    Socket to use for listening.
-   --  @param Backlog Hint as to how many connections to prepare for.
-   --  @return True on success, False on failure.
-   function Listen (Sock : Socket_Acc; Backlog : Natural) return Boolean
-      with Pre => Sock /= null and then Get_Type (Sock) = Stream;
-
-   --  Accept a new connection, creating a connected socket for interfacing
-   --  with it. If blocking, the operation will block.
-   --  @param Sock                Server listening socket to use for accepting.
-   --  @param Is_Blocking         True to make the accepted socket blocking.
-   --  @param Peer_Address        Address of the connected socket.
-   --  @param Peer_Address_Length Stored length, may be longer if doesnt fit.
-   --  @param Result              New accepted socket, or null on failure.
-   procedure Accept_Connection
-      (Sock                : Socket_Acc;
-       Is_Blocking         : Boolean := True;
-       Peer_Address        : out String;
-       Peer_Address_Length : out Natural;
-       Result              : out Socket_Acc)
-      with Pre => Sock /= null and then Get_Type (Sock) = Stream;
-
-   --  Returned status of a socket operation.
-   type Socket_Status is
-      (Plain_Success, --  Unconditional success.
-       Is_Bad_Type,   --  A listener is needed but the socket is not one, etc.
-       Would_Block);  --  The socket would block, and we don't want that.
-
    --  Read from a socket.
    --  @param Sock      Socket to read from, or its connection.
    --  @param Data      Data to read to.
@@ -188,27 +122,381 @@ package IPC.Socket is
        Success   : out Socket_Status)
       with Pre => Sock /= null;
 
+   --  Disconnect the socket from all or part of a duplex connection (TX-RX).
+   --  When doing this with connection-based sockets will cause in the ceasing
+   --  of communication, while doing so with connection-less sockets will cause
+   --  on the effects of 'connect' to be forgotten for the passed channel.
+   --  @param Sock             Socket to disconnect
+   --  @param Do_Receptions    If True, disable future RX for this connection.
+   --  @param Do_Transmissions If True, disable future TX for this connection.
+   --  @return True on success, False on failure (not connected?).
+   function Shutdown
+      (Sock             : Socket_Acc;
+       Do_Receptions    : Boolean;
+       Do_Transmissions : Boolean) return Boolean;
+
+   --  Make a socket into a listener, which makes the socket only able of
+   --  accepting connections using Accept.
+   --  @param Sock    Socket to use for listening, must be stream.
+   --  @param Backlog Hint as to how many connections to prepare for.
+   --  @return True on success, False on failure.
+   function Listen (Sock : Socket_Acc; Backlog : Natural) return Boolean
+      with Pre => Sock /= null and then Get_Type (Sock) = Stream;
+
+   --  Accept a new connection, creating a connected socket for interfacing.
+   --  @param Sock        Server listening socket to use for accepting.
+   --  @param Is_Blocking True to make the accepted socket blocking.
+   --  @param Result      New accepted socket, or null on failure.
+   procedure Accept_Connection
+      (Sock        : Socket_Acc;
+       Is_Blocking : Boolean := True;
+       Result      : out Socket_Acc)
+      with Pre => Sock /= null and then Get_Type (Sock) = Stream;
+   ----------------------------------------------------------------------------
+   --  IPv4-specific versions of operations, along with domain-specific stuff.
+   --  These operations use IPv4 addresses and ports.
+
+   --  Get the address of the passed socket.
+   --  @param Sock    Socket to get the address of.
+   --  @param Addr    Fetched address.
+   --  @param Port    Fetched port.
+   --  @param Success True in success, False if not supported / not bound.
+   procedure Get_Bound
+      (Sock    : Socket_Acc;
+       Addr    : out Networking.IPv4_Address;
+       Port    : out Networking.IPv4_Port;
+       Success : out Boolean)
+      with Pre => Sock /= null and then Get_Domain (Sock) = IPv4;
+
+   --  Get the address of the passed socket's peer set with 'connect'.
+   --  @param Sock    Socket to get the address of.
+   --  @param Addr    Fetched address.
+   --  @param Port    Fetched port.
+   --  @param Success True in success, False if not supported / not connected.
+   procedure Get_Peer
+      (Sock    : Socket_Acc;
+       Addr    : out Networking.IPv4_Address;
+       Port    : out Networking.IPv4_Port;
+       Success : out Boolean)
+      with Pre => Sock /= null and then Get_Domain (Sock) = IPv4;
+
+   --  Bind a socket to an address.
+   --  @param Sock Socket to bind to an address.
+   --  @param Addr Fetched address.
+   --  @param Port Fetched port.
+   --  @return True on success, False on failure.
+   function Bind
+      (Sock : Socket_Acc;
+       Addr : Networking.IPv4_Address;
+       Port : Networking.IPv4_Port) return Boolean
+      with Pre => Sock /= null and then Get_Domain (Sock) = IPv4;
+
+   --  Connect a socket, if connection-based, the function will do handshake
+   --  and all the shinenigans. Connection-less sockets will use from now on
+   --  this address only for sending and receiving.
+   --  @param Sock Socket to use to connect.
+   --  @param Addr Fetched address.
+   --  @param Port Fetched port.
+   --  @return True on success, False on failure.
+   function Connect
+      (Sock : Socket_Acc;
+       Addr : Networking.IPv4_Address;
+       Port : Networking.IPv4_Port) return Boolean
+      with Pre => Sock /= null and then Get_Domain (Sock) = IPv4;
+
+   --  Accept a new connection, creating a connected socket for interfacing.
+   --  @param Sock         Server listening socket to use for accepting.
+   --  @param Is_Blocking  True to make the accepted socket blocking.
+   --  @param Peer_Address Address of the connected.
+   --  @param Peer_Port    Port of the connected.
+   --  @param Result       ew accepted socket, or null on failure.
+   procedure Accept_Connection
+      (Sock         : Socket_Acc;
+       Is_Blocking  : Boolean := True;
+       Peer_Address : out Networking.IPv4_Address;
+       Peer_Port    : out Networking.IPv4_Port;
+       Result       : out Socket_Acc)
+      with Pre => Sock /= null             and then
+                  Get_Domain (Sock) = IPv4 and then
+                  Get_Type (Sock) = Stream;
+
+   --  Read from a connection-less socket.
+   --  @param Sock      Socket to read from, or its connection.
+   --  @param Data      Data to read to.
+   --  @param Ret_Count Count of data read.
+   --  @param Addr      IPv4 address to read from.
+   --  @param Port      IPv4 port.
+   --  @param Success   Resulting status of the operation.
+   procedure Read
+      (Sock      : Socket_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Addr      : Networking.IPv4_Address;
+       Port      : Networking.IPv4_Port;
+       Success   : out Socket_Status)
+      with Pre => Sock /= null             and then
+                  Get_Domain (Sock) = IPv4 and then
+                  Get_Type (Sock) /= Stream;
+
+   --  Write to a connection-less socket.
+   --  @param Sock      Socket to write to, or its connection.
+   --  @param Data      Data to write.
+   --  @param Ret_Count Count of written data.
+   --  @param Addr      IPv4 address to read from.
+   --  @param Port      IPv4 port.
+   --  @param Success   Resulting status of the operation.
+   procedure Write
+      (Sock      : Socket_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Addr      : Networking.IPv4_Address;
+       Port      : Networking.IPv4_Port;
+       Success   : out Socket_Status)
+      with Pre => Sock /= null             and then
+                  Get_Domain (Sock) = IPv4 and then
+                  Get_Type (Sock) /= Stream;
+   ----------------------------------------------------------------------------
+   --  IPv6-specific versions of operations, along with domain-specific stuff.
+   --  These operations use IPv6 addresses and ports.
+
+   --  Get the address of the passed socket.
+   --  @param Sock    Socket to get the address of.
+   --  @param Addr    Fetched address.
+   --  @param Port    Fetched port.
+   --  @param Success True in success, False if not supported / not bound.
+   procedure Get_Bound
+      (Sock    : Socket_Acc;
+       Addr    : out Networking.IPv6_Address;
+       Port    : out Networking.IPv6_Port;
+       Success : out Boolean)
+      with Pre => Sock /= null and then Get_Domain (Sock) = IPv4;
+
+   --  Get the address of the passed socket's peer set with 'connect'.
+   --  @param Sock    Socket to get the address of.
+   --  @param Addr    Fetched address.
+   --  @param Port    Fetched port.
+   --  @param Success True in success, False if not supported / not connected.
+   procedure Get_Peer
+      (Sock    : Socket_Acc;
+       Addr    : out Networking.IPv6_Address;
+       Port    : out Networking.IPv6_Port;
+       Success : out Boolean)
+      with Pre => Sock /= null and then Get_Domain (Sock) = IPv6;
+
+   --  Bind a socket to an address.
+   --  @param Sock Socket to bind to an address.
+   --  @param Addr Fetched address.
+   --  @param Port Fetched port.
+   --  @return True on success, False on failure.
+   function Bind
+      (Sock : Socket_Acc;
+       Addr : Networking.IPv6_Address;
+       Port : Networking.IPv6_Port) return Boolean
+      with Pre => Sock /= null and then Get_Domain (Sock) = IPv6;
+
+   --  Connect a socket, if connection-based, the function will do handshake
+   --  and all the shinenigans. Connection-less sockets will use from now on
+   --  this address only for sending and receiving.
+   --  @param Sock Socket to use to connect.
+   --  @param Addr Fetched address.
+   --  @param Port Fetched port.
+   --  @return True on success, False on failure.
+   function Connect
+      (Sock : Socket_Acc;
+       Addr : Networking.IPv6_Address;
+       Port : Networking.IPv6_Port) return Boolean
+      with Pre => Sock /= null and then Get_Domain (Sock) = IPv6;
+
+   --  Accept a new connection, creating a connected socket for interfacing
+   --  with it. If blocking, the operation will block.
+   --  @param Sock         Server listening socket to use for accepting.
+   --  @param Is_Blocking  True to make the accepted socket blocking.
+   --  @param Peer_Address Address of the connected.
+   --  @param Peer_Port    Port of the connected.
+   --  @param Result       ew accepted socket, or null on failure.
+   procedure Accept_Connection
+      (Sock         : Socket_Acc;
+       Is_Blocking  : Boolean := True;
+       Peer_Address : out Networking.IPv6_Address;
+       Peer_Port    : out Networking.IPv6_Port;
+       Result       : out Socket_Acc)
+      with Pre => Sock /= null             and then
+                  Get_Domain (Sock) = IPv6 and then
+                  Get_Type (Sock) = Stream;
+
+   --  Read from a connection-less socket.
+   --  @param Sock      Socket to read from, or its connection.
+   --  @param Data      Data to read to.
+   --  @param Ret_Count Count of data read.
+   --  @param Addr      IPv6 address to read from.
+   --  @param Port      IPv6 port.
+   --  @param Success   Resulting status of the operation.
+   procedure Read
+      (Sock      : Socket_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Addr      : Networking.IPv6_Address;
+       Port      : Networking.IPv6_Port;
+       Success   : out Socket_Status)
+      with Pre => Sock /= null             and then
+                  Get_Domain (Sock) = IPv6 and then
+                  Get_Type (Sock) /= Stream;
+
+   --  Write to a socket.
+   --  @param Sock      Socket to write to, or its connection.
+   --  @param Data      Data to write.
+   --  @param Ret_Count Count of written data.
+   --  @param Addr      IPv6 address to read from.
+   --  @param Port      IPv6 port.
+   --  @param Success   Resulting status of the operation.
+   procedure Write
+      (Sock      : Socket_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Addr      : Networking.IPv6_Address;
+       Port      : Networking.IPv6_Port;
+       Success   : out Socket_Status)
+      with Pre => Sock /= null             and then
+                  Get_Domain (Sock) = IPv6 and then
+                  Get_Type (Sock) /= Stream;
+   ----------------------------------------------------------------------------
+   --  UNIX-specific versions of operations, along with domain-specific stuff.
+   --  These operations use paths.
+
+   --  Get the address of the passed socket. Since only UNIX sockets
+   --  are supported, these functions handle paths.
+   --  @param Sock    Socket to get the address of.
+   --  @param Path    Buffer to write the fetched path.
+   --  @param Length  Output path length, may be bigger if not fit.
+   --  @param Success True in success, False if not supported / not bound.
+   procedure Get_Bound
+      (Sock    : Socket_Acc;
+       Path    : out String;
+       Length  : out Natural;
+       Success : out Boolean)
+      with Pre => Sock /= null and then Get_Domain (Sock) = UNIX;
+
+   --  Get the address of the passed socket's peer.
+   --  @param Sock    Socket to get the address of.
+   --  @param Path    Buffer to write the fetched path.
+   --  @param Length  Output path length, may be bigger if not fit.
+   --  @param Success True in success, False if not supported / not connected.
+   procedure Get_Peer
+      (Sock    : Socket_Acc;
+       Path    : out String;
+       Length  : out Natural;
+       Success : out Boolean)
+      with Pre => Sock /= null and then Get_Domain (Sock) = UNIX;
+
+   --  Bind a socket to an address, since we only support UNIX sockets, this
+   --  takes the shape of a path, but will probably change in the future.
+   --  @param Sock Socket to bind to an address.
+   --  @param Path Path to bind the socket to, must be unique.
+   --  @return True on success, False on failure.
+   function Bind (Sock : Socket_Acc; Path : String) return Boolean
+      with Pre => Sock /= null and then Get_Domain (Sock) = UNIX;
+
+   --  Connect a socket to a socket previously bound with Bind.
+   --  This process initiates the handshake that the other end will continue
+   --  with its functions Listen and Accept, unless blocking, this function
+   --  will block until accepted.
+   --  @param Sock Socket to use to connect.
+   --  @param Path Previously bound path to connect to.
+   --  @return True on success, False on failure.
+   function Connect (Sock : Socket_Acc; Path : String) return Boolean
+      with Pre => Sock /= null and then Get_Domain (Sock) = UNIX;
+
+   --  Accept a new connection, creating a connected socket for interfacing
+   --  with it. If blocking, the operation will block.
+   --  @param Sock                Server listening socket to use for accepting.
+   --  @param Is_Blocking         True to make the accepted socket blocking.
+   --  @param Peer_Address        Address of the connected socket.
+   --  @param Peer_Address_Length Stored length, may be longer if doesnt fit.
+   --  @param Result              New accepted socket, or null on failure.
+   procedure Accept_Connection
+      (Sock                : Socket_Acc;
+       Is_Blocking         : Boolean := True;
+       Peer_Address        : out String;
+       Peer_Address_Length : out Natural;
+       Result              : out Socket_Acc)
+      with Pre => Sock /= null             and then
+                  Get_Domain (Sock) = UNIX and then
+                  Get_Type (Sock) = Stream;
+
+   --  Read from a connection-less socket.
+   --  @param Sock      Socket to read from, or its connection.
+   --  @param Data      Data to read to.
+   --  @param Ret_Count Count of data read.
+   --  @param Path      Path to read from.
+   --  @param Success   Resulting status of the operation.
+   procedure Read
+      (Sock      : Socket_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Path      : String;
+       Success   : out Socket_Status)
+      with Pre => Sock /= null             and then
+                  Get_Domain (Sock) = IPv6 and then
+                  Get_Type (Sock) /= Stream;
+
+   --  Write to a socket.
+   --  @param Sock      Socket to write to, or its connection.
+   --  @param Data      Data to write.
+   --  @param Ret_Count Count of written data.
+   --  @param Path      Path to write to.
+   --  @param Success   Resulting status of the operation.
+   procedure Write
+      (Sock      : Socket_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Path      : String;
+       Success   : out Socket_Status)
+      with Pre => Sock /= null             and then
+                  Get_Domain (Sock) = IPv6 and then
+                  Get_Type (Sock) /= Stream;
+
 private
 
    Default_Socket_Size : constant := 16#2000#;
 
-   type Socket (Dom : Domain; Typ : DataType; Proto : Protocol) is record
+   --  Massive chonker of a datatype!
+   type Socket (Dom : Domain; Typ : DataType) is record
       Mutex       : aliased Lib.Synchronization.Binary_Semaphore;
       Is_Blocking : Boolean;
-      Data        : Devices.Operation_Data (1 .. Default_Socket_Size);
-      Data_Length : Natural range 0 .. Default_Socket_Size;
 
-      case Typ is
-         when Stream =>
-            Is_Listener    : Boolean;
-            Connected      : Socket_Acc;
-            Pending_Accept : Socket_Acc;
-            Established    : Socket_Acc;
-         when Datagram =>
-            Simple_Connected : Socket_Acc;
+      case Dom is
+         when UNIX =>
+            Data        : Devices.Operation_Data (1 .. Default_Socket_Size);
+            Data_Length : Natural range 0 .. Default_Socket_Size;
+            case Typ is
+               when Stream =>
+                  Is_Listener    : Boolean;
+                  Connected      : Socket_Acc;
+                  Pending_Accept : Socket_Acc;
+                  Established    : Socket_Acc;
+               when others =>
+                  Simple_Connected : Socket_Acc;
+            end case;
+         when IPv4 =>
+            case Typ is
+               when Raw =>
+                  IPv4_Cached_Address : Networking.IPv4_Address;
+                  IPv4_Cached_Port    : Networking.IPv4_Port;
+               when others =>
+                  null;
+            end case;
+         when IPv6 =>
+            case Typ is
+               when Raw =>
+                  IPv6_Cached_Address : Networking.IPv6_Address;
+                  IPv6_Cached_Port    : Networking.IPv6_Port;
+               when others =>
+                  null;
+            end case;
       end case;
    end record;
-
+   ----------------------------------------------------------------------------
+   --  UNIX socket fun.
    Bind_Path_Max : constant := 100;
    type Bound_Socket is record
       Sock     : Socket_Acc;

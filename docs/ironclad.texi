@@ -161,6 +161,7 @@ Syscalls
 * clock::                   Clock and time operations.
 * clock_nanosleep::         Sleep on a clock.
 * getrusage::               Get resource usage for the process.
+* recvfrom/sendto::         Socket IO support functions.
 
 Filesystem support and interfaces
 
@@ -686,6 +687,10 @@ Empty.
 @ref{clock_nanosleep}.
 @item
 @ref{getrusage}.
+@item
+@ref{recvfrom/sendto, recvfrom}.
+@item
+@ref{recvfrom/sendto, sendto}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -1154,7 +1159,7 @@ following errno:
 #define SOCK_NONBLOCK 0b010000000000000000
 #define SOCK_CLOEXEC  0b100000000000000000
 
-int socket(int domain, int type, int protocol);
+int socket(int domain, int type);
 @end example
 
 This syscall for creating sockets, the passed fields can be used for selecting
@@ -1162,7 +1167,44 @@ the type of socket to create. The available sockets type are:
 
 @itemize @bullet
 @item
-@code{AF_UNIX (3)}: UNIX domain socket for local communication, this sockets
+@code{AF_INET}: Basically IPv4 socket.
+
+The address of a INET domain socket takes the shape of
+
+@example
+struct sockaddr_in @{
+	uint32_t sin_family;
+	uint16_t sin_port;
+	char     sin_addr[4];
+	uint8_t  pad[8];
+@};
+@end example
+
+@code{type} can be one of @code{SOCK_DGRAM} or @code{SOCK_STREAM}.
+@code{SOCK_DGRAM} will be translated to @code{TCP}, while @code{SOCK_STREAM}
+will be translated to @code{UDP}.
+
+@item
+@code{AF_INET6}: Basically IPv6 socket.
+
+The address of a INET domain socket takes the shape of
+
+@example
+struct sockaddr_in6 @{
+	uint32_t sin6_family;
+	uint16_t sin6_port;
+	uint32_t sin6_flowinfo;
+	char     sin6_addr[16];
+	uint32_t sin6_scope_id;
+@};
+@end example
+
+@code{type} can be one of @code{SOCK_DGRAM} or @code{SOCK_STREAM}.
+@code{SOCK_DGRAM} will be translated to @code{TCP}, while @code{SOCK_STREAM}
+will be translated to @code{UDP}.
+
+@item
+@code{AF_UNIX}: UNIX domain socket for local communication, this sockets
 can be unnamed or bound to filesystem paths.
 
 The address of a UNIX domain socket takes the shape of
@@ -1173,10 +1215,23 @@ struct sockaddr_un @{
    char path[];         // Must be null terminated.
 @};
 @end example
+@end itemize
 
-@code{type} can be one of @code{SOCK_DGRAM} or @code{SOCK_STREAM}. The
-difference between eachother is that datagram sockets preserve message
-boundaries while stream sockets work in streams of data, like a pipe would.
+@code{type} can be one of:
+
+@itemize @bullet
+@item
+@code{SOCK_DGRAM}: Unreliable, connection-less, datagram-based interface. When
+used with INET protocols, it will correspond to UDP. When connected, these
+sockets will just cache the address for further reception / sending.
+@item
+@code{SOCK_STREAM}: Reliable, connection-based stream-based interface.
+Connection, accepting, and listening will be necessary for a proper handshake.
+@item
+@code{SOCK_RAW}: Raw communication directly with the domain layer. When using
+these, no TCP or UDP will be done whatsoever, and the user will be free to
+implement their own protocol on top, or none at all and just use the domain
+datagram transport. Not supported for some protocols, like UNIX domain sockets.
 @end itemize
 
 Any socket type may have @code{type} be OR'ed with @code{SOCK_NONBLOCK} or
@@ -2865,6 +2920,31 @@ following errno:
 @code{who} was not valid.
 @end table
 
+@node recvfrom/sendto
+@section recvfrom/sendto
+
+@example
+ssize_t recvfrom(int socket_fd, void *restrict buffer, size_t length,
+   int flags, struct sockaddr *address, socklen_t *address_len);
+ssize_t sendto(int socket_fd, void *restrict buffer, size_t length,
+   int flags, struct sockaddr *address, socklen_t address_len);
+@end example
+
+These syscalls compliment @code{read} and @code{write} for socket-based IO.
+They allow specifing or fetching the address of a read or write operation when
+doing them, which can be vital for reading connection-less socket protocols.
+
+Unlike doing @code{connect} on a connection-less socket, the addresses passed
+here will not affect future transactions.
+
+When used for connection-based protocols, or when passed as @code{NULL},
+@code{address} and @code{address_len} will be ignored.
+
+@code{flags} is right now a placeholder for future options.
+
+These syscalls return and fail in the same ways @ref{read/write} would, with
+the addition of only accepting sockets as their passed @code{socket_fd}.
+
 @node Filesystem support and interfaces
 @chapter Filesystem support and interfaces
 
@@ -2964,8 +3044,12 @@ The loopback device is a special, virtual network interface meant to be used
 mainly for diagnostics and troubleshooting, along for enabling connecting to
 servers running on the local machine.
 
-Loopback will always feature the associated IP addresses @code{127.0.0.1/8} and
-@code{::1/128}. These addresses will not be able to be changed.
+It works fundamentally by returning the packets sent to it (loopback!), in such
+a way that services can talk with themselves. This device implements no
+physical layer of the network stack, packets are passed without that layer.
+
+Loopback will always have the static IP addresses @code{127.0.0.1/8} and
+@code{::1/128}. These addresses cannot be changed.
 
 @node Devices and their properties
 @chapter Devices and their properties

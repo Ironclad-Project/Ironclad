@@ -873,51 +873,40 @@ package body Userland.Syscall with SPARK_Mode => Off is
    procedure Socket
       (Domain   : Unsigned_64;
        DataType : Unsigned_64;
-       Protocol : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc       : constant     PID := Arch.Local.Get_Current_Process;
-      Cloexec    : constant Boolean := (DataType and SOCK_CLOEXEC)  /= 0;
-      Dont_Block : constant Boolean := (DataType and SOCK_NONBLOCK) /= 0;
-      Returned2  : Natural;
-      Succ       : Boolean;
+      Proc       : constant PID := Arch.Local.Get_Current_Process;
+      Success    : Boolean;
       Desc       : File_Description_Acc;
       New_Sock   : IPC.Socket.Socket_Acc;
       Dom        : IPC.Socket.Domain;
       Data       : IPC.Socket.DataType;
-      Proto      : IPC.Socket.Protocol;
    begin
       case Domain is
-         when AF_UNIX => Dom := IPC.Socket.UNIX;
-         when others  => goto Invalid_Value_Return;
+         when AF_INET  => Dom := IPC.Socket.IPv4;
+         when AF_INET6 => Dom := IPC.Socket.IPv6;
+         when AF_UNIX  => Dom := IPC.Socket.UNIX;
+         when others   => goto Invalid_Value_Return;
       end case;
 
       case DataType and 16#FFF# is
          when SOCK_STREAM => Data := IPC.Socket.Stream;
          when SOCK_DGRAM  => Data := IPC.Socket.Datagram;
+         when SOCK_RAW    => Data := IPC.Socket.Raw;
          when others      => goto Invalid_Value_Return;
       end case;
 
-      case Protocol is
-         when 0      => Proto := IPC.Socket.Default;
-         when others => goto Invalid_Value_Return;
-      end case;
-
-      New_Sock := IPC.Socket.Create (Dom, Data, Proto, not Dont_Block);
+      New_Sock := Create (Dom, Data, (DataType and SOCK_NONBLOCK) = 0);
       if New_Sock = null then
          goto Invalid_Value_Return;
       end if;
 
-      Desc := new File_Description'
-         (Children_Count => 0,
-          Description    => Description_Socket,
-          Inner_Socket   => New_Sock);
-      Check_Add_File (Proc, Desc, Succ, Returned2);
-      if Succ then
-         Set_Close_On_Exec (Proc, Unsigned_64 (Returned2), Cloexec);
-         Errno    := Error_No_Error;
-         Returned := Unsigned_64 (Returned2);
+      Desc := new File_Description'(Description_Socket, 0, New_Sock);
+      Check_Add_File (Proc, Desc, Success, Natural (Returned));
+      if Success then
+         Set_Close_On_Exec (Proc, Returned, (DataType and SOCK_CLOEXEC) /= 0);
+         Errno := Error_No_Error;
       else
          Close (New_Sock);
          Close (Desc);
@@ -2461,6 +2450,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       File  : constant File_Description_Acc := Get_File (Proc, Sock_FD);
       IAddr : constant      Integer_Address := Integer_Address (Addr_Addr);
       SAddr : constant       System.Address := To_Address (IAddr);
+      Succ  : Boolean;
    begin
       if File = null or else File.Description /= Description_Socket then
          Errno := Error_Bad_File;
@@ -2473,23 +2463,42 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return;
       end if;
 
-      declare
-         --  FIXME: Ideally, this wouldnt be neccesary, because addr_len is
-         --  meant to cover for the string as well. But software like Xorg
-         --  dislikes the notion of passing correct arguments. This opens
-         --  us up to some memory faulting shinenigans. Sigh.
-         Addr_SAddr : constant System.Address := SAddr + 4;
-         Addr_CLen  : constant Natural := Lib.C_String_Length (Addr_SAddr);
-         Addr : String (1 .. Addr_CLen) with Import, Address => Addr_SAddr;
-      begin
-         if IPC.Socket.Bind (File.Inner_Socket, Addr) then
-            Errno := Error_No_Error;
-            Returned := 0;
-         else
-            Errno := Error_IO;
-            Returned := Unsigned_64'Last;
-         end if;
-      end;
+      case Get_Domain (File.Inner_Socket) is
+         when IPC.Socket.IPv4 =>
+            declare
+               Addr : SockAddr_In with Import, Address => SAddr;
+            begin
+               Succ := Bind
+                  (Sock => File.Inner_Socket,
+                   Addr => Addr.Sin_Addr,
+                   Port => Networking.IPv4_Port (Addr.Sin_Port));
+            end;
+         when IPC.Socket.IPv6 =>
+            declare
+               Addr : SockAddr_In6 with Import, Address => SAddr;
+            begin
+               Succ := Bind
+                  (Sock => File.Inner_Socket,
+                   Addr => Addr.Sin6_Addr,
+                   Port => Networking.IPv6_Port (Addr.Sin6_Port));
+            end;
+         when IPC.Socket.UNIX =>
+            declare
+               A_SAddr2 : constant System.Address := SAddr + 4;
+               CLen : constant Natural := Lib.C_String_Length (A_SAddr2);
+               Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
+            begin
+               Succ := Bind (File.Inner_Socket, Addr);
+            end;
+      end case;
+
+      if Succ then
+         Errno := Error_No_Error;
+         Returned := 0;
+      else
+         Errno := Error_IO;
+         Returned := Unsigned_64'Last;
+      end if;
    end Bind;
 
    procedure Symlink
@@ -2558,6 +2567,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       File  : constant File_Description_Acc := Get_File (Proc, Sock_FD);
       IAddr : constant      Integer_Address := Integer_Address (Addr_Addr);
       SAddr : constant       System.Address := To_Address (IAddr);
+      Succ  : Boolean;
    begin
       if File = null or else File.Description /= Description_Socket then
          Errno := Error_Bad_File;
@@ -2570,23 +2580,42 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return;
       end if;
 
-      declare
-         --  FIXME: Ideally, this wouldnt be neccesary, because addr_len is
-         --  meant to cover for the string as well. But software like Xorg
-         --  dislikes the notion of passing correct arguments. This opens
-         --  us up to some memory faulting shinenigans. Sigh.
-         Addr_SAddr : constant System.Address := SAddr + 4;
-         Addr_CLen  : constant Natural := Lib.C_String_Length (Addr_SAddr);
-         Addr : String (1 .. Addr_CLen) with Import, Address => Addr_SAddr;
-      begin
-         if IPC.Socket.Connect (File.Inner_Socket, Addr) then
-            Errno := Error_No_Error;
-            Returned := 0;
-         else
-            Errno := Error_IO;
-            Returned := Unsigned_64'Last;
-         end if;
-      end;
+      case Get_Domain (File.Inner_Socket) is
+         when IPC.Socket.IPv4 =>
+            declare
+               Addr : SockAddr_In with Import, Address => SAddr;
+            begin
+               Succ := Connect
+                  (Sock => File.Inner_Socket,
+                   Addr => Addr.Sin_Addr,
+                   Port => Networking.IPv4_Port (Addr.Sin_Port));
+            end;
+         when IPC.Socket.IPv6 =>
+            declare
+               Addr : SockAddr_In6 with Import, Address => SAddr;
+            begin
+               Succ := Connect
+                  (Sock => File.Inner_Socket,
+                   Addr => Addr.Sin6_Addr,
+                   Port => Networking.IPv6_Port (Addr.Sin6_Port));
+            end;
+         when IPC.Socket.UNIX =>
+            declare
+               A_SAddr2 : constant System.Address := SAddr + 4;
+               CLen : constant Natural := Lib.C_String_Length (A_SAddr2);
+               Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
+            begin
+               Succ := Connect (File.Inner_Socket, Addr);
+            end;
+      end case;
+
+      if Succ then
+         Errno := Error_No_Error;
+         Returned := 0;
+      else
+         Errno := Error_IO;
+         Returned := Unsigned_64'Last;
+      end if;
    end Connect;
 
    procedure Open_PTY
@@ -2824,7 +2853,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       A_IAddr  : constant  Integer_Address := Integer_Address (Addr_Addr);
       A_SAddr  : constant   System.Address := To_Address (A_IAddr);
       AL_IAddr : constant  Integer_Address := Integer_Address (Addr_Len);
-      AL_SAddr : constant   System.Address := To_Address (AL_IAddr);
       Desc  : File_Description_Acc;
       Sock  : Socket_Acc;
       Ret   : Natural;
@@ -2834,30 +2862,59 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
          return;
-      elsif not Check_Userland_Access (Map, AL_IAddr, Natural'Size / 8) then
-         goto Would_Fault_Error;
       elsif Get_Type (File.Inner_Socket) /= IPC.Socket.Stream then
          Errno    := Error_Not_Supported;
          Returned := Unsigned_64'Last;
          return;
       end if;
 
-      declare
-         Address_Len : Natural with Import, Address => AL_SAddr;
-         Address : String (1 .. Address_Len) with Import, Address => A_SAddr;
-      begin
-         if not Check_Userland_Access (Map, A_IAddr, Unsigned_64 (Address_Len))
+      if A_IAddr = 0 or AL_IAddr = 0 then
+         Accept_Connection (File.Inner_Socket, not Block, Sock);
+      else
+         if not Check_Userland_Access (Map, A_IAddr,  Natural'Size / 8) or
+            not Check_Userland_Access (Map, AL_IAddr, Natural'Size / 8)
          then
             goto Would_Fault_Error;
          end if;
 
-         Accept_Connection
-            (Sock                => File.Inner_Socket,
-             Is_Blocking         => not Block,
-             Peer_Address        => Address,
-             Peer_Address_Length => Address_Len,
-             Result              => Sock);
-      end;
+         case Get_Domain (File.Inner_Socket) is
+            when IPC.Socket.IPv4 =>
+               declare
+                  Addr : SockAddr_In with Import, Address => A_SAddr;
+               begin
+                  Accept_Connection
+                     (Sock         => File.Inner_Socket,
+                      Is_Blocking  => not Block,
+                      Peer_Address => Addr.Sin_Addr,
+                      Peer_Port    => Networking.IPv4_Port (Addr.Sin_Port),
+                      Result       => Sock);
+               end;
+            when IPC.Socket.IPv6 =>
+               declare
+                  Addr : SockAddr_In6 with Import, Address => A_SAddr;
+               begin
+                  Accept_Connection
+                     (Sock         => File.Inner_Socket,
+                      Is_Blocking  => not Block,
+                      Peer_Address => Addr.Sin6_Addr,
+                      Peer_Port    => Networking.IPv6_Port (Addr.Sin6_Port),
+                      Result       => Sock);
+               end;
+            when IPC.Socket.UNIX =>
+               declare
+                  A_SAddr2 : constant System.Address := A_SAddr + 4;
+                  CLen : Natural := Lib.C_String_Length (A_SAddr2);
+                  Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
+               begin
+                  Accept_Connection
+                     (Sock                => File.Inner_Socket,
+                      Is_Blocking         => not Block,
+                      Peer_Address        => Addr,
+                      Peer_Address_Length => CLen,
+                      Result              => Sock);
+               end;
+         end case;
+      end if;
 
       if Sock /= null then
          Desc := new File_Description'(Description_Socket, 0, Sock);
@@ -3591,21 +3648,42 @@ package body Userland.Syscall with SPARK_Mode => Off is
          if not Check_Userland_Access (Map, AIAddr, Unsigned_64 (Length)) then
             goto Would_Fault_Error;
          end if;
-
-         declare
-            Path : String (1 .. Length) with Import, Address => ASAddr;
-         begin
-            IPC.Socket.Get_Bound (File.Inner_Socket, Path, Length, Succ);
-            if Succ then
-               Errno    := Error_No_Error;
-               Returned := 0;
-            else
-               Errno    := Error_Invalid_Value;
-               Returned := Unsigned_64'Last;
-            end if;
-            return;
-         end;
       end;
+
+      case Get_Domain (File.Inner_Socket) is
+         when IPC.Socket.IPv4 =>
+            declare
+               Addr : SockAddr_In with Import, Address => ASAddr;
+            begin
+               Get_Bound (File.Inner_Socket, Addr.Sin_Addr,
+                  Networking.IPv4_Port (Addr.Sin_Port), Succ);
+            end;
+         when IPC.Socket.IPv6 =>
+            declare
+               Addr : SockAddr_In6 with Import, Address => ASAddr;
+            begin
+               Get_Bound (File.Inner_Socket, Addr.Sin6_Addr,
+                  Networking.IPv6_Port (Addr.Sin6_Port), Succ);
+            end;
+         when IPC.Socket.UNIX =>
+            declare
+               A_SAddr2 : constant System.Address := ASAddr + 4;
+               CLen : Natural := Lib.C_String_Length (A_SAddr2);
+               Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
+            begin
+               Get_Bound (File.Inner_Socket, Addr, CLen, Succ);
+            end;
+      end case;
+
+      if Succ then
+         Errno := Error_No_Error;
+         Returned := 0;
+      else
+         Errno := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+      end if;
+
+      return;
 
    <<Would_Fault_Error>>
       Errno    := Error_Would_Fault;
@@ -3642,21 +3720,42 @@ package body Userland.Syscall with SPARK_Mode => Off is
          if not Check_Userland_Access (Map, AIAddr, Unsigned_64 (Length)) then
             goto Would_Fault_Error;
          end if;
-
-         declare
-            Path : String (1 .. Length) with Import, Address => ASAddr;
-         begin
-            IPC.Socket.Get_Peer (File.Inner_Socket, Path, Length, Succ);
-            if Succ then
-               Errno    := Error_No_Error;
-               Returned := 0;
-            else
-               Errno    := Error_Not_Connected;
-               Returned := Unsigned_64'Last;
-            end if;
-            return;
-         end;
       end;
+
+      case Get_Domain (File.Inner_Socket) is
+         when IPC.Socket.IPv4 =>
+            declare
+               Addr : SockAddr_In with Import, Address => ASAddr;
+            begin
+               Get_Peer (File.Inner_Socket, Addr.Sin_Addr,
+                  Networking.IPv4_Port (Addr.Sin_Port), Succ);
+            end;
+         when IPC.Socket.IPv6 =>
+            declare
+               Addr : SockAddr_In6 with Import, Address => ASAddr;
+            begin
+               Get_Peer (File.Inner_Socket, Addr.Sin6_Addr,
+                  Networking.IPv6_Port (Addr.Sin6_Port), Succ);
+            end;
+         when IPC.Socket.UNIX =>
+            declare
+               A_SAddr2 : constant System.Address := ASAddr + 4;
+               CLen : Natural := Lib.C_String_Length (A_SAddr2);
+               Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
+            begin
+               Get_Peer (File.Inner_Socket, Addr, CLen, Succ);
+            end;
+      end case;
+
+      if Succ then
+         Errno := Error_No_Error;
+         Returned := 0;
+      else
+         Errno := Error_Not_Connected;
+         Returned := Unsigned_64'Last;
+      end if;
+
+      return;
 
    <<Would_Fault_Error>>
       Errno    := Error_Would_Fault;
@@ -3941,6 +4040,188 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno    := Error_No_Error;
       end;
    end Get_RUsage;
+
+   procedure RecvFrom
+      (Sock_FD   : Unsigned_64;
+       Buffer    : Unsigned_64;
+       Count     : Unsigned_64;
+       Flags     : Unsigned_64;
+       Addr_Addr : Unsigned_64;
+       Addr_Len  : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
+   is
+      pragma Unreferenced (Flags);
+
+      Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
+      Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
+      AIAddr    : constant      Integer_Address := Integer_Address (Addr_Addr);
+      ASAddr    : constant       System.Address := To_Address (AIAddr);
+      Proc      : constant             PID := Arch.Local.Get_Current_Process;
+      Map       : constant    Page_Table_Acc := Get_Common_Map (Proc);
+      File      : constant File_Description_Acc := Get_File (Proc, Sock_FD);
+      Ret_Count : Natural;
+      Success   : IPC.Socket.Socket_Status;
+      Final_Cnt : Natural;
+   begin
+      if not Check_Userland_Access (Map, Buf_IAddr, Count) or else
+         (AIAddr /= 0 and not Check_Userland_Access (Map, AIAddr, Addr_Len))
+      then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Would_Fault;
+         return;
+      elsif File = null or else File.Description /= Description_Socket then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Bad_File;
+         return;
+      elsif Count > Unsigned_64 (Natural'Last) then
+         Final_Cnt := Natural'Last;
+      else
+         Final_Cnt := Natural (Count);
+      end if;
+
+      declare
+         Data : Devices.Operation_Data (1 .. Final_Cnt)
+            with Import, Address => Buf_SAddr;
+      begin
+         if AIAddr /= 0 and Get_Type (File.Inner_Socket) /= IPC.Socket.Stream
+         then
+            case Get_Domain (File.Inner_Socket) is
+               when IPC.Socket.IPv4 =>
+                  declare
+                     Addr : SockAddr_In with Import, Address => ASAddr;
+                  begin
+                     IPC.Socket.Read
+                        (Sock      => File.Inner_Socket,
+                         Data      => Data,
+                         Ret_Count => Ret_Count,
+                         Addr      => Addr.Sin_Addr,
+                         Port      => Networking.IPv4_Port (Addr.Sin_Port),
+                         Success   => Success);
+                  end;
+               when IPC.Socket.IPv6 =>
+                  declare
+                     Addr : SockAddr_In6 with Import, Address => ASAddr;
+                  begin
+                     IPC.Socket.Read
+                        (Sock      => File.Inner_Socket,
+                         Data      => Data,
+                         Ret_Count => Ret_Count,
+                         Addr      => Addr.Sin6_Addr,
+                         Port      => Networking.IPv6_Port (Addr.Sin6_Port),
+                         Success   => Success);
+                  end;
+               when IPC.Socket.UNIX =>
+                  declare
+                     A_SAddr : constant System.Address := ASAddr + 4;
+                     CLen : constant Natural := Lib.C_String_Length (A_SAddr);
+                     Addr : String (1 .. CLen) with Import, Address => A_SAddr;
+                  begin
+                     IPC.Socket.Read
+                        (Sock      => File.Inner_Socket,
+                         Data      => Data,
+                         Ret_Count => Ret_Count,
+                         Path      => Addr,
+                         Success   => Success);
+                  end;
+            end case;
+         else
+            IPC.Socket.Read (File.Inner_Socket, Data, Ret_Count, Success);
+         end if;
+         Translate_Status (Success, Unsigned_64 (Ret_Count), Returned, Errno);
+      end;
+   end RecvFrom;
+
+   procedure SendTo
+      (Sock_FD   : Unsigned_64;
+       Buffer    : Unsigned_64;
+       Count     : Unsigned_64;
+       Flags     : Unsigned_64;
+       Addr_Addr : Unsigned_64;
+       Addr_Len  : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
+   is
+      pragma Unreferenced (Flags);
+
+      Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
+      Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
+      AIAddr    : constant      Integer_Address := Integer_Address (Addr_Addr);
+      ASAddr    : constant       System.Address := To_Address (AIAddr);
+      Proc      : constant             PID := Arch.Local.Get_Current_Process;
+      Map       : constant    Page_Table_Acc := Get_Common_Map (Proc);
+      File      : constant File_Description_Acc := Get_File (Proc, Sock_FD);
+      Ret_Count : Natural;
+      Success   : IPC.Socket.Socket_Status;
+      Final_Cnt : Natural;
+   begin
+      if not Check_Userland_Access (Map, Buf_IAddr, Count) or else
+         (AIAddr /= 0 and not Check_Userland_Access (Map, AIAddr, Addr_Len))
+      then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Would_Fault;
+         return;
+      elsif File = null or else File.Description /= Description_Socket then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Bad_File;
+         return;
+      elsif Count > Unsigned_64 (Natural'Last) then
+         Final_Cnt := Natural'Last;
+      else
+         Final_Cnt := Natural (Count);
+      end if;
+
+      declare
+         Data : Devices.Operation_Data (1 .. Final_Cnt)
+            with Import, Address => Buf_SAddr;
+      begin
+         if AIAddr /= 0 and Get_Type (File.Inner_Socket) /= IPC.Socket.Stream
+         then
+            case Get_Domain (File.Inner_Socket) is
+               when IPC.Socket.IPv4 =>
+                  declare
+                     Addr : SockAddr_In with Import, Address => ASAddr;
+                  begin
+                     IPC.Socket.Write
+                        (Sock      => File.Inner_Socket,
+                         Data      => Data,
+                         Ret_Count => Ret_Count,
+                         Addr      => Addr.Sin_Addr,
+                         Port      => Networking.IPv4_Port (Addr.Sin_Port),
+                         Success   => Success);
+                  end;
+               when IPC.Socket.IPv6 =>
+                  declare
+                     Addr : SockAddr_In6 with Import, Address => ASAddr;
+                  begin
+                     IPC.Socket.Write
+                        (Sock      => File.Inner_Socket,
+                         Data      => Data,
+                         Ret_Count => Ret_Count,
+                         Addr      => Addr.Sin6_Addr,
+                         Port      => Networking.IPv6_Port (Addr.Sin6_Port),
+                         Success   => Success);
+                  end;
+               when IPC.Socket.UNIX =>
+                  declare
+                     A_SAddr : constant System.Address := ASAddr + 4;
+                     CLen : constant Natural := Lib.C_String_Length (A_SAddr);
+                     Addr : String (1 .. CLen) with Import, Address => A_SAddr;
+                  begin
+                     IPC.Socket.Write
+                        (Sock      => File.Inner_Socket,
+                         Data      => Data,
+                         Ret_Count => Ret_Count,
+                         Path      => Addr,
+                         Success   => Success);
+                  end;
+            end case;
+         else
+            IPC.Socket.Write (File.Inner_Socket, Data, Ret_Count, Success);
+         end if;
+         Translate_Status (Success, Unsigned_64 (Ret_Count), Returned, Errno);
+      end;
+   end SendTo;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin

@@ -143,7 +143,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 13 =>
             Wait (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 14 =>
-            Socket (State.RDI, State.RSI, State.RDX, Returned, Errno);
+            Socket (State.RDI, State.RSI, Returned, Errno);
          when 15 =>
             Set_Hostname (State.RDI, State.RSI, Returned, Errno);
          when 16 =>
@@ -278,6 +278,12 @@ package body Arch.Interrupts with SPARK_Mode => Off is
                              Returned, Errno);
          when 72 =>
             Get_RUsage (State.RDI, State.RSI, Returned, Errno);
+         when 73 =>
+            RecvFrom (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
+                      State.R9, Returned, Errno);
+         when 74 =>
+            SendTo (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
+                    State.R9, Returned, Errno);
          when others =>
             Returned := Unsigned_64'Last;
             Errno    := Error_Not_Implemented;

@@ -22,6 +22,8 @@ package Networking is
    type MAC_Address  is array (1 ..  6) of Unsigned_8;
    type IPv4_Address is array (1 ..  4) of Unsigned_8;
    type IPv6_Address is array (1 .. 16) of Unsigned_8;
+   type IPv4_Port is new Unsigned_16;
+   type IPv6_Port is new Unsigned_16;
 
    --  Standard submasks.
    IPv4_8_Submask   : constant IPv4_Address := (255, 0, 0, 0);
@@ -59,6 +61,15 @@ package Networking is
       (Interfaced : Devices.Device_Handle;
        Success    : out Boolean);
 
+   --  Fetch the registered address of an interface.
+   procedure Get_Interface_Address
+      (Interfaced : Devices.Device_Handle;
+       IP         : out IPv4_Address);
+
+   procedure Get_Interface_Address
+      (Interfaced : Devices.Device_Handle;
+       IP         : out IPv6_Address);
+
    --  Block or unblock an interface.
    --  @param Interfaced Device to modify.
    --  @param Is_Blocked True for blocking broadcast, False for not doing so.
@@ -67,6 +78,15 @@ package Networking is
       (Interfaced : Devices.Device_Handle;
        Is_Blocked : Boolean;
        Success    : out Boolean);
+
+   --  Fetch a registered interface device by address.
+   procedure Get_Suitable_Interface
+      (IP         : IPv4_Address;
+       Interfaced : out Devices.Device_Handle);
+
+   procedure Get_Suitable_Interface
+      (IP         : IPv6_Address;
+       Interfaced : out Devices.Device_Handle);
 
    --  Set the IP sets of an interface.
    --  0 addresses for either ipv4 or ipv6 will mean the stack will search

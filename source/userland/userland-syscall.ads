@@ -225,7 +225,6 @@ package Userland.Syscall is
    procedure Socket
       (Domain   : Unsigned_64;
        DataType : Unsigned_64;
-       Protocol : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
@@ -615,11 +614,25 @@ package Userland.Syscall is
        Errno    : out Errno_Value);
 
    --  Bind a socket to an address.
+   type SockAddr_In is record
+      Sin_Family : Unsigned_32;
+      Sin_Port   : Unsigned_16;
+      Padding    : Unsigned_16;
+      Sin_Addr   : Networking.IPv4_Address;
+   end record with Pack;
+   type SockAddr_In6 is record
+      Sin6_Family   : Unsigned_32;
+      Sin6_Port     : Unsigned_16;
+      Padding       : Unsigned_16;
+      Sin6_FlowInfo : Unsigned_32;
+      Sin6_Addr     : Networking.IPv6_Address;
+      Sin6_Scope_ID : Unsigned_32;
+   end record with Pack;
    type SockAddr_UNIX is record
       Sun_Family : Unsigned_32;
       Length     : Unsigned_32;
       Path       : System.Address;
-   end record;
+   end record with Pack;
    procedure Bind
       (Sock_FD   : Unsigned_64;
        Addr_Addr : Unsigned_64;
@@ -893,6 +906,26 @@ package Userland.Syscall is
        Usage_Addr : Unsigned_64;
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value);
+
+   procedure RecvFrom
+      (Sock_FD   : Unsigned_64;
+       Buffer    : Unsigned_64;
+       Count     : Unsigned_64;
+       Flags     : Unsigned_64;
+       Addr_Addr : Unsigned_64;
+       Addr_Len  : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
+
+   procedure SendTo
+      (Sock_FD   : Unsigned_64;
+       Buffer    : Unsigned_64;
+       Count     : Unsigned_64;
+       Flags     : Unsigned_64;
+       Addr_Addr : Unsigned_64;
+       Addr_Len  : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.
