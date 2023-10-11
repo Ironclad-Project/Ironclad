@@ -53,6 +53,36 @@ package body Networking.ARP is
       end loop;
    end Add_Static;
 
+   procedure Modify_Static
+      (MAC        : MAC_Address;
+       IP4        : IPv4_Address;
+       IP4_Subnet : IPv4_Address)
+   is
+   begin
+      for E of Interface_Entries.all loop
+         if E.MAC = MAC then
+            E.IP4 := IP4;
+            E.IP4_Subnet := IP4_Subnet;
+            return;
+         end if;
+      end loop;
+   end Modify_Static;
+
+   procedure Modify_Static
+      (MAC        : MAC_Address;
+       IP6        : IPv6_Address;
+       IP6_Subnet : IPv6_Address)
+   is
+   begin
+      for E of Interface_Entries.all loop
+         if E.MAC = MAC then
+            E.IP6 := IP6;
+            E.IP6_Subnet := IP6_Subnet;
+            return;
+         end if;
+      end loop;
+   end Modify_Static;
+
    procedure Lookup (MAC : MAC_Address; IP, Subnet : out IPv4_Address) is
    begin
       for E of Interface_Entries.all loop

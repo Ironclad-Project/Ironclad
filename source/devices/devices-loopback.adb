@@ -41,13 +41,14 @@ package body Devices.Loopback is
       Register (Device, "loopback", Success);
       if Success then
          Dev := Fetch ("loopback");
-         Networking.Register_Interface (Dev, Success);
-         if Success then
-            Networking.Block (Dev, False, Success);
-            Networking.Set_Addresses
-               (Dev, (127, 0, 0, 1), (255, 0, 0, 0), (1 .. 15 => 0, 16 => 1),
-                (others => 16#FF#), Success);
-         end if;
+         Networking.Register_Interface
+            (Interfaced  => Dev,
+             IPv4        => (127, 0, 0, 1),
+             IPv4_Subnet => (255, 0, 0, 0),
+             IPv6        => (1 .. 15 => 0, 16 => 1),
+             IPv6_Subnet => (others => 16#FF#),
+             Success     => Success);
+         Networking.Block (Dev, False, Success);
       end if;
    end Init;
    ----------------------------------------------------------------------------

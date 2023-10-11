@@ -73,8 +73,12 @@ package body Networking is
       (others => (Devices.Error_Handle, (others => 0), True));
 
    procedure Register_Interface
-      (Interfaced : Devices.Device_Handle;
-       Success    : out Boolean)
+      (Interfaced  : Devices.Device_Handle;
+       IPv4        : IPv4_Address;
+       IPv4_Subnet : IPv4_Address;
+       IPv6        : IPv6_Address;
+       IPv6_Subnet : IPv6_Address;
+       Success     : out Boolean)
    is
    begin
       Success := False;
@@ -84,6 +88,7 @@ package body Networking is
             Int.Handle := Interfaced;
             Int.Is_Blocked := True;
             Success := IO_Control (Interfaced, NET_GETMAC, Int.MAC'Address);
+            ARP.Add_Static (Int.MAC, IPv4, IPv4_Subnet, IPv6, IPv6_Subnet);
             exit;
          end if;
       end loop;
@@ -192,26 +197,43 @@ package body Networking is
       Release (Interfaces_Lock);
    end Get_Suitable_Interface;
 
-   procedure Set_Addresses
-      (Interfaced  : Devices.Device_Handle;
-       IPv4        : IPv4_Address;
-       IPv4_Subnet : IPv4_Address;
-       IPv6        : IPv6_Address;
-       IPv6_Subnet : IPv6_Address;
-       Success     : out Boolean)
+   procedure Modify_Addresses
+      (Interfaced : Devices.Device_Handle;
+       IP         : IPv4_Address;
+       IP_Subnet  : IPv4_Address;
+       Success    : out Boolean)
    is
    begin
       Success := False;
       Seize (Interfaces_Lock);
       for Int of Interfaces loop
          if Int.Handle = Interfaced then
-            ARP.Add_Static (Int.MAC, IPv4, IPv4_Subnet, IPv6, IPv6_Subnet);
+            ARP.Modify_Static (Int.MAC, IP, IP_Subnet);
             Success := True;
             exit;
          end if;
       end loop;
       Release (Interfaces_Lock);
-   end Set_Addresses;
+   end Modify_Addresses;
+
+   procedure Modify_Addresses
+      (Interfaced : Devices.Device_Handle;
+       IP         : IPv6_Address;
+       IP_Subnet  : IPv6_Address;
+       Success    : out Boolean)
+   is
+   begin
+      Success := False;
+      Seize (Interfaces_Lock);
+      for Int of Interfaces loop
+         if Int.Handle = Interfaced then
+            ARP.Modify_Static (Int.MAC, IP, IP_Subnet);
+            Success := True;
+            exit;
+         end if;
+      end loop;
+      Release (Interfaces_Lock);
+   end Modify_Addresses;
 
    procedure List_Interfaces (Buffer : out Interface_Arr; Len : out Natural) is
       Curr_Index : Natural := 0;

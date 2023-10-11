@@ -34,6 +34,16 @@ package Networking.ARP is
        IP6        : IPv6_Address;
        IP6_Subnet : IPv6_Address);
 
+   procedure Modify_Static
+      (MAC        : MAC_Address;
+       IP4        : IPv4_Address;
+       IP4_Subnet : IPv4_Address);
+
+   procedure Modify_Static
+      (MAC        : MAC_Address;
+       IP6        : IPv6_Address;
+       IP6_Subnet : IPv6_Address);
+
    --  Lookup the associated IPv4 addresses for a MAC address.
    procedure Lookup (MAC : MAC_Address; IP, Subnet : out IPv4_Address);
 

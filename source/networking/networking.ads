@@ -58,8 +58,12 @@ package Networking is
    --  @param Interfaced Device to try to use a a networking interface.
    --  @param Success    True in success, False in failure.
    procedure Register_Interface
-      (Interfaced : Devices.Device_Handle;
-       Success    : out Boolean);
+      (Interfaced  : Devices.Device_Handle;
+       IPv4        : IPv4_Address;
+       IPv4_Subnet : IPv4_Address;
+       IPv6        : IPv6_Address;
+       IPv6_Subnet : IPv6_Address;
+       Success     : out Boolean);
 
    --  Fetch the registered address of an interface.
    procedure Get_Interface_Address
@@ -88,22 +92,17 @@ package Networking is
       (IP         : IPv6_Address;
        Interfaced : out Devices.Device_Handle);
 
-   --  Set the IP sets of an interface.
-   --  0 addresses for either ipv4 or ipv6 will mean the stack will search
-   --  for its own address, using DHCP for example.
-   --  @param Interfaced Device to modify.
-   --  @param IP4        IPv6 static address, 0 for the stack to acquire it.
-   --  @param IP4_Subnet IPv4 static submask, 0 for the stack to acquire it.
-   --  @param IP6        IPv6 static address, 0 for the stack to acquire it.
-   --  @param IP6_Subnet IPv6 static submask, 0 for the stack to acquire it.
-   --  @param Success    True in success, False in failure (not found).
-   procedure Set_Addresses
-      (Interfaced  : Devices.Device_Handle;
-       IPv4        : IPv4_Address;
-       IPv4_Subnet : IPv4_Address;
-       IPv6        : IPv6_Address;
-       IPv6_Subnet : IPv6_Address;
-       Success     : out Boolean);
+   procedure Modify_Addresses
+      (Interfaced : Devices.Device_Handle;
+       IP         : IPv4_Address;
+       IP_Subnet  : IPv4_Address;
+       Success    : out Boolean);
+
+   procedure Modify_Addresses
+      (Interfaced : Devices.Device_Handle;
+       IP         : IPv6_Address;
+       IP_Subnet  : IPv6_Address;
+       Success    : out Boolean);
 
    --  Information reported about an interface.
    type Interface_Info is record

@@ -4222,6 +4222,69 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Translate_Status (Success, Unsigned_64 (Ret_Count), Returned, Errno);
       end;
    end SendTo;
+
+   procedure Config_NetInterface
+      (InterDev  : Unsigned_64;
+       Operation : Unsigned_64;
+       Arg_Addr  : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
+   is
+      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
+      Map   : constant       Page_Table_Acc := Get_Common_Map (Proc);
+      File  : constant File_Description_Acc := Get_File (Proc, InterDev);
+      IAddr : constant      Integer_Address := Integer_Address (Arg_Addr);
+      Suc   : Boolean;
+
+      Blk :            Boolean with Import, Address => To_Address (IAddr);
+      IP4 : Addr4_NetInterface with Import, Address => To_Address (IAddr);
+      IP6 : Addr6_NetInterface with Import, Address => To_Address (IAddr);
+   begin
+      if not Get_Capabilities (Proc).Can_Manage_Networking then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("config_netinter", Proc);
+         Returned := Unsigned_64'Last;
+         return;
+      elsif File = null or else File.Description /= Description_Device then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Bad_File;
+         return;
+      end if;
+
+      case Operation is
+         when NETINTER_SET_BLOCK =>
+            if not Check_Userland_Access (Map, IAddr, Blk'Size / 8) then
+               goto Would_Fault_Error;
+            end if;
+            Networking.Block (File.Inner_Dev, Blk, Suc);
+         when NETINTER_SET_STATIC_IP4 =>
+            if not Check_Userland_Access (Map, IAddr, IP4'Size / 8) then
+               goto Would_Fault_Error;
+            end if;
+            Networking.Modify_Addresses (File.Inner_Dev, IP4.IP, IP4.Sub, Suc);
+         when NETINTER_SET_STATIC_IP6 =>
+            if not Check_Userland_Access (Map, IAddr, IP6'Size / 8) then
+               goto Would_Fault_Error;
+            end if;
+            Networking.Modify_Addresses (File.Inner_Dev, IP6.IP, IP6.Sub, Suc);
+         when others =>
+            Suc := False;
+      end case;
+
+      if Suc then
+         Returned := 0;
+         Errno    := Error_No_Error;
+      else
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Invalid_Value;
+      end if;
+
+      return;
+
+   <<Would_Fault_Error>>
+      Returned := Unsigned_64'Last;
+      Errno    := Error_Would_Fault;
+   end Config_NetInterface;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin

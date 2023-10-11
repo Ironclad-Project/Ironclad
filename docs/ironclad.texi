@@ -162,6 +162,7 @@ Syscalls
 * clock_nanosleep::         Sleep on a clock.
 * getrusage::               Get resource usage for the process.
 * recvfrom/sendto::         Socket IO support functions.
+* config_netinter::         Configure network interfaces.
 
 Filesystem support and interfaces
 
@@ -691,6 +692,8 @@ Empty.
 @ref{recvfrom/sendto, recvfrom}.
 @item
 @ref{recvfrom/sendto, sendto}.
+@item
+@ref{config_netinter}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -2945,6 +2948,61 @@ When used for connection-based protocols, or when passed as @code{NULL},
 These syscalls return and fail in the same ways @ref{read/write} would, with
 the addition of only accepting sockets as their passed @code{socket_fd}.
 
+@node config_netinter
+@section config_netinter
+
+@example
+#define NETINTER_SET_BLOCK      1
+#define NETINTER_SET_STATIC_IP4 2
+#define NETINTER_SET_STATIC_IP6 3
+
+struct addr4_netinter @{
+    uint32_t ip;
+    uint32_t sub;
+@};
+
+struct addr6_netinter @{
+    uint128_t ip;
+    uint128_t sub;
+@};
+
+int config_netinter (int fd, int op, void *arg);
+@end example
+
+This syscall configures networking interfaces by using the device that
+implements the desired interface.
+
+@code{op} dictates what the arguments and action to do are, it can be one of:
+
+@table @code
+@item NETINTER_SET_BLOCK
+@code{arg} will be a pointer to a boolean value, if it evaluates to true, the
+passed interface will be blocked, if it evaluates to false, it will be
+unblocked.
+
+@item NETINTER_SET_STATIC_IP4
+@code{arg} will be a pointer to a @code{addr4_netinter} structure, which
+specifies an address and subnet to set as static addresses.
+
+@item NETINTER_SET_STATIC_IP6
+@code{arg} will be a pointer to a @code{addr6_netinter} structure, which
+specifies an address and subnet to set as static addresses.
+@end table
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EFAULT
+@code{arg} point to non accessible memory.
+
+@item EACCES
+MAC did not allow this.
+
+@item EINVAL
+An argument is not valid.
+@end table
+
 @node Filesystem support and interfaces
 @chapter Filesystem support and interfaces
 
@@ -3049,7 +3107,8 @@ a way that services can talk with themselves. This device implements no
 physical layer of the network stack, packets are passed without that layer.
 
 Loopback will always have the static IP addresses @code{127.0.0.1/8} and
-@code{::1/128}. These addresses cannot be changed.
+@code{::1/128}. These addresses can be changed in runtime.
+@ref{config_netinter}.
 
 @node Devices and their properties
 @chapter Devices and their properties

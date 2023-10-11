@@ -926,6 +926,24 @@ package Userland.Syscall is
        Addr_Len  : Unsigned_64;
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
+
+   NETINTER_SET_BLOCK      : constant := 1;
+   NETINTER_SET_STATIC_IP4 : constant := 2;
+   NETINTER_SET_STATIC_IP6 : constant := 3;
+   type Addr4_NetInterface is record
+      IP  : Networking.IPv4_Address;
+      Sub : Networking.IPv4_Address;
+   end record with Pack;
+   type Addr6_NetInterface is record
+      IP  : Networking.IPv6_Address;
+      Sub : Networking.IPv6_Address;
+   end record with Pack;
+   procedure Config_NetInterface
+      (InterDev  : Unsigned_64;
+       Operation : Unsigned_64;
+       Arg_Addr  : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.
