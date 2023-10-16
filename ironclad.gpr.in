@@ -84,7 +84,8 @@ project Ironclad is
 
    package Linker is
       Base_Link_Switches := Split (Linker_Flags, " ") &
-         ("-T@SRCDIR@/source/arch/" & Arch & "/linker.ld", "-nostdlib");
+         ("-T@SRCDIR@/source/arch/" & Arch & "/linker.ld", "-nostdlib",
+          "-Llibgnat-hack");
 
       case Arch is
          when "aarch64-stivale2" =>

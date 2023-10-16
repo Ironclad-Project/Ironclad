@@ -99,6 +99,27 @@ mkdir -p rtsdir/adalib
 cp "$SRCDIR"/source/rts/*.adb rtsdir/adainclude
 cp "$SRCDIR"/source/rts/*.ads rtsdir/adainclude
 cp "$SRCDIR"/source/rts/$target_cpu-$target_vendor/*.ads rtsdir/adainclude
+############## WARNING: DRAGONS LIE AHEAD #####################################
+#           ____ __
+#          { --.\  |          .)%%%)%%
+#           '-._\\ | (\___   %)%%(%%(%%%
+#               `\\|{/ ^ _)-%(%%%%)%%;%%%
+#           .'^^^^^^^  /`    %%)%%%%)%%%'
+#          //\   ) ,  /       '%%%%(%%'
+#    ,  _.'/  `\<-- \<
+#     `^^^`     ^^   ^^
+###############################################################################
+# Some distros (looking at you, debian), despite we providing our RTS, will
+# require for their gprbuild to link against -lgnat-XX where XX is the system
+# version, this is not always provided by the distributions (sigh).
+# Since we need nothing from them apart of their existance, we are just going
+# to generate every possible file from libgnat-1.a to libgnat-99.a.
+# Thats 100 years of GCC (Sorry Ironclad users in 3026).
+mkdir -p libgnat-hack
+touch libgnat-hack/libgnat.a
+for i in $(seq 99); do
+   touch libgnat-hack/libgnat-$i.a
+done
 ###############################################################################
 # Finalize the settings and output the files.
 AC_PREFIX_DEFAULT([/usr/local])

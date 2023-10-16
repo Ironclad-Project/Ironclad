@@ -27,9 +27,7 @@ ironclad.dvi
 ironclad.info
 ironclad.info.gz
 ironclad
-tests/obj
-tests/run_tests
-tests/gnatprove
+libgnat-hack
 ironclad.gpr
 GNUmakefile
 autom4te.cache
