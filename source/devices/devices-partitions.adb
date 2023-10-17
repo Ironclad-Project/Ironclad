@@ -60,8 +60,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
       Backup_LBA              : Unsigned_64;
       First_Usable_LBA        : Unsigned_64;
       Last_Usable_LBA         : Unsigned_64;
-      GUID_High               : Unsigned_64;
-      GUID_Low                : Unsigned_64;
+      GUID                    : UUID;
       Partition_Entry_LBA     : Unsigned_64;
       Number_Of_Partitions    : Unsigned_32;
       Partition_Entry_Size    : Unsigned_32;
@@ -77,8 +76,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
       Backup_LBA              at 0 range 256 .. 319;
       First_Usable_LBA        at 0 range 320 .. 383;
       Last_Usable_LBA         at 0 range 384 .. 447;
-      GUID_High               at 0 range 448 .. 511;
-      GUID_Low                at 0 range 512 .. 575;
+      GUID                    at 0 range 448 .. 575;
       Partition_Entry_LBA     at 0 range 576 .. 639;
       Number_Of_Partitions    at 0 range 640 .. 671;
       Partition_Entry_Size    at 0 range 672 .. 703;
@@ -88,8 +86,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
    type GPT_Partition_Entry is record
       Type_GUID_High   : Unsigned_64;
       Type_GUID_Low    : Unsigned_64;
-      Unique_GUID_High : Unsigned_64;
-      Unique_GUID_Low  : Unsigned_64;
+      GUID             : UUID;
       Starting_LBA     : Unsigned_64;
       Ending_LBA       : Unsigned_64;
       Attributes       : Unsigned_64;
@@ -98,8 +95,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
    for GPT_Partition_Entry use record
       Type_GUID_High   at 0 range   0 ..   63;
       Type_GUID_Low    at 0 range  64 ..  127;
-      Unique_GUID_High at 0 range 128 ..  191;
-      Unique_GUID_Low  at 0 range 192 ..  255;
+      GUID             at 0 range 128 ..  255;
       Starting_LBA     at 0 range 256 ..  319;
       Ending_LBA       at 0 range 320 ..  383;
       Attributes       at 0 range 384 ..  447;
@@ -210,7 +206,8 @@ package body Devices.Partitions with SPARK_Mode => Off is
                      LBA_Length   => Partition.Ending_LBA -
                                      Partition.Starting_LBA
                   );
-                  if not Set_Part (Name, Added_Index, Block_Size, Part)
+                  if not Set_Part
+                     (Name, Added_Index, Block_Size, Part, Partition.GUID)
                   then
                      Success := False;
                      goto Return_End;
@@ -268,7 +265,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
                 Block_Size   => Block_Size,
                 LBA_Offset   => Unsigned_64 (MBR.Entries (I).First_Sector),
                 LBA_Length   => Unsigned_64 (MBR.Entries (I).Sector_Count));
-            if not Set_Part (Name, I, Block_Size, Part) then
+            if not Set_Part (Name, I, Block_Size, Part, (others => 0)) then
                Success := False;
                goto Return_End;
             end if;
@@ -283,13 +280,15 @@ package body Devices.Partitions with SPARK_Mode => Off is
       (Name       : String;
        Index      : Positive;
        Block_Size : Natural;
-       Part       : Partition_Data_Acc) return Boolean
+       Part       : Partition_Data_Acc;
+       ID         : UUID) return Boolean
    is
       Success : Boolean;
    begin
       Register ((
          Data        => Con1.To_Address (Con1.Object_Pointer (Part)),
          Is_Block    => True,
+         ID          => ID,
          Block_Size  => Block_Size,
          Block_Count => Part.LBA_Length,
          Sync        => Sync'Access,

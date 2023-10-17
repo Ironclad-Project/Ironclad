@@ -17,7 +17,7 @@
 with Arch;
 with Arch.Clocks;
 with Devices.Ramdev;
-with Devices;
+with Devices; use Devices;
 with VFS; use VFS;
 with Lib.Cmdline;
 with Lib.Messages;
@@ -36,9 +36,10 @@ procedure Main is
 
    Init_Args   : Userland.Argument_Arr (1 .. 1);
    Init_Env    : Userland.Environment_Arr (1 .. 0);
-   Value       : String (1 .. 60);
+   Value       : String (1 .. Devices.Max_Name_Length);
    Value_Len   : Natural;
    Found       : Boolean;
+   Init_Dev    : Devices.Device_Handle;
    Init_FS     : VFS.FS_Handle;
    Init_Ino    : VFS.File_Inode_Number;
    Init_PID    : PID;
@@ -81,7 +82,18 @@ begin
 
    --  Mount a root if specified.
    Lib.Cmdline.Get_Parameter
-      (Cmdline, Lib.Cmdline.Root_Key, Value, Found, Value_Len);
+      (Cmdline, Lib.Cmdline.Root_UUID_Key, Value, Found, Value_Len);
+   if Found and Value_Len = Devices.UUID_String'Length then
+      Init_Dev := Devices.Fetch_UUID (Value (1 .. Value_Len));
+      if Init_Dev /= Devices.Error_Handle then
+         Devices.Fetch_Name (Init_Dev, Value, Value_Len);
+      else
+         Lib.Messages.Warn ("Failed to find " & Value (1 .. Value_Len));
+      end if;
+   else
+      Lib.Cmdline.Get_Parameter
+         (Cmdline, Lib.Cmdline.Root_Key, Value, Found, Value_Len);
+   end if;
    if Found and Value_Len /= 0 then
       VFS.Mount (Value (1 .. Value_Len), "/", False, Found);
       if not Found then

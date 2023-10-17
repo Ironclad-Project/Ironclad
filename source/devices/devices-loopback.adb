@@ -18,7 +18,7 @@ with Networking;
 with Scheduler;
 with Devices.NetInter;
 
-package body Devices.Loopback is
+package body Devices.Loopback with SPARK_Mode => Off is
    procedure Init (Success : out Boolean) is
       Device : Resource;
       Dev    : Device_Handle;
@@ -28,6 +28,7 @@ package body Devices.Loopback is
    begin
       Device :=
          (Data        => Data.all'Address,
+          ID          => (others => 0),
           Is_Block    => False,
           Block_Size  => 4096,
           Block_Count => 0,
@@ -119,7 +120,7 @@ package body Devices.Loopback is
             declare
                Addr : Networking.MAC_Address with Import, Address => Argument;
             begin
-               Addr := (others => 0);
+               Addr := (others => 1);
             end;
          when others =>
             return False;

@@ -53,6 +53,7 @@ package body Devices.SATA with SPARK_Mode => Off is
             Base_Name (6) := Character'Val (I        + Character'Pos ('0'));
             Register (
                (Data        => C1.To_Address (C1.Object_Pointer (Drive_Data)),
+                ID          => (others => 0),
                 Is_Block    => True,
                 Block_Size  => Sector_Size,
                 Block_Count => Drive_Data.Sector_Count,

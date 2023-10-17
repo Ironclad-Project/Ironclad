@@ -20,6 +20,7 @@ package body Devices.Random with SPARK_Mode => Off is
    procedure Init (Success : out Boolean) is
       Random_Res : constant Resource :=
          (Data        => System.Null_Address,
+          ID          => (others => 0),
           Is_Block    => False,
           Block_Size  => 4096,
           Block_Count => 0,

@@ -22,6 +22,7 @@ package body Devices.Debug with SPARK_Mode => Off is
    begin
       Device :=
          (Data        => System.Null_Address,
+          ID          => (others => 0),
           Is_Block    => False,
           Block_Size  => 4096,
           Block_Count => 0,

@@ -29,9 +29,15 @@ package Devices is
    type Operation_Data     is array (Operation_Count range <>) of Unsigned_8;
    type Operation_Data_Acc is access Operation_Data;
 
+   --  Devices might have a UUID. If all components are 0, they have no UUID.
+   --  Example for the string version: 123e4567-e89b-12d3-a456-426614174000.
+   type UUID is array (1 .. 16) of Unsigned_8;
+   subtype UUID_String is String (1 .. 36);
+
    --  Data that defines a device.
    type Resource is record
       Data        : System.Address;
+      ID          : UUID;
       Is_Block    : Boolean; --  True for block dev, false for character dev.
       Block_Size  : Natural;
       Block_Count : Unsigned_64;
@@ -94,6 +100,18 @@ package Devices is
    function Fetch (Name : String) return Device_Handle
       with Pre => ((Is_Initialized = True) and Name'Length <= Max_Name_Length);
 
+   --  Fetch a device by numeric UUID.
+   --  @param ID UUID to search.
+   --  @return A handle on success, or Error_Handle on failure.
+   function Fetch (ID : UUID) return Device_Handle
+      with Pre => ((Is_Initialized = True) and ID /= (1 .. 16 => 0));
+
+   --  Fetch a device by string representation of a numeric UUID.
+   --  @param ID UUID to search.
+   --  @return A handle on success, or Error_Handle on failure.
+   function Fetch_UUID (ID : UUID_String) return Device_Handle
+      with Pre => (Is_Initialized = True);
+
    --  Write the name associated to a device handle to the passed buffer.
    --  @param Handle Handle to fetch the name of.
    --  @param Name   Buffer to write the name.
@@ -115,8 +133,12 @@ package Devices is
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
    function Get_Block_Size  (Handle : Device_Handle) return Natural
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
-   function Get_Unique_ID   (Handle : Device_Handle) return Natural
+
+   --  Get a unique ID for the device. This does not have anything to do with
+   --  device UUIDs, and is always supported for a valid handle.
+   function Get_Unique_ID (Handle : Device_Handle) return Natural
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
+
    function Is_Read_Only (Handle : Device_Handle) return Boolean
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
@@ -222,4 +244,10 @@ private
    Devices_Data : Device_Arr_Acc;
 
    function Is_Initialized return Boolean is (Devices_Data /= null);
+   ----------------------------------------------------------------------------
+   type UUID_Fragment is array (Natural range <>) of Unsigned_8;
+
+   function To_Integer (C : Character) return Unsigned_8;
+   procedure Convert_LE (Frag : out UUID_Fragment; Val : String);
+   procedure Convert_BE (Frag : out UUID_Fragment; Val : String);
 end Devices;

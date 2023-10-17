@@ -87,6 +87,62 @@ package body Devices is
       return Error_Handle;
    end Fetch;
 
+   function Fetch (ID : UUID) return Device_Handle is
+   begin
+      for I in Devices_Data'Range loop
+         if Devices_Data (I).Is_Present and Devices_Data (I).Contents.ID = ID
+         then
+            return I;
+         end if;
+      end loop;
+      return Error_Handle;
+   end Fetch;
+
+   function Fetch_UUID (ID : UUID_String) return Device_Handle is
+      Result   : UUID;
+      Returned : Device_Handle;
+   begin
+      --  UUID string formats are pretty messy. Representation is integer
+      --  based, but different UUID versions have different endianess, either
+      --  mixed or BE-only, so we need to try both.
+
+      --  Check validity.
+      for I in ID'Range loop
+         case I is
+            when 9 | 14 | 19 | 24 =>
+               if ID (I) /= '-' then
+                  return Error_Handle;
+               end if;
+            when others =>
+               if not (ID (I) in '0' .. '9') and
+                  not (ID (I) in 'a' .. 'f') and
+                  not (ID (I) in 'A' .. 'F')
+               then
+                  return Error_Handle;
+               end if;
+         end case;
+      end loop;
+
+      --  Try LE-BE mix first.
+      Convert_LE (UUID_Fragment (Result (1 .. 4)),  ID (1 .. 8));
+      Convert_LE (UUID_Fragment (Result (5 .. 6)),  ID (10 .. 13));
+      Convert_LE (UUID_Fragment (Result (7 .. 8)),  ID (15 .. 18));
+      Convert_BE (UUID_Fragment (Result (9 .. 10)), ID (20 .. 23));
+      Convert_BE (UUID_Fragment (Result (11 .. 16)), ID (25 .. 36));
+      Returned := Fetch (Result);
+      if Returned /= Error_Handle then
+         return Returned;
+      end if;
+
+      --  Try all BE.
+      Convert_BE (UUID_Fragment (Result (1 .. 4)),  ID (1 .. 8));
+      Convert_BE (UUID_Fragment (Result (5 .. 6)),  ID (10 .. 13));
+      Convert_BE (UUID_Fragment (Result (7 .. 8)),  ID (15 .. 18));
+      Convert_BE (UUID_Fragment (Result (9 .. 10)), ID (20 .. 23));
+      Convert_BE (UUID_Fragment (Result (11 .. 16)), ID (25 .. 36));
+      return Fetch (Result);
+   end Fetch_UUID;
+
    procedure Fetch_Name
       (Handle : Device_Handle;
        Name   : out String;
@@ -239,4 +295,52 @@ package body Devices is
          Is_Error  := True;
       end if;
    end Poll;
+   ----------------------------------------------------------------------------
+   function To_Integer (C : Character) return Unsigned_8 is
+      Result : Natural;
+   begin
+      if C in '0' .. '9' then
+         Result := Character'Pos (C) - Character'Pos ('0');
+      elsif C in 'a' .. 'f' then
+         Result := Character'Pos (C) - Character'Pos ('a') + 10;
+      else
+         Result := Character'Pos (C) - Character'Pos ('A') + 10;
+      end if;
+      return Unsigned_8 (Result);
+   end To_Integer;
+
+   procedure Convert_LE (Frag : out UUID_Fragment; Val : String) is
+      Res : Unsigned_8;
+      Idx : Natural := 0;
+   begin
+      Frag := (others => 0);
+      for I in reverse Val'Range loop
+         Res := To_Integer (Val (I));
+
+         if (I - Val'First) mod 2 /= 0 then
+            Frag (Frag'First + Idx) := Res;
+         else
+            Frag (Frag'First + Idx) := Frag (Frag'First + Idx) or
+                                       Shift_Left (Res, 4);
+            Idx := Idx + 1;
+         end if;
+      end loop;
+   end Convert_LE;
+
+   procedure Convert_BE (Frag : out UUID_Fragment; Val : String) is
+      Res : Unsigned_8;
+      Idx : Natural := 0;
+   begin
+      Frag := (others => 0);
+      for I in Val'Range loop
+         Res := To_Integer (Val (I));
+
+         if (I - Val'First) mod 2 /= 0 then
+            Frag (Frag'First + Idx) := Frag (Frag'First + Idx) or Res;
+            Idx := Idx + 1;
+         else
+            Frag (Frag'First + Idx) := Shift_Left (Res, 4);
+         end if;
+      end loop;
+   end Convert_BE;
 end Devices;

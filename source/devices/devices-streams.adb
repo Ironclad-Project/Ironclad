@@ -23,6 +23,7 @@ package body Devices.Streams is
    begin
       Register
          ((Data        => System.Null_Address,
+           ID          => (others => 0),
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,
@@ -35,6 +36,7 @@ package body Devices.Streams is
            Poll        => null), "null", Success_1);
       Register
          ((Data        => System.Null_Address,
+           ID          => (others => 0),
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,

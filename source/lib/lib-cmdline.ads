@@ -17,6 +17,7 @@
 package Lib.Cmdline is
    --  Some notable keys specified in the documentation.
    Root_Key         : constant String := "root"; --  Device to use as /.
+   Root_UUID_Key    : constant String := "rootuuid"; --  UUID to use as /.
    Init_Key         : constant String := "init"; --  Init to load.
    No_Program_ASLR  : constant String := "noprogaslr"; --  Program ASLR.
    No_Location_ASLR : constant String := "nolocaslr";  --  Location ASLR.

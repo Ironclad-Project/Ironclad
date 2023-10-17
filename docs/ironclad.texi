@@ -63,7 +63,7 @@ Installation and target support
 Boot-time command-line options
 
 * Format::                 Description of the format.
-* List::                   List of all the available cmdline arguments.
+* List::                   List of all the available command line arguments.
 
 Scheduling and RTC
 
@@ -261,6 +261,12 @@ This are the keys and values the kernel takes, and under which circumstances:
 @table @code
 @item root=<device>
 Device to mount as root, if any.
+
+@item rootuuid=<uuid>
+Used instead of @code{root}. It addresses the root device with a UUID instead
+of a device name. This can be used to gain some device-independence, for
+example, for addressing a given partition in a GPT drive regardless the
+containing device.
 
 @item init=<path>
 Path to a program that will be booted by the kernel when finished loading.

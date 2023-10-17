@@ -51,7 +51,8 @@ private
       (Name       : String;
        Index      : Positive;
        Block_Size : Natural;
-       Part       : Partition_Data_Acc) return Boolean;
+       Part       : Partition_Data_Acc;
+       ID         : UUID) return Boolean;
    ----------------------------------------------------------------------------
    procedure Read
       (Key       : System.Address;
