@@ -240,7 +240,7 @@ package body VFS.EXT with SPARK_Mode => Off is
 
       Lib.Synchronization.Seize (Data.Mutex);
 
-      --  Checking the file doesn't exist but the parent is found.
+      --  Checking the file doesn't exist but the parent is found along perms.
       Inner_Open_Inode
          (Data         => Data,
           Relative     => Unsigned_32 (Relative),
@@ -253,6 +253,10 @@ package body VFS.EXT with SPARK_Mode => Off is
           Success      => Success);
       if Success or else Parent_Index = 0 or else Target_Index /= 0 then
          Returned := FS_Invalid_Value;
+         goto Cleanup;
+      elsif not Check_User_Access (User, Parent_Inode.all, False, True, False)
+      then
+         Returned := FS_Not_Allowed;
          goto Cleanup;
       end if;
 
@@ -395,9 +399,10 @@ package body VFS.EXT with SPARK_Mode => Off is
        User     : Unsigned_32;
        Status   : out FS_Status)
    is
-      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       pragma Unreferenced (Mode);
       pragma Unreferenced (Relative);
+      pragma Unreferenced (User);
+      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
@@ -453,6 +458,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
       --  Checking the target file doesn't exist but the parent is found.
+      --  Also check some permissions.
       Inner_Open_Inode
          (Data         => Data,
           Relative     => Unsigned_32 (Relative_Target),
@@ -465,6 +471,10 @@ package body VFS.EXT with SPARK_Mode => Off is
           Success      => Success);
       if Success or else Parent_Index = 0 or else Target_Index /= 0 then
          Returned := FS_Invalid_Value;
+         goto Cleanup;
+      elsif not Check_User_Access (User, Parent_Inode.all, False, True, False)
+      then
+         Returned := FS_Not_Allowed;
          goto Cleanup;
       end if;
 
@@ -569,9 +579,15 @@ package body VFS.EXT with SPARK_Mode => Off is
           Success      => Success2);
 
       --  Check that the source exists, that the parent of the target exists,
-      --  and that we do not want to keep the file if it exists.
+      --  and that we do not want to keep the file if it exists, along with
+      --  permissions.
       if not Success1 or Target_Parent_Index = 0 or (Keep and Success2) then
          Returned := FS_Invalid_Value;
+         goto Cleanup;
+      elsif not Check_User_Access (User, Target_Parent_Inode.all,
+                                   False, True, False)
+      then
+         Returned := FS_Not_Allowed;
          goto Cleanup;
       end if;
 
@@ -656,6 +672,10 @@ package body VFS.EXT with SPARK_Mode => Off is
           Success      => Success);
       if not Success then
          Returned := FS_Invalid_Value;
+         goto Cleanup;
+      elsif not Check_User_Access (User, Parent_Inode.all, False, True, False)
+      then
+         Returned := FS_Not_Allowed;
          goto Cleanup;
       end if;
 
@@ -816,6 +836,7 @@ package body VFS.EXT with SPARK_Mode => Off is
        User      : Unsigned_32)
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS_Data));
+      Fetched_Type  : File_Type;
       Fetched_Inode : Inode_Acc := new Inode;
       Succ : Boolean;
    begin
@@ -828,17 +849,19 @@ package body VFS.EXT with SPARK_Mode => Off is
           Success         => Succ);
       if not Succ then
          Success := FS_IO_Failure;
-         return;
+         goto Cleanup;
       elsif not Check_User_Access (User, Fetched_Inode.all, True, False, False)
       then
          Success := FS_Not_Allowed;
-         Free (Fetched_Inode);
-         return;
-      elsif Get_Inode_Type (Fetched_Inode.all.Permissions) /= File_Regular then
-         Success := FS_Invalid_Value;
-         Free (Fetched_Inode);
-         return;
+         goto Cleanup;
       end if;
+
+      Fetched_Type := Get_Inode_Type (Fetched_Inode.all.Permissions);
+      case Fetched_Type is
+         when File_Regular   => null;
+         when File_Directory => Success := FS_Is_Directory;  goto Cleanup;
+         when others         => Success := FS_Not_Supported; goto Cleanup;
+      end case;
 
       if not FS.Is_Read_Only then
          Lib.Synchronization.Seize (FS.Mutex);
@@ -858,6 +881,8 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
       Success := (if Succ then FS_Success else FS_IO_Failure);
+
+   <<Cleanup>>
       Free (Fetched_Inode);
    end Read;
 
@@ -1248,6 +1273,61 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Inod);
       Status := Result;
    end Check_Access;
+
+   procedure Change_Access_Times
+      (Data               : System.Address;
+       Ino                : File_Inode_Number;
+       Access_Seconds     : Unsigned_64;
+       Access_Nanoseconds : Unsigned_64;
+       Modify_Seconds     : Unsigned_64;
+       Modify_Nanoseconds : Unsigned_64;
+       User               : Unsigned_32;
+       Status             : out FS_Status)
+   is
+      pragma Unreferenced (Access_Nanoseconds);
+      pragma Unreferenced (Modify_Nanoseconds);
+
+      FS      : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
+      Inod    : Inode_Acc := new Inode;
+      AS      : Unsigned_64 renames Access_Seconds;
+      MS      : Unsigned_64 renames Modify_Seconds;
+      Success : Boolean;
+      Result  : FS_Status;
+   begin
+      if FS.Is_Read_Only then
+         Free (Inod);
+         Status := FS_RO_Failure;
+         return;
+      end if;
+
+      Lib.Synchronization.Seize (FS.Mutex);
+
+      RW_Inode
+         (Data            => FS,
+          Inode_Index     => Unsigned_32 (Ino),
+          Result          => Inod.all,
+          Write_Operation => False,
+          Success         => Success);
+      if not Success then
+         Result := FS_IO_Failure;
+      elsif not Check_User_Access (User, Inod.all, False, True, False) then
+         Result := FS_Not_Allowed;
+      else
+         Inod.Access_Time_Epoch   := Unsigned_32 (AS and 16#FFFFFFFF#);
+         Inod.Modified_Time_Epoch := Unsigned_32 (MS and 16#FFFFFFFF#);
+         RW_Inode
+            (Data            => FS,
+             Inode_Index     => Unsigned_32 (Ino),
+             Result          => Inod.all,
+             Write_Operation => True,
+             Success         => Success);
+         Result := (if Success then FS_Success else FS_IO_Failure);
+      end if;
+
+      Lib.Synchronization.Release (FS.Mutex);
+      Free (Inod);
+      Status := Result;
+   end Change_Access_Times;
 
    function Synchronize (Data : System.Address) return FS_Status is
       FS_Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));

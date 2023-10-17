@@ -163,6 +163,7 @@ Syscalls
 * getrusage::               Get resource usage for the process.
 * recvfrom/sendto::         Socket IO support functions.
 * config_netinter::         Configure network interfaces.
+* utimes::                  Modify timestamps for a file.
 
 Filesystem support and interfaces
 
@@ -700,6 +701,8 @@ Empty.
 @ref{recvfrom/sendto, sendto}.
 @item
 @ref{config_netinter}.
+@item
+@ref{utimes}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -3001,6 +3004,29 @@ following errno:
 @table @code
 @item EFAULT
 @code{arg} point to non accessible memory.
+
+@item EACCES
+MAC did not allow this.
+
+@item EINVAL
+An argument is not valid.
+@end table
+
+@node utimes
+@section utimes
+
+@example
+int utimes(int dir, const char *path, struct timespec *times, int flags);
+@end example
+
+This syscall changes the access and modification time of the passed file to the
+2 first values contained in the @code{times} array. All the standard options
+for @code{dir} are accepted and @code{flags} takes @code{AT_EMPTY_PATH} and
+@code{AT_SYMLINK_NOFOLLOW}.
+
+@table @code
+@item EFAULT
+@code{path} or @code{times} point to non accessible memory.
 
 @item EACCES
 MAC did not allow this.

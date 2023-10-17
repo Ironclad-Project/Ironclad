@@ -56,8 +56,6 @@ private
 
    Sector_Size    : constant := 512;
    Boot_Signature : constant := 16#AA55#;
-   Signature_1    : constant := 16#28#;
-   Signature_2    : constant := 16#29#;
 
    type FAT32_Bytes is array (Natural range <>) of Unsigned_8;
    type BIOS_Parameter_Block is record

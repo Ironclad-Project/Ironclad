@@ -42,6 +42,7 @@ package Userland.Syscall is
        Error_File_Too_Big,    --  EFBIG
        Error_Invalid_Value,   --  EINVAL
        Error_IO,              --  EIO
+       Error_Is_Directory,    --  EISDIR
        Error_Too_Many_Files,  --  EMFILE
        Error_String_Too_Long, --  ENAMETOOLONG
        Error_No_Entity,       --  ENOENT
@@ -66,6 +67,7 @@ package Userland.Syscall is
        Error_File_Too_Big    => 1021,
        Error_Invalid_Value   => 1026,
        Error_IO              => 1027,
+       Error_Is_Directory    => 1029,
        Error_Too_Many_Files  => 1031,
        Error_String_Too_Long => 1036,
        Error_No_Entity       => 1043,
@@ -239,7 +241,7 @@ package Userland.Syscall is
    type Time_Spec is record
       Seconds     : Unsigned_64;
       Nanoseconds : Unsigned_64;
-   end record;
+   end record with Pack, Size => 128;
    Stat_IFIFO : constant := 16#1000#;
    Stat_IFCHR : constant := 16#2000#;
    Stat_IFDIR : constant := 16#4000#;
@@ -942,6 +944,15 @@ package Userland.Syscall is
       (InterDev  : Unsigned_64;
        Operation : Unsigned_64;
        Arg_Addr  : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value);
+
+   procedure UTimes
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Time_Addr : Unsigned_64;
+       Flags     : Unsigned_64;
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
    ----------------------------------------------------------------------------

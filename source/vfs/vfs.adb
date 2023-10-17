@@ -43,9 +43,10 @@ package body VFS is
       pragma SPARK_Mode (Off);
    begin
       Mount (Device_Name, Mount_Path, FS_EXT, Do_Read_Only, Success);
-      if not Success then
-         Mount (Device_Name, Mount_Path, FS_FAT, Do_Read_Only, Success);
-      end if;
+      if Success then return; end if;
+      Mount (Device_Name, Mount_Path, FS_FAT, Do_Read_Only, Success);
+      if Success then return; end if;
+      Mount (Device_Name, Mount_Path, FS_QNX, Do_Read_Only, Success);
    end Mount;
 
    procedure Mount
@@ -605,6 +606,27 @@ package body VFS is
             Status := FS_Not_Supported;
       end case;
    end Check_Access;
+
+   procedure Change_Access_Times
+      (Key                : FS_Handle;
+       Ino                : File_Inode_Number;
+       Access_Seconds     : Unsigned_64;
+       Access_Nanoseconds : Unsigned_64;
+       Modify_Seconds     : Unsigned_64;
+       Modify_Nanoseconds : Unsigned_64;
+       User               : Unsigned_32;
+       Status             : out FS_Status)
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT =>
+            EXT.Change_Access_Times
+               (Mounts (Key).FS_Data, Ino, Access_Seconds, Access_Nanoseconds,
+                Modify_Seconds, Modify_Nanoseconds, User, Status);
+         when others =>
+            Status := FS_Not_Supported;
+      end case;
+   end Change_Access_Times;
    ----------------------------------------------------------------------------
    procedure Open
       (Path      : String;

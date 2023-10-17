@@ -287,6 +287,9 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 75 =>
             Config_NetInterface (State.RDI, State.RSI, State.RDX, Returned,
                                  Errno);
+         when 76 =>
+            UTimes (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
+                    Returned, Errno);
          when others =>
             Returned := Unsigned_64'Last;
             Errno    := Error_Not_Implemented;

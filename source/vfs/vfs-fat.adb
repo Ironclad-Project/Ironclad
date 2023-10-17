@@ -31,21 +31,17 @@ package body VFS.FAT with SPARK_Mode => Off is
        Data_Addr    : out System.Address)
    is
       pragma Unreferenced (Do_Read_Only);
+
       Data      : FAT_Data_Acc;
       BP        : BIOS_Parameter_Block;
-      BP_Data   : Operation_Data (1 .. BP'Size / 8) with Address => BP'Address;
       Ret_Count : Natural;
       Success   : Boolean;
+      BP_Data   : Operation_Data (1 .. BP'Size / 8)
+         with Import, Address => BP'Address;
    begin
-      Devices.Read
-         (Handle    => Handle,
-          Offset    => 0,
-          Data      => BP_Data,
-          Ret_Count => Ret_Count,
-          Success   => Success);
+      Devices.Read (Handle, 0, BP_Data, Ret_Count, Success);
       if not Success or Ret_Count /= BP_Data'Length or
-         BP.Boot_Signature /= Boot_Signature        or
-         (BP.Signature /= Signature_1 and BP.Signature /= Signature_2)
+         BP.Boot_Signature /= Boot_Signature
       then
          Data_Addr := System.Null_Address;
          return;

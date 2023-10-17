@@ -162,6 +162,16 @@ package VFS.EXT is
        User        : Unsigned_32;
        Status      : out FS_Status);
 
+   procedure Change_Access_Times
+      (Data               : System.Address;
+       Ino                : File_Inode_Number;
+       Access_Seconds     : Unsigned_64;
+       Access_Nanoseconds : Unsigned_64;
+       Modify_Seconds     : Unsigned_64;
+       Modify_Nanoseconds : Unsigned_64;
+       User               : Unsigned_32;
+       Status             : out FS_Status);
+
    function Synchronize (Data : System.Address) return FS_Status;
 
    function Synchronize

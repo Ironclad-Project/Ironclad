@@ -4285,6 +4285,102 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Returned := Unsigned_64'Last;
       Errno    := Error_Would_Fault;
    end Config_NetInterface;
+
+   procedure UTimes
+      (Dir_FD    : Unsigned_64;
+       Path_Addr : Unsigned_64;
+       Path_Len  : Unsigned_64;
+       Time_Addr : Unsigned_64;
+       Flags     : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
+   is
+      Proc        : constant             PID := Arch.Local.Get_Current_Process;
+      Map         : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      Path_IAddr  : constant Integer_Address := Integer_Address (Path_Addr);
+      Time_IAddr  : constant Integer_Address := Integer_Address (Time_Addr);
+      FS          : VFS.FS_Handle;
+      D_Ino, Ino  : VFS.File_Inode_Number;
+      Succ        : VFS.FS_Status;
+      User        : Unsigned_32;
+      File_Desc   : File_Description_Acc;
+      File_Perms  : MAC.Permissions;
+   begin
+      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) or
+         not Check_Userland_Access (Map, Time_IAddr, (Time_Spec'Size / 8) * 2)
+      then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif Path_Len > Unsigned_64 (Natural'Last) then
+         Errno    := Error_String_Too_Long;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Process.Get_Effective_UID (Proc, User);
+
+      if (Flags and AT_EMPTY_PATH) /= 0 then
+         File_Desc := Get_File (Proc, Dir_FD);
+         if File_Desc = null or else File_Desc.Description /= Description_Inode
+         then
+            Errno    := Error_Bad_File;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+         FS  := File_Desc.Inner_Ino_FS;
+         Ino := File_Desc.Inner_Ino;
+      else
+         declare
+            Path : String (1 .. Natural (Path_Len))
+               with Import, Address => To_Address (Path_IAddr);
+         begin
+            Resolve_AT_Directive (Proc, Dir_FD, FS, D_Ino);
+            if FS = VFS.Error_Handle then
+               Errno    := Error_Bad_File;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+
+            VFS.Open
+               (Key       => FS,
+                Relative  => D_Ino,
+                Path      => Path,
+                Ino       => Ino,
+                Success   => Succ,
+                User      => User,
+                Do_Follow => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
+            if Succ /= VFS.FS_Success then
+               Errno    := Error_No_Entity;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+
+            File_Perms := Check_Permissions (Proc, FS, Ino);
+            if not File_Perms.Can_Write then
+               Errno    := Error_Bad_Access;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         end;
+      end if;
+
+      declare
+         type Time_Arr is array (1 .. 2) of Time_Spec;
+         Times : Time_Arr with Import, Address => To_Address (Time_IAddr);
+      begin
+         VFS.Change_Access_Times
+            (Key                => FS,
+             Ino                => Ino,
+             Access_Seconds     => Times (1).Seconds,
+             Access_Nanoseconds => Times (1).Nanoseconds,
+             Modify_Seconds     => Times (2).Seconds,
+             Modify_Nanoseconds => Times (2).Nanoseconds,
+             User               => User,
+             Status             => Succ);
+         Translate_Status (Succ, 0, Returned, Errno);
+      end;
+   end UTimes;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
@@ -4356,6 +4452,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Errno    := Error_No_Error;
             Returned := Success_Return;
             return;
+         when VFS.FS_Is_Directory  => Errno := Error_Is_Directory;
          when VFS.FS_Invalid_Value => Errno := Error_Invalid_Value;
          when VFS.FS_Not_Supported => Errno := Error_Not_Implemented;
          when VFS.FS_RO_Failure    => Errno := Error_Read_Only_FS;

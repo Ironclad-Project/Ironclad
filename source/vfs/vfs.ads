@@ -155,6 +155,7 @@ package VFS is
    type FS_Status is
       (FS_Success,       --  Success, only good value for ease of checking.
        FS_Invalid_Value, --  One of the passed values is no good.
+       FS_Is_Directory,  --  The operation does not accept directories!
        FS_Not_Supported, --  The operation is not supported for this FS.
        FS_Not_Allowed,   --  Bad permissions for interacting with the inode.
        FS_RO_Failure,    --  The FS is read-only, but write access is needed.
@@ -450,6 +451,26 @@ package VFS is
        Can_Exec    : Boolean;
        User        : Unsigned_32;
        Status      : out FS_Status)
+      with Pre => Is_Initialized and Key /= Error_Handle;
+
+   --  Change the access times of an inode.
+   --  @param Key                FS Handle to use.
+   --  @param Ino                Inode to change the mode of.
+   --  @param Access_Seconds     Access timestamp epoch seconds.
+   --  @param Access_Nanoseconds Access timestamp nanoseconds.
+   --  @param Modify_Seconds     Modification timestamp epoch seconds.
+   --  @param Modify_Nanoseconds Modification timestamp nanoseconds.
+   --  @param User               UID to check, 0 for root/bypass checks.
+   --  @param Status             Status of the operation.
+   procedure Change_Access_Times
+      (Key                : FS_Handle;
+       Ino                : File_Inode_Number;
+       Access_Seconds     : Unsigned_64;
+       Access_Nanoseconds : Unsigned_64;
+       Modify_Seconds     : Unsigned_64;
+       Modify_Nanoseconds : Unsigned_64;
+       User               : Unsigned_32;
+       Status             : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
    ----------------------------------------------------------------------------
    --  FS-independent versions of operations, that rely on the driver to search
