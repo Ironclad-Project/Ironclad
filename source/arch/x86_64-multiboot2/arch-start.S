@@ -20,7 +20,7 @@
 #define MB2_ARCHITECTURE 0
 #define MB2_CHECKSUM     -(MB2_MAGIC + MB2_ARCHITECTURE + MB2_LENGTH)
 
-.section ".multiboot2", "aw", @progbits
+.section ".multiboot2", "ax", @progbits
 .globl mb2hdr
 mb2hdr:
     .long MB2_MAGIC        # Magic value.

@@ -21,75 +21,36 @@ with Lib.Panic;
 with Lib.Messages;
 with Scheduler;
 with Userland.Syscall; use Userland.Syscall;
-with Arch.Snippets;
+with Arch.Snippets; use Arch.Snippets;
 with Arch.Local;
 with Userland.Corefile;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
    is
-      N              : Integer renames Num;
-      Discard        : Natural;
-      Val_Buffer     : Lib.Messages.Translated_String;
       Exception_Text : constant array (0 .. 30) of String (1 .. 3) :=
          (0  => "#DE", 1  => "#DB", 2  => "???", 3  => "#BP",
           4  => "#OF", 5  => "#BR", 6  => "#UD", 7  => "#NM",
           8  => "#DF", 9  => "???", 10 => "#TS", 11 => "#NP",
           12 => "#SS", 13 => "#GP", 14 => "#PF", 15 => "???",
           16 => "#MF", 17 => "#AC", 18 => "#MC", 19 => "#XM",
-          20 => "#VE", 21 => "#CP", 22 .. 27 => "???",
+          20 => "#VE", 21 => "#CP", 22 => "???", 23 => "???",
+          24 => "???", 25 => "???", 26 => "???", 27 => "???",
           28 => "#HV", 29 => "#VC", 30 => "#SX");
    begin
       --  Check whether we have to panic or just exit the thread.
-      --  We can check we are in userland by checking whether the passed CS
-      --  is our user code segment or'ed by 3.
       --  TODO: Send a SIGSEGV instead of just exiting.
       if State.CS = (GDT.User_Code64_Segment or 3) then
          Lib.Messages.Put_Line ("Userland " & Exception_Text (Num));
          Userland.Corefile.Generate_Corefile (Context.GP_Context (State.all));
-         Do_Exit (Local.Get_Current_Process, Unsigned_8'Last - Unsigned_8 (N));
+         Do_Exit (Local.Get_Current_Process, 255 - Unsigned_8 (Num));
       else
-         if State.Error_Code /= 0 then
-            Lib.Messages.Image (State.Error_Code, Val_Buffer, Discard, True);
-            Lib.Messages.Put_Line ("Error code : " & Val_Buffer);
-         end if;
-
-         Lib.Messages.Image (State.RAX, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("RAX : " & Val_Buffer);
-         Lib.Messages.Image (State.RBX, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("RBX : " & Val_Buffer);
-         Lib.Messages.Image (State.RCX, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("RCX : " & Val_Buffer);
-         Lib.Messages.Image (State.RDX, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("RDX : " & Val_Buffer);
-         Lib.Messages.Image (State.RSI, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("RSI : " & Val_Buffer);
-         Lib.Messages.Image (State.RDI, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("RDI : " & Val_Buffer);
-         Lib.Messages.Image (State.RBP, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("RBP : " & Val_Buffer);
-         Lib.Messages.Image (State.R8, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("R8  : " & Val_Buffer);
-         Lib.Messages.Image (State.R9, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("R9  : " & Val_Buffer);
-         Lib.Messages.Image (State.R10, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("R10 : " & Val_Buffer);
-         Lib.Messages.Image (State.R11, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("R11 : " & Val_Buffer);
-         Lib.Messages.Image (State.R12, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("R12 : " & Val_Buffer);
-         Lib.Messages.Image (State.R13, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("R13 : " & Val_Buffer);
-         Lib.Messages.Image (State.R14, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("R14 : " & Val_Buffer);
-         Lib.Messages.Image (State.R15, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("R15 : " & Val_Buffer);
-         Lib.Messages.Image (State.RIP, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("RIP : " & Val_Buffer);
-         Lib.Messages.Image (State.RSP, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("RSP : " & Val_Buffer);
-         Lib.Messages.Image (Snippets.Read_CR2, Val_Buffer, Discard, True);
-         Lib.Messages.Put_Line ("CR2 : " & Val_Buffer);
+         Print_Triple ("RAX", "RBX", "RCX", State.RAX, State.RBX, State.RCX);
+         Print_Triple ("RDX", "RSI", "RDI", State.RDX, State.RSI, State.RDI);
+         Print_Triple ("RBP", " R8", " R9", State.RBP, State.R8, State.R9);
+         Print_Triple ("R10", "R11", "R12", State.R10, State.R11, State.R12);
+         Print_Triple ("R13", "R14", "R15", State.R13, State.R14, State.R15);
+         Print_Triple ("RIP", "RSP", "CR2", State.RIP, State.RSP, Read_CR2);
          Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Num));
       end if;
    end Exception_Handler;
@@ -329,4 +290,15 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       Lib.Messages.Put_Line ("LAPIC Spurious interrupt occured");
       Arch.APIC.LAPIC_EOI;
    end Spurious_Handler;
+   ----------------------------------------------------------------------------
+   procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64) is
+      Discard    : Natural;
+      B1, B2, B3 : Lib.Messages.Translated_String;
+   begin
+      Lib.Messages.Image (V1, B1, Discard, True);
+      Lib.Messages.Image (V2, B2, Discard, True);
+      Lib.Messages.Image (V3, B3, Discard, True);
+      Lib.Messages.Put_Line (N1 & " " & B1 (5 .. B1'Last) & " " &
+         N2 & " " & B2 (5 .. B2'Last) & " " & N3 & " " & B3 (5 .. B3'Last));
+   end Print_Triple;
 end Arch.Interrupts;

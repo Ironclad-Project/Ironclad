@@ -45,8 +45,33 @@ package body Arch.MMU with SPARK_Mode => Off is
           Can_Execute       => True,
           Is_Global         => True,
           Is_Write_Combine  => False);
+      RX_Flags : constant Page_Permissions :=
+         (Is_User_Accesible => False,
+          Can_Read          => True,
+          Can_Write         => False,
+          Can_Execute       => True,
+          Is_Global         => True,
+          Is_Write_Combine  => False);
+      R_Flags : constant Page_Permissions :=
+         (Is_User_Accesible => False,
+          Can_Read          => True,
+          Can_Write         => False,
+          Can_Execute       => False,
+          Is_Global         => True,
+          Is_Write_Combine  => False);
       First_MiB        : constant := 16#000100000#;
       Hardcoded_Region : constant := 16#100000000#;
+
+      --  Start of sections for correct permission loading.
+      text_start   : Character with Import, Convention => C;
+      text_end     : Character with Import, Convention => C;
+      rodata_start : Character with Import, Convention => C;
+      rodata_end   : Character with Import, Convention => C;
+      data_start   : Character with Import, Convention => C;
+      data_end     : Character with Import, Convention => C;
+      TSAddr : constant Integer_Address := To_Integer (text_start'Address);
+      OSAddr : constant Integer_Address := To_Integer (rodata_start'Address);
+      DSAddr : constant Integer_Address := To_Integer (data_start'Address);
    begin
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Table'
@@ -99,13 +124,25 @@ package body Arch.MMU with SPARK_Mode => Off is
          end if;
       end loop;
 
-      --  Map 128MiB of kernel.
+      --  Map the kernel sections.
       if not Inner_Map_Range
          (Map            => Kernel_Table,
-          Physical_Start => To_Address (16#200000#),
-          Virtual_Start  => To_Address (Kernel_Offset),
-          Length         => 16#7000000#,
-          Permissions    => X_Flags)
+          Physical_Start => To_Address (TSAddr - Kernel_Offset + 16#200000#),
+          Virtual_Start  => text_start'Address,
+          Length         => text_end'Address - text_start'Address,
+          Permissions    => RX_Flags) or
+         not Inner_Map_Range
+         (Map            => Kernel_Table,
+          Physical_Start => To_Address (OSAddr - Kernel_Offset + 16#200000#),
+          Virtual_Start  => rodata_start'Address,
+          Length         => rodata_end'Address - rodata_start'Address,
+          Permissions    => R_Flags) or
+         not Inner_Map_Range
+         (Map            => Kernel_Table,
+          Physical_Start => To_Address (DSAddr - Kernel_Offset + 16#200000#),
+          Virtual_Start  => data_start'Address,
+          Length         => data_end'Address - data_start'Address,
+          Permissions    => NX_Flags)
       then
          return False;
       end if;

@@ -31,6 +31,7 @@ SECTIONS {
     . = VIRTUAL_BASE;
 
     /* Position in the front required by spec. */
+    text_start = .;
     .multiboot2 : AT (ADDR (.multiboot2) - VIRTUAL_BASE + PHYSICAL_BASE) {
         KEEP(*(.multiboot2))
     } :text
@@ -39,9 +40,10 @@ SECTIONS {
     .text : AT (ADDR (.text) - VIRTUAL_BASE + PHYSICAL_BASE) {
         *(.text .text.*)
     } :text
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+    text_end = .;
 
-    . += CONSTANT(MAXPAGESIZE);
-
+    rodata_start = .;
     .rodata : AT (ADDR (.rodata) - VIRTUAL_BASE + PHYSICAL_BASE) {
         *(.rodata .rodata.*)
     } :rodata
@@ -49,9 +51,10 @@ SECTIONS {
     .note : AT (ADDR (.note) - VIRTUAL_BASE + PHYSICAL_BASE) {
         *(.note.gnu.build-id)
     } : rodata
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+    rodata_end = .;
 
-    . += CONSTANT(MAXPAGESIZE);
-
+    data_start = .;
     .data : AT (ADDR (.data) - VIRTUAL_BASE + PHYSICAL_BASE) {
         *(.data .data.*)
     } :data
@@ -60,6 +63,8 @@ SECTIONS {
         *(.bss .bss.*)
         *(COMMON)
     } :data
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+    data_end = .;
 
     /DISCARD/ : {
         *(.eh_frame)

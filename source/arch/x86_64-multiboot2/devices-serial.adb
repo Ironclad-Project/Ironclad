@@ -17,7 +17,6 @@
 with System.Address_To_Access_Conversions;
 with Devices.TermIOs;
 with Arch.Snippets;
-with Scheduler;
 
 package body Devices.Serial with SPARK_Mode => Off is
    package C1 is new System.Address_To_Access_Conversions (COM_Root);
@@ -39,7 +38,12 @@ package body Devices.Serial with SPARK_Mode => Off is
             Arch.Snippets.Port_Out (COM_Ports (I) + Modem_Control, 2#11#);
 
             --  Add the device.
-            Data := new COM_Root'(COM_Ports (I), Default_Baud);
+            if (I = 1) then
+               Data := COM1'Access;
+            else
+               Data := new COM_Root'(Lib.Synchronization.Unlocked_Semaphore,
+                  COM_Ports (I), Default_Baud);
+            end if;
             Device_Name (7) := Character'Val (I + Character'Pos ('0'));
             Device :=
                (Data        => C1.To_Address (C1.Object_Pointer (Data)),
@@ -61,13 +65,30 @@ package body Devices.Serial with SPARK_Mode => Off is
    end Init;
 
    procedure Write_COM1 (C : Character) is
+      Count : Natural;
+      Succ  : Boolean;
+      Data  : Operation_Data (1 .. 1) with Import, Address => C'Address;
    begin
-      while not Can_Transmit (COM_Ports (COM_Ports'First)) loop
-         Scheduler.Yield_If_Able;
-      end loop;
-      Arch.Snippets.Port_Out (COM_Ports (COM_Ports'First), Character'Pos (C));
+      Write (COM1'Address, 0, Data, Count, Succ);
+   end Write_COM1;
+
+   procedure Write_COM1 (S : String) is
+   begin
+      if S'Length > 0 then
+         declare
+            Count : Natural;
+            Succ  : Boolean;
+            Data  : Operation_Data (1 .. S'Length)
+               with Import, Address => S (S'First)'Address;
+         begin
+            Write (COM1'Address, 0, Data, Count, Succ);
+         end;
+      end if;
    end Write_COM1;
    ----------------------------------------------------------------------------
+   --  We will not yield instead of pausing here to avoid issues printing
+   --  inside the scheduler.
+
    procedure Read
       (Key       : System.Address;
        Offset    : Unsigned_64;
@@ -78,12 +99,14 @@ package body Devices.Serial with SPARK_Mode => Off is
       COM : COM_Root with Import, Address => Key;
       pragma Unreferenced (Offset);
    begin
+      Lib.Synchronization.Seize (COM.Mutex);
       for I of Data loop
          while not Can_Receive (COM.Port) loop
-            Scheduler.Yield_If_Able;
+            Arch.Snippets.Pause;
          end loop;
          I := Arch.Snippets.Port_In (COM.Port);
       end loop;
+      Lib.Synchronization.Release (COM.Mutex);
       Ret_Count := Data'Length;
       Success   := True;
    end Read;
@@ -98,12 +121,14 @@ package body Devices.Serial with SPARK_Mode => Off is
       COM : COM_Root with Import, Address => Key;
       pragma Unreferenced (Offset);
    begin
+      Lib.Synchronization.Seize (COM.Mutex);
       for I of Data loop
          while not Can_Transmit (COM.Port) loop
-            Scheduler.Yield_If_Able;
+            Arch.Snippets.Pause;
          end loop;
          Arch.Snippets.Port_Out (COM.Port, I);
       end loop;
+      Lib.Synchronization.Release (COM.Mutex);
       Ret_Count := Data'Length;
       Success   := True;
    end Write;
@@ -117,6 +142,7 @@ package body Devices.Serial with SPARK_Mode => Off is
       Returned : TermIOs.Main_Data with Import, Address => Argument;
       Success  : Boolean;
    begin
+      Lib.Synchronization.Seize (COM.Mutex);
       case Request is
          when TermIOs.TCGETS =>
             Returned :=
@@ -135,6 +161,7 @@ package body Devices.Serial with SPARK_Mode => Off is
          when others =>
             Success := False;
       end case;
+      Lib.Synchronization.Release (COM.Mutex);
       return Success;
    end IO_Control;
 
@@ -146,9 +173,11 @@ package body Devices.Serial with SPARK_Mode => Off is
    is
       COM : COM_Root with Import, Address => Data;
    begin
+      Lib.Synchronization.Seize (COM.Mutex);
       Can_Write := Can_Transmit (COM.Port);
       Can_Read  := Can_Receive  (COM.Port);
       Is_Error  := False;
+      Lib.Synchronization.Release (COM.Mutex);
    end Poll;
    ----------------------------------------------------------------------------
    function Can_Receive (Port : Unsigned_16) return Boolean is

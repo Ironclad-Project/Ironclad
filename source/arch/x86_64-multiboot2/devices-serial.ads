@@ -14,18 +14,22 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Lib.Synchronization;
+
 package Devices.Serial with SPARK_Mode => Off is
    --  Initialize the serial devices.
    function Init return Boolean;
 
-   --  Little function for debug printing.
+   --  Little functions for debug printing.
    procedure Write_COM1 (C : Character);
+   procedure Write_COM1 (S : String);
 
 private
 
    type COM_Root is record
-      Port : Unsigned_16;
-      Baud : Unsigned_32;
+      Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+      Port  : Unsigned_16;
+      Baud  : Unsigned_32;
    end record;
    type COM_Root_Acc is access all COM_Root;
 
@@ -48,6 +52,11 @@ private
 
    --  Default settings.
    Default_Baud : constant := 115200;
+
+   --  COM1 is initialized statically in order for it to be shared easily
+   --  with debug outputs, while sharing baud, lock, etc...
+   COM1 : aliased COM_Root :=
+      (Lib.Synchronization.Unlocked_Semaphore, COM_Ports (1), Default_Baud);
 
    procedure Read
       (Key       : System.Address;

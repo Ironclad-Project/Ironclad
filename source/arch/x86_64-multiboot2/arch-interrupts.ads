@@ -89,4 +89,8 @@ package Arch.Interrupts is
 
    --  LAPIC spurious interrupt handling.
    procedure Spurious_Handler;
+
+private
+
+   procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64);
 end Arch.Interrupts;
