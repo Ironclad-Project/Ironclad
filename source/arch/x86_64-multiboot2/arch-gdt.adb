@@ -100,7 +100,7 @@ package body Arch.GDT with SPARK_Mode => Off is
       TSS => <>
    );
    Global_Pointer : constant GDT_Pointer := (
-      Size    => Global_GDT'Size - 1,
+      Size    => (Global_GDT'Size / 8) - 1,
       Address => Global_GDT'Address
    );
    TSS_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
