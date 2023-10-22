@@ -217,16 +217,14 @@ package body IPC.FIFO is
 
       if To_Write.Is_Write_Blocking then
          loop
-            if To_Write.Data_Count /= To_Write.Data'Length then
-               Lib.Synchronization.Seize (To_Write.Mutex);
-               exit when To_Write.Data_Count /= To_Write.Data'Length;
-               Lib.Synchronization.Release (To_Write.Mutex);
-            end if;
+            Lib.Synchronization.Seize (To_Write.Mutex);
+            exit when To_Write.Data_Count /= To_Write.Data'Length;
+            Lib.Synchronization.Release (To_Write.Mutex);
             Scheduler.Yield_If_Able;
          end loop;
       else
          Lib.Synchronization.Seize (To_Write.Mutex);
-         if To_Write.Data_Count = 0 then
+         if To_Write.Data_Count = To_Write.Data'Length then
             Ret_Count := 0;
             Success   := Would_Block_Failure;
             Lib.Synchronization.Release (To_Write.Mutex);

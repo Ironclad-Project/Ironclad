@@ -134,7 +134,7 @@ package IPC.FIFO is
 
 private
 
-   Default_Data_Length : constant Natural := Arch.MMU.Page_Size * 4;
+   Default_Data_Length : constant Natural := Arch.MMU.Page_Size * 10;
    type Inner is record
       Mutex             : aliased Lib.Synchronization.Binary_Semaphore;
       Reader_Closed     : Boolean;
