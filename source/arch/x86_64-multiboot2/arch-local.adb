@@ -19,22 +19,28 @@ with Arch.APIC;
 with Arch.Snippets;
 with Arch.Interrupts;
 with Interfaces; use Interfaces;
+with System.Machine_Code; use System.Machine_Code;
 
 package body Arch.Local with SPARK_Mode => Off is
    procedure Reschedule_In (Microseconds : Natural) is
    begin
+      Asm ("pushf; cli", Volatile => True);
       APIC.LAPIC_Timer_Oneshot (
          Interrupts.Scheduler_Interrupt,
          CPU.Get_Local.LAPIC_Timer_Hz,
          Unsigned_64 (Microseconds)
       );
+      Asm ("popf", Volatile => True);
    end Reschedule_In;
 
    procedure Reschedule_ASAP is
-      Core_LAPIC : constant Unsigned_32 := CPU.Get_Local.LAPIC_ID;
    begin
       --  Force rescheduling by calling the ISR vector directly.
-      APIC.LAPIC_Send_IPI (Core_LAPIC, Interrupts.Scheduler_Interrupt);
+      Asm ("pushf; cli", Volatile => True);
+      APIC.LAPIC_Timer_Stop;
+      APIC.LAPIC_Send_IPI (CPU.Get_Local.LAPIC_ID,
+         Interrupts.Scheduler_Interrupt);
+      Asm ("popf", Volatile => True);
    end Reschedule_ASAP;
 
    function Fetch_TCB return System.Address is
@@ -54,22 +60,34 @@ package body Arch.Local with SPARK_Mode => Off is
    end Set_Stacks;
 
    function Get_Current_Thread return Scheduler.TID is
+      Returned : Scheduler.TID;
    begin
-      return CPU.Get_Local.Current_Thread;
+      Asm ("pushf; cli", Volatile => True);
+      Returned := CPU.Get_Local.Current_Thread;
+      Asm ("popf", Volatile => True);
+      return Returned;
    end Get_Current_Thread;
 
    function Get_Current_Process return Userland.Process.PID is
+      Returned : Userland.Process.PID;
    begin
-      return CPU.Get_Local.Current_Process;
+      Asm ("pushf; cli", Volatile => True);
+      Returned := CPU.Get_Local.Current_Process;
+      Asm ("popf", Volatile => True);
+      return Returned;
    end Get_Current_Process;
 
    procedure Set_Current_Thread (Thread : Scheduler.TID) is
    begin
+      Asm ("pushf; cli", Volatile => True);
       CPU.Get_Local.Current_Thread := Thread;
+      Asm ("popf", Volatile => True);
    end Set_Current_Thread;
 
    procedure Set_Current_Process (Proc : Userland.Process.PID) is
    begin
+      Asm ("pushf; cli", Volatile => True);
       CPU.Get_Local.Current_Process := Proc;
+      Asm ("popf", Volatile => True);
    end Set_Current_Process;
 end Arch.Local;

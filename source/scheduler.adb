@@ -51,8 +51,8 @@ package body Scheduler with SPARK_Mode => Off is
    type Cluster_Arr_Acc is access Cluster_Arr;
 
    type Thread_Info is record
-      Is_Present    : Boolean;
-      Is_Running    : Boolean;
+      Is_Present    : Boolean with Atomic;
+      Is_Running    : Boolean with Atomic;
       Cluster       : TCID;
       TCB_Pointer   : System.Address;
       PageMap       : Arch.MMU.Page_Table_Acc;
@@ -332,18 +332,12 @@ package body Scheduler with SPARK_Mode => Off is
       if Curr_TID /= Error_TID and then
          Cluster_Pool (Thread_Pool (Curr_TID).Cluster).Is_Interruptible
       then
-         Yield;
+         Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex);
+         Arch.Local.Reschedule_ASAP;
+         Lib.Synchronization.Seize   (Thread_Pool (Curr_TID).Yield_Mutex);
+         Lib.Synchronization.Release (Thread_Pool (Curr_TID).Yield_Mutex);
       end if;
    end Yield_If_Able;
-
-   procedure Yield is
-      Curr_TID : constant TID := Arch.Local.Get_Current_Thread;
-   begin
-      Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex);
-      Arch.Local.Reschedule_ASAP;
-      Lib.Synchronization.Seize   (Thread_Pool (Curr_TID).Yield_Mutex);
-      Lib.Synchronization.Release (Thread_Pool (Curr_TID).Yield_Mutex);
-   end Yield;
 
    procedure Bail is
    begin
@@ -404,11 +398,6 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
    end Signal_Kernel_Exit;
    ----------------------------------------------------------------------------
-   function Get_Cluster (Thread : TID) return TCID is
-   begin
-      return Thread_Pool (Thread).Cluster;
-   end Get_Cluster;
-
    function Set_Scheduling_Algorithm
       (Cluster          : TCID;
        Algo             : Cluster_Algorithm;
@@ -516,16 +505,10 @@ package body Scheduler with SPARK_Mode => Off is
       Next_TID     :          TID := Error_TID;
       Curr_Cluster :         TCID := Error_TCID;
       Next_Cluster :         TCID := Error_TCID;
+      Next_State   : Arch.Context.GP_Context;
       Timeout      :      Natural;
-      Discard      :      Boolean;
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex);
-
-      --  Establish the current cluster, if any, and do thread preparations.
-      if Current_TID /= Error_TID then
-         Curr_Cluster := Thread_Pool (Current_TID).Cluster;
-         Lib.Synchronization.Release (Thread_Pool (Current_TID).Yield_Mutex);
-      end if;
 
       --  If we come from a cluster, and said cluster still has available time,
       --  we schedule a new thread from the cluster, if it has no time, search
@@ -533,7 +516,10 @@ package body Scheduler with SPARK_Mode => Off is
       --
       --  If we come from no cluster, we just need to search for the first
       --  available task, and let the rest pick up from there.
-      if Curr_Cluster /= Error_TCID then
+      if Current_TID /= Error_TID then
+         Curr_Cluster := Thread_Pool (Current_TID).Cluster;
+         Lib.Synchronization.Release (Thread_Pool (Current_TID).Yield_Mutex);
+
          --  Find the next cluster.
          if Cluster_Pool (Curr_Cluster).Percentage >
             Cluster_Pool (Curr_Cluster).Progress
@@ -556,7 +542,7 @@ package body Scheduler with SPARK_Mode => Off is
             end if;
          end loop;
          if Current_TID /= Error_TID then
-            for I in Thread_Pool'First .. Current_TID loop
+            for I in Thread_Pool'First .. Current_TID - 1 loop
                if Thread_Pool (I).Is_Present     and
                   not Thread_Pool (I).Is_Running and
                   Thread_Pool (I).Cluster = Next_Cluster
@@ -565,10 +551,6 @@ package body Scheduler with SPARK_Mode => Off is
                   goto Found_TID_TCID_Combo;
                end if;
             end loop;
-            if Thread_Pool (Current_TID).Cluster = Next_Cluster then
-               Next_TID := Current_TID;
-               goto Found_TID_TCID_Combo;
-            end if;
          end if;
       else
          for I in Thread_Pool'Range loop
@@ -582,7 +564,7 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       Lib.Synchronization.Release (Scheduler_Mutex);
-      Arch.Local.Reschedule_ASAP;
+      Arch.Local.Reschedule_In (4000);
       return;
 
    <<Found_TID_TCID_Combo>>
@@ -591,13 +573,6 @@ package body Scheduler with SPARK_Mode => Off is
          when Cluster_RR => Timeout := Cluster_Pool (Next_Cluster).RR_Quantum;
          when Cluster_Cooperative => Timeout := 0;
       end case;
-
-      --  Optimization if we are scheduling the same thread.
-      if Current_TID = Next_TID then
-         Arch.Local.Reschedule_In (Timeout);
-         Lib.Synchronization.Release (Scheduler_Mutex);
-         return;
-      end if;
 
       --  Save state.
       if Current_TID /= Error_TID then
@@ -629,7 +604,6 @@ package body Scheduler with SPARK_Mode => Off is
 
       --  Rearm the timer for next tick and unlock.
       Arch.Local.Reschedule_In (Timeout);
-      Lib.Synchronization.Release (Scheduler_Mutex);
 
       --  Reset state.
       if not Arch.MMU.Make_Active (Thread_Pool (Next_TID).PageMap) then
@@ -641,6 +615,8 @@ package body Scheduler with SPARK_Mode => Off is
           Thread_Pool (Next_TID).Kernel_Stack (Kernel_Stack'Last)'Address);
       Arch.Local.Load_TCB (Thread_Pool (Next_TID).TCB_Pointer);
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_State);
-      Arch.Context.Load_GP_Context (Thread_Pool (Next_TID).GP_State);
+      Next_State := Thread_Pool (Next_TID).GP_State;
+      Lib.Synchronization.Release (Scheduler_Mutex);
+      Arch.Context.Load_GP_Context (Next_State);
    end Scheduler_ISR;
 end Scheduler;

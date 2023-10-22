@@ -1233,7 +1233,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
    procedure Sched_Yield (Returned : out Unsigned_64; Errno : out Errno_Value)
    is
    begin
-      Scheduler.Yield;
+      Scheduler.Yield_If_Able;
       Returned := 0;
       Errno    := Error_No_Error;
    end Sched_Yield;
@@ -4384,12 +4384,18 @@ package body Userland.Syscall with SPARK_Mode => Off is
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
+      --  Switch to the kernel page table to make us immune to having it swept
+      --  from under out feet by process cleanup.
+      if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
+         Lib.Messages.Warn ("Could not switch table on thread exit");
+      end if;
+
       --  Remove all state but the return value and keep the zombie around
       --  until we are waited.
       Userland.Process.Flush_Threads (Proc);
       Userland.Process.Flush_Files   (Proc);
-      Userland.Process.Issue_Exit    (Proc, Code);
       Userland.Process.Remove_Thread (Proc, Arch.Local.Get_Current_Thread);
+      Userland.Process.Issue_Exit    (Proc, Code);
       Scheduler.Bail;
    end Do_Exit;
 
