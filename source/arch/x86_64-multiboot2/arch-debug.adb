@@ -24,8 +24,12 @@ package body Arch.Debug with SPARK_Mode => Off is
 
    procedure Print (Message : String) is
    begin
-      for C of Message loop
-         Print (C);
-      end loop;
+      Devices.Serial.Write_COM1 (Message);
+   end Print;
+
+   procedure Print (Message : Devices.Operation_Data) is
+      S : String (1 .. Message'Length) with Import, Address => Message'Address;
+   begin
+      Devices.Serial.Write_COM1 (S);
    end Print;
 end Arch.Debug;

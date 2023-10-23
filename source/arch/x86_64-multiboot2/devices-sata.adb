@@ -476,25 +476,23 @@ package body Devices.SATA with SPARK_Mode => Off is
    end Write;
 
    function Sync (Key : System.Address) return Boolean is
-      Success : Boolean;
       Drive   : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
+      Success : Boolean := True;
    begin
       Lib.Synchronization.Seize (Drive.Mutex);
       for Cache of Drive.Caches loop
          if Cache.Is_Used and Cache.Is_Dirty then
-            Success := Write_Sector
-               (Drive       => Drive,
-                LBA         => Cache.LBA_Offset,
-                Data_Buffer => Cache.Data);
-            if not Success then
-               return False;
+            if not Write_Sector (Drive, Cache.LBA_Offset, Cache.Data) then
+               Success := False;
+               goto Cleanup;
             end if;
-
             Cache.Is_Dirty := False;
          end if;
       end loop;
+
+   <<Cleanup>>
       Lib.Synchronization.Release (Drive.Mutex);
-      return True;
+      return Success;
    end Sync;
 
    function Sync_Range
@@ -502,30 +500,29 @@ package body Devices.SATA with SPARK_Mode => Off is
        Offset : Unsigned_64;
        Count  : Unsigned_64) return Boolean
    is
-      Drive : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
-      Curr_Idx  : Unsigned_64;
-      Cache_Idx : Natural;
-      Success   : Boolean;
+      Drive    : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
+      First_LBA : constant  Unsigned_64 := Offset / Sector_Size;
+      Last_LBA  : constant  Unsigned_64 := (Offset + Count) / Sector_Size;
+      Success   : Boolean := True;
    begin
-      Curr_Idx := Offset;
       Lib.Synchronization.Seize (Drive.Mutex);
-      while Curr_Idx < Offset + Count loop
-         Cache_Idx := Get_Cache_Index (Drive, Curr_Idx / Sector_Size);
-         if Drive.Caches (Cache_Idx).Is_Used and
-            Drive.Caches (Cache_Idx).Is_Dirty
+
+      for Cache of Drive.Caches loop
+         if Cache.Is_Used                 and
+            Cache.Is_Dirty                and
+            Cache.LBA_Offset >= First_LBA and
+            Cache.LBA_Offset <= Last_LBA
          then
-            Success := Write_Sector
-               (Drive       => Drive,
-                LBA         => Drive.Caches (Cache_Idx).LBA_Offset,
-                Data_Buffer => Drive.Caches (Cache_Idx).Data);
-            if not Success then
-               return False;
+            if not Write_Sector (Drive, Cache.LBA_Offset, Cache.Data) then
+               Success := False;
+               goto Cleanup;
             end if;
-            Drive.Caches (Cache_Idx).Is_Dirty := False;
+            Cache.Is_Dirty := False;
          end if;
-         Curr_Idx := Curr_Idx + Sector_Size;
       end loop;
+
+   <<Cleanup>>
       Lib.Synchronization.Release (Drive.Mutex);
-      return True;
+      return Success;
    end Sync_Range;
 end Devices.SATA;
