@@ -4381,6 +4381,55 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Translate_Status (Succ, 0, Returned, Errno);
       end;
    end UTimes;
+
+   procedure Create_TCluster
+      (Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc   : constant PID := Arch.Local.Get_Current_Process;
+      Result : Scheduler.TCID;
+   begin
+      if not Get_Capabilities (Proc).Can_Change_Scheduling then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("create_tcluster", Proc);
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Result := Scheduler.Create_Cluster;
+      if Result /= Error_TCID then
+         Errno    := Error_No_Error;
+         Returned := Unsigned_64 (Convert (Result));
+      else
+         Errno    := Error_No_Memory;
+         Returned := Unsigned_64'Last;
+      end if;
+   end Create_TCluster;
+
+   procedure Switch_TCluster
+      (Cluster  : Unsigned_64;
+       Thread   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant  PID := Arch.Local.Get_Current_Process;
+      Clust : constant TCID := Convert (Natural (Cluster and 16#FFFFFFFF#));
+      Th    : constant  TID := Convert (Natural (Thread and 16#FFFFFFFF#));
+   begin
+      if not Get_Capabilities (Proc).Can_Change_Scheduling then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("switch_tcluster", Proc);
+         Returned := Unsigned_64'Last;
+      elsif Clust = Error_TCID or else Th = Error_TID or else
+         not Switch_Cluster (Clust, Th)
+      then
+         Errno := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+      else
+         Errno    := Error_No_Error;
+         Returned := 0;
+      end if;
+   end Switch_TCluster;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin

@@ -955,6 +955,16 @@ package Userland.Syscall is
        Flags     : Unsigned_64;
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
+
+   procedure Create_TCluster
+      (Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure Switch_TCluster
+      (Cluster  : Unsigned_64;
+       Thread   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.

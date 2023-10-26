@@ -103,6 +103,8 @@ package Scheduler is
 
    function Create_Cluster return TCID;
    function Delete_Cluster (Cluster : TCID) return Boolean;
+
+   function Switch_Cluster (Cluster : TCID; Thread : TID) return Boolean;
    ----------------------------------------------------------------------------
    --  Hook to be called by the architecture for reescheduling of the callee
    --  core.
@@ -143,6 +145,8 @@ private
    Error_TCID : constant TCID := 0;
 
    Is_Initialized : Boolean with Atomic, Volatile;
+
+   procedure Waiting_Spot with No_Return;
 
    function Convert (Thread : TID) return Natural is (Natural (Thread));
    function Convert (Group : TCID) return Natural is (Natural (Group));

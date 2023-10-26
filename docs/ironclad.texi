@@ -67,9 +67,9 @@ Boot-time command-line options
 
 Scheduling and RTC
 
-* Ticks and other interruptions::    Thread interruptions to expect.
-* Scheduling basics::                 Algorithms used in Ironclad.
-* Thread clustering and management::  Thread clusters in Ironclad.
+* Ticks and other interruptions::  Thread interruptions to expect.
+* Scheduling basics::              Scheduling model used in Ironclad.
+* Thread clustering management::   Thread cluster management in Ironclad.
 
 Memory architecture
 
@@ -164,6 +164,8 @@ Syscalls
 * recvfrom/sendto::         Socket IO support functions.
 * config_netinter::         Configure network interfaces.
 * utimes::                  Modify timestamps for a file.
+* create_tcluster::         Create a thread cluster.
+* switch_tcluster::         Switch thread cluster.
 
 Filesystem support and interfaces
 
@@ -305,18 +307,36 @@ user desires absolutely 0 interruptions and/or jitter, one can use
 @node Scheduling basics
 @section Scheduling basics
 
-Scheduling in Ironclad is based on time sharing, under this idea, threads in
-Ironclad are divided on groups that are a percentage of the overall CPU time.
+Scheduling in Ironclad is based broadly on
+@url{https://en.wikipedia.org/wiki/ARINC_653, ARINC 653 partitioning} and
+process models. Like the standard specifies, it employs 2 hierarchies of
+schedulable entities, the thread cluster, and the thread (or partition and
+process in ARINC nomenclature respectively).
 
-@node Thread clustering and management
-@section Thread clustering and management
+Each cluster needs to have a percentage of CPU time assigned at creation
+(which can be modified later on), that the scheduler will uphold with
+preemption, effectively promissing that any given cluster will be given, at
+least, the specified execution time. Validy of the cluster configuration is
+checked when adding, deleting, or modifying individual clusters.
 
-The divisions explain at @ref{Scheduling basics} are called thread clusters in
-Ironclad. Thread clusters rule over a group of threads, regardless of their
-process of origin, and allow specifiying an algorithm and a percentage over
-all the CPU time.
+Slack time (time not covered percent-wise by any cluster) will be used as seen
+fit, while not breaking scheduler guarantees, in an unspecified way. Thus, it
+shall be treated as @b{UNDEFINED BEHAVIOUR} by system users, and it is the
+responsability of the user to configure the scheduling to keep this into
+account. It is also why the above paragraph mentions "at least", as unspecified
+time can be assigned to other clusters.
 
-The algorithm of a cluster only affects how threads inside the cluster are
+Ironclad supports multicore configurations, shuffling cores around clusters,
+while always keeping the assigned slices for each cluster.
+
+@node Thread clustering management
+@section Thread clustering management
+
+Thread clusters are identified by an integer id, not unlike threads or PIDs.
+Clusters rule over a group of threads, regardless of their process of origin,
+and allow specifiying an algorithm and a percentage over all the CPU time.
+
+The algorithm of a cluster affects how threads inside the cluster are
 scheduled. The available algorithms are:
 
 @table @code
@@ -330,15 +350,19 @@ explicitly requested by exiting or yielding.
 @end table
 
 Additionally, by using the @code{SCHED_INTR} flag, a cluster can be configured
-to be interruptible, which makes the kernel able to interrupt and break the
-specified quantum in order to increase performance and responsiveness during
-waits. The same rules as normal scheduling apply for these interruptions.
+to be interruptible, which makes the kernel able to interrupt a thread and
+queue another during long waits, in order to increase performance and
+responsiveness. This does not affect cluster-wide scheduling guarantees.
 
 At startup, Ironclad will have a single interruptible cluster assigned to 100%
 of execution time, configured to use a flat RR with a reasonable quantum with
 cluster number @code{1}. Software is free to modify it however it sees fit, it
 is just provided in order to have some natural-ish behaviour for running
-software.
+software blissfully unaware of the clusters beneath.
+
+Syscalls used for modifying clusters and their settings are
+@code{manage_tcluster} and @code{delete_tcluster}, @code{create_tcluster}, and
+@code{switch_tcluster}.
 
 @node Memory architecture
 @chapter Memory architecture
@@ -703,6 +727,10 @@ Empty.
 @ref{config_netinter}.
 @item
 @ref{utimes}.
+@item
+@ref{create_tcluster}.
+@item
+@ref{switch_tcluster}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -3033,6 +3061,45 @@ MAC did not allow this.
 
 @item EINVAL
 An argument is not valid.
+@end table
+
+@node create_tcluster
+@section create_tcluster
+
+@example
+int create_tcluster(void);
+@end example
+
+This syscall creates a thread cluster. It returns the new cluster ID or
+@code {-1} on failure, with the following errno:
+
+@table @code
+@item ENOMEM
+A new cluster could not be made.
+
+@item EACCES
+MAC did not allow this.
+@end table
+
+@node switch_tcluster
+@section switch_tcluster
+
+@example
+int switch_tcluster(int cluster, int tid);
+@end example
+
+This syscall moves the thread identified by @code{tid} to the thread cluster
+identified by @code{cluster}. No checks of parenthood are done.
+
+It returns @code{0} on success and @code{-1} on failure, with the following
+errno:
+
+@table @code
+@item EINVAL
+@code{cluster} is not a valid cluster, or @code{tid} is not a valid tid.
+
+@item EACCES
+MAC did not allow this.
 @end table
 
 @node Filesystem support and interfaces

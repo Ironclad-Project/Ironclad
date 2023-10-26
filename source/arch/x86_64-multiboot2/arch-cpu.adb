@@ -24,7 +24,7 @@ with Arch.IDT;
 with Arch.Snippets;
 
 package body Arch.CPU with SPARK_Mode => Off is
-   type Interrupt_Stack is array (1 .. 16#2000#) of Unsigned_8;
+   type Interrupt_Stack is array (1 .. 16#4000#) of Unsigned_8;
    type Interrupt_Stack_Acc is access Interrupt_Stack;
 
    procedure Init_Cores is
