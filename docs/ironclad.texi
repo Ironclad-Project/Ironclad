@@ -274,7 +274,7 @@ containing device.
 @item init=<path>
 Path to a program that will be booted by the kernel when finished loading.
 The program will be started with @code{stdin} set to @code{/dev/null}, and
-@code{stdout} and @code{stderr} set to @code{/dev/debug}.
+@code{stdout} and @code{stderr} set to @code{/dev/console}.
 
 @item noprogaslr
 The offset of loaded programs in virtual memory is randomized when loading if
@@ -3234,11 +3234,19 @@ instead, the block count and block size values of @code{stat} are used.
 These are devices exposed in Ironclad regardless of target system when
 present, with standardized interfaces.
 
-@subsection debug
+@subsection console
 
-@code{/dev/debug} wraps architecture-specific debug output channels for use
-with file operations. For x86-based targets, this is COM0, for ARM-based
+@code{/dev/console} wraps architecture-specific debug output channels for use
+with file operations. For x86-based targets, this is COM1, for ARM-based
 and SPARC-based targets, this is UART.
+
+If the target implements reading from the debug channels, read will be
+supported as well. If not implemented, the device will be read-only.
+
+The kernel also uses the debug channels for output, so keep in mind the
+contentions that can cause. If you are doing a lot of spaced writes, do not
+be surprised if the kernel pops in the middle! In the other hand, the kernel
+does not read from the debug channels.
 
 @subsection loopback
 

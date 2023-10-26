@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Devices.Debug;
+with Devices.Console;
 with Devices.Loopback;
 with Devices.Random;
 with Devices.Streams;
@@ -35,7 +35,7 @@ package body Devices is
       end loop;
 
 
-      Debug.Init (Success);
+      Console.Init (Success);
       if not Success then goto Panic_Error; end if;
       Loopback.Init (Success);
       if not Success then goto Panic_Error; end if;
@@ -153,6 +153,26 @@ package body Devices is
       Length := Devices_Data (Handle).Name_Len;
    end Fetch_Name;
 
+   procedure List (Buffer : out Device_List; Total : out Natural) is
+      Curr_Index : Natural := 0;
+   begin
+      Total := 0;
+
+      for I in Devices_Data'Range loop
+         if Devices_Data (I).Is_Present then
+            Total := Total + 1;
+            if Curr_Index < Buffer'Length then
+               Buffer (Buffer'First + Curr_Index) :=  I;
+               Curr_Index := Curr_Index + 1;
+            end if;
+         end if;
+      end loop;
+
+      for I in Total + 1 .. Buffer'Length loop
+         Buffer (Buffer'First + I - 1) := Error_Handle;
+      end loop;
+   end List;
+   ----------------------------------------------------------------------------
    function Is_Block_Device (Handle : Device_Handle) return Boolean is
    begin
       return Devices_Data (Handle).Contents.Is_Block;

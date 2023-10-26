@@ -20,7 +20,8 @@ package Devices.Serial with SPARK_Mode => Off is
    --  Initialize the serial devices.
    function Init return Boolean;
 
-   --  Little functions for debug printing.
+   --  Little functions for debug reading and printing.
+   procedure Read_COM1 (S : out Operation_Data);
    procedure Write_COM1 (C : Character);
    procedure Write_COM1 (S : String);
 

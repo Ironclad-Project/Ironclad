@@ -18,12 +18,18 @@ with Devices;
 
 package Arch.Debug with
    Abstract_State => Debug_State,
-   Initializes => Debug_State
+   Initializes    => Debug_State
 is
-   --  These functions print values to a target-specific debug channel, which
-   --  could take the shape of anything, from a serial port to a network
-   --  packet.
-   --  It comes with its own abstracted state for ease of modeling.
+   --  This package implements read / write access to a target-specific debug
+   --  channel, which could take the shape of a serial port or debug monitor.
+
+   --  Whether the abstracted channel supports write only or read / write.
+   Supports_Read : constant Boolean;
+
+   --  Read byte device arrays atomically.
+   --  @param Message Array to print.
+   procedure Read (Message : out Devices.Operation_Data)
+      with Global => (In_Out => Debug_State);
 
    --  Print a character message atomically.
    --  @param Message Character to print.
@@ -39,4 +45,16 @@ is
    --  @param Message Array to print.
    procedure Print (Message : Devices.Operation_Data)
       with Global => (In_Out => Debug_State);
+
+private
+
+   #if ArchName = """aarch64-stivale2"""
+      Supports_Read : constant Boolean := False;
+   #elsif ArchName = """arm-raspi2b"""
+      Supports_Read : constant Boolean := False;
+   #elsif ArchName = """sparc-leon3"""
+      Supports_Read : constant Boolean := False;
+   #elsif ArchName = """x86_64-multiboot2"""
+      Supports_Read : constant Boolean := True;
+   #end if;
 end Arch.Debug;

@@ -77,6 +77,7 @@ package Devices is
 
    --  Handle for interfacing with devices, and device conditions.
    type Device_Handle is private;
+   type Device_List   is array (Natural range <>) of Device_Handle;
    Error_Handle : constant Device_Handle;
 
    --  Device names have a maximum fixed length.
@@ -124,6 +125,14 @@ package Devices is
                     (Name'Length = Max_Name_Length)),
            Post => (Length >= 0 and Length <= Max_Name_Length);
 
+   --  List all devices registered.
+   --  @param Buffer Buffer to write the devices.
+   --  @param Total  Returned count of devices, even if it does not fit.
+   procedure List (Buffer : out Device_List; Total : out Natural);
+
+   --  Ghost function for checking whether the device handling is initialized.
+   function Is_Initialized return Boolean with Ghost;
+   ----------------------------------------------------------------------------
    --  Fetch generic properties of a device handle.
    --  @param Handle Handle to fetch, must be valid, as checking is not done.
    --  @return The requested data.
@@ -223,9 +232,6 @@ package Devices is
        Can_Write : out Boolean;
        Is_Error  : out Boolean)
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
-
-   --  Ghost function for checking whether the device handling is initialized.
-   function Is_Initialized return Boolean with Ghost;
 
 private
 

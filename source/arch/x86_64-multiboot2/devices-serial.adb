@@ -64,6 +64,13 @@ package body Devices.Serial with SPARK_Mode => Off is
       return True;
    end Init;
 
+   procedure Read_COM1 (S : out Operation_Data) is
+      Count : Natural;
+      Succ  : Boolean;
+   begin
+      Read (COM1'Address, 0, S, Count, Succ);
+   end Read_COM1;
+
    procedure Write_COM1 (C : Character) is
       Count : Natural;
       Succ  : Boolean;
@@ -124,7 +131,8 @@ package body Devices.Serial with SPARK_Mode => Off is
       Lib.Synchronization.Seize (COM.Mutex);
       for I of Data loop
          while not Can_Transmit (COM.Port) loop
-            Arch.Snippets.Pause;
+            --  Arch.Snippets.Pause;
+            null;
          end loop;
          Arch.Snippets.Port_Out (COM.Port, I);
       end loop;

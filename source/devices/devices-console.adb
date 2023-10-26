@@ -1,4 +1,4 @@
---  devices-debugdev.adb: Driver for debug utilities.
+--  devices-console.adb: Driver for debug output.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 
 with Arch.Debug;
 
-package body Devices.Debug with SPARK_Mode => Off is
+package body Devices.Console with SPARK_Mode => Off is
    procedure Init (Success : out Boolean) is
       Device : Resource;
    begin
@@ -26,15 +26,35 @@ package body Devices.Debug with SPARK_Mode => Off is
           Is_Block    => False,
           Block_Size  => 4096,
           Block_Count => 0,
-          Read        => null,
+          Read        => Read'Access,
           Write       => Write'Access,
           Sync        => null,
           Sync_Range  => null,
           IO_Control  => null,
           Mmap        => null,
           Poll        => null);
-      Register (Device, "debug", Success);
+      Register (Device, "console", Success);
    end Init;
+
+   procedure Read
+      (Key       : System.Address;
+       Offset    : Unsigned_64;
+       Data      : out Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Boolean)
+   is
+      pragma Unreferenced (Key);
+      pragma Unreferenced (Offset);
+   begin
+      if Arch.Debug.Supports_Read then
+         Arch.Debug.Read (Data);
+         Ret_Count := Data'Length;
+         Success   := True;
+      else
+         Ret_Count := 0;
+         Success   := False;
+      end if;
+   end Read;
 
    procedure Write
       (Key       : System.Address;
@@ -46,10 +66,8 @@ package body Devices.Debug with SPARK_Mode => Off is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
    begin
-      for C of Data loop
-         Arch.Debug.Print (Character'Val (C));
-      end loop;
+      Arch.Debug.Print (Data);
       Ret_Count := Data'Length;
       Success   := True;
    end Write;
-end Devices.Debug;
+end Devices.Console;
