@@ -803,14 +803,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
       --  If -1, we have to wait for any of the children, else, wait for the
       --  passed PID.
       if Waited_PID = Unsigned_64 (Unsigned_32'Last) then
-         Process.Get_Children (Proc, Children, Count);
-         if Count = 0 then
-            Errno    := Error_Child;
-            Returned := Unsigned_64'Last;
-            return;
-         end if;
-
          loop
+            Process.Get_Children (Proc, Children, Count);
+            if Count = 0 then
+               goto Child_Error;
+            end if;
+
             for PID_Item of Children (1 .. Count) loop
                Waited := PID_Item;
                if Waited /= Error_PID then
@@ -826,22 +824,18 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end loop;
       else
          Waited := Userland.Process.Convert (Natural (Waited_PID));
-         if Get_Parent (Waited) /= Proc then
-            Errno    := Error_Child;
-            Returned := Unsigned_64'Last;
-            return;
+         if Waited = Error_PID or else Get_Parent (Waited) /= Proc then
+            goto Child_Error;
          end if;
 
-         if Waited /= Error_PID then
-            loop
-               Check_Exit (Waited, Did_Exit, Error_Code);
-               if Did_Exit then
-                  goto Waited_Exited;
-               end if;
-               exit when Dont_Hang;
-               Scheduler.Yield_If_Able;
-            end loop;
-         end if;
+         loop
+            Check_Exit (Waited, Did_Exit, Error_Code);
+            if Did_Exit then
+               goto Waited_Exited;
+            end if;
+            exit when Dont_Hang;
+            Scheduler.Yield_If_Able;
+         end loop;
       end if;
 
       --  If we get here, it means we are not blocking, and that the
@@ -868,6 +862,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       Errno    := Error_No_Error;
       Returned := Unsigned_64 (Convert (Waited));
+      return;
+
+   <<Child_Error>>
+      Errno    := Error_Child;
+      Returned := Unsigned_64'Last;
    end Wait;
 
    procedure Socket

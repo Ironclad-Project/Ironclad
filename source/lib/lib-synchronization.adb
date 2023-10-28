@@ -19,26 +19,17 @@ with Arch;
 with Arch.Snippets;
 
 package body Lib.Synchronization with SPARK_Mode => Off is
-   function Is_Locked (Semaphore : aliased Binary_Semaphore) return Boolean is
-   begin
-      return Atomic_Load_8 (Semaphore.Is_Locked'Address, Mem_Seq_Cst) /= 0;
-   end Is_Locked;
+   --  Both locks do a rough wait until the lock is free for cache-locality.
+   --  https://en.wikipedia.org/wiki/Test_and_test-and-set
 
    procedure Seize (Semaphore : aliased in out Binary_Semaphore) is
    begin
-<<Retry_Lock>>
-      if not Atomic_Test_And_Set (Semaphore.Is_Locked'Address, Mem_Acquire)
-      then
-         return;
-      end if;
-
-      --  Do a rough wait until the lock is free for cache-locality.
-      --  https://en.wikipedia.org/wiki/Test_and_test-and-set
       loop
-         if Atomic_Load_8 (Semaphore.Is_Locked'Address, Mem_Relaxed) = 0 then
-            goto Retry_Lock;
+         if not Atomic_Test_And_Set (Semaphore.Is_Locked'Address, Mem_Acquire)
+         then
+            return;
          end if;
-         Arch.Snippets.Pause;
+         Poll_Until_Zero (Semaphore.Is_Locked'Address);
       end loop;
    end Seize;
 
@@ -46,13 +37,35 @@ package body Lib.Synchronization with SPARK_Mode => Off is
    begin
       Atomic_Clear (Semaphore.Is_Locked'Address, Mem_Release);
    end Release;
+   ----------------------------------------------------------------------------
+   procedure Seize (Lock : aliased in out Critical_Lock) is
+   begin
+      loop
+         Arch.Snippets.Disable_Interrupts;
+         if not Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire)
+         then
+            return;
+         end if;
+         Arch.Snippets.Enable_Interrupts;
+         Poll_Until_Zero (Lock.Is_Locked'Address);
+      end loop;
+   end Seize;
 
-   procedure Try_Seize
-      (Semaphore : aliased in out Binary_Semaphore;
-       Did_Lock  : out Boolean)
+   procedure Release
+     (Lock        : aliased in out Critical_Lock;
+      Do_Not_Lift : Boolean := False)
    is
    begin
-      Did_Lock := not Atomic_Test_And_Set
-         (Semaphore.Is_Locked'Address, Mem_Acquire);
-   end Try_Seize;
+      Atomic_Clear (Lock.Is_Locked'Address, Mem_Release);
+      if not Do_Not_Lift then
+         Arch.Snippets.Enable_Interrupts;
+      end if;
+   end Release;
+   ----------------------------------------------------------------------------
+   procedure Poll_Until_Zero (Address : System.Address) is
+   begin
+      while Atomic_Load_8 (Address, Mem_Relaxed) /= 0 loop
+         Arch.Snippets.Pause;
+      end loop;
+   end Poll_Until_Zero;
 end Lib.Synchronization;

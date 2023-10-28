@@ -189,7 +189,13 @@ package body Memory.Physical with SPARK_Mode => Off is
          Ret : constant Virtual_Address :=
             Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
          Header : Allocation_Header with Import, Address => To_Address (Ret);
+         Data : array (1 .. Blocks_To_Allocate * Block_Size) of Unsigned_8
+            with Import, Address => To_Address (Ret);
       begin
+         for V of Data loop
+            V := 0;
+         end loop;
+
          if Config.Support_Alloc_Only then
             return Ret;
          else

@@ -37,8 +37,6 @@ package body Scheduler with SPARK_Mode => Off is
    type Kernel_Stack_Acc is access Kernel_Stack;
 
    procedure Free is new Ada.Unchecked_Deallocation
-      (Kernel_Stack, Kernel_Stack_Acc);
-   procedure Free is new Ada.Unchecked_Deallocation
       (Arch.Context.GP_Context, Arch.Context.GP_Context_Acc);
    procedure Free is new Ada.Unchecked_Deallocation
       (Arch.Context.FP_Context, Arch.Context.FP_Context_Acc);
@@ -86,7 +84,7 @@ package body Scheduler with SPARK_Mode => Off is
    --  Both are calculated from the total slice.
    Total_Slice : constant := 1_000_000; --  A second.
 
-   Scheduler_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+   Scheduler_Mutex : aliased Lib.Synchronization.Critical_Lock;
    Cluster_Pool    : Cluster_Arr_Acc;
    Thread_Pool     : Thread_Info_Arr_Acc;
 
@@ -99,8 +97,10 @@ package body Scheduler with SPARK_Mode => Off is
          Th.Is_Present   := False;
          Th.Kernel_Stack := null;
       end loop;
-      for Cl of Cluster_Pool.all loop
-         Cl.Is_Present := False;
+      for Cl of Cluster_Pool (Cluster_Pool'First + 1 .. Cluster_Pool'Last) loop
+         Cl.Is_Present       := False;
+         Cl.Progress_Seconds := 0;
+         Cl.Progress_Nanos   := 0;
       end loop;
 
       --  Create the default cluster.
@@ -109,9 +109,11 @@ package body Scheduler with SPARK_Mode => Off is
       Cluster_Pool (Cluster_Pool'First).Is_Interruptible := True;
       Cluster_Pool (Cluster_Pool'First).RR_Quantum       := 4000;
       Cluster_Pool (Cluster_Pool'First).Percentage       := 100;
+      Cluster_Pool (Cluster_Pool'First).Progress_Seconds := 0;
+      Cluster_Pool (Cluster_Pool'First).Progress_Nanos   := 0;
 
       Is_Initialized := True;
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Lib.Synchronization.Release (Scheduler_Mutex, True);
       return True;
    end Init;
 
@@ -294,7 +296,8 @@ package body Scheduler with SPARK_Mode => Off is
 
       --  Find a new TID.
       for I in Thread_Pool'Range loop
-         if not Thread_Pool (I).Is_Present then
+         if not Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running
+         then
             New_TID := I;
             goto Found_TID;
          end if;
@@ -302,11 +305,14 @@ package body Scheduler with SPARK_Mode => Off is
       goto End_Return;
 
    <<Found_TID>>
+      if Thread_Pool (New_TID).Kernel_Stack = null then
+         Thread_Pool (New_TID).Kernel_Stack := new Kernel_Stack;
+      end if;
+
       Thread_Pool (New_TID).Is_Present := True;
       Thread_Pool (New_TID).Is_Running := False;
       Thread_Pool (New_TID).Cluster := Cluster;
       Thread_Pool (New_TID).PageMap := Map;
-      Thread_Pool (New_TID).Kernel_Stack := new Kernel_Stack;
       Thread_Pool (New_TID).User_Stack := 0;
       Thread_Pool (New_TID).TCB_Pointer := TCB;
       Thread_Pool (New_TID).GP_State := GP_State;
@@ -322,6 +328,7 @@ package body Scheduler with SPARK_Mode => Off is
       Thread_Pool (New_TID).System_Tmp_NSec := 0;
       Thread_Pool (New_TID).User_Tmp_Sec := 0;
       Thread_Pool (New_TID).User_Tmp_NSec := 0;
+
       Lib.Synchronization.Release (Thread_Pool (New_TID).Yield_Mutex);
 
       Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).GP_State);
@@ -354,9 +361,13 @@ package body Scheduler with SPARK_Mode => Off is
    end Yield_If_Able;
 
    procedure Bail is
+      Thread : constant TID := Arch.Local.Get_Current_Thread;
    begin
-      Arch.Snippets.Disable_Interrupts;
-      Delete_Thread (Arch.Local.Get_Current_Thread);
+      Lib.Synchronization.Seize (Scheduler_Mutex);
+      if Thread_Pool (Thread).Is_Present then
+         Thread_Pool (Thread).Is_Present := False;
+      end if;
+      Lib.Synchronization.Release (Scheduler_Mutex, True);
       Arch.Local.Reschedule_ASAP;
       Waiting_Spot;
    end Bail;
@@ -608,8 +619,6 @@ package body Scheduler with SPARK_Mode => Off is
             Thread_Pool (Current_TID).User_Stack :=
                 Arch.CPU.Get_Local.User_Stack;
             Arch.Context.Save_FP_Context (Thread_Pool (Current_TID).FP_State);
-         elsif Thread_Pool (Current_TID).Kernel_Stack /= null then
-            Free (Thread_Pool (Current_TID).Kernel_Stack);
          end if;
       end if;
 
@@ -642,7 +651,7 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Local.Load_TCB (Thread_Pool (Next_TID).TCB_Pointer);
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_State);
       Next_State := Thread_Pool (Next_TID).GP_State;
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Lib.Synchronization.Release (Scheduler_Mutex, True);
       Arch.Context.Load_GP_Context (Next_State);
    end Scheduler_ISR;
    ----------------------------------------------------------------------------

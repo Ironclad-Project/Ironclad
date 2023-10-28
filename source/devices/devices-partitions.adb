@@ -126,7 +126,6 @@ package body Devices.Partitions with SPARK_Mode => Off is
       if Success and Found_Partitions then
          return True;
       end if;
-
       Parse_MBR_Partitions (Name, Dev, Found_Partitions, Success);
       return Success;
    end Parse_Partitions;
@@ -172,7 +171,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
 
       Part_Count       := Natural (GPT.Number_Of_Partitions);
       Block            := Block_Size * 2;
-      Parts_Per_Sector := Block_Size / Natural (GPT.Partition_Entry_Size / 8);
+      Parts_Per_Sector := Block_Size / Natural (GPT.Partition_Entry_Size);
 
       loop
          Devices.Read
