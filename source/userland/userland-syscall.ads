@@ -965,6 +965,11 @@ package Userland.Syscall is
        Thread   : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
+
+   procedure Actually_Kill
+      (Target   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.
@@ -981,6 +986,8 @@ package Userland.Syscall is
        Byte_Count : Unsigned_64) return Boolean;
 
 private
+
+   procedure Do_Remote_Exit (Proc : PID; Code : Unsigned_8);
 
    procedure Common_Syscall_Hook
       (Thread : TID;

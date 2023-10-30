@@ -255,6 +255,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Create_TCluster (Returned, Errno);
          when 78 =>
             Switch_TCluster (State.RDI, State.RSI, Returned, Errno);
+         when 79 =>
+            Actually_Kill (State.RDI, Returned, Errno);
          when others =>
             Returned := Unsigned_64'Last;
             Errno    := Error_Not_Implemented;

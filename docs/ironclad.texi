@@ -166,6 +166,7 @@ Syscalls
 * utimes::                  Modify timestamps for a file.
 * create_tcluster::         Create a thread cluster.
 * switch_tcluster::         Switch thread cluster.
+* actually_kill::           Kill a remote process.
 
 Filesystem support and interfaces
 
@@ -731,6 +732,8 @@ Empty.
 @ref{create_tcluster}.
 @item
 @ref{switch_tcluster}.
+@item
+@ref{actually_kill}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -3100,6 +3103,31 @@ errno:
 
 @item EACCES
 MAC did not allow this.
+@end table
+
+@node actually_kill
+@section actually_kill
+
+@example
+int actually_kill(int pid);
+@end example
+
+This syscall terminates the passed PID, this is no POSIX @code{kill}, this
+@code{actually_kill}s. A process cannot actually kill itself.
+
+Only processes sharing the same UID or EUID as the caller's EUID can be
+actually killed.
+
+It returns @code{0} on success and @code{-1} on failure, with the following
+errno:
+
+@table @code
+@item ESRCH
+@code{pid} is not a valid target for actual killing.
+
+@item EPERM
+The caller does not have the appropiate permissions over @code{pid} to actually
+kill.
 @end table
 
 @node Filesystem support and interfaces

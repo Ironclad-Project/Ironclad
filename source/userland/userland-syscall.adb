@@ -4429,6 +4429,35 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Returned := 0;
       end if;
    end Switch_TCluster;
+
+   procedure Actually_Kill
+      (Target   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Tgt  : constant PID := Convert (Natural (Target and 16#FFFFFFFF#));
+      EUID, Tgt_UID, Tgt_EUID : Unsigned_32;
+   begin
+      if Tgt = Error_PID or Tgt = Proc then
+         Errno    := Error_Bad_Search;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Get_Effective_UID (Proc, EUID);
+      Get_UID (Tgt, Tgt_UID);
+      Get_Effective_UID (Tgt, Tgt_EUID);
+      if EUID /= Tgt_UID and EUID /= Tgt_EUID then
+         Errno    := Error_Bad_Permissions;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Do_Remote_Exit (Tgt, 128);
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end Actually_Kill;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
@@ -4461,6 +4490,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Scheduler.Signal_Kernel_Exit (Thread);
    end Post_Syscall_Hook;
    ----------------------------------------------------------------------------
+   procedure Do_Remote_Exit (Proc : PID; Code : Unsigned_8) is
+   begin
+      Userland.Process.Flush_Threads (Proc);
+      Userland.Process.Flush_Files   (Proc);
+      Userland.Process.Issue_Exit    (Proc, Code);
+   end Do_Remote_Exit;
+
    procedure Common_Syscall_Hook
       (Thread : TID;
        State  : Arch.Context.GP_Context)
