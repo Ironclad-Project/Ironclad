@@ -22,6 +22,7 @@ with Interfaces; use Interfaces;
 with Userland.MAC;
 with IPC.FIFO;   use IPC.FIFO;
 with IPC.PTY;    use IPC.PTY;
+with IPC.SignalPost; use IPC.SignalPost;
 with IPC.Socket; use IPC.Socket;
 with Devices;
 
@@ -53,6 +54,7 @@ package Userland.Process is
        Description_Secondary_PTY,
        Description_Device,
        Description_Inode,
+       Description_SignalPost,
        Description_Socket);
    type File_Description;
    type File_Description_Acc is access File_Description;
@@ -78,10 +80,39 @@ package Userland.Process is
             Inner_Ino_Pos   : Unsigned_64;
             Inner_Ino_FS    : VFS.FS_Handle;
             Inner_Ino       : VFS.File_Inode_Number;
+         when Description_SignalPost =>
+            Inner_Post : IPC.SignalPost.SignalPost_Acc;
          when Description_Socket =>
             Inner_Socket : IPC.Socket.Socket_Acc;
       end case;
    end record;
+
+   type Overridable_Signal is
+      (Signal_Abort,
+       Signal_Alarm,
+       Signal_Bad_Memory,
+       Signal_Child,
+       Signal_FP_Exception,
+       Signal_Hang_Up,
+       Signal_Illegal_Instruction,
+       Signal_Interrupted,
+       Signal_Broken_Pipe,
+       Signal_Quit,
+       Signal_Segmentation_Fault,
+       Signal_Terminated,
+       Signal_Terminal_In,
+       Signal_Terminal_Out,
+       Signal_User_1,
+       Signal_User_2,
+       Signal_Pollable,
+       Signal_Bad_Syscall,
+       Signal_Tracepoint,
+       Signal_Urgent,
+       Signal_Virtual_Timer,
+       Signal_CPU_Exceeded,
+       Signal_File_Size_Exceeded);
+
+   type Signal_Bitmap is array (Overridable_Signal) of Boolean with Pack;
 
    --  Initialize the process registry.
    procedure Init;
@@ -397,6 +428,12 @@ package Userland.Process is
    --  @param Umask umask to set without modification, no AND or anything.
    procedure Set_Umask (Proc : PID; Umask : VFS.File_Mode);
 
+   procedure Get_Raised_Signals (Proc : PID; Sig : out Signal_Bitmap);
+
+   procedure Pop_Raised_Signals (Proc : PID; Sig : out Signal_Bitmap);
+
+   procedure Raise_Signal (Proc : PID; Sig : Overridable_Signal);
+
    --  Convert a PID to an integer. The results will be reproducible for the
    --  same PIDs.
    --  @param Proc PID to convert, can be Error_PID.
@@ -473,6 +510,7 @@ private
    type Thread_Arr is array (1 .. Max_Thread_Count)   of Scheduler.TID;
    type File_Arr   is array (0 .. Max_File_Count - 1) of File_Descriptor;
    type Process_Data is record
+      Signals         : Signal_Bitmap;
       Umask           : VFS.File_Mode;
       User            : Unsigned_32;
       Effective_User  : Unsigned_32;

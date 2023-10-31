@@ -41,6 +41,7 @@ cryptic and scary Ada code.
 * Installation and target support::    Installation and hardware support.
 * Boot-time command-line options::     Command-line options.
 * Scheduling and RTC::                 Scheduling methodology and features.
+* Inter-process communication::        IPC primitives, methods, and quirks.
 * Memory architecture::                Memory architecture of the kernel.
 * Userland state and conditions::      Userland state and conditions.
 * Security and integrity facilities::  Ironclad-specific security facilities.
@@ -70,6 +71,14 @@ Scheduling and RTC
 * Ticks and other interruptions::  Thread interruptions to expect.
 * Scheduling basics::              Scheduling model used in Ironclad.
 * Thread clustering management::   Thread cluster management in Ironclad.
+
+Inter-process communication
+
+* Pipes::                      FIFOs (yay!).
+* Futexes::                    Fast-Userspace MuTeXes.
+* PTYs::                       Pseudo-terminal creation and management.
+* Signal Posts::               Ironclad's signal mechanism.
+* Sockets::                    Sockets in all of its glory and flavours.
 
 Memory architecture
 
@@ -167,6 +176,8 @@ Syscalls
 * create_tcluster::         Create a thread cluster.
 * switch_tcluster::         Switch thread cluster.
 * actually_kill::           Kill a remote process.
+* signalpost::              Create a signal post.
+* send_signal::             Send a signal to a process.
 
 Filesystem support and interfaces
 
@@ -365,23 +376,97 @@ Syscalls used for modifying clusters and their settings are
 @code{manage_tcluster} and @code{delete_tcluster}, @code{create_tcluster}, and
 @code{switch_tcluster}.
 
+@node Inter-process communication
+@chapter Inter-process communication
+
+This chapter digs into the forms of IPC Ironclad supports, what they do, and
+how they can help accomplish complex local or remote IPC.
+
+@node Pipes
+@section Pipes
+
+Ironclad features standard POSIX-like pipes, they are created using
+@pxref{pipe}.
+
+The standard size of pipes is 10 architectural pages. This size can be modified
+using the following @code{fcntl} calls.
+
+@example
+#define F_GETPIPE_SZ 7     // Get the size in bytes.
+#define F_SETPIPE_SZ 8     // Set the size in bytes.
+@end example
+
+@node Futexes
+@section Futexes
+
+Standard Linux-like futexes. @ref{futex}.
+
+@node PTYs
+@section PTYs
+
+Pseudo terminals (PTYs) are available in Ironclad, with a few quirks. They are
+created using @pxref{openpty}.
+
+PTYs, unlike other OSes like Linux, when created, do not populate @code{/dev}.
+They live exclusively as file descriptors, not unlike a pipe. Apart of that
+they behave as you would expect when compared with other UNIX-likes.
+
+@node Signal Posts
+@section Signal Posts
+
+POSIX signals are a mess, for several reasons, so Ironclad implements an
+alternative scheme that remains somewhat compatible with classic POSIX syscalls
+with a bit of userland help.
+
+Signals in Ironclad are issued in the usual way with @code{send_signal}, which
+is a rough equivalent to the classic @code{kill}. Only some signals are
+supported this way, non-handable signals like @code{SIGKILL} and @code{SIGSTOP}
+have their own syscalls, that override the signal mechanism.
+@ref{actually_kill}.
+
+Instead of the code being interrupted and the whole signal mess, Ironclad
+allows reading bitmaps of the triggered signals of the process from a signal
+post, which is a special object that exposes process-wide signals. It allows
+polling, along with other goodies that come as an advantage of the file
+interface. Signal posts are created using the @pxref{signalpost} syscall.
+
+Since no interrupted code and weird state are involved, this approach allows
+for much easier, more straight-forward code, easier flow analysis, and makes
+@code{EINTR} complete obsolete, since to handle events asynchronously, one
+can just make a thread and act on signals there.
+
+In Ironclad, all signals able to be sent with @code{send_signal} have the
+purpose of communication, and do not kill processes when not handled. Some
+signals though are generated when a thread encounters irrecoverable state, like
+@code{SIGSEGV} or @code{SIGBUS}. These signals will kill the process when
+encountered by the kernel, but not when sent from process to process. Thus,
+they are unhandleable when encountered naturally.
+
+@node Sockets
+@section Sockets
+
+Standard sockets. @ref{socket}.
+
 @node Memory architecture
 @chapter Memory architecture
 
-Ironclad features several memory allocator choices for use, the chosen
-allocator will be used both for kernel and userland allocations.
+This section delves into details on Ironclad's memory management.
 
 @node Physical memory allocation
 @section Physical memory allocation
+
+Ironclad features two physical memory allocator choices for use, the chosen
+allocator will be used both for kernel and userland allocations, the standard
+and alloconly allocators.
 
 The standard allocator is a general purpose allocator for your average
 everyday allocator needs. Its internally implemented as a bitmap allocator with
 page-sized blocks and a quick cache for small objects, along with some quick
 hardening features, like checksums.
 
-An alloconly option is provided, which features several optimizations on top
-of the usual allocator in order to save memory and tune operation, for usecases
-where nor userland nor the kernel are wanted to dealocate memory at all.
+The alloconly option features several optimizations on top of the usual
+allocator in order to save memory and tune operation, for usecases where nor
+userland nor the kernel are wanted to deallocate memory at all.
 
 @node Virtual memory
 @section Virtual memory
@@ -500,6 +585,11 @@ The process will be able to access clocks syscalls like @ref{clock} or
 @code{clock_nanosleep}, as well as setting the time of clocks that can do so.
 This is provided as reading clock time can sometimes be used as a way to
 coordinate attacks.
+
+@item MAC_CAP_SIGNALALL
+Processes by default need to share the user with another one to either kill it
+or send a signal. This capability allows to send signals to all processes,
+regardless of the user issuing it.
 @end table
 
 Access to inodes and devices can be granted using @ref{add_mac_permissions}.
@@ -734,6 +824,10 @@ Empty.
 @ref{switch_tcluster}.
 @item
 @ref{actually_kill}.
+@item
+@ref{signalpost}.
+@item
+@ref{send_signal}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -1827,17 +1921,18 @@ sets the following errno:
 @section mac_capabilities
 
 @example
-#define MAC_CAP_SCHED   0b00000000001
-#define MAC_CAP_SPAWN   0b00000000010
-#define MAC_CAP_ENTROPY 0b00000000100
-#define MAC_CAP_SYS_MEM 0b00000001000
-#define MAC_CAP_USE_NET 0b00000010000
-#define MAC_CAP_SYS_NET 0b00000100000
-#define MAC_CAP_SYS_MNT 0b00001000000
-#define MAC_CAP_SYS_PWR 0b00010000000
-#define MAC_CAP_PTRACE  0b00100000000
-#define MAC_CAP_SETUID  0b01000000000
-#define MAC_CAP_SYS_MAC 0b10000000000
+#define MAC_CAP_SCHED     0b000000000001
+#define MAC_CAP_SPAWN     0b000000000010
+#define MAC_CAP_ENTROPY   0b000000000100
+#define MAC_CAP_SYS_MEM   0b000000001000
+#define MAC_CAP_USE_NET   0b000000010000
+#define MAC_CAP_SYS_NET   0b000000100000
+#define MAC_CAP_SYS_MNT   0b000001000000
+#define MAC_CAP_SYS_PWR   0b000010000000
+#define MAC_CAP_PTRACE    0b000100000000
+#define MAC_CAP_SETUID    0b001000000000
+#define MAC_CAP_SYS_MAC   0b010000000000
+#define MAC_CAP_SIGNALALL 0b100000000000
 
 unsigned long get_mac_capabilities(void);
 int set_mac_capabilities(unsigned long request);
@@ -3116,7 +3211,10 @@ This syscall terminates the passed PID, this is no POSIX @code{kill}, this
 @code{actually_kill}s. A process cannot actually kill itself.
 
 Only processes sharing the same UID or EUID as the caller's EUID can be
-actually killed.
+actually killed. The @code{MAC_CAP_SIGNALALL} capability overrides this check.
+
+Killed processes will behave as if they called @code{exit} with an error code
+of @code{128}.
 
 It returns @code{0} on success and @code{-1} on failure, with the following
 errno:
@@ -3128,6 +3226,55 @@ errno:
 @item EPERM
 The caller does not have the appropiate permissions over @code{pid} to actually
 kill.
+@end table
+
+@node signalpost
+@section signalpost
+
+@example
+int signalpost(void);
+@end example
+
+This syscall creates a signal post, @ref{Signal Posts}.
+
+It returns a valid FD or @code{-1} on failure, with the following errno:
+
+@table @code
+@item ESRCH
+@code{pid} is not a valid target for actual killing.
+
+@item EPERM
+The caller does not have the appropiate permissions over @code{pid} to actually
+kill.
+@end table
+
+@node send_signal
+@section send_signal
+
+@example
+int send_signal(int pid, int signal);
+@end example
+
+This syscall sends the passed signal to the passed PID.
+
+Group sending is not supported, but can easily be implemented in userland with
+process information. @ref{sysconf}.
+
+Only processes sharing the same UID or EUID as the caller's EUID can be
+signaled. The @code{MAC_CAP_SIGNALALL} capability overrides this check.
+
+It returns @code{0} on success and @code{-1} on failure, with the following
+errno:
+
+@table @code
+@item ESRCH
+@code{pid} is not a valid target for sending.
+
+@item EPERM
+The caller does not have permissions to signal @code{pid}.
+
+@item EINVAL
+@code{signal} is not a valid signal.
 @end table
 
 @node Filesystem support and interfaces

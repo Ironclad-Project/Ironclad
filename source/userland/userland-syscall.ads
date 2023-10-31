@@ -490,6 +490,7 @@ package Userland.Syscall is
    MAC_CAP_SETUID  : constant := 2#001000000000#;
    MAC_CAP_SYS_MAC : constant := 2#010000000000#;
    MAC_CAP_CLOCK   : constant := 2#100000000000#;
+   MAC_CAP_SIGNALALL : constant := 2#1000000000000#;
    procedure Set_MAC_Capabilities
       (Bits     : Unsigned_64;
        Returned : out Unsigned_64;
@@ -968,6 +969,17 @@ package Userland.Syscall is
 
    procedure Actually_Kill
       (Target   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure SignalPost
+      (Flags    : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure Send_Signal
+      (Target   : Unsigned_64;
+       Signal   : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
    ----------------------------------------------------------------------------

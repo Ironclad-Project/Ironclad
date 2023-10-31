@@ -257,6 +257,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Switch_TCluster (State.RDI, State.RSI, Returned, Errno);
          when 79 =>
             Actually_Kill (State.RDI, Returned, Errno);
+         when 80 =>
+            SignalPost (State.RDI, Returned, Errno);
+         when 81 =>
+            Send_Signal (State.RDI, State.RSI, Returned, Errno);
          when others =>
             Returned := Unsigned_64'Last;
             Errno    := Error_Not_Implemented;

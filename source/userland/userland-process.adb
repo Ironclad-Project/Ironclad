@@ -104,7 +104,8 @@ package body Userland.Process with SPARK_Mode => Off is
       for I in Registry.all'Range loop
          if Registry (I) = null then
             Registry (I) := new Process_Data'
-               (Umask           => Default_Umask,
+               (Signals         => (others => False),
+                Umask           => Default_Umask,
                 User            => 0,
                 Effective_User  => 0,
                 Identifier      => (others => ' '),
@@ -228,23 +229,21 @@ package body Userland.Process with SPARK_Mode => Off is
 
    procedure Flush_Threads (Proc : PID) is
       Current_Thread : constant TID := Arch.Local.Get_Current_Thread;
-      Temp1, Temp2, Temp3, Temp4 : Unsigned_64;
+      T1, T2, T3, T4 : Unsigned_64;
    begin
       for Thread of Registry (Proc).Thread_List loop
          if Thread /= Error_TID then
             if Registry (Proc).Parent /= Error_PID and then
                Registry (Registry (Proc).Parent) /= null
             then
-               Scheduler.Get_Runtime_Times (Thread, Temp1, Temp2, Temp3, Temp4);
+               Scheduler.Get_Runtime_Times (Thread, T1, T2, T3, T4);
 
                Lib.Time.Increment
                   (Registry (Registry (Proc).Parent).Children_SSec,
-                   Registry (Registry (Proc).Parent).Children_SNSec,
-                   Temp1, Temp2);
+                   Registry (Registry (Proc).Parent).Children_SNSec, T1, T2);
                Lib.Time.Increment
                   (Registry (Registry (Proc).Parent).Children_USec,
-                   Registry (Registry (Proc).Parent).Children_UNSec,
-                   Temp3, Temp4);
+                   Registry (Registry (Proc).Parent).Children_UNSec, T3, T4);
             end if;
 
             if Thread /= Current_Thread then
@@ -375,6 +374,7 @@ package body Userland.Process with SPARK_Mode => Off is
             when Description_Secondary_PTY => Close (F.Inner_Secondary_PTY);
             when Description_Device => null;
             when Description_Inode => VFS.Close (F.Inner_Ino_FS, F.Inner_Ino);
+            when Description_SignalPost => Close (F.Inner_Post);
             when Description_Socket => Close (F.Inner_Socket);
          end case;
          Free (F);
@@ -602,6 +602,22 @@ package body Userland.Process with SPARK_Mode => Off is
    begin
       Registry (Proc).Umask := Umask;
    end Set_Umask;
+
+   procedure Get_Raised_Signals (Proc : PID; Sig : out Signal_Bitmap) is
+   begin
+      Sig := Registry (Proc).Signals;
+   end Get_Raised_Signals;
+
+   procedure Pop_Raised_Signals (Proc : PID; Sig : out Signal_Bitmap) is
+   begin
+      Sig := Registry (Proc).Signals;
+      Registry (Proc).Signals := (others => False);
+   end Pop_Raised_Signals;
+
+   procedure Raise_Signal (Proc : PID; Sig : Overridable_Signal) is
+   begin
+      Registry (Proc).Signals (Sig) := True;
+   end Raise_Signal;
 
    function Convert (Proc : PID) return Natural is
    begin

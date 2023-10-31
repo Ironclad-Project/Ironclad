@@ -34,6 +34,7 @@ with Arch.Hooks;
 with Cryptography.Random;
 with IPC.PTY;  use IPC.PTY;
 with IPC.Futex;
+with IPC.SignalPost; use IPC.SignalPost;
 with Devices.TermIOs;
 with Arch.Power;
 with Devices; use Devices;
@@ -267,11 +268,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
                                         Unsigned_64 (Ret_Count);
                   Returned := Unsigned_64 (Ret_Count);
                   Errno    := Error_No_Error;
-                  return;
                else
                   Returned := Unsigned_64'Last;
                   Errno    := Error_IO;
-                  return;
                end if;
             when Description_Inode =>
                if not File.Inner_Ino_Read then
@@ -285,17 +284,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
                                      Unsigned_64 (Ret_Count);
                Translate_Status
                   (Success1, Unsigned_64 (Ret_Count), Returned, Errno);
-               return;
             when Description_Reader_FIFO =>
                Read (File.Inner_Reader_FIFO, Data, Ret_Count, Success2);
                Translate_Status (Success2, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
-               return;
             when Description_Primary_PTY =>
                IPC.PTY.Read_Primary (File.Inner_Primary_PTY, Data, Ret_Count);
                Returned := Unsigned_64 (Ret_Count);
                Errno    := Error_No_Error;
-               return;
             when Description_Secondary_PTY =>
                IPC.PTY.Read_Secondary
                   (File.Inner_Secondary_PTY, Data, Ret_Count);
@@ -304,7 +300,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
             when Description_Writer_FIFO =>
                Errno    := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
-               return;
+            when Description_SignalPost =>
+               Read (File.Inner_Post, Data, Ret_Count, Success3);
+               if Success3 then
+                  Returned := Unsigned_64 (Ret_Count);
+                  Errno    := Error_No_Error;
+               else
+                  Returned := Unsigned_64'Last;
+                  Errno    := Error_IO;
+               end if;
             when Description_Socket =>
                IPC.Socket.Read (File.Inner_Socket, Data, Ret_Count, Success4);
                Translate_Status
@@ -405,7 +409,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   (File.Inner_Secondary_PTY, Data, Ret_Count);
                Errno := Error_No_Error;
                Returned := Unsigned_64 (Ret_Count);
-            when Description_Reader_FIFO =>
+            when Description_Reader_FIFO | Description_SignalPost =>
                Errno := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
             when Description_Socket =>
@@ -1030,7 +1034,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
                end if;
                goto Success_Return;
             when Description_Reader_FIFO | Description_Writer_FIFO |
-                 Description_Primary_PTY | Description_Secondary_PTY =>
+                 Description_Primary_PTY | Description_Secondary_PTY |
+                 Description_SignalPost =>
                Stat_Buf :=
                   (Device_Number => 0,
                    Inode_Number  => 1,
@@ -1293,7 +1298,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Check_Add_File (Proc, Reader_Desc, Succ1, Res (1));
       Check_Add_File (Proc, Writer_Desc, Succ2, Res (2));
       if not Succ1 or not Succ2 then
-         Close (Returned2);
          Close (Reader_Desc);
          Close (Writer_Desc);
          Errno := Error_Too_Many_Files;
@@ -1745,32 +1749,39 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when F_GETFL =>
             case File.Description is
                when Description_Reader_FIFO =>
-                  if Is_Read_Blocking (File.Inner_Reader_FIFO) then
+                  if not Is_Read_Blocking (File.Inner_Reader_FIFO) then
                      Returned := O_NONBLOCK;
                   end if;
                when Description_Writer_FIFO =>
-                  if Is_Write_Blocking (File.Inner_Writer_FIFO) then
+                  if not Is_Write_Blocking (File.Inner_Writer_FIFO) then
                      Returned := O_NONBLOCK;
                   end if;
                when Description_Socket =>
-                  if Is_Blocking (File.Inner_Socket) then
+                  if not Is_Blocking (File.Inner_Socket) then
+                     Returned := O_NONBLOCK;
+                  end if;
+               when Description_SignalPost =>
+                  if not Is_Blocking (File.Inner_Post) then
                      Returned := O_NONBLOCK;
                   end if;
                when Description_Primary_PTY | Description_Secondary_PTY |
                     Description_Device      | Description_Inode =>
-                  null;
+                  Returned := 0;
             end case;
          when F_SETFL =>
             case File.Description is
                when Description_Reader_FIFO =>
                   Set_Read_Blocking
-                     (File.Inner_Reader_FIFO, (Argument and O_NONBLOCK) /= 0);
+                     (File.Inner_Reader_FIFO, (Argument and O_NONBLOCK) = 0);
                when Description_Writer_FIFO =>
                   Set_Write_Blocking
-                     (File.Inner_Reader_FIFO, (Argument and O_NONBLOCK) /= 0);
+                     (File.Inner_Reader_FIFO, (Argument and O_NONBLOCK) = 0);
                when Description_Socket =>
                   Set_Blocking
-                     (File.Inner_Socket, (Argument and O_NONBLOCK) /= 0);
+                     (File.Inner_Socket, (Argument and O_NONBLOCK) = 0);
+               when Description_SignalPost =>
+                  Set_Blocking
+                     (File.Inner_Post, (Argument and O_NONBLOCK) = 0);
                when Description_Primary_PTY | Description_Secondary_PTY |
                     Description_Device      | Description_Inode =>
                   null;
@@ -3156,6 +3167,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
                      IPC.Socket.Poll
                         (File.Inner_Socket, Can_Read, Can_Write, Is_Broken,
                          Is_Error);
+                  when Description_SignalPost =>
+                     Poll (File.Inner_Post, Can_Read, Is_Error);
+                     Can_Write := False;
+                     Is_Broken := False;
                   when Description_Inode =>
                      Can_Read  := True;
                      Can_Write := True;
@@ -4445,19 +4460,117 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return;
       end if;
 
-      Get_Effective_UID (Proc, EUID);
-      Get_UID (Tgt, Tgt_UID);
-      Get_Effective_UID (Tgt, Tgt_EUID);
-      if EUID /= Tgt_UID and EUID /= Tgt_EUID then
-         Errno    := Error_Bad_Permissions;
-         Returned := Unsigned_64'Last;
-         return;
+      if not Get_Capabilities (Proc).Can_Signal_All then
+         Get_Effective_UID (Proc, EUID);
+         Get_UID (Tgt, Tgt_UID);
+         Get_Effective_UID (Tgt, Tgt_EUID);
+         if EUID /= Tgt_UID and EUID /= Tgt_EUID then
+            Errno    := Error_Bad_Permissions;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
       end if;
 
       Do_Remote_Exit (Tgt, 128);
       Errno    := Error_No_Error;
       Returned := 0;
    end Actually_Kill;
+
+   procedure SignalPost
+      (Flags    : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc    : constant PID := Arch.Local.Get_Current_Process;
+      Post    : IPC.FIFO.Inner_Acc;
+      Result  : Natural;
+      Success : Boolean;
+      Desc    : File_Description_Acc;
+   begin
+      Post := Create ((Flags and O_NONBLOCK) = 0);
+      if Post = null then
+         Errno    := Error_No_Memory;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Desc := new File_Description'
+         (Children_Count    => 0,
+          Description       => Description_Reader_FIFO,
+          Inner_Reader_FIFO => Post);
+      Check_Add_File (Proc, Desc, Success, Result);
+      if not Success then
+         Close (Desc);
+         Errno := Error_Too_Many_Files;
+         Returned := Unsigned_64'Last;
+      else
+         Errno    := Error_No_Error;
+         Returned := Unsigned_64 (Result);
+      end if;
+   end SignalPost;
+
+   procedure Send_Signal
+      (Target   : Unsigned_64;
+       Signal   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Tgt  : constant PID := Convert (Natural (Target and 16#FFFFFFFF#));
+      EUID, Tgt_UID, Tgt_EUID : Unsigned_32;
+      Actual : Overridable_Signal;
+   begin
+      if Tgt = Error_PID then
+         Errno    := Error_Bad_Search;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if not Get_Capabilities (Proc).Can_Signal_All then
+         Get_Effective_UID (Proc, EUID);
+         Get_UID (Tgt, Tgt_UID);
+         Get_Effective_UID (Tgt, Tgt_EUID);
+         if EUID /= Tgt_UID and EUID /= Tgt_EUID then
+            Errno    := Error_Bad_Permissions;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+      end if;
+
+      case Signal is
+         when  1 => Actual := Signal_Hang_Up;
+         when  2 => Actual := Signal_Interrupted;
+         when  3 => Actual := Signal_Quit;
+         when  4 => Actual := Signal_Illegal_Instruction;
+         when  5 => Actual := Signal_Tracepoint;
+         when  6 => Actual := Signal_Abort;
+         when  7 => Actual := Signal_Bad_Memory;
+         when  8 => Actual := Signal_FP_Exception;
+         when 10 => Actual := Signal_User_1;
+         when 11 => Actual := Signal_Segmentation_Fault;
+         when 12 => Actual := Signal_User_2;
+         when 13 => Actual := Signal_Broken_Pipe;
+         when 14 => Actual := Signal_Alarm;
+         when 15 => Actual := Signal_Terminated;
+         when 17 => Actual := Signal_Child;
+         when 21 => Actual := Signal_Terminal_In;
+         when 22 => Actual := Signal_Terminal_Out;
+         when 23 => Actual := Signal_Urgent;
+         when 24 => Actual := Signal_CPU_Exceeded;
+         when 25 => Actual := Signal_File_Size_Exceeded;
+         when 26 => Actual := Signal_Virtual_Timer;
+         when 29 => Actual := Signal_Pollable;
+         when 31 => Actual := Signal_Bad_Syscall;
+         when others =>
+            Errno    := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
+            return;
+      end case;
+
+      Raise_Signal (Tgt, Actual);
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end Send_Signal;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
@@ -4788,7 +4901,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
            Caps.Can_Trace_Children    and ((Bits and MAC_CAP_PTRACE)  /= 0),
            Caps.Can_Change_UIDs       and ((Bits and MAC_CAP_SETUID)  /= 0),
            Caps.Can_Manage_MAC        and ((Bits and MAC_CAP_SYS_MAC) /= 0),
-           Caps.Can_Use_Clocks        and ((Bits and MAC_CAP_CLOCK)   /= 0)));
+           Caps.Can_Use_Clocks        and ((Bits and MAC_CAP_CLOCK)   /= 0),
+           Caps.Can_Signal_All       and ((Bits and MAC_CAP_SIGNALALL) /= 0)));
    end Set_MAC_Capabilities;
 
    procedure MAC_Syscall_To_Kernel
