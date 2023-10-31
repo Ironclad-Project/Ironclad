@@ -24,6 +24,7 @@ with Userland.Syscall; use Userland.Syscall;
 with Arch.Snippets; use Arch.Snippets;
 with Arch.Local;
 with Userland.Corefile;
+with Userland.Process;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
@@ -39,7 +40,6 @@ package body Arch.Interrupts with SPARK_Mode => Off is
           28 => "#HV", 29 => "#VC", 30 => "#SX");
    begin
       --  Check whether we have to panic or just exit the thread.
-      --  TODO: Send a SIGSEGV instead of just exiting.
       if State.CS = (GDT.User_Code64_Segment or 3) then
          Lib.Messages.Put_Line ("Userland " & Exception_Text (Num));
          Userland.Corefile.Generate_Corefile (Context.GP_Context (State.all));
@@ -262,6 +262,9 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 81 =>
             Send_Signal (State.RDI, State.RSI, Returned, Errno);
          when others =>
+            Userland.Process.Raise_Signal
+               (Local.Get_Current_Process,
+                Userland.Process.Signal_Bad_Syscall);
             Returned := Unsigned_64'Last;
             Errno    := Error_Not_Implemented;
       end case;
