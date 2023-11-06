@@ -15,37 +15,87 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Characters.Latin_1;
-with Lib.Synchronization;
+with Lib.Synchronization; use Lib.Synchronization;
 
 package body Lib.Messages with
-   Refined_State => (Message_State => Messages_Mutex)
+   Refined_State => (Message_State =>
+      (Messages_Mutex, Curr_Entry, Small_Log_Buffer, Log_Ring_Buffer))
 is
    --  Unit passes GNATprove AoRTE, GNAT does not know this.
    pragma Suppress (All_Checks);
 
-   Messages_Mutex : aliased Lib.Synchronization.Binary_Semaphore :=
-      Lib.Synchronization.Unlocked_Semaphore;
+   --  80 is the classical UNIX terminal column count + newline.
+   type Message_Buffer     is array (Natural range <>) of String (1 .. 80);
+   type Message_Buffer_Acc is access Message_Buffer;
+
+   Messages_Mutex   : aliased Binary_Semaphore := Unlocked_Semaphore;
+   Curr_Entry       : Natural := 1;
+   Small_Log_Buffer : Message_Buffer (1 .. 15);
+   Log_Ring_Buffer  : Message_Buffer_Acc := null;
+
+   procedure Enable_Logging is
+   begin
+      Lib.Synchronization.Seize (Messages_Mutex);
+      Log_Ring_Buffer := new Message_Buffer (1 .. 100);
+      Log_Ring_Buffer (1 .. Small_Log_Buffer'Length) := Small_Log_Buffer;
+      Lib.Synchronization.Release (Messages_Mutex);
+   end Enable_Logging;
 
    procedure Warn (Message : String) is
-      Header_Str : constant String := Ada.Characters.Latin_1.ESC & "[35m";
-      Reset_Str  : constant String := Ada.Characters.Latin_1.ESC & "[0m";
    begin
-      Print_Timestamp_And_Lock;
-      Arch.Debug.Print (Header_Str & "Warning" & Reset_Str & ": ");
-      Arch.Debug.Print (Message);
-      Arch.Debug.Print (Ada.Characters.Latin_1.CR);
-      Arch.Debug.Print (Ada.Characters.Latin_1.LF);
-      Lib.Synchronization.Release (Messages_Mutex);
+      Put_Line ("Warning: " & Message);
    end Warn;
 
    procedure Put_Line (Message : String) is
+      Timestamp : String (1 .. 10);
+      Final     : String (1 .. 80) := (others => ' ');
+      Last_Idx  : Natural;
    begin
-      Print_Timestamp_And_Lock;
-      Arch.Debug.Print (Message);
+      Get_Timestamp (Timestamp);
+      Final (1) := '(';
+      Final (2 .. 11) := Timestamp;
+      Final (12 .. 13) := ") ";
+      Final (14 .. Message'Length + 13) := Message;
+
+      Lib.Synchronization.Seize (Messages_Mutex);
+
+      if Log_Ring_Buffer /= null then
+         Last_Idx := Log_Ring_Buffer'Last;
+         Log_Ring_Buffer (Curr_Entry) := Final;
+      else
+         Last_Idx := Small_Log_Buffer'Last;
+         Small_Log_Buffer (Curr_Entry) := Final;
+      end if;
+
+      Arch.Debug.Print (Final);
       Arch.Debug.Print (Ada.Characters.Latin_1.CR);
       Arch.Debug.Print (Ada.Characters.Latin_1.LF);
+
+      Curr_Entry := Curr_Entry + 1;
+      if Curr_Entry > Last_Idx then
+         Curr_Entry := 1;
+      end if;
+
       Lib.Synchronization.Release (Messages_Mutex);
    end Put_Line;
+
+   procedure Dump_Logs (Buffer : out String; Length : out Natural) is
+      Idx : Natural := 0;
+   begin
+      for C of Buffer loop
+         C := ' ';
+      end loop;
+      Length := Log_Ring_Buffer'Length * 80;
+
+      if Buffer'Length < Length then
+         return;
+      end if;
+
+      for Line of Log_Ring_Buffer.all loop
+         Buffer (Buffer'First + Idx .. Buffer'First + Idx + 79) := Line;
+         Idx := Idx + 80;
+      end loop;
+   end Dump_Logs;
    ----------------------------------------------------------------------------
    procedure Image
       (Value   : Unsigned_32;
@@ -78,15 +128,13 @@ is
       Length := Buffer'Length - Current;
    end Image;
    ----------------------------------------------------------------------------
-   procedure Print_Timestamp_And_Lock is
+   procedure Get_Timestamp (Timestamp : out Timestamp_Str) is
       Stp     : Translated_String;
       Stp_Len : Natural;
       Sec, NSec : Unsigned_64;
    begin
       Arch.Clocks.Get_Monotonic_Time (Sec, NSec);
-      Image ((Sec * 1000) + (NSec / 1_000_000), Stp, Stp_Len);
-
-      Lib.Synchronization.Seize (Messages_Mutex);
-      Arch.Debug.Print ("(" & Stp (Stp'Last - Stp_Len + 1 .. Stp'Last) & ") ");
-   end Print_Timestamp_And_Lock;
+      Image (Sec, Stp, Stp_Len, True);
+      Timestamp := Stp (11 .. Stp'Last);
+   end Get_Timestamp;
 end Lib.Messages;

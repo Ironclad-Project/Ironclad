@@ -22,6 +22,11 @@ package Lib.Messages with
    Abstract_State => Message_State,
    Initializes    => Message_State
 is
+   --  Enable in-memory message logging.
+   --  Until this function is called, the kernel uses a really small built-in
+   --  buffer.
+   procedure Enable_Logging with Global => (In_Out => Message_State);
+
    --  Print a warning message to debug outputs and add a newline.
    --  @param Message String to print appending a newline.
    procedure Warn (Message : String)
@@ -37,6 +42,12 @@ is
          Arch.Clocks.Monotonic_Clock_State,
          Arch.Debug.Debug_State,
          Message_State));
+
+   --  Dump the logs from the ring buffer, they may be out of order!
+   --  @param Buffer Buffer to store the messages.
+   --  @param Length Total length in bytes of the logs, even if it doesnt fit.
+   procedure Dump_Logs (Buffer : out String; Length : out Natural)
+      with Global => (In_Out => (Message_State));
    ----------------------------------------------------------------------------
    --  Types for translation strings.
    subtype Translated_String is String (1 .. 20);
@@ -66,7 +77,8 @@ is
 
 private
 
-   procedure Print_Timestamp_And_Lock
+   subtype Timestamp_Str is String (1 .. 10);
+   procedure Get_Timestamp (Timestamp : out Timestamp_Str)
       with Global => (In_Out => (
          Arch.Clocks.Monotonic_Clock_State,
          Arch.Debug.Debug_State,

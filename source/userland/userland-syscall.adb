@@ -1571,6 +1571,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
                Result := Unsigned_64 (Ret);
             end;
+         when SC_DUMPLOGS =>
+            declare
+               Log  : String (1 .. Natural (Length))
+                  with Import, Address => SAddr;
+               Ret  : Natural;
+            begin
+               Lib.Messages.Dump_Logs (Log, Ret);
+               Result := Unsigned_64 (Ret);
+            end;
          when others =>
             Errno    := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
@@ -1581,6 +1590,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno    := Error_No_Error;
       Returned := Result;
    end Sysconf;
+
    procedure Spawn
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
@@ -4857,6 +4867,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
             --  TODO: Kill and not exit, once we have such a thing.
             --  The semantics of SIGTERM and SIGKILL matter.
          --  https://linuxhandbook.com/content/images/2020/06/dont-sigkill.jpeg
+            Lib.Messages.Image
+               (Unsigned_32 (Convert (Curr_Proc)), PID_Buffer, PID_Len);
+            Lib.Messages.Put_Line (PID_Buffer & " MAC killing " & Name);
             Do_Exit (Curr_Proc, 42);
       end case;
    end Execute_MAC_Failure;

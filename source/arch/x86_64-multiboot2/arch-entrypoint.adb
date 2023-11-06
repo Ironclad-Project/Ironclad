@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
 with Arch.APIC;
 with Arch.ACPI;
 with Arch.GDT;
@@ -23,13 +24,16 @@ with Arch.PIC;
 with Arch.PIT;
 with Arch.CPU;
 with Lib.Panic;
+with Lib.Messages; use Lib.Messages;
 with Memory.Physical;
 with Main;
 with Arch.MMU;
 
 package body Arch.Entrypoint with SPARK_Mode => Off is
    procedure Bootstrap_Main (Proto : Multiboot2.Header_Acc) is
-      Info : Boot_Information renames Global_Info;
+      Info     : Boot_Information renames Global_Info;
+      St1, St2 : Lib.Messages.Translated_String;
+      Stp_Len  : Natural;
    begin
       --  Initialize architectural state first.
       GDT.Init;
@@ -37,6 +41,15 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
 
       --  Translate the multiboot2 protocol.
       Multiboot2.Translate_Proto (Proto);
+
+      --  Print the memory map, it is useful at times.
+      Lib.Messages.Put_Line ("x86_64-multiboot2 physical map:");
+      for E of Info.Memmap (1 .. Info.Memmap_Len) loop
+         Image (Unsigned_64 (To_Integer (E.Start)), St1, Stp_Len, True);
+         Image (Unsigned_64 (E.Length), St2, Stp_Len, True);
+         Lib.Messages.Put_Line (St1 & " + " & St2 & " " &
+            Boot_Memory_Type'Image (E.MemType));
+      end loop;
 
       --  Initialize the allocators and MMU.
       Memory.Physical.Init_Allocator (Info.Memmap (1 .. Info.Memmap_Len));

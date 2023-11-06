@@ -52,9 +52,9 @@ begin
    --  Initialize several printing-needed subsystems.
    Arch.Clocks.Initialize_Sources;
 
+   Lib.Messages.Enable_Logging;
    Lib.Messages.Put_Line (Config.Name & " " & Config.Version);
    Lib.Messages.Put_Line ("Please report bugs at " & Config.Bug_Site);
-   Lib.Messages.Put_Line ("Command line: '" & Cmdline & "'");
 
    --  Initialize several subsystems.
    Networking.Initialize;
@@ -74,9 +74,11 @@ begin
 
    --  Before loading stuff, check if the user wants us to do something funky.
    if Lib.Cmdline.Is_Key_Present (Cmdline, Lib.Cmdline.No_Program_ASLR) then
+      Lib.Messages.Put_Line ("Disabled loader ASLR");
       Userland.Loader.Disable_ASLR;
    end if;
    if Lib.Cmdline.Is_Key_Present (Cmdline, Lib.Cmdline.No_Location_ASLR) then
+      Lib.Messages.Put_Line ("Disabled process ASLR");
       Userland.Process.Disable_ASLR;
    end if;
 
@@ -84,6 +86,7 @@ begin
    Lib.Cmdline.Get_Parameter
       (Cmdline, Lib.Cmdline.Root_UUID_Key, Value, Found, Value_Len);
    if Found and Value_Len = Devices.UUID_String'Length then
+      Lib.Messages.Put_Line ("Searching root " & Value (1 .. Value_Len));
       Init_Dev := Devices.Fetch_UUID (Value (1 .. Value_Len));
       if Init_Dev /= Devices.Error_Handle then
          Devices.Fetch_Name (Init_Dev, Value, Value_Len);
@@ -95,6 +98,7 @@ begin
          (Cmdline, Lib.Cmdline.Root_Key, Value, Found, Value_Len);
    end if;
    if Found and Value_Len /= 0 then
+      Lib.Messages.Put_Line ("Mounting root " & Value (1 .. Value_Len));
       VFS.Mount (Value (1 .. Value_Len), "/", False, Found);
       if not Found then
          Lib.Messages.Warn ("Failed to mount " & Value (1 .. Value_Len));

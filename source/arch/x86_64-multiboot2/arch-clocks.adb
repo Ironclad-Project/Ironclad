@@ -38,7 +38,7 @@ is
 
    --  This variable is used for TSC frequency tracking. It symbolized the
    --  clock cycles per nanosecond.
-   Mono_TSC_Freq : Unsigned_64;
+   Mono_TSC_Freq : Unsigned_64 := 2;
 
    procedure Initialize_Sources is
    begin

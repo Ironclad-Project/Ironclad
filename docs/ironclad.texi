@@ -1611,6 +1611,7 @@ codes set on failure are:
 #define SC_LIST_THREADS  12 // List all threads of the system.
 #define SC_LIST_CLUSTERS 13 // List all thread clusters of the system.
 #define SC_LIST_NETINTER 14 // List all network interfaces.
+#define SC_DUMPLOGS      15 // Dump kernel logging to a buffer.
 
 long int sysconf(int request, uintptr_t addr, uintptr_t len);
 @end example
@@ -1724,8 +1725,11 @@ struct netinterface @{
 @};
 @end example
 
-The total number of interfaces is returned, even if it doesnt fit in the
-passed array.
+@item
+@code{SC_DUMPLOGS}: @code{addr} points to a string to store the buffer, which
+is an array of 80-char long strings. @code{len} is the length of the buffer.
+The total length of the kernel buffer is returned, regardless of whether it
+fits or not.
 @end itemize
 
 The syscall return the requested information on success and @code{-1} on

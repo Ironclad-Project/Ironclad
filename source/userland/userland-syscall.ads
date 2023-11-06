@@ -350,6 +350,7 @@ package Userland.Syscall is
    SC_LIST_THREADS  : constant := 12;
    SC_LIST_CLUSTERS : constant := 13;
    SC_LIST_NETINTER : constant := 14;
+   SC_DUMPLOGS      : constant := 15;
 
    PROC_IS_TRACED : constant := 2#01#;
    PROC_EXITED    : constant := 2#10#;
