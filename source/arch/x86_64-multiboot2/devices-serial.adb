@@ -64,6 +64,14 @@ package body Devices.Serial with SPARK_Mode => Off is
       return True;
    end Init;
 
+   procedure Init_COM1 is
+   begin
+      Arch.Snippets.Port_Out (COM_Ports (1) + Interrupt_Enable, 16#00#);
+      Set_Baud (COM_Ports (1), Default_Baud);
+      Arch.Snippets.Port_Out (COM_Ports (1) + Interrupt_ID,  16#C7#);
+      Arch.Snippets.Port_Out (COM_Ports (1) + Modem_Control, 2#11#);
+   end Init_COM1;
+
    procedure Read_COM1 (S : out Operation_Data) is
       Count : Natural;
       Succ  : Boolean;

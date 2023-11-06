@@ -28,6 +28,7 @@ with Lib.Messages; use Lib.Messages;
 with Memory.Physical;
 with Main;
 with Arch.MMU;
+with Devices.Serial;
 
 package body Arch.Entrypoint with SPARK_Mode => Off is
    procedure Bootstrap_Main (Proto : Multiboot2.Header_Acc) is
@@ -36,6 +37,7 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
       Stp_Len  : Natural;
    begin
       --  Initialize architectural state first.
+      Devices.Serial.Init_COM1;
       GDT.Init;
       IDT.Init;
 

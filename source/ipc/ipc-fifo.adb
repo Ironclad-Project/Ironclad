@@ -150,26 +150,30 @@ package body IPC.FIFO is
    begin
       Data := (others => 0);
 
-      if To_Read.Writer_Closed and To_Read.Data_Count = 0 then
-         Ret_Count := 0;
-         Success   := Pipe_Success;
-         return;
-      end if;
-
       if To_Read.Is_Read_Blocking then
          loop
+            Lib.Synchronization.Seize (To_Read.Mutex);
             if To_Read.Data_Count /= 0 then
-               Lib.Synchronization.Seize (To_Read.Mutex);
                exit when To_Read.Data_Count /= 0;
-               Lib.Synchronization.Release (To_Read.Mutex);
             end if;
+            if To_Read.Writer_Closed then
+               Ret_Count := 0;
+               Success   := Pipe_Success;
+               Lib.Synchronization.Release (To_Read.Mutex);
+               return;
+            end if;
+            Lib.Synchronization.Release (To_Read.Mutex);
             Scheduler.Yield_If_Able;
          end loop;
       else
          Lib.Synchronization.Seize (To_Read.Mutex);
          if To_Read.Data_Count = 0 then
             Ret_Count := 0;
-            Success   := Would_Block_Failure;
+            if To_Read.Writer_Closed then
+               Success := Pipe_Success;
+            else
+               Success := Would_Block_Failure;
+            end if;
             Lib.Synchronization.Release (To_Read.Mutex);
             return;
          end if;

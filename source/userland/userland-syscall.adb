@@ -4781,33 +4781,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Env  : Userland.Environment_Arr (1 .. Envp'Length);
       begin
          for I in Argv'Range loop
-            declare
-               Addr : constant System.Address :=
-                  To_Address (Integer_Address (Argv (I)));
-               Arg_Length : constant Natural := Lib.C_String_Length (Addr);
-               Arg_String : String (1 .. Arg_Length)
-                  with Import, Address => Addr;
-            begin
-               Args (I) := new String'(Arg_String);
-            end;
+            Args (I) := To_String (To_Address (Integer_Address (Argv (I))));
          end loop;
          for I in Envp'Range loop
-            declare
-               Addr : constant System.Address :=
-                  To_Address (Integer_Address (Envp (I)));
-               Arg_Length : constant Natural := Lib.C_String_Length (Addr);
-               Arg_String : String (1 .. Arg_Length)
-                  with Import, Address => Addr;
-            begin
-               Env (I) := new String'(Arg_String);
-            end;
+            Env (I) := To_String (To_Address (Integer_Address (Envp (I))));
          end loop;
 
          --  Create a new map for the process and reroll ASLR.
          Userland.Process.Flush_Exec_Files (Proc);
          Userland.Process.Reroll_ASLR (Proc);
-         Set_Common_Map
-            (Proc, Arch.MMU.Fork_Table (Arch.MMU.Kernel_Table));
+         Set_Common_Map (Proc, Arch.MMU.Fork_Table (Arch.MMU.Kernel_Table));
          Set_Identifier (Proc, Args (1).all);
 
          --  Start the actual program.
@@ -4838,6 +4821,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end;
    end Exec_Into_Process;
 
+   function To_String (Addr : System.Address) return String_Acc is
+      Arg_Length : constant Natural := Lib.C_String_Length (Addr);
+      Arg_String : String (1 .. Arg_Length) with Import, Address => Addr;
+   begin
+      return new String'(Arg_String);
+   end To_String;
+
    function Get_Mmap_Prot
       (Prot  : Unsigned_64;
        Perms : Unsigned_64) return Arch.MMU.Page_Permissions is
@@ -4852,23 +4842,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Get_Mmap_Prot;
 
    procedure Execute_MAC_Failure (Name : String; Curr_Proc : PID) is
-      Discard    : Errno_Value;
+      Curr_PID   : constant Unsigned_32 := Unsigned_32 (Convert (Curr_Proc));
       PID_Buffer : Lib.Messages.Translated_String;
       PID_Len    : Natural;
    begin
+      Lib.Messages.Image (Curr_PID, PID_Buffer, PID_Len);
       case Get_Enforcement (Curr_Proc) is
          when MAC.Deny =>
             null;
          when MAC.Deny_And_Scream =>
-            Lib.Messages.Image
-               (Unsigned_32 (Convert (Curr_Proc)), PID_Buffer, PID_Len);
             Lib.Messages.Put_Line (PID_Buffer & " MAC failure " & Name);
          when MAC.Kill =>
-            --  TODO: Kill and not exit, once we have such a thing.
-            --  The semantics of SIGTERM and SIGKILL matter.
-         --  https://linuxhandbook.com/content/images/2020/06/dont-sigkill.jpeg
-            Lib.Messages.Image
-               (Unsigned_32 (Convert (Curr_Proc)), PID_Buffer, PID_Len);
             Lib.Messages.Put_Line (PID_Buffer & " MAC killing " & Name);
             Do_Exit (Curr_Proc, 42);
       end case;
