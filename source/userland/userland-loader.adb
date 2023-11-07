@@ -27,6 +27,7 @@ with Userland.Memory_Locations;
 with Lib.Alignment;
 with Cryptography.Random;
 with Devices;
+with Userland.MAC; use Userland.MAC;
 
 package body Userland.Loader with SPARK_Mode => Off is
    Do_ASLR : Boolean := True;
@@ -170,13 +171,14 @@ package body Userland.Loader with SPARK_Mode => Off is
 
       declare
          Returned_TID : constant Scheduler.TID := Scheduler.Create_User_Thread
-            (Address => Entrypoint,
-             Args    => Arguments,
-             Env     => Environment,
-             Map     => Process.Get_Common_Map (Proc),
-             Vector  => Loaded_ELF.Vector,
-             Cluster => Scheduler.Convert (1),
-             PID     => Process.Convert (Proc));
+            (Address    => Entrypoint,
+             Args       => Arguments,
+             Env        => Environment,
+             Map        => Process.Get_Common_Map (Proc),
+             Vector     => Loaded_ELF.Vector,
+             Cluster    => Scheduler.Convert (1),
+             Stack_Size => Unsigned_64 (Get_Limit (Proc, Stack_Size_Limit)),
+             PID        => Process.Convert (Proc));
       begin
          if Returned_TID = Error_TID then
             goto Error;

@@ -610,7 +610,15 @@ File access enforcement will kick in only once the first filter is added with
 As part of the UNIX-like package, Ironclad supports various resource limits
 that, in the case of Ironclad, are built inside MAC, and are passed down like
 MAC capabilities (@pxref{Mandatory access control (MAC)}).
-@xref{getrlimit/setrlimit}
+@xref{getrlimit/setrlimit}.
+
+Limits mostly act as you would expect them to behave, and they are all
+initialized to the maximum possible value, there are only 2 quirks: For one,
+limits are only deescalatory (like MAC), you can only go down, never up, and,
+since Ironclad does not support dynamically growing stacks, the initial size is
+dictated (for the stacks created by the kernel) with @code{RLIMIT_STACK}. Thus,
+Ironclad does not start that limit with the maximum value, but a smaller valid
+size.
 
 @node Miscellaneous measures
 @section Miscellaneous measures
@@ -2457,7 +2465,6 @@ following errno:
 @example
 #define RLIMIT_CORE   1 // Size of core files, 0 for disabling.
 #define RLIMIT_CPU    2 // CPU time limit in seconds.
-#define RLIMIT_DATA   3 // Data segment size in bytes.
 #define RLIMIT_FSIZE  4 // Maximum file size in bytes.
 #define RLIMIT_NOFILE 5 // Maximum number of open file descriptors.
 #define RLIMIT_STACK  6 // Maximum stack size in bytes.
@@ -2481,17 +2488,15 @@ core files are not generated.
 @item
 @code{RLIMIT_CPU}: Once the limit is passed, the process is killed.
 @item
-@code{RLIMIT_DATA}: @code{mmap} or other allocation syscalls will fail with
-@code{ENOMEM}.
-@item
 @code{RLIMIT_FSIZE}: System call growing the file fails with @code{EFBIG}.
 @item
 @code{RLIMIT_NOFILE}: Adding a new file descriptor fails with @code{EMFILE}.
 @item
-@code{RLIMIT_STACK}: The operation will fail, and a @code{SIGSEGV} will be
-generated.
+@code{RLIMIT_STACK}: The value is used for the size of created stacks, thus
+there is no failure condition.
 @item
-@code{RLIMIT_AS}: Same as @code{RLIMIT_DATA}.
+@code{RLIMIT_AS}: @code{mmap} or other virtual memory allocation syscalls will
+fail with @code{ENOMEM}.
 @end itemize
 
 @code{setrlimit} returns @code{0} on success or @code{-1} on failure. For

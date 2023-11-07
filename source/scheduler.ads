@@ -39,13 +39,14 @@ package Scheduler is
    --  Creates a userland thread, and queues it for execution.
    --  Return thread ID or 0 on failure.
    function Create_User_Thread
-      (Address : Virtual_Address;
-       Args    : Userland.Argument_Arr;
-       Env     : Userland.Environment_Arr;
-       Map     : Arch.MMU.Page_Table_Acc;
-       Vector  : Userland.ELF.Auxval;
-       Cluster : TCID;
-       PID     : Natural) return TID;
+      (Address    : Virtual_Address;
+       Args       : Userland.Argument_Arr;
+       Env        : Userland.Environment_Arr;
+       Map        : Arch.MMU.Page_Table_Acc;
+       Vector     : Userland.ELF.Auxval;
+       Cluster    : TCID;
+       Stack_Size : Unsigned_64;
+       PID        : Natural) return TID;
 
    --  Create a userland thread with no arguments.
    function Create_User_Thread

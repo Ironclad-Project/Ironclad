@@ -512,8 +512,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno      : out Errno_Value)
    is
       pragma Unreferenced (Offset);
-      Perms : constant Arch.MMU.Page_Permissions :=
-         Get_Mmap_Prot (Protection, Flags);
+      Perms : constant Page_Permissions := Get_Mmap_Prot (Protection, Flags);
       Proc       : constant            PID := Arch.Local.Get_Current_Process;
       Map        : constant Page_Table_Acc := Get_Common_Map (Proc);
       Final_Hint : Unsigned_64 := Hint;
@@ -532,6 +531,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
             (Length mod Page_Size /= 0)
       then
          Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif Get_User_Mapped_Size (Map) + Length >=
+         Unsigned_64 (Get_Limit (Proc, MAC.Memory_Size_Limit))
+      then
+         Errno    := Error_No_Memory;
          Returned := Unsigned_64'Last;
          return;
       end if;
@@ -4911,7 +4916,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       case Val is
          when RLIMIT_CORE   => Limit := MAC.Core_Size_Limit;
          when RLIMIT_CPU    => Limit := MAC.CPU_Time_Limit;
-         when RLIMIT_DATA   => Limit := MAC.Data_Size_Limit;
          when RLIMIT_FSIZE  => Limit := MAC.File_Size_Limit;
          when RLIMIT_NOFILE => Limit := MAC.Opened_File_Limit;
          when RLIMIT_STACK  => Limit := MAC.Stack_Size_Limit;

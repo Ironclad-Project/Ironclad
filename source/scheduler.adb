@@ -29,11 +29,10 @@ with Arch.CPU;
 with Ada.Unchecked_Deallocation;
 
 package body Scheduler with SPARK_Mode => Off is
-   Stack_Size  : constant := 16#20000#; --  Fat userland needs fat 128KiB.
-   Kernel_Size : constant := 16#2000#;  --  Fashionably small stack for the us!
-   type Thread_Stack     is array (1 ..     Stack_Size) of Unsigned_8;
-   type Thread_Stack_64  is array (1 .. Stack_Size / 8) of Unsigned_64;
-   type Kernel_Stack     is array (1 ..    Kernel_Size) of Unsigned_8;
+   Kernel_Stack_Size : constant := 16#2000#;
+   type Thread_Stack     is array (Natural range <>) of Unsigned_8;
+   type Thread_Stack_64  is array (Natural range <>) of Unsigned_64;
+   type Kernel_Stack     is array (1 ..  Kernel_Stack_Size) of Unsigned_8;
    type Kernel_Stack_Acc is access Kernel_Stack;
 
    procedure Free is new Ada.Unchecked_Deallocation
@@ -125,13 +124,14 @@ package body Scheduler with SPARK_Mode => Off is
    end Idle_Core;
 
    function Create_User_Thread
-      (Address : Virtual_Address;
-       Args    : Userland.Argument_Arr;
-       Env     : Userland.Environment_Arr;
-       Map     : Arch.MMU.Page_Table_Acc;
-       Vector  : Userland.ELF.Auxval;
-       Cluster : TCID;
-       PID     : Natural) return TID
+      (Address    : Virtual_Address;
+       Args       : Userland.Argument_Arr;
+       Env        : Userland.Environment_Arr;
+       Map        : Arch.MMU.Page_Table_Acc;
+       Vector     : Userland.ELF.Auxval;
+       Cluster    : TCID;
+       Stack_Size : Unsigned_64;
+       PID        : Natural) return TID
    is
       Stack_Permissions : constant Arch.MMU.Page_Permissions :=
          (Is_User_Accesible => True,
@@ -141,6 +141,7 @@ package body Scheduler with SPARK_Mode => Off is
           Is_Global         => False,
           Is_Write_Combine  => False);
 
+      Proc : constant Userland.Process.PID := Userland.Process.Convert (PID);
       New_TID   : TID := Error_TID;
       GP_State  : Arch.Context.GP_Context_Acc := new Arch.Context.GP_Context;
       FP_State  : Arch.Context.FP_Context_Acc := new Arch.Context.FP_Context;
@@ -149,15 +150,13 @@ package body Scheduler with SPARK_Mode => Off is
       Success   : Boolean;
    begin
       --  Initialize thread state. Start by mapping the user stack.
-      Stack_Top := Userland.Process.Get_Stack_Base
-         (Userland.Process.Convert (PID));
-      Userland.Process.Set_Stack_Base
-         (Userland.Process.Convert (PID), Stack_Top + Stack_Size);
+      Stack_Top := Userland.Process.Get_Stack_Base (Proc);
+      Userland.Process.Set_Stack_Base (Proc, Stack_Top + Stack_Size);
       Arch.MMU.Map_Allocated_Range
          (Map            => Map,
           Physical_Start => Result,
           Virtual_Start  => To_Address (Virtual_Address (Stack_Top)),
-          Length         => Stack_Size,
+          Length         => Storage_Offset (Stack_Size),
           Permissions    => Stack_Permissions,
           Success        => Success);
       if not Success then
@@ -165,8 +164,9 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       declare
-         Stk_8  : Thread_Stack    with Import, Address => Result;
-         Stk_64 : Thread_Stack_64 with Import, Address => Result;
+         Sz     : constant Natural := Natural (Stack_Size);
+         Stk_8  : Thread_Stack (1 .. Sz) with Import, Address => Result;
+         Stk_64 : Thread_Stack_64 (1 .. Sz / 8) with Import, Address => Result;
          Index_8  : Natural := Stk_8'Last;
          Index_64 : Natural := Stk_64'Last;
       begin

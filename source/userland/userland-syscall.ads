@@ -718,7 +718,6 @@ package Userland.Syscall is
    --  Get a resource limit.
    RLIMIT_CORE   : constant := 1;
    RLIMIT_CPU    : constant := 2;
-   RLIMIT_DATA   : constant := 3;
    RLIMIT_FSIZE  : constant := 4;
    RLIMIT_NOFILE : constant := 5;
    RLIMIT_STACK  : constant := 6;

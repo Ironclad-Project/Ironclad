@@ -177,6 +177,12 @@ package Arch.MMU is
          (Virtual_Start  mod Page_Size = 0) and
          (Length         mod Page_Size = 0);
 
+   --  Get the user mapped memory size, thus, not including kernel space.
+   --  @param Map Map to get the size for.
+   --  @return Size.
+   function Get_User_Mapped_Size (Map : Page_Table_Acc) return Unsigned_64
+      with Pre => Map /= null;
+
 private
 
    #if ArchName = """aarch64-stivale2"""

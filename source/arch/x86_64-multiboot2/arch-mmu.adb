@@ -475,6 +475,19 @@ package body Arch.MMU with SPARK_Mode => Off is
       Lib.Synchronization.Release (Map.Mutex);
       return Success;
    end Unmap_Range;
+
+   function Get_User_Mapped_Size (Map : Page_Table_Acc) return Unsigned_64 is
+      Value : Unsigned_64 := 0;
+   begin
+      Lib.Synchronization.Seize (Map.Mutex);
+      for Mapping of Map.Map_Ranges loop
+         if Mapping.Is_Present then
+            Value := Value + Unsigned_64 (Mapping.Length);
+         end if;
+      end loop;
+      Lib.Synchronization.Release (Map.Mutex);
+      return Value;
+   end Get_User_Mapped_Size;
    ----------------------------------------------------------------------------
    function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address is
    begin

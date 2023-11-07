@@ -58,11 +58,10 @@ package Userland.MAC is
    type Limit_Type  is
       (Core_Size_Limit,    --  Core file dump size limit.
        CPU_Time_Limit,     --  Total CPU time in seconds.
-       Data_Size_Limit,    --  Total data segment size.
        File_Size_Limit,    --  Total file size.
        Opened_File_Limit,  --  Limit on opened file descriptor for the process.
        Stack_Size_Limit,   --  Limit on stack size.
-       Memory_Size_Limit); --  Limit on total memory size (not only data).
+       Memory_Size_Limit); --  Limit on total virtual memory size.
 
    --  Type to wrap all the storage and permissions for a MAC context.
    type Context is private;
@@ -182,7 +181,13 @@ private
    Default_Context : constant Context :=
       (Action  => Deny,
        Caps    => (others => True),
-       Limits  => (others => Limit_Value'Last),
+       Limits  =>
+         (Core_Size_Limit   => Limit_Value'Last,
+          CPU_Time_Limit    => Limit_Value'Last,
+          File_Size_Limit   => Limit_Value'Last,
+          Opened_File_Limit => Limit_Value'Last,
+          Stack_Size_Limit  => 16#400000#, --  4 MiB by default.
+          Memory_Size_Limit => Limit_Value'Last),
        Filters => (others =>
          (Is_Used   => False,
           Is_Device => False,
