@@ -518,42 +518,31 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Hint : Unsigned_64 := Hint;
       Ignored    : System.Address;
       File       : File_Description_Acc;
-      User       : Unsigned_32;
+      File_Perms : MAC.Permissions;
       Success    : Boolean;
    begin
       if not Get_Capabilities (Proc).Can_Modify_Memory then
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("mmap", Proc);
-         Returned := Unsigned_64'Last;
-         return;
+         goto Bad_MAC_Return;
       elsif (Perms.Can_Write and Perms.Can_Execute) or
             (Hint   mod Page_Size /= 0)             or
             (Length mod Page_Size /= 0)
       then
-         Errno    := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
+         goto Invalid_Value_Return;
       elsif Get_User_Mapped_Size (Map) + Length >=
          Unsigned_64 (Get_Limit (Proc, MAC.Memory_Size_Limit))
       then
-         Errno    := Error_No_Memory;
-         Returned := Unsigned_64'Last;
-         return;
+         goto No_Memory_Return;
       end if;
 
       --  Check that we got a length.
       if Length = 0 then
-         Errno := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
+         goto Invalid_Value_Return;
       end if;
 
       --  Check for our own hint if none was provided.
       if Hint = 0 then
          if (Flags and MAP_FIXED) /= 0 then
-            Errno := Error_Invalid_Value;
-            Returned := Unsigned_64'Last;
-            return;
+            goto Invalid_Value_Return;
          else
             Final_Hint := Get_Alloc_Base (Proc);
             Set_Alloc_Base (Proc, Final_Hint + Length);
@@ -564,9 +553,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       if not Check_Userland_Mappability
          (Map, Virtual_Address (Final_Hint), Length)
       then
-         Errno := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
+         goto Invalid_Value_Return;
       end if;
 
       --  Do mmap anon or pass it to the VFS.
@@ -583,20 +570,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Returned := Final_Hint;
             return;
          else
-            Errno := Error_No_Memory;
-            Returned := Unsigned_64'Last;
-            return;
+            goto No_Memory_Return;
          end if;
       else
          File := Get_File (Proc, File_D);
-         Process.Get_Effective_UID (Proc, User);
-         if User /= 0 then
-            Errno := Error_Bad_Access;
-            Returned := Unsigned_64'Last;
-            return;
-         end if;
 
          if File.Description = Description_Device then
+            File_Perms := Check_Permissions (Proc, File.Inner_Dev);
+            if (Perms.Can_Read    and not File_Perms.Can_Read)  or
+               (Perms.Can_Write   and not File_Perms.Can_Write) or
+               (Perms.Can_Execute and not File_Perms.Can_Execute)
+            then
+               goto Bad_MAC_Return;
+            end if;
             if Devices.Mmap
                (Handle      => File.Inner_Dev,
                 Address     => Virtual_Address (Final_Hint),
@@ -613,6 +599,21 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Returned := Unsigned_64'Last;
          return;
       end if;
+
+   <<Invalid_Value_Return>>
+      Errno := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<No_Memory_Return>>
+      Errno := Error_No_Memory;
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<Bad_MAC_Return>>
+      Errno := Error_Bad_Access;
+      Execute_MAC_Failure ("mmap", Proc);
+      Returned := Unsigned_64'Last;
    end Mmap;
 
    procedure Munmap
