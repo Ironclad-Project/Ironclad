@@ -31,8 +31,7 @@ package body Lib.Runtime with SPARK_Mode => Off is
    begin
       Messages.Image (Unsigned_32 (Line), Line_Buffer, Line_Len);
       Lib.Panic.Hard_Panic
-         ("Generic Ada exception triggered at " &
-          File_String & ":" &
+         ("Ada exception triggered at " & File_String & ":" &
           Line_Buffer (Line_Buffer'Last - Line_Len + 1 .. Line_Buffer'Last));
    end Last_Chance_Handler;
    ----------------------------------------------------------------------------
