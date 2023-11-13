@@ -25,7 +25,9 @@ package Cryptography.Random is
    --  Get random integers with optional ranges.
    procedure Get_Integer (Result : out Unsigned_64);
 
-   --  FIXME: Fix this annotation.
+
+   --  Get a random integer between 2 integers.
+   --  FIXME: Fix the GNATProve annotation.
    procedure Get_Integer (Min, Max : Unsigned_64; Result : out Unsigned_64)
       with Pre  => Max >= Min and Max <= Unsigned_64'Last - 1,
            Post => Min <= Result and Result <= Max;
@@ -34,5 +36,5 @@ package Cryptography.Random is
 private
 
    procedure Get_Seed (Seed : out MD5.MD5_Hash);
-   procedure Collapse_Time (Collapsed : out Unsigned_64);
+   procedure Collapse_Monotonic_Time (Collapsed : out Unsigned_64);
 end Cryptography.Random;

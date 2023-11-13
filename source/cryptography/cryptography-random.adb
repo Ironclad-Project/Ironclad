@@ -26,10 +26,8 @@ package body Cryptography.Random is
    --  invocation, the nonce is randomized each block, block id is incremental.
    --  As long as the key and nonce remain secret, future key streams should
    --  not be predictable.
-   --  TODO: Please, more entropy!
 
-   --  Unit passes GNATprove AoRTE, GNAT does not know this.
-   pragma Suppress (All_Checks);
+   pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE.
 
    procedure Fill_Data (Data : out Crypto_Data) is
       type Seed is record
@@ -40,25 +38,38 @@ package body Cryptography.Random is
 
       --  Seed every time a new chain of random numbers is requested.
       S           : Seed;
-      Temp        : Unsigned_64;
+      Nonce       : Unsigned_64;
       Cha_Block   : Chacha20.Block := (others => 0);
       Index       : Natural     := Cha_Block'Last + 1;
+      Mini_Index  : Natural     := 0;
       Block_Index : Unsigned_64 := 0;
-      Discard     : Unsigned_64;
+      Temp        : Unsigned_32 := 0;
    begin
       Get_Seed (S.Seed1);
       Get_Seed (S.Seed2);
+      Collapse_Monotonic_Time (Nonce);
 
       for Value of Data loop
          if Index > Cha_Block'Last then
-            Collapse_Time (Temp);
-            Cha_Block   := Chacha20.Gen_Key (To_Seed (S), Temp, Block_Index);
+            Cha_Block   := Chacha20.Gen_Key (To_Seed (S), Nonce, Block_Index);
             Index       := Cha_Block'First;
             Block_Index := Block_Index + 1;
          end if;
 
-         Value := Unsigned_8 (Cha_Block (Index) and 16#FF#);
-         Index := Index + 1;
+         case Mini_Index is
+            when 0 => Temp := Shift_Right (Cha_Block (Index), 0);
+            when 1 => Temp := Shift_Right (Cha_Block (Index), 8);
+            when 2 => Temp := Shift_Right (Cha_Block (Index), 16);
+            when 3 => Temp := Shift_Right (Cha_Block (Index), 24);
+            when others => null;
+         end case;
+         Value := Unsigned_8 (Temp and 16#FF#);
+
+         Mini_Index := Mini_Index + 1;
+         if Mini_Index = 4 then
+            Index      := Index + 1;
+            Mini_Index := 0;
+         end if;
       end loop;
    end Fill_Data;
 
@@ -83,30 +94,33 @@ package body Cryptography.Random is
    end Get_Integer;
 
    procedure Get_Seed (Seed : out MD5.MD5_Hash) is
-      Time    : Unsigned_64;
-      Used    : Unsigned_64;
+      Time, Used, Sec, NSec : Unsigned_64;
       Stats   : Memory.Physical.Statistics;
       To_Hash : MD5.MD5_Blocks (1 .. 1);
    begin
       Get_Statistics (Stats);
-      Collapse_Time (Time);
+      Collapse_Monotonic_Time (Time);
+      Arch.Clocks.Get_Real_Time (Sec, NSec);
 
-      Used    := Unsigned_64 (Stats.Available - Stats.Free);
-      To_Hash := (0 => (
-         0  => Unsigned_32 (Shift_Right (Time, 32) and 16#FFFFFFFF#),
-         1  => Unsigned_32 (Time and 16#FFFFFFFF#),
-         2  => Unsigned_32 (Shift_Right (Used, 32) and 16#FFFFFFFF#),
-         3  => Unsigned_32 (Used and 16#FFFFFFFF#),
-         14 => 128,
-         others => 0
-      ));
+      Used := Unsigned_64 (Stats.Available - Stats.Free);
+      To_Hash (1) :=
+         (0  => Unsigned_32 (Shift_Right (Time, 32) and 16#FFFFFFFF#),
+          1  => Unsigned_32 (Time and 16#FFFFFFFF#),
+          2  => Unsigned_32 (Shift_Right (Used, 32) and 16#FFFFFFFF#),
+          3  => Unsigned_32 (Used and 16#FFFFFFFF#),
+          4  => Unsigned_32 (Shift_Right (Sec, 32) and 16#FFFFFFFF#),
+          5  => Unsigned_32 (Sec and 16#FFFFFFFF#),
+          6  => Unsigned_32 (Shift_Right (NSec, 32) and 16#FFFFFFFF#),
+          7  => Unsigned_32 (NSec and 16#FFFFFFFF#),
+          14 => 128,
+          others => 0);
       Seed := MD5.Digest (To_Hash);
    end Get_Seed;
 
-   procedure Collapse_Time (Collapsed : out Unsigned_64) is
+   procedure Collapse_Monotonic_Time (Collapsed : out Unsigned_64) is
       Sec, NSec : Unsigned_64;
    begin
       Arch.Clocks.Get_Monotonic_Time (Sec, NSec);
       Collapsed := Shift_Left (Sec, 32) or NSec;
-   end Collapse_Time;
+   end Collapse_Monotonic_Time;
 end Cryptography.Random;
