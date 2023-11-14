@@ -130,6 +130,7 @@ dist:
 	cd "$(DIST_OUTPUT)" && ./bootstrap
 	rm -rf "$(DIST_OUTPUT)"/.git
 	rm -rf "$(DIST_OUTPUT)"/.gitignore
+	rm -rf "$(DIST_OUTPUT)"/.mailmap
 	rm -rf "$(DIST_OUTPUT)"/autom4te.cache
 	echo "$(PACKAGE_VERSION)" >"$(DIST_OUTPUT)"/version
 	tar -zcf "$(DIST_OUTPUT)".tar.gz "$(DIST_OUTPUT)"
