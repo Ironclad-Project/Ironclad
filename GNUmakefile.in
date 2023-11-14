@@ -127,6 +127,7 @@ dist:
 	$(MKDIR_P) "$(DIST_OUTPUT)"
 	cp -rp '$(call SHESCAPE,$(SRCDIR))'/.git "$(DIST_OUTPUT)"/
 	cd "$(DIST_OUTPUT)" && git checkout .
+	cd "$(DIST_OUTPUT)" && git log --decorate --use-mailmap > ChangeLog
 	cd "$(DIST_OUTPUT)" && ./bootstrap
 	rm -rf "$(DIST_OUTPUT)"/.git
 	rm -rf "$(DIST_OUTPUT)"/.gitignore
