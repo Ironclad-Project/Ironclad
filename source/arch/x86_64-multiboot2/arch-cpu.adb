@@ -62,6 +62,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       Current_Byte := 0;
       Core_Locals  := new Core_Local_Arr (1 .. Core_Count);
       Init_Common (1, BSP_LAPIC_ID, Unsigned_64 (To_Integer (New_Stk_Top)));
+      Save_MTRRs;
 
       Index := 1;
       while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
@@ -95,6 +96,71 @@ package body Arch.CPU with SPARK_Mode => Off is
            Volatile => True);
       return Locals;
    end Get_Local;
+   ----------------------------------------------------------------------------
+   procedure Save_MTRRs is
+      Count : constant Unsigned_64 := Snippets.Read_MSR (16#FE#) and 16#FF#;
+      I : Natural := 0;
+   begin
+      Saved_MTRRs := new MTRR_Store (1 .. Natural (Count * 2) + 11 + 1);
+      while I <= Natural (Count * 2) - 1 loop
+         Saved_MTRRs (I + 1) := Snippets.Read_MSR (16#200# + Unsigned_32 (I));
+         Saved_MTRRs (I + 2) := Snippets.Read_MSR (16#201# + Unsigned_32 (I));
+         I := I + 2;
+      end loop;
+
+      Saved_MTRRs (Natural (Count * 2) + 1) := Snippets.Read_MSR (16#250#);
+      Saved_MTRRs (Natural (Count * 2) + 2) := Snippets.Read_MSR (16#258#);
+      Saved_MTRRs (Natural (Count * 2) + 3) := Snippets.Read_MSR (16#259#);
+      Saved_MTRRs (Natural (Count * 2) + 4) := Snippets.Read_MSR (16#268#);
+      Saved_MTRRs (Natural (Count * 2) + 5) := Snippets.Read_MSR (16#269#);
+      Saved_MTRRs (Natural (Count * 2) + 6) := Snippets.Read_MSR (16#26A#);
+      Saved_MTRRs (Natural (Count * 2) + 7) := Snippets.Read_MSR (16#26B#);
+      Saved_MTRRs (Natural (Count * 2) + 8) := Snippets.Read_MSR (16#26C#);
+      Saved_MTRRs (Natural (Count * 2) + 9) := Snippets.Read_MSR (16#26D#);
+      Saved_MTRRs (Natural (Count * 2) + 10) := Snippets.Read_MSR (16#26E#);
+      Saved_MTRRs (Natural (Count * 2) + 11) := Snippets.Read_MSR (16#26F#);
+      Saved_MTRRs (Natural (Count * 2) + 12) := Snippets.Read_MSR (16#2FF#);
+      Saved_MTRRs (Natural (Count * 2) + 12) :=
+         Saved_MTRRs (Natural (Count * 2) + 12) and not Shift_Left (1, 11);
+   end Save_MTRRs;
+
+   procedure Restore_MTRRs is
+      Count : constant Unsigned_64 := Snippets.Read_MSR (16#FE#) and 16#FF#;
+      CR0  : constant Unsigned_64 := Snippets.Read_CR0;
+      CR3  : constant Unsigned_64 := Snippets.Read_CR3;
+      MTRR : constant Unsigned_64 := Snippets.Read_MSR (16#2FF#);
+      Temp_CR0 : Unsigned_64;
+      I : Natural := 0;
+   begin
+      Temp_CR0 := (CR0 or Shift_Left (1, 30)) and not Shift_Left (1, 29);
+      Snippets.Write_CR0 (Temp_CR0);
+      Snippets.Invalidate_Caches;
+      Snippets.Write_CR3 (CR3);
+      Snippets.Write_MSR (16#2FF#, MTRR and not Shift_Left (1, 11));
+
+      while I <= Natural (Count * 2) - 1 loop
+         Snippets.Write_MSR (16#200# + Unsigned_32 (I), Saved_MTRRs (I + 1));
+         Snippets.Write_MSR (16#201# + Unsigned_32 (I), Saved_MTRRs (I + 2));
+         I := I + 2;
+      end loop;
+
+      Snippets.Write_MSR (16#250#, Saved_MTRRs (Natural (Count * 2) + 1));
+      Snippets.Write_MSR (16#258#, Saved_MTRRs (Natural (Count * 2) + 2));
+      Snippets.Write_MSR (16#259#, Saved_MTRRs (Natural (Count * 2) + 3));
+      Snippets.Write_MSR (16#268#, Saved_MTRRs (Natural (Count * 2) + 4));
+      Snippets.Write_MSR (16#269#, Saved_MTRRs (Natural (Count * 2) + 5));
+      Snippets.Write_MSR (16#26A#, Saved_MTRRs (Natural (Count * 2) + 6));
+      Snippets.Write_MSR (16#26B#, Saved_MTRRs (Natural (Count * 2) + 7));
+      Snippets.Write_MSR (16#26C#, Saved_MTRRs (Natural (Count * 2) + 8));
+      Snippets.Write_MSR (16#26D#, Saved_MTRRs (Natural (Count * 2) + 9));
+      Snippets.Write_MSR (16#26E#, Saved_MTRRs (Natural (Count * 2) + 10));
+      Snippets.Write_MSR (16#26F#, Saved_MTRRs (Natural (Count * 2) + 11));
+      Snippets.Write_MSR (16#2FF#, Saved_MTRRs (Natural (Count * 2) + 12));
+      Snippets.Write_MSR (16#2FF#, MTRR or Shift_Left (1, 11));
+      Snippets.Write_CR3 (CR3);
+      Snippets.Write_CR0 (CR0);
+      Snippets.Invalidate_Caches;
+   end Restore_MTRRs;
 
    procedure Core_Bootstrap (Core_Number : Positive; LAPIC_ID : Unsigned_8) is
       --  Stack of the core.
@@ -172,6 +238,7 @@ package body Arch.CPU with SPARK_Mode => Off is
 
       --  Load several goodies.
       Init_Common (Core_Number, Unsigned_32 (LAPIC_ID), Stack_Top);
+      Restore_MTRRs;
 
       --  Send the core to idle, waiting for the scheduler to tell it to do
       --  something, from here, we lose control. Farewell, core.

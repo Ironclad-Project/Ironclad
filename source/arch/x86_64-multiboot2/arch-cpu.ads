@@ -56,6 +56,15 @@ package Arch.CPU with SPARK_Mode => Off is
 
 private
 
+   type MTRR_Store is array (Natural range <>) of Unsigned_64;
+   type MTRR_Store_Acc is access MTRR_Store;
+
+   --  XXX: All x86-64 systems have MTRR support, so we needn't check whether
+   --  its there or not, we just use it.
+   Saved_MTRRs : MTRR_Store_Acc;
+   procedure Save_MTRRs;
+   procedure Restore_MTRRs;
+
    procedure Core_Bootstrap (Core_Number : Positive; LAPIC_ID : Unsigned_8);
    procedure Init_Core
       (Core_Number : Positive;

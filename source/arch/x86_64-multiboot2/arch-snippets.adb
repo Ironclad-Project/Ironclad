@@ -256,6 +256,11 @@ package body Arch.Snippets with SPARK_Mode => Off is
       Asm ("swapgs", Volatile => True);
    end Swap_GS;
 
+   procedure Invalidate_Caches is
+   begin
+      Asm ("wbinvd", Volatile => True);
+   end Invalidate_Caches;
+
    procedure Get_CPUID
       (Leaf, Subleaf : Unsigned_32;
        EAX, EBX, ECX, EDX : out Unsigned_32)
