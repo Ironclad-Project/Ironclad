@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Networking;
+with Networking.Interfaces;
 with Scheduler;
 with Devices.NetInter;
 
@@ -42,14 +42,14 @@ package body Devices.Loopback with SPARK_Mode => Off is
       Register (Device, "loopback", Success);
       if Success then
          Dev := Fetch ("loopback");
-         Networking.Register_Interface
+         Networking.Interfaces.Register_Interface
             (Interfaced  => Dev,
              IPv4        => (127, 0, 0, 1),
              IPv4_Subnet => (255, 0, 0, 0),
              IPv6        => (1 .. 15 => 0, 16 => 1),
              IPv6_Subnet => (others => 16#FF#),
              Success     => Success);
-         Networking.Block (Dev, False, Success);
+         Networking.Interfaces.Block (Dev, False, Success);
       end if;
    end Init;
    ----------------------------------------------------------------------------

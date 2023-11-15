@@ -22,7 +22,9 @@ package Networking.ARP is
    --  inconsistent lookup times if requests are needed after an eviction.
 
    --  Initialize the module.
-   procedure Initialize;
+   procedure Initialize
+      with Pre  => not Is_Initialized,
+           Post => Is_Initialized;
 
    --  Add a static address for an interface's MAC address.
    --  These addresses will never be evicted from cache, so use of these
@@ -32,27 +34,53 @@ package Networking.ARP is
        IP4        : IPv4_Address;
        IP4_Subnet : IPv4_Address;
        IP6        : IPv6_Address;
-       IP6_Subnet : IPv6_Address);
+       IP6_Subnet : IPv6_Address)
+      with Pre => Is_Initialized;
 
    procedure Modify_Static
       (MAC        : MAC_Address;
        IP4        : IPv4_Address;
-       IP4_Subnet : IPv4_Address);
+       IP4_Subnet : IPv4_Address)
+      with Pre => Is_Initialized;
 
    procedure Modify_Static
       (MAC        : MAC_Address;
        IP6        : IPv6_Address;
-       IP6_Subnet : IPv6_Address);
+       IP6_Subnet : IPv6_Address)
+      with Pre => Is_Initialized;
 
    --  Lookup the associated IPv4 addresses for a MAC address.
-   procedure Lookup (MAC : MAC_Address; IP, Subnet : out IPv4_Address);
+   procedure Lookup (MAC : MAC_Address; IP, Subnet : out IPv4_Address)
+      with Pre => Is_Initialized;
 
    --  Lookup the associated IPv6 addresses for a MAC address.
-   procedure Lookup (MAC : MAC_Address; IP, Subnet : out IPv6_Address);
+   procedure Lookup (MAC : MAC_Address; IP, Subnet : out IPv6_Address)
+      with Pre => Is_Initialized;
 
    --  Lookup the associated MAC address for an IPv4 one.
-   procedure Lookup (IP : IPv4_Address; MAC : out MAC_Address);
+   procedure Lookup (IP : IPv4_Address; MAC : out MAC_Address)
+      with Pre => Is_Initialized;
 
    --  Lookup the associated MAC address for an IPv6 one.
-   procedure Lookup (IP : IPv6_Address; MAC : out MAC_Address);
+   procedure Lookup (IP : IPv6_Address; MAC : out MAC_Address)
+      with Pre => Is_Initialized;
+
+   --  Ghost function for checking whether the device handling is initialized.
+   function Is_Initialized return Boolean with Ghost;
+
+private
+
+   type ARP_Entry is record
+      MAC        : MAC_Address;
+      IP4        : IPv4_Address;
+      IP4_Subnet : IPv4_Address;
+      IP6        : IPv6_Address;
+      IP6_Subnet : IPv6_Address;
+   end record;
+   type ARP_Entries is array (1 .. 50) of ARP_Entry;
+   type ARP_Entries_Acc is access ARP_Entries;
+
+   Interface_Entries : ARP_Entries_Acc := null;
+
+   function Is_Initialized return Boolean is (Interface_Entries /= null);
 end Networking.ARP;

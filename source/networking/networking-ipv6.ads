@@ -48,5 +48,7 @@ package Networking.IPv6 is
 
    function Generate_Header
       (Source_IP, Desto_IP : IPv6_Address;
-       Data_Length         : Natural) return IPv6_Packet_Header;
+       Data_Length         : Natural) return IPv6_Packet_Header
+      with Pre => Data_Length <=
+                  Natural (Unsigned_16'Last - (IPv6_Packet_Header'Size / 8));
 end Networking.IPv6;

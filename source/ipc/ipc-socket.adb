@@ -18,6 +18,7 @@ with Ada.Unchecked_Deallocation;
 with Scheduler;
 with Networking.IPv4;
 with Networking.IPv6;
+with Networking.Interfaces;
 
 package body IPC.Socket with SPARK_Mode => Off is
    procedure Free is new Ada.Unchecked_Deallocation (Socket, Socket_Acc);
@@ -403,14 +404,14 @@ package body IPC.Socket with SPARK_Mode => Off is
    begin
       case Sock.Typ is
          when Raw =>
-            Networking.Get_Suitable_Interface (Addr, Dev);
+            Networking.Interfaces.Get_Suitable_Interface (Addr, Dev);
             if Dev = Devices.Error_Handle then
                Data      := (others => 0);
                Ret_Count := 0;
                Success   := Would_Block;
                return;
             end if;
-            Networking.Get_Interface_Address (Dev, Src);
+            Networking.Interfaces.Get_Interface_Address (Dev, Src);
 
             Devices.Read (Dev, 0, Data, Ret_Count, Succ);
             Data (Data'First .. Data'Last - (Hdr_Size / 8)) :=
@@ -449,13 +450,13 @@ package body IPC.Socket with SPARK_Mode => Off is
    begin
       case Sock.Typ is
          when Raw =>
-            Networking.Get_Suitable_Interface (Addr, Dev);
+            Networking.Interfaces.Get_Suitable_Interface (Addr, Dev);
             if Dev = Devices.Error_Handle then
                Ret_Count := 0;
                Success   := Would_Block;
                return;
             end if;
-            Networking.Get_Interface_Address (Dev, Src);
+            Networking.Interfaces.Get_Interface_Address (Dev, Src);
 
             Hdr := Networking.IPv4.Generate_Header (Src, Addr, Data'Length);
             Tmp_Data := new Operation_Data (1 .. Data'Length + (Hdr'Size / 8));
@@ -563,14 +564,14 @@ package body IPC.Socket with SPARK_Mode => Off is
    begin
       case Sock.Typ is
          when Raw =>
-            Networking.Get_Suitable_Interface (Addr, Dev);
+            Networking.Interfaces.Get_Suitable_Interface (Addr, Dev);
             if Dev = Devices.Error_Handle then
                Data      := (others => 0);
                Ret_Count := 0;
                Success   := Would_Block;
                return;
             end if;
-            Networking.Get_Interface_Address (Dev, Src);
+            Networking.Interfaces.Get_Interface_Address (Dev, Src);
 
             Devices.Read (Dev, 0, Data, Ret_Count, Succ);
             Data (Data'First .. Data'Last - (Hdr_Size / 8)) :=
@@ -608,13 +609,13 @@ package body IPC.Socket with SPARK_Mode => Off is
    begin
       case Sock.Typ is
          when Raw =>
-            Networking.Get_Suitable_Interface (Addr, Dev);
+            Networking.Interfaces.Get_Suitable_Interface (Addr, Dev);
             if Dev = Devices.Error_Handle then
                Ret_Count := 0;
                Success   := Would_Block;
                return;
             end if;
-            Networking.Get_Interface_Address (Dev, Src);
+            Networking.Interfaces.Get_Interface_Address (Dev, Src);
 
             Hdr := Networking.IPv6.Generate_Header (Src, Addr, Data'Length);
             Tmp_Data := new Operation_Data (1 .. Data'Length + (Hdr'Size / 8));

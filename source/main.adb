@@ -26,7 +26,7 @@ with Userland.Loader;
 with Userland.Process; use Userland.Process;
 with Userland;
 with Scheduler;
-with Networking;
+with Networking.ARP;
 with Lib.Runtime;
 pragma Unreferenced (Lib.Runtime);
 with Config;
@@ -57,8 +57,8 @@ begin
    Lib.Messages.Put_Line ("Please report bugs at " & Config.Bug_Site);
 
    --  Initialize several subsystems.
-   Networking.Initialize;
    Userland.Process.Init;
+   Networking.ARP.Initialize;
    Devices.Init;
    VFS.Init;
 

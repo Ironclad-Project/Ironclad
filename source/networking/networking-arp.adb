@@ -15,17 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Networking.ARP is
-   type ARP_Entry is record
-      MAC        : MAC_Address;
-      IP4        : IPv4_Address;
-      IP4_Subnet : IPv4_Address;
-      IP6        : IPv6_Address;
-      IP6_Subnet : IPv6_Address;
-   end record;
-   type ARP_Entries is array (1 .. 50) of ARP_Entry;
-   type ARP_Entries_Acc is access ARP_Entries;
-
-   Interface_Entries : ARP_Entries_Acc;
+   pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE.
 
    procedure Initialize is
    begin

@@ -38,6 +38,7 @@ with IPC.SignalPost; use IPC.SignalPost;
 with Devices.TermIOs;
 with Arch.Power;
 with Devices; use Devices;
+with Networking.Interfaces;
 
 package body Userland.Syscall with SPARK_Mode => Off is
    procedure Sys_Exit
@@ -1555,11 +1556,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Len   : constant Natural :=
                   Natural (Length / (Interface_Info'Size / 8));
                Ths  : Interface_Arr (1 .. Len) with Import, Address => SAddr;
-               KThs : Networking.Interface_Arr (1 .. Len);
+               KThs : Networking.Interfaces.Interface_Arr (1 .. Len);
                Ret  : Natural;
                NLen : Natural;
             begin
-               Networking.List_Interfaces (KThs, Ret);
+               Networking.Interfaces.List_Interfaces (KThs, Ret);
                for I in 1 .. Ret loop
                   Fetch_Name (KThs (I).Handle, Ths (I).Name (1 .. 64), NLen);
                   Ths (I).Name (NLen + 1) := Ada.Characters.Latin_1.NUL;
@@ -4282,17 +4283,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
             if not Check_Userland_Access (Map, IAddr, Blk'Size / 8) then
                goto Would_Fault_Error;
             end if;
-            Networking.Block (File.Inner_Dev, Blk, Suc);
+            Networking.Interfaces.Block (File.Inner_Dev, Blk, Suc);
          when NETINTER_SET_STATIC_IP4 =>
             if not Check_Userland_Access (Map, IAddr, IP4'Size / 8) then
                goto Would_Fault_Error;
             end if;
-            Networking.Modify_Addresses (File.Inner_Dev, IP4.IP, IP4.Sub, Suc);
+            Networking.Interfaces.Modify_Addresses
+               (File.Inner_Dev, IP4.IP, IP4.Sub, Suc);
          when NETINTER_SET_STATIC_IP6 =>
             if not Check_Userland_Access (Map, IAddr, IP6'Size / 8) then
                goto Would_Fault_Error;
             end if;
-            Networking.Modify_Addresses (File.Inner_Dev, IP6.IP, IP6.Sub, Suc);
+            Networking.Interfaces.Modify_Addresses
+               (File.Inner_Dev, IP6.IP, IP6.Sub, Suc);
          when others =>
             Suc := False;
       end case;

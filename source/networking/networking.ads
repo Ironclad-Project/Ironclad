@@ -14,8 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Devices;    use Devices;
 with Interfaces; use Interfaces;
+with Lib.Synchronization; use Lib.Synchronization;
 
 package Networking is
    --  Networking types.
@@ -29,101 +29,27 @@ package Networking is
    IPv4_8_Submask   : constant IPv4_Address := (255, 0, 0, 0);
    IPv6_128_Submask : constant IPv6_Address := (others => 16#FF#);
    ----------------------------------------------------------------------------
-   --  Initialize the networking subsystem.
-   procedure Initialize;
-   ----------------------------------------------------------------------------
    --  Maximum size of a hostname.
    Hostname_Max_Len : constant Natural;
 
    --  Fetch the system's hostname.
    --  @param Name   Buffer to write the hostname.
    --  @param Length Length of the hostname, even if it doesn't fit.
-   procedure Get_Hostname (Name : out String; Length : out Natural);
+   procedure Get_Hostname (Name : out String; Length : out Natural)
+      with Pre => Name'Length /= 0 and then
+                  Name'Last <= Natural'Last - Hostname_Max_Len;
 
    --  Set the system's hostname.
    --  @param Name Hostname to set;
    --  @return True on success, False on failure.
    procedure Set_Hostname (Name : String; Success : out Boolean);
-   ----------------------------------------------------------------------------
-   --  Ironclad depends on userland to register networking interfaces for
-   --  sockets to be created with them.
-
-   --  Maximum number of interfaces.
-   Max_Interface_Count : constant Natural;
-
-   --  Register a device as a networking interface.
-   --  The kernel will figure out the supported protocols and addresses by
-   --  using the standard low-level networking interface.
-   --  All interfaces are added blocked, must be unblocked before use.
-   --  @param Interfaced Device to try to use a a networking interface.
-   --  @param Success    True in success, False in failure.
-   procedure Register_Interface
-      (Interfaced  : Devices.Device_Handle;
-       IPv4        : IPv4_Address;
-       IPv4_Subnet : IPv4_Address;
-       IPv6        : IPv6_Address;
-       IPv6_Subnet : IPv6_Address;
-       Success     : out Boolean);
-
-   --  Fetch the registered address of an interface.
-   procedure Get_Interface_Address
-      (Interfaced : Devices.Device_Handle;
-       IP         : out IPv4_Address);
-
-   procedure Get_Interface_Address
-      (Interfaced : Devices.Device_Handle;
-       IP         : out IPv6_Address);
-
-   --  Block or unblock an interface.
-   --  @param Interfaced Device to modify.
-   --  @param Is_Blocked True for blocking broadcast, False for not doing so.
-   --  @param Success    True in success, False in failure (not found).
-   procedure Block
-      (Interfaced : Devices.Device_Handle;
-       Is_Blocked : Boolean;
-       Success    : out Boolean);
-
-   --  Fetch a registered interface device by address.
-   procedure Get_Suitable_Interface
-      (IP         : IPv4_Address;
-       Interfaced : out Devices.Device_Handle);
-
-   procedure Get_Suitable_Interface
-      (IP         : IPv6_Address;
-       Interfaced : out Devices.Device_Handle);
-
-   procedure Modify_Addresses
-      (Interfaced : Devices.Device_Handle;
-       IP         : IPv4_Address;
-       IP_Subnet  : IPv4_Address;
-       Success    : out Boolean);
-
-   procedure Modify_Addresses
-      (Interfaced : Devices.Device_Handle;
-       IP         : IPv6_Address;
-       IP_Subnet  : IPv6_Address;
-       Success    : out Boolean);
-
-   --  Information reported about an interface.
-   type Interface_Info is record
-      Handle      : Devices.Device_Handle;
-      Is_Blocked  : Boolean;
-      MAC         : MAC_Address;
-      IPv4        : IPv4_Address;
-      IPv4_Subnet : IPv4_Address;
-      IPv6        : IPv6_Address;
-      IPv6_Subnet : IPv6_Address;
-   end record;
-   type Interface_Arr is array (Natural range <>) of Interface_Info;
-
-   --  List all registered interfaces as well as their attributes.
-   --  @param Buffer Buffer to write to.
-   --  @param Len    Written count, even if it doesnt fit.
-   procedure List_Interfaces (Buffer : out Interface_Arr; Len : out Natural);
 
 private
 
    Hostname_Max_Len : constant Natural := 255;
-   ----------------------------------------------------------------------------
-   Max_Interface_Count : constant Natural := 5;
+
+   Hostname_Lock   : aliased Binary_Semaphore := Unlocked_Semaphore;
+   Hostname_Length : Natural range 0 .. Hostname_Max_Len := 4;
+   Hostname : String (1 .. Hostname_Max_Len) := "none" & (1 .. 251 => ' ');
+
 end Networking;
