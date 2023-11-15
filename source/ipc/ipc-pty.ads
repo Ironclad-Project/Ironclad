@@ -77,7 +77,8 @@ package IPC.PTY is
    procedure Poll_Primary
       (P         : Inner_Acc;
        Can_Read  : out Boolean;
-       Can_Write : out Boolean)
+       Can_Write : out Boolean;
+       Can_Prio  : out Boolean)
       with Pre => Is_Valid (P);
 
    --  Poll the state of a PTY's secondary end.
@@ -108,6 +109,8 @@ package IPC.PTY is
 
 private
 
+   subtype Data_Length is Natural range 0 .. Arch.MMU.Page_Size;
+   subtype TTY_Data    is Devices.Operation_Data (1 .. Arch.MMU.Page_Size);
    type Inner is record
       Primary_Mutex     : aliased Lib.Synchronization.Binary_Semaphore;
       Secondary_Mutex   : aliased Lib.Synchronization.Binary_Semaphore;
@@ -115,11 +118,26 @@ private
       Term_Info         : Devices.TermIOs.Main_Data;
       Term_Size         : Devices.TermIOs.Win_Size;
       Was_Closed        : Boolean;
-      Primary_Length    : Natural range 0 .. Arch.MMU.Page_Size;
-      Secondary_Length  : Natural range 0 .. Arch.MMU.Page_Size;
-      Primary_Data      : Devices.Operation_Data (1 .. Arch.MMU.Page_Size);
-      Secondary_Data    : Devices.Operation_Data (1 .. Arch.MMU.Page_Size);
+      Termios_Changed   : Boolean;
+      Primary_Length    : aliased Data_Length;
+      Secondary_Length  : aliased Data_Length;
+      Primary_Data      : aliased TTY_Data;
+      Secondary_Data    : aliased TTY_Data;
    end record;
 
    function Is_Valid (P : Inner_Acc) return Boolean is (P /= null);
+
+   procedure Read_From_End
+      (End_Mutex  : access Lib.Synchronization.Binary_Semaphore;
+       Inner_Len  : access Data_Length;
+       Inner_Data : access TTY_Data;
+       Data       : out Devices.Operation_Data;
+       Ret_Count  : out Natural);
+
+   procedure Write_To_End
+      (End_Mutex  : access Lib.Synchronization.Binary_Semaphore;
+       Inner_Len  : access Data_Length;
+       Inner_Data : access TTY_Data;
+       Data       : Devices.Operation_Data;
+       Ret_Count  : out Natural);
 end IPC.PTY;

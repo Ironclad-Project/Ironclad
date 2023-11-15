@@ -751,8 +751,9 @@ package Userland.Syscall is
    --  Poll on a series of events.
    POLLIN   : constant := 2#00000001#;
    POLLOUT  : constant := 2#00000010#;
-   POLLERR  : constant := 2#00001000#;
-   POLLHUP  : constant := 2#00010000#;
+   POLLPRI  : constant := 2#00000100#;
+   POLLHUP  : constant := 2#00001000#;
+   POLLERR  : constant := 2#00010000#;
    POLLNVAL : constant := 2#01000000#;
    type Poll_FD is record
       FD         : Unsigned_32;

@@ -3109,16 +3109,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
       TSAddr     : constant  System.Address := To_Address (TIAddr);
       Size_FD    : constant     Unsigned_64 := FDs_Count * (Poll_FD'Size / 8);
       Count      :                  Natural := 0;
-      Discard    : Boolean;
       File       : File_Description_Acc;
       Curr_Sec   : Unsigned_64;
       Curr_NSec  : Unsigned_64;
       Final_Sec  : Unsigned_64;
       Final_NSec : Unsigned_64;
-      Can_Read   : Boolean;
-      Can_Write  : Boolean;
-      Is_Error   : Boolean;
-      Is_Broken  : Boolean;
+      Can_Read, Can_Write, Can_PrioRead, Is_Error, Is_Broken : Boolean;
    begin
       if not Check_Userland_Access (Map, FIAddr, Size_FD) or else
          not Check_Userland_Access (Map, TIAddr, Time_Spec'Size / 8)
@@ -3156,11 +3152,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
                end if;
 
                --  Fill out events depending on the file type.
+               Can_Read := False;
+               Can_Write := False;
+               Can_PrioRead := False;
+               Is_Error := False;
+               Is_Broken := False;
                case File.Description is
                   when Description_Device =>
                      Devices.Poll (File.Inner_Dev, Can_Read, Can_Write,
                                    Is_Error);
-                     Is_Broken := False;
                   when Description_Reader_FIFO =>
                      IPC.FIFO.Poll_Reader
                         (File.Inner_Reader_FIFO,
@@ -3171,27 +3171,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
                          Can_Read, Can_Write, Is_Error, Is_Broken);
                   when Description_Primary_PTY =>
                      IPC.PTY.Poll_Primary
-                        (File.Inner_Primary_PTY, Can_Read, Can_Write);
-                     Is_Error  := False;
-                     Is_Broken := False;
+                        (File.Inner_Primary_PTY, Can_Read, Can_Write,
+                         Can_PrioRead);
                   when Description_Secondary_PTY =>
                      IPC.PTY.Poll_Secondary
                         (File.Inner_Secondary_PTY, Can_Read, Can_Write);
-                     Is_Error  := False;
-                     Is_Broken := False;
                   when Description_Socket =>
                      IPC.Socket.Poll
                         (File.Inner_Socket, Can_Read, Can_Write, Is_Broken,
                          Is_Error);
                   when Description_SignalPost =>
                      Poll (File.Inner_Post, Can_Read, Is_Error);
-                     Can_Write := False;
-                     Is_Broken := False;
                   when Description_Inode =>
                      Can_Read  := True;
                      Can_Write := True;
-                     Is_Error  := False;
-                     Is_Broken := False;
                end case;
 
                if Can_Read and (Polled.Events and POLLIN) /= 0 then
@@ -3199,6 +3192,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
                end if;
                if Can_Write and (Polled.Events and POLLOUT) /= 0 then
                   Polled.Out_Events := Polled.Out_Events or POLLOUT;
+               end if;
+               if Can_PrioRead and (Polled.Events and POLLPRI) /= 0 then
+                  Polled.Out_Events := Polled.Out_Events or POLLPRI;
                end if;
                if Is_Error then
                   Polled.Out_Events := Polled.Out_Events or POLLERR;

@@ -2563,8 +2563,9 @@ or @code{-1} on check failure, with the following errno:
 @example
 #define POLLIN   0b00000001
 #define POLLOUT  0b00000010
-#define POLLERR  0b00001000
-#define POLLHUP  0b00010000
+#define POLLPRI  0b00000100
+#define POLLHUP  0b00001000
+#define POLLERR  0b00010000
 #define POLLNVAL 0b01000000
 
 struct pollfd @{
@@ -2593,16 +2594,21 @@ Both @code{events} and @code{revents} are bitmaps of the values:
 The passed FD has data pending for reading.
 
 @item POLLOUT
-The passed FD will not block when written to (a sensible amount).
+The passed FD will not block when written to.
+
+@item POLLPRI
+The passed FD has prioritary data for processing, this data depends on what is
+polled, some examples are a change of termios information on a PTY, or
+Out-Of-Band (OOB) data for a TCP socket.
 
 @item POLLERR
-Only for @code{revents}, it is set in the case of error waiting, or if the FD
-is a pipe and the connection is broken, or if the passed FD is valid but does
-not support poll operations.
+Only for @code{revents}, it is set when encountering an error waiting. This bit
+is also set for FDs referring to the write end of a pipe when the read end has
+been closed.
 
 @item POLLHUP
 Only for @code{revents}, it is set in the case of the passed FD having lost
-connection, or the FD being a broken pipe.
+connection, or the FD being the reader end of a broken pipe.
 
 @item POLLNVAL
 Only for @code{revents}, equivalent of @code{EBADFD}, that is, the passed FD
