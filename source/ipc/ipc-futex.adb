@@ -16,6 +16,8 @@
 
 with Scheduler;
 with Lib.Synchronization; use Lib.Synchronization;
+with Arch.Clocks;
+with Lib.Time;
 
 package body IPC.Futex with SPARK_Mode => Off is
    type Futex_Inner is record
@@ -28,7 +30,12 @@ package body IPC.Futex with SPARK_Mode => Off is
    Registry_Mutex : aliased Binary_Semaphore := Unlocked_Semaphore;
    Registry       :                Futex_Arr := (others => (null, False, 0));
 
-   function Wait (Keys : Element_Arr) return Boolean is
+   function Wait
+      (Keys        : Element_Arr;
+       Max_Seconds : Unsigned_64;
+       Max_Nanos   : Unsigned_64) return Boolean
+   is
+      Curr_Sec, Curr_NSec, Final_Sec, Final_NSec : Unsigned_64;
       Idx : array (1 .. Keys'Length) of Natural;
    begin
       --  Find and/or allocate indexes for the passed mutexes.
@@ -61,7 +68,10 @@ package body IPC.Futex with SPARK_Mode => Off is
          Lib.Synchronization.Release (Registry_Mutex);
       end loop;
 
-      --  Now that we have a built list of indexes to wait, we wait! hard!
+      --  Now that we have a built list of indexes to wait, we wait.
+      Arch.Clocks.Get_Monotonic_Time (Final_Sec, Final_NSec);
+      Lib.Time.Increment (Final_Sec, Final_NSec, Max_Seconds, Max_Nanos);
+
       for I of Idx loop
          Lib.Synchronization.Seize (Registry_Mutex);
          if Registry (I).Wakey_Wakey then
@@ -73,6 +83,11 @@ package body IPC.Futex with SPARK_Mode => Off is
             exit;
          end if;
          Lib.Synchronization.Release (Registry_Mutex);
+
+         Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_NSec);
+         exit when Lib.Time.Is_Greater_Equal
+            (Curr_Sec, Curr_NSec, Final_Sec, Final_NSec);
+
          Scheduler.Yield_If_Able;
       end loop;
 

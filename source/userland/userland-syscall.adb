@@ -3835,14 +3835,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Timeout);
-
-      Proc  : constant             PID := Arch.Local.Get_Current_Process;
-      Map   : constant  Page_Table_Acc := Get_Common_Map (Proc);
-      IAddr : constant Integer_Address := Integer_Address (Address);
-      SAddr : constant  System.Address := To_Address (IAddr);
+      Proc   : constant             PID := Arch.Local.Get_Current_Process;
+      Map    : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      IAddr  : constant Integer_Address := Integer_Address (Address);
+      SAddr  : constant  System.Address := To_Address (IAddr);
+      TIAddr : constant Integer_Address := Integer_Address (Timeout);
+      TSAddr : constant  System.Address := To_Address (TIAddr);
    begin
       if not Check_Userland_Access (Map, IAddr, Count * (Futex_Item'Size / 8))
+      or else not Check_Userland_Access (Map, TIAddr, Time_Spec'Size / 8)
       then
          goto Would_Fault_Error;
       elsif Count > Unsigned_64 (Natural'Last) then
@@ -3854,6 +3855,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       declare
          Cnt     : constant Natural := Natural (Count);
          Items   : Futex_Item_Arr (1 .. Cnt) with Import, Address => SAddr;
+         Time    : Time_Spec                 with Import, Address => TSAddr;
          Futexes : IPC.Futex.Element_Arr (1 .. Cnt);
          IA      : Integer_Address;
       begin
@@ -3872,7 +3874,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
          case Operation is
             when FUTEX_WAIT =>
-               if IPC.Futex.Wait (Futexes) then
+               if IPC.Futex.Wait (Futexes, Time.Seconds, Time.Nanoseconds) then
                   Returned := 0;
                   Errno    := Error_No_Error;
                else

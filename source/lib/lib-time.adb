@@ -34,7 +34,11 @@ package body Lib.Time is
        Seconds2, Nanoseconds2 : Unsigned_64)
    is
    begin
-      Seconds1 := Seconds1 + Seconds2;
+      if Seconds1 > Unsigned_64'Last - Seconds2 then
+         Seconds1 := Unsigned_64'Last;
+      else
+         Seconds1 := Seconds1 + Seconds2;
+      end if;
       Nanoseconds1 := Nanoseconds1 + Nanoseconds2;
       Normalize (Seconds1, Nanoseconds1);
    end Increment;
