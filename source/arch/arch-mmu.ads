@@ -260,7 +260,6 @@ private
           Length         : Storage_Count;
           Permissions    : Page_Permissions) return Boolean;
       function Flags_To_Bitmap (Perm : Page_Permissions) return Unsigned_64;
-      procedure Destroy_Level (Entry_Body : Unsigned_64; Level : Integer);
       procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count);
    #end if;
 end Arch.MMU;

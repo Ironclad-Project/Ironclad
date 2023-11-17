@@ -223,8 +223,32 @@ package body Arch.MMU with SPARK_Mode => Off is
          end if;
       end loop;
 
-      for I in 1 .. 256 loop
-         Destroy_Level (Map.PML4_Level (I), 3);
+      for L3 of Map.PML4_Level (1 .. 256) loop
+         declare
+            A3   : constant Integer_Address := Clean_Entry (L3);
+            PML3 : PML4 with Import, Address => To_Address (Memory_Offset + A3);
+         begin
+            if (L3 and Page_P) /= 0 then
+               for L2 of PML3 loop
+                  declare
+                     A2   : constant Integer_Address := Clean_Entry (L2);
+                     PML2 : PML4 with Import, Address => To_Address (Memory_Offset + A2);
+                  begin
+                     if (L2 and Page_P) /= 0 then
+                        for L1 of PML2 loop
+                           declare
+                              A1 : constant Integer_Address := Clean_Entry (L1);
+                           begin
+                              Memory.Physical.Free (Interfaces.C.size_t (A1));
+                           end;
+                        end loop;
+                     end if;
+                     Memory.Physical.Free (Interfaces.C.size_t (A2));
+                  end;
+               end loop;
+            end if;
+            Memory.Physical.Free (Interfaces.C.size_t (A3));
+         end;
       end loop;
       F (Map);
    end Destroy_Table;
@@ -596,20 +620,6 @@ package body Arch.MMU with SPARK_Mode => Off is
          (if Perm.Is_User_Accesible then Page_U             else       0) or
          Page_P;
    end Flags_To_Bitmap;
-
-   procedure Destroy_Level (Entry_Body : Unsigned_64; Level : Integer) is
-      Addr : constant Integer_Address := Clean_Entry (Entry_Body);
-      PML  : PML4 with Import, Address => To_Address (Memory_Offset + Addr);
-   begin
-      if Level > 1 then
-         if (Entry_Body and Page_P) /= 0 then
-            for E of PML loop
-               Destroy_Level (E, Level - 1);
-            end loop;
-         end if;
-      end if;
-      Memory.Physical.Free (Interfaces.C.size_t (Addr));
-   end Destroy_Level;
 
    --  TODO: Code this bad boy once the VMM makes use of them.
 
