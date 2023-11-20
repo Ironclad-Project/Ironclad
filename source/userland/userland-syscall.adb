@@ -1481,7 +1481,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   case KMnts (I).Inner_Type is
                      when FS_EXT => Mnts (I).FS_Type := MNT_EXT;
                      when FS_FAT => Mnts (I).FS_Type := MNT_FAT;
-                     when FS_QNX => Mnts (I).FS_Type := MNT_QNX;
                   end case;
                end loop;
 
@@ -2100,7 +2099,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       case FSType is
          when MNT_EXT => Parsed_Typ := VFS.FS_EXT;
          when MNT_FAT => Parsed_Typ := VFS.FS_FAT;
-         when MNT_QNX => Parsed_Typ := VFS.FS_QNX;
          when others  =>
             Errno := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
@@ -4678,6 +4676,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when VFS.FS_RO_Failure    => Errno := Error_Read_Only_FS;
          when VFS.FS_IO_Failure    => Errno := Error_IO;
          when VFS.FS_Not_Allowed   => Errno := Error_Bad_Permissions;
+         when VFS.FS_Loop          => Errno := Error_File_Loop;
       end case;
       Returned := Unsigned_64'Last;
    end Translate_Status;

@@ -43,6 +43,7 @@ package Userland.Syscall is
        Error_Invalid_Value,   --  EINVAL
        Error_IO,              --  EIO
        Error_Is_Directory,    --  EISDIR
+       Error_File_Loop,       --  ELOOP
        Error_Too_Many_Files,  --  EMFILE
        Error_String_Too_Long, --  ENAMETOOLONG
        Error_No_Entity,       --  ENOENT
@@ -68,6 +69,7 @@ package Userland.Syscall is
        Error_Invalid_Value   => 1026,
        Error_IO              => 1027,
        Error_Is_Directory    => 1029,
+       Error_File_Loop       => 1030,
        Error_Too_Many_Files  => 1031,
        Error_String_Too_Long => 1036,
        Error_No_Entity       => 1043,
@@ -529,7 +531,6 @@ package Userland.Syscall is
    --  Mount a filesystem.
    MNT_EXT : constant := 1;
    MNT_FAT : constant := 2;
-   MNT_QNX : constant := 3;
    MS_RDONLY : constant := 2#01#;
    procedure Mount
       (Source_Addr : Unsigned_64;

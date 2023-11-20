@@ -16,7 +16,6 @@
 
 with VFS.EXT;
 with VFS.FAT;
-with VFS.QNX;
 with Ada.Characters.Latin_1;
 
 package body VFS is
@@ -45,8 +44,6 @@ package body VFS is
       Mount (Device_Name, Mount_Path, FS_EXT, Do_Read_Only, Success);
       if Success then return; end if;
       Mount (Device_Name, Mount_Path, FS_FAT, Do_Read_Only, Success);
-      if Success then return; end if;
-      Mount (Device_Name, Mount_Path, FS_QNX, Do_Read_Only, Success);
    end Mount;
 
    procedure Mount
@@ -84,7 +81,6 @@ package body VFS is
       case FS is
          when FS_EXT => VFS.EXT.Probe (Dev, Do_Read_Only, FS_Data);
          when FS_FAT => VFS.FAT.Probe (Dev, Do_Read_Only, FS_Data);
-         when FS_QNX => VFS.QNX.Probe (Dev, Do_Read_Only, FS_Data);
       end case;
       Mounts (Free_I).Mounted_FS := FS;
 
@@ -113,7 +109,6 @@ package body VFS is
             case Mounts (I).Mounted_FS is
                when FS_EXT => EXT.Unmount (Mounts (I).FS_Data);
                when FS_FAT => FAT.Unmount (Mounts (I).FS_Data);
-               when FS_QNX => QNX.Unmount (Mounts (I).FS_Data);
             end case;
 
             if Force or Mounts (I).FS_Data = Null_Address then
@@ -237,9 +232,6 @@ package body VFS is
                 Path    => Path,
                 Ino     => Ino,
                 Success => Success);
-         when FS_QNX =>
-            Ino     := 0;
-            Success := FS_Not_Supported;
       end case;
    end Open;
 
@@ -345,7 +337,6 @@ package body VFS is
       case Mounts (Key).Mounted_FS is
          when FS_EXT => EXT.Close (Mounts (Key).FS_Data, Ino);
          when FS_FAT => FAT.Close (Mounts (Key).FS_Data, Ino);
-         when FS_QNX => null;
       end case;
    end Close;
 
@@ -377,10 +368,6 @@ package body VFS is
                 Entities,
                 Ret_Count,
                 Success);
-         when FS_QNX =>
-            Entities  := (others => (0, (others => ' '), 0, File_Regular));
-            Ret_Count := 0;
-            Success   := FS_Not_Supported;
       end case;
    end Read_Entries;
 
@@ -432,10 +419,6 @@ package body VFS is
                 Data,
                 Ret_Count,
                 Success);
-         when FS_QNX =>
-            Data      := (others => 0);
-            Ret_Count := 0;
-            Success   := FS_Not_Supported;
       end case;
    end Read;
 
@@ -478,21 +461,6 @@ package body VFS is
             EXT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val, User, Success);
          when FS_FAT =>
             FAT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val, Success);
-         when FS_QNX =>
-            Stat_Val :=
-               (Unique_Identifier => 0,
-                Type_Of_File      => File_Regular,
-                Mode              => 0,
-                UID               => 0,
-                GID               => 0,
-                Hard_Link_Count   => 1,
-                Byte_Size         => 0,
-                IO_Block_Size     => 0,
-                IO_Block_Count    => 0,
-                Creation_Time     => (0, 0),
-                Modification_Time => (0, 0),
-                Access_Time       => (0, 0));
-            Success := FS_Not_Supported;
       end case;
    end Stat;
 

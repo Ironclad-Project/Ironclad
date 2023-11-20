@@ -183,7 +183,6 @@ Filesystem support and interfaces
 
 * Extended FileSystem::    EXT-series filesystems (ext2, ext3, ext4).
 * File Allocation Table::  FAT-series filesystems.
-* QNX4 FileSystem::        The default filesystem of QNX4 Neutrino.
 
 Networking
 
@@ -901,6 +900,9 @@ The passed value is not valid for the called syscall.
 
 @item EIO (1027)
 The requested operation failed at a device level.
+
+@item ELOOP (1030)
+Too many symlinks were encountered when resolving a requested path.
 
 @item EMFILE (1031)
 Too many files were opened by the process.
@@ -3339,11 +3341,6 @@ ioctl(fd, EXT_SETFLAGS, pointer_to_u32); // Set EXT's flags inode field.
 
 Ironclad's FAT support is really rough. Only read-only FAT32 is supported.
 No special @code{ioctl} calls are provided. Long filenames are not supported.
-
-@node QNX4 FileSystem
-@section QNX4 FileSystem
-
-Stubbed, please ignore!
 
 @node Networking
 @chapter Networking

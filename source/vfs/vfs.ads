@@ -60,9 +60,15 @@ package VFS is
    end record;
    type Directory_Entities     is array (Natural range <>) of Directory_Entity;
    type Directory_Entities_Acc is access Directory_Entities;
+
+   --  Maximum number of symlink recursions allowed for filesystems.
+   --  When practically limited, this will be the limit the kernel will default
+   --  to. When not practically limited, this will be an imposed limit in order
+   --  to avoid forever loops. Recursing more than this value will be an error.
+   Max_Symlink_Loop : constant Natural;
    ----------------------------------------------------------------------------
    --  Handle for interfacing with mounted FSs and FS types.
-   type FS_Type   is (FS_EXT, FS_FAT, FS_QNX);
+   type FS_Type   is (FS_EXT, FS_FAT);
    type FS_Handle is private;
    Error_Handle       : constant FS_Handle;
    Path_Buffer_Length : constant Natural;
@@ -159,7 +165,8 @@ package VFS is
        FS_Not_Supported, --  The operation is not supported for this FS.
        FS_Not_Allowed,   --  Bad permissions for interacting with the inode.
        FS_RO_Failure,    --  The FS is read-only, but write access is needed.
-       FS_IO_Failure);   --  The underlying device errored out.
+       FS_IO_Failure,    --  The underlying device errored out.
+       FS_Loop);         --  Too many symlinks were encountered resolving path.
 
    --  Open a file with an absolute path inside the mount.
    --  @param Key       FS Handle to open.
@@ -530,6 +537,8 @@ package VFS is
    function Is_Initialized return Boolean with Ghost;
 
 private
+
+   Max_Symlink_Loop : constant Natural := 8;
 
    type FS_Handle is new Natural range 0 .. 5;
    Error_Handle       : constant FS_Handle := 0;
