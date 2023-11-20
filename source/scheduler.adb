@@ -531,6 +531,8 @@ package body Scheduler with SPARK_Mode => Off is
 
       Lib.Synchronization.Seize (Scheduler_Mutex);
 
+      --  If we come from a thread, we can do cluster management and logic.
+      --  Else, we just need to go to a thread, any, and pick up from there.
       if Current_TID /= Error_TID then
          Curr_Cluster := Thread_Pool (Current_TID).Cluster;
          Lib.Synchronization.Release (Thread_Pool (Current_TID).Yield_Mutex);
@@ -541,16 +543,33 @@ package body Scheduler with SPARK_Mode => Off is
             (Cluster_Pool (Curr_Cluster).Progress_Seconds,
              Cluster_Pool (Curr_Cluster).Progress_Nanos, Curr_Sec, Curr_NSec);
 
-         if Natural (Cluster_Pool (Curr_Cluster).Progress_Seconds / 1000000) *
-            Natural (Cluster_Pool (Curr_Cluster).Progress_Nanos / 1000) <
-            Total_Slice * Cluster_Pool (Curr_Cluster).Percentage / 100
-         then
+         if Has_Available_Time (Curr_Cluster) then
             Next_Cluster := Curr_Cluster;
          else
-            --  TODO: We should reassign here!
-            Cluster_Pool (Curr_Cluster).Progress_Seconds := 0;
-            Cluster_Pool (Curr_Cluster).Progress_Nanos := 0;
-            Next_Cluster := Curr_Cluster;
+            --  Find a new cluster with available time.
+            for I in Curr_Cluster + 1 .. Cluster_Pool'Last loop
+               if Has_Available_Time (I) then
+                  Next_Cluster := I;
+                  exit;
+               end if;
+            end loop;
+            if Next_Cluster = Error_TCID then
+               for I in Cluster_Pool'First .. Curr_Cluster - 1 loop
+                  if Has_Available_Time (I) then
+                     Next_Cluster := I;
+                     exit;
+                  end if;
+               end loop;
+            end if;
+
+            --  If we find no new clusters, we just reset em.
+            if Next_Cluster = Error_TCID then
+               for C of Cluster_Pool.all loop
+                  C.Progress_Seconds := 0;
+                  C.Progress_Nanos := 0;
+               end loop;
+               Next_Cluster := Curr_Cluster;
+            end if;
          end if;
 
          Max_Next_Timeout :=
@@ -571,20 +590,14 @@ package body Scheduler with SPARK_Mode => Off is
          --  Cluter_Cooperative finds new threads the same way as RR, so we
          --  do not need to handle it especially.
          for I in Current_TID + 1 .. Thread_Pool'Last loop
-            if Thread_Pool (I).Is_Present     and
-               not Thread_Pool (I).Is_Running and
-               Thread_Pool (I).Cluster = Next_Cluster
-            then
+            if Is_Switchable (I, Next_Cluster) then
                Next_TID := I;
                goto Found_TID_TCID_Combo;
             end if;
          end loop;
          if Current_TID /= Error_TID then
             for I in Thread_Pool'First .. Current_TID - 1 loop
-               if Thread_Pool (I).Is_Present     and
-                  not Thread_Pool (I).Is_Running and
-                  Thread_Pool (I).Cluster = Next_Cluster
-               then
+               if Is_Switchable (I, Next_Cluster) then
                   Next_TID := I;
                   goto Found_TID_TCID_Combo;
                end if;
@@ -704,4 +717,17 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Snippets.Enable_Interrupts;
       loop Arch.Snippets.Wait_For_Interrupt; end loop;
    end Waiting_Spot;
+
+   function Has_Available_Time (C : TCID) return Boolean is
+   begin
+      return Natural (Cluster_Pool (C).Progress_Seconds / 1000000) *
+             Natural (Cluster_Pool (C).Progress_Nanos / 1000) <
+             Total_Slice * Cluster_Pool (C).Percentage / 100;
+   end Has_Available_Time;
+
+   function Is_Switchable (T : TID; C : TCID) return Boolean is
+      Th : Thread_Info renames Thread_Pool (T);
+   begin
+      return Th.Is_Present and not Th.Is_Running and Th.Cluster = C;
+   end Is_Switchable;
 end Scheduler;

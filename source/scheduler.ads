@@ -149,6 +149,10 @@ private
 
    procedure Waiting_Spot with No_Return;
 
+   function Has_Available_Time (C : TCID) return Boolean;
+
+   function Is_Switchable (T : TID; C : TCID) return Boolean;
+
    function Convert (Thread : TID) return Natural is (Natural (Thread));
    function Convert (Group : TCID) return Natural is (Natural (Group));
    function Convert (Value : Natural) return TID is
