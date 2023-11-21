@@ -96,6 +96,8 @@ package body Arch.IDT with SPARK_Mode => Off is
                 Interrupts.Spurious_Handler'Address);
       Load_ISR (Interrupts.Panic_Interrupt,
                 Interrupts.Panic_Handler'Address);
+      Load_ISR (Interrupts.Invalidate_Interrupt,
+                Interrupts.Invalidate_Handler'Address);
 
       --  Prepare the pointer and load the IDT.
       Global_Pointer := ((Global_IDT'Size / 8) - 1, Global_IDT'Address);

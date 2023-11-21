@@ -1,5 +1,5 @@
---  arch-exceptions.ads: Specification of interrupt utilities.
---  Copyright (C) 2021 streaksu
+--  arch-exceptions.ads: Interrupt utilities.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -83,6 +83,10 @@ package Arch.Interrupts is
    --  Entrypoint for the scheduler handler.
    Panic_Interrupt : constant := 16#83#;
    procedure Panic_Handler;
+
+   --  Entrypoint for the scheduler handler.
+   Invalidate_Interrupt : constant := 16#84#;
+   procedure Invalidate_Handler;
 
    --  Default ISR handler.
    procedure Default_ISR_Handler;

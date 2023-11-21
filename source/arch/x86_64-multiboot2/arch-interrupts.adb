@@ -1,5 +1,5 @@
---  arch-interrupts.adb: Setup and management of interrupts.
---  Copyright (C) 2021 streaksu
+--  arch-interrupts.adb: Interrupt utilities.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -16,7 +16,9 @@
 
 with Arch.APIC;
 with Arch.GDT;
+with Arch.CPU;
 with Arch.Context;
+with Arch.MMU;
 with Lib.Panic;
 with Lib.Messages;
 with Scheduler;
@@ -292,15 +294,27 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       Snippets.HCF;
    end Panic_Handler;
 
+   procedure Invalidate_Handler is
+      I     : constant Positive := CPU.Get_Local.Number;
+      Final : constant System.Address := CPU.Core_Locals (I).Invalidate_End;
+      Curr  :          System.Address := CPU.Core_Locals (I).Invalidate_Start;
+   begin
+      while To_Integer (Curr) < To_Integer (Final) loop
+         Snippets.Invalidate_Page (To_Integer (Curr));
+         Curr := Curr + MMU.Page_Size;
+      end loop;
+      Arch.APIC.LAPIC_EOI;
+   end Invalidate_Handler;
+
    procedure Default_ISR_Handler is
    begin
-      Lib.Messages.Put_Line ("Default ISR triggered");
+      Lib.Messages.Warn ("Default ISR triggered");
       Arch.APIC.LAPIC_EOI;
    end Default_ISR_Handler;
 
    procedure Spurious_Handler is
    begin
-      Lib.Messages.Put_Line ("LAPIC Spurious interrupt occured");
+      Lib.Messages.Warn ("LAPIC Spurious interrupt occured");
       Arch.APIC.LAPIC_EOI;
    end Spurious_Handler;
    ----------------------------------------------------------------------------

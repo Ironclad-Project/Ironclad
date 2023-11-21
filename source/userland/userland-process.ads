@@ -178,6 +178,12 @@ package Userland.Process is
        Success : out Boolean)
       with Pre => Proc /= Error_PID;
 
+   --  Get the count of tgreads held by the process.
+   --  @param Process Process to check.
+   --  @return Number of threads held by the process.
+   function Get_Thread_Count (Process : PID) return Natural
+      with Pre => Process /= Error_PID;
+
    --  Remove a thread from the process.
    --  @param Proc   Process to remove a thread from.
    --  @param Thread Thread to remove.

@@ -207,6 +207,17 @@ package body Userland.Process with SPARK_Mode => Off is
       Success := False;
    end Add_Thread;
 
+   function Get_Thread_Count (Process : PID) return Natural is
+      Returned : Natural := 0;
+   begin
+      for I in Registry (Process).Thread_List'Range loop
+         if Registry (Process).Thread_List (I) /= Error_TID then
+            Returned := Returned + 1;
+         end if;
+      end loop;
+      return Returned;
+   end Get_Thread_Count;
+
    procedure Remove_Thread (Proc : PID; Thread : Scheduler.TID) is
       Temp1, Temp2, Temp3, Temp4 : Unsigned_64;
    begin

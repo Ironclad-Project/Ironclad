@@ -17,6 +17,11 @@
 with Interfaces.C;
 with Ada.Unchecked_Deallocation;
 with Arch.Snippets;
+with Arch.CPU; use Arch.CPU;
+with Arch.APIC;
+with Arch.Interrupts;
+with Arch.Local;
+with Userland.Process; use Userland.Process;
 with Memory.Physical;
 
 package body Arch.MMU with SPARK_Mode => Off is
@@ -226,21 +231,20 @@ package body Arch.MMU with SPARK_Mode => Off is
       for L3 of Map.PML4_Level (1 .. 256) loop
          declare
             A3   : constant Integer_Address := Clean_Entry (L3);
-            PML3 : PML4 with Import, Address => To_Address (Memory_Offset + A3);
+            PML3 : PML4
+               with Import, Address => To_Address (Memory_Offset + A3);
          begin
             if (L3 and Page_P) /= 0 then
                for L2 of PML3 loop
                   declare
                      A2   : constant Integer_Address := Clean_Entry (L2);
-                     PML2 : PML4 with Import, Address => To_Address (Memory_Offset + A2);
+                     PML2 : PML4 with Import,
+                        Address => To_Address (Memory_Offset + A2);
                   begin
                      if (L2 and Page_P) /= 0 then
                         for L1 of PML2 loop
-                           declare
-                              A1 : constant Integer_Address := Clean_Entry (L1);
-                           begin
-                              Memory.Physical.Free (Interfaces.C.size_t (A1));
-                           end;
+                           Memory.Physical.Free
+                              (Interfaces.C.size_t (Clean_Entry (L1)));
                         end loop;
                      end if;
                      Memory.Physical.Free (Interfaces.C.size_t (A2));
@@ -621,16 +625,36 @@ package body Arch.MMU with SPARK_Mode => Off is
          Page_P;
    end Flags_To_Bitmap;
 
-   --  TODO: Code this bad boy once the VMM makes use of them.
-
    procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count) is
       Final : constant System.Address := Addr + Len;
       Curr  :          System.Address := Addr;
+      Current_Proc : Userland.Process.PID;
    begin
       --  First, invalidate for ourselves.
       while To_Integer (Curr) < To_Integer (Final) loop
          Snippets.Invalidate_Page (To_Integer (Curr));
          Curr := Curr + Page_Size;
       end loop;
+
+      --  If we are running on a process, and said process is running with more
+      --  than one thread, we need to invalidate using funky IPIs.
+      if CPU.Core_Locals /= null then
+         Current_Proc := Local.Get_Current_Process;
+         if Current_Proc = Error_PID or else
+            Userland.Process.Get_Thread_Count (Current_Proc) < 2
+         then
+            return;
+         end if;
+
+         for I in CPU.Core_Locals.all'Range loop
+            if I /= CPU.Get_Local.Number then
+               CPU.Core_Locals (I).Invalidate_Start := Addr;
+               CPU.Core_Locals (I).Invalidate_End   := Final;
+               APIC.LAPIC_Send_IPI
+                  (CPU.Core_Locals (I).LAPIC_ID,
+                   Interrupts.Invalidate_Interrupt);
+            end if;
+         end loop;
+      end if;
    end Flush_Global_TLBs;
 end Arch.MMU;

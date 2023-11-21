@@ -35,6 +35,9 @@ package Arch.CPU with SPARK_Mode => Off is
       Core_TSS        : Arch.GDT.TSS;
       Current_Thread  : Scheduler.TID;
       Current_Process : Userland.Process.PID;
+
+      Invalidate_Start : System.Address;
+      Invalidate_End   : System.Address;
    end record;
    for Core_Local use record
       Self         at 0 range   0 ..  63;
