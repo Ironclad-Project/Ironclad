@@ -339,6 +339,14 @@ package body Arch.MMU with SPARK_Mode => Off is
       Lib.Synchronization.Seize (Map.Mutex);
 
       for Mapping of Map.Map_Ranges loop
+         if Mapping.Is_Present                     and
+            Mapping.Virtual_Start <= Virtual_Start and
+            Mapping.Virtual_Start + Length >= Virtual_Start + Length
+         then
+            goto Ret;
+         end if;
+      end loop;
+      for Mapping of Map.Map_Ranges loop
          if not Mapping.Is_Present then
             Mapping :=
                (Is_Present     => True,
@@ -381,6 +389,14 @@ package body Arch.MMU with SPARK_Mode => Off is
       Success := False;
       Lib.Synchronization.Seize (Map.Mutex);
 
+      for Mapping of Map.Map_Ranges loop
+         if Mapping.Is_Present                     and
+            Mapping.Virtual_Start <= Virtual_Start and
+            Mapping.Virtual_Start + Length >= Virtual_Start + Length
+         then
+            goto Ret;
+         end if;
+      end loop;
       for Mapping of Map.Map_Ranges loop
          if not Mapping.Is_Present then
             Mapping :=
@@ -429,7 +445,9 @@ package body Arch.MMU with SPARK_Mode => Off is
       Lib.Synchronization.Seize (Map.Mutex);
 
       for Mapping of Map.Map_Ranges loop
-         if Mapping.Is_Present and then Mapping.Virtual_Start = Virtual_Start
+         if Mapping.Is_Present                    and
+            Mapping.Virtual_Start = Virtual_Start and
+            Mapping.Length        = Length
          then
             Mapping.Flags := Permissions;
             goto Actually_Remap;
@@ -471,7 +489,9 @@ package body Arch.MMU with SPARK_Mode => Off is
    begin
       Lib.Synchronization.Seize (Map.Mutex);
       for Mapping of Map.Map_Ranges loop
-         if Mapping.Is_Present and then Mapping.Virtual_Start = Virtual_Start
+         if Mapping.Is_Present                    and
+            Mapping.Virtual_Start = Virtual_Start and
+            Mapping.Length        = Length
          then
             Mapping.Is_Present := False;
             if Mapping.Is_Allocated then
