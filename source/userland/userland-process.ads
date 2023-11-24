@@ -198,6 +198,14 @@ package Userland.Process is
    --  @param Process Process to reroll.
    procedure Reroll_ASLR (Process : PID) with Pre => Process /= Error_PID;
 
+   --  Get the process's default niceness.
+   function Get_Niceness (Process : PID) return Scheduler.Niceness
+      with Pre => Process /= Error_PID;
+
+   --  Set the process's default niceness.
+   procedure Set_Niceness (Process : PID; Nice : Scheduler.Niceness)
+      with Pre => Process /= Error_PID;
+
    --  Check whether a file is registered in a process.
    --  @param Process Process to check.
    --  @param FD      FD to check.
@@ -517,6 +525,7 @@ private
    type File_Arr   is array (0 .. Max_File_Count - 1) of File_Descriptor;
    type Process_Data is record
       Signals         : Signal_Bitmap;
+      Niceness        : Scheduler.Niceness;
       Umask           : VFS.File_Mode;
       User            : Unsigned_32;
       Effective_User  : Unsigned_32;

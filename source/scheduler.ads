@@ -91,7 +91,7 @@ package Scheduler is
 
    --  Algorithms used inside clusters for internal scheduling.
    type Cluster_Algorithm is
-      (Cluster_RR,           --  Cluster will do a non-priority round robin.
+      (Cluster_RR,           --  Cluster will do a priority round robin.
        Cluster_Cooperative); --  Cluster will do cooperative scheduling.
 
    function Set_Scheduling_Algorithm
@@ -106,6 +106,14 @@ package Scheduler is
    function Delete_Cluster (Cluster : TCID) return Boolean;
 
    function Switch_Cluster (Cluster : TCID; Thread : TID) return Boolean;
+   ----------------------------------------------------------------------------
+   --  Some scheduling algorithms allow priority, in those cases, it is
+   --  interacted with using POSIX-compatible niceness.
+   subtype Niceness is Integer range -20 .. 20;
+   Default_Niceness : constant Niceness := 0;
+
+   function Get_Niceness (Thread : TID) return Niceness;
+   procedure Set_Niceness (Thread : TID; Nice : Niceness);
    ----------------------------------------------------------------------------
    --  Hook to be called by the architecture for reescheduling of the callee
    --  core.

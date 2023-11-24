@@ -55,6 +55,7 @@ package body Scheduler with SPARK_Mode => Off is
    type Thread_Info is record
       Is_Present      : Boolean with Atomic;
       Is_Running      : Boolean with Atomic;
+      Nice            : Niceness;
       Cluster         : TCID;
       TCB_Pointer     : System.Address;
       PageMap         : Arch.MMU.Page_Table_Acc;
@@ -311,6 +312,7 @@ package body Scheduler with SPARK_Mode => Off is
 
       Thread_Pool (New_TID).Is_Present := True;
       Thread_Pool (New_TID).Is_Running := False;
+      Thread_Pool (New_TID).Nice := 0;
       Thread_Pool (New_TID).Cluster := Cluster;
       Thread_Pool (New_TID).PageMap := Map;
       Thread_Pool (New_TID).User_Stack := 0;
@@ -519,6 +521,16 @@ package body Scheduler with SPARK_Mode => Off is
       return Success;
    end Switch_Cluster;
    ----------------------------------------------------------------------------
+   function Get_Niceness (Thread : TID) return Niceness is
+   begin
+      return Thread_Pool (Thread).Nice;
+   end Get_Niceness;
+
+   procedure Set_Niceness (Thread : TID; Nice : Niceness) is
+   begin
+      Thread_Pool (Thread).Nice := Nice;
+   end Set_Niceness;
+   ----------------------------------------------------------------------------
    procedure Scheduler_ISR (State : Arch.Context.GP_Context) is
       Current_TID : constant TID := Arch.Local.Get_Current_Thread;
       Next_TID    :          TID := Error_TID;
@@ -578,7 +590,10 @@ package body Scheduler with SPARK_Mode => Off is
 
          case Cluster_Pool (Next_Cluster).Algorithm is
             when Cluster_RR =>
-               Timeout := Cluster_Pool (Next_Cluster).RR_Quantum;
+               Timeout :=
+                  Cluster_Pool (Next_Cluster).RR_Quantum +
+                  ((Cluster_Pool (Next_Cluster).RR_Quantum / 40) *
+                   Thread_Pool (Current_TID).Nice);
                if Timeout > Max_Next_Timeout then
                   Timeout := Max_Next_Timeout;
                end if;

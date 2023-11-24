@@ -984,6 +984,23 @@ package Userland.Syscall is
        Signal   : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
+
+   PRIO_PROCESS : constant := 1;
+   PRIO_PGRP    : constant := 2;
+   PRIO_USER    : constant := 3;
+   PRIO_THREAD  : constant := 4;
+   procedure Get_Prio
+      (Which    : Unsigned_64;
+       Who      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure Set_Prio
+      (Which    : Unsigned_64;
+       Who      : Unsigned_64;
+       Nice     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.

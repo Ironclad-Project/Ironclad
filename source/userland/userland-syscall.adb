@@ -4586,6 +4586,127 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno    := Error_No_Error;
       Returned := 0;
    end Send_Signal;
+
+   procedure Get_Prio
+      (Which    : Unsigned_64;
+       Who      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : PID := Arch.Local.Get_Current_Process;
+      Th    : TID;
+      FNice : Niceness;
+   begin
+      if not Get_Capabilities (Proc).Can_Change_Scheduling then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("getprio", Proc);
+         Returned := Unsigned_64'Last;
+      end if;
+
+      case Which is
+         when PRIO_PROCESS =>
+            if Who /= 0 then
+               Proc := Convert (Natural (Who and 16#FFFFFFFF#));
+               if Proc = Error_PID then
+                  goto Invalid_Value_Return;
+               end if;
+            end if;
+            FNice := Get_Niceness (Proc);
+         when PRIO_PGRP | PRIO_USER =>
+            Errno    := Error_Not_Supported;
+            Returned := Unsigned_64'Last;
+            return;
+         when PRIO_THREAD =>
+            if Who = 0 then
+               Th := Arch.Local.Get_Current_Thread;
+            else
+               Th := Convert (Natural (Who and 16#FFFFFFFF#));
+               if Th = Error_TID then
+                  goto Invalid_Value_Return;
+               end if;
+            end if;
+            FNice := Get_Niceness (Th);
+         when others =>
+            goto Invalid_Value_Return;
+      end case;
+
+      if FNice >= 0 then
+         Returned := Unsigned_64 (FNice);
+      else
+         Returned := Unsigned_64'Last - Unsigned_64 (abs FNice) + 1;
+      end if;
+
+      Errno := Error_No_Error;
+      return;
+
+   <<Invalid_Value_Return>>
+      Errno := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+   end Get_Prio;
+
+   procedure Set_Prio
+      (Which    : Unsigned_64;
+       Who      : Unsigned_64;
+       Nice     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : PID := Arch.Local.Get_Current_Process;
+      Th    : TID;
+      FNice : Niceness;
+   begin
+      if not Get_Capabilities (Proc).Can_Change_Scheduling then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("setprio", Proc);
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      if Nice <= Unsigned_64 (Niceness'Last) then
+         FNice := Niceness (Nice);
+      elsif Nice >=
+         Unsigned_64 (Unsigned_32'Last - Unsigned_32 (abs Niceness'First) + 1)
+      then
+         FNice := -Niceness (Unsigned_64 (Unsigned_32'Last) - Nice + 1);
+      else
+         goto Invalid_Value_Return;
+      end if;
+
+      case Which is
+         when PRIO_PROCESS =>
+            if Who /= 0 then
+               Proc := Convert (Natural (Who and 16#FFFFFFFF#));
+               if Proc = Error_PID then
+                  goto Invalid_Value_Return;
+               end if;
+            end if;
+            Set_Niceness (Proc, FNice);
+         when PRIO_PGRP | PRIO_USER =>
+            Errno    := Error_Not_Supported;
+            Returned := Unsigned_64'Last;
+            return;
+         when PRIO_THREAD =>
+            if Who = 0 then
+               Th := Arch.Local.Get_Current_Thread;
+            else
+               Th := Convert (Natural (Who and 16#FFFFFFFF#));
+               if Th = Error_TID then
+                  goto Invalid_Value_Return;
+               end if;
+            end if;
+            Set_Niceness (Th, FNice);
+         when others =>
+            goto Invalid_Value_Return;
+      end case;
+
+      Errno := Error_No_Error;
+      Returned := 0;
+      return;
+
+   <<Invalid_Value_Return>>
+      Errno := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+   end Set_Prio;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin

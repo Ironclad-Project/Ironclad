@@ -105,6 +105,7 @@ package body Userland.Process with SPARK_Mode => Off is
          if Registry (I) = null then
             Registry (I) := new Process_Data'
                (Signals         => (others => False),
+                Niceness        => Scheduler.Default_Niceness,
                 Umask           => Default_Umask,
                 User            => 0,
                 Effective_User  => 0,
@@ -126,6 +127,7 @@ package body Userland.Process with SPARK_Mode => Off is
                 others          => 0);
 
             if Parent /= Error_PID then
+               Registry (I).Niceness        := Registry (P).Niceness;
                Registry (I).Parent          := Parent;
                Registry (I).Stack_Base      := Registry (P).Stack_Base;
                Registry (I).Alloc_Base      := Registry (P).Alloc_Base;
@@ -289,6 +291,21 @@ package body Userland.Process with SPARK_Mode => Off is
       Registry (Process).Alloc_Base := Rand_Addr;
       Registry (Process).Stack_Base := Rand_Addr + Rand_Jump;
    end Reroll_ASLR;
+
+   function Get_Niceness (Process : PID) return Scheduler.Niceness is
+   begin
+      return Registry (Process).Niceness;
+   end Get_Niceness;
+
+   procedure Set_Niceness (Process : PID; Nice : Scheduler.Niceness) is
+   begin
+      Registry (Process).Niceness := Nice;
+      for Thread of Registry (Process).Thread_List loop
+         if Thread /= Error_TID then
+            Scheduler.Set_Niceness (Thread, Nice);
+         end if;
+      end loop;
+   end Set_Niceness;
 
    function Is_Valid_File (Process : PID; FD : Unsigned_64) return Boolean is
    begin

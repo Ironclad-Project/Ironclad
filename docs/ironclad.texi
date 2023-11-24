@@ -178,6 +178,7 @@ Syscalls
 * actually_kill::           Kill a remote process.
 * signalpost::              Create a signal post.
 * send_signal::             Send a signal to a process.
+* getprio/setprio::         Get / Set the niceness of some entities.
 
 Filesystem support and interfaces
 
@@ -352,8 +353,15 @@ scheduled. The available algorithms are:
 
 @table @code
 @item SCHED_RR
-A flat round robin with no priorities, one can specify a quantum for tasks
-to use while rotating.
+A prioritized round robin. One can specify a quantum to use when
+switching threads, while one can specify a priority using standard POSIX
+niceness. @ref{getprio/setprio}.
+
+Priorities affect inter-thread quantum following the formula:
+
+@example
+timeout = quantum + ((quantum / 40) * niceness);
+@end example
 
 @item SCHED_COOP
 Cooperative scheduling, the scheduler will not attempt to preempt unless
@@ -835,6 +843,10 @@ Empty.
 @ref{signalpost}.
 @item
 @ref{send_signal}.
+@item
+@ref{getprio/setprio, getprio}.
+@item
+@ref{getprio/setprio, setprio}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -3292,6 +3304,54 @@ The caller does not have permissions to signal @code{pid}.
 
 @item EINVAL
 @code{signal} is not a valid signal.
+@end table
+
+@node getprio/setprio
+@section getprio/setprio
+
+@example
+#define PRIO_PROCESS 1
+#define PRIO_PGRP 2
+#define PRIO_USER 3
+#define PRIO_THREAD 4
+
+#define PRIO_MIN (-20)
+#define PRIO_MAX 20
+
+int getprio(int which, int who);
+int setprio(int which, int who, int prio);
+@end example
+
+These syscalls get and set niceness values, @code{which} says which entity
+to set the niceness to, while @code{who} the pid or id of the entity, 0 for
+the current caller.
+
+@code{who} can be one of:
+
+@table @code
+@item PRIO_PROCESS
+Get or set the default niceness of a process. When set, this will make new
+threads created by a process be created with this niceness value, and make all
+exiting threads have that niceness, along with making child processes inherit
+the passed niceness.
+
+@item PRIO_PGRP / PRIO_USER
+Unimplemented, for future features.
+
+@item PRIO_THREAD
+Get or set the niceness of the passed thread. Setting this value does not
+affect the process niceness, or what will be reported when getting it, it will
+just be an outliar until niceness is set again, either thread-wide or
+process-wide.
+@end table
+
+@code{getprio} returns the niceness and @code{-1} on failure, while
+@code{setprio} returns @code{0} on success and @code{-1} on failure. Both
+in failure feature the following errno:
+
+@table @code
+@item EINVAL
+A value is not valid.
 @end table
 
 @node Filesystem support and interfaces

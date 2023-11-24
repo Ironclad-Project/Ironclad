@@ -263,6 +263,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             SignalPost (State.RDI, Returned, Errno);
          when 81 =>
             Send_Signal (State.RDI, State.RSI, Returned, Errno);
+         when 82 =>
+            Get_Prio (State.RDI, State.RSI, Returned, Errno);
+         when 83 =>
+            Set_Prio (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when others =>
             Userland.Process.Raise_Signal
                (Local.Get_Current_Process,
