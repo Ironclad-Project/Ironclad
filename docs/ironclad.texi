@@ -360,7 +360,7 @@ niceness. @ref{getprio/setprio}.
 Priorities affect inter-thread quantum following the formula:
 
 @example
-timeout = quantum + ((quantum / 40) * niceness);
+timeout = quantum - ((quantum / 40) * niceness);
 @end example
 
 @item SCHED_COOP

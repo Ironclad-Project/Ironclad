@@ -591,7 +591,7 @@ package body Scheduler with SPARK_Mode => Off is
          case Cluster_Pool (Next_Cluster).Algorithm is
             when Cluster_RR =>
                Timeout :=
-                  Cluster_Pool (Next_Cluster).RR_Quantum +
+                  Cluster_Pool (Next_Cluster).RR_Quantum -
                   ((Cluster_Pool (Next_Cluster).RR_Quantum / 40) *
                    Thread_Pool (Current_TID).Nice);
                if Timeout > Max_Next_Timeout then
