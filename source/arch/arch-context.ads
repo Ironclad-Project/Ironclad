@@ -32,6 +32,7 @@ package Arch.Context is
       --  FIXME: Alignment should be 16, but GCC does not align then?
       subtype GP_Context is Arch.Interrupts.ISR_GPRs;
       type FP_Context is array (1 .. 512) of Unsigned_8 with Alignment => 32;
+      subtype Core_Context is Unsigned_64;
    #end if;
 
    type GP_Context_Acc is access GP_Context;
@@ -45,6 +46,9 @@ package Arch.Context is
 
    --  Load the passed context.
    procedure Load_GP_Context (Ctx : GP_Context) with No_Return;
+
+   --  Save architectural task data that does not fit within GP or FP data.
+   procedure Save_Core_Context (Ctx : out Core_Context);
 
    --  When creating a thread, in success, some registers usually have to be
    --  set for success conditions, and said status is expected in userland.

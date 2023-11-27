@@ -25,7 +25,6 @@ with Arch.Clocks;
 with Arch.Snippets;
 with Lib;
 with Lib.Time;
-with Arch.CPU;
 with Ada.Unchecked_Deallocation;
 
 package body Scheduler with SPARK_Mode => Off is
@@ -60,9 +59,9 @@ package body Scheduler with SPARK_Mode => Off is
       TCB_Pointer     : System.Address;
       PageMap         : Arch.MMU.Page_Table_Acc;
       Kernel_Stack    : Kernel_Stack_Acc;
-      User_Stack      : Unsigned_64;
       GP_State        : Arch.Context.GP_Context;
       FP_State        : Arch.Context.FP_Context;
+      C_State         : Arch.Context.Core_Context;
       Process         : Userland.Process.PID;
       Yield_Mutex     : aliased Lib.Synchronization.Binary_Semaphore;
       Last_Sched_Sec  : Unsigned_64;
@@ -315,7 +314,6 @@ package body Scheduler with SPARK_Mode => Off is
       Thread_Pool (New_TID).Nice := 0;
       Thread_Pool (New_TID).Cluster := Cluster;
       Thread_Pool (New_TID).PageMap := Map;
-      Thread_Pool (New_TID).User_Stack := 0;
       Thread_Pool (New_TID).TCB_Pointer := TCB;
       Thread_Pool (New_TID).GP_State := GP_State;
       Thread_Pool (New_TID).FP_State := FP_State;
@@ -644,8 +642,7 @@ package body Scheduler with SPARK_Mode => Off is
          if Thread_Pool (Current_TID).Is_Present then
             Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
             Thread_Pool (Current_TID).GP_State    := State;
-            Thread_Pool (Current_TID).User_Stack :=
-                Arch.CPU.Get_Local.User_Stack;
+            Arch.Context.Save_Core_Context (Thread_Pool (Current_TID).C_State);
             Arch.Context.Save_FP_Context (Thread_Pool (Current_TID).FP_State);
          end if;
       end if;
@@ -674,7 +671,7 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Local.Set_Current_Thread (Next_TID);
       Thread_Pool (Next_TID).Is_Running := True;
       Arch.Local.Set_Stacks
-         (To_Address (Integer_Address (Thread_Pool (Next_TID).User_Stack)),
+         (Thread_Pool (Next_TID).C_State,
           Thread_Pool (Next_TID).Kernel_Stack (Kernel_Stack'Last)'Address);
       Arch.Local.Load_TCB (Thread_Pool (Next_TID).TCB_Pointer);
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_State);

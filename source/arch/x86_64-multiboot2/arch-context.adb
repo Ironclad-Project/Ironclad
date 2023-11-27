@@ -17,6 +17,7 @@
 with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
 with System.Machine_Code;    use System.Machine_Code;
 with Arch.GDT;
+with Arch.CPU;
 
 package body Arch.Context with SPARK_Mode => Off is
    procedure Init_GP_Context
@@ -64,6 +65,11 @@ package body Arch.Context with SPARK_Mode => Off is
       );
       loop null; end loop;
    end Load_GP_Context;
+
+   procedure Save_Core_Context (Ctx : out Core_Context) is
+   begin
+      Ctx := Arch.CPU.Get_Local.User_Stack;
+   end Save_Core_Context;
 
    procedure Success_Fork_Result (Ctx : in out GP_Context) is
    begin

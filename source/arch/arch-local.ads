@@ -16,6 +16,7 @@
 
 with Scheduler; use Scheduler;
 with Userland.Process;
+with Arch.Context;
 
 package Arch.Local is
    --  Forcing reschedules using architecture-specific methods.
@@ -27,7 +28,9 @@ package Arch.Local is
    procedure Load_TCB (TCB : System.Address);
 
    --  Set the user and kernel stack for return from userland.
-   procedure Set_Stacks (User_Stack, Kernel_Stack : System.Address);
+   procedure Set_Stacks
+      (Core : Context.Core_Context;
+       Kernel_Stack : System.Address);
 
    --  Fetch and set the current thread and process.
    function Get_Current_Thread return Scheduler.TID;
