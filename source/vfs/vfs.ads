@@ -123,20 +123,13 @@ package VFS is
        Handle : out FS_Handle)
       with Pre => Is_Initialized;
 
-   --  Information of a process.
-   type Mountpoint_Info is record
-      Inner_Type   : FS_Type;
-      Source       : String (1 .. 20);
-      Source_Len   : Natural;
-      Location     : String (1 .. 20);
-      Location_Len : Natural;
-   end record;
-   type Mountpoint_Info_Arr is array (Natural range <>) of Mountpoint_Info;
+   --  Array of handles.
+   type Mountpoint_Arr is array (Natural range <>) of FS_Handle;
 
    --  List all mountpoints on the system.
    --  @param List  Where to write all the mount information.
    --  @param Total Total count of mountpoints, even if it is > List'Length.
-   procedure List_All (List : out Mountpoint_Info_Arr; Total : out Natural)
+   procedure List_All (List : out Mountpoint_Arr; Total : out Natural)
       with Pre => Devices.Is_Initialized and Is_Initialized;
 
    --  Get the backing FS type.
@@ -156,6 +149,35 @@ package VFS is
    --  @return The backing device.
    function Get_Backing_Device (Key : FS_Handle) return Device_Handle
       with Pre => Is_Initialized and Key /= Error_Handle;
+
+   --  Get the backing device of a mount.
+   --  @param Key Key to use to fetch the info.
+   --  @return The backing device.
+   procedure Get_Mount_Point
+      (Key    : FS_Handle;
+       Name   : out String;
+       Length : out Natural)
+      with Pre => Is_Initialized and Key /= Error_Handle;
+   ----------------------------------------------------------------------------
+   function Get_Block_Size (Key : FS_Handle) return Unsigned_64;
+
+   function Get_Fragment_Size (Key : FS_Handle) return Unsigned_64;
+
+   function Get_Size (Key : FS_Handle) return Unsigned_64;
+
+   function Get_Inode_Count (Key : FS_Handle) return Unsigned_64;
+
+   procedure Get_Free_Blocks
+      (Key                : FS_Handle;
+       Free_Blocks        : out Unsigned_64;
+       Free_Unpriviledged : out Unsigned_64);
+
+   procedure Get_Free_Inodes
+      (Key                : FS_Handle;
+       Free_Inodes        : out Unsigned_64;
+       Free_Unpriviledged : out Unsigned_64);
+
+   function Get_Max_Length (Key : FS_Handle) return Unsigned_64;
    ----------------------------------------------------------------------------
    --  Status returned from file operations as result.
    type FS_Status is

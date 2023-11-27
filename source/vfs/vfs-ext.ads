@@ -25,6 +25,26 @@ package VFS.EXT is
 
    procedure Unmount (FS : in out System.Address);
    ----------------------------------------------------------------------------
+   function Get_Block_Size (FS : System.Address) return Unsigned_64;
+
+   function Get_Fragment_Size (FS : System.Address) return Unsigned_64;
+
+   function Get_Size (FS : System.Address) return Unsigned_64;
+
+   function Get_Inode_Count (FS : System.Address) return Unsigned_64;
+
+   procedure Get_Free_Blocks
+      (FS                 : System.Address;
+       Free_Blocks        : out Unsigned_64;
+       Free_Unpriviledged : out Unsigned_64);
+
+   procedure Get_Free_Inodes
+      (FS                 : System.Address;
+       Free_Inodes        : out Unsigned_64;
+       Free_Unpriviledged : out Unsigned_64);
+
+   function Get_Max_Length (FS : System.Address) return Unsigned_64;
+   ----------------------------------------------------------------------------
    procedure Open
       (FS        : System.Address;
        Relative  : File_Inode_Number;
@@ -378,7 +398,8 @@ private
    end record;
    type EXT_Data_Acc is access all EXT_Data;
 
-   Root_Inode : constant := 2;
+   Root_Inode         : constant := 2;
+   Max_File_Name_Size : constant := 255;
 
    procedure Inner_Open_Inode
       (Data         : EXT_Data_Acc;

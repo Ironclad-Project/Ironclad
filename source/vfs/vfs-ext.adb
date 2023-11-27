@@ -120,6 +120,87 @@ package body VFS.EXT with SPARK_Mode => Off is
       FS := System.Null_Address;
    end Unmount;
    ----------------------------------------------------------------------------
+   function Get_Block_Size (FS : System.Address) return Unsigned_64 is
+      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Ret  : Unsigned_64;
+   begin
+      Lib.Synchronization.Seize (Data.Mutex);
+      Ret := Unsigned_64 (Data.Block_Size);
+      Lib.Synchronization.Release (Data.Mutex);
+      return Ret;
+   end Get_Block_Size;
+
+   function Get_Fragment_Size (FS : System.Address) return Unsigned_64 is
+      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Ret  : Unsigned_64;
+   begin
+      Lib.Synchronization.Seize (Data.Mutex);
+      Ret := Unsigned_64 (Data.Fragment_Size);
+      Lib.Synchronization.Release (Data.Mutex);
+      return Ret;
+   end Get_Fragment_Size;
+
+   function Get_Size (FS : System.Address) return Unsigned_64 is
+      Data    : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Sup     : Superblock;
+      Success : Boolean;
+   begin
+      Lib.Synchronization.Seize (Data.Mutex);
+      RW_Superblock
+         (Handle          => Data.Handle,
+          Offset          => Main_Superblock_Offset,
+          Super           => Sup,
+          Write_Operation => False,
+          Success         => Success);
+      Lib.Synchronization.Release (Data.Mutex);
+      return Unsigned_64 (Sup.Block_Count *
+         Data.Block_Size / Data.Fragment_Size);
+   end Get_Size;
+
+   function Get_Inode_Count (FS : System.Address) return Unsigned_64 is
+      Data    : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Sup     : Superblock;
+      Success : Boolean;
+   begin
+      Lib.Synchronization.Seize (Data.Mutex);
+      RW_Superblock
+         (Handle          => Data.Handle,
+          Offset          => Main_Superblock_Offset,
+          Super           => Sup,
+          Write_Operation => False,
+          Success         => Success);
+      Lib.Synchronization.Release (Data.Mutex);
+      return Unsigned_64 (Sup.Inode_Count);
+   end Get_Inode_Count;
+
+   procedure Get_Free_Blocks
+      (FS                 : System.Address;
+       Free_Blocks        : out Unsigned_64;
+       Free_Unpriviledged : out Unsigned_64)
+   is
+      pragma Unreferenced (FS);
+   begin
+      Free_Blocks := 5000;
+      Free_Unpriviledged := 3000;
+   end Get_Free_Blocks;
+
+   procedure Get_Free_Inodes
+      (FS                 : System.Address;
+       Free_Inodes        : out Unsigned_64;
+       Free_Unpriviledged : out Unsigned_64)
+   is
+      pragma Unreferenced (FS);
+   begin
+      Free_Inodes := 100;
+      Free_Unpriviledged := 33;
+   end Get_Free_Inodes;
+
+   function Get_Max_Length (FS : System.Address) return Unsigned_64 is
+      pragma Unreferenced (FS);
+   begin
+      return Max_File_Name_Size;
+   end Get_Max_Length;
+   ----------------------------------------------------------------------------
    procedure Open
       (FS        : System.Address;
        Relative  : File_Inode_Number;

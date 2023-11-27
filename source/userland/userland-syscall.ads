@@ -367,12 +367,21 @@ package Userland.Syscall is
    type Proc_Info_Arr is array (Natural range <>) of Proc_Info;
 
    type Mount_Info is record
-      FS_Type      : Unsigned_32;
-      Flags        : Unsigned_32;
-      Source       : String (1 .. 20);
-      Source_Len   : Unsigned_32;
-      Location     : String (1 .. 20);
-      Location_Len : Unsigned_32;
+      FS_Type       : Unsigned_32;
+      Flags         : Unsigned_32;
+      Source        : String (1 .. 20);
+      Source_Len    : Unsigned_32;
+      Location      : String (1 .. 20);
+      Location_Len  : Unsigned_32;
+      Block_Size    : Unsigned_64;
+      Fragment_Size : Unsigned_64;
+      Size_In_Frags : Unsigned_64;
+      Free_Blocks   : Unsigned_64;
+      Free_BlocksU  : Unsigned_64;
+      Inode_Count   : Unsigned_64;
+      Free_Inodes   : Unsigned_64;
+      Free_InodesU  : Unsigned_64;
+      Max_File_Name : Unsigned_64;
    end record;
    type Mount_Info_Arr is array (Natural range <>) of Mount_Info;
 

@@ -16,7 +16,6 @@
 
 with VFS.EXT;
 with VFS.FAT;
-with Ada.Characters.Latin_1;
 
 package body VFS is
    pragma Suppress (All_Checks); --  Unit passes SPARK AoRTE.
@@ -151,41 +150,23 @@ package body VFS is
       end if;
    end Get_Mount;
 
-   procedure List_All (List : out Mountpoint_Info_Arr; Total : out Natural) is
+   procedure List_All (List : out Mountpoint_Arr; Total : out Natural) is
       pragma Annotate (GNATprove, False_Positive, "range check might fail",
                        "in List? how?");
 
-      Curr_Index        : Natural := 0;
-      Dev_Name          : String (1 .. Devices.Max_Name_Length);
-      Dev_Len, Path_Len : Natural;
+      Curr_Index : Natural := 0;
    begin
       Total := 0;
-      List  := (others => (FS_EXT, (others => ' '), 0, (others => ' '), 0));
+      List  := (others => Error_Handle);
 
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev /= Devices.Error_Handle then
-            Total := Total + 1;
             if Curr_Index < List'Length then
-               Devices.Fetch_Name (Mounts (I).Mounted_Dev, Dev_Name, Dev_Len);
-               Path_Len := Mounts (I).Path_Length;
-
-               List (List'First + Curr_Index) :=
-                  (Inner_Type   => Mounts (I).Mounted_FS,
-                   Source       => Dev_Name (1 .. 20),
-                   Source_Len   => Dev_Len,
-                   Location     => (others => Ada.Characters.Latin_1.NUL),
-                   Location_Len => Path_Len);
-               if Path_Len <= List (List'First + Curr_Index).Location'Length
-               then
-                  List (List'First + Curr_Index).Location (1 .. Path_Len) :=
-                     Mounts (I).Path_Buffer (1 .. Path_Len);
-               else
-                  List (List'First + Curr_Index).Location (1 .. 20) :=
-                     Mounts (I).Path_Buffer (1 .. 20);
-               end if;
+               List (List'First + Curr_Index) := I;
                Curr_Index := Curr_Index + 1;
             end if;
+            Total := Total + 1;
          end if;
       end loop;
       Lib.Synchronization.Release (Mounts_Mutex);
@@ -205,6 +186,92 @@ package body VFS is
    begin
       return Mounts (Key).Mounted_Dev;
    end Get_Backing_Device;
+
+   procedure Get_Mount_Point
+      (Key    : FS_Handle;
+       Name   : out String;
+       Length : out Natural)
+   is
+   begin
+      Name   := Mounts (Key).Path_Buffer;
+      Length := Mounts (Key).Path_Length;
+   end Get_Mount_Point;
+   ----------------------------------------------------------------------------
+   function Get_Block_Size (Key : FS_Handle) return Unsigned_64 is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT => return EXT.Get_Block_Size (Mounts (Key).FS_Data);
+         when others => return 0;
+      end case;
+   end Get_Block_Size;
+
+   function Get_Fragment_Size (Key : FS_Handle) return Unsigned_64 is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT => return EXT.Get_Fragment_Size (Mounts (Key).FS_Data);
+         when others => return 0;
+      end case;
+   end Get_Fragment_Size;
+
+   function Get_Size (Key : FS_Handle) return Unsigned_64 is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT => return EXT.Get_Size (Mounts (Key).FS_Data);
+         when others => return 0;
+      end case;
+   end Get_Size;
+
+   function Get_Inode_Count (Key : FS_Handle) return Unsigned_64 is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT => return EXT.Get_Inode_Count (Mounts (Key).FS_Data);
+         when others => return 0;
+      end case;
+   end Get_Inode_Count;
+
+   procedure Get_Free_Blocks
+      (Key                : FS_Handle;
+       Free_Blocks        : out Unsigned_64;
+       Free_Unpriviledged : out Unsigned_64)
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT =>
+            EXT.Get_Free_Blocks
+               (Mounts (Key).FS_Data,
+                Free_Blocks,
+                Free_Unpriviledged);
+         when others =>
+            Free_Blocks := 0;
+            Free_Unpriviledged := 0;
+      end case;
+   end Get_Free_Blocks;
+
+   procedure Get_Free_Inodes
+      (Key                : FS_Handle;
+       Free_Inodes        : out Unsigned_64;
+       Free_Unpriviledged : out Unsigned_64)
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT =>
+            EXT.Get_Free_Inodes
+               (Mounts (Key).FS_Data,
+                Free_Inodes,
+                Free_Unpriviledged);
+         when others =>
+            Free_Inodes := 0;
+            Free_Unpriviledged := 0;
+      end case;
+   end Get_Free_Inodes;
+
+   function Get_Max_Length (Key : FS_Handle) return Unsigned_64 is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT => return EXT.Get_Max_Length (Mounts (Key).FS_Data);
+         when others => return 0;
+      end case;
+   end Get_Max_Length;
    ----------------------------------------------------------------------------
    procedure Open
       (Key       : FS_Handle;

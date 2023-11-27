@@ -1466,22 +1466,33 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Len   : constant Natural :=
                   Natural (Length / (Mount_Info'Size / 8));
                Mnts  : Mount_Info_Arr (1 .. Len) with Import, Address => SAddr;
-               KMnts : Mountpoint_Info_Arr (1 .. Len);
+               KMnts : Mountpoint_Arr (1 .. Len);
                Ret   : Natural;
             begin
                List_All (KMnts, Ret);
                for I in 1 .. Ret loop
-                  Mnts (I) :=
-                     (FS_Type      => 0,
-                      Flags        => 0,
-                      Source       => KMnts (I).Source,
-                      Source_Len   => Unsigned_32 (KMnts (I).Source_Len),
-                      Location     => KMnts (I).Location,
-                      Location_Len => Unsigned_32 (KMnts (I).Location_Len));
-                  case KMnts (I).Inner_Type is
+                  case Get_Backing_FS (KMnts (I)) is
                      when FS_EXT => Mnts (I).FS_Type := MNT_EXT;
                      when FS_FAT => Mnts (I).FS_Type := MNT_FAT;
                   end case;
+                  Mnts (I).Flags := 0;
+                  Fetch_Name
+                     (Get_Backing_Device (KMnts (I)),
+                      Mnts (I).Source,
+                      Natural (Mnts (I).Source_Len));
+                  Get_Mount_Point
+                     (KMnts (I),
+                      Mnts (I).Location,
+                      Natural (Mnts (I).Location_Len));
+                  Mnts (I).Block_Size := Get_Block_Size (KMnts (I));
+                  Mnts (I).Fragment_Size := Get_Fragment_Size (KMnts (I));
+                  Mnts (I).Size_In_Frags := Get_Size (KMnts (I));
+                  Mnts (I).Inode_Count := Get_Inode_Count (KMnts (I));
+                  Mnts (I).Max_File_Name := Get_Max_Length (KMnts (I));
+                  Get_Free_Blocks
+                     (KMnts (I), Mnts (I).Free_Blocks, Mnts (I).Free_BlocksU);
+                  Get_Free_Blocks
+                     (KMnts (I), Mnts (I).Free_Blocks, Mnts (I).Free_BlocksU);
                end loop;
 
                Result := Unsigned_64 (Ret);
