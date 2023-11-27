@@ -45,7 +45,7 @@ procedure Main is
    Init_PID    : PID;
    Success     : VFS.FS_Status;
    Init_Stdin  : constant String := "null";
-   Init_Stdout : constant String := "debug";
+   Init_Stdout : constant String := "console";
    Proto       : Arch.Boot_Information renames Arch.Global_Info;
    Cmdline     : String renames Proto.Cmdline (1 .. Proto.Cmdline_Len);
 begin
