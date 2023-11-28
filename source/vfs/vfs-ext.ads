@@ -21,7 +21,14 @@ package VFS.EXT is
    procedure Probe
       (Handle       : Device_Handle;
        Do_Read_Only : Boolean;
+       Do_Relatime  : Boolean;
        Data_Addr    : out System.Address);
+
+   procedure Remount
+      (FS           : System.Address;
+       Do_Read_Only : Boolean;
+       Do_Relatime  : Boolean;
+       Success      : out Boolean);
 
    procedure Unmount (FS : in out System.Address);
    ----------------------------------------------------------------------------
@@ -390,6 +397,7 @@ private
       Handle                : Device_Handle;
       Super                 : Superblock;
       Is_Read_Only          : Boolean;
+      Do_Relatime           : Boolean;
       Block_Size            : Unsigned_32;
       Fragment_Size         : Unsigned_32;
       Root                  : Inode;

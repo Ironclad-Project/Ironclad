@@ -62,13 +62,78 @@ package body VFS.FAT with SPARK_Mode => Off is
       Data_Addr := Conv_1.To_Address (Conv_1.Object_Pointer (Data));
    end Probe;
 
+   procedure Remount
+      (FS           : System.Address;
+       Do_Read_Only : Boolean;
+       Do_Relatime  : Boolean;
+       Success      : out Boolean)
+   is
+      pragma Unreferenced (FS);
+      pragma Unreferenced (Do_Read_Only);
+      pragma Unreferenced (Do_Relatime);
+   begin
+      Success := True;
+   end Remount;
+
    procedure Unmount (FS : in out System.Address) is
       Data : FAT_Data_Acc := FAT_Data_Acc (Conv_1.To_Pointer (FS));
    begin
       Free_1 (Data);
       FS := System.Null_Address;
    end Unmount;
+   ----------------------------------------------------------------------------
+   function Get_Block_Size (FS : System.Address) return Unsigned_64 is
+      pragma Unreferenced (FS);
+   begin
+      return 4096;
+   end Get_Block_Size;
 
+   function Get_Fragment_Size (FS : System.Address) return Unsigned_64 is
+      pragma Unreferenced (FS);
+   begin
+      return 4096;
+   end Get_Fragment_Size;
+
+   function Get_Size (FS : System.Address) return Unsigned_64 is
+      pragma Unreferenced (FS);
+   begin
+      return 4096 * 10;
+   end Get_Size;
+
+   function Get_Inode_Count (FS : System.Address) return Unsigned_64 is
+      pragma Unreferenced (FS);
+   begin
+      return 420;
+   end Get_Inode_Count;
+
+   procedure Get_Free_Blocks
+      (FS                 : System.Address;
+       Free_Blocks        : out Unsigned_64;
+       Free_Unpriviledged : out Unsigned_64)
+   is
+      pragma Unreferenced (FS);
+   begin
+      Free_Blocks := 1;
+      Free_Unpriviledged := 1;
+   end Get_Free_Blocks;
+
+   procedure Get_Free_Inodes
+      (FS                 : System.Address;
+       Free_Inodes        : out Unsigned_64;
+       Free_Unpriviledged : out Unsigned_64)
+   is
+      pragma Unreferenced (FS);
+   begin
+      Free_Inodes := 1;
+      Free_Unpriviledged := 1;
+   end Get_Free_Inodes;
+
+   function Get_Max_Length (FS : System.Address) return Unsigned_64 is
+      pragma Unreferenced (FS);
+   begin
+      return 64;
+   end Get_Max_Length;
+   ----------------------------------------------------------------------------
    procedure Open
       (FS      : System.Address;
        Path    : String;

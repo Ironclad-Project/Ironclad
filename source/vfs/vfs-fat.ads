@@ -20,8 +20,35 @@ package VFS.FAT is
        Do_Read_Only : Boolean;
        Data_Addr    : out System.Address);
 
-   procedure Unmount (FS : in out System.Address);
 
+   procedure Remount
+      (FS           : System.Address;
+       Do_Read_Only : Boolean;
+       Do_Relatime  : Boolean;
+       Success      : out Boolean);
+
+   procedure Unmount (FS : in out System.Address);
+   ----------------------------------------------------------------------------
+   function Get_Block_Size (FS : System.Address) return Unsigned_64;
+
+   function Get_Fragment_Size (FS : System.Address) return Unsigned_64;
+
+   function Get_Size (FS : System.Address) return Unsigned_64;
+
+   function Get_Inode_Count (FS : System.Address) return Unsigned_64;
+
+   procedure Get_Free_Blocks
+      (FS                 : System.Address;
+       Free_Blocks        : out Unsigned_64;
+       Free_Unpriviledged : out Unsigned_64);
+
+   procedure Get_Free_Inodes
+      (FS                 : System.Address;
+       Free_Inodes        : out Unsigned_64;
+       Free_Unpriviledged : out Unsigned_64);
+
+   function Get_Max_Length (FS : System.Address) return Unsigned_64;
+   ----------------------------------------------------------------------------
    procedure Open
       (FS      : System.Address;
        Path    : String;

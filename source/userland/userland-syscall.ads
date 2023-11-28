@@ -540,7 +540,9 @@ package Userland.Syscall is
    --  Mount a filesystem.
    MNT_EXT : constant := 1;
    MNT_FAT : constant := 2;
-   MS_RDONLY : constant := 2#01#;
+   MS_RDONLY   : constant := 2#001#;
+   MS_REMOUNT  : constant := 2#010#;
+   MS_RELATIME : constant := 2#100#;
    procedure Mount
       (Source_Addr : Unsigned_64;
        Source_Len  : Unsigned_64;

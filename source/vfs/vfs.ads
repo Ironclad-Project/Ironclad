@@ -80,11 +80,13 @@ package VFS is
    --  @param Device_Name  Name of the device (/dev/<name>).
    --  @param Mount_Path   Absolute path for mounting.
    --  @param Do_Read_Only Force to mount read only.
+   --  @param Do_Relatime  Use relative time for access times.v
    --  @param Success      True on success, False on failure.
    procedure Mount
       (Device_Name  : String;
        Mount_Path   : String;
        Do_Read_Only : Boolean;
+       Do_Relatime  : Boolean;
        Success      : out Boolean)
       with Pre => Device_Name'Length <= Devices.Max_Name_Length and
                   Devices.Is_Initialized                        and
@@ -95,12 +97,14 @@ package VFS is
    --  @param Mount_Path   Absolute path for mounting.
    --  @param FS           FS Type to mount as.
    --  @param Do_Read_Only Force to mount read only.
+   --  @param Do_Relatime  Use relative time for access times.
    --  @param Success      True on success, False on failure.
    procedure Mount
       (Device_Name  : String;
        Mount_Path   : String;
        FS           : FS_Type;
        Do_Read_Only : Boolean;
+       Do_Relatime  : Boolean;
        Success      : out Boolean)
       with Pre => Device_Name'Length <= Devices.Max_Name_Length and
                   Devices.Is_Initialized                        and
@@ -157,6 +161,18 @@ package VFS is
       (Key    : FS_Handle;
        Name   : out String;
        Length : out Natural)
+      with Pre => Is_Initialized and Key /= Error_Handle;
+
+   --  Remount the passed path with the desired flags.
+   --  @param Key          FS key.
+   --  @param Do_Read_Only Force to mount read only.
+   --  @param Do_Relatime  Use relative time for access times.
+   --  @param Success      True on success, False on failure.
+   procedure Remount
+      (Key          : FS_Handle;
+       Do_Read_Only : Boolean;
+       Do_Relatime  : Boolean;
+       Success      : out Boolean)
       with Pre => Is_Initialized and Key /= Error_Handle;
    ----------------------------------------------------------------------------
    function Get_Block_Size (Key : FS_Handle) return Unsigned_64;

@@ -99,7 +99,7 @@ begin
    end if;
    if Found and Value_Len /= 0 then
       Lib.Messages.Put_Line ("Mounting root " & Value (1 .. Value_Len));
-      VFS.Mount (Value (1 .. Value_Len), "/", False, Found);
+      VFS.Mount (Value (1 .. Value_Len), "/", False, False, Found);
       if not Found then
          Lib.Messages.Warn ("Failed to mount " & Value (1 .. Value_Len));
       end if;

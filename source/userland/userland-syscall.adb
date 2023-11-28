@@ -2079,14 +2079,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned    : out Unsigned_64;
        Errno       : out Errno_Value)
    is
-      Proc       : constant PID := Arch.Local.Get_Current_Process;
-      Map        : constant     Page_Table_Acc := Get_Common_Map (Proc);
+      Proc       : constant              PID := Arch.Local.Get_Current_Process;
+      Map        : constant   Page_Table_Acc := Get_Common_Map (Proc);
       Src_IAddr  : constant  Integer_Address := Integer_Address (Source_Addr);
       Tgt_IAddr  : constant  Integer_Address := Integer_Address (Target_Addr);
       Src_Addr   : constant   System.Address := To_Address (Src_IAddr);
       Tgt_Addr   : constant   System.Address := To_Address (Tgt_IAddr);
-      Do_RO      : constant          Boolean := (Flags and MS_RDONLY) /= 0;
+      Do_RO      : constant          Boolean := (Flags and MS_RDONLY)  /= 0;
+      Do_Remount : constant          Boolean := (Flags and MS_REMOUNT) /= 0;
+      Do_Relatim : constant          Boolean := (Flags and MS_RELATIME) /= 0;
       Parsed_Typ : VFS.FS_Type;
+      Success    : Boolean;
    begin
       if not Check_Userland_Access (Map, Src_IAddr, Source_Len) or
          not Check_Userland_Access (Map, Tgt_IAddr, Target_Len)
@@ -2107,32 +2110,45 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return;
       end if;
 
-      case FSType is
-         when MNT_EXT => Parsed_Typ := VFS.FS_EXT;
-         when MNT_FAT => Parsed_Typ := VFS.FS_FAT;
-         when others  =>
-            Errno := Error_Invalid_Value;
-            Returned := Unsigned_64'Last;
-            return;
-      end case;
-
       declare
-         Success : Boolean;
-         Source  : String (1 .. Natural (Source_Len))
+         Source : String (1 .. Natural (Source_Len))
             with Import, Address => Src_Addr;
          Target : String (1 .. Natural (Target_Len))
             with Import, Address => Tgt_Addr;
       begin
-         VFS.Mount (Source, Target, Parsed_Typ, Do_RO, Success);
-         if Success then
-            Errno := Error_No_Error;
-            Returned := 0;
+         if Do_Remount then
+            declare
+               Handle  : FS_Handle;
+               Matched : Natural;
+            begin
+               VFS.Get_Mount (Target, Matched, Handle);
+               if Handle /= VFS.Error_Handle and Matched = Target'Length then
+                  VFS.Remount (Handle, Do_RO, Do_Relatim, Success);
+               else
+                  Success := False;
+               end if;
+            end;
          else
-            Errno := Error_IO;
-            Returned := Unsigned_64'Last;
-            return;
+            case FSType is
+               when MNT_EXT => Parsed_Typ := VFS.FS_EXT;
+               when MNT_FAT => Parsed_Typ := VFS.FS_FAT;
+               when others  =>
+                  Errno := Error_Invalid_Value;
+                  Returned := Unsigned_64'Last;
+                  return;
+            end case;
+
+            VFS.Mount (Source, Target, Parsed_Typ, Do_RO, Do_Relatim, Success);
          end if;
       end;
+
+      if Success then
+         Errno := Error_No_Error;
+         Returned := 0;
+      else
+         Errno := Error_IO;
+         Returned := Unsigned_64'Last;
+      end if;
    end Mount;
 
    procedure Umount

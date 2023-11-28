@@ -31,6 +31,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    procedure Probe
       (Handle       : Device_Handle;
        Do_Read_Only : Boolean;
+       Do_Relatime  : Boolean;
        Data_Addr    : out System.Address)
    is
       Sup     : Superblock;
@@ -61,12 +62,13 @@ package body VFS.EXT with SPARK_Mode => Off is
          return;
       end if;
 
-      --  Check under which conditions we have to RO.
-      Is_RO := Do_Read_Only                                        or
-               Devices.Is_Read_Only (Handle)                       or
-               Sup.Filesystem_State /= State_Clean                 or
-               Sup.Mounts_Since_Check > Sup.Max_Mounts_Since_Check or
-               (Sup.RO_If_Not_Features and RO_Binary_Trees) /= 0;
+      --  Check under which conditions we can only do read-only.
+      Is_RO :=
+         Do_Read_Only                                        or
+         Devices.Is_Read_Only (Handle)                       or
+         Sup.Filesystem_State /= State_Clean                 or
+         Sup.Mounts_Since_Check > Sup.Max_Mounts_Since_Check or
+         (Sup.RO_If_Not_Features and RO_Binary_Trees) /= 0;
       if Is_RO then
          Lib.Messages.Warn ("ext will be mounted RO, consider an fsck");
       end if;
@@ -77,6 +79,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Handle        => Handle,
           Super         => Sup,
           Is_Read_Only  => Is_RO,
+          Do_Relatime   => Do_Relatime,
           Block_Size    => Shift_Left (1024, Natural (Sup.Block_Size_Log)),
           Fragment_Size => Shift_Left (1024, Natural (Sup.Fragment_Size_Log)),
           Root          => <>,
@@ -94,6 +97,21 @@ package body VFS.EXT with SPARK_Mode => Off is
           Success         => Success);
       Data_Addr := Conv.To_Address (Conv.Object_Pointer (Data));
    end Probe;
+
+   procedure Remount
+      (FS           : System.Address;
+       Do_Read_Only : Boolean;
+       Do_Relatime  : Boolean;
+       Success      : out Boolean)
+   is
+      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+   begin
+      Lib.Synchronization.Seize (Data.Mutex);
+      Data.Is_Read_Only := Do_Read_Only;
+      Data.Do_Relatime  := Do_Relatime;
+      Lib.Synchronization.Release (Data.Mutex);
+      Success := True;
+   end Remount;
 
    procedure Unmount (FS : in out System.Address) is
       Data    : EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
@@ -141,36 +159,24 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Get_Fragment_Size;
 
    function Get_Size (FS : System.Address) return Unsigned_64 is
-      Data    : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Sup     : Superblock;
-      Success : Boolean;
+      Data   : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Result : Unsigned_64;
    begin
       Lib.Synchronization.Seize (Data.Mutex);
-      RW_Superblock
-         (Handle          => Data.Handle,
-          Offset          => Main_Superblock_Offset,
-          Super           => Sup,
-          Write_Operation => False,
-          Success         => Success);
-      Lib.Synchronization.Release (Data.Mutex);
-      return Unsigned_64 (Sup.Block_Count *
+      Result := Unsigned_64 (Data.Super.Block_Count *
          Data.Block_Size / Data.Fragment_Size);
+      Lib.Synchronization.Release (Data.Mutex);
+      return Result;
    end Get_Size;
 
    function Get_Inode_Count (FS : System.Address) return Unsigned_64 is
-      Data    : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Sup     : Superblock;
-      Success : Boolean;
+      Data   : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
+      Result : Unsigned_64;
    begin
       Lib.Synchronization.Seize (Data.Mutex);
-      RW_Superblock
-         (Handle          => Data.Handle,
-          Offset          => Main_Superblock_Offset,
-          Super           => Sup,
-          Write_Operation => False,
-          Success         => Success);
+      Result := Unsigned_64 (Data.Super.Inode_Count);
       Lib.Synchronization.Release (Data.Mutex);
-      return Unsigned_64 (Sup.Inode_Count);
+      return Result;
    end Get_Inode_Count;
 
    procedure Get_Free_Blocks
@@ -178,10 +184,12 @@ package body VFS.EXT with SPARK_Mode => Off is
        Free_Blocks        : out Unsigned_64;
        Free_Unpriviledged : out Unsigned_64)
    is
-      pragma Unreferenced (FS);
+      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
-      Free_Blocks := 5000;
-      Free_Unpriviledged := 3000;
+      Lib.Synchronization.Seize (Data.Mutex);
+      Free_Blocks := Unsigned_64 (Data.Super.Unallocated_Block_Count);
+      Free_Unpriviledged := Unsigned_64 (Data.Super.Unallocated_Block_Count);
+      Lib.Synchronization.Release (Data.Mutex);
    end Get_Free_Blocks;
 
    procedure Get_Free_Inodes
@@ -189,10 +197,12 @@ package body VFS.EXT with SPARK_Mode => Off is
        Free_Inodes        : out Unsigned_64;
        Free_Unpriviledged : out Unsigned_64)
    is
-      pragma Unreferenced (FS);
+      Data  : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
-      Free_Inodes := 100;
-      Free_Unpriviledged := 33;
+      Lib.Synchronization.Seize (Data.Mutex);
+      Free_Inodes := Unsigned_64 (Data.Super.Unallocated_Inode_Count);
+      Free_Unpriviledged := Unsigned_64 (Data.Super.Unallocated_Inode_Count);
+      Lib.Synchronization.Release (Data.Mutex);
    end Get_Free_Inodes;
 
    function Get_Max_Length (FS : System.Address) return Unsigned_64 is
@@ -257,7 +267,6 @@ package body VFS.EXT with SPARK_Mode => Off is
                 Success   => Success,
                 User      => User,
                 Do_Follow => Do_Follow);
-
          else
             Open
                (FS        => FS,

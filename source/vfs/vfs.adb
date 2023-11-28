@@ -36,13 +36,15 @@ package body VFS is
       (Device_Name  : String;
        Mount_Path   : String;
        Do_Read_Only : Boolean;
+       Do_Relatime  : Boolean;
        Success      : out Boolean)
    is
       pragma SPARK_Mode (Off);
+      Name : String renames Device_Name;
    begin
-      Mount (Device_Name, Mount_Path, FS_EXT, Do_Read_Only, Success);
+      Mount (Name, Mount_Path, FS_EXT, Do_Read_Only, Do_Relatime, Success);
       if Success then return; end if;
-      Mount (Device_Name, Mount_Path, FS_FAT, Do_Read_Only, Success);
+      Mount (Name, Mount_Path, FS_FAT, Do_Read_Only, Do_Relatime, Success);
    end Mount;
 
    procedure Mount
@@ -50,6 +52,7 @@ package body VFS is
        Mount_Path   : String;
        FS           : FS_Type;
        Do_Read_Only : Boolean;
+       Do_Relatime  : Boolean;
        Success      : out Boolean)
    is
       Dev     : constant Device_Handle := Devices.Fetch (Device_Name);
@@ -78,8 +81,10 @@ package body VFS is
       end if;
 
       case FS is
-         when FS_EXT => VFS.EXT.Probe (Dev, Do_Read_Only, FS_Data);
-         when FS_FAT => VFS.FAT.Probe (Dev, Do_Read_Only, FS_Data);
+         when FS_EXT =>
+            VFS.EXT.Probe (Dev, Do_Read_Only, Do_Relatime, FS_Data);
+         when FS_FAT =>
+            VFS.FAT.Probe (Dev, Do_Read_Only, FS_Data);
       end case;
       Mounts (Free_I).Mounted_FS := FS;
 
@@ -196,12 +201,26 @@ package body VFS is
       Name   := Mounts (Key).Path_Buffer;
       Length := Mounts (Key).Path_Length;
    end Get_Mount_Point;
+
+   procedure Remount
+      (Key          : FS_Handle;
+       Do_Read_Only : Boolean;
+       Do_Relatime  : Boolean;
+       Success      : out Boolean)
+   is
+      Data : System.Address renames Mounts (Key).FS_Data;
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_EXT => EXT.Remount (Data, Do_Read_Only, Do_Relatime, Success);
+         when others => FAT.Remount (Data, Do_Read_Only, Do_Relatime, Success);
+      end case;
+   end Remount;
    ----------------------------------------------------------------------------
    function Get_Block_Size (Key : FS_Handle) return Unsigned_64 is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT => return EXT.Get_Block_Size (Mounts (Key).FS_Data);
-         when others => return 0;
+         when others => return FAT.Get_Block_Size (Mounts (Key).FS_Data);
       end case;
    end Get_Block_Size;
 
@@ -209,7 +228,7 @@ package body VFS is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT => return EXT.Get_Fragment_Size (Mounts (Key).FS_Data);
-         when others => return 0;
+         when others => return FAT.Get_Fragment_Size (Mounts (Key).FS_Data);
       end case;
    end Get_Fragment_Size;
 
@@ -217,7 +236,7 @@ package body VFS is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT => return EXT.Get_Size (Mounts (Key).FS_Data);
-         when others => return 0;
+         when others => return FAT.Get_Size (Mounts (Key).FS_Data);
       end case;
    end Get_Size;
 
@@ -225,7 +244,7 @@ package body VFS is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT => return EXT.Get_Inode_Count (Mounts (Key).FS_Data);
-         when others => return 0;
+         when others => return FAT.Get_Inode_Count (Mounts (Key).FS_Data);
       end case;
    end Get_Inode_Count;
 
@@ -234,16 +253,12 @@ package body VFS is
        Free_Blocks        : out Unsigned_64;
        Free_Unpriviledged : out Unsigned_64)
    is
+      FB : Unsigned_64 renames Free_Blocks;
+      FU : Unsigned_64 renames Free_Unpriviledged;
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT =>
-            EXT.Get_Free_Blocks
-               (Mounts (Key).FS_Data,
-                Free_Blocks,
-                Free_Unpriviledged);
-         when others =>
-            Free_Blocks := 0;
-            Free_Unpriviledged := 0;
+         when FS_EXT => EXT.Get_Free_Blocks (Mounts (Key).FS_Data, FB, FU);
+         when others => FAT.Get_Free_Blocks (Mounts (Key).FS_Data, FB, FU);
       end case;
    end Get_Free_Blocks;
 
@@ -252,16 +267,12 @@ package body VFS is
        Free_Inodes        : out Unsigned_64;
        Free_Unpriviledged : out Unsigned_64)
    is
+      FI : Unsigned_64 renames Free_Inodes;
+      FU : Unsigned_64 renames Free_Unpriviledged;
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT =>
-            EXT.Get_Free_Inodes
-               (Mounts (Key).FS_Data,
-                Free_Inodes,
-                Free_Unpriviledged);
-         when others =>
-            Free_Inodes := 0;
-            Free_Unpriviledged := 0;
+         when FS_EXT => EXT.Get_Free_Inodes (Mounts (Key).FS_Data, FI, FU);
+         when others => FAT.Get_Free_Inodes (Mounts (Key).FS_Data, FI, FU);
       end case;
    end Get_Free_Inodes;
 
@@ -269,7 +280,7 @@ package body VFS is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT => return EXT.Get_Max_Length (Mounts (Key).FS_Data);
-         when others => return 0;
+         when others => return FAT.Get_Max_Length (Mounts (Key).FS_Data);
       end case;
    end Get_Max_Length;
    ----------------------------------------------------------------------------
