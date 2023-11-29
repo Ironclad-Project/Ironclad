@@ -16,7 +16,6 @@
 
 with Ada.Unchecked_Deallocation;
 with Scheduler;
-with Lib.Messages;
 
 package body IPC.PTY is
    pragma Suppress (All_Checks);
@@ -202,9 +201,6 @@ package body IPC.PTY is
          end if;
       end loop;
 
-      if Ret_Count = 0 then
-         Lib.Messages.Put_Line ("AA");
-      end if;
       Lib.Synchronization.Release (End_Mutex.all);
    end Read_From_End;
 
@@ -243,10 +239,6 @@ package body IPC.PTY is
       Inner_Data (Inner_Len.all + 1 .. Final) :=
          Data (Data'First .. Data'First + Ret_Count - 1);
       Inner_Len.all := Final;
-
-      if Ret_Count = 0 then
-         Lib.Messages.Put_Line ("AB");
-      end if;
       Lib.Synchronization.Release (End_Mutex.all);
    end Write_To_End;
 end IPC.PTY;
