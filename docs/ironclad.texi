@@ -3607,6 +3607,12 @@ While this piece of hardware allows for hooking up interrupts and reboot
 separately when the timer expires, Ironclad right now will only reboot when
 the timer expires.
 
+@subsection lpt
+
+The devices starting by @code{lpt} represent the several character devices
+representing the system's parallel ports. They support write operations, but no
+TTY interface is exposed, they are raw byte streams.
+
 @subsection pcspeaker
 
 @code{pcspeaker} represents the IBM PC speaker, it is interfaced with using

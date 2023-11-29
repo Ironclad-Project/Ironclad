@@ -27,6 +27,7 @@ with Arch.APIC;
 with Arch.Interrupts;
 with Interfaces; use Interfaces;
 with Devices.i6300ESB;
+with Devices.LPT;
 
 package body Arch.Hooks with SPARK_Mode => Off is
    function Devices_Hook return Boolean is
@@ -34,6 +35,7 @@ package body Arch.Hooks with SPARK_Mode => Off is
       return Devices.ATA.Init         and then
              Devices.FB.Init          and then
              Devices.i6300ESB.Init    and then
+             Devices.LPT.Init         and then
              Devices.PC_Speaker.Init  and then
              Devices.PS2Keyboard.Init and then
              Devices.PS2Mouse.Init    and then

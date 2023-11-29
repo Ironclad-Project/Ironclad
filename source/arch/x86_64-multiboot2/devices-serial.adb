@@ -139,8 +139,7 @@ package body Devices.Serial with SPARK_Mode => Off is
       Lib.Synchronization.Seize (COM.Mutex);
       for I of Data loop
          while not Can_Transmit (COM.Port) loop
-            --  Arch.Snippets.Pause;
-            null;
+            Arch.Snippets.Pause;
          end loop;
          Arch.Snippets.Port_Out (COM.Port, I);
       end loop;
