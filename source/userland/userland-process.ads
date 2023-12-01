@@ -432,6 +432,41 @@ package Userland.Process is
    --  @param EUID EUID to set.
    procedure Set_Effective_UID (Proc : PID; EUID : Unsigned_32);
 
+   --  Get the process group id.
+   --  @param Proc Process to get the GID of.
+   --  @param GID  Returned GID.
+   procedure Get_GID (Proc : PID; GID : out Unsigned_32);
+
+   --  Set the process group id.
+   --  @param Proc Process to set the GID of.
+   --  @param GID  GID to set.
+   procedure Set_GID (Proc : PID; GID : Unsigned_32);
+
+   --  Get the process effective group id.
+   --  @param Proc Process to get the GID of.
+   --  @param EGID Returned GID.
+   procedure Get_Effective_GID (Proc : PID; EGID : out Unsigned_32);
+
+   --  Set the process effective group id.
+   --  @param Proc Process to get the GID of.
+   --  @param EGID EGID to set.
+   procedure Set_Effective_GID (Proc : PID; EGID : Unsigned_32);
+
+   Max_Supplementary_Groups : constant := 10;
+   type Supplementary_GID_Arr is array (Natural range <>) of Unsigned_32;
+
+   procedure Get_Supplementary_Groups
+      (Proc   : PID;
+       Groups : out Supplementary_GID_Arr;
+       Length : out Natural);
+
+   procedure Set_Supplementary_Groups
+      (Proc    : PID;
+       Groups  : Supplementary_GID_Arr;
+       Success : out Boolean);
+
+   procedure Empty_Supplementary_Groups (Proc : PID);
+
    --  Get the process umask.
    --  @param Proc  Process to get the UID of.
    --  @param Umask Returned umask.
@@ -529,6 +564,10 @@ private
       Umask           : VFS.File_Mode;
       User            : Unsigned_32;
       Effective_User  : Unsigned_32;
+      Group           : Unsigned_32;
+      Effective_Group : Unsigned_32;
+      SGroup_Count    : Natural;
+      SGroups         : Supplementary_GID_Arr (1 .. Max_Supplementary_Groups);
       Identifier      : String (1 .. Max_Name_Length);
       Identifier_Len  : Natural range 0 .. Max_Name_Length;
       Parent          : PID;

@@ -1957,6 +1957,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
       if Caps.Can_Trace_Children    then Res := Res or MAC_CAP_PTRACE;  end if;
       if Caps.Can_Change_UIDs       then Res := Res or MAC_CAP_SETUID;  end if;
       if Caps.Can_Manage_MAC        then Res := Res or MAC_CAP_SYS_MAC; end if;
+      if Caps.Can_Use_Clocks        then Res := Res or MAC_CAP_CLOCK;   end if;
+      if Caps.Can_Signal_All      then Res := Res or MAC_CAP_SIGNALALL; end if;
+      if Caps.Can_Change_GIDs       then Res := Res or MAC_CAP_SETGID;  end if;
 
       Errno := Error_No_Error;
       Returned := Res;
@@ -2122,7 +2125,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Matched : Natural;
             begin
                VFS.Get_Mount (Target, Matched, Handle);
-               if Handle /= VFS.Error_Handle and Matched = Target'Length then
+               if Handle /= VFS.Error_Handle then
                   VFS.Remount (Handle, Do_RO, Do_Relatim, Success);
                else
                   Success := False;
@@ -3264,19 +3267,26 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno    : out Errno_Value)
    is
       Proc : constant PID := Arch.Local.Get_Current_Process;
+      Curr_UID : Unsigned_32;
    begin
-      if not Get_Capabilities (Proc).Can_Change_UIDs then
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("setuids", Proc);
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
-      if UID <= Unsigned_64 (Unsigned_32'Last) then
-         Userland.Process.Set_UID (Proc, Unsigned_32 (UID));
-      end if;
-      if EUID <= Unsigned_64 (Unsigned_32'Last) then
-         Userland.Process.Set_Effective_UID (Proc, Unsigned_32 (EUID));
+      if Get_Capabilities (Proc).Can_Change_UIDs then
+         if EUID <= Unsigned_64 (Unsigned_32'Last) then
+            Userland.Process.Set_Effective_UID (Proc, Unsigned_32 (EUID));
+         end if;
+         if UID <= Unsigned_64 (Unsigned_32'Last) then
+            Userland.Process.Set_UID (Proc, Unsigned_32 (UID));
+         end if;
+      else
+         Userland.Process.Get_UID (Proc, Curr_UID);
+         if EUID <= Unsigned_64 (Unsigned_32'Last) then
+            if EUID = Unsigned_64 (Curr_UID) then
+               Userland.Process.Set_Effective_UID (Proc, Unsigned_32 (EUID));
+            else
+               Errno := Error_Bad_Permissions;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         end if;
       end if;
 
       Errno := Error_No_Error;
@@ -4734,6 +4744,120 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
    end Set_Prio;
+
+   procedure Get_GID (Returned : out Unsigned_64; Errno : out Errno_Value) is
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Ret  : Unsigned_32;
+   begin
+      Userland.Process.Get_GID (Proc, Ret);
+      Errno := Error_No_Error;
+      Returned := Unsigned_64 (Ret);
+   end Get_GID;
+
+   procedure Get_EGID (Returned : out Unsigned_64; Errno : out Errno_Value) is
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Ret  : Unsigned_32;
+   begin
+      Userland.Process.Get_Effective_GID (Proc, Ret);
+      Errno := Error_No_Error;
+      Returned := Unsigned_64 (Ret);
+   end Get_EGID;
+
+   procedure Set_GIDs
+      (GID      : Unsigned_64;
+       EGID     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Curr_GID : Unsigned_32;
+   begin
+      if Get_Capabilities (Proc).Can_Change_GIDs then
+         if EGID <= Unsigned_64 (Unsigned_32'Last) then
+            Userland.Process.Set_Effective_GID (Proc, Unsigned_32 (EGID));
+         end if;
+         if GID <= Unsigned_64 (Unsigned_32'Last) then
+            Userland.Process.Set_GID (Proc, Unsigned_32 (GID));
+         end if;
+      else
+         Userland.Process.Get_GID (Proc, Curr_GID);
+         if EGID <= Unsigned_64 (Unsigned_32'Last) then
+            if EGID = Unsigned_64 (Curr_GID) then
+               Userland.Process.Set_Effective_GID (Proc, Unsigned_32 (EGID));
+            else
+               Errno := Error_Bad_Permissions;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         end if;
+      end if;
+
+      Errno := Error_No_Error;
+      Returned := 0;
+   end Set_GIDs;
+
+   procedure Get_Groups
+      (Count    : Unsigned_64;
+       Addr     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      Map   : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      Ret   : Natural;
+      Arr   : Supplementary_GID_Arr (1 .. Natural (Count and 16#FFFF#))
+         with Import, Address => To_Address (IAddr);
+   begin
+      if not Check_Userland_Access (Map, IAddr, Arr'Size / 8) then
+         Errno := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Get_Supplementary_Groups (Proc, Arr, Ret);
+      if Ret <= Arr'Length then
+         Errno := Error_No_Error;
+         Returned := Unsigned_64 (Ret);
+      else
+         Errno := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+      end if;
+   end Get_Groups;
+
+   procedure Set_Groups
+      (Count    : Unsigned_64;
+       Addr     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      Map   : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      Succ  : Boolean;
+      Arr   : Supplementary_GID_Arr (1 .. Natural (Count and 16#FFFF#))
+         with Import, Address => To_Address (IAddr);
+   begin
+      if Count = 0 and Addr = 0 then
+         Empty_Supplementary_Groups (Proc);
+      else
+         if not Check_Userland_Access (Map, IAddr, Arr'Size / 8) then
+            Errno := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         Set_Supplementary_Groups (Proc, Arr, Succ);
+         if not Succ then
+            Errno := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+      end if;
+
+      Errno := Error_No_Error;
+      Returned := 0;
+   end Set_Groups;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
@@ -5053,7 +5177,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
            Caps.Can_Change_UIDs       and ((Bits and MAC_CAP_SETUID)  /= 0),
            Caps.Can_Manage_MAC        and ((Bits and MAC_CAP_SYS_MAC) /= 0),
            Caps.Can_Use_Clocks        and ((Bits and MAC_CAP_CLOCK)   /= 0),
-           Caps.Can_Signal_All       and ((Bits and MAC_CAP_SIGNALALL) /= 0)));
+           Caps.Can_Signal_All        and ((Bits and MAC_CAP_SIGNALALL) /= 0),
+           Caps.Can_Change_GIDs       and ((Bits and MAC_CAP_SETGID)   /= 0)));
    end Set_MAC_Capabilities;
 
    procedure MAC_Syscall_To_Kernel

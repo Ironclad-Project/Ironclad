@@ -180,6 +180,9 @@ Syscalls
 * signalpost::              Create a signal post.
 * send_signal::             Send a signal to a process.
 * getprio/setprio::         Get / Set the niceness of some entities.
+* getgid/getegid::          Get the GID and the effective GID.
+* setgids::                 Set the GID and the effective GID.
+* getgroups/setgroups::     Get and set supplementary user groups.
 
 Filesystem support and interfaces
 
@@ -598,6 +601,10 @@ coordinate attacks.
 Processes by default need to share the user with another one to either kill it
 or send a signal. This capability allows to send signals to all processes,
 regardless of the user issuing it.
+
+@item MAC_CAP_SETGID
+The process will be able to change its effective and global UIDs without
+checks.
 @end table
 
 Access to inodes and devices can be granted using @ref{add_mac_permissions}.
@@ -848,6 +855,16 @@ Empty.
 @ref{getprio/setprio, getprio}.
 @item
 @ref{getprio/setprio, setprio}.
+@item
+@ref{getgid/getegid, getgid}.
+@item
+@ref{getgid/getegid, getegid}.
+@item
+@ref{setgids}.
+@item
+@ref{getgroups/setgroups, getgroups}.
+@item
+@ref{getgroups/setgroups, setgroups}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -1948,19 +1965,19 @@ sets the following errno:
 @section mac_capabilities
 
 @example
-#define MAC_CAP_SCHED     0b000000000001
-#define MAC_CAP_SPAWN     0b000000000010
-#define MAC_CAP_ENTROPY   0b000000000100
-#define MAC_CAP_SYS_MEM   0b000000001000
-#define MAC_CAP_USE_NET   0b000000010000
-#define MAC_CAP_SYS_NET   0b000000100000
-#define MAC_CAP_SYS_MNT   0b000001000000
-#define MAC_CAP_SYS_PWR   0b000010000000
-#define MAC_CAP_PTRACE    0b000100000000
-#define MAC_CAP_SETUID    0b001000000000
-#define MAC_CAP_SYS_MAC   0b010000000000
-#define MAC_CAP_SIGNALALL 0b100000000000
-
+#define MAC_CAP_SCHED     0b0000000000001
+#define MAC_CAP_SPAWN     0b0000000000010
+#define MAC_CAP_ENTROPY   0b0000000000100
+#define MAC_CAP_SYS_MEM   0b0000000001000
+#define MAC_CAP_USE_NET   0b0000000010000
+#define MAC_CAP_SYS_NET   0b0000000100000
+#define MAC_CAP_SYS_MNT   0b0000001000000
+#define MAC_CAP_SYS_PWR   0b0000010000000
+#define MAC_CAP_PTRACE    0b0000100000000
+#define MAC_CAP_SETUID    0b0001000000000
+#define MAC_CAP_SYS_MAC   0b0010000000000
+#define MAC_CAP_SIGNALALL 0b0100000000000
+#define MAC_CAP_SETGID    0b1000000000000
 unsigned long get_mac_capabilities(void);
 int set_mac_capabilities(unsigned long request);
 @end example
@@ -2662,18 +2679,16 @@ never fail.
 int setuids(uid_t uid, uid_t euid);
 @end example
 
-This syscall sets the UID and effective UID of the calling process, if any
-of them is @code{-1}, it will not be set. @code{MAC_CAP_SETUID} is required
-for this operation.
+This syscall sets the UID and effective UID of the calling process. If the
+calling process has the @code{MAC_CAP_SETUID} capability, it will set both
+the EUID and UID, else, it will only try to set EUID to values matching the
+process's UID. If any of them is @code{-1}, it will not be modified.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:
 
 @table @code
-@item EINVAL
-The passed values are not valid, or out of range.
-
-@item EACCES
+@item EPERM
 MAC did not allow this.
 @end table
 
@@ -3353,6 +3368,63 @@ in failure feature the following errno:
 @table @code
 @item EINVAL
 A value is not valid.
+@end table
+
+@node getgid/getegid
+@section getgid/getegid
+
+@example
+gid_t getgid(void);
+gid_t getegid(void);
+@end example
+
+These syscalls fetch the GID and the effective GID of the calling process. They
+never fail.
+
+@node setgids
+@section setgids
+
+@example
+int setgids(gid_t gid, gid_t egid);
+@end example
+
+This syscall sets the GID and effective GID of the calling process. If the
+calling process has the @code{MAC_CAP_SETGID} capability, it will set both
+the EGID and GID, else, it will only try to set EGID to values matching the
+process's GID. If any of them is @code{-1}, it will not be modified.
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EPERM
+MAC did not allow this.
+@end table
+
+@node getgroups/setgroups
+@section getgroups/setgroups
+
+@example
+int getgroups(size_t size, gid_t list[]);
+int setgroups(size_t size, const gid_t *list);
+@end example
+
+This syscall gets and sets the previously set supplementary user groups by
+userland. Init starts with an empty array.
+
+@code{getgroups} does not return the effective GID of the caller process on
+the list.
+
+Passing @code{0} and @code{NULL} to @code{setgroups} will empty the
+supplementary group list.
+
+@code{getgroups} returns the number of supplementary groups or @code{-1} on
+failure, @code{setgroups} returns @code{0} on success and @code{-1} on failure,
+both with the following errno:
+
+@table @code
+@item EINVAL
+@code{getgroups} size is less than the number of supplementary group IDs.
 @end table
 
 @node Filesystem support and interfaces

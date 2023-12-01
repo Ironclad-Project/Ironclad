@@ -35,6 +35,7 @@ package Userland.MAC is
       Can_Manage_MAC        : Boolean;
       Can_Use_Clocks        : Boolean;
       Can_Signal_All        : Boolean;
+      Can_Change_GIDs       : Boolean;
    end record;
 
    --  Permissions a file can have.

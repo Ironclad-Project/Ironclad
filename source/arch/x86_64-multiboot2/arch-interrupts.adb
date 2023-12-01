@@ -267,6 +267,16 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Get_Prio (State.RDI, State.RSI, Returned, Errno);
          when 83 =>
             Set_Prio (State.RDI, State.RSI, State.RDX, Returned, Errno);
+         when 84 =>
+            Get_GID (Returned, Errno);
+         when 85 =>
+            Get_EGID (Returned, Errno);
+         when 86 =>
+            Set_GIDs (State.RDI, State.RSI, Returned, Errno);
+         when 87 =>
+            Get_Groups (State.RDI, State.RSI, Returned, Errno);
+         when 88 =>
+            Set_Groups (State.RDI, State.RSI, Returned, Errno);
          when others =>
             Userland.Process.Raise_Signal
                (Local.Get_Current_Process,

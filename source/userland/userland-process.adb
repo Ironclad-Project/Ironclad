@@ -109,6 +109,10 @@ package body Userland.Process with SPARK_Mode => Off is
                 Umask           => Default_Umask,
                 User            => 0,
                 Effective_User  => 0,
+                Group           => 0,
+                Effective_Group => 0,
+                SGroup_Count    => 0,
+                SGroups         => (others => 0),
                 Identifier      => (others => ' '),
                 Identifier_Len  => 0,
                 Parent          => 0,
@@ -136,6 +140,10 @@ package body Userland.Process with SPARK_Mode => Off is
                Registry (I).Perms           := Registry (P).Perms;
                Registry (I).User            := Registry (P).User;
                Registry (I).Effective_User  := Registry (P).Effective_User;
+               Registry (I).Group           := Registry (P).Group;
+               Registry (I).Effective_Group := Registry (P).Effective_Group;
+               Registry (I).SGroup_Count    := Registry (P).SGroup_Count;
+               Registry (I).SGroups         := Registry (P).SGroups;
                Registry (I).Umask           := Registry (P).Umask;
             else
                Reroll_ASLR (PID (I));
@@ -620,6 +628,61 @@ package body Userland.Process with SPARK_Mode => Off is
    begin
       Registry (Proc).Effective_User := EUID;
    end Set_Effective_UID;
+
+   procedure Get_GID (Proc : PID; GID : out Unsigned_32) is
+   begin
+      GID := Registry (Proc).Group;
+   end Get_GID;
+
+   procedure Set_GID (Proc : PID; GID : Unsigned_32) is
+   begin
+      Registry (Proc).Group := GID;
+   end Set_GID;
+
+   procedure Get_Effective_GID (Proc : PID; EGID : out Unsigned_32) is
+   begin
+      EGID := Registry (Proc).Effective_Group;
+   end Get_Effective_GID;
+
+   procedure Set_Effective_GID (Proc : PID; EGID : Unsigned_32) is
+   begin
+      Registry (Proc).Effective_Group := EGID;
+   end Set_Effective_GID;
+
+   procedure Get_Supplementary_Groups
+      (Proc   : PID;
+       Groups : out Supplementary_GID_Arr;
+       Length : out Natural)
+   is
+   begin
+      if Groups'Length <= Max_Supplementary_Groups then
+         Groups := Registry (Proc).SGroups (1 .. Groups'Length);
+      else
+         Groups (Groups'First .. Groups'First + Max_Supplementary_Groups - 1)
+            := Registry (Proc).SGroups;
+      end if;
+      Length := Registry (Proc).SGroup_Count;
+   end Get_Supplementary_Groups;
+
+   procedure Set_Supplementary_Groups
+      (Proc    : PID;
+       Groups  : Supplementary_GID_Arr;
+       Success : out Boolean)
+   is
+   begin
+      if Groups'Length > Max_Supplementary_Groups then
+         Success := False;
+      else
+         Registry (Proc).SGroups (1 .. Groups'Length) := Groups;
+         Registry (Proc).SGroup_Count := Groups'Length;
+         Success := True;
+      end if;
+   end Set_Supplementary_Groups;
+
+   procedure Empty_Supplementary_Groups (Proc : PID) is
+   begin
+      Registry (Proc).SGroup_Count := 0;
+   end Empty_Supplementary_Groups;
 
    procedure Get_Umask (Proc : PID; Umask : out VFS.File_Mode) is
    begin
