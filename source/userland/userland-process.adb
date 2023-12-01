@@ -210,6 +210,7 @@ package body Userland.Process with SPARK_Mode => Off is
       for I in Registry (Proc).Thread_List'Range loop
          if Registry (Proc).Thread_List (I) = Error_TID then
             Registry (Proc).Thread_List (I) := Thread;
+            Scheduler.Set_Niceness (Thread, Registry (Proc).Niceness);
             Success := True;
             return;
          end if;

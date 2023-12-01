@@ -1419,6 +1419,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Result := Unsigned_64 (Stats.Total) / Page_Size;
          when SC_CHILD_MAX =>
             Result := Unsigned_64 (Process.Max_Process_Count);
+         when SC_NGROUPS_MAX =>
+            Result := Unsigned_64 (Process.Max_Supplementary_Groups);
          when others =>
             goto Not_Matched;
       end case;
@@ -1523,13 +1525,22 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Ths  : Thread_Info_Arr (1 .. Len) with Import, Address => SAddr;
                KThs : Scheduler.Thread_Listing_Arr (1 .. Len);
                Ret  : Natural;
+               N    : Niceness;
             begin
                List_All (KThs, Ret);
                for I in 1 .. Ret loop
                   Ths (I) :=
                      (Thread_Id   => Unsigned_16 (Convert (KThs (I).Thread)),
+                      Niceness    => 0,
                       Cluster_Id  => Unsigned_16 (Convert (KThs (I).Cluster)),
                       Process_PID => Unsigned_16 (KThs (I).Proc));
+                  N := Get_Niceness (KThs (I).Thread);
+                  if N >= 0 then
+                     Ths (I).Niceness := Unsigned_16 (N);
+                  else
+                     Ths (I).Niceness := Unsigned_16'Last -
+                        Unsigned_16 (abs N) + 1;
+                  end if;
                end loop;
 
                Result := Unsigned_64 (Ret);

@@ -1652,6 +1652,7 @@ codes set on failure are:
 #define SC_LIST_CLUSTERS 13 // List all thread clusters of the system.
 #define SC_LIST_NETINTER 14 // List all network interfaces.
 #define SC_DUMPLOGS      15 // Dump kernel logging to a buffer.
+#define SC_NGROUPS_MAX   16 // Max number of supplementary groups per process.
 
 long int sysconf(int request, uintptr_t addr, uintptr_t len);
 @end example
@@ -1724,6 +1725,7 @@ is the count of bytes reserved in the array. The items have the structure:
 @example
 struct threadinfo @{
     uint16_t tid;
+    int16_t  niceness;
     uint16_t tcid;
     uint16_t pid;
 @};
