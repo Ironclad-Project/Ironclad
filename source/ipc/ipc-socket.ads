@@ -459,7 +459,6 @@ private
 
    Default_Socket_Size : constant := 16#2000#;
 
-   --  Massive chonker of a datatype!
    type Socket (Dom : Domain; Typ : DataType) is record
       Mutex       : aliased Lib.Synchronization.Binary_Semaphore;
       Is_Blocking : Boolean;
@@ -496,6 +495,32 @@ private
       end case;
    end record;
    ----------------------------------------------------------------------------
+   --  IPv4 functions.
+   procedure Inner_IPv4_Read
+      (Sock      : Socket_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Socket_Status);
+
+   procedure Inner_IPv4_Write
+      (Sock      : Socket_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Socket_Status);
+   ----------------------------------------------------------------------------
+   --  IPv6 functions.
+   procedure Inner_IPv6_Read
+      (Sock      : Socket_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Socket_Status);
+
+   procedure Inner_IPv6_Write
+      (Sock      : Socket_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Socket_Status);
+   ----------------------------------------------------------------------------
    --  UNIX socket fun.
    Bind_Path_Max : constant := 100;
    type Bound_Socket is record
@@ -510,4 +535,30 @@ private
       (others => (Sock => null, Path => (others => ' '), Path_Len => 1));
 
    function Get_Bound (Path : String) return Socket_Acc;
+
+   procedure Inner_UNIX_Close (To_Close : Socket_Acc);
+
+   procedure Inner_UNIX_Read
+      (Sock      : Socket_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Socket_Status);
+
+   procedure Inner_UNIX_Write
+      (Sock      : Socket_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Socket_Status);
+
+   procedure Inner_UNIX_Poll
+      (Sock      : Socket_Acc;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Broken : out Boolean;
+       Is_Error  : out Boolean);
+
+   function Inner_UNIX_Shutdown
+      (Sock             : Socket_Acc;
+       Do_Receptions    : Boolean;
+       Do_Transmissions : Boolean) return Boolean;
 end IPC.Socket;

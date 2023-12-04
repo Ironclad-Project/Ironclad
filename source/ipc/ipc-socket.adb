@@ -100,16 +100,12 @@ package body IPC.Socket with SPARK_Mode => Off is
    procedure Close (To_Close : in out Socket_Acc) is
    begin
       Lib.Synchronization.Seize (To_Close.Mutex);
-
-      Lib.Synchronization.Seize (UNIX_Bound_Mutex);
-      for Ent of UNIX_Bound_Sockets loop
-         if Ent.Sock = To_Close then
-            Ent.Sock := null;
-            exit;
-         end if;
-      end loop;
-      Lib.Synchronization.Release (UNIX_Bound_Mutex);
-
+      case To_Close.Dom is
+         when IPv4 | IPv6 =>
+            null;
+         when UNIX =>
+            Inner_UNIX_Close (To_Close);
+      end case;
       Free (To_Close);
    end Close;
 
@@ -137,6 +133,7 @@ package body IPC.Socket with SPARK_Mode => Off is
        Is_Error  : out Boolean)
    is
    begin
+      Lib.Synchronization.Seize (Sock.Mutex);
       case Sock.Dom is
          when IPv4 | IPv6 =>
             Can_Read  := False;
@@ -144,26 +141,9 @@ package body IPC.Socket with SPARK_Mode => Off is
             Is_Broken := False;
             Is_Error  := False;
          when UNIX =>
-            case Sock.Typ is
-               when Stream =>
-                  if Sock.Is_Listener or Sock.Pending_Accept /= null then
-                     Can_Read  := True;
-                     Can_Write := True;
-                     Is_Broken := False;
-                     Is_Error  := False;
-                  else
-                     Can_Read  := Sock.Data_Length /= 0;
-                     Can_Write := Sock.Established /= null;
-                     Is_Broken := Sock.Established = null;
-                     Is_Error  := False;
-                  end if;
-               when others =>
-                  Can_Read  := Sock.Data_Length      /= 0;
-                  Can_Write := Sock.Simple_Connected /= null;
-                  Is_Broken := Sock.Simple_Connected = null;
-                  Is_Error  := False;
-            end case;
+            Inner_UNIX_Poll (Sock, Can_Read, Can_Write, Is_Broken, Is_Error);
       end case;
+      Lib.Synchronization.Release (Sock.Mutex);
    end Poll;
 
    procedure Read
@@ -173,65 +153,13 @@ package body IPC.Socket with SPARK_Mode => Off is
        Success   : out Socket_Status)
    is
    begin
+      Lib.Synchronization.Seize (Sock.Mutex);
       case Sock.Dom is
-         when IPv4 =>
-            Read
-               (Sock      => Sock,
-                Data      => Data,
-                Ret_Count => Ret_Count,
-                Addr      => Sock.IPv4_Cached_Address,
-                Port      => Sock.IPv4_Cached_Port,
-                Success   => Success);
-         when IPv6 =>
-            Read
-               (Sock      => Sock,
-                Data      => Data,
-                Ret_Count => Ret_Count,
-                Addr      => Sock.IPv6_Cached_Address,
-                Port      => Sock.IPv6_Cached_Port,
-                Success   => Success);
-         when UNIX =>
-         <<Retry>>
-            if Sock.Is_Blocking then
-               while Sock.Data_Length = 0 loop
-                  Scheduler.Yield_If_Able;
-               end loop;
-            end if;
-
-            case Sock.Typ is
-               when Stream =>
-                  if Sock.Is_Listener or Sock.Established = null then
-                     Data      := (others => 0);
-                     Ret_Count := 0;
-                     Success   := Is_Bad_Type;
-                     return;
-                  elsif Sock.Is_Blocking and Sock.Data_Length = 0 then
-                     goto Retry;
-                  end if;
-
-                  if Sock.Data_Length <= Data'Length then
-                     Data (1 .. Sock.Data_Length) :=
-                        Sock.Data (1 .. Sock.Data_Length);
-                     Ret_Count        := Sock.Data_Length;
-                     Sock.Data_Length := 0;
-                  else
-                     Data             := Sock.Data (1 .. Data'Length);
-                     Sock.Data_Length := Sock.Data_Length - Data'Length;
-                     Ret_Count        := Data'Length;
-                  end if;
-                  Success := Plain_Success;
-               when others =>
-                  if Sock.Data_Length <= Data'Length then
-                     Data (1 .. Sock.Data_Length) :=
-                        Sock.Data (1 .. Sock.Data_Length);
-                     Ret_Count := Sock.Data_Length;
-                     Success   := Plain_Success;
-                  else
-                     Ret_Count := 0;
-                     Success   := Would_Block;
-                  end if;
-            end case;
+         when IPv4 => Inner_IPv4_Read (Sock, Data, Ret_Count, Success);
+         when IPv6 => Inner_IPv6_Read (Sock, Data, Ret_Count, Success);
+         when UNIX => Inner_UNIX_Read (Sock, Data, Ret_Count, Success);
       end case;
+      Lib.Synchronization.Release (Sock.Mutex);
    end Read;
 
    procedure Write
@@ -241,48 +169,13 @@ package body IPC.Socket with SPARK_Mode => Off is
        Success   : out Socket_Status)
    is
    begin
+      Lib.Synchronization.Seize (Sock.Mutex);
       case Sock.Dom is
-         when IPv4 =>
-            Write
-               (Sock      => Sock,
-                Data      => Data,
-                Ret_Count => Ret_Count,
-                Addr      => Sock.IPv4_Cached_Address,
-                Port      => Sock.IPv4_Cached_Port,
-                Success   => Success);
-         when IPv6 =>
-            Write
-               (Sock      => Sock,
-                Data      => Data,
-                Ret_Count => Ret_Count,
-                Addr      => Sock.IPv6_Cached_Address,
-                Port      => Sock.IPv6_Cached_Port,
-                Success   => Success);
-         when UNIX =>
-            case Sock.Typ is
-               when Stream =>
-                  if Sock.Is_Listener or Sock.Established = null then
-                     Ret_Count := 0;
-                     Success   := Is_Bad_Type;
-                     return;
-                  end if;
-
-                  Sock.Established.Data (1 .. Data'Length) := Data;
-                  Sock.Established.Data_Length := Data'Length;
-                  Ret_Count := Data'Length;
-                  Success   := Plain_Success;
-               when others =>
-                  if Sock.Simple_Connected.Data_Length = 0 then
-                     Sock.Simple_Connected.Data (1 .. Data'Length) := Data;
-                     Sock.Simple_Connected.Data_Length := Data'Length;
-                     Ret_Count := Data'Length;
-                     Success   := Plain_Success;
-                  else
-                     Ret_Count := 0;
-                     Success   := Would_Block;
-                  end if;
-            end case;
+         when IPv4 => Inner_IPv4_Write (Sock, Data, Ret_Count, Success);
+         when IPv6 => Inner_IPv6_Write (Sock, Data, Ret_Count, Success);
+         when UNIX => Inner_UNIX_Write (Sock, Data, Ret_Count, Success);
       end case;
+      Lib.Synchronization.Release (Sock.Mutex);
    end Write;
 
    function Shutdown
@@ -290,12 +183,17 @@ package body IPC.Socket with SPARK_Mode => Off is
        Do_Receptions    : Boolean;
        Do_Transmissions : Boolean) return Boolean
    is
-      pragma Unreferenced (Do_Receptions);
-      pragma Unreferenced (Do_Transmissions);
+      Suc : Boolean;
    begin
-      Sock.Established.Established := null;
-      Sock.Established             := null;
-      return True;
+      Lib.Synchronization.Seize (Sock.Mutex);
+      case Sock.Dom is
+         when IPv4 | IPv6 =>
+            Suc := False;
+         when UNIX =>
+            Suc := Inner_UNIX_Shutdown (Sock, Do_Receptions, Do_Transmissions);
+      end case;
+      Lib.Synchronization.Release (Sock.Mutex);
+      return Suc;
    end Shutdown;
 
    function Listen (Sock : Socket_Acc; Backlog : Natural) return Boolean is
@@ -315,7 +213,14 @@ package body IPC.Socket with SPARK_Mode => Off is
       Path : String (1 .. 0);
       Len  : Natural;
    begin
-      Accept_Connection (Sock, Is_Blocking, Path, Len, Result);
+      Lib.Synchronization.Seize (Sock.Mutex);
+      case Sock.Dom is
+         when IPv4 | IPv6 =>
+            Result := null;
+         when UNIX =>
+            Accept_Connection (Sock, Is_Blocking, Path, Len, Result);
+      end case;
+      Lib.Synchronization.Release (Sock.Mutex);
    end Accept_Connection;
    ----------------------------------------------------------------------------
    procedure Get_Bound
@@ -667,7 +572,25 @@ package body IPC.Socket with SPARK_Mode => Off is
        Success : out Boolean)
    is
    begin
-      Get_Bound (Sock.Established.Pending_Accept, Path, Length, Success);
+      Path    := (others => ' ');
+      Length  := 0;
+      Success := False;
+
+      Lib.Synchronization.Seize (UNIX_Bound_Mutex);
+      for Ent of UNIX_Bound_Sockets loop
+         if Ent.Sock = Sock.Established then
+            if Path'Length >= Ent.Path_Len then
+               Path (Path'First .. Path'First + Ent.Path_Len - 1) :=
+                  Ent.Path (1 .. Ent.Path_Len);
+            else
+               Path := Ent.Path (1 .. Path'Length);
+            end if;
+            Length  := Ent.Path_Len;
+            Success := True;
+            exit;
+         end if;
+      end loop;
+      Lib.Synchronization.Release (UNIX_Bound_Mutex);
    end Get_Peer;
 
    function Bind (Sock : Socket_Acc; Path : String) return Boolean is
@@ -710,7 +633,6 @@ package body IPC.Socket with SPARK_Mode => Off is
          Success := False;
          goto End_Return;
       end if;
-
       case Sock.Typ is
          when Stream =>
             Sock.Connected := To_Connect;
@@ -721,11 +643,8 @@ package body IPC.Socket with SPARK_Mode => Off is
                end if;
                Scheduler.Yield_If_Able;
             end loop;
-
             loop
-               if Sock.Established /= null then
-                  exit;
-               end if;
+               exit when Sock.Pending_Accept /= null;
                Scheduler.Yield_If_Able;
             end loop;
          when others =>
@@ -749,6 +668,7 @@ package body IPC.Socket with SPARK_Mode => Off is
    begin
       Peer_Address        := (others => ' ');
       Peer_Address_Length := 0;
+      Result              := null;
 
       Lib.Synchronization.Seize (Sock.Mutex);
 
@@ -761,19 +681,16 @@ package body IPC.Socket with SPARK_Mode => Off is
                    Is_Blocking);
 
                Sock.Pending_Accept.Established := Result;
-               Result.Established := Sock.Pending_Accept;
-               Result.Pending_Accept := Sock;
+               Sock.Pending_Accept.Pending_Accept := Result;
+               Result.Established := Sock;
+               --  Result.Pending_Accept := Sock;
+               Result.Pending_Accept := Sock.Pending_Accept;
                Sock.Pending_Accept := null;
                exit;
             end if;
-
-            if not Sock.Is_Blocking then
-               exit;
-            end if;
+            exit when not Sock.Is_Blocking;
             Scheduler.Yield_If_Able;
          end loop;
-      else
-         Result := null;
       end if;
 
       Lib.Synchronization.Release (Sock.Mutex);
@@ -790,7 +707,7 @@ package body IPC.Socket with SPARK_Mode => Off is
       Temp : constant Socket_Acc := Sock.Simple_Connected;
    begin
       Discard := Connect (Sock, Path);
-      Read (Sock, Data, Ret_Count, Success);
+      Inner_UNIX_Read (Sock, Data, Ret_Count, Success);
       Sock.Simple_Connected := Temp;
    end Read;
 
@@ -805,9 +722,73 @@ package body IPC.Socket with SPARK_Mode => Off is
       Temp : constant Socket_Acc := Sock.Simple_Connected;
    begin
       Discard := Connect (Sock, Path);
-      Write (Sock, Data, Ret_Count, Success);
+      Inner_UNIX_Write (Sock, Data, Ret_Count, Success);
       Sock.Simple_Connected := Temp;
    end Write;
+   ----------------------------------------------------------------------------
+   procedure Inner_IPv4_Read
+      (Sock      : Socket_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Socket_Status)
+   is
+   begin
+      Read
+         (Sock      => Sock,
+          Data      => Data,
+          Ret_Count => Ret_Count,
+          Addr      => Sock.IPv4_Cached_Address,
+          Port      => Sock.IPv4_Cached_Port,
+          Success   => Success);
+   end Inner_IPv4_Read;
+
+   procedure Inner_IPv4_Write
+      (Sock      : Socket_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Socket_Status)
+   is
+   begin
+      Write
+         (Sock      => Sock,
+          Data      => Data,
+          Ret_Count => Ret_Count,
+          Addr      => Sock.IPv4_Cached_Address,
+          Port      => Sock.IPv4_Cached_Port,
+          Success   => Success);
+   end Inner_IPv4_Write;
+   ----------------------------------------------------------------------------
+   procedure Inner_IPv6_Read
+      (Sock      : Socket_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Socket_Status)
+   is
+   begin
+      Read
+         (Sock      => Sock,
+          Data      => Data,
+          Ret_Count => Ret_Count,
+          Addr      => Sock.IPv6_Cached_Address,
+          Port      => Sock.IPv6_Cached_Port,
+          Success   => Success);
+   end Inner_IPv6_Read;
+
+   procedure Inner_IPv6_Write
+      (Sock      : Socket_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Socket_Status)
+   is
+   begin
+      Write
+         (Sock      => Sock,
+          Data      => Data,
+          Ret_Count => Ret_Count,
+          Addr      => Sock.IPv6_Cached_Address,
+          Port      => Sock.IPv6_Cached_Port,
+          Success   => Success);
+   end Inner_IPv6_Write;
    ----------------------------------------------------------------------------
    function Get_Bound (Path : String) return Socket_Acc is
    begin
@@ -818,4 +799,150 @@ package body IPC.Socket with SPARK_Mode => Off is
       end loop;
       return null;
    end Get_Bound;
+
+   procedure Inner_UNIX_Close (To_Close : Socket_Acc) is
+   begin
+      Lib.Synchronization.Seize (UNIX_Bound_Mutex);
+      for Ent of UNIX_Bound_Sockets loop
+         if Ent.Sock = To_Close then
+            Ent.Sock := null;
+            exit;
+         end if;
+      end loop;
+      Lib.Synchronization.Release (UNIX_Bound_Mutex);
+   end Inner_UNIX_Close;
+
+   procedure Inner_UNIX_Read
+      (Sock      : Socket_Acc;
+       Data      : out Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Socket_Status)
+   is
+   begin
+   <<Retry>>
+      if Sock.Is_Blocking then
+         while Sock.Data_Length = 0 loop
+            Scheduler.Yield_If_Able;
+         end loop;
+      end if;
+
+      case Sock.Typ is
+         when Stream =>
+            if Sock.Is_Listener or Sock.Pending_Accept = null then
+               Data      := (others => 0);
+               Ret_Count := 0;
+               Success   := Is_Bad_Type;
+               return;
+            elsif Sock.Data_Length = 0 then
+               if Sock.Is_Blocking then
+                  goto Retry;
+               else
+                  Data      := (others => 0);
+                  Ret_Count := 0;
+                  Success   := Would_Block;
+                  return;
+               end if;
+            end if;
+
+            if Sock.Data_Length <= Data'Length then
+               Data (1 .. Sock.Data_Length) :=
+                  Sock.Data (1 .. Sock.Data_Length);
+               Ret_Count        := Sock.Data_Length;
+               Sock.Data_Length := 0;
+            else
+               Data             := Sock.Data (1 .. Data'Length);
+               Sock.Data_Length := Sock.Data_Length - Data'Length;
+               Ret_Count        := Data'Length;
+            end if;
+            Success := Plain_Success;
+         when others =>
+            if Sock.Data_Length <= Data'Length then
+               Data (1 .. Sock.Data_Length) :=
+                  Sock.Data (1 .. Sock.Data_Length);
+               Ret_Count := Sock.Data_Length;
+               Success   := Plain_Success;
+            else
+               Ret_Count := 0;
+               Success   := Would_Block;
+            end if;
+      end case;
+   end Inner_UNIX_Read;
+
+   procedure Inner_UNIX_Write
+      (Sock      : Socket_Acc;
+       Data      : Devices.Operation_Data;
+       Ret_Count : out Natural;
+       Success   : out Socket_Status)
+   is
+   begin
+      case Sock.Typ is
+         when Stream =>
+            if Sock.Is_Listener or Sock.Pending_Accept = null then
+               Ret_Count := 0;
+               Success   := Is_Bad_Type;
+               return;
+            end if;
+
+            Sock.Pending_Accept.Data (1 .. Data'Length) := Data;
+            Sock.Pending_Accept.Data_Length := Data'Length;
+            Ret_Count := Data'Length;
+            Success   := Plain_Success;
+         when others =>
+            if Sock.Simple_Connected.Data_Length = 0 then
+               Sock.Simple_Connected.Data (1 .. Data'Length) := Data;
+               Sock.Simple_Connected.Data_Length := Data'Length;
+               Ret_Count := Data'Length;
+               Success   := Plain_Success;
+            else
+               Ret_Count := 0;
+               Success   := Would_Block;
+            end if;
+      end case;
+   end Inner_UNIX_Write;
+
+   procedure Inner_UNIX_Poll
+      (Sock      : Socket_Acc;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Broken : out Boolean;
+       Is_Error  : out Boolean)
+   is
+   begin
+      case Sock.Typ is
+         when Stream =>
+            if Sock.Is_Listener then
+               Can_Read  := True;
+               Can_Write := True;
+               Is_Broken := False;
+               Is_Error  := False;
+            else
+               Can_Read  := Sock.Data_Length /= 0;
+               Can_Write := Sock.Pending_Accept /= null and then
+                            Sock.Pending_Accept.Data_Length /=
+                            Sock.Pending_Accept.Data'Length;
+               Is_Broken := Sock.Pending_Accept = null;
+               Is_Error  := False;
+            end if;
+         when others =>
+            Can_Read  := Sock.Data_Length      /= 0;
+            Can_Write := Sock.Simple_Connected /= null;
+            Is_Broken := Sock.Simple_Connected = null;
+            Is_Error  := False;
+      end case;
+   end Inner_UNIX_Poll;
+
+   function Inner_UNIX_Shutdown
+      (Sock             : Socket_Acc;
+       Do_Receptions    : Boolean;
+       Do_Transmissions : Boolean) return Boolean
+   is
+      pragma Unreferenced (Do_Receptions);
+      pragma Unreferenced (Do_Transmissions);
+   begin
+      if Sock.Established /= null then
+         Sock.Established.Established := null;
+         Sock.Established             := null;
+      end if;
+      return True;
+   end Inner_UNIX_Shutdown;
 end IPC.Socket;
