@@ -338,22 +338,23 @@ package Userland.Syscall is
        Errno       : out Errno_Value);
 
    --  Fetch some system information.
-   SC_PAGESIZE      : constant := 1;
-   SC_OPEN_MAX      : constant := 2;
-   SC_HOST_NAME_MAX : constant := 3;
-   SC_AVPHYS_PAGES  : constant := 4;
-   SC_PHYS_PAGES    : constant := 5;
-   SC_NPROC_ONLN    : constant := 6;
-   SC_TOTAL_PAGES   : constant := 7;
-   SC_LIST_PROCS    : constant := 8;
-   SC_LIST_MOUNTS   : constant := 9;
-   SC_UNAME         : constant := 10;
-   SC_CHILD_MAX     : constant := 11;
-   SC_LIST_THREADS  : constant := 12;
-   SC_LIST_CLUSTERS : constant := 13;
-   SC_LIST_NETINTER : constant := 14;
-   SC_DUMPLOGS      : constant := 15;
-   SC_NGROUPS_MAX   : constant := 16;
+   SC_PAGESIZE         : constant := 1;
+   SC_OPEN_MAX         : constant := 2;
+   SC_HOST_NAME_MAX    : constant := 3;
+   SC_AVPHYS_PAGES     : constant := 4;
+   SC_PHYS_PAGES       : constant := 5;
+   SC_NPROCESSORS_ONLN : constant := 6;
+   SC_TOTAL_PAGES      : constant := 7;
+   SC_LIST_PROCS       : constant := 8;
+   SC_LIST_MOUNTS      : constant := 9;
+   SC_UNAME            : constant := 10;
+   SC_CHILD_MAX        : constant := 11;
+   SC_LIST_THREADS     : constant := 12;
+   SC_LIST_CLUSTERS    : constant := 13;
+   SC_LIST_NETINTER    : constant := 14;
+   SC_DUMPLOGS         : constant := 15;
+   SC_NGROUPS_MAX      : constant := 16;
+   SC_SYMLOOP_MAX      : constant := 17;
 
    PROC_IS_TRACED : constant := 2#01#;
    PROC_EXITED    : constant := 2#10#;

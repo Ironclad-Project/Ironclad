@@ -1412,7 +1412,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when SC_PHYS_PAGES =>
             Memory.Physical.Get_Statistics (Stats);
             Result := Unsigned_64 (Stats.Available) / Page_Size;
-         when SC_NPROC_ONLN =>
+         when SC_NPROCESSORS_ONLN =>
             Result := Unsigned_64 (Arch.Hooks.Get_Active_Core_Count);
          when SC_TOTAL_PAGES =>
             Memory.Physical.Get_Statistics (Stats);
@@ -1421,6 +1421,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Result := Unsigned_64 (Process.Max_Process_Count);
          when SC_NGROUPS_MAX =>
             Result := Unsigned_64 (Process.Max_Supplementary_Groups);
+         when SC_SYMLOOP_MAX =>
+            Result := Unsigned_64 (VFS.Max_Symlink_Loop);
          when others =>
             goto Not_Matched;
       end case;
