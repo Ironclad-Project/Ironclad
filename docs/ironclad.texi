@@ -183,6 +183,7 @@ Syscalls
 * getgid/getegid::          Get the GID and the effective GID.
 * setgids::                 Set the GID and the effective GID.
 * getgroups/setgroups::     Get and set supplementary user groups.
+* ttyname::                 Get the name of a TTY file descriptor.
 
 Filesystem support and interfaces
 
@@ -865,6 +866,8 @@ Empty.
 @ref{getgroups/setgroups, getgroups}.
 @item
 @ref{getgroups/setgroups, setgroups}.
+@item
+@ref{ttyname}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -3428,6 +3431,30 @@ both with the following errno:
 @table @code
 @item EINVAL
 @code{getgroups} size is less than the number of supplementary group IDs.
+@end table
+
+@node ttyname
+@section ttyname
+
+@example
+int ttyname(int fd, char *buffer, size_t size);
+@end example
+
+This syscall fetches the name of the filesystem entity backing a TTY and writes
+it to @code{buffer} with a NULL terminator.
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EINVAL
+@code{size} is less than needed and/or @code{fd} is not a TTY.
+
+@item EBADF
+@code{fd} is not opened to anything.
+
+@item EFAULT
+@code{buffer} points to invalid memory.
 @end table
 
 @node Filesystem support and interfaces

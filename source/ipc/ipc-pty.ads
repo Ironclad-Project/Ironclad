@@ -36,6 +36,9 @@ package IPC.PTY is
    type Inner     is private;
    type Inner_Acc is access Inner;
 
+   --  Results from operations on PTYs.
+   type Status is (PTY_Success, PTY_Would_Block);
+
    --  Create a fresh PTY with 1 refcount.
    function Create
       (Termios     : Devices.TermIOs.Main_Data;
@@ -49,28 +52,32 @@ package IPC.PTY is
    procedure Read_Primary
       (To_Read   : Inner_Acc;
        Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural)
+       Ret_Count : out Natural;
+       Success   : out Status)
       with Pre => Is_Valid (To_Read);
 
    --  Write to the primary end of the PTY.
    procedure Write_Primary
       (To_Write  : Inner_Acc;
        Data      : Devices.Operation_Data;
-       Ret_Count : out Natural)
+       Ret_Count : out Natural;
+       Success   : out Status)
       with Pre => Is_Valid (To_Write);
 
    --  Read from the secondary end of the PTY.
    procedure Read_Secondary
       (To_Read   : Inner_Acc;
        Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural)
+       Ret_Count : out Natural;
+       Success   : out Status)
       with Pre => Is_Valid (To_Read);
 
    --  Write to the secondary end of the PTY.
    procedure Write_Secondary
       (To_Write  : Inner_Acc;
        Data      : Devices.Operation_Data;
-       Ret_Count : out Natural)
+       Ret_Count : out Natural;
+       Success   : out Status)
       with Pre => Is_Valid (To_Write);
 
    --  Poll the state of a PTY's primary end.
@@ -86,6 +93,22 @@ package IPC.PTY is
       (P         : Inner_Acc;
        Can_Read  : out Boolean;
        Can_Write : out Boolean)
+      with Pre => Is_Valid (P);
+
+   --  Get whether the passed PTY is blocking for the primary end.
+   procedure Is_Primary_Blocking (P : Inner_Acc; Blocking : out Boolean)
+      with Pre => Is_Valid (P);
+
+   --  Set whether the passed PTY is blocking for the primary end.
+   procedure Set_Primary_Blocking (P : Inner_Acc; Blocking : Boolean)
+      with Pre => Is_Valid (P);
+
+   --  Get whether the passed PTY is blocking for the secondary end.
+   procedure Is_Secondary_Blocking (P : Inner_Acc; Blocking : out Boolean)
+      with Pre => Is_Valid (P);
+
+   --  Set whether the passed PTY is blocking for the secondary end.
+   procedure Set_Secondary_Blocking (P : Inner_Acc; Blocking : Boolean)
       with Pre => Is_Valid (P);
 
    --  Get the termios data for the PTY.
@@ -104,6 +127,10 @@ package IPC.PTY is
    procedure Set_WinSize (P : Inner_Acc; W : Devices.TermIOs.Win_Size)
       with Pre => Is_Valid (P);
 
+   --  Get the associated VFS entity for the PTY.
+   procedure Get_Name (P : Inner_Acc; Str : out String; Len : out Natural)
+      with Pre => Is_Valid (P);
+
    --  Ghost function for checking whether a PTY is properly initialized.
    function Is_Valid (P : Inner_Acc) return Boolean with Ghost;
 
@@ -115,6 +142,9 @@ private
       Primary_Mutex     : aliased Lib.Synchronization.Binary_Semaphore;
       Secondary_Mutex   : aliased Lib.Synchronization.Binary_Semaphore;
       Global_Data_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+      Primary_Block     : Boolean;
+      Secondary_Block   : Boolean;
+      Name_Index        : Natural;
       Term_Info         : Devices.TermIOs.Main_Data;
       Term_Size         : Devices.TermIOs.Win_Size;
       Was_Closed        : Boolean;
@@ -128,16 +158,18 @@ private
    function Is_Valid (P : Inner_Acc) return Boolean is (P /= null);
 
    procedure Read_From_End
-      (End_Mutex  : access Lib.Synchronization.Binary_Semaphore;
-       Inner_Len  : access Data_Length;
-       Inner_Data : access TTY_Data;
-       Data       : out Devices.Operation_Data;
-       Ret_Count  : out Natural);
+      (End_Mutex   : access Lib.Synchronization.Binary_Semaphore;
+       Inner_Len   : access Data_Length;
+       Inner_Data  : access TTY_Data;
+       Is_Blocking : Boolean;
+       Data        : out Devices.Operation_Data;
+       Ret_Count   : out Natural);
 
    procedure Write_To_End
-      (End_Mutex  : access Lib.Synchronization.Binary_Semaphore;
-       Inner_Len  : access Data_Length;
-       Inner_Data : access TTY_Data;
-       Data       : Devices.Operation_Data;
-       Ret_Count  : out Natural);
+      (End_Mutex   : access Lib.Synchronization.Binary_Semaphore;
+       Inner_Len   : access Data_Length;
+       Inner_Data  : access TTY_Data;
+       Is_Blocking : Boolean;
+       Data        : Devices.Operation_Data;
+       Ret_Count   : out Natural);
 end IPC.PTY;

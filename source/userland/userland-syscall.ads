@@ -27,6 +27,7 @@ with Userland.Process; use Userland.Process;
 with VFS;              use VFS;
 with IPC.Socket;       use IPC.Socket;
 with IPC.FIFO;         use IPC.FIFO;
+use IPC.PTY;
 
 package Userland.Syscall is
    --  Error conditions for syscalls.
@@ -1041,6 +1042,14 @@ package Userland.Syscall is
        Addr     : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
+
+   --  Get the name of a tty based on file descriptor.
+   procedure TTY_Name
+      (FD       : Unsigned_64;
+       Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.
@@ -1079,6 +1088,12 @@ private
 
    procedure Translate_Status
       (Status         : IPC.FIFO.Pipe_Status;
+       Success_Return : Unsigned_64;
+       Returned       : out Unsigned_64;
+       Errno          : out Errno_Value);
+
+   procedure Translate_Status
+      (Status         : IPC.PTY.Status;
        Success_Return : Unsigned_64;
        Returned       : out Unsigned_64;
        Errno          : out Errno_Value);

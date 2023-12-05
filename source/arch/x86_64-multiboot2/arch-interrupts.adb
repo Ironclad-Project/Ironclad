@@ -277,6 +277,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Get_Groups (State.RDI, State.RSI, Returned, Errno);
          when 88 =>
             Set_Groups (State.RDI, State.RSI, Returned, Errno);
+         when 89 =>
+            TTY_Name (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when others =>
             Userland.Process.Raise_Signal
                (Local.Get_Current_Process,

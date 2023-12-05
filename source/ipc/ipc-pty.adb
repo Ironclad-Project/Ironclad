@@ -16,21 +16,36 @@
 
 with Ada.Unchecked_Deallocation;
 with Scheduler;
+with Lib.Messages;
+with Interfaces; use Interfaces;
 
 package body IPC.PTY is
    pragma Suppress (All_Checks);
 
    procedure Free is new Ada.Unchecked_Deallocation (Inner, Inner_Acc);
 
+   Tracked_Lock : aliased Lib.Synchronization.Binary_Semaphore :=
+      Lib.Synchronization.Unlocked_Semaphore;
+   Tracked_Name : Natural := 1;
+
    function Create
       (Termios     : Devices.TermIOs.Main_Data;
        Window_Size : Devices.TermIOs.Win_Size) return Inner_Acc
    is
+      Name_Index : Natural;
    begin
+      Lib.Synchronization.Seize (Tracked_Lock);
+      Name_Index := Tracked_Name;
+      Tracked_Name := Tracked_Name + 1;
+      Lib.Synchronization.Release (Tracked_Lock);
+
       return new Inner'
          (Primary_Mutex     => Lib.Synchronization.Unlocked_Semaphore,
           Secondary_Mutex   => Lib.Synchronization.Unlocked_Semaphore,
           Global_Data_Mutex => Lib.Synchronization.Unlocked_Semaphore,
+          Primary_Block     => True,
+          Secondary_Block   => True,
+          Name_Index        => Name_Index,
           Term_Info         => Termios,
           Term_Size         => Window_Size,
           Was_Closed        => False,
@@ -59,45 +74,56 @@ package body IPC.PTY is
    procedure Read_Primary
       (To_Read   : Inner_Acc;
        Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural)
+       Ret_Count : out Natural;
+       Success   : out Status)
    is
    begin
       Read_From_End
          (To_Read.Primary_Mutex'Access, To_Read.Primary_Length'Access,
-          To_Read.Primary_Data'Access, Data, Ret_Count);
+          To_Read.Primary_Data'Access, To_Read.Primary_Block, Data, Ret_Count);
+      Success := PTY_Success;
    end Read_Primary;
 
    procedure Write_Primary
       (To_Write  : Inner_Acc;
        Data      : Devices.Operation_Data;
-       Ret_Count : out Natural)
+       Ret_Count : out Natural;
+       Success   : out Status)
    is
    begin
       Write_To_End
          (To_Write.Secondary_Mutex'Access, To_Write.Secondary_Length'Access,
-          To_Write.Secondary_Data'Access, Data, Ret_Count);
+          To_Write.Secondary_Data'Access, To_Write.Primary_Block, Data,
+          Ret_Count);
+      Success := PTY_Success;
    end Write_Primary;
 
    procedure Read_Secondary
       (To_Read   : Inner_Acc;
        Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural)
+       Ret_Count : out Natural;
+       Success   : out Status)
    is
    begin
       Read_From_End
          (To_Read.Secondary_Mutex'Access, To_Read.Secondary_Length'Access,
-          To_Read.Secondary_Data'Access, Data, Ret_Count);
+          To_Read.Secondary_Data'Access, To_Read.Secondary_Block, Data,
+          Ret_Count);
+      Success := PTY_Success;
    end Read_Secondary;
 
    procedure Write_Secondary
       (To_Write  : Inner_Acc;
        Data      : Devices.Operation_Data;
-       Ret_Count : out Natural)
+       Ret_Count : out Natural;
+       Success   : out Status)
    is
    begin
       Write_To_End
          (To_Write.Primary_Mutex'Access, To_Write.Primary_Length'Access,
-          To_Write.Primary_Data'Access, Data, Ret_Count);
+          To_Write.Primary_Data'Access, To_Write.Secondary_Block, Data,
+          Ret_Count);
+      Success := PTY_Success;
    end Write_Secondary;
 
    procedure Poll_Primary
@@ -130,6 +156,34 @@ package body IPC.PTY is
       Lib.Synchronization.Release (P.Secondary_Mutex);
    end Poll_Secondary;
 
+   procedure Is_Primary_Blocking (P : Inner_Acc; Blocking : out Boolean) is
+   begin
+      Lib.Synchronization.Seize (P.Primary_Mutex);
+      Blocking := P.Primary_Block;
+      Lib.Synchronization.Release (P.Primary_Mutex);
+   end Is_Primary_Blocking;
+
+   procedure Set_Primary_Blocking (P : Inner_Acc; Blocking : Boolean) is
+   begin
+      Lib.Synchronization.Seize (P.Primary_Mutex);
+      P.Primary_Block := Blocking;
+      Lib.Synchronization.Release (P.Primary_Mutex);
+   end Set_Primary_Blocking;
+
+   procedure Is_Secondary_Blocking (P : Inner_Acc; Blocking : out Boolean) is
+   begin
+      Lib.Synchronization.Seize (P.Secondary_Mutex);
+      Blocking := P.Secondary_Block;
+      Lib.Synchronization.Release (P.Secondary_Mutex);
+   end Is_Secondary_Blocking;
+
+   procedure Set_Secondary_Blocking (P : Inner_Acc; Blocking : Boolean) is
+   begin
+      Lib.Synchronization.Seize (P.Secondary_Mutex);
+      P.Secondary_Block := Blocking;
+      Lib.Synchronization.Release (P.Secondary_Mutex);
+   end Set_Secondary_Blocking;
+
    procedure Get_TermIOs (P : Inner_Acc; T : out Devices.TermIOs.Main_Data) is
    begin
       Lib.Synchronization.Seize (P.Global_Data_Mutex);
@@ -159,25 +213,49 @@ package body IPC.PTY is
       P.Termios_Changed := True;
       Lib.Synchronization.Release (P.Global_Data_Mutex);
    end Set_WinSize;
+
+   procedure Get_Name (P : Inner_Acc; Str : out String; Len : out Natural) is
+      Root_Name  : constant String := "/dev/pty";
+      Buffer     : Lib.Messages.Translated_String;
+      Buffer_Len : Natural;
+   begin
+      Lib.Messages.Image (Unsigned_32 (P.Name_Index), Buffer, Buffer_Len);
+      Len := Root_Name'Length + Buffer_Len;
+      if Str'Length >= Len then
+         Str (Str'First .. Str'First + Root_Name'Length - 1) := Root_Name;
+         Str (Str'First + Root_Name'Length .. Str'First + Len - 1) :=
+            Buffer (Buffer'Last - Buffer_Len + 1 .. Buffer'Last);
+      end if;
+   end Get_Name;
    ----------------------------------------------------------------------------
    procedure Read_From_End
-      (End_Mutex  : access Lib.Synchronization.Binary_Semaphore;
-       Inner_Len  : access Data_Length;
-       Inner_Data : access TTY_Data;
-       Data       : out Devices.Operation_Data;
-       Ret_Count  : out Natural)
+      (End_Mutex   : access Lib.Synchronization.Binary_Semaphore;
+       Inner_Len   : access Data_Length;
+       Inner_Data  : access TTY_Data;
+       Is_Blocking : Boolean;
+       Data        : out Devices.Operation_Data;
+       Ret_Count   : out Natural)
    is
    begin
       Data := (others => 0);
 
-      loop
-         if Inner_Len.all /= 0 then
-            Lib.Synchronization.Seize (End_Mutex.all);
-            exit when Inner_Len.all /= 0;
+      if Is_Blocking then
+         loop
+            if Inner_Len.all /= 0 then
+               Lib.Synchronization.Seize (End_Mutex.all);
+               exit when Inner_Len.all /= 0;
+               Lib.Synchronization.Release (End_Mutex.all);
+            end if;
+            Scheduler.Yield_If_Able;
+         end loop;
+      else
+         Lib.Synchronization.Seize (End_Mutex.all);
+         if Inner_Len.all = 0 then
+            Ret_Count := 0;
             Lib.Synchronization.Release (End_Mutex.all);
+            return;
          end if;
-         Scheduler.Yield_If_Able;
-      end loop;
+      end if;
 
       if Data'Length > Inner_Len.all then
          Ret_Count := Inner_Len.all;
@@ -205,22 +283,32 @@ package body IPC.PTY is
    end Read_From_End;
 
    procedure Write_To_End
-      (End_Mutex  : access Lib.Synchronization.Binary_Semaphore;
-       Inner_Len  : access Data_Length;
-       Inner_Data : access TTY_Data;
-       Data       : Devices.Operation_Data;
-       Ret_Count  : out Natural)
+      (End_Mutex   : access Lib.Synchronization.Binary_Semaphore;
+       Inner_Len   : access Data_Length;
+       Inner_Data  : access TTY_Data;
+       Is_Blocking : Boolean;
+       Data        : Devices.Operation_Data;
+       Ret_Count   : out Natural)
    is
       Final : Natural;
    begin
-      loop
-         if Inner_Len.all /= Inner_Data'Length then
-            Lib.Synchronization.Seize (End_Mutex.all);
-            exit when Inner_Len.all /= Inner_Data'Length;
+      if Is_Blocking then
+         loop
+            if Inner_Len.all /= Inner_Data'Length then
+               Lib.Synchronization.Seize (End_Mutex.all);
+               exit when Inner_Len.all /= Inner_Data'Length;
+               Lib.Synchronization.Release (End_Mutex.all);
+            end if;
+            Scheduler.Yield_If_Able;
+         end loop;
+      else
+         Lib.Synchronization.Seize (End_Mutex.all);
+         if Inner_Len.all = Data'Length then
+            Ret_Count := 0;
             Lib.Synchronization.Release (End_Mutex.all);
+            return;
          end if;
-         Scheduler.Yield_If_Able;
-      end loop;
+      end if;
 
       if Data'Length > Inner_Data'Length or else
          Data'Length > Inner_Data'Length - Inner_Len.all

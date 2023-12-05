@@ -32,7 +32,6 @@ with Memory; use Memory;
 with Ada.Unchecked_Deallocation;
 with Arch.Hooks;
 with Cryptography.Random;
-with IPC.PTY;  use IPC.PTY;
 with IPC.Futex;
 with IPC.SignalPost; use IPC.SignalPost;
 with Devices.TermIOs;
@@ -231,6 +230,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Success2  : IPC.FIFO.Pipe_Status;
       Success3  : Boolean;
       Success4  : IPC.Socket.Socket_Status;
+      Success5  : IPC.PTY.Status;
       User      : Unsigned_32;
       Final_Cnt : Natural;
    begin
@@ -290,14 +290,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Translate_Status (Success2, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Primary_PTY =>
-               IPC.PTY.Read_Primary (File.Inner_Primary_PTY, Data, Ret_Count);
-               Returned := Unsigned_64 (Ret_Count);
-               Errno    := Error_No_Error;
+               IPC.PTY.Read_Primary
+                  (File.Inner_Primary_PTY, Data, Ret_Count, Success5);
+               Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
+                                 Errno);
             when Description_Secondary_PTY =>
                IPC.PTY.Read_Secondary
-                  (File.Inner_Secondary_PTY, Data, Ret_Count);
-               Returned := Unsigned_64 (Ret_Count);
-               Errno    := Error_No_Error;
+                  (File.Inner_Secondary_PTY, Data, Ret_Count, Success5);
+               Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
+                                 Errno);
             when Description_Writer_FIFO =>
                Errno    := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
@@ -335,6 +336,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Success2  : IPC.FIFO.Pipe_Status;
       Success3  : Boolean;
       Success4  : IPC.Socket.Socket_Status;
+      Success5  : IPC.PTY.Status;
       User      : Unsigned_32;
       Final_Cnt : Natural;
    begin
@@ -402,14 +404,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Translate_Status (Success2, Unsigned_64 (Ret_Count), Returned,
                                         Errno);
             when Description_Primary_PTY =>
-               IPC.PTY.Write_Primary (File.Inner_Primary_PTY, Data, Ret_Count);
-               Errno := Error_No_Error;
-               Returned := Unsigned_64 (Ret_Count);
+               IPC.PTY.Write_Primary
+                  (File.Inner_Primary_PTY, Data, Ret_Count, Success5);
+               Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
+                                 Errno);
             when Description_Secondary_PTY =>
                IPC.PTY.Write_Secondary
-                  (File.Inner_Secondary_PTY, Data, Ret_Count);
-               Errno := Error_No_Error;
-               Returned := Unsigned_64 (Ret_Count);
+                  (File.Inner_Secondary_PTY, Data, Ret_Count, Success5);
+               Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
+                                 Errno);
             when Description_Reader_FIFO | Description_SignalPost =>
                Errno := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
@@ -1804,8 +1807,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   if not Is_Blocking (File.Inner_Post) then
                      Returned := O_NONBLOCK;
                   end if;
-               when Description_Primary_PTY | Description_Secondary_PTY |
-                    Description_Device      | Description_Inode =>
+               when Description_Primary_PTY =>
+                  Is_Primary_Blocking (File.Inner_Primary_PTY, Temp);
+                  if not Temp then
+                     Returned := O_NONBLOCK;
+                  end if;
+               when Description_Secondary_PTY =>
+                  Is_Secondary_Blocking (File.Inner_Secondary_PTY, Temp);
+                  if not Temp then
+                     Returned := O_NONBLOCK;
+                  end if;
+               when Description_Device | Description_Inode =>
                   Returned := 0;
             end case;
          when F_SETFL =>
@@ -1822,8 +1834,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
                when Description_SignalPost =>
                   Set_Blocking
                      (File.Inner_Post, (Argument and O_NONBLOCK) = 0);
-               when Description_Primary_PTY | Description_Secondary_PTY |
-                    Description_Device      | Description_Inode =>
+               when Description_Primary_PTY =>
+                  Set_Primary_Blocking
+                     (File.Inner_Primary_PTY, (Argument and O_NONBLOCK) = 0);
+               when Description_Secondary_PTY =>
+                  Set_Secondary_Blocking
+                     (File.Inner_Secondary_PTY, (Argument and O_NONBLOCK) = 0);
+               when Description_Device | Description_Inode =>
                   null;
             end case;
          when F_GETPIPE_SZ =>
@@ -4871,6 +4888,53 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno := Error_No_Error;
       Returned := 0;
    end Set_Groups;
+
+   procedure TTY_Name
+      (FD       : Unsigned_64;
+       Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
+      Map   : constant       Page_Table_Acc := Get_Common_Map (Proc);
+      IAddr : constant      Integer_Address := Integer_Address (Addr);
+      SAddr : constant       System.Address := To_Address (IAddr);
+      File  : constant File_Description_Acc := Get_File (Proc, FD);
+      Data  : IPC.PTY.Inner_Acc;
+      Str   : String (1 .. Natural (Length)) with Import, Address => SAddr;
+   begin
+      if not Check_Userland_Access (Map, IAddr, Length) then
+         Errno := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif File = null then
+         Errno := Error_Bad_File;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      case File.Description is
+         when Description_Primary_PTY   => Data := File.Inner_Primary_PTY;
+         when Description_Secondary_PTY => Data := File.Inner_Secondary_PTY;
+         when others => goto Invalid_Error;
+      end case;
+
+      IPC.PTY.Get_Name (Data, Str, Natural (Returned));
+      if Returned >= Length then
+         goto Invalid_Error;
+      end if;
+
+      Str (Natural (Returned) + 1) := Ada.Characters.Latin_1.NUL;
+
+      Errno := Error_No_Error;
+      Returned := 0;
+      return;
+
+   <<Invalid_Error>>
+      Errno := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+   end TTY_Name;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
@@ -5000,6 +5064,23 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when Would_Block_Failure => Errno := Error_Would_Block;
       end case;
       Returned := Unsigned_64'Last;
+   end Translate_Status;
+
+   procedure Translate_Status
+      (Status         : IPC.PTY.Status;
+       Success_Return : Unsigned_64;
+       Returned       : out Unsigned_64;
+       Errno          : out Errno_Value)
+   is
+   begin
+      case Status is
+         when IPC.PTY.PTY_Success =>
+            Errno    := Error_No_Error;
+            Returned := Success_Return;
+         when IPC.PTY.PTY_Would_Block =>
+            Errno    := Error_Would_Block;
+            Returned := Unsigned_64'Last;
+      end case;
    end Translate_Status;
 
    procedure Exec_Into_Process
