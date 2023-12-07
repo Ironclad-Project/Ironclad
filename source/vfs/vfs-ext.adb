@@ -1565,7 +1565,7 @@ package body VFS.EXT with SPARK_Mode => Off is
 
                   Inner_Open_Inode
                      (Data,
-                      Relative,
+                      Parent_Index,
                       Symlink (1 .. Symlink_Len) & Path (Last_I .. Path'Last),
                       Name_Start,
                       Target_Index,
