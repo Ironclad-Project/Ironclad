@@ -231,8 +231,18 @@ package body Userland.Loader with SPARK_Mode => Off is
       end if;
       Pos := Pos + Unsigned_64 (Path_Len);
 
-      --  Format of a shebang: #!path [arg]newline
+      --  Format of a shebang: #![maybe spaces]path [arg]newline
       Path_Len := 0;
+      loop
+         Read (FS, Ino, Pos, Char_Data, Char_Len, Success, 0);
+         if Success /= VFS.FS_Success or Char_Len /= 1 then
+            return False;
+         end if;
+         case Char is
+            when ' '    => Pos := Pos + 1;
+            when others => exit;
+         end case;
+      end loop;
       loop
          Read (FS, Ino, Pos, Char_Data, Char_Len, Success, 0);
          Pos := Pos + Unsigned_64 (Char_Len);
