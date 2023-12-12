@@ -356,6 +356,7 @@ package Userland.Syscall is
    SC_DUMPLOGS         : constant := 15;
    SC_NGROUPS_MAX      : constant := 16;
    SC_SYMLOOP_MAX      : constant := 17;
+   SC_LIST_FILELOCKS   : constant := 18;
 
    PROC_IS_TRACED : constant := 2#01#;
    PROC_EXITED    : constant := 2#10#;
@@ -424,6 +425,16 @@ package Userland.Syscall is
    end record with Pack;
    type Interface_Arr is array (Natural range <>) of Interface_Info;
 
+   type Flock_Info is record
+      PID    : Unsigned_32;
+      Mode   : Unsigned_32;
+      Start  : Unsigned_64;
+      Length : Unsigned_64;
+      FS     : Unsigned_64;
+      Ino    : Unsigned_64;
+   end record;
+   type Flock_Info_Arr is array (Natural range <>) of Flock_Info;
+
    procedure Sysconf
       (Request  : Unsigned_64;
        Addr     : Unsigned_64;
@@ -459,7 +470,6 @@ package Userland.Syscall is
        Errno      : out Errno_Value);
 
    --  Multiplexed operation for files.
-   FD_CLOEXEC      : constant := 1;
    F_DUPFD         : constant := 1;
    F_DUPFD_CLOEXEC : constant := 2;
    F_GETFD         : constant := 3;
@@ -468,6 +478,24 @@ package Userland.Syscall is
    F_SETFL         : constant := 6;
    F_GETPIPE_SZ    : constant := 7;
    F_SETPIPE_SZ    : constant := 8;
+   F_GETLK         : constant := 9;
+   F_SETLK         : constant := 10;
+   F_SETLKW        : constant := 11;
+
+   FD_CLOEXEC : constant := 1;
+
+   F_RDLCK : constant := 1;
+   F_UNLCK : constant := 2;
+   F_WRLCK : constant := 3;
+
+   type Flock_Data is record
+      Lock_Type : Unsigned_16;
+      Whence    : Unsigned_16;
+      Start     : Unsigned_64;
+      Length    : Unsigned_64;
+      PID       : Unsigned_32;
+   end record;
+
    procedure Fcntl
       (FD       : Unsigned_64;
        Command  : Unsigned_64;

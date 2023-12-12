@@ -1657,6 +1657,7 @@ codes set on failure are:
 #define SC_DUMPLOGS        15 // Dump kernel logging to a buffer.
 #define SC_NGROUPS_MAX     16 // Max number of supplementary groups.
 #define SC_SYMLOOP_MAX     17 // Max number of symbolic loops to follow.
+#define SC_LIST_FILELOCKS  18 // List all advisory file locks.
 
 long int sysconf(int request, uintptr_t addr, uintptr_t len);
 @end example
@@ -1776,6 +1777,22 @@ struct netinterface @{
 is an array of 80-char long strings. @code{len} is the length of the buffer.
 The total length of the kernel buffer is returned, regardless of whether it
 fits or not.
+
+@item
+@code{SC_LIST_FILELOCKS}: @code{addr} points to an array of items, and
+@code{len} is the count of bytes reserved in the array. The items have the
+structure:
+
+@example
+struct flock_info @{
+    uint32_t pid;
+    uint32_t mode;
+    uint64_t start;
+    uint64_t length;
+    uint64_t dev_id;
+    uint64_t inode;
+@};
+@end example
 @end itemize
 
 The syscall return the requested information on success and @code{-1} on
@@ -1856,7 +1873,6 @@ following errno:
 @section fcntl
 
 @example
-#define FD_CLOEXEC      1
 #define F_DUPFD         1
 #define F_DUPFD_CLOEXEC 2
 #define F_GETFD         3
@@ -1865,8 +1881,25 @@ following errno:
 #define F_SETFL         6
 #define F_GETPIPE_SZ    7
 #define F_SETPIPE_SZ    8
+#define F_GETLK         9
+#define F_SETLK         10
+#define F_SETLKW        11
 
-int fcntl(int fd, int cmd, int arg);
+#define FD_CLOEXEC      1
+
+#define F_RDLCK 1
+#define F_UNLCK 2
+#define F_WRLCK 3
+
+struct flock @{
+   uint16_t l_type;
+   uint16_t l_whence;
+   uint64_t l_start;
+   uint64_t l_len;
+   uint32_t l_pid;
+@}
+
+int fcntl(int fd, int cmd, void *arg);
 @end example
 
 This syscall is a multiplexed syscall that performs the operations described
@@ -1912,6 +1945,31 @@ its size.
 @code{F_SETPIPE_SZ}: If @code{fd} points to a FIFO or pipe, the size will
 be set to the value of @code{arg}. If the operation would cause data loss, it
 will fail.
+
+@item
+@code{F_GETLK}: If @code{fd} points to a filesystem inode, the data passed
+in @code{arg} will be taken as a pointer to a @code{flock} struct, and the
+possibility to add the advisory lock described there will be checked.
+
+POSIX advisory locks are advisory file description-bound marks that may be
+used as a filesystem semaphore. They require processes to check them, and are
+not automatic nor mandatory, thus, advisory.
+
+If the lock could be placed, the passed struct's @code{l_type} will become
+@code{F_UNLCK}, else, the call will fail and the fields used to write the
+information regarding one of the conflicting locks. As all IPC, this data may
+not be true once processed, it is merely informative.
+
+POSIX advisory locks can be used for implementing PID lock files, as to
+make sure only one instance of the same daemon is running.
+
+@item
+@code{F_SETLK}: The same as @code{F_GETLK}, but actually sets the passed lock.
+If it cannot be set, it will return failure with @code{EAGAIN}.
+
+@item
+@code{F_SETLKW}: The same as @code{F_SETLK}, but instead of being non-blocking,
+this call will block until the passed lock can be set.
 @end itemize
 
 On failure, the syscall returns @code{-1}. The returned @code{errno} are:

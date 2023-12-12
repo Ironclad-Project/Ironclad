@@ -75,6 +75,7 @@ package Userland.Process is
             Inner_Dev_Pos   : Unsigned_64;
             Inner_Dev       : Devices.Device_Handle;
          when Description_Inode =>
+            Inner_Is_Locked : Boolean;
             Inner_Ino_Read  : Boolean;
             Inner_Ino_Write : Boolean;
             Inner_Ino_Pos   : Unsigned_64;

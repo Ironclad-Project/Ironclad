@@ -16,10 +16,12 @@
 
 with Lib.Time;
 with Lib.Alignment;
+with Lib.Messages;
 with Ada.Unchecked_Deallocation;
 with Arch.Local;
 with Cryptography.Random;
 with Userland.Memory_Locations;
+with IPC.FileLock;
 
 package body Userland.Process with SPARK_Mode => Off is
    procedure Free is new Ada.Unchecked_Deallocation
@@ -402,6 +404,7 @@ package body Userland.Process with SPARK_Mode => Off is
    procedure Close (F : in out File_Description_Acc) is
       procedure Free is new Ada.Unchecked_Deallocation
          (File_Description, File_Description_Acc);
+      T : Boolean;
    begin
       if F.Children_Count = 0 then
          case F.Description is
@@ -410,7 +413,14 @@ package body Userland.Process with SPARK_Mode => Off is
             when Description_Primary_PTY => Close (F.Inner_Primary_PTY);
             when Description_Secondary_PTY => Close (F.Inner_Secondary_PTY);
             when Description_Device => null;
-            when Description_Inode => VFS.Close (F.Inner_Ino_FS, F.Inner_Ino);
+            when Description_Inode =>
+               if F.Inner_Is_Locked then
+                  IPC.FileLock.Release_Lock (F.Inner_Ino_FS, F.Inner_Ino, T);
+                  if not T then
+                     Lib.Messages.Warn ("Missing file lock on closure!");
+                  end if;
+               end if;
+               VFS.Close (F.Inner_Ino_FS, F.Inner_Ino);
             when Description_SignalPost => Close (F.Inner_Post);
             when Description_Socket => Close (F.Inner_Socket);
          end case;

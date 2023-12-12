@@ -34,6 +34,7 @@ with Arch.Hooks;
 with Cryptography.Random;
 with IPC.Futex;
 with IPC.SignalPost; use IPC.SignalPost;
+with IPC.FileLock;
 with Devices.TermIOs;
 with Arch.Power;
 with Devices; use Devices;
@@ -163,6 +164,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             New_Descr  := new File_Description'
                (Children_Count  => 0,
                 Description     => Description_Inode,
+                Inner_Is_Locked => False,
                 Inner_Ino_Read  => Do_Read,
                 Inner_Ino_Write => Do_Write,
                 Inner_Ino_FS    => CWD_FS,
@@ -1613,6 +1615,27 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Lib.Messages.Dump_Logs (Log, Ret);
                Result := Unsigned_64 (Ret);
             end;
+         when SC_LIST_FILELOCKS =>
+            declare
+               Len   : constant Natural :=
+                  Natural (Length / (Flock_Info'Size / 8));
+               Lks  : Flock_Info_Arr (1 .. Len) with Import, Address => SAddr;
+               KLks : IPC.FileLock.Lock_Arr (1 .. Len);
+               Ret  : Natural;
+            begin
+               IPC.FileLock.List_All (KLks, Ret);
+               for I in 1 .. Ret loop
+                  Lks (I).PID    := Unsigned_32 (Convert (KLks (I).Acquirer));
+                  Lks (I).Mode   := (if KLks (I).Is_Writing then 1 else 0);
+                  Lks (I).Start  := KLks (I).Start;
+                  Lks (I).Length := KLks (I).Length;
+                  Lks (I).FS     := Unsigned_64
+                     (Get_Unique_ID (Get_Backing_Device (KLks (I).FS)));
+                  Lks (I).Ino    := Unsigned_64 (KLks (I).Ino);
+               end loop;
+
+               Result := Unsigned_64 (Ret);
+            end;
          when others =>
             Errno    := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
@@ -1754,7 +1777,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc      : constant PID := Arch.Local.Get_Current_Process;
+      Proc      : PID := Arch.Local.Get_Current_Process;
+      Map       : constant       Page_Table_Acc := Get_Common_Map (Proc);
       File      : constant File_Description_Acc := Get_File (Proc, FD);
       Temp      : Boolean;
       New_File  : File_Description_Acc;
@@ -1871,6 +1895,68 @@ package body Userland.Syscall with SPARK_Mode => Off is
                when others =>
                   goto Invalid_Return;
             end case;
+         when F_GETLK | F_SETLK | F_SETLKW =>
+            declare
+               IAddr : constant Integer_Address := Integer_Address (Argument);
+               Lock : Flock_Data with Import, Address => To_Address (IAddr);
+               IW   : Boolean;
+            begin
+               if not Check_Userland_Access (Map, IAddr, Lock'Size / 8) then
+                  Errno := Error_Would_Fault;
+                  Returned := Unsigned_64'Last;
+                  return;
+               elsif File.Description /= Description_Inode then
+                  goto Invalid_Return;
+               end if;
+
+               Proc := Convert (Natural (Lock.PID));
+               IW   := Lock.Lock_Type = F_WRLCK;
+
+               if Command = F_GETLK then
+                  IPC.FileLock.Could_Acquire_Lock
+                     (Acquired_FS  => File.Inner_Ino_FS,
+                      Acquired_Ino => File.Inner_Ino,
+                      Start        => Lock.Start,
+                      Length       => Lock.Length,
+                      Acquirer     => Proc,
+                      Is_Write     => IW,
+                      Success      => Temp);
+                  if Temp then
+                     Lock.Lock_Type := F_UNLCK;
+                  end if;
+                  Lock.PID := Unsigned_32 (Convert (Proc));
+               else
+                  if Lock.Lock_Type = F_UNLCK then
+                     IPC.FileLock.Release_Lock
+                        (Acquired_FS  => File.Inner_Ino_FS,
+                         Acquired_Ino => File.Inner_Ino,
+                         Start        => Lock.Start,
+                         Length       => Lock.Length,
+                         Acquirer     => Proc,
+                         Success      => Temp);
+                     File.Inner_Is_Locked := not Temp;
+                  else
+                     IPC.FileLock.Acquire_Lock
+                        (Acquired_FS  => File.Inner_Ino_FS,
+                         Acquired_Ino => File.Inner_Ino,
+                         Start        => Lock.Start,
+                         Length       => Lock.Length,
+                         Acquirer     => Proc,
+                         Is_Write     => IW,
+                         Is_Blocking  => Command = F_SETLKW,
+                         Success      => Temp);
+                     File.Inner_Is_Locked := Temp;
+                  end if;
+
+                  if not Temp then
+                     Errno := Error_Would_Block;
+                     Returned := Unsigned_64'Last;
+                     return;
+                  end if;
+               end if;
+
+               Returned := 0;
+            end;
          when others =>
             goto Invalid_Return;
       end case;
