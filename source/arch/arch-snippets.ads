@@ -77,5 +77,6 @@ package Arch.Snippets is
       procedure Get_CPUID
          (Leaf, Subleaf : Unsigned_32;
           EAX, EBX, ECX, EDX : out Unsigned_32);
+      procedure Calibrate_Sleep_1MS;
    #end if;
 end Arch.Snippets;

@@ -15,8 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.ACPI;
-with Arch.HPET;
-with Arch.PIT;
 with Arch.Snippets;
 with Lib.Panic;
 
@@ -71,13 +69,8 @@ package body Arch.APIC with SPARK_Mode => Off is
       LAPIC_Write (LAPIC_Timer_Init_Counter_Register, Sample);
 
       --  Check the ticks we get in 1 ms, and calculate with that.
-      if Arch.HPET.Is_Initialized then
-         Arch.HPET.USleep (1000);
-         Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
-      else
-         Arch.PIT.Sleep_1MS;
-         Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
-      end if;
+      Snippets.Calibrate_Sleep_1MS;
+      Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
 
       --  Stop timer and adjust the ticks to make them ticks/ms -> ticks/s
       LAPIC_Timer_Stop;

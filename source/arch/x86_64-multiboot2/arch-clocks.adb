@@ -36,13 +36,18 @@ is
    RT_Stored_Seconds        : Unsigned_64;
    RT_Stored_Nanoseconds    : Unsigned_64;
 
-   --  This variable is used for TSC frequency tracking. It symbolized the
-   --  clock cycles per nanosecond.
-   Mono_TSC_Freq : Unsigned_64 := 2;
+   --  Monotonic TSC cycles per millisecond. Before calibration, the value is
+   --  a placeholder, so monotonic always works, it is an estimation.
+   MS_Per_Sec    : constant := 1_000;
+   Nanos_Per_MS  : constant := 1_000_000;
+   Mono_TSC_Freq : Unsigned_64 := Nanos_Per_MS * 2;
 
    procedure Initialize_Sources is
+      Beginning_TSC : constant Unsigned_64 := Snippets.Read_Cycles;
    begin
-      Mono_TSC_Freq := 2;
+      --  Calibrate by checking the ticks we get in 1 ms.
+      Snippets.Calibrate_Sleep_1MS;
+      Mono_TSC_Freq := Snippets.Read_Cycles - Beginning_TSC;
 
       Get_Monotonic_Time (RT_Timestamp_Seconds, RT_Timestamp_Nanoseconds);
       RTC.Get_RTC_Date (RT_Stored_Seconds);
@@ -53,21 +58,21 @@ is
    is
    begin
       Seconds     := 0;
-      Nanoseconds := Mono_TSC_Freq;
+      Nanoseconds := Mono_TSC_Freq * Nanos_Per_MS;
    end Get_Monotonic_Resolution;
 
    procedure Get_Monotonic_Time (Seconds, Nanoseconds : out Unsigned_64) is
       Cycles : constant Unsigned_64 := Snippets.Read_Cycles / Mono_TSC_Freq;
    begin
-      Seconds     := Cycles / 1_000_000_000;
-      Nanoseconds := Cycles mod 1_000_000_000;
+      Seconds     := Cycles / MS_Per_Sec;
+      Nanoseconds := (Cycles mod MS_Per_Sec) * Nanos_Per_MS;
    end Get_Monotonic_Time;
 
    procedure Get_Real_Time_Resolution (Seconds, Nanoseconds : out Unsigned_64)
    is
    begin
       Seconds     := 0;
-      Nanoseconds := Mono_TSC_Freq;
+      Nanoseconds := Mono_TSC_Freq * Nanos_Per_MS;
    end Get_Real_Time_Resolution;
 
    procedure Get_Real_Time (Seconds, Nanoseconds : out Unsigned_64) is

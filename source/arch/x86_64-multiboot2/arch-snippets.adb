@@ -16,6 +16,8 @@
 
 with System.Machine_Code; use System.Machine_Code;
 with Arch.Entrypoint;
+with Arch.PIT;
+with Arch.HPET;
 pragma Unreferenced (Arch.Entrypoint);
 
 package body Arch.Snippets with SPARK_Mode => Off is
@@ -276,4 +278,13 @@ package body Arch.Snippets with SPARK_Mode => Off is
            Clobber  => "memory",
            Volatile => True);
    end Get_CPUID;
+
+   procedure Calibrate_Sleep_1MS is
+   begin
+      if HPET.Is_Initialized then
+         HPET.USleep (1000);
+      else
+         PIT.Sleep_1MS;
+      end if;
+   end Calibrate_Sleep_1MS;
 end Arch.Snippets;
