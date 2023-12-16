@@ -2683,6 +2683,10 @@ which events of the waited ones did happen. If the FD of an structure is
 negative, that is, it has the first bit set, it is ignored, and @code{revents}
 is set to @code{0}.
 
+If passed no FDs to poll, that is, with @code{nfds == 0}, @code{poll} will
+block for @code{timeout} time. This is used by some software as a means to
+implement @code{sleep} functionality, for those cases, @ref{clock_nanosleep}.
+
 Both @code{events} and @code{revents} are bitmaps of the values:
 
 @table @code
@@ -3473,11 +3477,16 @@ int getgroups(size_t size, gid_t list[]);
 int setgroups(size_t size, const gid_t *list);
 @end example
 
-This syscall gets and sets the previously set supplementary user groups by
-userland. Init starts with an empty array.
+This syscall gets and sets the supplementary user groups of the caller process.
+The stored group IDs, along with the effective GID, will be used to check
+permission for file access. among others permission checks.
 
 @code{getgroups} does not return the effective GID of the caller process on
-the list.
+the list. POSIX leaves whether the effective GID is included on this list as
+an implementation detail, so portable programs should be ready for that
+scenario.
+
+Init starts with an empty array of supplementary group IDs.
 
 Passing @code{0} and @code{NULL} to @code{setgroups} will empty the
 supplementary group list.
@@ -3518,18 +3527,9 @@ following errno:
 @node Filesystem support and interfaces
 @chapter Filesystem support and interfaces
 
-Ironclad's VFS is pretty barebones, so some features are not supported quite
-well yet. Some of the affected features are:
-
-@itemize @bullet
-@item
-Mountpoints may not be visible when contained within another mountpoint.
-@item
-Symbolic links do not work accross mount points, just like hard links.
-@end itemize
-
 Support for several filesystems is provided, with filesystem-specific quirks at
-times, and exposes interfaces with @code{ioctl} calls.
+times, and exposes interfaces with @code{ioctl} calls. This section of the
+manual focuses on documenting said quirks, details, and additional features.
 
 @node Extended FileSystem
 @section Extended FileSystem

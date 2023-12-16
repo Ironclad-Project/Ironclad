@@ -3267,8 +3267,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno    := Error_Would_Fault;
          Returned := Unsigned_64'Last;
          return;
-      elsif FDs_Count = 0 then
-         goto Normal_Empty_Exit;
       end if;
 
       Arch.Clocks.Get_Monotonic_Time (Final_Sec, Final_NSec);
@@ -3362,7 +3360,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end loop;
       end;
 
-   <<Normal_Empty_Exit>>
       Errno    := Error_No_Error;
       Returned := Unsigned_64 (Count);
    end Poll;
