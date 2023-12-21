@@ -5018,6 +5018,47 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
    end TTY_Name;
+
+   procedure FAdvise
+      (FD       : Unsigned_64;
+       Offset   : Unsigned_64;
+       Length   : Unsigned_64;
+       Advice   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      pragma Unreferenced (Offset);
+      pragma Unreferenced (Length);
+      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
+      File  : constant File_Description_Acc := Get_File (Proc, FD);
+      Tmp   : FS_Status;
+   begin
+      if File = null then
+         Errno := Error_Bad_File;
+         goto Error_Return;
+      elsif File.Description /= Description_Inode then
+         Errno := Error_Invalid_Seek;
+         goto Error_Return;
+      end if;
+
+      case Advice is
+         when POSIX_FADV_NORMAL | POSIX_FADV_SEQUENTIAL | POSIX_FADV_NOREUSE |
+              POSIX_FADV_WILLNEED | POSIX_FADV_RANDOM =>
+            Errno := Error_No_Error;
+            Returned := 0;
+         when POSIX_FADV_DONTNEED =>
+            Tmp := VFS.Synchronize (File.Inner_Ino_FS, File.Inner_Ino, False);
+            Translate_Status (Tmp, 0, Returned, Errno);
+         when others =>
+            Errno := Error_Invalid_Value;
+            goto Error_Return;
+      end case;
+
+      return;
+
+   <<Error_Return>>
+      Returned := Unsigned_64'Last;
+   end FAdvise;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin

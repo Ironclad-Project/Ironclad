@@ -184,6 +184,7 @@ Syscalls
 * setgids::                 Set the GID and the effective GID.
 * getgroups/setgroups::     Get and set supplementary user groups.
 * ttyname::                 Get the name of a TTY file descriptor.
+* fadvise::                 Advise caching for file access.
 
 Filesystem support and interfaces
 
@@ -868,6 +869,8 @@ Empty.
 @ref{getgroups/setgroups, setgroups}.
 @item
 @ref{ttyname}.
+@item
+@ref{fadvise}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -3522,6 +3525,72 @@ following errno:
 
 @item EFAULT
 @code{buffer} points to invalid memory.
+@end table
+
+@node fadvise
+@section fadvise
+
+@example
+#define POSIX_FADV_NORMAL     1
+#define POSIX_FADV_SEQUENTIAL 2
+#define POSIX_FADV_NOREUSE    3
+#define POSIX_FADV_DONTNEED   4
+#define POSIX_FADV_WILLNEED   5
+#define POSIX_FADV_RANDOM     6
+
+int fadvise(int fd, off_t offset, off_t len, int advice);
+@end example
+
+This syscall is used for advising the kernel on how access will be done for
+the passed file for the passed range, in order to prepare caches ahead of time
+to optimize system resource use and performance. This can only be used with
+filesystem inodes.
+
+Advising for a file does not make any operation illegal or behave weirdly, they
+are just used in order to cater to the passed information.
+
+Advice is indicated on @code{advice}, and can take the following values:
+
+@table @code
+@item POSIX_FADV_NORMAL
+Indicates that the application has no advice to give about its access pattern
+for the specified data. If no advice is given for an open file, this is the
+default assumption.
+
+@item POSIX_FADV_SEQUENTIAL
+Specifies that the application has no advice to give on its behavior with
+respect to the specified data. It is the default characteristic if no advice is
+given for an open file.
+
+@item POSIX_FADV_NOREUSE
+Specifies that the application expects to access the specified data once and
+then not reuse it thereafter.
+
+@item POSIX_FADV_DONTNEED
+Specifies that the application expects that it will not access the specified
+data in the near future.
+
+@item POSIX_FADV_WILLNEED
+Specifies that the application expects to access the specified data in the near
+future.
+
+@item POSIX_FADV_RANDOM
+Specifies that the application expects to access the specified data in a random
+order.
+@end table
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EINVAL
+@code{advice} is not valid.
+
+@item EBADF
+@code{fd} is not opened to anything.
+
+@item ESPIPE
+The passed file is not a VFS inode.
 @end table
 
 @node Filesystem support and interfaces

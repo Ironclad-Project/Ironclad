@@ -1078,6 +1078,21 @@ package Userland.Syscall is
        Length   : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
+
+   --  Advise the future use of a file.
+   POSIX_FADV_NORMAL     : constant := 1;
+   POSIX_FADV_SEQUENTIAL : constant := 2;
+   POSIX_FADV_NOREUSE    : constant := 3;
+   POSIX_FADV_DONTNEED   : constant := 4;
+   POSIX_FADV_WILLNEED   : constant := 5;
+   POSIX_FADV_RANDOM     : constant := 6;
+   procedure FAdvise
+      (FD       : Unsigned_64;
+       Offset   : Unsigned_64;
+       Length   : Unsigned_64;
+       Advice   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.
