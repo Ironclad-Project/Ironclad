@@ -926,7 +926,7 @@ package body IPC.Socket with SPARK_Mode => Off is
          when others =>
             Can_Read  := Sock.Data_Length      /= 0;
             Can_Write := Sock.Simple_Connected /= null;
-            Is_Broken := Sock.Simple_Connected = null;
+            Is_Broken := False;
             Is_Error  := False;
       end case;
    end Inner_UNIX_Poll;

@@ -89,7 +89,7 @@ package body IPC.FileLock with SPARK_Mode => Off is
             end loop;
          end if;
          Lib.Synchronization.Release (Registry_Mutex);
-         exit when not Is_Blocking and Success;
+         exit when not Is_Blocking or Success;
          Scheduler.Yield_If_Able;
       end loop;
    end Acquire_Lock;
