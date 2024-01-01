@@ -46,7 +46,7 @@ is
       Messages.Put_Line (HP & "+++++++--+==*%%**-#   .+*-   *%%=..#%%+ " & RC);
       Messages.Put_Line (HP & "+++++++=----====-=%    -:            .- " & RC);
       Messages.Put_Line (HP & "++++++++=---=+++++%     +               " & RC);
-      Messages.Put_Line (HP & "Hard panic: " & Message & RC);
+      Messages.Put_Line (HP & "Panic: " & Message & RC);
       Arch.Snippets.HCF;
    end Hard_Panic;
 end Lib.Panic;

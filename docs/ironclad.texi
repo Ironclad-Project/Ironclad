@@ -1661,6 +1661,7 @@ codes set on failure are:
 #define SC_NGROUPS_MAX     16 // Max number of supplementary groups.
 #define SC_SYMLOOP_MAX     17 // Max number of symbolic loops to follow.
 #define SC_LIST_FILELOCKS  18 // List all advisory file locks.
+#define SC_LOADAVG         19 // Dump load averages.
 
 long int sysconf(int request, uintptr_t addr, uintptr_t len);
 @end example
@@ -1796,6 +1797,20 @@ struct flock_info @{
     uint64_t inode;
 @};
 @end example
+
+@item
+@code{SC_LOADAVG}: @code{addr} points to an array of at least 3 integers, and
+@code{len} is the count of bytes reserved in the array. The array has the
+structure:
+
+@example
+uint32_t array[3];
+@end example
+
+The values the number of threads in the system run queue averaged over
+various periods of time. The 3 samples correspond to the averages of 1, 5, and
+15 minutes, respectively. It can be used as a measure of relative load. The
+values are to be divided by 100 before being used.
 @end itemize
 
 The syscall return the requested information on success and @code{-1} on

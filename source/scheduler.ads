@@ -115,6 +115,12 @@ package Scheduler is
    function Get_Niceness (Thread : TID) return Niceness;
    procedure Set_Niceness (Thread : TID; Nice : Niceness);
    ----------------------------------------------------------------------------
+   --  Get the number of processes set to run over various periods of time.
+   --  @param Avg_1  1 minute average  * 100.
+   --  @param Avg_5  5 minute average  * 100.
+   --  @param Avg_15 15 minute average * 100.
+   procedure Get_Load_Averages (Avg_1, Avg_5, Avg_15 : out Unsigned_32);
+   ----------------------------------------------------------------------------
    --  Hook to be called by the architecture for reescheduling of the callee
    --  core.
    procedure Scheduler_ISR (State : Arch.Context.GP_Context);
@@ -160,6 +166,8 @@ private
    function Has_Available_Time (C : TCID) return Boolean;
 
    function Is_Switchable (T : TID; C : TCID) return Boolean;
+
+   procedure Add_Bucket_And_Shift (Last_Bucket : Unsigned_32);
 
    function Convert (Thread : TID) return Natural is (Natural (Thread));
    function Convert (Group : TCID) return Natural is (Natural (Group));

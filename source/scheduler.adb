@@ -87,6 +87,13 @@ package body Scheduler with SPARK_Mode => Off is
    Cluster_Pool    : Cluster_Arr_Acc;
    Thread_Pool     : Thread_Info_Arr_Acc;
 
+   --  In order to keep statistics of usage, we keep a list of buckets of
+   --  1 minute resolution, and calculate resolution on demand.
+   --  We take advantage of the monotic clock starting at 0 in boot.
+   type Stats_Bucket_Arr is array (1 .. 15) of Unsigned_32;
+   Last_Bucket : Unsigned_64      := 0;
+   Buckets     : Stats_Bucket_Arr := (others => 0);
+
    function Init return Boolean is
    begin
       --  Initialize registries.
@@ -529,6 +536,26 @@ package body Scheduler with SPARK_Mode => Off is
       Thread_Pool (Thread).Nice := Nice;
    end Set_Niceness;
    ----------------------------------------------------------------------------
+   procedure Get_Load_Averages (Avg_1, Avg_5, Avg_15 : out Unsigned_32) is
+   begin
+      Lib.Synchronization.Seize (Scheduler_Mutex);
+      Avg_1 := Buckets (Buckets'First) * 100;
+
+      Avg_5 := 0;
+      for Val of Buckets (Buckets'First .. Buckets'First + 4) loop
+         Avg_5 := Avg_5 + (Val * 100);
+      end loop;
+      Avg_5 := Avg_5 / 5;
+
+      Avg_15 := 0;
+      for Val of Buckets loop
+         Avg_15 := Avg_15 + (Val * 100);
+      end loop;
+      Avg_15 := Avg_15 / 15;
+
+      Lib.Synchronization.Release (Scheduler_Mutex);
+   end Get_Load_Averages;
+   ----------------------------------------------------------------------------
    procedure Scheduler_ISR (State : Arch.Context.GP_Context) is
       Current_TID : constant TID := Arch.Local.Get_Current_Thread;
       Next_TID    :          TID := Error_TID;
@@ -536,10 +563,24 @@ package body Scheduler with SPARK_Mode => Off is
       Timeout, Max_Next_Timeout : Natural;
       Curr_Cluster, Next_Cluster : TCID := Error_TCID;
       Curr_Sec, Curr_NSec : Unsigned_64;
+      Count : Unsigned_32;
    begin
       Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_NSec);
 
       Lib.Synchronization.Seize (Scheduler_Mutex);
+
+      --  Adjust the moving stats if at least a minute has passed since
+      --  last poll.
+      if Curr_Sec >= Last_Bucket + 60 then
+         Last_Bucket := Curr_Sec;
+         Count := 0;
+         for I in Thread_Pool'First .. Thread_Pool'Last loop
+            if Thread_Pool (I).Is_Present then
+               Count := Count + 1;
+            end if;
+         end loop;
+         Add_Bucket_And_Shift (Count);
+      end if;
 
       --  If we come from a thread, we can do cluster management and logic.
       --  Else, we just need to go to a thread, any, and pick up from there.
@@ -742,4 +783,12 @@ package body Scheduler with SPARK_Mode => Off is
    begin
       return Th.Is_Present and not Th.Is_Running and Th.Cluster = C;
    end Is_Switchable;
+
+   procedure Add_Bucket_And_Shift (Last_Bucket : Unsigned_32) is
+   begin
+      for I in reverse Buckets'First .. Buckets'Last - 1 loop
+         Buckets (I + 1) := Buckets (I);
+      end loop;
+      Buckets (Buckets'First) := Last_Bucket;
+   end Add_Bucket_And_Shift;
 end Scheduler;

@@ -1636,15 +1636,28 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
                Result := Unsigned_64 (Ret);
             end;
+         when SC_LOADAVG =>
+            declare
+               Lks : Load_Arr with Import, Address => SAddr;
+            begin
+               if Length / (Unsigned_32'Size / 8) < Lks'Length then
+                  goto Invalid_Value_Error;
+               end if;
+               Scheduler.Get_Load_Averages (Lks (1), Lks (2), Lks (3));
+               Result := 3;
+            end;
          when others =>
-            Errno    := Error_Invalid_Value;
-            Returned := Unsigned_64'Last;
-            return;
+            goto Invalid_Value_Error;
       end case;
 
    <<Success_Return>>
       Errno    := Error_No_Error;
       Returned := Result;
+      return;
+
+   <<Invalid_Value_Error>>
+      Errno    := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
    end Sysconf;
 
    procedure Spawn
@@ -1786,8 +1799,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
    begin
       if File = null then
          Errno := Error_Bad_File;
-         Returned := Unsigned_64'Last;
-         return;
+         goto Error_Return;
       end if;
 
       Returned := 0;
@@ -1803,67 +1815,47 @@ package body Userland.Syscall with SPARK_Mode => Off is
                                           Command = F_DUPFD_CLOEXEC);
             else
                Errno := Error_Too_Many_Files;
-               Returned := Unsigned_64'Last;
-               return;
+               goto Error_Return;
             end if;
          when F_GETFD =>
             if Get_Close_On_Exec (Proc, FD) then
                Returned := FD_CLOEXEC;
             end if;
          when F_SETFD =>
-            Process.Set_Close_On_Exec (Proc, FD,
-               (Argument and FD_CLOEXEC) /= 0);
+            Set_Close_On_Exec (Proc, FD, (Argument and FD_CLOEXEC) /= 0);
          when F_GETFL =>
             case File.Description is
                when Description_Reader_FIFO =>
-                  if not Is_Read_Blocking (File.Inner_Reader_FIFO) then
-                     Returned := O_NONBLOCK;
-                  end if;
+                  Temp := Is_Read_Blocking (File.Inner_Reader_FIFO);
                when Description_Writer_FIFO =>
-                  if not Is_Write_Blocking (File.Inner_Writer_FIFO) then
-                     Returned := O_NONBLOCK;
-                  end if;
+                  Temp := Is_Write_Blocking (File.Inner_Writer_FIFO);
                when Description_Socket =>
-                  if not Is_Blocking (File.Inner_Socket) then
-                     Returned := O_NONBLOCK;
-                  end if;
+                  Temp := Is_Blocking (File.Inner_Socket);
                when Description_SignalPost =>
-                  if not Is_Blocking (File.Inner_Post) then
-                     Returned := O_NONBLOCK;
-                  end if;
+                  Temp := Is_Blocking (File.Inner_Post);
                when Description_Primary_PTY =>
                   Is_Primary_Blocking (File.Inner_Primary_PTY, Temp);
-                  if not Temp then
-                     Returned := O_NONBLOCK;
-                  end if;
                when Description_Secondary_PTY =>
                   Is_Secondary_Blocking (File.Inner_Secondary_PTY, Temp);
-                  if not Temp then
-                     Returned := O_NONBLOCK;
-                  end if;
                when Description_Device | Description_Inode =>
-                  Returned := 0;
+                  Temp := True;
             end case;
+            Returned := (if Temp then 0 else O_NONBLOCK);
          when F_SETFL =>
+            Temp := (Argument and O_NONBLOCK) = 0;
             case File.Description is
                when Description_Reader_FIFO =>
-                  Set_Read_Blocking
-                     (File.Inner_Reader_FIFO, (Argument and O_NONBLOCK) = 0);
+                  Set_Read_Blocking (File.Inner_Reader_FIFO, Temp);
                when Description_Writer_FIFO =>
-                  Set_Write_Blocking
-                     (File.Inner_Reader_FIFO, (Argument and O_NONBLOCK) = 0);
+                  Set_Write_Blocking (File.Inner_Writer_FIFO, Temp);
                when Description_Socket =>
-                  Set_Blocking
-                     (File.Inner_Socket, (Argument and O_NONBLOCK) = 0);
+                  Set_Blocking (File.Inner_Socket, Temp);
                when Description_SignalPost =>
-                  Set_Blocking
-                     (File.Inner_Post, (Argument and O_NONBLOCK) = 0);
+                  Set_Blocking (File.Inner_Post, Temp);
                when Description_Primary_PTY =>
-                  Set_Primary_Blocking
-                     (File.Inner_Primary_PTY, (Argument and O_NONBLOCK) = 0);
+                  Set_Primary_Blocking (File.Inner_Primary_PTY, Temp);
                when Description_Secondary_PTY =>
-                  Set_Secondary_Blocking
-                     (File.Inner_Secondary_PTY, (Argument and O_NONBLOCK) = 0);
+                  Set_Secondary_Blocking (File.Inner_Secondary_PTY, Temp);
                when Description_Device | Description_Inode =>
                   null;
             end case;
@@ -1882,15 +1874,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   Set_Size (File.Inner_Reader_FIFO, Natural (Argument), Temp);
                   if not Temp then
                      Errno := Error_Would_Block;
-                     Returned := Unsigned_64'Last;
-                     return;
+                     goto Error_Return;
                   end if;
                when Description_Writer_FIFO =>
                   Set_Size (File.Inner_Writer_FIFO, Natural (Argument), Temp);
                   if not Temp then
                      Errno := Error_Would_Block;
-                     Returned := Unsigned_64'Last;
-                     return;
+                     goto Error_Return;
                   end if;
                when others =>
                   goto Invalid_Return;
@@ -1903,8 +1893,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             begin
                if not Check_Userland_Access (Map, IAddr, Lock'Size / 8) then
                   Errno := Error_Would_Fault;
-                  Returned := Unsigned_64'Last;
-                  return;
+                  goto Error_Return;
                elsif File.Description /= Description_Inode then
                   goto Invalid_Return;
                end if;
@@ -1950,12 +1939,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
                   if not Temp then
                      Errno := Error_Would_Block;
-                     Returned := Unsigned_64'Last;
-                     return;
+                     goto Error_Return;
                   end if;
                end if;
-
-               Returned := 0;
             end;
          when others =>
             goto Invalid_Return;
@@ -1966,6 +1952,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
    <<Invalid_Return>>
       Errno := Error_Invalid_Value;
+
+   <<Error_Return>>
       Returned := Unsigned_64'Last;
    end Fcntl;
 
