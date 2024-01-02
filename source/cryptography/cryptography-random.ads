@@ -1,5 +1,5 @@
 --  cryptography-random.ads: The random number generator of the kernel.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with Cryptography.MD5;
 
 package Cryptography.Random is
    --  Fill a region in memory with random data.
@@ -35,6 +34,5 @@ package Cryptography.Random is
                     "Counterexample works, could be a gnatprove bug?");
 private
 
-   procedure Get_Seed (Seed : out MD5.MD5_Hash);
-   procedure Collapse_Monotonic_Time (Collapsed : out Unsigned_64);
+   procedure Entropy_Adjust;
 end Cryptography.Random;

@@ -1,5 +1,5 @@
 --  cryptography-random.adb: The random number generator of the kernel.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -19,24 +19,26 @@ with Memory.Physical; use Memory.Physical;
 with Arch.Clocks;
 with Memory; use Memory;
 with Cryptography.Chacha20;
+with Cryptography.MD5;
 
 package body Cryptography.Random is
-   --  The core of our RNG is Chacha20-based. We just create a keystream with a
-   --  random key, nonce, and block id. The key is randomized each
-   --  invocation, the nonce is randomized each block, block id is incremental.
-   --  As long as the key and nonce remain secret, future key streams should
-   --  not be predictable.
+   --  We maintain a pool of entropy that we shift and shuffle with new data
+   --  every time data is requested to be given. Then, we hash the data with
+   --  MD5 (but any cryptographic hash would work), and using it to seed a
+   --  chacha20 keystream.
 
    pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE.
 
+   Entropy_Accumulator : MD5.MD5_Blocks (1 .. 1) := (1 => (others => 16#33#));
+
    procedure Fill_Data (Data : out Crypto_Data) is
       type Seed is record
-         Seed1 : MD5.MD5_Hash;
-         Seed2 : MD5.MD5_Hash;
+         Entropy_Hash : MD5.MD5_Hash;
+         Mono_Sec     : Unsigned_64;
+         Mono_NSec    : Unsigned_64;
       end record with Size => 256;
       function To_Seed is new Ada.Unchecked_Conversion (Seed, Chacha20.Key);
 
-      --  Seed every time a new chain of random numbers is requested.
       S           : Seed;
       Nonce       : Unsigned_64;
       Cha_Block   : Chacha20.Block := (others => 0);
@@ -45,9 +47,11 @@ package body Cryptography.Random is
       Block_Index : Unsigned_64 := 0;
       Temp        : Unsigned_32 := 0;
    begin
-      Get_Seed (S.Seed1);
-      Get_Seed (S.Seed2);
-      Collapse_Monotonic_Time (Nonce);
+      Entropy_Adjust;
+
+      S.Entropy_Hash := MD5.Digest (Entropy_Accumulator);
+      Arch.Clocks.Get_Monotonic_Time (S.Mono_Sec, S.Mono_NSec);
+      Nonce := S.Mono_NSec;
 
       for Value of Data loop
          if Index > Cha_Block'Last then
@@ -92,35 +96,35 @@ package body Cryptography.Random is
       Get_Integer (Result);
       Result := (Result mod (Max + 1 - Min)) + Min;
    end Get_Integer;
-
-   procedure Get_Seed (Seed : out MD5.MD5_Hash) is
-      Time, Used, Sec, NSec : Unsigned_64;
-      Stats   : Memory.Physical.Statistics;
-      To_Hash : MD5.MD5_Blocks (1 .. 1);
+   ----------------------------------------------------------------------------
+   procedure Entropy_Adjust is
+      RSec, RNSec, MSec, MNSec, Avail, Free : Unsigned_64;
+      S      : Memory.Physical.Statistics;
+      Hashed : constant MD5.MD5_Hash := MD5.Digest (Entropy_Accumulator);
    begin
-      Get_Statistics (Stats);
-      Collapse_Monotonic_Time (Time);
-      Arch.Clocks.Get_Real_Time (Sec, NSec);
+      Get_Statistics (S);
+      Arch.Clocks.Get_Real_Time (RSec, RNSec);
+      Arch.Clocks.Get_Monotonic_Time (MSec, MNSec);
 
-      Used := Unsigned_64 (Stats.Available - Stats.Free);
-      To_Hash (1) :=
-         (0  => Unsigned_32 (Shift_Right (Time, 32) and 16#FFFFFFFF#),
-          1  => Unsigned_32 (Time and 16#FFFFFFFF#),
-          2  => Unsigned_32 (Shift_Right (Used, 32) and 16#FFFFFFFF#),
-          3  => Unsigned_32 (Used and 16#FFFFFFFF#),
-          4  => Unsigned_32 (Shift_Right (Sec, 32) and 16#FFFFFFFF#),
-          5  => Unsigned_32 (Sec and 16#FFFFFFFF#),
-          6  => Unsigned_32 (Shift_Right (NSec, 32) and 16#FFFFFFFF#),
-          7  => Unsigned_32 (NSec and 16#FFFFFFFF#),
-          14 => 128,
-          others => 0);
-      Seed := MD5.Digest (To_Hash);
-   end Get_Seed;
+      Avail := Unsigned_64 (S.Available);
+      Free  := Unsigned_64 (S.Free);
 
-   procedure Collapse_Monotonic_Time (Collapsed : out Unsigned_64) is
-      Sec, NSec : Unsigned_64;
-   begin
-      Arch.Clocks.Get_Monotonic_Time (Sec, NSec);
-      Collapsed := Shift_Left (Sec, 32) or NSec;
-   end Collapse_Monotonic_Time;
+      Entropy_Accumulator (1) :=
+         (0  => Unsigned_32 (Shift_Right (MSec, 32) and 16#FFFFFFFF#),
+          1  => Unsigned_32 (MSec and 16#FFFFFFFF#),
+          2  => Unsigned_32 (Shift_Right (Avail, 32) and 16#FFFFFFFF#),
+          3  => Unsigned_32 (Avail and 16#FFFFFFFF#),
+          4  => Unsigned_32 (Shift_Right (RSec, 32) and 16#FFFFFFFF#),
+          5  => Unsigned_32 (RSec and 16#FFFFFFFF#),
+          6  => Unsigned_32 (Shift_Right (RNSec, 32) and 16#FFFFFFFF#),
+          7  => Unsigned_32 (RNSec and 16#FFFFFFFF#),
+          8  => Hashed (1),
+          9  => Hashed (2),
+          10 => Hashed (3),
+          11 => Hashed (4),
+          12 => Unsigned_32 (Shift_Right (Free, 32) and 16#FFFFFFFF#),
+          13 => Unsigned_32 (Free and 16#FFFFFFFF#),
+          14 => Unsigned_32 (MNSec and 16#FFFFFFFF#),
+          15 => 128);
+   end Entropy_Adjust;
 end Cryptography.Random;
