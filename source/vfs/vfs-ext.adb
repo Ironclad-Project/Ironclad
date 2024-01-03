@@ -2587,6 +2587,13 @@ package body VFS.EXT with SPARK_Mode => Off is
 
             if Available >= Required then
                Ent.Entry_Count := Unsigned_16 (Contracted);
+               if Offset + Buffer'First + Offset + Natural (Contracted) >
+                  Buffer'Length
+               then
+                  Success := False;
+                  goto Cleanup;
+               end if;
+
                declare
                   Ent2 : Directory_Entry with Import, Address =>
                      Buffer (Buffer'First + Offset +
