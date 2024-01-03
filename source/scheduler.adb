@@ -671,7 +671,7 @@ package body Scheduler with SPARK_Mode => Off is
 
       --  We only get here if the thread search did not find anything, and we
       --  are just going back to whoever called.
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Lib.Synchronization.Release (Scheduler_Mutex, True);
       Arch.Local.Reschedule_In (Timeout);
       return;
 
