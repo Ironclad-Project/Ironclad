@@ -1,5 +1,5 @@
 --  arch-interrupts.adb: Interrupt utilities.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -282,6 +282,14 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 90 =>
             FAdvise
                (State.RDI, State.RSI, State.RDX, State.R12, Returned, Errno);
+         when 91 =>
+            SHMAt (State.RDI, State.RSI, State.RDX, Returned, Errno);
+         when 92 =>
+            SHMCtl (State.RDI, State.RSI, State.RDX, Returned, Errno);
+         when 93 =>
+            SHMDt (State.RDI, Returned, Errno);
+         when 94 =>
+            SHMGet (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when others =>
             Userland.Process.Raise_Signal
                (Local.Get_Current_Process,

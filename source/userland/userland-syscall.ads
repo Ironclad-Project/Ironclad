@@ -1,5 +1,5 @@
 --  userland-syscall.ads: Syscall implementation.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -41,6 +41,7 @@ package Userland.Syscall is
        Error_Child,           --  ECHILD
        Error_Would_Fault,     --  EFAULT
        Error_File_Too_Big,    --  EFBIG
+       Error_Invalid_ID,      --  EIDRM
        Error_Invalid_Value,   --  EINVAL
        Error_IO,              --  EIO
        Error_Is_Directory,    --  EISDIR
@@ -67,6 +68,7 @@ package Userland.Syscall is
        Error_Child           => 1012,
        Error_Would_Fault     => 1020,
        Error_File_Too_Big    => 1021,
+       Error_Invalid_ID      => 1023,
        Error_Invalid_Value   => 1026,
        Error_IO              => 1027,
        Error_Is_Directory    => 1029,
@@ -1094,6 +1096,60 @@ package Userland.Syscall is
        Offset   : Unsigned_64;
        Length   : Unsigned_64;
        Advice   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure SHMAt
+      (ID       : Unsigned_64;
+       Addr     : Unsigned_64;
+       Flags    : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   type IPC_Perms is record
+      IPC_Perm_Key : Unsigned_32;
+      UID          : Unsigned_32;
+      GID          : Unsigned_32;
+      CUID         : Unsigned_32;
+      CGID         : Unsigned_32;
+      Mode         : Unsigned_32;
+      IPC_Perm_Seq : Unsigned_32;
+   end record;
+
+   type SHMID_DS is record
+      SHM_Perm   : IPC_Perms;
+      SHM_SegSz  : Unsigned_64;
+      SHM_ATime  : Unsigned_64;
+      SHM_DTime  : Unsigned_64;
+      SHM_CTime  : Unsigned_64;
+      SHM_CPID   : Unsigned_32;
+      SHM_LPID   : Unsigned_32;
+      SHM_NAttch : Unsigned_64;
+   end record;
+
+   IPC_RMID : constant := 0;
+   IPC_SET  : constant := 1;
+   IPC_STAT : constant := 2;
+   IPC_INFO : constant := 3;
+   procedure SHMCtl
+      (ID       : Unsigned_64;
+       CMD      : Unsigned_64;
+       Buffer   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure SHMDt
+      (Address  : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   IPC_CREAT  : constant := 8#1000#;
+   IPC_EXCL   : constant := 8#2000#;
+   IPC_NOWAIT : constant := 8#4000#;
+   procedure SHMGet
+      (Key      : Unsigned_64;
+       Size     : Unsigned_64;
+       Flags    : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
    ----------------------------------------------------------------------------

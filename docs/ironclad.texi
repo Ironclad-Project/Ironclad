@@ -4,7 +4,7 @@
 @settitle Ironclad User's Guide
 
 @copying
-Copyright @copyright{} 2023 streaksu
+Copyright @copyright{} 2024 streaksu
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -185,6 +185,10 @@ Syscalls
 * getgroups/setgroups::     Get and set supplementary user groups.
 * ttyname::                 Get the name of a TTY file descriptor.
 * fadvise::                 Advise caching for file access.
+* shmat::                   Attach a shared memory region.
+* shmctl::                  Control a shared memory region.
+* shmdl::                   Delete a shared memory region.
+* shmget::                  Create or get a shared memory region by key.
 
 Filesystem support and interfaces
 
@@ -871,6 +875,14 @@ Empty.
 @ref{ttyname}.
 @item
 @ref{fadvise}.
+@item
+@ref{shmat}.
+@item
+@ref{shmctl}.
+@item
+@ref{shmdl}.
+@item
+@ref{shmget}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -930,6 +942,9 @@ The passed value would make the program fault.
 
 @item EFBIG (1021)
 File too large, or an attempt to surpass the limit on file size was issued.
+
+@item EIDRM (1023)
+Invalid identifier.
 
 @item EINVAL (1026)
 The passed value is not valid for the called syscall.
@@ -3606,6 +3621,135 @@ following errno:
 
 @item ESPIPE
 The passed file is not a VFS inode.
+@end table
+
+@node shmat
+@section shmat
+
+@example
+void *shmat(int shmid, const void *shmaddr, int shmflg);
+@end example
+
+This syscall attaches the shared memory segment identified by @code{shmid} to
+the address space of the calling process.
+
+If shmaddr is @code{NULL}, the system chooses a suitable (unused) address at
+which to attach the segment. If it is not @code{NULL}, that address will be
+used for attaching.
+
+If @code{SHM_RDONLY} is specified in shmflg, the segment is attached fo
+reading and the process must have read permission for the segment. Otherwise
+the segment is attached for read and write and the process must have read and
+write permission for the segment. There is no notion of a write-only shared
+memory segment.
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EACCES
+The caller does not have enough permissions for attaching.
+
+@item EIDRM
+@code{shmid} points to a removed identifier.
+
+@item EINVAL
+Invalid @code{shmid} or invalid @code{shmaddr}.
+
+@item ENOMEM
+Not enough memory.
+@end table
+
+@node shmctl
+@section shmctl
+
+@example
+struct ipc_perms @{
+   uint32_t __key;
+   uint32_t uid;
+   uint32_t gid;
+   uint32_t cuid;
+   uint32_t cgid;
+   uint32_t mode;
+   uint32_t __seq;
+@}
+
+struct shmid_ds @{
+   struct ipc_perms shm_perm;
+   uint64_t shm_segsz;
+   uint64_t shm_atime;
+   uint64_t shm_dtime;
+   uint64_t shm_ctime;
+   uint32_t shm_cpid;
+   uint32_t shm_lpid;
+   uint64_t shm_nattch;
+@}
+
+#define IPC_RMID 0
+#define IPC_SET  1
+#define IPC_STAT 2
+#define IPC_INFO 3
+
+int shmctl(int shmid, int cmd, struct shmid_ds *buf);
+@end example
+
+This syscall performs the control operation specified by @code{cmd} on the
+shared memory segment whose identifier is given in @code{shmid}.
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EINVAL
+@code{size} is less than needed and/or @code{fd} is not a TTY.
+
+@item EBADF
+@code{fd} is not opened to anything.
+
+@item EFAULT
+@code{buffer} points to invalid memory.
+@end table
+
+@node shmdl
+@section shmdl
+
+@example
+int shmdt(const void *shmaddr);
+@end example
+
+This syscall detaches the shared memory segment located at @code{shmaddr} from
+the calling process.
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EINVAL
+The passed @code{shmaddr} is not valid.
+@end table
+
+@node shmget
+@section shmget
+
+@example
+int shmget(key_t key, size_t size, int shmflg);
+@end example
+
+This syscall fetches or creates a shared memory segment associated with
+@code{key}.
+
+The syscall returns a valid ID on success or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EACCES
+MAC did not allow this.
+
+@item EEXISTS
+An attempt to create a public segment with an already registered key happened.
+
+@item ENOENT
+The fetched segment is not present.
 @end table
 
 @node Filesystem support and interfaces

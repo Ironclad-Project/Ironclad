@@ -1,5 +1,5 @@
 --  userland-syscall.adb: Syscall implementation.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@ with Cryptography.Random;
 with IPC.Futex;
 with IPC.SignalPost; use IPC.SignalPost;
 with IPC.FileLock;
+with IPC.SHM;
 with Devices.TermIOs;
 with Arch.Power;
 with Devices; use Devices;
@@ -4669,7 +4670,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno    : out Errno_Value)
    is
       Proc : constant PID := Arch.Local.Get_Current_Process;
-      Tgt  : constant PID := Convert (Natural (Target and 16#FFFFFFFF#));
+      Tgt  : constant PID := Convert (Natural (Target and 16#FFFFFF#));
       EUID, Tgt_UID, Tgt_EUID : Unsigned_32;
       Actual : Overridable_Signal;
    begin
@@ -5047,6 +5048,100 @@ package body Userland.Syscall with SPARK_Mode => Off is
    <<Error_Return>>
       Returned := Unsigned_64'Last;
    end FAdvise;
+
+   procedure SHMAt
+      (ID       : Unsigned_64;
+       Addr     : Unsigned_64;
+       Flags    : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Truncated : constant Unsigned_32 := Unsigned_32 (ID);
+      Perms : constant Page_Permissions :=
+         (Is_User_Accesible => True,
+          Can_Read          => True,
+          Can_Write         => True,
+          others            => False);
+      Ret_Addr, Ret_Size, VAddr : Unsigned_64;
+   begin
+      IPC.SHM.Get_Address (Truncated, Ret_Addr, Ret_Size);
+
+      if Addr /= 0 then
+         VAddr := Addr;
+      else
+         VAddr := Get_Alloc_Base (Proc);
+      end if;
+
+      if Ret_Size /= 0 then
+         if Arch.MMU.Map_Range
+            (Map              => Userland.Process.Get_Common_Map (Proc),
+             Virtual_Start    => To_Address (Integer_Address (VAddr)),
+             Physical_Start   => To_Address (Integer_Address (Ret_Addr)),
+             Length           => Storage_Count (Ret_Size),
+             Permissions      => Perms)
+         then
+            if Addr = 0 then
+               Set_Alloc_Base (Proc, VAddr + Ret_Size);
+            end if;
+            Errno := Error_No_Error;
+            Returned := VAddr;
+         else
+            Errno := Error_No_Memory;
+            Returned := Unsigned_64'Last;
+         end if;
+      else
+         Errno := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+      end if;
+   end SHMAt;
+
+   procedure SHMCtl
+      (ID       : Unsigned_64;
+       CMD      : Unsigned_64;
+       Buffer   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+   begin
+      Errno := Error_No_Error;
+      Returned := 0;
+   end SHMCtl;
+
+   procedure SHMDt
+      (Address  : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+   begin
+      Errno := Error_No_Error;
+      Returned := 0;
+   end SHMDt;
+
+   procedure SHMGet
+      (Key      : Unsigned_64;
+       Size     : Unsigned_64;
+       Flags    : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Truncated : constant Unsigned_32 := Unsigned_32 (Key and 16#FFFFFFFF#);
+      Created_Key : IPC.SHM.Segment_ID;
+   begin
+      if (Flags and IPC_CREAT) /= 0 then
+         Created_Key := IPC.SHM.Create_Segment (Truncated, Size, Flags);
+      else
+         Created_Key := IPC.SHM.Get_Segment (Truncated);
+      end if;
+
+      if Created_Key /= IPC.SHM.Error_ID then
+         Errno := Error_No_Error;
+         Returned := Unsigned_64 (Created_Key);
+      else
+         Errno := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+      end if;
+   end SHMGet;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
