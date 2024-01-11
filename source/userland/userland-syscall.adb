@@ -5218,7 +5218,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
       AlSz : constant Unsigned_64 := Align.Align_Up (Size, Arch.MMU.Page_Size);
       Created_Key : IPC.SHM.Segment_ID;
    begin
-      if (Flags and IPC_CREAT) /= 0 then
+      if Key = IPC_PRIVATE then
+         Created_Key := IPC.SHM.Create_Unkeyed_Segment (AlSz, Mode);
+      elsif (Flags and IPC_CREAT) /= 0 then
          Created_Key := IPC.SHM.Create_Segment (Truncated, AlSz, Mode);
       else
          Created_Key := IPC.SHM.Get_Segment (Truncated);

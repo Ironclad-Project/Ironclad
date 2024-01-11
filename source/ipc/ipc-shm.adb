@@ -66,6 +66,32 @@ package body IPC.SHM with SPARK_Mode => Off is
       return Returned;
    end Create_Segment;
 
+   function Create_Unkeyed_Segment
+      (Wanted_Size : Unsigned_64;
+       Mode        : Unsigned_64) return Segment_ID
+   is
+      Returned : Segment_ID := Error_ID;
+   begin
+      Lib.Synchronization.Seize (Registry_Mutex);
+      for I in Registry'Range loop
+         if not Registry (I).Is_Present and Returned = Error_ID then
+            Registry (I).Is_Present := True;
+            Registry (I).Key := 0;
+            Registry (I).Mode := Mode;
+            Registry (I).Physical_Address :=
+               Alloc (size_t (Wanted_Size)) - Memory.Memory_Offset;
+            Registry (I).Size := Memory.Size (Wanted_Size);
+            Registry (I).Refcount := 0;
+            Registry (I).Is_Refcounted := False;
+            Returned := I;
+            exit;
+         end if;
+      end loop;
+
+      Lib.Synchronization.Release (Registry_Mutex);
+      return Returned;
+   end Create_Unkeyed_Segment;
+
    function Get_Segment (Key : Unsigned_32) return Segment_ID is
       Returned : Segment_ID := Error_ID;
    begin

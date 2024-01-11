@@ -1144,9 +1144,10 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
-   IPC_CREAT  : constant := 8#1000#;
-   IPC_EXCL   : constant := 8#2000#;
-   IPC_NOWAIT : constant := 8#4000#;
+   IPC_PRIVATE : constant := 0;
+   IPC_CREAT   : constant := 8#1000#;
+   IPC_EXCL    : constant := 8#2000#;
+   IPC_NOWAIT  : constant := 8#4000#;
    procedure SHMGet
       (Key      : Unsigned_64;
        Size     : Unsigned_64;

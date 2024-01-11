@@ -29,6 +29,12 @@ package IPC.SHM with SPARK_Mode => Off is
    function Create_Segment
       (Wanted_Key  : Unsigned_32;
        Wanted_Size : Unsigned_64;
+       Mode        : Unsigned_64) return Segment_ID
+      with Pre => Wanted_Key /= 0;
+
+   --  Create a segment without a unique key.
+   function Create_Unkeyed_Segment
+      (Wanted_Size : Unsigned_64;
        Mode        : Unsigned_64) return Segment_ID;
 
    --  Fetch a segment from its key.
