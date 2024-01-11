@@ -17,19 +17,58 @@
 with Interfaces; use Interfaces;
 
 package IPC.SHM with SPARK_Mode => Off is
+   --  This package implements SystemV shared memory segments.
+   --  Segments must be registered individually and are not freed ever, unless
+   --  marked as refcounted. That is POSIX behaviour, so make sure to do so!
 
-   subtype Segment_ID is Unsigned_32;
+   --  ID to identify a segment, and error value for no segment.
+   subtype Segment_ID is Unsigned_32 range 0 .. 20;
    Error_ID : constant Segment_ID := 0;
 
+   --  Create a segment with a unique key.
    function Create_Segment
       (Wanted_Key  : Unsigned_32;
        Wanted_Size : Unsigned_64;
        Mode        : Unsigned_64) return Segment_ID;
 
+   --  Fetch a segment from its key.
    function Get_Segment (Key : Unsigned_32) return Segment_ID;
 
+   --  Fetch a segment and its size from its physical address.
+   procedure Get_Segment_And_Size
+      (Address : Unsigned_64;
+       Size    : out Unsigned_64;
+       ID      : out Segment_ID);
+
+   --  Fetch a segment's physical address and size.
    procedure Get_Address
       (ID      : Segment_ID;
        Address : out Unsigned_64;
        Size    : out Unsigned_64);
+
+   procedure Mark_Refcounted (ID : Segment_ID);
+
+   --  Mark the segment has either been attached (incremented) or detached
+   --  (decremented).
+   procedure Modify_Attachment (ID : Segment_ID; Increment : Boolean);
+
+   procedure Modify_Permissions
+      (ID   : Segment_ID;
+       Mode : Unsigned_64);
+
+   type Segment_Information is record
+      Key      : Unsigned_32;
+      Size     : Unsigned_64;
+      Mode     : Unsigned_64;
+      Refcount : Natural;
+   end record;
+
+   procedure Fetch_Information
+      (ID    : Segment_ID;
+       Info  : out Segment_Information;
+       Found : out Boolean);
+
+private
+
+   procedure Check_And_Maybe_Free (ID : Segment_ID);
 end IPC.SHM;

@@ -1099,6 +1099,8 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
+   SHM_RDONLY : constant := 8#10000#;
+   SHM_RND    : constant := 8#20000#;
    procedure SHMAt
       (ID       : Unsigned_64;
        Addr     : Unsigned_64;
@@ -1130,7 +1132,6 @@ package Userland.Syscall is
    IPC_RMID : constant := 0;
    IPC_SET  : constant := 1;
    IPC_STAT : constant := 2;
-   IPC_INFO : constant := 3;
    procedure SHMCtl
       (ID       : Unsigned_64;
        CMD      : Unsigned_64;

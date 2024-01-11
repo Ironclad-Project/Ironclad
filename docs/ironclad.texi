@@ -3688,13 +3688,30 @@ struct shmid_ds @{
 #define IPC_RMID 0
 #define IPC_SET  1
 #define IPC_STAT 2
-#define IPC_INFO 3
 
 int shmctl(int shmid, int cmd, struct shmid_ds *buf);
 @end example
 
 This syscall performs the control operation specified by @code{cmd} on the
 shared memory segment whose identifier is given in @code{shmid}.
+
+@code{cmd} can be one of:
+
+@table @code
+@item IPC_RMID
+The passed @code{shmid} is set to be deleted when the attached count of the
+segment goes to @code{0}. Otherwise, it will linger forever. @code{buf} is
+ignored.
+
+@item IPC_SET
+Information passed on the structure pointed to by @code{buf} is used to modify
+the permission fields of the passed segment, namely @code{shm_perm.uid},
+@code{shm_perm.gid}, and @code{shm_perm.mode}.
+
+@item IPC_STAT
+Get the associated information of the passed segment id and write it to the
+structure pointed to by @code{buf}.
+@end table
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:

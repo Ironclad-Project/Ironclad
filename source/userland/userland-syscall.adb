@@ -5056,44 +5056,54 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      package Align is new Lib.Alignment (Unsigned_64);
       Proc : constant PID := Arch.Local.Get_Current_Process;
       Truncated : constant Unsigned_32 := Unsigned_32 (ID);
       Perms : constant Page_Permissions :=
          (Is_User_Accesible => True,
           Can_Read          => True,
-          Can_Write         => True,
+          Can_Write         => (Flags and SHM_RDONLY) = 0,
           others            => False);
       Ret_Addr, Ret_Size, VAddr : Unsigned_64;
    begin
       IPC.SHM.Get_Address (Truncated, Ret_Addr, Ret_Size);
 
       if Addr /= 0 then
-         VAddr := Addr;
+         if (Flags and SHM_RND) /= 0 then
+            VAddr := Align.Align_Down (Addr, Arch.MMU.Page_Size);
+         elsif (Addr mod Arch.MMU.Page_Size) /= 0 then
+            goto Invalid_Error;
+         else
+            VAddr := Addr;
+         end if;
       else
          VAddr := Get_Alloc_Base (Proc);
       end if;
 
       if Ret_Size /= 0 then
          if Arch.MMU.Map_Range
-            (Map              => Userland.Process.Get_Common_Map (Proc),
-             Virtual_Start    => To_Address (Integer_Address (VAddr)),
-             Physical_Start   => To_Address (Integer_Address (Ret_Addr)),
-             Length           => Storage_Count (Ret_Size),
-             Permissions      => Perms)
+            (Map            => Userland.Process.Get_Common_Map (Proc),
+             Virtual_Start  => To_Address (Integer_Address (VAddr)),
+             Physical_Start => To_Address (Integer_Address (Ret_Addr)),
+             Length         => Storage_Count (Ret_Size),
+             Permissions    => Perms)
          then
             if Addr = 0 then
                Set_Alloc_Base (Proc, VAddr + Ret_Size);
             end if;
+            IPC.SHM.Modify_Attachment (Truncated, True);
             Errno := Error_No_Error;
             Returned := VAddr;
          else
             Errno := Error_No_Memory;
             Returned := Unsigned_64'Last;
          end if;
-      else
-         Errno := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
+         return;
       end if;
+
+   <<Invalid_Error>>
+      Errno := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
    end SHMAt;
 
    procedure SHMCtl
@@ -5103,9 +5113,52 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      Trunc_ID : constant Unsigned_32 := Unsigned_32 (ID and 16#FFFFFFFF#);
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Map : constant Page_Table_Acc := Get_Common_Map (Proc);
+      IAddr : constant      Integer_Address := Integer_Address (Buffer);
+      SAddr : constant       System.Address := To_Address (IAddr);
+      Info : IPC.SHM.Segment_Information;
+      Found : Boolean;
    begin
+      case CMD is
+         when IPC_RMID =>
+            IPC.SHM.Mark_Refcounted (Trunc_ID);
+         when IPC_SET | IPC_STAT =>
+            if not Check_Userland_Access (Map, IAddr, SHMID_DS'Size / 8) then
+               Errno := Error_Would_Fault;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+
+            declare
+               Orig : SHMID_DS with Import, Address => SAddr;
+            begin
+               if CMD = IPC_SET then
+                  IPC.SHM.Modify_Permissions
+                     (Trunc_ID, Unsigned_64 (Orig.SHM_Perm.Mode));
+               else
+                  IPC.SHM.Fetch_Information (Trunc_ID, Info, Found);
+                  if not Found then
+                     goto Invalid_Error;
+                  end if;
+                  Orig.SHM_Perm.IPC_Perm_Key := Info.Key;
+                  Orig.SHM_Perm.Mode := Unsigned_32 (Info.Mode);
+                  Orig.SHM_SegSz := Info.Size;
+                  Orig.SHM_NAttch := Unsigned_64 (Info.Refcount);
+               end if;
+            end;
+         when others =>
+            goto Invalid_Error;
+      end case;
+
       Errno := Error_No_Error;
       Returned := 0;
+      return;
+
+   <<Invalid_Error>>
+      Errno := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
    end SHMCtl;
 
    procedure SHMDt
@@ -5113,9 +5166,43 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Map : constant Page_Table_Acc := Get_Common_Map (Proc);
+      Phys : System.Address;
+      Is_Mapped, Is_Readable, Is_Writeable, Is_Executable : Boolean;
+      Is_User_Accessible : Boolean;
+      ID : IPC.SHM.Segment_ID;
+      Size : Unsigned_64;
    begin
-      Errno := Error_No_Error;
-      Returned := 0;
+      Arch.MMU.Translate_Address
+         (Map                => Map,
+          Virtual            => To_Address (Integer_Address (Address)),
+          Length             => Arch.MMU.Page_Size,
+          Physical           => Phys,
+          Is_Mapped          => Is_Mapped,
+          Is_User_Accessible => Is_User_Accessible,
+          Is_Readable        => Is_Readable,
+          Is_Writeable       => Is_Writeable,
+          Is_Executable      => Is_Executable);
+      IPC.SHM.Get_Segment_And_Size (Unsigned_64 (To_Integer (Phys)), Size, ID);
+
+      if Is_Mapped and ID /= IPC.SHM.Error_ID then
+         if Arch.MMU.Unmap_Range
+            (Map           => Map,
+             Virtual_Start => To_Address (Integer_Address (Address)),
+             Length        => Storage_Count (Size))
+         then
+            IPC.SHM.Modify_Attachment (ID, False);
+            Errno := Error_No_Error;
+            Returned := 0;
+         else
+            Errno := Error_No_Memory;
+            Returned := Unsigned_64'Last;
+         end if;
+      else
+         Errno := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+      end if;
    end SHMDt;
 
    procedure SHMGet
@@ -5125,11 +5212,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      package Align is new Lib.Alignment (Unsigned_64);
       Truncated : constant Unsigned_32 := Unsigned_32 (Key and 16#FFFFFFFF#);
+      Mode : constant Unsigned_64 := Flags and Unsigned_64 (File_Mode'Last);
+      AlSz : constant Unsigned_64 := Align.Align_Up (Size, Arch.MMU.Page_Size);
       Created_Key : IPC.SHM.Segment_ID;
    begin
       if (Flags and IPC_CREAT) /= 0 then
-         Created_Key := IPC.SHM.Create_Segment (Truncated, Size, Flags);
+         Created_Key := IPC.SHM.Create_Segment (Truncated, AlSz, Mode);
       else
          Created_Key := IPC.SHM.Get_Segment (Truncated);
       end if;
