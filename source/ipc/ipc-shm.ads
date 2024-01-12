@@ -29,12 +29,16 @@ package IPC.SHM with SPARK_Mode => Off is
    function Create_Segment
       (Wanted_Key  : Unsigned_32;
        Wanted_Size : Unsigned_64;
+       Creator_UID : Unsigned_32;
+       Creator_GID : Unsigned_32;
        Mode        : Unsigned_64) return Segment_ID
       with Pre => Wanted_Key /= 0;
 
    --  Create a segment without a unique key.
    function Create_Unkeyed_Segment
       (Wanted_Size : Unsigned_64;
+       Creator_UID : Unsigned_32;
+       Creator_GID : Unsigned_32;
        Mode        : Unsigned_64) return Segment_ID;
 
    --  Fetch a segment from its key.
@@ -52,6 +56,11 @@ package IPC.SHM with SPARK_Mode => Off is
        Address : out Unsigned_64;
        Size    : out Unsigned_64);
 
+   function Check_Permissions
+      (ID  : Segment_ID;
+       UID : Unsigned_32;
+       GID : Unsigned_32) return Boolean;
+
    procedure Mark_Refcounted (ID : Segment_ID);
 
    --  Mark the segment has either been attached (incremented) or detached
@@ -60,13 +69,19 @@ package IPC.SHM with SPARK_Mode => Off is
 
    procedure Modify_Permissions
       (ID   : Segment_ID;
+       UID  : Unsigned_32;
+       GID  : Unsigned_32;
        Mode : Unsigned_64);
 
    type Segment_Information is record
-      Key      : Unsigned_32;
-      Size     : Unsigned_64;
-      Mode     : Unsigned_64;
-      Refcount : Natural;
+      Key         : Unsigned_32;
+      Size        : Unsigned_64;
+      Owner_UID   : Unsigned_32;
+      Owner_GID   : Unsigned_32;
+      Creator_UID : Unsigned_32;
+      Creator_GID : Unsigned_32;
+      Mode        : Unsigned_64;
+      Refcount    : Natural;
    end record;
 
    procedure Fetch_Information

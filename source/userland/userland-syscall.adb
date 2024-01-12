@@ -2065,6 +2065,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       if Caps.Can_Use_Clocks        then Res := Res or MAC_CAP_CLOCK;   end if;
       if Caps.Can_Signal_All      then Res := Res or MAC_CAP_SIGNALALL; end if;
       if Caps.Can_Change_GIDs       then Res := Res or MAC_CAP_SETGID;  end if;
+      if Caps.Can_Bypass_IPC_Checks then Res := Res or MAC_CAP_IPC;     end if;
 
       Errno := Error_No_Error;
       Returned := Res;
@@ -5065,7 +5066,18 @@ package body Userland.Syscall with SPARK_Mode => Off is
           Can_Write         => (Flags and SHM_RDONLY) = 0,
           others            => False);
       Ret_Addr, Ret_Size, VAddr : Unsigned_64;
+      EUID, EGID : Unsigned_32;
    begin
+      if not Get_Capabilities (Proc).Can_Bypass_IPC_Checks then
+         Get_Effective_UID (Proc, EUID);
+         Get_Effective_GID (Proc, EGID);
+         if not IPC.SHM.Check_Permissions (Truncated, EUID, EGID) then
+            Errno := Error_Bad_Access;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+      end if;
+
       IPC.SHM.Get_Address (Truncated, Ret_Addr, Ret_Size);
 
       if Addr /= 0 then
@@ -5120,7 +5132,18 @@ package body Userland.Syscall with SPARK_Mode => Off is
       SAddr : constant       System.Address := To_Address (IAddr);
       Info : IPC.SHM.Segment_Information;
       Found : Boolean;
+      EUID, EGID : Unsigned_32;
    begin
+      if not Get_Capabilities (Proc).Can_Bypass_IPC_Checks then
+         Get_Effective_UID (Proc, EUID);
+         Get_Effective_GID (Proc, EGID);
+         if not IPC.SHM.Check_Permissions (Trunc_ID, EUID, EGID) then
+            Errno := Error_Bad_Access;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+      end if;
+
       case CMD is
          when IPC_RMID =>
             IPC.SHM.Mark_Refcounted (Trunc_ID);
@@ -5136,13 +5159,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
             begin
                if CMD = IPC_SET then
                   IPC.SHM.Modify_Permissions
-                     (Trunc_ID, Unsigned_64 (Orig.SHM_Perm.Mode));
+                     (ID   => Trunc_ID,
+                      UID  => Orig.SHM_Perm.UID,
+                      GID  => Orig.SHM_Perm.GID,
+                      Mode => Unsigned_64 (Orig.SHM_Perm.Mode));
                else
                   IPC.SHM.Fetch_Information (Trunc_ID, Info, Found);
                   if not Found then
                      goto Invalid_Error;
                   end if;
                   Orig.SHM_Perm.IPC_Perm_Key := Info.Key;
+                  Orig.SHM_Perm.UID := Info.Owner_UID;
+                  Orig.SHM_Perm.GID := Info.Owner_GID;
+                  Orig.SHM_Perm.CUID := Info.Creator_UID;
+                  Orig.SHM_Perm.CGID := Info.Creator_GID;
                   Orig.SHM_Perm.Mode := Unsigned_32 (Info.Mode);
                   Orig.SHM_SegSz := Info.Size;
                   Orig.SHM_NAttch := Unsigned_64 (Info.Refcount);
@@ -5213,15 +5243,23 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno    : out Errno_Value)
    is
       package Align is new Lib.Alignment (Unsigned_64);
+      Proc : constant PID := Arch.Local.Get_Current_Process;
       Truncated : constant Unsigned_32 := Unsigned_32 (Key and 16#FFFFFFFF#);
       Mode : constant Unsigned_64 := Flags and Unsigned_64 (File_Mode'Last);
       AlSz : constant Unsigned_64 := Align.Align_Up (Size, Arch.MMU.Page_Size);
       Created_Key : IPC.SHM.Segment_ID;
+      EUID : Unsigned_32;
+      EGID : Unsigned_32;
    begin
+      Get_Effective_UID (Proc, EUID);
+      Get_Effective_GID (Proc, EGID);
+
       if Key = IPC_PRIVATE then
-         Created_Key := IPC.SHM.Create_Unkeyed_Segment (AlSz, Mode);
+         Created_Key := IPC.SHM.Create_Unkeyed_Segment
+            (AlSz, EUID, EGID, Mode);
       elsif (Flags and IPC_CREAT) /= 0 then
-         Created_Key := IPC.SHM.Create_Segment (Truncated, AlSz, Mode);
+         Created_Key := IPC.SHM.Create_Segment
+            (Truncated, AlSz, EUID, EGID, Mode);
       else
          Created_Key := IPC.SHM.Get_Segment (Truncated);
       end if;
@@ -5571,7 +5609,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
            Caps.Can_Manage_MAC        and ((Bits and MAC_CAP_SYS_MAC) /= 0),
            Caps.Can_Use_Clocks        and ((Bits and MAC_CAP_CLOCK)   /= 0),
            Caps.Can_Signal_All        and ((Bits and MAC_CAP_SIGNALALL) /= 0),
-           Caps.Can_Change_GIDs       and ((Bits and MAC_CAP_SETGID)   /= 0)));
+           Caps.Can_Change_GIDs       and ((Bits and MAC_CAP_SETGID)   /= 0),
+           Caps.Can_Bypass_IPC_Checks and ((Bits and MAC_CAP_IPC) /= 0)));
    end Set_MAC_Capabilities;
 
    procedure MAC_Syscall_To_Kernel

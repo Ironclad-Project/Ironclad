@@ -24,6 +24,10 @@ package body IPC.SHM with SPARK_Mode => Off is
    type Segment_Inner is record
       Is_Present       : Boolean;
       Key              : Unsigned_32;
+      Owner_UID        : Unsigned_32;
+      Owner_GID        : Unsigned_32;
+      Creator_UID      : Unsigned_32;
+      Creator_GID      : Unsigned_32;
       Mode             : Unsigned_64;
       Physical_Address : Memory.Physical_Address;
       Size             : Memory.Size;
@@ -33,11 +37,14 @@ package body IPC.SHM with SPARK_Mode => Off is
    type Segment_Arr is array (Segment_ID range 1 .. 20) of Segment_Inner;
 
    Registry_Mutex : aliased Binary_Semaphore := Unlocked_Semaphore;
-   Registry : Segment_Arr := (others => (False, 0, 0, 0, 0, 0, False));
+   Registry : Segment_Arr :=
+      (others => (False, 0, 0, 0, 0, 0, 0, 0, 0, 0, False));
 
    function Create_Segment
       (Wanted_Key  : Unsigned_32;
        Wanted_Size : Unsigned_64;
+       Creator_UID : Unsigned_32;
+       Creator_GID : Unsigned_32;
        Mode        : Unsigned_64) return Segment_ID
    is
       Returned : Segment_ID := Error_ID;
@@ -54,6 +61,10 @@ package body IPC.SHM with SPARK_Mode => Off is
 
       Registry (Returned).Is_Present := True;
       Registry (Returned).Key := Wanted_Key;
+      Registry (Returned).Owner_UID := Creator_UID;
+      Registry (Returned).Owner_GID := Creator_GID;
+      Registry (Returned).Creator_UID := Creator_UID;
+      Registry (Returned).Creator_GID := Creator_GID;
       Registry (Returned).Mode := Mode;
       Registry (Returned).Physical_Address :=
          Alloc (size_t (Wanted_Size)) - Memory.Memory_Offset;
@@ -68,15 +79,21 @@ package body IPC.SHM with SPARK_Mode => Off is
 
    function Create_Unkeyed_Segment
       (Wanted_Size : Unsigned_64;
+       Creator_UID : Unsigned_32;
+       Creator_GID : Unsigned_32;
        Mode        : Unsigned_64) return Segment_ID
    is
       Returned : Segment_ID := Error_ID;
    begin
       Lib.Synchronization.Seize (Registry_Mutex);
       for I in Registry'Range loop
-         if not Registry (I).Is_Present and Returned = Error_ID then
+         if not Registry (I).Is_Present then
             Registry (I).Is_Present := True;
             Registry (I).Key := 0;
+            Registry (I).Owner_UID := Creator_UID;
+            Registry (I).Owner_GID := Creator_GID;
+            Registry (I).Creator_UID := Creator_UID;
+            Registry (I).Creator_GID := Creator_GID;
             Registry (I).Mode := Mode;
             Registry (I).Physical_Address :=
                Alloc (size_t (Wanted_Size)) - Memory.Memory_Offset;
@@ -145,6 +162,25 @@ package body IPC.SHM with SPARK_Mode => Off is
       Lib.Synchronization.Release (Registry_Mutex);
    end Get_Address;
 
+   function Check_Permissions
+      (ID  : Segment_ID;
+       UID : Unsigned_32;
+       GID : Unsigned_32) return Boolean
+   is
+      Result : Boolean;
+   begin
+      Lib.Synchronization.Seize (Registry_Mutex);
+      if Registry (ID).Is_Present then
+         Result := UID = Registry (ID).Owner_UID or
+            (GID = Registry (ID).Owner_GID and
+            (Registry (ID).Mode and 8#040#) /= 0);
+      else
+         Result := False;
+      end if;
+      Lib.Synchronization.Release (Registry_Mutex);
+      return Result;
+   end Check_Permissions;
+
    procedure Mark_Refcounted (ID : Segment_ID) is
    begin
       Lib.Synchronization.Seize (Registry_Mutex);
@@ -168,11 +204,15 @@ package body IPC.SHM with SPARK_Mode => Off is
 
    procedure Modify_Permissions
       (ID   : Segment_ID;
+       UID  : Unsigned_32;
+       GID  : Unsigned_32;
        Mode : Unsigned_64)
    is
    begin
       Lib.Synchronization.Seize (Registry_Mutex);
       if Registry (ID).Is_Present then
+         Registry (ID).Owner_UID := UID;
+         Registry (ID).Owner_GID := GID;
          Registry (ID).Mode := Mode;
       end if;
       Lib.Synchronization.Release (Registry_Mutex);
@@ -186,10 +226,15 @@ package body IPC.SHM with SPARK_Mode => Off is
    begin
       Lib.Synchronization.Seize (Registry_Mutex);
       if Registry (ID).Is_Present then
-         Info.Key := Registry (ID).Key;
-         Info.Size := Unsigned_64 (Registry (ID).Size);
-         Info.Mode := Registry (ID).Mode;
-         Info.Refcount := Registry (ID).Refcount;
+         Info :=
+            (Key         => Registry (ID).Key,
+             Size        => Unsigned_64 (Registry (ID).Size),
+             Owner_UID   => Registry (ID).Owner_UID,
+             Owner_GID   => Registry (ID).Owner_GID,
+             Creator_UID => Registry (ID).Creator_UID,
+             Creator_GID => Registry (ID).Creator_GID,
+             Mode        => Registry (ID).Mode,
+             Refcount    => Registry (ID).Refcount);
          Found := True;
       else
          Found := False;

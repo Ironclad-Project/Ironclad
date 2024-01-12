@@ -527,20 +527,21 @@ package Userland.Syscall is
       Errno      : out Errno_Value);
 
    --  Set MAC capabilities of the caller process.
-   MAC_CAP_SCHED     : constant := 2#00000000000001#;
-   MAC_CAP_SPAWN     : constant := 2#00000000000010#;
-   MAC_CAP_ENTROPY   : constant := 2#00000000000100#;
-   MAC_CAP_SYS_MEM   : constant := 2#00000000001000#;
-   MAC_CAP_USE_NET   : constant := 2#00000000010000#;
-   MAC_CAP_SYS_NET   : constant := 2#00000000100000#;
-   MAC_CAP_SYS_MNT   : constant := 2#00000001000000#;
-   MAC_CAP_SYS_PWR   : constant := 2#00000010000000#;
-   MAC_CAP_PTRACE    : constant := 2#00000100000000#;
-   MAC_CAP_SETUID    : constant := 2#00001000000000#;
-   MAC_CAP_SYS_MAC   : constant := 2#00010000000000#;
-   MAC_CAP_CLOCK     : constant := 2#00100000000000#;
-   MAC_CAP_SIGNALALL : constant := 2#01000000000000#;
-   MAC_CAP_SETGID    : constant := 2#10000000000000#;
+   MAC_CAP_SCHED     : constant := 2#000000000000001#;
+   MAC_CAP_SPAWN     : constant := 2#000000000000010#;
+   MAC_CAP_ENTROPY   : constant := 2#000000000000100#;
+   MAC_CAP_SYS_MEM   : constant := 2#000000000001000#;
+   MAC_CAP_USE_NET   : constant := 2#000000000010000#;
+   MAC_CAP_SYS_NET   : constant := 2#000000000100000#;
+   MAC_CAP_SYS_MNT   : constant := 2#000000001000000#;
+   MAC_CAP_SYS_PWR   : constant := 2#000000010000000#;
+   MAC_CAP_PTRACE    : constant := 2#000000100000000#;
+   MAC_CAP_SETUID    : constant := 2#000001000000000#;
+   MAC_CAP_SYS_MAC   : constant := 2#000010000000000#;
+   MAC_CAP_CLOCK     : constant := 2#000100000000000#;
+   MAC_CAP_SIGNALALL : constant := 2#001000000000000#;
+   MAC_CAP_SETGID    : constant := 2#010000000000000#;
+   MAC_CAP_IPC       : constant := 2#100000000000000#;
    procedure Set_MAC_Capabilities
       (Bits     : Unsigned_64;
        Returned : out Unsigned_64;
