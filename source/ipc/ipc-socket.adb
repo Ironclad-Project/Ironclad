@@ -665,6 +665,7 @@ package body IPC.Socket with SPARK_Mode => Off is
        Peer_Address_Length : out Natural;
        Result              : out Socket_Acc)
    is
+      Tmp : Socket_Acc;
    begin
       Peer_Address        := (others => ' ');
       Peer_Address_Length := 0;
@@ -680,11 +681,10 @@ package body IPC.Socket with SPARK_Mode => Off is
                    Sock.Pending_Accept.Typ,
                    Is_Blocking);
 
-               Sock.Pending_Accept.Established := Result;
-               Sock.Pending_Accept.Pending_Accept := Result;
+               Tmp := Sock.Pending_Accept;
                Result.Established := Sock;
-               --  Result.Pending_Accept := Sock;
-               Result.Pending_Accept := Sock.Pending_Accept;
+               Tmp.Pending_Accept := Result;
+               Result.Pending_Accept := Tmp;
                Sock.Pending_Accept := null;
                exit;
             end if;
@@ -818,6 +818,7 @@ package body IPC.Socket with SPARK_Mode => Off is
        Ret_Count : out Natural;
        Success   : out Socket_Status)
    is
+      Len : Natural := Data'Length;
    begin
    <<Retry>>
       if Sock.Is_Blocking then
@@ -844,16 +845,27 @@ package body IPC.Socket with SPARK_Mode => Off is
                end if;
             end if;
 
-            if Sock.Data_Length <= Data'Length then
-               Data (1 .. Sock.Data_Length) :=
-                  Sock.Data (1 .. Sock.Data_Length);
-               Ret_Count        := Sock.Data_Length;
-               Sock.Data_Length := 0;
-            else
-               Data             := Sock.Data (1 .. Data'Length);
-               Sock.Data_Length := Sock.Data_Length - Data'Length;
-               Ret_Count        := Data'Length;
+            if Len > Sock.Data_Length then
+               Len := Sock.Data_Length;
             end if;
+            if Data'First > Natural'Last - Len then
+               Len := Natural'Last - Data'First;
+            end if;
+
+            Data (Data'First .. Data'First + Len - 1) :=
+               Sock.Data (1 .. Len);
+            for I in 1 .. Len loop
+               for J in Sock.Data'First .. Sock.Data'Last - 1 loop
+                  Sock.Data (J) := Sock.Data (J + 1);
+               end loop;
+               if Sock.Data_Length > 0 then
+                  Sock.Data_Length := Sock.Data_Length - 1;
+               else
+                  exit;
+               end if;
+            end loop;
+
+            Ret_Count := Len;
             Success := Plain_Success;
          when others =>
             if Sock.Data_Length <= Data'Length then
@@ -874,6 +886,8 @@ package body IPC.Socket with SPARK_Mode => Off is
        Ret_Count : out Natural;
        Success   : out Socket_Status)
    is
+      Len   : Natural := Data'Length;
+      Final : Natural;
    begin
       case Sock.Typ is
          when Stream =>
@@ -881,11 +895,33 @@ package body IPC.Socket with SPARK_Mode => Off is
                Ret_Count := 0;
                Success   := Is_Bad_Type;
                return;
+            elsif Sock.Pending_Accept.Data_Length = Default_Socket_Size then
+               if Sock.Is_Blocking then
+                  while Sock.Pending_Accept.Data_Length = Default_Socket_Size
+                  loop
+                     Scheduler.Yield_If_Able;
+                  end loop;
+               else
+                  Ret_Count := 0;
+                  Success   := Would_Block;
+                  return;
+               end if;
             end if;
 
-            Sock.Pending_Accept.Data (1 .. Data'Length) := Data;
-            Sock.Pending_Accept.Data_Length := Data'Length;
-            Ret_Count := Data'Length;
+            if Len > Default_Socket_Size or else
+               Len > Default_Socket_Size - Sock.Pending_Accept.Data_Length
+            then
+               Final := Default_Socket_Size;
+               Len   := Default_Socket_Size - Sock.Pending_Accept.Data_Length;
+            else
+               Final := Sock.Pending_Accept.Data_Length + Len;
+            end if;
+
+            Sock.Pending_Accept.Data
+               (Sock.Pending_Accept.Data_Length + 1 .. Final) :=
+               Data (Data'First .. Data'First + Len - 1);
+            Sock.Pending_Accept.Data_Length := Final;
+            Ret_Count := Len;
             Success   := Plain_Success;
          when others =>
             if Sock.Simple_Connected.Data_Length = 0 then
@@ -911,16 +947,15 @@ package body IPC.Socket with SPARK_Mode => Off is
       case Sock.Typ is
          when Stream =>
             if Sock.Is_Listener then
-               Can_Read  := True;
-               Can_Write := True;
+               Can_Read  := Sock.Pending_Accept /= null;
+               Can_Write := Can_Read;
                Is_Broken := False;
                Is_Error  := False;
             else
                Can_Read  := Sock.Data_Length /= 0;
                Can_Write := Sock.Pending_Accept /= null and then
-                            Sock.Pending_Accept.Data_Length /=
-                            Sock.Pending_Accept.Data'Length;
-               Is_Broken := Sock.Pending_Accept = null;
+                  Sock.Pending_Accept.Data_Length /= Default_Socket_Size;
+               Is_Broken := False;
                Is_Error  := False;
             end if;
          when others =>
