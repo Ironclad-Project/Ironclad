@@ -19,6 +19,7 @@ with Scheduler;
 with Networking.IPv4;
 with Networking.IPv6;
 with Networking.Interfaces;
+with Lib.Messages;
 
 package body IPC.Socket with SPARK_Mode => Off is
    procedure Free is new Ada.Unchecked_Deallocation (Socket, Socket_Acc);
@@ -153,13 +154,11 @@ package body IPC.Socket with SPARK_Mode => Off is
        Success   : out Socket_Status)
    is
    begin
-      Lib.Synchronization.Seize (Sock.Mutex);
       case Sock.Dom is
          when IPv4 => Inner_IPv4_Read (Sock, Data, Ret_Count, Success);
          when IPv6 => Inner_IPv6_Read (Sock, Data, Ret_Count, Success);
          when UNIX => Inner_UNIX_Read (Sock, Data, Ret_Count, Success);
       end case;
-      Lib.Synchronization.Release (Sock.Mutex);
    end Read;
 
    procedure Write
@@ -169,13 +168,11 @@ package body IPC.Socket with SPARK_Mode => Off is
        Success   : out Socket_Status)
    is
    begin
-      Lib.Synchronization.Seize (Sock.Mutex);
       case Sock.Dom is
          when IPv4 => Inner_IPv4_Write (Sock, Data, Ret_Count, Success);
          when IPv6 => Inner_IPv6_Write (Sock, Data, Ret_Count, Success);
          when UNIX => Inner_UNIX_Write (Sock, Data, Ret_Count, Success);
       end case;
-      Lib.Synchronization.Release (Sock.Mutex);
    end Write;
 
    function Shutdown
@@ -822,9 +819,14 @@ package body IPC.Socket with SPARK_Mode => Off is
    begin
    <<Retry>>
       if Sock.Is_Blocking then
-         while Sock.Data_Length = 0 loop
+         loop
+            Lib.Synchronization.Seize (Sock.Mutex);
+            exit when Sock.Data_Length /= 0;
+            Lib.Synchronization.Release (Sock.Mutex);
             Scheduler.Yield_If_Able;
          end loop;
+      else
+         Lib.Synchronization.Seize (Sock.Mutex);
       end if;
 
       case Sock.Typ is
@@ -833,15 +835,16 @@ package body IPC.Socket with SPARK_Mode => Off is
                Data      := (others => 0);
                Ret_Count := 0;
                Success   := Is_Bad_Type;
-               return;
+               goto Cleanup;
             elsif Sock.Data_Length = 0 then
                if Sock.Is_Blocking then
+                  Lib.Synchronization.Release (Sock.Mutex);
                   goto Retry;
                else
                   Data      := (others => 0);
                   Ret_Count := 0;
                   Success   := Would_Block;
-                  return;
+                  goto Cleanup;
                end if;
             end if;
 
@@ -878,6 +881,9 @@ package body IPC.Socket with SPARK_Mode => Off is
                Success   := Would_Block;
             end if;
       end case;
+
+   <<Cleanup>>
+      Lib.Synchronization.Release (Sock.Mutex);
    end Inner_UNIX_Read;
 
    procedure Inner_UNIX_Write
@@ -895,16 +901,31 @@ package body IPC.Socket with SPARK_Mode => Off is
                Ret_Count := 0;
                Success   := Is_Bad_Type;
                return;
-            elsif Sock.Pending_Accept.Data_Length = Default_Socket_Size then
+            end if;
+
+         <<Retry>>
+            if Sock.Is_Blocking then
+               loop
+                  Lib.Synchronization.Seize (Sock.Pending_Accept.Mutex);
+                  exit when Sock.Pending_Accept.Data_Length /=
+                     Default_Socket_Size;
+                  Lib.Synchronization.Release (Sock.Pending_Accept.Mutex);
+                  Scheduler.Yield_If_Able;
+               end loop;
+            else
+               Lib.Synchronization.Seize (Sock.Pending_Accept.Mutex);
+            end if;
+
+            Lib.Synchronization.Seize (Sock.Mutex);
+
+            if Sock.Pending_Accept.Data_Length = Default_Socket_Size then
                if Sock.Is_Blocking then
-                  while Sock.Pending_Accept.Data_Length = Default_Socket_Size
-                  loop
-                     Scheduler.Yield_If_Able;
-                  end loop;
+                  Lib.Synchronization.Release (Sock.Mutex);
+                  goto Retry;
                else
                   Ret_Count := 0;
                   Success   := Would_Block;
-                  return;
+                  goto Cleanup;
                end if;
             end if;
 
@@ -921,8 +942,12 @@ package body IPC.Socket with SPARK_Mode => Off is
                (Sock.Pending_Accept.Data_Length + 1 .. Final) :=
                Data (Data'First .. Data'First + Len - 1);
             Sock.Pending_Accept.Data_Length := Final;
+
             Ret_Count := Len;
             Success   := Plain_Success;
+         <<Cleanup>>
+            Lib.Synchronization.Release (Sock.Pending_Accept.Mutex);
+            Lib.Synchronization.Release (Sock.Mutex);
          when others =>
             if Sock.Simple_Connected.Data_Length = 0 then
                Sock.Simple_Connected.Data (1 .. Data'Length) := Data;
