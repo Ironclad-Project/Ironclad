@@ -1,5 +1,5 @@
 --  devices-partitions.adb: Split a block device into partitions.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -303,12 +303,14 @@ package body Devices.Partitions with SPARK_Mode => Off is
    end Set_Part;
    ----------------------------------------------------------------------------
    procedure Read
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
+      pragma Unreferenced (Is_Blocking);
       Part : Partition_Data_Acc;
       LBA_Offset, LBA_Length, Final_Count : Unsigned_64;
    begin
@@ -337,12 +339,14 @@ package body Devices.Partitions with SPARK_Mode => Off is
    end Read;
 
    procedure Write
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
+      pragma Unreferenced (Is_Blocking);
       Part : Partition_Data_Acc;
       LBA_Offset, LBA_Length, Final_Count : Unsigned_64;
    begin

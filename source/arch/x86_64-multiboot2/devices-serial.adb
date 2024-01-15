@@ -1,5 +1,5 @@
 --  devices-serial.adb: Serial driver.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -76,7 +76,7 @@ package body Devices.Serial with SPARK_Mode => Off is
       Count : Natural;
       Succ  : Boolean;
    begin
-      Read (COM1'Address, 0, S, Count, Succ);
+      Read (COM1'Address, 0, S, Count, Succ, True);
    end Read_COM1;
 
    procedure Write_COM1 (C : Character) is
@@ -84,7 +84,7 @@ package body Devices.Serial with SPARK_Mode => Off is
       Succ  : Boolean;
       Data  : Operation_Data (1 .. 1) with Import, Address => C'Address;
    begin
-      Write (COM1'Address, 0, Data, Count, Succ);
+      Write (COM1'Address, 0, Data, Count, Succ, True);
    end Write_COM1;
 
    procedure Write_COM1 (S : String) is
@@ -96,7 +96,7 @@ package body Devices.Serial with SPARK_Mode => Off is
             Data  : Operation_Data (1 .. S'Length)
                with Import, Address => S (S'First)'Address;
          begin
-            Write (COM1'Address, 0, Data, Count, Succ);
+            Write (COM1'Address, 0, Data, Count, Succ, True);
          end;
       end if;
    end Write_COM1;
@@ -105,14 +105,16 @@ package body Devices.Serial with SPARK_Mode => Off is
    --  inside the scheduler.
 
    procedure Read
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
       COM : COM_Root with Import, Address => Key;
       pragma Unreferenced (Offset);
+      pragma Unreferenced (Is_Blocking);
    begin
       Lib.Synchronization.Seize (COM.Mutex);
       for I of Data loop
@@ -127,14 +129,16 @@ package body Devices.Serial with SPARK_Mode => Off is
    end Read;
 
    procedure Write
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
       COM : COM_Root with Import, Address => Key;
       pragma Unreferenced (Offset);
+      pragma Unreferenced (Is_Blocking);
    begin
       Lib.Synchronization.Seize (COM.Mutex);
       for I of Data loop

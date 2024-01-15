@@ -1,5 +1,5 @@
 --  devices-ps2keyboard.ads: PS2 keyboard driver.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -21,11 +21,18 @@ package Devices.PS2Keyboard with SPARK_Mode => Off is
 private
 
    procedure Read
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean);
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean);
+
+   procedure Poll
+      (Data      : System.Address;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean);
 
    function Read_PS2 return Unsigned_8;
    procedure Write_PS2 (Port : Unsigned_16; Value : Unsigned_8);

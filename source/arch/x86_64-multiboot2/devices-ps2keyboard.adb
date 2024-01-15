@@ -1,5 +1,5 @@
 --  devices-ps2keyboard.adb: PS2 keyboard driver.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -21,12 +21,9 @@ with Arch.Snippets;
 with Scheduler;
 
 package body Devices.PS2Keyboard with SPARK_Mode => Off is
-   type Scancode_Arr is array (1 .. 10) of Unsigned_8;
-
    --  Globals to communicate with the interrupt routine.
-   Is_Reading     : Boolean      with Volatile;
-   Scancode_Count : Natural      with Volatile;
-   Scancodes      : Scancode_Arr with Volatile;
+   Is_Reading : Boolean    with Volatile;
+   Scancode   : Unsigned_8 with Volatile;
 
    function Init return Boolean is
       BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
@@ -80,7 +77,7 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
            Write       => null,
            IO_Control  => null,
            Mmap        => null,
-           Poll        => null), "ps2keyboard", Success);
+           Poll        => Poll'Access), "ps2keyboard", Success);
       return Success;
    end Init;
 
@@ -113,48 +110,46 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
    end Write_PS2_Config;
 
    procedure Read
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
-      Copied : Natural;
+      pragma Unreferenced (Is_Blocking);
    begin
-      Scancode_Count := 0;
-      Is_Reading     := True;
-      while Is_Reading loop
-         Scheduler.Yield_If_Able;
-      end loop;
-      Is_Reading := False;
-
-      if Scancode_Count > Data'Length then
-         Copied := Data'Length;
+      if Is_Reading then
+         Data (Data'First) := Scancode;
+         Is_Reading := False;
+         Success   := True;
+         Ret_Count := 1;
       else
-         Copied := Scancode_Count;
+         Success   := False;
+         Ret_Count := 0;
       end if;
-
-      for I in 1 .. Copied loop
-         Data (Data'First + I - 1) := Scancodes (I);
-      end loop;
-
-      Success   := True;
-      Ret_Count := Scancode_Count;
    end Read;
+
+   procedure Poll
+      (Data      : System.Address;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean)
+   is
+      pragma Unreferenced (Data);
+   begin
+      Can_Read  := Is_Reading;
+      Can_Write := False;
+      Is_Error  := False;
+   end Poll;
 
    procedure Keyboard_Handler is
       Input : constant Unsigned_8 := Arch.Snippets.Port_In (16#60#);
    begin
-      if Is_Reading and Scancode_Count < Scancodes'Length then
-         Scancodes (Scancodes'First + Scancode_Count) := Input;
-         Scancode_Count := Scancode_Count + 1;
-         if Input /= 16#E0# then
-            Is_Reading := False;
-         end if;
-      end if;
-
+      Scancode := Input;
+      Is_Reading := True;
       Arch.APIC.LAPIC_EOI;
    end Keyboard_Handler;
 end Devices.PS2Keyboard;

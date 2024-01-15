@@ -66,26 +66,29 @@ package body Userland.Loader with SPARK_Mode => Off is
       end if;
 
       User_Stdin := new File_Description'
-         (Children_Count  => 0,
-          Description     => Description_Device,
-          Inner_Dev_Read  => True,
-          Inner_Dev_Write => False,
-          Inner_Dev_Pos   => 0,
-          Inner_Dev       => Devices.Fetch (StdIn_Path));
+         (Children_Count     => 0,
+          Description        => Description_Device,
+          Inner_Dev_Blocking => True,
+          Inner_Dev_Read     => True,
+          Inner_Dev_Write    => False,
+          Inner_Dev_Pos      => 0,
+          Inner_Dev          => Devices.Fetch (StdIn_Path));
       User_StdOut := new File_Description'
-         (Children_Count  => 0,
-          Description     => Description_Device,
-          Inner_Dev_Read  => False,
-          Inner_Dev_Write => True,
-          Inner_Dev_Pos   => 0,
-          Inner_Dev       => Devices.Fetch (StdOut_Path));
+         (Children_Count     => 0,
+          Description        => Description_Device,
+          Inner_Dev_Blocking => True,
+          Inner_Dev_Read     => False,
+          Inner_Dev_Write    => True,
+          Inner_Dev_Pos      => 0,
+          Inner_Dev          => Devices.Fetch (StdOut_Path));
       User_StdErr := new File_Description'
-         (Children_Count  => 0,
-          Description     => Description_Device,
-          Inner_Dev_Read  => False,
-          Inner_Dev_Write => True,
-          Inner_Dev_Pos   => 0,
-          Inner_Dev       => Devices.Fetch (StdErr_Path));
+         (Children_Count     => 0,
+          Description        => Description_Device,
+          Inner_Dev_Blocking => True,
+          Inner_Dev_Read     => False,
+          Inner_Dev_Write    => True,
+          Inner_Dev_Pos      => 0,
+          Inner_Dev          => Devices.Fetch (StdErr_Path));
 
       Process.Add_File (Returned_PID, User_Stdin,  Discard, Success1);
       Process.Add_File (Returned_PID, User_StdOut, Discard, Success2);

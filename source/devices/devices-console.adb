@@ -37,14 +37,16 @@ package body Devices.Console with SPARK_Mode => Off is
    end Init;
 
    procedure Read
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
+      pragma Unreferenced (Is_Blocking);
    begin
       if Arch.Debug.Supports_Read then
          Arch.Debug.Read (Data);
@@ -57,14 +59,16 @@ package body Devices.Console with SPARK_Mode => Off is
    end Read;
 
    procedure Write
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
+      pragma Unreferenced (Is_Blocking);
    begin
       Arch.Debug.Print (Data);
       Ret_Count := Data'Length;

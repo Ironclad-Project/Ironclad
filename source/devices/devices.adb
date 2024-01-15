@@ -1,5 +1,5 @@
 --  devices.adb: Device management.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -16,7 +16,6 @@
 
 with Devices.Console;
 with Devices.Loopback;
-with Devices.Random;
 with Devices.Streams;
 with Lib.Panic;
 with Arch.Hooks;
@@ -38,8 +37,6 @@ package body Devices is
       Console.Init (Success);
       if not Success then goto Panic_Error; end if;
       Loopback.Init (Success);
-      if not Success then goto Panic_Error; end if;
-      Random.Init (Success);
       if not Success then goto Panic_Error; end if;
       Streams.Init (Success);
       if not Success or else not Arch.Hooks.Devices_Hook then
@@ -227,11 +224,12 @@ package body Devices is
    end Synchronize;
 
    procedure Read
-      (Handle    : Device_Handle;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Handle      : Device_Handle;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean := True)
    is
    begin
       if Devices_Data (Handle).Contents.Read /= null then
@@ -240,7 +238,8 @@ package body Devices is
              Offset    => Offset,
              Data      => Data,
              Ret_Count => Ret_Count,
-             Success   => Success);
+             Success   => Success,
+             Is_Blocking => Is_Blocking);
       else
          Data      := (others => 0);
          Ret_Count := 0;
@@ -249,11 +248,12 @@ package body Devices is
    end Read;
 
    procedure Write
-      (Handle    : Device_Handle;
-       Offset    : Unsigned_64;
-       Data      : Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Handle      : Device_Handle;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean := True)
    is
    begin
       if Devices_Data (Handle).Contents.Write /= null then
@@ -262,7 +262,8 @@ package body Devices is
              Offset    => Offset,
              Data      => Data,
              Ret_Count => Ret_Count,
-             Success   => Success);
+             Success   => Success,
+             Is_Blocking => Is_Blocking);
       else
          Ret_Count := 0;
          Success   := False;

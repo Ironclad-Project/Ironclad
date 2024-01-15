@@ -1,5 +1,5 @@
 --  devices-ata.adb: ATA driver.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -309,12 +309,14 @@ package body Devices.ATA with SPARK_Mode => Off is
    end Get_Cache_Index;
    ----------------------------------------------------------------------------
    procedure Read
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
+      pragma Unreferenced (Is_Blocking);
       D : constant ATA_Data_Acc := ATA_Data_Acc (Con.To_Pointer (Key));
       Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
       Current_LBA : Unsigned_64;
@@ -347,12 +349,14 @@ package body Devices.ATA with SPARK_Mode => Off is
    end Read;
 
    procedure Write
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
+      pragma Unreferenced (Is_Blocking);
       D : constant ATA_Data_Acc := ATA_Data_Acc (Con.To_Pointer (Key));
       Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
       Current_LBA : Unsigned_64;

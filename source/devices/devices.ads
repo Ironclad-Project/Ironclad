@@ -1,5 +1,5 @@
 --  devices.ads: Device management library specification.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -43,17 +43,19 @@ package Devices is
       Block_Count : Unsigned_64;
 
       Read : access procedure
-         (Key       : System.Address;
-          Offset    : Unsigned_64;
-          Data      : out Operation_Data;
-          Ret_Count : out Natural;
-          Success   : out Boolean);
+         (Key         : System.Address;
+          Offset      : Unsigned_64;
+          Data        : out Operation_Data;
+          Ret_Count   : out Natural;
+          Success     : out Boolean;
+          Is_Blocking : Boolean);
       Write : access procedure
-         (Key       : System.Address;
-          Offset    : Unsigned_64;
-          Data      : Operation_Data;
-          Ret_Count : out Natural;
-          Success   : out Boolean);
+         (Key         : System.Address;
+          Offset      : Unsigned_64;
+          Data        : Operation_Data;
+          Ret_Count   : out Natural;
+          Success     : out Boolean;
+          Is_Blocking : Boolean);
       Sync : access function (Key : System.Address) return Boolean;
       Sync_Range : access function
          (Key    : System.Address;
@@ -175,12 +177,14 @@ package Devices is
    --  @param Desto     Destination address where to write the read data.
    --  @param Ret_Count Count of bytes actually read, < count if EOF or error.
    --  @param Success   True on success, False on non-supported/failure.
+   --  @param Is_Blocking Whether to do the operation blocking or non-blocking.
    procedure Read
-      (Handle    : Device_Handle;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Handle      : Device_Handle;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean := True)
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
    --  Write to a device.
@@ -190,12 +194,14 @@ package Devices is
    --  @param To_Write  Source address for the data to write.
    --  @param Ret_Count Count of bytes actually written, < count if EOF/error.
    --  @param Success   True on success, False on non-supported/failure.
+   --  @param Is_Blocking Whether to do the operation blocking or non-blocking.
    procedure Write
-      (Handle    : Device_Handle;
-       Offset    : Unsigned_64;
-       Data      : Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Handle      : Device_Handle;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean := True)
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
    --  Do a device-specific IO control request.

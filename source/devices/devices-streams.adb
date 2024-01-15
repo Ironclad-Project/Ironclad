@@ -1,5 +1,5 @@
 --  devices-streams.adb: Virtual stream devices.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,12 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Cryptography.Random;
+
 package body Devices.Streams is
-   --  Unit passes GNATprove AoRTE, GNAT does not know this.
-   pragma Suppress (All_Checks);
+   pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE..
 
    procedure Init (Success : out Boolean) is
-      Success_1, Success_2 : Boolean;
+      Success_1, Success_2, Success_3, Success_4 : Boolean;
    begin
       Register
          ((Data        => System.Null_Address,
@@ -47,19 +48,47 @@ package body Devices.Streams is
            IO_Control  => null,
            Mmap        => null,
            Poll        => null), "zero", Success_2);
-      Success := Success_1 and Success_2;
+      Register
+         ((Data        => System.Null_Address,
+           ID          => (others => 0),
+           Is_Block    => False,
+           Block_Size  => 4096,
+           Block_Count => 0,
+           Read        => Random_Read'Access,
+           Write       => null,
+           Sync        => null,
+           Sync_Range  => null,
+           IO_Control  => null,
+           Mmap        => null,
+           Poll        => null), "random", Success_3);
+      Register
+         ((Data        => System.Null_Address,
+           ID          => (others => 0),
+           Is_Block    => False,
+           Block_Size  => 4096,
+           Block_Count => 0,
+           Read        => Random_Read'Access,
+           Write       => null,
+           Sync        => null,
+           Sync_Range  => null,
+           IO_Control  => null,
+           Mmap        => null,
+           Poll        => null), "urandom", Success_4);
+      Success := Success_1 and Success_2 and Success_3 and Success_4;
    end Init;
    ----------------------------------------------------------------------------
    procedure Null_Read
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
       pragma Unreferenced (Data);
+      pragma Unreferenced (Is_Blocking);
    begin
       Data      := (others => 0);
       Ret_Count := 0;
@@ -67,28 +96,32 @@ package body Devices.Streams is
    end Null_Read;
 
    procedure Null_Write
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
+      pragma Unreferenced (Is_Blocking);
    begin
       Ret_Count := Data'Length;
       Success   := True;
    end Null_Write;
    ----------------------------------------------------------------------------
    procedure Zero_Read
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
+      pragma Unreferenced (Is_Blocking);
    begin
       Data      := (others => 0);
       Ret_Count := Data'Length;
@@ -96,16 +129,35 @@ package body Devices.Streams is
    end Zero_Read;
 
    procedure Zero_Write
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
+      pragma Unreferenced (Is_Blocking);
    begin
       Ret_Count := Data'Length;
       Success   := True;
    end Zero_Write;
+   ----------------------------------------------------------------------------
+   procedure Random_Read
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
+   is
+      pragma Unreferenced (Key);
+      pragma Unreferenced (Offset);
+      pragma Unreferenced (Is_Blocking);
+   begin
+      Cryptography.Random.Fill_Data (Cryptography.Random.Crypto_Data (Data));
+      Ret_Count := Data'Length;
+      Success   := True;
+   end Random_Read;
 end Devices.Streams;

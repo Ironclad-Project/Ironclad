@@ -1,5 +1,5 @@
 --  devices-ps2mouse.adb: PS2 mouse driver.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -25,12 +25,13 @@ with Scheduler;
 package body Devices.PS2Mouse with SPARK_Mode => Off is
    --  For return.
    type Mouse_Data is record
-      X_Variation    : Integer;
-      Y_Variation    : Integer;
-      Is_Left_Click  : Boolean;
-      Is_Right_Click : Boolean;
+      X_Variation     : Integer;
+      Y_Variation     : Integer;
+      Is_Left_Click   : Boolean;
+      Is_Right_Click  : Boolean;
+      Is_Middle_Click : Boolean;
    end record;
-   Has_Returned : Boolean    with Volatile;
+   Has_Returned : Boolean    with Atomic, Volatile;
    Return_Data  : Mouse_Data with Volatile;
 
    --  Data used for mouse operation.
@@ -91,29 +92,35 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
            Write       => null,
            IO_Control  => IO_Control'Access,
            Mmap        => null,
-           Poll        => null), "ps2mouse", Success);
+           Poll        => Poll'Access), "ps2mouse", Success);
       return Success;
    end Init;
-
+   ----------------------------------------------------------------------------
    procedure Read
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
       Data2 : Mouse_Data with Address => Data (Data'First)'Address;
    begin
-      Has_Returned := False;
-      while not Has_Returned loop
-         Arch.Snippets.Wait_For_Interrupt;
-      end loop;
+      if Is_Blocking then
+         while not Has_Returned loop
+            Arch.Snippets.Wait_For_Interrupt;
+         end loop;
+      elsif not Has_Returned then
+         Success := False;
+         return;
+      end if;
 
-      Data2     := Return_Data;
-      Ret_Count := Return_Data'Size / 8;
-      Success   := True;
+      Data2        := Return_Data;
+      Ret_Count    := Return_Data'Size / 8;
+      Success      := True;
+      Has_Returned := False;
    end Read;
 
    function IO_Control
@@ -167,6 +174,19 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
       return True;
    end IO_Control;
 
+   procedure Poll
+      (Data      : System.Address;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean)
+   is
+      pragma Unreferenced (Data);
+   begin
+      Can_Read  := Has_Returned;
+      Can_Write := False;
+      Is_Error  := False;
+   end Poll;
+
    procedure Mouse_Handler is
    begin
       case Current_Mouse_Cycle is
@@ -195,6 +215,11 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
                Return_Data.Is_Right_Click := True;
             else
                Return_Data.Is_Right_Click := False;
+            end if;
+            if (Current_Cycle_Data.Flags and Shift_Left (1, 2)) /= 0 then
+               Return_Data.Is_Middle_Click := True;
+            else
+               Return_Data.Is_Middle_Click := False;
             end if;
             if (Current_Cycle_Data.Flags and Shift_Left (1, 4)) /= 0 then
                Return_Data.X_Variation :=

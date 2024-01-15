@@ -398,12 +398,14 @@ package body Devices.SATA with SPARK_Mode => Off is
    end Stop_Command_Engine;
    ----------------------------------------------------------------------------
    procedure Read
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
+      pragma Unreferenced (Is_Blocking);
       D : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
       Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
       Current_LBA : Unsigned_64;
@@ -436,12 +438,14 @@ package body Devices.SATA with SPARK_Mode => Off is
    end Read;
 
    procedure Write
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
+      pragma Unreferenced (Is_Blocking);
       D : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
       Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
       Current_LBA : Unsigned_64;

@@ -1,5 +1,5 @@
 --  devices-i6300esb.adb: i6300ESB watchdog driver.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -70,13 +70,15 @@ package body Devices.i6300ESB with SPARK_Mode => Off is
    end Init;
    ----------------------------------------------------------------------------
    procedure Write
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean)
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
    is
       pragma Unreferenced (Offset);
+      pragma Unreferenced (Is_Blocking);
       D : constant Dog_Data_Acc := Dog_Data_Acc (Con.To_Pointer (Key));
    begin
       Keep_Alive (D.Base_Addr);

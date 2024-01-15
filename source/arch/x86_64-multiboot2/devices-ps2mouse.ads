@@ -1,5 +1,5 @@
 --  devices-ps2mouse.ads: PS2 mouse driver.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -21,16 +21,23 @@ package Devices.PS2Mouse with SPARK_Mode => Off is
 private
 
    procedure Read
-      (Key       : System.Address;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Boolean);
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean);
 
    function IO_Control
       (Data     : System.Address;
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean;
+
+   procedure Poll
+      (Data      : System.Address;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean);
 
    procedure Mouse_Handler;
    procedure Mouse_Wait_Read;

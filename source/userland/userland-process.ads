@@ -70,10 +70,11 @@ package Userland.Process is
          when Description_Secondary_PTY =>
             Inner_Secondary_PTY : IPC.PTY.Inner_Acc;
          when Description_Device =>
-            Inner_Dev_Read  : Boolean;
-            Inner_Dev_Write : Boolean;
-            Inner_Dev_Pos   : Unsigned_64;
-            Inner_Dev       : Devices.Device_Handle;
+            Inner_Dev_Blocking : Boolean;
+            Inner_Dev_Read     : Boolean;
+            Inner_Dev_Write    : Boolean;
+            Inner_Dev_Pos      : Unsigned_64;
+            Inner_Dev          : Devices.Device_Handle;
          when Description_Inode =>
             Inner_Is_Locked : Boolean;
             Inner_Ino_Read  : Boolean;

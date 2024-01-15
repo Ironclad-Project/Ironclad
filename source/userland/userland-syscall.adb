@@ -133,12 +133,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
             File_Perms := Check_Permissions (Curr_Proc, Opened_Dev);
             New_Descr  := new File_Description'
-               (Children_Count  => 0,
-                Description     => Description_Device,
-                Inner_Dev_Read  => Do_Read,
-                Inner_Dev_Write => Do_Write,
-                Inner_Dev_Pos   => 0,
-                Inner_Dev       => Opened_Dev);
+               (Children_Count     => 0,
+                Description        => Description_Device,
+                Inner_Dev_Blocking => True,
+                Inner_Dev_Read     => Do_Read,
+                Inner_Dev_Write    => Do_Write,
+                Inner_Dev_Pos      => 0,
+                Inner_Dev          => Opened_Dev);
          else
             Resolve_AT_Directive (Curr_Proc, Dir_FD, CWD_FS, CWD_Ino);
             if CWD_FS = VFS.Error_Handle then
@@ -266,7 +267,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                end if;
                Devices.Read
                   (File.Inner_Dev, File.Inner_Dev_Pos, Data, Ret_Count,
-                   Success3);
+                   Success3, File.Inner_Dev_Blocking);
                if Success3 then
                   File.Inner_Dev_Pos := File.Inner_Dev_Pos +
                                         Unsigned_64 (Ret_Count);
@@ -1838,7 +1839,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   Is_Primary_Blocking (File.Inner_Primary_PTY, Temp);
                when Description_Secondary_PTY =>
                   Is_Secondary_Blocking (File.Inner_Secondary_PTY, Temp);
-               when Description_Device | Description_Inode =>
+               when Description_Device =>
+                  Temp := File.Inner_Dev_Blocking;
+               when Description_Inode =>
                   Temp := True;
             end case;
             Returned := (if Temp then 0 else O_NONBLOCK);
@@ -1857,7 +1860,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   Set_Primary_Blocking (File.Inner_Primary_PTY, Temp);
                when Description_Secondary_PTY =>
                   Set_Secondary_Blocking (File.Inner_Secondary_PTY, Temp);
-               when Description_Device | Description_Inode =>
+               when Description_Device =>
+                  File.Inner_Dev_Blocking := Temp;
+               when Description_Inode =>
                   null;
             end case;
          when F_GETPIPE_SZ =>
@@ -3672,7 +3677,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   return;
                end if;
                Devices.Read
-                  (File.Inner_Dev, Offset, Data, Ret_Count, Success3);
+                  (File.Inner_Dev, Offset, Data, Ret_Count, Success3,
+                   File.Inner_Dev_Blocking);
                if Success3 then
                   Errno := Error_No_Error;
                   Returned := Unsigned_64 (Ret_Count);
