@@ -40,9 +40,7 @@ package IPC.PTY is
    type Status is (PTY_Success, PTY_Would_Block);
 
    --  Create a fresh PTY with 1 refcount.
-   function Create
-      (Termios     : Devices.TermIOs.Main_Data;
-       Window_Size : Devices.TermIOs.Win_Size) return Inner_Acc;
+   function Create return Inner_Acc;
 
    --  Decrease the refcount of a PTY, if zero, free it.
    --  @param Closed PTY to decrease the refcount of.

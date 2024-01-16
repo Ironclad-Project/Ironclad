@@ -2785,60 +2785,35 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Connect;
 
    procedure Open_PTY
-      (Result_Addr  : Unsigned_64;
-       Termios_Addr : Unsigned_64;
-       Window_Addr  : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Result_Addr : Unsigned_64;
+       Returned    : out Unsigned_64;
+       Errno       : out Errno_Value)
    is
-      Res_IAddr : constant  Integer_Address := Integer_Address (Result_Addr);
-      Res_SAddr : constant   System.Address := To_Address (Res_IAddr);
-      TIO_IAddr : constant  Integer_Address := Integer_Address (Termios_Addr);
-      TIO_SAddr : constant   System.Address := To_Address (TIO_IAddr);
-      Win_IAddr : constant  Integer_Address := Integer_Address (Window_Addr);
-      Win_SAddr : constant   System.Address := To_Address (Win_IAddr);
-      Proc      : constant              PID := Arch.Local.Get_Current_Process;
-      Map       : constant     Page_Table_Acc := Get_Common_Map (Proc);
-
-      Result_PTY     : IPC.PTY.Inner_Acc;
-      Primary_Desc   : File_Description_Acc;
-      Secondary_Desc : File_Description_Acc;
+      Res_IAddr : constant Integer_Address := Integer_Address (Result_Addr);
+      Res_SAddr : constant  System.Address := To_Address (Res_IAddr);
+      Proc      : constant             PID := Arch.Local.Get_Current_Process;
+      Map       : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      Res_PTY        : IPC.PTY.Inner_Acc;
+      P_Desc, S_Desc : File_Description_Acc;
       Succ1, Succ2   : Boolean;
-
-      Result  : array (1 .. 2) of Integer with Import, Address => Res_SAddr;
-      Termios : Devices.TermIOs.Main_Data with Import, Address => TIO_SAddr;
-      Win_Siz : Devices.TermIOs.Win_Size  with Import, Address => Win_SAddr;
-      Res_Size : constant Unsigned_64 := Result'Size  / 8;
-      TIO_Size : constant Unsigned_64 := Termios'Size / 8;
-      Win_Size : constant Unsigned_64 := Win_Siz'Size / 8;
+      Result : array (1 .. 2) of Integer with Import, Address => Res_SAddr;
    begin
-      if not Check_Userland_Access (Map, Res_IAddr, Res_Size) or
-         not Check_Userland_Access (Map, TIO_IAddr, TIO_Size) or
-         not Check_Userland_Access (Map, Win_IAddr, Win_Size)
-      then
+      if not Check_Userland_Access (Map, Res_IAddr, Result'Size / 8) then
          Errno := Error_Would_Fault;
          Returned := Unsigned_64'Last;
          return;
       end if;
 
-      Result_PTY := Create (Termios, Win_Siz);
-      Primary_Desc := new File_Description'(
-         Children_Count    => 0,
-         Description       => Description_Primary_PTY,
-         Inner_Primary_PTY => Result_PTY
-      );
-      Secondary_Desc := new File_Description'(
-         Children_Count      => 0,
-         Description         => Description_Secondary_PTY,
-         Inner_Secondary_PTY => Result_PTY
-      );
-      Check_Add_File (Proc, Primary_Desc,   Succ1, Result (1));
-      Check_Add_File (Proc, Secondary_Desc, Succ2, Result (2));
+      Res_PTY := IPC.PTY.Create;
+      P_Desc  := new File_Description'(Description_Primary_PTY, 0, Res_PTY);
+      S_Desc  := new File_Description'(Description_Secondary_PTY, 0, Res_PTY);
+      Check_Add_File (Proc, P_Desc, Succ1, Result (1));
+      Check_Add_File (Proc, S_Desc, Succ2, Result (2));
       if not Succ1 or not Succ2 then
-         Close (Result_PTY);
-         Close (Result_PTY);
-         Close (Primary_Desc);
-         Close (Secondary_Desc);
+         Close (Res_PTY);
+         Close (Res_PTY);
+         Close (P_Desc);
+         Close (S_Desc);
          Errno := Error_Too_Many_Files;
          Returned := Unsigned_64'Last;
       else

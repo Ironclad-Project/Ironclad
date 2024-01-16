@@ -716,11 +716,9 @@ package Userland.Syscall is
 
    --  Create a pair of ptys.
    procedure Open_PTY
-      (Result_Addr  : Unsigned_64;
-       Termios_Addr : Unsigned_64;
-       Window_Addr  : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value);
+      (Result_Addr : Unsigned_64;
+       Returned    : out Unsigned_64;
+       Errno       : out Errno_Value);
 
    --  Synchronize the data of a file, instead of system-wide.
    procedure FSync

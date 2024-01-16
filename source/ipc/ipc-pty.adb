@@ -28,11 +28,9 @@ package body IPC.PTY is
       Lib.Synchronization.Unlocked_Semaphore;
    Tracked_Name : Natural := 1;
 
-   function Create
-      (Termios     : Devices.TermIOs.Main_Data;
-       Window_Size : Devices.TermIOs.Win_Size) return Inner_Acc
-   is
+   function Create return Inner_Acc is
       Name_Index : Natural;
+      Modes : constant Devices.TermIOs.Local_Modes := (others => False);
    begin
       Lib.Synchronization.Seize (Tracked_Lock);
       Name_Index := Tracked_Name;
@@ -46,8 +44,8 @@ package body IPC.PTY is
           Primary_Block     => True,
           Secondary_Block   => True,
           Name_Index        => Name_Index,
-          Term_Info         => Termios,
-          Term_Size         => Window_Size,
+          Term_Info         => (0, 0, 0, Modes, (others => 0), 0, 0),
+          Term_Size         => (others => 0),
           Was_Closed        => False,
           Termios_Changed   => False,
           Primary_Length    => 0,

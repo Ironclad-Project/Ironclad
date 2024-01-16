@@ -2431,22 +2431,19 @@ following errno:
 @section openpty
 
 @example
-int openty(int ptys[2], struct termios *t, struct win_size *w);
+int openty(int ptys[2]);
 @end example
 
 This syscalls creates a pair of pseudoterminals and returns the registered
 file descriptors in @code{ptys}. Index @code{0} is the primary end
 (also known as master), @code{1} is the secondary end (also known as slave).
 
-@code{t} and @code{w} are the termios and window information the created
-pseudoterminals will contain.
-
 The syscall returns @code{0} on success and @code{-1} on failure, with the
 following errno:
 
 @itemize @bullet
 @item
-@code{EFAULT}: @code{ptys}, @code{t}, or @code{w}, point to bogus memory.
+@code{EFAULT}: @code{ptys} points to bogus memory.
 @item
 @code{EMFILE}: No available file descriptor slots.
 @end itemize
