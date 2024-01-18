@@ -54,7 +54,7 @@ package body Devices.Ramdev with SPARK_Mode => Off is
           Block_Size  => 4096,
           Block_Count => A.Divide_Round_Up (Data.Size, 4096),
           Read        => Read'Access,
-          Write       => null,
+          Write       => Write'Access,
           Sync        => null,
           Sync_Range  => null,
           IO_Control  => null,
@@ -89,4 +89,32 @@ package body Devices.Ramdev with SPARK_Mode => Off is
       Ret_Count := To_Write;
       Success   := True;
    end Read;
+
+   procedure Write
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
+   is
+      pragma Unreferenced (Is_Blocking);
+      Dev      : constant Ramdev_Data with Import, Address => Key;
+      Dev_Size : constant        Natural := Natural (Dev.Size);
+      Dev_Data : Operation_Data (1 .. Dev_Size)
+         with Import, Address => Dev.Start_Address;
+
+      Final_Loc : constant Natural := Natural (Offset) + Data'Length;
+      To_Write  :          Natural := Data'Length;
+   begin
+      if Final_Loc > Dev_Size then
+         To_Write := To_Write - (Final_Loc - Dev_Size);
+      end if;
+
+      Dev_Data (Natural (Offset) + 1 .. Natural (Offset) + To_Write) :=
+         Data (Data'First .. Data'First + To_Write - 1);
+
+      Ret_Count := To_Write;
+      Success   := True;
+   end Write;
 end Devices.Ramdev;

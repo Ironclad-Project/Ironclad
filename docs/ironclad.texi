@@ -3918,7 +3918,9 @@ does not read from the debug channels.
 
 The devices starting by @code{ramdev} are virtual devices representing the
 RAM driver passed by some boot protocols, an FS can be mounted to them, or be
-otherwise used like any other block device. These RAM devices are read-only.
+otherwise used like any other block device. These RAM devices are read/write,
+but they cannot grow in size, so changes are constrained to the area the
+RAM device already has allocated.
 
 @subsection random
 

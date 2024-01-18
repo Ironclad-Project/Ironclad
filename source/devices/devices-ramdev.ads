@@ -31,4 +31,12 @@ private
        Ret_Count   : out Natural;
        Success     : out Boolean;
        Is_Blocking : Boolean);
+
+   procedure Write
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean);
 end Devices.Ramdev;
