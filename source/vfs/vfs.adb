@@ -198,7 +198,9 @@ package body VFS is
        Length : out Natural)
    is
    begin
-      Name   := Mounts (Key).Path_Buffer;
+      Name := (others => ' ');
+      Name (Name'First .. Name'First + Path_Buffer_Length - 1) :=
+         Mounts (Key).Path_Buffer;
       Length := Mounts (Key).Path_Length;
    end Get_Mount_Point;
 

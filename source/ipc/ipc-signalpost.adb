@@ -35,13 +35,11 @@ package body IPC.SignalPost is
       Free (To_Close);
    end Close;
 
-   function Is_Blocking (Post : SignalPost_Acc) return Boolean is
-      Returned : Boolean;
+   procedure Is_Blocking (Post : SignalPost_Acc; Blocking : out Boolean) is
    begin
       Lib.Synchronization.Seize (Post.Mutex);
-      Returned := Post.Is_Blocking;
+      Blocking := Post.Is_Blocking;
       Lib.Synchronization.Release (Post.Mutex);
-      return Returned;
    end Is_Blocking;
 
    procedure Set_Blocking (Post : SignalPost_Acc; Is_Blocking : Boolean) is
@@ -84,6 +82,9 @@ package body IPC.SignalPost is
       Proc : constant Userland.Process.PID := Arch.Local.Get_Current_Process;
       Sigs : Userland.Process.Signal_Bitmap;
    begin
+      Data := (others => 0);
+      Success := False;
+
       if Data'Length < Userland.Process.Signal_Bitmap'Length then
          Ret_Count := 0;
          Success   := True;
@@ -111,28 +112,28 @@ package body IPC.SignalPost is
       --  says about it.
       Data (Data'First + 0) := Boolean'Pos (Sigs (Signal_Abort));
       Data (Data'First + 1) := Boolean'Pos (Sigs (Signal_Alarm));
-      Data (Data'First + 3) := Boolean'Pos (Sigs (Signal_Bad_Memory));
-      Data (Data'First + 4) := Boolean'Pos (Sigs (Signal_Child));
-      Data (Data'First + 5) := Boolean'Pos (Sigs (Signal_FP_Exception));
-      Data (Data'First + 6) := Boolean'Pos (Sigs (Signal_Hang_Up));
-      Data (Data'First + 7) := Boolean'Pos (Sigs (Signal_Illegal_Instruction));
-      Data (Data'First + 8) := Boolean'Pos (Sigs (Signal_Interrupted));
-      Data (Data'First + 9) := Boolean'Pos (Sigs (Signal_Broken_Pipe));
-      Data (Data'First + 10) := Boolean'Pos (Sigs (Signal_Quit));
-      Data (Data'First + 11) := Boolean'Pos (Sigs (Signal_Segmentation_Fault));
-      Data (Data'First + 12) := Boolean'Pos (Sigs (Signal_Terminated));
-      Data (Data'First + 13) := Boolean'Pos (Sigs (Signal_Terminal_In));
-      Data (Data'First + 14) := Boolean'Pos (Sigs (Signal_Terminal_Out));
-      Data (Data'First + 15) := Boolean'Pos (Sigs (Signal_User_1));
-      Data (Data'First + 16) := Boolean'Pos (Sigs (Signal_User_2));
-      Data (Data'First + 17) := Boolean'Pos (Sigs (Signal_Pollable));
-      Data (Data'First + 18) := Boolean'Pos (Sigs (Signal_Bad_Syscall));
-      Data (Data'First + 19) := Boolean'Pos (Sigs (Signal_Tracepoint));
-      Data (Data'First + 20) := Boolean'Pos (Sigs (Signal_Urgent));
-      Data (Data'First + 21) := Boolean'Pos (Sigs (Signal_Virtual_Timer));
-      Data (Data'First + 22) := Boolean'Pos (Sigs (Signal_CPU_Exceeded));
-      Data (Data'First + 23) := Boolean'Pos (Sigs (Signal_File_Size_Exceeded));
-      Ret_Count := 24;
+      Data (Data'First + 2) := Boolean'Pos (Sigs (Signal_Bad_Memory));
+      Data (Data'First + 3) := Boolean'Pos (Sigs (Signal_Child));
+      Data (Data'First + 4) := Boolean'Pos (Sigs (Signal_FP_Exception));
+      Data (Data'First + 5) := Boolean'Pos (Sigs (Signal_Hang_Up));
+      Data (Data'First + 6) := Boolean'Pos (Sigs (Signal_Illegal_Instruction));
+      Data (Data'First + 7) := Boolean'Pos (Sigs (Signal_Interrupted));
+      Data (Data'First + 8) := Boolean'Pos (Sigs (Signal_Broken_Pipe));
+      Data (Data'First + 9) := Boolean'Pos (Sigs (Signal_Quit));
+      Data (Data'First + 10) := Boolean'Pos (Sigs (Signal_Segmentation_Fault));
+      Data (Data'First + 11) := Boolean'Pos (Sigs (Signal_Terminated));
+      Data (Data'First + 12) := Boolean'Pos (Sigs (Signal_Terminal_In));
+      Data (Data'First + 13) := Boolean'Pos (Sigs (Signal_Terminal_Out));
+      Data (Data'First + 14) := Boolean'Pos (Sigs (Signal_User_1));
+      Data (Data'First + 15) := Boolean'Pos (Sigs (Signal_User_2));
+      Data (Data'First + 16) := Boolean'Pos (Sigs (Signal_Pollable));
+      Data (Data'First + 17) := Boolean'Pos (Sigs (Signal_Bad_Syscall));
+      Data (Data'First + 18) := Boolean'Pos (Sigs (Signal_Tracepoint));
+      Data (Data'First + 29) := Boolean'Pos (Sigs (Signal_Urgent));
+      Data (Data'First + 20) := Boolean'Pos (Sigs (Signal_Virtual_Timer));
+      Data (Data'First + 21) := Boolean'Pos (Sigs (Signal_CPU_Exceeded));
+      Data (Data'First + 22) := Boolean'Pos (Sigs (Signal_File_Size_Exceeded));
+      Ret_Count := 23;
       Success   := True;
 
       Lib.Synchronization.Release (Post.Mutex);

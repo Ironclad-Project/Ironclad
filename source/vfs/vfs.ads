@@ -161,7 +161,8 @@ package VFS is
       (Key    : FS_Handle;
        Name   : out String;
        Length : out Natural)
-      with Pre => Is_Initialized and Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle and
+                  Name'Length <= Path_Buffer_Length;
 
    --  Remount the passed path with the desired flags.
    --  @param Key          FS key.

@@ -33,9 +33,9 @@ package IPC.SignalPost is
       with Pre => To_Close /= null, Post => To_Close = null;
 
    --  Get whether the post is blocking.
-   --  @param Post Post to check.
-   --  @return True if blocking, False if not.
-   function Is_Blocking (Post : SignalPost_Acc) return Boolean
+   --  @param Post     Post to check.
+   --  @param Blocking True if blocking, False if not.
+   procedure Is_Blocking (Post : SignalPost_Acc; Blocking : out Boolean)
       with Pre => Post /= null;
 
    --  Set whether the post is blocking.

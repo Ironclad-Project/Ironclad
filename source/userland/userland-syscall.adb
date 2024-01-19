@@ -1834,7 +1834,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                when Description_Socket =>
                   Temp := Is_Blocking (File.Inner_Socket);
                when Description_SignalPost =>
-                  Temp := Is_Blocking (File.Inner_Post);
+                  Is_Blocking (File.Inner_Post, Temp);
                when Description_Primary_PTY =>
                   Is_Primary_Blocking (File.Inner_Primary_PTY, Temp);
                when Description_Secondary_PTY =>
