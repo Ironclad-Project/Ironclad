@@ -19,7 +19,6 @@ with Scheduler;
 with Networking.IPv4;
 with Networking.IPv6;
 with Networking.Interfaces;
-with Lib.Messages;
 
 package body IPC.Socket with SPARK_Mode => Off is
    procedure Free is new Ada.Unchecked_Deallocation (Socket, Socket_Acc);

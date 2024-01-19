@@ -235,7 +235,7 @@ package body Memory.Physical with SPARK_Mode => Off is
                Bitmap_Body (Real_Block + Unsigned_64 (I - 1)) := Block_Free;
             end loop;
          else
-            Lib.Messages.Warn ("Tried to deallocate a corrupted block!");
+            Lib.Messages.Put_Line ("Tried to deallocate a corrupted block!");
          end if;
 
          Lib.Synchronization.Release (Alloc_Mutex);

@@ -1495,11 +1495,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
                      (KMnts (I),
                       Mnts (I).Location,
                       Natural (Mnts (I).Location_Len));
-                  Mnts (I).Block_Size := Get_Block_Size (KMnts (I));
-                  Mnts (I).Fragment_Size := Get_Fragment_Size (KMnts (I));
-                  Mnts (I).Size_In_Frags := Get_Size (KMnts (I));
-                  Mnts (I).Inode_Count := Get_Inode_Count (KMnts (I));
-                  Mnts (I).Max_File_Name := Get_Max_Length (KMnts (I));
+                  Get_Block_Size (KMnts (I), Mnts (I).Block_Size);
+                  Get_Fragment_Size (KMnts (I), Mnts (I).Fragment_Size);
+                  Get_Size (KMnts (I), Mnts (I).Size_In_Frags);
+                  Get_Inode_Count (KMnts (I), Mnts (I).Inode_Count);
+                  Get_Max_Length (KMnts (I), Mnts (I).Max_File_Name);
                   Get_Free_Blocks
                      (KMnts (I), Mnts (I).Free_Blocks, Mnts (I).Free_BlocksU);
                   Get_Free_Blocks
@@ -2716,8 +2716,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
             return;
          end if;
 
-         Success := VFS.Create_Symbolic_Link
-            (CWD_FS, CWD_Ino, Path, Targ, Unsigned_32 (Mode), User);
+         VFS.Create_Symbolic_Link
+            (Key => CWD_FS,
+             Relative => CWD_Ino,
+             Path     => Path,
+             Target   => Targ,
+             Mode     => Unsigned_32 (Mode),
+             User     => User,
+             Status   => Success);
          Translate_Status (Success, 0, Returned, Errno);
       end;
    end Symlink;
@@ -5259,7 +5265,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       --  Switch to the kernel page table to make us immune to having it swept
       --  from under out feet by process cleanup.
       if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
-         Lib.Messages.Warn ("Could not switch table on thread exit");
+         Lib.Messages.Put_Line ("Could not switch table on thread exit");
       end if;
 
       --  Remove all state but the return value and keep the zombie around

@@ -51,19 +51,19 @@ package body Userland.Corefile with SPARK_Mode => Off is
       begin
          VFS.Create_Node (File_Path, VFS.File_Regular, 8#777#, Success, 0);
          if Success /= VFS.FS_Success then
-            Lib.Messages.Warn ("Could not create core file at " & File_Path);
+            Lib.Messages.Put_Line ("Could not create core file " & File_Path);
             return;
          end if;
 
          VFS.Open (File_Path, Core_FS, Core_Ino, Success, 0, True);
          if Success /= VFS.FS_Success then
-            Lib.Messages.Warn ("Could not open core file at " & File_Path);
+            Lib.Messages.Put_Line ("Could not open core file " & File_Path);
             return;
          end if;
 
          VFS.Write (Core_FS, Core_Ino, 0, Ctx_Data, Ctx_Len, Success, 0);
          if Success /= VFS.FS_Success or Ctx_Len /= Ctx_Data'Length then
-            Lib.Messages.Warn ("Could not write core file at " & File_Path);
+            Lib.Messages.Put_Line ("Could not write core file " & File_Path);
             return;
          end if;
 

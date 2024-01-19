@@ -208,7 +208,7 @@ package body VFS is
        Do_Relatime  : Boolean;
        Success      : out Boolean)
    is
-      Data : System.Address renames Mounts (Key).FS_Data;
+      Data : constant System.Address := Mounts (Key).FS_Data;
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT => EXT.Remount (Data, Do_Read_Only, Do_Relatime, Success);
@@ -216,35 +216,35 @@ package body VFS is
       end case;
    end Remount;
    ----------------------------------------------------------------------------
-   function Get_Block_Size (Key : FS_Handle) return Unsigned_64 is
+   procedure Get_Block_Size (Key : FS_Handle; Size : out Unsigned_64) is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT => return EXT.Get_Block_Size (Mounts (Key).FS_Data);
-         when others => return FAT.Get_Block_Size (Mounts (Key).FS_Data);
+         when FS_EXT => Size := EXT.Get_Block_Size (Mounts (Key).FS_Data);
+         when others => Size := FAT.Get_Block_Size (Mounts (Key).FS_Data);
       end case;
    end Get_Block_Size;
 
-   function Get_Fragment_Size (Key : FS_Handle) return Unsigned_64 is
+   procedure Get_Fragment_Size (Key : FS_Handle; Size : out Unsigned_64) is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT => return EXT.Get_Fragment_Size (Mounts (Key).FS_Data);
-         when others => return FAT.Get_Fragment_Size (Mounts (Key).FS_Data);
+         when FS_EXT => Size := EXT.Get_Fragment_Size (Mounts (Key).FS_Data);
+         when others => Size := FAT.Get_Fragment_Size (Mounts (Key).FS_Data);
       end case;
    end Get_Fragment_Size;
 
-   function Get_Size (Key : FS_Handle) return Unsigned_64 is
+   procedure Get_Size (Key : FS_Handle; Size : out Unsigned_64) is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT => return EXT.Get_Size (Mounts (Key).FS_Data);
-         when others => return FAT.Get_Size (Mounts (Key).FS_Data);
+         when FS_EXT => Size := EXT.Get_Size (Mounts (Key).FS_Data);
+         when others => Size := FAT.Get_Size (Mounts (Key).FS_Data);
       end case;
    end Get_Size;
 
-   function Get_Inode_Count (Key : FS_Handle) return Unsigned_64 is
+   procedure Get_Inode_Count (Key : FS_Handle; Count : out Unsigned_64) is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT => return EXT.Get_Inode_Count (Mounts (Key).FS_Data);
-         when others => return FAT.Get_Inode_Count (Mounts (Key).FS_Data);
+         when FS_EXT => Count := EXT.Get_Inode_Count (Mounts (Key).FS_Data);
+         when others => Count := FAT.Get_Inode_Count (Mounts (Key).FS_Data);
       end case;
    end Get_Inode_Count;
 
@@ -276,11 +276,11 @@ package body VFS is
       end case;
    end Get_Free_Inodes;
 
-   function Get_Max_Length (Key : FS_Handle) return Unsigned_64 is
+   procedure Get_Max_Length (Key : FS_Handle; Length : out Unsigned_64) is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT => return EXT.Get_Max_Length (Mounts (Key).FS_Data);
-         when others => return FAT.Get_Max_Length (Mounts (Key).FS_Data);
+         when FS_EXT => Length := EXT.Get_Max_Length (Mounts (Key).FS_Data);
+         when others => Length := FAT.Get_Max_Length (Mounts (Key).FS_Data);
       end case;
    end Get_Max_Length;
    ----------------------------------------------------------------------------
@@ -332,15 +332,15 @@ package body VFS is
       end case;
    end Create_Node;
 
-   function Create_Symbolic_Link
+   procedure Create_Symbolic_Link
       (Key      : FS_Handle;
        Relative : File_Inode_Number;
        Path     : String;
        Target   : String;
        Mode     : Unsigned_32;
-       User     : Unsigned_32) return FS_Status
+       User     : Unsigned_32;
+       Status   : out FS_Status)
    is
-      Status : FS_Status;
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
@@ -350,7 +350,6 @@ package body VFS is
          when others =>
             Status := FS_Not_Supported;
       end case;
-      return Status;
    end Create_Symbolic_Link;
 
    procedure Create_Hard_Link

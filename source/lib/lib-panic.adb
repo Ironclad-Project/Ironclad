@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Ada.Characters.Latin_1;
 with Arch.Hooks;
 with Arch.Snippets;
 with Lib.Synchronization;
@@ -24,9 +23,6 @@ package body Lib.Panic with
 is
    Panic_Mutex : aliased Synchronization.Binary_Semaphore :=
       Synchronization.Unlocked_Semaphore;
-
-   HP : constant String := Ada.Characters.Latin_1.ESC & "[31m";
-   RC : constant String := Ada.Characters.Latin_1.ESC & "[0m";
 
    procedure Hard_Panic (Message : String) is
    begin
@@ -46,7 +42,7 @@ is
       Messages.Put_Line (HP & "+++++++--+==*%%**-#   .+*-   *%%=..#%%+ " & RC);
       Messages.Put_Line (HP & "+++++++=----====-=%    -:            .- " & RC);
       Messages.Put_Line (HP & "++++++++=---=+++++%     +               " & RC);
-      Messages.Put_Line (HP & "Panic: " & Message & RC);
+      Messages.Put_Line (Panic_Header & Message & RC);
       Arch.Snippets.HCF;
    end Hard_Panic;
 end Lib.Panic;

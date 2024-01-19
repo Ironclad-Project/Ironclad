@@ -103,7 +103,7 @@ package body Devices.ATA with SPARK_Mode => Off is
       end if;
       while (Port_In (Command_Port) and 2#10000000#) /= 0 loop
          if Timeout = 100_000 then
-            Lib.Messages.Warn ("ATA drive timed out, skipping it...");
+            Lib.Messages.Put_Line ("ATA drive timed out, skipping it...");
             return null;
          end if;
          Timeout := Timeout + 1;
@@ -111,7 +111,7 @@ package body Devices.ATA with SPARK_Mode => Off is
 
       --  Check for non-standard ATAPI.
       if Port_In (LBA_Mid_Port) /= 0 or Port_In (LBA_High_Port) /= 0 then
-         Lib.Messages.Warn ("Ignoring non-standard ATAPI ATA drive");
+         Lib.Messages.Put_Line ("Ignoring non-standard ATAPI ATA drive");
          return null;
       end if;
 
@@ -120,12 +120,12 @@ package body Devices.ATA with SPARK_Mode => Off is
       loop
          Status := Port_In (Command_Port);
          if (Status and 1) /= 0 then
-            Lib.Messages.Warn ("ATA drive errored out during identify");
+            Lib.Messages.Put_Line ("ATA drive errored out during identify");
             return null;
          end if;
          exit when (Status and 2#1000#) /= 0;
          if Timeout = 100_000 then
-            Lib.Messages.Warn ("ATA drive timed out in identify");
+            Lib.Messages.Put_Line ("ATA drive timed out in identify");
             return null;
          end if;
          Timeout := Timeout + 1;
@@ -201,7 +201,7 @@ package body Devices.ATA with SPARK_Mode => Off is
 
       Port_Out (Drive.Command_Port, 16#EA#);
       if not Poll_Error (Drive.Command_Port) then
-         Lib.Messages.Warn ("ATA error while flushing");
+         Lib.Messages.Put_Line ("ATA error while flushing");
          return False;
       end if;
 
@@ -239,7 +239,7 @@ package body Devices.ATA with SPARK_Mode => Off is
       Port_Out (Drive.Command_Port, Cmd);
 
       if not Poll_Error (Drive.Command_Port) then
-         Lib.Messages.Warn ("ATA error while operating on a sector");
+         Lib.Messages.Put_Line ("ATA error while operating on a sector");
          return False;
       else
          return True;
@@ -280,7 +280,7 @@ package body Devices.ATA with SPARK_Mode => Off is
                 LBA         => Drive.Caches (Returned).LBA_Offset,
                 Data_Buffer => Drive.Caches (Returned).Data);
             if not Success then
-               Lib.Messages.Warn ("ata could not write on cache fetching!");
+               Lib.Messages.Put_Line ("ata could not write on cache fetch!");
             end if;
          end if;
 
@@ -302,7 +302,7 @@ package body Devices.ATA with SPARK_Mode => Off is
           LBA         => Drive.Caches (Returned).LBA_Offset,
           Data_Buffer => Drive.Caches (Returned).Data);
       if not Success then
-         Lib.Messages.Warn ("ata could not read on cache fetching!");
+         Lib.Messages.Put_Line ("ata could not read on cache fetch!");
       end if;
 
       return Returned;

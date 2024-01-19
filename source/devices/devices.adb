@@ -153,7 +153,8 @@ package body Devices is
    procedure List (Buffer : out Device_List; Total : out Natural) is
       Curr_Index : Natural := 0;
    begin
-      Total := 0;
+      Total  := 0;
+      Buffer := (others => Error_Handle);
 
       for I in Devices_Data'Range loop
          if Devices_Data (I).Is_Present then

@@ -64,7 +64,7 @@ begin
 
    --  Load RAM files.
    if not Devices.Ramdev.Init (Proto.RAM_Files (1 .. Proto.RAM_Files_Len)) then
-      Lib.Messages.Warn ("Could not load RAM files");
+      Lib.Messages.Put_Line ("Could not load RAM files");
    end if;
 
    --  Initialize the scheduler.
@@ -91,7 +91,7 @@ begin
       if Init_Dev /= Devices.Error_Handle then
          Devices.Fetch_Name (Init_Dev, Value, Value_Len);
       else
-         Lib.Messages.Warn ("Failed to find " & Value (1 .. Value_Len));
+         Lib.Messages.Put_Line ("Failed to find " & Value (1 .. Value_Len));
       end if;
    else
       Lib.Cmdline.Get_Parameter
@@ -101,7 +101,7 @@ begin
       Lib.Messages.Put_Line ("Mounting root " & Value (1 .. Value_Len));
       VFS.Mount (Value (1 .. Value_Len), "/", False, False, Found);
       if not Found then
-         Lib.Messages.Warn ("Failed to mount " & Value (1 .. Value_Len));
+         Lib.Messages.Put_Line ("Failed to mount " & Value (1 .. Value_Len));
       end if;
    end if;
 

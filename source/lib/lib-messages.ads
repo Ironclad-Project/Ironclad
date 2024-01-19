@@ -17,28 +17,31 @@
 with Interfaces; use Interfaces;
 with Arch.Clocks;
 with Arch.Debug;
+with Lib.Synchronization; use Lib.Synchronization;
 
 package Lib.Messages with
    Abstract_State => Message_State,
    Initializes    => Message_State
 is
+   --  Maximum length of a single log line.
+   Max_Line : constant := 80;
+
    --  Enable in-memory message logging.
    --  Until this function is called, the kernel uses a really small built-in
    --  buffer.
-   procedure Enable_Logging with Global => (In_Out => Message_State);
+   procedure Enable_Logging
+      with Pre    => not Is_Initialized,
+           Post   => Is_Initialized,
+           Global => (In_Out => Message_State);
 
-   --  Print a warning message to debug outputs and add a newline.
-   --  @param Message String to print appending a newline.
-   procedure Warn (Message : String)
-      with Global => (In_Out => (
-         Arch.Clocks.Monotonic_Clock_State,
-         Arch.Debug.Debug_State,
-         Message_State));
+   --  Header added to warning messages.
+   Warning_String : constant String := "Warning: ";
 
    --  Prints a string to debug outputs and adds a newline.
    --  @param Message String to print to append with a new line.
    procedure Put_Line (Message : String)
-      with Global => (In_Out => (
+      with Pre => Message'Length <= Max_Line - 13,
+         Global => (In_Out => (
          Arch.Clocks.Monotonic_Clock_State,
          Arch.Debug.Debug_State,
          Message_State));
@@ -47,7 +50,8 @@ is
    --  @param Buffer Buffer to store the messages.
    --  @param Length Total length in bytes of the logs, even if it doesnt fit.
    procedure Dump_Logs (Buffer : out String; Length : out Natural)
-      with Global => (In_Out => (Message_State));
+      with Pre    => Is_Initialized and Buffer'First = 1,
+           Global => (In_Out => (Message_State));
    ----------------------------------------------------------------------------
    --  Types for translation strings.
    subtype Translated_String is String (1 .. 20);
@@ -74,13 +78,28 @@ is
        Buffer  : out Translated_String;
        Length  : out Translated_Length;
        Use_Hex : Boolean := False);
+   ----------------------------------------------------------------------------
+   --  Ghost function for checking whether login was initialized.
+   function Is_Initialized return Boolean with Ghost;
 
 private
 
+   --  Buffers for holding log lines.
+   type Message_Buffer is array (Natural range <>) of String (1 .. Max_Line);
+   type Message_Buffer_Acc is access Message_Buffer (1 .. 100);
+
+   Messages_Mutex   : aliased Binary_Semaphore := Unlocked_Semaphore
+      with Part_Of => Message_State;
+   Curr_Entry       : Natural := 1
+      with Part_Of => Message_State;
+   Small_Log_Buffer : Message_Buffer (1 .. 15) := (others => (1 .. 80 => ' '))
+      with Part_Of => Message_State;
+   Log_Ring_Buffer  : Message_Buffer_Acc := null
+      with Part_Of => Message_State;
+
    subtype Timestamp_Str is String (1 .. 10);
    procedure Get_Timestamp (Timestamp : out Timestamp_Str)
-      with Global => (In_Out => (
-         Arch.Clocks.Monotonic_Clock_State,
-         Arch.Debug.Debug_State,
-         Message_State));
+      with Global => (In_Out => Arch.Clocks.Monotonic_Clock_State);
+
+   function Is_Initialized return Boolean is (Log_Ring_Buffer /= null);
 end Lib.Messages;

@@ -335,13 +335,13 @@ package body Arch.Interrupts with SPARK_Mode => Off is
 
    procedure Default_ISR_Handler is
    begin
-      Lib.Messages.Warn ("Default ISR triggered");
+      Lib.Messages.Put_Line ("Default ISR triggered");
       Arch.APIC.LAPIC_EOI;
    end Default_ISR_Handler;
 
    procedure Spurious_Handler is
    begin
-      Lib.Messages.Warn ("LAPIC Spurious interrupt occured");
+      Lib.Messages.Put_Line ("LAPIC Spurious interrupt occured");
       Arch.APIC.LAPIC_EOI;
    end Spurious_Handler;
    ----------------------------------------------------------------------------

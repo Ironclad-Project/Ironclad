@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Characters.Latin_1;
-with Lib.Synchronization; use Lib.Synchronization;
 
 package body Lib.Messages with
    Refined_State => (Message_State =>
@@ -24,31 +23,17 @@ is
    --  Unit passes GNATprove AoRTE, GNAT does not know this.
    pragma Suppress (All_Checks);
 
-   --  80 is the classical UNIX terminal column count + newline.
-   type Message_Buffer     is array (Natural range <>) of String (1 .. 80);
-   type Message_Buffer_Acc is access Message_Buffer;
-
-   Messages_Mutex   : aliased Binary_Semaphore := Unlocked_Semaphore;
-   Curr_Entry       : Natural := 1;
-   Small_Log_Buffer : Message_Buffer (1 .. 15);
-   Log_Ring_Buffer  : Message_Buffer_Acc := null;
-
    procedure Enable_Logging is
    begin
       Lib.Synchronization.Seize (Messages_Mutex);
-      Log_Ring_Buffer := new Message_Buffer (1 .. 100);
+      Log_Ring_Buffer := new Message_Buffer'(1 .. 100 => (others => ' '));
       Log_Ring_Buffer (1 .. Small_Log_Buffer'Length) := Small_Log_Buffer;
       Lib.Synchronization.Release (Messages_Mutex);
    end Enable_Logging;
 
-   procedure Warn (Message : String) is
-   begin
-      Put_Line ("Warning: " & Message);
-   end Warn;
-
    procedure Put_Line (Message : String) is
       Timestamp : String (1 .. 10);
-      Final     : String (1 .. 80) := (others => ' ');
+      Final     : String (1 .. Max_Line) := (others => ' ');
       Last_Idx  : Natural;
    begin
       Get_Timestamp (Timestamp);
@@ -82,19 +67,24 @@ is
    procedure Dump_Logs (Buffer : out String; Length : out Natural) is
       Idx : Natural := 0;
    begin
+      Lib.Synchronization.Seize (Messages_Mutex);
+
       for C of Buffer loop
          C := ' ';
       end loop;
-      Length := Log_Ring_Buffer'Length * 80;
+      Length := Log_Ring_Buffer'Length * Max_Line;
 
-      if Buffer'Length < Length then
+      if Buffer'Length < Length or Buffer'Length mod Max_Line /= 0 then
          return;
       end if;
 
       for Line of Log_Ring_Buffer.all loop
-         Buffer (Buffer'First + Idx .. Buffer'First + Idx + 79) := Line;
-         Idx := Idx + 80;
+         Buffer (Buffer'First + Idx .. Buffer'First + Idx + Max_Line - 1) :=
+            Line;
+         Idx := Idx + Max_Line;
       end loop;
+
+      Lib.Synchronization.Release (Messages_Mutex);
    end Dump_Logs;
    ----------------------------------------------------------------------------
    procedure Image

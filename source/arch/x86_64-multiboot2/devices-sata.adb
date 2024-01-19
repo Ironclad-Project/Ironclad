@@ -153,7 +153,7 @@ package body Devices.SATA with SPARK_Mode => Off is
           Is_Write    => False,
           Data_Addr   => Tmp2);
       if not Success then
-         Lib.Messages.Warn ("SATA error while issuing identify");
+         Lib.Messages.Put_Line ("SATA error while issuing identify");
          return null;
       end if;
 
@@ -283,7 +283,7 @@ package body Devices.SATA with SPARK_Mode => Off is
           Is_Write    => False,
           Data_Addr   => Unsigned_64 (IAddr - Memory.Memory_Offset));
       if not Success then
-         Lib.Messages.Warn ("SATA error while reading");
+         Lib.Messages.Put_Line ("SATA error while reading");
       end if;
       return Success;
    end Read_Sector;
@@ -305,7 +305,7 @@ package body Devices.SATA with SPARK_Mode => Off is
           Is_Write    => True,
           Data_Addr   => Unsigned_64 (IAddr - Memory.Memory_Offset));
       if not Success then
-         Lib.Messages.Warn ("SATA error while reading");
+         Lib.Messages.Put_Line ("SATA error while reading");
       end if;
       return Success;
    end Write_Sector;
@@ -334,7 +334,7 @@ package body Devices.SATA with SPARK_Mode => Off is
                 LBA         => Drive.Caches (Returned).LBA_Offset,
                 Data_Buffer => Drive.Caches (Returned).Data);
             if not Success then
-               Lib.Messages.Warn ("SATA could not write on cache fetching!");
+               Lib.Messages.Put_Line ("SATA could not write on cache fetch!");
             end if;
          end if;
 
@@ -356,7 +356,7 @@ package body Devices.SATA with SPARK_Mode => Off is
           LBA         => Drive.Caches (Returned).LBA_Offset,
           Data_Buffer => Drive.Caches (Returned).Data);
       if not Success then
-         Lib.Messages.Warn ("SATA could not read on cache fetching!");
+         Lib.Messages.Put_Line ("SATA could not read on cache fetch!");
       end if;
 
       return Returned;

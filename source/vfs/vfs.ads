@@ -175,25 +175,57 @@ package VFS is
        Success      : out Boolean)
       with Pre => Is_Initialized and Key /= Error_Handle;
    ----------------------------------------------------------------------------
-   function Get_Block_Size (Key : FS_Handle) return Unsigned_64;
+   --  Get the block size of the passed mounted FS. The unit symbolizes the
+   --  preferred IO size of the FS.
+   --  @param Key  FS Key.
+   --  @param Size Block size of the FS.
+   procedure Get_Block_Size (Key : FS_Handle; Size : out Unsigned_64)
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
-   function Get_Fragment_Size (Key : FS_Handle) return Unsigned_64;
+   --  Get the block size of the passed mounted FS. The unit symbolizes the
+   --  minimum unit of allocation of the passed FS.
+   --  @param Key  FS Key.
+   --  @param Size Fragment size of the FS.
+   procedure Get_Fragment_Size (Key : FS_Handle; Size : out Unsigned_64)
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
-   function Get_Size (Key : FS_Handle) return Unsigned_64;
+   --  Get the whole size IN FRAGMENTS of the FS.
+   --  @param Key  FS Key.
+   --  @param Size Size of the FS IN FRAGMENTS.
+   procedure Get_Size (Key : FS_Handle; Size : out Unsigned_64)
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
-   function Get_Inode_Count (Key : FS_Handle) return Unsigned_64;
+   --  Get the total inode count of the FS, allocated and unallocated.
+   --  @param Key   FS Key.
+   --  @param Count Count.
+   procedure Get_Inode_Count (Key : FS_Handle; Count : out Unsigned_64)
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
+   --  Get the total block count of the FS, allocated and unallocated.
+   --  @param Key                FS Key.
+   --  @param Free_Blocks        Free blocks for the highest priviledge level.
+   --  @param Free_Unpriviledged Free blocks for everyone.
    procedure Get_Free_Blocks
       (Key                : FS_Handle;
        Free_Blocks        : out Unsigned_64;
-       Free_Unpriviledged : out Unsigned_64);
+       Free_Unpriviledged : out Unsigned_64)
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
+   --  Get the total inode count of the FS, allocated and unallocated.
+   --  @param Key                FS Key.
+   --  @param Free_Inodes        Free inodes for the highest priviledge level.
+   --  @param Free_Unpriviledged Free inodes for everyone.
    procedure Get_Free_Inodes
       (Key                : FS_Handle;
        Free_Inodes        : out Unsigned_64;
-       Free_Unpriviledged : out Unsigned_64);
+       Free_Unpriviledged : out Unsigned_64)
+      with Pre => Is_Initialized and Key /= Error_Handle;
 
-   function Get_Max_Length (Key : FS_Handle) return Unsigned_64;
+   --  Get the total length of a file name in the FS.
+   --  @param Key    FS Key.
+   --  @param Length Maximum length of a file name.
+   procedure Get_Max_Length (Key : FS_Handle; Length : out Unsigned_64)
+      with Pre => Is_Initialized and Key /= Error_Handle;
    ----------------------------------------------------------------------------
    --  Status returned from file operations as result.
    type FS_Status is
@@ -249,14 +281,15 @@ package VFS is
    --  @param Target   Target of the symlink, it is not checked in any way.
    --  @param Mode     Mode to use for the created symlink.
    --  @param User     UID to check against, 0 for root/bypass checks.
-   --  @return Status for the operation.
-   function Create_Symbolic_Link
+   --  @param Status   Status for the operation.
+   procedure Create_Symbolic_Link
       (Key      : FS_Handle;
        Relative : File_Inode_Number;
        Path     : String;
        Target   : String;
        Mode     : Unsigned_32;
-       User     : Unsigned_32) return FS_Status
+       User     : Unsigned_32;
+       Status   : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Create a hard link inside a mount with a target.

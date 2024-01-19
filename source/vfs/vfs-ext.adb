@@ -70,7 +70,7 @@ package body VFS.EXT with SPARK_Mode => Off is
          Sup.Mounts_Since_Check > Sup.Max_Mounts_Since_Check or
          (Sup.RO_If_Not_Features and RO_Binary_Trees) /= 0;
       if Is_RO then
-         Lib.Messages.Warn ("ext will be mounted RO, consider an fsck");
+         Lib.Messages.Put_Line ("ext will be mounted RO, consider an fsck");
       end if;
 
       --  Commit to mounting.
@@ -2728,9 +2728,9 @@ package body VFS.EXT with SPARK_Mode => Off is
    begin
       case Data.Super.Error_Policy is
          when Policy_Ignore =>
-            Lib.Messages.Warn (Message);
+            Lib.Messages.Put_Line (Message);
          when Policy_Remount_RO =>
-            Lib.Messages.Warn (Message);
+            Lib.Messages.Put_Line (Message);
             Data.Is_Read_Only := True;
          when Policy_Panic =>
             Lib.Panic.Hard_Panic (Message);

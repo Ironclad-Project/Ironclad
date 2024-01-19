@@ -417,7 +417,7 @@ package body Userland.Process with SPARK_Mode => Off is
                if F.Inner_Is_Locked then
                   IPC.FileLock.Release_Lock (F.Inner_Ino_FS, F.Inner_Ino, T);
                   if not T then
-                     Lib.Messages.Warn ("Missing file lock on closure!");
+                     Lib.Messages.Put_Line ("Missing file lock on closure!");
                   end if;
                end if;
                VFS.Close (F.Inner_Ino_FS, F.Inner_Ino);

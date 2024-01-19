@@ -17,17 +17,25 @@
 with Lib.Messages;
 with Arch.Debug;
 with Arch.Clocks;
+with Ada.Characters.Latin_1;
 
 package Lib.Panic with
    Abstract_State => Panic_State,
    Initializes    => Panic_State
 is
+   --  String header and ending to be added to passed message strings.
+   HP           : constant String := Ada.Characters.Latin_1.ESC & "[31m";
+   RC           : constant String := Ada.Characters.Latin_1.ESC & "[0m";
+   Panic_Header : constant String := HP & "Panic: ";
+
    --  For situations that are too risky for recovery!
    --  @param Message Message to print before halting the system.
    procedure Hard_Panic (Message : String)
-      with Global =>
+      with Pre =>
+         Message'Length <= Messages.Max_Line - Panic_Header'Length - RC'Length,
+      Global =>
          (In_Out => (Panic_State, Arch.Debug.Debug_State,
                      Arch.Clocks.Monotonic_Clock_State,
                      Messages.Message_State)),
-           Pre => Message'Length <= 100, No_Return;
+      No_Return;
 end Lib.Panic;
