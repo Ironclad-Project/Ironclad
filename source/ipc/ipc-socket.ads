@@ -41,6 +41,9 @@ package IPC.Socket is
       (Plain_Success, --  Unconditional success.
        Is_Bad_Type,   --  A listener is needed but the socket is not one, etc.
        Would_Block);  --  The socket would block, and we don't want that.
+
+   --  Default size in bytes of a socket buffer.
+   Default_Socket_Size : constant Natural;
    ----------------------------------------------------------------------------
    --  Socket independent operations.
 
@@ -134,6 +137,12 @@ package IPC.Socket is
       (Sock             : Socket_Acc;
        Do_Receptions    : Boolean;
        Do_Transmissions : Boolean) return Boolean;
+
+   --  Get whether the socket is listening.
+   --  @param Sock Socket to check.
+   --  @return True if listening, False if not.
+   function Is_Listening (Sock : Socket_Acc) return Boolean
+      with Pre => Sock /= null;
 
    --  Make a socket into a listener, which makes the socket only able of
    --  accepting connections using Accept.
@@ -457,7 +466,7 @@ package IPC.Socket is
 
 private
 
-   Default_Socket_Size : constant := 16#2000#;
+   Default_Socket_Size : constant Natural := 16#2000#;
 
    type Socket (Dom : Domain; Typ : DataType) is record
       Mutex       : aliased Lib.Synchronization.Binary_Semaphore;

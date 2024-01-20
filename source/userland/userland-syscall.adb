@@ -5259,6 +5259,109 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Returned := Unsigned_64'Last;
       end if;
    end SHMGet;
+
+   procedure GetSockOpt
+      (Sock     : Unsigned_64;
+       Level    : Unsigned_64;
+       Opt      : Unsigned_64;
+       Addr     : Unsigned_64;
+       Len      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      pragma Unreferenced (Len);
+
+      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
+      Map   : constant       Page_Table_Acc := Get_Common_Map (Proc);
+      File  : constant File_Description_Acc := Get_File (Proc, Sock);
+      IAddr : constant      Integer_Address := Integer_Address (Addr);
+   begin
+      if File = null or else File.Description /= Description_Socket then
+         Errno := Error_Bad_File;
+         goto Generic_Error;
+      elsif Level /= SOL_SOCKET then
+         goto Invalid_Value_Error;
+      elsif not Check_Userland_Access (Map, IAddr, Unsigned_32'Size / 8) then
+         Errno := Error_Would_Fault;
+         goto Generic_Error;
+      end if;
+
+      declare
+         Val : Unsigned_32 with Import, Address => To_Address (IAddr);
+      begin
+         case Opt is
+            when SO_ACCEPTCONN =>
+               Val := (if Is_Listening (File.Inner_Socket) then 1 else 0);
+            when SO_ERROR =>
+               Val := 0;
+            when SO_SNDBUF =>
+               Val := Unsigned_32 (IPC.Socket.Default_Socket_Size);
+            when SO_TYPE =>
+               case Get_Type (File.Inner_Socket) is
+                  when Stream =>
+                     Val := SOCK_STREAM;
+                  when Datagram =>
+                     Val := SOCK_DGRAM;
+                  when Raw =>
+                     Val := SOCK_RAW;
+               end case;
+            when others =>
+               goto Invalid_Value_Error;
+         end case;
+      end;
+
+      Errno := Error_No_Error;
+      Returned := 0;
+      return;
+
+   <<Invalid_Value_Error>>
+      Errno := Error_Invalid_Value;
+   <<Generic_Error>>
+      Returned := Unsigned_64'Last;
+   end GetSockOpt;
+
+   procedure SetSockOpt
+      (Sock     : Unsigned_64;
+       Level    : Unsigned_64;
+       Opt      : Unsigned_64;
+       Addr     : Unsigned_64;
+       Len      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      pragma Unreferenced (Len);
+
+      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
+      Map   : constant       Page_Table_Acc := Get_Common_Map (Proc);
+      File  : constant File_Description_Acc := Get_File (Proc, Sock);
+      IAddr : constant      Integer_Address := Integer_Address (Addr);
+   begin
+      if File = null or else File.Description /= Description_Socket then
+         Errno := Error_Bad_File;
+         goto Generic_Error;
+      elsif Level /= SOL_SOCKET then
+         goto Invalid_Value_Error;
+      elsif not Check_Userland_Access (Map, IAddr, Unsigned_32'Size / 8) then
+         Errno := Error_Would_Fault;
+         goto Generic_Error;
+      end if;
+
+      case Opt is
+         when SO_SNDBUF =>
+            null;
+         when others =>
+            goto Invalid_Value_Error;
+      end case;
+
+      Errno := Error_No_Error;
+      Returned := 0;
+      return;
+
+   <<Invalid_Value_Error>>
+      Errno := Error_Invalid_Value;
+   <<Generic_Error>>
+      Returned := Unsigned_64'Last;
+   end SetSockOpt;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin

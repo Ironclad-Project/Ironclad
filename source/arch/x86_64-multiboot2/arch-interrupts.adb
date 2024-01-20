@@ -290,6 +290,14 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             SHMDt (State.RDI, Returned, Errno);
          when 94 =>
             SHMGet (State.RDI, State.RSI, State.RDX, Returned, Errno);
+         when 95 =>
+            GetSockOpt
+               (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
+                Returned, Errno);
+         when 96 =>
+            SetSockOpt
+               (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
+                Returned, Errno);
          when others =>
             Userland.Process.Raise_Signal
                (Local.Get_Current_Process,

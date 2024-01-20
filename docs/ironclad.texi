@@ -189,6 +189,7 @@ Syscalls
 * shmctl::                  Control a shared memory region.
 * shmdl::                   Delete a shared memory region.
 * shmget::                  Create or get a shared memory region by key.
+* getsockopt/setsockopt::   Get and set options on sockets.
 
 Filesystem support and interfaces
 
@@ -887,6 +888,10 @@ Empty.
 @ref{shmdl}.
 @item
 @ref{shmget}.
+@item
+@ref{getsockopt/setsockopt, getsockopt}.
+@item
+@ref{getsockopt/setsockopt, setsockopt}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -3775,6 +3780,64 @@ An attempt to create a public segment with an already registered key happened.
 
 @item ENOENT
 The fetched segment is not present.
+@end table
+
+@node getsockopt/setsockopt
+@section getsockopt/setsockopt
+
+@example
+#define SOL_SOCKET 1
+
+#define SO_ACCEPTCONN 1
+#define SO_ERROR      5
+#define SO_SNDBUF     13
+#define SO_TYPE       16
+
+int getsockopt(int fd, int level, int name, void *val, socklen_t *len);
+int setsockopt(int fd, int level, int name, void *val, socklen_t len);
+@end example
+
+This syscall gets or sets the option passed on @code{name} for the socket level
+passed on @code{level}, and writes or fetches data from @code{val} with the
+length passed on @code{len}.
+
+Right now, @code{SOL_SOCKET} is the only supported socket level.
+
+@code{name} can be one of:
+
+@table @code
+@item SO_ACCEPTCONN
+@code{val} will point to an @code{uint32_t}. @code{1} will be written there if
+the passed socket is listening, and @code{0} if it is not/cannot listen due to
+protocol. @code{getsockopt} only.
+
+@item SO_ERROR
+@code{val} will point to an @code{uint32_t}. The value will be written with the
+present socket error if any, or @code{0} if none are present. @code{getsockopt}
+only.
+
+@item SO_SNDBUF
+@code{val} will point to an @code{uint32_t}. If getting the value, the current
+send-buffer size will be returned, else, it setting it, the passed size will
+be used for the same buffer.
+
+@item SO_TYPE
+@code{val} will point to an @code{uint32_t}. The type of socket will be
+returned in that variable in the same format as @pxref{socket}.
+@code{getsockopt} only.
+@end table
+
+The syscall returns 0 on success or @code{-1} on failure, with the errno:
+
+@table @code
+@item EBADFD
+@code{fd} was not open, or is not a socket.
+
+@item EACCES
+@code{val} did not point to valid memory.
+
+@item EINVAL
+The passed @code{name} or @code{level} were not valid.
 @end table
 
 @node Filesystem support and interfaces

@@ -1153,6 +1153,31 @@ package Userland.Syscall is
        Flags    : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
+
+   SOL_SOCKET : constant := 1;
+
+   SO_ACCEPTCONN : constant := 1;
+   SO_ERROR      : constant := 5;
+   SO_SNDBUF     : constant := 13;
+   SO_TYPE       : constant := 16;
+
+   procedure GetSockOpt
+      (Sock     : Unsigned_64;
+       Level    : Unsigned_64;
+       Opt      : Unsigned_64;
+       Addr     : Unsigned_64;
+       Len      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure SetSockOpt
+      (Sock     : Unsigned_64;
+       Level    : Unsigned_64;
+       Opt      : Unsigned_64;
+       Addr     : Unsigned_64;
+       Len      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.

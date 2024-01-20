@@ -192,6 +192,15 @@ package body IPC.Socket with SPARK_Mode => Off is
       return Suc;
    end Shutdown;
 
+   function Is_Listening (Sock : Socket_Acc) return Boolean is
+      Result : Boolean;
+   begin
+      Lib.Synchronization.Seize (Sock.Mutex);
+      Result := Sock.Is_Listener;
+      Lib.Synchronization.Release (Sock.Mutex);
+      return Result;
+   end Is_Listening;
+
    function Listen (Sock : Socket_Acc; Backlog : Natural) return Boolean is
       pragma Unreferenced (Backlog);
    begin
