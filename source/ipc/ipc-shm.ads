@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 
-package IPC.SHM with SPARK_Mode => Off is
+package IPC.SHM is
    --  This package implements SystemV shared memory segments.
    --  Segments must be registered individually and are not freed ever, unless
    --  marked as refcounted. That is POSIX behaviour, so make sure to do so!

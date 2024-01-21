@@ -221,7 +221,7 @@ package body VFS is
    procedure Get_Block_Size (Key : FS_Handle; Size : out Unsigned_64) is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT => Size := EXT.Get_Block_Size (Mounts (Key).FS_Data);
+         when FS_EXT => EXT.Get_Block_Size (Mounts (Key).FS_Data, Size);
          when others => Size := FAT.Get_Block_Size (Mounts (Key).FS_Data);
       end case;
    end Get_Block_Size;
@@ -229,7 +229,7 @@ package body VFS is
    procedure Get_Fragment_Size (Key : FS_Handle; Size : out Unsigned_64) is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT => Size := EXT.Get_Fragment_Size (Mounts (Key).FS_Data);
+         when FS_EXT => EXT.Get_Fragment_Size (Mounts (Key).FS_Data, Size);
          when others => Size := FAT.Get_Fragment_Size (Mounts (Key).FS_Data);
       end case;
    end Get_Fragment_Size;
@@ -237,7 +237,7 @@ package body VFS is
    procedure Get_Size (Key : FS_Handle; Size : out Unsigned_64) is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT => Size := EXT.Get_Size (Mounts (Key).FS_Data);
+         when FS_EXT => EXT.Get_Size (Mounts (Key).FS_Data, Size);
          when others => Size := FAT.Get_Size (Mounts (Key).FS_Data);
       end case;
    end Get_Size;
@@ -245,7 +245,7 @@ package body VFS is
    procedure Get_Inode_Count (Key : FS_Handle; Count : out Unsigned_64) is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_EXT => Count := EXT.Get_Inode_Count (Mounts (Key).FS_Data);
+         when FS_EXT => EXT.Get_Inode_Count (Mounts (Key).FS_Data, Count);
          when others => Count := FAT.Get_Inode_Count (Mounts (Key).FS_Data);
       end case;
    end Get_Inode_Count;

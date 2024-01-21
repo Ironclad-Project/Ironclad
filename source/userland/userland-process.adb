@@ -238,14 +238,18 @@ package body Userland.Process with SPARK_Mode => Off is
          if Registry (Proc).Thread_List (I) = Thread then
             Registry (Proc).Thread_List (I) := Error_TID;
             Scheduler.Get_Runtime_Times (Thread, Temp1, Temp2, Temp3, Temp4);
-            Lib.Time.Increment
-               (Registry (Registry (Proc).Parent).Children_SSec,
-                Registry (Registry (Proc).Parent).Children_SNSec,
-                Temp1, Temp2);
-            Lib.Time.Increment
-               (Registry (Registry (Proc).Parent).Children_USec,
-                Registry (Registry (Proc).Parent).Children_UNSec,
-                Temp3, Temp4);
+            if Registry (Proc).Parent /= Error_PID and then
+               Registry (Registry (Proc).Parent) /= null
+            then
+               Lib.Time.Increment
+                  (Registry (Registry (Proc).Parent).Children_SSec,
+                   Registry (Registry (Proc).Parent).Children_SNSec,
+                   Temp1, Temp2);
+               Lib.Time.Increment
+                  (Registry (Registry (Proc).Parent).Children_USec,
+                   Registry (Registry (Proc).Parent).Children_UNSec,
+                   Temp3, Temp4);
+            end if;
             exit;
          end if;
       end loop;

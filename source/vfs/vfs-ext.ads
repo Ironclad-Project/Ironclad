@@ -1,5 +1,5 @@
 --  vfs-ext.ads: Linux Extended FS driver.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -32,13 +32,13 @@ package VFS.EXT is
 
    procedure Unmount (FS : in out System.Address);
    ----------------------------------------------------------------------------
-   function Get_Block_Size (FS : System.Address) return Unsigned_64;
+   procedure Get_Block_Size (FS : System.Address; Size : out Unsigned_64);
 
-   function Get_Fragment_Size (FS : System.Address) return Unsigned_64;
+   procedure Get_Fragment_Size (FS : System.Address; Size : out Unsigned_64);
 
-   function Get_Size (FS : System.Address) return Unsigned_64;
+   procedure Get_Size (FS : System.Address; Size : out Unsigned_64);
 
-   function Get_Inode_Count (FS : System.Address) return Unsigned_64;
+   procedure Get_Inode_Count (FS : System.Address; Count : out Unsigned_64);
 
    procedure Get_Free_Blocks
       (FS                 : System.Address;

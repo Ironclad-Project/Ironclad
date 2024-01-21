@@ -33,6 +33,7 @@ package Devices is
    --  Example for the string version: 123e4567-e89b-12d3-a456-426614174000.
    type UUID is array (1 .. 16) of Unsigned_8;
    subtype UUID_String is String (1 .. 36);
+   Zero_UUID : constant UUID := (others => 0);
 
    --  Data that defines a device.
    type Resource is record
@@ -107,7 +108,7 @@ package Devices is
    --  @param ID UUID to search.
    --  @return A handle on success, or Error_Handle on failure.
    function Fetch (ID : UUID) return Device_Handle
-      with Pre => ((Is_Initialized = True) and ID /= (1 .. 16 => 0));
+      with Pre => Is_Initialized;
 
    --  Fetch a device by string representation of a numeric UUID.
    --  @param ID UUID to search.
@@ -130,7 +131,8 @@ package Devices is
    --  List all devices registered.
    --  @param Buffer Buffer to write the devices.
    --  @param Total  Returned count of devices, even if it does not fit.
-   procedure List (Buffer : out Device_List; Total : out Natural);
+   procedure List (Buffer : out Device_List; Total : out Natural)
+      with Pre => Is_Initialized;
 
    --  Ghost function for checking whether the device handling is initialized.
    function Is_Initialized return Boolean with Ghost;

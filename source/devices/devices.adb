@@ -86,17 +86,20 @@ package body Devices is
 
    function Fetch (ID : UUID) return Device_Handle is
    begin
-      for I in Devices_Data'Range loop
-         if Devices_Data (I).Is_Present and Devices_Data (I).Contents.ID = ID
-         then
-            return I;
-         end if;
-      end loop;
+      if ID /= Zero_UUID then
+         for I in Devices_Data'Range loop
+            if Devices_Data (I).Is_Present and
+               Devices_Data (I).Contents.ID = ID
+            then
+               return I;
+            end if;
+         end loop;
+      end if;
       return Error_Handle;
    end Fetch;
 
    function Fetch_UUID (ID : UUID_String) return Device_Handle is
-      Result   : UUID;
+      Result   : UUID := Zero_UUID;
       Returned : Device_Handle;
    begin
       --  UUID string formats are pretty messy. Representation is integer
@@ -157,6 +160,7 @@ package body Devices is
       Buffer := (others => Error_Handle);
 
       for I in Devices_Data'Range loop
+         pragma Loop_Invariant (Total <= Devices_Data'Length);
          if Devices_Data (I).Is_Present then
             Total := Total + 1;
             if Curr_Index < Buffer'Length then

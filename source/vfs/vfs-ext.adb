@@ -1,5 +1,5 @@
 --  vfs-ext.adb: Linux Extended FS driver.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -138,45 +138,37 @@ package body VFS.EXT with SPARK_Mode => Off is
       FS := System.Null_Address;
    end Unmount;
    ----------------------------------------------------------------------------
-   function Get_Block_Size (FS : System.Address) return Unsigned_64 is
+   procedure Get_Block_Size (FS : System.Address; Size : out Unsigned_64) is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Ret  : Unsigned_64;
    begin
       Lib.Synchronization.Seize (Data.Mutex);
-      Ret := Unsigned_64 (Data.Block_Size);
+      Size := Unsigned_64 (Data.Block_Size);
       Lib.Synchronization.Release (Data.Mutex);
-      return Ret;
    end Get_Block_Size;
 
-   function Get_Fragment_Size (FS : System.Address) return Unsigned_64 is
+   procedure Get_Fragment_Size (FS : System.Address; Size : out Unsigned_64) is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Ret  : Unsigned_64;
    begin
       Lib.Synchronization.Seize (Data.Mutex);
-      Ret := Unsigned_64 (Data.Fragment_Size);
+      Size := Unsigned_64 (Data.Fragment_Size);
       Lib.Synchronization.Release (Data.Mutex);
-      return Ret;
    end Get_Fragment_Size;
 
-   function Get_Size (FS : System.Address) return Unsigned_64 is
-      Data   : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Result : Unsigned_64;
+   procedure Get_Size (FS : System.Address; Size : out Unsigned_64) is
+      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
       Lib.Synchronization.Seize (Data.Mutex);
-      Result := Unsigned_64 (Data.Super.Block_Count *
+      Size := Unsigned_64 (Data.Super.Block_Count *
          Data.Block_Size / Data.Fragment_Size);
       Lib.Synchronization.Release (Data.Mutex);
-      return Result;
    end Get_Size;
 
-   function Get_Inode_Count (FS : System.Address) return Unsigned_64 is
-      Data   : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Result : Unsigned_64;
+   procedure Get_Inode_Count (FS : System.Address; Count : out Unsigned_64) is
+      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
       Lib.Synchronization.Seize (Data.Mutex);
-      Result := Unsigned_64 (Data.Super.Inode_Count);
+      Count := Unsigned_64 (Data.Super.Inode_Count);
       Lib.Synchronization.Release (Data.Mutex);
-      return Result;
    end Get_Inode_Count;
 
    procedure Get_Free_Blocks

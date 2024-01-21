@@ -129,7 +129,7 @@ package body IPC.SignalPost is
       Data (Data'First + 16) := Boolean'Pos (Sigs (Signal_Pollable));
       Data (Data'First + 17) := Boolean'Pos (Sigs (Signal_Bad_Syscall));
       Data (Data'First + 18) := Boolean'Pos (Sigs (Signal_Tracepoint));
-      Data (Data'First + 29) := Boolean'Pos (Sigs (Signal_Urgent));
+      Data (Data'First + 19) := Boolean'Pos (Sigs (Signal_Urgent));
       Data (Data'First + 20) := Boolean'Pos (Sigs (Signal_Virtual_Timer));
       Data (Data'First + 21) := Boolean'Pos (Sigs (Signal_CPU_Exceeded));
       Data (Data'First + 22) := Boolean'Pos (Sigs (Signal_File_Size_Exceeded));
