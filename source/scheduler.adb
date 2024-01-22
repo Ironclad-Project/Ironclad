@@ -1,5 +1,5 @@
 --  scheduler.adb: Thread scheduler.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -54,6 +54,8 @@ package body Scheduler with SPARK_Mode => Off is
    type Thread_Info is record
       Is_Present      : Boolean with Atomic;
       Is_Running      : Boolean with Atomic;
+      Path            : String (1 .. 20);
+      Path_Len        : Natural range 0 .. 20;
       Nice            : Niceness;
       Cluster         : TCID;
       TCB_Pointer     : System.Address;
@@ -318,6 +320,8 @@ package body Scheduler with SPARK_Mode => Off is
 
       Thread_Pool (New_TID).Is_Present := True;
       Thread_Pool (New_TID).Is_Running := False;
+      Thread_Pool (New_TID).Path := (others => ' ');
+      Thread_Pool (New_TID).Path_Len := 0;
       Thread_Pool (New_TID).Nice := 0;
       Thread_Pool (New_TID).Cluster := Cluster;
       Thread_Pool (New_TID).PageMap := Map;
@@ -535,6 +539,31 @@ package body Scheduler with SPARK_Mode => Off is
    begin
       Thread_Pool (Thread).Nice := Nice;
    end Set_Niceness;
+
+   procedure Get_Name (Thread : TID; Name : out String; Len : out Natural) is
+   begin
+      if Name'Length >= Thread_Pool (Thread).Path_Len and
+         Thread_Pool (Thread).Path_Len /= 0
+      then
+         Name (Name'First .. Name'First + Thread_Pool (Thread).Path_Len - 1) :=
+            Thread_Pool (Thread).Path (1 .. Thread_Pool (Thread).Path_Len);
+         Len := Thread_Pool (Thread).Path_Len;
+      else
+         Name := (others => ' ');
+         Len  := 0;
+      end if;
+   end Get_Name;
+
+   procedure Set_Name (Thread : TID; Name : String; Success : out Boolean) is
+   begin
+      if Name'Length <= Thread_Pool (Thread).Path'Length then
+         Thread_Pool (Thread).Path (1 .. Name'Length) := Name;
+         Thread_Pool (Thread).Path_Len                := Name'Length;
+         Success := True;
+      else
+         Success := False;
+      end if;
+   end Set_Name;
    ----------------------------------------------------------------------------
    procedure Get_Load_Averages (Avg_1, Avg_5, Avg_15 : out Unsigned_32) is
    begin

@@ -1178,6 +1178,20 @@ package Userland.Syscall is
        Len      : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
+
+   procedure Get_Thread_Name
+      (TID      : Unsigned_64;
+       Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure Set_Thread_Name
+      (TID      : Unsigned_64;
+       Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.

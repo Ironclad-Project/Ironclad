@@ -1,5 +1,5 @@
 --  scheduler.ads: Thread scheduler.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -114,6 +114,9 @@ package Scheduler is
 
    function Get_Niceness (Thread : TID) return Niceness;
    procedure Set_Niceness (Thread : TID; Nice : Niceness);
+
+   procedure Get_Name (Thread : TID; Name : out String; Len : out Natural);
+   procedure Set_Name (Thread : TID; Name : String; Success : out Boolean);
    ----------------------------------------------------------------------------
    --  Get the number of processes set to run over various periods of time.
    --  @param Avg_1  1 minute average  * 100.

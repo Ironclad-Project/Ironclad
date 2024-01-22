@@ -190,6 +190,7 @@ Syscalls
 * shmdl::                   Delete a shared memory region.
 * shmget::                  Create or get a shared memory region by key.
 * getsockopt/setsockopt::   Get and set options on sockets.
+* gettidid/settidid::       Get and set TID IDs.
 
 Filesystem support and interfaces
 
@@ -892,6 +893,10 @@ Empty.
 @ref{getsockopt/setsockopt, getsockopt}.
 @item
 @ref{getsockopt/setsockopt, setsockopt}.
+@item
+@ref{gettidid/settidid, gettidid}.
+@item
+@ref{gettidid/settidid, settidid}.
 @end enumerate
 
 @subsection aarch64-stivale2
@@ -3838,6 +3843,29 @@ The syscall returns 0 on success or @code{-1} on failure, with the errno:
 
 @item EINVAL
 The passed @code{name} or @code{level} were not valid.
+@end table
+
+@node gettidid/settidid
+@section gettidid/settidid
+
+@example
+int gettidid(int tid, char *id, size_t size);
+int settidid(int tid, char *id, size_t size);
+@end example
+
+This syscall gets or sets the passed thread's ID. An ID is an array associated
+with a thread for debug purposes. A thread is given no ID at creation, and
+fetching it will fail. The ID is a C-style string.
+
+These syscalls returns 0 on success or @code{-1} on failure, with the errno:
+
+@table @code
+@item EINVAL
+The passed buffers were either too big for setting, or to small for fetching
+the ID, or the passed thread is not valid.
+
+@item EFAULT
+The passed buffers were pointing to invalid memory.
 @end table
 
 @node Filesystem support and interfaces

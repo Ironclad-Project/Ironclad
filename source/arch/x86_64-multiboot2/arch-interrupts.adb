@@ -298,6 +298,10 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             SetSockOpt
                (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
                 Returned, Errno);
+         when 97 =>
+            Get_Thread_Name (State.RDI, State.RSI, State.RDX, Returned, Errno);
+         when 98 =>
+            Set_Thread_Name (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when others =>
             Userland.Process.Raise_Signal
                (Local.Get_Current_Process,

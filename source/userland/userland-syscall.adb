@@ -5362,6 +5362,87 @@ package body Userland.Syscall with SPARK_Mode => Off is
    <<Generic_Error>>
       Returned := Unsigned_64'Last;
    end SetSockOpt;
+
+   procedure Get_Thread_Name
+      (TID      : Unsigned_64;
+       Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      Map   : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      Th    : constant   Scheduler.TID := Scheduler.Convert (Natural (TID));
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+   begin
+      if not Check_Userland_Access (Map, IAddr, Length) then
+         Errno := Error_Would_Fault;
+         goto Generic_Error;
+      elsif Length >= Unsigned_64 (Natural'Last) then
+         goto Invalid_Value_Error;
+      end if;
+
+      declare
+         Ret : Natural;
+         Str : String (1 .. Natural (Length))
+            with Import, Address => To_Address (IAddr);
+      begin
+         Scheduler.Get_Name (Th, Str, Ret);
+         if Ret /= 0 and Ret < Str'Length then
+            Str (Ret + 1) := Ada.Characters.Latin_1.NUL;
+            Returned      := 0;
+            Errno         := Error_No_Error;
+         else
+            goto Invalid_Value_Error;
+         end if;
+         return;
+      end;
+
+   <<Invalid_Value_Error>>
+      Errno := Error_Invalid_Value;
+   <<Generic_Error>>
+      Returned := Unsigned_64'Last;
+   end Get_Thread_Name;
+
+   procedure Set_Thread_Name
+      (TID      : Unsigned_64;
+       Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      Map   : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      Th    : constant   Scheduler.TID := Scheduler.Convert (Natural (TID));
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+   begin
+      if not Check_Userland_Access (Map, IAddr, Length) then
+         Errno := Error_Would_Fault;
+         goto Generic_Error;
+      elsif Length >= Unsigned_64 (Natural'Last) then
+         goto Invalid_Value_Error;
+      end if;
+
+      declare
+         Suc : Boolean;
+         Str : String (1 .. Natural (Length))
+            with Import, Address => To_Address (IAddr);
+      begin
+         Scheduler.Set_Name (Th, Str, Suc);
+         if Suc then
+            Returned := 0;
+            Errno    := Error_No_Error;
+         else
+            goto Invalid_Value_Error;
+         end if;
+         return;
+      end;
+
+   <<Invalid_Value_Error>>
+      Errno := Error_Invalid_Value;
+   <<Generic_Error>>
+      Returned := Unsigned_64'Last;
+   end Set_Thread_Name;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
