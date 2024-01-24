@@ -1,5 +1,5 @@
 --  ipc-pty.adb: PTY creation and management.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -38,20 +38,24 @@ package body IPC.PTY is
       Lib.Synchronization.Release (Tracked_Lock);
 
       return new Inner'
-         (Primary_Mutex     => Lib.Synchronization.Unlocked_Semaphore,
-          Secondary_Mutex   => Lib.Synchronization.Unlocked_Semaphore,
-          Global_Data_Mutex => Lib.Synchronization.Unlocked_Semaphore,
-          Primary_Block     => True,
-          Secondary_Block   => True,
-          Name_Index        => Name_Index,
-          Term_Info         => (0, 0, 0, Modes, (others => 0), 0, 0),
-          Term_Size         => (others => 0),
-          Was_Closed        => False,
-          Termios_Changed   => False,
-          Primary_Length    => 0,
-          Secondary_Length  => 0,
-          Primary_Data      => (others => 0),
-          Secondary_Data    => (others => 0));
+         (Primary_Mutex      => Lib.Synchronization.Unlocked_Semaphore,
+          Secondary_Mutex    => Lib.Synchronization.Unlocked_Semaphore,
+          Global_Data_Mutex  => Lib.Synchronization.Unlocked_Semaphore,
+          Primary_Block      => True,
+          Secondary_Block    => True,
+          Primary_Read       => True,
+          Primary_Transmit   => True,
+          Secondary_Read     => True,
+          Secondary_Transmit => True,
+          Name_Index         => Name_Index,
+          Term_Info          => (0, 0, 0, Modes, (others => 0), 0, 0),
+          Term_Size          => (others => 0),
+          Was_Closed         => False,
+          Termios_Changed    => False,
+          Primary_Length     => 0,
+          Secondary_Length   => 0,
+          Primary_Data       => (others => 0),
+          Secondary_Data     => (others => 0));
    end Create;
 
    procedure Close (Closed : in out Inner_Acc) is
@@ -78,7 +82,8 @@ package body IPC.PTY is
    begin
       Read_From_End
          (To_Read.Primary_Mutex'Access, To_Read.Primary_Length'Access,
-          To_Read.Primary_Data'Access, To_Read.Primary_Block, Data, Ret_Count);
+          To_Read.Primary_Data'Access, To_Read.Primary_Block,
+          To_Read.Primary_Read, Data, Ret_Count);
       Success := PTY_Success;
    end Read_Primary;
 
@@ -91,8 +96,8 @@ package body IPC.PTY is
    begin
       Write_To_End
          (To_Write.Secondary_Mutex'Access, To_Write.Secondary_Length'Access,
-          To_Write.Secondary_Data'Access, To_Write.Primary_Block, Data,
-          Ret_Count);
+          To_Write.Secondary_Data'Access, To_Write.Primary_Block,
+          To_Write.Primary_Transmit, Data, Ret_Count);
       Success := PTY_Success;
    end Write_Primary;
 
@@ -105,8 +110,8 @@ package body IPC.PTY is
    begin
       Read_From_End
          (To_Read.Secondary_Mutex'Access, To_Read.Secondary_Length'Access,
-          To_Read.Secondary_Data'Access, To_Read.Secondary_Block, Data,
-          Ret_Count);
+          To_Read.Secondary_Data'Access, To_Read.Secondary_Block,
+          To_Read.Secondary_Read, Data, Ret_Count);
       Success := PTY_Success;
    end Read_Secondary;
 
@@ -119,8 +124,8 @@ package body IPC.PTY is
    begin
       Write_To_End
          (To_Write.Primary_Mutex'Access, To_Write.Primary_Length'Access,
-          To_Write.Primary_Data'Access, To_Write.Secondary_Block, Data,
-          Ret_Count);
+          To_Write.Primary_Data'Access, To_Write.Secondary_Block,
+          To_Write.Secondary_Transmit, Data, Ret_Count);
       Success := PTY_Success;
    end Write_Secondary;
 
@@ -225,17 +230,102 @@ package body IPC.PTY is
             Buffer (Buffer'Last - Buffer_Len + 1 .. Buffer'Last);
       end if;
    end Get_Name;
+
+   procedure Flush_Primary (P : Inner_Acc; To_Read, To_Transmit : Boolean) is
+   begin
+      if To_Read then
+         Lib.Synchronization.Seize (P.Primary_Mutex);
+         P.Primary_Data   := (others => 0);
+         P.Primary_Length := 0;
+         Lib.Synchronization.Release (P.Primary_Mutex);
+      end if;
+      if To_Transmit then
+         Lib.Synchronization.Seize (P.Secondary_Mutex);
+         P.Secondary_Data   := (others => 0);
+         P.Secondary_Length := 0;
+         Lib.Synchronization.Release (P.Secondary_Mutex);
+      end if;
+   end Flush_Primary;
+
+   procedure Flush_Secondary (P : Inner_Acc; To_Read, To_Transmit : Boolean) is
+   begin
+      if To_Read then
+         Lib.Synchronization.Seize (P.Secondary_Mutex);
+         P.Secondary_Data   := (others => 0);
+         P.Secondary_Length := 0;
+         Lib.Synchronization.Release (P.Secondary_Mutex);
+      end if;
+      if To_Transmit then
+         Lib.Synchronization.Seize (P.Primary_Mutex);
+         P.Primary_Data   := (others => 0);
+         P.Primary_Length := 0;
+         Lib.Synchronization.Release (P.Primary_Mutex);
+      end if;
+   end Flush_Secondary;
+
+   procedure Start_Primary (P : Inner_Acc; To_Read, To_Transmit : Boolean) is
+   begin
+      Lib.Synchronization.Seize (P.Global_Data_Mutex);
+      if To_Read then
+         P.Primary_Read := True;
+      end if;
+      if To_Transmit then
+         P.Primary_Transmit := True;
+      end if;
+      Lib.Synchronization.Release (P.Global_Data_Mutex);
+   end Start_Primary;
+
+   procedure Start_Secondary (P : Inner_Acc; To_Read, To_Transmit : Boolean) is
+   begin
+      Lib.Synchronization.Seize (P.Global_Data_Mutex);
+      if To_Read then
+         P.Secondary_Read := True;
+      end if;
+      if To_Transmit then
+         P.Secondary_Transmit := True;
+      end if;
+      Lib.Synchronization.Release (P.Global_Data_Mutex);
+   end Start_Secondary;
+
+   procedure Stop_Primary (P : Inner_Acc; To_Read, To_Transmit : Boolean) is
+   begin
+      Lib.Synchronization.Seize (P.Global_Data_Mutex);
+      if To_Read then
+         P.Primary_Read := False;
+      end if;
+      if To_Transmit then
+         P.Primary_Transmit := False;
+      end if;
+      Lib.Synchronization.Release (P.Global_Data_Mutex);
+   end Stop_Primary;
+
+   procedure Stop_Secondary (P : Inner_Acc; To_Read, To_Transmit : Boolean) is
+   begin
+      Lib.Synchronization.Seize (P.Global_Data_Mutex);
+      if To_Read then
+         P.Secondary_Read := False;
+      end if;
+      if To_Transmit then
+         P.Secondary_Transmit := False;
+      end if;
+      Lib.Synchronization.Release (P.Global_Data_Mutex);
+   end Stop_Secondary;
    ----------------------------------------------------------------------------
    procedure Read_From_End
       (End_Mutex   : access Lib.Synchronization.Binary_Semaphore;
        Inner_Len   : access Data_Length;
        Inner_Data  : access TTY_Data;
        Is_Blocking : Boolean;
+       Is_Able_To  : Boolean;
        Data        : out Devices.Operation_Data;
        Ret_Count   : out Natural)
    is
    begin
       Data := (others => 0);
+      if not Is_Able_To then
+         Ret_Count := 0;
+         return;
+      end if;
 
       if Is_Blocking then
          loop
@@ -285,11 +375,17 @@ package body IPC.PTY is
        Inner_Len   : access Data_Length;
        Inner_Data  : access TTY_Data;
        Is_Blocking : Boolean;
+       Is_Able_To  : Boolean;
        Data        : Devices.Operation_Data;
        Ret_Count   : out Natural)
    is
       Final : Natural;
    begin
+      if not Is_Able_To then
+         Ret_Count := 0;
+         return;
+      end if;
+
       if Is_Blocking then
          loop
             if Inner_Len.all /= Inner_Data'Length then

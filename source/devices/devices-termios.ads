@@ -58,11 +58,24 @@ package Devices.TermIOs is
       Y_Pixels : Unsigned_16;
    end record;
 
+   --  Arguments for TCFLSH.
+   TCIFLUSH  : constant := 0; --  Flush only received and not read.
+   TCOFLUSH  : constant := 1; --  Flush only written and not read.
+   TCIOFLUSH : constant := 2; --  Do both!
+
+   --  Arguments for TCXONC.
+   TCOOFF : constant := 0; --  Suspend output.
+   TCOON  : constant := 1; --  Restart suspended output.
+   TCIOFF : constant := 2; --  Suspend transmitting.
+   TCION  : constant := 3; --  Restart transmitting.
+
    --  Standard ioctls for devices implementing termios.
    TCGETS     : constant := 16#5401#;
    TCSETS     : constant := 16#5402#;
    TCSETSW    : constant := 16#5403#;
    TCSETSF    : constant := 16#5404#;
+   TCXONC     : constant := 16#540A#; --  Set flow conditions.
+   TCFLSH     : constant := 16#540B#; --  Flush pending data as described.
    TIOCGWINSZ : constant := 16#5413#;
    TIOCSWINSZ : constant := 16#5414#;
 end Devices.TermIOs;

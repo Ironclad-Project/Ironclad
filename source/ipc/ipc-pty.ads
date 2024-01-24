@@ -1,5 +1,5 @@
 --  ipc-pty.ads: PTY creation and management.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -129,6 +129,30 @@ package IPC.PTY is
    procedure Get_Name (P : Inner_Acc; Str : out String; Len : out Natural)
       with Pre => Is_Valid (P);
 
+   --  Flush the pending data to read or write of the primary end.
+   procedure Flush_Primary (P : Inner_Acc; To_Read, To_Transmit : Boolean)
+      with Pre => Is_Valid (P);
+
+   --  Flush the pending data to read or write of the secondary end.
+   procedure Flush_Secondary (P : Inner_Acc; To_Read, To_Transmit : Boolean)
+      with Pre => Is_Valid (P);
+
+   --  Flush the pending data to read or write of the secondary end.
+   procedure Start_Primary (P : Inner_Acc; To_Read, To_Transmit : Boolean)
+      with Pre => Is_Valid (P);
+
+   --  Flush the pending data to read or write of the secondary end.
+   procedure Start_Secondary (P : Inner_Acc; To_Read, To_Transmit : Boolean)
+      with Pre => Is_Valid (P);
+
+   --  Flush the pending data to read or write of the secondary end.
+   procedure Stop_Primary (P : Inner_Acc; To_Read, To_Transmit : Boolean)
+      with Pre => Is_Valid (P);
+
+   --  Flush the pending data to read or write of the secondary end.
+   procedure Stop_Secondary (P : Inner_Acc; To_Read, To_Transmit : Boolean)
+      with Pre => Is_Valid (P);
+
    --  Ghost function for checking whether a PTY is properly initialized.
    function Is_Valid (P : Inner_Acc) return Boolean with Ghost;
 
@@ -137,20 +161,24 @@ private
    subtype Data_Length is Natural range 0 .. Arch.MMU.Page_Size;
    subtype TTY_Data    is Devices.Operation_Data (1 .. Arch.MMU.Page_Size);
    type Inner is record
-      Primary_Mutex     : aliased Lib.Synchronization.Binary_Semaphore;
-      Secondary_Mutex   : aliased Lib.Synchronization.Binary_Semaphore;
-      Global_Data_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
-      Primary_Block     : Boolean;
-      Secondary_Block   : Boolean;
-      Name_Index        : Natural;
-      Term_Info         : Devices.TermIOs.Main_Data;
-      Term_Size         : Devices.TermIOs.Win_Size;
-      Was_Closed        : Boolean;
-      Termios_Changed   : Boolean;
-      Primary_Length    : aliased Data_Length;
-      Secondary_Length  : aliased Data_Length;
-      Primary_Data      : aliased TTY_Data;
-      Secondary_Data    : aliased TTY_Data;
+      Primary_Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
+      Secondary_Mutex    : aliased Lib.Synchronization.Binary_Semaphore;
+      Global_Data_Mutex  : aliased Lib.Synchronization.Binary_Semaphore;
+      Primary_Block      : Boolean;
+      Secondary_Block    : Boolean;
+      Primary_Read       : Boolean;
+      Primary_Transmit   : Boolean;
+      Secondary_Read     : Boolean;
+      Secondary_Transmit : Boolean;
+      Name_Index         : Natural;
+      Term_Info          : Devices.TermIOs.Main_Data;
+      Term_Size          : Devices.TermIOs.Win_Size;
+      Was_Closed         : Boolean;
+      Termios_Changed    : Boolean;
+      Primary_Length     : aliased Data_Length;
+      Secondary_Length   : aliased Data_Length;
+      Primary_Data       : aliased TTY_Data;
+      Secondary_Data     : aliased TTY_Data;
    end record;
 
    function Is_Valid (P : Inner_Acc) return Boolean is (P /= null);
@@ -160,6 +188,7 @@ private
        Inner_Len   : access Data_Length;
        Inner_Data  : access TTY_Data;
        Is_Blocking : Boolean;
+       Is_Able_To  : Boolean;
        Data        : out Devices.Operation_Data;
        Ret_Count   : out Natural);
 
@@ -168,6 +197,7 @@ private
        Inner_Len   : access Data_Length;
        Inner_Data  : access TTY_Data;
        Is_Blocking : Boolean;
+       Is_Able_To  : Boolean;
        Data        : Devices.Operation_Data;
        Ret_Count   : out Natural);
 end IPC.PTY;

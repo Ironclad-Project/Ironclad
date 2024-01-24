@@ -1232,9 +1232,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Succ := False;
             end if;
          when Description_Primary_PTY =>
-            PTY_IOCTL (File.Inner_Primary_PTY, Request, S_Arg, Succ);
+            PTY_IOCTL (File.Inner_Primary_PTY, True, Request, S_Arg, Succ);
          when Description_Secondary_PTY =>
-            PTY_IOCTL (File.Inner_Secondary_PTY, Request, S_Arg, Succ);
+            PTY_IOCTL (File.Inner_Secondary_PTY, False, Request, S_Arg, Succ);
          when others =>
             Succ := False;
       end case;
@@ -5739,24 +5739,63 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Execute_MAC_Failure;
 
    procedure PTY_IOCTL
-      (P        : IPC.PTY.Inner_Acc;
-       Request  : Unsigned_64;
-       Argument : System.Address;
-       Success  : out Boolean)
+      (P          : IPC.PTY.Inner_Acc;
+       Is_Primary : Boolean;
+       Request    : Unsigned_64;
+       Argument   : System.Address;
+       Success    : out Boolean)
    is
+      use TermIOs;
+
       Result_Info : TermIOs.Main_Data with Import, Address => Argument;
       Result_Size : TermIOs.Win_Size  with Import, Address => Argument;
+      Action      :          Integer  with Import, Address => Argument;
+      Do_R, Do_T  :          Boolean;
    begin
       Success := True;
       case Request is
-         when TermIOs.TCGETS =>
+         when TCGETS =>
             IPC.PTY.Get_TermIOs (P, Result_Info);
-         when TermIOs.TCSETS | TermIOs.TCSETSW | TermIOs.TCSETSF =>
+         when TCSETS | TCSETSW | TCSETSF =>
             IPC.PTY.Set_TermIOs (P, Result_Info);
-         when TermIOs.TIOCGWINSZ =>
+         when TIOCGWINSZ =>
             IPC.PTY.Get_WinSize (P, Result_Size);
-         when TermIOs.TIOCSWINSZ =>
+         when TIOCSWINSZ =>
             IPC.PTY.Set_WinSize (P, Result_Size);
+         when TCFLSH =>
+            case Action is
+               when TCIFLUSH | TCOFLUSH | TCIOFLUSH =>
+                  Do_R := Action = TCIFLUSH or Action = TCIOFLUSH;
+                  Do_T := Action = TCOFLUSH or Action = TCIOFLUSH;
+                  if Is_Primary then
+                     IPC.PTY.Flush_Primary (P, Do_R, Do_T);
+                  else
+                     IPC.PTY.Flush_Secondary (P, Do_R, Do_T);
+                  end if;
+               when others =>
+                  Success := False;
+            end case;
+         when TCXONC =>
+            case Action is
+               when TCOOFF | TCIOFF =>
+                  Do_R := Action = TCOOFF;
+                  Do_T := Action = TCIOFF;
+                  if Is_Primary then
+                     IPC.PTY.Stop_Primary (P, Do_R, Do_T);
+                  else
+                     IPC.PTY.Stop_Secondary (P, Do_R, Do_T);
+                  end if;
+               when TCOON | TCION =>
+                  Do_R := Action = TCOON;
+                  Do_T := Action = TCION;
+                  if Is_Primary then
+                     IPC.PTY.Start_Primary (P, Do_R, Do_T);
+                  else
+                     IPC.PTY.Start_Secondary (P, Do_R, Do_T);
+                  end if;
+               when others =>
+                  Success := False;
+            end case;
          when others =>
             Success := False;
       end case;
