@@ -17,7 +17,7 @@
 with Arch.Snippets;
 with Lib.Panic;
 
-package body Arch.Power with SPARK_Mode => Off is
+package body Arch.Power is
    --  TODO: Use the correct ACPI versions, these are pretty basic, possibly
    --  non functional, inferior methods. I just do not wanna sort out ACPI
    --  right now.

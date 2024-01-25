@@ -27,7 +27,7 @@ with Lib;
 with Lib.Time;
 with Ada.Unchecked_Deallocation;
 
-package body Scheduler with SPARK_Mode => Off is
+package body Scheduler is
    Kernel_Stack_Size : constant := 16#2000#;
    type Thread_Stack     is array (Natural range <>) of Unsigned_8;
    type Thread_Stack_64  is array (Natural range <>) of Unsigned_64;
@@ -126,8 +126,13 @@ package body Scheduler with SPARK_Mode => Off is
    end Init;
 
    procedure Idle_Core is
+      To_Test : Boolean;
    begin
-      while not Is_Initialized loop Arch.Snippets.Pause; end loop;
+      loop
+         To_Test := Is_Initialized;
+         exit when To_Test;
+         Arch.Snippets.Pause;
+      end loop;
       Arch.Local.Reschedule_ASAP;
       Waiting_Spot;
    end Idle_Core;

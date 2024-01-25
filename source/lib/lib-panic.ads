@@ -34,8 +34,7 @@ is
       with Pre =>
          Message'Length <= Messages.Max_Line - Panic_Header'Length - RC'Length,
       Global =>
-         (In_Out => (Panic_State, Arch.Debug.Debug_State,
-                     Arch.Clocks.Monotonic_Clock_State,
+         (In_Out => (Panic_State, Arch.Clocks.Monotonic_Clock_State,
                      Messages.Message_State)),
       No_Return;
 end Lib.Panic;

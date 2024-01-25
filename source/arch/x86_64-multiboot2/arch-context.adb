@@ -19,7 +19,7 @@ with System.Machine_Code;    use System.Machine_Code;
 with Arch.GDT;
 with Arch.CPU;
 
-package body Arch.Context with SPARK_Mode => Off is
+package body Arch.Context is
    procedure Init_GP_Context
       (Ctx        : out GP_Context;
        Stack      : System.Address;

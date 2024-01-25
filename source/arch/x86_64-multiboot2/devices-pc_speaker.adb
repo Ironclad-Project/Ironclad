@@ -16,7 +16,7 @@
 
 with Arch.Snippets; use Arch.Snippets;
 
-package body Devices.PC_Speaker with SPARK_Mode => Off is
+package body Devices.PC_Speaker is
    function Init return Boolean is
       Success : Boolean;
    begin

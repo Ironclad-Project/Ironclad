@@ -17,7 +17,7 @@
 with System.Address_To_Access_Conversions;
 with Arch.Snippets;
 
-package body Devices.LPT with SPARK_Mode => Off is
+package body Devices.LPT is
    package Conv is new System.Address_To_Access_Conversions (LP_Data);
 
    function Init return Boolean is

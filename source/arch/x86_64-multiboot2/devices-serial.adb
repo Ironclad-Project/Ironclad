@@ -18,7 +18,7 @@ with System.Address_To_Access_Conversions;
 with Devices.TermIOs;
 with Arch.Snippets;
 
-package body Devices.Serial with SPARK_Mode => Off is
+package body Devices.Serial is
    package C1 is new System.Address_To_Access_Conversions (COM_Root);
 
    function Init return Boolean is

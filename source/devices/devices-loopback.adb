@@ -18,7 +18,7 @@ with Networking.Interfaces;
 with Scheduler;
 with Devices.NetInter;
 
-package body Devices.Loopback with SPARK_Mode => Off is
+package body Devices.Loopback is
    procedure Init (Success : out Boolean) is
       Device : Resource;
       Dev    : Device_Handle;

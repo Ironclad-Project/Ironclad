@@ -17,7 +17,7 @@
 with System;
 with Interfaces; use Interfaces;
 
-package Arch.GDT with SPARK_Mode => Off is
+package Arch.GDT is
    --  Indexes of the corresponding segments in the GDT.
    Kernel_Code64_Segment : constant := 16#28#;
    Kernel_Data64_Segment : constant := 16#30#;

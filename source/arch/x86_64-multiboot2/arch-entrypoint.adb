@@ -30,7 +30,7 @@ with Main;
 with Arch.MMU;
 with Devices.Serial;
 
-package body Arch.Entrypoint with SPARK_Mode => Off is
+package body Arch.Entrypoint is
    procedure Bootstrap_Main (Proto : Multiboot2.Header_Acc) is
       Info     : Boot_Information renames Global_Info;
       St1, St2 : Lib.Messages.Translated_String;

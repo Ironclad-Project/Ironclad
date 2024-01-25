@@ -17,7 +17,7 @@
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
 
-package body Devices.Partitions with SPARK_Mode => Off is
+package body Devices.Partitions is
    --  Data for MBR partitioning.
    type MBR_Byte_Data is array (Natural range <>) of Unsigned_8;
    type MBR_Entry is record

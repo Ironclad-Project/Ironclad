@@ -16,7 +16,7 @@
 
 with System;
 
-package Arch.IDT with SPARK_Mode => Off is
+package Arch.IDT is
    --  Initialize the global IDT and load it on the callee core.
    procedure Init;
 

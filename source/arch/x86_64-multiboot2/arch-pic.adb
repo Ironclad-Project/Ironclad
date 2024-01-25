@@ -16,7 +16,7 @@
 
 with Arch.Snippets;
 
-package body Arch.PIC with SPARK_Mode => Off is
+package body Arch.PIC is
    procedure Mask_All is
    begin
       Snippets.Port_Out (16#A1#, 16#FF#);

@@ -16,7 +16,7 @@
 
 with Arch.Snippets;
 
-package body Arch.PIT with SPARK_Mode => Off is
+package body Arch.PIT is
    PIT_Divisor       : constant := 1193180;
    PIT_Frequency     : constant := 1000;
    PIT_Channel0_Port : constant := 16#40#;
@@ -55,7 +55,7 @@ package body Arch.PIT with SPARK_Mode => Off is
    end Set_Current_Count;
 
    procedure Sleep_1MS is
-      Value : Unsigned_16 with Volatile;
+      Value : Unsigned_16;
    begin
       Set_Current_Count (Unsigned_16 (PIT_Divisor / PIT_Frequency));
       loop

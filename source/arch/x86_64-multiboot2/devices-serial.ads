@@ -16,7 +16,7 @@
 
 with Lib.Synchronization;
 
-package Devices.Serial with SPARK_Mode => Off is
+package Devices.Serial is
    --  Initialize the serial devices.
    function Init return Boolean;
 

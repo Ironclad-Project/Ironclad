@@ -18,7 +18,7 @@ with Interfaces;       use Interfaces;
 with VFS;              use VFS;
 with Userland.Process; use Userland.Process;
 
-package IPC.FileLock with SPARK_Mode => Off is
+package IPC.FileLock is
    --  This module implements POSIX-compliant advisory file locking.
 
    --  Checks whether a lock could be acquired.

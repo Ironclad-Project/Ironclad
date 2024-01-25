@@ -21,7 +21,7 @@ with Lib.Alignment;
 with Memory;
 with Arch.MMU;
 
-package body Arch.Multiboot2 with SPARK_Mode => Off is
+package body Arch.Multiboot2 is
    Cached_RSDP : ACPI.RSDP;
    Cached_FB   : Framebuffer_Tag;
 

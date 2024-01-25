@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Characters.Latin_1;
+with Arch.Debug;
 
 package body Lib.Messages with
    Refined_State => (Message_State =>

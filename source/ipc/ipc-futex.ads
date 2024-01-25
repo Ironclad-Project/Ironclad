@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 
-package IPC.Futex with SPARK_Mode => Off is
+package IPC.Futex is
    --  This module implements fast userland mutexes, despite the userland tag,
    --  they are perfectly usable inside kernel mode as well.
    --

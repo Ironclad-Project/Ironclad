@@ -23,7 +23,7 @@ with Arch.CPU;
 with Arch.Multiboot2; use Arch.Multiboot2;
 with Userland.Process;
 
-package body Devices.FB with SPARK_Mode => Off is
+package body Devices.FB is
    --  Structures used by fbdev.
    FB_TYPE_PACKED_PIXELS  : constant := 0;
    FB_VISUAL_TRUECOLOR    : constant := 2;

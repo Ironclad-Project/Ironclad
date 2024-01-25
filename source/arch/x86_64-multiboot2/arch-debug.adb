@@ -16,7 +16,7 @@
 
 with Devices.Serial;
 
-package body Arch.Debug with SPARK_Mode => Off is
+package body Arch.Debug is
    procedure Read (Message : out Devices.Operation_Data) is
    begin
       Devices.Serial.Read_COM1 (Message);

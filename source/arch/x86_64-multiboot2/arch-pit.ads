@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 
-package Arch.PIT with SPARK_Mode => Off is
+package Arch.PIT is
    --  Initialize by doing a first configure of the PIT, true on success.
    function Init return Boolean;
 

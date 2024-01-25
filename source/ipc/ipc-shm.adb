@@ -20,7 +20,7 @@ with Memory.Physical; use Memory.Physical;
 with Interfaces.C; use Interfaces.C;
 with System.Storage_Elements; use System.Storage_Elements;
 
-package body IPC.SHM with SPARK_Mode => Off is
+package body IPC.SHM is
    type Segment_Inner is record
       Is_Present       : Boolean;
       Key              : Unsigned_32;

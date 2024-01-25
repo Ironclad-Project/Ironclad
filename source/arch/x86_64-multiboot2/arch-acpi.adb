@@ -16,7 +16,7 @@
 
 with Arch.Multiboot2;
 
-package body Arch.ACPI with SPARK_Mode => Off is
+package body Arch.ACPI is
    --  Globals to keep track of scanned tables.
    Use_XSDT     : Boolean         := False;
    Root_Address : Virtual_Address := Null_Address;

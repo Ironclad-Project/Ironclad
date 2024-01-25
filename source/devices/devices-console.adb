@@ -16,7 +16,7 @@
 
 with Arch.Debug;
 
-package body Devices.Console with SPARK_Mode => Off is
+package body Devices.Console is
    procedure Init (Success : out Boolean) is
       Device : Resource;
    begin

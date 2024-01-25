@@ -28,7 +28,7 @@ with Arch.Local;
 with Userland.Corefile;
 with Userland.Process;
 
-package body Arch.Interrupts with SPARK_Mode => Off is
+package body Arch.Interrupts is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
    is
       Exception_Text : constant array (0 .. 30) of String (1 .. 3) :=

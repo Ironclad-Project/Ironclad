@@ -16,7 +16,7 @@
 
 with Arch.Snippets;
 
-package body Arch.PCI with SPARK_Mode => Off is
+package body Arch.PCI is
    --  PCI configuration space starts at this IO Port addresess.
    PCI_Config_Address : constant := 16#CF8#;
    PCI_Config_Data    : constant := 16#CFC#;

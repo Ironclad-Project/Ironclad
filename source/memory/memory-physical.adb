@@ -23,7 +23,7 @@ with System; use System;
 with Lib.Messages;
 with Config;
 
-package body Memory.Physical with SPARK_Mode => Off is
+package body Memory.Physical is
    Block_Size :         constant := Arch.MMU.Page_Size;
    Block_Free : constant Boolean := True;
    Block_Used : constant Boolean := False;

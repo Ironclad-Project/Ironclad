@@ -32,8 +32,6 @@ pragma Unreferenced (Lib.Runtime);
 with Config;
 
 procedure Main is
-   pragma SPARK_Mode (Off);
-
    Init_Args   : Userland.Argument_Arr (1 .. 1);
    Init_Env    : Userland.Environment_Arr (1 .. 0);
    Value       : String (1 .. Devices.Max_Name_Length);

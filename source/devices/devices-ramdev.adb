@@ -17,7 +17,7 @@
 with System; use System;
 with Lib.Alignment;
 
-package body Devices.Ramdev with SPARK_Mode => Off is
+package body Devices.Ramdev is
    --  Ramdev data.
    type Ramdev_Data is record
       Start_Address : System.Address;

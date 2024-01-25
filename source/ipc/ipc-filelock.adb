@@ -17,7 +17,7 @@
 with Lib.Synchronization; use Lib.Synchronization;
 with Scheduler;
 
-package body IPC.FileLock with SPARK_Mode => Off is
+package body IPC.FileLock is
    type Lock_Inner is record
       FS       : VFS.FS_Handle;
       Ino      : VFS.File_Inode_Number;
@@ -25,7 +25,7 @@ package body IPC.FileLock with SPARK_Mode => Off is
       Length   : Unsigned_64;
       Acquirer : Userland.Process.PID; --  Error_PID if free lock.
       Is_Write : Boolean;
-   end record with Volatile;
+   end record;
    type Lock_Inner_Arr is array (1 .. 20) of Lock_Inner;
 
    Registry_Mutex : aliased Binary_Semaphore := Unlocked_Semaphore;

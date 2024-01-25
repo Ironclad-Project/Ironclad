@@ -21,7 +21,7 @@ with Lib.Messages;
 with Devices.Partitions;
 with Arch.PCI;
 
-package body Devices.ATA with SPARK_Mode => Off is
+package body Devices.ATA is
    package Con is new System.Address_To_Access_Conversions (ATA_Data);
 
    function Init return Boolean is

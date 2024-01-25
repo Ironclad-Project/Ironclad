@@ -20,7 +20,7 @@ with Networking.IPv4;
 with Networking.IPv6;
 with Networking.Interfaces;
 
-package body IPC.Socket with SPARK_Mode => Off is
+package body IPC.Socket is
    procedure Free is new Ada.Unchecked_Deallocation (Socket, Socket_Acc);
    procedure Free is new Ada.Unchecked_Deallocation
       (Operation_Data, Operation_Data_Acc);

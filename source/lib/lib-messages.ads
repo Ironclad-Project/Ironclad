@@ -16,7 +16,6 @@
 
 with Interfaces; use Interfaces;
 with Arch.Clocks;
-with Arch.Debug;
 with Lib.Synchronization; use Lib.Synchronization;
 
 package Lib.Messages with
@@ -43,7 +42,6 @@ is
       with Pre => Message'Length <= Max_Line - 13,
          Global => (In_Out => (
          Arch.Clocks.Monotonic_Clock_State,
-         Arch.Debug.Debug_State,
          Message_State));
 
    --  Dump the logs from the ring buffer, they may be out of order!

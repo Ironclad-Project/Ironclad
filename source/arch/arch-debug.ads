@@ -16,10 +16,7 @@
 
 with Devices;
 
-package Arch.Debug with
-   Abstract_State => Debug_State,
-   Initializes    => Debug_State
-is
+package Arch.Debug is
    --  This package implements read / write access to a target-specific debug
    --  channel, which could take the shape of a serial port or debug monitor.
 
@@ -28,23 +25,19 @@ is
 
    --  Read byte device arrays atomically.
    --  @param Message Array to print.
-   procedure Read (Message : out Devices.Operation_Data)
-      with Global => (In_Out => Debug_State);
+   procedure Read (Message : out Devices.Operation_Data);
 
    --  Print a character message atomically.
    --  @param Message Character to print.
-   procedure Print (Message : Character)
-      with Global => (In_Out => Debug_State);
+   procedure Print (Message : Character);
 
    --  Print a string message atomically.
    --  @param Message String to print.
-   procedure Print (Message : String)
-      with Global => (In_Out => Debug_State);
+   procedure Print (Message : String);
 
    --  Print byte device arrays atomically.
    --  @param Message Array to print.
-   procedure Print (Message : Devices.Operation_Data)
-      with Global => (In_Out => Debug_State);
+   procedure Print (Message : Devices.Operation_Data);
 
 private
 

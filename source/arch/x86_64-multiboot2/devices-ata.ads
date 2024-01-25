@@ -16,7 +16,7 @@
 
 with Lib.Synchronization;
 
-package Devices.ATA with SPARK_Mode => Off is
+package Devices.ATA is
    --  Probe for ATA drives and add em.
    function Init return Boolean;
 

@@ -162,7 +162,9 @@ private
    Error_TID  : constant  TID := 0;
    Error_TCID : constant TCID := 0;
 
-   Is_Initialized : Boolean with Atomic, Volatile;
+   Is_Initialized : Boolean
+      with Atomic, Volatile, Async_Readers => True, Async_Writers => True,
+           Effective_Reads => True, Effective_Writes => True;
 
    procedure Waiting_Spot with No_Return;
 

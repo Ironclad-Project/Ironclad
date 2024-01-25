@@ -18,7 +18,7 @@ with Memory;
 with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
 
-package body Devices.i6300ESB with SPARK_Mode => Off is
+package body Devices.i6300ESB is
    --  TODO: This beautiful piece of hardware is a 2-stage  \ ______/ V`-,
    --  is a 2-stage watchdog, so far we only use the second  }        /~~
    --  instant death stage, maybe a software recoverable dog /_)^ --,r'

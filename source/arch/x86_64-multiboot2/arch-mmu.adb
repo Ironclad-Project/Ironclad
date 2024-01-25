@@ -24,7 +24,7 @@ with Arch.Local;
 with Userland.Process; use Userland.Process;
 with Memory.Physical;
 
-package body Arch.MMU with SPARK_Mode => Off is
+package body Arch.MMU is
    --  Bits in the 4K page entries.
    Page_P     : constant Unsigned_64 := Shift_Left (1,  0);
    Page_RW    : constant Unsigned_64 := Shift_Left (1,  1);

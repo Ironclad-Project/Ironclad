@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 
-package Arch.RTC with SPARK_Mode => Off is
+package Arch.RTC is
    procedure Get_RTC_Date (Epoch_Seconds : out Unsigned_64);
    procedure Set_RTC_Date (Epoch_Seconds : Unsigned_64);
 

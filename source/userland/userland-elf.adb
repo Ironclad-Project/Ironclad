@@ -20,7 +20,7 @@ with Lib.Alignment;
 with Devices;
 with Userland.Syscall;
 
-package body Userland.ELF with SPARK_Mode => Off is
+package body Userland.ELF is
    function Load_ELF
       (FS     : VFS.FS_Handle;
        Ino    : VFS.File_Inode_Number;

@@ -41,7 +41,7 @@ with Arch.Power;
 with Devices; use Devices;
 with Networking.Interfaces;
 
-package body Userland.Syscall with SPARK_Mode => Off is
+package body Userland.Syscall is
    procedure Sys_Exit
       (Code     : Unsigned_64;
        Returned : out Unsigned_64;
@@ -5605,7 +5605,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
       type Arg_Arr is array (Natural range <>) of Unsigned_64;
 
-      Map        : constant    Page_Table_Acc := Get_Common_Map (Proc);
+      Map        :           Page_Table_Acc := Get_Common_Map (Proc);
       Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
       Path       : String (1 .. Natural (Path_Len))
@@ -5670,7 +5670,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
          --  Create a new map for the process and reroll ASLR.
          Userland.Process.Flush_Exec_Files (Proc);
          Userland.Process.Reroll_ASLR (Proc);
-         Set_Common_Map (Proc, Arch.MMU.Fork_Table (Arch.MMU.Kernel_Table));
+         Map := Arch.MMU.Fork_Table (Arch.MMU.Kernel_Table);
+         Set_Common_Map (Proc, Map);
          Set_Identifier (Proc, Args (1).all);
 
          --  Start the actual program.

@@ -16,7 +16,7 @@
 
 with Arch.Multiboot2;
 
-package Arch.Entrypoint with SPARK_Mode => Off is
+package Arch.Entrypoint is
    procedure Bootstrap_Main (Proto : Multiboot2.Header_Acc)
       with Export, Convention => C, External_Name => "kernel_main";
 end Arch.Entrypoint;

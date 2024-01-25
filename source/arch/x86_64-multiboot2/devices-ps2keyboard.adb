@@ -20,7 +20,7 @@ with Arch.CPU;
 with Arch.Snippets;
 with Scheduler;
 
-package body Devices.PS2Keyboard with SPARK_Mode => Off is
+package body Devices.PS2Keyboard is
    --  Globals to communicate with the interrupt routine.
    Is_Reading : Boolean    with Volatile;
    Scancode   : Unsigned_8 with Volatile;
@@ -120,8 +120,9 @@ package body Devices.PS2Keyboard with SPARK_Mode => Off is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
       pragma Unreferenced (Is_Blocking);
+      Temp : Boolean := Is_Reading;
    begin
-      if Is_Reading then
+      if Temp then
          Data (Data'First) := Scancode;
          Is_Reading := False;
          Success   := True;

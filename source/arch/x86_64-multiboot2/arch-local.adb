@@ -21,7 +21,7 @@ with Arch.Interrupts;
 with Interfaces; use Interfaces;
 with System.Machine_Code; use System.Machine_Code;
 
-package body Arch.Local with SPARK_Mode => Off is
+package body Arch.Local is
    procedure Reschedule_In (Microseconds : Natural) is
    begin
       Asm ("pushf; cli", Volatile => True);

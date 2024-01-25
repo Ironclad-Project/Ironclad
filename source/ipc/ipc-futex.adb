@@ -19,12 +19,12 @@ with Lib.Synchronization; use Lib.Synchronization;
 with Arch.Clocks;
 with Lib.Time;
 
-package body IPC.Futex with SPARK_Mode => Off is
+package body IPC.Futex is
    type Futex_Inner is record
       Key         : access Unsigned_32;
       Wakey_Wakey : Boolean;
       Waiters     : Unsigned_32;
-   end record with Volatile;
+   end record;
    type Futex_Arr is array (1 .. 20) of Futex_Inner;
 
    Registry_Mutex : aliased Binary_Semaphore := Unlocked_Semaphore;

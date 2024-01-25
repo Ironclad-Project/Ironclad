@@ -17,7 +17,7 @@
 with Interfaces; use Interfaces;
 with Memory; use Memory;
 
-package Arch.ACPI with SPARK_Mode => Off is
+package Arch.ACPI is
    --  SDT header, which leads all ACPI tables.
    type SDT_Signature is new String (1 .. 4);
    type SDT_Header is record

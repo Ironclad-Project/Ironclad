@@ -16,7 +16,7 @@
 
 with Memory;
 
-package Devices.FB with SPARK_Mode => Off is
+package Devices.FB is
    --  Initialize the device.
    function Init return Boolean;
 

@@ -18,7 +18,7 @@ with System;
 with Interfaces; use Interfaces;
 with Arch.ACPI;
 
-package Arch.Multiboot2 with SPARK_Mode => Off is
+package Arch.Multiboot2 is
    --  Types of several tags.
    End_ID         : constant :=  0;
    Cmdline_ID     : constant :=  1;

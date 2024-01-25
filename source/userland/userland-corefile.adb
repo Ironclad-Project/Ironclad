@@ -22,7 +22,7 @@ with Userland.MAC;     use Userland.MAC;
 with Lib.Messages;
 with VFS; use VFS;
 
-package body Userland.Corefile with SPARK_Mode => Off is
+package body Userland.Corefile is
    procedure Generate_Corefile (Ctx : Arch.Context.GP_Context) is
       Proc     : constant Process.PID := Arch.Local.Get_Current_Process;
       PID_Val  : constant Unsigned_64 := Unsigned_64 (Process.Convert (Proc));

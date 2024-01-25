@@ -18,7 +18,7 @@ with Arch.RTC;
 with Arch.Snippets;
 with Lib.Time; use Lib.Time;
 
-package body Arch.Clocks with SPARK_Mode => Off,
+package body Arch.Clocks with
    Refined_State =>
       (RT_Clock_State =>
          (RT_Timestamp_Seconds,

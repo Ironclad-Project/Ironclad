@@ -22,7 +22,7 @@ with Arch.Snippets;
 with Ada.Unchecked_Conversion;
 with Scheduler;
 
-package body Devices.PS2Mouse with SPARK_Mode => Off is
+package body Devices.PS2Mouse is
    --  For return.
    type Mouse_Data is record
       X_Variation     : Integer;
@@ -106,13 +106,16 @@ package body Devices.PS2Mouse with SPARK_Mode => Off is
    is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
+      Temp  : Boolean := Has_Returned;
       Data2 : Mouse_Data with Address => Data (Data'First)'Address;
    begin
       if Is_Blocking then
-         while not Has_Returned loop
+         loop
+            exit when Temp;
             Arch.Snippets.Wait_For_Interrupt;
+            Temp := Has_Returned;
          end loop;
-      elsif not Has_Returned then
+      elsif not Temp then
          Success := False;
          return;
       end if;

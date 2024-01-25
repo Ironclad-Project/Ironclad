@@ -21,7 +21,7 @@ with Arch.APIC;
 with Arch.GDT;
 with Arch.Interrupts;
 
-package body Arch.IDT with SPARK_Mode => Off is
+package body Arch.IDT is
    --  Records for the GDT structure and its entries.
    Gate_Type_Interrupt : constant := 16#E#;
    Gate_Type_Trap      : constant := 16#F#;

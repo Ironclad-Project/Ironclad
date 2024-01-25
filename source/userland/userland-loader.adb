@@ -29,7 +29,7 @@ with Cryptography.Random;
 with Devices;
 with Userland.MAC; use Userland.MAC;
 
-package body Userland.Loader with SPARK_Mode => Off is
+package body Userland.Loader is
    Do_ASLR : Boolean := True;
 
    procedure Disable_ASLR is

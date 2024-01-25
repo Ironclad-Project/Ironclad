@@ -16,7 +16,7 @@
 
 with Arch.Snippets;
 
-package body Arch.RTC with SPARK_Mode => Off is
+package body Arch.RTC is
    CMOS_Base_Port   : constant := 16#70#;
    CMOS_Data_Port   : constant := 16#71#;
 

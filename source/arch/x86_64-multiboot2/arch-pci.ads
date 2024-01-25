@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 
-package Arch.PCI with SPARK_Mode => Off is
+package Arch.PCI is
    --  A PCI device is defined by a class, subclass, and prog if. And is
    --  addressed by its bus, slot, function, and parent.
    --

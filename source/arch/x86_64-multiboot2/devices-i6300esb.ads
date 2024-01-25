@@ -16,7 +16,7 @@
 
 with Arch.PCI;
 
-package Devices.i6300ESB with SPARK_Mode => Off is
+package Devices.i6300ESB is
    --  Initialize the device.
    function Init return Boolean;
 

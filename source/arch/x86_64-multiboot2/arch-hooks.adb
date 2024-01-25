@@ -29,7 +29,7 @@ with Interfaces; use Interfaces;
 with Devices.i6300ESB;
 with Devices.LPT;
 
-package body Arch.Hooks with SPARK_Mode => Off is
+package body Arch.Hooks is
    function Devices_Hook return Boolean is
    begin
       return Devices.ATA.Init         and then
