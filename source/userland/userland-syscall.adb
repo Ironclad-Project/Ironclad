@@ -519,7 +519,6 @@ package body Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value)
    is
-      pragma Unreferenced (Offset);
       Perms : constant Page_Permissions := Get_Mmap_Prot (Protection, Flags);
       Proc       : constant            PID := Arch.Local.Get_Current_Process;
       Map        : constant Page_Table_Acc := Get_Common_Map (Proc);
@@ -528,6 +527,8 @@ package body Userland.Syscall is
       File       : File_Description_Acc;
       File_Perms : MAC.Permissions;
       Success    : Boolean;
+      Status     : FS_Status;
+      Ret_Count  : Natural;
    begin
       if not Get_Capabilities (Proc).Can_Modify_Memory then
          goto Bad_MAC_Return;
@@ -567,7 +568,7 @@ package body Userland.Syscall is
       --  Do mmap anon or pass it to the VFS.
       if (Flags and MAP_ANON) /= 0 then
          Map_Allocated_Range
-            (Map => Map,
+            (Map            => Map,
              Virtual_Start  => To_Address (Virtual_Address (Final_Hint)),
              Length         => Storage_Count (Length),
              Permissions    => Perms,
@@ -576,12 +577,14 @@ package body Userland.Syscall is
          if Success then
             Errno := Error_No_Error;
             Returned := Final_Hint;
-            return;
          else
             goto No_Memory_Return;
          end if;
       else
          File := Get_File (Proc, File_D);
+         if File = null then
+            goto Invalid_Value_Return;
+         end if;
 
          if File.Description = Description_Device then
             File_Perms := Check_Permissions (Proc, File.Inner_Dev);
@@ -592,21 +595,54 @@ package body Userland.Syscall is
                goto Bad_MAC_Return;
             end if;
             if Devices.Mmap
-               (Handle      => File.Inner_Dev,
-                Address     => Virtual_Address (Final_Hint),
-                Length      => Length,
-                Flags       => Perms)
+               (Handle  => File.Inner_Dev,
+                Address => Virtual_Address (Final_Hint),
+                Length  => Length,
+                Flags   => Perms)
             then
                Errno := Error_No_Error;
                Returned := Final_Hint;
-               return;
+            else
+               goto No_Memory_Return;
             end if;
-         end if;
+         elsif File.Description = Description_Inode then
+            Map_Allocated_Range
+               (Map            => Map,
+                Virtual_Start  => To_Address (Virtual_Address (Final_Hint)),
+                Length         => Storage_Count (Length),
+                Permissions    => Perms,
+                Physical_Start => Ignored,
+                Success        => Success);
+            if not Success then
+               goto No_Memory_Return;
+            end if;
 
-         Errno := Error_Bad_File;
-         Returned := Unsigned_64'Last;
-         return;
+            declare
+               Data : Devices.Operation_Data (1 .. Natural (Length)) with
+                  Import, Address => To_Address (Virtual_Address (Final_Hint));
+            begin
+               VFS.Read
+                  (Key       => File.Inner_Ino_FS,
+                   Ino       => File.Inner_Ino,
+                   Offset    => Offset,
+                   Data      => Data,
+                   Ret_Count => Ret_Count,
+                   Success   => Status,
+                   User      => 0);
+               if Ret_Count < Data'Length then
+                  Data (Ret_Count + 1 .. Data'Last) := (others => 0);
+               end if;
+            end;
+
+            Errno := Error_No_Error;
+            Returned := Final_Hint;
+         else
+            Errno := Error_Bad_File;
+            Returned := Unsigned_64'Last;
+         end if;
       end if;
+
+      return;
 
    <<Invalid_Value_Return>>
       Errno := Error_Invalid_Value;
@@ -638,16 +674,12 @@ package body Userland.Syscall is
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("munmap", Proc);
          Returned := Unsigned_64'Last;
-         return;
-      end if;
-
-      if Unmap_Range (Map, Addr, Storage_Count (Length)) then
+      elsif Unmap_Range (Map, Addr, Storage_Count (Length)) then
          Errno := Error_No_Error;
          Returned := 0;
       else
          Errno := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
-         return;
       end if;
    end Munmap;
 

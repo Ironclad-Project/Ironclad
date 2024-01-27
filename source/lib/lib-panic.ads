@@ -1,5 +1,5 @@
---  lib-panic.ads: Specification of the panic function package.
---  Copyright (C) 2021 streaksu
+--  lib-panic.ads: For when recovering is not an option!
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Lib.Messages;
-with Arch.Debug;
 with Arch.Clocks;
 with Ada.Characters.Latin_1;
 

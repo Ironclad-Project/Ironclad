@@ -1207,6 +1207,14 @@ to choose the address, else, it is taken as a hint about where to place the
 mapping. If a section of the mapping overlaps an existing mapping, it will be
 ignored.
 
+@code{fd} may be used to specify a device or inode in the filesystem to back
+the memory region. For devices, the mmap operation has a different meaning
+for each device. For framebuffer devices, for example, one can make framebuffer
+windows this way. For inodes, the contents of the file will be used to
+initialize the requested memory window, starting to read from @code{offset},
+filling with zeros the non-filled part, if any. This kind of filling does not
+advance the reading counter of the passed device or inode.
+
 @code{hint} and @code{length} are required to be aligned to page boundaries
 for the running architecture, else it will fail.
 
@@ -1223,7 +1231,8 @@ for the running architecture, else it will fail.
 @code{MAP_FIXED} (0b00100): Use hint as a hard requirement.
 
 @item
-@code{MAP_ANON} (0b01000): Mapping is not backed by any file.
+@code{MAP_ANON} (0b01000): Mapping is not backed by any file, and @code{fd} is
+ignored.
 
 @item
 @code{MAP_WC} (0b10000): Map using write-combining when possible.
