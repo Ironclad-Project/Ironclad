@@ -1439,9 +1439,15 @@ package body VFS.EXT is
       end if;
 
       while Last_I <= Path'Last loop
+      <<Retry_Component>>
          while Last_I <= Path'Last and then Path (Last_I) /= '/' loop
             Last_I := Last_I + 1;
          end loop;
+         if First_I = Last_I and First_I < Path'Last then
+            Last_I  := Last_I  + 1;
+            First_I := First_I + 1;
+            goto Retry_Component;
+         end if;
 
          if Target_Type /= File_Directory then
             goto Absolute_Miss_Return;
