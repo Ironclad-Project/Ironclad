@@ -44,4 +44,7 @@ private
    procedure Mouse_Wait_Write;
    function Mouse_Read return Unsigned_8;
    procedure Mouse_Write (Data : Unsigned_8);
+
+   procedure Set_Sample_Rate (Rate : Unsigned_8);
+   function Identify_Mouse return Unsigned_8;
 end Devices.PS2Mouse;

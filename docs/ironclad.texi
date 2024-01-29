@@ -4146,10 +4146,14 @@ returns mouse packets following the structure:
 
 @example
 struct mouse_data @{
-   uint32_t x_variation;
-   uint32_t y_variation;
-   uint8_t  is_left_click;
-   uint8_t  is_right_click;
+   int x_variation;
+   int y_variation;
+   int z_variation;
+   bool is_left_click;
+   bool is_right_click;
+   bool is_middle_clock;
+   bool is_4th_click;
+   bool is_5th_click;
 @};
 @end example
 

@@ -21,31 +21,32 @@ with Arch.CPU;
 with Arch.Snippets;
 with Ada.Unchecked_Conversion;
 with Scheduler;
+with Lib.Messages;
 
 package body Devices.PS2Mouse is
-   --  For return.
+   --  Type used by userland to fetch packets.
    type Mouse_Data is record
       X_Variation     : Integer;
       Y_Variation     : Integer;
+      Z_Variation     : Integer;
       Is_Left_Click   : Boolean;
       Is_Right_Click  : Boolean;
       Is_Middle_Click : Boolean;
+      Is_4th_Button   : Boolean;
+      Is_5th_Button   : Boolean;
    end record;
-   Has_Returned : Boolean    with Atomic, Volatile;
-   Return_Data  : Mouse_Data with Volatile;
 
-   --  Data used for mouse operation.
+   --  Types used by mouse internals.
    type Signed_8 is range -128 .. 127 with Size => 8;
-   function To_Signed is
-      new Ada.Unchecked_Conversion (Unsigned_8, Signed_8);
-   type PS2_Mouse_Data is record
-      X_Variation : Unsigned_8;
-      Y_Variation : Unsigned_8;
-      Flags       : Unsigned_8;
-   end record;
+   function To_Signed is new Ada.Unchecked_Conversion (Unsigned_8, Signed_8);
 
-   Current_Cycle_Data  : PS2_Mouse_Data;
-   Current_Mouse_Cycle : Integer range 1 .. 3 := 1;
+   --  Data used between the driver and the IRQ routine to synchronize.
+   Has_Returned        : Boolean    with Atomic, Volatile;
+   Return_Data         : Mouse_Data with Volatile;
+   Current_Mouse_Flags : Unsigned_8;
+   Has_4th_Packet      : Boolean := False;
+   Has_Extra_Buttons   : Boolean := False;
+   Current_Mouse_Cycle : Integer range 1 .. 4 := 1;
 
    function Init return Boolean is
       BSP_LAPIC    : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
@@ -79,6 +80,27 @@ package body Devices.PS2Mouse is
       Unused := Mouse_Read;
       Mouse_Write (16#F4#);
       Unused := Mouse_Read;
+
+      --  Try to enable scrollwheel and 4th/5th buttons.
+      Set_Sample_Rate (200);
+      Set_Sample_Rate (100);
+      Set_Sample_Rate (80);
+      Data := Identify_Mouse;
+      if Data = 3 then
+         Has_4th_Packet := True;
+         Lib.Messages.Put_Line ("Scrollwheel support enabled for mouse");
+         Set_Sample_Rate (200);
+         Set_Sample_Rate (200);
+         Set_Sample_Rate (80);
+         Data := Identify_Mouse;
+         if Data = 4 then
+            Has_Extra_Buttons := True;
+            Lib.Messages.Put_Line ("extra button support enabled for mouse");
+         end if;
+      end if;
+
+      --  Restore sample rate to the highest (POWER!!!).
+      Set_Sample_Rate (200);
 
       Register
          ((Data        => System.Null_Address,
@@ -191,53 +213,63 @@ package body Devices.PS2Mouse is
    end Poll;
 
    procedure Mouse_Handler is
+      Data : Unsigned_8;
    begin
       case Current_Mouse_Cycle is
          when 1 =>
-            Current_Cycle_Data.Flags := Arch.Snippets.Port_In (16#60#);
-            if (Current_Cycle_Data.Flags and Shift_Left (1, 3)) /= 0 and
-               (Current_Cycle_Data.Flags and Shift_Left (1, 6))  = 0 and
-               (Current_Cycle_Data.Flags and Shift_Left (1, 7))  = 0
+            Data                := Arch.Snippets.Port_In (16#60#);
+            Current_Mouse_Flags := Data;
+
+            if (Data and Shift_Left (1, 3)) /= 0 and
+               (Data and Shift_Left (1, 6))  = 0 and
+               (Data and Shift_Left (1, 7))  = 0
             then
                Current_Mouse_Cycle := 2;
             end if;
-         when 2 =>
-            Current_Cycle_Data.X_Variation := Arch.Snippets.Port_In (16#60#);
-            Current_Mouse_Cycle            := 3;
-         when 3 =>
-            Current_Cycle_Data.Y_Variation := Arch.Snippets.Port_In (16#60#);
-            Current_Mouse_Cycle            := 1;
 
-            --  Apply the flags and convert format.
-            if (Current_Cycle_Data.Flags and Shift_Left (1, 0)) /= 0 then
-               Return_Data.Is_Left_Click := True;
+            Return_Data.Is_Left_Click   := (Data and Shift_Left (1, 0)) /= 0;
+            Return_Data.Is_Right_Click  := (Data and Shift_Left (1, 1)) /= 0;
+            Return_Data.Is_Middle_Click := (Data and Shift_Left (1, 2)) /= 0;
+         when 2 =>
+            Data                := Arch.Snippets.Port_In (16#60#);
+            Current_Mouse_Cycle := 3;
+            if (Current_Mouse_Flags and Shift_Left (1, 4)) /= 0 then
+               Return_Data.X_Variation := Integer (To_Signed (Data));
             else
-               Return_Data.Is_Left_Click := False;
+               Return_Data.X_Variation := Integer (Data);
             end if;
-            if (Current_Cycle_Data.Flags and Shift_Left (1, 1)) /= 0 then
-               Return_Data.Is_Right_Click := True;
+         when 3 =>
+            Data := Arch.Snippets.Port_In (16#60#);
+
+            if (Current_Mouse_Flags and Shift_Left (1, 5)) /= 0 then
+               Return_Data.Y_Variation := -Integer (To_Signed (Data));
             else
-               Return_Data.Is_Right_Click := False;
+               Return_Data.Y_Variation := -Integer (Data);
             end if;
-            if (Current_Cycle_Data.Flags and Shift_Left (1, 2)) /= 0 then
-               Return_Data.Is_Middle_Click := True;
+
+            if Has_4th_Packet then
+               Current_Mouse_Cycle := 4;
             else
-               Return_Data.Is_Middle_Click := False;
+               Current_Mouse_Cycle := 1;
+               Has_Returned := True;
             end if;
-            if (Current_Cycle_Data.Flags and Shift_Left (1, 4)) /= 0 then
-               Return_Data.X_Variation :=
-                  Integer (To_Signed (Current_Cycle_Data.X_Variation));
+         when 4 =>
+            Data := Arch.Snippets.Port_In (16#60#);
+
+            --  GNAT (maybe Ada?) doesnt support 4 bit integers, so we have to
+            --  improvise to take the last 4 bits of the z variation.
+            if (Data and 2#1000#) /= 0 then
+               Return_Data.Z_Variation := -(Integer (Data and 2#111#) + 1);
             else
-               Return_Data.X_Variation :=
-                  Integer (Current_Cycle_Data.X_Variation);
+               Return_Data.Z_Variation := Integer (Data and 2#111#);
             end if;
-            if (Current_Cycle_Data.Flags and Shift_Left (1, 5)) /= 0 then
-               Return_Data.Y_Variation :=
-                  -Integer (To_Signed (Current_Cycle_Data.Y_Variation));
-            else
-               Return_Data.Y_Variation :=
-                  -Integer (Current_Cycle_Data.Y_Variation);
+
+            if Has_Extra_Buttons then
+               Return_Data.Is_4th_Button := (Data and Shift_Left (1, 4)) /= 0;
+               Return_Data.Is_5th_Button := (Data and Shift_Left (1, 5)) /= 0;
             end if;
+
+            Current_Mouse_Cycle := 1;
             Has_Returned := True;
       end case;
 
@@ -273,4 +305,26 @@ package body Devices.PS2Mouse is
       Mouse_Wait_Write;
       Arch.Snippets.Port_Out (16#60#, Data);
    end Mouse_Write;
+
+   procedure Set_Sample_Rate (Rate : Unsigned_8) is
+      Discard : Unsigned_8;
+   begin
+      Mouse_Write (16#F3#);
+      Discard := Mouse_Read;
+      Mouse_Write (Rate);
+      Discard := Mouse_Read;
+   end Set_Sample_Rate;
+
+   function Identify_Mouse return Unsigned_8 is
+      Discard : Unsigned_8;
+      Result  : Unsigned_8;
+   begin
+      Mouse_Write (16#F5#);
+      Discard := Mouse_Read;
+      Mouse_Write (16#F2#);
+      Discard := Mouse_Read;
+      Result  := Mouse_Read;
+      Mouse_Write (16#F4#);
+      return Result;
+   end Identify_Mouse;
 end Devices.PS2Mouse;
