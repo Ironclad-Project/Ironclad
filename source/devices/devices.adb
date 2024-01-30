@@ -291,6 +291,7 @@ package body Devices is
 
    function Mmap
       (Handle  : Device_Handle;
+       Map     : Arch.MMU.Page_Table_Acc;
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64;
        Flags   : Arch.MMU.Page_Permissions) return Boolean
@@ -298,7 +299,7 @@ package body Devices is
    begin
       if Devices_Data (Handle).Contents.Mmap /= null then
          return Devices_Data (Handle).Contents.Mmap
-            (Devices_Data (Handle).Contents.Data, Address, Length, Flags);
+            (Devices_Data (Handle).Contents.Data, Map, Address, Length, Flags);
       else
          return False;
       end if;

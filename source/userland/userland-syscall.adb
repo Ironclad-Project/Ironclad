@@ -519,9 +519,9 @@ package body Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value)
    is
-      Perms : constant Page_Permissions := Get_Mmap_Prot (Protection, Flags);
-      Proc       : constant            PID := Arch.Local.Get_Current_Process;
-      Map        : constant Page_Table_Acc := Get_Common_Map (Proc);
+      Perms      : constant Page_Permissions := Get_Mmap_Prot (Protection);
+      Proc       : constant              PID := Arch.Local.Get_Current_Process;
+      Map        : constant   Page_Table_Acc := Get_Common_Map (Proc);
       Final_Hint : Unsigned_64 := Hint;
       Ignored    : System.Address;
       File       : File_Description_Acc;
@@ -596,6 +596,7 @@ package body Userland.Syscall is
             end if;
             if Devices.Mmap
                (Handle  => File.Inner_Dev,
+                Map     => Map,
                 Address => Virtual_Address (Final_Hint),
                 Length  => Length,
                 Flags   => Perms)
@@ -2040,9 +2041,8 @@ package body Userland.Syscall is
       Errno      : out Errno_Value)
    is
       Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Map   : constant Page_Table_Acc     := Get_Common_Map (Proc);
-      Flags : constant Arch.MMU.Page_Permissions :=
-         Get_Mmap_Prot (Protection, 0);
+      Map   : constant Page_Table_Acc := Get_Common_Map (Proc);
+      Flags : constant Arch.MMU.Page_Permissions := Get_Mmap_Prot (Protection);
       Addr : constant System.Address := To_Address (Integer_Address (Address));
    begin
       if not Get_Capabilities (Proc).Can_Modify_Memory then
@@ -5741,17 +5741,19 @@ package body Userland.Syscall is
       return new String'(Arg_String);
    end To_String;
 
-   function Get_Mmap_Prot
-      (Prot  : Unsigned_64;
-       Perms : Unsigned_64) return Arch.MMU.Page_Permissions is
+   function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions is
    begin
-      return
-         (Is_User_Accesible => True,
-          Can_Read          => (Prot and PROT_READ)  /= 0,
-          Can_Write         => (Prot and PROT_WRITE) /= 0,
-          Can_Execute       => (Prot and PROT_EXEC)  /= 0,
-          Is_Global         => False,
-          Is_Write_Combine  => (Perms and MAP_WC) /= 0);
+      if P = PROT_NONE then
+         return (Is_User_Accesible => True, others => False);
+      else
+         return
+            (Is_User_Accesible => True,
+             Can_Read          => (P and PROT_READ)  /= 0,
+             Can_Write         => (P and PROT_WRITE) /= 0,
+             Can_Execute       => (P and PROT_EXEC)  /= 0,
+             Is_Global         => False,
+             Is_Write_Combine  => False);
+      end if;
    end Get_Mmap_Prot;
 
    procedure Execute_MAC_Failure (Name : String; Curr_Proc : PID) is

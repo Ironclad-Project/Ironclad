@@ -155,12 +155,15 @@ package Userland.Syscall is
        Errno    : out Errno_Value);
 
    --  Mmap, the one and only.
-   PROT_READ  : constant := 2#00001#;
-   PROT_WRITE : constant := 2#00010#;
-   PROT_EXEC  : constant := 2#00100#;
-   MAP_FIXED  : constant := 2#00100#;
-   MAP_ANON   : constant := 2#01000#;
-   MAP_WC     : constant := 2#10000#;
+   PROT_NONE   : constant := 2#000#;
+   PROT_READ   : constant := 2#001#;
+   PROT_WRITE  : constant := 2#010#;
+   PROT_EXEC   : constant := 2#100#;
+   MAP_PRIVATE   : constant := 2#00001#;
+   MAP_SHARED    : constant := 2#00010#;
+   MAP_FIXED     : constant := 2#00100#;
+   MAP_ANON      : constant := 2#01000#;
+   MAP_NORESERVE : constant := 2#10000#;
    procedure Mmap
       (Hint       : Unsigned_64;
        Length     : Unsigned_64;
@@ -1256,9 +1259,7 @@ private
    function To_String (Addr : System.Address) return String_Acc;
 
    --  Translate mmap permissions.
-   function Get_Mmap_Prot
-      (Prot  : Unsigned_64;
-       Perms : Unsigned_64) return Arch.MMU.Page_Permissions;
+   function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions;
 
    --  Execute the policy chose by the user for the process.
    procedure Execute_MAC_Failure (Name : String; Curr_Proc : PID);

@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Memory;
+with Arch.MMU;
 
 package Devices.FB is
    --  Initialize the device.
@@ -29,6 +30,7 @@ private
 
    function Mmap
       (Data    : System.Address;
+       Map     : Arch.MMU.Page_Table_Acc;
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64;
        Flags   : Arch.MMU.Page_Permissions) return Boolean;

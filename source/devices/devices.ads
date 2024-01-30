@@ -68,6 +68,7 @@ package Devices is
           Argument : System.Address) return Boolean;
       Mmap : access function
          (Key     : System.Address;
+          Map     : Arch.MMU.Page_Table_Acc;
           Address : Memory.Virtual_Address;
           Length  : Unsigned_64;
           Flags   : Arch.MMU.Page_Permissions) return Boolean;
@@ -219,11 +220,13 @@ package Devices is
 
    --  Do a device-specific memory map request.
    --  @param Handle   Handle to operate on, must be valid.
+   --  @param Map      Map to map the device to.
    --  @param Address  Virtual address to map device memory to.
    --  @param Length   Length in bytes of the mapping.
    --  @result True in success, False if not supported or failed.
    function Mmap
       (Handle  : Device_Handle;
+       Map     : Arch.MMU.Page_Table_Acc;
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64;
        Flags   : Arch.MMU.Page_Permissions) return Boolean

@@ -18,10 +18,7 @@ with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
 with System; use System;
 with Memory; use Memory;
 with System.Storage_Elements; use System.Storage_Elements;
-with Arch.MMU;
-with Arch.CPU;
 with Arch.Multiboot2; use Arch.Multiboot2;
-with Userland.Process;
 
 package body Devices.FB is
    --  Structures used by fbdev.
@@ -172,18 +169,20 @@ package body Devices.FB is
 
    function Mmap
       (Data    : System.Address;
+       Map     : Arch.MMU.Page_Table_Acc;
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64;
        Flags   : Arch.MMU.Page_Permissions) return Boolean
    is
-      Dev_Data : Internal_FB_Data with Import, Address => Data;
+      Dev_Data    : Internal_FB_Data with Import, Address => Data;
+      Final_Perms : Arch.MMU.Page_Permissions := Flags;
    begin
+      Final_Perms.Is_Write_Combine := True;
       return Arch.MMU.Map_Range
-         (Map              => Userland.Process.Get_Common_Map
-                              (Arch.CPU.Get_Local.Current_Process),
+         (Map              => Map,
           Virtual_Start    => To_Address (Address),
           Physical_Start   => Dev_Data.Multiboot_Data.Address,
           Length           => Storage_Count (Length),
-          Permissions      => Flags);
+          Permissions      => Final_Perms);
    end Mmap;
 end Devices.FB;
