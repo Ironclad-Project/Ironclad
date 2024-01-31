@@ -42,6 +42,12 @@ it to be there.
 Documentation will be generated and installed with the main executable in the
 info format, additional formats can be built with `make html` or `make dvi`.
 
+-- Contributing --
+
+Thanks for considering contributing to Ironclad, it means a lot.
+
+Please check <https://ironclad.nongnu.org/development.html> for information
+on how to get started, and how to submit patches to the project.
 ========================================================================
 
 Copyright (C) 2023 streaksu
