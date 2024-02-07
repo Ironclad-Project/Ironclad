@@ -522,7 +522,7 @@ package body Userland.Syscall is
       Perms      : constant Page_Permissions := Get_Mmap_Prot (Protection);
       Proc       : constant              PID := Arch.Local.Get_Current_Process;
       Map        : constant   Page_Table_Acc := Get_Common_Map (Proc);
-      Final_Hint : Unsigned_64 := Hint;
+      Final_Hint :           Virtual_Address := Virtual_Address (Hint);
       Ignored    : System.Address;
       File       : File_Description_Acc;
       File_Perms : MAC.Permissions;
@@ -534,7 +534,8 @@ package body Userland.Syscall is
          goto Bad_MAC_Return;
       elsif (Perms.Can_Write and Perms.Can_Execute) or
             (Hint   mod Page_Size /= 0)             or
-            (Length mod Page_Size /= 0)
+            (Length mod Page_Size /= 0)             or
+            Length = 0
       then
          goto Invalid_Value_Return;
       elsif Get_User_Mapped_Size (Map) + Length >=
@@ -543,25 +544,17 @@ package body Userland.Syscall is
          goto No_Memory_Return;
       end if;
 
-      --  Check that we got a length.
-      if Length = 0 then
-         goto Invalid_Value_Return;
-      end if;
-
       --  Check for our own hint if none was provided.
       if Hint = 0 then
          if (Flags and MAP_FIXED) /= 0 then
             goto Invalid_Value_Return;
          else
-            Final_Hint := Get_Alloc_Base (Proc);
-            Set_Alloc_Base (Proc, Final_Hint + Length);
+            Final_Hint := Virtual_Address (Bump_Alloc_Base (Proc, Length));
          end if;
       end if;
 
       --  Check the address is good.
-      if not Check_Userland_Mappability
-         (Map, Virtual_Address (Final_Hint), Length)
-      then
+      if not Check_Userland_Mappability (Map, Final_Hint, Length) then
          goto Invalid_Value_Return;
       end if;
 
@@ -569,14 +562,14 @@ package body Userland.Syscall is
       if (Flags and MAP_ANON) /= 0 then
          Map_Allocated_Range
             (Map            => Map,
-             Virtual_Start  => To_Address (Virtual_Address (Final_Hint)),
+             Virtual_Start  => To_Address (Final_Hint),
              Length         => Storage_Count (Length),
              Permissions    => Perms,
              Physical_Start => Ignored,
              Success        => Success);
          if Success then
             Errno := Error_No_Error;
-            Returned := Final_Hint;
+            Returned := Unsigned_64 (Final_Hint);
          else
             goto No_Memory_Return;
          end if;
@@ -597,19 +590,19 @@ package body Userland.Syscall is
             if Devices.Mmap
                (Handle  => File.Inner_Dev,
                 Map     => Map,
-                Address => Virtual_Address (Final_Hint),
+                Address => Final_Hint,
                 Length  => Length,
                 Flags   => Perms)
             then
                Errno := Error_No_Error;
-               Returned := Final_Hint;
+               Returned := Unsigned_64 (Final_Hint);
             else
                goto No_Memory_Return;
             end if;
          elsif File.Description = Description_Inode then
             Map_Allocated_Range
                (Map            => Map,
-                Virtual_Start  => To_Address (Virtual_Address (Final_Hint)),
+                Virtual_Start  => To_Address (Final_Hint),
                 Length         => Storage_Count (Length),
                 Permissions    => Perms,
                 Physical_Start => Ignored,
@@ -620,7 +613,7 @@ package body Userland.Syscall is
 
             declare
                Data : Devices.Operation_Data (1 .. Natural (Length)) with
-                  Import, Address => To_Address (Virtual_Address (Final_Hint));
+                  Import, Address => To_Address (Final_Hint);
             begin
                VFS.Read
                   (Key       => File.Inner_Ino_FS,
@@ -636,7 +629,7 @@ package body Userland.Syscall is
             end;
 
             Errno := Error_No_Error;
-            Returned := Final_Hint;
+            Returned := Unsigned_64 (Final_Hint);
          else
             Errno := Error_Bad_File;
             Returned := Unsigned_64'Last;
@@ -5108,7 +5101,7 @@ package body Userland.Syscall is
             VAddr := Addr;
          end if;
       else
-         VAddr := Get_Alloc_Base (Proc);
+         VAddr := Bump_Alloc_Base (Proc, Ret_Size);
       end if;
 
       if Ret_Size /= 0 then
@@ -5119,9 +5112,6 @@ package body Userland.Syscall is
              Length         => Storage_Count (Ret_Size),
              Permissions    => Perms)
          then
-            if Addr = 0 then
-               Set_Alloc_Base (Proc, VAddr + Ret_Size);
-            end if;
             IPC.SHM.Modify_Attachment (Truncated, True);
             Errno := Error_No_Error;
             Returned := VAddr;

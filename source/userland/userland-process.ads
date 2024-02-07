@@ -324,17 +324,12 @@ package Userland.Process is
    procedure Set_Stack_Base (Process : PID; Base : Unsigned_64)
       with Pre => Process /= Error_PID;
 
-   --  Get the alloc base of the process.
-   --  @param Proc Process to operate on.
-   --  @return The stack base.
-   function Get_Alloc_Base (Process : PID) return Unsigned_64
-      with Pre => Process /= Error_PID;
-
-   --  Set the alloc base of the process.
-   --  @param Proc Process to operate on.
-   --  @param Base Base to set.
-   procedure Set_Alloc_Base (Process : PID; Base : Unsigned_64)
-      with Pre => Process /= Error_PID;
+   --  Bump the alloc base of the process by the passed length.
+   --  @param P      Process to operate on.
+   --  @param Length Length to bump to.
+   --  @return Previous base.
+   function Bump_Alloc_Base (P : PID; Length : Unsigned_64) return Unsigned_64
+      with Pre => P /= Error_PID;
 
    --  Get whether a process is traced and its tracer FD.
    --  @param Proc      Process to operate on.
@@ -561,6 +556,7 @@ private
    type Thread_Arr is array (1 .. Max_Thread_Count)   of Scheduler.TID;
    type File_Arr   is array (0 .. Max_File_Count - 1) of File_Descriptor;
    type Process_Data is record
+      Data_Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
       Signals         : Signal_Bitmap;
       Niceness        : Scheduler.Niceness;
       Umask           : VFS.File_Mode;

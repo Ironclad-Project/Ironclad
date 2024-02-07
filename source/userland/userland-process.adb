@@ -82,6 +82,7 @@ package body Userland.Process is
          if Registry (I) /= null then
             Total := Total + 1;
             if Curr_Index < List'Length then
+               Lib.Synchronization.Seize (Registry (I).Data_Mutex);
                List (List'First + Curr_Index) :=
                   (Identifier      => Registry (I).Identifier (1 .. 20),
                    Identifier_Len  => Registry (I).Identifier_Len,
@@ -91,6 +92,7 @@ package body Userland.Process is
                    Is_Being_Traced => Registry (I).Is_Traced,
                    Has_Exited      => Registry (I).Did_Exit);
                Curr_Index := Curr_Index + 1;
+               Lib.Synchronization.Release (Registry (I).Data_Mutex);
             end if;
          end if;
       end loop;
@@ -106,7 +108,8 @@ package body Userland.Process is
       for I in Registry.all'Range loop
          if Registry (I) = null then
             Registry (I) := new Process_Data'
-               (Signals         => (others => False),
+               (Data_Mutex      => Lib.Synchronization.Unlocked_Semaphore,
+                Signals         => (others => False),
                 Niceness        => Scheduler.Default_Niceness,
                 Umask           => Default_Umask,
                 User            => 0,
@@ -133,6 +136,7 @@ package body Userland.Process is
                 others          => 0);
 
             if Parent /= Error_PID then
+               Lib.Synchronization.Seize (Registry (P).Data_Mutex);
                Registry (I).Niceness        := Registry (P).Niceness;
                Registry (I).Parent          := Parent;
                Registry (I).Stack_Base      := Registry (P).Stack_Base;
@@ -147,6 +151,7 @@ package body Userland.Process is
                Registry (I).SGroup_Count    := Registry (P).SGroup_Count;
                Registry (I).SGroups         := Registry (P).SGroups;
                Registry (I).Umask           := Registry (P).Umask;
+               Lib.Synchronization.Release (Registry (P).Data_Mutex);
             else
                Reroll_ASLR (PID (I));
             end if;
@@ -160,6 +165,7 @@ package body Userland.Process is
 
    procedure Delete_Process (Process : PID) is
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       Lib.Synchronization.Seize (Registry_Mutex);
       Free (Registry (Process));
       Lib.Synchronization.Release (Registry_Mutex);
@@ -177,6 +183,8 @@ package body Userland.Process is
       User_Seconds := 0;
       User_Nanoseconds := 0;
 
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
+
       for Th of Registry (Proc).Thread_List loop
          if Th /= Error_TID then
             Scheduler.Get_Runtime_Times (Th, Temp1, Temp2, Temp3, Temp4);
@@ -189,6 +197,8 @@ package body Userland.Process is
 
       Lib.Time.Normalize (System_Seconds, System_Nanoseconds);
       Lib.Time.Normalize (User_Seconds, User_Nanoseconds);
+
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_Runtime_Times;
 
    procedure Get_Children_Runtimes
@@ -197,10 +207,12 @@ package body Userland.Process is
        User_Seconds, User_Nanoseconds     : out Unsigned_64)
    is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       System_Seconds := Registry (Proc).Children_SSec;
       System_Nanoseconds := Registry (Proc).Children_SNSec;
       User_Seconds := Registry (Proc).Children_USec;
       User_Nanoseconds := Registry (Proc).Children_UNSec;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_Children_Runtimes;
 
    procedure Add_Thread
@@ -209,31 +221,36 @@ package body Userland.Process is
        Success : out Boolean)
    is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Success := False;
       for I in Registry (Proc).Thread_List'Range loop
          if Registry (Proc).Thread_List (I) = Error_TID then
             Registry (Proc).Thread_List (I) := Thread;
             Scheduler.Set_Niceness (Thread, Registry (Proc).Niceness);
             Success := True;
-            return;
+            exit;
          end if;
       end loop;
-      Success := False;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Add_Thread;
 
    function Get_Thread_Count (Process : PID) return Natural is
       Returned : Natural := 0;
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       for I in Registry (Process).Thread_List'Range loop
          if Registry (Process).Thread_List (I) /= Error_TID then
             Returned := Returned + 1;
          end if;
       end loop;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
       return Returned;
    end Get_Thread_Count;
 
    procedure Remove_Thread (Proc : PID; Thread : Scheduler.TID) is
       Temp1, Temp2, Temp3, Temp4 : Unsigned_64;
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       for I in Registry (Proc).Thread_List'Range loop
          if Registry (Proc).Thread_List (I) = Thread then
             Registry (Proc).Thread_List (I) := Error_TID;
@@ -253,12 +270,14 @@ package body Userland.Process is
             exit;
          end if;
       end loop;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Remove_Thread;
 
    procedure Flush_Threads (Proc : PID) is
       Current_Thread : constant TID := Arch.Local.Get_Current_Thread;
       T1, T2, T3, T4 : Unsigned_64;
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       for Thread of Registry (Proc).Thread_List loop
          if Thread /= Error_TID then
             if Registry (Proc).Parent /= Error_PID and then
@@ -280,6 +299,7 @@ package body Userland.Process is
          end if;
          Thread := Error_TID;
       end loop;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Flush_Threads;
 
    procedure Reroll_ASLR (Process : PID) is
@@ -303,31 +323,44 @@ package body Userland.Process is
          Rand_Jump := Memory_Locations.Stack_Jump_Min;
       end if;
 
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       Registry (Process).Alloc_Base := Rand_Addr;
       Registry (Process).Stack_Base := Rand_Addr + Rand_Jump;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Reroll_ASLR;
 
    function Get_Niceness (Process : PID) return Scheduler.Niceness is
+      Result : Scheduler.Niceness;
    begin
-      return Registry (Process).Niceness;
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
+      Result := Registry (Process).Niceness;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+      return Result;
    end Get_Niceness;
 
    procedure Set_Niceness (Process : PID; Nice : Scheduler.Niceness) is
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       Registry (Process).Niceness := Nice;
       for Thread of Registry (Process).Thread_List loop
          if Thread /= Error_TID then
             Scheduler.Set_Niceness (Thread, Nice);
          end if;
       end loop;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Set_Niceness;
 
    function Is_Valid_File (Process : PID; FD : Unsigned_64) return Boolean is
+      R : Boolean;
    begin
-      if FD > Unsigned_64 (File_Arr'Last) then
-         return False;
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
+      if FD <= Unsigned_64 (File_Arr'Last) then
+         R := Registry (Process).File_Table (Natural (FD)).Description /= null;
+      else
+         R := False;
       end if;
-      return Registry (Process).File_Table (Natural (FD)).Description /= null;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+      return R;
    end Is_Valid_File;
 
    procedure Add_File
@@ -338,26 +371,31 @@ package body Userland.Process is
        Start   : Natural := 0)
    is
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       for I in Start .. Registry (Process).File_Table'Last loop
          if Registry (Process).File_Table (I).Description = null then
             Registry (Process).File_Table (I).Description := File;
             FD      := I;
             Success := True;
-            return;
+            goto Cleanup;
          end if;
       end loop;
       FD      := 0;
       Success := False;
+   <<Cleanup>>
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Add_File;
 
    function Get_File_Count (Process : PID) return Natural is
       Count_Of_FDs : Natural := 0;
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       for Ent of Registry (Process).File_Table loop
          if Ent.Description = null then
             Count_Of_FDs := Count_Of_FDs + 1;
          end if;
       end loop;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
       return Count_Of_FDs;
    end Get_File_Count;
 
@@ -377,6 +415,7 @@ package body Userland.Process is
 
    procedure Duplicate_FD_Table (Process, Target : PID) is
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       for I in Registry (Process).File_Table'Range loop
          Registry (Target).File_Table (I).Close_On_Exec :=
             Registry (Process).File_Table (I).Close_On_Exec;
@@ -388,10 +427,12 @@ package body Userland.Process is
             Registry (Target).File_Table (I).Description := null;
          end if;
       end loop;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Duplicate_FD_Table;
 
    procedure Duplicate_Standard_FDs (Process, Target : PID) is
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       for I in 0 .. 2 loop
          Registry (Target).File_Table (I).Close_On_Exec :=
             Registry (Process).File_Table (I).Close_On_Exec;
@@ -403,6 +444,7 @@ package body Userland.Process is
             Registry (Target).File_Table (I).Description := null;
          end if;
       end loop;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Duplicate_Standard_FDs;
 
    procedure Close (F : in out File_Description_Acc) is
@@ -439,24 +481,32 @@ package body Userland.Process is
       (Process : PID;
        FD      : Unsigned_64) return File_Description_Acc
    is
+      Res : File_Description_Acc;
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       if FD <= Unsigned_64 (File_Arr'Last) then
-         return Registry (Process).File_Table (Natural (FD)).Description;
+         Res := Registry (Process).File_Table (Natural (FD)).Description;
       else
-         return null;
+         Res := null;
       end if;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+      return Res;
    end Get_File;
 
    function Get_Close_On_Exec
       (Process  : PID;
        FD       : Unsigned_64) return Boolean
    is
+      Result : Boolean;
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       if FD <= Unsigned_64 (File_Arr'Last) then
-         return Registry (Process).File_Table (Natural (FD)).Close_On_Exec;
+         Result := Registry (Process).File_Table (Natural (FD)).Close_On_Exec;
       else
-         return False;
+         Result := False;
       end if;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+      return Result;
    end Get_Close_On_Exec;
 
    procedure Set_Close_On_Exec
@@ -465,58 +515,78 @@ package body Userland.Process is
        Is_Close : Boolean)
    is
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       if FD <= Unsigned_64 (File_Arr'Last) then
          Registry (Process).File_Table (Natural (FD)).Close_On_Exec :=
             Is_Close;
       end if;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Set_Close_On_Exec;
 
    procedure Remove_File (Process : PID; FD : Natural) is
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       if FD <= File_Arr'Last then
          Close (Registry (Process).File_Table (FD).Description);
          Registry (Process).File_Table (FD).Close_On_Exec := False;
       end if;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Remove_File;
 
    procedure Flush_Files (Process : PID) is
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       for F of Registry (Process).File_Table loop
          if F.Description /= null then
             Close (F.Description);
          end if;
          F.Close_On_Exec := False;
       end loop;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Flush_Files;
 
    procedure Flush_Exec_Files (Process : PID) is
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       for F of Registry (Process).File_Table loop
          if F.Description /= null and then F.Close_On_Exec then
             Close (F.Description);
             F.Close_On_Exec := False;
          end if;
       end loop;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Flush_Exec_Files;
 
    procedure Set_Common_Map (Proc : PID; Map : Arch.MMU.Page_Table_Acc) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Common_Map := Map;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Set_Common_Map;
 
    function Get_Common_Map (Proc : PID) return Arch.MMU.Page_Table_Acc is
+      Result : Arch.MMU.Page_Table_Acc;
    begin
-      return Registry (Proc).Common_Map;
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Result := Registry (Proc).Common_Map;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+      return Result;
    end Get_Common_Map;
 
    function Get_Stack_Base (Process : PID) return Unsigned_64 is
+      Result : Unsigned_64;
    begin
-      return Registry (Process).Stack_Base;
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
+      Result := Registry (Process).Stack_Base;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+      return Result;
    end Get_Stack_Base;
 
    procedure Set_Stack_Base (Process : PID; Base : Unsigned_64) is
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       Registry (Process).Stack_Base := Base;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Set_Stack_Base;
 
    procedure Get_Traced_Info
@@ -525,8 +595,10 @@ package body Userland.Process is
        FD        : out Natural)
    is
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       Is_Traced := Registry (Process).Is_Traced;
       FD        := Registry (Process).Tracer_FD;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Get_Traced_Info;
 
    procedure Set_Traced_Info
@@ -535,14 +607,18 @@ package body Userland.Process is
        FD        : Natural)
    is
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       Registry (Process).Is_Traced := Is_Traced;
       Registry (Process).Tracer_FD := FD;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Set_Traced_Info;
 
    procedure Issue_Exit (Process : PID; Code : Unsigned_8) is
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       Registry (Process).Did_Exit  := True;
       Registry (Process).Exit_Code := Code;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Issue_Exit;
 
    procedure Check_Exit
@@ -551,8 +627,10 @@ package body Userland.Process is
        Code     : out Unsigned_8)
    is
    begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       Did_Exit := Registry (Process).Did_Exit;
       Code     := Registry (Process).Exit_Code;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Check_Exit;
 
    procedure Set_CWD
@@ -561,8 +639,10 @@ package body Userland.Process is
        Ino  : VFS.File_Inode_Number)
    is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Current_Dir_FS  := FS;
       Registry (Proc).Current_Dir_Ino := Ino;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Set_CWD;
 
    procedure Get_CWD
@@ -571,23 +651,30 @@ package body Userland.Process is
        Ino  : out VFS.File_Inode_Number)
    is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       FS  := Registry (Proc).Current_Dir_FS;
       Ino := Registry (Proc).Current_Dir_Ino;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_CWD;
 
-   function Get_Alloc_Base (Process : PID) return Unsigned_64 is
+   function Bump_Alloc_Base (P : PID; Length : Unsigned_64) return Unsigned_64
+   is
+      Result : Unsigned_64;
    begin
-      return Registry (Process).Alloc_Base;
-   end Get_Alloc_Base;
-
-   procedure Set_Alloc_Base (Process : PID; Base : Unsigned_64) is
-   begin
-      Registry (Process).Alloc_Base := Base;
-   end Set_Alloc_Base;
+      Lib.Synchronization.Seize (Registry (P).Data_Mutex);
+      Result := Registry (P).Alloc_Base;
+      Registry (P).Alloc_Base := Result + Length;
+      Lib.Synchronization.Release (Registry (P).Data_Mutex);
+      return Result;
+   end Bump_Alloc_Base;
 
    function Get_Parent (Proc : PID) return PID is
+      Result : PID;
    begin
-      return Registry (Proc).Parent;
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Result := Registry (Proc).Parent;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+      return Result;
    end Get_Parent;
 
    procedure Set_Identifier (Proc : PID; Name : String) is
@@ -599,9 +686,11 @@ package body Userland.Process is
          Length := Name'Length;
       end if;
 
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Identifier_Len           := Length;
       Registry (Proc).Identifier (1 .. Length) :=
          Name (Name'First .. Name'First + Length - 1);
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Set_Identifier;
 
    procedure Get_Identifier
@@ -619,49 +708,67 @@ package body Userland.Process is
          Length := ID'Length;
       end if;
 
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       ID (ID'First .. ID'First + Length - 1) :=
          Registry (Proc).Identifier (1 .. Length);
       Len := Length;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_Identifier;
 
    procedure Get_UID (Proc : PID; UID : out Unsigned_32) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       UID := Registry (Proc).User;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_UID;
 
    procedure Set_UID (Proc : PID; UID : Unsigned_32) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).User := UID;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Set_UID;
 
    procedure Get_Effective_UID (Proc : PID; EUID : out Unsigned_32) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       EUID := Registry (Proc).Effective_User;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_Effective_UID;
 
    procedure Set_Effective_UID (Proc : PID; EUID : Unsigned_32) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Effective_User := EUID;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Set_Effective_UID;
 
    procedure Get_GID (Proc : PID; GID : out Unsigned_32) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       GID := Registry (Proc).Group;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_GID;
 
    procedure Set_GID (Proc : PID; GID : Unsigned_32) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Group := GID;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Set_GID;
 
    procedure Get_Effective_GID (Proc : PID; EGID : out Unsigned_32) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       EGID := Registry (Proc).Effective_Group;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_Effective_GID;
 
    procedure Set_Effective_GID (Proc : PID; EGID : Unsigned_32) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Effective_Group := EGID;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Set_Effective_GID;
 
    procedure Get_Supplementary_Groups
@@ -670,6 +777,7 @@ package body Userland.Process is
        Length : out Natural)
    is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       if Groups'Length <= Max_Supplementary_Groups then
          Groups := Registry (Proc).SGroups (1 .. Groups'Length);
       else
@@ -677,6 +785,7 @@ package body Userland.Process is
             := Registry (Proc).SGroups;
       end if;
       Length := Registry (Proc).SGroup_Count;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_Supplementary_Groups;
 
    procedure Set_Supplementary_Groups
@@ -685,6 +794,7 @@ package body Userland.Process is
        Success : out Boolean)
    is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       if Groups'Length > Max_Supplementary_Groups then
          Success := False;
       else
@@ -692,37 +802,50 @@ package body Userland.Process is
          Registry (Proc).SGroup_Count := Groups'Length;
          Success := True;
       end if;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Set_Supplementary_Groups;
 
    procedure Empty_Supplementary_Groups (Proc : PID) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).SGroup_Count := 0;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Empty_Supplementary_Groups;
 
    procedure Get_Umask (Proc : PID; Umask : out VFS.File_Mode) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Umask := Registry (Proc).Umask;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_Umask;
 
    procedure Set_Umask (Proc : PID; Umask : VFS.File_Mode) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Umask := Umask;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Set_Umask;
 
    procedure Get_Raised_Signals (Proc : PID; Sig : out Signal_Bitmap) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Sig := Registry (Proc).Signals;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_Raised_Signals;
 
    procedure Pop_Raised_Signals (Proc : PID; Sig : out Signal_Bitmap) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Sig := Registry (Proc).Signals;
       Registry (Proc).Signals := (others => False);
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Pop_Raised_Signals;
 
    procedure Raise_Signal (Proc : PID; Sig : Overridable_Signal) is
    begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Signals (Sig) := True;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Raise_Signal;
 
    function Convert (Proc : PID) return Natural is

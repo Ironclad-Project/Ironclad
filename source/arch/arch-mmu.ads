@@ -21,8 +21,8 @@ with Lib.Synchronization;
 
 package Arch.MMU is
    --  Permissions used for mapping.
-   --  Ironclad forces W^X, so write and execute permissions conflict even if
-   --  not in hardware (and definitively in hardware), so do not try!
+   --  Ironclad forces W^X, so write and execute permissions will conflict,
+   --  even though they might not necessarily conflict in hardware.
    --  Some flags are hints, which may be followed or not for performance.
    type Page_Permissions is record
       Is_User_Accesible : Boolean;
