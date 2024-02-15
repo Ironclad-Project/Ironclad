@@ -1,5 +1,5 @@
 --  userland-process.adb: Process registry, PIDs, and all the fuzz.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -109,7 +109,9 @@ package body Userland.Process is
          if Registry (I) = null then
             Registry (I) := new Process_Data'
                (Data_Mutex      => Lib.Synchronization.Unlocked_Semaphore,
-                Signals         => (others => False),
+                Masked_Signals  => (others => False),
+                Raised_Signals  => (others => False),
+                Signal_Handlers => (others => System.Null_Address),
                 Niceness        => Scheduler.Default_Niceness,
                 Umask           => Default_Umask,
                 User            => 0,
@@ -131,6 +133,8 @@ package body Userland.Process is
                 Stack_Base      => 0,
                 Alloc_Base      => 0,
                 Perms           => MAC.Default_Context,
+                Signal_Exit     => False,
+                Which_Signal    => Signal_Kill,
                 Did_Exit        => False,
                 Exit_Code       => 0,
                 others          => 0);
@@ -138,6 +142,7 @@ package body Userland.Process is
             if Parent /= Error_PID then
                Lib.Synchronization.Seize (Registry (P).Data_Mutex);
                Registry (I).Niceness        := Registry (P).Niceness;
+               Registry (I).Masked_Signals  := Registry (P).Masked_Signals;
                Registry (I).Parent          := Parent;
                Registry (I).Stack_Base      := Registry (P).Stack_Base;
                Registry (I).Alloc_Base      := Registry (P).Alloc_Base;
@@ -467,7 +472,6 @@ package body Userland.Process is
                   end if;
                end if;
                VFS.Close (F.Inner_Ino_FS, F.Inner_Ino);
-            when Description_SignalPost => Close (F.Inner_Post);
             when Description_Socket => Close (F.Inner_Socket);
          end case;
          Free (F);
@@ -616,20 +620,34 @@ package body Userland.Process is
    procedure Issue_Exit (Process : PID; Code : Unsigned_8) is
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
-      Registry (Process).Did_Exit  := True;
-      Registry (Process).Exit_Code := Code;
+      Registry (Process).Did_Exit    := True;
+      Registry (Process).Signal_Exit := False;
+      Registry (Process).Exit_Code   := Code;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   end Issue_Exit;
+
+   procedure Issue_Exit (Process : PID; Sig : Signal) is
+   begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
+      Registry (Process).Did_Exit     := True;
+      Registry (Process).Signal_Exit  := True;
+      Registry (Process).Which_Signal := Sig;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Issue_Exit;
 
    procedure Check_Exit
-      (Process  : PID;
-       Did_Exit : out Boolean;
-       Code     : out Unsigned_8)
+      (Process    : PID;
+       Did_Exit   : out Boolean;
+       Code       : out Unsigned_8;
+       Was_Signal : out Boolean;
+       Sig        : out Signal)
    is
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
-      Did_Exit := Registry (Process).Did_Exit;
-      Code     := Registry (Process).Exit_Code;
+      Did_Exit   := Registry (Process).Did_Exit;
+      Code       := Registry (Process).Exit_Code;
+      Was_Signal := Registry (Process).Signal_Exit;
+      Sig        := Registry (Process).Which_Signal;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Check_Exit;
 
@@ -826,27 +844,90 @@ package body Userland.Process is
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Set_Umask;
 
-   procedure Get_Raised_Signals (Proc : PID; Sig : out Signal_Bitmap) is
+   procedure Get_Masked_Signals (Proc : PID; Sig : out Signal_Bitmap) is
    begin
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
-      Sig := Registry (Proc).Signals;
+      Sig := Registry (Proc).Masked_Signals;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
-   end Get_Raised_Signals;
+   end Get_Masked_Signals;
 
-   procedure Pop_Raised_Signals (Proc : PID; Sig : out Signal_Bitmap) is
+   procedure Set_Masked_Signals (Proc : PID; Sig : Signal_Bitmap) is
    begin
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
-      Sig := Registry (Proc).Signals;
-      Registry (Proc).Signals := (others => False);
+
+      --  Set the signals and ensure that unmaskable signals are not masked.
+      Registry (Proc).Masked_Signals                     := Sig;
+      Registry (Proc).Masked_Signals (Signal_Kill)       := False;
+      Registry (Proc).Masked_Signals (Signal_Stop)       := False;
+      Registry (Proc).Masked_Signals (Signal_Tracepoint) := False;
+
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
-   end Pop_Raised_Signals;
+   end Set_Masked_Signals;
 
-   procedure Raise_Signal (Proc : PID; Sig : Overridable_Signal) is
+   procedure Raise_Signal (Proc : PID; Sig : Signal) is
    begin
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
-      Registry (Proc).Signals (Sig) := True;
+      if not Registry (Proc).Masked_Signals (Sig) then
+         Registry (Proc).Raised_Signals (Sig) := True;
+      end if;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Raise_Signal;
+
+   procedure Get_Signal_Handler
+      (Proc : PID;
+       Sig  : Signal;
+       Addr : out System.Address)
+   is
+   begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Addr := Registry (Proc).Signal_Handlers (Sig);
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   end Get_Signal_Handler;
+
+   procedure Set_Signal_Handler
+      (Proc : PID;
+       Sig  : Signal;
+       Addr : System.Address)
+   is
+   begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
+      if Sig /= Signal_Kill then
+         Registry (Proc).Signal_Handlers (Sig) := Addr;
+      end if;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   end Set_Signal_Handler;
+
+   procedure Get_Raised_Signal_Actions
+      (Proc   : PID;
+       Sig    : out Signal;
+       Addr   : out System.Address;
+       No_Sig : out Boolean;
+       Ignore : out Boolean)
+   is
+   begin
+      Sig    := Signal_FP_Exception;
+      Addr   := System.Null_Address;
+      No_Sig := True;
+      Ignore := False;
+
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
+      for I in Registry (Proc).Raised_Signals'Range loop
+         if Registry (Proc).Raised_Signals (I) then
+            Sig    := I;
+            Addr   := Registry (Proc).Signal_Handlers (I);
+            No_Sig := False;
+
+            --  POSIX established only certain signals are safely ignored, when
+            --  not ignored, POSIX instructs us to terminate the process if not
+            --  handled.
+            Ignore := Sig = Signal_Child or Sig = Signal_Urgent;
+
+            Registry (Proc).Raised_Signals (I) := False;
+            exit;
+         end if;
+      end loop;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   end Get_Raised_Signal_Actions;
 
    function Convert (Proc : PID) return Natural is
    begin

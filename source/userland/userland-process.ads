@@ -1,5 +1,5 @@
 --  userland-process.ads: Process registry, PIDs, and all the fuzz.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System;
 with VFS;
 with Arch.MMU;
 with Lib.Synchronization;
@@ -22,7 +23,6 @@ with Interfaces; use Interfaces;
 with Userland.MAC;
 with IPC.FIFO;   use IPC.FIFO;
 with IPC.PTY;    use IPC.PTY;
-with IPC.SignalPost; use IPC.SignalPost;
 with IPC.Socket; use IPC.Socket;
 with Devices;
 
@@ -54,7 +54,6 @@ package Userland.Process is
        Description_Secondary_PTY,
        Description_Device,
        Description_Inode,
-       Description_SignalPost,
        Description_Socket);
    type File_Description;
    type File_Description_Acc is access File_Description;
@@ -82,31 +81,34 @@ package Userland.Process is
             Inner_Ino_Pos   : Unsigned_64;
             Inner_Ino_FS    : VFS.FS_Handle;
             Inner_Ino       : VFS.File_Inode_Number;
-         when Description_SignalPost =>
-            Inner_Post : IPC.SignalPost.SignalPost_Acc;
          when Description_Socket =>
             Inner_Socket : IPC.Socket.Socket_Acc;
       end case;
    end record;
 
-   type Overridable_Signal is
+   type Signal is
       (Signal_Abort,
        Signal_Alarm,
        Signal_Bad_Memory,
        Signal_Child,
+       Signal_Continue,
        Signal_FP_Exception,
        Signal_Hang_Up,
        Signal_Illegal_Instruction,
        Signal_Interrupted,
+       Signal_Kill,
        Signal_Broken_Pipe,
        Signal_Quit,
        Signal_Segmentation_Fault,
+       Signal_Stop,
        Signal_Terminated,
+       Signal_Terminal_Stop,
        Signal_Terminal_In,
        Signal_Terminal_Out,
        Signal_User_1,
        Signal_User_2,
        Signal_Pollable,
+       Signal_Profiling_Timer,
        Signal_Bad_Syscall,
        Signal_Tracepoint,
        Signal_Urgent,
@@ -114,7 +116,38 @@ package Userland.Process is
        Signal_CPU_Exceeded,
        Signal_File_Size_Exceeded);
 
-   type Signal_Bitmap is array (Overridable_Signal) of Boolean with Pack;
+   --  These values and the values of Signal_Bitmap are userland ABI, please
+   --  dont touch them if you dont want to break them!
+   for Signal use
+      (Signal_Abort               =>  1,
+       Signal_Alarm               =>  2,
+       Signal_Bad_Memory          =>  3,
+       Signal_Child               =>  4,
+       Signal_Continue            =>  5,
+       Signal_FP_Exception        =>  6,
+       Signal_Hang_Up             =>  7,
+       Signal_Illegal_Instruction =>  8,
+       Signal_Interrupted         =>  9,
+       Signal_Kill                => 10,
+       Signal_Broken_Pipe         => 11,
+       Signal_Quit                => 12,
+       Signal_Segmentation_Fault  => 13,
+       Signal_Stop                => 14,
+       Signal_Terminated          => 15,
+       Signal_Terminal_Stop       => 16,
+       Signal_Terminal_In         => 17,
+       Signal_Terminal_Out        => 18,
+       Signal_User_1              => 19,
+       Signal_User_2              => 20,
+       Signal_Pollable            => 21,
+       Signal_Profiling_Timer     => 22,
+       Signal_Bad_Syscall         => 23,
+       Signal_Tracepoint          => 24,
+       Signal_Urgent              => 25,
+       Signal_Virtual_Timer       => 26,
+       Signal_CPU_Exceeded        => 27,
+       Signal_File_Size_Exceeded  => 28);
+   type Signal_Bitmap is array (Signal) of Boolean with Pack, Size => 28;
 
    --  Initialize the process registry.
    procedure Init;
@@ -354,17 +387,29 @@ package Userland.Process is
    --  Exit a process, and set an error code.
    --  @param Process Process to exit.
    --  @param Code    Exit code.
+   --  @param Signal  True if the exit was caused by a signal.
    procedure Issue_Exit (Process : PID; Code : Unsigned_8)
       with Pre => Process /= Error_PID;
 
+   --  Exit a process with a signal, and set an error code.
+   --  @param Process Process to exit.
+   --  @param Code    Exit code.
+   --  @param Sig     Signal to cause the termination.
+   procedure Issue_Exit (Process : PID; Sig : Signal)
+      with Pre => Process /= Error_PID;
+
    --  Check whether a process exited.
-   --  @param Process  Process to check.
-   --- @param Did_Exit True if exited, False if not.
-   --  @param Code     Exit code, if it exited.
+   --  @param Process    Process to check.
+   --- @param Did_Exit   True if exited, False if not.
+   --  @param Code       Exit code, if it exited.
+   --  @param Was_Signal True if the exit was caused by a signal.
+   --  @param Sig        The signal that caused termination, if any.
    procedure Check_Exit
-      (Process  : PID;
-       Did_Exit : out Boolean;
-       Code     : out Unsigned_8)
+      (Process    : PID;
+       Did_Exit   : out Boolean;
+       Code       : out Unsigned_8;
+       Was_Signal : out Boolean;
+       Sig        : out Signal)
       with Pre => Process /= Error_PID;
 
    --  Set the current working directory.
@@ -474,11 +519,53 @@ package Userland.Process is
    --  @param Umask umask to set without modification, no AND or anything.
    procedure Set_Umask (Proc : PID; Umask : VFS.File_Mode);
 
-   procedure Get_Raised_Signals (Proc : PID; Sig : out Signal_Bitmap);
+   --  Get masked signals for a process, those are signals that cannot be
+   --  raised.
+   --  @param Proc Process to set masked signals for.
+   --  @param Sig  Signal bitmap to write.
+   procedure Get_Masked_Signals (Proc : PID; Sig : out Signal_Bitmap);
 
-   procedure Pop_Raised_Signals (Proc : PID; Sig : out Signal_Bitmap);
+   --  Set masked signals for a process, those are signals that cannot be
+   --  raised.
+   --  @param Proc Process to set masked signals for.
+   --  @param Sig  Signal bitmap to mask, true means that signal will be mask.
+   procedure Set_Masked_Signals (Proc : PID; Sig : Signal_Bitmap);
 
-   procedure Raise_Signal (Proc : PID; Sig : Overridable_Signal);
+   --  Signal that a signal was raised.
+   --  @param Proc Process to raise for.
+   --  @param Sig  Signal to raise.
+   procedure Raise_Signal (Proc : PID; Sig : Signal);
+
+   --  Get the address assigned for a process to use as a signal handler.
+   --  @param Proc Process to set the handler for.
+   --  @param Sig  Signal to set the handler to.
+   --  @param Addr Address set for the handler.
+   procedure Get_Signal_Handler
+      (Proc : PID;
+       Sig  : Signal;
+       Addr : out System.Address);
+
+   --  Set an address for a process to use as a signal handler.
+   --  @param Proc Process to set the handler for.
+   --  @param Sig  Signal to set the handler to.
+   --  @param Addr Address to set for the handler.
+   procedure Set_Signal_Handler
+      (Proc : PID;
+       Sig  : Signal;
+       Addr : System.Address);
+
+   --  Get a raised signal for a process.
+   --  @param Proc   Process to fetch signals for.
+   --  @param Sig    Raised signal.
+   --  @param Addr   Address of the handler, Null_Address if not registered.
+   --  @param No_Sig The process has no more signals to process.
+   --  @param Ignore If not registered, this signal can be ignored, else, kill.
+   procedure Get_Raised_Signal_Actions
+      (Proc   : PID;
+       Sig    : out Signal;
+       Addr   : out System.Address;
+       No_Sig : out Boolean;
+       Ignore : out Boolean);
 
    --  Convert a PID to an integer. The results will be reproducible for the
    --  same PIDs.
@@ -555,9 +642,12 @@ private
 
    type Thread_Arr is array (1 .. Max_Thread_Count)   of Scheduler.TID;
    type File_Arr   is array (0 .. Max_File_Count - 1) of File_Descriptor;
+   type Handle_Arr is array (Signal)                  of System.Address;
    type Process_Data is record
       Data_Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
-      Signals         : Signal_Bitmap;
+      Masked_Signals  : Signal_Bitmap;
+      Raised_Signals  : Signal_Bitmap;
+      Signal_Handlers : Handle_Arr;
       Niceness        : Scheduler.Niceness;
       Umask           : VFS.File_Mode;
       User            : Unsigned_32;
@@ -579,6 +669,8 @@ private
       Stack_Base      : Unsigned_64;
       Alloc_Base      : Unsigned_64;
       Perms           : MAC.Context;
+      Signal_Exit     : Boolean;
+      Which_Signal    : Signal;
       Did_Exit        : Boolean;
       Exit_Code       : Unsigned_8;
       Children_SSec   : Unsigned_64;

@@ -78,7 +78,7 @@ Inter-process communication
 * Pipes::                      FIFOs (yay!).
 * Futexes::                    Fast-Userspace MuTeXes.
 * PTYs::                       Pseudo-terminal creation and management.
-* Signal Posts::               Ironclad's signal mechanism.
+* Signals::                    Ironclad's signal mechanism.
 * Sockets::                    Sockets in all of its glory and flavours.
 
 Memory architecture
@@ -176,8 +176,8 @@ Syscalls
 * utimes::                  Modify timestamps for a file.
 * create_tcluster::         Create a thread cluster.
 * switch_tcluster::         Switch thread cluster.
-* actually_kill::           Kill a remote process.
-* signalpost::              Create a signal post.
+* sigprogmask::             Fetch and change a process' blocked signal.
+* sigaction::               Fetch and change a signal's action.
 * send_signal::             Send a signal to a process.
 * getprio/setprio::         Get / Set the niceness of some entities.
 * getgid/getegid::          Get the GID and the effective GID.
@@ -430,36 +430,10 @@ PTYs, unlike other OSes like Linux, when created, do not populate @code{/dev}.
 They live exclusively as file descriptors, not unlike a pipe. Apart of that
 they behave as you would expect when compared with other UNIX-likes.
 
-@node Signal Posts
-@section Signal Posts
+@node Signals
+@section Signals
 
-POSIX signals are a mess, for several reasons, so Ironclad implements an
-alternative scheme that remains somewhat compatible with classic POSIX syscalls
-with a bit of userland help.
-
-Signals in Ironclad are issued in the usual way with @code{send_signal}, which
-is a rough equivalent to the classic @code{kill}. Only some signals are
-supported this way, non-handable signals like @code{SIGKILL} and @code{SIGSTOP}
-have their own syscalls, that override the signal mechanism.
-@ref{actually_kill}.
-
-Instead of the code being interrupted and the whole signal mess, Ironclad
-allows reading bitmaps of the triggered signals of the process from a signal
-post, which is a special object that exposes process-wide signals. It allows
-polling, along with other goodies that come as an advantage of the file
-interface. Signal posts are created using the @pxref{signalpost} syscall.
-
-Since no interrupted code and weird state are involved, this approach allows
-for much easier, more straight-forward code, easier flow analysis, and makes
-@code{EINTR} complete obsolete, since to handle events asynchronously, one
-can just make a thread and act on signals there.
-
-In Ironclad, all signals able to be sent with @code{send_signal} have the
-purpose of communication, and do not kill processes when not handled. Some
-signals though are generated when a thread encounters irrecoverable state, like
-@code{SIGSEGV} or @code{SIGBUS}. These signals will kill the process when
-encountered by the kernel, but not when sent from process to process. Thus,
-they are unhandleable when encountered naturally.
+Ironclad implements standard POSIX signals.
 
 @node Sockets
 @section Sockets
@@ -858,9 +832,9 @@ Empty.
 @item
 @ref{switch_tcluster}.
 @item
-@ref{actually_kill}.
+@ref{sigprogmask}.
 @item
-@ref{signalpost}.
+@ref{sigaction}.
 @item
 @ref{send_signal}.
 @item
@@ -3367,48 +3341,71 @@ errno:
 MAC did not allow this.
 @end table
 
-@node actually_kill
-@section actually_kill
+@node sigprogmask
+@section sigprogmask
 
 @example
-int actually_kill(int pid);
+#define SIG_BLOCK   1
+#define SIG_UNBLOCK 2
+#define SIG_SETMASK 3
+
+int sigprocmask(int how, sigset_t *set, sigset_t *oldset);
 @end example
 
-This syscall terminates the passed PID, this is no POSIX @code{kill}, this
-@code{actually_kill}s. A process cannot actually kill itself.
+This syscall fetches and/or changes the signal mask of the calling
+process. The signal mask is the set of signals whose delivery is currently
+blocked.
 
-Only processes sharing the same UID or EUID as the caller's EUID can be
-actually killed. The @code{MAC_CAP_SIGNALALL} capability overrides this check.
+If not @code{NULL}, @code{set} can be used for passing a new mask, if not
+@code{NULL}, @code{oldset} can be used for getting the existing mask.
 
-Killed processes will behave as if they called @code{exit} with an error code
-of @code{128}.
+The behaviour of the syscall will depend on the value passed to
+@code{how}, which can be one of:
+
+@table @code
+@item SIG_BLOCK
+The blocked signals will be a union of the current ones and the passed ones.
+
+@item SIG_UNBLOCK
+The blocked signals will be the current ones minus the passed ones.
+
+@item SIG_SETMASK
+The blocked signals will be the passed ones.
+@end table
 
 It returns @code{0} on success and @code{-1} on failure, with the following
 errno:
 
 @table @code
-@item ESRCH
-@code{pid} is not a valid target for actual killing.
+@item EINVAL
+@code{how} is not valid.
 
-@item EPERM
-The caller does not have the appropiate permissions over @code{pid} to actually
-kill.
+@item EFAULT
+A non-@code{NULL} pointer points to not valid memory.
 @end table
 
-@node signalpost
-@section signalpost
+@node sigaction
+@section sigaction
 
 @example
-int signalpost(void);
+int sigaction(int sig, struct sigaction *act, struct sigaction *oldact);
 @end example
 
-This syscall creates a signal post, @ref{Signal Posts}.
+This syscall fetches and/or changes the associated actions with the signal
+@code{sig}.
 
-It returns a valid FD or @code{-1} on failure, with the following errno:
+If not @code{NULL}, @code{act} can be used for setting a new action, if not
+@code{NULL}, @code{oldact} can be used for getting the existing action.
+
+It returns @code{0} on success or @code{-1} on failure, with the following
+errno:
 
 @table @code
-@item ESRCH
-@code{pid} is not a valid target for actual killing.
+@item EINVAL
+@code{sig} is not valid.
+
+@item EFAULT
+A non-@code{NULL} pointer points to not valid memory.
 
 @item EPERM
 The caller does not have the appropiate permissions over @code{pid} to actually

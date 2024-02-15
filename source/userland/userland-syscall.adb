@@ -14,8 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System.Storage_Elements; use System.Storage_Elements;
 with Ada.Characters.Latin_1;
+with Ada.Unchecked_Conversion;
 with Config;
 with System; use System;
 with Lib.Messages;
@@ -33,7 +33,6 @@ with Ada.Unchecked_Deallocation;
 with Arch.Hooks;
 with Cryptography.Random;
 with IPC.Futex;
-with IPC.SignalPost; use IPC.SignalPost;
 with IPC.FileLock;
 with IPC.SHM;
 with Devices.TermIOs;
@@ -306,15 +305,6 @@ package body Userland.Syscall is
             when Description_Writer_FIFO =>
                Errno    := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
-            when Description_SignalPost =>
-               Read (File.Inner_Post, Data, Ret_Count, Success3);
-               if Success3 then
-                  Returned := Unsigned_64 (Ret_Count);
-                  Errno    := Error_No_Error;
-               else
-                  Returned := Unsigned_64'Last;
-                  Errno    := Error_IO;
-               end if;
             when Description_Socket =>
                IPC.Socket.Read (File.Inner_Socket, Data, Ret_Count, Success4);
                Translate_Status
@@ -417,7 +407,7 @@ package body Userland.Syscall is
                   (File.Inner_Secondary_PTY, Data, Ret_Count, Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
-            when Description_Reader_FIFO | Description_SignalPost =>
+            when Description_Reader_FIFO =>
                Errno := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
             when Description_Socket =>
@@ -841,6 +831,8 @@ package body Userland.Syscall is
       Children   : Process.Children_Arr (1 .. 25);
       Count      : Natural;
       Did_Exit   : Boolean;
+      Was_Signal : Boolean;
+      Cause      : Signal;
       Error_Code : Unsigned_8;
       Exit_Value : Unsigned_32 with Address => To_Address (Addr), Import;
    begin
@@ -856,7 +848,7 @@ package body Userland.Syscall is
             for PID_Item of Children (1 .. Count) loop
                Waited := PID_Item;
                if Waited /= Error_PID then
-                  Check_Exit (Waited, Did_Exit, Error_Code);
+                  Check_Exit (Waited, Did_Exit, Error_Code, Was_Signal, Cause);
                   if Did_Exit then
                      goto Waited_Exited;
                   end if;
@@ -873,7 +865,7 @@ package body Userland.Syscall is
          end if;
 
          loop
-            Check_Exit (Waited, Did_Exit, Error_Code);
+            Check_Exit (Waited, Did_Exit, Error_Code, Was_Signal, Cause);
             if Did_Exit then
                goto Waited_Exited;
             end if;
@@ -896,7 +888,12 @@ package body Userland.Syscall is
             Returned := Unsigned_64'Last;
             return;
          end if;
-         Exit_Value := Wait_EXITED or Unsigned_32 (Error_Code);
+
+         if Was_Signal then
+            Exit_Value := WIFSIGNALED or Shift_Left (Cause'Enum_Rep, 24);
+         else
+            Exit_Value := WIFEXITED or Unsigned_32 (Error_Code);
+         end if;
       end if;
 
       --  Now that we got the exit code, finally allow the process to die.
@@ -1074,8 +1071,7 @@ package body Userland.Syscall is
                end if;
                goto Success_Return;
             when Description_Reader_FIFO | Description_Writer_FIFO |
-                 Description_Primary_PTY | Description_Secondary_PTY |
-                 Description_SignalPost =>
+                 Description_Primary_PTY | Description_Secondary_PTY =>
                Stat_Buf :=
                   (Device_Number => 0,
                    Inode_Number  => 1,
@@ -1859,8 +1855,6 @@ package body Userland.Syscall is
                   Temp := Is_Write_Blocking (File.Inner_Writer_FIFO);
                when Description_Socket =>
                   Temp := Is_Blocking (File.Inner_Socket);
-               when Description_SignalPost =>
-                  Is_Blocking (File.Inner_Post, Temp);
                when Description_Primary_PTY =>
                   Is_Primary_Blocking (File.Inner_Primary_PTY, Temp);
                when Description_Secondary_PTY =>
@@ -1880,8 +1874,6 @@ package body Userland.Syscall is
                   Set_Write_Blocking (File.Inner_Writer_FIFO, Temp);
                when Description_Socket =>
                   Set_Blocking (File.Inner_Socket, Temp);
-               when Description_SignalPost =>
-                  Set_Blocking (File.Inner_Post, Temp);
                when Description_Primary_PTY =>
                   Set_Primary_Blocking (File.Inner_Primary_PTY, Temp);
                when Description_Secondary_PTY =>
@@ -3324,8 +3316,6 @@ package body Userland.Syscall is
                      IPC.Socket.Poll
                         (File.Inner_Socket, Can_Read, Can_Write, Is_Broken,
                          Is_Error);
-                  when Description_SignalPost =>
-                     Poll (File.Inner_Post, Can_Read, Is_Error);
                   when Description_Inode =>
                      Can_Read  := True;
                      Can_Write := True;
@@ -4612,69 +4602,138 @@ package body Userland.Syscall is
       end if;
    end Switch_TCluster;
 
-   procedure Actually_Kill
-      (Target   : Unsigned_64;
+   procedure Sigprocmask
+      (How      : Unsigned_64;
+       Set_Addr : Unsigned_64;
+       Old_Addr : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc : constant PID := Arch.Local.Get_Current_Process;
-      Tgt  : constant PID := Convert (Natural (Target and 16#FFFFFFFF#));
-      EUID, Tgt_UID, Tgt_EUID : Unsigned_32;
+      type Unsigned_28 is mod 2**28;
+      function C1 is new Ada.Unchecked_Conversion (Signal_Bitmap, Unsigned_28);
+      function C2 is new Ada.Unchecked_Conversion (Unsigned_28, Signal_Bitmap);
+
+      Proc    : constant             PID := Arch.Local.Get_Current_Process;
+      Map     : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      S_IAddr : constant Integer_Address := Integer_Address (Set_Addr);
+      O_IAddr : constant Integer_Address := Integer_Address (Old_Addr);
+      Old_Set : Signal_Bitmap;
    begin
-      if Tgt = Error_PID or Tgt = Proc then
-         Errno    := Error_Bad_Search;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
+      Get_Masked_Signals (Proc, Old_Set);
 
-      if not Get_Capabilities (Proc).Can_Signal_All then
-         Get_Effective_UID (Proc, EUID);
-         Get_UID (Tgt, Tgt_UID);
-         Get_Effective_UID (Tgt, Tgt_EUID);
-         if EUID /= Tgt_UID and EUID /= Tgt_EUID then
-            Errno    := Error_Bad_Permissions;
-            Returned := Unsigned_64'Last;
-            return;
+      if O_IAddr /= 0 then
+         if not Check_Userland_Access (Map, O_IAddr, Signal_Bitmap'Size / 8)
+         then
+            goto Would_Fault_Error;
          end if;
+
+         declare
+            Old : Signal_Bitmap with Import, Address => To_Address (O_IAddr);
+         begin
+            Old := Old_Set;
+         end;
       end if;
 
-      Do_Remote_Exit (Tgt, 128);
+      if S_IAddr /= 0 then
+         if not Check_Userland_Access (Map, S_IAddr, Signal_Bitmap'Size / 8)
+         then
+            goto Would_Fault_Error;
+         end if;
+
+         declare
+            Set : Unsigned_28 with Import, Address => To_Address (S_IAddr);
+         begin
+            case How is
+               when SIG_BLOCK =>
+                  Set_Masked_Signals (Proc, C2 (Set and C1 (Old_Set)));
+               when SIG_SETMASK =>
+                  Set_Masked_Signals (Proc, C2 (Set and not C1 (Old_Set)));
+               when SIG_UNBLOCK =>
+                  Set_Masked_Signals (Proc, C2 (Set));
+               when others =>
+                  Errno    := Error_Invalid_Value;
+                  Returned := Unsigned_64'Last;
+                  return;
+            end case;
+         end;
+      end if;
+
       Errno    := Error_No_Error;
       Returned := 0;
-   end Actually_Kill;
+      return;
 
-   procedure SignalPost
-      (Flags    : Unsigned_64;
+   <<Would_Fault_Error>>
+      Errno    := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
+   end Sigprocmask;
+
+   procedure Sigaction
+      (Signal   : Unsigned_64;
+       Act_Addr : Unsigned_64;
+       Old_Addr : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc    : constant PID := Arch.Local.Get_Current_Process;
-      Post    : IPC.FIFO.Inner_Acc;
-      Result  : Natural;
+      Proc    : constant             PID := Arch.Local.Get_Current_Process;
+      Map     : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      A_IAddr : constant Integer_Address := Integer_Address (Act_Addr);
+      O_IAddr : constant Integer_Address := Integer_Address (Old_Addr);
+      Actual  : Process.Signal;
       Success : Boolean;
-      Desc    : File_Description_Acc;
+      Mask    : Process.Signal_Bitmap;
    begin
-      Post := Create ((Flags and O_NONBLOCK) = 0);
-      if Post = null then
-         Errno    := Error_No_Memory;
+      Translate_Signal (Signal, Actual, Success);
+      if not Success then
+         Errno    := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
          return;
       end if;
 
-      Desc := new File_Description'
-         (Children_Count    => 0,
-          Description       => Description_Reader_FIFO,
-          Inner_Reader_FIFO => Post);
-      Check_Add_File (Proc, Desc, Success, Result);
-      if not Success then
-         Close (Desc);
-         Errno := Error_Too_Many_Files;
-         Returned := Unsigned_64'Last;
-      else
-         Errno    := Error_No_Error;
-         Returned := Unsigned_64 (Result);
+      if O_IAddr /= 0 then
+         if not Check_Userland_Access (Map, O_IAddr, Sigaction_Info'Size / 8)
+         then
+            goto Would_Fault_Error;
+         end if;
+
+         declare
+            Old : Sigaction_Info with Import, Address => To_Address (O_IAddr);
+         begin
+            Old.Flags  := 0;
+            Old.Mask   := 0;
+            Get_Signal_Handler (Proc, Actual, Old.Handler);
+         end;
       end if;
-   end SignalPost;
+
+      if A_IAddr /= 0 then
+         if not Check_Userland_Access (Map, A_IAddr, Sigaction_Info'Size / 8)
+         then
+            goto Would_Fault_Error;
+         end if;
+
+         declare
+            Act : Sigaction_Info with Import, Address => To_Address (A_IAddr);
+         begin
+            case To_Integer (Act.Handler) is
+               when SIG_DFL =>
+                  Set_Signal_Handler (Proc, Actual, System.Null_Address);
+               when SIG_IGN =>
+                  Get_Masked_Signals (Proc, Mask);
+                  Mask (Actual) := True;
+                  Set_Masked_Signals (Proc, Mask);
+               when others =>
+                  Set_Signal_Handler (Proc, Actual, Act.Handler);
+            end case;
+         end;
+      end if;
+
+      Errno    := Error_No_Error;
+      Returned := 0;
+      return;
+
+   <<Would_Fault_Error>>
+      Errno    := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
+   end Sigaction;
 
    procedure Send_Signal
       (Target   : Unsigned_64;
@@ -4682,13 +4741,25 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc : constant PID := Arch.Local.Get_Current_Process;
-      Tgt  : constant PID := Convert (Natural (Target and 16#FFFFFF#));
+      Proc    : constant PID := Arch.Local.Get_Current_Process;
+      Tgt     : constant PID := Convert (Natural (Target and 16#FFFFFF#));
+      Success : Boolean;
+      Actual  : Process.Signal;
       EUID, Tgt_UID, Tgt_EUID : Unsigned_32;
-      Actual : Overridable_Signal;
    begin
+      Translate_Signal (Signal, Actual, Success);
+      if not Success then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
       if Tgt = Error_PID then
          Errno    := Error_Bad_Search;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif not Actual'Valid then
+         Errno    := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
          return;
       end if;
@@ -4703,36 +4774,6 @@ package body Userland.Syscall is
             return;
          end if;
       end if;
-
-      case Signal is
-         when  1 => Actual := Signal_Hang_Up;
-         when  2 => Actual := Signal_Interrupted;
-         when  3 => Actual := Signal_Quit;
-         when  4 => Actual := Signal_Illegal_Instruction;
-         when  5 => Actual := Signal_Tracepoint;
-         when  6 => Actual := Signal_Abort;
-         when  7 => Actual := Signal_Bad_Memory;
-         when  8 => Actual := Signal_FP_Exception;
-         when 10 => Actual := Signal_User_1;
-         when 11 => Actual := Signal_Segmentation_Fault;
-         when 12 => Actual := Signal_User_2;
-         when 13 => Actual := Signal_Broken_Pipe;
-         when 14 => Actual := Signal_Alarm;
-         when 15 => Actual := Signal_Terminated;
-         when 17 => Actual := Signal_Child;
-         when 21 => Actual := Signal_Terminal_In;
-         when 22 => Actual := Signal_Terminal_Out;
-         when 23 => Actual := Signal_Urgent;
-         when 24 => Actual := Signal_CPU_Exceeded;
-         when 25 => Actual := Signal_File_Size_Exceeded;
-         when 26 => Actual := Signal_Virtual_Timer;
-         when 29 => Actual := Signal_Pollable;
-         when 31 => Actual := Signal_Bad_Syscall;
-         when others =>
-            Errno    := Error_Invalid_Value;
-            Returned := Unsigned_64'Last;
-            return;
-      end case;
 
       Raise_Signal (Tgt, Actual);
       Errno    := Error_No_Error;
@@ -5483,6 +5524,23 @@ package body Userland.Syscall is
       Scheduler.Bail;
    end Do_Exit;
 
+   procedure Do_Exit (Proc : PID; Sig : Signal) is
+   begin
+      --  Switch to the kernel page table to make us immune to having it swept
+      --  from under out feet by process cleanup.
+      if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
+         Lib.Messages.Put_Line ("Could not switch table on thread exit");
+      end if;
+
+      --  Remove all state but the return value and keep the zombie around
+      --  until we are waited.
+      Userland.Process.Flush_Threads (Proc);
+      Userland.Process.Flush_Files   (Proc);
+      Userland.Process.Remove_Thread (Proc, Arch.Local.Get_Current_Thread);
+      Userland.Process.Issue_Exit    (Proc, Sig);
+      Scheduler.Bail;
+   end Do_Exit;
+
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context) is
       Thread  : constant TID := Arch.Local.Get_Current_Thread;
    begin
@@ -5513,16 +5571,36 @@ package body Userland.Syscall is
          State  : Arch.Context.GP_Context;
       end record with Pack;
 
-      Proc       : constant PID := Arch.Local.Get_Current_Process;
-      File       : File_Description_Acc;
-      Success    : IPC.FIFO.Pipe_Status;
-      Ret_Count  : Natural;
-      Tracer_FD  : Natural;
-      Is_Traced  : Boolean;
-      TInfo      : Trace_Info;
-      TInfo_Data : Devices.Operation_Data (1 .. TInfo'Size / 8)
+      Proc          : constant PID := Arch.Local.Get_Current_Process;
+      File          : File_Description_Acc;
+      Success       : IPC.FIFO.Pipe_Status;
+      Raised_Signal : Userland.Process.Signal;
+      Signal_Addr   : System.Address;
+      No_Signal     : Boolean;
+      Ignore_Signal : Boolean;
+      Ret_Count     : Natural;
+      Tracer_FD     : Natural;
+      Is_Traced     : Boolean;
+      TInfo         : Trace_Info;
+      TInfo_Data    : Devices.Operation_Data (1 .. TInfo'Size / 8)
          with Import, Address => TInfo'Address;
    begin
+      --  Solve signals first.
+      loop
+         Userland.Process.Get_Raised_Signal_Actions
+            (Proc   => Proc,
+             Sig    => Raised_Signal,
+             Addr   => Signal_Addr,
+             No_Sig => No_Signal,
+             Ignore => Ignore_Signal);
+         exit when No_Signal;
+
+         if Signal_Addr = System.Null_Address and not Ignore_Signal then
+            Do_Exit (Proc, Raised_Signal);
+         end if;
+      end loop;
+
+      --  Take care of syscall tracing.
       Userland.Process.Get_Traced_Info (Proc, Is_Traced, Tracer_FD);
       if Is_Traced then
          File := Get_File (Proc, Unsigned_64 (Tracer_FD));
@@ -5956,4 +6034,20 @@ package body Userland.Syscall is
          end if;
       end if;
    end Resolve_AT_Directive;
+
+   procedure Translate_Signal
+      (Val     : Unsigned_64;
+       Sig     : out Signal;
+       Success : out Boolean)
+   is
+   begin
+      Success :=
+         Val >= Process.Signal'Enum_Rep (Process.Signal'First) and
+         Val <= Process.Signal'Enum_Rep (Process.Signal'Last);
+      if Success then
+         Sig := Process.Signal'Enum_Val (Val);
+      else
+         Sig := Process.Signal_Kill;
+      end if;
+   end Translate_Signal;
 end Userland.Syscall;

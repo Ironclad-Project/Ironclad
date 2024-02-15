@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
+with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Context;
 with Arch.MMU;
 with IPC.PTY;
@@ -215,7 +216,8 @@ package Userland.Syscall is
 
    --  Wait.
    WNOHANG     : constant := 2#0000000010#;
-   Wait_EXITED : constant := 2#1000000000#;
+   WIFEXITED   : constant := 2#1000000000#;
+   WIFSIGNALED : constant := 16#400#;
    procedure Wait
       (Waited_PID : Unsigned_64;
        Exit_Addr  : Unsigned_64;
@@ -1020,13 +1022,28 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
-   procedure Actually_Kill
-      (Target   : Unsigned_64;
+   SIG_BLOCK   : constant := 1;
+   SIG_UNBLOCK : constant := 2;
+   SIG_SETMASK : constant := 3;
+   procedure Sigprocmask
+      (How      : Unsigned_64;
+       Set_Addr : Unsigned_64;
+       Old_Addr : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
-   procedure SignalPost
-      (Flags    : Unsigned_64;
+   SIG_ERR : constant := Integer_Address'Last;
+   SIG_IGN : constant := Integer_Address'Last - 1;
+   SIG_DFL : constant := Integer_Address'Last - 2;
+   type Sigaction_Info is record
+      Handler : System.Address; --  void handler(int, siginfo_t *, void *);
+      Mask    : Unsigned_64;
+      Flags   : Unsigned_32;
+   end record;
+   procedure Sigaction
+      (Signal   : Unsigned_64;
+       Act_Addr : Unsigned_64;
+       Old_Addr : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
@@ -1199,6 +1216,7 @@ package Userland.Syscall is
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.
    procedure Do_Exit (Proc : PID; Code : Unsigned_8);
+   procedure Do_Exit (Proc : PID; Sig : Signal);
 
    --  Pre and post syscall hook.
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context);
@@ -1299,4 +1317,9 @@ private
        Dir_FD : Unsigned_64;
        FS     : out VFS.FS_Handle;
        Ino    : out VFS.File_Inode_Number);
+
+   procedure Translate_Signal
+      (Val     : Unsigned_64;
+       Sig     : out Signal;
+       Success : out Boolean);
 end Userland.Syscall;

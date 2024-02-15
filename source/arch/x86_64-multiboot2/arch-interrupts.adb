@@ -45,7 +45,8 @@ package body Arch.Interrupts is
       if State.CS = (GDT.User_Code64_Segment or 3) then
          Lib.Messages.Put_Line ("Userland " & Exception_Text (Num));
          Userland.Corefile.Generate_Corefile (Context.GP_Context (State.all));
-         Do_Exit (Local.Get_Current_Process, 255 - Unsigned_8 (Num));
+         Do_Exit (Local.Get_Current_Process,
+                  Userland.Process.Signal_Segmentation_Fault);
       else
          Print_Triple ("RAX", "RBX", "RCX", State.RAX, State.RBX, State.RCX);
          Print_Triple ("RDX", "RSI", "RDI", State.RDX, State.RSI, State.RDI);
@@ -258,9 +259,9 @@ package body Arch.Interrupts is
          when 78 =>
             Switch_TCluster (State.RDI, State.RSI, Returned, Errno);
          when 79 =>
-            Actually_Kill (State.RDI, Returned, Errno);
+            Sigprocmask (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 80 =>
-            SignalPost (State.RDI, Returned, Errno);
+            Sigaction (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 81 =>
             Send_Signal (State.RDI, State.RSI, Returned, Errno);
          when 82 =>
