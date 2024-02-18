@@ -52,8 +52,10 @@ project Ironclad is
           "-gnateDVersion="""      & "@PACKAGE_VERSION@"   & """",
           "-gnateDBugSite="""      & "@PACKAGE_BUGREPORT@" & """",
           "-gnateDArchName="""     & Arch                  & """",
+          "-ffile-prefix-map="     & "@SRCDIR@"            & "=.",
           "-gnateDALLOCONLY="      & "@MEMORY_ALLOCONLY@");
-      Base_Asm_Switches := Split (Asm_Flags, " ");
+      Base_Asm_Switches := Split (Asm_Flags, " ") &
+         ("-ffile-prefix-map=" & "@SRCDIR@" & "=.");
 
       case Arch is
          when "aarch64-stivale2" =>

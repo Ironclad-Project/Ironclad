@@ -25,6 +25,10 @@ override PACKAGE_TARNAME := @PACKAGE_TARNAME@
 override OUTPUT          := $(PACKAGE_TARNAME)
 override DIST_OUTPUT     := $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
 
+# Take care of reproducible dates.
+override SOURCE_DATE_EPOCH := @SOURCE_DATE_EPOCH@
+export SOURCE_DATE_EPOCH
+
 # Autoconf dir variables.
 override prefix      := @prefix@
 override datarootdir := @datarootdir@

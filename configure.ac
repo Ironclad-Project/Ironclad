@@ -55,6 +55,14 @@ m4_define([DEFAULT_LDFLAGS], [-g -O2 -pipe -Wall])
 AC_ARG_VAR([LDFLAGS], [Linker flags @<:@default: ]DEFAULT_LDFLAGS[@:>@])
 test "x$LDFLAGS" = "x" && LDFLAGS="DEFAULT_LDFLAGS"
 ###############################################################################
+# A ton of tools use source date epoch in order to not use date in the effort
+# of doing reproducible builds.
+# This command uses git, but thats no biggie because there is a fallback if
+# no git is present and it is meant to only be run when regenerating, so
+# tarball users will (ideally) never see this.
+SOURCE_DATE_EPOCH="m4_esyscmd([if git log -1 >/dev/null 2>&1; then git log -1 --pretty=%ct | tr -d '\n'; else printf 1546300800; fi])"
+AC_SUBST([SOURCE_DATE_EPOCH])
+###############################################################################
 # Get programs and put them in comfortable variables.
 
 # $1 - UPERCASEVAR, $2 - default program, $3 - nice name
