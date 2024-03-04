@@ -409,16 +409,17 @@ private
    Root_Inode         : constant := 2;
    Max_File_Name_Size : constant := 255;
 
+   type String_Acc is access String;
    procedure Inner_Open_Inode
-      (Data         : EXT_Data_Acc;
-       Relative     : Unsigned_32;
-       Path         : String;
-       Name_Start   : out Natural;
-       Target_Index : out Unsigned_32;
-       Target_Inode : out Inode;
-       Parent_Index : out Unsigned_32;
-       Parent_Inode : out Inode;
-       Success      : out Boolean);
+      (Data           : EXT_Data_Acc;
+       Relative       : Unsigned_32;
+       Path           : String;
+       Last_Component : out String_Acc;
+       Target_Index   : out Unsigned_32;
+       Target_Inode   : out Inode;
+       Parent_Index   : out Unsigned_32;
+       Parent_Inode   : out Inode;
+       Success        : out Boolean);
 
    procedure Inner_Read_Symbolic_Link
       (Ino       : Inode;

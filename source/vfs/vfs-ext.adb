@@ -23,6 +23,7 @@ with Ada.Characters.Latin_1;
 
 package body VFS.EXT is
    package   Conv is new System.Address_To_Access_Conversions (EXT_Data);
+   procedure Free is new Ada.Unchecked_Deallocation (String,   String_Acc);
    procedure Free is new Ada.Unchecked_Deallocation (EXT_Data, EXT_Data_Acc);
    procedure Free is new Ada.Unchecked_Deallocation (Inode,    Inode_Acc);
    procedure Free is new Ada.Unchecked_Deallocation
@@ -213,25 +214,25 @@ package body VFS.EXT is
        Do_Follow : Boolean)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Name_Start : Natural;
+      Last_Component             : String_Acc;
       Target_Index, Parent_Index : Unsigned_32;
       Target_Inode, Parent_Inode : Inode_Acc := new Inode;
-      Succ : Boolean;
-      Symlink : String (1 .. 60);
-      Symlink_Len : Natural;
+      Succ                       : Boolean;
+      Symlink                    : String (1 .. 60);
+      Symlink_Len                : Natural;
    begin
       Lib.Synchronization.Seize (Data.Mutex);
 
       Inner_Open_Inode
-         (Data         => Data,
-          Relative     => Unsigned_32 (Relative),
-          Path         => Path,
-          Name_Start   => Name_Start,
-          Target_Index => Target_Index,
-          Target_Inode => Target_Inode.all,
-          Parent_Index => Parent_Index,
-          Parent_Inode => Parent_Inode.all,
-          Success      => Succ);
+         (Data           => Data,
+          Relative       => Unsigned_32 (Relative),
+          Path           => Path,
+          Last_Component => Last_Component,
+          Target_Index   => Target_Index,
+          Target_Inode   => Target_Inode.all,
+          Parent_Index   => Parent_Index,
+          Parent_Inode   => Parent_Inode.all,
+          Success        => Succ);
 
       if Succ and Do_Follow and
          Get_Inode_Type (Target_Inode.Permissions) = File_Symbolic_Link
@@ -273,6 +274,7 @@ package body VFS.EXT is
 
       Free (Target_Inode);
       Free (Parent_Inode);
+      Free (Last_Component);
    end Open;
 
    procedure Create_Node
@@ -287,20 +289,20 @@ package body VFS.EXT is
       Data     : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Perms    : constant  Unsigned_16 := Get_Permissions (Typ);
       Dir_Type : constant   Unsigned_8 := Get_Dir_Type (Typ);
-      Name_Start                 : Natural;
+      Has_64bit_Sz : Boolean renames Data.Has_64bit_Filesizes;
+      Last_Component             : String_Acc;
       Target_Index, Parent_Index : Unsigned_32;
       Target_Inode, Parent_Inode : Inode_Acc := new Inode;
-      Descriptor : Block_Group_Descriptor;
-      Desc_Index : Unsigned_32;
-      Ent       : Directory_Entry;
+      Descriptor                 : Block_Group_Descriptor;
+      Desc_Index                 : Unsigned_32;
+      Ent                        : Directory_Entry;
+      Name                       : String (1 .. 2);
+      Temp                       : Natural;
+      Success                    : Boolean;
       Ent_Data  : Operation_Data (1 .. Ent'Size / 8)
          with Import, Address => Ent'Address;
-      Name      : String (1 .. 2);
       Name_Data : Operation_Data (1 .. 2)
          with Import, Address => Name'Address;
-      Success                    : Boolean;
-
-      Has_64bit_Sz : Boolean renames Data.Has_64bit_Filesizes;
    begin
       Lib.Synchronization.Seize (Data.Mutex);
 
@@ -314,15 +316,15 @@ package body VFS.EXT is
 
       --  Checking the file doesn't exist but the parent is found along perms.
       Inner_Open_Inode
-         (Data         => Data,
-          Relative     => Unsigned_32 (Relative),
-          Path         => Path,
-          Name_Start   => Name_Start,
-          Target_Index => Target_Index,
-          Target_Inode => Target_Inode.all,
-          Parent_Index => Parent_Index,
-          Parent_Inode => Parent_Inode.all,
-          Success      => Success);
+         (Data           => Data,
+          Relative       => Unsigned_32 (Relative),
+          Path           => Path,
+          Last_Component => Last_Component,
+          Target_Index   => Target_Index,
+          Target_Inode   => Target_Inode.all,
+          Parent_Index   => Parent_Index,
+          Parent_Inode   => Parent_Inode.all,
+          Success        => Success);
       if Success or else Parent_Index = 0 or else Target_Index /= 0 then
          Status := FS_Invalid_Value;
          goto Cleanup;
@@ -368,7 +370,7 @@ package body VFS.EXT is
           Inode_Index => Parent_Index,
           Added_Index => Target_Index,
           Dir_Type    => Dir_Type,
-          Name        => Path (Name_Start .. Path'Last),
+          Name        => Last_Component.all,
           Success     => Success);
       if not Success then
          Status := FS_IO_Failure;
@@ -384,7 +386,7 @@ package body VFS.EXT is
              Inode_Size  => Get_Size (Target_Inode.all, Has_64bit_Sz),
              Offset      => 0,
              Data        => Ent_Data,
-             Ret_Count   => Name_Start,
+             Ret_Count   => Temp,
              Success     => Success);
          Name := ('.', Ada.Characters.Latin_1.NUL);
          Write_To_Inode
@@ -394,7 +396,7 @@ package body VFS.EXT is
              Inode_Size  => Get_Size (Target_Inode.all, Has_64bit_Sz),
              Offset      => 8,
              Data        => Name_Data,
-             Ret_Count   => Name_Start,
+             Ret_Count   => Temp,
              Success     => Success);
 
          Ent :=
@@ -409,7 +411,7 @@ package body VFS.EXT is
              Inode_Size  => Get_Size (Target_Inode.all, Has_64bit_Sz),
              Offset      => 12,
              Data        => Ent_Data,
-             Ret_Count   => Name_Start,
+             Ret_Count   => Temp,
              Success     => Success);
          Name := "..";
          Write_To_Inode
@@ -419,7 +421,7 @@ package body VFS.EXT is
              Inode_Size  => Get_Size (Target_Inode.all, Has_64bit_Sz),
              Offset      => 12 + (Ent'Size / 8),
              Data        => Name_Data,
-             Ret_Count   => Name_Start,
+             Ret_Count   => Temp,
              Success     => Success);
 
          Desc_Index := Target_Index - 1 / Data.Super.Inodes_Per_Group;
@@ -459,6 +461,7 @@ package body VFS.EXT is
       Lib.Synchronization.Release (Data.Mutex);
       Free (Target_Inode);
       Free (Parent_Inode);
+      Free (Last_Component);
    end Create_Node;
 
    procedure Create_Symbolic_Link
@@ -496,7 +499,7 @@ package body VFS.EXT is
        Status          : out FS_Status)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Name_Start                             : Natural;
+      Last_Component                         : String_Acc;
       Path_Index, Target_Index, Parent_Index : Unsigned_32;
       Path_Inode, Target_Inode, Parent_Inode : Inode_Acc := new Inode;
       Success                                : Boolean;
@@ -513,32 +516,33 @@ package body VFS.EXT is
 
       --  Open the source.
       Inner_Open_Inode
-         (Data         => Data,
-          Relative     => Unsigned_32 (Relative_Path),
-          Path         => Path,
-          Name_Start   => Name_Start,
-          Target_Index => Path_Index,
-          Target_Inode => Path_Inode.all,
-          Parent_Index => Parent_Index,
-          Parent_Inode => Parent_Inode.all,
-          Success      => Success);
+         (Data           => Data,
+          Relative       => Unsigned_32 (Relative_Path),
+          Path           => Path,
+          Last_Component => Last_Component,
+          Target_Index   => Path_Index,
+          Target_Inode   => Path_Inode.all,
+          Parent_Index   => Parent_Index,
+          Parent_Inode   => Parent_Inode.all,
+          Success        => Success);
       if not Success then
          Status := FS_IO_Failure;
          goto Cleanup;
       end if;
+      Free (Last_Component);
 
       --  Checking the target file doesn't exist but the parent is found.
       --  Also check some permissions.
       Inner_Open_Inode
-         (Data         => Data,
-          Relative     => Unsigned_32 (Relative_Target),
-          Path         => Target,
-          Name_Start   => Name_Start,
-          Target_Index => Target_Index,
-          Target_Inode => Target_Inode.all,
-          Parent_Index => Parent_Index,
-          Parent_Inode => Parent_Inode.all,
-          Success      => Success);
+         (Data           => Data,
+          Relative       => Unsigned_32 (Relative_Target),
+          Path           => Target,
+          Last_Component => Last_Component,
+          Target_Index   => Target_Index,
+          Target_Inode   => Target_Inode.all,
+          Parent_Index   => Parent_Index,
+          Parent_Inode   => Parent_Inode.all,
+          Success        => Success);
       if Success or else Parent_Index = 0 or else Target_Index /= 0 then
          Status := FS_Invalid_Value;
          goto Cleanup;
@@ -578,7 +582,7 @@ package body VFS.EXT is
           Inode_Index => Parent_Index,
           Added_Index => Path_Index,
           Dir_Type    => Get_Dir_Type (File_Regular),
-          Name        => Target (Name_Start .. Target'Last),
+          Name        => Last_Component.all,
           Success     => Success);
 
       Status := (if Success then FS_Success else FS_IO_Failure);
@@ -588,6 +592,7 @@ package body VFS.EXT is
       Free (Path_Inode);
       Free (Target_Inode);
       Free (Parent_Inode);
+      Free (Last_Component);
    end Create_Hard_Link;
 
    procedure Rename
@@ -601,7 +606,7 @@ package body VFS.EXT is
        Status          : out FS_Status)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Name_Start                               : Natural;
+      Last_Component                           : String_Acc;
       Source_Index, Target_Index               : Unsigned_32;
       Source_Parent_Index, Target_Parent_Index : Unsigned_32;
       Source_Inode, Target_Inode               : Inode_Acc := new Inode;
@@ -623,17 +628,18 @@ package body VFS.EXT is
          (Data         => Data,
           Relative     => Unsigned_32 (Relative_Source),
           Path         => Source,
-          Name_Start   => Name_Start,
+          Last_Component   => Last_Component,
           Target_Index => Source_Index,
           Target_Inode => Source_Inode.all,
           Parent_Index => Source_Parent_Index,
           Parent_Inode => Source_Parent_Inode.all,
           Success      => Success1);
+      Free (Last_Component);
       Inner_Open_Inode
          (Data         => Data,
           Relative     => Unsigned_32 (Relative_Target),
           Path         => Target,
-          Name_Start   => Name_Start,
+          Last_Component   => Last_Component,
           Target_Index => Target_Index,
           Target_Inode => Target_Inode.all,
           Parent_Index => Target_Parent_Index,
@@ -679,7 +685,7 @@ package body VFS.EXT is
           Inode_Index => Target_Parent_Index,
           Added_Index => Target_Index,
           Dir_Type    => Get_Dir_Type (File_Regular),
-          Name        => Target (Name_Start .. Target'Last),
+          Name        => Last_Component.all,
           Success     => Success1);
 
       Status := (if Success1 then FS_Success else FS_IO_Failure);
@@ -690,6 +696,7 @@ package body VFS.EXT is
       Free (Target_Inode);
       Free (Source_Parent_Inode);
       Free (Target_Parent_Inode);
+      Free (Last_Component);
    end Rename;
 
    procedure Unlink
@@ -700,7 +707,7 @@ package body VFS.EXT is
        Status   : out FS_Status)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Name_Start               : Natural;
+      Last_Component           : String_Acc;
       Path_Index, Parent_Index : Unsigned_32;
       Path_Inode, Parent_Inode : Inode_Acc := new Inode;
       Success                  : Boolean;
@@ -719,7 +726,7 @@ package body VFS.EXT is
          (Data         => Data,
           Relative     => Unsigned_32 (Relative),
           Path         => Path,
-          Name_Start   => Name_Start,
+          Last_Component   => Last_Component,
           Target_Index => Path_Index,
           Target_Inode => Path_Inode.all,
           Parent_Index => Parent_Index,
@@ -748,6 +755,7 @@ package body VFS.EXT is
       Lib.Synchronization.Release (Data.Mutex);
       Free (Path_Inode);
       Free (Parent_Inode);
+      Free (Last_Component);
    end Unlink;
 
    procedure Close (FS : System.Address; Ino : File_Inode_Number) is
@@ -1376,16 +1384,17 @@ package body VFS.EXT is
    end Synchronize;
    ----------------------------------------------------------------------------
    procedure Inner_Open_Inode
-      (Data         : EXT_Data_Acc;
-       Relative     : Unsigned_32;
-       Path         : String;
-       Name_Start   : out Natural;
-       Target_Index : out Unsigned_32;
-       Target_Inode : out Inode;
-       Parent_Index : out Unsigned_32;
-       Parent_Inode : out Inode;
-       Success      : out Boolean)
+      (Data           : EXT_Data_Acc;
+       Relative       : Unsigned_32;
+       Path           : String;
+       Last_Component : out String_Acc;
+       Target_Index   : out Unsigned_32;
+       Target_Inode   : out Inode;
+       Parent_Index   : out Unsigned_32;
+       Parent_Inode   : out Inode;
+       Success        : out Boolean)
    is
+      Name_Start             : Natural;
       Target_Type            : File_Type;
       Target_Sz              : Unsigned_64;
       Entity                 : Directory_Entity;
@@ -1394,6 +1403,7 @@ package body VFS.EXT is
       Symlink                : String (1 .. 60);
       Symlink_Len            : Natural;
    begin
+      Last_Component := null;
       Name_Start := 0;
       if Is_Absolute (Path) then
          Target_Index := Root_Inode;
@@ -1508,7 +1518,7 @@ package body VFS.EXT is
                      (Data,
                       Parent_Index,
                       Symlink (1 .. Symlink_Len) & Path (Last_I .. Path'Last),
-                      Name_Start,
+                      Last_Component,
                       Target_Index,
                       Target_Inode,
                       Parent_Index,
@@ -1527,18 +1537,23 @@ package body VFS.EXT is
 
    <<Perfect_Hit_Return>>
       Success := True;
-      return;
+      goto Fix_Last_Component;
 
    <<Target_Miss_Parent_Hit_Return>>
       Target_Index := 0;
       Success := False;
-      return;
+      goto Fix_Last_Component;
 
    <<Absolute_Miss_Return>>
       Target_Index := 0;
       Parent_Index := 0;
       Success := False;
       return;
+
+   <<Fix_Last_Component>>
+      if Path'First <= Name_Start and Name_Start <= Path'Last then
+         Last_Component := new String'(Path (Name_Start .. Path'Last));
+      end if;
    end Inner_Open_Inode;
 
    procedure Inner_Read_Symbolic_Link
