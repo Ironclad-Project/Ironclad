@@ -94,6 +94,7 @@ package body Userland.Syscall is
       Do_Write    : constant         Boolean := (Flags and O_WRONLY)   /= 0;
       Dont_Follow : constant         Boolean := (Flags and O_NOFOLLOW) /= 0;
       Do_Append   : constant         Boolean := (Flags and O_APPEND)   /= 0;
+      Do_Block    : constant         Boolean := (Flags and O_NONBLOCK) = 0;
       Discard     : Boolean;
       Success     : VFS.FS_Status;
       CWD_FS      : VFS.FS_Handle;
@@ -134,7 +135,7 @@ package body Userland.Syscall is
             New_Descr  := new File_Description'
                (Children_Count     => 0,
                 Description        => Description_Device,
-                Inner_Dev_Blocking => True,
+                Inner_Dev_Blocking => Do_Block,
                 Inner_Dev_Read     => Do_Read,
                 Inner_Dev_Write    => Do_Write,
                 Inner_Dev_Pos      => 0,
