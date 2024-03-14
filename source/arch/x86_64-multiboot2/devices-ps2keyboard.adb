@@ -22,8 +22,8 @@ with Scheduler;
 
 package body Devices.PS2Keyboard is
    --  Globals to communicate with the interrupt routine.
-   Is_Reading : Boolean    with Volatile;
-   Scancode   : Unsigned_8 with Volatile;
+   Has_Data : Boolean    with Volatile;
+   Scancode : Unsigned_8 with Volatile;
 
    function Init return Boolean is
       BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
@@ -119,14 +119,21 @@ package body Devices.PS2Keyboard is
    is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
-      pragma Unreferenced (Is_Blocking);
-      Temp : Boolean := Is_Reading;
+      Temp : Boolean := Has_Data;
    begin
+      if Is_Blocking then
+         loop
+            exit when Temp;
+            Scheduler.Yield_If_Able;
+            Temp := Has_Data;
+         end loop;
+      end if;
+
       if Temp then
          Data (Data'First) := Scancode;
-         Is_Reading := False;
-         Success   := True;
-         Ret_Count := 1;
+         Has_Data          := False;
+         Success           := True;
+         Ret_Count         := 1;
       else
          Success   := False;
          Ret_Count := 0;
@@ -141,7 +148,7 @@ package body Devices.PS2Keyboard is
    is
       pragma Unreferenced (Data);
    begin
-      Can_Read  := Is_Reading;
+      Can_Read  := Has_Data;
       Can_Write := False;
       Is_Error  := False;
    end Poll;
@@ -150,7 +157,7 @@ package body Devices.PS2Keyboard is
       Input : constant Unsigned_8 := Arch.Snippets.Port_In (16#60#);
    begin
       Scancode := Input;
-      Is_Reading := True;
+      Has_Data := True;
       Arch.APIC.LAPIC_EOI;
    end Keyboard_Handler;
 end Devices.PS2Keyboard;
