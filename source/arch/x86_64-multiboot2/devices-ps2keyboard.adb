@@ -22,8 +22,8 @@ with Scheduler;
 
 package body Devices.PS2Keyboard is
    --  Globals to communicate with the interrupt routine.
-   Has_Data : Boolean    with Volatile;
-   Scancode : Unsigned_8 with Volatile;
+   Has_Data  : Boolean                      := False  with Volatile;
+   Scancodes : array (1 .. 2) of Unsigned_8 := (0, 0) with Volatile;
 
    function Init return Boolean is
       BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
@@ -120,6 +120,9 @@ package body Devices.PS2Keyboard is
       pragma Unreferenced (Key);
       pragma Unreferenced (Offset);
       Temp : Boolean := Has_Data;
+      Code : Unsigned_8;
+      Buff : Lib.Messages.Translated_String;
+      Len : Natural;
    begin
       if Is_Blocking then
          loop
@@ -130,10 +133,18 @@ package body Devices.PS2Keyboard is
       end if;
 
       if Temp then
-         Data (Data'First) := Scancode;
-         Has_Data          := False;
-         Success           := True;
-         Ret_Count         := 1;
+         Code := Scancodes (2);
+         if Code = 16#00# then
+            Data (Data'First) := Scancodes (1);
+            Ret_Count         := 1;
+         else
+            Data (Data'First)     := Scancodes (1);
+            Data (Data'First + 1) := Scancodes (2);
+            Ret_Count             := 2;
+         end if;
+
+         Success  := True;
+         Has_Data := False;
       else
          Success   := False;
          Ret_Count := 0;
@@ -155,9 +166,18 @@ package body Devices.PS2Keyboard is
 
    procedure Keyboard_Handler is
       Input : constant Unsigned_8 := Arch.Snippets.Port_In (16#60#);
+      C1    : constant Unsigned_8 := Scancodes (1);
+      C2    : constant Unsigned_8 := Scancodes (2);
    begin
-      Scancode := Input;
-      Has_Data := True;
+      if C1 = 16#E0# and C2 = 16#00# then
+         Scancodes (2) := Input;
+         Has_Data      := True;
+      else
+         Scancodes (1) := Input;
+         Scancodes (2) := 16#00#;
+         Has_Data      := Input /= 16#E0#;
+      end if;
+
       Arch.APIC.LAPIC_EOI;
    end Keyboard_Handler;
 end Devices.PS2Keyboard;
