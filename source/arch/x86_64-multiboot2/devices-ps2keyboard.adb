@@ -121,8 +121,6 @@ package body Devices.PS2Keyboard is
       pragma Unreferenced (Offset);
       Temp : Boolean := Has_Data;
       Code : Unsigned_8;
-      Buff : Lib.Messages.Translated_String;
-      Len : Natural;
    begin
       if Is_Blocking then
          loop
