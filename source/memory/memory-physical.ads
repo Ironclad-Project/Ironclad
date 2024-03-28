@@ -22,14 +22,15 @@ package Memory.Physical is
    --  @param Memmap Memory map to use to initialize the allocator.
    procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map);
 
-   --  Called when doing 'new'. Ada adds the semantics of erroring out
-   --  unconditionally when Sz is size_t'Last, and 0 allocates a small block.
-   --  It returns memory that is:
+   --  Called when doing 'new'.
+   --  @param Sz Size to allocate in bytes. Sz = size_t'Last will
+   --  unconditionally error, and Sz as 0 for allocating a small,
+   --  freeable block. These are Ada-mandated semantics for `new`.
+   --  @return Address of the allocated object in the higher half.
+   --  The block pointed by the address is:
    --  - Not zero'd out, since SPARK requires us to initialize it ourselves.
    --  - For Sz >= Page_Size, alignment is Page_Size. Else, it is unspecified.
    --  - Never null, errors are handled internally, this includes OOM.
-   --  @param Sz Size to allocate in bytes.
-   --  @return Address of the allocated object in the higher half.
    function Alloc (Sz : Interfaces.C.size_t) return Memory.Virtual_Address
       with Export, Convention => C, External_Name => "__gnat_malloc";
 
@@ -52,4 +53,8 @@ package Memory.Physical is
    --  Fetch memory statistics as defined in the Statistics record.
    --  @param Stats Where to return the stats.
    procedure Get_Statistics (Stats : out Statistics);
+
+private
+
+   function Calculate_Signature (Count : Size) return Size;
 end Memory.Physical;

@@ -43,12 +43,10 @@ package body Memory.Physical is
       Signature   : Size;
    end record;
 
-   pragma Style_Checks (Off);
    function Calculate_Signature (Count : Size) return Size is
    begin
       return Count xor 2#10001011101010#;
    end Calculate_Signature;
-   pragma Style_Checks (On);
 
    procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map) is
       Adjusted_Length : Storage_Count  := 0;
