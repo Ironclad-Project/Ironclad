@@ -621,6 +621,30 @@ dictated (for the stacks created by the kernel) with @code{RLIMIT_STACK}. Thus,
 Ironclad does not start that limit with the maximum value, but a smaller valid
 size.
 
+A short description of the available limits and their default values is:
+
+@table @code
+@item RLIMIT_CORE
+Size of corefile dumps, by default 0 (disabling it).
+
+@item RLIMIT_CPU
+Limit of CPU time a process can consume in seconds, by default -1 (max value).
+
+@item RLIMIT_FSIZE
+Limit of individual file size a process can write, by default -1 (max value).
+
+@item RLIMIT_NOFILE
+Limit of files a process can open on top of other system limits, by default
+-1 (max value).
+
+@item RLIMIT_STACK
+Limit of stack size for a process, by default 4 MiB.
+
+@item RLIMIT_AS
+Limit of maximum address size space used by a process, by default
+-1 (max value).
+@end table
+
 @node Miscellaneous measures
 @section Miscellaneous measures
 
@@ -643,15 +667,20 @@ Ironclad implements corefile dumping when a process irreparably crashes, which
 can be controlled and entirely disabled if wanted with the related limits, see
 @ref{Resource limits}.
 
-Corefiles are only generated if the file does not exist already, files are
-never overwritten, the path is:
+Corefiles are generated on a path created as:
 
 @example
 /tmp/<faulting PID>.core
 @end example
 
-It is not configurable. The format so far is just an architecture-specific
-register dump, but in the future a standard ELF format will replace it.
+This path is not configurable, and will only be created and overwritten if the
+file des not exist already.
+
+As seen in @ref{Resource limits}, corefiles are disabled by default, this is
+done since core files can potentially contain private, sensible information
+that could be exploited by an attacker.
+
+The format is a register dump of the process.
 
 @node Program tracing
 @section Program tracing

@@ -184,7 +184,7 @@ private
       (Action  => Deny,
        Caps    => (others => True),
        Limits  =>
-         (Core_Size_Limit   => Limit_Value'Last,
+         (Core_Size_Limit   => 0, --  Disabled by default due to privacy.
           CPU_Time_Limit    => Limit_Value'Last,
           File_Size_Limit   => Limit_Value'Last,
           Opened_File_Limit => Limit_Value'Last,
