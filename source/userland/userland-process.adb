@@ -158,7 +158,7 @@ package body Userland.Process is
                Registry (I).Umask           := Registry (P).Umask;
                Lib.Synchronization.Release (Registry (P).Data_Mutex);
             else
-               Reroll_ASLR (PID (I));
+               Reassign_Process_Addresses (PID (I));
             end if;
 
             Returned := PID (I);
@@ -307,7 +307,7 @@ package body Userland.Process is
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Flush_Threads;
 
-   procedure Reroll_ASLR (Process : PID) is
+   procedure Reassign_Process_Addresses (Process : PID) is
       package Aln is new Lib.Alignment (Unsigned_64);
       Rand_Addr, Rand_Jump : Unsigned_64;
    begin
@@ -332,7 +332,7 @@ package body Userland.Process is
       Registry (Process).Alloc_Base := Rand_Addr;
       Registry (Process).Stack_Base := Rand_Addr + Rand_Jump;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
-   end Reroll_ASLR;
+   end Reassign_Process_Addresses;
 
    function Get_Niceness (Process : PID) return Scheduler.Niceness is
       Result : Scheduler.Niceness;

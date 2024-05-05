@@ -229,9 +229,11 @@ package Userland.Process is
    --  @param Proc Process to remove all threads.
    procedure Flush_Threads (Proc : PID) with Pre => Proc /= Error_PID;
 
-   --  Reroll the ASLR addresses given to a process at creation.
+   --  Reset the trackers for memory addresses and locations for the process.
+   --  If ASLR is enabled, it will be used here.
    --  @param Process Process to reroll.
-   procedure Reroll_ASLR (Process : PID) with Pre => Process /= Error_PID;
+   procedure Reassign_Process_Addresses (Process : PID)
+      with Pre => Process /= Error_PID;
 
    --  Get the process's default niceness.
    function Get_Niceness (Process : PID) return Scheduler.Niceness
