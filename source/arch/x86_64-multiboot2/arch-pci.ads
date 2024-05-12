@@ -32,16 +32,18 @@ package Arch.PCI is
 
    --  Initialize a device with its physical locations.
    --  True if found.
-   function Fetch_Device
-      (Bus    : Unsigned_8;
-       Slot   : Unsigned_8;
-       Func   : Unsigned_8;
-       Result : out PCI_Device) return Boolean;
-   function Search_Device
+   procedure Fetch_Device
+      (Bus     : Unsigned_8;
+       Slot    : Unsigned_8;
+       Func    : Unsigned_8;
+       Result  : out PCI_Device;
+       Success : out Boolean);
+   procedure Search_Device
       (Device_Class : Unsigned_8;
        Subclass     : Unsigned_8;
        Prog_If      : Unsigned_8;
-       Result       : out PCI_Device) return Boolean;
+       Result       : out PCI_Device;
+       Success      : out Boolean);
    ----------------------------------------------------------------------------
    --  Enable bus mastering for the passed PCI device.
    procedure Enable_Bus_Mastering (Dev : PCI_Device);
@@ -49,10 +51,11 @@ package Arch.PCI is
    --  Get a BAR from the PCI device configuration space, return True if it
    --  exists and was successful, or false if not.
    type BAR_Index is range 0 .. 5;
-   function Get_BAR
-      (Dev   : PCI_Device;
-       Index : BAR_Index;
-       BAR   : out Base_Address_Register) return Boolean;
+   procedure Get_BAR
+      (Dev     : PCI_Device;
+       Index   : BAR_Index;
+       BAR     : out Base_Address_Register;
+       Success : out Boolean);
    ----------------------------------------------------------------------------
    --  Read and write data into the PCI device configuration space.
    function Read8  (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_8;
@@ -77,18 +80,22 @@ private
    end record;
 
    procedure Get_Address (Dev : PCI_Device; Offset : Unsigned_16);
-   function Check_Bus
+
+   procedure Check_Bus
       (Bus                  : Unsigned_8;
        Desired_Device_Class : Unsigned_8;
        Desired_Subclass     : Unsigned_8;
        Desired_Prog_If      : Unsigned_8;
-       Result               : out PCI_Device) return Boolean;
-   function Check_Function
+       Result               : out PCI_Device;
+       Success              : out Boolean);
+
+   procedure Check_Function
       (Bus                  : Unsigned_8;
        Slot                 : Unsigned_8;
        Func                 : Unsigned_8;
        Desired_Device_Class : Unsigned_8;
        Desired_Subclass     : Unsigned_8;
        Desired_Prog_If      : Unsigned_8;
-       Result               : out PCI_Device) return Boolean;
+       Result               : out PCI_Device;
+       Success              : out Boolean);
 end Arch.PCI;

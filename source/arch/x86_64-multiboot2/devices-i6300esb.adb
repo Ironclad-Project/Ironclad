@@ -32,10 +32,12 @@ package body Devices.i6300ESB is
       PCI_Dev : Arch.PCI.PCI_Device;
       PCI_BAR : Arch.PCI.Base_Address_Register;
    begin
-      if not Arch.PCI.Search_Device (16#8#, 16#80#, 0, PCI_Dev) or else
-         not Arch.PCI.Get_BAR (PCI_Dev, 0, PCI_BAR)   or else
-         not PCI_BAR.Is_MMIO
-      then
+      Arch.PCI.Search_Device (16#8#, 16#80#, 0, PCI_Dev, Success);
+      if not Success then
+         return True;
+      end if;
+      Arch.PCI.Get_BAR (PCI_Dev, 0, PCI_BAR, Success);
+      if not Success or else not PCI_BAR.Is_MMIO then
          return True;
       end if;
 

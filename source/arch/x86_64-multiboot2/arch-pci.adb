@@ -1,5 +1,5 @@
 --  arch-pci.adb: PCI bus driver.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -25,11 +25,12 @@ package body Arch.PCI is
    PCI_Max_Function : constant Unsigned_8 := 7;
    PCI_Max_Slot     : constant Unsigned_8 := 31;
 
-   function Fetch_Device
-      (Bus    : Unsigned_8;
-       Slot   : Unsigned_8;
-       Func   : Unsigned_8;
-       Result : out PCI_Device) return Boolean
+   procedure Fetch_Device
+      (Bus     : Unsigned_8;
+       Slot    : Unsigned_8;
+       Func    : Unsigned_8;
+       Result  : out PCI_Device;
+       Success : out Boolean)
    is
       Config0, Config8 : Unsigned_32;
    begin
@@ -41,53 +42,56 @@ package body Arch.PCI is
       --  Read additional data.
       Config0 := Read32 (Result, 0);
       Config8 := Read32 (Result, 8);
-      Result  := (
-         Bus          => Bus,
-         Func         => Func,
-         Slot         => Slot,
-         Device_ID    => Unsigned_16 (Shift_Right (Config0, 16) and 16#FFFF#),
-         Vendor_ID    => Unsigned_16 (Config0 and 16#FFFF#),
-         Revision_ID  => Unsigned_8 (Config8 and 16#FF#),
-         Subclass     => Unsigned_8 (Shift_Right (Config8, 16) and 16#FF#),
-         Device_Class => Unsigned_8 (Shift_Right (Config8, 24) and 16#FF#),
-         Prog_If      => Unsigned_8 (Shift_Right (Config8,  8) and 16#FF#)
-      );
-      return True;
+      Result  :=
+         (Bus          => Bus,
+          Func         => Func,
+          Slot         => Slot,
+          Device_ID    => Unsigned_16 (Shift_Right (Config0, 16) and 16#FFFF#),
+          Vendor_ID    => Unsigned_16 (Config0 and 16#FFFF#),
+          Revision_ID  => Unsigned_8 (Config8 and 16#FF#),
+          Subclass     => Unsigned_8 (Shift_Right (Config8, 16) and 16#FF#),
+          Device_Class => Unsigned_8 (Shift_Right (Config8, 24) and 16#FF#),
+          Prog_If      => Unsigned_8 (Shift_Right (Config8,  8) and 16#FF#));
+      Success := True;
    end Fetch_Device;
 
-   function Search_Device
+   procedure Search_Device
       (Device_Class : Unsigned_8;
        Subclass     : Unsigned_8;
        Prog_If      : Unsigned_8;
-       Result       : out PCI_Device) return Boolean
+       Result       : out PCI_Device;
+       Success      : out Boolean)
    is
       Root_Bus, Host_Bridge : PCI_Device;
    begin
-      if not Fetch_Device (0, 0, 0, Root_Bus) then
+      Fetch_Device (0, 0, 0, Root_Bus, Success);
+      if not Success then
          goto Error;
       end if;
 
       if (Read32 (Root_Bus, 16#C#) and 16#800000#) = 0 then
-         return Check_Bus (
-            Bus                  => 0,
-            Desired_Device_Class => Device_Class,
-            Desired_Subclass     => Subclass,
-            Desired_Prog_If      => Prog_If,
-            Result               => Result
-         );
+         Check_Bus
+            (Bus                  => 0,
+             Desired_Device_Class => Device_Class,
+             Desired_Subclass     => Subclass,
+             Desired_Prog_If      => Prog_If,
+             Result               => Result,
+             Success              => Success);
+         return;
       else
          for I in 0 .. PCI_Max_Function loop
-            if Fetch_Device (0, 0, I, Host_Bridge) then
+            Fetch_Device (0, 0, I, Host_Bridge, Success);
+            if Success then
                if Read32 (Host_Bridge, 0) /= 16#FFFFFFFF# then
-                  if Check_Bus (
-                     Bus                  => I,
-                     Desired_Device_Class => Device_Class,
-                     Desired_Subclass     => Subclass,
-                     Desired_Prog_If      => Prog_If,
-                     Result               => Result
-                  )
-                  then
-                     return True;
+                  Check_Bus
+                     (Bus                  => I,
+                      Desired_Device_Class => Device_Class,
+                      Desired_Subclass     => Subclass,
+                      Desired_Prog_If      => Prog_If,
+                      Result               => Result,
+                      Success              => Success);
+                  if Success then
+                     return;
                   end if;
                end if;
             end if;
@@ -95,77 +99,83 @@ package body Arch.PCI is
       end if;
 
    <<Error>>
-      return False;
+      Success := False;
    end Search_Device;
 
-   function Check_Bus
+   procedure Check_Bus
       (Bus                  : Unsigned_8;
        Desired_Device_Class : Unsigned_8;
        Desired_Subclass     : Unsigned_8;
        Desired_Prog_If      : Unsigned_8;
-       Result               : out PCI_Device) return Boolean
+       Result               : out PCI_Device;
+       Success              : out Boolean)
    is
    begin
       for Slot in 0 .. PCI_Max_Slot loop
          for Func in 0 .. PCI_Max_Function loop
-            if Check_Function (
-               Bus                  => Bus,
-               Slot                 => Slot,
-               Func                 => Func,
-               Desired_Device_Class => Desired_Device_Class,
-               Desired_Subclass     => Desired_Subclass,
-               Desired_Prog_If      => Desired_Prog_If,
-               Result               => Result
-            )
-            then
-               return True;
+            Check_Function
+               (Bus                  => Bus,
+                Slot                 => Slot,
+                Func                 => Func,
+                Desired_Device_Class => Desired_Device_Class,
+                Desired_Subclass     => Desired_Subclass,
+                Desired_Prog_If      => Desired_Prog_If,
+                Result               => Result,
+                Success              => Success);
+            if Success then
+               return;
             end if;
          end loop;
       end loop;
-      return False;
+      Success := False;
    end Check_Bus;
 
-   function Check_Function
+   procedure Check_Function
       (Bus                  : Unsigned_8;
        Slot                 : Unsigned_8;
        Func                 : Unsigned_8;
        Desired_Device_Class : Unsigned_8;
        Desired_Subclass     : Unsigned_8;
        Desired_Prog_If      : Unsigned_8;
-       Result               : out PCI_Device) return Boolean
+       Result               : out PCI_Device;
+       Success              : out Boolean)
    is
-      Fetch_Success : constant Boolean := Fetch_Device (
-         Bus    => Bus,
-         Slot   => Slot,
-         Func   => Func,
-         Result => Result
-      );
-      Config8 : Unsigned_32;
+      Fetch_Success : Boolean;
+      Config8       : Unsigned_32;
    begin
+      Fetch_Device
+         (Bus    => Bus,
+          Slot   => Slot,
+          Func   => Func,
+          Result => Result,
+          Success => Fetch_Success);
       if not Fetch_Success then
-         return False;
+         Success := False;
+         return;
       end if;
 
       --  Check for placeholder devices.
       if Result.Device_ID = 16#FFFF# and Result.Vendor_ID = 16#FFFF# then
-         return False;
+         Success := False;
+         return;
       end if;
 
       --  Check for PCI bridge, and take it.
       if Result.Device_Class = 6 and Result.Subclass = 4 then
          Config8 := Read32 (Result, 16#18#);
-         return Check_Bus (
-            Bus    => Unsigned_8 (Shift_Right (Config8, 8) and 16#FF#),
-            Desired_Device_Class => Desired_Device_Class,
-            Desired_Subclass     => Desired_Subclass,
-            Desired_Prog_If      => Desired_Prog_If,
-            Result               => Result
-         );
+         Check_Bus
+            (Bus    => Unsigned_8 (Shift_Right (Config8, 8) and 16#FF#),
+             Desired_Device_Class => Desired_Device_Class,
+             Desired_Subclass     => Desired_Subclass,
+             Desired_Prog_If      => Desired_Prog_If,
+             Result               => Result,
+             Success              => Success);
+         return;
       end if;
 
-      return Result.Device_Class = Desired_Device_Class and
-             Result.Subclass     = Desired_Subclass     and
-             Result.Prog_If      = Desired_Prog_If;
+      Success := Result.Device_Class = Desired_Device_Class and
+                 Result.Subclass     = Desired_Subclass     and
+                 Result.Prog_If      = Desired_Prog_If;
    end Check_Function;
    ----------------------------------------------------------------------------
    procedure Enable_Bus_Mastering (Dev : PCI_Device) is
@@ -177,10 +187,11 @@ package body Arch.PCI is
       end if;
    end Enable_Bus_Mastering;
 
-   function Get_BAR
-      (Dev   : PCI_Device;
-       Index : BAR_Index;
-       BAR   : out Base_Address_Register) return Boolean
+   procedure Get_BAR
+      (Dev     : PCI_Device;
+       Index   : BAR_Index;
+       BAR     : out Base_Address_Register;
+       Success : out Boolean)
    is
       Reg_Index : constant Unsigned_16 := 16#10# + Unsigned_16 (Index) * 4;
       BAR_Low, BAR_Size_Low, BAR_High, BAR_Size_High : Unsigned_32;
@@ -189,7 +200,8 @@ package body Arch.PCI is
    begin
       --  Check if the BAR exists first of all.
       if Read32 (Dev, Reg_Index) = 0 then
-         return False;
+         Success := False;
+         return;
       end if;
 
       --  Fetch the rest.
@@ -230,13 +242,12 @@ package body Arch.PCI is
       end if;
       Size := not Size + 1;
 
-      BAR := (
-         Base            => Integer_Address (Base),
-         Size            => Size,
-         Is_MMIO         => Is_MMIO,
-         Is_Prefetchable => Is_Prefetchable
-      );
-      return True;
+      BAR :=
+         (Base            => Integer_Address (Base),
+          Size            => Size,
+          Is_MMIO         => Is_MMIO,
+          Is_Prefetchable => Is_Prefetchable);
+      Success := True;
    end Get_BAR;
    ----------------------------------------------------------------------------
    function Read8 (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_8 is

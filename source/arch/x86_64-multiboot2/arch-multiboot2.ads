@@ -1,5 +1,5 @@
---  arch-multiboot2.ads: multiboot2 utilities and tags.
---  Copyright (C) 2021 streaksu
+--  arch-multiboot2.ads: multiboot2 utilities.
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -177,5 +177,7 @@ private
    procedure Process_Framebuffer (Tag_Addr : System.Address);
 
    --  Clean a multiboot memory map, it can only have less entries.
-   function Clean_Memmap (Memmap : in out Boot_Memory_Map) return Natural;
+   procedure Clean_Memmap
+      (Memmap      : in out Boot_Memory_Map;
+       Entry_Count : out Natural);
 end Arch.Multiboot2;

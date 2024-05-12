@@ -58,10 +58,11 @@ private
        Is_Master : Boolean) return ATA_Data_Acc;
 
    --  Read a single sector.
-   function Read_Sector
+   procedure Read_Sector
       (Drive       : ATA_Data_Acc;
        LBA         : Unsigned_64;
-       Data_Buffer : out Sector_Data) return Boolean;
+       Data_Buffer : out Sector_Data;
+       Success     : out Boolean);
 
    --  Write a single sector.
    function Write_Sector

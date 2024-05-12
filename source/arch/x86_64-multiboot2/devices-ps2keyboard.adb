@@ -32,7 +32,8 @@ package body Devices.PS2Keyboard is
       Success   : Boolean;
    begin
       --  Set the interrupt up, which is always the 34 (we are 1 based).
-      if not Arch.IDT.Load_ISR (Keyboard_Handler'Address, Index) then
+      Arch.IDT.Load_ISR (Keyboard_Handler'Address, Index, Success);
+      if not Success then
          return False;
       end if;
       if not Arch.APIC.IOAPIC_Set_Redirect (BSP_LAPIC, 34, Index, True) then

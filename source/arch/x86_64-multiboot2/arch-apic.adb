@@ -1,5 +1,5 @@
 --  arch-apic.adb: IO/LAPIC driver.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -214,10 +214,10 @@ package body Arch.APIC with SPARK_Mode => Off is
       GSIB        :          Unsigned_32     := 0;
       Redirect    :          Unsigned_64     := Unsigned_64 (IDT_Entry) - 1;
       IOREDTBL    : constant Unsigned_32     := (GSI - GSIB) * 2 + 16;
-      IOAPIC_MMIO : constant Virtual_Address :=
-         Get_IOAPIC_From_GSI (GSI, GSIB);
+      IOAPIC_MMIO : Virtual_Address;
    begin
       --  Check if the IOAPIC could be found.
+      Get_IOAPIC_From_GSI (GSI, GSIB, IOAPIC_MMIO);
       if IOAPIC_MMIO = Null_Address then
          return False;
       end if;
@@ -246,21 +246,25 @@ package body Arch.APIC with SPARK_Mode => Off is
       return True;
    end IOAPIC_Set_Redirect;
 
-   function Get_IOAPIC_From_GSI
-      (GSI  : Unsigned_32;
-       GSIB : out Unsigned_32) return Virtual_Address is
+   procedure Get_IOAPIC_From_GSI
+      (GSI    : Unsigned_32;
+       GSIB   : out Unsigned_32;
+       Result : out Virtual_Address)
+   is
    begin
       for IOAPIC of MADT_IOAPICs.all loop
          if IOAPIC.GSIB <= GSI and
             IOAPIC.GSIB + Get_IOAPIC_GSI_Count
                (Virtual_Address (IOAPIC.Address) + Memory_Offset) > GSI
          then
-            GSIB := IOAPIC.GSIB;
-            return Virtual_Address (IOAPIC.Address) + Memory_Offset;
+            GSIB   := IOAPIC.GSIB;
+            Result := Virtual_Address (IOAPIC.Address) + Memory_Offset;
+            return;
          end if;
       end loop;
-      GSIB := 0;
-      return Null_Address;
+
+      GSIB   := 0;
+      Result := Null_Address;
    end Get_IOAPIC_From_GSI;
 
    function Get_IOAPIC_GSI_Count (MMIO : Virtual_Address) return Unsigned_32 is

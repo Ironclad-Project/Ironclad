@@ -1,5 +1,5 @@
---  arch-apic.ads: Specification of the IO/LAPIC driver.
---  Copyright (C) 2023 streaksu
+--  arch-apic.ads: IO/LAPIC driver.
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -75,9 +75,10 @@ private
    function LAPIC_Read (Register : Unsigned_32) return Unsigned_32;
    procedure LAPIC_Write (Register : Unsigned_32; Value : Unsigned_32);
 
-   function Get_IOAPIC_From_GSI
-      (GSI  : Unsigned_32;
-       GSIB : out Unsigned_32) return Virtual_Address;
+   procedure Get_IOAPIC_From_GSI
+      (GSI    : Unsigned_32;
+       GSIB   : out Unsigned_32;
+       Result : out Virtual_Address);
    function Get_IOAPIC_GSI_Count (MMIO : Virtual_Address) return Unsigned_32;
    function IOAPIC_Read
       (MMIO     : Virtual_Address;

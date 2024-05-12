@@ -1,5 +1,5 @@
---  arch-idt.adb: Management of the IDT, and registering of callbacks.
---  Copyright (C) 2021 streaksu
+--  arch-idt.adb: IDT driver.
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -134,23 +134,26 @@ package body Arch.IDT is
       end if;
    end Load_ISR;
 
-   function Load_ISR
+   procedure Load_ISR
       (Address    : System.Address;
        Index      : out IRQ_Index;
+       Success    : out Boolean;
        Gate_Type  : Gate := Gate_Interrupt;
-       Allow_User : Boolean := False) return Boolean is
+       Allow_User : Boolean := False)
+   is
    begin
       --  Allocate an interrupt in the IRQ region.
       for I in IRQ_Index loop
          if ISR_Table (I) = Interrupts.Default_ISR_Handler'Address then
             Index := I;
             Load_ISR (I, Address, Gate_Type, Allow_User);
-            return True;
+            Success := True;
+            return;
          end if;
       end loop;
 
-      Index := IRQ_Index'First;
-      return False;
+      Index   := IRQ_Index'First;
+      Success := False;
    end Load_ISR;
 
    procedure Unload_ISR (Index : IDT_Index) is

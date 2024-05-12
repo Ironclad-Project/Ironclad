@@ -55,7 +55,8 @@ package body Devices.PS2Mouse is
       Success      : Boolean;
    begin
       --  Set the interrupt up, which is always the 45 (we are 1 based).
-      if not Arch.IDT.Load_ISR (Mouse_Handler'Address, Index) then
+      Arch.IDT.Load_ISR (Mouse_Handler'Address, Index, Success);
+      if not Success then
          return False;
       end if;
       if not Arch.APIC.IOAPIC_Set_Redirect (BSP_LAPIC, 45, Index, True) then

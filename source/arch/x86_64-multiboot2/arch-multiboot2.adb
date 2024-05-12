@@ -1,5 +1,5 @@
 --  arch-multiboot2.adb: multiboot2 utilities.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -113,8 +113,9 @@ package body Arch.Multiboot2 is
       end loop;
 
       --  Clean the memmap and return.
-      Global_Info.Memmap_Len := Clean_Memmap
-         (Global_Info.Memmap (1 .. Global_Info.Memmap_Len));
+      Clean_Memmap
+         (Global_Info.Memmap (1 .. Global_Info.Memmap_Len),
+          Global_Info.Memmap_Len);
    end Translate_Proto;
 
    procedure Process_Cmdline (Tag_Addr : System.Address) is
@@ -182,7 +183,10 @@ package body Arch.Multiboot2 is
       Cached_FB := Tag;
    end Process_Framebuffer;
 
-   function Clean_Memmap (Memmap : in out Boot_Memory_Map) return Natural is
+   procedure Clean_Memmap
+      (Memmap      : in out Boot_Memory_Map;
+       Entry_Count : out Natural)
+   is
       package A is new Lib.Alignment (Integer_Address);
       Value        : Integer_Address;
       Min_Index    : Natural;
@@ -227,6 +231,7 @@ package body Arch.Multiboot2 is
          Memmap (Min_Index) := Memmap (Iteration);
          Memmap (Iteration) := Intermediate;
       end loop;
-      return Final_Last;
+
+      Entry_Count := Final_Last;
    end Clean_Memmap;
 end Arch.Multiboot2;

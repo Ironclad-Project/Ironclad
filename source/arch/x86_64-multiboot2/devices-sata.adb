@@ -1,5 +1,5 @@
 --  devices-sata.adb: SATA driver.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -35,10 +35,13 @@ package body Devices.SATA with SPARK_Mode => Off is
       Base_Name  : String := "sata00";
       Success    : Boolean;
    begin
-      if not Arch.PCI.Search_Device (1, 6, 1, PCI_Dev) or else
-         not Arch.PCI.Get_BAR (PCI_Dev, 5, PCI_BAR)    or else
-         not PCI_BAR.Is_MMIO
-      then
+      Arch.PCI.Search_Device (1, 6, 1, PCI_Dev, Success);
+      if not Success then
+         return True;
+      end if;
+
+      Arch.PCI.Get_BAR (PCI_Dev, 5, PCI_BAR, Success);
+      if not Success or else not PCI_BAR.Is_MMIO then
          return True;
       end if;
 

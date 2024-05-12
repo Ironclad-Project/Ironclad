@@ -33,14 +33,17 @@ package body Devices.ATA is
       Success    : Boolean;
       Pair_Ports : array (0 .. 1) of Unsigned_16;
    begin
-      if not Arch.PCI.Search_Device (16#1#, 16#1#, 16#80#, PCI_Dev) then
+      Arch.PCI.Search_Device (16#1#, 16#1#, 16#80#, PCI_Dev, Success);
+      if not Success then
          return True;
       end if;
 
-      if not Arch.PCI.Get_BAR (PCI_Dev, 0, PCI_BAR0) then
+      Arch.PCI.Get_BAR (PCI_Dev, 0, PCI_BAR0, Success);
+      if not Success then
          PCI_BAR0.Base := 16#1F0#;
       end if;
-      if not Arch.PCI.Get_BAR (PCI_Dev, 2, PCI_BAR2) then
+      Arch.PCI.Get_BAR (PCI_Dev, 2, PCI_BAR2, Success);
+      if not Success then
          PCI_BAR2.Base := 16#170#;
       end if;
 
@@ -158,16 +161,18 @@ package body Devices.ATA is
       end;
    end Init_Port;
 
-   function Read_Sector
+   procedure Read_Sector
       (Drive       : ATA_Data_Acc;
        LBA         : Unsigned_64;
-       Data_Buffer : out Sector_Data) return Boolean
+       Data_Buffer : out Sector_Data;
+       Success     : out Boolean)
    is
       Data  : Unsigned_16;
       Index : Natural := 1;
    begin
       if not Issue_Command (Drive, LBA, 16#24#) then
-         return False;
+         Success := False;
+         return;
       end if;
 
       for I in 1 .. 256 loop
@@ -177,7 +182,7 @@ package body Devices.ATA is
          Index                   := Index + 2;
       end loop;
 
-      return True;
+      Success := True;
    end Read_Sector;
 
    function Write_Sector
@@ -297,10 +302,11 @@ package body Devices.ATA is
           Is_Dirty   => False,
           Data       => <>);
 
-      Success := Read_Sector
+      Read_Sector
          (Drive       => Drive,
           LBA         => Drive.Caches (Returned).LBA_Offset,
-          Data_Buffer => Drive.Caches (Returned).Data);
+          Data_Buffer => Drive.Caches (Returned).Data,
+          Success     => Success);
       if not Success then
          Lib.Messages.Put_Line ("ata could not read on cache fetch!");
       end if;
