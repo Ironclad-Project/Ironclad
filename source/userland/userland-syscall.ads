@@ -558,13 +558,12 @@ package Userland.Syscall is
        Errno    : out Errno_Value);
 
    --  Add a file to MAC.
-   MAC_PERM_CONTENTS : constant := 2#0000001#;
-   MAC_PERM_READ     : constant := 2#0000010#;
-   MAC_PERM_WRITE    : constant := 2#0000100#;
-   MAC_PERM_EXEC     : constant := 2#0001000#;
-   MAC_PERM_APPEND   : constant := 2#0010000#;
-   MAC_PERM_FLOCK    : constant := 2#0100000#;
-   MAC_PERM_DEV      : constant := 2#1000000#;
+   MAC_PERM_CONTENTS : constant := 2#000001#;
+   MAC_PERM_READ     : constant := 2#000010#;
+   MAC_PERM_WRITE    : constant := 2#000100#;
+   MAC_PERM_EXEC     : constant := 2#001000#;
+   MAC_PERM_APPEND   : constant := 2#010000#;
+   MAC_PERM_FLOCK    : constant := 2#100000#;
    procedure Add_MAC_Permissions
       (Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;

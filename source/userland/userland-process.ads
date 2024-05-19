@@ -597,20 +597,10 @@ package Userland.Process is
        FS   : VFS.FS_Handle;
        Ino  : VFS.File_Inode_Number) return MAC.Permissions;
 
-   function Check_Permissions
-      (Proc : PID;
-       Dev  : Devices.Device_Handle) return MAC.Permissions;
-
    procedure Add_Entity
       (Proc   : PID;
        FS     : VFS.FS_Handle;
        Ino    : VFS.File_Inode_Number;
-       Perms  : MAC.Permissions;
-       Status : out MAC.Addition_Status);
-
-   procedure Add_Entity
-      (Proc   : PID;
-       Dev    : Devices.Device_Handle;
        Perms  : MAC.Permissions;
        Status : out MAC.Addition_Status);
 

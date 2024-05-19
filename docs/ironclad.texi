@@ -524,7 +524,7 @@ security. It does not necesarily help with preventing breaches, but, when
 configured correctly, it can help mitigate consequences to a massive degree.
 
 MAC in Ironclad consists on a series of settings inherited from parent process
-to children, These settings come in the form of capabilities and file filters.
+to children, these settings come in the form of capabilities and file filters.
 
 Capabilities are a set of coarse permissions that restrict a process on what it
 can and cannot do, only more restrictive capability escalations are allowed,
@@ -593,6 +593,8 @@ The process will be able to bypass UID/GID and mode checks when interacting
 with SystemV-style IPC objects, like the ones you can create with @ref{shmget}.
 @end table
 
+File filters consist on permissions given to specific paths and files, that,
+just like capabilities, get inherited from parent to child processes.
 Access to inodes and devices can be granted using @ref{add_mac_permissions}.
 
 The action to take on MAC violations can be set with @ref{set_mac_enforcement}.
@@ -2118,24 +2120,18 @@ is not granted.
 @section add_mac_permissions
 
 @example
-#define MAC_PERM_CONTENTS 0b0000001
-#define MAC_PERM_READ     0b0000010
-#define MAC_PERM_WRITE    0b0000100
-#define MAC_PERM_EXEC     0b0001000
-#define MAC_PERM_APPEND   0b0010000
-#define MAC_PERM_FLOCK    0b0100000
-#define MAC_PERM_DEV      0b1000000
+#define MAC_PERM_CONTENTS 0b000001
+#define MAC_PERM_READ     0b000010
+#define MAC_PERM_WRITE    0b000100
+#define MAC_PERM_EXEC     0b001000
+#define MAC_PERM_APPEND   0b010000
+#define MAC_PERM_FLOCK    0b100000
 
 int add_mac_permissions(const char *path, int flags);
 @end example
 
 This syscall adds permissions to access an inode or device as described in
 @ref{Mandatory access control (MAC)}.
-
-If @code{MAC_PERM_DEV} is used in @code{flags}, @code{path} must be the name
-of a device, without @code{/dev/}, else, it will be taken as a VFS inode. The
-other flags reflect permissions given to the added device or inode. All of them
-do not conflict.
 
 The syscall returns @code{0} on success or @code{-1} on failure, with the
 following errno:

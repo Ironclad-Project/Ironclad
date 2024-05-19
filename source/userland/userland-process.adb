@@ -974,14 +974,6 @@ package body Userland.Process is
       return MAC.Check_Permissions (Registry (Proc).Perms, FS, Ino);
    end Check_Permissions;
 
-   function Check_Permissions
-      (Proc : PID;
-       Dev  : Devices.Device_Handle) return MAC.Permissions
-   is
-   begin
-      return MAC.Check_Permissions (Registry (Proc).Perms, Dev);
-   end Check_Permissions;
-
    procedure Add_Entity
       (Proc   : PID;
        FS     : VFS.FS_Handle;
@@ -991,16 +983,6 @@ package body Userland.Process is
    is
    begin
       MAC.Add_Entity (Registry (Proc).Perms, FS, Ino, Perms, Status);
-   end Add_Entity;
-
-   procedure Add_Entity
-      (Proc   : PID;
-       Dev    : Devices.Device_Handle;
-       Perms  : MAC.Permissions;
-       Status : out MAC.Addition_Status)
-   is
-   begin
-      MAC.Add_Entity (Registry (Proc).Perms, Dev, Perms, Status);
    end Add_Entity;
 
    function Get_Limit

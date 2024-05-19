@@ -61,28 +61,6 @@ package body Userland.MAC is
       end if;
    end Check_Permissions;
 
-   function Check_Permissions
-      (Data : Context;
-       Dev  : Devices.Device_Handle) return Permissions
-   is
-      Has_Elements : Boolean := False;
-   begin
-      for E of Data.Filters loop
-         if E.Is_Used then
-            Has_Elements := True;
-            if E.Is_Device and E.Dev = Dev then
-               return E.Perms;
-            end if;
-         end if;
-      end loop;
-
-      if Has_Elements then
-         return (others => False);
-      else
-         return (Can_Append_Only => False, others => True);
-      end if;
-   end Check_Permissions;
-
    procedure Add_Entity
       (Data   : in out Context;
        FS     : VFS.FS_Handle;
@@ -104,31 +82,7 @@ package body Userland.MAC is
 
       Add_Filter
          (Data   => Data,
-          Filt   => (True, False, FS, Ino, Devices.Error_Handle, Perms),
-          Status => Status);
-   end Add_Entity;
-
-   procedure Add_Entity
-      (Data   : in out Context;
-       Dev    : Devices.Device_Handle;
-       Perms  : Permissions;
-       Status : out Addition_Status)
-   is
-   begin
-      for E of Data.Filters loop
-         if E.Is_Used and E.Is_Device and E.Dev = Dev then
-            if Perms = E.Perms then
-               Status := Success;
-            else
-               Status := Is_Conflicting;
-            end if;
-            return;
-         end if;
-      end loop;
-
-      Add_Filter
-         (Data   => Data,
-          Filt   => (True, True, VFS.Error_Handle, 0, Dev, Perms),
+          Filt   => (True, False, FS, Ino, Perms),
           Status => Status);
    end Add_Entity;
 

@@ -131,7 +131,9 @@ package body Userland.Syscall is
                return;
             end if;
 
-            File_Perms := Check_Permissions (Curr_Proc, Opened_Dev);
+            --  File_Perms := Check_Permissions (Curr_Proc, Opened_Dev);
+            File_Perms := (Can_Append_Only => False, others => True);
+
             New_Descr  := new File_Description'
                (Children_Count     => 0,
                 Description        => Description_Device,
@@ -571,7 +573,7 @@ package body Userland.Syscall is
          end if;
 
          if File.Description = Description_Device then
-            File_Perms := Check_Permissions (Proc, File.Inner_Dev);
+            File_Perms := (others => True);
             if (Perms.Can_Read    and not File_Perms.Can_Read)  or
                (Perms.Can_Write   and not File_Perms.Can_Write) or
                (Perms.Can_Execute and not File_Perms.Can_Execute)
@@ -2101,17 +2103,15 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      Proc   : constant             PID := Arch.Local.Get_Current_Process;
-      Map    : constant    Page_Table_Acc := Get_Common_Map (Proc);
-      Addr   : constant Integer_Address := Integer_Address (Path_Addr);
-      Perms  : MAC.Permissions;
-      Status : MAC.Addition_Status;
+      Proc      : constant             PID := Arch.Local.Get_Current_Process;
+      Map       : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      Addr      : constant Integer_Address := Integer_Address (Path_Addr);
+      Perms     : MAC.Permissions;
+      User      : Unsigned_32;
+      Status    : MAC.Addition_Status;
       FS_Status : VFS.FS_Status;
-      FS     : VFS.FS_Handle;
-      Ino    : VFS.File_Inode_Number;
-      Dev    : Devices.Device_Handle;
-      Path   : String (1 .. Natural (Path_Len))
-         with Import, Address => To_Address (Addr);
+      FS        : VFS.FS_Handle;
+      Ino       : VFS.File_Inode_Number;
    begin
       if not Get_Capabilities (Proc).Can_Manage_MAC then
          Errno := Error_Bad_Access;
@@ -2119,7 +2119,11 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
          return;
       elsif not Check_Userland_Access (Map, Addr, Path_Len) then
-         Errno := Error_Would_Fault;
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif Path_Len > Unsigned_64 (Natural'Last) then
+         Errno    := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
          return;
       end if;
@@ -2132,36 +2136,26 @@ package body Userland.Syscall is
           Can_Append_Only   => (Flags and MAC_PERM_APPEND)   /= 0,
           Can_Lock_Files    => (Flags and MAC_PERM_FLOCK)    /= 0);
 
-      if (Flags and MAC_PERM_DEV) /= 0 then
-         Dev := Devices.Fetch (Path);
-         if Dev = Devices.Error_Handle then
-            Errno := Error_Invalid_Value;
-            Returned := Unsigned_64'Last;
-            return;
-         end if;
-         Add_Entity
-            (Proc   => Proc,
-             Dev    => Devices.Fetch (Path),
-             Perms  => Perms,
-             Status => Status);
-      else
-         VFS.Open (Path, FS, Ino, FS_Status, 0);
-         if FS_Status /= VFS.FS_Success then
-            Translate_Status (FS_Status, 0, Returned, Errno);
-            return;
-         end if;
-         Add_Entity
-            (Proc   => Proc,
-             FS     => FS,
-             Ino    => Ino,
-             Perms  => Perms,
-             Status => Status);
-         VFS.Close (FS, Ino);
+      Userland.Process.Get_Effective_UID (Proc, User);
+
+      declare
+         Path : String (1 .. Natural (Path_Len))
+            with Import, Address => To_Address (Addr);
+      begin
+         VFS.Open (Path, FS, Ino, FS_Status, User);
+      end;
+
+      if FS_Status /= VFS.FS_Success then
+         Translate_Status (FS_Status, 0, Returned, Errno);
+         return;
       end if;
 
+      Add_Entity (Proc, FS, Ino, Perms, Status);
+      VFS.Close (FS, Ino);
+
       case Status is
-         when MAC.Success        =>
-            Errno := Error_No_Error;
+         when MAC.Success =>
+            Errno    := Error_No_Error;
             Returned := 0;
             return;
          when MAC.No_Space       => Errno := Error_No_Memory;

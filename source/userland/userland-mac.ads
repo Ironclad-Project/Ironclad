@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with Devices;    use Devices;
 with VFS;        use VFS;
 
 package Userland.MAC is
@@ -101,16 +100,6 @@ package Userland.MAC is
        FS   : VFS.FS_Handle;
        Ino  : VFS.File_Inode_Number) return Permissions;
 
-   --  Check permissions associated to an already added device.
-   --  If no files are added to the context with permissions, all files return
-   --  permission.
-   --  @param Data MAC instance to use.
-   --  @param Dev  Device to check.
-   --  @return Returned permissions.
-   function Check_Permissions
-      (Data : Context;
-       Dev  : Devices.Device_Handle) return Permissions;
-
    --  Status one can return from an addition of a path to MAC permissions.
    type Addition_Status is (Success, No_Space, Is_Conflicting);
 
@@ -127,18 +116,6 @@ package Userland.MAC is
        Perms  : Permissions;
        Status : out Addition_Status)
    with Pre => FS /= VFS.Error_Handle;
-
-   --  Add an entity for MAC.
-   --  @param Data   MAC instance to modify.
-   --  @param Dev    Device to check.
-   --  @param Perms  Permissions to add.
-   --  @param Status Status of the operation.
-   procedure Add_Entity
-      (Data   : in out Context;
-       Dev    : Devices.Device_Handle;
-       Perms  : Permissions;
-       Status : out Addition_Status)
-   with Pre => Dev /= Devices.Error_Handle;
 
    --  Get the limit of a resource.
    --  @param Data     MAC instance to modify.
@@ -167,7 +144,6 @@ private
       Is_Device : Boolean;
       FS        : VFS.FS_Handle;
       Ino       : VFS.File_Inode_Number;
-      Dev       : Devices.Device_Handle;
       Perms     : Permissions;
    end record;
 
@@ -195,7 +171,6 @@ private
           Is_Device => False,
           FS        => VFS.Error_Handle,
           Ino       => 0,
-          Dev       => Devices.Error_Handle,
           Perms     => (others => False))));
 
    procedure Add_Filter
