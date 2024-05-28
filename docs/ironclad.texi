@@ -273,12 +273,15 @@ bootloader.
 @node Format
 @section Format
 
-The format is a list of keys that can have arguments or not in a C-style
-NUL-terminted string, as such:
+The format is a list of keys with optional arguments as such:
 
 @example
-key1=value1 key2 key3=value3 ... keyN
+key1=value1 key2 key3=value3 key4="value4 value5" ... keyN=(")valueN(")
 @end example
+
+For arguments that need spaces within, like init program arguments and such,
+quotation marks are available for use, nested quotation marks are not allowed
+in any shape or form, due to the primitive parsing available within the kernel.
 
 @node List
 @section List
@@ -299,6 +302,11 @@ containing device.
 Path to a program that will be booted by the kernel when finished loading.
 The program will be started with @code{stdin} set to @code{/dev/null}, and
 @code{stdout} and @code{stderr} set to @code{/dev/console}.
+
+@item initargs=<args>
+Arguments to pass to init. If environment variables are what is desired,
+consider the trick of booting in typical UNIX fashion
+@code{/bin/env <vars> <init command>}.
 
 @item noprogaslr
 The offset of loaded programs in virtual memory is randomized when loading if

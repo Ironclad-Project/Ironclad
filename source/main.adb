@@ -32,7 +32,8 @@ pragma Unreferenced (Lib.Runtime);
 with Config;
 
 procedure Main is
-   Init_Args   : Userland.Argument_Arr (1 .. 1);
+   Init_Path   : Userland.String_Acc;
+   Init_Args   : Userland.Argument_Arr_Acc;
    Init_Env    : Userland.Environment_Arr (1 .. 0);
    Value       : String (1 .. Devices.Max_Name_Length);
    Value_Len   : Natural;
@@ -81,7 +82,7 @@ begin
    end if;
 
    --  Mount a root if specified.
-   Lib.Cmdline.Get_Parameter
+   Lib.Cmdline.Get_Key_Value
       (Cmdline, Lib.Cmdline.Root_UUID_Key, Value, Found, Value_Len);
    if Found and Value_Len = Devices.UUID_String'Length then
       Lib.Messages.Put_Line ("Searching root " & Value (1 .. Value_Len));
@@ -92,7 +93,7 @@ begin
          Lib.Messages.Put_Line ("Failed to find " & Value (1 .. Value_Len));
       end if;
    else
-      Lib.Cmdline.Get_Parameter
+      Lib.Cmdline.Get_Key_Value
          (Cmdline, Lib.Cmdline.Root_Key, Value, Found, Value_Len);
    end if;
    if Found and Value_Len /= 0 then
@@ -103,19 +104,78 @@ begin
       end if;
    end if;
 
-   --  Init an init if specified.
-   Lib.Cmdline.Get_Parameter
+   --  Fetch an init or panic.
+   Lib.Cmdline.Get_Key_Value
       (Cmdline, Lib.Cmdline.Init_Key, Value, Found, Value_Len);
    if Found and Value_Len /= 0 then
-      Lib.Messages.Put_Line ("Booting init " & Value (1 .. Value_Len));
+      Init_Path := new String'(Value (1 .. Value_Len));
+   else
+      Lib.Panic.Hard_Panic ("No init was found");
+   end if;
+
+   --  Prepare arguments.
+   Lib.Cmdline.Get_Key_Value
+      (Cmdline, Lib.Cmdline.Init_Arg_Key, Value, Found, Value_Len);
+   if Found and Value_Len /= 0 then
+      declare
+         Arg_Count : Natural := 0;
+         First_Idx : Natural;
+         Last_Idx  : Natural;
+         Arg_Len   : Natural;
+         List_Idx  : Natural;
+      begin
+         for C of Value (1 .. Value_Len) loop
+            if C = ' ' then
+               Arg_Count := Arg_Count + 1;
+            end if;
+         end loop;
+         Arg_Count := Arg_Count + 1;
+
+         Init_Args     := new Userland.Argument_Arr (1 .. 1 + Arg_Count);
+         Init_Args (1) := Init_Path;
+         List_Idx      := 2;
+         First_Idx     := 1;
+         Last_Idx      := Value (1 .. Value_Len)'First;
+         while Value (1 .. Value_Len)'Last >= Last_Idx loop
+            if First_Idx > Value (1 .. Value_Len)'Last then
+               goto END_PARSE;
+            end if;
+
+            Arg_Len  := 0;
+            Last_Idx := First_Idx;
+            while Value (1 .. Value_Len)'Last >= Last_Idx and then
+                  Value (Last_Idx) /= ' '
+            loop
+               Arg_Len  := Arg_Len  + 1;
+               Last_Idx := Last_Idx + 1;
+            end loop;
+
+            Init_Args (List_Idx) := new String'(Value (First_Idx .. Last_Idx - 1));
+            List_Idx  := List_Idx + 1;
+            First_Idx := Last_Idx + 1;
+         end loop;
+      <<END_PARSE>>
+      end;
+
+      Lib.Messages.Put_Line
+         ("Booting init: " & Init_Path.all & " " & Value (1 .. Value_Len));
+   else
+      Init_Args := new Userland.Argument_Arr'(1 => Init_Path);
+      Lib.Messages.Put_Line ("Booting init: " & Init_Args.all (1).all);
+   end if;
+
+   --  Init an init or panic.
+   Lib.Cmdline.Get_Key_Value
+      (Cmdline, Lib.Cmdline.Init_Key, Value, Found, Value_Len);
+   if Found and Value_Len /= 0 then
       Init_Args (1) := new String'(Value (1 .. Value_Len));
       Open (Value (1 .. Value_Len), Init_FS, Init_Ino, Success, 0);
       if Success = VFS.FS_Success then
          Init_PID := Userland.Loader.Start_Program
-            (Value (1 .. Value_Len), Init_FS, Init_Ino, Init_Args, Init_Env,
-             Init_Stdin, Init_Stdout, Init_Stdout);
+            (Init_Args.all (1).all, Init_FS, Init_Ino, Init_Args.all,
+             Init_Env, Init_Stdin, Init_Stdout, Init_Stdout);
          if Init_PID /= Error_PID then
-            Userland.Process.Set_Identifier (Init_PID, Value (1 .. Value_Len));
+            Userland.Process.Set_Identifier (Init_PID, Init_Args.all (1).all);
             Open ("/", Init_FS, Init_Ino, Success, 0);
             Userland.Process.Set_CWD (Init_PID, Init_FS, Init_Ino);
          else
