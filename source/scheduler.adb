@@ -806,9 +806,17 @@ package body Scheduler is
    end Waiting_Spot;
 
    function Has_Available_Time (C : TCID) return Boolean is
+      Secs  : Unsigned_64 := Cluster_Pool (C).Progress_Seconds / 1_000_000;
+      Nanos : Unsigned_64 := Cluster_Pool (C).Progress_Nanos   / 1_000;
    begin
-      return Natural (Cluster_Pool (C).Progress_Seconds / 1000000) *
-             Natural (Cluster_Pool (C).Progress_Nanos / 1000) <
+      if Secs > Unsigned_64 (Natural'Last) then
+         Secs := Unsigned_64 (Natural'Last);
+      end if;
+      if Nanos > Unsigned_64 (Natural'Last) then
+         Nanos := Unsigned_64 (Natural'Last);
+      end if;
+
+      return Natural (Secs) * Natural (Nanos) <
              Total_Slice * Cluster_Pool (C).Percentage / 100;
    end Has_Available_Time;
 
