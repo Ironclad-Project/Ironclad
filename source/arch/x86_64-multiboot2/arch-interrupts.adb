@@ -103,7 +103,7 @@ package body Arch.Interrupts is
          when 12 =>
             Context.Save_FP_Context (FP_State);
             Clone (State.RDI, State.RSI, State.RDX, State.R12,
-                   State.R8, State.R9, State.all,  FP_State, Returned, Errno);
+                   State.R8, State.all,  FP_State, Returned, Errno);
          when 13 =>
             Wait (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 14 =>
@@ -121,8 +121,6 @@ package body Arch.Interrupts is
             IOCTL (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 21 =>
             Sched_Yield (Returned, Errno);
-         when 22 =>
-            Delete_Thread_Cluster (State.RDI, Returned, Errno);
          when 23 =>
             Pipe (State.RDI, State.RSI, Returned, Errno);
          when 24 =>
@@ -137,9 +135,6 @@ package body Arch.Interrupts is
                    State.R8, State.R9, State.R10, Returned, Errno);
          when 28 =>
             Get_TID (Returned, Errno);
-         when 29 =>
-            Manage_Thread_Cluster (State.RDI, State.RSI, State.RDX, State.R12,
-                                   Returned, Errno);
          when 30 =>
             Fcntl (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 31 =>
@@ -254,10 +249,6 @@ package body Arch.Interrupts is
          when 76 =>
             UTimes (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
                     Returned, Errno);
-         when 77 =>
-            Create_TCluster (Returned, Errno);
-         when 78 =>
-            Switch_TCluster (State.RDI, State.RSI, Returned, Errno);
          when 79 =>
             Sigprocmask (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 80 =>

@@ -88,7 +88,7 @@ package body IPC.Futex is
          exit when Lib.Time.Is_Greater_Equal
             (Curr_Sec, Curr_NSec, Final_Sec, Final_NSec);
 
-         Scheduler.Yield_If_Able;
+         Scheduler.Yield;
       end loop;
 
       return True;

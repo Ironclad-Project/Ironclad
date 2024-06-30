@@ -85,7 +85,7 @@ package body Devices.PS2Keyboard is
    function Read_PS2 return Unsigned_8 is
    begin
       while (Arch.Snippets.Port_In (16#64#) and 1) = 0 loop
-         Scheduler.Yield_If_Able;
+         Scheduler.Yield;
       end loop;
       return Arch.Snippets.Port_In (16#60#);
    end Read_PS2;
@@ -93,7 +93,7 @@ package body Devices.PS2Keyboard is
    procedure Write_PS2 (Port : Unsigned_16; Value : Unsigned_8) is
    begin
       while (Arch.Snippets.Port_In (16#64#) and 2) /= 0 loop
-         Scheduler.Yield_If_Able;
+         Scheduler.Yield;
       end loop;
       Arch.Snippets.Port_Out (Port, Value);
    end Write_PS2;
@@ -126,7 +126,7 @@ package body Devices.PS2Keyboard is
       if Is_Blocking then
          loop
             exit when Temp;
-            Scheduler.Yield_If_Able;
+            Scheduler.Yield;
             Temp := Has_Data;
          end loop;
       end if;

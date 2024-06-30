@@ -125,13 +125,11 @@ Syscalls
 * chdir::                   Current working directory manipulation.
 * ioctl::                   IO multiplexer.
 * sched_yield::             Relinquish CPU time.
-* delete_tcluster::         Delete thread clusters.
 * pipe::                    Create pipes.
 * rename::                  Rename a file.
 * sysconf::                 Fetch general system parameters and information.
 * spawn::                   clone+exec power incarnate.
 * gettid::                  Get the current thread id.
-* manage_tcluster::         Manage and create thread clusters.
 * fcntl::                   Multiplexed operations for files.
 * exit_thread::             Exit the calling thread.
 * getrandom::               Bypass /dev/random for avoiding DoS attacks.
@@ -174,8 +172,6 @@ Syscalls
 * recvfrom/sendto::         Socket IO support functions.
 * config_netinter::         Configure network interfaces.
 * utimes::                  Modify timestamps for a file.
-* create_tcluster::         Create a thread cluster.
-* switch_tcluster::         Switch thread cluster.
 * sigprogmask::             Fetch and change a process' blocked signal.
 * sigaction::               Fetch and change a signal's action.
 * send_signal::             Send a signal to a process.
@@ -757,7 +753,7 @@ Empty.
 @item
 @ref{sched_yield}.
 @item
-@ref{delete_tcluster}.
+Empty.
 @item
 @ref{pipe}.
 @item
@@ -771,7 +767,7 @@ Empty.
 @item
 @ref{gettid}.
 @item
-@ref{manage_tcluster}.
+Empty.
 @item
 @ref{fcntl}.
 @item
@@ -867,9 +863,9 @@ Empty.
 @item
 @ref{utimes}.
 @item
-@ref{create_tcluster}.
+Empty.
 @item
-@ref{switch_tcluster}.
+Empty.
 @item
 @ref{sigprogmask}.
 @item
@@ -1621,24 +1617,6 @@ Its up for the kernel how far in the queue of execution this thread will go.
 This syscall returns @code{0} always, as it never fails, this is done for
 compatibility with POSIX instead of having a @code{void} return type.
 
-@node delete_tcluster
-@section delete_tcluster
-
-@example
-int delete_tcluster(int cluster);
-@end example
-
-This syscall deletes the passed thread cluster, will only succeed if the
-cluster has no associated threads.
-
-The syscall returns @code{0} on success and @code{-1} on failure, with the
-following errno:
-
-@itemize @bullet
-@item
-@code{EINVAL}: The passed cluster does not exist or still has threads.
-@end itemize
-
 @node pipe
 @section pipe
 
@@ -1706,7 +1684,6 @@ codes set on failure are:
 #define SC_UNAME           10 // Fetch basic system information.
 #define SC_CHILD_MAX       11 // Maximum number of children for the user.
 #define SC_LIST_THREADS    12 // List all threads of the system.
-#define SC_LIST_CLUSTERS   13 // List all thread clusters of the system.
 #define SC_LIST_NETINTER   14 // List all network interfaces.
 #define SC_DUMPLOGS        15 // Dump kernel logging to a buffer.
 #define SC_NGROUPS_MAX     16 // Max number of supplementary groups.
@@ -1786,29 +1763,12 @@ is the count of bytes reserved in the array. The items have the structure:
 struct threadinfo @{
     uint16_t tid;
     int16_t  niceness;
-    uint16_t tcid;
     uint16_t pid;
 @};
 @end example
 
 The total number of threads is returned, even if it doesnt fit in the passed
 array.
-
-@item
-@code{SC_LIST_CLUSTERS}: @code{addr} points to an array of items, and
-@code{len} is the count of bytes reserved in the array. The items have the
-structure:
-
-@example
-struct tclusterinfo @{
-    uint16_t tcid;
-    uint16_t tflags;
-    uint16_t tquantum;
-@};
-@end example
-
-The total number of thread clusters is returned, even if it doesnt fit in the
-passed array.
 
 @item
 @code{SC_LIST_NETINTER}: @code{addr} points to an array of items, and
@@ -1914,29 +1874,6 @@ int gettid(void);
 @end example
 
 This syscall returns the current thread id. It never fails.
-
-@node manage_tcluster
-@section manage_tcluster
-
-@example
-#define SCHED_RR   0b001
-#define SCHED_COOP 0b010
-#define SCHED_INTR 0b100
-
-int manage_tcluster(int cluster, int flags, int quantum, int percentage);
-@end example
-
-This syscall sets settings for the passed cluster.
-
-The syscall returns @code{0} on success and @code{-1} on failure, with the
-following errno:
-
-@itemize @bullet
-@item
-@code{EACCES}: MAC did not allow the operation.
-@item
-@code{EINVAL}: One of the passed values was not correct.
-@end itemize
 
 @node fcntl
 @section fcntl
@@ -3333,45 +3270,6 @@ MAC did not allow this.
 
 @item EINVAL
 An argument is not valid.
-@end table
-
-@node create_tcluster
-@section create_tcluster
-
-@example
-int create_tcluster(void);
-@end example
-
-This syscall creates a thread cluster. It returns the new cluster ID or
-@code {-1} on failure, with the following errno:
-
-@table @code
-@item ENOMEM
-A new cluster could not be made.
-
-@item EACCES
-MAC did not allow this.
-@end table
-
-@node switch_tcluster
-@section switch_tcluster
-
-@example
-int switch_tcluster(int cluster, int tid);
-@end example
-
-This syscall moves the thread identified by @code{tid} to the thread cluster
-identified by @code{cluster}. No checks of parenthood are done.
-
-It returns @code{0} on success and @code{-1} on failure, with the following
-errno:
-
-@table @code
-@item EINVAL
-@code{cluster} is not a valid cluster, or @code{tid} is not a valid tid.
-
-@item EACCES
-MAC did not allow this.
 @end table
 
 @node sigprogmask

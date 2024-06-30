@@ -281,7 +281,7 @@ package body Devices.PS2Mouse is
    begin
       for I in 1 .. 100_000 loop
          exit when (Arch.Snippets.Port_In (16#64#) and Shift_Left (1, 0)) /= 0;
-         Scheduler.Yield_If_Able;
+         Scheduler.Yield;
       end loop;
    end Mouse_Wait_Read;
 
@@ -289,7 +289,7 @@ package body Devices.PS2Mouse is
    begin
       for I in 1 .. 100_000 loop
          exit when (Arch.Snippets.Port_In (16#64#) and Shift_Left (1, 1)) = 0;
-         Scheduler.Yield_If_Able;
+         Scheduler.Yield;
       end loop;
    end Mouse_Wait_Write;
 

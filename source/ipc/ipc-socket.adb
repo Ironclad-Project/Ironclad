@@ -646,11 +646,11 @@ package body IPC.Socket is
                   To_Connect.Pending_Accept := Sock;
                   exit;
                end if;
-               Scheduler.Yield_If_Able;
+               Scheduler.Yield;
             end loop;
             loop
                exit when Sock.Pending_Accept /= null;
-               Scheduler.Yield_If_Able;
+               Scheduler.Yield;
             end loop;
          when others =>
             Sock.Simple_Connected := To_Connect;
@@ -694,7 +694,7 @@ package body IPC.Socket is
                exit;
             end if;
             exit when not Sock.Is_Blocking;
-            Scheduler.Yield_If_Able;
+            Scheduler.Yield;
          end loop;
       end if;
 
@@ -831,7 +831,7 @@ package body IPC.Socket is
             Lib.Synchronization.Seize (Sock.Mutex);
             exit when Sock.Data_Length /= 0;
             Lib.Synchronization.Release (Sock.Mutex);
-            Scheduler.Yield_If_Able;
+            Scheduler.Yield;
          end loop;
       else
          Lib.Synchronization.Seize (Sock.Mutex);
@@ -918,7 +918,7 @@ package body IPC.Socket is
                   exit when Sock.Pending_Accept.Data_Length /=
                      Default_Socket_Size;
                   Lib.Synchronization.Release (Sock.Pending_Accept.Mutex);
-                  Scheduler.Yield_If_Able;
+                  Scheduler.Yield;
                end loop;
             else
                Lib.Synchronization.Seize (Sock.Pending_Accept.Mutex);
