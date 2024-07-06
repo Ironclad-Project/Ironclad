@@ -80,9 +80,9 @@ package body Arch.MMU is
    begin
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Table'
-         (PML4_Level => (others => 0),
-          Mutex      => Lib.Synchronization.Unlocked_Semaphore,
-          Map_Ranges => (others => (Is_Present => False, others => <>)));
+         (PML4_Level      => (others => 0),
+          Mutex           => Lib.Synchronization.Unlocked_Semaphore,
+          Map_Ranges_Root => null);
 
       --  Map the first 4KiB - 1 MiB not NX, because we have the smp bootstrap
       --  there and else hell will break loose.
@@ -159,12 +159,13 @@ package body Arch.MMU is
    function Fork_Table (Map : Page_Table_Acc) return Page_Table_Acc is
       type Page_Data is array (Storage_Count range <>) of Unsigned_8;
 
-      Addr    : System.Address;
-      Success : Boolean;
-      Result  : Page_Table_Acc := new Page_Table'
-         (PML4_Level => (others => 0),
-          Mutex      => Lib.Synchronization.Unlocked_Semaphore,
-          Map_Ranges => (others => (Is_Present => False, others => <>)));
+      Addr       : System.Address;
+      Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
+      Success    : Boolean;
+      Result     : Page_Table_Acc := new Page_Table'
+         (PML4_Level      => (others => 0),
+          Mutex           => Lib.Synchronization.Unlocked_Semaphore,
+          Map_Ranges_Root => null);
    begin
       Lib.Synchronization.Seize (Map.Mutex);
 
@@ -172,43 +173,43 @@ package body Arch.MMU is
       Result.PML4_Level (257 .. 512) := Map.PML4_Level (257 .. 512);
 
       --  Duplicate the rest of maps, which are mostly going to be lower half.
-      for Mapping of Map.Map_Ranges loop
-         if Mapping.Is_Present then
-            if Mapping.Is_Allocated then
-               Map_Allocated_Range
-                  (Map            => Result,
-                   Physical_Start => Addr,
-                   Virtual_Start  => Mapping.Virtual_Start,
-                   Length         => Mapping.Length,
-                   Permissions    => Mapping.Flags,
-                   Success        => Success);
-               if not Success then
-                  Destroy_Table (Result);
-                  goto Cleanup;
-               end if;
+      while Curr_Range /= null loop
+         if Curr_Range.Is_Allocated then
+            Map_Allocated_Range
+               (Map            => Result,
+                Physical_Start => Addr,
+                Virtual_Start  => Curr_Range.Virtual_Start,
+                Length         => Curr_Range.Length,
+                Permissions    => Curr_Range.Flags,
+                Success        => Success);
+            if not Success then
+               Destroy_Table (Result);
+               goto Cleanup;
+            end if;
 
-               declare
-                  New_Data : Page_Data (1 .. Mapping.Length) with Import,
-                  Address => Addr;
-                  Original_Data : Page_Data (1 .. Mapping.Length) with Import,
-                  Address => To_Address (To_Integer (Mapping.Physical_Start) +
-                                         Memory_Offset);
-               begin
-                  New_Data := Original_Data;
-               end;
-            else
-               if not Map_Range
-                  (Map            => Result,
-                   Physical_Start => Mapping.Physical_Start,
-                   Virtual_Start  => Mapping.Virtual_Start,
-                   Length         => Mapping.Length,
-                   Permissions    => Mapping.Flags)
-               then
-                  Destroy_Table (Result);
-                  goto Cleanup;
-               end if;
+            declare
+               New_Data : Page_Data (1 .. Curr_Range.Length)
+                  with Import, Address => Addr;
+               Original_Data : Page_Data (1 .. Curr_Range.Length)
+                  with Import, Address => To_Address
+                     (To_Integer (Curr_Range.Physical_Start) + Memory_Offset);
+            begin
+               New_Data := Original_Data;
+            end;
+         else
+            if not Map_Range
+               (Map            => Result,
+                Physical_Start => Curr_Range.Physical_Start,
+                Virtual_Start  => Curr_Range.Virtual_Start,
+                Length         => Curr_Range.Length,
+                Permissions    => Curr_Range.Flags)
+            then
+               Destroy_Table (Result);
+               goto Cleanup;
             end if;
          end if;
+
+         Curr_Range := Curr_Range.Next;
       end loop;
 
    <<Cleanup>>
@@ -219,13 +220,20 @@ package body Arch.MMU is
    procedure Destroy_Table (Map : in out Page_Table_Acc) is
       procedure F is new Ada.Unchecked_Deallocation
          (Page_Table, Page_Table_Acc);
+      procedure F is new Ada.Unchecked_Deallocation
+         (Mapping_Range, Mapping_Range_Acc);
+      Last_Range : Mapping_Range_Acc;
+      Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
    begin
       Lib.Synchronization.Seize (Map.Mutex);
-      for Mapping of Map.Map_Ranges loop
-         if Mapping.Is_Present and Mapping.Is_Allocated then
-            Physical.Free (Interfaces.C.size_t
-               (To_Integer (Mapping.Physical_Start)));
+      while Curr_Range /= null loop
+         if Curr_Range.Is_Allocated then
+            Physical.Free
+               (Interfaces.C.size_t (To_Integer (Curr_Range.Physical_Start)));
          end if;
+         Last_Range := Curr_Range;
+         Curr_Range := Curr_Range.Next;
+         F (Last_Range);
       end loop;
 
       for L3 of Map.PML4_Level (1 .. 256) loop
@@ -334,33 +342,36 @@ package body Arch.MMU is
        Length         : Storage_Count;
        Permissions    : Page_Permissions) return Boolean
    is
-      Success : Boolean := False;
+      Last_Range : Mapping_Range_Acc;
+      Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
+      Success    :           Boolean := False;
    begin
       Lib.Synchronization.Seize (Map.Mutex);
 
-      for Mapping of Map.Map_Ranges loop
-         if Mapping.Is_Present                     and
-            Mapping.Virtual_Start <= Virtual_Start and
-            Mapping.Virtual_Start + Length >= Virtual_Start + Length
+      while Curr_Range /= null loop
+         if Curr_Range.Virtual_Start <= Virtual_Start and
+            Curr_Range.Virtual_Start + Length >= Virtual_Start + Length
          then
             goto Ret;
          end if;
-      end loop;
-      for Mapping of Map.Map_Ranges loop
-         if not Mapping.Is_Present then
-            Mapping :=
-               (Is_Present     => True,
-                Is_Allocated   => False,
-                Virtual_Start  => Virtual_Start,
-                Physical_Start => Physical_Start,
-                Length         => Length,
-                Flags          => Permissions);
-            goto Actually_Map;
-         end if;
-      end loop;
-      goto Ret;
 
-   <<Actually_Map>>
+         Last_Range := Curr_Range;
+         Curr_Range := Curr_Range.Next;
+      end loop;
+
+      Curr_Range := new Mapping_Range'
+         (Next           => null,
+          Is_Allocated   => False,
+          Virtual_Start  => Virtual_Start,
+          Physical_Start => Physical_Start,
+          Length         => Length,
+          Flags          => Permissions);
+      if Map.Map_Ranges_Root = null then
+         Map.Map_Ranges_Root := Curr_Range;
+      else
+         Last_Range.Next := Curr_Range;
+      end if;
+
       Success := Inner_Map_Range
          (Map            => Map,
           Physical_Start => Physical_Start,
@@ -385,33 +396,36 @@ package body Arch.MMU is
          Memory.Physical.Alloc (Interfaces.C.size_t (Length));
       Allocated : array (1 .. Length) of Unsigned_8
          with Import, Address => To_Address (Addr);
+      Last_Range : Mapping_Range_Acc;
+      Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
    begin
       Success := False;
       Lib.Synchronization.Seize (Map.Mutex);
 
-      for Mapping of Map.Map_Ranges loop
-         if Mapping.Is_Present                     and
-            Mapping.Virtual_Start <= Virtual_Start and
-            Mapping.Virtual_Start + Length >= Virtual_Start + Length
+      while Curr_Range /= null loop
+         if Curr_Range.Virtual_Start <= Virtual_Start and
+            Curr_Range.Virtual_Start + Length >= Virtual_Start + Length
          then
             goto Ret;
          end if;
-      end loop;
-      for Mapping of Map.Map_Ranges loop
-         if not Mapping.Is_Present then
-            Mapping :=
-               (Is_Present     => True,
-                Is_Allocated   => True,
-                Virtual_Start  => Virtual_Start,
-                Physical_Start => To_Address (Addr - Memory.Memory_Offset),
-                Length         => Length,
-                Flags          => Permissions);
-            goto Actually_Map;
-         end if;
-      end loop;
-      goto Ret;
 
-   <<Actually_Map>>
+         Last_Range := Curr_Range;
+         Curr_Range := Curr_Range.Next;
+      end loop;
+
+      Curr_Range := new Mapping_Range'
+         (Next           => null,
+          Is_Allocated   => True,
+          Virtual_Start  => Virtual_Start,
+          Physical_Start => To_Address (Addr - Memory.Memory_Offset),
+          Length         => Length,
+          Flags          => Permissions);
+      if Map.Map_Ranges_Root = null then
+         Map.Map_Ranges_Root := Curr_Range;
+      else
+         Last_Range.Next := Curr_Range;
+      end if;
+
       Success := Inner_Map_Range
          (Map            => Map,
           Physical_Start => To_Address (Addr - Memory.Memory_Offset),
@@ -436,22 +450,24 @@ package body Arch.MMU is
        Length        : Storage_Count;
        Permissions   : Page_Permissions) return Boolean
    is
-      Flags   : constant     Unsigned_64 := Flags_To_Bitmap (Permissions);
-      Virt    : Virtual_Address          := To_Integer (Virtual_Start);
-      Final   : constant Virtual_Address := Virt + Virtual_Address (Length);
-      Addr    : Virtual_Address;
-      Success : Boolean := False;
+      Flags      : constant     Unsigned_64 := Flags_To_Bitmap (Permissions);
+      Virt       : Virtual_Address          := To_Integer (Virtual_Start);
+      Final      : constant Virtual_Address := Virt + Virtual_Address (Length);
+      Addr       : Virtual_Address;
+      Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
+      Success    : Boolean := False;
    begin
       Lib.Synchronization.Seize (Map.Mutex);
 
-      for Mapping of Map.Map_Ranges loop
-         if Mapping.Is_Present                    and
-            Mapping.Virtual_Start = Virtual_Start and
-            Mapping.Length        = Length
+      while Curr_Range /= null loop
+         if Curr_Range.Virtual_Start = Virtual_Start and
+            Curr_Range.Length        = Length
          then
-            Mapping.Flags := Permissions;
+            Curr_Range.Flags := Permissions;
             goto Actually_Remap;
          end if;
+
+         Curr_Range := Curr_Range.Next;
       end loop;
       goto Ret;
 
@@ -482,28 +498,38 @@ package body Arch.MMU is
        Virtual_Start : System.Address;
        Length        : Storage_Count) return Boolean
    is
-      Virt    : Virtual_Address          := To_Integer (Virtual_Start);
-      Final   : constant Virtual_Address := Virt + Virtual_Address (Length);
-      Addr    : Virtual_Address;
-      Success : Boolean := False;
+      procedure F is new Ada.Unchecked_Deallocation
+         (Mapping_Range, Mapping_Range_Acc);
+
+      Virt       : Virtual_Address          := To_Integer (Virtual_Start);
+      Final      : constant Virtual_Address := Virt + Virtual_Address (Length);
+      Addr       : Virtual_Address;
+      Success    : Boolean := False;
+      Last_Range : Mapping_Range_Acc;
+      Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
    begin
       Lib.Synchronization.Seize (Map.Mutex);
-      for Mapping of Map.Map_Ranges loop
-         if Mapping.Is_Present                    and
-            Mapping.Virtual_Start = Virtual_Start and
-            Mapping.Length        = Length
+
+      while Curr_Range /= null loop
+         if Curr_Range.Virtual_Start = Virtual_Start and
+            Curr_Range.Length        = Length
          then
-            Mapping.Is_Present := False;
-            if Mapping.Is_Allocated then
+            if Curr_Range.Is_Allocated then
                Physical.Free (Interfaces.C.size_t
-                  (To_Integer (Mapping.Physical_Start)));
+                  (To_Integer (Curr_Range.Physical_Start)));
             end if;
             goto Actually_Unmap;
          end if;
+
+         Last_Range := Curr_Range;
+         Curr_Range := Curr_Range.Next;
       end loop;
       goto Ret;
 
    <<Actually_Unmap>>
+      Last_Range.Next := Curr_Range.Next;
+      F (Curr_Range);
+
       while Virt < Final loop
          Addr := Get_Page (Map, Virt, False);
 
@@ -525,13 +551,13 @@ package body Arch.MMU is
    end Unmap_Range;
 
    function Get_User_Mapped_Size (Map : Page_Table_Acc) return Unsigned_64 is
-      Value : Unsigned_64 := 0;
+      Value      : Unsigned_64 := 0;
+      Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
    begin
       Lib.Synchronization.Seize (Map.Mutex);
-      for Mapping of Map.Map_Ranges loop
-         if Mapping.Is_Present then
-            Value := Value + Unsigned_64 (Mapping.Length);
-         end if;
+      while Curr_Range /= null loop
+         Value      := Value + Unsigned_64 (Curr_Range.Length);
+         Curr_Range := Curr_Range.Next;
       end loop;
       Lib.Synchronization.Release (Map.Mutex);
       return Value;

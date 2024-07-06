@@ -229,19 +229,21 @@ private
    #elsif ArchName = """x86_64-multiboot2"""
       type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
       type PML4_Acc is access PML4;
+      type Mapping_Range;
+      type Mapping_Range_Acc is access Mapping_Range;
       type Mapping_Range is record
-         Is_Present     : Boolean;
+         Next           : Mapping_Range_Acc;
          Is_Allocated   : Boolean;
          Virtual_Start  : System.Address;
          Physical_Start : System.Address;
          Length         : Storage_Count;
          Flags          : Page_Permissions;
       end record;
-      type Mapping_Range_Arr is array (Natural range <>) of Mapping_Range;
+
       type Page_Table is record
-         PML4_Level : PML4;
-         Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
-         Map_Ranges : Mapping_Range_Arr (1 .. 300);
+         PML4_Level      : PML4;
+         Mutex           : aliased Lib.Synchronization.Binary_Semaphore;
+         Map_Ranges_Root : Mapping_Range_Acc;
       end record;
 
       function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address;
