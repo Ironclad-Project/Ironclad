@@ -19,8 +19,10 @@ with Arch.Snippets;
 with Lib.Panic;
 
 package body Arch.APIC with SPARK_Mode => Off is
-   LAPIC_MSR                         : constant := 16#01B#;
-   LAPIC_Base                       : constant := Memory_Offset + 16#FEE00000#;
+   LAPIC_MSR  : constant := 16#01B#;
+   x2APIC_MSR : constant := 16#800#;
+   LAPIC_Base : constant := Memory_Offset + 16#FEE00000#;
+
    LAPIC_EOI_Register                : constant := 16#0B0#;
    LAPIC_Spurious_Register           : constant := 16#0F0#;
    LAPIC_ICR0_Register               : constant := 16#300#;
@@ -30,6 +32,32 @@ package body Arch.APIC with SPARK_Mode => Off is
    LAPIC_Timer_Curr_Counter_Register : constant := 16#390#;
    LAPIC_Timer_Divisor_Register      : constant := 16#3E0#;
    LAPIC_Timer_2_Divisor             : constant := 0;
+
+   Supports_x2APIC : Boolean;
+
+   function Enable_x2APIC_Support return Boolean is
+      Addr : constant Virtual_Address := ACPI.FindTable (ACPI.DMAR_Signature);
+      DMAR : ACPI.DMAR with Import, Address => To_Address (Addr);
+      EAX, EBX, ECX, EDX : Unsigned_32;
+      APIC_Base          : Unsigned_64;
+   begin
+      Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX);
+      Supports_x2APIC :=
+         (ECX and Shift_Left (1, 21)) /= 0 and
+         (Addr = 0 or else ((DMAR.Flags and 2#11#) /= 2#11#));
+
+      if Supports_x2APIC then
+         APIC_Base := Snippets.Read_MSR (LAPIC_MSR);
+         Snippets.Write_MSR (LAPIC_MSR, APIC_Base or Shift_Left (1, 10));
+      end if;
+
+      return Supports_x2APIC;
+   end Enable_x2APIC_Support;
+
+   function Has_X2APIC_Enabled return Boolean is
+   begin
+      return Supports_x2APIC;
+   end Has_X2APIC_Enabled;
 
    procedure Init_LAPIC is
       MSR_Read : constant Unsigned_64 := Arch.Snippets.Read_MSR (LAPIC_MSR);
@@ -50,8 +78,14 @@ package body Arch.APIC with SPARK_Mode => Off is
 
    procedure LAPIC_Send_IPI_Raw (LAPIC_ID : Unsigned_32; Code : Unsigned_32) is
    begin
-      LAPIC_Write (LAPIC_ICR1_Register, Shift_Left (LAPIC_ID, 24));
-      LAPIC_Write (LAPIC_ICR0_Register, Code);
+      if Supports_x2APIC then
+         x2APIC_Write
+            (LAPIC_ICR0_Register,
+             Shift_Left (Unsigned_64 (LAPIC_ID), 32) or Unsigned_64 (Code));
+      else
+         LAPIC_Write (LAPIC_ICR1_Register, Shift_Left (LAPIC_ID, 24));
+         LAPIC_Write (LAPIC_ICR0_Register, Code);
+      end if;
    end LAPIC_Send_IPI_Raw;
 
    procedure LAPIC_Send_IPI (LAPIC_ID : Unsigned_32; Vector : IDT.IDT_Index) is
@@ -103,18 +137,42 @@ package body Arch.APIC with SPARK_Mode => Off is
    end LAPIC_EOI;
 
    function LAPIC_Read (Register : Unsigned_32) return Unsigned_32 is
-      Value_Mem : Unsigned_32 with Import, Volatile,
-         Address => To_Address (LAPIC_Base + Integer_Address (Register));
    begin
-      return Value_Mem;
+      if Supports_x2APIC then
+         return Unsigned_32 (x2APIC_Read (Register) and 16#FFFFFFFF#);
+      else
+         declare
+            Value_Mem : Unsigned_32 with Import, Volatile,
+               Address => To_Address (LAPIC_Base + Integer_Address (Register));
+         begin
+            return Value_Mem;
+         end;
+      end if;
    end LAPIC_Read;
 
    procedure LAPIC_Write (Register : Unsigned_32; Value : Unsigned_32) is
-      Value_Mem : Unsigned_32 with Import, Volatile,
-         Address => To_Address (LAPIC_Base + Integer_Address (Register));
    begin
-      Value_Mem := Value;
+      if Supports_x2APIC then
+         x2APIC_Write (Register, Unsigned_64 (Value));
+      else
+         declare
+            Value_Mem : Unsigned_32 with Import, Volatile,
+               Address => To_Address (LAPIC_Base + Integer_Address (Register));
+         begin
+            Value_Mem := Value;
+         end;
+      end if;
    end LAPIC_Write;
+
+   function x2APIC_Read (Register : Unsigned_32) return Unsigned_64 is
+   begin
+      return Snippets.Read_MSR (x2APIC_MSR + Shift_Right (Register, 4));
+   end x2APIC_Read;
+
+   procedure x2APIC_Write (Register : Unsigned_32; Value : Unsigned_64) is
+   begin
+      Snippets.Write_MSR (x2APIC_MSR + Shift_Right (Register, 4), Value);
+   end x2APIC_Write;
    ----------------------------------------------------------------------------
    IOAPIC_VER_Register : constant := 1;
 

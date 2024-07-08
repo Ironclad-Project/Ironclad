@@ -63,7 +63,18 @@ smp_trampoline_start:
 
     lea (temp_stack_top - smp_trampoline_start)(%ebx), %esp
 
+    // Enable x2APIC if needed.
+    cmpl $0, (passed_info_needs_x2apic - smp_trampoline_start)(%ebx)
+    je 3f
+
+    mov $0x1b, %ecx
+    rdmsr
+    bts $10, %eax
+    bts $11, %eax
+    wrmsr
+
     // Enable PAE, LME, NX (NX may be used in the passed pagemap).
+3:
     mov %cr4, %eax
     bts $5, %eax
     mov %eax, %cr4
@@ -82,13 +93,13 @@ smp_trampoline_start:
     bts $31, %eax
     mov %eax, %cr0
 
-    lea (3f - smp_trampoline_start)(%ebx), %eax
+    lea (4f - smp_trampoline_start)(%ebx), %eax
     push $0x28
     push %eax
     lretl
 
 .code64
-3:
+4:
     mov $0x30, %eax // 64 bit GDT code segment.
     mov %eax, %ds
     mov %eax, %es
@@ -141,6 +152,8 @@ passed_info_lapic_id:
     .quad 0
 passed_info_booted_flag:
     .quad 0
+passed_info_needs_x2apic:
+    .long 0
 
 smp_trampoline_end:
 

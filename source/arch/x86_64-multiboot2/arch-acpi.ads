@@ -44,6 +44,20 @@ package Arch.ACPI is
    end record;
    for SDT_Header'Size use 288;
 
+   --  Table detailing DMA related shenanigans.
+   DMAR_Signature : constant SDT_Signature := "DMAR";
+   type DMAR is record
+      Header             : SDT_Header;
+      Host_Address_Width : Interfaces.Unsigned_8;
+      Flags              : Interfaces.Unsigned_8;
+   end record;
+   for DMAR use record
+      Header             at 0 range   0 .. 287;
+      Host_Address_Width at 0 range 288 .. 295;
+      Flags              at 0 range 296 .. 303;
+   end record;
+   for DMAR'Size use 304;
+
    --  Multiple APIC Description Table, it features an array in memory of
    --  different entries for each hardware piece.
    MADT_Signature : constant SDT_Signature := "APIC";
@@ -139,6 +153,26 @@ package Arch.ACPI is
       Local_Interrupt_Index at 0 range 40 .. 47;
    end record;
    for MADT_NMI'Size use 48;
+
+   --  x2APIC MADT entry.
+   MADT_x2APIC_Type : constant := 9;
+   type MADT_x2APIC is record
+      Header       : MADT_Header;
+      Reserved_1   : Unsigned_8;
+      Reserved_2   : Unsigned_8;
+      x2APIC_ID    : Interfaces.Unsigned_32;
+      Flags        : Interfaces.Unsigned_32;
+      Processor_ID : Interfaces.Unsigned_32;
+   end record;
+   for MADT_x2APIC use record
+      Header       at 0 range  0 .. 15;
+      Reserved_1   at 0 range 16 .. 23;
+      Reserved_2   at 0 range 24 .. 31;
+      x2APIC_ID    at 0 range 32 .. 63;
+      Flags        at 0 range 64 .. 95;
+      Processor_ID at 0 range 96 .. 127;
+   end record;
+   for MADT_x2APIC'Size use 128;
 
    --  HPET table.
    HPET_Signature : constant SDT_Signature := "HPET";

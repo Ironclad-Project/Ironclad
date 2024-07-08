@@ -43,6 +43,8 @@ package body Arch.CPU with SPARK_Mode => Off is
          declare
             LAPIC : ACPI.MADT_LAPIC with Import, Address =>
                MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
+            x2APIC : ACPI.MADT_x2APIC with Import, Address =>
+               MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
          begin
             case LAPIC.Header.Entry_Type is
                when ACPI.MADT_LAPIC_Type =>
@@ -52,7 +54,16 @@ package body Arch.CPU with SPARK_Mode => Off is
                         Core_Count := Core_Count + 1;
                      end if;
                   end if;
-               when others => null;
+               when ACPI.MADT_x2APIC_Type =>
+                  if ((x2APIC.Flags and 1) /= 0) xor
+                     ((x2APIC.Flags and 2) /= 0)
+                  then
+                     if x2APIC.x2APIC_ID /= BSP_LAPIC_ID then
+                        Core_Count := Core_Count + 1;
+                     end if;
+                  end if;
+               when others =>
+                  null;
             end case;
             Current_Byte := Current_Byte + Unsigned_32 (LAPIC.Header.Length);
          end;
@@ -169,20 +180,22 @@ package body Arch.CPU with SPARK_Mode => Off is
 
       --  Trampoline addresses and data.
       type Trampoline_Passed_Info is record
-         Page_Map    : Unsigned_32;
-         Final_Stack : Unsigned_64;
-         Core_Number : Unsigned_64;
-         LAPIC_ID    : Unsigned_64;
-         Booted_Flag : Unsigned_64;
+         Page_Map     : Unsigned_32;
+         Final_Stack  : Unsigned_64;
+         Core_Number  : Unsigned_64;
+         LAPIC_ID     : Unsigned_64;
+         Booted_Flag  : Unsigned_64;
+         Needs_X2APIC : Unsigned_32;
       end record;
       for Trampoline_Passed_Info use record
-         Page_Map    at 0 range   0 ..  31;
-         Final_Stack at 0 range  32 ..  95;
-         Core_Number at 0 range  96 .. 159;
-         LAPIC_ID    at 0 range 160 .. 223;
-         Booted_Flag at 0 range 224 .. 287;
+         Page_Map     at 0 range   0 ..  31;
+         Final_Stack  at 0 range  32 ..  95;
+         Core_Number  at 0 range  96 .. 159;
+         LAPIC_ID     at 0 range 160 .. 223;
+         Booted_Flag  at 0 range 224 .. 287;
+         Needs_X2APIC at 0 range 288 .. 319;
       end record;
-      for Trampoline_Passed_Info'Size use 288;
+      for Trampoline_Passed_Info'Size use 320;
       type Tramp_Arr is array (1 .. Multiboot2.Max_Sub_1MiB_Size)
          of Unsigned_8;
       Trampoline_Size : Storage_Count with Import,
@@ -204,11 +217,12 @@ package body Arch.CPU with SPARK_Mode => Off is
       --  FIXME: Shouldnt be copied every time, only once is enough.
       Trampoline_Data := Original_Trampoline;
       Trampoline_Info :=
-         (Page_Map    => Unsigned_32 (Pagemap_Addr),
-          Final_Stack => Unsigned_64 (To_Integer (New_Stk_Top)),
-          Core_Number => Unsigned_64 (Core_Number),
-          LAPIC_ID    => Unsigned_64 (LAPIC_ID),
-          Booted_Flag => 0);
+         (Page_Map     => Unsigned_32 (Pagemap_Addr),
+          Final_Stack  => Unsigned_64 (To_Integer (New_Stk_Top)),
+          Core_Number  => Unsigned_64 (Core_Number),
+          LAPIC_ID     => Unsigned_64 (LAPIC_ID),
+          Booted_Flag  => 0,
+          Needs_X2APIC => Boolean'Pos (APIC.Has_X2APIC_Enabled));
 
       APIC.LAPIC_Send_IPI_Raw (Unsigned_32 (LAPIC_ID), 16#4500#);
       Delay_Execution (10000000);

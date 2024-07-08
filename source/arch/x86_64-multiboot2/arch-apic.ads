@@ -22,6 +22,14 @@ package Arch.APIC is
    --  Entry of the IDT for LAPIC spurious fires.
    LAPIC_Spurious_Entry : constant := 255;
 
+   --  Check whether there is x2APIC support, and enable it for the caller.
+   --  Only the BSP needs to be enabled because, if a core is spawned with
+   --  an x2APIC IPI, it enables itself anyways.
+   --  The system assumes that all cores either support x2APIC or not.
+   function Enable_x2APIC_Support return Boolean;
+
+   function Has_X2APIC_Enabled return Boolean;
+
    --  Initialize the Local APIC for the caller core.
    procedure Init_LAPIC;
 
@@ -74,6 +82,9 @@ private
 
    function LAPIC_Read (Register : Unsigned_32) return Unsigned_32;
    procedure LAPIC_Write (Register : Unsigned_32; Value : Unsigned_32);
+
+   function x2APIC_Read (Register : Unsigned_32) return Unsigned_64;
+   procedure x2APIC_Write (Register : Unsigned_32; Value : Unsigned_64);
 
    procedure Get_IOAPIC_From_GSI
       (GSI    : Unsigned_32;
