@@ -1,5 +1,5 @@
 --  userland-elf.ads: ELF loading library.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -46,12 +46,15 @@ package Userland.ELF is
    --  Load an ELF from a file into memory with the passed base, and map it
    --  into the passed map. Return parsed info about the ELF.
    function Load_ELF
-      (FS     : VFS.FS_Handle;
-       Ino    : VFS.File_Inode_Number;
-       Map    : Arch.MMU.Page_Table_Acc;
-       Base   : Unsigned_64) return Parsed_ELF;
+      (FS             : VFS.FS_Handle;
+       Ino            : VFS.File_Inode_Number;
+       Map            : Arch.MMU.Page_Table_Acc;
+       Requested_Base : Unsigned_64) return Parsed_ELF;
 
 private
+
+   --  ELF types.
+   ET_DYN : constant := 3;
 
    --  Segment types.
    Program_Loadable_Segment     : constant := 1;
@@ -123,11 +126,13 @@ private
    end record;
    for ELF_Header'Size use 512;
 
+   --  Get the linker path string from a given interpreter program header.
    function Get_Linker
       (FS     : VFS.FS_Handle;
        Ino    : VFS.File_Inode_Number;
        Header : Program_Header) return String_Acc;
 
+   --  Load and map a loadable program header to memory.
    function Load_Header
       (FS     : VFS.FS_Handle;
        Ino    : VFS.File_Inode_Number;

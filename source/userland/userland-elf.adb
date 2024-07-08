@@ -1,5 +1,5 @@
 --  userland-elf.adb: ELF loading.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -22,30 +22,30 @@ with Userland.Syscall;
 
 package body Userland.ELF is
    function Load_ELF
-      (FS     : VFS.FS_Handle;
-       Ino    : VFS.File_Inode_Number;
-       Map    : Arch.MMU.Page_Table_Acc;
-       Base   : Unsigned_64) return Parsed_ELF
+      (FS             : VFS.FS_Handle;
+       Ino            : VFS.File_Inode_Number;
+       Map            : Arch.MMU.Page_Table_Acc;
+       Requested_Base : Unsigned_64) return Parsed_ELF
    is
       use VFS;
 
+      Base         : Unsigned_64 := Requested_Base;
       Header       : ELF_Header;
       Header_Bytes : constant Natural := ELF_Header'Size / 8;
       Header_Data  : Devices.Operation_Data (1 .. Header_Bytes)
          with Import, Address => Header'Address;
 
-      Result : Parsed_ELF := (
-         Was_Loaded  => False,
-         Entrypoint  => System.Null_Address,
-         Linker_Path => null,
-         Vector => (
-            Entrypoint => 0,
-            Program_Headers => 0,
-            Program_Header_Count => 0,
-            Program_Header_Size => 0
-         ),
-         Exec_Stack => True
-      );
+      Result : Parsed_ELF :=
+         (Was_Loaded  => False,
+          Entrypoint  => System.Null_Address,
+          Linker_Path => null,
+          Vector =>
+            (Entrypoint => 0,
+             Program_Headers => 0,
+             Program_Header_Count => 0,
+             Program_Header_Size => 0),
+         Exec_Stack => True);
+
       Ret_Count : Natural;
       Pos       : Unsigned_64 := 0;
       Discard   : Boolean;
@@ -58,6 +58,15 @@ package body Userland.ELF is
          Header.Identifier (1 .. 4) /= ELF_Signature
       then
          return Result;
+      end if;
+
+      --  If we have a dynamic ELF, we may run into the issue of it specifying
+      --  to load itself at 0, which can result on odd behaviour on
+      --  NULL-dereferences. For ease of debugging and predictable behaviour,
+      --  we will add a small 1 page slide. Since they are dynamic to begin
+      --  with, it wont hurt.
+      if Header.ELF_Type = ET_DYN and Base = 0 then
+         Base := Arch.MMU.Page_Size;
       end if;
 
       --  Assign the data we already know.
@@ -109,8 +118,7 @@ package body Userland.ELF is
          return Result;
       end;
    end Load_ELF;
-
-   --  Get the linker path string from a given interpreter program header.
+   ----------------------------------------------------------------------------
    function Get_Linker
       (FS     : VFS.FS_Handle;
        Ino    : VFS.File_Inode_Number;
@@ -133,7 +141,6 @@ package body Userland.ELF is
       end if;
    end Get_Linker;
 
-   --  Load and map a loadable program header to memory.
    function Load_Header
       (FS     : VFS.FS_Handle;
        Ino    : VFS.File_Inode_Number;
