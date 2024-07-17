@@ -51,9 +51,14 @@ begin
    --  Initialize several printing-needed subsystems.
    Arch.Clocks.Initialize_Sources;
 
+   --  Enable dmesg buffers and such.
    Lib.Messages.Enable_Logging;
+
+   --  Disable checks here because of variable expansion going over line limit.
+   pragma Style_Checks (Off);
    Lib.Messages.Put_Line (Config.Name & " " & Config.Version);
    Lib.Messages.Put_Line ("Please report bugs at " & Config.Bug_Site);
+   pragma Style_Checks (On);
 
    --  Initialize several subsystems.
    Userland.Process.Init;
@@ -150,7 +155,8 @@ begin
                Last_Idx := Last_Idx + 1;
             end loop;
 
-            Init_Args (List_Idx) := new String'(Value (First_Idx .. Last_Idx - 1));
+            Init_Args (List_Idx) :=
+               new String'(Value (First_Idx .. Last_Idx - 1));
             List_Idx  := List_Idx + 1;
             First_Idx := Last_Idx + 1;
          end loop;
