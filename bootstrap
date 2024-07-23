@@ -1,6 +1,6 @@
 #! /bin/sh
 #  bootstrap: Script for regenerating the whole circus.
-#  Copyright (C) 2023 streaksu
+#  Copyright (C) 2023-2024 streaksu
 #
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -20,9 +20,62 @@ set -ex
 srcdir="$(dirname "$0")"
 test -z "$srcdir" && srcdir=.
 
+: "${AUTORECONF:=autoreconf}"
+: "${AUTOMAKE:=automake}"
+
 cd "$srcdir"
 
-automake_libdir="$(automake --print-libdir)"
-mkdir -p build-aux
-cp "${automake_libdir}/install-sh" build-aux
-autoreconf -fvi
+# dependency hashes go here
+
+AUXFILES="config.guess config.sub install-sh"
+
+clone_repo_commit() {
+    if test -d $2/.git; then
+        git -C $2 reset --hard
+        git -C $2 clean -fd
+        if ! git -C $2 checkout $3; then
+            rm -rf $2
+        fi
+    else
+        if test -d $2; then
+            echo "error: '$2' is not a Git repository"
+            exit 1
+        fi
+    fi
+    if ! test -d $2; then
+        git clone $1 $2
+        git -C $2 checkout $3
+    fi
+}
+
+if ! test -f version; then
+    # clone_repo_commit calls go here
+    :
+fi
+
+for auxfile in $AUXFILES; do
+    rm -f build-aux/$auxfile
+done
+
+$AUTORECONF -fvi -Wall
+
+# Older versions of autoreconf have a bug where they do not
+# install auxiliary files, sometimes... Check if that is the
+# case and work around...
+for auxfile in $AUXFILES; do
+    if ! test -f build-aux/$auxfile; then
+        if ! $AUTOMAKE --print-libdir >/dev/null 2>&1; then
+            echo "error: Broken autoreconf detected, but missing or broken automake."
+            echo "       Please make sure automake is installed and working."
+            exit 1
+        fi
+        AUTOMAKE_LIBDIR="$($AUTOMAKE --print-libdir)"
+        if test -z "$AUTOMAKE_LIBDIR"; then
+            # Assume `true` was passed as $AUTOMAKE
+            continue
+        fi
+        mkdir -p build-aux
+        cp -v "$AUTOMAKE_LIBDIR/$auxfile" build-aux/
+        chmod +x build-aux/$auxfile
+    fi
+done
