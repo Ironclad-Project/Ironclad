@@ -241,6 +241,18 @@ package body IPC.SHM is
       end if;
       Lib.Synchronization.Release (Registry_Mutex);
    end Fetch_Information;
+
+   procedure Get_Total_Size (Size : out Unsigned_64) is
+   begin
+      Size := 0;
+      Lib.Synchronization.Seize (Registry_Mutex);
+      for Reg of Registry loop
+         if Reg.Is_Present then
+            Size := Size + Unsigned_64 (Reg.Size);
+         end if;
+      end loop;
+      Lib.Synchronization.Release (Registry_Mutex);
+   end Get_Total_Size;
    ----------------------------------------------------------------------------
    procedure Check_And_Maybe_Free (ID : Segment_ID) is
    begin

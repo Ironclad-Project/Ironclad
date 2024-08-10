@@ -1690,6 +1690,7 @@ codes set on failure are:
 #define SC_SYMLOOP_MAX     17 // Max number of symbolic loops to follow.
 #define SC_LIST_FILELOCKS  18 // List all advisory file locks.
 #define SC_LOADAVG         19 // Dump load averages.
+#define SC_MEMINFO         20 // Dump memory information.
 
 long int sysconf(int request, uintptr_t addr, uintptr_t len);
 @end example
@@ -1822,6 +1823,26 @@ The values the number of threads in the system run queue averaged over
 various periods of time. The 3 samples correspond to the averages of 1, 5, and
 15 minutes, respectively. It can be used as a measure of relative load. The
 values are to be divided by 100 before being used.
+
+@item
+@code{SC_MEMINFO}: @code{len} is ignored and @code{addr} points to a structure
+as such:
+
+@example
+struct mem_info @{
+    // All data is in bytes.
+    uint64_t phys_total;     // Total physical memory of the system.
+    uint64_t phys_available; // Non-reserved memory managed by the system.
+    uint64_t phys_free;      // Free memory available to the system.
+    uint64_t shared_usage;   // Amount of shared memory in the system.
+    uint64_t kernel_usage;   // Amount of memory in use by the kernel.
+    uint64_t table_usage;    // Of the kernel, amount in use for page tables.
+    uint64_t poison_usage;   // Memory marked by the hardware as faulty.
+@};
+@end example
+
+@code{0} is returned on success.
+
 @end itemize
 
 The syscall return the requested information on success and @code{-1} on

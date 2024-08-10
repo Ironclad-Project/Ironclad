@@ -1616,6 +1616,25 @@ package body Userland.Syscall is
                Scheduler.Get_Load_Averages (Lks (1), Lks (2), Lks (3));
                Result := 3;
             end;
+         when SC_MEMINFO =>
+            declare
+               Lks         : Mem_Info with Import, Address => SAddr;
+               St          : Arch.MMU.Virtual_Statistics;
+               Shared_Size : Unsigned_64;
+            begin
+               Memory.Physical.Get_Statistics (Stats);
+               Arch.MMU.Get_Statistics (St);
+               IPC.SHM.Get_Total_Size (Shared_Size);
+               Lks :=
+                  (Phys_Total     => Unsigned_64 (Stats.Total),
+                   Phys_Available => Unsigned_64 (Stats.Available),
+                   Phys_Free      => Unsigned_64 (Stats.Free),
+                   Shared_Usage   => Shared_Size,
+                   Kernel_Usage   => Unsigned_64 (St.Kernel_Usage),
+                   Table_Usage    => Unsigned_64 (St.Table_Usage),
+                   Poison_Usage   => 0);
+               Result := 0;
+            end;
          when others =>
             goto Invalid_Value_Error;
       end case;

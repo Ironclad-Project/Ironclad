@@ -357,6 +357,7 @@ package Userland.Syscall is
    SC_SYMLOOP_MAX      : constant := 17;
    SC_LIST_FILELOCKS   : constant := 18;
    SC_LOADAVG          : constant := 19;
+   SC_MEMINFO          : constant := 20;
 
    PROC_IS_TRACED : constant := 2#01#;
    PROC_EXITED    : constant := 2#10#;
@@ -428,6 +429,16 @@ package Userland.Syscall is
    type Flock_Info_Arr is array (Natural range <>) of Flock_Info;
 
    type Load_Arr is array (1 .. 3) of Unsigned_32;
+
+   type Mem_Info is record
+      Phys_Total     : Unsigned_64;
+      Phys_Available : Unsigned_64;
+      Phys_Free      : Unsigned_64;
+      Shared_Usage   : Unsigned_64;
+      Kernel_Usage   : Unsigned_64;
+      Table_Usage    : Unsigned_64;
+      Poison_Usage   : Unsigned_64;
+   end record;
 
    procedure Sysconf
       (Request  : Unsigned_64;

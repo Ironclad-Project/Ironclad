@@ -16,6 +16,7 @@
 
 with Interfaces.C;
 with Ada.Unchecked_Deallocation;
+with Lib.Atomic;
 with Arch.Snippets;
 with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
@@ -34,6 +35,13 @@ package body Arch.MMU is
    Page_G     : constant Unsigned_64 := Shift_Left (1,  8);
    --  Page_ALLOC : constant Unsigned_64 := Shift_Left (1,  9); --  Custom.
    Page_NX    : constant Unsigned_64 := Shift_Left (1, 63);
+
+   --  Global statistics.
+   function Atomic_Load_Size is new Lib.Atomic.Atomic_Load      (Memory.Size);
+   function Atomic_Add_Size  is new Lib.Atomic.Atomic_Fetch_Add (Memory.Size);
+   function Atomic_Sub_Size  is new Lib.Atomic.Atomic_Fetch_Sub (Memory.Size);
+   Global_Kernel_Usage : Memory.Size := 0;
+   Global_Table_Usage  : Memory.Size := 0;
 
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
       NX_Flags : constant Page_Permissions :=
@@ -152,6 +160,12 @@ package body Arch.MMU is
          return False;
       end if;
 
+      --  Update the stats we can update now and unlock.
+      Global_Kernel_Usage :=
+         Memory.Size (text_end'Address - text_start'Address)     +
+         Memory.Size (rodata_end'Address - rodata_start'Address) +
+         Memory.Size (data_end'Address - data_start'Address);
+
       --  Load the kernel table at last.
       return Make_Active (Kernel_Table);
    end Init;
@@ -224,6 +238,7 @@ package body Arch.MMU is
          (Mapping_Range, Mapping_Range_Acc);
       Last_Range : Mapping_Range_Acc;
       Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
+      Discard    : Memory.Size;
    begin
       Lib.Synchronization.Seize (Map.Mutex);
       while Curr_Range /= null loop
@@ -259,6 +274,9 @@ package body Arch.MMU is
                   end;
                end loop;
             end if;
+            Discard := Atomic_Sub_Size
+               (Global_Table_Usage'Address,
+                PML4'Size / 8);
             Memory.Physical.Free (Interfaces.C.size_t (A3));
          end;
       end loop;
@@ -562,6 +580,14 @@ package body Arch.MMU is
       Lib.Synchronization.Release (Map.Mutex);
       return Value;
    end Get_User_Mapped_Size;
+
+   procedure Get_Statistics (Stats : out Virtual_Statistics) is
+      Val1, Val2 : Memory.Size;
+   begin
+      Val1 := Atomic_Load_Size (Global_Kernel_Usage'Address);
+      Val2 := Atomic_Load_Size (Global_Table_Usage'Address);
+      Stats := (Val1, Val2, 0);
+   end Get_Statistics;
    ----------------------------------------------------------------------------
    function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address is
    begin
@@ -576,6 +602,7 @@ package body Arch.MMU is
       Entry_Addr : constant Virtual_Address :=
          Current_Level + Memory_Offset + Physical_Address (Index * 8);
       Entry_Body : Unsigned_64 with Address => To_Address (Entry_Addr), Import;
+      Discard : Memory.Size;
    begin
       --  Check whether the entry is present.
       if (Entry_Body and Page_P) /= 0 then
@@ -587,6 +614,9 @@ package body Arch.MMU is
             New_Entry_Addr : constant Physical_Address :=
                To_Integer (New_Entry.all'Address) - Memory_Offset;
          begin
+            Discard := Atomic_Add_Size
+               (Global_Table_Usage'Address,
+                PML4'Size / 8);
             Entry_Body := Unsigned_64 (New_Entry_Addr) or Page_P or Page_U or
                           Page_RW;
             return New_Entry_Addr;

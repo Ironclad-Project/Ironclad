@@ -183,6 +183,16 @@ package Arch.MMU is
    function Get_User_Mapped_Size (Map : Page_Table_Acc) return Unsigned_64
       with Pre => Map /= null;
 
+   --  Memory statistics of the system.
+   type Virtual_Statistics is record
+      Kernel_Usage : Memory.Size; --  Space mapped kernel only.
+      Table_Usage  : Memory.Size; --  Amount used for tables and tracking.
+      Poison_Usage : Memory.Size; --  Memory marked by the hardware as faulty.
+   end record;
+
+   --  Get memory statistics of the system.
+   procedure Get_Statistics (Stats : out Virtual_Statistics);
+
 private
 
    #if ArchName = """aarch64-stivale2"""

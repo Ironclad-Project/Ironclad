@@ -40,6 +40,22 @@ package Lib.Atomic is
    function Atomic_Load_32 is new Atomic_Load (Unsigned_32);
    function Atomic_Load_64 is new Atomic_Load (Unsigned_64);
 
+   generic
+      type Atomic_Type2 is mod <>;
+   function Atomic_Fetch_Add
+     (Ptr   : System.Address;
+      Val   : Atomic_Type2;
+      Model : Mem_Model := Mem_Seq_Cst) return Atomic_Type2;
+   pragma Import (Intrinsic, Atomic_Fetch_Add, "__atomic_fetch_add");
+
+   generic
+      type Atomic_Type3 is mod <>;
+   function Atomic_Fetch_Sub
+     (Ptr   : System.Address;
+      Val   : Atomic_Type3;
+      Model : Mem_Model := Mem_Seq_Cst) return Atomic_Type3;
+   pragma Import (Intrinsic, Atomic_Fetch_Sub, "__atomic_fetch_sub");
+
    function Atomic_Test_And_Set
      (Pointer : System.Address;
       Model   : Mem_Model := Mem_Seq_Cst) return Boolean;

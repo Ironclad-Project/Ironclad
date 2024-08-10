@@ -1,5 +1,5 @@
---  memory.ads: Specification of the memory package.
---  Copyright (C) 2021 streaksu
+--  memory.ads: System-wide memory definitions.
+--  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by

@@ -89,6 +89,9 @@ package IPC.SHM is
        Info  : out Segment_Information;
        Found : out Boolean);
 
+   --  Get size of all segments of the system.
+   procedure Get_Total_Size (Size : out Unsigned_64);
+
 private
 
    procedure Check_And_Maybe_Free (ID : Segment_ID);
