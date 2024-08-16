@@ -187,6 +187,7 @@ Syscalls
 * shmget::                  Create or get a shared memory region by key.
 * getsockopt/setsockopt::   Get and set options on sockets.
 * gettidid/settidid::       Get and set TID IDs.
+* failure_policy::          Get or set failure policies.
 
 Filesystem support and interfaces
 
@@ -3825,6 +3826,21 @@ the ID, or the passed thread is not valid.
 @item EFAULT
 The passed buffers were pointing to invalid memory.
 @end table
+
+@node failure_policy
+@section failure_policy
+
+@example
+#define MEM_FAIL_PANIC     1
+#define MEM_FAIL_SOFT_KILL 2
+#define MEM_FAIL_HARD_KILL 3
+
+struct fail_modes @{
+    uint64_t mem_policy;
+@};
+
+int failure_policy(struct fail_modes *old, struct fail_modes *new);
+@end example
 
 @node Filesystem support and interfaces
 @chapter Filesystem support and interfaces

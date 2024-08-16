@@ -39,6 +39,7 @@ with Devices.TermIOs;
 with Arch.Power;
 with Devices; use Devices;
 with Networking.Interfaces;
+with Userland.Memory_Failure;
 
 package body Userland.Syscall is
    procedure Sys_Exit
@@ -5357,6 +5358,66 @@ package body Userland.Syscall is
    <<Generic_Error>>
       Returned := Unsigned_64'Last;
    end Set_Thread_Name;
+
+   procedure Failure_Policy
+      (Old_Addr : Unsigned_64;
+       New_Addr : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      package FAL renames Userland.Memory_Failure;
+
+      Proc    : constant             PID := Arch.Local.Get_Current_Process;
+      Map     : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      O_IAddr : constant Integer_Address := Integer_Address (Old_Addr);
+      N_IAddr : constant Integer_Address := Integer_Address (New_Addr);
+      Old_Val : Failure_Struct with Import, Address => To_Address (O_IAddr);
+      New_Val : Failure_Struct with Import, Address => To_Address (N_IAddr);
+      Pol     : Userland.Memory_Failure.Policy;
+   begin
+      if O_IAddr /= 0 then
+         if Check_Userland_Access (Map, O_IAddr, Failure_Struct'Size / 8) then
+            FAL.Get_System_Policy (Pol);
+            case Pol is
+               when FAL.Hard_Panic =>
+                  Old_Val.Memory_Failure := MEMORY_FAIL_PANIC;
+               when FAL.Soft_Kill =>
+                  Old_Val.Memory_Failure := MEMORY_FAIL_SOFT_KILL;
+               when FAL.Hard_Kill =>
+                  Old_Val.Memory_Failure := MEMORY_FAIL_HARD_KILL;
+            end case;
+         else
+            goto Would_Fault_Error;
+         end if;
+      end if;
+
+      if N_IAddr /= 0 then
+         if Check_Userland_Access (Map, N_IAddr, Failure_Struct'Size / 8) then
+            case Old_Val.Memory_Failure is
+               when MEMORY_FAIL_PANIC     => Pol := FAL.Hard_Panic;
+               when MEMORY_FAIL_SOFT_KILL => Pol := FAL.Soft_Kill;
+               when MEMORY_FAIL_HARD_KILL => Pol := FAL.Hard_Kill;
+               when others                => goto Invalid_Value_Error;
+            end case;
+            Userland.Memory_Failure.Set_System_Policy (Pol);
+         else
+            goto Would_Fault_Error;
+         end if;
+      end if;
+
+      Errno    := Error_No_Error;
+      Returned := 0;
+      return;
+
+   <<Would_Fault_Error>>
+      Errno    := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<Invalid_Value_Error>>
+      Errno    := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+   end Failure_Policy;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin

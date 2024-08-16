@@ -97,4 +97,6 @@ package Arch.Interrupts is
 private
 
    procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64);
+
+   procedure Print_Machine_Check_Banks;
 end Arch.Interrupts;

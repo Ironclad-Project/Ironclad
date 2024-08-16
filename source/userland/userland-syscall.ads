@@ -358,6 +358,7 @@ package Userland.Syscall is
    SC_LIST_FILELOCKS   : constant := 18;
    SC_LOADAVG          : constant := 19;
    SC_MEMINFO          : constant := 20;
+   SC_FAILURE_POLICIES : constant := 21;
 
    PROC_IS_TRACED : constant := 2#01#;
    PROC_EXITED    : constant := 2#10#;
@@ -1182,6 +1183,20 @@ package Userland.Syscall is
       (TID      : Unsigned_64;
        Addr     : Unsigned_64;
        Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   MEMORY_FAIL_PANIC     : constant := 1;
+   MEMORY_FAIL_SOFT_KILL : constant := 2;
+   MEMORY_FAIL_HARD_KILL : constant := 3;
+
+   type Failure_Struct is record
+      Memory_Failure : Unsigned_64;
+   end record;
+
+   procedure Failure_Policy
+      (Old_Addr : Unsigned_64;
+       New_Addr : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
    ----------------------------------------------------------------------------

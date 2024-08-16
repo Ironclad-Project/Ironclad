@@ -41,6 +41,13 @@ package body Arch.Interrupts is
           24 => "???", 25 => "???", 26 => "???", 27 => "???",
           28 => "#HV", 29 => "#VC", 30 => "#SX");
    begin
+      --  If this is a machine check, we need special logic to dump the banks
+      --  and unconditionally die.
+      if Num = 18 then
+         Print_Machine_Check_Banks;
+         Lib.Panic.Hard_Panic ("Machine check!");
+      end if;
+
       --  Check whether we have to panic or just exit the thread.
       if State.CS = (GDT.User_Code64_Segment or 3) then
          Lib.Messages.Put_Line ("Userland " & Exception_Text (Num));
@@ -294,6 +301,8 @@ package body Arch.Interrupts is
             Get_Thread_Name (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 98 =>
             Set_Thread_Name (State.RDI, State.RSI, State.RDX, Returned, Errno);
+         when 99 =>
+            Failure_Policy (State.RDI, State.RSI, Returned, Errno);
          when others =>
             Userland.Process.Raise_Signal
                (Local.Get_Current_Process,
@@ -359,4 +368,35 @@ package body Arch.Interrupts is
       Lib.Messages.Put_Line (N1 & " " & B1 (5 .. B1'Last) & " " &
          N2 & " " & B2 (5 .. B2'Last) & " " & N3 & " " & B3 (5 .. B3'Last));
    end Print_Triple;
+
+   procedure Print_Machine_Check_Banks is
+      IA32_MCG_CAP_MSR : constant := 16#00000179#;
+      IA32_MCI_CTL_MSR : constant := 16#00000404#;
+
+      Bank_Count, Bank_Val : Unsigned_64;
+      Len    : Natural;
+      B1, B2 : Lib.Messages.Translated_String;
+   begin
+      Lib.Messages.Put_Line ("The machine encountered a machine check, this");
+      Lib.Messages.Put_Line ("is usually indicative of hardware failure, and");
+      Lib.Messages.Put_Line ("the operating system is required to stop.");
+      Lib.Messages.Put_Line ("Please check the values of the MC banks dumped");
+      Lib.Messages.Put_Line ("below against processor and hardware manuals.");
+
+      --  Check how many banks we have and say how many, we dont know how far
+      --  we will get.
+      Bank_Count := Read_MSR (IA32_MCG_CAP_MSR) and 2#11111111#;
+      Lib.Messages.Image (Bank_Count, B1, Len, False);
+      Lib.Messages.Put_Line
+         ("Found " & B1 (B1'Last - Len + 1 .. B1'Last) & " banks.");
+
+      --  Read them and dump them, they are in intervals of four.
+      for I in 1 .. Bank_Count loop
+         Bank_Val := Read_MSR (IA32_MCI_CTL_MSR + ((Unsigned_32 (I) - 1) * 4));
+         Lib.Messages.Image (Bank_Val, B2, Len, True);
+         Lib.Messages.Image (I, B1, Len, False);
+         Lib.Messages.Put_Line
+            ("Bank #" & B1 (B1'Last - Len + 1 .. B1'Last) & ": " & B2);
+      end loop;
+   end Print_Machine_Check_Banks;
 end Arch.Interrupts;
