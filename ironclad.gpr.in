@@ -48,6 +48,7 @@ project Ironclad is
    package Compiler is
       Base_Ada_Switches := Split (Ada_Flags, " ") &
          ("-fno-stack-protector", "-fno-stack-check",
+          "-fdata-sections", "-ffunction-sections",
           "-gnateDIroncladName=""" & "@PACKAGE_NAME@"      & """",
           "-gnateDVersion="""      & "@PACKAGE_VERSION@"   & """",
           "-gnateDBugSite="""      & "@PACKAGE_BUGREPORT@" & """",
@@ -87,7 +88,7 @@ project Ironclad is
    package Linker is
       Base_Link_Switches := Split (Linker_Flags, " ") &
          ("-T@SRCDIR@/source/arch/" & Arch & "/linker.ld", "-nostdlib",
-          "-Llibgnat-hack");
+          "-Llibgnat-hack", "-Wl,-gc-sections");
 
       case Arch is
          when "aarch64-stivale2" =>

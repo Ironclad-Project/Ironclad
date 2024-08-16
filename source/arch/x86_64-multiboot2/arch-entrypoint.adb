@@ -26,13 +26,13 @@ with Arch.CPU;
 with Lib.Panic;
 with Lib.Messages; use Lib.Messages;
 with Memory.Physical;
-with Main;
+with Kernel_Main;
 with Arch.MMU;
 with Devices.Serial;
 
 package body Arch.Entrypoint is
    procedure Bootstrap_Main (Proto : Multiboot2.Header_Acc) is
-      Info     : Boot_Information renames Global_Info;
+      Info     : Boot_Information renames Multiboot2.Global_Info;
       St1, St2 : Lib.Messages.Translated_String;
       Stp_Len  : Natural;
    begin
@@ -84,6 +84,6 @@ package body Arch.Entrypoint is
 
       --  Initialize other cores, and then jump to the freestanding main.
       Arch.CPU.Init_Cores;
-      Main;
+      Kernel_Main.Entrypoint (Info.Cmdline (1 .. Info.Cmdline_Len));
    end Bootstrap_Main;
 end Arch.Entrypoint;

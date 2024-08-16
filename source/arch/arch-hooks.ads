@@ -27,4 +27,7 @@ package Arch.Hooks is
 
    --  Get the number of cores which are active and used by the OS.
    function Get_Active_Core_Count return Positive;
+
+   --  Hook to register architecture-specific RAM files inside the kernel.
+   procedure Register_RAM_Files;
 end Arch.Hooks;

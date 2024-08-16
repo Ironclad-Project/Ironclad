@@ -1,5 +1,5 @@
 --  arch.ads: Architecture-specific information.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -46,7 +46,4 @@ package Arch is
       RAM_Files     : Boot_RAM_Files (1 .. 4);
       RAM_Files_Len : Natural range 0 .. 4;
    end record;
-
-   --  Global variable holding platform information.
-   Global_Info : Boot_Information;
 end Arch;

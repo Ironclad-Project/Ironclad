@@ -19,6 +19,9 @@ with Interfaces; use Interfaces;
 with Arch.ACPI;
 
 package Arch.Multiboot2 is
+   --  Global variable holding platform information.
+   Global_Info : Boot_Information;
+
    --  Types of several tags.
    End_ID         : constant :=  0;
    Cmdline_ID     : constant :=  1;

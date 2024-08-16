@@ -28,6 +28,9 @@ with Arch.Interrupts;
 with Interfaces; use Interfaces;
 with Devices.i6300ESB;
 with Devices.LPT;
+with Lib.Messages;
+with Devices.Ramdev;
+with Arch.Multiboot2; use Arch.Multiboot2;
 
 package body Arch.Hooks is
    function Devices_Hook return Boolean is
@@ -78,4 +81,13 @@ package body Arch.Hooks is
    begin
       return Core_Count;
    end Get_Active_Core_Count;
+
+   procedure Register_RAM_Files is
+   begin
+      if not Devices.Ramdev.Init
+         (Global_Info.RAM_Files (1 .. Global_Info.RAM_Files_Len))
+      then
+         Lib.Messages.Put_Line ("Could not load RAM files");
+      end if;
+   end Register_RAM_Files;
 end Arch.Hooks;
