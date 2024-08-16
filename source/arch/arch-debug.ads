@@ -47,7 +47,7 @@ private
       Supports_Read : constant Boolean := False;
    #elsif ArchName = """sparc-leon3"""
       Supports_Read : constant Boolean := False;
-   #elsif ArchName = """x86_64-multiboot2"""
+   #elsif ArchName = """x86_64-limine"""
       Supports_Read : constant Boolean := True;
    #end if;
 end Arch.Debug;

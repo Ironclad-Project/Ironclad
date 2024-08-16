@@ -60,7 +60,7 @@ Installation and target support
 * aarch64-stivale2 support::   aarch64-stivale2 installation and support.
 * arm-raspi2b support::        arm-raspi2b installation and support.
 * sparc-leon3 support::        sparc-leon3 installation and support.
-* x86_64-multiboot2 devices::  x86_64-multiboot2 installation and support.
+* x86_64-limine devices::  x86_64-limine installation and support.
 
 Boot-time command-line options
 
@@ -206,7 +206,7 @@ Devices and their properties
 * aarch64-stivale2 devices::   Devices specific to aarch64-stivale2.
 * arm-raspi2b devices::        Devices specific to arm-raspi2b.
 * sparc-leon3 devices::        Devices specific to sparc-leon3.
-* x86_64-multiboot2 devices::  Devices specific to x86_64-multiboot2.
+* x86_64-limine devices::  Devices specific to x86_64-limine.
 
 @end detailmenu
 @end menu
@@ -249,15 +249,15 @@ needed.
 
 For supported devices and how they are abstracted, @ref{sparc-leon3 devices}.
 
-@node x86_64-multiboot2 support
-@section x86_64-multiboot2 support
+@node x86_64-limine support
+@section x86_64-limine support
 
 x86_64 systems are supported using the multiboot2 boot protocol, any
 multiboot2 compliant bootloader like GNU GRUB or Limine will be able to boot
 it just fine.
 
 For supported devices and how they are abstracted,
-@ref{x86_64-multiboot2 devices}.
+@ref{x86_64-limine devices}.
 
 @node Boot-time command-line options
 @chapter Boot-time command-line options
@@ -929,7 +929,7 @@ over @code{%r0} to @code{r7}.
 
 The syscall mechanism for leon3 is yet to be implemented. Sorry!
 
-@subsection x86_64-multiboot2
+@subsection x86_64-limine
 
 Syscalls are invoked in Ironclad by using @code{syscall}.
 
@@ -4047,8 +4047,8 @@ timeout configuration and starting/stopping it.
 
 This target has no special devices.
 
-@node x86_64-multiboot2 devices
-@section x86_64-multiboot2 devices
+@node x86_64-limine devices
+@section x86_64-limine devices
 
 @subsection ata
 

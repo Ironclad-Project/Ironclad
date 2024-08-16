@@ -28,7 +28,7 @@ package Arch.Context is
       --  FIXME: Alignment should be 16, but GCC does not align then?
       subtype GP_Context is Arch.Interrupts.ISR_GPRs;
       type FP_Context is array (1 .. 512) of Unsigned_8 with Alignment => 32;
-   #elsif ArchName = """x86_64-multiboot2"""
+   #elsif ArchName = """x86_64-limine"""
       --  FIXME: Alignment should be 16, but GCC does not align then?
       subtype GP_Context is Arch.Interrupts.ISR_GPRs;
       type FP_Context is array (1 .. 512) of Unsigned_8 with Alignment => 32;

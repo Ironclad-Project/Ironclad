@@ -14,9 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Multiboot2;
-
 package Arch.Entrypoint is
-   procedure Bootstrap_Main (Proto : Multiboot2.Header_Acc)
+   procedure Bootstrap_Main
       with Export, Convention => C, External_Name => "kernel_main";
 end Arch.Entrypoint;

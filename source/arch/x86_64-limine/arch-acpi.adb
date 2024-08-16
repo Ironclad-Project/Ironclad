@@ -1,5 +1,5 @@
 --  arch-acpi.adb: ACPI parsing and scanning.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,15 +14,27 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Multiboot2;
+with Arch.Limine;
 
 package body Arch.ACPI is
+   --  Request to get the RSDP.
+   --  Response is a pointer to an RSDP_Response.
+   RSDP_Request : Limine.Request :=
+      (ID => (Limine.Limine_Common_Magic_1, Limine.Limine_Common_Magic_2,
+              16#c5e77b6b397e7b43#, 16#27637845accdcf3c#),
+       Revision => 0,
+       Response => System.Null_Address)
+      with Export, Async_Writers;
+
    --  Globals to keep track of scanned tables.
    Use_XSDT     : Boolean         := False;
    Root_Address : Virtual_Address := Null_Address;
 
    function ScanTables return Boolean is
-      Table : constant RSDP := Multiboot2.Get_RSDP;
+      RSDPonse : Limine.RSDP_Response
+         with Import, Address => RSDP_Request.Response;
+      Table : RSDP
+         with Import, Address => RSDPonse.Addr;
    begin
       if Table.Signature /= "RSD PTR " then
          return False;

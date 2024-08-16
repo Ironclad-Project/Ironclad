@@ -46,7 +46,7 @@ package Arch.MMU is
       Page_Size : constant := 16#1000#;
    #elsif ArchName = """sparc-leon3"""
       Page_Size : constant := 16#1000#;
-   #elsif ArchName = """x86_64-multiboot2"""
+   #elsif ArchName = """x86_64-limine"""
       Page_Size : constant := 16#1000#;
    #end if;
 
@@ -236,7 +236,7 @@ private
       type Page_Table is record
          PML4_Level : PML4;
       end record;
-   #elsif ArchName = """x86_64-multiboot2"""
+   #elsif ArchName = """x86_64-limine"""
       type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
       type PML4_Acc is access PML4;
       type Mapping_Range;

@@ -24,6 +24,7 @@ with Arch.Interrupts;
 with Arch.Local;
 with Userland.Process; use Userland.Process;
 with Memory.Physical;
+with Arch.Limine;
 
 package body Arch.MMU is
    --  Bits in the 4K page entries.
@@ -85,6 +86,8 @@ package body Arch.MMU is
       TSAddr : constant Integer_Address := To_Integer (text_start'Address);
       OSAddr : constant Integer_Address := To_Integer (rodata_start'Address);
       DSAddr : constant Integer_Address := To_Integer (data_start'Address);
+      Phys   : constant Integer_Address :=
+         To_Integer (Limine.Get_Physical_Address);
    begin
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Table'
@@ -140,19 +143,19 @@ package body Arch.MMU is
       --  Map the kernel sections.
       if not Inner_Map_Range
          (Map            => Kernel_Table,
-          Physical_Start => To_Address (TSAddr - Kernel_Offset + 16#200000#),
+          Physical_Start => To_Address (TSAddr - Kernel_Offset + Phys),
           Virtual_Start  => text_start'Address,
           Length         => text_end'Address - text_start'Address,
           Permissions    => RX_Flags) or
          not Inner_Map_Range
          (Map            => Kernel_Table,
-          Physical_Start => To_Address (OSAddr - Kernel_Offset + 16#200000#),
+          Physical_Start => To_Address (OSAddr - Kernel_Offset + Phys),
           Virtual_Start  => rodata_start'Address,
           Length         => rodata_end'Address - rodata_start'Address,
           Permissions    => R_Flags) or
          not Inner_Map_Range
          (Map            => Kernel_Table,
-          Physical_Start => To_Address (DSAddr - Kernel_Offset + 16#200000#),
+          Physical_Start => To_Address (DSAddr - Kernel_Offset + Phys),
           Virtual_Start  => data_start'Address,
           Length         => data_end'Address - data_start'Address,
           Permissions    => NX_Flags)

@@ -30,7 +30,7 @@ with Devices.i6300ESB;
 with Devices.LPT;
 with Lib.Messages;
 with Devices.Ramdev;
-with Arch.Multiboot2; use Arch.Multiboot2;
+with Arch.Limine;
 
 package body Arch.Hooks is
    function Devices_Hook return Boolean is
@@ -85,7 +85,7 @@ package body Arch.Hooks is
    procedure Register_RAM_Files is
    begin
       if not Devices.Ramdev.Init
-         (Global_Info.RAM_Files (1 .. Global_Info.RAM_Files_Len))
+         (Limine.Global_Info.RAM_Files (1 .. Limine.Global_Info.RAM_Files_Len))
       then
          Lib.Messages.Put_Line ("Could not load RAM files");
       end if;

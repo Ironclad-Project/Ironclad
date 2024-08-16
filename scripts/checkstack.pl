@@ -59,7 +59,7 @@ my (@stack, $re, $dre, $sub, $x, $xs, $funcre);
     } elsif ($arch eq 'sparc-leon3') {
         # f0019d10:       9d e3 bf 90     save  %sp, -112, %sp
         $re = qr/.*save.*%sp, -(([0-9]{2}|[3-9])[0-9]{2}), %sp/o;
-    } elsif ($arch eq 'x86_64-multiboot2') {
+    } elsif ($arch eq 'x86_64-limine') {
         # c0105234:       81 ec ac 05 00 00       sub    $0x5ac,%esp
         #     2f60:    48 81 ec e8 05 00 00       sub    $0x5e8,%rsp
         $re = qr/^.*[as][du][db]    \$(0x$x{1,8}),\%(e|r)sp$/o;

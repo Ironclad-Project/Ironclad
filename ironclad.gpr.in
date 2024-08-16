@@ -1,5 +1,5 @@
 --  ironclad.gpr.in: Project's building script.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -16,7 +16,10 @@
 
 project Ironclad is
    type Arch_Name is
-      ("aarch64-stivale2", "arm-raspi2b", "sparc-leon3", "x86_64-multiboot2");
+      ("aarch64-stivale2",
+       "arm-raspi2b",
+       "sparc-leon3",
+       "x86_64-limine");
 
    Arch : Arch_Name := "@target_cpu@-@target_vendor@";
    Ada_Flags        := "@ADAFLAGS@";
@@ -74,7 +77,7 @@ project Ironclad is
             for Switches ("Ada") use Base_Ada_Switches &
                ("-mcpu=leon3", "-static", "-fno-pie", "-fno-pic");
             for Switches ("Asm_Cpp") use Base_Asm_Switches & ("-mcpu=leon3");
-         when "x86_64-multiboot2" =>
+         when "x86_64-limine" =>
             for Switches ("Ada") use Base_Ada_Switches &
                ("-fno-pie", "-fno-pic", "-mgeneral-regs-only", "-mno-red-zone",
                 "-mcmodel=kernel", "-fcf-protection");
@@ -103,7 +106,7 @@ project Ironclad is
             for Switches ("Ada") use Base_Link_Switches &
                ("-zmax-page-size=0x1000", "-static", "-Wl,-zmuldefs",
                 "-fno-pie", "-fno-pic");
-         when "x86_64-multiboot2" =>
+         when "x86_64-limine" =>
             for Switches ("Ada") use Base_Link_Switches &
                ("-static", "-zmax-page-size=0x1000",
                 "-Wl,--undefined=multiboot2,-zmuldefs");

@@ -18,7 +18,7 @@ with System.Machine_Code; use System.Machine_Code;
 with Arch.APIC;
 with Memory; use Memory;
 with Arch.ACPI;
-with Arch.Multiboot2;
+with Arch.Limine;
 with Arch.MMU;
 with Arch.IDT;
 with Arch.Snippets;
@@ -196,14 +196,14 @@ package body Arch.CPU with SPARK_Mode => Off is
          Needs_X2APIC at 0 range 288 .. 319;
       end record;
       for Trampoline_Passed_Info'Size use 320;
-      type Tramp_Arr is array (1 .. Multiboot2.Max_Sub_1MiB_Size)
+      type Tramp_Arr is array (1 .. Limine.Max_Sub_1MiB_Size)
          of Unsigned_8;
       Trampoline_Size : Storage_Count with Import,
          External_Name => "smp_trampoline_size";
       Original_Trampoline : Tramp_Arr with Import,
          External_Name => "smp_trampoline_start";
       Trampoline_Data : Tramp_Arr with Import, Volatile,
-         Address => Multiboot2.Sub_1MiB_Region;
+         Address => Limine.Sub_1MiB_Region;
       Trampoline_Info : Trampoline_Passed_Info with Import, Volatile,
          Address => Trampoline_Data'Address + Trampoline_Size
                     - (Trampoline_Passed_Info'Size / 8);

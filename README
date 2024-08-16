@@ -27,7 +27,7 @@ The tools needed are:
 For building the project's binaries, a standard configure-make-make install is
 enough, like the following:
 
-./configure --target=x86_64-multiboot2-elf # Or whatever other target.
+./configure --target=x86_64-limine-elf # Or whatever other target.
 make
 make check # If desired, will need gnatprove and perl.
 make install

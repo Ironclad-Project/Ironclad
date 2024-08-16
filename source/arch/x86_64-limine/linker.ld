@@ -1,6 +1,6 @@
 /*
  * linker.ld: Main linker script of the project.
- * Copyright (C) 2021 streaksu
+ * Copyright (C) 2024 streaksu
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,50 +16,44 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-ENTRY(start)
+OUTPUT_FORMAT(elf64-x86-64)
+ENTRY(kernel_main)
 
 PHDRS
 {
-    text   PT_LOAD FLAGS((1 << 0) | (1 << 2)) ; /* Execute + Read  */
-    rodata PT_LOAD FLAGS((1 << 2)) ;            /* Read only       */
-    data   PT_LOAD FLAGS((1 << 1) | (1 << 2)) ; /* Write + Read    */
+    text    PT_LOAD;
+    rodata  PT_LOAD;
+    data    PT_LOAD;
 }
 
-SECTIONS {
-    VIRTUAL_BASE  = 0xFFFFFFFF80000000;
-    PHYSICAL_BASE = 2M;
-    . = VIRTUAL_BASE;
+SECTIONS
+{
+    . = 0xffffffff80000000;
 
-    /* Position in the front required by spec. */
     text_start = .;
-    .multiboot2 : AT (ADDR (.multiboot2) - VIRTUAL_BASE + PHYSICAL_BASE) {
-        KEEP(*(.multiboot2))
-    } :text
-
-    /* Actual kernel. */
-    .text : AT (ADDR (.text) - VIRTUAL_BASE + PHYSICAL_BASE) {
+    .text : {
         *(.text .text.*)
     } :text
     . = ALIGN(CONSTANT(MAXPAGESIZE));
     text_end = .;
 
     rodata_start = .;
-    .rodata : AT (ADDR (.rodata) - VIRTUAL_BASE + PHYSICAL_BASE) {
+    .rodata : {
         *(.rodata .rodata.*)
     } :rodata
 
-    .note : AT (ADDR (.note) - VIRTUAL_BASE + PHYSICAL_BASE) {
+    .note : {
         *(.note.gnu.build-id)
     } : rodata
     . = ALIGN(CONSTANT(MAXPAGESIZE));
     rodata_end = .;
 
     data_start = .;
-    .data : AT (ADDR (.data) - VIRTUAL_BASE + PHYSICAL_BASE) {
+    .data : {
         *(.data .data.*)
     } :data
 
-    .bss : AT (ADDR (.bss) - VIRTUAL_BASE + PHYSICAL_BASE) {
+    .bss : {
         *(.bss .bss.*)
         *(COMMON)
     } :data
@@ -67,7 +61,7 @@ SECTIONS {
     data_end = .;
 
     /DISCARD/ : {
-        *(.eh_frame)
+        *(.eh_frame*)
         *(.note .note.*)
     }
 }

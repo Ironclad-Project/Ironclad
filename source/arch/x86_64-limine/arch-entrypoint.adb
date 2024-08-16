@@ -29,10 +29,11 @@ with Memory.Physical;
 with Kernel_Main;
 with Arch.MMU;
 with Devices.Serial;
+with Arch.Limine;
 
 package body Arch.Entrypoint is
-   procedure Bootstrap_Main (Proto : Multiboot2.Header_Acc) is
-      Info     : Boot_Information renames Multiboot2.Global_Info;
+   procedure Bootstrap_Main is
+      Info     : Boot_Information renames Limine.Global_Info;
       St1, St2 : Lib.Messages.Translated_String;
       Stp_Len  : Natural;
    begin
@@ -41,11 +42,11 @@ package body Arch.Entrypoint is
       GDT.Init;
       IDT.Init;
 
-      --  Translate the multiboot2 protocol.
-      Multiboot2.Translate_Proto (Proto);
+      --  Translate the limine protocol into arch-agnostic structures.
+      Limine.Translate_Proto;
 
       --  Print the memory map, it is useful at times.
-      Lib.Messages.Put_Line ("x86_64-multiboot2 physical map:");
+      Lib.Messages.Put_Line ("Physical memory map:");
       for E of Info.Memmap (1 .. Info.Memmap_Len) loop
          Image (Unsigned_64 (To_Integer (E.Start)), St1, Stp_Len, True);
          Image (Unsigned_64 (E.Length), St2, Stp_Len, True);

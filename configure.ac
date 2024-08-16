@@ -93,7 +93,7 @@ GET_PROG([GNATPROVE], [gnatprove], [gnatprove])
 AC_CANONICAL_TARGET
 
 case $target_cpu-$target_vendor in
-    aarch64-stivale2|arm-raspi2b|sparc-leon3|x86_64-multiboot2)
+    aarch64-stivale2|arm-raspi2b|sparc-leon3|x86_64-limine)
         ;;
     *)
         AC_MSG_ERROR([$target_cpu-$target_vendor is not available for compilation])

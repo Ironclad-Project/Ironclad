@@ -18,9 +18,11 @@ with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
 with System; use System;
 with Memory; use Memory;
 with System.Storage_Elements; use System.Storage_Elements;
-with Arch.Multiboot2; use Arch.Multiboot2;
+with Arch.Limine;
 
 package body Devices.FB is
+   package Limine renames Arch.Limine;
+
    --  Structures used by fbdev.
    FB_TYPE_PACKED_PIXELS  : constant := 0;
    FB_VISUAL_TRUECOLOR    : constant := 2;
@@ -78,69 +80,99 @@ package body Devices.FB is
       Capabilities : Unsigned_16;
    end record;
 
+   --  Request to get the Limine framebuffer data.
+   --  Response is a pointer to a Framebuffer_Response
+   Framebuffer_Request : Limine.Request :=
+      (ID => (Limine.Limine_Common_Magic_1, Limine.Limine_Common_Magic_2,
+              16#9d5827dcd881dd75#, 16#a3148604f6fab11b#),
+       Revision => 0,
+       Response => System.Null_Address)
+      with Export, Async_Writers;
+
    --  Data for storing device data.
    type Internal_FB_Data is record
-      Multiboot_Data : Framebuffer_Tag;
-      Fixed_Info     : FB_Fix_ScreenInfo;
-      Variable_Info  : FB_Var_ScreenInfo;
+      Fb            : Limine.Framebuffer;
+      Fixed_Info    : FB_Fix_ScreenInfo;
+      Variable_Info : FB_Var_ScreenInfo;
    end record;
    type Internal_FB_Data_Acc is access Internal_FB_Data;
 
    function Init return Boolean is
-      Device  : Resource;
-      Data    : constant Internal_FB_Data_Acc := new Internal_FB_Data;
-      Fb      : constant Framebuffer_Tag      := Get_Framebuffer;
-      Success : Boolean;
+      Device   : Resource;
+      Dev_Name : String  := "fb0";
+      Success  : Boolean := True;
+      Data     : Internal_FB_Data_Acc;
+      FBPonse  : Limine.Framebuffer_Response
+         with Import, Address => Framebuffer_Request.Response;
    begin
-      --  Translate the multiboot information into fbdev info and register.
-      Data.all :=
-         (Multiboot_Data => Fb,
-          Fixed_Info =>
-            (ID           => "Multiboot 2" & (12 .. 16 => NUL),
-             SMem_Start   => 0,
-             SMem_Length  => Fb.Pitch * Fb.Height,
-             FB_Type      => FB_TYPE_PACKED_PIXELS,
-             Type_Aux     => 0,
-             Visual       => FB_VISUAL_TRUECOLOR,
-             X_Pan_Step   => 0,
-             Y_Pan_Step   => 0,
-             Y_Wrap_Step  => 0,
-             Line_Length  => 0,
-             MMIO_Start   => 0,
-             MMIO_Length  => 0,
-             Accel        => 0,
-             Capabilities => 0),
-         Variable_Info =>
-            (X_Res          => Fb.Width,
-             Y_Res          => Fb.Height,
-             X_Res_Virtual  => Fb.Width,
-             Y_Res_Virtual  => Fb.Height,
-             Bits_Per_Pixel => Unsigned_32 (Fb.BPP),
-             Activate       => FB_ACTIVATE_NOW,
-             VMode          => FB_VMODE_NONINTERLACED,
-             Width          => Unsigned_32'Last,
-             Height         => Unsigned_32'Last,
-             Red            => (16, 8, 0), --  TODO: These 4 are hardcoded.
-             Green          => (08, 8, 0), --  They can be fetched from
-             Blue           => (00, 8, 0), --  multiboot2 instead, which is
-             Transp         => (24, 8, 0), --  a bit painful in all honesty.
-             others         => 0));
+      for I in 1 .. FBPonse.Count loop
+         declare
+            Fb : access Limine.Framebuffer
+               with Import, Address => To_Address (To_Integer
+                  (FBPonse.Framebuffers) + ((Integer_Address (I) - 1) *
+                  (Unsigned_64'Size / 8)));
+         begin
+            --  Translate the boot information into fbdev info and register
+            --  one device per framebuffer.
+            --  They start at 0 by Linux convention, the best kind of
+            --  convention!
+            --  TODO: The 4 red/green/blue/transp values are hardcoded.
+            --  They can be fetched from the loader instead, which is
+            --  a bit painful in all honesty.
+            Data := new Internal_FB_Data'
+               (Fb         => Fb.all,
+                Fixed_Info =>
+                  (ID           => "Limine BootFB" & (14 .. 16 => NUL),
+                   SMem_Start   => 0,
+                   SMem_Length  => Unsigned_32 (Fb.Pitch * Fb.Height),
+                   FB_Type      => FB_TYPE_PACKED_PIXELS,
+                   Type_Aux     => 0,
+                   Visual       => FB_VISUAL_TRUECOLOR,
+                   X_Pan_Step   => 0,
+                   Y_Pan_Step   => 0,
+                   Y_Wrap_Step  => 0,
+                   Line_Length  => 0,
+                   MMIO_Start   => 0,
+                   MMIO_Length  => 0,
+                   Accel        => 0,
+                   Capabilities => 0),
+               Variable_Info =>
+                  (X_Res          => Unsigned_32 (Fb.Width),
+                   Y_Res          => Unsigned_32 (Fb.Height),
+                   X_Res_Virtual  => Unsigned_32 (Fb.Width),
+                   Y_Res_Virtual  => Unsigned_32 (Fb.Height),
+                   Bits_Per_Pixel => Unsigned_32 (Fb.BPP),
+                   Activate       => FB_ACTIVATE_NOW,
+                   VMode          => FB_VMODE_NONINTERLACED,
+                   Width          => Unsigned_32'Last,
+                   Height         => Unsigned_32'Last,
+                   Red            => (16, 8, 0),
+                   Green          => (08, 8, 0),
+                   Blue           => (00, 8, 0),
+                   Transp         => (24, 8, 0), --  Look the TODO!
+                   others         => 0));
 
-      Device :=
-         (Data        => Data.all'Address,
-          ID          => (others => 0),
-          Is_Block    => False,
-          Block_Size  => 4096,
-          Block_Count => 0,
-          Sync        => null,
-          Sync_Range  => null,
-          Read        => null,
-          Write       => null,
-          IO_Control  => IO_Control'Access,
-          Mmap        => Mmap'Access,
-          Poll        => null);
+            Device :=
+               (Data        => Data.all'Address,
+                ID          => (others => 0),
+                Is_Block    => False,
+                Block_Size  => 4096,
+                Block_Count => 0,
+                Sync        => null,
+                Sync_Range  => null,
+                Read        => null,
+                Write       => null,
+                IO_Control  => IO_Control'Access,
+                Mmap        => Mmap'Access,
+                Poll        => null);
 
-      Register (Device, "fb0", Success);
+            Dev_Name (Dev_Name'Last) :=
+               Character'Val ((I - 1) + Character'Pos ('0'));
+            Register (Device, Dev_Name, Success);
+            exit when not Success;
+         end;
+      end loop;
+
       return Success;
    end Init;
 
@@ -176,12 +208,13 @@ package body Devices.FB is
    is
       Dev_Data    : Internal_FB_Data with Import, Address => Data;
       Final_Perms : Arch.MMU.Page_Permissions := Flags;
+      IntAddr : constant Integer_Address := To_Integer (Dev_Data.Fb.Address);
    begin
       Final_Perms.Is_Write_Combine := True;
       return Arch.MMU.Map_Range
          (Map              => Map,
           Virtual_Start    => To_Address (Address),
-          Physical_Start   => Dev_Data.Multiboot_Data.Address,
+          Physical_Start   => To_Address (IntAddr - Memory_Offset),
           Length           => Storage_Count (Length),
           Permissions      => Final_Perms);
    end Mmap;
