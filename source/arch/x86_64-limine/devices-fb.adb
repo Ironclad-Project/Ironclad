@@ -104,6 +104,10 @@ package body Devices.FB is
       FBPonse  : Limine.Framebuffer_Response
          with Import, Address => Framebuffer_Request.Response;
    begin
+      if Framebuffer_Request.Response = System.Null_Address then
+         return True;
+      end if;
+
       for I in 1 .. FBPonse.Count loop
          declare
             Fb : access Limine.Framebuffer

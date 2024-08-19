@@ -20,9 +20,12 @@ with System.Storage_Elements; use System.Storage_Elements;
 package Arch is
    --  Memory map for the kernel, it must be sorted and have no gaps.
    type Boot_Memory_Type is
-      (Memory_Free,     --  Memory free for use by the allocators.
-       Memory_Reserved, --  MMIO addresses or memory tables.
-       Memory_Kernel);  --  Memory occupied by the kernel or RAM files.
+      (Memory_Free,             --  Memory free for use by the allocators.
+       Memory_Reserved,         --  MMIO addresses or memory tables or w/e.
+       Memory_Kernel,           --  Kernel or RAM files.
+       Memory_ACPI_Reclaimable, --  Area used by ACPI that can be reclaimed.
+       Memory_ACPI_NVS);        --  ACPI flash we cannot use for our interests.
+
    type Boot_Memory_Region is record
       Start   : System.Address;
       Length  : Storage_Count;

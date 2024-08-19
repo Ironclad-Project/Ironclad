@@ -17,6 +17,7 @@
 with System; use System;
 with Lib;
 with Lib.Messages;
+with Lib.Panic;
 
 package body Arch.Limine is
    function Get_Physical_Address return System.Address is
@@ -52,16 +53,43 @@ package body Arch.Limine is
 
       Global_Info.Cmdline (1 .. Cmdline_Len) := Cmdline;
       Global_Info.Cmdline_Len := Cmdline_Len;
-      Global_Info.RAM_Files_Len := 0;
 
+      --  Translate RAM files.
+      Global_Info.RAM_Files_Len := 0;
+      if Modules_Request.Response /= System.Null_Address then
+         declare
+            ModPonse : Modules_Response
+               with Import, Address => Modules_Request.Response;
+            Inner_Mods : constant Limine_File_Arr (1 .. ModPonse.Mod_Count)
+               with Import, Address => ModPonse.Modules;
+         begin
+            for Ent of Inner_Mods loop
+               Global_Info.RAM_Files_Len := Global_Info.RAM_Files_Len + 1;
+               Global_Info.RAM_Files (Global_Info.RAM_Files_Len) :=
+                  (Start   => Ent.Address,
+                   Length  => Storage_Count (Ent.Size));
+            end loop;
+         end;
+      end if;
+
+      --  Translate memmap.
       for Ent of Inner_MMap loop
-         if Ent.EntryType = LIMINE_MEMMAP_USABLE then
-            Type_Entry := Memory_Free;
-         elsif Ent.EntryType = LIMINE_MEMMAP_KERNEL_AND_MODS then
-            Type_Entry := Memory_Kernel;
-         else
-            Type_Entry := Memory_Reserved;
-         end if;
+         case Ent.EntryType is
+            when LIMINE_MEMMAP_USABLE =>
+               Type_Entry := Memory_Free;
+            when LIMINE_MEMMAP_RESERVED   | LIMINE_MEMMAP_FRAMEBUFFER |
+                 LIMINE_MEMMAP_BAD_MEMORY | LIMINE_MEMMAP_BOOTLOADER_RECL =>
+               Type_Entry := Memory_Reserved;
+            when LIMINE_MEMMAP_ACPI_RECLAIMABLE =>
+               Type_Entry := Memory_ACPI_Reclaimable;
+            when LIMINE_MEMMAP_ACPI_NVS =>
+               Type_Entry := Memory_ACPI_NVS;
+            when LIMINE_MEMMAP_KERNEL_AND_MODS =>
+               Type_Entry := Memory_Kernel;
+            when others =>
+               Lib.Messages.Put_Line ("Unrecognized memory assumed reserved");
+               Type_Entry := Memory_Reserved;
+         end case;
 
          Global_Info.Memmap_Len := Global_Info.Memmap_Len + 1;
          Global_Info.Memmap (Global_Info.Memmap_Len) :=

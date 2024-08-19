@@ -101,9 +101,13 @@ package Arch.Limine is
       Cmdline : System.Address;
    end record with Pack;
 
+   type Limine_File_Acc is access all Limine_File;
+   type Limine_File_Arr is array (Unsigned_64 range <>) of Limine_File_Acc;
+
+   --  Address is always virtual!!!
    type Kernel_File_Response is record
       Base        : Response;
-      Kernel_File : access Limine_File;
+      Kernel_File : Limine_File_Acc;
    end record with Pack;
 
    type Memmap_Response is record
@@ -174,6 +178,12 @@ package Arch.Limine is
       Version_Addr : System.Address;
    end record with Pack;
 
+   type Modules_Response is record
+      Base      : Response;
+      Mod_Count : Unsigned_64;
+      Modules   : System.Address;
+   end record with Pack;
+
    type Revision_ID is array (1 .. 3) of Unsigned_64;
    Revision : Revision_ID := (16#f9562b2d5c95a6c8#, 16#6a7b384944536bdc#, 2);
 
@@ -202,6 +212,10 @@ package Arch.Limine is
       (Limine_Common_Magic_1, Limine_Common_Magic_2,
        16#95a67b819a1b857e#, 16#a0b61b723b6a73e0#);
 
+   Modules_ID : constant Request_ID :=
+      (Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#3e7e279702be32af#, 16#ca1c4f3bd1280cee#);
+
 private
 
    --  Response is a pointer to a Bootloader_Info_Response.
@@ -225,6 +239,12 @@ private
    --  Response is a pointer to an Kernel_Address_Response.
    Address_Request : Request :=
       (ID       => Kernel_Address_ID,
+       Revision => 0,
+       Response => System.Null_Address);
+
+   --  Response is a pointer to an Modules_Response.
+   Modules_Request : Request :=
+      (ID       => Modules_ID,
        Revision => 0,
        Response => System.Null_Address);
 end Arch.Limine;
