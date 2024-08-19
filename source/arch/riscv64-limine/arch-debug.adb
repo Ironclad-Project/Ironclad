@@ -1,4 +1,4 @@
---  main.adb: Stub main function.
+--  arch-debug.adb: Architecture-specific debug channels.
 --  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,16 +14,27 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
---  The project uses GPRBuild for compilation, because gnatprove and others
---  themselves depend on GPRBuild, issue is GPRBuild requires a main file
---  with a main function, which forces some weird semantics on us. This little
---  stub lets GPRBuild be happy while we stay happy.
+with Devices.UART;
 
-with Arch.Entrypoint;
-pragma Unreferenced (Arch.Entrypoint);
-with Kernel_Main;
+package body Arch.Debug with SPARK_Mode => Off is
+   procedure Read (Message : out Devices.Operation_Data) is
+   begin
+      null;
+   end Read;
 
-procedure Main is
-begin
-   Kernel_Main.Entrypoint ("");
-end Main;
+   procedure Print (Message : Character) is
+   begin
+      Devices.UART.Write_UART0 (Message);
+   end Print;
+
+   procedure Print (Message : String) is
+   begin
+      Devices.UART.Write_UART0 (Message);
+   end Print;
+
+   procedure Print (Message : Devices.Operation_Data) is
+      S : String (1 .. Message'Length) with Import, Address => Message'Address;
+   begin
+      Devices.UART.Write_UART0 (S);
+   end Print;
+end Arch.Debug;

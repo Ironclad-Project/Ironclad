@@ -1,5 +1,5 @@
 --  arch-debug.ads: Architecture-specific debug channels.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -44,6 +44,8 @@ private
    #if ArchName = """aarch64-stivale2"""
       Supports_Read : constant Boolean := False;
    #elsif ArchName = """arm-raspi2b"""
+      Supports_Read : constant Boolean := False;
+   #elsif ArchName = """riscv64-limine"""
       Supports_Read : constant Boolean := False;
    #elsif ArchName = """sparc-leon3"""
       Supports_Read : constant Boolean := False;

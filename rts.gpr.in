@@ -18,6 +18,7 @@ library project RTS is
    type Arch_Name is
       ("aarch64-stivale2",
        "arm-raspi2b",
+       "riscv64-limine",
        "sparc-leon3",
        "x86_64-limine");
 
@@ -53,6 +54,11 @@ library project RTS is
             for Switches ("Ada") use Base_Ada_Switches & (
                "-static", "-fno-pie", "-fpic", "-mgeneral-regs-only",
                "-mcpu=cortex-a7"
+            );
+         when "riscv64-limine" =>
+            for Switches ("Ada") use Base_Ada_Switches & (
+               "-fno-pie", "-fno-pic", "-mno-relax",
+               "-march=rv64imac", "-mabi=lp64"
             );
          when "sparc-leon3" =>
             for Switches ("Ada") use Base_Ada_Switches & (

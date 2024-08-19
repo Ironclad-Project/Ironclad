@@ -1,4 +1,4 @@
---  main.adb: Stub main function.
+--  arch-hooks.adb: Architecture-specific hooks for several utilities.
 --  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,16 +14,31 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
---  The project uses GPRBuild for compilation, because gnatprove and others
---  themselves depend on GPRBuild, issue is GPRBuild requires a main file
---  with a main function, which forces some weird semantics on us. This little
---  stub lets GPRBuild be happy while we stay happy.
+package body Arch.Hooks is
+   function Devices_Hook return Boolean is
+   begin
+      return True;
+   end Devices_Hook;
 
-with Arch.Entrypoint;
-pragma Unreferenced (Arch.Entrypoint);
-with Kernel_Main;
+   function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean is
+      pragma Unreferenced (Code);
+      pragma Unreferenced (Arg);
+   begin
+      return True;
+   end PRCTL_Hook;
 
-procedure Main is
-begin
-   Kernel_Main.Entrypoint ("");
-end Main;
+   procedure Panic_SMP_Hook is
+   begin
+      null;
+   end Panic_SMP_Hook;
+
+   function Get_Active_Core_Count return Positive is
+   begin
+      return 1;
+   end Get_Active_Core_Count;
+
+   procedure Register_RAM_Files is
+   begin
+      null;
+   end Register_RAM_Files;
+end Arch.Hooks;

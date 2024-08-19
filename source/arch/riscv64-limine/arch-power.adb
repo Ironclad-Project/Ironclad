@@ -1,4 +1,4 @@
---  main.adb: Stub main function.
+--  arch-power.adb: Architecture-specific power management.
 --  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,16 +14,19 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
---  The project uses GPRBuild for compilation, because gnatprove and others
---  themselves depend on GPRBuild, issue is GPRBuild requires a main file
---  with a main function, which forces some weird semantics on us. This little
---  stub lets GPRBuild be happy while we stay happy.
+package body Arch.Power is
+   function Halt return Power_Status is
+   begin
+      return Failure;
+   end Halt;
 
-with Arch.Entrypoint;
-pragma Unreferenced (Arch.Entrypoint);
-with Kernel_Main;
+   function Reboot return Power_Status is
+   begin
+      return Failure;
+   end Reboot;
 
-procedure Main is
-begin
-   Kernel_Main.Entrypoint ("");
-end Main;
+   function Poweroff return Power_Status is
+   begin
+      return Failure;
+   end Poweroff;
+end Arch.Power;

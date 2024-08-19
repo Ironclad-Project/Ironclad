@@ -1,4 +1,4 @@
---  main.adb: Stub main function.
+--  entrypoint.ads: Limine plops us here.
 --  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,16 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
---  The project uses GPRBuild for compilation, because gnatprove and others
---  themselves depend on GPRBuild, issue is GPRBuild requires a main file
---  with a main function, which forces some weird semantics on us. This little
---  stub lets GPRBuild be happy while we stay happy.
-
-with Arch.Entrypoint;
-pragma Unreferenced (Arch.Entrypoint);
-with Kernel_Main;
-
-procedure Main is
-begin
-   Kernel_Main.Entrypoint ("");
-end Main;
+package Arch.Entrypoint is
+   procedure Bootstrap_Main
+      with Export, Convention => C, External_Name => "kernel_main";
+end Arch.Entrypoint;

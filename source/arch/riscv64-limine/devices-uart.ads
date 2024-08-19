@@ -1,4 +1,4 @@
---  main.adb: Stub main function.
+--  devices-uart.ads: UART driver.
 --  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,16 +14,24 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
---  The project uses GPRBuild for compilation, because gnatprove and others
---  themselves depend on GPRBuild, issue is GPRBuild requires a main file
---  with a main function, which forces some weird semantics on us. This little
---  stub lets GPRBuild be happy while we stay happy.
+with System.Storage_Elements; use System.Storage_Elements;
+with System;
+with Memory; use Memory;
 
-with Arch.Entrypoint;
-pragma Unreferenced (Arch.Entrypoint);
-with Kernel_Main;
+package Devices.UART with SPARK_Mode => Off is
+   --  Early initialization of UART0 for early kernel output.
+   procedure Init_UART0;
 
-procedure Main is
-begin
-   Kernel_Main.Entrypoint ("");
-end Main;
+   --  Print a character.
+   procedure Write_UART0 (Message : Character);
+
+   --  Print a string.
+   procedure Write_UART0 (Message : String);
+
+private
+
+   UART_Base : constant :=  16#10000000#;
+
+   UART0_TX : Unsigned_8 with Import, Volatile,
+      Address => To_Address (Memory_Offset + UART_Base);
+end Devices.UART;

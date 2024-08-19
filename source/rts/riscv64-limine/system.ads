@@ -9,8 +9,8 @@
 --  distributed under the GPLv3 with the GCC runtime exception.
 
 package System with Pure is
-   type Name is (SYSTEM_NAME_X86_64_LIMINE_IRONCLAD);
-   System_Name : constant Name := SYSTEM_NAME_X86_64_LIMINE_IRONCLAD;
+   type Name is (SYSTEM_NAME_RISCV64_LIMINE_IRONCLAD);
+   System_Name : constant Name := SYSTEM_NAME_RISCV64_LIMINE_IRONCLAD;
 
    --  System-Dependent limits.
    Min_Int             : constant := -2 ** (Standard'Max_Integer_Size - 1);

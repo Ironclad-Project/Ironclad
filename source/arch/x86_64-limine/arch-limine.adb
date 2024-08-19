@@ -17,7 +17,6 @@
 with System; use System;
 with Lib;
 with Lib.Messages;
-with Lib.Panic;
 
 package body Arch.Limine is
    function Get_Physical_Address return System.Address is

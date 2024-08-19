@@ -1,4 +1,4 @@
---  main.adb: Stub main function.
+--  arch-snippets.ads: Architecture-specific bits.
 --  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,16 +14,31 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
---  The project uses GPRBuild for compilation, because gnatprove and others
---  themselves depend on GPRBuild, issue is GPRBuild requires a main file
---  with a main function, which forces some weird semantics on us. This little
---  stub lets GPRBuild be happy while we stay happy.
+package body Arch.Snippets is
+   procedure HCF is
+   begin
+      loop
+         null;
+      end loop;
+   end HCF;
 
-with Arch.Entrypoint;
-pragma Unreferenced (Arch.Entrypoint);
-with Kernel_Main;
+   procedure Enable_Interrupts is
+   begin
+      null;
+   end Enable_Interrupts;
 
-procedure Main is
-begin
-   Kernel_Main.Entrypoint ("");
-end Main;
+   procedure Disable_Interrupts is
+   begin
+      null;
+   end Disable_Interrupts;
+
+   procedure Wait_For_Interrupt is
+   begin
+      null;
+   end Wait_For_Interrupt;
+
+   procedure Pause is
+   begin
+      null;
+   end Pause;
+end Arch.Snippets;

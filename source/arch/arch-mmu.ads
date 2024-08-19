@@ -1,5 +1,5 @@
 --  arch-mmu.ads: Architecture-specific MMU code.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -43,6 +43,8 @@ package Arch.MMU is
    #if ArchName = """aarch64-stivale2"""
       Page_Size : constant := 16#1000#;
    #elsif ArchName = """arm-raspi2b"""
+      Page_Size : constant := 16#1000#;
+   #elsif ArchName = """riscv64-limine"""
       Page_Size : constant := 16#1000#;
    #elsif ArchName = """sparc-leon3"""
       Page_Size : constant := 16#1000#;
@@ -230,6 +232,13 @@ private
       end record;
 
       procedure Set_MMU_State;
+   #elsif ArchName = """riscv64-limine"""
+      type Page_Level is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
+      type Page_Level_Acc is access Page_Level;
+      type Page_Table is record
+         TTBR0 : Page_Level;
+         TTBR1 : Page_Level;
+      end record;
    #elsif ArchName = """sparc-leon3"""
       type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
       type PML4_Acc is access all PML4;

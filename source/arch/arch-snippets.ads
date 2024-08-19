@@ -1,5 +1,5 @@
 --  arch-snippets.ads: Architecture-specific bits.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -46,6 +46,7 @@ package Arch.Snippets is
       function Get_Exception_Syndrome return Unsigned_64 with Inline;
    #elsif ArchName = """arm-raspi2b"""
       function Get_Exception_Syndrome return Unsigned_64 with Inline;
+   #elsif ArchName = """riscv64-limine"""
    #elsif ArchName = """sparc-leon3"""
    #elsif ArchName = """x86_64-limine"""
       procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) with Inline;
