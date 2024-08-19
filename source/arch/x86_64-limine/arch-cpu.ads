@@ -1,5 +1,5 @@
 --  arch-cpu.ads: CPU management routines.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ with Interfaces; use Interfaces;
 with Userland.Process;
 with Scheduler;
 with Arch.GDT;
+with Arch.Limine;
 
 package Arch.CPU is
    --  Core-local data, that each core holds an own version of.
@@ -68,7 +69,8 @@ private
    procedure Save_MTRRs;
    procedure Restore_MTRRs;
 
-   procedure Core_Bootstrap (Core_Number : Positive; LAPIC_ID : Unsigned_8);
+   procedure Core_Bootstrap (Info : access Limine.SMP_CPU_Info)
+      with Convention => C, Export;
    procedure Init_Core
       (Core_Number : Positive;
        LAPIC_ID    : Unsigned_8;

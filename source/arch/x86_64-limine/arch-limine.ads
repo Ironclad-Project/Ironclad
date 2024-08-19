@@ -141,27 +141,90 @@ package Arch.Limine is
       Virt_Addr : System.Address;
    end record with Pack;
 
+   SMP_ENABLE_X2APIC : constant := 1;
+   type SMP_Request is record
+      Base  : Request;
+      Flags : Unsigned_64;
+   end record;
+
+   type SMP_Response is record
+      Base         : Response;
+      Flags        : Unsigned_32;
+      BSP_LAPIC_ID : Unsigned_32;
+      CPU_Count    : Unsigned_64;
+      CPUs         : System.Address;
+   end record with Pack;
+
+   type SMP_CPU_Info is record
+      Processor_ID : Unsigned_32;
+      LAPIC_ID     : Unsigned_32;
+      Reserved     : Unsigned_64;
+      Addr         : System.Address;
+      Extra_Arg    : Unsigned_64;
+   end record with Pack;
+
+   type Limine_SMP_Entrypoint is access procedure (Info : access SMP_CPU_Info);
+
+   type CPU_Info_Acc is access all SMP_CPU_Info;
+   type CPU_Info_Arr is array (Unsigned_64 range <>) of CPU_Info_Acc;
+
+   type Bootloader_Info_Response is record
+      Base         : Response;
+      Name_Addr    : System.Address;
+      Version_Addr : System.Address;
+   end record with Pack;
+
    type Revision_ID is array (1 .. 3) of Unsigned_64;
    Revision : Revision_ID := (16#f9562b2d5c95a6c8#, 16#6a7b384944536bdc#, 2);
 
+   --  IDs of several kinds of requests.
+   Framebuffer_ID : constant Request_ID :=
+      (Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#9d5827dcd881dd75#, 16#a3148604f6fab11b#);
+
+   Memmap_ID : constant Request_ID :=
+      (Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#67cf3d9d378a806f#, 16#e304acdfc50c3c62#);
+
+   Kernel_File_ID : constant Request_ID :=
+      (Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#ad97e90e83f1ed67#, 16#31eb5d1c5ff23b69#);
+
+   Kernel_Address_ID : constant Request_ID :=
+      (Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#71ba76863cc55f63#, 16#b2644a48c516a487#);
+
+   Bootloader_Info_ID : constant Request_ID :=
+      (Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#f55038d8e2a1202f#, 16#279426fcf5f59740#);
+
+   SMP_ID : constant Request_ID :=
+      (Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#95a67b819a1b857e#, 16#a0b61b723b6a73e0#);
+
+private
+
+   --  Response is a pointer to a Bootloader_Info_Response.
+   Bootloader_Info_Request : Request :=
+      (ID       => Bootloader_Info_ID,
+       Revision => 0,
+       Response => System.Null_Address);
+
    --  Response is a pointer to a Kernel_File_Response.
    Kernel_File_Request : Request :=
-      (ID => (Limine_Common_Magic_1, Limine_Common_Magic_2,
-              16#ad97e90e83f1ed67#, 16#31eb5d1c5ff23b69#),
+      (ID       => Kernel_File_ID,
        Revision => 0,
        Response => System.Null_Address);
 
    --  Response is a pointer to a Memmap_Response.
    Memmap_Request : Request :=
-      (ID => (Limine_Common_Magic_1, Limine_Common_Magic_2,
-              16#67cf3d9d378a806f#, 16#e304acdfc50c3c62#),
+      (ID       => Memmap_ID,
        Revision => 0,
        Response => System.Null_Address);
 
    --  Response is a pointer to an Kernel_Address_Response.
    Address_Request : Request :=
-      (ID => (Limine_Common_Magic_1, Limine_Common_Magic_2,
-              16#71ba76863cc55f63#, 16#b2644a48c516a487#),
+      (ID       => Kernel_Address_ID,
        Revision => 0,
        Response => System.Null_Address);
 end Arch.Limine;

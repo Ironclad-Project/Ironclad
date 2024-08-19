@@ -16,6 +16,7 @@
 
 with System; use System;
 with Lib;
+with Lib.Messages;
 
 package body Arch.Limine is
    function Get_Physical_Address return System.Address is
@@ -30,7 +31,16 @@ package body Arch.Limine is
          with Import, Address => Kernel_File_Request.Response;
       Cmdline_Addr : constant System.Address := CmdPonse.Kernel_File.Cmdline;
       Cmdline_Len  : constant Natural := Lib.C_String_Length (Cmdline_Addr);
-      Cmdline : String (1 .. Cmdline_Len) with Address => Cmdline_Addr;
+      Cmdline : String (1 .. Cmdline_Len) with Import, Address => Cmdline_Addr;
+
+      InfoPonse : Bootloader_Info_Response
+         with Import, Address => Bootloader_Info_Request.Response;
+      Name_Addr : constant System.Address := InfoPonse.Name_Addr;
+      Name_Len  : constant        Natural := Lib.C_String_Length (Name_Addr);
+      Boot_Name : String (1 .. Name_Len) with Import, Address => Name_Addr;
+      Vers_Addr : constant System.Address := InfoPonse.Version_Addr;
+      Vers_Len  : constant        Natural := Lib.C_String_Length (Vers_Addr);
+      Boot_Vers : String (1 .. Vers_Len) with Import, Address => Vers_Addr;
 
       MemPonse : Memmap_Response
          with Import, Address => Memmap_Request.Response;
@@ -38,6 +48,8 @@ package body Arch.Limine is
          with Import, Address => MemPonse.Entries;
       Type_Entry : Boot_Memory_Type;
    begin
+      Lib.Messages.Put_Line ("Booted by " & Boot_Name & " " & Boot_Vers);
+
       Global_Info.Cmdline (1 .. Cmdline_Len) := Cmdline;
       Global_Info.Cmdline_Len := Cmdline_Len;
       Global_Info.RAM_Files_Len := 0;

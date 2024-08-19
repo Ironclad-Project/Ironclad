@@ -83,8 +83,7 @@ package body Devices.FB is
    --  Request to get the Limine framebuffer data.
    --  Response is a pointer to a Framebuffer_Response
    Framebuffer_Request : Limine.Request :=
-      (ID => (Limine.Limine_Common_Magic_1, Limine.Limine_Common_Magic_2,
-              16#9d5827dcd881dd75#, 16#a3148604f6fab11b#),
+      (ID       => Limine.Framebuffer_ID,
        Revision => 0,
        Response => System.Null_Address)
       with Export, Async_Writers;

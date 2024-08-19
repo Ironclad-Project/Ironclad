@@ -1,5 +1,5 @@
 --  arch-cpu.adb: CPU management routines.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -16,85 +16,55 @@
 
 with System.Machine_Code; use System.Machine_Code;
 with Arch.APIC;
-with Memory; use Memory;
-with Arch.ACPI;
-with Arch.Limine;
 with Arch.MMU;
 with Arch.IDT;
 with Arch.Snippets;
+with System; use System;
 
 package body Arch.CPU with SPARK_Mode => Off is
    type Interrupt_Stack is array (1 .. 16#4000#) of Unsigned_8;
    type Interrupt_Stack_Acc is access Interrupt_Stack;
 
+   --  Request to get the Limine framebuffer data.
+   --  Response is a pointer to a Framebuffer_Response
+   SMP_Request : Limine.SMP_Request :=
+      (Base  =>
+         (ID       => Limine.SMP_ID,
+          Revision => 0,
+          Response => System.Null_Address),
+       Flags => Limine.SMP_ENABLE_X2APIC)
+      with Export, Async_Writers;
+
    procedure Init_Cores is
-      Addr : constant Virtual_Address := ACPI.FindTable (ACPI.MADT_Signature);
-      MADT           : ACPI.MADT with Address => To_Address (Addr);
-      MADT_Length    : constant Unsigned_32 := MADT.Header.Length;
-      Current_Byte   : Unsigned_32          := 0;
-      BSP_LAPIC_ID   : constant Unsigned_32 := Get_BSP_LAPIC_ID;
-      Index          : Positive;
-      New_Stk : constant Interrupt_Stack_Acc := new Interrupt_Stack;
-      New_Stk_Top : constant System.Address := New_Stk (New_Stk'Last)'Address;
+      BSP_LAPIC_ID : Unsigned_32;
+      New_Stk      : constant Interrupt_Stack_Acc := new Interrupt_Stack;
+      New_Stk_Top  : constant System.Address := New_Stk (New_Stk'Last)'Address;
+      Idx          : Natural := 2;
+
+      SMPPonse : Limine.SMP_Response
+         with Import, Address => SMP_Request.Base.Response;
+      SMP_CPUs : Limine.CPU_Info_Arr (1 .. SMPPonse.CPU_Count)
+         with Import, Address => SMPPonse.CPUs;
    begin
-      --  Count of how many cores are there.
-      Core_Count := 1;
-      while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
-         declare
-            LAPIC : ACPI.MADT_LAPIC with Import, Address =>
-               MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
-            x2APIC : ACPI.MADT_x2APIC with Import, Address =>
-               MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
-         begin
-            case LAPIC.Header.Entry_Type is
-               when ACPI.MADT_LAPIC_Type =>
-                  if ((LAPIC.Flags and 1) /= 0) xor ((LAPIC.Flags and 2) /= 0)
-                  then
-                     if Unsigned_32 (LAPIC.LAPIC_ID) /= BSP_LAPIC_ID then
-                        Core_Count := Core_Count + 1;
-                     end if;
-                  end if;
-               when ACPI.MADT_x2APIC_Type =>
-                  if ((x2APIC.Flags and 1) /= 0) xor
-                     ((x2APIC.Flags and 2) /= 0)
-                  then
-                     if x2APIC.x2APIC_ID /= BSP_LAPIC_ID then
-                        Core_Count := Core_Count + 1;
-                     end if;
-                  end if;
-               when others =>
-                  null;
-            end case;
-            Current_Byte := Current_Byte + Unsigned_32 (LAPIC.Header.Length);
-         end;
-      end loop;
+      --  Fetch info.
+      Core_Count   := Natural (SMPPonse.CPU_Count);
+      BSP_LAPIC_ID := SMPPonse.BSP_LAPIC_ID;
 
       --  Initialize the locals list, and initialize the cores.
-      Current_Byte := 0;
-      Core_Locals  := new Core_Local_Arr (1 .. Core_Count);
+      Core_Locals := new Core_Local_Arr (1 .. Core_Count);
       Init_Common (1, BSP_LAPIC_ID, Unsigned_64 (To_Integer (New_Stk_Top)));
       Save_MTRRs;
 
-      Index := 1;
-      while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
-         declare
-            LAPIC : ACPI.MADT_LAPIC with Import, Address =>
-               MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
-         begin
-            case LAPIC.Header.Entry_Type is
-               when ACPI.MADT_LAPIC_Type =>
-                  if ((LAPIC.Flags and 1) /= 0) xor ((LAPIC.Flags and 2) /= 0)
-                  then
-                     if Unsigned_32 (LAPIC.LAPIC_ID) /= BSP_LAPIC_ID then
-                        Index := Index + 1;
-                        Core_Bootstrap (Index, LAPIC.LAPIC_ID);
-                     end if;
-                  end if;
-               when others => null;
-            end case;
-            Current_Byte := Current_Byte + Unsigned_32 (LAPIC.Header.Length);
-         end;
-      end loop;
+      --  Initialize the other cores.
+      if Core_Count > 1 then
+         for CPU of SMP_CPUs loop
+            if CPU.LAPIC_ID /= BSP_LAPIC_ID then
+                  CPU.Extra_Arg := Unsigned_64 (Idx);
+                  CPU.Addr      := Core_Bootstrap'Address;
+                  Idx           := Idx + 1;
+            end if;
+         end loop;
+      end if;
    end Init_Cores;
 
    function Get_Local return Core_Local_Acc is
@@ -173,68 +143,14 @@ package body Arch.CPU with SPARK_Mode => Off is
       Snippets.Invalidate_Caches;
    end Restore_MTRRs;
 
-   procedure Core_Bootstrap (Core_Number : Positive; LAPIC_ID : Unsigned_8) is
-      --  Stack of the core.
+   procedure Core_Bootstrap (Info : access Limine.SMP_CPU_Info) is
       New_Stk : constant Interrupt_Stack_Acc := new Interrupt_Stack;
       New_Stk_Top : constant System.Address := New_Stk (New_Stk'Last)'Address;
-
-      --  Trampoline addresses and data.
-      type Trampoline_Passed_Info is record
-         Page_Map     : Unsigned_32;
-         Final_Stack  : Unsigned_64;
-         Core_Number  : Unsigned_64;
-         LAPIC_ID     : Unsigned_64;
-         Booted_Flag  : Unsigned_64;
-         Needs_X2APIC : Unsigned_32;
-      end record;
-      for Trampoline_Passed_Info use record
-         Page_Map     at 0 range   0 ..  31;
-         Final_Stack  at 0 range  32 ..  95;
-         Core_Number  at 0 range  96 .. 159;
-         LAPIC_ID     at 0 range 160 .. 223;
-         Booted_Flag  at 0 range 224 .. 287;
-         Needs_X2APIC at 0 range 288 .. 319;
-      end record;
-      for Trampoline_Passed_Info'Size use 320;
-      type Tramp_Arr is array (1 .. Limine.Max_Sub_1MiB_Size)
-         of Unsigned_8;
-      Trampoline_Size : Storage_Count with Import,
-         External_Name => "smp_trampoline_size";
-      Original_Trampoline : Tramp_Arr with Import,
-         External_Name => "smp_trampoline_start";
-      Trampoline_Data : Tramp_Arr with Import, Volatile,
-         Address => Limine.Sub_1MiB_Region;
-      Trampoline_Info : Trampoline_Passed_Info with Import, Volatile,
-         Address => Trampoline_Data'Address + Trampoline_Size
-                    - (Trampoline_Passed_Info'Size / 8);
-
-      --  Data to use for the startup IPIs.
-      Addr : constant Integer_Address :=
-         (To_Integer (Trampoline_Data'Address) / 4096) or 16#4600#;
-      Pagemap_Addr : constant Integer_Address :=
-         To_Integer (MMU.Kernel_Table.all'Address) - Memory.Memory_Offset;
    begin
-      --  FIXME: Shouldnt be copied every time, only once is enough.
-      Trampoline_Data := Original_Trampoline;
-      Trampoline_Info :=
-         (Page_Map     => Unsigned_32 (Pagemap_Addr),
-          Final_Stack  => Unsigned_64 (To_Integer (New_Stk_Top)),
-          Core_Number  => Unsigned_64 (Core_Number),
-          LAPIC_ID     => Unsigned_64 (LAPIC_ID),
-          Booted_Flag  => 0,
-          Needs_X2APIC => Boolean'Pos (APIC.Has_X2APIC_Enabled));
-
-      APIC.LAPIC_Send_IPI_Raw (Unsigned_32 (LAPIC_ID), 16#4500#);
-      Delay_Execution (10000000);
-      APIC.LAPIC_Send_IPI_Raw (Unsigned_32 (LAPIC_ID), Unsigned_32 (Addr));
-      Delay_Execution (10000000);
-
-      for I in 1 .. 100 loop
-         if Trampoline_Info.Booted_Flag = 1 then
-            return;
-         end if;
-         Delay_Execution (10000000);
-      end loop;
+      Init_Core
+         (Core_Number => Natural (Info.Extra_Arg),
+          LAPIC_ID    => Unsigned_8 (Info.LAPIC_ID),
+          Stack_Top   => Unsigned_64 (To_Integer (New_Stk_Top)));
    end Core_Bootstrap;
 
    procedure Init_Core
