@@ -14,14 +14,25 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Lib.Panic;
+
 package body Userland.Memory_Failure is
    procedure Get_System_Policy (Pol : out Policy) is
    begin
-      Pol := Hard_Panic;
+      Seize (Config_Mutex);
+      Pol := Mem_Policy;
+      Release (Config_Mutex);
    end Get_System_Policy;
 
    procedure Set_System_Policy (Pol : Policy) is
    begin
-      null;
+      Seize (Config_Mutex);
+      Mem_Policy := Pol;
+      Release (Config_Mutex);
    end Set_System_Policy;
+
+   procedure Handle_Failure is
+   begin
+      Lib.Panic.Hard_Panic ("Hardware memory failure unhandled!");
+   end Handle_Failure;
 end Userland.Memory_Failure;

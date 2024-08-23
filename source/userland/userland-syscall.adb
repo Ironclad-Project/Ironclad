@@ -40,6 +40,7 @@ with Arch.Power;
 with Devices; use Devices;
 with Networking.Interfaces;
 with Userland.Memory_Failure;
+with Userland.OOM_Failure;
 
 package body Userland.Syscall is
    procedure Sys_Exit
@@ -5367,13 +5368,14 @@ package body Userland.Syscall is
    is
       package FAL renames Userland.Memory_Failure;
 
-      Proc    : constant             PID := Arch.Local.Get_Current_Process;
-      Map     : constant  Page_Table_Acc := Get_Common_Map (Proc);
-      O_IAddr : constant Integer_Address := Integer_Address (Old_Addr);
-      N_IAddr : constant Integer_Address := Integer_Address (New_Addr);
-      Old_Val : Failure_Struct with Import, Address => To_Address (O_IAddr);
-      New_Val : Failure_Struct with Import, Address => To_Address (N_IAddr);
-      Pol     : Userland.Memory_Failure.Policy;
+      Proc     : constant             PID := Arch.Local.Get_Current_Process;
+      Map      : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      O_IAddr  : constant Integer_Address := Integer_Address (Old_Addr);
+      N_IAddr  : constant Integer_Address := Integer_Address (New_Addr);
+      Old_Val  : Failure_Struct with Import, Address => To_Address (O_IAddr);
+      New_Val  : Failure_Struct with Import, Address => To_Address (N_IAddr);
+      Pol      : Userland.Memory_Failure.Policy;
+      OOM_Kill : Boolean;
    begin
       if O_IAddr /= 0 then
          if Check_Userland_Access (Map, O_IAddr, Failure_Struct'Size / 8) then
@@ -5386,20 +5388,42 @@ package body Userland.Syscall is
                when FAL.Hard_Kill =>
                   Old_Val.Memory_Failure := MEMORY_FAIL_HARD_KILL;
             end case;
+
+            OOM_Failure.Get_Killing_Config (OOM_Kill);
+            if OOM_Kill then
+               Old_Val.OOM_Failure := OOM_ALLOW_PROC_KILL;
+            else
+               Old_Val.OOM_Failure := 0;
+            end if;
          else
             goto Would_Fault_Error;
          end if;
       end if;
 
       if N_IAddr /= 0 then
+         if not Get_Capabilities (Proc).Can_Manage_MAC then
+            Errno := Error_Bad_Access;
+            Execute_MAC_Failure ("failure_policy", Proc);
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
          if Check_Userland_Access (Map, N_IAddr, Failure_Struct'Size / 8) then
-            case Old_Val.Memory_Failure is
+            case New_Val.Memory_Failure is
                when MEMORY_FAIL_PANIC     => Pol := FAL.Hard_Panic;
                when MEMORY_FAIL_SOFT_KILL => Pol := FAL.Soft_Kill;
                when MEMORY_FAIL_HARD_KILL => Pol := FAL.Hard_Kill;
                when others                => goto Invalid_Value_Error;
             end case;
-            Userland.Memory_Failure.Set_System_Policy (Pol);
+
+            if (New_Val.OOM_Failure and OOM_ALLOW_PROC_KILL) /= 0 then
+               OOM_Kill := True;
+            else
+               OOM_Kill := False;
+            end if;
+
+            Memory_Failure.Set_System_Policy (Pol);
+            OOM_Failure.Configure_Killing (OOM_Kill);
          else
             goto Would_Fault_Error;
          end if;

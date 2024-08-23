@@ -1,4 +1,4 @@
---  userland-memoryfailure.ads: Code to manage memory failures.
+--  userland-oom_failure.ads: Code to manage OOM failures.
 --  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -16,24 +16,20 @@
 
 with Lib.Synchronization; use Lib.Synchronization;
 
-package Userland.Memory_Failure is
-   --  Policy for the handlers to follow.
-   type Policy is
-      (Hard_Panic, --  Not do any recovery, just panic the system, simple as.
-       Soft_Kill,  --  Kill the affected processes when they step on it.
-       Hard_Kill); --  Kill the processes eagerly.
+package Userland.OOM_Failure is
+   --  Set whether process killing during OOM failures is enabled or not.
+   --  @param Enabled True if enabled, False if disabled.
+   procedure Get_Killing_Config (Enabled : out Boolean);
 
-   --  Get the system-wide policy.
-   procedure Get_System_Policy (Pol : out Policy);
+   --  Set whether process killing during OOM failures is enabled or not.
+   --  @param Enabled True to enable, False to disable.
+   procedure Configure_Killing (Enabled : Boolean);
 
-   --  Set the system-wide policy.
-   procedure Set_System_Policy (Pol : Policy);
-
-   --  Actually handle the failure.
+   --  To be called by the allocator to handle OOM conditions.
    procedure Handle_Failure;
 
 private
 
-   Config_Mutex : aliased Binary_Semaphore := Unlocked_Semaphore;
-   Mem_Policy   :                   Policy := Hard_Panic;
-end Userland.Memory_Failure;
+   Config_Mutex       : aliased Binary_Semaphore := Unlocked_Semaphore;
+   Is_Killing_Allowed :                  Boolean := True;
+end Userland.OOM_Failure;

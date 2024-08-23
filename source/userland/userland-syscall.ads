@@ -1189,9 +1189,10 @@ package Userland.Syscall is
    MEMORY_FAIL_PANIC     : constant := 1;
    MEMORY_FAIL_SOFT_KILL : constant := 2;
    MEMORY_FAIL_HARD_KILL : constant := 3;
-
+   OOM_ALLOW_PROC_KILL   : constant := 1;
    type Failure_Struct is record
       Memory_Failure : Unsigned_64;
+      OOM_Failure    : Unsigned_64;
    end record;
 
    procedure Failure_Policy

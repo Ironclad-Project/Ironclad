@@ -85,6 +85,7 @@ Memory architecture
 
 * Physical memory allocation::  How the kernel goes about allocating memory.
 * Virtual memory::              Virtual memory architecture.
+* Memory failures::             Memory failure policies and conditions.
 
 Userland state and conditions
 
@@ -473,6 +474,21 @@ The virtual memory architecture of Ironclad is quite simple, given the need
 to avoid things like complex virtual memory management which could influence
 predictability with page-related interrupts, and similar features. For the same
 reason, memory overcommiting is not allowed.
+
+@node Memory failures
+@section Memory failures
+
+Ironclad is capable of answering to out of memory conditions as well as
+hardware memory errors.
+
+For OOM failures, Ironclad will try to free internal storage used for cache and
+retry allocation until it is deemed the situation is not recoverable, in which
+case it will panic. To this end, Ironclad will kill high memory consuming
+processes, this behaviour is configurable in @ref{failure_policy}.
+
+For hardware memory failures, like RAM sticks going bad, handling will depend
+on the underlying architecture. Behaviour is configurable as well under
+@ref{failure_policy}.
 
 @node Userland state and conditions
 @chapter Userland state and conditions
@@ -3831,16 +3847,62 @@ The passed buffers were pointing to invalid memory.
 @section failure_policy
 
 @example
-#define MEM_FAIL_PANIC     1
-#define MEM_FAIL_SOFT_KILL 2
-#define MEM_FAIL_HARD_KILL 3
-
+#define MEM_FAIL_PANIC      1
+#define MEM_FAIL_SOFT_KILL  2
+#define MEM_FAIL_HARD_KILL  3
+#define OOM_ALLOW_PROC_KILL 1
 struct fail_modes @{
     uint64_t mem_policy;
+    uint64_t oom_policy;
 @};
 
 int failure_policy(struct fail_modes *old, struct fail_modes *new);
 @end example
+
+This syscall fetches and customized kernel behaviour on a series of failure
+conditions. @code{old}, if not null, can be used for fetching the values
+used at the time of calling, while @code{new}, if not @code{null}, will be used
+to set new values.
+
+The valid values for @code{mem_policy} are:
+
+@table @code
+@item MEM_FAIL_PANIC
+When set to this value, a hardware memory failure will cause the kernel to
+panic. This is the default.
+
+@item MEM_FAIL_SOFT_KILL
+When set to this value, hardware failures will result in no immediate action,
+when a process steps on the faulty memory, an exception will be raised on
+the spot.
+
+@item MEM_FAIL_HARD_KILL
+When set to this value, hardware failures will result on the processes holding
+the faulty memory to be eagerly terminated.
+@end table
+
+The valid values for @code{oom_policy} are:
+
+@table @code
+@item OOM_ALLOW_PROC_KILL
+When set, this value will make the kernel able to kill processes if deemed
+necessary for the prolonged function of the system, if not set, the kernel
+will not kill user processes at any cost.
+@end table
+
+This syscall returns 0 on success or @code{-1} on failure, with the errno:
+
+@table @code
+@item EINVAL
+When setting new values with @code{new}, the passed values were not valid.
+
+@item EFAULT
+The passed buffers were pointing to invalid memory.
+
+@item EACCES
+When setting new values with @code{new}, the calling process did not have the
+capability @code{MAC_CAP_SYSMAC}.
+@end table
 
 @node Filesystem support and interfaces
 @chapter Filesystem support and interfaces

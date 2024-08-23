@@ -23,6 +23,7 @@ with Lib.Panic;
 with Lib.Messages;
 with Scheduler;
 with Userland.Syscall; use Userland.Syscall;
+with Userland.Memory_Failure;
 with Arch.Snippets; use Arch.Snippets;
 with Arch.Local;
 with Userland.Corefile;
@@ -44,8 +45,12 @@ package body Arch.Interrupts is
       --  If this is a machine check, we need special logic to dump the banks
       --  and unconditionally die.
       if Num = 18 then
-         Print_Machine_Check_Banks;
-         Lib.Panic.Hard_Panic ("Machine check!");
+         case Process_Machine_Check_Banks is
+            when Memory_MCE =>
+               Userland.Memory_Failure.Handle_Failure;
+            when Unrecognized_MCE =>
+               Lib.Panic.Hard_Panic ("MCE has no fixing");
+         end case;
       end if;
 
       --  Check whether we have to panic or just exit the thread.
@@ -369,7 +374,7 @@ package body Arch.Interrupts is
          N2 & " " & B2 (5 .. B2'Last) & " " & N3 & " " & B3 (5 .. B3'Last));
    end Print_Triple;
 
-   procedure Print_Machine_Check_Banks is
+   function Process_Machine_Check_Banks return Machine_Check_Type is
       IA32_MCG_CAP_MSR : constant := 16#00000179#;
       IA32_MCI_CTL_MSR : constant := 16#00000404#;
 
@@ -398,5 +403,7 @@ package body Arch.Interrupts is
          Lib.Messages.Put_Line
             ("Bank #" & B1 (B1'Last - Len + 1 .. B1'Last) & ": " & B2);
       end loop;
-   end Print_Machine_Check_Banks;
+
+      return Unrecognized_MCE;
+   end Process_Machine_Check_Banks;
 end Arch.Interrupts;

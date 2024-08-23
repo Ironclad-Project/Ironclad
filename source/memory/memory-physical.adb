@@ -22,6 +22,7 @@ with Arch.MMU;
 with System; use System;
 with Lib.Messages;
 with Config;
+with Userland.OOM_Failure;
 
 package body Memory.Physical is
    Block_Size :         constant := Arch.MMU.Page_Size;
@@ -123,6 +124,7 @@ package body Memory.Physical is
       Bitmap_Body : Bitmap (0 .. Block_Count - 1) with Import;
       for Bitmap_Body'Address use To_Address (Bitmap_Address);
 
+      Did_OOM_Once       :     Boolean := False;
       First_Found_Index  : Unsigned_64 := 0;
       Found_Count        : Unsigned_64 := 0;
       Size               : Memory.Size := Memory.Size (Sz);
@@ -169,7 +171,19 @@ package body Memory.Physical is
          goto Search_Blocks;
       end if;
 
-      Lib.Panic.Hard_Panic ("Exhausted memory (OOM)");
+      --  Handle OOM.
+      if Did_OOM_Once then
+         Lib.Panic.Hard_Panic ("Exhausted memory (OOM)");
+      else
+         Lib.Messages.Put_Line ("OOM imminent, running handlers");
+         Did_OOM_Once := True;
+         Lib.Synchronization.Release (Alloc_Mutex);
+         Userland.OOM_Failure.Handle_Failure;
+         Lib.Synchronization.Seize (Alloc_Mutex);
+         First_Found_Index := 0;
+         Found_Count       := 0;
+         goto Search_Blocks;
+      end if;
 
    <<Fill_Bitmap>>
       for I in 1 .. Blocks_To_Allocate loop
