@@ -39,7 +39,7 @@ package body Userland.OOM_Failure is
       Count       : Natural;
       Items       : Process.Process_Info_Arr (1 .. 10);
       Map         : Arch.MMU.Page_Table_Acc;
-      Guilty      : Process.PID;
+      Guilty      : Natural;
       Guilty_Size : Unsigned_64;
       Size        : Unsigned_64;
       Str         : Lib.Messages.Translated_String;
@@ -53,28 +53,32 @@ package body Userland.OOM_Failure is
          end if;
 
          --  Check the one with the highest memory mapped of the 10.
-         Guilty      := Process.Error_PID;
+         Guilty      := 0;
          Guilty_Size := 0;
          for I in Items'First .. Count loop
             Map := Process.Get_Common_Map (Items (I).Process);
             if Map /= null then
                Size := Arch.MMU.Get_User_Mapped_Size (Map);
                if Size > Guilty_Size then
-                  Guilty      := Items (I).Process;
+                  Guilty      := I;
                   Guilty_Size := Size;
                end if;
             end if;
          end loop;
 
          --  Once a guilty process has been chosen, move to execution.
-         if Guilty /= Process.Error_PID then
+         if Guilty /= 0 and then Items (Guilty).Process /= Process.Error_PID
+         then
             Lib.Messages.Image
-               (Unsigned_64 (Convert (Guilty)), Str, Count, False);
+               (Unsigned_64 (Convert (Items (Guilty).Process)),
+                Str, Count, False);
             Lib.Messages.Put_Line
                ("Killing PID "                         &
                 Str (Str'Last - Count + 1 .. Str'Last) &
-                " after being deemed guilty");
-            Syscall.Do_Exit (Guilty, 1);
+                " '"                                   &
+                Items (Guilty).Identifier (1 .. Items (Guilty).Identifier_Len) &
+                "' after being deemed guilty");
+            Syscall.Do_Exit (Items (Guilty).Process, 1);
          end if;
       end if;
    end Handle_Failure;

@@ -957,7 +957,19 @@ package body IPC.Socket is
             Lib.Synchronization.Release (Sock.Pending_Accept.Mutex);
             Lib.Synchronization.Release (Sock.Mutex);
          when others =>
-            if Sock.Simple_Connected.Data_Length = 0 then
+            if Sock.Simple_Connected = null or
+               Data'Length <= Default_Socket_Size
+            then
+               Ret_Count := 0;
+               Success   := Would_Block;
+               return;
+            end if;
+
+
+            Lib.Synchronization.Seize (Sock.Simple_Connected.Mutex);
+            if Sock.Simple_Connected.Data_Length = 0 and then
+               Data'Length <= Default_Socket_Size
+            then
                Sock.Simple_Connected.Data (1 .. Data'Length) := Data;
                Sock.Simple_Connected.Data_Length := Data'Length;
                Ret_Count := Data'Length;
@@ -966,6 +978,7 @@ package body IPC.Socket is
                Ret_Count := 0;
                Success   := Would_Block;
             end if;
+            Lib.Synchronization.Release (Sock.Simple_Connected.Mutex);
       end case;
    end Inner_UNIX_Write;
 
