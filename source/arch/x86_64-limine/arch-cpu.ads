@@ -80,6 +80,6 @@ private
       (Core_Number : Positive;
        LAPIC       : Unsigned_32;
        Stack_Top   : Unsigned_64);
+
    function Get_BSP_LAPIC_ID return Unsigned_32;
-   procedure Delay_Execution (Cycles : Unsigned_64);
 end Arch.CPU;

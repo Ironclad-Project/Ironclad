@@ -159,6 +159,14 @@ package Arch.Limine is
       CPUs         : System.Address;
    end record with Pack;
 
+   type RISCV64_SMP_Response is record
+      Base         : Response;
+      Flags        : Unsigned_64;
+      BSP_Hart_ID  : Unsigned_64;
+      CPU_Count    : Unsigned_64;
+      CPUs         : System.Address;
+   end record with Pack;
+
    type SMP_CPU_Info is record
       Processor_ID : Unsigned_32;
       LAPIC_ID     : Unsigned_32;
@@ -167,10 +175,25 @@ package Arch.Limine is
       Extra_Arg    : Unsigned_64;
    end record with Pack;
 
-   type Limine_SMP_Entrypoint is access procedure (Info : access SMP_CPU_Info);
+   type RISCV64_SMP_CPU_Info is record
+      Processor_ID : Unsigned_64;
+      Hart_ID      : Unsigned_64;
+      Reserved     : Unsigned_64;
+      Addr         : System.Address;
+      Extra_Arg    : Unsigned_64;
+   end record with Pack;
+
+   type Limine_SMP_Entrypoint
+      is access procedure (Info : access SMP_CPU_Info);
+   type Limine_RISCV64_SMP_Entrypoint
+      is access procedure (Info : access RISCV64_SMP_CPU_Info);
 
    type CPU_Info_Acc is access all SMP_CPU_Info;
    type CPU_Info_Arr is array (Unsigned_64 range <>) of CPU_Info_Acc;
+   type RISCV64_CPU_Info_Acc
+      is access all RISCV64_SMP_CPU_Info;
+   type RISCV64_CPU_Info_Arr
+      is array (Unsigned_64 range <>) of RISCV64_CPU_Info_Acc;
 
    type Bootloader_Info_Response is record
       Base         : Response;
@@ -182,6 +205,11 @@ package Arch.Limine is
       Base      : Response;
       Mod_Count : Unsigned_64;
       Modules   : System.Address;
+   end record with Pack;
+
+   type DTB_Response is record
+      Base     : Response;
+      DTB_Addr : System.Address;
    end record with Pack;
 
    type Revision_ID is array (1 .. 3) of Unsigned_64;
@@ -216,35 +244,47 @@ package Arch.Limine is
       (Limine_Common_Magic_1, Limine_Common_Magic_2,
        16#3e7e279702be32af#, 16#ca1c4f3bd1280cee#);
 
+   DTB_ID : constant Request_ID :=
+      (Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#b40ddb48fb54bac7#, 16#545081493f81ffb7#);
+
 private
+
+   --  Here lie requests that all limine architectures will depend on, and
+   --  are used internally for this module.
 
    --  Response is a pointer to a Bootloader_Info_Response.
    Bootloader_Info_Request : Request :=
       (ID       => Bootloader_Info_ID,
        Revision => 0,
-       Response => System.Null_Address);
+       Response => System.Null_Address)
+      with Export, Async_Writers;
 
    --  Response is a pointer to a Kernel_File_Response.
    Kernel_File_Request : Request :=
       (ID       => Kernel_File_ID,
        Revision => 0,
-       Response => System.Null_Address);
+       Response => System.Null_Address)
+      with Export, Async_Writers;
 
    --  Response is a pointer to a Memmap_Response.
    Memmap_Request : Request :=
       (ID       => Memmap_ID,
        Revision => 0,
-       Response => System.Null_Address);
+       Response => System.Null_Address)
+      with Export, Async_Writers;
 
    --  Response is a pointer to an Kernel_Address_Response.
    Address_Request : Request :=
       (ID       => Kernel_Address_ID,
        Revision => 0,
-       Response => System.Null_Address);
+       Response => System.Null_Address)
+      with Export, Async_Writers;
 
    --  Response is a pointer to an Modules_Response.
    Modules_Request : Request :=
       (ID       => Modules_ID,
        Revision => 0,
-       Response => System.Null_Address);
+       Response => System.Null_Address)
+      with Export, Async_Writers;
 end Arch.Limine;

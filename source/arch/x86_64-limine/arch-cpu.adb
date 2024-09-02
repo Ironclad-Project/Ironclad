@@ -25,8 +25,6 @@ package body Arch.CPU with SPARK_Mode => Off is
    type Interrupt_Stack is array (1 .. 16#4000#) of Unsigned_8;
    type Interrupt_Stack_Acc is access Interrupt_Stack;
 
-   --  Request to get the Limine framebuffer data.
-   --  Response is a pointer to a Framebuffer_Response
    SMP_Request : Limine.SMP_Request :=
       (Base  =>
          (ID       => Limine.SMP_ID,
@@ -43,12 +41,15 @@ package body Arch.CPU with SPARK_Mode => Off is
 
       SMPPonse : Limine.SMP_Response
          with Import, Address => SMP_Request.Base.Response;
-      SMP_CPUs : Limine.CPU_Info_Arr (1 .. SMPPonse.CPU_Count)
-         with Import, Address => SMPPonse.CPUs;
    begin
-      --  Fetch info.
-      Core_Count   := Natural (SMPPonse.CPU_Count);
-      BSP_LAPIC_ID := SMPPonse.BSP_LAPIC_ID;
+      --  Check we got a limine answer at all, else, single core time.
+      if SMP_Request.Base.Response /= System.Null_Address then
+         Core_Count   := Natural (SMPPonse.CPU_Count);
+         BSP_LAPIC_ID := SMPPonse.BSP_LAPIC_ID;
+      else
+         Core_Count   := 1;
+         BSP_LAPIC_ID := Get_BSP_LAPIC_ID;
+      end if;
 
       --  Initialize the locals list, and initialize the cores.
       Core_Locals := new Core_Local_Arr (1 .. Core_Count);
@@ -57,13 +58,18 @@ package body Arch.CPU with SPARK_Mode => Off is
 
       --  Initialize the other cores.
       if Core_Count > 1 then
-         for CPU of SMP_CPUs loop
-            if CPU.LAPIC_ID /= BSP_LAPIC_ID then
-                  CPU.Extra_Arg := Unsigned_64 (Idx);
-                  CPU.Addr      := Core_Bootstrap'Address;
-                  Idx           := Idx + 1;
-            end if;
-         end loop;
+         declare
+            SMP_CPUs : Limine.CPU_Info_Arr (1 .. SMPPonse.CPU_Count)
+               with Import, Address => SMPPonse.CPUs;
+         begin
+            for CPU of SMP_CPUs loop
+               if CPU.LAPIC_ID /= BSP_LAPIC_ID then
+                     CPU.Extra_Arg := Unsigned_64 (Idx);
+                     CPU.Addr      := Core_Bootstrap'Address;
+                     Idx           := Idx + 1;
+               end if;
+            end loop;
+         end;
       end if;
    end Init_Cores;
 
@@ -266,10 +272,4 @@ package body Arch.CPU with SPARK_Mode => Off is
       Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX);
       return Shift_Right (EBX, 24) and 16#FF#;
    end Get_BSP_LAPIC_ID;
-
-   procedure Delay_Execution (Cycles : Unsigned_64) is
-      Next_Stop : constant Unsigned_64 := Snippets.Read_Cycles + Cycles;
-   begin
-      while Snippets.Read_Cycles < Next_Stop loop null; end loop;
-   end Delay_Execution;
 end Arch.CPU;

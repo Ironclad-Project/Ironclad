@@ -59,8 +59,9 @@ Installation and target support
 
 * aarch64-stivale2 support::   aarch64-stivale2 installation and support.
 * arm-raspi2b support::        arm-raspi2b installation and support.
+* riscv64-limine support::     riscv64-limine installation and support.
 * sparc-leon3 support::        sparc-leon3 installation and support.
-* x86_64-limine devices::  x86_64-limine installation and support.
+* x86_64-limine support::      x86_64-limine installation and support.
 
 Boot-time command-line options
 
@@ -210,8 +211,9 @@ Devices and their properties
 * Common devices::             Devices common to all architectures and targets.
 * aarch64-stivale2 devices::   Devices specific to aarch64-stivale2.
 * arm-raspi2b devices::        Devices specific to arm-raspi2b.
+* riscv64-limine devices::     Devices specific to riscv64-limine.
 * sparc-leon3 devices::        Devices specific to sparc-leon3.
-* x86_64-limine devices::  Devices specific to x86_64-limine.
+* x86_64-limine devices::      Devices specific to x86_64-limine.
 
 @end detailmenu
 @end menu
@@ -245,6 +247,19 @@ configuration that a Linux image would use.
 
 For supported devices and how they are abstracted, @ref{arm-raspi2b devices}.
 
+@node riscv64-limine support
+@section riscv64-limine support
+
+Ironclad supports RISC-V64 systems supporting the IMAC, ZICSR, and ZIFENCEI
+extensions using the Limine boot protocol, which as of time of writing
+depends on UEFI support being present, but this might change in the future. The
+machines running Ironclad are required to provide a device tree blob (DTB).
+
+Refer to your limine compliant bootloader for instructions on where to put
+kernel images, configuration formats, and the like.
+
+For supported devices and how they are abstracted, @ref{riscv64-limine devices}
+
 @node sparc-leon3 support
 @section sparc-leon3 support
 
@@ -257,9 +272,11 @@ For supported devices and how they are abstracted, @ref{sparc-leon3 devices}.
 @node x86_64-limine support
 @section x86_64-limine support
 
-x86_64 systems are supported using the multiboot2 boot protocol, any
-multiboot2 compliant bootloader like GNU GRUB or Limine will be able to boot
-it just fine.
+x86_64 systems are supported using the limine boot protocol, any
+limine compliant bootloader will be able to boot it just fine.
+
+Refer to your limine compliant bootloader for instructions on where to put
+kernel images, configuration formats, and the like.
 
 For supported devices and how they are abstracted,
 @ref{x86_64-limine devices}.
@@ -4210,6 +4227,11 @@ timeout configuration and starting/stopping it.
 @section sparc-leon3 devices
 
 This target has no special devices.
+
+@node riscv64-limine devices
+@section riscv64-limine devices
+
+To be determined.
 
 @node x86_64-limine devices
 @section x86_64-limine devices
