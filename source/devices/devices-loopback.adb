@@ -66,7 +66,7 @@ package body Devices.Loopback is
       Dev : Loopback_Data with Import, Address => Key;
    begin
       while Dev.Len = 0 loop
-         Scheduler.Yield;
+         Scheduler.Yield_If_Able;
       end loop;
 
       if Data'Length > Dev.Len then
@@ -96,7 +96,7 @@ package body Devices.Loopback is
       Dev : Loopback_Data with Import, Address => Key;
    begin
       while Dev.Len /= 0 loop
-         Scheduler.Yield;
+         Scheduler.Yield_If_Able;
       end loop;
 
       if Data'Length <= Dev.Data.all'Length then

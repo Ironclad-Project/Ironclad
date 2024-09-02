@@ -90,7 +90,7 @@ package body IPC.FileLock is
          end if;
          Lib.Synchronization.Release (Registry_Mutex);
          exit when not Is_Blocking or Success;
-         Scheduler.Yield;
+         Scheduler.Yield_If_Able;
       end loop;
    end Acquire_Lock;
 

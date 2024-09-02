@@ -334,7 +334,7 @@ package body IPC.PTY is
                exit when Inner_Len.all /= 0;
                Lib.Synchronization.Release (End_Mutex.all);
             end if;
-            Scheduler.Yield;
+            Scheduler.Yield_If_Able;
          end loop;
       else
          Lib.Synchronization.Seize (End_Mutex.all);
@@ -393,7 +393,7 @@ package body IPC.PTY is
                exit when Inner_Len.all /= Inner_Data'Length;
                Lib.Synchronization.Release (End_Mutex.all);
             end if;
-            Scheduler.Yield;
+            Scheduler.Yield_If_Able;
          end loop;
       else
          Lib.Synchronization.Seize (End_Mutex.all);

@@ -179,6 +179,7 @@ package body Userland.Loader is
              Env        => Environment,
              Map        => Process.Get_Common_Map (Proc),
              Vector     => Loaded_ELF.Vector,
+             Cluster    => Scheduler.Convert (1),
              Stack_Size => Unsigned_64 (Get_Limit (Proc, Stack_Size_Limit)),
              PID        => Process.Convert (Proc));
       begin

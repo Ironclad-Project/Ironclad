@@ -208,6 +208,7 @@ package Userland.Syscall is
        Stack    : Unsigned_64;
        Flags    : Unsigned_64;
        TLS_Addr : Unsigned_64;
+       Cluster  : Unsigned_64;
        GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
        Returned : out Unsigned_64;
@@ -315,6 +316,12 @@ package Userland.Syscall is
    --  Yield.
    procedure Sched_Yield (Returned : out Unsigned_64; Errno : out Errno_Value);
 
+   --  Delete a thread cluster.
+   procedure Delete_Thread_Cluster
+      (Cluster  : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
    --  Create a pair of pipes.
    procedure Pipe
       (Result_Addr : Unsigned_64;
@@ -351,6 +358,7 @@ package Userland.Syscall is
    SC_UNAME            : constant := 10;
    SC_CHILD_MAX        : constant := 11;
    SC_LIST_THREADS     : constant := 12;
+   SC_LIST_CLUSTERS    : constant := 13;
    SC_LIST_NETINTER    : constant := 14;
    SC_DUMPLOGS         : constant := 15;
    SC_NGROUPS_MAX      : constant := 16;
@@ -402,9 +410,17 @@ package Userland.Syscall is
    type Thread_Info is record
       Thread_Id   : Unsigned_16;
       Niceness    : Unsigned_16;
+      Cluster_Id  : Unsigned_16;
       Process_PID : Unsigned_16;
    end record with Pack;
    type Thread_Info_Arr is array (Natural range <>) of Thread_Info;
+
+   type Cluster_Info is record
+      Cluster_Id : Unsigned_16;
+      Cluster_Fl : Unsigned_16;
+      Cluster_Q  : Unsigned_16;
+   end record with Pack;
+   type Cluster_Info_Arr is array (Natural range <>) of Cluster_Info;
 
    NETINTR_BLOCKED : constant := 1;
 
@@ -462,6 +478,18 @@ package Userland.Syscall is
 
    --  Get the current thread id.
    procedure Get_TID (Returned : out Unsigned_64; Errno : out Errno_Value);
+
+   --  Manage an existing thread cluster or create a new one.
+   SCHED_RR   : constant := 2#001#;
+   SCHED_COOP : constant := 2#010#;
+   SCHED_INTR : constant := 2#100#;
+   procedure Manage_Thread_Cluster
+      (Cluster    : Unsigned_64;
+       Flags      : Unsigned_64;
+       Quantum    : Unsigned_64;
+       Percentage : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    --  Multiplexed operation for files.
    F_DUPFD         : constant := 1;
@@ -994,6 +1022,16 @@ package Userland.Syscall is
        Flags     : Unsigned_64;
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
+
+   procedure Create_TCluster
+      (Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure Switch_TCluster
+      (Cluster  : Unsigned_64;
+       Thread   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    SIG_BLOCK   : constant := 1;
    SIG_UNBLOCK : constant := 2;

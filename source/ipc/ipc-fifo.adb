@@ -163,7 +163,7 @@ package body IPC.FIFO is
                return;
             end if;
             Lib.Synchronization.Release (To_Read.Mutex);
-            Scheduler.Yield;
+            Scheduler.Yield_If_Able;
          end loop;
       else
          Lib.Synchronization.Seize (To_Read.Mutex);
@@ -224,7 +224,7 @@ package body IPC.FIFO is
             Lib.Synchronization.Seize (To_Write.Mutex);
             exit when To_Write.Data_Count /= To_Write.Data'Length;
             Lib.Synchronization.Release (To_Write.Mutex);
-            Scheduler.Yield;
+            Scheduler.Yield_If_Able;
          end loop;
       else
          Lib.Synchronization.Seize (To_Write.Mutex);
