@@ -58,7 +58,7 @@ library project RTS is
          when "riscv64-limine" =>
             for Switches ("Ada") use Base_Ada_Switches & (
                "-fno-pie", "-fno-pic", "-mno-relax",
-               "-march=rv64imac", "-mabi=lp64"
+               "-march=rv64imac_zicsr_zifencei", "-mabi=lp64"
             );
          when "sparc-leon3" =>
             for Switches ("Ada") use Base_Ada_Switches & (
