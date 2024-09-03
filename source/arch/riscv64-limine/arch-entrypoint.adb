@@ -1,4 +1,4 @@
---  entrypoint.adb: Limine plops us here.
+--  arch-entrypoint.adb: Limine plops us here.
 --  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -19,6 +19,11 @@ with Kernel_Main;
 with Devices.UART;
 with Arch.Limine;
 with Lib.Messages; use Lib.Messages;
+with Memory.Physical;
+with Arch.MMU;
+with Lib.Panic;
+with Arch.DTB;
+with Arch.CPU;
 
 package body Arch.Entrypoint is
    procedure Bootstrap_Main is
@@ -32,6 +37,11 @@ package body Arch.Entrypoint is
       --  Translate the limine protocol into arch-agnostic structures.
       Limine.Translate_Proto;
 
+      --  Initialize device discovery facilities.
+      if not Arch.DTB.Init then
+         Lib.Panic.Hard_Panic ("No DTB was found!");
+      end if;
+
       --  Print the memory map, it is useful at times.
       Lib.Messages.Put_Line ("Physical memory map:");
       for E of Info.Memmap (1 .. Info.Memmap_Len) loop
@@ -40,6 +50,16 @@ package body Arch.Entrypoint is
          Lib.Messages.Put_Line (St1 & " + " & St2 & " " &
             Boot_Memory_Type'Image (E.MemType));
       end loop;
+
+      --  Initialize the allocators and MMU.
+      Lib.Messages.Put_Line ("Initializing allocators");
+      Memory.Physical.Init_Allocator (Info.Memmap (1 .. Info.Memmap_Len));
+      if not Arch.MMU.Init (Info.Memmap (1 .. Info.Memmap_Len)) then
+         Lib.Panic.Hard_Panic ("The VMM could not be initialized");
+      end if;
+
+      --  Initialize the other cores of the system.
+      Arch.CPU.Init_Cores;
 
       --  Go to main kernel.
       Kernel_Main.Entrypoint (Info.Cmdline (1 .. Info.Cmdline_Len));

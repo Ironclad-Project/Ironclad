@@ -1,4 +1,4 @@
---  arch-entrypoint.ads: Limine plops us here.
+--  arch-dtb.adb: Device-tree blob parsing.
 --  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,7 +14,21 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Arch.Entrypoint is
-   procedure Bootstrap_Main
-      with Export, Convention => C, External_Name => "kernel_main";
-end Arch.Entrypoint;
+with System; use System;
+
+package body Arch.DTB with SPARK_Mode => Off is
+   function Init return Boolean is
+      DTBPonse : Arch.Limine.DTB_Response
+         with Import, Address => DTB_Request.Response;
+   begin
+      if DTB_Request.Response = System.Null_Address then
+         return False;
+      end if;
+
+      declare
+         Header : FDT_Header with Import, Address => DTBPonse.DTB_Addr;
+      begin
+         return Header.Magic = FDT_Magic;
+      end;
+   end Init;
+end Arch.DTB;
