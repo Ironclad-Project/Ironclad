@@ -1,5 +1,5 @@
 --  vfs.adb: FS and register dispatching.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -42,9 +42,10 @@ package body VFS is
       pragma SPARK_Mode (Off);
       Name : String renames Device_Name;
    begin
-      Mount (Name, Mount_Path, FS_EXT, Do_Read_Only, Do_Relatime, Success);
-      if Success then return; end if;
-      Mount (Name, Mount_Path, FS_FAT, Do_Read_Only, Do_Relatime, Success);
+      for FS in FS_Type'Range loop
+         Mount (Name, Mount_Path, FS, Do_Read_Only, Do_Relatime, Success);
+         exit when Success;
+      end loop;
    end Mount;
 
    procedure Mount
@@ -59,47 +60,46 @@ package body VFS is
       Free_I  :              FS_Handle := VFS.Error_Handle;
       FS_Data : System.Address;
    begin
+      Success := False;
+
       if not Is_Absolute (Mount_Path)           or
          Mount_Path'Length > Path_Buffer_Length or
          Dev = Devices.Error_Handle
       then
-         Success := False;
          return;
       end if;
 
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev = Dev then
-            Free_I := VFS.Error_Handle;
-            goto Return_End;
+            goto Cleanup;
          elsif Mounts (I).Mounted_Dev = Devices.Error_Handle then
             Free_I := I;
+            goto Try_Probe;
          end if;
       end loop;
-      if Free_I = VFS.Error_Handle then
-         goto Return_End;
-      end if;
 
+      goto Cleanup;
+
+   <<Try_Probe>>
       case FS is
-         when FS_EXT =>
-            VFS.EXT.Probe (Dev, Do_Read_Only, Do_Relatime, FS_Data);
-         when FS_FAT =>
-            VFS.FAT.Probe (Dev, Do_Read_Only, FS_Data);
+         when FS_EXT => EXT.Probe (Dev, Do_Read_Only, Do_Relatime, FS_Data);
+         when FS_FAT => FAT.Probe (Dev, Do_Read_Only, FS_Data);
       end case;
-      Mounts (Free_I).Mounted_FS := FS;
 
       if FS_Data /= System.Null_Address then
-         Mounts (Free_I).FS_Data := FS_Data;
-         Mounts (Free_I).Mounted_Dev := Dev;
-         Mounts (Free_I).Path_Length := Mount_Path'Length;
+         Mounts (Free_I) :=
+            (Mounted_Dev => Dev,
+             Mounted_FS  => FS,
+             FS_Data     => FS_Data,
+             Path_Length => Mount_Path'Length,
+             Path_Buffer => (others => ' '));
          Mounts (Free_I).Path_Buffer (1 .. Mount_Path'Length) := Mount_Path;
-      else
-         Free_I := VFS.Error_Handle;
+         Success := True;
       end if;
 
-   <<Return_End>>
+   <<Cleanup>>
       Lib.Synchronization.Release (Mounts_Mutex);
-      Success := Free_I /= VFS.Error_Handle;
    end Mount;
 
    procedure Unmount (Path : String; Force : Boolean; Success : out Boolean) is
@@ -119,10 +119,9 @@ package body VFS is
                Mounts (I).Mounted_Dev := Devices.Error_Handle;
                Success := True;
             end if;
-            goto Return_End;
+            exit;
          end if;
       end loop;
-   <<Return_End>>
       Lib.Synchronization.Release (Mounts_Mutex);
    end Unmount;
 
