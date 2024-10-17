@@ -504,7 +504,8 @@ package Userland.Syscall is
    F_SETLK         : constant := 10;
    F_SETLKW        : constant := 11;
 
-   FD_CLOEXEC : constant := 1;
+   FD_CLOEXEC : constant := 2#01#;
+   FD_CLOFORK : constant := 2#10#;
 
    F_RDLCK : constant := 1;
    F_UNLCK : constant := 2;

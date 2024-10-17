@@ -128,7 +128,7 @@ package body Userland.Process is
                 Current_Dir_FS  => VFS.Error_Handle,
                 Current_Dir_Ino => 0,
                 Thread_List     => (others => Error_TID),
-                File_Table      => (others => (False, null)),
+                File_Table      => (others => (False, False, null)),
                 Common_Map      => null,
                 Stack_Base      => 0,
                 Alloc_Base      => 0,
@@ -418,39 +418,29 @@ package body Userland.Process is
       end if;
    end Duplicate;
 
-   procedure Duplicate_FD_Table (Process, Target : PID) is
+   procedure Duplicate_FD_Table
+      (Process : PID;
+       Target  : PID;
+       Max_FD  : Natural := Max_File_Count)
+   is
+      Src : File_Arr renames Registry (Process).File_Table;
+      Tgt : File_Arr renames Registry (Target).File_Table;
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
-      for I in Registry (Process).File_Table'Range loop
-         Registry (Target).File_Table (I).Close_On_Exec :=
-            Registry (Process).File_Table (I).Close_On_Exec;
-         if Registry (Process).File_Table (I).Description /= null then
-            Duplicate
-               (Registry (Process).File_Table (I).Description,
-                Registry (Target).File_Table (I).Description);
-         else
-            Registry (Target).File_Table (I).Description := null;
+      Lib.Synchronization.Seize (Registry (Target).Data_Mutex);
+
+      for I in 0 .. Max_FD - 1 loop
+         if not Src (I).Close_On_Fork then
+            Tgt (I) := Src (I);
+            if Src (I).Description /= null then
+               Duplicate (Src (I).Description, Tgt (I).Description);
+            end if;
          end if;
       end loop;
+
+      Lib.Synchronization.Release (Registry (Target).Data_Mutex);
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Duplicate_FD_Table;
-
-   procedure Duplicate_Standard_FDs (Process, Target : PID) is
-   begin
-      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
-      for I in 0 .. 2 loop
-         Registry (Target).File_Table (I).Close_On_Exec :=
-            Registry (Process).File_Table (I).Close_On_Exec;
-         if Registry (Process).File_Table (I).Description /= null then
-            Duplicate
-               (Registry (Process).File_Table (I).Description,
-                Registry (Target).File_Table (I).Description);
-         else
-            Registry (Target).File_Table (I).Description := null;
-         end if;
-      end loop;
-      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
-   end Duplicate_Standard_FDs;
 
    procedure Close (F : in out File_Description_Acc) is
       procedure Free is new Ada.Unchecked_Deallocation
@@ -497,35 +487,40 @@ package body Userland.Process is
       return Res;
    end Get_File;
 
-   function Get_Close_On_Exec
-      (Process  : PID;
-       FD       : Unsigned_64) return Boolean
+   procedure Get_FD_Flags
+      (Process       : PID;
+       FD            : Unsigned_64;
+       Close_On_Exec : out Boolean;
+       Close_On_Fork : out Boolean)
    is
-      Result : Boolean;
+      Table : File_Arr renames Registry (Process).File_Table;
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       if FD <= Unsigned_64 (File_Arr'Last) then
-         Result := Registry (Process).File_Table (Natural (FD)).Close_On_Exec;
+         Close_On_Exec := Table (Natural (FD)).Close_On_Exec;
+         Close_On_Fork := Table (Natural (FD)).Close_On_Fork;
       else
-         Result := False;
+         Close_On_Exec := False;
+         Close_On_Fork := False;
       end if;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
-      return Result;
-   end Get_Close_On_Exec;
+   end Get_FD_Flags;
 
-   procedure Set_Close_On_Exec
-      (Process  : PID;
-       FD       : Unsigned_64;
-       Is_Close : Boolean)
+   procedure Set_FD_Flags
+      (Process       : PID;
+       FD            : Unsigned_64;
+       Close_On_Exec : Boolean;
+       Close_On_Fork : Boolean)
    is
+      Table : File_Arr renames Registry (Process).File_Table;
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       if FD <= Unsigned_64 (File_Arr'Last) then
-         Registry (Process).File_Table (Natural (FD)).Close_On_Exec :=
-            Is_Close;
+         Table (Natural (FD)).Close_On_Exec := Close_On_Exec;
+         Table (Natural (FD)).Close_On_Fork := Close_On_Fork;
       end if;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
-   end Set_Close_On_Exec;
+   end Set_FD_Flags;
 
    procedure Remove_File (Process : PID; FD : Natural) is
    begin
@@ -533,6 +528,7 @@ package body Userland.Process is
       if FD <= File_Arr'Last then
          Close (Registry (Process).File_Table (FD).Description);
          Registry (Process).File_Table (FD).Close_On_Exec := False;
+         Registry (Process).File_Table (FD).Close_On_Fork := False;
       end if;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Remove_File;
@@ -545,6 +541,7 @@ package body Userland.Process is
             Close (F.Description);
          end if;
          F.Close_On_Exec := False;
+         F.Close_On_Fork := False;
       end loop;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Flush_Files;
@@ -556,6 +553,7 @@ package body Userland.Process is
          if F.Description /= null and then F.Close_On_Exec then
             Close (F.Description);
             F.Close_On_Exec := False;
+            F.Close_On_Fork := False;
          end if;
       end loop;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);

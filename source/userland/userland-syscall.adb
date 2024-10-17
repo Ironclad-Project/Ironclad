@@ -193,8 +193,8 @@ package body Userland.Syscall is
 
       Check_Add_File (Curr_Proc, New_Descr, Discard, Returned_FD);
       if Discard then
-         Process.Set_Close_On_Exec (Curr_Proc, Unsigned_64 (Returned_FD),
-                                    Do_Cloexec);
+         Process.Set_FD_Flags
+            (Curr_Proc, Unsigned_64 (Returned_FD), Do_Cloexec, False);
          Errno    := Error_No_Error;
          Returned := Unsigned_64 (Returned_FD);
       else
@@ -950,7 +950,9 @@ package body Userland.Syscall is
       Desc := new File_Description'(Description_Socket, 0, New_Sock);
       Check_Add_File (Proc, Desc, Success, Natural (Returned));
       if Success then
-         Set_Close_On_Exec (Proc, Returned, (DataType and SOCK_CLOEXEC) /= 0);
+         Set_FD_Flags
+           (Proc, Returned,
+            (DataType and SOCK_CLOEXEC) /= 0, False);
          Errno := Error_No_Error;
       else
          Close (New_Sock);
@@ -1730,7 +1732,7 @@ package body Userland.Syscall is
          return;
       end if;
 
-      Duplicate_Standard_FDs (Proc, Child);
+      Duplicate_FD_Table (Proc, Child);
 
       Exec_Into_Process
          (Path_Addr => Path_Addr,
@@ -1838,12 +1840,12 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc      : PID := Arch.Local.Get_Current_Process;
-      Map       : constant       Page_Table_Acc := Get_Common_Map (Proc);
-      File      : constant File_Description_Acc := Get_File (Proc, FD);
-      Temp      : Boolean;
-      New_File  : File_Description_Acc;
-      Result_FD : Natural;
+      Proc        : PID := Arch.Local.Get_Current_Process;
+      Map         : constant       Page_Table_Acc := Get_Common_Map (Proc);
+      File        : constant File_Description_Acc := Get_File (Proc, FD);
+      Temp, Temp2 : Boolean;
+      New_File    : File_Description_Acc;
+      Result_FD   : Natural;
    begin
       if File = null then
          Errno := Error_Bad_File;
@@ -1859,18 +1861,25 @@ package body Userland.Syscall is
                (Proc, New_File, Temp, Result_FD, Natural (Argument));
             if Temp then
                Returned               := Unsigned_64 (Result_FD);
-               Process.Set_Close_On_Exec (Proc, Unsigned_64 (Result_FD),
-                                          Command = F_DUPFD_CLOEXEC);
+               Process.Set_FD_Flags (Proc, Unsigned_64 (Result_FD),
+                                     Command = F_DUPFD_CLOEXEC, False);
             else
                Errno := Error_Too_Many_Files;
                goto Error_Return;
             end if;
          when F_GETFD =>
-            if Get_Close_On_Exec (Proc, FD) then
-               Returned := FD_CLOEXEC;
+            Get_FD_Flags (Proc, FD, Temp, Temp2);
+            if Temp then
+               Returned := Returned or FD_CLOEXEC;
+            end if;
+            if Temp2 then
+               Returned := Returned or FD_CLOFORK;
             end if;
          when F_SETFD =>
-            Set_Close_On_Exec (Proc, FD, (Argument and FD_CLOEXEC) /= 0);
+            Set_FD_Flags
+               (Proc, FD,
+                (Argument and FD_CLOEXEC) /= 0,
+                (Argument and FD_CLOFORK) /= 0);
          when F_GETFL =>
             case File.Description is
                when Description_Reader_FIFO =>
@@ -3100,7 +3109,7 @@ package body Userland.Syscall is
          Desc := new File_Description'(Description_Socket, 0, Sock);
          Check_Add_File (Proc, Desc, Succ, Ret);
          if Succ then
-            Set_Close_On_Exec (Proc, Unsigned_64 (Ret), CExec);
+            Set_FD_Flags (Proc, Unsigned_64 (Ret), CExec, False);
             Errno    := Error_No_Error;
             Returned := Unsigned_64 (Ret);
          else

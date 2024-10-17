@@ -1939,8 +1939,11 @@ pid_t spawn(const char *path, int path_len, char *const argv[],
 
 This syscall spawns a child process in a way similar to what a
 @code{clone}+@code{exec} could be used for, but more efficiently, given it
-doesn't need to copy the address space just to overwrite it, and only forking
-the first 3 standard file descriptors instead all of them.
+doesn't need to copy the address space just to overwrite it.
+
+File descriptors are copied and treated the same way a @code{fork} followed
+by an @code{exec} call would. That is, @code{FD_CLOEXEC} FDs are closed, and
+@code{FD_CLOFORK} FDs are not carried over.
 
 The argument @code{caps}, if not @code{NULL}, points to a capability set in
 the same format as @ref{mac_capabilities}. This can be useful for deescalating
@@ -2009,7 +2012,8 @@ following errno:
 #define F_SETLK         10
 #define F_SETLKW        11
 
-#define FD_CLOEXEC      1
+#define FD_CLOEXEC      0b01
+#define FD_CLOFORK      0b10
 
 #define F_RDLCK 1
 #define F_UNLCK 2
@@ -2045,13 +2049,15 @@ starting by @code{arg}. Returns the resulting FD.
 flag for the cloned FD if succesful, in order to save a subsequent call.
 
 @item
-@code{F_GETFD}: The flags used for @code{fd} will be returned, right now
-only @code{FD_CLOEXEC} is supported. The syscall will return the flags on
-success.
+@code{F_GETFD}: The flags used for @code{fd} will be returned. These can be
+@code{FD_CLOEXEC}, which if set, will signal that @code{fd} will be closed
+should an @code{exec} call or similar happen, and @code{FD_CLOFORK}, which
+signals that @code{fd} will not be cloned when calling @code{clone} or similar.
 
 @item
-@code{F_SETFD}: The flags for @code{fd} will be set with @code{arg}. The
-syscall will return @code{0} on sucess.
+@code{F_SETFD}: The flags for @code{fd} will be set with @code{arg} using
+the same values returned by @code{F_GETFD}. The syscall will return @code{0}
+on sucess.
 
 @item
 @code{F_GETFL}: Returns as the function result the file access mode

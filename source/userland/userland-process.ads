@@ -280,14 +280,15 @@ package Userland.Process is
    --  Duplicate an entire process table to another process.
    --  @param Process Process to use.
    --  @param Target  Target process.
-   procedure Duplicate_FD_Table (Process, Target : PID)
-      with Pre => (Process /= Error_PID) and (Target /= Error_PID);
-
-   --  Duplicate the standard 0, 1, and 2 file descriptors.
-   --  @param Process Process to use.
-   --  @param Target  Target process.
-   procedure Duplicate_Standard_FDs (Process, Target : PID)
-      with Pre => (Process /= Error_PID) and (Target /= Error_PID);
+   --  @param Max_FD  FDs to duplicate from the beginning, by default, all.
+   procedure Duplicate_FD_Table
+      (Process : PID;
+       Target  : PID;
+       Max_FD  : Natural := Max_File_Count)
+      with Pre => (Process /= Error_PID) and
+                  (Target /= Error_PID)  and
+                  Max_FD > 0             and
+                  Max_FD <= Max_File_Count;
 
    --  Close and free an individual file.
    --  @param F File to operate on.
@@ -306,19 +307,22 @@ package Userland.Process is
    --  @param Process  Process to operate on.
    --  @param FD       FD to check.
    --- @return True if close on exec, false if not.
-   function Get_Close_On_Exec
-      (Process  : PID;
-       FD       : Unsigned_64) return Boolean
+   procedure Get_FD_Flags
+      (Process       : PID;
+       FD            : Unsigned_64;
+       Close_On_Exec : out Boolean;
+       Close_On_Fork : out Boolean)
       with Pre => Process /= Error_PID;
 
    --  Set the Close on Exec flag for a file descriptor.
    --  @param Process  Process to operate on.
    --  @param FD       FD to set.
    --- @param Is_Close True if close on exec, false if not.
-   procedure Set_Close_On_Exec
-      (Process  : PID;
-       FD       : Unsigned_64;
-       Is_Close : Boolean)
+   procedure Set_FD_Flags
+      (Process       : PID;
+       FD            : Unsigned_64;
+       Close_On_Exec : Boolean;
+       Close_On_Fork : Boolean)
       with Pre => Process /= Error_PID;
 
    --  Remove a file from a process.
@@ -629,6 +633,7 @@ private
 
    type File_Descriptor is record
       Close_On_Exec : Boolean;
+      Close_On_Fork : Boolean;
       Description   : File_Description_Acc;
    end record;
 
