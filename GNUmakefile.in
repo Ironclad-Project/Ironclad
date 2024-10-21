@@ -85,7 +85,7 @@ ironclad.info: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi
 html: ironclad.html
 
 ironclad.html: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi
-	$(TEXI2HTML) '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
+	$(TEXI2HTML) --set-customization-variable 'HIGHLIGHT_SYNTAX highlight' '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 
 .PHONY: dvi
 dvi: ironclad.dvi

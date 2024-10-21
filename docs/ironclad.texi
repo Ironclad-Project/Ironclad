@@ -294,7 +294,7 @@ bootloader.
 
 The format is a list of keys with optional arguments as such:
 
-@example
+@example shellscript
 key1=value1 key2 key3=value3 key4="value4 value5" ... keyN=(")valueN(")
 @end example
 
@@ -437,7 +437,7 @@ Ironclad features standard POSIX-like pipes, they are created using
 The standard size of pipes is 10 architectural pages. This size can be modified
 using the following @code{fcntl} calls.
 
-@example
+@example c
 #define F_GETPIPE_SZ 7     // Get the size in bytes.
 #define F_SETPIPE_SZ 8     // Set the size in bytes.
 @end example
@@ -1052,7 +1052,7 @@ The passed FD is in a bad state or invalid.
 @node exit
 @section exit
 
-@example
+@example c
 void exit(uint64_t status);
 @end example
 
@@ -1070,7 +1070,7 @@ This syscall does not return any value, but it sets errno on failure:
 @node arch_prctl
 @section arch_prctl
 
-@example
+@example c
 int arch_prctl(int code, uint64_t argument);
 @end example
 
@@ -1105,7 +1105,7 @@ errno is to be set to the following values on failure:
 @node open
 @section open
 
-@example
+@example c
 int open(int dir_fd, char *path, int path_len, int flags);
 @end example
 
@@ -1155,7 +1155,7 @@ is set to the following:
 @node close
 @section close
 
-@example
+@example c
 int close(int fd);
 @end example
 
@@ -1172,7 +1172,7 @@ The syscall returns 0 on success and -1 in failure, and errno is set to:
 @node read/write
 @section read/write
 
-@example
+@example c
 ssize_t read(int fd, void *buffer, size_t count);
 ssize_t write(int fd, void *buffer, size_t count);
 @end example
@@ -1208,7 +1208,7 @@ file size limit.
 @node seek
 @section seek
 
-@example
+@example c
 off_t seek(int fd, off_t offset, int whence);
 @end example
 
@@ -1241,7 +1241,7 @@ be set to:
 @node mmap/mprotect/munmap
 @section mmap/mprotect/munmap
 
-@example
+@example c
 void *mmap(void *hint, size_t length, int protection, int flags, int fd,
    off_t offset);
 int mprotect(void *addr, size_t len, int prot);
@@ -1311,7 +1311,7 @@ The format of @code{prot} is the same as @code{mmap}.
 @node getpid/getppid
 @section getpid/getppid
 
-@example
+@example c
 int getpid();
 int getppid();
 @end example
@@ -1325,7 +1325,7 @@ This functions are always successful.
 @node exec
 @section exec
 
-@example
+@example c
 int exec(const char *path, int path_len, char *const argv[], int argv_len, char *const envp[], envp_len);
 @end example
 
@@ -1350,7 +1350,7 @@ This syscall only returns in failure with @code{-1} with the following errno:
 @node clone
 @section clone
 
-@example
+@example c
 #define CLONE_PARENT 0b01
 #define CLONE_THREAD 0b10
 
@@ -1391,7 +1391,7 @@ parent.
 @node wait
 @section wait
 
-@example
+@example c
 pid_t wait(pid_t pid, int *status, int options);
 @end example
 
@@ -1419,7 +1419,7 @@ following errno:
 @node socket
 @section socket
 
-@example
+@example c
 #define AF_UNIX       3
 #define SOCK_DGRAM    0b000000000000000001
 #define SOCK_RAW      0b000000000000000010
@@ -1439,7 +1439,7 @@ the type of socket to create. The available sockets type are:
 
 The address of a INET domain socket takes the shape of
 
-@example
+@example c
 struct sockaddr_in @{
    uint32_t sin_family;
    uint16_t sin_port;
@@ -1457,7 +1457,7 @@ will be translated to @code{UDP}.
 
 The address of a INET domain socket takes the shape of
 
-@example
+@example c
 struct sockaddr_in6 @{
    uint32_t sin6_family;
    uint16_t sin6_port;
@@ -1477,7 +1477,7 @@ can be unnamed or bound to filesystem paths.
 
 The address of a UNIX domain socket takes the shape of
 
-@example
+@example c
 struct sockaddr_un @{
    uint32_t sun_family; // AF_UNIX.
    char path[];         // Must be null terminated.
@@ -1519,7 +1519,7 @@ following errno:
 @node sethostname
 @section sethostname
 
-@example
+@example c
 int sethostname(const char *buffer, size_t length);
 @end example
 
@@ -1540,7 +1540,7 @@ returned on success and @code{-1} on failure, with the following errno:
 @node unlink
 @section unlink
 
-@example
+@example c
 int unlink(int dir_fd, const char *path, int path_len);
 @end example
 
@@ -1557,7 +1557,7 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @node fstat
 @section fstat
 
-@example
+@example c
 struct stat @{
     dev_t st_dev;
     ino_t st_ino;
@@ -1599,7 +1599,7 @@ opening, either following or not following symlinks with
 @node chdir
 @section chdir
 
-@example
+@example c
 int chdir(int fd);
 @end example
 
@@ -1617,7 +1617,7 @@ following errno:
 @node ioctl
 @section ioctl
 
-@example
+@example c
 int ioctl(int fd, unsigned long request, void *argument);
 @end example
 
@@ -1645,7 +1645,7 @@ following errno:
 @node sched_yield
 @section sched_yield
 
-@example
+@example c
 int sched_yield(void);
 @end example
 
@@ -1658,7 +1658,7 @@ compatibility with POSIX instead of having a @code{void} return type.
 @node delete_tcluster
 @section delete_tcluster
 
-@example
+@example c
 int delete_tcluster(int cluster);
 @end example
 
@@ -1676,7 +1676,7 @@ following errno:
 @node pipe
 @section pipe
 
-@example
+@example c
 int pipe(int pipefd[2], int flags);
 @end example
 
@@ -1699,7 +1699,7 @@ following errno:
 @node rename
 @section rename
 
-@example
+@example c
 #define RENAME_NOREPLACE 1
 int rename(int sourcedirfd, const char *sourcepath, size_t sourcelen,
        int targetirfd, const char *targetpath, size_t targetlen, int flags);
@@ -1727,7 +1727,7 @@ codes set on failure are:
 @node sysconf
 @section sysconf
 
-@example
+@example c
 #define SC_PAGESIZE         1 // Page size of the system.
 #define SC_OPEN_MAX         2 // Maximum amount of files per process.
 #define SC_HOST_NAME_MAX    3 // Maximum length of hostnames.
@@ -1765,7 +1765,7 @@ are:
 @code{SC_LIST_PROCS}: @code{addr} points to an array of items, and @code{len}
 is the count of bytes reserved in the array. The items have the structure:
 
-@example
+@example c
 struct procinfo @{
     char id[20];
     uint16_t id_len;
@@ -1783,7 +1783,7 @@ array.
 @code{SC_LIST_MOUNTS}: @code{addr} points to an array of items, and @code{len}
 is the count of bytes reserved in the array. The items have the structure:
 
-@example
+@example c
 struct mountinfo @{
     uint32_t fs_type;
     uint32_t flags;
@@ -1801,7 +1801,7 @@ array.
 @code{SC_UNAME}: @code{addr} points to the following structure, and @code{len}
 is the length in bytes of said structure:
 
-@example
+@example c
 struct utsname @{
     char sysname[65];  // Kernel name (e.g., "Ironclad")
     char nodename[65]; // Hostname of the machine.
@@ -1817,7 +1817,7 @@ In success, the returned value will be @code{0}.
 @code{SC_LIST_THREADS}: @code{addr} points to an array of items, and @code{len}
 is the count of bytes reserved in the array. The items have the structure:
 
-@example
+@example c
 struct threadinfo @{
     uint16_t tid;
     int16_t  niceness;
@@ -1834,7 +1834,7 @@ array.
 @code{len} is the count of bytes reserved in the array. The items have the
 structure:
 
-@example
+@example c
 struct tclusterinfo @{
     uint16_t tcid;
     uint16_t tflags;
@@ -1850,7 +1850,7 @@ passed array.
 @code{len} is the count of bytes reserved in the array. The items have the
 structure:
 
-@example
+@example c
 struct netinterface @{
     char device[64]; // null terminated.
     uint64_t flags;
@@ -1873,7 +1873,7 @@ fits or not.
 @code{len} is the count of bytes reserved in the array. The items have the
 structure:
 
-@example
+@example c
 struct flock_info @{
     uint32_t pid;
     uint32_t mode;
@@ -1889,7 +1889,7 @@ struct flock_info @{
 @code{len} is the count of bytes reserved in the array. The array has the
 structure:
 
-@example
+@example c
 uint32_t array[3];
 @end example
 
@@ -1902,7 +1902,7 @@ values are to be divided by 100 before being used.
 @code{SC_MEMINFO}: @code{len} is ignored and @code{addr} points to a structure
 as such:
 
-@example
+@example c
 struct mem_info @{
     // All data is in bytes.
     uint64_t phys_total;     // Total physical memory of the system.
@@ -1932,7 +1932,7 @@ The errno codes set on failure are:
 @node spawn
 @section spawn
 
-@example
+@example c
 pid_t spawn(const char *path, int path_len, char *const argv[],
    int argv_len, char *const envp[], int envp_len, uint64_t *caps);
 @end example
@@ -1967,7 +1967,7 @@ the errno codes being:
 @node gettid
 @section gettid
 
-@example
+@example c
 int gettid(void);
 @end example
 
@@ -1976,7 +1976,7 @@ This syscall returns the current thread id. It never fails.
 @node manage_tcluster
 @section manage_tcluster
 
-@example
+@example c
 #define SCHED_RR   0b001
 #define SCHED_COOP 0b010
 #define SCHED_INTR 0b100
@@ -1999,7 +1999,7 @@ following errno:
 @node fcntl
 @section fcntl
 
-@example
+@example c
 #define F_DUPFD         1
 #define F_DUPFD_CLOEXEC 2
 #define F_GETFD         3
@@ -2115,7 +2115,7 @@ On failure, the syscall returns @code{-1}. The returned @code{errno} are:
 @node exit_thread
 @section exit_thread
 
-@example
+@example c
 void exit_thread(void);
 @end example
 
@@ -2133,7 +2133,7 @@ This syscall does not return any value, but it sets errno on failure:
 @node getrandom
 @section getrandom
 
-@example
+@example c
 ssize_t getrandom(void *buffer, size_t length);
 @end example
 
@@ -2158,7 +2158,7 @@ sets the following errno:
 @node mac_capabilities
 @section mac_capabilities
 
-@example
+@example c
 #define MAC_CAP_SCHED     0b00000000000001
 #define MAC_CAP_SPAWN     0b00000000000010
 #define MAC_CAP_ENTROPY   0b00000000000100
@@ -2188,7 +2188,7 @@ is not granted.
 @node add_mac_permissions
 @section add_mac_permissions
 
-@example
+@example c
 #define MAC_PERM_CONTENTS 0b000001
 #define MAC_PERM_READ     0b000010
 #define MAC_PERM_WRITE    0b000100
@@ -2220,7 +2220,7 @@ one.
 @node set_mac_enforcement
 @section set_mac_enforcement
 
-@example
+@example c
 #define MAC_DENY            0b001
 #define MAC_DENY_AND_SCREAM 0b010
 #define MAC_KILL            0b100
@@ -2242,7 +2242,7 @@ following errno:
 @node mount/umount
 @section mount/umount
 
-@example
+@example c
 #define MNT_FAT   1
 #define MNT_EXT   2
 #define MS_RDONLY 1
@@ -2296,7 +2296,7 @@ not passed.
 @node readlink
 @section readlink
 
-@example
+@example c
 ssize_t readlink(char *path, int path_len, char *buffer, size_t buffer_len);
 @end example
 
@@ -2317,7 +2317,7 @@ the following errno:
 @node getdents
 @section getdents
 
-@example
+@example c
 #define DT_UNKNOWN 0
 #define DT_FIFO    1
 #define DT_CHR     2
@@ -2360,7 +2360,7 @@ contents or @code{-1} on failure, with the following errno:
 @node sync
 @section sync
 
-@example
+@example c
 int sync(void);
 @end example
 
@@ -2379,7 +2379,7 @@ errno:
 @node mknod
 @section mknod
 
-@example
+@example c
 int mknod(int dir_fd, const char *path, int path_len, int mode, int dev);
 @end example
 
@@ -2399,7 +2399,7 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @node truncate
 @section truncate
 
-@example
+@example c
 int truncate(int fd, uint64_t new_size);
 @end example
 
@@ -2421,7 +2421,7 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @node bind
 @section bind
 
-@example
+@example c
 struct sockaddr @{
    uint32_t sun_family; // AF values of socket().
    char data[];
@@ -2451,7 +2451,7 @@ following errno:
 @node mkdir
 @section mkdir
 
-@example
+@example c
 int mkdir(int dir_fd, const char *path, int path_len, int mode);
 @end example
 
@@ -2470,7 +2470,7 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @node symlink
 @section symlink
 
-@example
+@example c
 int symlink(int dir_fd, const char *path, int path_len,
             const char *target, int target_len, int mode);
 @end example
@@ -2491,7 +2491,7 @@ passed mode is invalid.
 @node connect
 @section connect
 
-@example
+@example c
 int connect(int sockfd, const struct sockaddr *addr, unsigned int addrlen);
 @end example
 
@@ -2517,7 +2517,7 @@ following errno:
 @node openpty
 @section openpty
 
-@example
+@example c
 int openty(int ptys[2]);
 @end example
 
@@ -2538,7 +2538,7 @@ following errno:
 @node fsync
 @section fsync
 
-@example
+@example c
 int fsync(int fd, int flags);
 @end example
 
@@ -2567,7 +2567,7 @@ The syscall returns @code{0} or @code{-1} on failure, with the errno:
 @node link
 @section link
 
-@example
+@example c
 int link(int dir_fd, const char *path, int path_len,
          const char *target, int target_len);
 @end example
@@ -2589,7 +2589,7 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @node ptrace
 @section ptrace
 
-@example
+@example c
 #define PTRACE_SYSCALL_PIPE 1
 
 long ptrace(long request, pid_t pid, void *addr, void *data);
@@ -2624,7 +2624,7 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @node listen
 @section listen
 
-@example
+@example c
 int listen(int sockfd, int backlog);
 @end example
 
@@ -2655,7 +2655,7 @@ following errno:
 @node accept
 @section accept
 
-@example
+@example c
 int accept(int sockfd, const struct sockaddr *addr, int *addrlen, int flags);
 @end example
 
@@ -2680,7 +2680,7 @@ following errno:
 @node getrlimit/setrlimit
 @section getrlimit/setrlimit
 
-@example
+@example c
 #define RLIMIT_CORE   1 // Size of core files, 0 for disabling.
 #define RLIMIT_CPU    2 // CPU time limit in seconds.
 #define RLIMIT_FSIZE  4 // Maximum file size in bytes.
@@ -2731,7 +2731,7 @@ Both report the following errno:
 @node access
 @section access
 
-@example
+@example c
 #define F_OK 0b0001
 #define R_OK 0b0010
 #define W_OK 0b0100
@@ -2778,7 +2778,7 @@ or @code{-1} on check failure, with the following errno:
 @node poll
 @section poll
 
-@example
+@example c
 #define POLLIN   0b00000001
 #define POLLOUT  0b00000010
 #define POLLPRI  0b00000100
@@ -2854,7 +2854,7 @@ The passed values are not valid.
 @node getuid/geteuid
 @section getuid/geteuid
 
-@example
+@example c
 uid_t getuid(void);
 uid_t geteuid(void);
 @end example
@@ -2885,7 +2885,7 @@ MAC did not allow this.
 @node fchmod
 @section fchmod
 
-@example
+@example c
 int fchmod(int dir_fd, char *path, int len, mode_t mode, int flags);
 @end example
 
@@ -2906,7 +2906,7 @@ MAC did not allow this.
 @node umask
 @section umask
 
-@example
+@example c
 mode_t umask(mode_t mask);
 @end example
 
@@ -2923,7 +2923,7 @@ This syscall never fails, it always returns the old mask before modification.
 @node reboot
 @section reboot
 
-@example
+@example c
 #define RB_HALT     1
 #define RB_POWEROFF 2
 #define RB_RESTART  3
@@ -2970,7 +2970,7 @@ The operation failed internally.
 @node fchown
 @section fchown
 
-@example
+@example c
 int fchown(int dir_fd, char *path, int len, uint32_t user, uint32_t group,
    int flags);
 @end example
@@ -2995,7 +2995,7 @@ The passed file is valid but it was not a physical file in a filesystem.
 @node pread/pwrite
 @section pread/pwrite
 
-@example
+@example c
 ssize_t pread(int fd, void *buffer, size_t count, off_t offset);
 ssize_t pwrite(int fd, void *buffer, size_t count, off_t offset);
 @end example
@@ -3015,7 +3015,7 @@ These syscalls return the same values and errno as the non-p variants.
 @node getsockname
 @section getsockname
 
-@example
+@example c
 int getsockname(int sockfd, struct sockaddr *restrict addr, socklen_t *restrict addrlen);
 @end example
 
@@ -3035,7 +3035,7 @@ The passed file is valid but it was not a physical file in a filesystem.
 @node getpeername
 @section getpeername
 
-@example
+@example c
 int getpeername(int sockfd, struct sockaddr *restrict addr, socklen_t *restrict addrlen);
 @end example
 
@@ -3055,7 +3055,7 @@ The passed file is valid but it was not a physical file in a filesystem.
 @node shutdown
 @section shutdown
 
-@example
+@example c
 #define SHUT_RD   0b01
 #define SHUT_RDWR 0b10
 #define SHUT_WR   0b11
@@ -3092,7 +3092,7 @@ The passed file is valid but it was not a physical file in a filesystem.
 @node futex
 @section futex
 
-@example
+@example c
 struct futex_item @{
     uint64_t addr;
     uint32_t expected;
@@ -3159,7 +3159,7 @@ The passed operation is not valid.
 @node clock
 @section clock
 
-@example
+@example c
 #define CLOCK_REALTIME  0
 #define CLOCK_MONOTONIC 1
 #define CLOCK_GETRES    0
@@ -3212,7 +3212,7 @@ One of the passed values is not valid.
 @node clock_nanosleep
 @section clock_nanosleep
 
-@example
+@example c
 #define TIMER_ABSTIME 1
 
 int clock_nanosleep(int clock_id, int flags, struct timespec *time,
@@ -3251,7 +3251,7 @@ MAC did not allow this.
 @node getrusage
 @section getrusage
 
-@example
+@example c
 #define RUSAGE_SELF 1
 #define RUSAGE_CHILDREN 2
 
@@ -3296,7 +3296,7 @@ following errno:
 @node recvfrom/sendto
 @section recvfrom/sendto
 
-@example
+@example c
 ssize_t recvfrom(int socket_fd, void *restrict buffer, size_t length,
    int flags, struct sockaddr *address, socklen_t *address_len);
 ssize_t sendto(int socket_fd, void *restrict buffer, size_t length,
@@ -3321,7 +3321,7 @@ the addition of only accepting sockets as their passed @code{socket_fd}.
 @node config_netinter
 @section config_netinter
 
-@example
+@example c
 #define NETINTER_SET_BLOCK      1
 #define NETINTER_SET_STATIC_IP4 2
 #define NETINTER_SET_STATIC_IP6 3
@@ -3376,7 +3376,7 @@ An argument is not valid.
 @node utimes
 @section utimes
 
-@example
+@example c
 int utimes(int dir, const char *path, struct timespec *times, int flags);
 @end example
 
@@ -3399,7 +3399,7 @@ An argument is not valid.
 @node create_tcluster
 @section create_tcluster
 
-@example
+@example c
 int create_tcluster(void);
 @end example
 
@@ -3417,7 +3417,7 @@ MAC did not allow this.
 @node switch_tcluster
 @section switch_tcluster
 
-@example
+@example c
 int switch_tcluster(int cluster, int tid);
 @end example
 
@@ -3438,7 +3438,7 @@ MAC did not allow this.
 @node sigprogmask
 @section sigprogmask
 
-@example
+@example c
 #define SIG_BLOCK   1
 #define SIG_UNBLOCK 2
 #define SIG_SETMASK 3
@@ -3481,7 +3481,7 @@ A non-@code{NULL} pointer points to not valid memory.
 @node sigaction
 @section sigaction
 
-@example
+@example c
 int sigaction(int sig, struct sigaction *act, struct sigaction *oldact);
 @end example
 
@@ -3509,7 +3509,7 @@ kill.
 @node send_signal
 @section send_signal
 
-@example
+@example c
 int send_signal(int pid, int signal);
 @end example
 
@@ -3538,7 +3538,7 @@ The caller does not have permissions to signal @code{pid}.
 @node getprio/setprio
 @section getprio/setprio
 
-@example
+@example c
 #define PRIO_PROCESS 1
 #define PRIO_PGRP 2
 #define PRIO_USER 3
@@ -3586,7 +3586,7 @@ A value is not valid.
 @node getgid/getegid
 @section getgid/getegid
 
-@example
+@example c
 gid_t getgid(void);
 gid_t getegid(void);
 @end example
@@ -3597,7 +3597,7 @@ never fail.
 @node setgids
 @section setgids
 
-@example
+@example c
 int setgids(gid_t gid, gid_t egid);
 @end example
 
@@ -3617,7 +3617,7 @@ MAC did not allow this.
 @node getgroups/setgroups
 @section getgroups/setgroups
 
-@example
+@example c
 int getgroups(size_t size, gid_t list[]);
 int setgroups(size_t size, const gid_t *list);
 @end example
@@ -3648,7 +3648,7 @@ both with the following errno:
 @node ttyname
 @section ttyname
 
-@example
+@example c
 int ttyname(int fd, char *buffer, size_t size);
 @end example
 
@@ -3672,7 +3672,7 @@ following errno:
 @node fadvise
 @section fadvise
 
-@example
+@example c
 #define POSIX_FADV_NORMAL     1
 #define POSIX_FADV_SEQUENTIAL 2
 #define POSIX_FADV_NOREUSE    3
@@ -3738,7 +3738,7 @@ The passed file is not a VFS inode.
 @node shmat
 @section shmat
 
-@example
+@example c
 void *shmat(int shmid, const void *shmaddr, int shmflg);
 @end example
 
@@ -3775,7 +3775,7 @@ Not enough memory.
 @node shmctl
 @section shmctl
 
-@example
+@example c
 struct ipc_perms @{
    uint32_t __key;
    uint32_t uid;
@@ -3842,7 +3842,7 @@ following errno:
 @node shmdl
 @section shmdl
 
-@example
+@example c
 int shmdt(const void *shmaddr);
 @end example
 
@@ -3860,7 +3860,7 @@ The passed @code{shmaddr} is not valid.
 @node shmget
 @section shmget
 
-@example
+@example c
 #define IPC_PRIVATE 0
 
 int shmget(key_t key, size_t size, int shmflg);
@@ -3890,7 +3890,7 @@ The fetched segment is not present.
 @node getsockopt/setsockopt
 @section getsockopt/setsockopt
 
-@example
+@example c
 #define SOL_SOCKET 1
 
 #define SO_ACCEPTCONN 1
@@ -3948,7 +3948,7 @@ The passed @code{name} or @code{level} were not valid.
 @node gettidid/settidid
 @section gettidid/settidid
 
-@example
+@example c
 int gettidid(int tid, char *id, size_t size);
 int settidid(int tid, char *id, size_t size);
 @end example
@@ -3971,7 +3971,7 @@ The passed buffers were pointing to invalid memory.
 @node failure_policy
 @section failure_policy
 
-@example
+@example c
 #define MEM_FAIL_PANIC      1
 #define MEM_FAIL_SOFT_KILL  2
 #define MEM_FAIL_HARD_KILL  3
@@ -4054,7 +4054,7 @@ support.
 Some @code{ioctl} calls exist for files inside EXT-series FSs, which can help
 manage specialized FS-specific inode flags and permissions, they are:
 
-@example
+@example c
 EXT_GETFLAGS = 0x5600
 EXT_SETFLAGS = 0x5601
 
@@ -4261,7 +4261,7 @@ protocol, when present. The device uses Linux's @url{https://docs.kernel.org/fb/
 can be reset by using @code{write} and can be configured using
 @code{ioctl} like:
 
-@example
+@example c
 WDOG_START     = 1 // Start the count.
 WDOG_STOP      = 2 // Stop the count.
 WDOG_HEARTBEAT = 3 // Reset and set a new heartbeat period in seconds.
@@ -4290,7 +4290,7 @@ TTY interface is exposed, they are raw byte streams.
 @code{pcspeaker} represents the IBM PC speaker, it is interfaced with using
 @code{ioctl}, as such:
 
-@example
+@example c
 ioctl(fd, ignored, pointer_to_uint32_t_frequency_in_hz);
 @end example
 
@@ -4301,7 +4301,7 @@ interfaces, @code{ps2keyboard} is a normal character device that returns
 scancodes as they are received. @code{ps2mouse} is a character device that
 returns mouse packets following the structure:
 
-@example
+@example c
 struct mouse_data @{
    int x_variation;
    int y_variation;
@@ -4317,7 +4317,7 @@ struct mouse_data @{
 @code{ps2mouse} supports a series of @code{ioctl} calls for setting different
 modes and talking directly with the PS2 controller:
 
-@example
+@example c
 PS2MOUSE_2_1_SCALING     = 1
 PS2MOUSE_1_1_SCALING     = 2
 PS2MOUSE_SET_RES         = 3

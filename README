@@ -23,6 +23,7 @@ The tools needed are:
 - gprbuild for compilation, along with a compatible Ada compiler and assembler.
 - GNU Info for building the documentation.
 - gnatprove for formal verification, if desired.
+- highlight for syntax highlighting when building the HTML documentation.
 
 For building the project's binaries, a standard configure-make-make install is
 enough, like the following:
