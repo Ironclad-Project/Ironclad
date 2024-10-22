@@ -4006,11 +4006,33 @@ package body Userland.Syscall is
       SAddr  : constant  System.Address := To_Address (IAddr);
       TIAddr : constant Integer_Address := Integer_Address (Timeout);
       TSAddr : constant  System.Address := To_Address (TIAddr);
+
+      Futex_Len : constant Unsigned_64 := Count * (Futex_Item'Size / 8);
+      Time_Len  : constant Unsigned_64 := Time_Spec'Size / 8;
+      U32_Len   : constant Unsigned_64 := Unsigned_32'Size / 8;
    begin
-      if not Check_Userland_Access (Map, IAddr, Count * (Futex_Item'Size / 8))
-      or else not Check_Userland_Access (Map, TIAddr, Time_Spec'Size / 8)
+      --  FIXME: These 2 Would_Fault should not have the
+      --  "Check_Userland_Mappability" parts, but these checks fail
+      --  consistently under complicated and difficult to trace conditions,
+      --  most notably, when booting Gloire's graphical debug option.
+      --  God knows I cannot find a way to fix it without several TODOs and/or
+      --  hacks. I expect to be able to approach this issue much better down
+      --  the road after some new facilities are implemented and the debug
+      --  arm of the kernel flourishes.
+      --
+      --  For now, commenting out these checks does not open a huge security
+      --  hole, but there is one being opened. The additional checks for kernel
+      --  addresses should minimize the risk of kernel information being
+      --  leaked.
+
+      if not Check_Userland_Access (Map, IAddr, Futex_Len) or else
+         not Check_Userland_Access (Map, TIAddr, Time_Len)
       then
-         goto Would_Fault_Error;
+         if not Check_Userland_Mappability (Map, IAddr, Futex_Len) or else
+            not Check_Userland_Mappability (Map, TIAddr, Time_Len)
+         then
+            goto Would_Fault_Error;
+         end if;
       elsif Count > Unsigned_64 (Natural'Last) then
          Errno    := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
@@ -4026,7 +4048,9 @@ package body Userland.Syscall is
       begin
          for I in Items'Range loop
             IA := Integer_Address (Items (I).Address);
-            if not Check_Userland_Access (Map, IA, Unsigned_32'Size / 8) then
+            if not Check_Userland_Access (Map, IA, U32_Len) and
+               not Check_Userland_Mappability (Map, IA, U32_Len)
+            then
                goto Would_Fault_Error;
             end if;
 
