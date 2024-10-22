@@ -70,13 +70,13 @@ package body Userland.OOM_Failure is
          if Guilty /= 0 and then Items (Guilty).Process /= Process.Error_PID
          then
             Lib.Messages.Image
-               (Unsigned_64 (Convert (Items (Guilty).Process)),
-                Str, Count, False);
+               (Unsigned_64 (Convert (Items (Guilty).Process)), Str, Count);
             Lib.Messages.Put_Line
                ("Killing PID "                         &
                 Str (Str'Last - Count + 1 .. Str'Last) &
                 " '"                                   &
-                Items (Guilty).Identifier (1 .. Items (Guilty).Identifier_Len) &
+                Items (Guilty).Identifier (1 .. Items (Guilty).Identifier_Len)
+                &
                 "' after being deemed guilty");
             Syscall.Do_Exit (Items (Guilty).Process, 1);
          end if;
