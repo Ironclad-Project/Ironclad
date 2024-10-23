@@ -19,6 +19,7 @@ with Arch.APIC;
 with Arch.MMU;
 with Arch.IDT;
 with Arch.Snippets;
+with Arch.Context;
 with System; use System;
 
 package body Arch.CPU with SPARK_Mode => Off is
@@ -54,6 +55,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       --  Initialize the locals list, and initialize the cores.
       Core_Locals := new Core_Local_Arr (1 .. Core_Count);
       Init_Common (1, BSP_LAPIC_ID, Unsigned_64 (To_Integer (New_Stk_Top)));
+      Context.Setup_XSAVE (Global_Use_XSAVE, Global_FPU_Size);
       Save_MTRRs;
 
       --  Initialize the other cores.
@@ -196,6 +198,7 @@ package body Arch.CPU with SPARK_Mode => Off is
 
       CR0   : Unsigned_64 := Snippets.Read_CR0;
       CR4   : Unsigned_64 := Snippets.Read_CR4;
+      XCR0  : Unsigned_64 := 0;
       PAT   : Unsigned_64 := Snippets.Read_MSR (PAT_MSR);
       EFER  : Unsigned_64 := Snippets.Read_MSR (EFER_MSR);
       STAR  : Unsigned_64;
@@ -216,7 +219,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       --  Enable and configure MCE handling.
       CR4 := CR4 or Shift_Left (1, 6);
 
-      --  Enable several features if present.
+      --  Enable several security features if present.
       Snippets.Get_CPUID (7, 0, EAX, EBX, ECX, EDX);
       if (ECX and Shift_Left (1, 2)) /= 0 then
          CR4 := CR4 or Shift_Left (1, 11); --  UMIP.
@@ -227,6 +230,39 @@ package body Arch.CPU with SPARK_Mode => Off is
       if (EDX and Shift_Left (1, 20)) /= 0 then
          Snippets.Write_MSR (UCET_MSR, 2#100#); --  Enable just IBT.
          Snippets.Write_MSR (SCET_MSR, 2#100#); --  Enable just IBT.
+      end if;
+
+      --  Check XSAVE support.
+      --  XXX: Every core will write to the global locations for data, but that
+      --  is fine because they will always be the same for all cores.
+      Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX);
+      if (ECX and Shift_Left (1, 26)) /= 0 then
+         Global_Use_XSAVE := True;
+         CR4  := CR4 or Shift_Left (1, 18);
+         XCR0 := 2#11#; --  Set xsave to be used for x87 and SSE.
+
+         --  Check and enable AVX support.
+         if ((ECX and Shift_Left (1, 28)) /= 0) then
+            XCR0 := XCR0 or Shift_Left (1, 2);
+         end if;
+
+         --  Check and enable AVX512 foundation support.
+         Snippets.Get_CPUID (7, 0, EAX, EBX, ECX, EDX);
+         if ((EBX and Shift_Left (1, 17)) /= 0) then
+            XCR0 := XCR0 or Shift_Left (2#1#, 5); --  Enable OPMASK.
+            XCR0 := XCR0 or Shift_Left (2#1#, 6); --  Enable the ZMM regs.
+            XCR0 := XCR0 or Shift_Left (2#1#, 7); --  Enable more ZMM regs.
+         end if;
+
+         --  Get the size of the xsave area.
+         Snippets.Get_CPUID (16#D#, 0, EAX, EBX, ECX, EDX);
+         Global_FPU_Size := ECX;
+
+         Snippets.Write_CR4 (CR4);
+         Snippets.Write_XCR (0, XCR0);
+      else
+         Global_Use_XSAVE := False;
+         Global_FPU_Size  := 512;
       end if;
 
       --  Enable SYSCALL instructions.

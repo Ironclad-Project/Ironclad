@@ -52,6 +52,10 @@ package Arch.CPU is
    Core_Count  : Positive;
    Core_Locals : Core_Local_Arr_Acc;
 
+   --  CPU features detected during initialization.
+   Global_Use_XSAVE : Boolean := False;
+   Global_FPU_Size  : Unsigned_32;
+
    --  Init the cores and BSP.
    procedure Init_Cores;
 
@@ -64,7 +68,7 @@ private
    type MTRR_Store_Acc is access MTRR_Store;
 
    --  XXX: All x86-64 systems have MTRR support, so we needn't check whether
-   --  its there or not, we just use it.
+   --  it's there or not, we just use it.
    Saved_MTRRs : MTRR_Store_Acc;
    procedure Save_MTRRs;
    procedure Restore_MTRRs;

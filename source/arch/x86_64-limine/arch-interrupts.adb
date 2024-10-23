@@ -113,9 +113,10 @@ package body Arch.Interrupts is
             Exec (State.RDI, State.RSI, State.RDX,
                   State.R12, State.R8, State.R9, Returned, Errno);
          when 12 =>
-            Context.Save_FP_Context (FP_State);
+            Context.Init_FP_Context (FP_State);
             Clone (State.RDI, State.RSI, State.RDX, State.R12,
                    State.R8, State.R9, State.all,  FP_State, Returned, Errno);
+            Context.Destroy_FP_Context (FP_State);
          when 13 =>
             Wait (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 14 =>

@@ -34,8 +34,8 @@ package Arch.Context is
       type FP_Context is array (1 .. 512) of Unsigned_8 with Alignment => 32;
    #elsif ArchName = """x86_64-limine"""
       --  FIXME: Alignment should be 16, but GCC does not align then?
-      subtype GP_Context is Arch.Interrupts.ISR_GPRs;
-      type FP_Context is array (1 .. 512) of Unsigned_8 with Alignment => 32;
+      subtype GP_Context   is Arch.Interrupts.ISR_GPRs;
+      subtype FP_Context   is System.Address;
       subtype Core_Context is Unsigned_64;
    #end if;
 
@@ -56,7 +56,25 @@ package Arch.Context is
    procedure Success_Fork_Result (Ctx : in out GP_Context);
 
    --  Save and restore floating-point context.
-   procedure Init_FP_Context (Ctx : out FP_Context);
-   procedure Save_FP_Context (Ctx : out FP_Context);
-   procedure Load_FP_Context (Ctx : FP_Context);
+   procedure Init_FP_Context    (Ctx : out FP_Context);
+   procedure Save_FP_Context    (Ctx : in out FP_Context);
+   procedure Load_FP_Context    (Ctx : FP_Context);
+   procedure Destroy_FP_Context (Ctx : in out FP_Context);
+   ----------------------------------------------------------------------------
+   #if ArchName = """x86_64-limine"""
+      procedure Setup_XSAVE (Use_XSAVE : Boolean; Area_Size : Unsigned_32);
+   #end if;
+
+private
+   #if ArchName = """x86_64-limine"""
+      FPU_Area_Size : Unsigned_32;
+
+      Save_Access  : access procedure (Ctx : in out System.Address);
+      Rstor_Access : access procedure (Ctx : System.Address);
+
+      procedure Save_FXSAVE (Ctx : in out System.Address);
+      procedure Save_XSAVE  (Ctx : in out System.Address);
+      procedure Load_FXSTOR (Ctx : System.Address);
+      procedure Load_XRSTOR (Ctx : System.Address);
+   #end if;
 end Arch.Context;

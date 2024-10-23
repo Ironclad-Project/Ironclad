@@ -219,6 +219,18 @@ package body Arch.Snippets is
            Volatile => True);
    end Write_CR4;
 
+   procedure Write_XCR (Register : Unsigned_32; Value : Unsigned_64) is
+      Lo_32 : constant Unsigned_64 := Value and 16#FFFFFFFF#;
+      Hi_32 : constant Unsigned_64 := Shift_Right (Value, 32) and 16#FFFFFFFF#;
+   begin
+      Asm ("xsetbv",
+           Inputs   => (Unsigned_32'Asm_Input ("a", Unsigned_32 (Lo_32)),
+                        Unsigned_32'Asm_Input ("d", Unsigned_32 (Hi_32)),
+                        Unsigned_32'Asm_Input ("c", Register)),
+           Clobber  => "memory",
+           Volatile => True);
+   end Write_XCR;
+
    FS_MSR        : constant := 16#C0000100#;
    GS_MSR        : constant := 16#C0000101#;
    Kernel_GS_MSR : constant := 16#C0000102#;

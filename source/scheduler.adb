@@ -709,6 +709,9 @@ package body Scheduler is
             Thread_Pool (Current_TID).GP_State    := State;
             Arch.Context.Save_Core_Context (Thread_Pool (Current_TID).C_State);
             Arch.Context.Save_FP_Context (Thread_Pool (Current_TID).FP_State);
+         else
+            Arch.Context.Destroy_FP_Context
+               (Thread_Pool (Current_TID).FP_State);
          end if;
       end if;
 

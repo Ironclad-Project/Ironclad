@@ -68,6 +68,7 @@ package Arch.Snippets is
       procedure Write_CR3 (Value : Unsigned_64) with Inline;
       function Read_CR4 return Unsigned_64 with Inline;
       procedure Write_CR4 (Value : Unsigned_64) with Inline;
+      procedure Write_XCR (Register : Unsigned_32; Value : Unsigned_64);
       function Read_FS return Unsigned_64 with Inline;
       procedure Write_FS (Value : Unsigned_64) with Inline;
       function Read_GS return Unsigned_64 with Inline;
