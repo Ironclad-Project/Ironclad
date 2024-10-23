@@ -39,9 +39,6 @@ package Arch.Context is
       subtype Core_Context is Unsigned_64;
    #end if;
 
-   type GP_Context_Acc is access GP_Context;
-   type FP_Context_Acc is access FP_Context;
-
    --  General-purpose context switching.
    procedure Init_GP_Context
       (Ctx        : out GP_Context;

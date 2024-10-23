@@ -25,7 +25,6 @@ with Arch.Clocks;
 with Arch.Snippets;
 with Lib;
 with Lib.Time;
-with Ada.Unchecked_Deallocation;
 
 package body Scheduler is
    Kernel_Stack_Size : constant := 16#2000#;
@@ -33,11 +32,6 @@ package body Scheduler is
    type Thread_Stack_64  is array (Natural range <>) of Unsigned_64;
    type Kernel_Stack     is array (1 ..  Kernel_Stack_Size) of Unsigned_8;
    type Kernel_Stack_Acc is access Kernel_Stack;
-
-   procedure Free is new Ada.Unchecked_Deallocation
-      (Arch.Context.GP_Context, Arch.Context.GP_Context_Acc);
-   procedure Free is new Ada.Unchecked_Deallocation
-      (Arch.Context.FP_Context, Arch.Context.FP_Context_Acc);
 
    type Thread_Cluster is record
       Is_Present       : Boolean;
@@ -157,8 +151,8 @@ package body Scheduler is
 
       Proc : constant Userland.Process.PID := Userland.Process.Convert (PID);
       New_TID   : TID := Error_TID;
-      GP_State  : Arch.Context.GP_Context_Acc := new Arch.Context.GP_Context;
-      FP_State  : Arch.Context.FP_Context_Acc := new Arch.Context.FP_Context;
+      GP_State  : Arch.Context.GP_Context;
+      FP_State  : Arch.Context.FP_Context;
       Result    : System.Address;
       Stack_Top : Unsigned_64;
       Success   : Boolean;
@@ -247,14 +241,14 @@ package body Scheduler is
          --  Initialize context information.
          Index_64 := Index_64 * 8;
          Arch.Context.Init_GP_Context
-            (GP_State.all,
+            (GP_State,
              To_Address (Integer_Address (Stack_Top + Unsigned_64 (Index_64))),
              To_Address (Address));
-         Arch.Context.Init_FP_Context (FP_State.all);
+         Arch.Context.Init_FP_Context (FP_State);
 
          New_TID := Create_User_Thread
-            (GP_State => GP_State.all,
-             FP_State => FP_State.all,
+            (GP_State => GP_State,
+             FP_State => FP_State,
              Map       => Map,
              PID       => PID,
              Cluster   => Cluster,
@@ -262,8 +256,6 @@ package body Scheduler is
       end;
 
    <<Cleanup>>
-      Free (GP_State);
-      Free (FP_State);
       return New_TID;
    end Create_User_Thread;
 
@@ -276,23 +268,21 @@ package body Scheduler is
        PID        : Natural) return TID
    is
       New_TID  : TID;
-      GP_State : Arch.Context.GP_Context_Acc := new Arch.Context.GP_Context;
-      FP_State : Arch.Context.FP_Context_Acc := new Arch.Context.FP_Context;
+      GP_State : Arch.Context.GP_Context;
+      FP_State : Arch.Context.FP_Context;
    begin
       Arch.Context.Init_GP_Context
-         (GP_State.all,
+         (GP_State,
           To_Address (Integer_Address (Stack_Addr)),
           To_Address (Address));
-      Arch.Context.Init_FP_Context (FP_State.all);
+      Arch.Context.Init_FP_Context (FP_State);
       New_TID := Create_User_Thread
-         (GP_State => GP_State.all,
-          FP_State => FP_State.all,
+         (GP_State => GP_State,
+          FP_State => FP_State,
           Map      => Map,
           PID      => PID,
           Cluster  => Cluster,
           TCB      => To_Address (Integer_Address (TLS_Addr)));
-      Free (GP_State);
-      Free (FP_State);
       return New_TID;
    end Create_User_Thread;
 
