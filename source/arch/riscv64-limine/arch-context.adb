@@ -49,7 +49,7 @@ package body Arch.Context is
       Ctx := (others => 0);
    end Init_FP_Context;
 
-   procedure Save_FP_Context (Ctx : out FP_Context) is
+   procedure Save_FP_Context (Ctx : in out FP_Context) is
    begin
       Ctx := (others => 0);
    end Save_FP_Context;
@@ -59,4 +59,10 @@ package body Arch.Context is
    begin
       null;
    end Load_FP_Context;
+
+   procedure Destroy_FP_Context (Ctx : in out FP_Context) is
+      pragma Unreferenced (Ctx);
+   begin
+      null;
+   end Destroy_FP_Context;
 end Arch.Context;
