@@ -80,9 +80,11 @@ private
    function Poll_Error (Port : Unsigned_16) return Boolean;
 
    --  Find a cache index for the drive given the desired LBA.
-   function Get_Cache_Index
-      (Drive : ATA_Data_Acc;
-       LBA   : Unsigned_64) return Natural;
+   procedure Get_Cache_Index
+      (Drive   : ATA_Data_Acc;
+       LBA     : Unsigned_64;
+       Idx     : out Natural;
+       Success : out Boolean);
    ----------------------------------------------------------------------------
    procedure Read
       (Key         : System.Address;

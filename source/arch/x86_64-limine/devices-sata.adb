@@ -189,6 +189,12 @@ package body Devices.SATA with SPARK_Mode => Off is
       Spin    : Natural;
       Tmp3    : Unsigned_32;
    begin
+      --  Make sure we are not going to do all of this for an LBA that does not
+      --  even exist.
+      if not Is_Identify and LBA >= Drive.Sector_Count then
+         return False;
+      end if;
+
       --  Find a slot for the identify command and setup the header.
       Slot := Find_Command_Slot (Drive.Port_Data);
       if Slot = 0 then
@@ -313,31 +319,36 @@ package body Devices.SATA with SPARK_Mode => Off is
       return Success;
    end Write_Sector;
 
-   function Get_Cache_Index
-      (Drive : SATA_Data_Acc;
-       LBA   : Unsigned_64) return Natural
+   procedure Get_Cache_Index
+      (Drive   : SATA_Data_Acc;
+       LBA     : Unsigned_64;
+       Idx     : out Natural;
+       Success : out Boolean)
    is
-      Success  : Boolean;
-      Returned : Natural := 0;
    begin
+      Idx := 0;
+
       for I in Drive.Caches'Range loop
          if Drive.Caches (I).Is_Used and Drive.Caches (I).LBA_Offset = LBA then
-            return I;
-         elsif not Drive.Caches (I).Is_Used and Returned = 0 then
-            Returned := I;
+            Idx     := I;
+            Success := True;
+            return;
+         elsif not Drive.Caches (I).Is_Used and Idx = 0 then
+            Idx := I;
          end if;
       end loop;
 
-      if Returned = 0 then
-         Returned := Drive.Next_Evict;
+      if Idx = 0 then
+         Idx := Drive.Next_Evict;
 
          if Drive.Caches (Drive.Next_Evict).Is_Dirty then
             Success := Write_Sector
                (Drive       => Drive,
-                LBA         => Drive.Caches (Returned).LBA_Offset,
-                Data_Buffer => Drive.Caches (Returned).Data);
+                LBA         => Drive.Caches (Idx).LBA_Offset,
+                Data_Buffer => Drive.Caches (Idx).Data);
             if not Success then
                Lib.Messages.Put_Line ("SATA could not write on cache fetch!");
+               return;
             end if;
          end if;
 
@@ -348,7 +359,7 @@ package body Devices.SATA with SPARK_Mode => Off is
          end if;
       end if;
 
-      Drive.Caches (Returned) :=
+      Drive.Caches (Idx) :=
          (Is_Used    => True,
           LBA_Offset => LBA,
           Is_Dirty   => False,
@@ -356,13 +367,11 @@ package body Devices.SATA with SPARK_Mode => Off is
 
       Success := Read_Sector
          (Drive       => Drive,
-          LBA         => Drive.Caches (Returned).LBA_Offset,
-          Data_Buffer => Drive.Caches (Returned).Data);
+          LBA         => Drive.Caches (Idx).LBA_Offset,
+          Data_Buffer => Drive.Caches (Idx).Data);
       if not Success then
          Lib.Messages.Put_Line ("SATA could not read on cache fetch!");
       end if;
-
-      return Returned;
    end Get_Cache_Index;
 
    function Find_Command_Slot (Port : HBA_Port_Acc) return Natural is
@@ -413,16 +422,21 @@ package body Devices.SATA with SPARK_Mode => Off is
       Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
       Current_LBA : Unsigned_64;
    begin
-      if Data'Length = 0 then
-         Ret_Count := 0;
-         Success   := False;
-         return;
-      end if;
-
+      Success := True;
       Lib.Synchronization.Seize (D.Mutex);
       while Progress < Data'Length loop
-         Current_LBA  := (Offset + Unsigned_64 (Progress)) / Sector_Size;
-         Cache_Idx    := Get_Cache_Index (D, Current_LBA);
+         Current_LBA := (Offset + Unsigned_64 (Progress)) / Sector_Size;
+
+         Get_Cache_Index
+          (Drive   => D,
+           LBA     => Current_LBA,
+           Idx     => Cache_Idx,
+           Success => Success);
+         if not Success then
+            Success := True;
+            goto Cleanup;
+         end if;
+
          Copy_Count   := Data'Length - Progress;
          Cache_Offset := Natural ((Offset + Unsigned_64 (Progress)) mod
                                   Sector_Size);
@@ -434,10 +448,10 @@ package body Devices.SATA with SPARK_Mode => Off is
                                           Cache_Offset + Copy_Count);
          Progress := Progress + Copy_Count;
       end loop;
-      Lib.Synchronization.Release (D.Mutex);
 
+   <<Cleanup>>
+      Lib.Synchronization.Release (D.Mutex);
       Ret_Count := Progress;
-      Success   := True;
    end Read;
 
    procedure Write
@@ -453,16 +467,21 @@ package body Devices.SATA with SPARK_Mode => Off is
       Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
       Current_LBA : Unsigned_64;
    begin
-      if Data'Length = 0 then
-         Ret_Count := 0;
-         Success   := False;
-         return;
-      end if;
-
+      Success := True;
       Lib.Synchronization.Seize (D.Mutex);
       while Progress < Data'Length loop
-         Current_LBA  := (Offset + Unsigned_64 (Progress)) / Sector_Size;
-         Cache_Idx    := Get_Cache_Index (D, Current_LBA);
+         Current_LBA := (Offset + Unsigned_64 (Progress)) / Sector_Size;
+
+         Get_Cache_Index
+          (Drive   => D,
+           LBA     => Current_LBA,
+           Idx     => Cache_Idx,
+           Success => Success);
+         if not Success then
+            Success := Progress /= 0;
+            goto Cleanup;
+         end if;
+
          Copy_Count   := Data'Length - Progress;
          Cache_Offset := Natural ((Offset + Unsigned_64 (Progress)) mod
                                   Sector_Size);
@@ -476,10 +495,10 @@ package body Devices.SATA with SPARK_Mode => Off is
          D.Caches (Cache_Idx).Is_Dirty := True;
          Progress := Progress + Copy_Count;
       end loop;
-      Lib.Synchronization.Release (D.Mutex);
 
+   <<Cleanup>>
+      Lib.Synchronization.Release (D.Mutex);
       Ret_Count := Progress;
-      Success   := True;
    end Write;
 
    function Sync (Key : System.Address) return Boolean is

@@ -406,9 +406,11 @@ private
        Data_Buffer : Sector_Data) return Boolean;
 
    --  Find a cache index for the drive given the desired LBA.
-   function Get_Cache_Index
-      (Drive : SATA_Data_Acc;
-       LBA   : Unsigned_64) return Natural;
+   procedure Get_Cache_Index
+      (Drive   : SATA_Data_Acc;
+       LBA     : Unsigned_64;
+       Idx     : out Natural;
+       Success : out Boolean);
 
    --  Find a free slot in the command header table of a port.
    function Find_Command_Slot (Port : HBA_Port_Acc) return Natural;
