@@ -32,6 +32,8 @@ with Userland.Process;
 package body Arch.Interrupts is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
    is
+      Len : Natural;
+      Str : Lib.Messages.Translated_String;
       Exception_Text : constant array (0 .. 30) of String (1 .. 3) :=
          (0  => "#DE", 1  => "#DB", 2  => "???", 3  => "#BP",
           4  => "#OF", 5  => "#BR", 6  => "#UD", 7  => "#NM",
@@ -66,6 +68,14 @@ package body Arch.Interrupts is
          Print_Triple ("R10", "R11", "R12", State.R10, State.R11, State.R12);
          Print_Triple ("R13", "R14", "R15", State.R13, State.R14, State.R15);
          Print_Triple ("RIP", "RSP", "CR2", State.RIP, State.RSP, Read_CR2);
+
+         if Num = 11 or Num = 12 or Num = 13 or Num = 14 or Num = 17 or
+            Num = 21 or Num = 29 or Num = 30
+         then
+            Lib.Messages.Image (State.Error_Code, Str, Len, True);
+            Lib.Messages.Put_Line ("Error code: " & Str);
+         end if;
+
          Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Num));
       end if;
    end Exception_Handler;
