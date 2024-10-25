@@ -19,12 +19,15 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Lib.Messages;
 with Devices.Partitions;
 with Arch.PCI;
+with Arch.MMU;
 with Memory;
+with Lib.Alignment;
 
 package body Devices.SATA with SPARK_Mode => Off is
    package C1 is new System.Address_To_Access_Conversions (SATA_Data);
    package C2 is new System.Address_To_Access_Conversions (HBA_Memory);
    package C3 is new System.Address_To_Access_Conversions (FIS_Host_To_Device);
+   package A  is new Lib.Alignment (Unsigned_64);
 
    function Init return Boolean is
       PCI_Dev    : Arch.PCI.PCI_Device;
@@ -48,6 +51,23 @@ package body Devices.SATA with SPARK_Mode => Off is
       Arch.PCI.Enable_Bus_Mastering (PCI_Dev);
       Mem_Addr := PCI_BAR.Base + Memory.Memory_Offset;
       Dev_Mem  := HBA_Memory_Acc (C2.To_Pointer (To_Address (Mem_Addr)));
+
+      if not Arch.MMU.Map_Range
+         (Map            => Arch.MMU.Kernel_Table,
+          Physical_Start => To_Address (PCI_BAR.Base),
+          Virtual_Start  => To_Address (Mem_Addr),
+          Length         => Storage_Count (A.Align_Up
+           (HBA_Memory'Size / 8, Arch.MMU.Page_Size)),
+          Permissions    =>
+           (Is_User_Accesible => False,
+            Can_Read          => True,
+            Can_Write         => True,
+            Can_Execute       => False,
+            Is_Global         => True),
+          Caching        => Arch.MMU.Uncacheable)
+      then
+         return False;
+      end if;
 
       for I in 1 .. Ports_Per_Controller loop
          Drive_Data := Init_Port (Dev_Mem, I);

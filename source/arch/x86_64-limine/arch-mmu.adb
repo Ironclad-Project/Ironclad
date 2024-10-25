@@ -69,8 +69,8 @@ package body Arch.MMU is
           Can_Write         => False,
           Can_Execute       => False,
           Is_Global         => True);
-      First_MiB        : constant := 16#000100000#;
-      Hardcoded_Region : constant := 16#100000000#;
+
+      First_MiB : constant := 16#000100000#;
 
       --  Start of sections for correct permission loading.
       text_start   : Character with Import, Convention => C;
@@ -99,27 +99,6 @@ package body Arch.MMU is
           Virtual_Start  => To_Address (Page_Size),
           Length         => First_MiB - Page_Size,
           Permissions    => X_Flags,
-          Caching        => Write_Back)
-      then
-         return False;
-      end if;
-
-      --  Map the rest of the first 4 GiB to the window and identity mapped.
-      --  This is done instead of following the pagemap to ensure that all
-      --  I/O and memory tables that may not be in the memmap are mapped.
-      if not Inner_Map_Range
-         (Map            => Kernel_Table,
-          Physical_Start => To_Address (First_MiB),
-          Virtual_Start  => To_Address (First_MiB),
-          Length         => Hardcoded_Region - First_MiB,
-          Permissions    => NX_Flags,
-          Caching        => Write_Back)
-      or not Inner_Map_Range
-         (Map            => Kernel_Table,
-          Physical_Start => To_Address (First_MiB),
-          Virtual_Start  => To_Address (First_MiB + Memory_Offset),
-          Length         => Hardcoded_Region - First_MiB,
-          Permissions    => NX_Flags,
           Caching        => Write_Back)
       then
          return False;
@@ -534,7 +513,7 @@ package body Arch.MMU is
       Final      : constant Virtual_Address := Virt + Virtual_Address (Length);
       Addr       : Virtual_Address;
       Success    : Boolean := False;
-      Last_Range : Mapping_Range_Acc;
+      Last_Range : Mapping_Range_Acc := null;
       Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
    begin
       Lib.Synchronization.Seize (Map.Mutex);
@@ -556,7 +535,11 @@ package body Arch.MMU is
       goto Ret;
 
    <<Actually_Unmap>>
-      Last_Range.Next := Curr_Range.Next;
+      if Last_Range /= null then
+         Last_Range.Next := Curr_Range.Next;
+      else
+         Map.Map_Ranges_Root := null;
+      end if;
       F (Curr_Range);
 
       while Virt < Final loop

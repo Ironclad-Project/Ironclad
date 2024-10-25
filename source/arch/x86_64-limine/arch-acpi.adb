@@ -15,6 +15,9 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Limine;
+with Arch.MMU;
+with Lib.Messages;
+with Lib.Alignment;
 
 package body Arch.ACPI is
    --  Request to get the RSDP.
@@ -30,12 +33,33 @@ package body Arch.ACPI is
    Use_XSDT     : Boolean         := False;
    Root_Address : Virtual_Address := Null_Address;
 
+   package A is new Lib.Alignment (Integer_Address);
+
    function ScanTables return Boolean is
       RSDPonse : Limine.RSDP_Response
          with Import, Address => RSDP_Request.Response;
       Table : RSDP
          with Import, Address => RSDPonse.Addr;
+
+      Map_Addr : Integer_Address;
    begin
+      if not MMU.Map_Range
+         (Map            => MMU.Kernel_Table,
+          Physical_Start =>
+            To_Address (To_Integer (RSDPonse.Addr) - Memory_Offset),
+          Virtual_Start  => RSDPonse.Addr,
+          Length         => MMU.Page_Size,
+          Permissions    =>
+            (Is_User_Accesible => False,
+             Can_Read          => True,
+             Can_Write         => False,
+             Can_Execute       => False,
+             Is_Global         => True))
+      then
+         Lib.Messages.Put_Line ("Failed to map RSD* table");
+         return False;
+      end if;
+
       if Table.Signature /= "RSD PTR " then
          return False;
       end if;
@@ -49,38 +73,66 @@ package body Arch.ACPI is
       end if;
 
       Root_Address := Memory_Offset + Root_Address;
+      Map_Addr     := A.Align_Down (Root_Address, MMU.Page_Size);
+
+      --  TODO: Ideally we should map every table on demand, but that is
+      --  really really tedious, so we just map 10 pages at the beginning of
+      --  the root address, and that should be enough on 90% of the scenarios
+      --  out there. And when it isnt, welp, we will implement it.
+      if not MMU.Map_Range
+         (Map            => MMU.Kernel_Table,
+          Physical_Start => To_Address (Map_Addr - Memory_Offset),
+          Virtual_Start  => To_Address (Map_Addr),
+          Length         => MMU.Page_Size * 10,
+          Permissions    =>
+            (Is_User_Accesible => False,
+             Can_Read          => True,
+             Can_Write         => False,
+             Can_Execute       => False,
+             Is_Global         => True))
+      then
+         Lib.Messages.Put_Line ("Failed to map final RSD* table");
+         return False;
+      end if;
+
       return True;
    end ScanTables;
 
    function FindTable (Signature : SDT_Signature) return Virtual_Address is
-      Root : RSDT with Address => To_Address (Root_Address);
+      Root : RSDT with Import, Address => To_Address (Root_Address);
 
-      Limit : constant Natural := (Natural (Root.Header.Length)
-         - Root.Header'Size / 8) / (if Use_XSDT then 8 else 4);
-      Returned : Physical_Address := Null_Address;
+      Limit : constant Natural :=
+         (Natural (Root.Header.Length) - Root.Header'Size / 8) /
+         (if Use_XSDT then 8 else 4);
+
+      Returned_Virt :  Virtual_Address := Null_Address;
+      Returned_Phys : Physical_Address := Null_Address;
    begin
       for I in 1 .. Limit loop
          if Use_XSDT then
             declare
-               Entries : XSDT_Entries (1 .. Limit);
-               for Entries'Address use Root.Entries'Address;
+               Entries : XSDT_Entries (1 .. Limit)
+                  with Import, Address => Root.Entries'Address;
             begin
-               Returned := Physical_Address (Entries (I));
+               Returned_Phys := Physical_Address (Entries (I));
             end;
          else
             declare
-               Entries : RSDT_Entries (1 .. Limit);
-               for Entries'Address use Root.Entries'Address;
+               Entries : RSDT_Entries (1 .. Limit)
+                  with Import, Address => Root.Entries'Address;
             begin
-               Returned := Physical_Address (Entries (I));
+               Returned_Phys := Physical_Address (Entries (I));
             end;
          end if;
 
+         Returned_Virt := Returned_Phys + Memory_Offset;
+
          declare
-            Test_Header : SDT_Header with Address => To_Address (Returned);
+            Test_Header : SDT_Header
+               with Import, Address => To_Address (Returned_Virt);
          begin
             if Test_Header.Signature = Signature then
-               return Returned + Memory_Offset;
+               return Returned_Virt;
             end if;
          end;
       end loop;

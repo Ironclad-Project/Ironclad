@@ -61,6 +61,23 @@ package body Arch.APIC with SPARK_Mode => Off is
          if (MSR_Read and 16#FFFFF000#) /= LAPIC_Base - Memory_Offset then
             Lib.Panic.Hard_Panic ("Odd LAPIC base encountered");
          end if;
+
+         --  Map the LAPIC base.
+         if not MMU.Map_Range
+            (Map            => MMU.Kernel_Table,
+             Physical_Start => To_Address (LAPIC_Base - Memory_Offset),
+             Virtual_Start  => To_Address (LAPIC_Base),
+             Length         => MMU.Page_Size,
+             Permissions    =>
+              (Is_User_Accesible => False,
+               Can_Read          => True,
+               Can_Write         => True,
+               Can_Execute       => False,
+               Is_Global         => True),
+             Caching        => MMU.Uncacheable)
+         then
+            Lib.Panic.Hard_Panic ("Could not map LAPIC base");
+         end if;
       end if;
    end Init_LAPIC;
 
@@ -186,7 +203,7 @@ package body Arch.APIC with SPARK_Mode => Off is
 
    function Init_IOAPIC return Boolean is
       Addr : constant Virtual_Address := ACPI.FindTable (ACPI.MADT_Signature);
-      MADT           : ACPI.MADT with Address => To_Address (Addr);
+      MADT           : ACPI.MADT with Import, Address => To_Address (Addr);
       MADT_Length    : constant Unsigned_32 := MADT.Header.Length;
       Current_Byte   : Unsigned_32          := 0;
       Current_IOAPIC : Natural              := 1;
@@ -266,10 +283,11 @@ package body Arch.APIC with SPARK_Mode => Off is
        GSI       : Unsigned_32;
        IDT_Entry : IDT.IDT_Index;
        Flags     : Unsigned_16;
-       Enable    : Boolean) return Boolean is
-      GSIB        :          Unsigned_32     := 0;
-      Redirect    :          Unsigned_64     := Unsigned_64 (IDT_Entry) - 1;
-      IOREDTBL    : constant Unsigned_32     := (GSI - GSIB) * 2 + 16;
+       Enable    : Boolean) return Boolean
+   is
+      GSIB        :          Unsigned_32 := 0;
+      Redirect    :          Unsigned_64 := Unsigned_64 (IDT_Entry) - 1;
+      IOREDTBL    : constant Unsigned_32 := (GSI - GSIB) * 2 + 16;
       IOAPIC_MMIO : Virtual_Address;
    begin
       --  Check if the IOAPIC could be found.
@@ -324,16 +342,49 @@ package body Arch.APIC with SPARK_Mode => Off is
    end Get_IOAPIC_From_GSI;
 
    function Get_IOAPIC_GSI_Count (MMIO : Virtual_Address) return Unsigned_32 is
-      Read : constant Unsigned_32 := IOAPIC_Read (MMIO, IOAPIC_VER_Register);
+      Physical : System.Address;
+      Is_Mapped, Is_User, Is_Readable, Is_Writeable, Is_Exec : Boolean;
+      Read : Unsigned_32;
    begin
+      --  Check whether its mapped, if it is not, map it.
+      MMU.Translate_Address
+         (Map                => MMU.Kernel_Table,
+          Virtual            => To_Address (MMIO),
+          Length             => MMU.Page_Size,
+          Physical           => Physical,
+          Is_Mapped          => Is_Mapped,
+          Is_User_Accessible => Is_User,
+          Is_Readable        => Is_Readable,
+          Is_Writeable       => Is_Writeable,
+          Is_Executable      => Is_Exec);
+      if not Is_Mapped then
+         if not MMU.Map_Range
+            (Map            => MMU.Kernel_Table,
+             Physical_Start => To_Address (MMIO - Memory_Offset),
+             Virtual_Start  => To_Address (MMIO),
+             Length         => MMU.Page_Size,
+             Permissions    =>
+              (Is_User_Accesible => False,
+               Can_Read          => True,
+               Can_Write         => True,
+               Can_Execute       => False,
+               Is_Global         => True),
+             Caching        => MMU.Uncacheable)
+         then
+            return 0;
+         end if;
+      end if;
+
       --  The number of GSIs handled by the IOAPIC is in its IOAPICVER register
       --  in bits 16 - 23;
+      Read := IOAPIC_Read (MMIO, IOAPIC_VER_Register);
       return Shift_Right (Read and 16#FF0000#, 16);
    end Get_IOAPIC_GSI_Count;
 
    function IOAPIC_Read
       (MMIO     : Virtual_Address;
-       Register : Unsigned_32) return Unsigned_32 is
+       Register : Unsigned_32) return Unsigned_32
+   is
       Value_Reg : Unsigned_32 with Address => To_Address (MMIO),      Volatile;
       Value     : Unsigned_32 with Address => To_Address (MMIO + 16), Volatile;
    begin

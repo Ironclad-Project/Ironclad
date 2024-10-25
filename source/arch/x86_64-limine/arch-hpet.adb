@@ -17,6 +17,7 @@
 with Interfaces; use Interfaces;
 with Memory;     use Memory;
 with Arch.ACPI;
+with Arch.MMU;
 
 package body Arch.HPET with SPARK_Mode => Off is
    HPET_Contents : Virtual_Address;
@@ -25,17 +26,36 @@ package body Arch.HPET with SPARK_Mode => Off is
    procedure Init is
       ACPI_Address : Virtual_Address;
    begin
+      Is_Initialized := False;
+
       ACPI_Address := ACPI.FindTable (ACPI.HPET_Signature);
       if ACPI_Address = Null_Address then
-         Is_Initialized := False;
          return;
       end if;
 
       declare
-         Table : ACPI.HPET          with Address => To_Address (ACPI_Address);
-         HPET  : ACPI.HPET_Contents with Address => To_Address (Table.Address);
+         Table : ACPI.HPET
+            with Import, Address => To_Address (ACPI_Address);
+         HPET : ACPI.HPET_Contents with Import,
+            Address => To_Address (Table.Address + Memory_Offset);
          pragma Volatile (HPET);
       begin
+         if not MMU.Map_Range
+            (Map            => MMU.Kernel_Table,
+             Physical_Start => To_Address (Table.Address),
+             Virtual_Start  => To_Address (Table.Address + Memory_Offset),
+             Length         => MMU.Page_Size,
+             Permissions    =>
+              (Is_User_Accesible => False,
+               Can_Read          => True,
+               Can_Write         => True,
+               Can_Execute       => False,
+               Is_Global         => True),
+             Caching        => MMU.Uncacheable)
+         then
+            return;
+         end if;
+
          HPET_Contents := Table.Address + Memory_Offset;
          HPET_Period   := Shift_Right (HPET.General_Capabilities, 32);
 

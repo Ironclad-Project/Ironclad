@@ -1,5 +1,5 @@
---  arch-acpi.ads: Specification of the ACPI parsing and scanning.
---  Copyright (C) 2021 streaksu
+--  arch-acpi.ads: ACPI parsing and scanning.
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
