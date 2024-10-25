@@ -1,5 +1,5 @@
 --  arch-mmu.adb: Architecture-specific MMU code.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -31,10 +31,10 @@ package body Arch.MMU is
    Page_P     : constant Unsigned_64 := Shift_Left (1,  0);
    Page_RW    : constant Unsigned_64 := Shift_Left (1,  1);
    Page_U     : constant Unsigned_64 := Shift_Left (1,  2);
-   Page_C     : constant Unsigned_64 := Shift_Left (1,  3);
+   Page_PWT   : constant Unsigned_64 := Shift_Left (1,  3);
+   Page_PCD   : constant Unsigned_64 := Shift_Left (1,  4);
    Page_PAT   : constant Unsigned_64 := Shift_Left (1,  7);
    Page_G     : constant Unsigned_64 := Shift_Left (1,  8);
-   --  Page_ALLOC : constant Unsigned_64 := Shift_Left (1,  9); --  Custom.
    Page_NX    : constant Unsigned_64 := Shift_Left (1, 63);
 
    --  Global statistics.
@@ -50,29 +50,25 @@ package body Arch.MMU is
           Can_Read          => True,
           Can_Write         => True,
           Can_Execute       => False,
-          Is_Global         => True,
-          Is_Write_Combine  => False);
+          Is_Global         => True);
       X_Flags : constant Page_Permissions :=
          (Is_User_Accesible => False,
           Can_Read          => True,
           Can_Write         => True,
           Can_Execute       => True,
-          Is_Global         => True,
-          Is_Write_Combine  => False);
+          Is_Global         => True);
       RX_Flags : constant Page_Permissions :=
          (Is_User_Accesible => False,
           Can_Read          => True,
           Can_Write         => False,
           Can_Execute       => True,
-          Is_Global         => True,
-          Is_Write_Combine  => False);
+          Is_Global         => True);
       R_Flags : constant Page_Permissions :=
          (Is_User_Accesible => False,
           Can_Read          => True,
           Can_Write         => False,
           Can_Execute       => False,
-          Is_Global         => True,
-          Is_Write_Combine  => False);
+          Is_Global         => True);
       First_MiB        : constant := 16#000100000#;
       Hardcoded_Region : constant := 16#100000000#;
 
@@ -102,7 +98,8 @@ package body Arch.MMU is
           Physical_Start => To_Address (Page_Size),
           Virtual_Start  => To_Address (Page_Size),
           Length         => First_MiB - Page_Size,
-          Permissions    => X_Flags)
+          Permissions    => X_Flags,
+          Caching        => Write_Back)
       then
          return False;
       end if;
@@ -115,13 +112,15 @@ package body Arch.MMU is
           Physical_Start => To_Address (First_MiB),
           Virtual_Start  => To_Address (First_MiB),
           Length         => Hardcoded_Region - First_MiB,
-          Permissions    => NX_Flags)
+          Permissions    => NX_Flags,
+          Caching        => Write_Back)
       or not Inner_Map_Range
          (Map            => Kernel_Table,
           Physical_Start => To_Address (First_MiB),
           Virtual_Start  => To_Address (First_MiB + Memory_Offset),
           Length         => Hardcoded_Region - First_MiB,
-          Permissions    => NX_Flags)
+          Permissions    => NX_Flags,
+          Caching        => Write_Back)
       then
          return False;
       end if;
@@ -134,7 +133,8 @@ package body Arch.MMU is
              Virtual_Start  => To_Address (To_Integer (E.Start) +
                                            Memory_Offset),
              Length         => Storage_Offset (E.Length),
-             Permissions    => NX_Flags)
+             Permissions    => NX_Flags,
+             Caching        => Write_Back)
          then
             return False;
          end if;
@@ -146,19 +146,22 @@ package body Arch.MMU is
           Physical_Start => To_Address (TSAddr - Kernel_Offset + Phys),
           Virtual_Start  => text_start'Address,
           Length         => text_end'Address - text_start'Address,
-          Permissions    => RX_Flags) or
+          Permissions    => RX_Flags,
+          Caching        => Write_Back) or
          not Inner_Map_Range
          (Map            => Kernel_Table,
           Physical_Start => To_Address (OSAddr - Kernel_Offset + Phys),
           Virtual_Start  => rodata_start'Address,
           Length         => rodata_end'Address - rodata_start'Address,
-          Permissions    => R_Flags) or
+          Permissions    => R_Flags,
+          Caching        => Write_Back) or
          not Inner_Map_Range
          (Map            => Kernel_Table,
           Physical_Start => To_Address (DSAddr - Kernel_Offset + Phys),
           Virtual_Start  => data_start'Address,
           Length         => data_end'Address - data_start'Address,
-          Permissions    => NX_Flags)
+          Permissions    => NX_Flags,
+          Caching        => Write_Back)
       then
          return False;
       end if;
@@ -361,7 +364,8 @@ package body Arch.MMU is
        Physical_Start : System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
-       Permissions    : Page_Permissions) return Boolean
+       Permissions    : Page_Permissions;
+       Caching        : Caching_Model := Write_Back) return Boolean
    is
       Last_Range : Mapping_Range_Acc;
       Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
@@ -398,7 +402,8 @@ package body Arch.MMU is
           Physical_Start => Physical_Start,
           Virtual_Start  => Virtual_Start,
           Length         => Length,
-          Permissions    => Permissions);
+          Permissions    => Permissions,
+          Caching        => Caching);
 
    <<Ret>>
       Lib.Synchronization.Release (Map.Mutex);
@@ -411,7 +416,8 @@ package body Arch.MMU is
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
        Permissions    : Page_Permissions;
-       Success        : out Boolean)
+       Success        : out Boolean;
+       Caching        : Caching_Model := Write_Back)
    is
       Addr : constant Virtual_Address :=
          Memory.Physical.Alloc (Interfaces.C.size_t (Length));
@@ -452,7 +458,8 @@ package body Arch.MMU is
           Physical_Start => To_Address (Addr - Memory.Memory_Offset),
           Virtual_Start  => Virtual_Start,
           Length         => Length,
-          Permissions    => Permissions);
+          Permissions    => Permissions,
+          Caching        => Caching);
 
    <<Ret>>
       if Success then
@@ -469,9 +476,10 @@ package body Arch.MMU is
       (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count;
-       Permissions   : Page_Permissions) return Boolean
+       Permissions   : Page_Permissions;
+       Caching       : Caching_Model := Write_Back) return Boolean
    is
-      Flags      : constant     Unsigned_64 := Flags_To_Bitmap (Permissions);
+      Flags : constant Unsigned_64 := Flags_To_Bitmap (Permissions, Caching);
       Virt       : Virtual_Address          := To_Integer (Virtual_Start);
       Final      : constant Virtual_Address := Virt + Virtual_Address (Length);
       Addr       : Virtual_Address;
@@ -670,9 +678,10 @@ package body Arch.MMU is
        Physical_Start : System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
-       Permissions    : Page_Permissions) return Boolean
+       Permissions    : Page_Permissions;
+       Caching        : Caching_Model) return Boolean
    is
-      Flags : constant     Unsigned_64 := Flags_To_Bitmap (Permissions);
+      Flags : constant Unsigned_64 := Flags_To_Bitmap (Permissions, Caching);
       Virt  : Virtual_Address          := To_Integer (Virtual_Start);
       Phys  : Virtual_Address          := To_Integer (Physical_Start);
       Final : constant Virtual_Address := Virt + Virtual_Address (Length);
@@ -693,15 +702,27 @@ package body Arch.MMU is
       return True;
    end Inner_Map_Range;
 
-   function Flags_To_Bitmap (Perm : Page_Permissions) return Unsigned_64 is
+   function Flags_To_Bitmap
+      (Perm    : Page_Permissions;
+       Caching : Caching_Model) return Unsigned_64
+   is
+      Result : Unsigned_64;
    begin
-      return
+      Result :=
          (if Perm.Can_Execute       then 0                  else Page_NX) or
          (if Perm.Can_Write         then Page_RW            else       0) or
          (if Perm.Is_Global         then Page_G             else       0) or
-         (if Perm.Is_Write_Combine  then Page_PAT or Page_C else       0) or
          (if Perm.Is_User_Accesible then Page_U             else       0) or
          Page_P;
+
+      case Caching is
+         when Write_Back      => null;
+         when Write_Through   => Result := Result or Page_PWT;
+         when Write_Combining => Result := Result or Page_PAT or Page_PWT;
+         when Uncacheable     => Result := Result or Page_PWT or Page_PCD;
+      end case;
+
+      return Result;
    end Flags_To_Bitmap;
 
    procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count) is

@@ -162,8 +162,7 @@ package body Userland.ELF is
           Can_Read          => (Header.Flags and Flags_Read)       /= 0,
           Can_Write         => (Header.Flags and Flags_Write)      /= 0,
           Can_Execute       => (Header.Flags and Flags_Executable) /= 0,
-          Is_Global         => False,
-          Is_Write_Combine  => False);
+          Is_Global         => False);
       Ret_Count  : Natural;
       Success1   : Boolean;
       Success2   : FS_Status;

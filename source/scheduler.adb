@@ -146,8 +146,7 @@ package body Scheduler is
           Can_Read          => True,
           Can_Write         => True,
           Can_Execute       => False,
-          Is_Global         => False,
-          Is_Write_Combine  => False);
+          Is_Global         => False);
 
       Proc : constant Userland.Process.PID := Userland.Process.Convert (PID);
       New_TID   : TID := Error_TID;

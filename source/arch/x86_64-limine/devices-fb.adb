@@ -209,16 +209,15 @@ package body Devices.FB is
        Length  : Unsigned_64;
        Flags   : Arch.MMU.Page_Permissions) return Boolean
    is
-      Dev_Data    : Internal_FB_Data with Import, Address => Data;
-      Final_Perms : Arch.MMU.Page_Permissions := Flags;
-      IntAddr : constant Integer_Address := To_Integer (Dev_Data.Fb.Address);
+      Dev_Data : Internal_FB_Data with Import, Address => Data;
+      IntAddr  : constant Integer_Address := To_Integer (Dev_Data.Fb.Address);
    begin
-      Final_Perms.Is_Write_Combine := True;
       return Arch.MMU.Map_Range
          (Map              => Map,
           Virtual_Start    => To_Address (Address),
           Physical_Start   => To_Address (IntAddr - Memory_Offset),
           Length           => Storage_Count (Length),
-          Permissions      => Final_Perms);
+          Permissions      => Flags,
+          Caching          => Arch.MMU.Write_Combining);
    end Mmap;
 end Devices.FB;

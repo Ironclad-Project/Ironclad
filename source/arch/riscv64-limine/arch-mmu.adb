@@ -66,7 +66,8 @@ package body Arch.MMU is
        Physical_Start : System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
-       Permissions    : Page_Permissions) return Boolean
+       Permissions    : Page_Permissions;
+       Caching        : Caching_Model := Write_Back) return Boolean
    is
       pragma Unreferenced (Map);
       pragma Unreferenced (Physical_Start);
@@ -83,7 +84,8 @@ package body Arch.MMU is
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
        Permissions    : Page_Permissions;
-       Success        : out Boolean)
+       Success        : out Boolean;
+       Caching        : Caching_Model := Write_Back)
    is
       pragma Unreferenced (Map);
       pragma Unreferenced (Virtual_Start);
@@ -98,7 +100,8 @@ package body Arch.MMU is
       (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count;
-       Permissions   : Page_Permissions) return Boolean
+       Permissions   : Page_Permissions;
+       Caching       : Caching_Model := Write_Back) return Boolean
    is
       pragma Unreferenced (Map);
       pragma Unreferenced (Virtual_Start);

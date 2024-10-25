@@ -5951,8 +5951,7 @@ package body Userland.Syscall is
              Can_Read          => (P and PROT_READ)  /= 0,
              Can_Write         => (P and PROT_WRITE) /= 0,
              Can_Execute       => (P and PROT_EXEC)  /= 0,
-             Is_Global         => False,
-             Is_Write_Combine  => False);
+             Is_Global         => False);
       end if;
    end Get_Mmap_Prot;
 

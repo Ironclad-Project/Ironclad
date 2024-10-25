@@ -23,15 +23,20 @@ package Arch.MMU is
    --  Permissions used for mapping.
    --  Ironclad forces W^X, so write and execute permissions will conflict,
    --  even though they might not necessarily conflict in hardware.
-   --  Some flags are hints, which may be followed or not for performance.
    type Page_Permissions is record
       Is_User_Accesible : Boolean;
       Can_Read          : Boolean;
       Can_Write         : Boolean;
       Can_Execute       : Boolean;
       Is_Global         : Boolean; --  Hint for global (TLB optimization).
-      Is_Write_Combine  : Boolean; --  Hint for write-combining.
-   end record with Pack, Size => 6;
+   end record;
+
+   --  Caching models for mapping.
+   type Caching_Model is
+      (Write_Back,      --  Standard general purpose caching.
+       Write_Through,   --  Data is updated on cache and memory simultaneously.
+       Write_Combining, --  Allows write combining on the memory area.
+       Uncacheable);    --  No caching of any kind whatsoever thanks.
 
    --  Types to represent page tables.
    type Page_Table     is private;
@@ -120,7 +125,8 @@ package Arch.MMU is
        Physical_Start : System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
-       Permissions    : Page_Permissions) return Boolean
+       Permissions    : Page_Permissions;
+       Caching        : Caching_Model := Write_Back) return Boolean
       with Pre =>
          (Map /= null)                      and
          (Physical_Start mod Page_Size = 0) and
@@ -142,7 +148,8 @@ package Arch.MMU is
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
        Permissions    : Page_Permissions;
-       Success        : out Boolean)
+       Success        : out Boolean;
+       Caching        : Caching_Model := Write_Back)
       with Pre =>
          (Map /= null)                      and
          (Virtual_Start  mod Page_Size = 0) and
@@ -159,7 +166,8 @@ package Arch.MMU is
       (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count;
-       Permissions   : Page_Permissions) return Boolean
+       Permissions   : Page_Permissions;
+       Caching       : Caching_Model := Write_Back) return Boolean
       with Pre =>
          (Map /= null)                      and
          (Virtual_Start  mod Page_Size = 0) and
@@ -279,8 +287,11 @@ private
           Physical_Start : System.Address;
           Virtual_Start  : System.Address;
           Length         : Storage_Count;
-          Permissions    : Page_Permissions) return Boolean;
-      function Flags_To_Bitmap (Perm : Page_Permissions) return Unsigned_64;
+          Permissions    : Page_Permissions;
+          Caching        : Caching_Model) return Boolean;
+      function Flags_To_Bitmap
+         (Perm    : Page_Permissions;
+          Caching : Caching_Model) return Unsigned_64;
       procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count);
    #end if;
 end Arch.MMU;
