@@ -172,7 +172,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       GDT.Load_GDT;
       IDT.Load_IDT;
       Discard := Arch.MMU.Make_Active (Arch.MMU.Kernel_Table);
-      APIC.Init_LAPIC;
+      APIC.Init_Core_LAPIC;
 
       --  Load several goodies.
       Init_Common (Core_Number, Unsigned_32 (LAPIC_ID), Stack_Top);

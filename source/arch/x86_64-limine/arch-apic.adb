@@ -17,6 +17,8 @@
 with Arch.ACPI;
 with Arch.Snippets;
 with Lib.Panic;
+with Arch.MMU;
+with Lib.Messages;
 
 package body Arch.APIC with SPARK_Mode => Off is
    LAPIC_MSR  : constant := 16#01B#;
@@ -35,46 +37,42 @@ package body Arch.APIC with SPARK_Mode => Off is
 
    Supports_x2APIC : Boolean;
 
-   function Enable_x2APIC_Support return Boolean is
+   procedure Init_LAPIC is
       Addr : constant Virtual_Address := ACPI.FindTable (ACPI.DMAR_Signature);
       DMAR : ACPI.DMAR with Import, Address => To_Address (Addr);
       EAX, EBX, ECX, EDX : Unsigned_32;
       APIC_Base          : Unsigned_64;
+
+      MSR_Read : constant Unsigned_64 := Arch.Snippets.Read_MSR (LAPIC_MSR);
    begin
+      --  Check x2APIC support.
       Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX);
       Supports_x2APIC :=
          (ECX and Shift_Left (1, 21)) /= 0 and
          (Addr = 0 or else ((DMAR.Flags and 2#11#) /= 2#11#));
 
       if Supports_x2APIC then
+         Lib.Messages.Put_Line ("x2APIC support enabled");
          APIC_Base := Snippets.Read_MSR (LAPIC_MSR);
          Snippets.Write_MSR (LAPIC_MSR, APIC_Base or Shift_Left (1, 10));
+      else
+         --  We assume the LAPIC base for performance reasons.
+         --  Check the assumption is right tho.
+         if (MSR_Read and 16#FFFFF000#) /= LAPIC_Base - Memory_Offset then
+            Lib.Panic.Hard_Panic ("Odd LAPIC base encountered");
+         end if;
       end if;
+   end Init_LAPIC;
 
-      return Supports_x2APIC;
-   end Enable_x2APIC_Support;
-
-   function Has_X2APIC_Enabled return Boolean is
-   begin
-      return Supports_x2APIC;
-   end Has_X2APIC_Enabled;
-
-   procedure Init_LAPIC is
-      MSR_Read : constant Unsigned_64 := Arch.Snippets.Read_MSR (LAPIC_MSR);
+   procedure Init_Core_LAPIC is
       Value, To_Write : Unsigned_32;
    begin
-      --  We assume the LAPIC base for performance reasons.
-      --  Check the assumption is right tho.
-      if (MSR_Read and 16#FFFFF000#) /= LAPIC_Base - Memory_Offset then
-         Lib.Panic.Hard_Panic ("Odd LAPIC base encountered");
-      end if;
-
       --  Enable the LAPIC by setting the spurious interrupt vector and
       --  ORing the enable bit.
       Value    := LAPIC_Read (LAPIC_Spurious_Register);
       To_Write := Value or (LAPIC_Spurious_Entry - 1);
       LAPIC_Write (LAPIC_Spurious_Register, To_Write or Shift_Left (1, 8));
-   end Init_LAPIC;
+   end Init_Core_LAPIC;
 
    procedure LAPIC_Send_IPI_Raw (LAPIC_ID : Unsigned_32; Code : Unsigned_32) is
    begin

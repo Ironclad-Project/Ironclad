@@ -70,9 +70,7 @@ package body Arch.Entrypoint is
       --  handling interrupts and IPIs.
       PIC.Mask_All;
       APIC.Init_LAPIC;
-      if Arch.APIC.Enable_x2APIC_Support then
-         Lib.Messages.Put_Line ("x2APIC support enabled");
-      end if;
+      APIC.Init_Core_LAPIC;
       if not Arch.APIC.Init_IOAPIC then
          Lib.Panic.Hard_Panic ("Could not start IOAPIC");
       end if;
