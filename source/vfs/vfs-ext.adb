@@ -205,13 +205,15 @@ package body VFS.EXT is
    end Get_Max_Length;
    ----------------------------------------------------------------------------
    procedure Open
-      (FS        : System.Address;
-       Relative  : File_Inode_Number;
-       Path      : String;
-       Ino       : out File_Inode_Number;
-       Success   : out FS_Status;
-       User      : Unsigned_32;
-       Do_Follow : Boolean)
+      (FS         : System.Address;
+       Relative   : File_Inode_Number;
+       Path       : String;
+       Ino        : out File_Inode_Number;
+       Success    : out FS_Status;
+       User       : Unsigned_32;
+       Want_Read  : Boolean;
+       Want_Write : Boolean;
+       Do_Follow  : Boolean)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Last_Component             : String_Acc;
@@ -247,28 +249,40 @@ package body VFS.EXT is
 
          if Is_Absolute (Symlink (1 .. Symlink_Len)) then
             Open
-               (FS        => FS,
-                Relative  => Relative,
-                Path      => Symlink (1 .. Symlink_Len),
-                Ino       => Ino,
-                Success   => Success,
-                User      => User,
-                Do_Follow => Do_Follow);
+               (FS         => FS,
+                Relative   => Relative,
+                Path       => Symlink (1 .. Symlink_Len),
+                Ino        => Ino,
+                Success    => Success,
+                User       => User,
+                Want_Read  => Want_Read,
+                Want_Write => Want_Write,
+                Do_Follow  => Do_Follow);
          else
             Open
-               (FS        => FS,
-                Relative  => File_Inode_Number (Parent_Index),
-                Path      => Symlink (1 .. Symlink_Len),
-                Ino       => Ino,
-                Success   => Success,
-                User      => User,
-                Do_Follow => Do_Follow);
+               (FS         => FS,
+                Relative   => File_Inode_Number (Parent_Index),
+                Path       => Symlink (1 .. Symlink_Len),
+                Ino        => Ino,
+                Success    => Success,
+                User       => User,
+                Want_Read  => Want_Read,
+                Want_Write => Want_Write,
+                Do_Follow  => Do_Follow);
          end if;
          return;
       end if;
 
-      Ino     := File_Inode_Number (Target_Index);
-      Success := (if Succ then FS_Success else FS_Invalid_Value);
+
+      if Check_User_Access
+         (User, Target_Inode.all, Want_Read, Want_Write, False)
+      then
+         Ino     := File_Inode_Number (Target_Index);
+         Success := (if Succ then FS_Success else FS_Invalid_Value);
+      else
+         Ino     := File_Inode_Number (Target_Index);
+         Success := FS_Not_Allowed;
+      end if;
 
       Lib.Synchronization.Release (Data.Mutex);
 
@@ -771,8 +785,7 @@ package body VFS.EXT is
        Offset    : Natural;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32)
+       Success   : out FS_Status)
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS_Data));
       Fetched_Inode : Inode_Acc := new Inode;
@@ -794,10 +807,6 @@ package body VFS.EXT is
           Success         => Succ);
       if not Succ then
          Success := FS_IO_Failure;
-         goto Cleanup;
-      elsif not Check_User_Access (User, Fetched_Inode.all, True, False, False)
-      then
-         Success := FS_Not_Allowed;
          goto Cleanup;
       elsif Get_Inode_Type (Fetched_Inode.all.Permissions) /= File_Directory
       then
@@ -843,8 +852,7 @@ package body VFS.EXT is
        Ino       : File_Inode_Number;
        Path      : out String;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32)
+       Success   : out FS_Status)
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS_Data));
       Fetched_Inode : Inode_Acc := new Inode;
@@ -858,9 +866,7 @@ package body VFS.EXT is
           Result          => Fetched_Inode.all,
           Write_Operation => False,
           Success         => Succ);
-      if Succ                                                        and then
-         Check_User_Access (User, Fetched_Inode.all, True, False, False) and
-         then
+      if Succ and then
          Get_Inode_Type (Fetched_Inode.all.Permissions) = File_Symbolic_Link
       then
          Inner_Read_Symbolic_Link
@@ -885,8 +891,7 @@ package body VFS.EXT is
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32)
+       Success   : out FS_Status)
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS_Data));
       Fetched_Type  : File_Type;
@@ -904,10 +909,6 @@ package body VFS.EXT is
           Success         => Succ);
       if not Succ then
          Success := FS_IO_Failure;
-         goto Cleanup;
-      elsif not Check_User_Access (User, Fetched_Inode.all, True, False, False)
-      then
-         Success := FS_Not_Allowed;
          goto Cleanup;
       end if;
 
@@ -940,8 +941,7 @@ package body VFS.EXT is
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32)
+       Success   : out FS_Status)
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS_Data));
       Fetched_Inode : Inode_Acc := new Inode;
@@ -955,6 +955,10 @@ package body VFS.EXT is
          goto Cleanup;
       end if;
 
+      --  FIXME: Check whether the passed ino was opened allowing write. For
+      --  now, this depends on the checks done in the syscall bodies, which it
+      --  shouldnt.
+
       RW_Inode
          (Data            => FS,
           Inode_Index     => Unsigned_32 (Ino),
@@ -963,10 +967,6 @@ package body VFS.EXT is
           Success         => Succ);
       if not Succ then
          Success := FS_IO_Failure;
-         goto Cleanup;
-      elsif not Check_User_Access (User, Fetched_Inode.all, False, True, False)
-      then
-         Success := FS_Not_Allowed;
          goto Cleanup;
       elsif Is_Immutable (Fetched_Inode.all) or
             Get_Inode_Type (Fetched_Inode.all.Permissions) /= File_Regular
@@ -996,10 +996,8 @@ package body VFS.EXT is
       (Data    : System.Address;
        Ino     : File_Inode_Number;
        S       : out File_Stat;
-       User    : Unsigned_32;
        Success : out FS_Status)
    is
-      pragma Unreferenced (User);
       package Align is new Lib.Alignment (Unsigned_64);
       FS   : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
       Blk  : constant Unsigned_64  := Unsigned_64 (Get_Block_Size (FS.Handle));
@@ -1044,7 +1042,6 @@ package body VFS.EXT is
       (Data     : System.Address;
        Ino      : File_Inode_Number;
        New_Size : Unsigned_64;
-       User     : Unsigned_32;
        Status   : out FS_Status)
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
@@ -1059,20 +1056,21 @@ package body VFS.EXT is
          goto Cleanup;
       end if;
 
+      --  FIXME: Check whether the passed ino was opened allowing write. For
+      --  now, this depends on the checks done in the syscall bodies, which it
+      --  shouldnt.
+
       RW_Inode
          (Data            => FS,
           Inode_Index     => Unsigned_32 (Ino),
           Result          => Fetched.all,
           Write_Operation => False,
           Success         => Success);
-      if not Success                                          or else
+      if not Success                                              or else
          Get_Inode_Type (Fetched.all.Permissions) /= File_Regular or else
          Is_Immutable (Fetched.all)
       then
          Status := FS_Invalid_Value;
-         goto Cleanup;
-      elsif not Check_User_Access (User, Fetched.all, False, True, False) then
-         Status := FS_Not_Allowed;
          goto Cleanup;
       end if;
 
@@ -1117,7 +1115,6 @@ package body VFS.EXT is
        Ino    : File_Inode_Number;
        Req    : Unsigned_64;
        Arg    : System.Address;
-       User   : Unsigned_32;
        Status : out FS_Status)
    is
       EXT_GETFLAGS : constant := 16#5600#;
@@ -1129,6 +1126,10 @@ package body VFS.EXT is
       Flags   : Unsigned_32 with Import, Address => Arg;
    begin
       Lib.Synchronization.Seize (FS.Mutex);
+
+      --  FIXME: Check whether the passed ino was opened allowing write. For
+      --  now, this depends on the checks done in the syscall bodies, which it
+      --  shouldnt.
 
       if FS.Is_Read_Only then
          Status := FS_RO_Failure;
@@ -1143,8 +1144,6 @@ package body VFS.EXT is
           Success         => Success);
       if not Success then
          Status := FS_IO_Failure;
-      elsif not Check_User_Access (User, Inod.all, True, True, False) then
-         Status := FS_Not_Allowed;
       else
          case Req is
             when EXT_GETFLAGS =>
@@ -1173,7 +1172,6 @@ package body VFS.EXT is
       (Data   : System.Address;
        Ino    : File_Inode_Number;
        Mode   : File_Mode;
-       User   : Unsigned_32;
        Status : out FS_Status)
    is
       FS      : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
@@ -1182,6 +1180,10 @@ package body VFS.EXT is
       Typ     : File_Type;
    begin
       Lib.Synchronization.Seize (FS.Mutex);
+
+      --  FIXME: Check whether the passed ino was opened allowing write. For
+      --  now, this depends on the checks done in the syscall bodies, which it
+      --  shouldnt.
 
       if FS.Is_Read_Only then
          Status := FS_RO_Failure;
@@ -1196,8 +1198,6 @@ package body VFS.EXT is
           Success         => Success);
       if not Success then
          Status := FS_IO_Failure;
-      elsif not Check_User_Access (User, Inod.all, False, True, False) then
-         Status := FS_Not_Allowed;
       else
          Typ              := Get_Inode_Type (Inod.Permissions);
          Inod.Permissions := Get_Permissions (Typ) or Unsigned_16 (Mode);
@@ -1220,13 +1220,17 @@ package body VFS.EXT is
        Ino    : File_Inode_Number;
        Owner  : Unsigned_32;
        Group  : Unsigned_32;
-       User   : Unsigned_32;
        Status : out FS_Status)
    is
       FS      : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
       Inod    : Inode_Acc := new Inode;
       Success : Boolean;
    begin
+
+      --  FIXME: Check whether the passed ino was opened allowing write. For
+      --  now, this depends on the checks done in the syscall bodies, which it
+      --  shouldnt.
+
       Lib.Synchronization.Seize (FS.Mutex);
 
       if FS.Is_Read_Only then
@@ -1242,8 +1246,6 @@ package body VFS.EXT is
           Success         => Success);
       if not Success then
          Status := FS_IO_Failure;
-      elsif not Check_User_Access (User, Inod.all, False, True, False) then
-         Status := FS_Not_Allowed;
       else
          Inod.UID := Unsigned_16 (Owner);
          Inod.GID := Unsigned_16 (Group);
@@ -1268,7 +1270,7 @@ package body VFS.EXT is
        Can_Read    : Boolean;
        Can_Write   : Boolean;
        Can_Exec    : Boolean;
-       User        : Unsigned_32;
+       Real_UID    : Unsigned_32;
        Status      : out FS_Status)
    is
       FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
@@ -1291,9 +1293,9 @@ package body VFS.EXT is
          goto Cleanup;
       end if;
 
-      Can_R := Check_User_Access (User, Inod.all, True, False, False);
-      Can_W := Check_User_Access (User, Inod.all, False, True, False);
-      Can_X := Check_User_Access (User, Inod.all, False, False, True);
+      Can_R := Check_User_Access (Real_UID, Inod.all, True, False, False);
+      Can_W := Check_User_Access (Real_UID, Inod.all, False, True, False);
+      Can_X := Check_User_Access (Real_UID, Inod.all, False, False, True);
 
       if (Can_Read  and not Can_R) or
          (Can_Write and not Can_W) or
@@ -1316,7 +1318,6 @@ package body VFS.EXT is
        Access_Nanoseconds : Unsigned_64;
        Modify_Seconds     : Unsigned_64;
        Modify_Nanoseconds : Unsigned_64;
-       User               : Unsigned_32;
        Status             : out FS_Status)
    is
       pragma Unreferenced (Access_Nanoseconds);
@@ -1335,6 +1336,10 @@ package body VFS.EXT is
          goto Cleanup;
       end if;
 
+      --  FIXME: Check whether the passed ino was opened allowing write. For
+      --  now, this depends on the checks done in the syscall bodies, which it
+      --  shouldnt.
+
       RW_Inode
          (Data            => FS,
           Inode_Index     => Unsigned_32 (Ino),
@@ -1343,8 +1348,6 @@ package body VFS.EXT is
           Success         => Success);
       if not Success then
          Status := FS_IO_Failure;
-      elsif not Check_User_Access (User, Inod.all, False, True, False) then
-         Status := FS_Not_Allowed;
       else
          Inod.Access_Time_Epoch   := Unsigned_32 (AS and 16#FFFFFFFF#);
          Inod.Modified_Time_Epoch := Unsigned_32 (MS and 16#FFFFFFFF#);

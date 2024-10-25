@@ -286,25 +286,29 @@ package body VFS is
    end Get_Max_Length;
    ----------------------------------------------------------------------------
    procedure Open
-      (Key       : FS_Handle;
-       Relative  : File_Inode_Number;
-       Path      : String;
-       Ino       : out File_Inode_Number;
-       Success   : out FS_Status;
-       User      : Unsigned_32;
-       Do_Follow : Boolean := True)
+      (Key        : FS_Handle;
+       Relative   : File_Inode_Number;
+       Path       : String;
+       Ino        : out File_Inode_Number;
+       Success    : out FS_Status;
+       User       : Unsigned_32;
+       Want_Read  : Boolean;
+       Want_Write : Boolean;
+       Do_Follow  : Boolean := True)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             EXT.Open
-               (FS        => Mounts (Key).FS_Data,
-                Relative  => Relative,
-                Path      => Path,
-                Ino       => Ino,
-                Success   => Success,
-                User      => User,
-                Do_Follow => Do_Follow);
+               (FS         => Mounts (Key).FS_Data,
+                Relative   => Relative,
+                Path       => Path,
+                Ino        => Ino,
+                Success    => Success,
+                User       => User,
+                Want_Read  => Want_Read,
+                Want_Write => Want_Write,
+                Do_Follow  => Do_Follow);
          when FS_FAT =>
             FAT.Open
                (FS      => Mounts (Key).FS_Data,
@@ -424,8 +428,7 @@ package body VFS is
        Offset    : Natural;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32)
+       Success   : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -436,8 +439,7 @@ package body VFS is
                 Offset,
                 Entities,
                 Ret_Count,
-                Success,
-                User);
+                Success);
          when FS_FAT =>
             FAT.Read_Entries
                (Mounts (Key).FS_Data,
@@ -454,14 +456,13 @@ package body VFS is
        Ino       : File_Inode_Number;
        Path      : out String;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32)
+       Success   : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             EXT.Read_Symbolic_Link
-               (Mounts (Key).FS_Data, Ino, Path, Ret_Count, Success, User);
+               (Mounts (Key).FS_Data, Ino, Path, Ret_Count, Success);
          when others =>
             Path      := (others => ' ');
             Ret_Count := 0;
@@ -475,8 +476,7 @@ package body VFS is
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32)
+       Success   : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -487,8 +487,7 @@ package body VFS is
                 Offset,
                 Data,
                 Ret_Count,
-                Success,
-                User);
+                Success);
          when FS_FAT =>
             FAT.Read
                (Mounts (Key).FS_Data,
@@ -506,8 +505,7 @@ package body VFS is
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32)
+       Success   : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -518,8 +516,7 @@ package body VFS is
                 Offset,
                 Data,
                 Ret_Count,
-                Success,
-                User);
+                Success);
          when others =>
             Ret_Count := 0;
             Success   := FS_Not_Supported;
@@ -530,13 +527,12 @@ package body VFS is
       (Key      : FS_Handle;
        Ino      : File_Inode_Number;
        Stat_Val : out File_Stat;
-       Success  : out FS_Status;
-       User     : Unsigned_32)
+       Success  : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            EXT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val, User, Success);
+            EXT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val, Success);
          when FS_FAT =>
             FAT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val, Success);
       end case;
@@ -546,13 +542,12 @@ package body VFS is
       (Key      : FS_Handle;
        Ino      : File_Inode_Number;
        New_Size : Unsigned_64;
-       User     : Unsigned_32;
        Status   : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            EXT.Truncate (Mounts (Key).FS_Data, Ino, New_Size, User, Status);
+            EXT.Truncate (Mounts (Key).FS_Data, Ino, New_Size, Status);
          when others =>
             Status := FS_Not_Supported;
       end case;
@@ -563,14 +558,13 @@ package body VFS is
        Ino     : File_Inode_Number;
        Request : Unsigned_64;
        Arg     : System.Address;
-       User    : Unsigned_32;
        Status  : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             EXT.IO_Control
-               (Mounts (Key).FS_Data, Ino, Request, Arg, User, Status);
+               (Mounts (Key).FS_Data, Ino, Request, Arg, Status);
          when others =>
             Status := FS_Not_Supported;
       end case;
@@ -602,13 +596,12 @@ package body VFS is
       (Key    : FS_Handle;
        Ino    : File_Inode_Number;
        Mode   : File_Mode;
-       User   : Unsigned_32;
        Status : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            EXT.Change_Mode (Mounts (Key).FS_Data, Ino, Mode, User, Status);
+            EXT.Change_Mode (Mounts (Key).FS_Data, Ino, Mode, Status);
          when others =>
             Status := FS_Not_Supported;
       end case;
@@ -619,14 +612,13 @@ package body VFS is
        Ino    : File_Inode_Number;
        Owner  : Unsigned_32;
        Group  : Unsigned_32;
-       User   : Unsigned_32;
        Status : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             EXT.Change_Owner
-               (Mounts (Key).FS_Data, Ino, Owner, Group, User, Status);
+               (Mounts (Key).FS_Data, Ino, Owner, Group, Status);
          when others =>
             Status := FS_Not_Supported;
       end case;
@@ -639,7 +631,7 @@ package body VFS is
        Can_Read    : Boolean;
        Can_Write   : Boolean;
        Can_Exec    : Boolean;
-       User        : Unsigned_32;
+       Real_UID    : Unsigned_32;
        Status      : out FS_Status)
    is
    begin
@@ -647,7 +639,7 @@ package body VFS is
          when FS_EXT =>
             EXT.Check_Access
                (Mounts (Key).FS_Data, Ino, Exists_Only, Can_Read, Can_Write,
-                Can_Exec, User, Status);
+                Can_Exec, Real_UID, Status);
          when others =>
             Status := FS_Not_Supported;
       end case;
@@ -660,7 +652,6 @@ package body VFS is
        Access_Nanoseconds : Unsigned_64;
        Modify_Seconds     : Unsigned_64;
        Modify_Nanoseconds : Unsigned_64;
-       User               : Unsigned_32;
        Status             : out FS_Status)
    is
    begin
@@ -668,19 +659,21 @@ package body VFS is
          when FS_EXT =>
             EXT.Change_Access_Times
                (Mounts (Key).FS_Data, Ino, Access_Seconds, Access_Nanoseconds,
-                Modify_Seconds, Modify_Nanoseconds, User, Status);
+                Modify_Seconds, Modify_Nanoseconds, Status);
          when others =>
             Status := FS_Not_Supported;
       end case;
    end Change_Access_Times;
    ----------------------------------------------------------------------------
    procedure Open
-      (Path      : String;
-       Key       : out FS_Handle;
-       Ino       : out File_Inode_Number;
-       Success   : out FS_Status;
-       User      : Unsigned_32;
-       Do_Follow : Boolean := True)
+      (Path       : String;
+       Key        : out FS_Handle;
+       Ino        : out File_Inode_Number;
+       Success    : out FS_Status;
+       User       : Unsigned_32;
+       Want_Read  : Boolean;
+       Want_Write : Boolean;
+       Do_Follow  : Boolean := True)
    is
       Match_Count : Natural;
    begin
@@ -691,7 +684,7 @@ package body VFS is
             (Key,
              0,
              Path (Path'First + Match_Count .. Path'Last),
-             Ino, Success, User, Do_Follow);
+             Ino, Success, User, Want_Read, Want_Write, Do_Follow);
       else
          Key     := Error_Handle;
          Ino     := 0;

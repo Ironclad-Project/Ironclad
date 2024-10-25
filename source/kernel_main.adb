@@ -173,7 +173,16 @@ package body Kernel_Main is
          (Cmdline, Lib.Cmdline.Init_Key, Value, Found, Value_Len);
       if Found and Value_Len /= 0 then
          Init_Args (1) := new String'(Value (1 .. Value_Len));
-         Open (Value (1 .. Value_Len), Init_FS, Init_Ino, Success, 0);
+
+         Open
+            (Path       => Value (1 .. Value_Len),
+             Key        => Init_FS,
+             Ino        => Init_Ino,
+             Success    => Success,
+             User       => 0,
+             Want_Read  => True,
+             Want_Write => False);
+
          if Success = VFS.FS_Success then
             Init_PID := Userland.Loader.Start_Program
                (Init_Args.all (1).all, Init_FS, Init_Ino, Init_Args.all,
@@ -181,7 +190,16 @@ package body Kernel_Main is
             if Init_PID /= Error_PID then
                Userland.Process.Set_Identifier
                   (Init_PID, Init_Args.all (1).all);
-               Open ("/", Init_FS, Init_Ino, Success, 0);
+
+               Open
+                  (Path       => "/",
+                   Key        => Init_FS,
+                   Ino        => Init_Ino,
+                   Success    => Success,
+                   User       => 0,
+                   Want_Read  => True,
+                   Want_Write => False);
+
                Userland.Process.Set_CWD (Init_PID, Init_FS, Init_Ino);
             else
                Lib.Panic.Hard_Panic ("Could not start init");

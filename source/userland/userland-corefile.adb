@@ -55,13 +55,13 @@ package body Userland.Corefile is
             return;
          end if;
 
-         VFS.Open (File_Path, Core_FS, Core_Ino, Success, 0, True);
+         VFS.Open (File_Path, Core_FS, Core_Ino, Success, 0, True, True);
          if Success /= VFS.FS_Success then
             Lib.Messages.Put_Line ("Could not open core file " & File_Path);
             return;
          end if;
 
-         VFS.Write (Core_FS, Core_Ino, 0, Ctx_Data, Ctx_Len, Success, 0);
+         VFS.Write (Core_FS, Core_Ino, 0, Ctx_Data, Ctx_Len, Success);
          if Success /= VFS.FS_Success or Ctx_Len /= Ctx_Data'Length then
             Lib.Messages.Put_Line ("Could not write core file " & File_Path);
             return;

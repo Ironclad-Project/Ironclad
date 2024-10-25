@@ -53,13 +53,15 @@ package VFS.EXT is
    function Get_Max_Length (FS : System.Address) return Unsigned_64;
    ----------------------------------------------------------------------------
    procedure Open
-      (FS        : System.Address;
-       Relative  : File_Inode_Number;
-       Path      : String;
-       Ino       : out File_Inode_Number;
-       Success   : out FS_Status;
-       User      : Unsigned_32;
-       Do_Follow : Boolean);
+      (FS         : System.Address;
+       Relative   : File_Inode_Number;
+       Path       : String;
+       Ino        : out File_Inode_Number;
+       Success    : out FS_Status;
+       User       : Unsigned_32;
+       Want_Read  : Boolean;
+       Want_Write : Boolean;
+       Do_Follow  : Boolean);
 
    procedure Create_Node
       (FS       : System.Address;
@@ -113,16 +115,14 @@ package VFS.EXT is
        Offset    : Natural;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32);
+       Success   : out FS_Status);
 
    procedure Read_Symbolic_Link
       (FS_Data   : System.Address;
        Ino       : File_Inode_Number;
        Path      : out String;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32);
+       Success   : out FS_Status);
 
    procedure Read
       (FS_Data   : System.Address;
@@ -130,8 +130,7 @@ package VFS.EXT is
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32);
+       Success   : out FS_Status);
 
    procedure Write
       (FS_Data   : System.Address;
@@ -139,21 +138,18 @@ package VFS.EXT is
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32);
+       Success   : out FS_Status);
 
    procedure Stat
       (Data    : System.Address;
        Ino     : File_Inode_Number;
        S       : out File_Stat;
-       User    : Unsigned_32;
        Success : out FS_Status);
 
    procedure Truncate
       (Data     : System.Address;
        Ino      : File_Inode_Number;
        New_Size : Unsigned_64;
-       User     : Unsigned_32;
        Status   : out FS_Status);
 
    procedure IO_Control
@@ -161,14 +157,12 @@ package VFS.EXT is
        Ino    : File_Inode_Number;
        Req    : Unsigned_64;
        Arg    : System.Address;
-       User   : Unsigned_32;
        Status : out FS_Status);
 
    procedure Change_Mode
       (Data   : System.Address;
        Ino    : File_Inode_Number;
        Mode   : File_Mode;
-       User   : Unsigned_32;
        Status : out FS_Status);
 
    procedure Change_Owner
@@ -176,7 +170,6 @@ package VFS.EXT is
        Ino    : File_Inode_Number;
        Owner  : Unsigned_32;
        Group  : Unsigned_32;
-       User   : Unsigned_32;
        Status : out FS_Status);
 
    procedure Check_Access
@@ -186,7 +179,7 @@ package VFS.EXT is
        Can_Read    : Boolean;
        Can_Write   : Boolean;
        Can_Exec    : Boolean;
-       User        : Unsigned_32;
+       Real_UID    : Unsigned_32;
        Status      : out FS_Status);
 
    procedure Change_Access_Times
@@ -196,7 +189,6 @@ package VFS.EXT is
        Access_Nanoseconds : Unsigned_64;
        Modify_Seconds     : Unsigned_64;
        Modify_Nanoseconds : Unsigned_64;
-       User               : Unsigned_32;
        Status             : out FS_Status);
 
    function Synchronize (Data : System.Address) return FS_Status;

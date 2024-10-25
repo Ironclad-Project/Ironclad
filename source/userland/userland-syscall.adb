@@ -153,7 +153,7 @@ package body Userland.Syscall is
             end if;
 
             VFS.Open (CWD_FS, CWD_Ino, Path, Opened_Ino, Success, User,
-                      not Dont_Follow);
+                      Do_Read, Do_Write, not Dont_Follow);
             if Success /= VFS.FS_Success then
                Returned := Unsigned_64'Last;
                Errno    := Error_No_Entity;
@@ -161,7 +161,7 @@ package body Userland.Syscall is
             end if;
 
             if Do_Append then
-               VFS.Stat (CWD_FS, Opened_Ino, Opened_Stat, Success, User);
+               VFS.Stat (CWD_FS, Opened_Ino, Opened_Stat, Success);
             else
                Opened_Stat.Byte_Size := 0;
             end if;
@@ -288,7 +288,7 @@ package body Userland.Syscall is
                   return;
                end if;
                VFS.Read (File.Inner_Ino_FS, File.Inner_Ino, File.Inner_Ino_Pos,
-                         Data, Ret_Count, Success1, User);
+                         Data, Ret_Count, Success1);
                File.Inner_Ino_Pos := File.Inner_Ino_Pos +
                                      Unsigned_64 (Ret_Count);
                Translate_Status
@@ -393,7 +393,7 @@ package body Userland.Syscall is
                end if;
 
                VFS.Write (File.Inner_Ino_FS, File.Inner_Ino,
-                          File.Inner_Ino_Pos, Data, Ret_Count, Success1, User);
+                          File.Inner_Ino_Pos, Data, Ret_Count, Success1);
                File.Inner_Ino_Pos := File.Inner_Ino_Pos +
                                      Unsigned_64 (Ret_Count);
                Translate_Status (Success1, Unsigned_64 (Ret_Count), Returned,
@@ -448,8 +448,7 @@ package body Userland.Syscall is
 
       case File.Description is
          when Description_Inode =>
-            VFS.Stat (File.Inner_Ino_FS, File.Inner_Ino, Stat_Val, Success,
-                      User);
+            VFS.Stat (File.Inner_Ino_FS, File.Inner_Ino, Stat_Val, Success);
             if Success /= VFS.FS_Success then
                goto Invalid_Seek_Error;
             end if;
@@ -616,8 +615,7 @@ package body Userland.Syscall is
                    Offset    => Offset,
                    Data      => Data,
                    Ret_Count => Ret_Count,
-                   Success   => Status,
-                   User      => 0);
+                   Success   => Status);
                if Ret_Count < Data'Length then
                   Data (Ret_Count + 1 .. Data'Last) := (others => 0);
                end if;
@@ -1124,13 +1122,15 @@ package body Userland.Syscall is
             end if;
 
             VFS.Open
-               (Key       => FS,
-                Relative  => D_Ino,
-                Path      => Path,
-                Ino       => Ino,
-                Success   => Success,
-                User      => User,
-                Do_Follow => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
+               (Key        => FS,
+                Relative   => D_Ino,
+                Path       => Path,
+                Ino        => Ino,
+                Success    => Success,
+                User       => User,
+                Want_Read  => True,
+                Want_Write => False,
+                Do_Follow  => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
             if Success /= VFS.FS_Success then
                Errno    := Error_No_Entity;
                Returned := Unsigned_64'Last;
@@ -1139,7 +1139,7 @@ package body Userland.Syscall is
          end;
       end if;
 
-      VFS.Stat (FS, Ino, Stat_Val, Success, User);
+      VFS.Stat (FS, Ino, Stat_Val, Success);
       if Success /= VFS.FS_Success then
          Errno := Error_Bad_File;
          Returned := Unsigned_64'Last;
@@ -1205,7 +1205,7 @@ package body Userland.Syscall is
       end if;
 
       Userland.Process.Get_Effective_UID (Proc, User);
-      VFS.Stat (Desc.Inner_Ino_FS, Desc.Inner_Ino, St, Succ, User);
+      VFS.Stat (Desc.Inner_Ino_FS, Desc.Inner_Ino, St, Succ);
       if Succ /= VFS.FS_Success or else St.Type_Of_File /= File_Directory then
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
@@ -1249,7 +1249,7 @@ package body Userland.Syscall is
          when Description_Inode =>
             if File.Inner_Ino_Read and File.Inner_Ino_Write then
                VFS.IO_Control (File.Inner_Ino_FS, File.Inner_Ino,
-                               Request, S_Arg, User, FSSuc);
+                               Request, S_Arg, FSSuc);
                Succ := FSSuc = VFS.FS_Success;
             else
                Succ := False;
@@ -2172,7 +2172,7 @@ package body Userland.Syscall is
          Path : String (1 .. Natural (Path_Len))
             with Import, Address => To_Address (Addr);
       begin
-         VFS.Open (Path, FS, Ino, FS_Status, User);
+         VFS.Open (Path, FS, Ino, FS_Status, User, True, False);
       end;
 
       if FS_Status /= VFS.FS_Success then
@@ -2403,7 +2403,8 @@ package body Userland.Syscall is
             return;
          end if;
 
-         VFS.Open (CWD_FS, CWD_Ino, Path, Opened_Ino, Status, User, False);
+         VFS.Open (CWD_FS, CWD_Ino, Path, Opened_Ino, Status, User, True,
+            False, False);
          if Status /= VFS.FS_Success then
             Errno := Error_No_Entity;
             Returned := Unsigned_64'Last;
@@ -2418,8 +2419,7 @@ package body Userland.Syscall is
             return;
          end if;
 
-         VFS.Read_Symbolic_Link (CWD_FS, Opened_Ino, Data, Ret_Count,
-                                 Status, User);
+         VFS.Read_Symbolic_Link (CWD_FS, Opened_Ino, Data, Ret_Count, Status);
          Close (CWD_FS, Opened_Ino);
          Translate_Status (Status, Unsigned_64 (Ret_Count), Returned, Errno);
       end;
@@ -2462,8 +2462,7 @@ package body Userland.Syscall is
              Offset    => Natural (File.Inner_Ino_Pos),
              Entities  => Tmp_Buffer.all,
              Ret_Count => Read_Len,
-             Success   => Success,
-             User      => User);
+             Success   => Success);
 
          if Success = VFS.FS_Success then
             File.Inner_Ino_Pos := File.Inner_Ino_Pos + Unsigned_64 (Read_Len);
@@ -2639,7 +2638,7 @@ package body Userland.Syscall is
       case File.Description is
          when Description_Inode =>
             VFS.Truncate
-               (File.Inner_Ino_FS, File.Inner_Ino, New_Size, User, Success);
+               (File.Inner_Ino_FS, File.Inner_Ino, New_Size, Success);
             Translate_Status (Success, 0, Returned, Errno);
          when others =>
             Errno := Error_Bad_File;
@@ -3206,11 +3205,7 @@ package body Userland.Syscall is
          return;
       end if;
 
-      if (Flags and AT_EACCESS) /= 0 then
-         Process.Get_Effective_UID (Proc, User);
-      else
-         Process.Get_UID (Proc, User);
-      end if;
+      Process.Get_Effective_UID (Proc, User);
 
       declare
          Path : String (1 .. Natural (Path_Len))
@@ -3223,14 +3218,18 @@ package body Userland.Syscall is
             return;
          end if;
 
+         Process.Get_Effective_UID (Proc, User);
+
          VFS.Open
-            (Key       => FS,
-             Relative  => D_Ino,
-             Path      => Path,
-             Ino       => Ino,
-             Success   => Succ,
-             User      => User,
-             Do_Follow => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
+            (Key        => FS,
+             Relative   => D_Ino,
+             Path       => Path,
+             Ino        => Ino,
+             Success    => Succ,
+             User       => User,
+             Want_Read  => True,
+             Want_Write => False,
+             Do_Follow  => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
          if Succ /= VFS.FS_Success then
             Errno    := Error_No_Entity;
             Returned := Unsigned_64'Last;
@@ -3245,6 +3244,10 @@ package body Userland.Syscall is
          end if;
       end;
 
+      if (Flags and AT_EACCESS) = 0 then
+         Process.Get_UID (Proc, User);
+      end if;
+
       VFS.Check_Access
          (Key         => FS,
           Ino         => Ino,
@@ -3252,7 +3255,7 @@ package body Userland.Syscall is
           Can_Read    => (Mode and R_OK) /= 0,
           Can_Write   => (Mode and W_OK) /= 0,
           Can_Exec    => (Mode and X_OK) /= 0,
-          User        => User,
+          Real_UID    => User,
           Status      => Succ);
       Translate_Status (Succ, 0, Returned, Errno);
    end FAccess;
@@ -3477,13 +3480,15 @@ package body Userland.Syscall is
             end if;
 
             VFS.Open
-               (Key       => FS,
-                Relative  => D_Ino,
-                Path      => Path,
-                Ino       => Ino,
-                Success   => Succ,
-                User      => User,
-                Do_Follow => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
+               (Key        => FS,
+                Relative   => D_Ino,
+                Path       => Path,
+                Ino        => Ino,
+                Success    => Succ,
+                User       => User,
+                Want_Read  => True,
+                Want_Write => False,
+                Do_Follow  => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
             if Succ /= VFS.FS_Success then
                Errno    := Error_No_Entity;
                Returned := Unsigned_64'Last;
@@ -3504,7 +3509,6 @@ package body Userland.Syscall is
          (Key    => FS,
           Ino    => Ino,
           Mode   => File_Mode (Mode and Unsigned_64 (File_Mode'Last)),
-          User   => User,
           Status => Succ);
       Translate_Status (Succ, 0, Returned, Errno);
    end Fchmod;
@@ -3619,13 +3623,15 @@ package body Userland.Syscall is
             end if;
 
             VFS.Open
-               (Key       => FS,
-                Relative  => D_Ino,
-                Path      => Path,
-                Ino       => Ino,
-                Success   => Succ,
-                User      => Usr,
-                Do_Follow => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
+               (Key        => FS,
+                Relative   => D_Ino,
+                Path       => Path,
+                Ino        => Ino,
+                Success    => Succ,
+                User       => Usr,
+                Want_Read  => True,
+                Want_Write => False,
+                Do_Follow  => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
             if Succ /= VFS.FS_Success then
                Errno    := Error_No_Entity;
                Returned := Unsigned_64'Last;
@@ -3646,7 +3652,6 @@ package body Userland.Syscall is
           Ino,
           Unsigned_32 (User  and 16#FFFFFFFF#),
           Unsigned_32 (Group and 16#FFFFFFFF#),
-          Usr,
           Succ);
       Translate_Status (Succ, 0, Returned, Errno);
    end Fchown;
@@ -3716,7 +3721,7 @@ package body Userland.Syscall is
                   return;
                end if;
                VFS.Read (File.Inner_Ino_FS, File.Inner_Ino, Offset,
-                         Data, Ret_Count, Success1, User);
+                         Data, Ret_Count, Success1);
                Translate_Status (Success1, Unsigned_64 (Ret_Count), Returned,
                                         Errno);
             when others =>
@@ -3799,7 +3804,7 @@ package body Userland.Syscall is
                end if;
 
                VFS.Write (File.Inner_Ino_FS, File.Inner_Ino, Offset,
-                          Data, Ret_Count, Success1, User);
+                          Data, Ret_Count, Success1);
                Translate_Status (Success1, Unsigned_64 (Ret_Count), Returned,
                                         Errno);
             when others =>
@@ -4563,13 +4568,15 @@ package body Userland.Syscall is
             end if;
 
             VFS.Open
-               (Key       => FS,
-                Relative  => D_Ino,
-                Path      => Path,
-                Ino       => Ino,
-                Success   => Succ,
-                User      => User,
-                Do_Follow => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
+               (Key        => FS,
+                Relative   => D_Ino,
+                Path       => Path,
+                Ino        => Ino,
+                Success    => Succ,
+                User       => User,
+                Want_Read  => True,
+                Want_Write => False,
+                Do_Follow  => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
             if Succ /= VFS.FS_Success then
                Errno    := Error_No_Entity;
                Returned := Unsigned_64'Last;
@@ -4596,7 +4603,6 @@ package body Userland.Syscall is
              Access_Nanoseconds => Times (1).Nanoseconds,
              Modify_Seconds     => Times (2).Seconds,
              Modify_Nanoseconds => Times (2).Nanoseconds,
-             User               => User,
              Status             => Succ);
          Translate_Status (Succ, 0, Returned, Errno);
       end;
@@ -5868,7 +5874,7 @@ package body Userland.Syscall is
       end if;
 
       Userland.Process.Get_Effective_UID (Proc, User);
-      Open (Path, Path_FS, Path_Ino, Success2, User);
+      Open (Path, Path_FS, Path_Ino, Success2, User, True, False);
       if Success2 /= VFS.FS_Success then
          Errno := Error_No_Entity;
          Success := False;

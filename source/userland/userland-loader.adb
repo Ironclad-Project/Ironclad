@@ -148,7 +148,7 @@ package body Userland.Loader is
          LD_Path (9 .. Loaded_ELF.Linker_Path.all'Length + 8) :=
             Loaded_ELF.Linker_Path (1 .. Loaded_ELF.Linker_Path.all'Length);
          Open (LD_Path (9 .. 7 + Loaded_ELF.Linker_Path.all'Length), LD_FS,
-               LD_Ino, Success, 0);
+               LD_Ino, Success, 0, True, False);
          if Success /= VFS.FS_Success then
             goto Error;
          end if;
@@ -227,7 +227,7 @@ package body Userland.Loader is
       Path_Acc   : String_Acc;
       Arg_Acc    : String_Acc;
    begin
-      Read (FS, Ino, 0, Path_Data (1 .. 2), Path_Len, Success, 0);
+      Read (FS, Ino, 0, Path_Data (1 .. 2), Path_Len, Success);
       if Success /= VFS.FS_Success or Path_Len /= 2 or Path (1 .. 2) /= "#!"
       then
          return False;
@@ -237,7 +237,7 @@ package body Userland.Loader is
       --  Format of a shebang: #![maybe spaces]path [arg]newline
       Path_Len := 0;
       loop
-         Read (FS, Ino, Pos, Char_Data, Char_Len, Success, 0);
+         Read (FS, Ino, Pos, Char_Data, Char_Len, Success);
          if Success /= VFS.FS_Success or Char_Len /= 1 then
             return False;
          end if;
@@ -247,7 +247,7 @@ package body Userland.Loader is
          end case;
       end loop;
       loop
-         Read (FS, Ino, Pos, Char_Data, Char_Len, Success, 0);
+         Read (FS, Ino, Pos, Char_Data, Char_Len, Success);
          Pos := Pos + Unsigned_64 (Char_Len);
          if Success /= VFS.FS_Success or Char_Len /= 1 then
             return False;
@@ -259,7 +259,7 @@ package body Userland.Loader is
          end case;
       end loop;
       loop
-         Read (FS, Ino, Pos, Char_Data, Char_Len, Success, 0);
+         Read (FS, Ino, Pos, Char_Data, Char_Len, Success);
          Pos := Pos + Unsigned_64 (Char_Len);
          if Success /= VFS.FS_Success or Char_Len /= 1 then
             return False;
@@ -271,7 +271,8 @@ package body Userland.Loader is
       end loop;
 
    <<Return_Shebang>>
-      Open (Path (1 .. Path_Len), Banged_FS, Banged_Ino, Success, 0);
+      Open (Path (1 .. Path_Len), Banged_FS, Banged_Ino, Success, 0, True,
+         False);
       if Success /= FS_Success then
          return False;
       end if;

@@ -240,21 +240,25 @@ package VFS is
        FS_Loop);         --  Too many symlinks were encountered resolving path.
 
    --  Open a file with an absolute path inside the mount.
-   --  @param Key       FS Handle to open.
-   --  @param Relative  Relative directory inode to open from.
-   --  @param Path      Path to be accessed inside Relative, or absolute.
-   --  @param Ino       Found inode, if any.
-   --  @param Success   Returned status for the operation.
-   --  @param User      UID to check against, 0 for root/bypass checks.
-   --  @param Do_Follow If true, follow symlinks, hard links are always used.
+   --  @param Key        FS Handle to open.
+   --  @param Relative   Relative directory inode to open from.
+   --  @param Path       Path to be accessed inside Relative, or absolute.
+   --  @param Ino        Found inode, if any.
+   --  @param Success    Returned status for the operation.
+   --  @param User       UID to check against, 0 for root/bypass checks.
+   --  @param Want_Read  True for read permission, False for not.
+   --  @param Want_Write True for write permission, False for not.
+   --  @param Do_Follow  If true, follow symlinks, hard links are always used.
    procedure Open
-      (Key       : FS_Handle;
-       Relative  : File_Inode_Number;
-       Path      : String;
-       Ino       : out File_Inode_Number;
-       Success   : out FS_Status;
-       User      : Unsigned_32;
-       Do_Follow : Boolean := True)
+      (Key        : FS_Handle;
+       Relative   : File_Inode_Number;
+       Path       : String;
+       Ino        : out File_Inode_Number;
+       Success    : out FS_Status;
+       User       : Unsigned_32;
+       Want_Read  : Boolean;
+       Want_Write : Boolean;
+       Do_Follow  : Boolean := True)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Create an inode inside a mount.
@@ -357,7 +361,6 @@ package VFS is
    --  @param Offset    Offset to start from.
    --  @param Entities  Where to store the read entries, as many as possible.
    --  @param Ret_Count The count of entries, even if num > Entities'Length.
-   --  @param User      UID to check against, 0 for root/bypass checks.
    --  @param Success   Status for the operation.
    procedure Read_Entries
       (Key       : FS_Handle;
@@ -365,8 +368,7 @@ package VFS is
        Offset    : Natural;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32)
+       Success   : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Read the contents of a symbolic link.
@@ -375,14 +377,12 @@ package VFS is
    --  @param Path      Buffer to store the read path.
    --  @param Ret_Count Symlink character count, even if num > Path'Length.
    --  @param Success   Status for the operation.
-   --  @param User      UID to check against, 0 for root/bypass checks.
    procedure Read_Symbolic_Link
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
        Path      : out String;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32)
+       Success   : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Read from a regular file.
@@ -392,15 +392,13 @@ package VFS is
    --  @param Data      Place to write read data.
    --  @param Ret_Count How many items were read into Data until EOF.
    --  @param Success   Status for the operation.
-   --  @param User      UID to check against, 0 for root/bypass checks.
    procedure Read
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
        Offset    : Unsigned_64;
        Data      : out Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32)
+       Success   : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Write to a regular file.
@@ -410,15 +408,13 @@ package VFS is
    --  @param Data      Data to write
    --  @param Ret_Count How many items were written until EOF.
    --  @param Success   Status for the operation.
-   --  @param User      UID to check against, 0 for root/bypass checks.
    procedure Write
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
        Offset    : Unsigned_64;
        Data      : Operation_Data;
        Ret_Count : out Natural;
-       Success   : out FS_Status;
-       User      : Unsigned_32)
+       Success   : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Get the stat of a file.
@@ -426,26 +422,22 @@ package VFS is
    --  @param Ino      Inode to operate on.
    --  @param Stat_Val Data to fetch.
    --  @param Success  Status for the operation.
-   --  @param User      UID to check against, 0 for root/bypass checks.
    procedure Stat
       (Key      : FS_Handle;
        Ino      : File_Inode_Number;
        Stat_Val : out File_Stat;
-       Success  : out FS_Status;
-       User     : Unsigned_32)
+       Success  : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Truncate a file to size 0.
    --  @param Key      FS Handle to open.
    --  @param Ino      Inode to operate on.
    --  @param New_Size New size for the file to adopt.
-   --  @param User     UID to check against, 0 for root/bypass checks.
    --  @param Status   Status for the operation.
    procedure Truncate
       (Key      : FS_Handle;
        Ino      : File_Inode_Number;
        New_Size : Unsigned_64;
-       User     : Unsigned_32;
        Status   : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
@@ -454,14 +446,12 @@ package VFS is
    --  @param Ino     Inode to operate on.
    --  @param Request FS-Specific request to issue.
    --  @param Arg     Address of an optional argument for the FS.
-   --  @param User    UID to check against, 0 for root/bypass checks.
    --  @param Status  Status for the operation.
    procedure IO_Control
       (Key     : FS_Handle;
        Ino     : File_Inode_Number;
        Request : Unsigned_64;
        Arg     : System.Address;
-       User    : Unsigned_32;
        Status  : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
@@ -486,13 +476,11 @@ package VFS is
    --  @param Key    FS Handle to use.
    --  @param Ino    Inode to change the mode of.
    --  @param Mode   Mode to change the inode to.
-   --  @param User   UID to check against, 0 for root/bypass checks.
    --  @param Status Status of the operation.
    procedure Change_Mode
       (Key    : FS_Handle;
        Ino    : File_Inode_Number;
        Mode   : File_Mode;
-       User   : Unsigned_32;
        Status : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
@@ -501,14 +489,12 @@ package VFS is
    --  @param Ino    Inode to change the mode of.
    --  @param Owner  Owner to change ownership to.
    --  @param Group  Group to change ownership to.
-   --  @param User   UID to check against, 0 for root/bypass checks.
    --  @param Status Status of the operation.
    procedure Change_Owner
       (Key    : FS_Handle;
        Ino    : File_Inode_Number;
        Owner  : Unsigned_32;
        Group  : Unsigned_32;
-       User   : Unsigned_32;
        Status : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
@@ -519,7 +505,7 @@ package VFS is
    --  @param Can_Read    If True, check for the ability to read.
    --  @param Can_Write   If True, check for the ability to write.
    --  @param Can_Exec    If True, check for the ability to execute.
-   --  @param User        UID to check against, 0 for root/bypass checks.
+   --  @param Real_UID    Real UID to check against.
    --  @param Status      Status of the operation.
    procedure Check_Access
       (Key         : FS_Handle;
@@ -528,7 +514,7 @@ package VFS is
        Can_Read    : Boolean;
        Can_Write   : Boolean;
        Can_Exec    : Boolean;
-       User        : Unsigned_32;
+       Real_UID    : Unsigned_32;
        Status      : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
@@ -539,7 +525,6 @@ package VFS is
    --  @param Access_Nanoseconds Access timestamp nanoseconds.
    --  @param Modify_Seconds     Modification timestamp epoch seconds.
    --  @param Modify_Nanoseconds Modification timestamp nanoseconds.
-   --  @param User               UID to check, 0 for root/bypass checks.
    --  @param Status             Status of the operation.
    procedure Change_Access_Times
       (Key                : FS_Handle;
@@ -548,7 +533,6 @@ package VFS is
        Access_Nanoseconds : Unsigned_64;
        Modify_Seconds     : Unsigned_64;
        Modify_Nanoseconds : Unsigned_64;
-       User               : Unsigned_32;
        Status             : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
    ----------------------------------------------------------------------------
@@ -561,14 +545,18 @@ package VFS is
    --  @param Ino        Found inode, if any.
    --  @param Success    Returned status for the operation.
    --  @param User       UID to check against, 0 for root/bypass checks.
+   --  @param Want_Read  True for read permission, False for not.
+   --  @param Want_Write True for write permission, False for not.
    --  @param Do_Follow  True to follow symlinks, False for not following em.
    procedure Open
-      (Path      : String;
-       Key       : out FS_Handle;
-       Ino       : out File_Inode_Number;
-       Success   : out FS_Status;
-       User      : Unsigned_32;
-       Do_Follow : Boolean := True)
+      (Path       : String;
+       Key        : out FS_Handle;
+       Ino        : out File_Inode_Number;
+       Success    : out FS_Status;
+       User       : Unsigned_32;
+       Want_Read  : Boolean;
+       Want_Write : Boolean;
+       Do_Follow  : Boolean := True)
       with Pre  => Is_Initialized,
            Post => (if Success = FS_Success then
                     Key /= Error_Handle else True);
