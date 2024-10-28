@@ -19,6 +19,12 @@ with Lib;
 with Lib.Messages;
 
 package body Arch.Limine is
+   Base_Request : Limine.Base_Revision :=
+      (ID_1     => 16#f9562b2d5c95a6c8#,
+       ID_2     => 16#6a7b384944536bdc#,
+       Revision => 3)
+      with Export, Async_Writers;
+
    function Get_Physical_Address return System.Address is
       PhysPonse : Kernel_Address_Response
          with Import, Address => Address_Request.Response;
@@ -49,6 +55,10 @@ package body Arch.Limine is
       Type_Entry : Boot_Memory_Type;
    begin
       Lib.Messages.Put_Line ("Booted by " & Boot_Name & " " & Boot_Vers);
+
+      if Base_Request.Revision /= 0 then
+         Lib.Messages.Put_Line ("The passed revision was not supported!");
+      end if;
 
       Global_Info.Cmdline (1 .. Cmdline_Len) := Cmdline;
       Global_Info.Cmdline_Len := Cmdline_Len;

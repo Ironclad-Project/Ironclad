@@ -39,16 +39,21 @@ package body Arch.ACPI is
       RSDPonse : Limine.RSDP_Response
          with Import, Address => RSDP_Request.Response;
       Table : RSDP
-         with Import, Address => RSDPonse.Addr;
+         with Import, Address =>
+            To_Address (To_Integer (RSDPonse.Addr) + Memory_Offset);
 
       Map_Addr : Integer_Address;
+      Map_Len  : Integer_Address;
    begin
+      Map_Addr := A.Align_Down (To_Integer (RSDPonse.Addr), MMU.Page_Size);
+      Map_Len  := To_Integer (RSDPonse.Addr) - Map_Addr;
+      Map_Len  := A.Align_Up (MMU.Page_Size + Map_Len, MMU.Page_Size);
+
       if not MMU.Map_Range
          (Map            => MMU.Kernel_Table,
-          Physical_Start =>
-            To_Address (To_Integer (RSDPonse.Addr) - Memory_Offset),
-          Virtual_Start  => RSDPonse.Addr,
-          Length         => MMU.Page_Size,
+          Physical_Start => To_Address (Map_Addr),
+          Virtual_Start  => To_Address (Memory_Offset + Map_Addr),
+          Length         => Storage_Count (Map_Len),
           Permissions    =>
             (Is_User_Accesible => False,
              Can_Read          => True,

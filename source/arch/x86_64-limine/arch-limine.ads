@@ -49,6 +49,12 @@ package Arch.Limine is
       Revision : Unsigned_64;
    end record with Pack;
 
+   type Base_Revision is record
+      ID_1     : Unsigned_64;
+      ID_2     : Unsigned_64;
+      Revision : Unsigned_64;
+   end record with Pack, Volatile;
+
    type Video_Mode is record
       Pitch            : Unsigned_64;
       Width            : Unsigned_64;
@@ -211,9 +217,6 @@ package Arch.Limine is
       Base     : Response;
       DTB_Addr : System.Address;
    end record with Pack;
-
-   type Revision_ID is array (1 .. 3) of Unsigned_64;
-   Revision : Revision_ID := (16#f9562b2d5c95a6c8#, 16#6a7b384944536bdc#, 2);
 
    --  IDs of several kinds of requests.
    Framebuffer_ID : constant Request_ID :=
