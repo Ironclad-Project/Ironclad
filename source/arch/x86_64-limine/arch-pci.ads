@@ -63,6 +63,13 @@ package Arch.PCI is
        Index   : BAR_Index;
        BAR     : out Base_Address_Register;
        Success : out Boolean);
+
+   --  Set the MSI or MSIX vector.
+   procedure Get_MSI_Support
+      (Dev               : PCI_Device;
+       Has_MSI, Has_MSIX : out Boolean);
+
+   procedure Set_MSI_Vector (Dev : PCI_Device; Vector : Unsigned_8);
    ----------------------------------------------------------------------------
    --  Read and write data into the PCI device configuration space.
    function Read8  (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_8;

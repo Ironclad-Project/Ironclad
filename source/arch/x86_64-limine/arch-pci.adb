@@ -16,6 +16,7 @@
 
 with Arch.Snippets;
 with Lib.Panic;
+with Arch.CPU;
 
 package body Arch.PCI is
    --  PCI configuration space starts at this IO Port addresess.
@@ -182,6 +183,40 @@ package body Arch.PCI is
           Is_Prefetchable => Is_Prefetchable);
       Success := True;
    end Get_BAR;
+
+   procedure Get_MSI_Support
+      (Dev               : PCI_Device;
+       Has_MSI, Has_MSIX : out Boolean)
+   is
+   begin
+      Has_MSI  := Dev.MSI_Support;
+      Has_MSIX := Dev.MSIX_Support;
+   end Get_MSI_Support;
+
+   procedure Set_MSI_Vector (Dev : PCI_Device; Vector : Unsigned_8) is
+      BSP_LAPIC       : constant Unsigned_32 := CPU.Core_Locals (1).LAPIC_ID;
+      MSI_Off         : constant Unsigned_16 := Unsigned_16 (Dev.MSI_Offset);
+      Message_Control : Unsigned_16;
+      Reg0            : Unsigned_16;
+      Reg1            : Unsigned_16;
+      Addr            : Unsigned_32;
+   begin
+      --  XXX: Support MSI-X, this so far only uses MSI.
+      if not Dev.MSI_Support then
+         return;
+      end if;
+
+      Message_Control := Read16 (Dev, MSI_Off + 2);
+      Reg0 := 4;
+      Reg1 := (if (Shift_Right (Message_Control, 7) and 1) = 1 then 12 else 8);
+      Addr := Shift_Left (16#FEE#, 20) or Shift_Left (BSP_LAPIC, 12);
+
+      Write32 (Dev, MSI_Off + Reg0, Addr);
+      Write32 (Dev, MSI_Off + Reg1, Unsigned_32 (Vector));
+
+      Message_Control := (Message_Control or 1) and not Shift_Left (2#111#, 4);
+      Write16 (Dev, MSI_Off + 1, Message_Control);
+   end Set_MSI_Vector;
    ----------------------------------------------------------------------------
    function Read8 (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_8 is
    begin
