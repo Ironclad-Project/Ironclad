@@ -1,5 +1,5 @@
 --  arch-pci.ads: PCI bus driver.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -30,18 +30,25 @@ package Arch.PCI is
    end record;
    type PCI_Device is private;
 
-   --  Initialize a device with its physical locations.
-   --  True if found.
-   procedure Fetch_Device
-      (Bus     : Unsigned_8;
-       Slot    : Unsigned_8;
-       Func    : Unsigned_8;
-       Result  : out PCI_Device;
-       Success : out Boolean);
+   --  Scan all the system's PCI and store it for future use.
+   procedure Scan_PCI;
+
+   --  Get how many devices are available on the system with the passed
+   --  information.
+   --  @param Device_Class Device to search for.
+   --  @param Subclass     Subclass to search for.
+   --  @param Prog_If      Prog if to search for.
+   --  @return Number of devices with these characteristics.
+   function Enumerate_Devices
+      (Device_Class : Unsigned_8;
+       Subclass     : Unsigned_8;
+       Prog_If      : Unsigned_8) return Natural;
+
    procedure Search_Device
       (Device_Class : Unsigned_8;
        Subclass     : Unsigned_8;
        Prog_If      : Unsigned_8;
+       Idx          : Natural;
        Result       : out PCI_Device;
        Success      : out Boolean);
    ----------------------------------------------------------------------------
@@ -77,25 +84,29 @@ private
       Subclass     : Unsigned_8;
       Device_Class : Unsigned_8;
       Prog_If      : Unsigned_8;
+      MSI_Support  : Boolean;
+      MSIX_Support : Boolean;
+      MSI_Offset   : Unsigned_8;
+      MSIX_Offset  : Unsigned_8;
+   end record;
+
+   type PCI_Registry_Entry;
+   type PCI_Registry_Entry_Acc is access PCI_Registry_Entry;
+   type PCI_Registry_Entry is record
+      Dev  : PCI_Device;
+      Next : PCI_Registry_Entry_Acc;
    end record;
 
    procedure Get_Address (Dev : PCI_Device; Offset : Unsigned_16);
 
-   procedure Check_Bus
-      (Bus                  : Unsigned_8;
-       Desired_Device_Class : Unsigned_8;
-       Desired_Subclass     : Unsigned_8;
-       Desired_Prog_If      : Unsigned_8;
-       Result               : out PCI_Device;
-       Success              : out Boolean);
+   procedure Check_Bus (Bus : Unsigned_8);
 
-   procedure Check_Function
-      (Bus                  : Unsigned_8;
-       Slot                 : Unsigned_8;
-       Func                 : Unsigned_8;
-       Desired_Device_Class : Unsigned_8;
-       Desired_Subclass     : Unsigned_8;
-       Desired_Prog_If      : Unsigned_8;
-       Result               : out PCI_Device;
-       Success              : out Boolean);
+   procedure Check_Function (Bus, Slot, Func : Unsigned_8);
+
+   procedure Fetch_Device
+      (Bus     : Unsigned_8;
+       Slot    : Unsigned_8;
+       Func    : Unsigned_8;
+       Result  : out PCI_Device;
+       Success : out Boolean);
 end Arch.PCI;

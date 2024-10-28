@@ -28,52 +28,67 @@ package body Devices.ATA is
       PCI_Dev    : Arch.PCI.PCI_Device;
       PCI_BAR0   : Arch.PCI.Base_Address_Register;
       PCI_BAR2   : Arch.PCI.Base_Address_Register;
-      Base_Name  : String := "ata0";
       Drive_Data : ATA_Data_Acc;
+      Drive_Idx  : Natural := 0;
       Success    : Boolean;
       Pair_Ports : array (0 .. 1) of Unsigned_16;
+      Base_Name  : constant String := "ata";
+      Num_Str    : Lib.Messages.Translated_String;
+      Num_Len    : Natural;
    begin
-      Arch.PCI.Search_Device (16#1#, 16#1#, 16#80#, PCI_Dev, Success);
-      if not Success then
-         return True;
-      end if;
-
-      Arch.PCI.Get_BAR (PCI_Dev, 0, PCI_BAR0, Success);
-      if not Success then
-         PCI_BAR0.Base := 16#1F0#;
-      end if;
-      Arch.PCI.Get_BAR (PCI_Dev, 2, PCI_BAR2, Success);
-      if not Success then
-         PCI_BAR2.Base := 16#170#;
-      end if;
-
-      Pair_Ports (0) := Unsigned_16 (PCI_BAR0.Base and 16#FFFF#);
-      Pair_Ports (1) := Unsigned_16 (PCI_BAR2.Base and 16#FFFF#);
-
-      for I in 0 .. 3 loop
-         Drive_Data := Init_Port (Pair_Ports (I / 2), (I mod 2) = 0);
-         if Drive_Data /= null then
-            Base_Name (4) := Character'Val (I + 1 + Character'Pos ('0'));
-            Register (
-               (Data => Con.To_Address (Con.Object_Pointer (Drive_Data)),
-                ID          => (others => 0),
-                Is_Block    => True,
-                Block_Size  => Sector_Size,
-                Block_Count => Drive_Data.Sector_Count,
-                Read        => Read'Access,
-                Write       => Write'Access,
-                Sync        => Sync'Access,
-                Sync_Range  => Sync_Range'Access,
-                IO_Control  => null,
-                Mmap        => null,
-                Poll        => null), Base_Name, Success);
-            if not Success or else
-               not Partitions.Parse_Partitions (Base_Name, Fetch (Base_Name))
-            then
-               return False;
-            end if;
+      for Idx in 1 .. Arch.PCI.Enumerate_Devices (16#1#, 16#1#, 16#80#) loop
+         Arch.PCI.Search_Device (16#1#, 16#1#, 16#80#, Idx, PCI_Dev, Success);
+         if not Success then
+            return False;
          end if;
+
+         Arch.PCI.Get_BAR (PCI_Dev, 0, PCI_BAR0, Success);
+         if not Success then
+            PCI_BAR0.Base := 16#1F0#;
+         end if;
+         Arch.PCI.Get_BAR (PCI_Dev, 2, PCI_BAR2, Success);
+         if not Success then
+            PCI_BAR2.Base := 16#170#;
+         end if;
+
+         Pair_Ports (0) := Unsigned_16 (PCI_BAR0.Base and 16#FFFF#);
+         Pair_Ports (1) := Unsigned_16 (PCI_BAR2.Base and 16#FFFF#);
+
+         for I in 0 .. 3 loop
+            Drive_Data := Init_Port (Pair_Ports (I / 2), (I mod 2) = 0);
+            if Drive_Data /= null then
+               Drive_Idx := Drive_Idx + 1;
+
+               Lib.Messages.Image (Unsigned_32 (Drive_Idx), Num_Str, Num_Len);
+
+               declare
+                  Final_Name : constant String := Base_Name &
+                     Num_Str (Num_Str'Last - Num_Len + 1 .. Num_Str'Last);
+               begin
+                  Register (
+                     (Data => Con.To_Address (Con.Object_Pointer (Drive_Data)),
+                      ID          => (others => 0),
+                      Is_Block    => True,
+                      Block_Size  => Sector_Size,
+                      Block_Count => Drive_Data.Sector_Count,
+                      Read        => Read'Access,
+                      Write       => Write'Access,
+                      Sync        => Sync'Access,
+                      Sync_Range  => Sync_Range'Access,
+                      IO_Control  => null,
+                      Mmap        => null,
+                      Poll        => null), Final_Name, Success);
+                  if not Success or else
+                     not Partitions.Parse_Partitions
+                        (Final_Name, Fetch (Final_Name))
+                  then
+                     return False;
+                  end if;
+               end;
+            end if;
+         end loop;
       end loop;
+
       return True;
    end Init;
 

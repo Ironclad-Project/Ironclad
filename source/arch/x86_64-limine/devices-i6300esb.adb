@@ -32,7 +32,7 @@ package body Devices.i6300ESB is
       PCI_Dev : Arch.PCI.PCI_Device;
       PCI_BAR : Arch.PCI.Base_Address_Register;
    begin
-      Arch.PCI.Search_Device (16#8#, 16#80#, 0, PCI_Dev, Success);
+      Arch.PCI.Search_Device (16#8#, 16#80#, 0, 1, PCI_Dev, Success);
       if not Success then
          return True;
       end if;

@@ -35,64 +35,76 @@ package body Devices.SATA with SPARK_Mode => Off is
       Drive_Data : SATA_Data_Acc;
       Mem_Addr   : Integer_Address;
       Dev_Mem    : HBA_Memory_Acc;
-      Base_Name  : String := "sata00";
+      Drive_Idx  : Natural := 0;
       Success    : Boolean;
+      Base_Name  : constant String := "sata";
+      Num_Str    : Lib.Messages.Translated_String;
+      Num_Len    : Natural;
    begin
-      Arch.PCI.Search_Device (1, 6, 1, PCI_Dev, Success);
-      if not Success then
-         return True;
-      end if;
-
-      Arch.PCI.Get_BAR (PCI_Dev, 5, PCI_BAR, Success);
-      if not Success or else not PCI_BAR.Is_MMIO then
-         return True;
-      end if;
-
-      Arch.PCI.Enable_Bus_Mastering (PCI_Dev);
-      Mem_Addr := PCI_BAR.Base + Memory.Memory_Offset;
-      Dev_Mem  := HBA_Memory_Acc (C2.To_Pointer (To_Address (Mem_Addr)));
-
-      if not Arch.MMU.Map_Range
-         (Map            => Arch.MMU.Kernel_Table,
-          Physical_Start => To_Address (PCI_BAR.Base),
-          Virtual_Start  => To_Address (Mem_Addr),
-          Length         => Storage_Count (A.Align_Up
-           (HBA_Memory'Size / 8, Arch.MMU.Page_Size)),
-          Permissions    =>
-           (Is_User_Accesible => False,
-            Can_Read          => True,
-            Can_Write         => True,
-            Can_Execute       => False,
-            Is_Global         => True),
-          Caching        => Arch.MMU.Uncacheable)
-      then
-         return False;
-      end if;
-
-      for I in 1 .. Ports_Per_Controller loop
-         Drive_Data := Init_Port (Dev_Mem, I);
-         if Drive_Data /= null then
-            Base_Name (5) := Character'Val ((I / 10) + Character'Pos ('0'));
-            Base_Name (6) := Character'Val (I        + Character'Pos ('0'));
-            Register (
-               (Data        => C1.To_Address (C1.Object_Pointer (Drive_Data)),
-                ID          => (others => 0),
-                Is_Block    => True,
-                Block_Size  => Sector_Size,
-                Block_Count => Drive_Data.Sector_Count,
-                Read        => Read'Access,
-                Write       => Write'Access,
-                Sync        => Sync'Access,
-                Sync_Range  => Sync_Range'Access,
-                IO_Control  => null,
-                Mmap        => null,
-                Poll        => null), Base_Name, Success);
-            if not Success or else
-               not Partitions.Parse_Partitions (Base_Name, Fetch (Base_Name))
-            then
-               return False;
-            end if;
+      for Idx in 1 .. Arch.PCI.Enumerate_Devices (1, 6, 1) loop
+         Arch.PCI.Search_Device (1, 6, 1, Idx, PCI_Dev, Success);
+         if not Success then
+            return True;
          end if;
+
+         Arch.PCI.Get_BAR (PCI_Dev, 5, PCI_BAR, Success);
+         if not Success or else not PCI_BAR.Is_MMIO then
+            return True;
+         end if;
+
+         Arch.PCI.Enable_Bus_Mastering (PCI_Dev);
+         Mem_Addr := PCI_BAR.Base + Memory.Memory_Offset;
+         Dev_Mem  := HBA_Memory_Acc (C2.To_Pointer (To_Address (Mem_Addr)));
+
+         if not Arch.MMU.Map_Range
+            (Map            => Arch.MMU.Kernel_Table,
+             Physical_Start => To_Address (PCI_BAR.Base),
+             Virtual_Start  => To_Address (Mem_Addr),
+             Length         => Storage_Count (A.Align_Up
+              (HBA_Memory'Size / 8, Arch.MMU.Page_Size)),
+             Permissions    =>
+              (Is_User_Accesible => False,
+               Can_Read          => True,
+               Can_Write         => True,
+               Can_Execute       => False,
+               Is_Global         => True),
+             Caching        => Arch.MMU.Uncacheable)
+         then
+            return False;
+         end if;
+
+         for I in 1 .. Ports_Per_Controller loop
+            Drive_Data := Init_Port (Dev_Mem, I);
+            if Drive_Data /= null then
+               Drive_Idx := Drive_Idx + 1;
+               Lib.Messages.Image (Unsigned_32 (Drive_Idx), Num_Str, Num_Len);
+
+               declare
+                  Final_Name : constant String := Base_Name &
+                     Num_Str (Num_Str'Last - Num_Len + 1 .. Num_Str'Last);
+               begin
+                  Register (
+                     (Data => C1.To_Address (C1.Object_Pointer (Drive_Data)),
+                      ID          => (others => 0),
+                      Is_Block    => True,
+                      Block_Size  => Sector_Size,
+                      Block_Count => Drive_Data.Sector_Count,
+                      Read        => Read'Access,
+                      Write       => Write'Access,
+                      Sync        => Sync'Access,
+                      Sync_Range  => Sync_Range'Access,
+                      IO_Control  => null,
+                      Mmap        => null,
+                      Poll        => null), Final_Name, Success);
+                  if not Success or else
+                     not Partitions.Parse_Partitions
+                        (Final_Name, Fetch (Final_Name))
+                  then
+                     return False;
+                  end if;
+               end;
+            end if;
+         end loop;
       end loop;
 
       return True;
