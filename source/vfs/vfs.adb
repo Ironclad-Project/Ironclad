@@ -289,6 +289,7 @@ package body VFS is
       (Key        : FS_Handle;
        Relative   : File_Inode_Number;
        Path       : String;
+       Final_Key  : out FS_Handle;
        Ino        : out File_Inode_Number;
        Success    : out FS_Status;
        User       : Unsigned_32;
@@ -297,6 +298,8 @@ package body VFS is
        Do_Follow  : Boolean := True)
    is
    begin
+      Final_Key := Key;
+
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             EXT.Open
@@ -675,16 +678,23 @@ package body VFS is
        Want_Write : Boolean;
        Do_Follow  : Boolean := True)
    is
+      Rela_Key    : FS_Handle;
       Match_Count : Natural;
    begin
-      Get_Mount (Path, Match_Count, Key);
-      if Key /= Error_Handle and Path'First < Natural'Last - Match_Count
+      Get_Mount (Path, Match_Count, Rela_Key);
+      if Rela_Key /= Error_Handle and Path'First < Natural'Last - Match_Count
       then
          Open
-            (Key,
-             0,
-             Path (Path'First + Match_Count .. Path'Last),
-             Ino, Success, User, Want_Read, Want_Write, Do_Follow);
+            (Key        => Rela_Key,
+             Relative   => 0,
+             Path       => Path (Path'First + Match_Count .. Path'Last),
+             Final_Key  => Key,
+             Ino        => Ino,
+             Success    => Success,
+             User       => User,
+             Want_Read  => Want_Read,
+             Want_Write => Want_Write,
+             Do_Follow  => Do_Follow);
       else
          Key     := Error_Handle;
          Ino     := 0;

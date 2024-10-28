@@ -122,6 +122,7 @@ package body Userland.Syscall is
       Userland.Process.Get_Effective_UID (Curr_Proc, User);
 
       declare
+         Rela_FS : VFS.FS_Handle;
          Path : String (1 .. Natural (Path_Len))
             with Import, Address => Path_SAddr;
       begin
@@ -145,15 +146,15 @@ package body Userland.Syscall is
                 Inner_Dev_Pos      => 0,
                 Inner_Dev          => Opened_Dev);
          else
-            Resolve_AT_Directive (Curr_Proc, Dir_FD, CWD_FS, CWD_Ino);
-            if CWD_FS = VFS.Error_Handle then
+            Resolve_AT_Directive (Curr_Proc, Dir_FD, Rela_FS, CWD_Ino);
+            if Rela_FS = VFS.Error_Handle then
                Returned := Unsigned_64'Last;
                Errno    := Error_Bad_File;
                return;
             end if;
 
-            VFS.Open (CWD_FS, CWD_Ino, Path, Opened_Ino, Success, User,
-                      Do_Read, Do_Write, not Dont_Follow);
+            VFS.Open (Rela_FS, CWD_Ino, Path, CWD_FS, Opened_Ino, Success,
+                      User, Do_Read, Do_Write, not Dont_Follow);
             if Success /= VFS.FS_Success then
                Returned := Unsigned_64'Last;
                Errno    := Error_No_Entity;
@@ -1022,7 +1023,7 @@ package body Userland.Syscall is
       File_Desc  : File_Description_Acc;
       Stat_Val   : VFS.File_Stat;
       ID         : Natural;
-      FS         : VFS.FS_Handle;
+      Rel_FS, FS : VFS.FS_Handle;
       D_Ino, Ino : VFS.File_Inode_Number;
       Success    : VFS.FS_Status;
       Stat_Buf   : Stat with Import, Address => Stat_SAddr;
@@ -1114,17 +1115,18 @@ package body Userland.Syscall is
             Path : String (1 .. Natural (Path_Len))
                with Import, Address => Path_SAddr;
          begin
-            Resolve_AT_Directive (Proc, Dir_FD, FS, D_Ino);
-            if FS = VFS.Error_Handle then
+            Resolve_AT_Directive (Proc, Dir_FD, Rel_FS, D_Ino);
+            if Rel_FS = VFS.Error_Handle then
                Errno    := Error_Bad_File;
                Returned := Unsigned_64'Last;
                return;
             end if;
 
             VFS.Open
-               (Key        => FS,
+               (Key        => Rel_FS,
                 Relative   => D_Ino,
                 Path       => Path,
+                Final_Key  => FS,
                 Ino        => Ino,
                 Success    => Success,
                 User       => User,
@@ -2367,7 +2369,7 @@ package body Userland.Syscall is
       Buffer_IAddr : constant Integer_Address := Integer_Address (Buffer_Addr);
       Path_Add     : constant  System.Address := To_Address (Path_IAddr);
       Buffer_Add   : constant  System.Address := To_Address (Buffer_IAddr);
-      CWD_FS       : VFS.FS_Handle;
+      R_FS, CWD_FS : VFS.FS_Handle;
       CWD_Ino      : VFS.File_Inode_Number;
       Opened_Ino   : File_Inode_Number;
       Ret_Count    : Natural;
@@ -2396,14 +2398,14 @@ package body Userland.Syscall is
             with Import, Address => Buffer_Add;
       begin
          Process.Get_Effective_UID (Proc, User);
-         Resolve_AT_Directive (Proc, Dir_FD, CWD_FS, CWD_Ino);
-         if CWD_FS = VFS.Error_Handle then
+         Resolve_AT_Directive (Proc, Dir_FD, R_FS, CWD_Ino);
+         if R_FS = VFS.Error_Handle then
             Returned := Unsigned_64'Last;
             Errno    := Error_Bad_File;
             return;
          end if;
 
-         VFS.Open (CWD_FS, CWD_Ino, Path, Opened_Ino, Status, User, True,
+         VFS.Open (R_FS, CWD_Ino, Path, CWD_FS, Opened_Ino, Status, User, True,
             False, False);
          if Status /= VFS.FS_Success then
             Errno := Error_No_Entity;
@@ -3189,7 +3191,7 @@ package body Userland.Syscall is
       Map         : constant  Page_Table_Acc := Get_Common_Map (Proc);
       Path_IAddr  : constant Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr  : constant  System.Address := To_Address (Path_IAddr);
-      FS          : VFS.FS_Handle;
+      Rel_FS, FS  : VFS.FS_Handle;
       D_Ino, Ino  : VFS.File_Inode_Number;
       Succ        : VFS.FS_Status;
       User        : Unsigned_32;
@@ -3211,8 +3213,8 @@ package body Userland.Syscall is
          Path : String (1 .. Natural (Path_Len))
                with Import, Address => Path_SAddr;
       begin
-         Resolve_AT_Directive (Proc, Dir_FD, FS, D_Ino);
-         if FS = VFS.Error_Handle then
+         Resolve_AT_Directive (Proc, Dir_FD, Rel_FS, D_Ino);
+         if Rel_FS = VFS.Error_Handle then
             Errno    := Error_Bad_File;
             Returned := Unsigned_64'Last;
             return;
@@ -3221,9 +3223,10 @@ package body Userland.Syscall is
          Process.Get_Effective_UID (Proc, User);
 
          VFS.Open
-            (Key        => FS,
+            (Key        => Rel_FS,
              Relative   => D_Ino,
              Path       => Path,
+             Final_Key  => FS,
              Ino        => Ino,
              Success    => Succ,
              User       => User,
@@ -3438,7 +3441,7 @@ package body Userland.Syscall is
       Map         : constant  Page_Table_Acc := Get_Common_Map (Proc);
       Path_IAddr  : constant Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr  : constant  System.Address := To_Address (Path_IAddr);
-      FS          : VFS.FS_Handle;
+      Rel_FS, FS  : VFS.FS_Handle;
       D_Ino, Ino  : VFS.File_Inode_Number;
       Succ        : VFS.FS_Status;
       User        : Unsigned_32;
@@ -3472,17 +3475,18 @@ package body Userland.Syscall is
             Path : String (1 .. Natural (Path_Len))
                with Import, Address => Path_SAddr;
          begin
-            Resolve_AT_Directive (Proc, Dir_FD, FS, D_Ino);
-            if FS = VFS.Error_Handle then
+            Resolve_AT_Directive (Proc, Dir_FD, Rel_FS, D_Ino);
+            if Rel_FS = VFS.Error_Handle then
                Errno    := Error_Bad_File;
                Returned := Unsigned_64'Last;
                return;
             end if;
 
             VFS.Open
-               (Key        => FS,
+               (Key        => Rel_FS,
                 Relative   => D_Ino,
                 Path       => Path,
+                Final_Key  => FS,
                 Ino        => Ino,
                 Success    => Succ,
                 User       => User,
@@ -3581,7 +3585,7 @@ package body Userland.Syscall is
       Map         : constant  Page_Table_Acc := Get_Common_Map (Proc);
       Path_IAddr  : constant Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr  : constant  System.Address := To_Address (Path_IAddr);
-      FS          : VFS.FS_Handle;
+      Rel_FS, FS  : VFS.FS_Handle;
       D_Ino, Ino  : VFS.File_Inode_Number;
       Succ        : VFS.FS_Status;
       Usr         : Unsigned_32;
@@ -3615,17 +3619,18 @@ package body Userland.Syscall is
             Path : String (1 .. Natural (Path_Len))
                with Import, Address => Path_SAddr;
          begin
-            Resolve_AT_Directive (Proc, Dir_FD, FS, D_Ino);
-            if FS = VFS.Error_Handle then
+            Resolve_AT_Directive (Proc, Dir_FD, Rel_FS, D_Ino);
+            if Rel_FS = VFS.Error_Handle then
                Errno    := Error_Bad_File;
                Returned := Unsigned_64'Last;
                return;
             end if;
 
             VFS.Open
-               (Key        => FS,
+               (Key        => Rel_FS,
                 Relative   => D_Ino,
                 Path       => Path,
+                Final_Key  => FS,
                 Ino        => Ino,
                 Success    => Succ,
                 User       => Usr,
@@ -4524,7 +4529,7 @@ package body Userland.Syscall is
       Map         : constant  Page_Table_Acc := Get_Common_Map (Proc);
       Path_IAddr  : constant Integer_Address := Integer_Address (Path_Addr);
       Time_IAddr  : constant Integer_Address := Integer_Address (Time_Addr);
-      FS          : VFS.FS_Handle;
+      Rel_FS, FS  : VFS.FS_Handle;
       D_Ino, Ino  : VFS.File_Inode_Number;
       Succ        : VFS.FS_Status;
       User        : Unsigned_32;
@@ -4560,17 +4565,18 @@ package body Userland.Syscall is
             Path : String (1 .. Natural (Path_Len))
                with Import, Address => To_Address (Path_IAddr);
          begin
-            Resolve_AT_Directive (Proc, Dir_FD, FS, D_Ino);
-            if FS = VFS.Error_Handle then
+            Resolve_AT_Directive (Proc, Dir_FD, Rel_FS, D_Ino);
+            if Rel_FS = VFS.Error_Handle then
                Errno    := Error_Bad_File;
                Returned := Unsigned_64'Last;
                return;
             end if;
 
             VFS.Open
-               (Key        => FS,
+               (Key        => Rel_FS,
                 Relative   => D_Ino,
                 Path       => Path,
+                Final_Key  => FS,
                 Ino        => Ino,
                 Success    => Succ,
                 User       => User,

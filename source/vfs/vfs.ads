@@ -240,9 +240,10 @@ package VFS is
        FS_Loop);         --  Too many symlinks were encountered resolving path.
 
    --  Open a file with an absolute path inside the mount.
-   --  @param Key        FS Handle to open.
+   --  @param Key        Relative FS Handle to start opening.
    --  @param Relative   Relative directory inode to open from.
    --  @param Path       Path to be accessed inside Relative, or absolute.
+   --  @param Final_Key  Final FS Handle we end on.
    --  @param Ino        Found inode, if any.
    --  @param Success    Returned status for the operation.
    --  @param User       UID to check against, 0 for root/bypass checks.
@@ -253,6 +254,7 @@ package VFS is
       (Key        : FS_Handle;
        Relative   : File_Inode_Number;
        Path       : String;
+       Final_Key  : out FS_Handle;
        Ino        : out File_Inode_Number;
        Success    : out FS_Status;
        User       : Unsigned_32;
