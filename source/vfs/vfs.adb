@@ -507,12 +507,13 @@ package body VFS is
    end Read_Symbolic_Link;
 
    procedure Read
-      (Key       : FS_Handle;
-       Ino       : File_Inode_Number;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out FS_Status)
+      (Key         : FS_Handle;
+       Ino         : File_Inode_Number;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Is_Blocking : Boolean;
+       Success     : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -523,6 +524,7 @@ package body VFS is
                 Offset,
                 Data,
                 Ret_Count,
+                Is_Blocking,
                 Success);
          when FS_EXT =>
             EXT.Read
@@ -544,12 +546,13 @@ package body VFS is
    end Read;
 
    procedure Write
-      (Key       : FS_Handle;
-       Ino       : File_Inode_Number;
-       Offset    : Unsigned_64;
-       Data      : Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out FS_Status)
+      (Key         : FS_Handle;
+       Ino         : File_Inode_Number;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Is_Blocking : Boolean;
+       Success     : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
@@ -560,6 +563,7 @@ package body VFS is
                 Offset,
                 Data,
                 Ret_Count,
+                Is_Blocking,
                 Success);
          when FS_EXT =>
             EXT.Write
@@ -626,6 +630,28 @@ package body VFS is
             Status := FS_Not_Supported;
       end case;
    end IO_Control;
+
+   procedure Mmap
+      (Key     : FS_Handle;
+       Ino     : File_Inode_Number;
+       Map     : Arch.MMU.Page_Table_Acc;
+       Offset  : Unsigned_64;
+       Address : Memory.Virtual_Address;
+       Length  : Unsigned_64;
+       Flags   : Arch.MMU.Page_Permissions;
+       Status  : out FS_Status)
+   is
+      pragma Unreferenced (Offset);
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_DEV =>
+            Dev.Mmap
+               (Mounts (Key).FS_Data, Ino, Map, Address, Length, Flags,
+                Status);
+         when others =>
+            Status := FS_Not_Supported;
+      end case;
+   end Mmap;
 
    function Synchronize (Key : FS_Handle) return FS_Status is
    begin

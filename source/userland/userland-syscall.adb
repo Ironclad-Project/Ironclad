@@ -169,14 +169,15 @@ package body Userland.Syscall is
 
             File_Perms := Check_Permissions (Curr_Proc, CWD_FS, Opened_Ino);
             New_Descr  := new File_Description'
-               (Children_Count  => 0,
-                Description     => Description_Inode,
-                Inner_Is_Locked => False,
-                Inner_Ino_Read  => Do_Read,
-                Inner_Ino_Write => Do_Write,
-                Inner_Ino_FS    => CWD_FS,
-                Inner_Ino_Pos   => Opened_Stat.Byte_Size,
-                Inner_Ino       => Opened_Ino);
+               (Children_Count    => 0,
+                Description       => Description_Inode,
+                Inner_Is_Locked   => False,
+                Inner_Is_Blocking => Do_Block,
+                Inner_Ino_Read    => Do_Read,
+                Inner_Ino_Write   => Do_Write,
+                Inner_Ino_FS      => CWD_FS,
+                Inner_Ino_Pos     => Opened_Stat.Byte_Size,
+                Inner_Ino         => Opened_Ino);
          end if;
       end;
 
@@ -289,7 +290,7 @@ package body Userland.Syscall is
                   return;
                end if;
                VFS.Read (File.Inner_Ino_FS, File.Inner_Ino, File.Inner_Ino_Pos,
-                         Data, Ret_Count, Success1);
+                         Data, Ret_Count, File.Inner_Is_Blocking, Success1);
                File.Inner_Ino_Pos := File.Inner_Ino_Pos +
                                      Unsigned_64 (Ret_Count);
                Translate_Status
@@ -394,7 +395,8 @@ package body Userland.Syscall is
                end if;
 
                VFS.Write (File.Inner_Ino_FS, File.Inner_Ino,
-                          File.Inner_Ino_Pos, Data, Ret_Count, Success1);
+                          File.Inner_Ino_Pos, Data, Ret_Count,
+                          File.Inner_Is_Blocking, Success1);
                File.Inner_Ino_Pos := File.Inner_Ino_Pos +
                                      Unsigned_64 (Ret_Count);
                Translate_Status (Success1, Unsigned_64 (Ret_Count), Returned,
@@ -523,7 +525,6 @@ package body Userland.Syscall is
       File_Perms : MAC.Permissions;
       Success    : Boolean;
       Status     : FS_Status;
-      Ret_Count  : Natural;
    begin
       if not Get_Capabilities (Proc).Can_Modify_Memory then
          goto Bad_MAC_Return;
@@ -595,32 +596,18 @@ package body Userland.Syscall is
                goto No_Memory_Return;
             end if;
          elsif File.Description = Description_Inode then
-            Map_Allocated_Range
-               (Map            => Map,
-                Virtual_Start  => To_Address (Final_Hint),
-                Length         => Storage_Count (Length),
-                Permissions    => Perms,
-                Physical_Start => Ignored,
-                Success        => Success);
-            if not Success then
+            VFS.Mmap
+               (Key         => File.Inner_Ino_FS,
+                Ino         => File.Inner_Ino,
+                Map         => Map,
+                Offset      => Offset,
+                Address     => Final_Hint,
+                Length      => Length,
+                Flags       => Perms,
+                Status      => Status);
+            if Status /= VFS.FS_Success then
                goto No_Memory_Return;
             end if;
-
-            declare
-               Data : Devices.Operation_Data (1 .. Natural (Length)) with
-                  Import, Address => To_Address (Final_Hint);
-            begin
-               VFS.Read
-                  (Key       => File.Inner_Ino_FS,
-                   Ino       => File.Inner_Ino,
-                   Offset    => Offset,
-                   Data      => Data,
-                   Ret_Count => Ret_Count,
-                   Success   => Status);
-               if Ret_Count < Data'Length then
-                  Data (Ret_Count + 1 .. Data'Last) := (others => 0);
-               end if;
-            end;
 
             Errno := Error_No_Error;
             Returned := Unsigned_64 (Final_Hint);
@@ -1898,7 +1885,7 @@ package body Userland.Syscall is
                when Description_Device =>
                   Temp := File.Inner_Dev_Blocking;
                when Description_Inode =>
-                  Temp := True;
+                  Temp := File.Inner_Is_Blocking;
             end case;
             Returned := (if Temp then 0 else O_NONBLOCK);
          when F_SETFL =>
@@ -1917,7 +1904,7 @@ package body Userland.Syscall is
                when Description_Device =>
                   File.Inner_Dev_Blocking := Temp;
                when Description_Inode =>
-                  null;
+                  File.Inner_Is_Blocking := Temp;
             end case;
          when F_GETPIPE_SZ =>
             case File.Description is
@@ -3727,7 +3714,7 @@ package body Userland.Syscall is
                   return;
                end if;
                VFS.Read (File.Inner_Ino_FS, File.Inner_Ino, Offset,
-                         Data, Ret_Count, Success1);
+                         Data, Ret_Count, File.Inner_Is_Blocking, Success1);
                Translate_Status (Success1, Unsigned_64 (Ret_Count), Returned,
                                         Errno);
             when others =>
@@ -3810,7 +3797,7 @@ package body Userland.Syscall is
                end if;
 
                VFS.Write (File.Inner_Ino_FS, File.Inner_Ino, Offset,
-                          Data, Ret_Count, Success1);
+                          Data, Ret_Count, File.Inner_Is_Blocking, Success1);
                Translate_Status (Success1, Unsigned_64 (Ret_Count), Returned,
                                         Errno);
             when others =>

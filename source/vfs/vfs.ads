@@ -18,6 +18,8 @@ with Interfaces; use Interfaces;
 with System;     use System;
 with Devices;    use Devices;
 with Lib.Synchronization;
+with Arch.MMU;
+with Memory;
 
 package VFS is
    --  Inodes numbers are identifiers that denotes a unique file inside an FS.
@@ -388,35 +390,39 @@ package VFS is
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Read from a regular file.
-   --  @param Key       FS Handle to open.
-   --  @param Ino       Inode to operate on.
-   --  @param Offset    Offset to read from.
-   --  @param Data      Place to write read data.
-   --  @param Ret_Count How many items were read into Data until EOF.
-   --  @param Success   Status for the operation.
+   --  @param Key         FS Handle to open.
+   --  @param Ino         Inode to operate on.
+   --  @param Offset      Offset to read from.
+   --  @param Data        Place to write read data.
+   --  @param Ret_Count   How many items were read into Data until EOF.
+   --  @param Is_Blocking True if the call is to be blocking.
+   --  @param Success     Status for the operation.
    procedure Read
-      (Key       : FS_Handle;
-       Ino       : File_Inode_Number;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out FS_Status)
+      (Key         : FS_Handle;
+       Ino         : File_Inode_Number;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Is_Blocking : Boolean;
+       Success     : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Write to a regular file.
-   --  @param Key       FS Handle to open.
-   --  @param Ino       Inode to operate on.
-   --  @param Offset    Offset to write to.
-   --  @param Data      Data to write
-   --  @param Ret_Count How many items were written until EOF.
-   --  @param Success   Status for the operation.
+   --  @param Key         FS Handle to open.
+   --  @param Ino         Inode to operate on.
+   --  @param Offset      Offset to write to.
+   --  @param Data        Data to write
+   --  @param Ret_Count   How many items were written until EOF.
+   --  @param Is_Blocking True if the call is to be blocking.
+   --  @param Success     Status for the operation.
    procedure Write
-      (Key       : FS_Handle;
-       Ino       : File_Inode_Number;
-       Offset    : Unsigned_64;
-       Data      : Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out FS_Status)
+      (Key         : FS_Handle;
+       Ino         : File_Inode_Number;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Is_Blocking : Boolean;
+       Success     : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Get the stat of a file.
@@ -454,6 +460,26 @@ package VFS is
        Ino     : File_Inode_Number;
        Request : Unsigned_64;
        Arg     : System.Address;
+       Status  : out FS_Status)
+      with Pre => Is_Initialized and Key /= Error_Handle;
+
+   --  Do an FS-specific mmap operation on a file.
+   --  @param Key     FS Handle to open.
+   --  @param Ino     Inode to operate on.
+   --  @param Map     Map to map to.
+   --  @param Offset  Offset inside the fall to map to.
+   --  @param Address Address to map to.
+   --  @param Length  Length of the map.
+   --  @param Flags   Flags to use for the mapping.
+   --  @param Status  Status for the operation.
+   procedure Mmap
+      (Key     : FS_Handle;
+       Ino     : File_Inode_Number;
+       Map     : Arch.MMU.Page_Table_Acc;
+       Offset  : Unsigned_64;
+       Address : Memory.Virtual_Address;
+       Length  : Unsigned_64;
+       Flags   : Arch.MMU.Page_Permissions;
        Status  : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 

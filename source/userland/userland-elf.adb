@@ -52,7 +52,7 @@ package body Userland.ELF is
       Success   : FS_Status;
    begin
       --  Read and check the header.
-      VFS.Read (FS, Ino, Pos, Header_Data, Ret_Count, Success);
+      VFS.Read (FS, Ino, Pos, Header_Data, Ret_Count, True, Success);
       Pos := Pos + Unsigned_64 (Ret_Count);
       if Success /= FS_Success or Ret_Count /= Header_Bytes or
          Header.Identifier (1 .. 4) /= ELF_Signature
@@ -90,7 +90,7 @@ package body Userland.ELF is
          end if;
 
          Pos := Header.Program_Header_List;
-         VFS.Read (FS, Ino, Pos, PHDRs_Data, Ret_Count, Success);
+         VFS.Read (FS, Ino, Pos, PHDRs_Data, Ret_Count, True, Success);
          Pos := Pos + Unsigned_64 (Ret_Count);
          if Success /= FS_Success or Ret_Count /= Natural (RSize) then
             return Result;
@@ -133,7 +133,7 @@ package body Userland.ELF is
       Discard2  : Boolean;
       Success   : FS_Status;
    begin
-      VFS.Read (FS, Ino, Header.Offset, Ret_Data, Ret_Count, Success);
+      VFS.Read (FS, Ino, Header.Offset, Ret_Data, Ret_Count, True, Success);
       if Success = FS_Success and Ret_Count = Header.File_Size_Bytes then
          return Ret;
       else
@@ -202,7 +202,7 @@ package body Userland.ELF is
          Load2 : Devices.Operation_Data (1 .. Header.File_Size_Bytes)
             with Import, Address => Result + Storage_Offset (MisAlign);
       begin
-         VFS.Read (FS, Ino, Header.Offset, Load2, Ret_Count, Success2);
+         VFS.Read (FS, Ino, Header.Offset, Load2, Ret_Count, True, Success2);
          return Success2 = FS_Success and Ret_Count = Header.File_Size_Bytes;
       end;
    end Load_Header;

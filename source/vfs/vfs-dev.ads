@@ -73,20 +73,22 @@ package VFS.Dev is
        Success   : out FS_Status);
 
    procedure Read
-      (FS_Data   : System.Address;
-       Ino       : File_Inode_Number;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out FS_Status);
+      (FS_Data     : System.Address;
+       Ino         : File_Inode_Number;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Is_Blocking : Boolean;
+       Success     : out FS_Status);
 
    procedure Write
-      (FS_Data   : System.Address;
-       Ino       : File_Inode_Number;
-       Offset    : Unsigned_64;
-       Data      : Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out FS_Status);
+      (FS_Data     : System.Address;
+       Ino         : File_Inode_Number;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Is_Blocking : Boolean;
+       Success     : out FS_Status);
 
    procedure Stat
       (Data    : System.Address;
@@ -100,6 +102,15 @@ package VFS.Dev is
        Req    : Unsigned_64;
        Arg    : System.Address;
        Status : out FS_Status);
+
+   procedure Mmap
+      (Data    : System.Address;
+       Ino     : File_Inode_Number;
+       Map     : Arch.MMU.Page_Table_Acc;
+       Address : Memory.Virtual_Address;
+       Length  : Unsigned_64;
+       Flags   : Arch.MMU.Page_Permissions;
+       Status  : out FS_Status);
 
    procedure Check_Access
       (Data        : System.Address;

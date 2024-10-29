@@ -75,12 +75,13 @@ package Userland.Process is
             Inner_Dev_Pos      : Unsigned_64;
             Inner_Dev          : Devices.Device_Handle;
          when Description_Inode =>
-            Inner_Is_Locked : Boolean;
-            Inner_Ino_Read  : Boolean;
-            Inner_Ino_Write : Boolean;
-            Inner_Ino_Pos   : Unsigned_64;
-            Inner_Ino_FS    : VFS.FS_Handle;
-            Inner_Ino       : VFS.File_Inode_Number;
+            Inner_Is_Locked   : Boolean;
+            Inner_Is_Blocking : Boolean;
+            Inner_Ino_Read    : Boolean;
+            Inner_Ino_Write   : Boolean;
+            Inner_Ino_Pos     : Unsigned_64;
+            Inner_Ino_FS      : VFS.FS_Handle;
+            Inner_Ino         : VFS.File_Inode_Number;
          when Description_Socket =>
             Inner_Socket : IPC.Socket.Socket_Acc;
       end case;

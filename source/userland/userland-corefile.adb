@@ -61,7 +61,7 @@ package body Userland.Corefile is
             return;
          end if;
 
-         VFS.Write (Core_FS, Core_Ino, 0, Ctx_Data, Ctx_Len, Success);
+         VFS.Write (Core_FS, Core_Ino, 0, Ctx_Data, Ctx_Len, True, Success);
          if Success /= VFS.FS_Success or Ctx_Len /= Ctx_Data'Length then
             Lib.Messages.Put_Line ("Could not write core file " & File_Path);
             return;

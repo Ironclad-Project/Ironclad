@@ -15,6 +15,9 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body VFS.Dev is
+   --  All devices share the same permissions.
+   --  The only folder of the filesystem is the root, which has inode 0.
+   Root_Inode         : constant := 0;
    Device_Permissions : constant := 8#660#;
 
    procedure Probe
@@ -139,21 +142,56 @@ package body VFS.Dev is
        Success   : out FS_Status)
    is
       pragma Unreferenced (FS_Data);
-      pragma Unreferenced (Ino);
-      pragma Unreferenced (Offset);
-      pragma Unreferenced (Entities);
+
+      Buffer     : Devices.Device_List (1 .. 30);
+      Idx        : Natural;
+      Buffer_Len : Natural;
    begin
+      if Ino /= Root_Inode then
+         Ret_Count := 0;
+         Success   := FS_Invalid_Value;
+         return;
+      end if;
+
       Ret_Count := 0;
-      Success   := FS_Invalid_Value;
+      Idx       := 0;
+      Devices.List (Buffer, Buffer_Len);
+      for I in 1 .. Buffer_Len loop
+         if I - 1 >= Offset then
+            if Ret_Count > Entities'Length then
+               exit;
+            end if;
+
+            Entities (Entities'First + Idx) :=
+               (Inode_Number =>
+                  Unsigned_64 (Devices.Get_Unique_ID (Buffer (I))),
+                Name_Buffer  => (others => ' '),
+                Name_Len     => 0,
+                Type_Of_File => File_Character_Device);
+            if Devices.Is_Block_Device (Buffer (I)) then
+               Entities (Entities'First + Idx).Type_Of_File :=
+                  File_Block_Device;
+            end if;
+            Devices.Fetch_Name
+               (Buffer (I),
+                Entities (Entities'First + Idx).Name_Buffer,
+                Entities (Entities'First + Idx).Name_Len);
+
+            Ret_Count := Ret_Count + 1;
+         end if;
+      end loop;
+
+      Success := FS_Success;
    end Read_Entries;
 
    procedure Read
-      (FS_Data   : System.Address;
-       Ino       : File_Inode_Number;
-       Offset    : Unsigned_64;
-       Data      : out Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out FS_Status)
+      (FS_Data     : System.Address;
+       Ino         : File_Inode_Number;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Is_Blocking : Boolean;
+       Success     : out FS_Status)
    is
       pragma Unreferenced (FS_Data);
       Dev  : constant Device_Handle := From_Unique_ID (Natural (Ino));
@@ -165,17 +203,18 @@ package body VFS.Dev is
           Data        => Data,
           Ret_Count   => Ret_Count,
           Success     => Succ,
-          Is_Blocking => True);
+          Is_Blocking => Is_Blocking);
       Success := (if Succ then FS_Success else FS_IO_Failure);
    end Read;
 
    procedure Write
-      (FS_Data   : System.Address;
-       Ino       : File_Inode_Number;
-       Offset    : Unsigned_64;
-       Data      : Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out FS_Status)
+      (FS_Data     : System.Address;
+       Ino         : File_Inode_Number;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Is_Blocking : Boolean;
+       Success     : out FS_Status)
    is
       pragma Unreferenced (FS_Data);
       Dev  : constant Device_Handle := From_Unique_ID (Natural (Ino));
@@ -187,7 +226,7 @@ package body VFS.Dev is
           Data        => Data,
           Ret_Count   => Ret_Count,
           Success     => Succ,
-          Is_Blocking => True);
+          Is_Blocking => Is_Blocking);
       Success := (if Succ then FS_Success else FS_IO_Failure);
    end Write;
 
@@ -200,7 +239,6 @@ package body VFS.Dev is
       pragma Unreferenced (Data);
       Dev : constant Device_Handle := From_Unique_ID (Natural (Ino));
    begin
-
       S :=
          (Unique_Identifier => Ino,
           Type_Of_File      => File_Character_Device,
@@ -240,6 +278,25 @@ package body VFS.Dev is
          Status := FS_IO_Failure;
       end if;
    end IO_Control;
+
+   procedure Mmap
+      (Data    : System.Address;
+       Ino     : File_Inode_Number;
+       Map     : Arch.MMU.Page_Table_Acc;
+       Address : Memory.Virtual_Address;
+       Length  : Unsigned_64;
+       Flags   : Arch.MMU.Page_Permissions;
+       Status  : out FS_Status)
+   is
+      pragma Unreferenced (Data);
+      Dev : constant Device_Handle := From_Unique_ID (Natural (Ino));
+   begin
+      if Devices.Mmap (Dev, Map, Address, Length, Flags) then
+         Status := FS_Success;
+      else
+         Status := FS_IO_Failure;
+      end if;
+   end Mmap;
 
    procedure Check_Access
       (Data        : System.Address;

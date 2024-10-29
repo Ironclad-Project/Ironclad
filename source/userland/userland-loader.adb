@@ -227,7 +227,7 @@ package body Userland.Loader is
       Path_Acc   : String_Acc;
       Arg_Acc    : String_Acc;
    begin
-      Read (FS, Ino, 0, Path_Data (1 .. 2), Path_Len, Success);
+      Read (FS, Ino, 0, Path_Data (1 .. 2), Path_Len, True, Success);
       if Success /= VFS.FS_Success or Path_Len /= 2 or Path (1 .. 2) /= "#!"
       then
          return False;
@@ -237,7 +237,7 @@ package body Userland.Loader is
       --  Format of a shebang: #![maybe spaces]path [arg]newline
       Path_Len := 0;
       loop
-         Read (FS, Ino, Pos, Char_Data, Char_Len, Success);
+         Read (FS, Ino, Pos, Char_Data, Char_Len, True, Success);
          if Success /= VFS.FS_Success or Char_Len /= 1 then
             return False;
          end if;
@@ -247,7 +247,7 @@ package body Userland.Loader is
          end case;
       end loop;
       loop
-         Read (FS, Ino, Pos, Char_Data, Char_Len, Success);
+         Read (FS, Ino, Pos, Char_Data, Char_Len, True, Success);
          Pos := Pos + Unsigned_64 (Char_Len);
          if Success /= VFS.FS_Success or Char_Len /= 1 then
             return False;
@@ -259,7 +259,7 @@ package body Userland.Loader is
          end case;
       end loop;
       loop
-         Read (FS, Ino, Pos, Char_Data, Char_Len, Success);
+         Read (FS, Ino, Pos, Char_Data, Char_Len, True, Success);
          Pos := Pos + Unsigned_64 (Char_Len);
          if Success /= VFS.FS_Success or Char_Len /= 1 then
             return False;
