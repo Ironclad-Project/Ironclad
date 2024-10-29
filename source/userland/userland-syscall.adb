@@ -1514,6 +1514,7 @@ package body Userland.Syscall is
                List_All (KMnts, Ret);
                for I in 1 .. Ret loop
                   case Get_Backing_FS (KMnts (I)) is
+                     when FS_DEV => Mnts (I).FS_Type := MNT_DEV;
                      when FS_EXT => Mnts (I).FS_Type := MNT_EXT;
                      when FS_FAT => Mnts (I).FS_Type := MNT_FAT;
                   end case;

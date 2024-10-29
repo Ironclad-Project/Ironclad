@@ -68,7 +68,7 @@ package VFS is
    Max_Symlink_Loop : constant Natural;
    ----------------------------------------------------------------------------
    --  Handle for interfacing with mounted FSs and FS types.
-   type FS_Type   is (FS_EXT, FS_FAT);
+   type FS_Type   is (FS_DEV, FS_EXT, FS_FAT);
    type FS_Handle is private;
    Error_Handle       : constant FS_Handle;
    Path_Buffer_Length : constant Natural;

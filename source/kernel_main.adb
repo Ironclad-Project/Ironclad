@@ -168,6 +168,12 @@ package body Kernel_Main is
          Lib.Messages.Put_Line ("Booting init: " & Init_Args.all (1).all);
       end if;
 
+      --  Mount /dev.
+      VFS.Mount ("zero", "/dev/", VFS.FS_DEV, False, False, Found);
+      if not Found then
+         Lib.Panic.Hard_Panic ("Failed to mount /dev");
+      end if;
+
       --  Init an init or panic.
       Lib.Cmdline.Get_Key_Value
          (Cmdline, Lib.Cmdline.Init_Key, Value, Found, Value_Len);

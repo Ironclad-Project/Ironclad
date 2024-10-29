@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with VFS.Dev;
 with VFS.EXT;
 with VFS.FAT;
 
@@ -43,8 +44,10 @@ package body VFS is
       Name : String renames Device_Name;
    begin
       for FS in FS_Type'Range loop
-         Mount (Name, Mount_Path, FS, Do_Read_Only, Do_Relatime, Success);
-         exit when Success;
+         if FS /= FS_DEV then
+            Mount (Name, Mount_Path, FS, Do_Read_Only, Do_Relatime, Success);
+            exit when Success;
+         end if;
       end loop;
    end Mount;
 
@@ -56,7 +59,7 @@ package body VFS is
        Do_Relatime  : Boolean;
        Success      : out Boolean)
    is
-      Dev     : constant Device_Handle := Devices.Fetch (Device_Name);
+      De      : constant Device_Handle := Devices.Fetch (Device_Name);
       Free_I  :              FS_Handle := VFS.Error_Handle;
       FS_Data : System.Address;
    begin
@@ -64,14 +67,14 @@ package body VFS is
 
       if not Is_Absolute (Mount_Path)           or
          Mount_Path'Length > Path_Buffer_Length or
-         Dev = Devices.Error_Handle
+         De = Devices.Error_Handle
       then
          return;
       end if;
 
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
-         if Mounts (I).Mounted_Dev = Dev then
+         if Mounts (I).Mounted_Dev = De then
             goto Cleanup;
          elsif Mounts (I).Mounted_Dev = Devices.Error_Handle then
             Free_I := I;
@@ -83,13 +86,14 @@ package body VFS is
 
    <<Try_Probe>>
       case FS is
-         when FS_EXT => EXT.Probe (Dev, Do_Read_Only, Do_Relatime, FS_Data);
-         when FS_FAT => FAT.Probe (Dev, Do_Read_Only, FS_Data);
+         when FS_DEV => Dev.Probe (De, Do_Read_Only, Do_Relatime, FS_Data);
+         when FS_EXT => EXT.Probe (De, Do_Read_Only, Do_Relatime, FS_Data);
+         when FS_FAT => FAT.Probe (De, Do_Read_Only, FS_Data);
       end case;
 
       if FS_Data /= System.Null_Address then
          Mounts (Free_I) :=
-            (Mounted_Dev => Dev,
+            (Mounted_Dev => De,
              Mounted_FS  => FS,
              FS_Data     => FS_Data,
              Path_Length => Mount_Path'Length,
@@ -111,6 +115,7 @@ package body VFS is
             Mounts (I).Path_Buffer (1 .. Mounts (I).Path_Length) = Path
          then
             case Mounts (I).Mounted_FS is
+               when FS_DEV => Dev.Unmount (Mounts (I).FS_Data);
                when FS_EXT => EXT.Unmount (Mounts (I).FS_Data);
                when FS_FAT => FAT.Unmount (Mounts (I).FS_Data);
             end case;
@@ -212,40 +217,45 @@ package body VFS is
       Data : constant System.Address := Mounts (Key).FS_Data;
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV => Dev.Remount (Data, Do_Read_Only, Do_Relatime, Success);
          when FS_EXT => EXT.Remount (Data, Do_Read_Only, Do_Relatime, Success);
-         when others => FAT.Remount (Data, Do_Read_Only, Do_Relatime, Success);
+         when FS_FAT => FAT.Remount (Data, Do_Read_Only, Do_Relatime, Success);
       end case;
    end Remount;
    ----------------------------------------------------------------------------
    procedure Get_Block_Size (Key : FS_Handle; Size : out Unsigned_64) is
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV => Dev.Get_Block_Size (Mounts (Key).FS_Data, Size);
          when FS_EXT => EXT.Get_Block_Size (Mounts (Key).FS_Data, Size);
-         when others => Size := FAT.Get_Block_Size (Mounts (Key).FS_Data);
+         when FS_FAT => Size := FAT.Get_Block_Size (Mounts (Key).FS_Data);
       end case;
    end Get_Block_Size;
 
    procedure Get_Fragment_Size (Key : FS_Handle; Size : out Unsigned_64) is
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV => Dev.Get_Fragment_Size (Mounts (Key).FS_Data, Size);
          when FS_EXT => EXT.Get_Fragment_Size (Mounts (Key).FS_Data, Size);
-         when others => Size := FAT.Get_Fragment_Size (Mounts (Key).FS_Data);
+         when FS_FAT => Size := FAT.Get_Fragment_Size (Mounts (Key).FS_Data);
       end case;
    end Get_Fragment_Size;
 
    procedure Get_Size (Key : FS_Handle; Size : out Unsigned_64) is
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV => Dev.Get_Size (Mounts (Key).FS_Data, Size);
          when FS_EXT => EXT.Get_Size (Mounts (Key).FS_Data, Size);
-         when others => Size := FAT.Get_Size (Mounts (Key).FS_Data);
+         when FS_FAT => Size := FAT.Get_Size (Mounts (Key).FS_Data);
       end case;
    end Get_Size;
 
    procedure Get_Inode_Count (Key : FS_Handle; Count : out Unsigned_64) is
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV => Dev.Get_Inode_Count (Mounts (Key).FS_Data, Count);
          when FS_EXT => EXT.Get_Inode_Count (Mounts (Key).FS_Data, Count);
-         when others => Count := FAT.Get_Inode_Count (Mounts (Key).FS_Data);
+         when FS_FAT => Count := FAT.Get_Inode_Count (Mounts (Key).FS_Data);
       end case;
    end Get_Inode_Count;
 
@@ -258,8 +268,9 @@ package body VFS is
       FU : Unsigned_64 renames Free_Unpriviledged;
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV => Dev.Get_Free_Blocks (Mounts (Key).FS_Data, FB, FU);
          when FS_EXT => EXT.Get_Free_Blocks (Mounts (Key).FS_Data, FB, FU);
-         when others => FAT.Get_Free_Blocks (Mounts (Key).FS_Data, FB, FU);
+         when FS_FAT => FAT.Get_Free_Blocks (Mounts (Key).FS_Data, FB, FU);
       end case;
    end Get_Free_Blocks;
 
@@ -272,16 +283,18 @@ package body VFS is
       FU : Unsigned_64 renames Free_Unpriviledged;
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV => Dev.Get_Free_Inodes (Mounts (Key).FS_Data, FI, FU);
          when FS_EXT => EXT.Get_Free_Inodes (Mounts (Key).FS_Data, FI, FU);
-         when others => FAT.Get_Free_Inodes (Mounts (Key).FS_Data, FI, FU);
+         when FS_FAT => FAT.Get_Free_Inodes (Mounts (Key).FS_Data, FI, FU);
       end case;
    end Get_Free_Inodes;
 
    procedure Get_Max_Length (Key : FS_Handle; Length : out Unsigned_64) is
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV => Length := Dev.Get_Max_Length (Mounts (Key).FS_Data);
          when FS_EXT => Length := EXT.Get_Max_Length (Mounts (Key).FS_Data);
-         when others => Length := FAT.Get_Max_Length (Mounts (Key).FS_Data);
+         when FS_FAT => Length := FAT.Get_Max_Length (Mounts (Key).FS_Data);
       end case;
    end Get_Max_Length;
    ----------------------------------------------------------------------------
@@ -301,6 +314,17 @@ package body VFS is
       Final_Key := Key;
 
       case Mounts (Key).Mounted_FS is
+         when FS_DEV =>
+            Dev.Open
+               (FS         => Mounts (Key).FS_Data,
+                Relative   => Relative,
+                Path       => Path,
+                Ino        => Ino,
+                Success    => Success,
+                User       => User,
+                Want_Read  => Want_Read,
+                Want_Write => Want_Write,
+                Do_Follow  => Do_Follow);
          when FS_EXT =>
             EXT.Open
                (FS         => Mounts (Key).FS_Data,
@@ -420,6 +444,7 @@ package body VFS is
    procedure Close (Key : FS_Handle; Ino : File_Inode_Number) is
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV => Dev.Close (Mounts (Key).FS_Data, Ino);
          when FS_EXT => EXT.Close (Mounts (Key).FS_Data, Ino);
          when FS_FAT => FAT.Close (Mounts (Key).FS_Data, Ino);
       end case;
@@ -435,6 +460,14 @@ package body VFS is
    is
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV =>
+            Dev.Read_Entries
+               (Mounts (Key).FS_Data,
+                Ino,
+                Offset,
+                Entities,
+                Ret_Count,
+                Success);
          when FS_EXT =>
             EXT.Read_Entries
                (Mounts (Key).FS_Data,
@@ -483,6 +516,14 @@ package body VFS is
    is
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV =>
+            Dev.Read
+               (Mounts (Key).FS_Data,
+                Ino,
+                Offset,
+                Data,
+                Ret_Count,
+                Success);
          when FS_EXT =>
             EXT.Read
                (Mounts (Key).FS_Data,
@@ -512,6 +553,14 @@ package body VFS is
    is
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV =>
+            Dev.Write
+               (Mounts (Key).FS_Data,
+                Ino,
+                Offset,
+                Data,
+                Ret_Count,
+                Success);
          when FS_EXT =>
             EXT.Write
                (Mounts (Key).FS_Data,
@@ -534,6 +583,8 @@ package body VFS is
    is
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV =>
+            Dev.Stat (Mounts (Key).FS_Data, Ino, Stat_Val, Success);
          when FS_EXT =>
             EXT.Stat (Mounts (Key).FS_Data, Ino, Stat_Val, Success);
          when FS_FAT =>
@@ -565,6 +616,9 @@ package body VFS is
    is
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV =>
+            Dev.IO_Control
+               (Mounts (Key).FS_Data, Ino, Request, Arg, Status);
          when FS_EXT =>
             EXT.IO_Control
                (Mounts (Key).FS_Data, Ino, Request, Arg, Status);
@@ -576,8 +630,9 @@ package body VFS is
    function Synchronize (Key : FS_Handle) return FS_Status is
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV => return Dev.Synchronize (Mounts (Key).FS_Data);
          when FS_EXT => return EXT.Synchronize (Mounts (Key).FS_Data);
-         when others => return FS_Not_Supported;
+         when FS_FAT => return FS_Not_Supported;
       end case;
    end Synchronize;
 
@@ -588,6 +643,8 @@ package body VFS is
    is
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV =>
+            return Dev.Synchronize (Mounts (Key).FS_Data, Ino, Data_Only);
          when FS_EXT =>
             return EXT.Synchronize (Mounts (Key).FS_Data, Ino, Data_Only);
          when others =>
@@ -639,11 +696,15 @@ package body VFS is
    is
    begin
       case Mounts (Key).Mounted_FS is
+         when FS_DEV =>
+            Dev.Check_Access
+               (Mounts (Key).FS_Data, Ino, Exists_Only, Can_Read, Can_Write,
+                Can_Exec, Real_UID, Status);
          when FS_EXT =>
             EXT.Check_Access
                (Mounts (Key).FS_Data, Ino, Exists_Only, Can_Read, Can_Write,
                 Can_Exec, Real_UID, Status);
-         when others =>
+         when FS_FAT =>
             Status := FS_Not_Supported;
       end case;
    end Check_Access;

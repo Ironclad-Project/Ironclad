@@ -196,6 +196,11 @@ package body Devices is
       return Natural (Handle);
    end Get_Unique_ID;
 
+   function From_Unique_ID (ID : Natural) return Device_Handle is
+   begin
+      return Device_Handle (ID);
+   end From_Unique_ID;
+
    function Is_Read_Only (Handle : Device_Handle) return Boolean is
    begin
       return Devices_Data (Handle).Contents.Write = null;

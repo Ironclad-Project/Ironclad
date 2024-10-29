@@ -2245,6 +2245,7 @@ following errno:
 @example c
 #define MNT_FAT   1
 #define MNT_EXT   2
+#define MNT_DEV   3
 #define MS_RDONLY 1
 
 #define MNT_FORCE 1
@@ -2267,6 +2268,8 @@ the filesystem type to mount, it must be specified, detection is not done.
 @code{MNT_FAT}: FAT family filesystem.
 @item
 @code{MNT_EXT}: EXT family filesystem.
+@item
+@code{MNT_DEV}: DevFS filesystem, cannot be used.
 @end itemize
 
 @code{flags} may contain @code{MS_RDONLY} to force mounting read-only mounting.

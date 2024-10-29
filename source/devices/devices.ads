@@ -147,14 +147,17 @@ package Devices is
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
    function Get_Block_Size  (Handle : Device_Handle) return Natural
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
+   function Is_Read_Only (Handle : Device_Handle) return Boolean
+      with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
    --  Get a unique ID for the device. This does not have anything to do with
    --  device UUIDs, and is always supported for a valid handle.
    function Get_Unique_ID (Handle : Device_Handle) return Natural
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
-   function Is_Read_Only (Handle : Device_Handle) return Boolean
-      with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
+   --  Get a device handle from a unique ID.
+   function From_Unique_ID (ID : Natural) return Device_Handle
+      with Pre => (Is_Initialized = True);
 
    --  Synchronize internal device state, in order to ensure coherency.
    --  @param Handle Handle to synchronize if supported, must be valid.
