@@ -52,17 +52,6 @@ package VFS.EXT is
 
    function Get_Max_Length (FS : System.Address) return Unsigned_64;
    ----------------------------------------------------------------------------
-   procedure Open
-      (FS         : System.Address;
-       Relative   : File_Inode_Number;
-       Path       : String;
-       Ino        : out File_Inode_Number;
-       Success    : out FS_Status;
-       User       : Unsigned_32;
-       Want_Read  : Boolean;
-       Want_Write : Boolean;
-       Do_Follow  : Boolean);
-
    procedure Create_Node
       (FS       : System.Address;
        Relative : File_Inode_Number;
@@ -106,8 +95,6 @@ package VFS.EXT is
        Path     : String;
        User     : Unsigned_32;
        Status   : out FS_Status);
-
-   procedure Close (FS : System.Address; Ino : File_Inode_Number);
 
    procedure Read_Entries
       (FS_Data   : System.Address;

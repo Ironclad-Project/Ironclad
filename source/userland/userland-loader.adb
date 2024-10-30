@@ -49,6 +49,7 @@ package body Userland.Loader is
    is
       Returned_PID : PID;
       Discard      : Natural;
+      Success      : VFS.FS_Status;
       Success1, Success2, Success3         : Boolean;
       User_Stdin, User_StdOut, User_StdErr : File_Description_Acc;
    begin
@@ -66,29 +67,69 @@ package body Userland.Loader is
       end if;
 
       User_Stdin := new File_Description'
-         (Children_Count     => 0,
-          Description        => Description_Device,
-          Inner_Dev_Blocking => True,
-          Inner_Dev_Read     => True,
-          Inner_Dev_Write    => False,
-          Inner_Dev_Pos      => 0,
-          Inner_Dev          => Devices.Fetch (StdIn_Path));
+         (Children_Count    => 0,
+          Description       => Description_Inode,
+          Inner_Is_Locked   => False,
+          Inner_Is_Blocking => True,
+          Inner_Ino_Read    => True,
+          Inner_Ino_Write   => False,
+          Inner_Ino_Pos     => 0,
+          Inner_Ino_FS      => VFS.Error_Handle,
+          Inner_Ino         => 0);
       User_StdOut := new File_Description'
-         (Children_Count     => 0,
-          Description        => Description_Device,
-          Inner_Dev_Blocking => True,
-          Inner_Dev_Read     => False,
-          Inner_Dev_Write    => True,
-          Inner_Dev_Pos      => 0,
-          Inner_Dev          => Devices.Fetch (StdOut_Path));
+         (Children_Count    => 0,
+          Description       => Description_Inode,
+          Inner_Is_Locked   => False,
+          Inner_Is_Blocking => True,
+          Inner_Ino_Read    => False,
+          Inner_Ino_Write   => True,
+          Inner_Ino_Pos     => 0,
+          Inner_Ino_FS      => VFS.Error_Handle,
+          Inner_Ino         => 0);
       User_StdErr := new File_Description'
-         (Children_Count     => 0,
-          Description        => Description_Device,
-          Inner_Dev_Blocking => True,
-          Inner_Dev_Read     => False,
-          Inner_Dev_Write    => True,
-          Inner_Dev_Pos      => 0,
-          Inner_Dev          => Devices.Fetch (StdErr_Path));
+         (Children_Count    => 0,
+          Description       => Description_Inode,
+          Inner_Is_Locked   => False,
+          Inner_Is_Blocking => True,
+          Inner_Ino_Read    => False,
+          Inner_Ino_Write   => True,
+          Inner_Ino_Pos     => 0,
+          Inner_Ino_FS      => VFS.Error_Handle,
+          Inner_Ino         => 0);
+
+      VFS.Open
+         (Path       => "/dev/" & StdIn_Path,
+          Key        => User_Stdin.Inner_Ino_FS,
+          Ino        => User_Stdin.Inner_Ino,
+          Success    => Success,
+          User       => 0,
+          Want_Read  => True,
+          Want_Write => False);
+      if Success /= FS_Success then
+         return Error_PID;
+      end if;
+      VFS.Open
+         (Path       => "/dev/" & StdOut_Path,
+          Key        => User_StdOut.Inner_Ino_FS,
+          Ino        => User_StdOut.Inner_Ino,
+          Success    => Success,
+          User       => 0,
+          Want_Read  => False,
+          Want_Write => True);
+      if Success /= FS_Success then
+         return Error_PID;
+      end if;
+      VFS.Open
+         (Path       => "/dev/" & StdErr_Path,
+          Key        => User_StdErr.Inner_Ino_FS,
+          Ino        => User_StdErr.Inner_Ino,
+          Success    => Success,
+          User       => 0,
+          Want_Read  => False,
+          Want_Write => True);
+      if Success /= FS_Success then
+         return Error_PID;
+      end if;
 
       Process.Add_File (Returned_PID, User_Stdin,  Discard, Success1);
       Process.Add_File (Returned_PID, User_StdOut, Discard, Success2);

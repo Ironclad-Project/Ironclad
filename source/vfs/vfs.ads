@@ -29,7 +29,7 @@ package VFS is
 
    --  Each inode has a mode. They are POSIX standard. uid, gid, and sticky
    --  bits are ignored.
-   type File_Mode is new Natural range 8#000# .. 8#777#;
+   subtype File_Mode is Natural range 8#000# .. 8#777#;
 
    --  Stat structure of a file, which describes the qualities of a file.
    type File_Timestamp is record
@@ -483,6 +483,20 @@ package VFS is
        Status  : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
+   --  Do an FS-specific poll operation on a file.
+   --  @param Key       FS Handle to open.
+   --  @param Ino       Inode to operate on.
+   --  @param Can_Read  True if the file is ready for reading.
+   --  @param Can_Write True if the file is ready for writing.
+   --  @param Is_Error  True if the file is errored out.
+   procedure Poll
+      (Key       : FS_Handle;
+       Ino       : File_Inode_Number;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean)
+      with Pre => Is_Initialized and Key /= Error_Handle;
+
    --  Synchronize the whole FS driver-specific caches and used device.
    --  @param Key FS Handle to open.
    --  @return Status for the operation.
@@ -626,11 +640,10 @@ package VFS is
 
 private
 
-   Max_Symlink_Loop : constant Natural := 8;
-
    type FS_Handle is new Natural range 0 .. 5;
+   Max_Symlink_Loop   : constant   Natural := 8;
    Error_Handle       : constant FS_Handle := 0;
-   Path_Buffer_Length : constant Natural   := 100;
+   Path_Buffer_Length : constant   Natural := 100;
 
    type Mount_Data is record
       Mounted_Dev : Device_Handle;
@@ -638,6 +651,9 @@ private
       FS_Data     : System.Address;
       Path_Length : Natural range 0 .. Path_Buffer_Length;
       Path_Buffer : String (1 .. Path_Buffer_Length);
+      Base_Key    : FS_Handle;
+      Base_Ino    : File_Inode_Number;
+      Root_Ino    : File_Inode_Number;
    end record;
 
    type Mount_Registry     is array (FS_Handle range 1 .. 5) of Mount_Data;

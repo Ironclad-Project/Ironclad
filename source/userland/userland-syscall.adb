@@ -102,7 +102,6 @@ package body Userland.Syscall is
       CWD_FS      : VFS.FS_Handle;
       CWD_Ino     : VFS.File_Inode_Number;
       Opened_Ino  : VFS.File_Inode_Number;
-      Opened_Dev  : Devices.Device_Handle;
       Opened_Stat : VFS.File_Stat;
       New_Descr   : File_Description_Acc;
       File_Perms  : MAC.Permissions;
@@ -126,59 +125,38 @@ package body Userland.Syscall is
          Path : String (1 .. Natural (Path_Len))
             with Import, Address => Path_SAddr;
       begin
-         if Path'Length > 5 and then Path (1 .. 5) = "/dev/" then
-            Opened_Dev := Devices.Fetch (Path (6 .. Path'Last));
-            if Opened_Dev = Devices.Error_Handle then
-               Returned := Unsigned_64'Last;
-               Errno    := Error_No_Entity;
-               return;
-            end if;
-
-            --  File_Perms := Check_Permissions (Curr_Proc, Opened_Dev);
-            File_Perms := (Can_Append_Only => False, others => True);
-
-            New_Descr  := new File_Description'
-               (Children_Count     => 0,
-                Description        => Description_Device,
-                Inner_Dev_Blocking => Do_Block,
-                Inner_Dev_Read     => Do_Read,
-                Inner_Dev_Write    => Do_Write,
-                Inner_Dev_Pos      => 0,
-                Inner_Dev          => Opened_Dev);
-         else
-            Resolve_AT_Directive (Curr_Proc, Dir_FD, Rela_FS, CWD_Ino);
-            if Rela_FS = VFS.Error_Handle then
-               Returned := Unsigned_64'Last;
-               Errno    := Error_Bad_File;
-               return;
-            end if;
-
-            VFS.Open (Rela_FS, CWD_Ino, Path, CWD_FS, Opened_Ino, Success,
-                      User, Do_Read, Do_Write, not Dont_Follow);
-            if Success /= VFS.FS_Success then
-               Returned := Unsigned_64'Last;
-               Errno    := Error_No_Entity;
-               return;
-            end if;
-
-            if Do_Append then
-               VFS.Stat (CWD_FS, Opened_Ino, Opened_Stat, Success);
-            else
-               Opened_Stat.Byte_Size := 0;
-            end if;
-
-            File_Perms := Check_Permissions (Curr_Proc, CWD_FS, Opened_Ino);
-            New_Descr  := new File_Description'
-               (Children_Count    => 0,
-                Description       => Description_Inode,
-                Inner_Is_Locked   => False,
-                Inner_Is_Blocking => Do_Block,
-                Inner_Ino_Read    => Do_Read,
-                Inner_Ino_Write   => Do_Write,
-                Inner_Ino_FS      => CWD_FS,
-                Inner_Ino_Pos     => Opened_Stat.Byte_Size,
-                Inner_Ino         => Opened_Ino);
+         Resolve_AT_Directive (Curr_Proc, Dir_FD, Rela_FS, CWD_Ino);
+         if Rela_FS = VFS.Error_Handle then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Bad_File;
+            return;
          end if;
+
+         VFS.Open (Rela_FS, CWD_Ino, Path, CWD_FS, Opened_Ino, Success,
+                   User, Do_Read, Do_Write, not Dont_Follow);
+         if Success /= VFS.FS_Success then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_No_Entity;
+            return;
+         end if;
+
+         if Do_Append then
+            VFS.Stat (CWD_FS, Opened_Ino, Opened_Stat, Success);
+         else
+            Opened_Stat.Byte_Size := 0;
+         end if;
+
+         File_Perms := Check_Permissions (Curr_Proc, CWD_FS, Opened_Ino);
+         New_Descr  := new File_Description'
+            (Children_Count    => 0,
+             Description       => Description_Inode,
+             Inner_Is_Locked   => False,
+             Inner_Is_Blocking => Do_Block,
+             Inner_Ino_Read    => Do_Read,
+             Inner_Ino_Write   => Do_Write,
+             Inner_Ino_FS      => CWD_FS,
+             Inner_Ino_Pos     => Opened_Stat.Byte_Size,
+             Inner_Ino         => Opened_Ino);
       end;
 
       if (not Do_Read   and not Do_Write)             or
@@ -238,7 +216,6 @@ package body Userland.Syscall is
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
       Success2  : IPC.FIFO.Pipe_Status;
-      Success3  : Boolean;
       Success4  : IPC.Socket.Socket_Status;
       Success5  : IPC.PTY.Status;
       User      : Unsigned_32;
@@ -265,24 +242,6 @@ package body Userland.Syscall is
             with Import, Address => Buf_SAddr;
       begin
          case File.Description is
-            when Description_Device =>
-               if not File.Inner_Dev_Read then
-                  Returned := Unsigned_64'Last;
-                  Errno    := Error_Invalid_Value;
-                  return;
-               end if;
-               Devices.Read
-                  (File.Inner_Dev, File.Inner_Dev_Pos, Data, Ret_Count,
-                   Success3, File.Inner_Dev_Blocking);
-               if Success3 then
-                  File.Inner_Dev_Pos := File.Inner_Dev_Pos +
-                                        Unsigned_64 (Ret_Count);
-                  Returned := Unsigned_64 (Ret_Count);
-                  Errno    := Error_No_Error;
-               else
-                  Returned := Unsigned_64'Last;
-                  Errno    := Error_IO;
-               end if;
             when Description_Inode =>
                if not File.Inner_Ino_Read then
                   Errno := Error_Invalid_Value;
@@ -335,7 +294,6 @@ package body Userland.Syscall is
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
       Success2  : IPC.FIFO.Pipe_Status;
-      Success3  : Boolean;
       Success4  : IPC.Socket.Socket_Status;
       Success5  : IPC.PTY.Status;
       User      : Unsigned_32;
@@ -362,25 +320,6 @@ package body Userland.Syscall is
             with Import, Address => Buf_SAddr;
       begin
          case File.Description is
-            when Description_Device =>
-               if not File.Inner_Dev_Write then
-                  Errno := Error_Invalid_Value;
-                  Returned := Unsigned_64'Last;
-                  return;
-               end if;
-
-               Devices.Write
-                  (File.Inner_Dev, File.Inner_Dev_Pos, Data, Ret_Count,
-                   Success3);
-               if Success3 then
-                  File.Inner_Dev_Pos := File.Inner_Dev_Pos +
-                                        Unsigned_64 (Ret_Count);
-                  Errno := Error_No_Error;
-                  Returned := Unsigned_64 (Ret_Count);
-               else
-                  Errno := Error_IO;
-                  Returned := Unsigned_64'Last;
-               end if;
             when Description_Inode =>
                if not File.Inner_Ino_Write then
                   Errno := Error_Invalid_Value;
@@ -452,7 +391,9 @@ package body Userland.Syscall is
       case File.Description is
          when Description_Inode =>
             VFS.Stat (File.Inner_Ino_FS, File.Inner_Ino, Stat_Val, Success);
-            if Success /= VFS.FS_Success then
+            if Success /= VFS.FS_Success or
+               Stat_Val.Type_Of_File = File_Character_Device
+            then
                goto Invalid_Seek_Error;
             end if;
 
@@ -468,25 +409,6 @@ package body Userland.Syscall is
             end case;
 
             Result := File.Inner_Ino_Pos;
-         when Description_Device =>
-            if not Devices.Is_Block_Device (File.Inner_Dev) then
-               goto Invalid_Seek_Error;
-            end if;
-
-            case Whence is
-               when SEEK_SET =>
-                  File.Inner_Dev_Pos := Offset;
-               when SEEK_CURRENT =>
-                  File.Inner_Dev_Pos := File.Inner_Dev_Pos + Offset;
-               when SEEK_END =>
-                  File.Inner_Dev_Pos :=
-                     (Unsigned_64 (Get_Block_Size (File.Inner_Dev)) *
-                     Get_Block_Count (File.Inner_Dev)) + Offset;
-               when others =>
-                  goto Invalid_Value_Error;
-            end case;
-
-            Result := File.Inner_Dev_Pos;
          when others =>
             goto Invalid_Seek_Error;
       end case;
@@ -522,7 +444,6 @@ package body Userland.Syscall is
       Final_Hint :           Virtual_Address := Virtual_Address (Hint);
       Ignored    : System.Address;
       File       : File_Description_Acc;
-      File_Perms : MAC.Permissions;
       Success    : Boolean;
       Status     : FS_Status;
    begin
@@ -575,27 +496,7 @@ package body Userland.Syscall is
             goto Invalid_Value_Return;
          end if;
 
-         if File.Description = Description_Device then
-            File_Perms := (others => True);
-            if (Perms.Can_Read    and not File_Perms.Can_Read)  or
-               (Perms.Can_Write   and not File_Perms.Can_Write) or
-               (Perms.Can_Execute and not File_Perms.Can_Execute)
-            then
-               goto Bad_MAC_Return;
-            end if;
-            if Devices.Mmap
-               (Handle  => File.Inner_Dev,
-                Map     => Map,
-                Address => Final_Hint,
-                Length  => Length,
-                Flags   => Perms)
-            then
-               Errno := Error_No_Error;
-               Returned := Unsigned_64 (Final_Hint);
-            else
-               goto No_Memory_Return;
-            end if;
-         elsif File.Description = Description_Inode then
+         if File.Description = Description_Inode then
             VFS.Mmap
                (Key         => File.Inner_Ino_FS,
                 Ino         => File.Inner_Ino,
@@ -1038,31 +939,6 @@ package body Userland.Syscall is
             when Description_Inode =>
                FS  := File_Desc.Inner_Ino_FS;
                Ino := File_Desc.Inner_Ino;
-            when Description_Device =>
-               ID := Devices.Get_Unique_ID (File_Desc.Inner_Dev);
-               Stat_Buf :=
-                  (Device_Number => Unsigned_64 (ID),
-                   Inode_Number  => Unsigned_64 (ID),
-                   Mode          => 8#644#,
-                   Number_Links  => 1,
-                   UID           => 0,
-                   GID           => 0,
-                   Inner_Device  => Unsigned_64 (ID),
-                   File_Size     => 512,
-                   Access_Time   => (0, 0),
-                   Modify_Time   => (0, 0),
-                   Create_Time   => (0, 0),
-                   Block_Size    =>
-                     Unsigned_64 (Get_Block_Size (File_Desc.Inner_Dev)),
-                   Block_Count   => Get_Block_Count (File_Desc.Inner_Dev));
-
-               --  Set the access part of mode.
-               if Devices.Is_Block_Device (File_Desc.Inner_Dev) then
-                  Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFBLK;
-               else
-                  Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFCHR;
-               end if;
-               goto Success_Return;
             when Description_Reader_FIFO | Description_Writer_FIFO |
                  Description_Primary_PTY | Description_Secondary_PTY =>
                Stat_Buf :=
@@ -1240,12 +1116,6 @@ package body Userland.Syscall is
                VFS.IO_Control (File.Inner_Ino_FS, File.Inner_Ino,
                                Request, S_Arg, FSSuc);
                Succ := FSSuc = VFS.FS_Success;
-            else
-               Succ := False;
-            end if;
-         when Description_Device =>
-            if File.Inner_Dev_Read and File.Inner_Dev_Write then
-               Succ := IO_Control (File.Inner_Dev, Request, S_Arg);
             else
                Succ := False;
             end if;
@@ -1882,8 +1752,6 @@ package body Userland.Syscall is
                   Is_Primary_Blocking (File.Inner_Primary_PTY, Temp);
                when Description_Secondary_PTY =>
                   Is_Secondary_Blocking (File.Inner_Secondary_PTY, Temp);
-               when Description_Device =>
-                  Temp := File.Inner_Dev_Blocking;
                when Description_Inode =>
                   Temp := File.Inner_Is_Blocking;
             end case;
@@ -1901,8 +1769,6 @@ package body Userland.Syscall is
                   Set_Primary_Blocking (File.Inner_Primary_PTY, Temp);
                when Description_Secondary_PTY =>
                   Set_Secondary_Blocking (File.Inner_Secondary_PTY, Temp);
-               when Description_Device =>
-                  File.Inner_Dev_Blocking := Temp;
                when Description_Inode =>
                   File.Inner_Is_Blocking := Temp;
             end case;
@@ -2880,14 +2746,6 @@ package body Userland.Syscall is
          when Description_Inode =>
             Succ := VFS.Synchronize (File.Inner_Ino_FS, File.Inner_Ino, Data);
             Translate_Status (Succ, 0, Returned, Errno);
-         when Description_Device =>
-            if Devices.Synchronize (File.Inner_Dev) then
-               Errno    := Error_No_Error;
-               Returned := 0;
-            else
-               Errno    := Error_IO;
-               Returned := Unsigned_64'Last;
-            end if;
          when others =>
             Errno    := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
@@ -3307,15 +3165,12 @@ package body Userland.Syscall is
                end if;
 
                --  Fill out events depending on the file type.
-               Can_Read := False;
-               Can_Write := False;
+               Can_Read     := False;
+               Can_Write    := False;
                Can_PrioRead := False;
-               Is_Error := False;
-               Is_Broken := False;
+               Is_Error     := False;
+               Is_Broken    := False;
                case File.Description is
-                  when Description_Device =>
-                     Devices.Poll (File.Inner_Dev, Can_Read, Can_Write,
-                                   Is_Error);
                   when Description_Reader_FIFO =>
                      IPC.FIFO.Poll_Reader
                         (File.Inner_Reader_FIFO,
@@ -3336,8 +3191,8 @@ package body Userland.Syscall is
                         (File.Inner_Socket, Can_Read, Can_Write, Is_Broken,
                          Is_Error);
                   when Description_Inode =>
-                     Can_Read  := True;
-                     Can_Write := True;
+                     VFS.Poll (File.Inner_Ino_FS, File.Inner_Ino, Can_Read,
+                        Can_Write, Is_Error);
                end case;
 
                if Can_Read and (Polled.Events and POLLIN) /= 0 then
@@ -3664,7 +3519,6 @@ package body Userland.Syscall is
       File      : constant File_Description_Acc := Get_File (Proc, File_D);
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
-      Success3  : Boolean;
       User      : Unsigned_32;
       Final_Cnt : Natural;
    begin
@@ -3689,24 +3543,6 @@ package body Userland.Syscall is
             with Import, Address => Buf_SAddr;
       begin
          case File.Description is
-            when Description_Device =>
-               if not File.Inner_Dev_Read then
-                  Errno := Error_Invalid_Value;
-                  Returned := Unsigned_64'Last;
-                  return;
-               end if;
-               Devices.Read
-                  (File.Inner_Dev, Offset, Data, Ret_Count, Success3,
-                   File.Inner_Dev_Blocking);
-               if Success3 then
-                  Errno := Error_No_Error;
-                  Returned := Unsigned_64 (Ret_Count);
-                  return;
-               else
-                  Errno := Error_IO;
-                  Returned := Unsigned_64'Last;
-                  return;
-               end if;
             when Description_Inode =>
                if not File.Inner_Ino_Read then
                   Errno := Error_Invalid_Value;
@@ -3740,7 +3576,6 @@ package body Userland.Syscall is
       File      : constant File_Description_Acc := Get_File (Proc, File_D);
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
-      Success3  : Boolean;
       User      : Unsigned_32;
       Final_Cnt : Natural;
    begin
@@ -3765,24 +3600,6 @@ package body Userland.Syscall is
             with Import, Address => Buf_SAddr;
       begin
          case File.Description is
-            when Description_Device =>
-               if not File.Inner_Dev_Write then
-                  Errno := Error_Invalid_Value;
-                  Returned := Unsigned_64'Last;
-                  return;
-               end if;
-
-               Devices.Write
-                  (File.Inner_Dev, Offset, Data, Ret_Count, Success3);
-               if Success3 then
-                  Errno := Error_No_Error;
-                  Returned := Unsigned_64 (Ret_Count);
-                  return;
-               else
-                  Errno := Error_IO;
-                  Returned := Unsigned_64'Last;
-                  return;
-               end if;
             when Description_Inode =>
                if not File.Inner_Ino_Write then
                   Errno := Error_Invalid_Value;
@@ -4450,7 +4267,10 @@ package body Userland.Syscall is
       Map   : constant       Page_Table_Acc := Get_Common_Map (Proc);
       File  : constant File_Description_Acc := Get_File (Proc, InterDev);
       IAddr : constant      Integer_Address := Integer_Address (Arg_Addr);
+      Handl : Devices.Device_Handle;
+      Stat  : VFS.File_Stat;
       Suc   : Boolean;
+      Suc2  : VFS.FS_Status;
 
       Blk :            Boolean with Import, Address => To_Address (IAddr);
       IP4 : Addr4_NetInterface with Import, Address => To_Address (IAddr);
@@ -4461,30 +4281,38 @@ package body Userland.Syscall is
          Execute_MAC_Failure ("config_netinter", Proc);
          Returned := Unsigned_64'Last;
          return;
-      elsif File = null or else File.Description /= Description_Device then
+      elsif File = null or else File.Description /= Description_Inode then
          Returned := Unsigned_64'Last;
          Errno    := Error_Bad_File;
          return;
       end if;
+
+      VFS.Stat (File.Inner_Ino_FS, File.Inner_Ino, Stat, Suc2);
+      if Suc2 /= FS_Success or Stat.Type_Of_File /= File_Character_Device then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Bad_File;
+         return;
+      end if;
+      Handl := Devices.From_Unique_ID (Integer (File.Inner_Ino));
 
       case Operation is
          when NETINTER_SET_BLOCK =>
             if not Check_Userland_Access (Map, IAddr, Blk'Size / 8) then
                goto Would_Fault_Error;
             end if;
-            Networking.Interfaces.Block (File.Inner_Dev, Blk, Suc);
+            Networking.Interfaces.Block (Handl, Blk, Suc);
          when NETINTER_SET_STATIC_IP4 =>
             if not Check_Userland_Access (Map, IAddr, IP4'Size / 8) then
                goto Would_Fault_Error;
             end if;
             Networking.Interfaces.Modify_Addresses
-               (File.Inner_Dev, IP4.IP, IP4.Sub, Suc);
+               (Handl, IP4.IP, IP4.Sub, Suc);
          when NETINTER_SET_STATIC_IP6 =>
             if not Check_Userland_Access (Map, IAddr, IP6'Size / 8) then
                goto Would_Fault_Error;
             end if;
             Networking.Interfaces.Modify_Addresses
-               (File.Inner_Dev, IP6.IP, IP6.Sub, Suc);
+               (Handl, IP6.IP, IP6.Sub, Suc);
          when others =>
             Suc := False;
       end case;

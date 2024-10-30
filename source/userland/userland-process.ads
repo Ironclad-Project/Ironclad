@@ -24,7 +24,6 @@ with Userland.MAC;
 with IPC.FIFO;   use IPC.FIFO;
 with IPC.PTY;    use IPC.PTY;
 with IPC.Socket; use IPC.Socket;
-with Devices;
 
 package Userland.Process is
    --  A process is identifier by a PID (process identifier).
@@ -52,7 +51,6 @@ package Userland.Process is
        Description_Writer_FIFO,
        Description_Primary_PTY,
        Description_Secondary_PTY,
-       Description_Device,
        Description_Inode,
        Description_Socket);
    type File_Description;
@@ -68,12 +66,6 @@ package Userland.Process is
             Inner_Primary_PTY : IPC.PTY.Inner_Acc;
          when Description_Secondary_PTY =>
             Inner_Secondary_PTY : IPC.PTY.Inner_Acc;
-         when Description_Device =>
-            Inner_Dev_Blocking : Boolean;
-            Inner_Dev_Read     : Boolean;
-            Inner_Dev_Write    : Boolean;
-            Inner_Dev_Pos      : Unsigned_64;
-            Inner_Dev          : Devices.Device_Handle;
          when Description_Inode =>
             Inner_Is_Locked   : Boolean;
             Inner_Is_Blocking : Boolean;

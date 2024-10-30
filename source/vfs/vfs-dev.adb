@@ -24,13 +24,15 @@ package body VFS.Dev is
       (Handle       : Device_Handle;
        Do_Read_Only : Boolean;
        Do_Relatime  : Boolean;
-       Data_Addr    : out System.Address)
+       Data_Addr    : out System.Address;
+       Root_Ino     : out File_Inode_Number)
    is
       pragma Unreferenced (Handle);
       pragma Unreferenced (Do_Read_Only);
       pragma Unreferenced (Do_Relatime);
    begin
       Data_Addr := System'To_Address (1);
+      Root_Ino  := Root_Inode;
    end Probe;
 
    procedure Remount
@@ -103,36 +105,6 @@ package body VFS.Dev is
       return Unsigned_64 (Devices.Max_Name_Length);
    end Get_Max_Length;
    ----------------------------------------------------------------------------
-   procedure Open
-      (FS         : System.Address;
-       Relative   : File_Inode_Number;
-       Path       : String;
-       Ino        : out File_Inode_Number;
-       Success    : out FS_Status;
-       User       : Unsigned_32;
-       Want_Read  : Boolean;
-       Want_Write : Boolean;
-       Do_Follow  : Boolean)
-   is
-      pragma Unreferenced (FS);
-      pragma Unreferenced (Relative);
-      pragma Unreferenced (Path);
-      pragma Unreferenced (User);
-      pragma Unreferenced (Want_Read);
-      pragma Unreferenced (Want_Write);
-      pragma Unreferenced (Do_Follow);
-   begin
-      Ino     := 0;
-      Success := FS_Invalid_Value;
-   end Open;
-
-   procedure Close (FS : System.Address; Ino : File_Inode_Number) is
-      pragma Unreferenced (FS);
-      pragma Unreferenced (Ino);
-   begin
-      null;
-   end Close;
-
    procedure Read_Entries
       (FS_Data   : System.Address;
        Ino       : File_Inode_Number;
@@ -176,8 +148,8 @@ package body VFS.Dev is
                (Buffer (I),
                 Entities (Entities'First + Idx).Name_Buffer,
                 Entities (Entities'First + Idx).Name_Len);
-
             Ret_Count := Ret_Count + 1;
+            Idx       :=       Idx + 1;
          end if;
       end loop;
 
@@ -239,24 +211,38 @@ package body VFS.Dev is
       pragma Unreferenced (Data);
       Dev : constant Device_Handle := From_Unique_ID (Natural (Ino));
    begin
-      S :=
-         (Unique_Identifier => Ino,
-          Type_Of_File      => File_Character_Device,
-          Mode              => Device_Permissions,
-          UID               => 0,
-          GID               => 0,
-          Hard_Link_Count   => 1,
-          Byte_Size         => 0,
-          IO_Block_Size     => Devices.Get_Block_Size (Dev),
-          IO_Block_Count    => Devices.Get_Block_Count (Dev),
-          Creation_Time     => (0, 0),
-          Modification_Time => (0, 0),
-          Access_Time       => (0, 0));
-
-      S.Byte_Size := Unsigned_64 (S.IO_Block_Size) * S.IO_Block_Count;
-
-      if Devices.Is_Block_Device (Dev) then
-         S.Type_Of_File := File_Block_Device;
+      if Ino = Root_Inode then
+         S :=
+            (Unique_Identifier => Root_Inode,
+             Type_Of_File      => File_Directory,
+             Mode              => Device_Permissions,
+             UID               => 0,
+             GID               => 0,
+             Hard_Link_Count   => 1,
+             Byte_Size         => 0,
+             IO_Block_Size     => 0,
+             IO_Block_Count    => 0,
+             Creation_Time     => (0, 0),
+             Modification_Time => (0, 0),
+             Access_Time       => (0, 0));
+      else
+         S :=
+            (Unique_Identifier => Ino,
+             Type_Of_File      => File_Character_Device,
+             Mode              => Device_Permissions,
+             UID               => 0,
+             GID               => 0,
+             Hard_Link_Count   => 1,
+             Byte_Size         => 0,
+             IO_Block_Size     => Devices.Get_Block_Size (Dev),
+             IO_Block_Count    => Devices.Get_Block_Count (Dev),
+             Creation_Time     => (0, 0),
+             Modification_Time => (0, 0),
+             Access_Time       => (0, 0));
+         S.Byte_Size := Unsigned_64 (S.IO_Block_Size) * S.IO_Block_Count;
+         if Devices.Is_Block_Device (Dev) then
+            S.Type_Of_File := File_Block_Device;
+         end if;
       end if;
 
       Success := FS_Success;
@@ -297,6 +283,19 @@ package body VFS.Dev is
          Status := FS_IO_Failure;
       end if;
    end Mmap;
+
+   procedure Poll
+      (Data      : System.Address;
+       Ino       : File_Inode_Number;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean)
+   is
+      pragma Unreferenced (Data);
+      Dev : constant Device_Handle := From_Unique_ID (Natural (Ino));
+   begin
+      Devices.Poll (Dev, Can_Read, Can_Write, Is_Error);
+   end Poll;
 
    procedure Check_Access
       (Data        : System.Address;

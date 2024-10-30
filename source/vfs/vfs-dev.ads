@@ -21,7 +21,8 @@ package VFS.Dev is
       (Handle       : Device_Handle;
        Do_Read_Only : Boolean;
        Do_Relatime  : Boolean;
-       Data_Addr    : out System.Address);
+       Data_Addr    : out System.Address;
+       Root_Ino     : out File_Inode_Number);
 
    procedure Remount
       (FS           : System.Address;
@@ -51,19 +52,6 @@ package VFS.Dev is
 
    function Get_Max_Length (FS : System.Address) return Unsigned_64;
    ----------------------------------------------------------------------------
-   procedure Open
-      (FS         : System.Address;
-       Relative   : File_Inode_Number;
-       Path       : String;
-       Ino        : out File_Inode_Number;
-       Success    : out FS_Status;
-       User       : Unsigned_32;
-       Want_Read  : Boolean;
-       Want_Write : Boolean;
-       Do_Follow  : Boolean);
-
-   procedure Close (FS : System.Address; Ino : File_Inode_Number);
-
    procedure Read_Entries
       (FS_Data   : System.Address;
        Ino       : File_Inode_Number;
@@ -111,6 +99,13 @@ package VFS.Dev is
        Length  : Unsigned_64;
        Flags   : Arch.MMU.Page_Permissions;
        Status  : out FS_Status);
+
+   procedure Poll
+      (Data      : System.Address;
+       Ino       : File_Inode_Number;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean);
 
    procedure Check_Access
       (Data        : System.Address;

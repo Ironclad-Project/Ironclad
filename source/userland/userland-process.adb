@@ -453,7 +453,6 @@ package body Userland.Process is
             when Description_Writer_FIFO => Close_Writer (F.Inner_Writer_FIFO);
             when Description_Primary_PTY => Close (F.Inner_Primary_PTY);
             when Description_Secondary_PTY => Close (F.Inner_Secondary_PTY);
-            when Description_Device => null;
             when Description_Inode =>
                if F.Inner_Is_Locked then
                   IPC.FileLock.Release_Lock (F.Inner_Ino_FS, F.Inner_Ino, T);

@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Unchecked_Deallocation;
 with VFS.Dev;
 with VFS.EXT;
 with VFS.FAT;
@@ -29,7 +30,10 @@ package body VFS is
           Mounted_FS  => FS_EXT,
           FS_Data     => System.Null_Address,
           Path_Length => 0,
-          Path_Buffer => (others => ' ')));
+          Path_Buffer => (others => ' '),
+          Base_Key    => Error_Handle,
+          Base_Ino    => 0,
+          Root_Ino    => 0));
       Mounts_Mutex := Lib.Synchronization.Unlocked_Semaphore;
    end Init;
 
@@ -59,9 +63,13 @@ package body VFS is
        Do_Relatime  : Boolean;
        Success      : out Boolean)
    is
-      De      : constant Device_Handle := Devices.Fetch (Device_Name);
-      Free_I  :              FS_Handle := VFS.Error_Handle;
-      FS_Data : System.Address;
+      De         : constant Device_Handle := Devices.Fetch (Device_Name);
+      Free_I     :              FS_Handle := VFS.Error_Handle;
+      FS_Data    : System.Address;
+      Key        : FS_Handle := Error_Handle;
+      Ino        : File_Inode_Number := 0;
+      Root_Inode : File_Inode_Number;
+      Succ       : FS_Status;
    begin
       Success := False;
 
@@ -70,6 +78,20 @@ package body VFS is
          De = Devices.Error_Handle
       then
          return;
+      end if;
+
+      if Mount_Path /= "/" then
+         Open
+            (Path       => Mount_Path,
+             Key        => Key,
+             Ino        => Ino,
+             Success    => Succ,
+             User       => 0,
+             Want_Read  => True,
+             Want_Write => False);
+         if Succ /= FS_Success then
+            Success := False;
+         end if;
       end if;
 
       Lib.Synchronization.Seize (Mounts_Mutex);
@@ -86,9 +108,14 @@ package body VFS is
 
    <<Try_Probe>>
       case FS is
-         when FS_DEV => Dev.Probe (De, Do_Read_Only, Do_Relatime, FS_Data);
-         when FS_EXT => EXT.Probe (De, Do_Read_Only, Do_Relatime, FS_Data);
-         when FS_FAT => FAT.Probe (De, Do_Read_Only, FS_Data);
+         when FS_DEV =>
+            Dev.Probe (De, Do_Read_Only, Do_Relatime, FS_Data, Root_Inode);
+         when FS_EXT =>
+            EXT.Probe (De, Do_Read_Only, Do_Relatime, FS_Data);
+            Root_Inode := 2;
+         when FS_FAT =>
+            FAT.Probe (De, Do_Read_Only, FS_Data);
+            Root_Inode := 0;
       end case;
 
       if FS_Data /= System.Null_Address then
@@ -97,7 +124,11 @@ package body VFS is
              Mounted_FS  => FS,
              FS_Data     => FS_Data,
              Path_Length => Mount_Path'Length,
-             Path_Buffer => (others => ' '));
+             Path_Buffer => (others => ' '),
+             Base_Key    => Key,
+             Base_Ino    => Ino,
+             Root_Ino    => Root_Inode);
+
          Mounts (Free_I).Path_Buffer (1 .. Mount_Path'Length) := Mount_Path;
          Success := True;
       end if;
@@ -310,39 +341,209 @@ package body VFS is
        Want_Write : Boolean;
        Do_Follow  : Boolean := True)
    is
-   begin
-      Final_Key := Key;
+      type String_Acc is access String;
 
-      case Mounts (Key).Mounted_FS is
-         when FS_DEV =>
-            Dev.Open
-               (FS         => Mounts (Key).FS_Data,
-                Relative   => Relative,
-                Path       => Path,
-                Ino        => Ino,
-                Success    => Success,
-                User       => User,
-                Want_Read  => Want_Read,
-                Want_Write => Want_Write,
-                Do_Follow  => Do_Follow);
-         when FS_EXT =>
-            EXT.Open
-               (FS         => Mounts (Key).FS_Data,
-                Relative   => Relative,
-                Path       => Path,
-                Ino        => Ino,
-                Success    => Success,
-                User       => User,
-                Want_Read  => Want_Read,
-                Want_Write => Want_Write,
-                Do_Follow  => Do_Follow);
-         when FS_FAT =>
-            FAT.Open
-               (FS      => Mounts (Key).FS_Data,
-                Path    => Path,
-                Ino     => Ino,
-                Success => Success);
-      end case;
+      procedure Free1 is new Ada.Unchecked_Deallocation (String, String_Acc);
+      procedure Free2 is new Ada.Unchecked_Deallocation
+         (Directory_Entities, Directory_Entities_Acc);
+
+      Orig_Key        :         FS_Handle := Error_Handle;
+      Orig_Ino        : File_Inode_Number := 0;
+      Actual_Key      :         FS_Handle := Key;
+      Actual_Ino      : File_Inode_Number := Relative;
+      Path_Idx        : Natural;
+      Path_Last       : Natural;
+      Dir_Entries : Directory_Entities_Acc := new Directory_Entities (1 .. 20);
+      Entry_Type      : File_Type;
+      Entries_Offset  : Natural;
+      Entries_Count   : Natural;
+      Symlink_Path    : String_Acc := new String'(1 .. 60 => ' ');
+      Symlink_Len     : Natural;
+   begin
+      if Path'Length = 0 then
+         goto Invalid_Value_Return;
+      end if;
+
+      if Is_Absolute (Path) then
+         Actual_Key := 1;
+         Actual_Ino := Mounts (1).Root_Ino;
+      end if;
+
+      Path_Idx := 0;
+      loop
+         --  Clear slashes ('/') at the front of path.
+         --  If we end up with nothing at the end, it means we already hit
+         --  our destination, and we were just dealing with some trailing
+         --  slashes. Ex: /usr/home////
+         while Path'First + Path_Idx <= Path'Last and then
+               Path (Path'First + Path_Idx) = '/'
+         loop
+            Path_Idx := Path_Idx + 1;
+         end loop;
+         if Path'First + Path_Idx > Path'Last then
+            exit;
+         end if;
+
+         --  Find the next component of Path, by iterating until we find the
+         --  next slash.
+         Path_Last := Path_Idx;
+         while Path'First + Path_Last <= Path'Last and then
+               Path (Path'First + Path_Last) /= '/'
+         loop
+            Path_Last := Path_Last + 1;
+         end loop;
+         Path_Last := Path_Last - 1;
+
+         --  Shortcut the search in the case of . or ..
+         if Path (Path'First + Path_Idx .. Path'First + Path_Last) = "." then
+            goto Found_Entry;
+         elsif Orig_Key /= Error_Handle and then
+               Path (Path'First + Path_Idx .. Path'First + Path_Last) = ".."
+         then
+            Actual_Key := Orig_Key;
+            Actual_Ino := Orig_Ino;
+            goto Found_Entry;
+         end if;
+
+         --  Read the entries of current directory, check if the component
+         --  of path is found.
+         Entries_Offset := 0;
+         Entries_Count  := 0;
+         loop
+            Read_Entries
+               (Key       => Actual_Key,
+                Ino       => Actual_Ino,
+                Offset    => Entries_Offset,
+                Entities  => Dir_Entries.all,
+                Ret_Count => Entries_Count,
+                Success   => Success);
+            if (Success = FS_Success and Entries_Count = 0) or
+               Success /= FS_Success
+            then
+               exit;
+            end if;
+
+            for Ent of Dir_Entries (1 .. Entries_Count) loop
+               if Ent.Name_Buffer (1 .. Ent.Name_Len) =
+                  Path (Path'First + Path_Idx .. Path'First + Path_Last)
+               then
+                  Orig_Key   := Actual_Key;
+                  Orig_Ino   := Actual_Ino;
+                  Actual_Ino := File_Inode_Number (Ent.Inode_Number);
+                  Entry_Type := Ent.Type_Of_File;
+                  goto Found_Entry;
+               end if;
+            end loop;
+
+            Entries_Offset := Entries_Offset + Entries_Count;
+         end loop;
+
+         goto Invalid_Value_Return;
+
+   <<Found_Entry>>
+         --  We have found a suitable next step, neat!
+         --  If we are at the end of the road, we can try to follow applicable
+         --  symlinks by recursion, or just be done.
+         if Path'First + Path_Last = Path'Last then
+            if Entry_Type = File_Symbolic_Link and Do_Follow then
+               Read_Symbolic_Link
+                  (Key       => Actual_Key,
+                   Ino       => Actual_Ino,
+                   Path      => Symlink_Path.all,
+                   Ret_Count => Symlink_Len,
+                   Success   => Success);
+               if Success /= FS_Success then
+                  goto Invalid_Value_Return;
+               end if;
+
+               Open
+                  (Key        => Orig_Key,
+                   Relative   => Orig_Ino,
+                   Path       => Symlink_Path (1 .. Symlink_Len),
+                   Final_Key  => Final_Key,
+                   Ino        => Ino,
+                   Success    => Success,
+                   User       => User,
+                   Want_Read  => Want_Read,
+                   Want_Write => Want_Write,
+                   Do_Follow  => Do_Follow);
+               goto Cleanup_Only_Return;
+            elsif Entry_Type = File_Directory then
+               for I in Mounts'Range loop
+                  if Mounts (I).Base_Key = Actual_Key and
+                     Mounts (I).Base_Ino = Actual_Ino
+                  then
+                     Actual_Key := I;
+                     Actual_Ino := Mounts (I).Root_Ino;
+                     exit;
+                  end if;
+               end loop;
+            end if;
+            exit;
+         end if;
+
+         --  If we have found the next component and we are NOT at the end of
+         --  path, then we prepare to go again. We do that by making sure
+         --  we are at a symlink or directory.
+         case Entry_Type is
+            when File_Directory =>
+               for I in Mounts'Range loop
+                  if Mounts (I).Base_Key = Actual_Key and
+                     Mounts (I).Base_Ino = Actual_Ino
+                  then
+                     Actual_Key := I;
+                     Actual_Ino := Mounts (I).Root_Ino;
+                     exit;
+                  end if;
+               end loop;
+            when File_Symbolic_Link =>
+               Read_Symbolic_Link
+                  (Key       => Actual_Key,
+                   Ino       => Actual_Ino,
+                   Path      => Symlink_Path.all,
+                   Ret_Count => Symlink_Len,
+                   Success   => Success);
+               if Success /= FS_Success then
+                  goto Invalid_Value_Return;
+               end if;
+
+               Open
+                  (Key        => Orig_Key,
+                   Relative   => Orig_Ino,
+                   Path       => Symlink_Path (1 .. Symlink_Len) & "/" &
+                              Path (Path'First + Path_Last + 1 .. Path'Last),
+                   Final_Key  => Final_Key,
+                   Ino        => Ino,
+                   Success    => Success,
+                   User       => User,
+                   Want_Read  => Want_Read,
+                   Want_Write => Want_Write,
+                   Do_Follow  => Do_Follow);
+               goto Cleanup_Only_Return;
+            when others =>
+               goto Invalid_Value_Return;
+         end case;
+         Path_Idx := Path_Last + 1;
+      end loop;
+
+      Free1 (Symlink_Path);
+      Free2 (Dir_Entries);
+      Final_Key := Actual_Key;
+      Ino       := Actual_Ino;
+      Success   := FS_Success;
+      return;
+
+   <<Invalid_Value_Return>>
+      Free1 (Symlink_Path);
+      Free2 (Dir_Entries);
+      Final_Key := Error_Handle;
+      Ino       := 0;
+      Success   := FS_Invalid_Value;
+      return;
+
+   <<Cleanup_Only_Return>>
+      Free1 (Symlink_Path);
+      Free2 (Dir_Entries);
    end Open;
 
    procedure Create_Node
@@ -444,8 +645,8 @@ package body VFS is
    procedure Close (Key : FS_Handle; Ino : File_Inode_Number) is
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_DEV => Dev.Close (Mounts (Key).FS_Data, Ino);
-         when FS_EXT => EXT.Close (Mounts (Key).FS_Data, Ino);
+         when FS_DEV => null;
+         when FS_EXT => null;
          when FS_FAT => FAT.Close (Mounts (Key).FS_Data, Ino);
       end case;
    end Close;
@@ -653,6 +854,25 @@ package body VFS is
       end case;
    end Mmap;
 
+   procedure Poll
+      (Key       : FS_Handle;
+       Ino       : File_Inode_Number;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean)
+   is
+   begin
+      case Mounts (Key).Mounted_FS is
+         when FS_DEV =>
+            Dev.Poll
+               (Mounts (Key).FS_Data, Ino, Can_Read, Can_Write, Is_Error);
+         when others =>
+            Can_Read  := True;
+            Can_Write := True;
+            Is_Error  := False;
+      end case;
+   end Poll;
+
    function Synchronize (Key : FS_Handle) return FS_Status is
    begin
       case Mounts (Key).Mounted_FS is
@@ -765,28 +985,18 @@ package body VFS is
        Want_Write : Boolean;
        Do_Follow  : Boolean := True)
    is
-      Rela_Key    : FS_Handle;
-      Match_Count : Natural;
    begin
-      Get_Mount (Path, Match_Count, Rela_Key);
-      if Rela_Key /= Error_Handle and Path'First < Natural'Last - Match_Count
-      then
-         Open
-            (Key        => Rela_Key,
-             Relative   => 0,
-             Path       => Path (Path'First + Match_Count .. Path'Last),
-             Final_Key  => Key,
-             Ino        => Ino,
-             Success    => Success,
-             User       => User,
-             Want_Read  => Want_Read,
-             Want_Write => Want_Write,
-             Do_Follow  => Do_Follow);
-      else
-         Key     := Error_Handle;
-         Ino     := 0;
-         Success := FS_Invalid_Value;
-      end if;
+      Open
+         (Key        => 1,
+          Relative   => Mounts (1).Root_Ino,
+          Path       => Path,
+          Final_Key  => Key,
+          Ino        => Ino,
+          Success    => Success,
+          User       => User,
+          Want_Read  => Want_Read,
+          Want_Write => Want_Write,
+          Do_Follow  => Do_Follow);
    end Open;
 
    procedure Synchronize (Success : out Boolean) is
@@ -811,18 +1021,15 @@ package body VFS is
        Success : out FS_Status;
        User    : Unsigned_32)
    is
-      Match_Count : Natural;
-      Handle      : FS_Handle;
    begin
-      Get_Mount (Path, Match_Count, Handle);
-      if Handle /= Error_Handle and Path'First < Natural'Last - Match_Count
-      then
-         Create_Node
-            (Handle, 0, Path (Path'First + Match_Count .. Path'Last), Typ,
-             Mode, User, Success);
-      else
-         Success := FS_Invalid_Value;
-      end if;
+      Create_Node
+         (Key      => 1,
+          Relative => Mounts (1).Root_Ino,
+          Path     => Path,
+          Typ      => Typ,
+          Mode     => Mode,
+          User     => User,
+          Status   => Success);
    end Create_Node;
    ----------------------------------------------------------------------------
    function Is_Absolute (Path : String) return Boolean is

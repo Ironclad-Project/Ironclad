@@ -204,93 +204,6 @@ package body VFS.EXT is
       return Max_File_Name_Size;
    end Get_Max_Length;
    ----------------------------------------------------------------------------
-   procedure Open
-      (FS         : System.Address;
-       Relative   : File_Inode_Number;
-       Path       : String;
-       Ino        : out File_Inode_Number;
-       Success    : out FS_Status;
-       User       : Unsigned_32;
-       Want_Read  : Boolean;
-       Want_Write : Boolean;
-       Do_Follow  : Boolean)
-   is
-      Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Last_Component             : String_Acc;
-      Target_Index, Parent_Index : Unsigned_32;
-      Target_Inode, Parent_Inode : Inode_Acc := new Inode;
-      Succ                       : Boolean;
-      Symlink                    : String (1 .. 60);
-      Symlink_Len                : Natural;
-   begin
-      Lib.Synchronization.Seize (Data.Mutex);
-
-      Inner_Open_Inode
-         (Data           => Data,
-          Relative       => Unsigned_32 (Relative),
-          Path           => Path,
-          Last_Component => Last_Component,
-          Target_Index   => Target_Index,
-          Target_Inode   => Target_Inode.all,
-          Parent_Index   => Parent_Index,
-          Parent_Inode   => Parent_Inode.all,
-          Success        => Succ);
-
-      if Succ and Do_Follow and
-         Get_Inode_Type (Target_Inode.Permissions) = File_Symbolic_Link
-      then
-         Inner_Read_Symbolic_Link
-            (Target_Inode.all,
-             Get_Size (Target_Inode.all, Data.Has_64bit_Filesizes),
-             Symlink,
-             Symlink_Len);
-
-         Lib.Synchronization.Release (Data.Mutex);
-
-         if Is_Absolute (Symlink (1 .. Symlink_Len)) then
-            Open
-               (FS         => FS,
-                Relative   => Relative,
-                Path       => Symlink (1 .. Symlink_Len),
-                Ino        => Ino,
-                Success    => Success,
-                User       => User,
-                Want_Read  => Want_Read,
-                Want_Write => Want_Write,
-                Do_Follow  => Do_Follow);
-         else
-            Open
-               (FS         => FS,
-                Relative   => File_Inode_Number (Parent_Index),
-                Path       => Symlink (1 .. Symlink_Len),
-                Ino        => Ino,
-                Success    => Success,
-                User       => User,
-                Want_Read  => Want_Read,
-                Want_Write => Want_Write,
-                Do_Follow  => Do_Follow);
-         end if;
-         return;
-      end if;
-
-
-      if Check_User_Access
-         (User, Target_Inode.all, Want_Read, Want_Write, False)
-      then
-         Ino     := File_Inode_Number (Target_Index);
-         Success := (if Succ then FS_Success else FS_Invalid_Value);
-      else
-         Ino     := File_Inode_Number (Target_Index);
-         Success := FS_Not_Allowed;
-      end if;
-
-      Lib.Synchronization.Release (Data.Mutex);
-
-      Free (Target_Inode);
-      Free (Parent_Inode);
-      Free (Last_Component);
-   end Open;
-
    procedure Create_Node
       (FS       : System.Address;
        Relative : File_Inode_Number;
@@ -771,13 +684,6 @@ package body VFS.EXT is
       Free (Parent_Inode);
       Free (Last_Component);
    end Unlink;
-
-   procedure Close (FS : System.Address; Ino : File_Inode_Number) is
-      pragma Unreferenced (FS);
-      pragma Unreferenced (Ino);
-   begin
-      null;
-   end Close;
 
    procedure Read_Entries
       (FS_Data   : System.Address;
