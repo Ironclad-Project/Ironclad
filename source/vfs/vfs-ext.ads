@@ -159,16 +159,6 @@ package VFS.EXT is
        Group  : Unsigned_32;
        Status : out FS_Status);
 
-   procedure Check_Access
-      (Data        : System.Address;
-       Ino         : File_Inode_Number;
-       Exists_Only : Boolean;
-       Can_Read    : Boolean;
-       Can_Write   : Boolean;
-       Can_Exec    : Boolean;
-       Real_UID    : Unsigned_32;
-       Status      : out FS_Status);
-
    procedure Change_Access_Times
       (Data               : System.Address;
        Ino                : File_Inode_Number;

@@ -1169,54 +1169,6 @@ package body VFS.EXT is
       Free (Inod);
    end Change_Owner;
 
-   procedure Check_Access
-      (Data        : System.Address;
-       Ino         : File_Inode_Number;
-       Exists_Only : Boolean;
-       Can_Read    : Boolean;
-       Can_Write   : Boolean;
-       Can_Exec    : Boolean;
-       Real_UID    : Unsigned_32;
-       Status      : out FS_Status)
-   is
-      FS : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
-      Inod : Inode_Acc := new Inode;
-      Success, Can_R, Can_W, Can_X : Boolean;
-   begin
-      Lib.Synchronization.Seize (FS.Mutex);
-
-      RW_Inode
-         (Data            => FS,
-          Inode_Index     => Unsigned_32 (Ino),
-          Result          => Inod.all,
-          Write_Operation => False,
-          Success         => Success);
-      if not Success then
-         Status := FS_IO_Failure;
-         goto Cleanup;
-      elsif Exists_Only then
-         Status := FS_Success;
-         goto Cleanup;
-      end if;
-
-      Can_R := Check_User_Access (Real_UID, Inod.all, True, False, False);
-      Can_W := Check_User_Access (Real_UID, Inod.all, False, True, False);
-      Can_X := Check_User_Access (Real_UID, Inod.all, False, False, True);
-
-      if (Can_Read  and not Can_R) or
-         (Can_Write and not Can_W) or
-         (Can_Exec  and not Can_X)
-      then
-         Status := FS_Not_Allowed;
-      else
-         Status := FS_Success;
-      end if;
-
-   <<Cleanup>>
-      Lib.Synchronization.Release (FS.Mutex);
-      Free (Inod);
-   end Check_Access;
-
    procedure Change_Access_Times
       (Data               : System.Address;
        Ino                : File_Inode_Number;

@@ -107,16 +107,6 @@ package VFS.Dev is
        Can_Write : out Boolean;
        Is_Error  : out Boolean);
 
-   procedure Check_Access
-      (Data        : System.Address;
-       Ino         : File_Inode_Number;
-       Exists_Only : Boolean;
-       Can_Read    : Boolean;
-       Can_Write   : Boolean;
-       Can_Exec    : Boolean;
-       Real_UID    : Unsigned_32;
-       Status      : out FS_Status);
-
    function Synchronize (Data : System.Address) return FS_Status;
 
    function Synchronize

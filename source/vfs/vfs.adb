@@ -986,19 +986,25 @@ package body VFS is
        Real_UID    : Unsigned_32;
        Status      : out FS_Status)
    is
+      Ino_Stat : File_Stat;
    begin
-      case Mounts (Key).Mounted_FS is
-         when FS_DEV =>
-            Dev.Check_Access
-               (Mounts (Key).FS_Data, Ino, Exists_Only, Can_Read, Can_Write,
-                Can_Exec, Real_UID, Status);
-         when FS_EXT =>
-            EXT.Check_Access
-               (Mounts (Key).FS_Data, Ino, Exists_Only, Can_Read, Can_Write,
-                Can_Exec, Real_UID, Status);
-         when FS_FAT =>
-            Status := FS_Not_Supported;
-      end case;
+      Stat (Key, Ino, Ino_Stat, Status);
+      if Status /= FS_Success or else Exists_Only then
+         return;
+      end if;
+
+      if Can_Access_File
+         (User       => Real_UID,
+          File_Owner => Ino_Stat.UID,
+          Mode       => Ino_Stat.Mode,
+          Want_Read  => Can_Read,
+          Want_Write => Can_Write,
+          Want_Exec  => Can_Exec)
+      then
+         Status := FS_Success;
+      else
+         Status := FS_Not_Allowed;
+      end if;
    end Check_Access;
 
    procedure Change_Access_Times

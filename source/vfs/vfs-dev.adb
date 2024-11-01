@@ -297,36 +297,17 @@ package body VFS.Dev is
       Devices.Poll (Dev, Can_Read, Can_Write, Is_Error);
    end Poll;
 
-   procedure Check_Access
-      (Data        : System.Address;
-       Ino         : File_Inode_Number;
-       Exists_Only : Boolean;
-       Can_Read    : Boolean;
-       Can_Write   : Boolean;
-       Can_Exec    : Boolean;
-       Real_UID    : Unsigned_32;
-       Status      : out FS_Status)
-   is
-      pragma Unreferenced (Data);
-      pragma Unreferenced (Ino);
-   begin
-      if Exists_Only then
-         Status := FS_Success;
-         return;
-      end if;
-
-      if ((Can_Read or Can_Write) and Real_UID /= 0) or
-         Can_Exec
-      then
-         Status := FS_Not_Allowed;
-      else
-         Status := FS_Success;
-      end if;
-   end Check_Access;
-
    function Synchronize (Data : System.Address) return FS_Status is
       pragma Unreferenced (Data);
+      Buffer     : Devices.Device_List (1 .. 30);
+      Buffer_Len : Natural;
    begin
+      Devices.List (Buffer, Buffer_Len);
+      for I in 1 .. Buffer_Len loop
+         if not Devices.Synchronize (Buffer (I)) then
+            return FS_IO_Failure;
+         end if;
+      end loop;
       return FS_Success;
    end Synchronize;
 
