@@ -29,7 +29,7 @@ package VFS is
 
    --  Each inode has a mode. They are POSIX standard. uid, gid, and sticky
    --  bits are ignored.
-   subtype File_Mode is Natural range 8#000# .. 8#777#;
+   subtype File_Mode is Unsigned_32 range 8#000# .. 8#777#;
 
    --  Stat structure of a file, which describes the qualities of a file.
    type File_Timestamp is record
@@ -663,4 +663,12 @@ private
    Mounts_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
 
    function Is_Initialized return Boolean is (Mounts /= null);
+
+   function Can_Access_File
+      (User       : Unsigned_32;
+       File_Owner : Unsigned_32;
+       Mode       : File_Mode;
+       Want_Read  : Boolean;
+       Want_Write : Boolean;
+       Want_Exec  : Boolean) return Boolean;
 end VFS;

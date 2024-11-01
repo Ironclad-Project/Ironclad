@@ -993,7 +993,7 @@ package body Userland.Syscall is
                 Ino        => Ino,
                 Success    => Success,
                 User       => User,
-                Want_Read  => True,
+                Want_Read  => False,
                 Want_Write => False,
                 Do_Follow  => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
             if Success /= VFS.FS_Success then
@@ -3033,15 +3033,14 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      Proc        : constant             PID := Arch.Local.Get_Current_Process;
-      Map         : constant  Page_Table_Acc := Get_Common_Map (Proc);
-      Path_IAddr  : constant Integer_Address := Integer_Address (Path_Addr);
-      Path_SAddr  : constant  System.Address := To_Address (Path_IAddr);
-      Rel_FS, FS  : VFS.FS_Handle;
-      D_Ino, Ino  : VFS.File_Inode_Number;
-      Succ        : VFS.FS_Status;
-      User        : Unsigned_32;
-      File_Perms  : MAC.Permissions;
+      Proc       : constant             PID := Arch.Local.Get_Current_Process;
+      Map        : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
+      Rel_FS, FS : VFS.FS_Handle;
+      D_Ino, Ino : VFS.File_Inode_Number;
+      Succ       : VFS.FS_Status;
+      User       : Unsigned_32;
    begin
       if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
          Errno    := Error_Would_Fault;
@@ -3076,18 +3075,11 @@ package body Userland.Syscall is
              Ino        => Ino,
              Success    => Succ,
              User       => User,
-             Want_Read  => True,
+             Want_Read  => False,
              Want_Write => False,
              Do_Follow  => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
          if Succ /= VFS.FS_Success then
             Errno    := Error_No_Entity;
-            Returned := Unsigned_64'Last;
-            return;
-         end if;
-
-         File_Perms := Check_Permissions (Proc, FS, Ino);
-         if not File_Perms.Can_Write then
-            Errno    := Error_Bad_Access;
             Returned := Unsigned_64'Last;
             return;
          end if;

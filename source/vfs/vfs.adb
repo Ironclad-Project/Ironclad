@@ -354,7 +354,7 @@ package body VFS is
       Path_Idx        : Natural;
       Path_Last       : Natural;
       Dir_Entries : Directory_Entities_Acc := new Directory_Entities (1 .. 20);
-      Entry_Type      : File_Type;
+      Entry_Stat      : File_Stat;
       Entries_Offset  : Natural;
       Entries_Count   : Natural;
       Symlink_Path    : String_Acc := new String'(1 .. 60 => ' ');
@@ -430,7 +430,6 @@ package body VFS is
                   Orig_Key   := Actual_Key;
                   Orig_Ino   := Actual_Ino;
                   Actual_Ino := File_Inode_Number (Ent.Inode_Number);
-                  Entry_Type := Ent.Type_Of_File;
                   goto Found_Entry;
                end if;
             end loop;
@@ -441,11 +440,17 @@ package body VFS is
          goto Invalid_Value_Return;
 
    <<Found_Entry>>
+         --  Get the stat for several checks.
+         VFS.Stat (Actual_Key, Actual_Ino, Entry_Stat, Success);
+         if Success /= FS_Success then
+            goto Invalid_Value_Return;
+         end if;
+
          --  We have found a suitable next step, neat!
          --  If we are at the end of the road, we can try to follow applicable
-         --  symlinks by recursion, or just be done.
+         --  symlinks by recursion, and mount replacement, and be done.
          if Path'First + Path_Last = Path'Last then
-            if Entry_Type = File_Symbolic_Link and Do_Follow then
+            if Entry_Stat.Type_Of_File = File_Symbolic_Link and Do_Follow then
                Read_Symbolic_Link
                   (Key       => Actual_Key,
                    Ino       => Actual_Ino,
@@ -468,7 +473,8 @@ package body VFS is
                    Want_Write => Want_Write,
                    Do_Follow  => Do_Follow);
                goto Cleanup_Only_Return;
-            elsif Entry_Type = File_Directory then
+            elsif Entry_Stat.Type_Of_File = File_Directory then
+               --  Check whether we are dealing with a mount.
                for I in Mounts'Range loop
                   if Mounts (I).Base_Key = Actual_Key and
                      Mounts (I).Base_Ino = Actual_Ino
@@ -485,7 +491,7 @@ package body VFS is
          --  If we have found the next component and we are NOT at the end of
          --  path, then we prepare to go again. We do that by making sure
          --  we are at a symlink or directory.
-         case Entry_Type is
+         case Entry_Stat.Type_Of_File is
             when File_Directory =>
                for I in Mounts'Range loop
                   if Mounts (I).Base_Key = Actual_Key and
@@ -493,9 +499,25 @@ package body VFS is
                   then
                      Actual_Key := I;
                      Actual_Ino := Mounts (I).Root_Ino;
+                     VFS.Stat (Actual_Key, Actual_Ino, Entry_Stat, Success);
+                     if Success /= FS_Success then
+                        goto Invalid_Value_Return;
+                     end if;
                      exit;
                   end if;
                end loop;
+
+               --  Check that we have a permission to keep going.
+               if not Can_Access_File
+                  (User       => User,
+                   File_Owner => Entry_Stat.UID,
+                   Mode       => Entry_Stat.Mode,
+                   Want_Read  => True,
+                   Want_Write => False,
+                   Want_Exec  => False)
+               then
+                  goto Not_Allowed_Return;
+               end if;
             when File_Symbolic_Link =>
                Read_Symbolic_Link
                   (Key       => Actual_Key,
@@ -526,6 +548,22 @@ package body VFS is
          Path_Idx := Path_Last + 1;
       end loop;
 
+      --  Check that we can actually open with what is wanted.
+      VFS.Stat (Actual_Key, Actual_Ino, Entry_Stat, Success);
+      if Success /= FS_Success then
+         goto Invalid_Value_Return;
+      end if;
+      if not Can_Access_File
+         (User       => User,
+          File_Owner => Entry_Stat.UID,
+          Mode       => Entry_Stat.Mode,
+          Want_Read  => Want_Read,
+          Want_Write => Want_Write,
+          Want_Exec  => False)
+      then
+         goto Not_Allowed_Return;
+      end if;
+
       Free1 (Symlink_Path);
       Free2 (Dir_Entries);
       Final_Key := Actual_Key;
@@ -539,6 +577,14 @@ package body VFS is
       Final_Key := Error_Handle;
       Ino       := 0;
       Success   := FS_Invalid_Value;
+      return;
+
+   <<Not_Allowed_Return>>
+      Free1 (Symlink_Path);
+      Free2 (Dir_Entries);
+      Final_Key := Error_Handle;
+      Ino       := 0;
+      Success   := FS_Not_Allowed;
       return;
 
    <<Cleanup_Only_Return>>
@@ -1036,4 +1082,36 @@ package body VFS is
    begin
       return Path'Length >= 1 and then Path (Path'First) = '/';
    end Is_Absolute;
+   ----------------------------------------------------------------------------
+   function Can_Access_File
+      (User       : Unsigned_32;
+       File_Owner : Unsigned_32;
+       Mode       : File_Mode;
+       Want_Read  : Boolean;
+       Want_Write : Boolean;
+       Want_Exec  : Boolean) return Boolean
+   is
+   begin
+      if User = 0 then
+         return True;
+      end if;
+
+      if File_Owner = User then
+         if (Want_Read  and then ((Mode and 8#400#) = 0)) or
+            (Want_Write and then ((Mode and 8#200#) = 0)) or
+            (Want_Exec  and then ((Mode and 8#100#) = 0))
+         then
+            return False;
+         end if;
+      else
+         if (Want_Read  and then ((Mode and 8#004#) = 0)) or
+            (Want_Write and then ((Mode and 8#002#) = 0)) or
+            (Want_Exec  and then ((Mode and 8#001#) = 0))
+         then
+            return False;
+         end if;
+      end if;
+
+      return True;
+   end Can_Access_File;
 end VFS;
