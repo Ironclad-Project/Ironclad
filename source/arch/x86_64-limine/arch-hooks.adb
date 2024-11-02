@@ -30,6 +30,7 @@ with Devices.i6300ESB;
 with Devices.LPT;
 with Lib.Messages;
 with Devices.Ramdev;
+with Devices.HWRNG;
 with Arch.Limine;
 
 package body Arch.Hooks is
@@ -37,6 +38,7 @@ package body Arch.Hooks is
    begin
       return Devices.ATA.Init         and then
              Devices.FB.Init          and then
+             Devices.HWRNG.Init       and then
              Devices.i6300ESB.Init    and then
              Devices.LPT.Init         and then
              Devices.PC_Speaker.Init  and then

@@ -4177,18 +4177,25 @@ otherwise used like any other block device. These RAM devices are read/write,
 but they cannot grow in size, so changes are constrained to the area the
 RAM device already has allocated.
 
-@subsection random
+@subsection random/urandom/hwrng
 
-The device @code{random} is equivalent to the one featured in other unix-like
-kernels. Keep in mind that Ironclad has limited sources of entropy, so the
-quality of this random numbers is a bit limited. Writing to the source is not
-allowed, unlike other systems.
+The device @code{random} is equivalent to the one featured in other UNIX-like
+kernels, and can be read to get a stream of cryptographically secure
+pseudo-random bytes.
 
 @code{/dev/urandom} does the same as @code{/dev/random}, and is only provided
 for compatibility.
 
-@code{getrandom} is provided as well for avoiding the file interface, and that
-way avoid certain kinds of DoS attacks.
+@code{getrandom} is provided as well for avoiding the file interface when
+interfacing with @code{/dev/random}, as that may avoid certain kinds of DoS
+attacks related to opened file limits.
+
+When present, CPU random number generators may be exposed as @code{/dev/hwrng}.
+This device behaves the same as @code{/dev/random} apart from the fact that
+it does not allow writing to it. It is recommended that, unless necessary, you
+use @code{/dev/random} instead. If you are to use @code{hwrng}, be sure you
+trust your hardware to not be backdoored, else, those backdoors might be
+rendered useless by the kernel's own CSPRNG processing.
 
 @subsection null/zero
 
