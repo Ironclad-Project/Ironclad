@@ -4183,6 +4183,10 @@ The device @code{random} is equivalent to the one featured in other UNIX-like
 kernels, and can be read to get a stream of cryptographically secure
 pseudo-random bytes.
 
+Ironclad has limited sources of entropy, so the quality of this random numbers
+may be limited as well. To mitigate this, one may write to the @code{random}
+device. The written data will be used as additional entropy.
+
 @code{/dev/urandom} does the same as @code{/dev/random}, and is only provided
 for compatibility.
 

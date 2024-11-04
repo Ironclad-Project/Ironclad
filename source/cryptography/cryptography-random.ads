@@ -21,9 +21,11 @@ package Cryptography.Random is
    type Crypto_Data is array (Natural range <>) of Unsigned_8;
    procedure Fill_Data (Data : out Crypto_Data);
 
+   --  Contribute a bit of entropy.
+   procedure Feed_Entropy (Data : Unsigned_32);
+
    --  Get random integers with optional ranges.
    procedure Get_Integer (Result : out Unsigned_64);
-
 
    --  Get a random integer between 2 integers.
    --  FIXME: Fix the GNATProve annotation.

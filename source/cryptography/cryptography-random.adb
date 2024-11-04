@@ -20,6 +20,7 @@ with Arch.Clocks;
 with Memory; use Memory;
 with Cryptography.Chacha20;
 with Cryptography.MD5;
+with Lib.Synchronization; use Lib.Synchronization;
 
 package body Cryptography.Random is
    --  We maintain a pool of entropy that we shift and shuffle with new data
@@ -29,6 +30,7 @@ package body Cryptography.Random is
 
    pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE.
 
+   Accumulator_Mutex   : aliased Binary_Semaphore := Unlocked_Semaphore;
    Entropy_Accumulator : MD5.MD5_Blocks (1 .. 1) := (1 => (others => 16#33#));
 
    procedure Fill_Data (Data : out Crypto_Data) is
@@ -47,6 +49,8 @@ package body Cryptography.Random is
       Block_Index : Unsigned_64 := 0;
       Temp        : Unsigned_32 := 0;
    begin
+      Seize (Accumulator_Mutex);
+
       Entropy_Adjust;
 
       S.Entropy_Hash := MD5.Digest (Entropy_Accumulator);
@@ -75,7 +79,16 @@ package body Cryptography.Random is
             Mini_Index := 0;
          end if;
       end loop;
+
+      Release (Accumulator_Mutex);
    end Fill_Data;
+
+   procedure Feed_Entropy (Data : Unsigned_32) is
+   begin
+      Seize (Accumulator_Mutex);
+      Entropy_Accumulator (1) (0) := Entropy_Accumulator (1) (3) xor Data;
+      Release (Accumulator_Mutex);
+   end Feed_Entropy;
 
    procedure Get_Integer (Result : out Unsigned_64) is
       Data : Crypto_Data (1 .. 8);

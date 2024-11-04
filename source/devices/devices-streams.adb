@@ -55,7 +55,7 @@ package body Devices.Streams is
            Block_Size  => 4096,
            Block_Count => 0,
            Read        => Random_Read'Access,
-           Write       => null,
+           Write       => Random_Write'Access,
            Sync        => null,
            Sync_Range  => null,
            IO_Control  => null,
@@ -68,7 +68,7 @@ package body Devices.Streams is
            Block_Size  => 4096,
            Block_Count => 0,
            Read        => Random_Read'Access,
-           Write       => null,
+           Write       => Random_Write'Access,
            Sync        => null,
            Sync_Range  => null,
            IO_Control  => null,
@@ -160,4 +160,27 @@ package body Devices.Streams is
       Ret_Count := Data'Length;
       Success   := True;
    end Random_Read;
+
+   procedure Random_Write
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
+   is
+      pragma Unreferenced (Key);
+      pragma Unreferenced (Offset);
+      pragma Unreferenced (Is_Blocking);
+   begin
+      if Data'Length >= 4 then
+         Cryptography.Random.Feed_Entropy
+            (Shift_Left (Unsigned_32 (Data (Data'First + 3)), 24) or
+             Shift_Left (Unsigned_32 (Data (Data'First + 2)), 16) or
+             Shift_Left (Unsigned_32 (Data (Data'First + 1)),  8) or
+             Shift_Left (Unsigned_32 (Data (Data'First + 0)),  0));
+      end if;
+      Ret_Count := Data'Length;
+      Success   := True;
+   end Random_Write;
 end Devices.Streams;
