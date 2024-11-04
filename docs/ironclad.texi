@@ -57,10 +57,7 @@ cryptic and scary Ada code.
 
 Installation and target support
 
-* aarch64-stivale2 support::   aarch64-stivale2 installation and support.
-* arm-raspi2b support::        arm-raspi2b installation and support.
 * riscv64-limine support::     riscv64-limine installation and support.
-* sparc-leon3 support::        sparc-leon3 installation and support.
 * x86_64-limine support::      x86_64-limine installation and support.
 
 Boot-time command-line options
@@ -209,10 +206,7 @@ Networking
 Devices and their properties
 
 * Common devices::             Devices common to all architectures and targets.
-* aarch64-stivale2 devices::   Devices specific to aarch64-stivale2.
-* arm-raspi2b devices::        Devices specific to arm-raspi2b.
 * riscv64-limine devices::     Devices specific to riscv64-limine.
-* sparc-leon3 devices::        Devices specific to sparc-leon3.
 * x86_64-limine devices::      Devices specific to x86_64-limine.
 
 @end detailmenu
@@ -229,24 +223,6 @@ an architecture and board that are supported in tandem, along with any
 accompaning hardware, some hardware is supported regardless of the underlying
 target, @ref{Common devices}.
 
-@node aarch64-stivale2 support
-@section aarch64-stivale2 support
-
-aarch64 systems are supported using the stivale2 boot protocol, any
-stivale2 compliant aarch64 bootloader like sabaton will boot it just fine.
-
-For supported devices and how they are abstracted,
-@ref{aarch64-stivale2 devices}.
-
-@node arm-raspi2b support
-@section arm-raspi2b support
-
-Raspberry Pi 2b boards are supported, the image can be loaded straight from
-the firmware by putting it in the boot partition with the same names and
-configuration that a Linux image would use.
-
-For supported devices and how they are abstracted, @ref{arm-raspi2b devices}.
-
 @node riscv64-limine support
 @section riscv64-limine support
 
@@ -259,15 +235,6 @@ Refer to your limine compliant bootloader for instructions on where to put
 kernel images, configuration formats, and the like.
 
 For supported devices and how they are abstracted, @ref{riscv64-limine devices}
-
-@node sparc-leon3 support
-@section sparc-leon3 support
-
-LEON3 boards, based on SPARCv8 processors, are supported, in this case, the
-kernel must be loaded straight from the board's firmware, no bootloaders are
-needed.
-
-For supported devices and how they are abstracted, @ref{sparc-leon3 devices}.
 
 @node x86_64-limine support
 @section x86_64-limine support
@@ -946,25 +913,13 @@ Empty.
 @ref{gettidid/settidid, settidid}.
 @end enumerate
 
-@subsection aarch64-stivale2
+@subsection riscv64-limine
 
-Syscalls are invoked in Ironclad by using @code{swi}.
+Syscalls are invoked in Ironclad by using @code{ecall}.
 
-The index of the syscall is passed over @code{%x8}, while the return value is
-returned in @code{%x0}, errno is returned in @code{%x9}, arguments are passed
-over @code{%x0} to @code{r7}.
-
-@subsection arm-raspi2b
-
-Syscalls are invoked in Ironclad by using @code{swi}.
-
-The index of the syscall is passed over @code{%r4}, while the return value is
-returned in @code{%r0}, errno is returned in @code{%r1}, arguments are passed
-over @code{%r0} to @code{r7}.
-
-@subsection sparc-leon3
-
-The syscall mechanism for leon3 is yet to be implemented. Sorry!
+The index of the syscall is passed over @code{a7}, while the return value is
+returned in @code{a0}, errno is returned in @code{a1}, arguments are passed
+over @code{a0} to @code{a6}.
 
 @subsection x86_64-limine
 
@@ -4153,8 +4108,8 @@ present, with standardized interfaces.
 @subsection console
 
 @code{/dev/console} wraps architecture-specific debug output channels for use
-with file operations. For x86-based targets, this is COM1, for ARM-based
-and SPARC-based targets, this is UART.
+with file operations. For x86-based targets, this is COM1, for other targets,
+this may be UART.
 
 If the target implements reading from the debug channels, read will be
 supported as well. If not implemented, the device will be read-only.
@@ -4208,45 +4163,6 @@ discarded.
 
 @code{zero} returns exclusively a stream of zeros when read, and all write
 operations are discarded.
-
-@node aarch64-stivale2 devices
-@section aarch64-stivale2 devices
-
-@subsection pl011
-
-The device @code{pl011} supports read operations for PL011 UART compatible
-devices.
-
-Baud and other settings can be set by using the @code{termios}, note that
-most of the fields are not implemented, only the ones related to input stream
-settings.
-
-The default baud for the device is set to be @code{115200}.
-
-@node arm-raspi2b devices
-@section arm-raspi2b devices
-
-@subsection uart
-
-@code{uart} supports read and write operations for the PL011 UART device
-featured on the board on GPIOs 14 and 15 (pins 8 and 10).
-
-Baud and other settings can be set by using the @code{termios}, note that
-most of the fields are not implemented, only the ones related to input stream
-settings.
-
-The default baud for the device is set to be @code{115200}.
-
-@subsection watchdog
-
-@code{watchdog} represents the hardware watchdog included with the board.
-Writing to it will reset it, @code{ioctl} operations may be used for
-timeout configuration and starting/stopping it.
-
-@node sparc-leon3 devices
-@section sparc-leon3 devices
-
-This target has no special devices.
 
 @node riscv64-limine devices
 @section riscv64-limine devices

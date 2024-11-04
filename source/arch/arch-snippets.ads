@@ -42,14 +42,9 @@ package Arch.Snippets is
    --  little type changes, it is probably fine, else we would have to put
    --  more files on each port, and that would segregate fundamentally
    --  equivalent code for no reason.
-   #if ArchName = """aarch64-stivale2"""
-      function Get_Exception_Syndrome return Unsigned_64 with Inline;
-   #elsif ArchName = """arm-raspi2b"""
-      function Get_Exception_Syndrome return Unsigned_64 with Inline;
-   #elsif ArchName = """riscv64-limine"""
+   #if ArchName = """riscv64-limine"""
       function Read_SStatus return Unsigned_64 with Inline;
       procedure Write_SStatus (Value : Unsigned_64) with Inline;
-   #elsif ArchName = """sparc-leon3"""
    #elsif ArchName = """x86_64-limine"""
       procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) with Inline;
       function Port_In (Port : Unsigned_16) return Unsigned_8 with Inline;

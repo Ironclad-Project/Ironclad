@@ -45,13 +45,7 @@ package Arch.MMU is
    --  Default minimum page size supported by the MMU. Ports may use bigger
    --  pages optionally if possible for optimization, but this size is always
    --  be supported and accepted.
-   #if ArchName = """aarch64-stivale2"""
-      Page_Size : constant := 16#1000#;
-   #elsif ArchName = """arm-raspi2b"""
-      Page_Size : constant := 16#1000#;
-   #elsif ArchName = """riscv64-limine"""
-      Page_Size : constant := 16#1000#;
-   #elsif ArchName = """sparc-leon3"""
+   #if ArchName = """riscv64-limine"""
       Page_Size : constant := 16#1000#;
    #elsif ArchName = """x86_64-limine"""
       Page_Size : constant := 16#1000#;
@@ -205,53 +199,12 @@ package Arch.MMU is
 
 private
 
-   #if ArchName = """aarch64-stivale2"""
+   #if ArchName = """riscv64-limine"""
       type Page_Level is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
       type Page_Level_Acc is access Page_Level;
       type Page_Table is record
          TTBR0 : Page_Level;
          TTBR1 : Page_Level;
-      end record;
-      type Address_Components is record
-         Level0_Entry : Unsigned_64;
-         Level1_Entry : Unsigned_64;
-         Level2_Entry : Unsigned_64;
-         Level3_Entry : Unsigned_64;
-      end record;
-
-      procedure Set_MMU_State;
-      function Get_Addr_From_Entry (Entry_B : Unsigned_64) return Unsigned_64;
-      function Get_Components (Ad : Integer_Address) return Address_Components;
-      function Get_Next_Level
-         (Current_Level       : Integer_Address;
-          Index               : Unsigned_64;
-          Create_If_Not_Found : Boolean) return Integer_Address;
-      function Get_Page
-         (Root_Lvl : System.Address;
-          Virtual  : Integer_Address;
-          Allocate : Boolean) return Integer_Address;
-      function Get_Bits (Permissions : Page_Permissions) return Unsigned_64;
-   #elsif ArchName = """arm-raspi2b"""
-      type Page_Level is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
-      type Page_Level_Acc is access Page_Level;
-      type Page_Table is record
-         TTBR0 : Page_Level;
-         TTBR1 : Page_Level;
-      end record;
-
-      procedure Set_MMU_State;
-   #elsif ArchName = """riscv64-limine"""
-      type Page_Level is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
-      type Page_Level_Acc is access Page_Level;
-      type Page_Table is record
-         TTBR0 : Page_Level;
-         TTBR1 : Page_Level;
-      end record;
-   #elsif ArchName = """sparc-leon3"""
-      type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
-      type PML4_Acc is access all PML4;
-      type Page_Table is record
-         PML4_Level : PML4;
       end record;
    #elsif ArchName = """x86_64-limine"""
       type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;

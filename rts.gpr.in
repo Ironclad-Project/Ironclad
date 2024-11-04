@@ -16,10 +16,7 @@
 
 library project RTS is
    type Arch_Name is
-      ("aarch64-stivale2",
-       "arm-raspi2b",
-       "riscv64-limine",
-       "sparc-leon3",
+      ("riscv64-limine",
        "x86_64-limine");
 
    Arch : Arch_Name := "@target_cpu@-@target_vendor@";
@@ -45,24 +42,10 @@ library project RTS is
       );
 
       case Arch is
-         when "aarch64-stivale2" =>
-            for Switches ("Ada") use Base_Ada_Switches & (
-               "-static", "-fno-pie", "-fno-pic", "-mgeneral-regs-only",
-               "-march=armv8-a"
-            );
-         when "arm-raspi2b" =>
-            for Switches ("Ada") use Base_Ada_Switches & (
-               "-static", "-fno-pie", "-fpic", "-mgeneral-regs-only",
-               "-mcpu=cortex-a7"
-            );
          when "riscv64-limine" =>
             for Switches ("Ada") use Base_Ada_Switches & (
                "-fno-pie", "-fno-pic", "-mno-relax",
                "-march=rv64imac_zicsr_zifencei", "-mabi=lp64"
-            );
-         when "sparc-leon3" =>
-            for Switches ("Ada") use Base_Ada_Switches & (
-               "-mcpu=leon3", "-static", "-fno-pie", "-fno-pic"
             );
          when "x86_64-limine" =>
             for Switches ("Ada") use Base_Ada_Switches & (

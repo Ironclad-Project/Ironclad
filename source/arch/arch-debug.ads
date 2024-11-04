@@ -41,13 +41,7 @@ package Arch.Debug is
 
 private
 
-   #if ArchName = """aarch64-stivale2"""
-      Supports_Read : constant Boolean := False;
-   #elsif ArchName = """arm-raspi2b"""
-      Supports_Read : constant Boolean := False;
-   #elsif ArchName = """riscv64-limine"""
-      Supports_Read : constant Boolean := False;
-   #elsif ArchName = """sparc-leon3"""
+   #if ArchName = """riscv64-limine"""
       Supports_Read : constant Boolean := False;
    #elsif ArchName = """x86_64-limine"""
       Supports_Read : constant Boolean := True;
