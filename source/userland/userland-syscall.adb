@@ -5664,6 +5664,8 @@ package body Userland.Syscall is
          with Import, Address => Path_SAddr;
       Path_FS    : FS_Handle;
       Path_Ino   : File_Inode_Number;
+      Rela_FS    : FS_Handle;
+      Rela_Ino   : File_Inode_Number;
       Success2   : FS_Status;
       Succ       : Boolean;
       File_Perms : MAC.Permissions;
@@ -5688,7 +5690,18 @@ package body Userland.Syscall is
       end if;
 
       Userland.Process.Get_Effective_UID (Proc, User);
-      Open (Path, Path_FS, Path_Ino, Success2, User, True, False);
+      Userland.Process.Get_CWD (Proc, Rela_FS, Rela_Ino);
+
+      Open
+         (Key        => Rela_FS,
+          Relative   => Rela_Ino,
+          Path       => Path,
+          Final_Key  => Path_FS,
+          Ino        => Path_Ino,
+          Success    => Success2,
+          User       => User,
+          Want_Read  => True,
+          Want_Write => False);
       if Success2 /= VFS.FS_Success then
          Errno := Error_No_Entity;
          Success := False;
