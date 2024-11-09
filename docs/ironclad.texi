@@ -155,7 +155,7 @@ Syscalls
 * accept::                  Accept socket connections.
 * getrlimit/setrlimit::     Get and set resource limits.
 * access::                  Check file access permissions and existance.
-* poll::                    I/O event multiplexer.
+* ppoll::                   I/O event multiplexer.
 * getuid/geteuid::          Get the UID and the effective UID.
 * setuids::                 Set the UID and the effective UID.
 * fchmod::                  Change the mode of a file descriptor.
@@ -828,7 +828,7 @@ Empty.
 @item
 @ref{access}.
 @item
-@ref{poll}.
+@ref{ppoll}.
 @item
 @ref{getuid/geteuid, geteuid}.
 @item
@@ -1375,13 +1375,17 @@ following errno:
 @section socket
 
 @example c
-#define AF_UNIX       3
-#define SOCK_DGRAM    0b000000000000000001
-#define SOCK_RAW      0b000000000000000010
-#define SOCK_STREAM   0b000000000000000100
-#define SOCK_NONBLOCK 0b010000000000000000
-#define SOCK_CLOEXEC  0b100000000000000000
+#define AF_INET   1
+#define AF_INET6  2
+#define AF_UNIX   3
 
+#define SOCK_DGRAM     0b000000000000000001
+#define SOCK_RAW       0b000000000000000010
+#define SOCK_STREAM    0b000000000000000100
+#define SOCK_SEQPACKET 0b000000000000001000
+#define SOCK_NONBLOCK  0b001000000000000000
+#define SOCK_CLOEXEC   0b010000000000000000
+#define SOCK_CLOFORK   0b100000000000000000
 int socket(int domain, int type);
 @end example
 
@@ -1455,6 +1459,10 @@ Connection, accepting, and listening will be necessary for a proper handshake.
 these, no TCP or UDP will be done whatsoever, and the user will be free to
 implement their own protocol on top, or none at all and just use the domain
 datagram transport. Not supported for some protocols, like UNIX domain sockets.
+@item
+@code{SOCK_SEQPACKET}: Sequenced-packet socket that is connection-oriented,
+preserves message boundaries, and delivers messages in the order that they were
+sent.
 @end itemize
 
 Any socket type may have @code{type} be OR'ed with @code{SOCK_NONBLOCK} or
@@ -2733,8 +2741,8 @@ or @code{-1} on check failure, with the following errno:
 @code{EACCES}: The access is not allowed.
 @end itemize
 
-@node poll
-@section poll
+@node ppoll
+@section ppoll
 
 @example c
 #define POLLIN   0b00000001
@@ -2750,7 +2758,8 @@ struct pollfd @{
    uint16_t revents;
 @};
 
-int poll(struct pollfd *fds, nfds_t nfds, struct timespec *timeout);
+int poll(struct pollfd *fds, nfds_t nfds, struct timespec *timeout,
+   const sigset_t *sigmask);
 @end example
 
 This syscall allows to wait for a series of events to happen to the passed
@@ -2763,9 +2772,12 @@ which events of the waited ones did happen. If the FD of an structure is
 negative, that is, it has the first bit set, it is ignored, and @code{revents}
 is set to @code{0}.
 
-If passed no FDs to poll, that is, with @code{nfds == 0}, @code{poll} will
+If passed no FDs to ppoll, that is, with @code{nfds == 0}, @code{ppoll} will
 block for @code{timeout} time. This is used by some software as a means to
 implement @code{sleep} functionality, for those cases, @ref{clock_nanosleep}.
+
+If @code{sigmask} is not @code{NULL}, it will atomatically set the passed
+sigmask for waiting.
 
 Both @code{events} and @code{revents} are bitmaps of the values:
 

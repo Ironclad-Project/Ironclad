@@ -228,7 +228,8 @@ package body Arch.Interrupts is
             FAccess (State.RDI, State.RSI, State.RDX, State.R12,
                     State.R8, Returned, Errno);
          when 57 =>
-            Poll (State.RDI, State.RSI, State.RDX, Returned, Errno);
+            PPoll (State.RDI, State.RSI, State.RDX, State.R12, Returned,
+                   Errno);
          when 58 =>
             Get_EUID (Returned, Errno);
          when 59 =>

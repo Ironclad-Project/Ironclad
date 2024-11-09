@@ -226,14 +226,16 @@ package Userland.Syscall is
        Errno      : out Errno_Value);
 
    --  Create a socket.
-   AF_INET       : constant := 1;
-   AF_INET6      : constant := 2;
-   AF_UNIX       : constant := 3;
-   SOCK_DGRAM    : constant := 2#000000000000000001#;
-   SOCK_RAW      : constant := 2#000000000000000010#;
-   SOCK_STREAM   : constant := 2#000000000000000100#;
-   SOCK_NONBLOCK : constant := 2#010000000000000000#;
-   SOCK_CLOEXEC  : constant := 2#100000000000000000#;
+   AF_INET        : constant := 1;
+   AF_INET6       : constant := 2;
+   AF_UNIX        : constant := 3;
+   SOCK_DGRAM     : constant := 2#000000000000000001#;
+   SOCK_RAW       : constant := 2#000000000000000010#;
+   SOCK_STREAM    : constant := 2#000000000000000100#;
+   SOCK_SEQPACKET : constant := 2#000000000000001000#;
+   SOCK_NONBLOCK  : constant := 2#001000000000000000#;
+   SOCK_CLOEXEC   : constant := 2#010000000000000000#;
+   SOCK_CLOFORK   : constant := 2#100000000000000000#;
    procedure Socket
       (Domain   : Unsigned_64;
        DataType : Unsigned_64;
@@ -828,10 +830,11 @@ package Userland.Syscall is
       Out_Events : Unsigned_16;
    end record with Size => 64;
    type Poll_FDs is array (Unsigned_64 range <>) of Poll_FD;
-   procedure Poll
+   procedure PPoll
       (FDs_Addr  : Unsigned_64;
        FDs_Count : Unsigned_64;
        Timeout   : Unsigned_64;
+       Sigmask   : Unsigned_64;
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
 

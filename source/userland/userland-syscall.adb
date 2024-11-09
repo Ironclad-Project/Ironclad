@@ -2886,6 +2886,7 @@ package body Userland.Syscall is
       File  : constant File_Description_Acc := Get_File (Proc, Sock_FD);
       CExec : constant              Boolean := (Flags and SOCK_CLOEXEC)  /= 0;
       Block : constant              Boolean := (Flags and SOCK_NONBLOCK) /= 0;
+      CloFork : constant            Boolean := (Flags and SOCK_CLOFORK)  /= 0;
       A_IAddr  : constant  Integer_Address := Integer_Address (Addr_Addr);
       A_SAddr  : constant   System.Address := To_Address (A_IAddr);
       AL_IAddr : constant  Integer_Address := Integer_Address (Addr_Len);
@@ -2956,7 +2957,7 @@ package body Userland.Syscall is
          Desc := new File_Description'(Description_Socket, 0, Sock);
          Check_Add_File (Proc, Desc, Succ, Ret);
          if Succ then
-            Set_FD_Flags (Proc, Unsigned_64 (Ret), CExec, False);
+            Set_FD_Flags (Proc, Unsigned_64 (Ret), CExec, CloFork);
             Errno    := Error_No_Error;
             Returned := Unsigned_64 (Ret);
          else
@@ -3101,19 +3102,26 @@ package body Userland.Syscall is
       Translate_Status (Succ, 0, Returned, Errno);
    end FAccess;
 
-   procedure Poll
+   procedure PPoll
       (FDs_Addr  : Unsigned_64;
        FDs_Count : Unsigned_64;
        Timeout   : Unsigned_64;
+       Sigmask   : Unsigned_64;
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
+      type Unsigned_28 is mod 2**28;
+      function C1 is new Ada.Unchecked_Conversion (Signal_Bitmap, Unsigned_28);
+      function C2 is new Ada.Unchecked_Conversion (Unsigned_28, Signal_Bitmap);
+
       Proc       : constant             PID := Arch.Local.Get_Current_Process;
       Map        : constant  Page_Table_Acc := Get_Common_Map (Proc);
       FIAddr     : constant Integer_Address := Integer_Address (FDs_Addr);
       FSAddr     : constant  System.Address := To_Address (FIAddr);
       TIAddr     : constant Integer_Address := Integer_Address (Timeout);
       TSAddr     : constant  System.Address := To_Address (TIAddr);
+      S_IAddr    : constant Integer_Address := Integer_Address (Sigmask);
+      S_SAddr    : constant  System.Address := To_Address (S_IAddr);
       Size_FD    : constant     Unsigned_64 := FDs_Count * (Poll_FD'Size / 8);
       Count      :                  Natural := 0;
       File       : File_Description_Acc;
@@ -3121,6 +3129,7 @@ package body Userland.Syscall is
       Curr_NSec  : Unsigned_64;
       Final_Sec  : Unsigned_64;
       Final_NSec : Unsigned_64;
+      Old_Set    : Signal_Bitmap;
       Can_Read, Can_Write, Can_PrioRead, Is_Error, Is_Broken : Boolean;
    begin
       if not Check_Userland_Access (Map, FIAddr, Size_FD) or else
@@ -3129,6 +3138,21 @@ package body Userland.Syscall is
          Errno    := Error_Would_Fault;
          Returned := Unsigned_64'Last;
          return;
+      end if;
+
+      if S_IAddr /= 0 then
+         if not Check_Userland_Access (Map, S_IAddr, Unsigned_28'Size / 8) then
+            Errno    := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         declare
+            Passed_Set : Unsigned_28 with Import, Address => S_SAddr;
+         begin
+            Get_Masked_Signals (Proc, Old_Set);
+            Set_Masked_Signals (Proc, C2 (Passed_Set and not C1 (Old_Set)));
+         end;
       end if;
 
       Arch.Clocks.Get_Monotonic_Time (Final_Sec, Final_NSec);
@@ -3217,9 +3241,13 @@ package body Userland.Syscall is
          end loop;
       end;
 
+      if S_IAddr /= 0 then
+         Set_Masked_Signals (Proc, Old_Set);
+      end if;
+
       Errno    := Error_No_Error;
       Returned := Unsigned_64 (Count);
-   end Poll;
+   end PPoll;
 
    procedure Get_EUID (Returned : out Unsigned_64; Errno : out Errno_Value) is
       Proc : constant PID := Arch.Local.Get_Current_Process;
