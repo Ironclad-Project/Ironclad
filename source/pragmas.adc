@@ -1,5 +1,5 @@
 --  pragmas.adc: Project pragmas.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -27,5 +27,19 @@ pragma Restrictions (No_Protected_Types);
 pragma Restrictions (No_Delay);
 pragma Restrictions (No_Dispatch);
 pragma Restrictions (No_Implicit_Dynamic_Code);
-pragma Warnings (Off, "may call Last_Chance_Handler");
+pragma Ada_2022;
 pragma SPARK_Mode (On);
+
+--  Disable these warnings.
+--
+--  The first one is because every function that does not have a 'when others'
+--  exception section will just generate that warning, and thats not necesarily
+--  something we want to do when we want to remove exceptions in the long run
+--  from the whole kernel as part of formal verification, and until we do
+--  that it actually makes reading compiler outputs quite hard.
+--
+--  The second one is just that Ada 2022 generates those warnings and going
+--  thru the whole kernel to replace () for [] with no obvious gain past that
+--  is a bit absurd.
+pragma Warnings (Off, "may call Last_Chance_Handler");
+pragma Warnings (Off, "array aggregate using () is an obsolescent syntax");
