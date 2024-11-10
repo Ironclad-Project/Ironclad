@@ -256,12 +256,25 @@ package body VFS.Dev is
        Status : out FS_Status)
    is
       pragma Unreferenced (Data);
-      Dev : constant Device_Handle := From_Unique_ID (Natural (Ino));
+
+      DEV_UUID : constant := 16#9821#;
    begin
-      if IO_Control (Dev, Req, Arg) then
-         Status := FS_Success;
+      if Ino = Root_Inode then
+         Status := FS_Invalid_Value;
       else
-         Status := FS_IO_Failure;
+         declare
+            Arg_UUID : Devices.UUID with Import, Address => Arg;
+            Dev : constant Device_Handle := From_Unique_ID (Natural (Ino));
+         begin
+            if Req = DEV_UUID then
+               Arg_UUID := Fetch (Dev);
+               Status   := FS_Success;
+            elsif IO_Control (Dev, Req, Arg) then
+               Status := FS_Success;
+            else
+               Status := FS_IO_Failure;
+            end if;
+         end;
       end if;
    end IO_Control;
 

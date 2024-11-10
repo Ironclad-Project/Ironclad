@@ -143,6 +143,11 @@ package body Devices is
       return Fetch (Result);
    end Fetch_UUID;
 
+   function Fetch (Dev : Device_Handle) return UUID is
+   begin
+      return Devices_Data (Dev).Contents.ID;
+   end Fetch;
+
    procedure Fetch_Name
       (Handle : Device_Handle;
        Name   : out String;

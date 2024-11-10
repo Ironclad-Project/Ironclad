@@ -117,6 +117,12 @@ package Devices is
    function Fetch_UUID (ID : UUID_String) return Device_Handle
       with Pre => (Is_Initialized = True);
 
+   --  Fetch the numeric UUID of a device.
+   --  @param Dev Device to report the UUID of.
+   --  @return The UUID on success, or the Zero UUID if the device has no UUID.
+   function Fetch (Dev : Device_Handle) return UUID
+      with Pre => Is_Initialized;
+
    --  Write the name associated to a device handle to the passed buffer.
    --  @param Handle Handle to fetch the name of.
    --  @param Name   Buffer to write the name.
