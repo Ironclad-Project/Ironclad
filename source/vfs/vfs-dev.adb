@@ -116,17 +116,15 @@ package body VFS.Dev is
       pragma Unreferenced (FS_Data);
 
       Buffer     : Devices.Device_List (1 .. 30);
-      Idx        : Natural;
       Buffer_Len : Natural;
    begin
+      Ret_Count := 0;
+
       if Ino /= Root_Inode then
-         Ret_Count := 0;
-         Success   := FS_Invalid_Value;
+         Success := FS_Invalid_Value;
          return;
       end if;
 
-      Ret_Count := 0;
-      Idx       := 0;
       Devices.List (Buffer, Buffer_Len);
       for I in 1 .. Buffer_Len loop
          if I - 1 >= Offset then
@@ -134,22 +132,21 @@ package body VFS.Dev is
                exit;
             end if;
 
-            Entities (Entities'First + Idx) :=
+            Entities (Entities'First + Ret_Count) :=
                (Inode_Number =>
                   Unsigned_64 (Devices.Get_Unique_ID (Buffer (I))),
                 Name_Buffer  => (others => ' '),
                 Name_Len     => 0,
                 Type_Of_File => File_Character_Device);
             if Devices.Is_Block_Device (Buffer (I)) then
-               Entities (Entities'First + Idx).Type_Of_File :=
+               Entities (Entities'First + Ret_Count).Type_Of_File :=
                   File_Block_Device;
             end if;
             Devices.Fetch_Name
                (Buffer (I),
-                Entities (Entities'First + Idx).Name_Buffer,
-                Entities (Entities'First + Idx).Name_Len);
+                Entities (Entities'First + Ret_Count).Name_Buffer,
+                Entities (Entities'First + Ret_Count).Name_Len);
             Ret_Count := Ret_Count + 1;
-            Idx       :=       Idx + 1;
          end if;
       end loop;
 
@@ -166,17 +163,22 @@ package body VFS.Dev is
        Success     : out FS_Status)
    is
       pragma Unreferenced (FS_Data);
-      Dev  : constant Device_Handle := From_Unique_ID (Natural (Ino));
       Succ : Boolean;
    begin
-      Read
-         (Handle      => Dev,
-          Offset      => Offset,
-          Data        => Data,
-          Ret_Count   => Ret_Count,
-          Success     => Succ,
-          Is_Blocking => Is_Blocking);
-      Success := (if Succ then FS_Success else FS_IO_Failure);
+      if Ino = Root_Inode then
+         Data      := [others => 0];
+         Ret_Count := 0;
+         Success   := FS_Invalid_Value;
+      else
+         Read
+            (Handle      => From_Unique_ID (Natural (Ino)),
+             Offset      => Offset,
+             Data        => Data,
+             Ret_Count   => Ret_Count,
+             Success     => Succ,
+             Is_Blocking => Is_Blocking);
+         Success := (if Succ then FS_Success else FS_IO_Failure);
+      end if;
    end Read;
 
    procedure Write
@@ -189,17 +191,21 @@ package body VFS.Dev is
        Success     : out FS_Status)
    is
       pragma Unreferenced (FS_Data);
-      Dev  : constant Device_Handle := From_Unique_ID (Natural (Ino));
       Succ : Boolean;
    begin
-      Write
-         (Handle      => Dev,
-          Offset      => Offset,
-          Data        => Data,
-          Ret_Count   => Ret_Count,
-          Success     => Succ,
-          Is_Blocking => Is_Blocking);
-      Success := (if Succ then FS_Success else FS_IO_Failure);
+      if Ino = Root_Inode then
+         Ret_Count := 0;
+         Success   := FS_Invalid_Value;
+      else
+         Write
+            (Handle      => From_Unique_ID (Natural (Ino)),
+             Offset      => Offset,
+             Data        => Data,
+             Ret_Count   => Ret_Count,
+             Success     => Succ,
+             Is_Blocking => Is_Blocking);
+         Success := (if Succ then FS_Success else FS_IO_Failure);
+      end if;
    end Write;
 
    procedure Stat
@@ -288,12 +294,17 @@ package body VFS.Dev is
        Status  : out FS_Status)
    is
       pragma Unreferenced (Data);
-      Dev : constant Device_Handle := From_Unique_ID (Natural (Ino));
    begin
-      if Devices.Mmap (Dev, Map, Address, Length, Flags) then
-         Status := FS_Success;
+      if Ino = Root_Inode then
+         Status := FS_Invalid_Value;
       else
-         Status := FS_IO_Failure;
+         if Devices.Mmap (From_Unique_ID (Natural (Ino)), Map, Address, Length,
+                          Flags)
+         then
+            Status := FS_Success;
+         else
+            Status := FS_IO_Failure;
+         end if;
       end if;
    end Mmap;
 
@@ -305,9 +316,15 @@ package body VFS.Dev is
        Is_Error  : out Boolean)
    is
       pragma Unreferenced (Data);
-      Dev : constant Device_Handle := From_Unique_ID (Natural (Ino));
    begin
-      Devices.Poll (Dev, Can_Read, Can_Write, Is_Error);
+      if Ino = Root_Inode then
+         Can_Read  := True;
+         Can_Write := True;
+         Is_Error  := False;
+      else
+         Devices.Poll (From_Unique_ID (Natural (Ino)), Can_Read, Can_Write,
+                       Is_Error);
+      end if;
    end Poll;
 
    function Synchronize (Data : System.Address) return FS_Status is
@@ -331,9 +348,10 @@ package body VFS.Dev is
    is
       pragma Unreferenced (Data);
       pragma Unreferenced (Data_Only);
-      Dev : constant Device_Handle := From_Unique_ID (Natural (Ino));
    begin
-      if Devices.Synchronize (Dev) then
+      if Ino = Root_Inode or else Devices.Synchronize
+         (From_Unique_ID (Natural (Ino)))
+      then
          return FS_Success;
       else
          return FS_IO_Failure;
