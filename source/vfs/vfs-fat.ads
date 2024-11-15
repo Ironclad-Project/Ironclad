@@ -1,5 +1,5 @@
 --  vfs-fat.adb: FAT FS driver.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -18,8 +18,8 @@ package VFS.FAT is
    procedure Probe
       (Handle       : Device_Handle;
        Do_Read_Only : Boolean;
-       Data_Addr    : out System.Address);
-
+       Data_Addr    : out System.Address;
+       Root_Ino     : out File_Inode_Number);
 
    procedure Remount
       (FS           : System.Address;
@@ -49,14 +49,6 @@ package VFS.FAT is
 
    function Get_Max_Length (FS : System.Address) return Unsigned_64;
    ----------------------------------------------------------------------------
-   procedure Open
-      (FS      : System.Address;
-       Path    : String;
-       Ino     : out File_Inode_Number;
-       Success : out FS_Status);
-
-   procedure Close (FS : System.Address; Ino : File_Inode_Number);
-
    procedure Read_Entries
       (FS_Data   : System.Address;
        Ino       : File_Inode_Number;
@@ -186,6 +178,17 @@ private
       Size               at 0 range 224 .. 255;
    end record;
 
+   type Long_Name_Entry is record
+      Order_Of_Entry     : Unsigned_8;
+      First_Characters   : String (1 .. 10);
+      Attributes         : Unsigned_8;
+      Long_Entry_Type    : Unsigned_8;
+      Checksum           : Unsigned_8;
+      Second_Characters  : String (1 .. 12);
+      First_Cluster      : Unsigned_16;
+      Final_Characters   : String (1 .. 4);
+   end record with Pack, Size => 256;
+
    type FAT_Data is record
       Handle         : Device_Handle;
       Is_Read_Only   : Boolean;
@@ -196,29 +199,25 @@ private
    end record;
    type FAT_Data_Acc is access all FAT_Data;
 
-   type FAT_File is record
-      Begin_Cluster : Unsigned_32;
-      Inner_Type    : File_Type;
-      FS_Entry      : Directory_Entry;
-   end record;
-   type FAT_File_Acc is access all FAT_File;
+   procedure Read_Directory_Entry
+      (Data        : FAT_Data_Acc;
+       Cluster     : Unsigned_32;
+       Index       : Unsigned_64;
+       Disk_Offset : out Unsigned_64;
+       Result      : out Directory_Entry;
+       Success     : out Boolean);
 
    procedure Read_Directory_Entry
-      (Data    : FAT_Data_Acc;
-       Cluster : Unsigned_32;
-       Index   : Unsigned_64;
-       Result  : out Directory_Entry;
-       Success : out Boolean);
+      (Data        : FAT_Data_Acc;
+       Disk_Offset : Unsigned_64;
+       Result      : out Directory_Entry;
+       Success     : out Boolean);
 
    procedure Get_Next_Cluster
       (Data          : FAT_Data_Acc;
        Cluster_Index : Unsigned_32;
        Returned      : out Unsigned_32;
        Success       : out Boolean);
-
-   function Are_Paths_Equal
-      (Base : String;
-       Ent  : Directory_Entry) return Boolean;
 
    procedure Compose_Path
       (Ent    : Directory_Entry;

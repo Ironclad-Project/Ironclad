@@ -114,8 +114,7 @@ package body VFS is
             EXT.Probe (De, Do_Read_Only, Do_Relatime, FS_Data);
             Root_Inode := 2;
          when FS_FAT =>
-            FAT.Probe (De, Do_Read_Only, FS_Data);
-            Root_Inode := 0;
+            FAT.Probe (De, Do_Read_Only, FS_Data, Root_Inode);
       end case;
 
       if FS_Data /= System.Null_Address then
@@ -689,11 +688,12 @@ package body VFS is
    end Unlink;
 
    procedure Close (Key : FS_Handle; Ino : File_Inode_Number) is
+      pragma Unreferenced (Ino);
    begin
       case Mounts (Key).Mounted_FS is
          when FS_DEV => null;
          when FS_EXT => null;
-         when FS_FAT => FAT.Close (Mounts (Key).FS_Data, Ino);
+         when FS_FAT => null;
       end case;
    end Close;
 

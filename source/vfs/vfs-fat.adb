@@ -1,5 +1,5 @@
---  vfs-fat.adb: FAT-series FS driver.
---  Copyright (C) 2023 streaksu
+--  vfs-fat.adb: FAT FS driver.
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,21 +14,29 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System.Storage_Elements; use System.Storage_Elements;
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
 with Lib.Alignment;
 
 package body VFS.FAT is
-   package   Conv_1 is new System.Address_To_Access_Conversions (FAT_Data);
-   package   Conv_2 is new System.Address_To_Access_Conversions (FAT_File);
-   procedure Free_1 is new Ada.Unchecked_Deallocation (FAT_Data, FAT_Data_Acc);
-   procedure Free_2 is new Ada.Unchecked_Deallocation (FAT_File, FAT_File_Acc);
+   package   Conv is new System.Address_To_Access_Conversions (FAT_Data);
+   procedure Free is new Ada.Unchecked_Deallocation (FAT_Data, FAT_Data_Acc);
+
+   --  FAT doesnt have a notion of inodes, but Ironclad requires it, thats how
+   --  POSIX works. So we will need to translate inode to file and viceversa.
+   --  Inode numbers will translate to the disk offset of the directory entry
+   --  except when refering to root, which has the hardcoded Inode of 2.
+   Root_PseudoInode : constant := 2;
+
+   --  All files in FAT have the same permissions, since FAT does not handle
+   --  permissions.
+   File_Permissions : constant := 8#755#;
 
    procedure Probe
       (Handle       : Device_Handle;
        Do_Read_Only : Boolean;
-       Data_Addr    : out System.Address)
+       Data_Addr    : out System.Address;
+       Root_Ino     : out File_Inode_Number)
    is
       pragma Unreferenced (Do_Read_Only);
 
@@ -40,10 +48,12 @@ package body VFS.FAT is
          with Import, Address => BP'Address;
    begin
       Devices.Read (Handle, 0, BP_Data, Ret_Count, Success);
-      if not Success or Ret_Count /= BP_Data'Length or
+      if not Success                 or
+         Ret_Count /= BP_Data'Length or
          BP.Boot_Signature /= Boot_Signature
       then
          Data_Addr := System.Null_Address;
+         Root_Ino  := 0;
          return;
       end if;
 
@@ -59,7 +69,8 @@ package body VFS.FAT is
          Data.Sector_Count := BP.Large_Sector_Count;
       end if;
 
-      Data_Addr := Conv_1.To_Address (Conv_1.Object_Pointer (Data));
+      Data_Addr := Conv.To_Address (Conv.Object_Pointer (Data));
+      Root_Ino  := Root_PseudoInode;
    end Probe;
 
    procedure Remount
@@ -76,9 +87,9 @@ package body VFS.FAT is
    end Remount;
 
    procedure Unmount (FS : in out System.Address) is
-      Data : FAT_Data_Acc := FAT_Data_Acc (Conv_1.To_Pointer (FS));
+      Data : FAT_Data_Acc := FAT_Data_Acc (Conv.To_Pointer (FS));
    begin
-      Free_1 (Data);
+      Free (Data);
       FS := System.Null_Address;
    end Unmount;
    ----------------------------------------------------------------------------
@@ -95,9 +106,10 @@ package body VFS.FAT is
    end Get_Fragment_Size;
 
    function Get_Size (FS : System.Address) return Unsigned_64 is
-      pragma Unreferenced (FS);
+      Data : constant FAT_Data_Acc := FAT_Data_Acc (Conv.To_Pointer (FS));
    begin
-      return 4096 * 10;
+      return Unsigned_64 (Data.Sector_Count) *
+             Unsigned_64 (Data.BPB.Bytes_Per_Sector);
    end Get_Size;
 
    function Get_Inode_Count (FS : System.Address) return Unsigned_64 is
@@ -113,7 +125,7 @@ package body VFS.FAT is
    is
       pragma Unreferenced (FS);
    begin
-      Free_Blocks := 1;
+      Free_Blocks        := 1;
       Free_Unpriviledged := 1;
    end Get_Free_Blocks;
 
@@ -124,7 +136,7 @@ package body VFS.FAT is
    is
       pragma Unreferenced (FS);
    begin
-      Free_Inodes := 1;
+      Free_Inodes        := 1;
       Free_Unpriviledged := 1;
    end Get_Free_Inodes;
 
@@ -134,98 +146,6 @@ package body VFS.FAT is
       return 64;
    end Get_Max_Length;
    ----------------------------------------------------------------------------
-   procedure Open
-      (FS      : System.Address;
-       Path    : String;
-       Ino     : out File_Inode_Number;
-       Success : out FS_Status)
-   is
-      Data : constant FAT_Data_Acc := FAT_Data_Acc (Conv_1.To_Pointer (FS));
-      Result     : FAT_File_Acc;
-      Cluster    : Unsigned_32 := Data.BPB.Root_Entry_Cluster;
-      Inner_Type : File_Type   := File_Directory;
-      Index      : Unsigned_64;
-      Ent        : Directory_Entry;
-      First_I    : Natural;
-      Last_I     : Natural;
-      Success2   : Boolean;
-   begin
-      if Path'Length = 0 then
-         goto End_Return;
-      end if;
-
-      First_I := Path'First;
-      Last_I  := Path'First;
-
-      loop
-         if Last_I >= Path'Last then
-            exit;
-         end if;
-         while Last_I <= Path'Last and then Path (Last_I) /= '/' loop
-            Last_I := Last_I + 1;
-         end loop;
-
-         if Inner_Type /= File_Directory then
-            goto Error_Return;
-         end if;
-
-         Index := 0;
-         loop
-            Read_Directory_Entry (Data, Cluster, Index, Ent, Success2);
-            if not Success2 then
-               goto Error_Return;
-            end if;
-
-            if Index = Unsigned_64 (Data.BPB.Sectors_Per_Cluster) * 16 then
-               Index := 0;
-               Get_Next_Cluster (Data, Cluster, Cluster, Success2);
-               if not Success2 then
-                  goto Error_Return;
-               end if;
-            end if;
-
-            if Ent.Attributes = 0 then
-               goto Error_Return;
-            end if;
-
-            --  TODO: Handle LFN.
-            if (Ent.Attributes and Directory_LFN) /= Directory_LFN and then
-               Are_Paths_Equal (Path (First_I .. Last_I - 1), Ent)
-            then
-               Inner_Type := Get_Type (Ent.Attributes);
-               Cluster := Shift_Left (Unsigned_32 (Ent.First_Cluster_High), 32)
-                          or Unsigned_32 (Ent.First_Cluster_Low);
-               goto Next_Iteration;
-            end if;
-
-            Index := Index + 1;
-         end loop;
-
-      <<Next_Iteration>>
-         Last_I  := Last_I + 1;
-         First_I := Last_I;
-      end loop;
-
-   <<End_Return>>
-      Result := new FAT_File'(Cluster, Inner_Type, Ent);
-      Ino := File_Inode_Number (To_Integer
-         (Conv_2.To_Address (Conv_2.Object_Pointer (Result))));
-      Success := FS_Success;
-      return;
-
-   <<Error_Return>>
-      Ino     := 0;
-      Success := FS_Invalid_Value;
-   end Open;
-
-   procedure Close (FS : System.Address; Ino : File_Inode_Number) is
-      pragma Unreferenced (FS);
-      File : FAT_File_Acc := FAT_File_Acc
-         (Conv_2.To_Pointer (To_Address (Integer_Address (Ino))));
-   begin
-      Free_2 (File);
-   end Close;
-
    procedure Read_Entries
       (FS_Data   : System.Address;
        Ino       : File_Inode_Number;
@@ -234,10 +154,10 @@ package body VFS.FAT is
        Ret_Count : out Natural;
        Success   : out FS_Status)
    is
-      FS : constant FAT_Data_Acc := FAT_Data_Acc (Conv_1.To_Pointer (FS_Data));
-      File : constant FAT_File_Acc := FAT_File_Acc
-         (Conv_2.To_Pointer (To_Address (Integer_Address (Ino))));
-      Cluster : Unsigned_32 := File.Begin_Cluster;
+      FS : constant FAT_Data_Acc := FAT_Data_Acc (Conv.To_Pointer (FS_Data));
+      Disk_Off : Unsigned_64;
+      Cluster : Unsigned_32 := 0;
+      Total   : Natural     := 0;
       Index   : Unsigned_64 := 0;
       Ent     : Directory_Entry;
       Composed     : String (1 .. 12);
@@ -246,14 +166,27 @@ package body VFS.FAT is
       Success2     : Boolean;
    begin
       Ret_Count := 0;
-      if File.Inner_Type /= File_Directory then
-         Success := FS_Invalid_Value;
-         return;
+      Success   := FS_Success;
+
+      if Ino = Root_PseudoInode then
+         Cluster := FS.BPB.Root_Entry_Cluster;
+      else
+         Read_Directory_Entry
+            (Data        => FS,
+             Disk_Offset => Unsigned_64 (Ino),
+             Result      => Ent,
+             Success     => Success2);
+         if not Success2 or Get_Type (Ent.Attributes) /= File_Directory then
+            Success := FS_Invalid_Value;
+            return;
+         end if;
+
+         --  TODO: Handle 64 bit cluster numbers.
+         Cluster := Unsigned_32 (Ent.First_Cluster_Low);
       end if;
 
-      Success := FS_Success;
       loop
-         Read_Directory_Entry (FS, Cluster, Index, Ent, Success2);
+         Read_Directory_Entry (FS, Cluster, Index, Disk_Off, Ent, Success2);
          if not Success2 then
             Success := FS_IO_Failure;
             return;
@@ -272,19 +205,20 @@ package body VFS.FAT is
          end if;
 
          --  TODO: Handle LFN.
-         if Index >= Unsigned_64 (Offset) and
+         if Total >= Offset and
             (Ent.Attributes and Directory_LFN) /= Directory_LFN
          then
             if Ret_Count < Entities'Length then
                Compose_Path (Ent, Composed, Composed_Len);
                Temp := Entities'First + Ret_Count;
-               Entities (Temp).Inode_Number :=
-                  Unsigned_64 (Ent.First_Cluster_Low);
+               Entities (Temp).Inode_Number := Disk_Off;
                Entities (Temp).Name_Buffer (1 .. Composed_Len) :=
                   Composed (1 .. Composed_Len);
                Entities (Temp).Name_Len     := Composed_Len;
                Entities (Temp).Type_Of_File := Get_Type (Ent.Attributes);
             end if;
+
+            Total     := Total     + 1;
             Ret_Count := Ret_Count + 1;
          end if;
 
@@ -300,30 +234,45 @@ package body VFS.FAT is
        Ret_Count : out Natural;
        Success   : out FS_Status)
    is
-      FS : constant FAT_Data_Acc := FAT_Data_Acc (Conv_1.To_Pointer (FS_Data));
-      File  : constant FAT_File_Acc := FAT_File_Acc
-         (Conv_2.To_Pointer (To_Address (Integer_Address (Ino))));
+      FS : constant FAT_Data_Acc := FAT_Data_Acc (Conv.To_Pointer (FS_Data));
+      Ent : Directory_Entry;
+      Success2 : Boolean;
+      Cluster        : Unsigned_32;
       Cluster_Offset : Unsigned_64;
-      Cluster        : Unsigned_32 := File.Begin_Cluster;
       Cluster_Sz     : constant Unsigned_32 :=
          Unsigned_32 (FS.BPB.Sectors_Per_Cluster) * Sector_Size;
       Final_Offset   : Unsigned_64 := Offset;
+      Final_Count    : Natural     := Data'Length;
       Step_Size      : Natural;
       Discard        : Natural;
-      Final_Count    : Natural     := Data'Length;
       Succ           : Boolean;
    begin
+      Data      := (others => 0);
       Ret_Count := 0;
-      if File.Inner_Type /= File_Regular then
-         Success := FS_Invalid_Value;
+      Success   := FS_Success;
+
+      if Ino = Root_PseudoInode then
+         Success := FS_Is_Directory;
          return;
+      else
+         Read_Directory_Entry
+            (Data        => FS,
+             Disk_Offset => Unsigned_64 (Ino),
+             Result      => Ent,
+             Success     => Success2);
+         if not Success2 or Get_Type (Ent.Attributes) = File_Directory then
+            Success := FS_Invalid_Value;
+            return;
+         end if;
+
+         --  TODO: Handle 64 bit cluster numbers.
+         Cluster := Unsigned_32 (Ent.First_Cluster_Low);
       end if;
 
-      if Offset + Data'Length > Unsigned_64 (File.FS_Entry.Size) then
-         Final_Count := Natural (Unsigned_64 (File.FS_Entry.Size) - Offset);
+      if Offset + Data'Length > Unsigned_64 (Ent.Size) then
+         Final_Count := Natural (Unsigned_64 (Ent.Size) - Offset);
       end if;
 
-      Success := FS_Success;
       while Ret_Count < Final_Count loop
          Step_Size := Natural (Unsigned_64 (Final_Count) -
                       Unsigned_64 (Ret_Count));
@@ -367,40 +316,71 @@ package body VFS.FAT is
        Success : out FS_Status)
    is
       package Align is new Lib.Alignment (Unsigned_32);
-      FS   : constant FAT_Data_Acc := FAT_Data_Acc (Conv_1.To_Pointer (Data));
-      File : constant FAT_File_Acc := FAT_File_Acc
-         (Conv_2.To_Pointer (To_Address (Integer_Address (Ino))));
-      Blk  : constant Unsigned_32  := Unsigned_32 (Get_Block_Size (FS.Handle));
-      Cnt  : constant Unsigned_32  :=
-         Align.Divide_Round_Up (File.FS_Entry.Size, Blk);
+
+      FS : constant FAT_Data_Acc := FAT_Data_Acc (Conv.To_Pointer (Data));
+      Ent : Directory_Entry;
+      Success2 : Boolean;
+      Blk, Cnt : Unsigned_32;
    begin
-      S :=
-         (Unique_Identifier => File_Inode_Number (File.Begin_Cluster),
-          Type_Of_File      => File.Inner_Type,
-          Mode              => 8#755#,
-          UID               => 0,
-          GID               => 0,
-          Hard_Link_Count   => 1,
-          Byte_Size         => Unsigned_64 (File.FS_Entry.Size),
-          IO_Block_Size     => Devices.Get_Block_Size (FS.Handle),
-          IO_Block_Count    => Unsigned_64 (Cnt),
-          Creation_Time     => (0, 0),
-          Modification_Time => (0, 0),
-          Access_Time       => (0, 0));
+      if Ino = Root_PseudoInode then
+         S :=
+            (Unique_Identifier => File_Inode_Number
+               (FS.BPB.Root_Entry_Cluster),
+             Type_Of_File      => File_Directory,
+             Mode              => File_Permissions,
+             UID               => 0,
+             GID               => 0,
+             Hard_Link_Count   => 1,
+             Byte_Size         => 0,
+             IO_Block_Size     => 0,
+             IO_Block_Count    => 0,
+             Creation_Time     => (0, 0),
+             Modification_Time => (0, 0),
+             Access_Time       => (0, 0));
+      else
+         Read_Directory_Entry
+            (Data        => FS,
+             Disk_Offset => Unsigned_64 (Ino),
+             Result      => Ent,
+             Success     => Success2);
+         if not Success2 then
+            Success := FS_Invalid_Value;
+            return;
+         end if;
+
+         Blk := Unsigned_32 (Get_Block_Size (FS.Handle));
+         Cnt := Align.Divide_Round_Up (Ent.Size, Blk);
+
+         S :=
+            (Unique_Identifier => Ino,
+             Type_Of_File      => Get_Type (Ent.Attributes),
+             Mode              => File_Permissions,
+             UID               => 0,
+             GID               => 0,
+             Hard_Link_Count   => 1,
+             Byte_Size         => Unsigned_64 (Ent.Size),
+             IO_Block_Size     => Devices.Get_Block_Size (FS.Handle),
+             IO_Block_Count    => Unsigned_64 (Cnt),
+             Creation_Time     => (0, 0),
+             Modification_Time => (0, 0),
+             Access_Time       => (0, 0));
+      end if;
+
       Success := FS_Success;
    end Stat;
    ----------------------------------------------------------------------------
    procedure Read_Directory_Entry
-      (Data    : FAT_Data_Acc;
-       Cluster : Unsigned_32;
-       Index   : Unsigned_64;
-       Result  : out Directory_Entry;
-       Success : out Boolean)
+      (Data        : FAT_Data_Acc;
+       Cluster     : Unsigned_32;
+       Index       : Unsigned_64;
+       Disk_Offset : out Unsigned_64;
+       Result      : out Directory_Entry;
+       Success     : out Boolean)
    is
       Offset      : Unsigned_64;
       Ret_Count   : Natural;
       Result_Data : Operation_Data (1 .. Directory_Entry'Size / 8)
-         with Address => Result'Address;
+         with Import, Address => Result'Address;
    begin
       Offset := Cluster_To_Disk_Offset
          (Cluster             => Cluster,
@@ -410,6 +390,26 @@ package body VFS.FAT is
       Devices.Read
          (Handle    => Data.Handle,
           Offset    => Offset + Index * 32,
+          Data      => Result_Data,
+          Ret_Count => Ret_Count,
+          Success   => Success);
+      Disk_Offset := Offset + Index * 32;
+      Success     := Success and Ret_Count = Result_Data'Length;
+   end Read_Directory_Entry;
+
+   procedure Read_Directory_Entry
+      (Data        : FAT_Data_Acc;
+       Disk_Offset : Unsigned_64;
+       Result      : out Directory_Entry;
+       Success     : out Boolean)
+   is
+      Ret_Count   : Natural;
+      Result_Data : Operation_Data (1 .. Directory_Entry'Size / 8)
+         with Import, Address => Result'Address;
+   begin
+      Devices.Read
+         (Handle    => Data.Handle,
+          Offset    => Disk_Offset,
           Data      => Result_Data,
           Ret_Count => Ret_Count,
           Success   => Success);
@@ -446,25 +446,6 @@ package body VFS.FAT is
          end if;
       end if;
    end Get_Next_Cluster;
-
-   function Are_Paths_Equal
-      (Base : String;
-       Ent  : Directory_Entry) return Boolean
-   is
-      Offset       : constant := Character'Pos ('A') - Character'Pos ('a');
-      Base_Copy    : String   := Base;
-      Composed     : String (1 .. 12);
-      Composed_Len : Natural;
-   begin
-      for C of Base_Copy loop
-         if C in 'a' .. 'z' then
-            C := Character'Val (Character'Pos (C) + Offset);
-         end if;
-      end loop;
-
-      Compose_Path (Ent, Composed, Composed_Len);
-      return Base_Copy = Composed (1 .. Composed_Len);
-   end Are_Paths_Equal;
 
    procedure Compose_Path
       (Ent    : Directory_Entry;
