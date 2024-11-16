@@ -18,6 +18,7 @@ with System.Machine_Code; use System.Machine_Code;
 with Arch.APIC;
 with Arch.MMU;
 with Arch.IDT;
+with Lib.Alignment;
 with Arch.Snippets;
 with Arch.Context;
 with System; use System;
@@ -188,6 +189,8 @@ package body Arch.CPU with SPARK_Mode => Off is
        LAPIC       : Unsigned_32;
        Stack_Top   : Unsigned_64)
    is
+      package A is new Lib.Alignment (Unsigned_32);
+
       PAT_MSR   : constant := 16#00000277#;
       EFER_MSR  : constant := 16#C0000080#;
       STAR_MSR  : constant := 16#C0000081#;
@@ -256,13 +259,13 @@ package body Arch.CPU with SPARK_Mode => Off is
 
          --  Get the size of the xsave area.
          Snippets.Get_CPUID (16#D#, 0, EAX, EBX, ECX, EDX);
-         Global_FPU_Size := ECX;
+         Global_FPU_Size := A.Align_Up (ECX, MMU.Page_Size);
 
          Snippets.Write_CR4 (CR4);
          Snippets.Write_XCR (0, XCR0);
       else
          Global_Use_XSAVE := False;
-         Global_FPU_Size  := 512;
+         Global_FPU_Size  := A.Align_Up (512, MMU.Page_Size);
       end if;
 
       --  Enable SYSCALL instructions.
