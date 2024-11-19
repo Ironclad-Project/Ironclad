@@ -358,13 +358,15 @@ private
    type HBA_FIS_Acc is access HBA_FIS;
 
    --  Data stored for each drive.
+   --  The sector data element must be aligned to 16 bytes if we are to pass it
+   --  to the driver by address.
    subtype Sector_Data is Operation_Data (1 .. Sector_Size);
    type Sector_Cache is record
       Is_Used    : Boolean;
       LBA_Offset : Unsigned_64;
-      Is_Dirty   : Boolean;
       Data       : Sector_Data;
-   end record;
+      Is_Dirty   : Boolean;
+   end record with Alignment => 16;
    type Sector_Caches is array (Natural range <>) of Sector_Cache;
 
    type SATA_Identify is array (1 .. 256) of Unsigned_16;
