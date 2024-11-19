@@ -15,57 +15,55 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Lib.Atomic; use Lib.Atomic;
+with System.Storage_Elements; use System.Storage_Elements;
 with Arch;
 with Arch.Snippets;
+with Lib.Messages;
+with Lib.Panic;
 
 package body Lib.Synchronization with SPARK_Mode => Off is
    --  Both locks do a rough wait until the lock is free for cache-locality.
    --  https://en.wikipedia.org/wiki/Test_and_test-and-set
 
-   procedure Seize (Semaphore : aliased in out Binary_Semaphore) is
-   begin
-      loop
-         if not Atomic_Test_And_Set (Semaphore.Is_Locked'Address, Mem_Acquire)
-         then
-            return;
-         end if;
-         Poll_Until_Zero (Semaphore.Is_Locked'Address);
-      end loop;
-   end Seize;
-
-   procedure Release (Semaphore : aliased in out Binary_Semaphore) is
-   begin
-      Atomic_Clear (Semaphore.Is_Locked'Address, Mem_Release);
-   end Release;
-   ----------------------------------------------------------------------------
-   procedure Seize (Lock : aliased in out Critical_Lock) is
-   begin
-      loop
-         Arch.Snippets.Disable_Interrupts;
-         if not Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire)
-         then
-            return;
-         end if;
-         Arch.Snippets.Enable_Interrupts;
-         Poll_Until_Zero (Lock.Is_Locked'Address);
-      end loop;
-   end Seize;
-
-   procedure Release
-     (Lock        : aliased in out Critical_Lock;
-      Do_Not_Lift : Boolean := False)
+   procedure Seize
+      (Lock : aliased in out Binary_Semaphore;
+       Do_Not_Disable_Interrupts : Boolean := False)
    is
+      Stp  : Lib.Messages.Translated_String;
+      Len  : Natural;
+      Ints : constant Boolean := Arch.Snippets.Interrupts_Enabled;
+   begin
+      if not Do_Not_Disable_Interrupts then
+         Arch.Snippets.Disable_Interrupts;
+      end if;
+
+      loop
+      <<RETEST>>
+         if not Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) then
+            Lock.Were_Interrupts_Enabled := Ints;
+            return;
+         end if;
+
+         for I in 1 .. 50000000 loop
+            if Atomic_Load_8 (Lock.Is_Locked'Address, Mem_Relaxed) = 0 then
+               goto RETEST;
+            else
+               Arch.Snippets.Pause;
+            end if;
+         end loop;
+
+         Lib.Messages.Image
+            (Unsigned_64 (To_Integer (Caller_Address (0))), Stp, Len, True);
+         Lib.Panic.Hard_Panic
+            ("Deadlock at " & Stp (Stp'Last - Len + 1 .. Stp'Last));
+      end loop;
+   end Seize;
+
+   procedure Release (Lock : aliased in out Binary_Semaphore) is
    begin
       Atomic_Clear (Lock.Is_Locked'Address, Mem_Release);
-      if not Do_Not_Lift then
+      if Lock.Were_Interrupts_Enabled then
          Arch.Snippets.Enable_Interrupts;
       end if;
    end Release;
-   ----------------------------------------------------------------------------
-   procedure Poll_Until_Zero (Address : System.Address) is
-   begin
-      while Atomic_Load_8 (Address, Mem_Relaxed) /= 0 loop
-         Arch.Snippets.Pause;
-      end loop;
-   end Poll_Until_Zero;
 end Lib.Synchronization;

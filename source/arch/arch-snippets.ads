@@ -29,6 +29,10 @@ package Arch.Snippets is
    procedure Enable_Interrupts with Inline;
    procedure Disable_Interrupts with Inline;
 
+   --  Check whether interrupts are enabled or disabled.
+   --  @return True if enabled.
+   function Interrupts_Enabled return Boolean;
+
    --  Processor hint for waiting for interrupts in an energy-efficient state.
    procedure Wait_For_Interrupt with Inline;
 

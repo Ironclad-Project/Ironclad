@@ -25,6 +25,7 @@ with Arch.Clocks;
 with Arch.Snippets;
 with Lib;
 with Lib.Time;
+with Lib.Messages;
 
 package body Scheduler is
    Kernel_Stack_Size : constant := 16#2000#;
@@ -79,7 +80,7 @@ package body Scheduler is
    --  Both are calculated from the total slice.
    Total_Slice : constant := 1_000_000; --  A second.
 
-   Scheduler_Mutex : aliased Lib.Synchronization.Critical_Lock;
+   Scheduler_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
    Cluster_Pool    : Cluster_Arr_Acc;
    Thread_Pool     : Thread_Info_Arr_Acc;
 
@@ -115,7 +116,7 @@ package body Scheduler is
       Cluster_Pool (Cluster_Pool'First).Progress_Nanos   := 0;
 
       Is_Initialized := True;
-      Lib.Synchronization.Release (Scheduler_Mutex, True);
+      Lib.Synchronization.Release (Scheduler_Mutex);
       return True;
    end Init;
 
@@ -358,9 +359,10 @@ package body Scheduler is
       if Curr_TID /= Error_TID and then
          Cluster_Pool (Thread_Pool (Curr_TID).Cluster).Is_Interruptible
       then
-         Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex);
+         Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex, True);
+         Arch.Snippets.Enable_Interrupts;
          Arch.Local.Reschedule_ASAP;
-         Lib.Synchronization.Seize   (Thread_Pool (Curr_TID).Yield_Mutex);
+         Lib.Synchronization.Seize   (Thread_Pool (Curr_TID).Yield_Mutex, True);
          Lib.Synchronization.Release (Thread_Pool (Curr_TID).Yield_Mutex);
       end if;
    end Yield_If_Able;
@@ -372,7 +374,7 @@ package body Scheduler is
       if Thread_Pool (Thread).Is_Present then
          Thread_Pool (Thread).Is_Present := False;
       end if;
-      Lib.Synchronization.Release (Scheduler_Mutex, True);
+      Lib.Synchronization.Release (Scheduler_Mutex);
       Arch.Local.Reschedule_ASAP;
       Waiting_Spot;
    end Bail;
@@ -694,7 +696,7 @@ package body Scheduler is
 
       --  We only get here if the thread search did not find anything, and we
       --  are just going back to whoever called.
-      Lib.Synchronization.Release (Scheduler_Mutex, True);
+      Lib.Synchronization.Release (Scheduler_Mutex);
       Arch.Local.Reschedule_In (Timeout);
       return;
 
@@ -743,7 +745,7 @@ package body Scheduler is
       Arch.Local.Load_TCB (Thread_Pool (Next_TID).TCB_Pointer);
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_State);
       Next_State := Thread_Pool (Next_TID).GP_State;
-      Lib.Synchronization.Release (Scheduler_Mutex, True);
+      Lib.Synchronization.Release (Scheduler_Mutex);
       Arch.Context.Load_GP_Context (Next_State);
    end Scheduler_ISR;
    ----------------------------------------------------------------------------

@@ -46,6 +46,15 @@ package body Arch.Snippets is
       Asm ("hlt", Volatile => True);
    end Wait_For_Interrupt;
 
+   function Interrupts_Enabled return Boolean is
+      Flags : Unsigned_64;
+   begin
+      Asm ("pushfq; popq %0",
+           Outputs  => Unsigned_64'Asm_Output ("=r", Flags),
+           Volatile => True);
+      return (Flags and 16#200#) /= 0;
+   end Interrupts_Enabled;
+
    procedure Pause is
    begin
       Asm ("pause", Volatile => True);
