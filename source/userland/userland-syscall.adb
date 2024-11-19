@@ -839,7 +839,8 @@ package body Userland.Syscall is
       if Success then
          Set_FD_Flags
            (Proc, Returned,
-            (DataType and SOCK_CLOEXEC) /= 0, False);
+            (DataType and SOCK_CLOEXEC) /= 0,
+            (DataType and SOCK_CLOFORK) /= 0);
          Errno := Error_No_Error;
       else
          Close (New_Sock);
