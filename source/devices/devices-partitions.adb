@@ -139,7 +139,7 @@ package body Devices.Partitions is
       Block_Size : constant Natural := Devices.Get_Block_Size (Dev);
       Sector : Devices.Operation_Data_Acc :=
          new Devices.Operation_Data (1 .. Block_Size);
-      S_Addr : constant System.Address  := Sector.all'Address;
+      S_Addr : constant System.Address  := Sector (1)'Address;
       GPT    : GPT_Header_Acc;
       Part   : Partition_Data_Acc;
 

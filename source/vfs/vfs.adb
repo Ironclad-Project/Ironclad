@@ -1038,6 +1038,13 @@ package body VFS is
        Do_Follow  : Boolean := True)
    is
    begin
+      if Mounts (1).Mounted_Dev = Devices.Error_Handle then
+         Key     := Error_Handle;
+         Ino     := 0;
+         Success := FS_Invalid_Value;
+         return;
+      end if;
+
       Open
          (Key        => 1,
           Relative   => Mounts (1).Root_Ino,
