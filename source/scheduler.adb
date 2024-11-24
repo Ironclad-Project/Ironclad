@@ -25,7 +25,6 @@ with Arch.Clocks;
 with Arch.Snippets;
 with Lib;
 with Lib.Time;
-with Lib.Messages;
 
 package body Scheduler is
    Kernel_Stack_Size : constant := 16#2000#;
@@ -362,7 +361,7 @@ package body Scheduler is
          Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex, True);
          Arch.Snippets.Enable_Interrupts;
          Arch.Local.Reschedule_ASAP;
-         Lib.Synchronization.Seize   (Thread_Pool (Curr_TID).Yield_Mutex, True);
+         Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex, True);
          Lib.Synchronization.Release (Thread_Pool (Curr_TID).Yield_Mutex);
       end if;
    end Yield_If_Able;

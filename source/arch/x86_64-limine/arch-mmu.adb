@@ -294,13 +294,14 @@ package body Arch.MMU is
       Page_Addr  : Virtual_Address;
       First_Iter : Boolean := True;
    begin
-      Lib.Synchronization.Seize (Map.Mutex);
       Physical           := System.Null_Address;
       Is_Mapped          := False;
       Is_User_Accessible := False;
       Is_Readable        := False;
       Is_Writeable       := False;
       Is_Executable      := False;
+
+      Lib.Synchronization.Seize (Map.Mutex);
 
       while Virt < Final loop
          Page_Addr := Get_Page (Map, Virt, False);
@@ -346,16 +347,29 @@ package body Arch.MMU is
        Permissions    : Page_Permissions;
        Caching        : Caching_Model := Write_Back) return Boolean
    is
+      procedure F is new Ada.Unchecked_Deallocation
+         (Mapping_Range, Mapping_Range_Acc);
+
+      New_Range  : Mapping_Range_Acc;
       Last_Range : Mapping_Range_Acc;
       Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
       Success    :           Boolean := False;
    begin
+      New_Range := new Mapping_Range'
+         (Next           => null,
+          Is_Allocated   => False,
+          Virtual_Start  => Virtual_Start,
+          Physical_Start => Physical_Start,
+          Length         => Length,
+          Flags          => Permissions);
+
       Lib.Synchronization.Seize (Map.Mutex);
 
       while Curr_Range /= null loop
          if Curr_Range.Virtual_Start <= Virtual_Start and
             Curr_Range.Virtual_Start + Length >= Virtual_Start + Length
          then
+            F (New_Range);
             goto Ret;
          end if;
 
@@ -363,13 +377,7 @@ package body Arch.MMU is
          Curr_Range := Curr_Range.Next;
       end loop;
 
-      Curr_Range := new Mapping_Range'
-         (Next           => null,
-          Is_Allocated   => False,
-          Virtual_Start  => Virtual_Start,
-          Physical_Start => Physical_Start,
-          Length         => Length,
-          Flags          => Permissions);
+      Curr_Range := New_Range;
       if Map.Map_Ranges_Root = null then
          Map.Map_Ranges_Root := Curr_Range;
       else
@@ -398,14 +406,26 @@ package body Arch.MMU is
        Success        : out Boolean;
        Caching        : Caching_Model := Write_Back)
    is
+      procedure F is new Ada.Unchecked_Deallocation
+         (Mapping_Range, Mapping_Range_Acc);
+
       Addr : constant Virtual_Address :=
          Memory.Physical.Alloc (Interfaces.C.size_t (Length));
       Allocated : array (1 .. Length) of Unsigned_8
          with Import, Address => To_Address (Addr);
+      New_Range  : Mapping_Range_Acc;
       Last_Range : Mapping_Range_Acc;
       Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
    begin
-      Success := False;
+      Success   := False;
+      New_Range := new Mapping_Range'
+         (Next           => null,
+          Is_Allocated   => True,
+          Virtual_Start  => Virtual_Start,
+          Physical_Start => To_Address (Addr - Memory.Memory_Offset),
+          Length         => Length,
+          Flags          => Permissions);
+
       Lib.Synchronization.Seize (Map.Mutex);
 
       while Curr_Range /= null loop
@@ -419,13 +439,7 @@ package body Arch.MMU is
          Curr_Range := Curr_Range.Next;
       end loop;
 
-      Curr_Range := new Mapping_Range'
-         (Next           => null,
-          Is_Allocated   => True,
-          Virtual_Start  => Virtual_Start,
-          Physical_Start => To_Address (Addr - Memory.Memory_Offset),
-          Length         => Length,
-          Flags          => Permissions);
+      Curr_Range := New_Range;
       if Map.Map_Ranges_Root = null then
          Map.Map_Ranges_Root := Curr_Range;
       else
@@ -445,6 +459,7 @@ package body Arch.MMU is
          Allocated      := (others => 0);
          Physical_Start := To_Address (Addr);
       else
+         F (New_Range);
          Memory.Physical.Free (Interfaces.C.size_t (Addr));
          Physical_Start := System.Null_Address;
       end if;
@@ -532,7 +547,7 @@ package body Arch.MMU is
          Last_Range := Curr_Range;
          Curr_Range := Curr_Range.Next;
       end loop;
-      goto Ret;
+      goto No_Free_Return;
 
    <<Actually_Unmap>>
       if Last_Range /= null then
@@ -540,7 +555,6 @@ package body Arch.MMU is
       else
          Map.Map_Ranges_Root := null;
       end if;
-      F (Curr_Range);
 
       while Virt < Final loop
          Addr := Get_Page (Map, Virt, False);
@@ -557,7 +571,11 @@ package body Arch.MMU is
       Flush_Global_TLBs (Virtual_Start, Length);
       Success := True;
 
-   <<Ret>>
+      Lib.Synchronization.Release (Map.Mutex);
+      F (Curr_Range);
+      return Success;
+
+   <<No_Free_Return>>
       Lib.Synchronization.Release (Map.Mutex);
       return Success;
    end Unmap_Range;
