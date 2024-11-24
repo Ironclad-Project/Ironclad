@@ -62,6 +62,14 @@ package Devices is
          (Key    : System.Address;
           Offset : Unsigned_64;
           Count  : Unsigned_64) return Boolean;
+      Poll : access procedure
+         (Handle    : System.Address;
+          Can_Read  : out Boolean;
+          Can_Write : out Boolean;
+          Is_Error  : out Boolean);
+
+      --  These functions must only be called with userland data for their
+      --  address arguments!
       IO_Control : access function
          (Key      : System.Address;
           Request  : Unsigned_64;
@@ -72,11 +80,6 @@ package Devices is
           Address : Memory.Virtual_Address;
           Length  : Unsigned_64;
           Flags   : Arch.MMU.Page_Permissions) return Boolean;
-      Poll : access procedure
-         (Handle    : System.Address;
-          Can_Read  : out Boolean;
-          Can_Write : out Boolean;
-          Is_Error  : out Boolean);
    end record;
 
    --  Handle for interfacing with devices, and device conditions.

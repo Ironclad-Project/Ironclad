@@ -16,7 +16,6 @@
 
 with Networking.Interfaces;
 with Scheduler;
-with Devices.NetInter;
 
 package body Devices.Loopback is
    procedure Init (Success : out Boolean) is
@@ -36,7 +35,7 @@ package body Devices.Loopback is
           Write       => Write'Access,
           Sync        => null,
           Sync_Range  => null,
-          IO_Control  => IO_Control'Access,
+          IO_Control  => null,
           Mmap        => null,
           Poll        => null);
       Register (Device, "loopback", Success);
@@ -44,6 +43,7 @@ package body Devices.Loopback is
          Dev := Fetch ("loopback");
          Networking.Interfaces.Register_Interface
             (Interfaced  => Dev,
+             MAC         => [others => 1],
              IPv4        => (127, 0, 0, 1),
              IPv4_Subnet => (255, 0, 0, 0),
              IPv6        => (1 .. 15 => 0, 16 => 1),
@@ -109,25 +109,4 @@ package body Devices.Loopback is
          Success := False;
       end if;
    end Write;
-
-   function IO_Control
-      (Data     : System.Address;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean
-   is
-      pragma Unreferenced (Data);
-   begin
-      case Request is
-         when NetInter.NET_GETMAC =>
-            declare
-               Addr : Networking.MAC_Address with Import, Address => Argument;
-            begin
-               Addr := (others => 1);
-            end;
-         when others =>
-            return False;
-      end case;
-
-      return True;
-   end IO_Control;
 end Devices.Loopback;

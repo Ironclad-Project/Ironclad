@@ -1,5 +1,5 @@
 --  networking-interfaces.adb: Networking interface management.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -13,8 +13,6 @@
 --
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-with Devices.NetInter; use Devices.NetInter;
 
 package body Networking.Interfaces is
    pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE.
@@ -32,6 +30,7 @@ package body Networking.Interfaces is
 
    procedure Register_Interface
       (Interfaced  : Devices.Device_Handle;
+       MAC         : Networking.MAC_Address;
        IPv4        : IPv4_Address;
        IPv4_Subnet : IPv4_Address;
        IPv6        : IPv6_Address;
@@ -46,11 +45,13 @@ package body Networking.Interfaces is
          if Int.Handle = Devices.Error_Handle then
             Int.Handle := Interfaced;
             Int.Is_Blocked := True;
-            Success := IO_Control (Interfaced, NET_GETMAC, Int.MAC'Address);
+            Int.MAC := MAC;
             ARP.Add_Static (Int.MAC, IPv4, IPv4_Subnet, IPv6, IPv6_Subnet);
+            Success := True;
             exit;
          end if;
       end loop;
+
       Release (Interfaces_Lock);
    end Register_Interface;
 

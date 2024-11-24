@@ -44,9 +44,4 @@ private
        Ret_Count   : out Natural;
        Success     : out Boolean;
        Is_Blocking : Boolean);
-
-   function IO_Control
-      (Data     : System.Address;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean;
 end Devices.Loopback;

@@ -32,6 +32,7 @@ package Networking.Interfaces is
    --  @param Success    True in success, False in failure.
    procedure Register_Interface
       (Interfaced  : Devices.Device_Handle;
+       MAC         : Networking.MAC_Address;
        IPv4        : IPv4_Address;
        IPv4_Subnet : IPv4_Address;
        IPv6        : IPv6_Address;
