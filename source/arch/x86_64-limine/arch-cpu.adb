@@ -19,6 +19,7 @@ with Arch.APIC;
 with Arch.MMU;
 with Arch.IDT;
 with Lib.Alignment;
+with Lib.Panic;
 with Arch.Snippets;
 with Arch.Context;
 with System; use System;
@@ -208,6 +209,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       LSTAR : Unsigned_64;
       FMASK : Unsigned_64;
       EAX, EBX, ECX, EDX : Unsigned_32;
+      Success : Boolean;
 
       Locals_Addr : constant Unsigned_64 :=
          Unsigned_64 (To_Integer (Core_Locals (Core_Number)'Address));
@@ -223,23 +225,25 @@ package body Arch.CPU with SPARK_Mode => Off is
       CR4 := CR4 or Shift_Left (1, 6);
 
       --  Enable several security features if present.
-      Snippets.Get_CPUID (7, 0, EAX, EBX, ECX, EDX);
-      if (ECX and Shift_Left (1, 2)) /= 0 then
-         CR4 := CR4 or Shift_Left (1, 11); --  UMIP.
-      end if;
-      if (EBX and Shift_Left (1, 7)) /= 0 then
-         CR4 := CR4 or Shift_Left (1, 20); --  SMEP.
-      end if;
-      if (EDX and Shift_Left (1, 20)) /= 0 then
-         Snippets.Write_MSR (UCET_MSR, 2#100#); --  Enable just IBT.
-         Snippets.Write_MSR (SCET_MSR, 2#100#); --  Enable just IBT.
+      Snippets.Get_CPUID (7, 0, EAX, EBX, ECX, EDX, Success);
+      if Success then
+         if (ECX and Shift_Left (1, 2)) /= 0 then
+            CR4 := CR4 or Shift_Left (1, 11); --  UMIP.
+         end if;
+         if (EBX and Shift_Left (1, 7)) /= 0 then
+            CR4 := CR4 or Shift_Left (1, 20); --  SMEP.
+         end if;
+         if (EDX and Shift_Left (1, 20)) /= 0 then
+            Snippets.Write_MSR (UCET_MSR, 2#100#); --  Enable just IBT.
+            Snippets.Write_MSR (SCET_MSR, 2#100#); --  Enable just IBT.
+         end if;
       end if;
 
       --  Check XSAVE support.
       --  XXX: Every core will write to the global locations for data, but that
       --  is fine because they will always be the same for all cores.
-      Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX);
-      if (ECX and Shift_Left (1, 26)) /= 0 then
+      Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX, Success);
+      if Success and then ((ECX and Shift_Left (1, 26)) /= 0) then
          Global_Use_XSAVE := True;
          CR4  := CR4 or Shift_Left (1, 18);
          XCR0 := 2#11#; --  Set xsave to be used for x87 and SSE.
@@ -250,15 +254,15 @@ package body Arch.CPU with SPARK_Mode => Off is
          end if;
 
          --  Check and enable AVX512 foundation support.
-         Snippets.Get_CPUID (7, 0, EAX, EBX, ECX, EDX);
-         if ((EBX and Shift_Left (1, 17)) /= 0) then
+         Snippets.Get_CPUID (7, 0, EAX, EBX, ECX, EDX, Success);
+         if Success and then ((EBX and Shift_Left (1, 17)) /= 0) then
             XCR0 := XCR0 or Shift_Left (2#1#, 5); --  Enable OPMASK.
             XCR0 := XCR0 or Shift_Left (2#1#, 6); --  Enable the ZMM regs.
             XCR0 := XCR0 or Shift_Left (2#1#, 7); --  Enable more ZMM regs.
          end if;
 
          --  Get the size of the xsave area.
-         Snippets.Get_CPUID (16#D#, 0, EAX, EBX, ECX, EDX);
+         Snippets.Get_CPUID (16#D#, 0, EAX, EBX, ECX, EDX, Success);
          Global_FPU_Size := A.Align_Up (ECX, MMU.Page_Size);
 
          Snippets.Write_CR4 (CR4);
@@ -307,8 +311,12 @@ package body Arch.CPU with SPARK_Mode => Off is
 
    function Get_BSP_LAPIC_ID return Unsigned_32 is
       EAX, EBX, ECX, EDX : Unsigned_32;
+      Success : Boolean;
    begin
-      Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX);
+      Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX, Success);
+      if not Success then
+         Lib.Panic.Hard_Panic ("Could not get BSP");
+      end if;
       return Shift_Right (EBX, 24) and 16#FF#;
    end Get_BSP_LAPIC_ID;
 end Arch.CPU;

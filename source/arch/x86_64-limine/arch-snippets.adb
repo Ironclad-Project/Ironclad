@@ -285,19 +285,39 @@ package body Arch.Snippets is
    end Invalidate_Caches;
 
    procedure Get_CPUID
-      (Leaf, Subleaf : Unsigned_32;
-       EAX, EBX, ECX, EDX : out Unsigned_32)
+      (Leaf    : Unsigned_32;
+       Subleaf : Unsigned_32;
+       EAX     : out Unsigned_32;
+       EBX     : out Unsigned_32;
+       ECX     : out Unsigned_32;
+       EDX     : out Unsigned_32;
+       Success : out Boolean)
    is
+      CPUID_Max : Unsigned_32;
    begin
       Asm ("cpuid",
-           Outputs  => (Unsigned_32'Asm_Output ("=a", EAX),
-                        Unsigned_32'Asm_Output ("=b", EBX),
-                        Unsigned_32'Asm_Output ("=c", ECX),
-                        Unsigned_32'Asm_Output ("=d", EDX)),
-           Inputs   => (Unsigned_32'Asm_Input ("a", Leaf),
-                        Unsigned_32'Asm_Input ("c", Subleaf)),
+           Outputs  => Unsigned_32'Asm_Output ("=a", CPUID_Max),
+           Inputs   => Unsigned_32'Asm_Input ("a", Leaf and 16#80000000#),
            Clobber  => "memory",
            Volatile => True);
+
+      Success := Leaf <= CPUID_Max;
+      if Success then
+         Asm ("cpuid",
+              Outputs  => (Unsigned_32'Asm_Output ("=a", EAX),
+                           Unsigned_32'Asm_Output ("=b", EBX),
+                           Unsigned_32'Asm_Output ("=c", ECX),
+                           Unsigned_32'Asm_Output ("=d", EDX)),
+              Inputs   => (Unsigned_32'Asm_Input ("a", Leaf),
+                           Unsigned_32'Asm_Input ("c", Subleaf)),
+              Clobber  => "memory",
+              Volatile => True);
+      else
+         EAX := 0;
+         EBX := 0;
+         ECX := 0;
+         EDX := 0;
+      end if;
    end Get_CPUID;
 
    procedure Calibrate_Sleep_1MS is

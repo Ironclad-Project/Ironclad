@@ -77,9 +77,16 @@ package Arch.Snippets is
       procedure Swap_GS with Inline;
       function Read_Cycles return Unsigned_64 with Inline;
       procedure Invalidate_Caches with Inline;
+
       procedure Get_CPUID
-         (Leaf, Subleaf : Unsigned_32;
-          EAX, EBX, ECX, EDX : out Unsigned_32);
+         (Leaf    : Unsigned_32;
+          Subleaf : Unsigned_32;
+          EAX     : out Unsigned_32;
+          EBX     : out Unsigned_32;
+          ECX     : out Unsigned_32;
+          EDX     : out Unsigned_32;
+          Success : out Boolean);
+
       procedure Calibrate_Sleep_1MS;
    #end if;
 end Arch.Snippets;

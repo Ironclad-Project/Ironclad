@@ -42,13 +42,14 @@ package body Arch.APIC with SPARK_Mode => Off is
       DMAR : ACPI.DMAR with Import, Address => To_Address (Addr);
       EAX, EBX, ECX, EDX : Unsigned_32;
       APIC_Base          : Unsigned_64;
+      Success            : Boolean;
 
       MSR_Read : constant Unsigned_64 := Arch.Snippets.Read_MSR (LAPIC_MSR);
    begin
       --  Check x2APIC support.
-      Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX);
+      Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX, Success);
       Supports_x2APIC :=
-         (ECX and Shift_Left (1, 21)) /= 0 and
+         Success and ((ECX and Shift_Left (1, 21)) /= 0) and
          (Addr = 0 or else ((DMAR.Flags and 2#11#) /= 2#11#));
 
       if Supports_x2APIC then
@@ -111,19 +112,38 @@ package body Arch.APIC with SPARK_Mode => Off is
    function LAPIC_Timer_Calibrate return Unsigned_64 is
       Sample : constant Unsigned_32 := Unsigned_32'Last;
       Final_Count : Unsigned_32;
+      EAX, EBX, ECX, EDX : Unsigned_32;
+      Success : Boolean;
    begin
+      --  Stop and clear the timer.
       LAPIC_Timer_Stop;
-      LAPIC_Write (LAPIC_Timer_Register, Shift_Left (1, 16) or 16#FF#);
-      LAPIC_Write (LAPIC_Timer_Divisor_Register, LAPIC_Timer_2_Divisor);
-      LAPIC_Write (LAPIC_Timer_Init_Counter_Register, Sample);
 
-      --  Check the ticks we get in 1 ms, and calculate with that.
-      Snippets.Calibrate_Sleep_1MS;
-      Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
+      --  Check if the CPU can give us the clock straight up, which will be
+      --  much more accurate than us. If it does not, we just calculate it.
+      --  The results are in Hertz (ticks/s).
+      Snippets.Get_CPUID
+         (Leaf    => 16#15#,
+          Subleaf => 0,
+          EAX     => EAX,
+          EBX     => EBX,
+          ECX     => ECX,
+          EDX     => EDX,
+          Success => Success);
+      if Success then
+         return Unsigned_64 (ECX);
+      else
+         LAPIC_Write (LAPIC_Timer_Register, Shift_Left (1, 16) or 16#FF#);
+         LAPIC_Write (LAPIC_Timer_Divisor_Register, LAPIC_Timer_2_Divisor);
+         LAPIC_Write (LAPIC_Timer_Init_Counter_Register, Sample);
 
-      --  Stop timer and adjust the ticks to make them ticks/ms -> ticks/s
-      LAPIC_Timer_Stop;
-      return Unsigned_64 (Sample - Final_Count) * 1000;
+         --  Check the ticks we get in 1 ms, and calculate with that.
+         Snippets.Calibrate_Sleep_1MS;
+         Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
+
+         --  Stop timer and adjust the ticks to make them ticks/ms -> ticks/s
+         LAPIC_Timer_Stop;
+         return Unsigned_64 (Sample - Final_Count) * 1000;
+      end if;
    end LAPIC_Timer_Calibrate;
 
    procedure LAPIC_Timer_Stop is

@@ -23,8 +23,8 @@ package body Devices.HWRNG is
       Success : Boolean;
    begin
       --  Check for RDRAND.
-      Arch.Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX);
-      if (ECX and Shift_Left (1, 30)) = 0 then
+      Arch.Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX, Success);
+      if not Success or else ((ECX and Shift_Left (1, 30)) = 0) then
          return True;
       end if;
 
