@@ -129,7 +129,7 @@ package body Arch.APIC with SPARK_Mode => Off is
           ECX     => ECX,
           EDX     => EDX,
           Success => Success);
-      if Success then
+      if Success and ECX /= 0 then
          return Unsigned_64 (ECX);
       else
          LAPIC_Write (LAPIC_Timer_Register, Shift_Left (1, 16) or 16#FF#);
