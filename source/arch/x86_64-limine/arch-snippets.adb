@@ -298,7 +298,7 @@ package body Arch.Snippets is
       Asm ("cpuid",
            Outputs  => Unsigned_32'Asm_Output ("=a", CPUID_Max),
            Inputs   => Unsigned_32'Asm_Input ("a", Leaf and 16#80000000#),
-           Clobber  => "memory",
+           Clobber  => "memory,ebx,ecx,edx",
            Volatile => True);
 
       Success := Leaf <= CPUID_Max;
