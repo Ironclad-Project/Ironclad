@@ -128,7 +128,7 @@ package body VFS.Dev is
       Devices.List (Buffer, Buffer_Len);
       for I in 1 .. Buffer_Len loop
          if I - 1 >= Offset then
-            if Ret_Count > Entities'Length then
+            if Ret_Count >= Entities'Length then
                exit;
             end if;
 
