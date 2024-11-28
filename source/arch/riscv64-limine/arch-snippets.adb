@@ -40,6 +40,11 @@ package body Arch.Snippets is
       Asm ("wfi", Volatile => True);
    end Wait_For_Interrupt;
 
+   function Interrupts_Enabled return Boolean is
+   begin
+      return False;
+   end Interrupts_Enabled;
+
    procedure Pause is
    begin
       null; --  No pause equivalent sadly, inneficient busy loops for you!
