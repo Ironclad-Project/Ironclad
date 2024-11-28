@@ -109,6 +109,7 @@ package body Userland.Process is
          if Registry (I) = null then
             Registry (I) := new Process_Data'
                (Data_Mutex      => Lib.Synchronization.Unlocked_Semaphore,
+                Controlling_TTY => null,
                 Masked_Signals  => (others => False),
                 Raised_Signals  => (others => False),
                 Signal_Handlers => (others => System.Null_Address),
@@ -143,6 +144,7 @@ package body Userland.Process is
                Lib.Synchronization.Seize (Registry (P).Data_Mutex);
                Registry (I).Niceness        := Registry (P).Niceness;
                Registry (I).Masked_Signals  := Registry (P).Masked_Signals;
+               Registry (I).Controlling_TTY := Registry (P).Controlling_TTY;
                Registry (I).Parent          := Parent;
                Registry (I).Stack_Base      := Registry (P).Stack_Base;
                Registry (I).Alloc_Base      := Registry (P).Alloc_Base;
@@ -175,6 +177,39 @@ package body Userland.Process is
       Free (Registry (Process));
       Lib.Synchronization.Release (Registry_Mutex);
    end Delete_Process;
+
+   procedure Get_Controlling_TTY (Proc : PID; TTY : out IPC.PTY.Inner_Acc) is
+   begin
+      TTY := Registry (Proc).Controlling_TTY;
+   end Get_Controlling_TTY;
+
+   procedure Set_Controlling_TTY
+      (Proc    : PID;
+       TTY     : IPC.PTY.Inner_Acc;
+       Success : out Boolean)
+   is
+   begin
+      if Registry (Proc).Controlling_TTY = null then
+         Registry (Proc).Controlling_TTY := TTY;
+         Success := True;
+      else
+         Success := False;
+      end if;
+   end Set_Controlling_TTY;
+
+   procedure Clear_Controlling_TTY
+      (Proc    : PID;
+       TTY     : IPC.PTY.Inner_Acc;
+       Success : out Boolean)
+   is
+   begin
+      if Registry (Proc).Controlling_TTY = TTY then
+         Registry (Proc).Controlling_TTY := null;
+         Success := True;
+      else
+         Success := False;
+      end if;
+   end Clear_Controlling_TTY;
 
    procedure Get_Runtime_Times
       (Proc : PID;

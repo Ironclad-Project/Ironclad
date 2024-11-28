@@ -185,6 +185,21 @@ package Userland.Process is
    --  @param Process Process to delete.
    procedure Delete_Process (Process : PID) with Pre => Process /= Error_PID;
 
+   --  Get the controlling terminal of a process.
+   procedure Get_Controlling_TTY (Proc : PID; TTY : out IPC.PTY.Inner_Acc);
+
+   --  Clear the controlling terminal of a process.
+   procedure Set_Controlling_TTY
+      (Proc    : PID;
+       TTY     : IPC.PTY.Inner_Acc;
+       Success : out Boolean);
+
+   --  Clear the controlling terminal of a process.
+   procedure Clear_Controlling_TTY
+      (Proc    : PID;
+       TTY     : IPC.PTY.Inner_Acc;
+       Success : out Boolean);
+
    --  Get runtime of all the threads owned by the process;
    procedure Get_Runtime_Times
       (Proc : PID;
@@ -636,6 +651,7 @@ private
    type Handle_Arr is array (Signal)                  of System.Address;
    type Process_Data is record
       Data_Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
+      Controlling_TTY : IPC.PTY.Inner_Acc;
       Masked_Signals  : Signal_Bitmap;
       Raised_Signals  : Signal_Bitmap;
       Signal_Handlers : Handle_Arr;

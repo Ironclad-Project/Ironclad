@@ -17,6 +17,7 @@
 with Devices.Console;
 with Devices.Loopback;
 with Devices.Streams;
+with Devices.TTY;
 with Lib.Panic;
 with Arch.Hooks;
 
@@ -39,6 +40,8 @@ package body Devices is
       Loopback.Init (Success);
       if not Success then goto Panic_Error; end if;
       Streams.Init (Success);
+      if not Success then goto Panic_Error; end if;
+      TTY.Init (Success);
       if not Success or else not Arch.Hooks.Devices_Hook then
          goto Panic_Error;
       end if;

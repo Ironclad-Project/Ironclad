@@ -19,6 +19,8 @@ with Ada.Unchecked_Deallocation;
 with Scheduler;
 with Lib.Messages;
 with Devices.TermIOs; use Devices.TermIOs;
+with Userland.Process; use Userland.Process;
+with Arch.Local;
 
 package body IPC.PTY is
    pragma Suppress (All_Checks);
@@ -332,10 +334,12 @@ package body IPC.PTY is
        Request    : Unsigned_64;
        Argument   : System.Address) return Boolean
    is
+      Proc : constant PID := Arch.Local.Get_Current_Process;
       Result_Info : Main_Data with Import, Address => Argument;
       Result_Size :  Win_Size with Import, Address => Argument;
       Action      :   Integer with Import, Address => Argument;
       Do_R, Do_T  :   Boolean;
+      Success     :   Boolean;
    begin
       case Request is
          when TCGETS =>
@@ -381,9 +385,11 @@ package body IPC.PTY is
                   return False;
             end case;
          when TIOCSCTTY =>
-            return True;
+            Set_Controlling_TTY (Proc, PTY, Success);
+            return Success;
          when TIOCNOTTY =>
-            return True;
+            Clear_Controlling_TTY (Proc, PTY, Success);
+            return Success;
          when others =>
             return False;
       end case;
