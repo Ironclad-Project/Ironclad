@@ -57,7 +57,8 @@ package body Devices.Serial is
                 Write       => Write'Access,
                 IO_Control  => IO_Control'Access,
                 Mmap        => null,
-                Poll        => Poll'Access);
+                Poll        => Poll'Access,
+                Remove      => null);
             Register (Device, Device_Name, Discard);
          end if;
       end loop;

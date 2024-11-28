@@ -32,7 +32,8 @@ package body Devices.PC_Speaker is
            Sync_Range  => null,
            IO_Control  => IO_Control'Access,
            Mmap        => null,
-           Poll        => null), "pcspeaker", Success);
+           Poll        => null,
+           Remove      => null), "pcspeaker", Success);
       return Success;
    end Init;
 

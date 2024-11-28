@@ -40,7 +40,8 @@ package body Devices.HWRNG is
            Sync_Range  => null,
            IO_Control  => null,
            Mmap        => null,
-           Poll        => null), "hwrng", Success);
+           Poll        => null,
+           Remove      => null), "hwrng", Success);
       return True;
    end Init;
    ----------------------------------------------------------------------------

@@ -37,7 +37,8 @@ package body Devices.Loopback is
           Sync_Range  => null,
           IO_Control  => null,
           Mmap        => null,
-          Poll        => null);
+          Poll        => null,
+          Remove      => null);
       Register (Device, "loopback", Success);
       if Success then
          Dev := Fetch ("loopback");

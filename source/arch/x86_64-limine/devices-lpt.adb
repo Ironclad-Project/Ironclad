@@ -38,7 +38,8 @@ package body Devices.LPT is
               Sync_Range  => null,
               IO_Control  => null,
               Mmap        => null,
-              Poll        => null),
+              Poll        => null,
+              Remove      => null),
              "lpt" & (Character'Val (I + Character'Pos ('0'))), Success);
       end loop;
       return Success;

@@ -32,7 +32,8 @@ package body Devices.Console is
           Sync_Range  => null,
           IO_Control  => null,
           Mmap        => null,
-          Poll        => null);
+          Poll        => null,
+          Remove      => null);
       Register (Device, "console", Success);
    end Init;
 

@@ -78,7 +78,8 @@ package body Devices.PS2Keyboard is
            Write       => null,
            IO_Control  => null,
            Mmap        => null,
-           Poll        => Poll'Access), "ps2keyboard", Success);
+           Poll        => Poll'Access,
+           Remove      => null), "ps2keyboard", Success);
       return Success;
    end Init;
 

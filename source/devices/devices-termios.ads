@@ -76,6 +76,8 @@ package Devices.TermIOs is
    TCSETSF    : constant := 16#5404#;
    TCXONC     : constant := 16#540A#; --  Set flow conditions.
    TCFLSH     : constant := 16#540B#; --  Flush pending data as described.
+   TIOCSCTTY  : constant := 16#540E#; --  Set controlling TTY.
    TIOCGWINSZ : constant := 16#5413#;
    TIOCSWINSZ : constant := 16#5414#;
+   TIOCNOTTY  : constant := 16#5422#; --  Decouple controlling TTY.
 end Devices.TermIOs;

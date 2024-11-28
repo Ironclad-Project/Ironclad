@@ -115,7 +115,8 @@ package body Devices.PS2Mouse is
            Write       => null,
            IO_Control  => IO_Control'Access,
            Mmap        => null,
-           Poll        => Poll'Access), "ps2mouse", Success);
+           Poll        => Poll'Access,
+           Remove      => null), "ps2mouse", Success);
       return Success;
    end Init;
    ----------------------------------------------------------------------------

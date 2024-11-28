@@ -63,10 +63,13 @@ package Devices is
           Offset : Unsigned_64;
           Count  : Unsigned_64) return Boolean;
       Poll : access procedure
-         (Handle    : System.Address;
+         (Key       : System.Address;
           Can_Read  : out Boolean;
           Can_Write : out Boolean;
           Is_Error  : out Boolean);
+      Remove : access procedure
+         (Key     : System.Address;
+          Success : out Boolean);
 
       --  These functions must only be called with userland data for their
       --  address arguments!
@@ -254,6 +257,14 @@ package Devices is
        Can_Read  : out Boolean;
        Can_Write : out Boolean;
        Is_Error  : out Boolean)
+      with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
+
+   --  Remove the device, this will deinitialize it if necessary.
+   --  Some devices are not able to be removed, in that case, the function will
+   --  always fail, no forced removals.
+   --  @param Handle  Handle to operate on, must be valid.
+   --  @param Success True on success, False on failure.
+   procedure Remove (Handle : Device_Handle; Success : out Boolean)
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
 private

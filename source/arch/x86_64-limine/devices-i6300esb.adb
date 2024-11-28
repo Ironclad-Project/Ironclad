@@ -67,7 +67,8 @@ package body Devices.i6300ESB is
            Sync_Range  => null,
            IO_Control  => IO_Control'Access,
            Mmap        => null,
-           Poll        => null), "i6300esb", Success);
+           Poll        => null,
+           Remove      => null), "i6300esb", Success);
       return Success;
    end Init;
    ----------------------------------------------------------------------------

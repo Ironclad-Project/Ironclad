@@ -77,7 +77,8 @@ package body Devices.ATA is
                       Sync_Range  => Sync_Range'Access,
                       IO_Control  => null,
                       Mmap        => null,
-                      Poll        => null), Final_Name, Success);
+                      Poll        => null,
+                      Remove      => null), Final_Name, Success);
                   if not Success or else
                      not Partitions.Parse_Partitions
                         (Final_Name, Fetch (Final_Name))

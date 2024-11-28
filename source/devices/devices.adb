@@ -332,6 +332,19 @@ package body Devices is
          Is_Error  := True;
       end if;
    end Poll;
+
+   procedure Remove (Handle : Device_Handle; Success : out Boolean) is
+   begin
+      if Devices_Data (Handle).Contents.Remove /= null then
+         Devices_Data (Handle).Contents.Remove
+            (Devices_Data (Handle).Contents.Data, Success);
+         if Success then
+            Devices_Data (Handle).Is_Present := False;
+         end if;
+      else
+         Success := False;
+      end if;
+   end Remove;
    ----------------------------------------------------------------------------
    function To_Integer (C : Character) return Unsigned_8 is
       Result : Natural;

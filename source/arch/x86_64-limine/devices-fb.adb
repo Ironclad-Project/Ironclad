@@ -167,7 +167,8 @@ package body Devices.FB is
                 Write       => null,
                 IO_Control  => IO_Control'Access,
                 Mmap        => Mmap'Access,
-                Poll        => null);
+                Poll        => null,
+                Remove      => null);
 
             Dev_Name (Dev_Name'Last) :=
                Character'Val ((I - 1) + Character'Pos ('0'));

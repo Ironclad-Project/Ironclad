@@ -296,7 +296,8 @@ package body Devices.Partitions is
          Write       => Write'Access,
          IO_Control  => null,
          Mmap        => null,
-         Poll        => null
+         Poll        => null,
+         Remove      => null
       ), Name & (1 => 'p', 2 => Character'Val (Index + Character'Pos ('0'))),
          Success);
       return Success;

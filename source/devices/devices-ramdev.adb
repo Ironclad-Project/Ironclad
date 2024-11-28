@@ -59,7 +59,8 @@ package body Devices.Ramdev is
           Sync_Range  => null,
           IO_Control  => null,
           Mmap        => null,
-          Poll        => null);
+          Poll        => null,
+          Remove      => null);
    end Init_Module;
 
    procedure Read

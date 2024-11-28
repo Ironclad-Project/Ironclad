@@ -34,7 +34,8 @@ package body Devices.Streams is
            Sync_Range  => null,
            IO_Control  => null,
            Mmap        => null,
-           Poll        => null), "null", Success_1);
+           Poll        => null,
+           Remove      => null), "null", Success_1);
       Register
          ((Data        => System.Null_Address,
            ID          => (others => 0),
@@ -47,7 +48,8 @@ package body Devices.Streams is
            Sync_Range  => null,
            IO_Control  => null,
            Mmap        => null,
-           Poll        => null), "zero", Success_2);
+           Poll        => null,
+           Remove      => null), "zero", Success_2);
       Register
          ((Data        => System.Null_Address,
            ID          => (others => 0),
@@ -60,7 +62,8 @@ package body Devices.Streams is
            Sync_Range  => null,
            IO_Control  => null,
            Mmap        => null,
-           Poll        => null), "random", Success_3);
+           Poll        => null,
+           Remove      => null), "random", Success_3);
       Register
          ((Data        => System.Null_Address,
            ID          => (others => 0),
@@ -73,7 +76,8 @@ package body Devices.Streams is
            Sync_Range  => null,
            IO_Control  => null,
            Mmap        => null,
-           Poll        => null), "urandom", Success_4);
+           Poll        => null,
+           Remove      => null), "urandom", Success_4);
       Success := Success_1 and Success_2 and Success_3 and Success_4;
    end Init;
    ----------------------------------------------------------------------------
