@@ -15,7 +15,8 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # Nuke built-in rules and variables
-override MAKEFLAGS += -rR
+MAKEFLAGS = -rR
+.SUFFIXES:
 
 # Import some autoconf variables as make variables
 override SRCDIR          := @SRCDIR@
@@ -62,12 +63,14 @@ SHESCAPE = $(subst ','\'',$(1))
 
 # Max threads. MAX POWAHH
 override PARALLELISM := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || psrinfo -tc 2>/dev/null || echo 1)
+
+override ADAFILES := $(shell LC_ALL=C find -L '$(call SHESCAPE,$(SRCDIR))/source' -type f | sed 's| |\\ |g')
 ###############################################################################
 # Rules for generating executables, documentation, and other artifacts.
 .PHONY: all
 all: $(OUTPUT) ironclad.info.gz
 
-$(OUTPUT):
+$(OUTPUT): $(ADAFILES)
 	$(GPRBUILD) -P '$(call SHESCAPE,$(BUILDDIR))'/rts.gpr -j$(PARALLELISM)
 	$(GPRBUILD) --RTS='$(call SHESCAPE,$(BUILDDIR))'/rtsdir \
       -P '$(call SHESCAPE,$(BUILDDIR))'/ironclad.gpr -j$(PARALLELISM)
