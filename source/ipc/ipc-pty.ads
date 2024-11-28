@@ -14,9 +14,12 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Devices.TermIOs;
 with Lib.Synchronization;
 with Arch.MMU;
+with Devices;
+with Devices.TermIOs;
+with Interfaces; use Interfaces;
+with System;
 
 package IPC.PTY is
    --  PTYs are an IPC method meant to provide bidirectional communication
@@ -34,7 +37,7 @@ package IPC.PTY is
 
    --  Objects to represent a PTY.
    type Inner     is private;
-   type Inner_Acc is access Inner;
+   type Inner_Acc is access all Inner;
 
    --  Results from operations on PTYs.
    type Status is (PTY_Success, PTY_Would_Block);
@@ -141,6 +144,13 @@ package IPC.PTY is
    procedure Stop_Secondary (P : Inner_Acc; To_Read, To_Transmit : Boolean)
       with Pre => Is_Valid (P);
 
+   --  Userland-center IO control.
+   function IO_Control
+      (PTY        : Inner_Acc;
+       Is_Primary : Boolean;
+       Request    : Unsigned_64;
+       Argument   : System.Address) return Boolean;
+
    --  Ghost function for checking whether a PTY is properly initialized.
    function Is_Valid (P : Inner_Acc) return Boolean with Ghost;
 
@@ -156,6 +166,7 @@ private
       Primary_Transmit   : Boolean;
       Secondary_Read     : Boolean;
       Secondary_Transmit : Boolean;
+      Device_Handle      : Devices.Device_Handle;
       Name_Index         : Natural;
       Term_Info          : Devices.TermIOs.Main_Data;
       Term_Size          : Devices.TermIOs.Win_Size;
@@ -186,4 +197,25 @@ private
        Is_Able_To  : Boolean;
        Data        : Devices.Operation_Data;
        Ret_Count   : out Natural);
+   ----------------------------------------------------------------------------
+   procedure Dev_Read
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Devices.Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean);
+
+   procedure Dev_Write
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Devices.Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean);
+
+   function Dev_IO_Control
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address) return Boolean;
 end IPC.PTY;

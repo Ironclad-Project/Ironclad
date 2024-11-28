@@ -1313,14 +1313,6 @@ private
    --  Execute the policy chose by the user for the process.
    procedure Execute_MAC_Failure (Name : String; Curr_Proc : PID);
 
-   --  Inner PTY IOCTL.
-   procedure PTY_IOCTL
-      (P          : IPC.PTY.Inner_Acc;
-       Is_Primary : Boolean;
-       Request    : Unsigned_64;
-       Argument   : System.Address;
-       Success    : out Boolean);
-
    --  Set MAC capabilities for a process from a bitmap.
    procedure Set_MAC_Capabilities (Proc : PID; Bits : Unsigned_64);
 

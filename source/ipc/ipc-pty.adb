@@ -14,15 +14,17 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
 with Scheduler;
 with Lib.Messages;
-with Interfaces; use Interfaces;
+with Devices.TermIOs; use Devices.TermIOs;
 
 package body IPC.PTY is
    pragma Suppress (All_Checks);
 
    procedure Free is new Ada.Unchecked_Deallocation (Inner, Inner_Acc);
+   package   Conv is new System.Address_To_Access_Conversions (Inner);
 
    Tracked_Lock : aliased Lib.Synchronization.Binary_Semaphore :=
       Lib.Synchronization.Unlocked_Semaphore;
@@ -30,14 +32,19 @@ package body IPC.PTY is
 
    function Create return Inner_Acc is
       Name_Index : Natural;
-      Modes : constant Devices.TermIOs.Local_Modes := (others => False);
+      Modes      : constant Devices.TermIOs.Local_Modes := (others => False);
+      Result     : Inner_Acc;
+      Resource   : Devices.Resource;
+      Success    : Boolean;
+      Num_Str    : Lib.Messages.Translated_String;
+      Num_Len    : Natural;
    begin
       Lib.Synchronization.Seize (Tracked_Lock);
       Name_Index := Tracked_Name;
       Tracked_Name := Tracked_Name + 1;
       Lib.Synchronization.Release (Tracked_Lock);
 
-      return new Inner'
+      Result := new Inner'
          (Primary_Mutex      => Lib.Synchronization.Unlocked_Semaphore,
           Secondary_Mutex    => Lib.Synchronization.Unlocked_Semaphore,
           Global_Data_Mutex  => Lib.Synchronization.Unlocked_Semaphore,
@@ -45,6 +52,7 @@ package body IPC.PTY is
           Primary_Transmit   => True,
           Secondary_Read     => True,
           Secondary_Transmit => True,
+          Device_Handle      => Devices.Error_Handle,
           Name_Index         => Name_Index,
           Term_Info          => (0, 0, 0, Modes, (others => 0), 0, 0),
           Term_Size          => (others => 0),
@@ -54,14 +62,47 @@ package body IPC.PTY is
           Secondary_Length   => 0,
           Primary_Data       => (others => 0),
           Secondary_Data     => (others => 0));
+
+      Lib.Messages.Image (Unsigned_32 (Name_Index), Num_Str, Num_Len);
+
+      Resource :=
+         (Data        => Conv.To_Address (Conv.Object_Pointer (Result)),
+          ID          => (others => 0),
+          Is_Block    => False,
+          Block_Size  => 4096,
+          Block_Count => 0,
+          Read        => Dev_Read'Access,
+          Write       => Dev_Write'Access,
+          Sync        => null,
+          Sync_Range  => null,
+          IO_Control  => null,
+          Mmap        => null,
+          Poll        => null,
+          Remove      => null);
+
+      declare
+         Final_Name : constant String := "pty" &
+            Num_Str (Num_Str'Last - Num_Len + 1 .. Num_Str'Last);
+      begin
+         Devices.Register (Resource, Final_Name, Success);
+         if Success then
+            Result.Device_Handle := Devices.Fetch (Final_Name);
+            return Result;
+         else
+            Free (Result);
+            return null;
+         end if;
+      end;
    end Create;
 
    procedure Close (Closed : in out Inner_Acc) is
+      Discard : Boolean;
    begin
       Lib.Synchronization.Seize (Closed.Primary_Mutex);
       Lib.Synchronization.Seize (Closed.Secondary_Mutex);
       Lib.Synchronization.Seize (Closed.Global_Data_Mutex);
       if Closed.Was_Closed then
+         Devices.Remove (Closed.Device_Handle, Discard);
          Free (Closed);
       else
          Closed.Was_Closed := True;
@@ -284,6 +325,71 @@ package body IPC.PTY is
       end if;
       Lib.Synchronization.Release (P.Global_Data_Mutex);
    end Stop_Secondary;
+
+   function IO_Control
+      (PTY        : Inner_Acc;
+       Is_Primary : Boolean;
+       Request    : Unsigned_64;
+       Argument   : System.Address) return Boolean
+   is
+      Result_Info : Main_Data with Import, Address => Argument;
+      Result_Size :  Win_Size with Import, Address => Argument;
+      Action      :   Integer with Import, Address => Argument;
+      Do_R, Do_T  :   Boolean;
+   begin
+      case Request is
+         when TCGETS =>
+            Get_TermIOs (PTY, Result_Info);
+         when TCSETS | TCSETSW | TCSETSF =>
+            Set_TermIOs (PTY, Result_Info);
+         when TIOCGWINSZ =>
+            Get_WinSize (PTY, Result_Size);
+         when TIOCSWINSZ =>
+            Set_WinSize (PTY, Result_Size);
+         when TCFLSH =>
+            case Action is
+               when TCIFLUSH | TCOFLUSH | TCIOFLUSH =>
+                  Do_R := Action = TCIFLUSH or Action = TCIOFLUSH;
+                  Do_T := Action = TCOFLUSH or Action = TCIOFLUSH;
+                  if Is_Primary then
+                     Flush_Primary (PTY, Do_R, Do_T);
+                  else
+                     Flush_Secondary (PTY, Do_R, Do_T);
+                  end if;
+               when others =>
+                  return False;
+            end case;
+         when TCXONC =>
+            case Action is
+               when TCOOFF | TCIOFF =>
+                  Do_R := Action = TCOOFF;
+                  Do_T := Action = TCIOFF;
+                  if Is_Primary then
+                     Stop_Primary (PTY, Do_R, Do_T);
+                  else
+                     Stop_Secondary (PTY, Do_R, Do_T);
+                  end if;
+               when TCOON | TCION =>
+                  Do_R := Action = TCOON;
+                  Do_T := Action = TCION;
+                  if Is_Primary then
+                     Start_Primary (PTY, Do_R, Do_T);
+                  else
+                     Start_Secondary (PTY, Do_R, Do_T);
+                  end if;
+               when others =>
+                  return False;
+            end case;
+         when TIOCSCTTY =>
+            return True;
+         when TIOCNOTTY =>
+            return True;
+         when others =>
+            return False;
+      end case;
+
+      return True;
+   end IO_Control;
    ----------------------------------------------------------------------------
    procedure Read_From_End
       (End_Mutex   : access Lib.Synchronization.Binary_Semaphore;
@@ -397,4 +503,61 @@ package body IPC.PTY is
       Inner_Len.all := Final;
       Lib.Synchronization.Release (End_Mutex.all);
    end Write_To_End;
+   ----------------------------------------------------------------------------
+   procedure Dev_Read
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Devices.Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
+   is
+      pragma Unreferenced (Offset);
+
+      PTY  : constant Inner_Acc := Inner_Acc (Conv.To_Pointer (Key));
+      Succ : Status;
+   begin
+      Read_Secondary
+         (To_Read     => PTY,
+          Data        => Data,
+          Is_Blocking => Is_Blocking,
+          Ret_Count   => Ret_Count,
+          Success     => Succ);
+      Success := Succ = PTY_Success;
+   end Dev_Read;
+
+   procedure Dev_Write
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Devices.Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean)
+   is
+      pragma Unreferenced (Offset);
+
+      PTY  : constant Inner_Acc := Inner_Acc (Conv.To_Pointer (Key));
+      Succ : Status;
+   begin
+      Write_Secondary
+         (To_Write    => PTY,
+          Data        => Data,
+          Is_Blocking => Is_Blocking,
+          Ret_Count   => Ret_Count,
+          Success     => Succ);
+      Success := Succ = PTY_Success;
+   end Dev_Write;
+
+   function Dev_IO_Control
+      (Key      : System.Address;
+       Request  : Unsigned_64;
+       Argument : System.Address) return Boolean
+   is
+   begin
+      return IO_Control
+         (PTY        => Inner_Acc (Conv.To_Pointer (Key)),
+          Is_Primary => False,
+          Request    => Request,
+          Argument   => Argument);
+   end Dev_IO_Control;
 end IPC.PTY;

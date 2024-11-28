@@ -35,7 +35,6 @@ with Cryptography.Random;
 with IPC.Futex;
 with IPC.FileLock;
 with IPC.SHM;
-with Devices.TermIOs;
 with Arch.Power;
 with Devices; use Devices;
 with Networking.Interfaces;
@@ -1103,18 +1102,13 @@ package body Userland.Syscall is
    is
       I_Arg : constant      Integer_Address := Integer_Address (Argument);
       S_Arg : constant       System.Address := To_Address (I_Arg);
-      Proc  : constant     PID := Arch.Local.Get_Current_Process;
-      Map   : constant         Page_Table_Acc := Get_Common_Map (Proc);
+      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
       File  : constant File_Description_Acc := Get_File (Proc, FD);
       Succ  : Boolean;
       FSSuc : VFS.FS_Status;
       User  : Unsigned_32;
    begin
-      if not Check_Userland_Access (Map, I_Arg, 8) then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif File = null then
+      if File = null then
          Errno := Error_Not_A_TTY;
          Returned := Unsigned_64'Last;
          return;
@@ -1132,9 +1126,11 @@ package body Userland.Syscall is
                Succ := False;
             end if;
          when Description_Primary_PTY =>
-            PTY_IOCTL (File.Inner_Primary_PTY, True, Request, S_Arg, Succ);
+            Succ := IPC.PTY.IO_Control
+               (File.Inner_Primary_PTY, True, Request, S_Arg);
          when Description_Secondary_PTY =>
-            PTY_IOCTL (File.Inner_Secondary_PTY, False, Request, S_Arg, Succ);
+            Succ := IPC.PTY.IO_Control
+               (File.Inner_Secondary_PTY, False, Request, S_Arg);
          when others =>
             Succ := False;
       end case;
@@ -5825,69 +5821,6 @@ package body Userland.Syscall is
             Do_Exit (Curr_Proc, 42);
       end case;
    end Execute_MAC_Failure;
-
-   procedure PTY_IOCTL
-      (P          : IPC.PTY.Inner_Acc;
-       Is_Primary : Boolean;
-       Request    : Unsigned_64;
-       Argument   : System.Address;
-       Success    : out Boolean)
-   is
-      use TermIOs;
-
-      Result_Info : TermIOs.Main_Data with Import, Address => Argument;
-      Result_Size : TermIOs.Win_Size  with Import, Address => Argument;
-      Action      :          Integer  with Import, Address => Argument;
-      Do_R, Do_T  :          Boolean;
-   begin
-      Success := True;
-      case Request is
-         when TCGETS =>
-            IPC.PTY.Get_TermIOs (P, Result_Info);
-         when TCSETS | TCSETSW | TCSETSF =>
-            IPC.PTY.Set_TermIOs (P, Result_Info);
-         when TIOCGWINSZ =>
-            IPC.PTY.Get_WinSize (P, Result_Size);
-         when TIOCSWINSZ =>
-            IPC.PTY.Set_WinSize (P, Result_Size);
-         when TCFLSH =>
-            case Action is
-               when TCIFLUSH | TCOFLUSH | TCIOFLUSH =>
-                  Do_R := Action = TCIFLUSH or Action = TCIOFLUSH;
-                  Do_T := Action = TCOFLUSH or Action = TCIOFLUSH;
-                  if Is_Primary then
-                     IPC.PTY.Flush_Primary (P, Do_R, Do_T);
-                  else
-                     IPC.PTY.Flush_Secondary (P, Do_R, Do_T);
-                  end if;
-               when others =>
-                  Success := False;
-            end case;
-         when TCXONC =>
-            case Action is
-               when TCOOFF | TCIOFF =>
-                  Do_R := Action = TCOOFF;
-                  Do_T := Action = TCIOFF;
-                  if Is_Primary then
-                     IPC.PTY.Stop_Primary (P, Do_R, Do_T);
-                  else
-                     IPC.PTY.Stop_Secondary (P, Do_R, Do_T);
-                  end if;
-               when TCOON | TCION =>
-                  Do_R := Action = TCOON;
-                  Do_T := Action = TCION;
-                  if Is_Primary then
-                     IPC.PTY.Start_Primary (P, Do_R, Do_T);
-                  else
-                     IPC.PTY.Start_Secondary (P, Do_R, Do_T);
-                  end if;
-               when others =>
-                  Success := False;
-            end case;
-         when others =>
-            Success := False;
-      end case;
-   end PTY_IOCTL;
 
    procedure Set_MAC_Capabilities (Proc : PID; Bits : Unsigned_64) is
       Caps : constant MAC.Capabilities := Get_Capabilities (Proc);
