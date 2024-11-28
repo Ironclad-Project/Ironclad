@@ -68,9 +68,9 @@ package body Userland.Loader is
 
       User_Stdin := new File_Description'
          (Children_Count    => 0,
+          Is_Blocking       => True,
           Description       => Description_Inode,
           Inner_Is_Locked   => False,
-          Inner_Is_Blocking => True,
           Inner_Ino_Read    => True,
           Inner_Ino_Write   => False,
           Inner_Ino_Pos     => 0,
@@ -78,9 +78,9 @@ package body Userland.Loader is
           Inner_Ino         => 0);
       User_StdOut := new File_Description'
          (Children_Count    => 0,
+          Is_Blocking       => True,
           Description       => Description_Inode,
           Inner_Is_Locked   => False,
-          Inner_Is_Blocking => True,
           Inner_Ino_Read    => False,
           Inner_Ino_Write   => True,
           Inner_Ino_Pos     => 0,
@@ -88,9 +88,9 @@ package body Userland.Loader is
           Inner_Ino         => 0);
       User_StdErr := new File_Description'
          (Children_Count    => 0,
+          Is_Blocking       => True,
           Description       => Description_Inode,
           Inner_Is_Locked   => False,
-          Inner_Is_Blocking => True,
           Inner_Ino_Read    => False,
           Inner_Ino_Write   => True,
           Inner_Ino_Pos     => 0,

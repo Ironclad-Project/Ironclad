@@ -48,14 +48,10 @@ package IPC.Socket is
    --  Socket independent operations.
 
    --  Create a fresh socket.
-   --  @param Dom         Domain of the socket.
-   --  @param Typ         Type of socket.
-   --  @param Is_Blocking True if blocking, False if not blocking.
+   --  @param Dom Domain of the socket.
+   --  @param Typ Type of socket.
    --  @return The socket on success, null on failure.
-   function Create
-      (Dom         : Domain;
-       Typ         : DataType;
-       Is_Blocking : Boolean := True) return Socket_Acc;
+   function Create (Dom : Domain; Typ : DataType) return Socket_Acc;
 
    --  Get the domain of a socket, which is good to know because data changes.
    --  @param Sock Socket to check.
@@ -75,18 +71,6 @@ package IPC.Socket is
    procedure Close (To_Close : in out Socket_Acc)
       with Pre => To_Close /= null, Post => To_Close = null;
 
-   --  Get whether the socket is blocking.
-   --  @param Sock Socket to check.
-   --  @return True if blocking, False if not.
-   function Is_Blocking (Sock : Socket_Acc) return Boolean
-      with Pre => Sock /= null;
-
-   --  Set whether the socket is blocking.
-   --  @param Sock        Socket to modify.
-   --  @param Is_Blocking True if blocking, False if not.
-   procedure Set_Blocking (Sock : Socket_Acc; Is_Blocking : Boolean)
-      with Pre => Sock /= null;
-
    --  Poll the availability of operations that can be done to a socket.
    --  @param Sock      Socket to operate on.
    --  @param Can_Read  True if a read operation would not block.
@@ -102,27 +86,31 @@ package IPC.Socket is
       with Pre => Sock /= null;
 
    --  Read from a socket.
-   --  @param Sock      Socket to read from, or its connection.
-   --  @param Data      Data to read to.
-   --  @param Ret_Count Count of data read.
-   --  @param Success   Resulting status of the operation.
+   --  @param Sock        Socket to read from, or its connection.
+   --  @param Data        Data to read to.
+   --  @param Is_Blocking True if the operation is blocking.
+   --  @param Ret_Count   Count of data read.
+   --  @param Success     Resulting status of the operation.
    procedure Read
-      (Sock      : Socket_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Socket_Status)
+      (Sock        : Socket_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Socket_Status)
       with Pre => Sock /= null;
 
    --  Write to a socket.
-   --  @param Sock      Socket to write to, or its connection.
-   --  @param Data      Data to write.
-   --  @param Ret_Count Count of written data.
-   --  @param Success   Resulting status of the operation.
+   --  @param Sock        Socket to write to, or its connection.
+   --  @param Data        Data to write.
+   --  @param Is_Blocking True if the operation is blocking.
+   --  @param Ret_Count   Count of written data.
+   --  @param Success     Resulting status of the operation.
    procedure Write
-      (Sock      : Socket_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Socket_Status)
+      (Sock        : Socket_Acc;
+       Data        : Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Socket_Status)
       with Pre => Sock /= null;
 
    --  Disconnect the socket from all or part of a duplex connection (TX-RX).
@@ -433,33 +421,37 @@ package IPC.Socket is
                   Get_Type (Sock) = Stream;
 
    --  Read from a connection-less socket.
-   --  @param Sock      Socket to read from, or its connection.
-   --  @param Data      Data to read to.
-   --  @param Ret_Count Count of data read.
-   --  @param Path      Path to read from.
-   --  @param Success   Resulting status of the operation.
+   --  @param Sock        Socket to read from, or its connection.
+   --  @param Data        Data to read to.
+   --  @param Is_Blocking True if the operation is blocking.
+   --  @param Ret_Count   Count of data read.
+   --  @param Path        Path to read from.
+   --  @param Success     Resulting status of the operation.
    procedure Read
-      (Sock      : Socket_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Path      : String;
-       Success   : out Socket_Status)
+      (Sock        : Socket_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Path        : String;
+       Success     : out Socket_Status)
       with Pre => Sock /= null             and then
                   Get_Domain (Sock) = IPv6 and then
                   Get_Type (Sock) /= Stream;
 
    --  Write to a socket.
-   --  @param Sock      Socket to write to, or its connection.
-   --  @param Data      Data to write.
-   --  @param Ret_Count Count of written data.
-   --  @param Path      Path to write to.
-   --  @param Success   Resulting status of the operation.
+   --  @param Sock        Socket to write to, or its connection.
+   --  @param Data        Data to write.
+   --  @param Is_Blocking True if the operation is blocking.
+   --  @param Ret_Count   Count of written data.
+   --  @param Path        Path to write to.
+   --  @param Success     Resulting status of the operation.
    procedure Write
-      (Sock      : Socket_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Path      : String;
-       Success   : out Socket_Status)
+      (Sock        : Socket_Acc;
+       Data        : Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Path        : String;
+       Success     : out Socket_Status)
       with Pre => Sock /= null             and then
                   Get_Domain (Sock) = IPv6 and then
                   Get_Type (Sock) /= Stream;
@@ -469,8 +461,7 @@ private
    Default_Socket_Size : constant Natural := 16#2000#;
 
    type Socket (Dom : Domain; Typ : DataType) is record
-      Mutex       : aliased Lib.Synchronization.Binary_Semaphore;
-      Is_Blocking : Boolean;
+      Mutex : aliased Lib.Synchronization.Binary_Semaphore;
 
       case Dom is
          when UNIX =>
@@ -548,16 +539,18 @@ private
    procedure Inner_UNIX_Close (To_Close : Socket_Acc);
 
    procedure Inner_UNIX_Read
-      (Sock      : Socket_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Socket_Status);
+      (Sock        : Socket_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Socket_Status);
 
    procedure Inner_UNIX_Write
-      (Sock      : Socket_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Socket_Status);
+      (Sock        : Socket_Acc;
+       Data        : Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Socket_Status);
 
    procedure Inner_UNIX_Poll
       (Sock      : Socket_Acc;

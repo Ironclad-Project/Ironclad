@@ -25,11 +25,7 @@ package body IPC.Socket is
    procedure Free is new Ada.Unchecked_Deallocation
       (Operation_Data, Operation_Data_Acc);
 
-   function Create
-      (Dom         : Domain;
-       Typ         : DataType;
-       Is_Blocking : Boolean := True) return Socket_Acc
-   is
+   function Create (Dom : Domain; Typ : DataType) return Socket_Acc is
    begin
       case Dom is
          when IPv4 =>
@@ -39,7 +35,6 @@ package body IPC.Socket is
                    (Mutex        => Lib.Synchronization.Unlocked_Semaphore,
                     Dom          => IPv4,
                     Typ          => Raw,
-                    Is_Blocking  => Is_Blocking,
                     IPv4_Cached_Address => (others => 0),
                     IPv4_Cached_Port => 0);
                when others =>
@@ -52,7 +47,6 @@ package body IPC.Socket is
                    (Mutex        => Lib.Synchronization.Unlocked_Semaphore,
                     Dom          => IPv6,
                     Typ          => Raw,
-                    Is_Blocking  => Is_Blocking,
                     IPv6_Cached_Address => (others => 0),
                     IPv6_Cached_Port => 0);
                when others =>
@@ -66,7 +60,6 @@ package body IPC.Socket is
                     Dom            => UNIX,
                     Typ            => Stream,
                     Is_Listener    => False,
-                    Is_Blocking    => Is_Blocking,
                     Connected      => null,
                     Pending_Accept => null,
                     Established    => null,
@@ -77,7 +70,6 @@ package body IPC.Socket is
                    (Mutex            => Lib.Synchronization.Unlocked_Semaphore,
                     Dom              => UNIX,
                     Typ              => Datagram,
-                    Is_Blocking      => Is_Blocking,
                     Simple_Connected => null,
                     Data             => (others => 0),
                     Data_Length      => 0);
@@ -109,22 +101,6 @@ package body IPC.Socket is
       Free (To_Close);
    end Close;
 
-   function Is_Blocking (Sock : Socket_Acc) return Boolean is
-      Result : Boolean;
-   begin
-      Lib.Synchronization.Seize (Sock.Mutex);
-      Result := Sock.Is_Blocking;
-      Lib.Synchronization.Release (Sock.Mutex);
-      return Result;
-   end Is_Blocking;
-
-   procedure Set_Blocking (Sock : Socket_Acc; Is_Blocking : Boolean) is
-   begin
-      Lib.Synchronization.Seize (Sock.Mutex);
-      Sock.Is_Blocking := Is_Blocking;
-      Lib.Synchronization.Release (Sock.Mutex);
-   end Set_Blocking;
-
    procedure Poll
       (Sock      : Socket_Acc;
        Can_Read  : out Boolean;
@@ -147,30 +123,38 @@ package body IPC.Socket is
    end Poll;
 
    procedure Read
-      (Sock      : Socket_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Socket_Status)
+      (Sock        : Socket_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Socket_Status)
    is
    begin
       case Sock.Dom is
-         when IPv4 => Inner_IPv4_Read (Sock, Data, Ret_Count, Success);
-         when IPv6 => Inner_IPv6_Read (Sock, Data, Ret_Count, Success);
-         when UNIX => Inner_UNIX_Read (Sock, Data, Ret_Count, Success);
+         when IPv4 =>
+            Inner_IPv4_Read (Sock, Data, Ret_Count, Success);
+         when IPv6 =>
+            Inner_IPv6_Read (Sock, Data, Ret_Count, Success);
+         when UNIX =>
+            Inner_UNIX_Read (Sock, Data, Is_Blocking, Ret_Count, Success);
       end case;
    end Read;
 
    procedure Write
-      (Sock      : Socket_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Socket_Status)
+      (Sock        : Socket_Acc;
+       Data        : Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Socket_Status)
    is
    begin
       case Sock.Dom is
-         when IPv4 => Inner_IPv4_Write (Sock, Data, Ret_Count, Success);
-         when IPv6 => Inner_IPv6_Write (Sock, Data, Ret_Count, Success);
-         when UNIX => Inner_UNIX_Write (Sock, Data, Ret_Count, Success);
+         when IPv4 =>
+            Inner_IPv4_Write (Sock, Data, Ret_Count, Success);
+         when IPv6 =>
+            Inner_IPv6_Write (Sock, Data, Ret_Count, Success);
+         when UNIX =>
+            Inner_UNIX_Write (Sock, Data, Is_Blocking, Ret_Count, Success);
       end case;
    end Write;
 
@@ -683,8 +667,7 @@ package body IPC.Socket is
             if Sock.Pending_Accept /= null then
                Result := Create
                   (Sock.Pending_Accept.Dom,
-                   Sock.Pending_Accept.Typ,
-                   Is_Blocking);
+                   Sock.Pending_Accept.Typ);
 
                Tmp := Sock.Pending_Accept;
                Result.Established := Sock;
@@ -693,7 +676,7 @@ package body IPC.Socket is
                Sock.Pending_Accept := null;
                exit;
             end if;
-            exit when not Sock.Is_Blocking;
+            exit when not Is_Blocking;
             Scheduler.Yield_If_Able;
          end loop;
       end if;
@@ -702,32 +685,34 @@ package body IPC.Socket is
    end Accept_Connection;
 
    procedure Read
-      (Sock      : Socket_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Path      : String;
-       Success   : out Socket_Status)
+      (Sock        : Socket_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Path        : String;
+       Success     : out Socket_Status)
    is
       Discard : Boolean;
       Temp : constant Socket_Acc := Sock.Simple_Connected;
    begin
       Discard := Connect (Sock, Path);
-      Inner_UNIX_Read (Sock, Data, Ret_Count, Success);
+      Inner_UNIX_Read (Sock, Data, Is_Blocking, Ret_Count, Success);
       Sock.Simple_Connected := Temp;
    end Read;
 
    procedure Write
-      (Sock      : Socket_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Path      : String;
-       Success   : out Socket_Status)
+      (Sock        : Socket_Acc;
+       Data        : Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Path        : String;
+       Success     : out Socket_Status)
    is
       Discard : Boolean;
       Temp : constant Socket_Acc := Sock.Simple_Connected;
    begin
       Discard := Connect (Sock, Path);
-      Inner_UNIX_Write (Sock, Data, Ret_Count, Success);
+      Inner_UNIX_Write (Sock, Data, Is_Blocking, Ret_Count, Success);
       Sock.Simple_Connected := Temp;
    end Write;
    ----------------------------------------------------------------------------
@@ -818,15 +803,16 @@ package body IPC.Socket is
    end Inner_UNIX_Close;
 
    procedure Inner_UNIX_Read
-      (Sock      : Socket_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Socket_Status)
+      (Sock        : Socket_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Socket_Status)
    is
       Len : Natural := Data'Length;
    begin
    <<Retry>>
-      if Sock.Is_Blocking then
+      if Is_Blocking then
          loop
             Lib.Synchronization.Seize (Sock.Mutex);
             exit when Sock.Data_Length /= 0;
@@ -845,7 +831,7 @@ package body IPC.Socket is
                Success   := Is_Bad_Type;
                goto Cleanup;
             elsif Sock.Data_Length = 0 then
-               if Sock.Is_Blocking then
+               if Is_Blocking then
                   Lib.Synchronization.Release (Sock.Mutex);
                   goto Retry;
                else
@@ -895,10 +881,11 @@ package body IPC.Socket is
    end Inner_UNIX_Read;
 
    procedure Inner_UNIX_Write
-      (Sock      : Socket_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Socket_Status)
+      (Sock        : Socket_Acc;
+       Data        : Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Socket_Status)
    is
       Len   : Natural := Data'Length;
       Final : Natural;
@@ -912,7 +899,7 @@ package body IPC.Socket is
             end if;
 
          <<Retry>>
-            if Sock.Is_Blocking then
+            if Is_Blocking then
                loop
                   Lib.Synchronization.Seize (Sock.Pending_Accept.Mutex);
                   exit when Sock.Pending_Accept.Data_Length /=
@@ -927,7 +914,7 @@ package body IPC.Socket is
             Lib.Synchronization.Seize (Sock.Mutex);
 
             if Sock.Pending_Accept.Data_Length = Default_Socket_Size then
-               if Sock.Is_Blocking then
+               if Is_Blocking then
                   Lib.Synchronization.Release (Sock.Mutex);
                   goto Retry;
                else

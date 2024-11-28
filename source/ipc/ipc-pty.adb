@@ -41,8 +41,6 @@ package body IPC.PTY is
          (Primary_Mutex      => Lib.Synchronization.Unlocked_Semaphore,
           Secondary_Mutex    => Lib.Synchronization.Unlocked_Semaphore,
           Global_Data_Mutex  => Lib.Synchronization.Unlocked_Semaphore,
-          Primary_Block      => True,
-          Secondary_Block    => True,
           Primary_Read       => True,
           Primary_Transmit   => True,
           Secondary_Read     => True,
@@ -74,57 +72,61 @@ package body IPC.PTY is
    end Close;
 
    procedure Read_Primary
-      (To_Read   : Inner_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Status)
+      (To_Read     : Inner_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Status)
    is
    begin
       Read_From_End
          (To_Read.Primary_Mutex'Access, To_Read.Primary_Length'Access,
-          To_Read.Primary_Data'Access, To_Read.Primary_Block,
+          To_Read.Primary_Data'Access, Is_Blocking,
           To_Read.Primary_Read, Data, Ret_Count);
       Success := PTY_Success;
    end Read_Primary;
 
    procedure Write_Primary
-      (To_Write  : Inner_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Status)
+      (To_Write    : Inner_Acc;
+       Data        : Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Status)
    is
    begin
       Write_To_End
          (To_Write.Secondary_Mutex'Access, To_Write.Secondary_Length'Access,
-          To_Write.Secondary_Data'Access, To_Write.Primary_Block,
+          To_Write.Secondary_Data'Access, Is_Blocking,
           To_Write.Primary_Transmit, Data, Ret_Count);
       Success := PTY_Success;
    end Write_Primary;
 
    procedure Read_Secondary
-      (To_Read   : Inner_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Status)
+      (To_Read     : Inner_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Status)
    is
    begin
       Read_From_End
          (To_Read.Secondary_Mutex'Access, To_Read.Secondary_Length'Access,
-          To_Read.Secondary_Data'Access, To_Read.Secondary_Block,
+          To_Read.Secondary_Data'Access, Is_Blocking,
           To_Read.Secondary_Read, Data, Ret_Count);
       Success := PTY_Success;
    end Read_Secondary;
 
    procedure Write_Secondary
-      (To_Write  : Inner_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Status)
+      (To_Write    : Inner_Acc;
+       Data        : Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Status)
    is
    begin
       Write_To_End
          (To_Write.Primary_Mutex'Access, To_Write.Primary_Length'Access,
-          To_Write.Primary_Data'Access, To_Write.Secondary_Block,
+          To_Write.Primary_Data'Access, Is_Blocking,
           To_Write.Secondary_Transmit, Data, Ret_Count);
       Success := PTY_Success;
    end Write_Secondary;
@@ -158,34 +160,6 @@ package body IPC.PTY is
       Can_Write := P.Secondary_Length /= P.Secondary_Data'Length;
       Lib.Synchronization.Release (P.Secondary_Mutex);
    end Poll_Secondary;
-
-   procedure Is_Primary_Blocking (P : Inner_Acc; Blocking : out Boolean) is
-   begin
-      Lib.Synchronization.Seize (P.Primary_Mutex);
-      Blocking := P.Primary_Block;
-      Lib.Synchronization.Release (P.Primary_Mutex);
-   end Is_Primary_Blocking;
-
-   procedure Set_Primary_Blocking (P : Inner_Acc; Blocking : Boolean) is
-   begin
-      Lib.Synchronization.Seize (P.Primary_Mutex);
-      P.Primary_Block := Blocking;
-      Lib.Synchronization.Release (P.Primary_Mutex);
-   end Set_Primary_Blocking;
-
-   procedure Is_Secondary_Blocking (P : Inner_Acc; Blocking : out Boolean) is
-   begin
-      Lib.Synchronization.Seize (P.Secondary_Mutex);
-      Blocking := P.Secondary_Block;
-      Lib.Synchronization.Release (P.Secondary_Mutex);
-   end Is_Secondary_Blocking;
-
-   procedure Set_Secondary_Blocking (P : Inner_Acc; Blocking : Boolean) is
-   begin
-      Lib.Synchronization.Seize (P.Secondary_Mutex);
-      P.Secondary_Block := Blocking;
-      Lib.Synchronization.Release (P.Secondary_Mutex);
-   end Set_Secondary_Blocking;
 
    procedure Get_TermIOs (P : Inner_Acc; T : out Devices.TermIOs.Main_Data) is
    begin

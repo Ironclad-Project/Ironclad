@@ -1,5 +1,5 @@
 --  ipc-fifo.ads: Pipe creation and management.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -44,18 +44,8 @@ package IPC.FIFO is
 
    --  Create a fresh FIFO. It will be created with one refcount for the read
    --  end and one refcount for the write end.
-   function Create (Is_Blocking : Boolean := True) return Inner_Acc
+   function Create return Inner_Acc
       with Post => Is_Valid (Create'Result);
-
-   --  Check or change whether the FIFO is blocking or not, for each end.
-   function Is_Read_Blocking (P : Inner_Acc) return Boolean
-      with Inline, Pre => Is_Valid (P);
-   function Is_Write_Blocking (P : Inner_Acc) return Boolean
-      with Inline, Pre => Is_Valid (P);
-   procedure Set_Read_Blocking (P : Inner_Acc; B : Boolean)
-      with Inline, Pre => Is_Valid (P);
-   procedure Set_Write_Blocking (P : Inner_Acc; B : Boolean)
-      with Inline, Pre => Is_Valid (P);
 
    --  Poll the state of a FIFO reader.
    procedure Poll_Reader
@@ -106,27 +96,31 @@ package IPC.FIFO is
    type Pipe_Status is (Pipe_Success, Broken_Failure, Would_Block_Failure);
 
    --  Read from the reader end of a pipe.
-   --  @param To_Read   Pipe end to read from.
-   --  @param Data      Buffer to write read data.
-   --  @param Ret_Count Count of data read.
-   --  @apram Success   Return status of the operation.
+   --  @param To_Read     Pipe end to read from.
+   --  @param Data        Buffer to write read data.
+   --  @param Is_Blocking True if the operation is blocking.
+   --  @param Ret_Count   Count of data read.
+   --  @apram Success     Return status of the operation.
    procedure Read
-      (To_Read   : Inner_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Pipe_Status)
+      (To_Read     : Inner_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Pipe_Status)
       with Pre => Is_Valid (To_Read);
 
    --  Write to the writer end of a pipe.
-   --  @param To_Write  Pipe end to write to.
-   --  @param Data      Data to write.
-   --  @param Ret_Count Count of data written.
-   --  @apram Success   Return status of the operation.
+   --  @param To_Write    Pipe end to write to.
+   --  @param Data        Data to write.
+   --  @param Is_Blocking True if the operation is blocking.
+   --  @param Ret_Count   Count of data written.
+   --  @apram Success     Return status of the operation.
    procedure Write
-      (To_Write  : Inner_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Pipe_Status)
+      (To_Write    : Inner_Acc;
+       Data        : Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Pipe_Status)
       with Pre => Is_Valid (To_Write);
 
    --  Ghost function for checking whether a FIFO is properly initialized.
@@ -136,13 +130,11 @@ private
 
    Default_Data_Length : constant Natural := Arch.MMU.Page_Size * 10;
    type Inner is record
-      Mutex             : aliased Lib.Synchronization.Binary_Semaphore;
-      Reader_Closed     : Boolean;
-      Writer_Closed     : Boolean;
-      Is_Read_Blocking  : Boolean;
-      Is_Write_Blocking : Boolean;
-      Data_Count        : Natural;
-      Data              : Devices.Operation_Data_Acc;
+      Mutex         : aliased Lib.Synchronization.Binary_Semaphore;
+      Reader_Closed : Boolean;
+      Writer_Closed : Boolean;
+      Data_Count    : Natural;
+      Data          : Devices.Operation_Data_Acc;
    end record;
 
    function Is_Valid (P : Inner_Acc) return Boolean is

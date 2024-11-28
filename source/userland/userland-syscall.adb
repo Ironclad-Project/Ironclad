@@ -149,9 +149,9 @@ package body Userland.Syscall is
          File_Perms := Check_Permissions (Curr_Proc, CWD_FS, Opened_Ino);
          New_Descr  := new File_Description'
             (Children_Count    => 0,
+             Is_Blocking       => Do_Block,
              Description       => Description_Inode,
              Inner_Is_Locked   => False,
-             Inner_Is_Blocking => Do_Block,
              Inner_Ino_Read    => Do_Read,
              Inner_Ino_Write   => Do_Write,
              Inner_Ino_FS      => CWD_FS,
@@ -249,30 +249,35 @@ package body Userland.Syscall is
                   return;
                end if;
                VFS.Read (File.Inner_Ino_FS, File.Inner_Ino, File.Inner_Ino_Pos,
-                         Data, Ret_Count, File.Inner_Is_Blocking, Success1);
+                         Data, Ret_Count, File.Is_Blocking, Success1);
                File.Inner_Ino_Pos := File.Inner_Ino_Pos +
                                      Unsigned_64 (Ret_Count);
                Translate_Status
                   (Success1, Unsigned_64 (Ret_Count), Returned, Errno);
             when Description_Reader_FIFO =>
-               Read (File.Inner_Reader_FIFO, Data, Ret_Count, Success2);
+               Read (File.Inner_Reader_FIFO, Data, File.Is_Blocking, Ret_Count,
+                     Success2);
                Translate_Status (Success2, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Primary_PTY =>
                IPC.PTY.Read_Primary
-                  (File.Inner_Primary_PTY, Data, Ret_Count, Success5);
+                  (File.Inner_Primary_PTY, Data, File.Is_Blocking, Ret_Count,
+                   Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Secondary_PTY =>
                IPC.PTY.Read_Secondary
-                  (File.Inner_Secondary_PTY, Data, Ret_Count, Success5);
+                  (File.Inner_Secondary_PTY, Data, File.Is_Blocking, Ret_Count,
+                   Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Writer_FIFO =>
                Errno    := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
             when Description_Socket =>
-               IPC.Socket.Read (File.Inner_Socket, Data, Ret_Count, Success4);
+               IPC.Socket.Read
+                  (File.Inner_Socket, Data, File.Is_Blocking,
+                   Ret_Count, Success4);
                Translate_Status
                   (Success4, Unsigned_64 (Ret_Count), Returned, Errno);
          end case;
@@ -335,30 +340,35 @@ package body Userland.Syscall is
 
                VFS.Write (File.Inner_Ino_FS, File.Inner_Ino,
                           File.Inner_Ino_Pos, Data, Ret_Count,
-                          File.Inner_Is_Blocking, Success1);
+                          File.Is_Blocking, Success1);
                File.Inner_Ino_Pos := File.Inner_Ino_Pos +
                                      Unsigned_64 (Ret_Count);
                Translate_Status (Success1, Unsigned_64 (Ret_Count), Returned,
                                         Errno);
             when Description_Writer_FIFO =>
-               Write (File.Inner_Writer_FIFO, Data, Ret_Count, Success2);
+               Write (File.Inner_Writer_FIFO, Data, File.Is_Blocking,
+                      Ret_Count, Success2);
                Translate_Status (Success2, Unsigned_64 (Ret_Count), Returned,
                                         Errno);
             when Description_Primary_PTY =>
                IPC.PTY.Write_Primary
-                  (File.Inner_Primary_PTY, Data, Ret_Count, Success5);
+                  (File.Inner_Primary_PTY, Data, File.Is_Blocking, Ret_Count,
+                   Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Secondary_PTY =>
                IPC.PTY.Write_Secondary
-                  (File.Inner_Secondary_PTY, Data, Ret_Count, Success5);
+                  (File.Inner_Secondary_PTY, Data, File.Is_Blocking, Ret_Count,
+                   Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Reader_FIFO =>
                Errno := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
             when Description_Socket =>
-               IPC.Socket.Write (File.Inner_Socket, Data, Ret_Count, Success4);
+               IPC.Socket.Write
+                  (File.Inner_Socket, Data, File.Is_Blocking, Ret_Count,
+                   Success4);
                Translate_Status
                   (Success4, Unsigned_64 (Ret_Count), Returned, Errno);
          end case;
@@ -829,12 +839,13 @@ package body Userland.Syscall is
          when others      => goto Invalid_Value_Return;
       end case;
 
-      New_Sock := Create (Dom, Data, (DataType and SOCK_NONBLOCK) = 0);
+      New_Sock := Create (Dom, Data);
       if New_Sock = null then
          goto Invalid_Value_Return;
       end if;
 
-      Desc := new File_Description'(Description_Socket, 0, New_Sock);
+      Desc := new File_Description'
+         (Description_Socket, 0, (DataType and SOCK_NONBLOCK) = 0, New_Sock);
       Check_Add_File (Proc, Desc, Success, Natural (Returned));
       if Success then
          Set_FD_Flags
@@ -1173,9 +1184,11 @@ package body Userland.Syscall is
        Returned    : out Unsigned_64;
        Errno       : out Errno_Value)
    is
-      Ad   : constant Integer_Address  := Integer_Address (Result_Addr);
-      Proc : constant PID := Arch.Local.Get_Current_Process;
-      Map  : constant Page_Table_Acc     := Get_Common_Map (Proc);
+      Ad    : constant Integer_Address := Integer_Address (Result_Addr);
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      Map   : constant  Page_Table_Acc := Get_Common_Map (Proc);
+      Block : constant         Boolean := (Flags and O_NONBLOCK) = 0;
+
       Res  : array (1 .. 2) of Integer with Import, Address => To_Address (Ad);
       Returned2 : IPC.FIFO.Inner_Acc;
       Succ1, Succ2 : Boolean;
@@ -1187,17 +1200,17 @@ package body Userland.Syscall is
          return;
       end if;
 
-      Returned2 := IPC.FIFO.Create ((Flags and O_NONBLOCK) = 0);
-      Reader_Desc := new File_Description'(
-         Children_Count    => 0,
-         Description       => Description_Reader_FIFO,
-         Inner_Reader_FIFO => Returned2
-      );
-      Writer_Desc := new File_Description'(
-         Children_Count    => 0,
-         Description       => Description_Writer_FIFO,
-         Inner_Writer_FIFO => Returned2
-      );
+      Returned2 := IPC.FIFO.Create;
+      Reader_Desc := new File_Description'
+         (Children_Count    => 0,
+          Is_Blocking       => Block,
+          Description       => Description_Reader_FIFO,
+          Inner_Reader_FIFO => Returned2);
+      Writer_Desc := new File_Description'
+         (Children_Count    => 0,
+          Is_Blocking       => Block,
+          Description       => Description_Writer_FIFO,
+          Inner_Writer_FIFO => Returned2);
       Check_Add_File (Proc, Reader_Desc, Succ1, Res (1));
       Check_Add_File (Proc, Writer_Desc, Succ2, Res (2));
       if not Succ1 or not Succ2 then
@@ -1742,37 +1755,9 @@ package body Userland.Syscall is
                 (Argument and FD_CLOEXEC) /= 0,
                 (Argument and FD_CLOFORK) /= 0);
          when F_GETFL =>
-            case File.Description is
-               when Description_Reader_FIFO =>
-                  Temp := Is_Read_Blocking (File.Inner_Reader_FIFO);
-               when Description_Writer_FIFO =>
-                  Temp := Is_Write_Blocking (File.Inner_Writer_FIFO);
-               when Description_Socket =>
-                  Temp := Is_Blocking (File.Inner_Socket);
-               when Description_Primary_PTY =>
-                  Is_Primary_Blocking (File.Inner_Primary_PTY, Temp);
-               when Description_Secondary_PTY =>
-                  Is_Secondary_Blocking (File.Inner_Secondary_PTY, Temp);
-               when Description_Inode =>
-                  Temp := File.Inner_Is_Blocking;
-            end case;
-            Returned := (if Temp then 0 else O_NONBLOCK);
+            Returned := (if File.Is_Blocking then 0 else O_NONBLOCK);
          when F_SETFL =>
-            Temp := (Argument and O_NONBLOCK) = 0;
-            case File.Description is
-               when Description_Reader_FIFO =>
-                  Set_Read_Blocking (File.Inner_Reader_FIFO, Temp);
-               when Description_Writer_FIFO =>
-                  Set_Write_Blocking (File.Inner_Writer_FIFO, Temp);
-               when Description_Socket =>
-                  Set_Blocking (File.Inner_Socket, Temp);
-               when Description_Primary_PTY =>
-                  Set_Primary_Blocking (File.Inner_Primary_PTY, Temp);
-               when Description_Secondary_PTY =>
-                  Set_Secondary_Blocking (File.Inner_Secondary_PTY, Temp);
-               when Description_Inode =>
-                  File.Inner_Is_Blocking := Temp;
-            end case;
+            File.Is_Blocking := (Argument and O_NONBLOCK) = 0;
          when F_GETPIPE_SZ =>
             case File.Description is
                when Description_Reader_FIFO =>
@@ -2709,8 +2694,10 @@ package body Userland.Syscall is
       end if;
 
       Res_PTY := IPC.PTY.Create;
-      P_Desc  := new File_Description'(Description_Primary_PTY, 0, Res_PTY);
-      S_Desc  := new File_Description'(Description_Secondary_PTY, 0, Res_PTY);
+      P_Desc := new File_Description'
+         (Description_Primary_PTY, 0, True, Res_PTY);
+      S_Desc := new File_Description'
+         (Description_Secondary_PTY, 0, True, Res_PTY);
       Check_Add_File (Proc, P_Desc, Succ1, Result (1));
       Check_Add_File (Proc, S_Desc, Succ2, Result (2));
       if not Succ1 or not Succ2 then
@@ -2955,7 +2942,7 @@ package body Userland.Syscall is
       end if;
 
       if Sock /= null then
-         Desc := new File_Description'(Description_Socket, 0, Sock);
+         Desc := new File_Description'(Description_Socket, 0, not Block, Sock);
          Check_Add_File (Proc, Desc, Succ, Ret);
          if Succ then
             Set_FD_Flags (Proc, Unsigned_64 (Ret), CExec, CloFork);
@@ -3571,7 +3558,7 @@ package body Userland.Syscall is
                   return;
                end if;
                VFS.Read (File.Inner_Ino_FS, File.Inner_Ino, Offset,
-                         Data, Ret_Count, File.Inner_Is_Blocking, Success1);
+                         Data, Ret_Count, File.Is_Blocking, Success1);
                Translate_Status (Success1, Unsigned_64 (Ret_Count), Returned,
                                         Errno);
             when others =>
@@ -3635,7 +3622,7 @@ package body Userland.Syscall is
                end if;
 
                VFS.Write (File.Inner_Ino_FS, File.Inner_Ino, Offset,
-                          Data, Ret_Count, File.Inner_Is_Blocking, Success1);
+                          Data, Ret_Count, File.Is_Blocking, Success1);
                Translate_Status (Success1, Unsigned_64 (Ret_Count), Returned,
                                         Errno);
             when others =>
@@ -4172,15 +4159,17 @@ package body Userland.Syscall is
                      Addr : String (1 .. CLen) with Import, Address => A_SAddr;
                   begin
                      IPC.Socket.Read
-                        (Sock      => File.Inner_Socket,
-                         Data      => Data,
-                         Ret_Count => Ret_Count,
-                         Path      => Addr,
-                         Success   => Success);
+                        (Sock        => File.Inner_Socket,
+                         Data        => Data,
+                         Is_Blocking => File.Is_Blocking,
+                         Ret_Count   => Ret_Count,
+                         Path        => Addr,
+                         Success     => Success);
                   end;
             end case;
          else
-            IPC.Socket.Read (File.Inner_Socket, Data, Ret_Count, Success);
+            IPC.Socket.Read
+               (File.Inner_Socket, Data, File.Is_Blocking, Ret_Count, Success);
          end if;
          Translate_Status (Success, Unsigned_64 (Ret_Count), Returned, Errno);
       end;
@@ -4263,15 +4252,17 @@ package body Userland.Syscall is
                      Addr : String (1 .. CLen) with Import, Address => A_SAddr;
                   begin
                      IPC.Socket.Write
-                        (Sock      => File.Inner_Socket,
-                         Data      => Data,
-                         Ret_Count => Ret_Count,
-                         Path      => Addr,
-                         Success   => Success);
+                        (Sock        => File.Inner_Socket,
+                         Data        => Data,
+                         Is_Blocking => File.Is_Blocking,
+                         Ret_Count   => Ret_Count,
+                         Path        => Addr,
+                         Success     => Success);
                   end;
             end case;
          else
-            IPC.Socket.Write (File.Inner_Socket, Data, Ret_Count, Success);
+            IPC.Socket.Write
+               (File.Inner_Socket, Data, File.Is_Blocking, Ret_Count, Success);
          end if;
          Translate_Status (Success, Unsigned_64 (Ret_Count), Returned, Errno);
       end;
@@ -5591,7 +5582,8 @@ package body Userland.Syscall is
                Scheduler.Yield_If_Able;
             end loop;
             TInfo := (Unsigned_16 (Convert (Thread)), State);
-            Write (File.Inner_Writer_FIFO, TInfo_Data, Ret_Count, Success);
+            Write (File.Inner_Writer_FIFO, TInfo_Data, File.Is_Blocking,
+                   Ret_Count, Success);
          end if;
       end if;
    end Common_Syscall_Hook;

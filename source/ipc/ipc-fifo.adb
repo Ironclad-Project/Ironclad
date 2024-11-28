@@ -1,5 +1,5 @@
 --  ipc-fifo.adb: Pipe creation and management.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -24,43 +24,17 @@ package body IPC.FIFO is
    procedure Free is new Ada.Unchecked_Deallocation
       (Devices.Operation_Data, Devices.Operation_Data_Acc);
 
-   function Create (Is_Blocking : Boolean := True) return Inner_Acc is
+   function Create return Inner_Acc is
       Data : Devices.Operation_Data_Acc;
    begin
       Data := new Devices.Operation_Data'(1 .. Default_Data_Length => 0);
       return new Inner'
-         (Reader_Closed     => False,
-          Writer_Closed     => False,
-          Mutex             => Lib.Synchronization.Unlocked_Semaphore,
-          Is_Read_Blocking  => Is_Blocking,
-          Is_Write_Blocking => Is_Blocking,
-          Data_Count        => 0,
-          Data              => Data);
+         (Reader_Closed => False,
+          Writer_Closed => False,
+          Mutex         => Lib.Synchronization.Unlocked_Semaphore,
+          Data_Count    => 0,
+          Data          => Data);
    end Create;
-
-   function Is_Read_Blocking (P : Inner_Acc) return Boolean is
-   begin
-      return P.Is_Read_Blocking;
-   end Is_Read_Blocking;
-
-   function Is_Write_Blocking (P : Inner_Acc) return Boolean is
-   begin
-      return P.Is_Write_Blocking;
-   end Is_Write_Blocking;
-
-   procedure Set_Read_Blocking (P : Inner_Acc; B : Boolean) is
-   begin
-      Lib.Synchronization.Seize (P.Mutex);
-      P.Is_Read_Blocking := B;
-      Lib.Synchronization.Release (P.Mutex);
-   end Set_Read_Blocking;
-
-   procedure Set_Write_Blocking (P : Inner_Acc; B : Boolean) is
-   begin
-      Lib.Synchronization.Seize (P.Mutex);
-      P.Is_Write_Blocking := B;
-      Lib.Synchronization.Release (P.Mutex);
-   end Set_Write_Blocking;
 
    procedure Poll_Reader
       (P         : Inner_Acc;
@@ -141,16 +115,17 @@ package body IPC.FIFO is
    end Set_Size;
 
    procedure Read
-      (To_Read   : Inner_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Pipe_Status)
+      (To_Read     : Inner_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Pipe_Status)
    is
       Final_Len : Natural := Data'Length;
    begin
       Data := (others => 0);
 
-      if To_Read.Is_Read_Blocking then
+      if Is_Blocking then
          loop
             Lib.Synchronization.Seize (To_Read.Mutex);
             if To_Read.Data_Count /= 0 then
@@ -205,10 +180,11 @@ package body IPC.FIFO is
    end Read;
 
    procedure Write
-      (To_Write  : Inner_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Pipe_Status)
+      (To_Write    : Inner_Acc;
+       Data        : Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Pipe_Status)
    is
       Len   : Natural := Data'Length;
       Final : Natural;
@@ -219,7 +195,7 @@ package body IPC.FIFO is
          return;
       end if;
 
-      if To_Write.Is_Write_Blocking then
+      if Is_Blocking then
          loop
             Lib.Synchronization.Seize (To_Write.Mutex);
             exit when To_Write.Data_Count /= To_Write.Data'Length;

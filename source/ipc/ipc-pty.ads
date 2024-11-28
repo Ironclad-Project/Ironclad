@@ -48,34 +48,38 @@ package IPC.PTY is
 
    --  Read from the primary end of the PTY.
    procedure Read_Primary
-      (To_Read   : Inner_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Status)
+      (To_Read     : Inner_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Status)
       with Pre => Is_Valid (To_Read);
 
    --  Write to the primary end of the PTY.
    procedure Write_Primary
-      (To_Write  : Inner_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Status)
+      (To_Write    : Inner_Acc;
+       Data        : Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Status)
       with Pre => Is_Valid (To_Write);
 
    --  Read from the secondary end of the PTY.
    procedure Read_Secondary
-      (To_Read   : Inner_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Status)
+      (To_Read     : Inner_Acc;
+       Data        : out Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Status)
       with Pre => Is_Valid (To_Read);
 
    --  Write to the secondary end of the PTY.
    procedure Write_Secondary
-      (To_Write  : Inner_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Status)
+      (To_Write    : Inner_Acc;
+       Data        : Devices.Operation_Data;
+       Is_Blocking : Boolean;
+       Ret_Count   : out Natural;
+       Success     : out Status)
       with Pre => Is_Valid (To_Write);
 
    --  Poll the state of a PTY's primary end.
@@ -91,22 +95,6 @@ package IPC.PTY is
       (P         : Inner_Acc;
        Can_Read  : out Boolean;
        Can_Write : out Boolean)
-      with Pre => Is_Valid (P);
-
-   --  Get whether the passed PTY is blocking for the primary end.
-   procedure Is_Primary_Blocking (P : Inner_Acc; Blocking : out Boolean)
-      with Pre => Is_Valid (P);
-
-   --  Set whether the passed PTY is blocking for the primary end.
-   procedure Set_Primary_Blocking (P : Inner_Acc; Blocking : Boolean)
-      with Pre => Is_Valid (P);
-
-   --  Get whether the passed PTY is blocking for the secondary end.
-   procedure Is_Secondary_Blocking (P : Inner_Acc; Blocking : out Boolean)
-      with Pre => Is_Valid (P);
-
-   --  Set whether the passed PTY is blocking for the secondary end.
-   procedure Set_Secondary_Blocking (P : Inner_Acc; Blocking : Boolean)
       with Pre => Is_Valid (P);
 
    --  Get the termios data for the PTY.
@@ -164,8 +152,6 @@ private
       Primary_Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
       Secondary_Mutex    : aliased Lib.Synchronization.Binary_Semaphore;
       Global_Data_Mutex  : aliased Lib.Synchronization.Binary_Semaphore;
-      Primary_Block      : Boolean;
-      Secondary_Block    : Boolean;
       Primary_Read       : Boolean;
       Primary_Transmit   : Boolean;
       Secondary_Read     : Boolean;

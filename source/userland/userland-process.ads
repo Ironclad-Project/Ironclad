@@ -57,6 +57,8 @@ package Userland.Process is
    type File_Description_Acc is access File_Description;
    type File_Description (Description : File_Description_Type) is record
       Children_Count : Natural;
+      Is_Blocking    : Boolean;
+
       case Description is
          when Description_Reader_FIFO =>
             Inner_Reader_FIFO : IPC.FIFO.Inner_Acc;
@@ -67,13 +69,12 @@ package Userland.Process is
          when Description_Secondary_PTY =>
             Inner_Secondary_PTY : IPC.PTY.Inner_Acc;
          when Description_Inode =>
-            Inner_Is_Locked   : Boolean;
-            Inner_Is_Blocking : Boolean;
-            Inner_Ino_Read    : Boolean;
-            Inner_Ino_Write   : Boolean;
-            Inner_Ino_Pos     : Unsigned_64;
-            Inner_Ino_FS      : VFS.FS_Handle;
-            Inner_Ino         : VFS.File_Inode_Number;
+            Inner_Is_Locked : Boolean;
+            Inner_Ino_Read  : Boolean;
+            Inner_Ino_Write : Boolean;
+            Inner_Ino_Pos   : Unsigned_64;
+            Inner_Ino_FS    : VFS.FS_Handle;
+            Inner_Ino       : VFS.File_Inode_Number;
          when Description_Socket =>
             Inner_Socket : IPC.Socket.Socket_Acc;
       end case;
