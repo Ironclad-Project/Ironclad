@@ -355,7 +355,8 @@ package body Scheduler is
    procedure Yield_If_Able is
       Curr_TID : constant TID := Arch.Local.Get_Current_Thread;
    begin
-      if Curr_TID /= Error_TID and then
+      if Is_Initialized        and then
+         Curr_TID /= Error_TID and then
          Cluster_Pool (Thread_Pool (Curr_TID).Cluster).Is_Interruptible
       then
          Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex, True);

@@ -20,6 +20,7 @@ with Arch;
 with Arch.Snippets;
 with Lib.Messages;
 with Lib.Panic;
+with Scheduler;
 
 package body Lib.Synchronization with SPARK_Mode => Off is
    --  Both locks do a rough wait until the lock is free for cache-locality.
@@ -31,32 +32,32 @@ package body Lib.Synchronization with SPARK_Mode => Off is
    is
       Stp  : Lib.Messages.Translated_String;
       Len  : Natural;
-      Ints : constant Boolean := Arch.Snippets.Interrupts_Enabled;
+      Ints : Boolean := Arch.Snippets.Interrupts_Enabled;
    begin
-      if not Do_Not_Disable_Interrupts then
+      Ints := Ints and not Do_Not_Disable_Interrupts;
+
+      if Ints then
          Arch.Snippets.Disable_Interrupts;
       end if;
 
-      loop
-      <<RETEST>>
-         if not Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) then
-            Lock.Were_Interrupts_Enabled := Ints;
-            return;
+   <<RETEST>>
+      if not Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) then
+         Lock.Were_Interrupts_Enabled := Ints;
+         return;
+      end if;
+
+      for I in 1 .. 50_000_000 loop
+         if Atomic_Load_8 (Lock.Is_Locked'Address, Mem_Relaxed) = 0 then
+            goto RETEST;
+         else
+            Arch.Snippets.Pause;
          end if;
-
-         for I in 1 .. 50000000 loop
-            if Atomic_Load_8 (Lock.Is_Locked'Address, Mem_Relaxed) = 0 then
-               goto RETEST;
-            else
-               Arch.Snippets.Pause;
-            end if;
-         end loop;
-
-         Lib.Messages.Image
-            (Unsigned_64 (To_Integer (Caller_Address (0))), Stp, Len, True);
-         Lib.Panic.Hard_Panic
-            ("Deadlock at " & Stp (Stp'Last - Len + 1 .. Stp'Last));
       end loop;
+
+      Lib.Messages.Image
+         (Unsigned_64 (To_Integer (Caller_Address (0))), Stp, Len, True);
+      Lib.Panic.Hard_Panic
+         ("Deadlock at " & Stp (Stp'Last - Len + 1 .. Stp'Last));
    end Seize;
 
    procedure Release (Lock : aliased in out Binary_Semaphore) is
@@ -65,5 +66,28 @@ package body Lib.Synchronization with SPARK_Mode => Off is
       if Lock.Were_Interrupts_Enabled then
          Arch.Snippets.Enable_Interrupts;
       end if;
+   end Release;
+   ----------------------------------------------------------------------------
+   procedure Seize (Lock : aliased in out Mutex) is
+   begin
+      loop
+      <<RETEST>>
+         if not Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) then
+            return;
+         end if;
+
+         for I in 1 .. 1_000_000 loop
+            if Atomic_Load_8 (Lock.Is_Locked'Address, Mem_Relaxed) = 0 then
+               goto RETEST;
+            end if;
+         end loop;
+
+         Scheduler.Yield_If_Able;
+      end loop;
+   end Seize;
+
+   procedure Release (Lock : aliased in out Mutex) is
+   begin
+      Atomic_Clear (Lock.Is_Locked'Address, Mem_Release);
    end Release;
 end Lib.Synchronization;

@@ -17,19 +17,50 @@
 with Interfaces; use Interfaces;
 
 package Lib.Synchronization is
-   --  A simple binary semaphore that will busy loop with no complications.
+   --  A simple binary semaphore for critical sections only.
+   --
+   --  Interrupt control is implemented with it, as to improve responsiveness,
+   --  having an interrupt happen while holding a lock could add massive
+   --  amounts of latency.
    type Binary_Semaphore is private;
+
+   --  Value to initialize semaphores with.
    Unlocked_Semaphore : constant Binary_Semaphore;
 
-   --  Lock a semaphore, and not return until locked.
-   --  @param Semaphore Semaphore to lock.
+   --  Lock a semaphore.
+   --  When entering this routine, if interrupts are enabled, they will be
+   --  disabled.
+   --  @param Lock                      Semaphore to lock.
+   --  @param Do_Not_Disable_Interrupts If True, do not disable interrupts.
    procedure Seize
       (Lock : aliased in out Binary_Semaphore;
        Do_Not_Disable_Interrupts : Boolean := False);
 
-   --  Release a semaphore unconditionally.
-   --  @param Semaphore Semaphore to release.
+   --  Release a semaphore unconditionally. If interrupts were disabled, they
+   --  will be reenabled.
+   --  @param Lock Semaphore to release.
    procedure Release (Lock : aliased in out Binary_Semaphore);
+   ----------------------------------------------------------------------------
+   --  A more complex synchronization mechanism for more generic uses.
+   --
+   --  Mutexes will use the scheduler if available and other utilities to
+   --  more effectively use waiting time. Use this to guard resources where
+   --  having a bit of latency at the time of entering the critical section
+   --  is fine, or where the held resource may take a long time to get out
+   --  of the section, so you dont want other threads to wait too much doing
+   --  nothing.
+   type Mutex is private;
+
+   --  Value to initialize mutexes with.
+   Unlocked_Mutex : constant Mutex;
+
+   --  Lock a mutex, and not return until locked.
+   --  @param Lock  Mutex to lock.
+   procedure Seize (Lock : aliased in out Mutex);
+
+   --  Release a mutex unconditionally.
+   --  @param Lock  Mutex to lock.
+   procedure Release (Lock : aliased in out Mutex);
 
 private
 
@@ -38,7 +69,12 @@ private
       Were_Interrupts_Enabled : Boolean;
    end record;
    Unlocked_Semaphore : constant Binary_Semaphore := (0, False);
-
+   ----------------------------------------------------------------------------
+   type Mutex is record
+      Is_Locked : Unsigned_8;
+   end record;
+   Unlocked_Mutex : constant Mutex := (Is_Locked => 0);
+   ----------------------------------------------------------------------------
    function Caller_Address (Depth : Natural) return System.Address;
    pragma Import (Intrinsic, Caller_Address, "__builtin_return_address");
 end Lib.Synchronization;
