@@ -76,7 +76,7 @@ package body VFS.EXT is
 
       --  Commit to mounting.
       Data := new EXT_Data'
-         (Mutex         => Lib.Synchronization.Unlocked_Semaphore,
+         (Mutex         => Lib.Synchronization.Unlocked_Mutex,
           Handle        => Handle,
           Super         => Sup,
           Is_Read_Only  => Is_RO,

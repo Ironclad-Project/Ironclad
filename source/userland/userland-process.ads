@@ -650,7 +650,7 @@ private
    type File_Arr   is array (0 .. Max_File_Count - 1) of File_Descriptor;
    type Handle_Arr is array (Signal)                  of System.Address;
    type Process_Data is record
-      Data_Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
+      Data_Mutex      : aliased Lib.Synchronization.Mutex;
       Controlling_TTY : IPC.PTY.Inner_Acc;
       Masked_Signals  : Signal_Bitmap;
       Raised_Signals  : Signal_Bitmap;
@@ -689,6 +689,6 @@ private
    type Process_Arr     is array (PID range 1 .. PID'Last) of Process_Data_Acc;
    type Process_Arr_Acc  is access Process_Arr;
 
-   Registry_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+   Registry_Mutex : aliased Lib.Synchronization.Mutex;
    Registry       : Process_Arr_Acc;
 end Userland.Process;

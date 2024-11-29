@@ -461,7 +461,7 @@ private
    Default_Socket_Size : constant Natural := 16#2000#;
 
    type Socket (Dom : Domain; Typ : DataType) is record
-      Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+      Mutex : aliased Lib.Synchronization.Mutex;
 
       case Dom is
          when UNIX =>
@@ -529,8 +529,8 @@ private
       Path_Len : Natural range 1 .. Bind_Path_Max;
    end record;
 
-   UNIX_Bound_Mutex   : aliased Lib.Synchronization.Binary_Semaphore :=
-      Lib.Synchronization.Unlocked_Semaphore;
+   UNIX_Bound_Mutex   : aliased Lib.Synchronization.Mutex :=
+      Lib.Synchronization.Unlocked_Mutex;
    UNIX_Bound_Sockets : array (1 .. 10) of Bound_Socket :=
       (others => (Sock => null, Path => (others => ' '), Path_Len => 1));
 

@@ -108,7 +108,7 @@ package body Userland.Process is
       for I in Registry.all'Range loop
          if Registry (I) = null then
             Registry (I) := new Process_Data'
-               (Data_Mutex      => Lib.Synchronization.Unlocked_Semaphore,
+               (Data_Mutex      => Lib.Synchronization.Unlocked_Mutex,
                 Controlling_TTY => null,
                 Masked_Signals  => (others => False),
                 Raised_Signals  => (others => False),

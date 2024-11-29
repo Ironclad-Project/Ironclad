@@ -27,8 +27,8 @@ package body IPC.Futex is
    end record;
    type Futex_Arr is array (1 .. 20) of Futex_Inner;
 
-   Registry_Mutex : aliased Binary_Semaphore := Unlocked_Semaphore;
-   Registry       :                Futex_Arr := (others => (null, False, 0));
+   Registry_Mutex : aliased Mutex := Unlocked_Mutex;
+   Registry       :     Futex_Arr := (others => (null, False, 0));
 
    function Wait
       (Keys        : Element_Arr;

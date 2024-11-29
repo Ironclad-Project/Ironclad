@@ -48,7 +48,7 @@ private
 
    Hostname_Max_Len : constant Natural := 255;
 
-   Hostname_Lock   : aliased Binary_Semaphore := Unlocked_Semaphore;
+   Hostname_Lock   : aliased Mutex := Unlocked_Mutex;
    Hostname_Length : Natural range 0 .. Hostname_Max_Len := 4;
    Hostname : String (1 .. Hostname_Max_Len) := "none" & (1 .. 251 => ' ');
 

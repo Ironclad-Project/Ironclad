@@ -32,7 +32,7 @@ package body IPC.Socket is
             case Typ is
                when Raw =>
                   return new Socket'
-                   (Mutex        => Lib.Synchronization.Unlocked_Semaphore,
+                   (Mutex        => Lib.Synchronization.Unlocked_Mutex,
                     Dom          => IPv4,
                     Typ          => Raw,
                     IPv4_Cached_Address => (others => 0),
@@ -44,7 +44,7 @@ package body IPC.Socket is
             case Typ is
                when Raw =>
                   return new Socket'
-                   (Mutex        => Lib.Synchronization.Unlocked_Semaphore,
+                   (Mutex        => Lib.Synchronization.Unlocked_Mutex,
                     Dom          => IPv6,
                     Typ          => Raw,
                     IPv6_Cached_Address => (others => 0),
@@ -56,7 +56,7 @@ package body IPC.Socket is
             case Typ is
                when Stream =>
                   return new Socket'
-                   (Mutex          => Lib.Synchronization.Unlocked_Semaphore,
+                   (Mutex          => Lib.Synchronization.Unlocked_Mutex,
                     Dom            => UNIX,
                     Typ            => Stream,
                     Is_Listener    => False,
@@ -67,7 +67,7 @@ package body IPC.Socket is
                     Data_Length    => 0);
                when Datagram =>
                   return new Socket'
-                   (Mutex            => Lib.Synchronization.Unlocked_Semaphore,
+                   (Mutex            => Lib.Synchronization.Unlocked_Mutex,
                     Dom              => UNIX,
                     Typ              => Datagram,
                     Simple_Connected => null,

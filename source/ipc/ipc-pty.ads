@@ -159,9 +159,9 @@ private
    subtype Data_Length is Natural range 0 .. Arch.MMU.Page_Size;
    subtype TTY_Data    is Devices.Operation_Data (1 .. Arch.MMU.Page_Size);
    type Inner is record
-      Primary_Mutex      : aliased Lib.Synchronization.Binary_Semaphore;
-      Secondary_Mutex    : aliased Lib.Synchronization.Binary_Semaphore;
-      Global_Data_Mutex  : aliased Lib.Synchronization.Binary_Semaphore;
+      Primary_Mutex      : aliased Lib.Synchronization.Mutex;
+      Secondary_Mutex    : aliased Lib.Synchronization.Mutex;
+      Global_Data_Mutex  : aliased Lib.Synchronization.Mutex;
       Primary_Read       : Boolean;
       Primary_Transmit   : Boolean;
       Secondary_Read     : Boolean;
@@ -181,7 +181,7 @@ private
    function Is_Valid (P : Inner_Acc) return Boolean is (P /= null);
 
    procedure Read_From_End
-      (End_Mutex   : access Lib.Synchronization.Binary_Semaphore;
+      (End_Mutex   : access Lib.Synchronization.Mutex;
        Inner_Len   : access Data_Length;
        Inner_Data  : access TTY_Data;
        Is_Blocking : Boolean;
@@ -190,7 +190,7 @@ private
        Ret_Count   : out Natural);
 
    procedure Write_To_End
-      (End_Mutex   : access Lib.Synchronization.Binary_Semaphore;
+      (End_Mutex   : access Lib.Synchronization.Mutex;
        Inner_Len   : access Data_Length;
        Inner_Data  : access TTY_Data;
        Is_Blocking : Boolean;

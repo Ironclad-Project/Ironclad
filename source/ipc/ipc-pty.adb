@@ -28,8 +28,8 @@ package body IPC.PTY is
    procedure Free is new Ada.Unchecked_Deallocation (Inner, Inner_Acc);
    package   Conv is new System.Address_To_Access_Conversions (Inner);
 
-   Tracked_Lock : aliased Lib.Synchronization.Binary_Semaphore :=
-      Lib.Synchronization.Unlocked_Semaphore;
+   Tracked_Lock : aliased Lib.Synchronization.Mutex :=
+      Lib.Synchronization.Unlocked_Mutex;
    Tracked_Name : Natural := 1;
 
    function Create return Inner_Acc is
@@ -47,9 +47,9 @@ package body IPC.PTY is
       Lib.Synchronization.Release (Tracked_Lock);
 
       Result := new Inner'
-         (Primary_Mutex      => Lib.Synchronization.Unlocked_Semaphore,
-          Secondary_Mutex    => Lib.Synchronization.Unlocked_Semaphore,
-          Global_Data_Mutex  => Lib.Synchronization.Unlocked_Semaphore,
+         (Primary_Mutex      => Lib.Synchronization.Unlocked_Mutex,
+          Secondary_Mutex    => Lib.Synchronization.Unlocked_Mutex,
+          Global_Data_Mutex  => Lib.Synchronization.Unlocked_Mutex,
           Primary_Read       => True,
           Primary_Transmit   => True,
           Secondary_Read     => True,
@@ -398,7 +398,7 @@ package body IPC.PTY is
    end IO_Control;
    ----------------------------------------------------------------------------
    procedure Read_From_End
-      (End_Mutex   : access Lib.Synchronization.Binary_Semaphore;
+      (End_Mutex   : access Lib.Synchronization.Mutex;
        Inner_Len   : access Data_Length;
        Inner_Data  : access TTY_Data;
        Is_Blocking : Boolean;
@@ -457,7 +457,7 @@ package body IPC.PTY is
    end Read_From_End;
 
    procedure Write_To_End
-      (End_Mutex   : access Lib.Synchronization.Binary_Semaphore;
+      (End_Mutex   : access Lib.Synchronization.Mutex;
        Inner_Len   : access Data_Length;
        Inner_Data  : access TTY_Data;
        Is_Blocking : Boolean;

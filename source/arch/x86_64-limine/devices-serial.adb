@@ -41,7 +41,7 @@ package body Devices.Serial is
             if (I = 1) then
                Data := COM1'Access;
             else
-               Data := new COM_Root'(Lib.Synchronization.Unlocked_Semaphore,
+               Data := new COM_Root'(Lib.Synchronization.Unlocked_Mutex,
                   COM_Ports (I), Default_Baud);
             end if;
             Device_Name (7) := Character'Val (I + Character'Pos ('0'));

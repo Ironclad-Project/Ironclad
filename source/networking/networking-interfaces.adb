@@ -24,7 +24,7 @@ package body Networking.Interfaces is
    end record;
    type Inner_Arr is array (1 .. Max_Interface_Count) of Inner_Interface;
 
-   Interfaces_Lock : aliased Binary_Semaphore := Unlocked_Semaphore;
+   Interfaces_Lock : aliased Mutex := Unlocked_Mutex;
    Interfaces      : Inner_Arr :=
       (others => (Devices.Error_Handle, (others => 0), True));
 

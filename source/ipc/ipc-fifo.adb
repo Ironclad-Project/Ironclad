@@ -31,7 +31,7 @@ package body IPC.FIFO is
       return new Inner'
          (Reader_Closed => False,
           Writer_Closed => False,
-          Mutex         => Lib.Synchronization.Unlocked_Semaphore,
+          Mutex         => Lib.Synchronization.Unlocked_Mutex,
           Data_Count    => 0,
           Data          => Data);
    end Create;

@@ -30,7 +30,7 @@ package body Cryptography.Random is
 
    pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE.
 
-   Accumulator_Mutex   : aliased Binary_Semaphore := Unlocked_Semaphore;
+   Accumulator_Mutex   : aliased Mutex := Unlocked_Mutex;
    Entropy_Accumulator : MD5.MD5_Blocks (1 .. 1) := (1 => (others => 16#33#));
 
    procedure Fill_Data (Data : out Crypto_Data) is

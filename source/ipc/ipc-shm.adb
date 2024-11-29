@@ -36,7 +36,7 @@ package body IPC.SHM is
    end record;
    type Segment_Arr is array (Segment_ID range 1 .. 20) of Segment_Inner;
 
-   Registry_Mutex : aliased Binary_Semaphore := Unlocked_Semaphore;
+   Registry_Mutex : aliased Mutex := Unlocked_Mutex;
    Registry : Segment_Arr :=
       (others => (False, 0, 0, 0, 0, 0, 0, 0, 0, 0, False));
 

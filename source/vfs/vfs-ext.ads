@@ -362,7 +362,7 @@ private
    end record;
 
    type EXT_Data is record
-      Mutex                 : aliased Lib.Synchronization.Binary_Semaphore;
+      Mutex                 : aliased Lib.Synchronization.Mutex;
       Handle                : Device_Handle;
       Super                 : Superblock;
       Is_Read_Only          : Boolean;

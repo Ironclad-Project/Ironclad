@@ -130,7 +130,7 @@ private
 
    Default_Data_Length : constant Natural := Arch.MMU.Page_Size * 10;
    type Inner is record
-      Mutex         : aliased Lib.Synchronization.Binary_Semaphore;
+      Mutex         : aliased Lib.Synchronization.Mutex;
       Reader_Closed : Boolean;
       Writer_Closed : Boolean;
       Data_Count    : Natural;

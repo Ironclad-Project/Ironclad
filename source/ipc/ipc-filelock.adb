@@ -28,8 +28,8 @@ package body IPC.FileLock is
    end record;
    type Lock_Inner_Arr is array (1 .. 20) of Lock_Inner;
 
-   Registry_Mutex : aliased Binary_Semaphore := Unlocked_Semaphore;
-   Registry       :            Lock_Inner_Arr :=
+   Registry_Mutex : aliased Mutex := Unlocked_Mutex;
+   Registry       : Lock_Inner_Arr :=
       (others => (VFS.Error_Handle, 0, 0, 0, Error_PID, False));
 
    procedure Could_Acquire_Lock

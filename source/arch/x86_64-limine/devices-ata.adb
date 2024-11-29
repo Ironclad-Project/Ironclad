@@ -160,7 +160,7 @@ package body Devices.ATA is
          Sectors : Unsigned_64 with Address => Identify_Info (101)'Address;
       begin
          return new ATA_Data'
-            (Mutex         => Lib.Synchronization.Unlocked_Semaphore,
+            (Mutex         => Lib.Synchronization.Unlocked_Mutex,
              Is_Master     => Is_Master,
              Data_Port     => Data_Port,
              Error_Port    => Error_Port,
