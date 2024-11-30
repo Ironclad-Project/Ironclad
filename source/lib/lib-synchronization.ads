@@ -61,6 +61,32 @@ package Lib.Synchronization is
    --  Release a mutex unconditionally.
    --  @param Lock  Mutex to lock.
    procedure Release (Lock : aliased in out Mutex);
+   ----------------------------------------------------------------------------
+   --  A lock for several readers and one writer.
+   --
+   --  Behaves the same as a Mutex in regards to interrupts, while
+   --  implementing the readers-writer lock semantics.
+   --  https://en.wikipedia.org/wiki/Readers%E2%80%93writer_lock
+   type Readers_Writer_Lock is private;
+
+   --  Value to initialize RW locks with.
+   Unlocked_RW_Lock : constant Readers_Writer_Lock;
+
+   --  Lock as a reader.
+   --  @param Lock Lock to lock lockingly.
+   procedure Seize_Reader (Lock : aliased in out Readers_Writer_Lock);
+
+   --  Lock as a writer.
+   --  @param Lock Lock to lock lockingly.
+   procedure Seize_Writer (Lock : aliased in out Readers_Writer_Lock);
+
+   --  Release a reader lock unconditionally.
+   --  @param Lock Lock to unlock lockingly.
+   procedure Release_Reader (Lock : aliased in out Readers_Writer_Lock);
+
+   --  Release a writer lock unconditionally.
+   --  @param Lock Lock to unlock lockingly.
+   procedure Release_Writer (Lock : aliased in out Readers_Writer_Lock);
 
 private
 
@@ -74,6 +100,16 @@ private
       Is_Locked : Unsigned_8;
    end record;
    Unlocked_Mutex : constant Mutex := (Is_Locked => 0);
+   ----------------------------------------------------------------------------
+   type Readers_Writer_Lock is record
+      Readers     : Natural;
+      Semaphore_1 : aliased Mutex;
+      Semaphore_2 : aliased Mutex;
+   end record;
+   Unlocked_RW_Lock : constant Readers_Writer_Lock :=
+      (Readers     => 0,
+       Semaphore_1 => Unlocked_Mutex,
+       Semaphore_2 => Unlocked_Mutex);
    ----------------------------------------------------------------------------
    function Caller_Address (Depth : Natural) return System.Address;
    pragma Import (Intrinsic, Caller_Address, "__builtin_return_address");

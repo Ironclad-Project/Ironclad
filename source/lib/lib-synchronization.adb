@@ -90,4 +90,34 @@ package body Lib.Synchronization with SPARK_Mode => Off is
    begin
       Atomic_Clear (Lock.Is_Locked'Address, Mem_Release);
    end Release;
+   ----------------------------------------------------------------------------
+   procedure Seize_Reader (Lock : aliased in out Readers_Writer_Lock) is
+   begin
+      Seize (Lock.Semaphore_1);
+      Lock.Readers := Lock.Readers + 1;
+      if Lock.Readers = 1 then
+         Seize (Lock.Semaphore_2);
+      end if;
+      Release (Lock.Semaphore_1);
+   end Seize_Reader;
+
+   procedure Seize_Writer (Lock : aliased in out Readers_Writer_Lock) is
+   begin
+      Seize (Lock.Semaphore_2);
+   end Seize_Writer;
+
+   procedure Release_Reader (Lock : aliased in out Readers_Writer_Lock) is
+   begin
+      Seize (Lock.Semaphore_1);
+      Lock.Readers := Lock.Readers - 1;
+      if Lock.Readers = 0 then
+         Release (Lock.Semaphore_2);
+      end if;
+      Release (Lock.Semaphore_1);
+   end Release_Reader;
+
+   procedure Release_Writer (Lock : aliased in out Readers_Writer_Lock) is
+   begin
+      Release (Lock.Semaphore_2);
+   end Release_Writer;
 end Lib.Synchronization;

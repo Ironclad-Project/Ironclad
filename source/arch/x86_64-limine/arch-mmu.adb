@@ -88,7 +88,7 @@ package body Arch.MMU is
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Table'
          (PML4_Level      => (others => 0),
-          Mutex           => Lib.Synchronization.Unlocked_Semaphore,
+          Mutex           => Lib.Synchronization.Unlocked_RW_Lock,
           Map_Ranges_Root => null);
 
       --  Map the first 4KiB - 1 MiB not NX, because we have the smp bootstrap
@@ -163,10 +163,10 @@ package body Arch.MMU is
       Success    : Boolean;
       Result     : Page_Table_Acc := new Page_Table'
          (PML4_Level      => (others => 0),
-          Mutex           => Lib.Synchronization.Unlocked_Semaphore,
+          Mutex           => Lib.Synchronization.Unlocked_RW_Lock,
           Map_Ranges_Root => null);
    begin
-      Lib.Synchronization.Seize (Map.Mutex);
+      Lib.Synchronization.Seize_Reader (Map.Mutex);
 
       --  Clone the higher half, which is the same in all maps.
       Result.PML4_Level (257 .. 512) := Map.PML4_Level (257 .. 512);
@@ -212,7 +212,7 @@ package body Arch.MMU is
       end loop;
 
    <<Cleanup>>
-      Lib.Synchronization.Release (Map.Mutex);
+      Lib.Synchronization.Release_Reader (Map.Mutex);
       return Result;
    end Fork_Table;
 
@@ -225,7 +225,7 @@ package body Arch.MMU is
       Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
       Discard    : Memory.Size;
    begin
-      Lib.Synchronization.Seize (Map.Mutex);
+      Lib.Synchronization.Seize_Writer (Map.Mutex);
       while Curr_Range /= null loop
          if Curr_Range.Is_Allocated then
             Physical.Free
@@ -301,10 +301,10 @@ package body Arch.MMU is
       Is_Writeable       := False;
       Is_Executable      := False;
 
-      Lib.Synchronization.Seize (Map.Mutex);
-
       while Virt < Final loop
+         Lib.Synchronization.Seize_Reader (Map.Mutex);
          Page_Addr := Get_Page (Map, Virt, False);
+         Lib.Synchronization.Release_Reader (Map.Mutex);
          declare
             Page : Unsigned_64 with Address => To_Address (Page_Addr), Import;
          begin
@@ -335,8 +335,6 @@ package body Arch.MMU is
          end;
          Virt := Virt + Page_Size;
       end loop;
-
-      Lib.Synchronization.Release (Map.Mutex);
    end Translate_Address;
 
    function Map_Range
@@ -363,7 +361,7 @@ package body Arch.MMU is
           Length         => Length,
           Flags          => Permissions);
 
-      Lib.Synchronization.Seize (Map.Mutex);
+      Lib.Synchronization.Seize_Writer (Map.Mutex);
 
       while Curr_Range /= null loop
          if Curr_Range.Virtual_Start <= Virtual_Start and
@@ -393,7 +391,7 @@ package body Arch.MMU is
           Caching        => Caching);
 
    <<Ret>>
-      Lib.Synchronization.Release (Map.Mutex);
+      Lib.Synchronization.Release_Writer (Map.Mutex);
       return Success;
    end Map_Range;
 
@@ -426,7 +424,7 @@ package body Arch.MMU is
           Length         => Length,
           Flags          => Permissions);
 
-      Lib.Synchronization.Seize (Map.Mutex);
+      Lib.Synchronization.Seize_Writer (Map.Mutex);
 
       while Curr_Range /= null loop
          if Curr_Range.Virtual_Start <= Virtual_Start and
@@ -463,7 +461,7 @@ package body Arch.MMU is
          Memory.Physical.Free (Interfaces.C.size_t (Addr));
          Physical_Start := System.Null_Address;
       end if;
-      Lib.Synchronization.Release (Map.Mutex);
+      Lib.Synchronization.Release_Writer (Map.Mutex);
    end Map_Allocated_Range;
 
    function Remap_Range
@@ -480,7 +478,7 @@ package body Arch.MMU is
       Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
       Success    : Boolean := False;
    begin
-      Lib.Synchronization.Seize (Map.Mutex);
+      Lib.Synchronization.Seize_Writer (Map.Mutex);
 
       while Curr_Range /= null loop
          if Curr_Range.Virtual_Start = Virtual_Start and
@@ -512,7 +510,7 @@ package body Arch.MMU is
       Success := True;
 
    <<Ret>>
-      Lib.Synchronization.Release (Map.Mutex);
+      Lib.Synchronization.Release_Writer (Map.Mutex);
       return Success;
    end Remap_Range;
 
@@ -531,7 +529,7 @@ package body Arch.MMU is
       Last_Range : Mapping_Range_Acc := null;
       Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
    begin
-      Lib.Synchronization.Seize (Map.Mutex);
+      Lib.Synchronization.Seize_Writer (Map.Mutex);
 
       while Curr_Range /= null loop
          if Curr_Range.Virtual_Start = Virtual_Start and
@@ -571,12 +569,12 @@ package body Arch.MMU is
       Flush_Global_TLBs (Virtual_Start, Length);
       Success := True;
 
-      Lib.Synchronization.Release (Map.Mutex);
+      Lib.Synchronization.Release_Writer (Map.Mutex);
       F (Curr_Range);
       return Success;
 
    <<No_Free_Return>>
-      Lib.Synchronization.Release (Map.Mutex);
+      Lib.Synchronization.Release_Writer (Map.Mutex);
       return Success;
    end Unmap_Range;
 
@@ -584,12 +582,12 @@ package body Arch.MMU is
       Value      : Unsigned_64 := 0;
       Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
    begin
-      Lib.Synchronization.Seize (Map.Mutex);
+      Lib.Synchronization.Seize_Reader (Map.Mutex);
       while Curr_Range /= null loop
          Value      := Value + Unsigned_64 (Curr_Range.Length);
          Curr_Range := Curr_Range.Next;
       end loop;
-      Lib.Synchronization.Release (Map.Mutex);
+      Lib.Synchronization.Release_Reader (Map.Mutex);
       return Value;
    end Get_User_Mapped_Size;
 

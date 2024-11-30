@@ -222,7 +222,7 @@ private
 
       type Page_Table is record
          PML4_Level      : PML4;
-         Mutex           : aliased Lib.Synchronization.Binary_Semaphore;
+         Mutex           : aliased Lib.Synchronization.Readers_Writer_Lock;
          Map_Ranges_Root : Mapping_Range_Acc;
       end record;
 
