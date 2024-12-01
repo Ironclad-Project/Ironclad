@@ -20,7 +20,7 @@ with Memory; use Memory;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Limine;
 
-package body Devices.FB is
+package body Devices.FB with SPARK_Mode => Off is
    package Limine renames Arch.Limine;
 
    --  Structures used by fbdev.

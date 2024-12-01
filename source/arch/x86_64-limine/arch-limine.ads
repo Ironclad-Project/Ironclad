@@ -17,7 +17,7 @@
 with System;
 with Interfaces; use Interfaces;
 
-package Arch.Limine is
+package Arch.Limine with SPARK_Mode => Off is
    --  Global variable holding platform information.
    Global_Info : Boot_Information;
 

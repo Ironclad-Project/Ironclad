@@ -19,7 +19,7 @@ with Arch.MMU;
 with Lib.Messages;
 with Lib.Alignment;
 
-package body Arch.ACPI is
+package body Arch.ACPI with SPARK_Mode => Off is
    --  Request to get the RSDP.
    --  Response is a pointer to an RSDP_Response.
    RSDP_Request : Limine.Request :=

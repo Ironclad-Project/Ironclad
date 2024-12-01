@@ -353,9 +353,10 @@ package body Scheduler is
    end Delete_Thread;
 
    procedure Yield_If_Able is
-      Curr_TID : constant TID := Arch.Local.Get_Current_Thread;
+      Curr_TID : constant     TID := Arch.Local.Get_Current_Thread;
+      Is_Init  : constant Boolean := Is_Initialized;
    begin
-      if Is_Initialized        and then
+      if Is_Init               and then
          Curr_TID /= Error_TID and then
          Cluster_Pool (Thread_Pool (Curr_TID).Cluster).Is_Interruptible
       then
