@@ -31,7 +31,9 @@ package Devices is
 
    --  Devices might have a UUID. If all components are 0, they have no UUID.
    --  Example for the string version: 123e4567-e89b-12d3-a456-426614174000.
-   type UUID is array (1 .. 16) of Unsigned_8;
+   type UUID is array (1 .. 16) of Unsigned_8
+      with Pack, Object_Size => 16 * 8;
+
    subtype UUID_String is String (1 .. 36);
    Zero_UUID : constant UUID := (others => 0);
 
@@ -138,14 +140,17 @@ package Devices is
        Name   : out String;
        Length : out Natural)
       with Pre  => ((Is_Initialized = True) and (Handle /= Error_Handle) and
-                    (Name'Length = Max_Name_Length)),
+                    (Name'Length >= Max_Name_Length)),
            Post => (Length >= 0 and Length <= Max_Name_Length);
 
    --  List all devices registered.
    --  @param Buffer Buffer to write the devices.
    --  @param Total  Returned count of devices, even if it does not fit.
    procedure List (Buffer : out Device_List; Total : out Natural)
-      with Pre => Is_Initialized;
+      with Pre  => Is_Initialized,
+           Post =>
+         (for all I in Buffer'First .. (Buffer'First + Total - 1) =>
+          Buffer (I) /= Error_Handle);
 
    --  Ghost function for checking whether the device handling is initialized.
    function Is_Initialized return Boolean with Ghost;
@@ -271,7 +276,7 @@ private
 
    type Device_Handle is new Natural range 0 .. 30;
    Error_Handle    : constant Device_Handle := 0;
-   Max_Name_Length : constant Natural       := 64;
+   Max_Name_Length : constant Natural       := 32;
    type Device is record
       Is_Present : Boolean;
       Name       : String (1 .. Max_Name_Length);

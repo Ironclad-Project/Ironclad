@@ -36,7 +36,7 @@ package body Kernel_Main is
       Init_Path   : Userland.String_Acc;
       Init_Args   : Userland.Argument_Arr_Acc;
       Init_Env    : Userland.Environment_Arr (1 .. 0);
-      Value       : String (1 .. Devices.Max_Name_Length);
+      Value       : String (1 .. 64);
       Value_Len   : Natural;
       Found       : Boolean;
       Init_Dev    : Devices.Device_Handle;

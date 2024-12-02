@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
+with Devices;
 
 package VFS.Dev is
    procedure Probe
@@ -22,15 +23,19 @@ package VFS.Dev is
        Do_Read_Only : Boolean;
        Do_Relatime  : Boolean;
        Data_Addr    : out System.Address;
-       Root_Ino     : out File_Inode_Number);
+       Root_Ino     : out File_Inode_Number)
+      with Pre => Devices.Is_Initialized;
 
    procedure Remount
       (FS           : System.Address;
        Do_Read_Only : Boolean;
        Do_Relatime  : Boolean;
-       Success      : out Boolean);
+       Success      : out Boolean)
+      with Pre => Devices.Is_Initialized;
 
-   procedure Unmount (FS : in out System.Address);
+   pragma Warnings (GNATprove, Off, "unused initial value");
+   procedure Unmount (FS : in out System.Address)
+      with Pre => Devices.Is_Initialized;
    ----------------------------------------------------------------------------
    procedure Get_Block_Size (FS : System.Address; Size : out Unsigned_64);
 
@@ -58,7 +63,8 @@ package VFS.Dev is
        Offset    : Natural;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out FS_Status);
+       Success   : out FS_Status)
+      with Pre => Devices.Is_Initialized;
 
    procedure Read
       (FS_Data     : System.Address;
@@ -67,7 +73,8 @@ package VFS.Dev is
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
        Is_Blocking : Boolean;
-       Success     : out FS_Status);
+       Success     : out FS_Status)
+      with Pre => Devices.Is_Initialized;
 
    procedure Write
       (FS_Data     : System.Address;
@@ -76,20 +83,23 @@ package VFS.Dev is
        Data        : Operation_Data;
        Ret_Count   : out Natural;
        Is_Blocking : Boolean;
-       Success     : out FS_Status);
+       Success     : out FS_Status)
+      with Pre => Devices.Is_Initialized;
 
    procedure Stat
       (Data    : System.Address;
        Ino     : File_Inode_Number;
        S       : out File_Stat;
-       Success : out FS_Status);
+       Success : out FS_Status)
+      with Pre => Devices.Is_Initialized;
 
    procedure IO_Control
       (Data   : System.Address;
        Ino    : File_Inode_Number;
        Req    : Unsigned_64;
        Arg    : System.Address;
-       Status : out FS_Status);
+       Status : out FS_Status)
+      with Pre => Devices.Is_Initialized;
 
    procedure Mmap
       (Data    : System.Address;
@@ -98,19 +108,23 @@ package VFS.Dev is
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64;
        Flags   : Arch.MMU.Page_Permissions;
-       Status  : out FS_Status);
+       Status  : out FS_Status)
+      with Pre => Devices.Is_Initialized;
 
    procedure Poll
       (Data      : System.Address;
        Ino       : File_Inode_Number;
        Can_Read  : out Boolean;
        Can_Write : out Boolean;
-       Is_Error  : out Boolean);
+       Is_Error  : out Boolean)
+      with Pre => Devices.Is_Initialized;
 
-   function Synchronize (Data : System.Address) return FS_Status;
+   function Synchronize (Data : System.Address) return FS_Status
+      with Pre => Devices.Is_Initialized;
 
    function Synchronize
       (Data      : System.Address;
        Ino       : File_Inode_Number;
-       Data_Only : Boolean) return FS_Status;
+       Data_Only : Boolean) return FS_Status
+      with Pre => Devices.Is_Initialized;
 end VFS.Dev;
