@@ -1,5 +1,5 @@
 --  ipc-filelock.ads: File locking.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,9 +14,10 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces;       use Interfaces;
-with VFS;              use VFS;
-with Userland.Process; use Userland.Process;
+with Interfaces;          use Interfaces;
+with VFS;                 use VFS;
+with Userland.Process;    use Userland.Process;
+with Lib.Synchronization; use Lib.Synchronization;
 
 package IPC.FileLock is
    --  This module implements POSIX-compliant advisory file locking.
@@ -100,6 +101,20 @@ package IPC.FileLock is
 
 private
 
+   type Lock_Inner is record
+      FS       : VFS.FS_Handle;
+      Ino      : VFS.File_Inode_Number;
+      Start    : Unsigned_64;
+      Length   : Unsigned_64;
+      Acquirer : Userland.Process.PID; --  Error_PID if free lock.
+      Is_Write : Boolean;
+   end record;
+   type Lock_Inner_Arr is array (1 .. 20) of Lock_Inner;
+
+   Registry_Mutex : aliased Mutex := Unlocked_Mutex;
+   Registry       : Lock_Inner_Arr :=
+      (others => (VFS.Error_Handle, 0, 0, 0, Error_PID, False));
+
    procedure Inner_Could_Acquire
       (Acquired_FS  : VFS.FS_Handle;
        Acquired_Ino : VFS.File_Inode_Number;
@@ -107,5 +122,8 @@ private
        Length       : Unsigned_64;
        Is_Write     : Boolean;
        Conflicting  : out Natural;
-       Success      : out Boolean);
+       Success      : out Boolean)
+      with Post =>
+         (Success and (Conflicting = 0)) or
+         (not Success and (Conflicting in 1 .. 20));
 end IPC.FileLock;

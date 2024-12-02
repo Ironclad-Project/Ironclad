@@ -1,5 +1,5 @@
 --  ipc-filelock.adb: File locking.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,23 +14,11 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Synchronization; use Lib.Synchronization;
 with Scheduler;
 
 package body IPC.FileLock is
-   type Lock_Inner is record
-      FS       : VFS.FS_Handle;
-      Ino      : VFS.File_Inode_Number;
-      Start    : Unsigned_64;
-      Length   : Unsigned_64;
-      Acquirer : Userland.Process.PID; --  Error_PID if free lock.
-      Is_Write : Boolean;
-   end record;
-   type Lock_Inner_Arr is array (1 .. 20) of Lock_Inner;
-
-   Registry_Mutex : aliased Mutex := Unlocked_Mutex;
-   Registry       : Lock_Inner_Arr :=
-      (others => (VFS.Error_Handle, 0, 0, 0, Error_PID, False));
+   --  Unit passes GNATprove AoRTE, GNAT does not know this.
+   pragma Suppress (All_Checks);
 
    procedure Could_Acquire_Lock
       (Acquired_FS  : VFS.FS_Handle;
@@ -66,13 +54,13 @@ package body IPC.FileLock is
        Is_Blocking  : Boolean;
        Success      : out Boolean)
    is
-      Conflicting : Natural;
+      Discard : Natural;
    begin
       loop
          Lib.Synchronization.Seize (Registry_Mutex);
          Inner_Could_Acquire
             (Acquired_FS, Acquired_Ino, Start, Length, Is_Write,
-             Conflicting, Success);
+             Discard, Success);
          if Success then
             Success := False;
             for L of Registry loop
@@ -136,19 +124,27 @@ package body IPC.FileLock is
       Buffer := (others => (Error_PID, False, 0, 0, VFS.Error_Handle, 0));
       Length := 0;
 
+      if Buffer'Length /= 0 then
+         Curr_Index := Buffer'First;
+      end if;
+
       Lib.Synchronization.Seize (Registry_Mutex);
       for I in Registry'Range loop
          if Registry (I).Acquirer /= Error_PID then
             Length := Length + 1;
-            if Curr_Index < Buffer'Length then
-               Buffer (Buffer'First + Curr_Index) :=
+
+            if Buffer'Length /= 0 and then Curr_Index <= Buffer'Last then
+               Buffer (Curr_Index) :=
                   (Acquirer   => Registry (I).Acquirer,
                    Is_Writing => Registry (I).Is_Write,
                    Start      => Registry (I).Start,
                    Length     => Registry (I).Length,
                    FS         => Registry (I).FS,
                    Ino        => Registry (I).Ino);
-               Curr_Index := Curr_Index + 1;
+
+               if Curr_Index /= Natural'Last then
+                  Curr_Index := Curr_Index + 1;
+               end if;
             end if;
          end if;
       end loop;
