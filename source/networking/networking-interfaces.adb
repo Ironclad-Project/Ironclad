@@ -59,13 +59,13 @@ package body Networking.Interfaces is
       (Interfaced : Devices.Device_Handle;
        IP         : out IPv4_Address)
    is
-      IP_Sub : IPv4_Address;
+      Discard : IPv4_Address;
    begin
       IP := (others => 0);
       Seize (Interfaces_Lock);
       for Int of Interfaces loop
          if Int.Handle = Interfaced then
-            ARP.Lookup (Int.MAC, IP, IP_Sub);
+            ARP.Lookup (Int.MAC, IP, Discard);
             exit;
          end if;
       end loop;
@@ -76,13 +76,13 @@ package body Networking.Interfaces is
       (Interfaced : Devices.Device_Handle;
        IP         : out IPv6_Address)
    is
-      IP_Sub : IPv6_Address;
+      Discard : IPv6_Address;
    begin
       IP := (others => 0);
       Seize (Interfaces_Lock);
       for Int of Interfaces loop
          if Int.Handle = Interfaced then
-            ARP.Lookup (Int.MAC, IP, IP_Sub);
+            ARP.Lookup (Int.MAC, IP, Discard);
             exit;
          end if;
       end loop;
