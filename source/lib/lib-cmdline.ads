@@ -36,7 +36,14 @@ package Lib.Cmdline is
        Returned     : out String;
        Found        : out Boolean;
        Length       : out Natural)
-      with Pre => Key'Length /= 0 and Returned'First = 1;
+      with Pre =>
+         Cmdline'Length   /= 0 and
+         Cmdline'First     = 1 and
+         Cmdline'Length < 4096 and
+         Key'Length       /= 0 and
+         Returned'First = 1    and
+         Returned'Length /= 0  and
+         Returned'Length < Cmdline'Length;
 
    --  Check whether an option is present.
    --  @param Cmdline Command line to search in.
@@ -50,5 +57,7 @@ private
    procedure Find_Key
       (Cmdline, Key : String;
        Found        : out Boolean;
-       End_Index    : out Natural);
+       End_Index    : out Natural)
+      with Pre  => Cmdline'Length /= 0 and Key'Length /= 0,
+           Post => not Found or (Found and (End_Index in Cmdline'Range));
 end Lib.Cmdline;

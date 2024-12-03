@@ -24,6 +24,12 @@ package body Lib.Cmdline is
        Found        : out Boolean;
        Length       : out Natural)
    is
+      pragma Annotate
+         (GNATProve,
+          False_Positive,
+          "loop invariant might not be preserved by an arbitrary iteration",
+          "I do not know how to make gnatprove swallow, but they are true");
+
       Last_Index      : Integer;
       Do_Until_Quotes : Boolean;
       Returned_Idx    : Natural := Returned'First;
@@ -53,6 +59,10 @@ package body Lib.Cmdline is
       Length := 0;
 
       while Cmdline'Last >= Last_Index loop
+         pragma Loop_Invariant (Last_Index   in Cmdline'Range);
+         pragma Loop_Invariant (Returned_Idx in Returned'Range);
+         pragma Loop_Invariant (Length <= Cmdline'Length);
+
          if Returned'Last < Returned_Idx then
             goto Found_But_No_Value;
          end if;
