@@ -38,18 +38,19 @@ library project RTS is
    package Compiler is
       Base_Ada_Switches := Split (Ada_Flags, " ") & (
          "-fno-stack-protector", "-fno-stack-check", "-nostdlib", "-nostdinc",
-         "-gnatg", "-ffile-prefix-map=" & "@SRCDIR@" & "=."
+         "-gnatg", "-ffile-prefix-map=" & "@SRCDIR@" & "=.",
+         "-fdata-sections", "-ffunction-sections", "-fno-PIC"
       );
 
       case Arch is
          when "riscv64-limine" =>
             for Switches ("Ada") use Base_Ada_Switches & (
-               "-fno-pie", "-fno-pic", "-mno-relax",
+               "-mno-relax",
                "-march=rv64imac_zicsr_zifencei", "-mabi=lp64"
             );
          when "x86_64-limine" =>
             for Switches ("Ada") use Base_Ada_Switches & (
-               "-fno-pie", "-fno-pic", "-mgeneral-regs-only", "-mno-red-zone",
+               "-mgeneral-regs-only", "-mno-red-zone",
                "-mcmodel=kernel"
             );
       end case;

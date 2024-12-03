@@ -49,7 +49,7 @@ project Ironclad is
    package Compiler is
       Base_Ada_Switches := Split (Ada_Flags, " ") &
          ("-fno-stack-protector", "-fno-stack-check",
-          "-fdata-sections", "-ffunction-sections",
+          "-fdata-sections", "-ffunction-sections", "-fno-PIC",
           "-gnateDIroncladName=""" & "@PACKAGE_NAME@"      & """",
           "-gnateDVersion="""      & "@PACKAGE_VERSION@"   & """",
           "-gnateDBugSite="""      & "@PACKAGE_BUGREPORT@" & """",
@@ -57,24 +57,24 @@ project Ironclad is
           "-ffile-prefix-map="     & "@SRCDIR@"            & "=.",
           "-gnateDALLOCONLY="      & "@MEMORY_ALLOCONLY@");
       Base_Asm_Switches := Split (Asm_Flags, " ") &
-         ("-ffile-prefix-map=" & "@SRCDIR@" & "=.");
+         ("-ffile-prefix-map=" & "@SRCDIR@" & "=.", "-fno-PIC");
 
       case Arch is
          when "riscv64-limine" =>
             for Switches ("Ada") use Base_Ada_Switches & (
-               "-fno-pie", "-fno-pic", "-mno-relax",
+               "-mno-relax",
                "-march=rv64imac_zicsr_zifencei", "-mabi=lp64"
             );
             for Switches ("Asm") use Base_Ada_Switches & (
-               "-fno-pie", "-fno-pic", "-mno-relax",
+               "-mno-relax",
                "-march=rv64imac_zicsr_zifencei", "-mabi=lp64"
             );
          when "x86_64-limine" =>
             for Switches ("Ada") use Base_Ada_Switches &
-               ("-fno-pie", "-fno-pic", "-mgeneral-regs-only", "-mno-red-zone",
+               ("-mgeneral-regs-only", "-mno-red-zone",
                 "-mcmodel=kernel", "-fcf-protection");
             for Switches ("Asm_Cpp") use Base_Asm_Switches &
-               ("-fno-pie", "-fno-pic", "-mno-red-zone", "-mcmodel=kernel");
+               ("-mno-red-zone", "-mcmodel=kernel");
       end case;
 
       for Local_Configuration_Pragmas use "@SRCDIR@/source/pragmas.adc";
@@ -83,17 +83,16 @@ project Ironclad is
    package Linker is
       Base_Link_Switches := Split (Linker_Flags, " ") &
          ("-T@SRCDIR@/source/arch/" & Arch & "/linker.ld", "-nostdlib",
-          "-Llibgnat-hack", "-Wl,-gc-sections");
+          "-static", "-Llibgnat-hack", "-Wl,-gc-sections");
 
       case Arch is
          when "riscv64-limine" =>
             for Switches ("Ada") use Base_Link_Switches &
-               ("-static", "-zmax-page-size=0x1000", "-Wl,-melf64lriscv",
+               ("-zmax-page-size=0x1000", "-Wl,-melf64lriscv",
                 "-Wl,--no-relax");
          when "x86_64-limine" =>
             for Switches ("Ada") use Base_Link_Switches &
-               ("-static", "-zmax-page-size=0x1000",
-                "-Wl,--undefined=multiboot2,-zmuldefs");
+               ("-zmax-page-size=0x1000");
       end case;
    end Linker;
 end Ironclad;

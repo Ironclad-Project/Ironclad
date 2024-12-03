@@ -39,21 +39,21 @@ AC_SUBST([MEMORY_ALLOCONLY])
 
 m4_define([DEFAULT_ADAFLAGS], [-g -O2 -pipe -gnaty -Wall -Wextra])
 AC_ARG_VAR([ADAFLAGS], [Ada flags @<:@default: ]DEFAULT_ADAFLAGS[@:>@])
-test "x$ADAFLAGS" = "x" && ADAFLAGS="DEFAULT_ADAFLAGS"
+test "x${ADAFLAGS+set}" = "x" && ADAFLAGS="DEFAULT_ADAFLAGS"
 if test "$werror_state" = "yes"; then
     ADAFLAGS="$ADAFLAGS -Werror"
 fi
 
 m4_define([DEFAULT_ASFLAGS], [-g -O2 -pipe -Wall])
 AC_ARG_VAR([ASFLAGS], [Assembler flags @<:@default: ]DEFAULT_ASFLAGS[@:>@])
-test "x$ASFLAGS" = "x" && ASFLAGS="DEFAULT_ASFLAGS"
+test "x${ASFLAGS+set}" = "x" && ASFLAGS="DEFAULT_ASFLAGS"
 if test "$werror_state" = "yes"; then
     ASFLAGS="$ASFLAGS -Werror"
 fi
 
-m4_define([DEFAULT_LDFLAGS], [-g -O2 -pipe -Wall])
+m4_define([DEFAULT_LDFLAGS], [])
 AC_ARG_VAR([LDFLAGS], [Linker flags @<:@default: ]DEFAULT_LDFLAGS[@:>@])
-test "x$LDFLAGS" = "x" && LDFLAGS="DEFAULT_LDFLAGS"
+test "x${LDFLAGS+set}" = "x" && LDFLAGS="DEFAULT_LDFLAGS"
 ###############################################################################
 # A ton of tools use source date epoch in order to not use date in the effort
 # of doing reproducible builds.
@@ -65,6 +65,13 @@ AC_SUBST([SOURCE_DATE_EPOCH])
 ###############################################################################
 # Get programs and put them in comfortable variables.
 
+# Convert relative paths starting in '.' into absolute paths.
+AC_DEFUN([PROG_ABSPATH], [
+    case "$$1" in
+        .*) $1="$(cd "$(dirname "$$1")" && pwd -P)/$(basename "$$1")" ;;
+    esac
+])
+
 # $1 - UPERCASEVAR, $2 - default program, $3 - nice name
 m4_define([GET_PROG], [
     m4_define([DEFAULT_$1], [$2])
@@ -72,16 +79,19 @@ m4_define([GET_PROG], [
     test "x$$1" = "x" && $1="DEFAULT_$1"
     AC_CHECK_PROG([$1_FOUND], [$$1], [$$1])
     if ! test "x$$1_FOUND" = "x$$1"; then
-      AC_MSG_WARN([$3 not found, please install $3 or set $1 to a valid executable])
+        AC_MSG_WARN([$3 not found, please install $3 or set $1 to a valid executable])
+    else
+        PROG_ABSPATH([$1])
     fi
 ])
 
 AC_PROG_MKDIR_P
+PROG_ABSPATH([MKDIR_P])
 AC_PROG_INSTALL
+PROG_ABSPATH([INSTALL])
 
 GET_PROG([PERL], [perl], [perl])
 GET_PROG([OBJDUMP], [objdump], [objdump])
-GET_PROG([GZIP], [gzip], [gzip])
 GET_PROG([STRIP], [strip], [strip])
 GET_PROG([MAKEINFO], [makeinfo], [makeinfo])
 GET_PROG([TEXI2DVI], [texi2dvi], [texi2dvi])
