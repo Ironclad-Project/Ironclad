@@ -22,5 +22,6 @@ package Kernel_Main is
    --    The PMM and VMM are started with Init_Allocator and Init respectively.
    --  - Cores apart of this one having called Idle_Core in the scheduler, and
    --    with common global state loaded, basically ready to go.
+   --  - Logging at Lib.Messages is already initialized.
    procedure Entrypoint (Cmdline : String);
 end Kernel_Main;

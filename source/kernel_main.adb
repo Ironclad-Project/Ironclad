@@ -50,9 +50,6 @@ package body Kernel_Main is
       --  Initialize several printing-needed subsystems.
       Arch.Clocks.Initialize_Sources;
 
-      --  Enable dmesg buffers and such.
-      Lib.Messages.Enable_Logging;
-
       --  Disable checks because of variable expansion going over line limit.
       pragma Style_Checks (Off);
       Lib.Messages.Put_Line (Config.Name & " " & Config.Version);

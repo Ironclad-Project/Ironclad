@@ -46,6 +46,15 @@ package body Arch.Entrypoint is
       --  Translate the limine protocol into arch-agnostic structures.
       Limine.Translate_Proto;
 
+      --  Initialize the allocators and MMU.
+      Memory.Physical.Init_Allocator (Info.Memmap (1 .. Info.Memmap_Len));
+      if not Arch.MMU.Init (Info.Memmap (1 .. Info.Memmap_Len)) then
+         Lib.Panic.Hard_Panic ("The VMM could not be initialized");
+      end if;
+
+      --  Enable dmesg buffers and such.
+      Lib.Messages.Enable_Logging;
+
       --  Print the memory map, it is useful at times.
       Lib.Messages.Put_Line ("Physical memory map:");
       for E of Info.Memmap (1 .. Info.Memmap_Len) loop
@@ -54,12 +63,6 @@ package body Arch.Entrypoint is
          Lib.Messages.Put_Line (St1 & " + " & St2 & " " &
             Boot_Memory_Type'Image (E.MemType));
       end loop;
-
-      --  Initialize the allocators and MMU.
-      Memory.Physical.Init_Allocator (Info.Memmap (1 .. Info.Memmap_Len));
-      if not Arch.MMU.Init (Info.Memmap (1 .. Info.Memmap_Len)) then
-         Lib.Panic.Hard_Panic ("The VMM could not be initialized");
-      end if;
 
       --  Scan the system's ACPI tables, which are needed for devices like
       --  the HPET or IOAPIC.
