@@ -1513,6 +1513,10 @@ package body Userland.Syscall is
                   with Import, Address => SAddr;
                Ret  : Natural;
             begin
+               if not Get_Capabilities (Proc).Can_Modify_Memory then
+                  goto Bad_Access_Error;
+               end if;
+
                Lib.Messages.Dump_Logs (Log, Ret);
                Result := Unsigned_64 (Ret);
             end;
@@ -1577,6 +1581,11 @@ package body Userland.Syscall is
 
    <<Invalid_Value_Error>>
       Errno    := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<Bad_Access_Error>>
+      Errno    := Error_Bad_Access;
       Returned := Unsigned_64'Last;
    end Sysconf;
 
@@ -1959,6 +1968,7 @@ package body Userland.Syscall is
       if Caps.Can_Signal_All      then Res := Res or MAC_CAP_SIGNALALL; end if;
       if Caps.Can_Change_GIDs       then Res := Res or MAC_CAP_SETGID;  end if;
       if Caps.Can_Bypass_IPC_Checks then Res := Res or MAC_CAP_IPC;     end if;
+      if Caps.Can_Check_System_Logs then Res := Res or MAC_CAP_SYS_LOG; end if;
 
       Errno := Error_No_Error;
       Returned := Res;
@@ -5841,7 +5851,8 @@ package body Userland.Syscall is
            Caps.Can_Use_Clocks        and ((Bits and MAC_CAP_CLOCK)   /= 0),
            Caps.Can_Signal_All        and ((Bits and MAC_CAP_SIGNALALL) /= 0),
            Caps.Can_Change_GIDs       and ((Bits and MAC_CAP_SETGID)   /= 0),
-           Caps.Can_Bypass_IPC_Checks and ((Bits and MAC_CAP_IPC) /= 0)));
+           Caps.Can_Bypass_IPC_Checks and ((Bits and MAC_CAP_IPC) /= 0),
+           Caps.Can_Check_System_Logs and ((Bits and MAC_CAP_SYS_LOG) /= 0)));
    end Set_MAC_Capabilities;
 
    procedure MAC_Syscall_To_Kernel
