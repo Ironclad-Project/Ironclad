@@ -26,7 +26,7 @@ ironclad.html
 ironclad.dvi
 ironclad.info
 ironclad
-libgnat-hack
+gprconfig/*.xml
 ironclad.gpr
 GNUmakefile
 autom4te.cache

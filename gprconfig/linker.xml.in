@@ -1,0 +1,47 @@
+<?xml version="1.0" ?>
+<!DOCTYPE gprconfig [
+   <!ENTITY gnat_pre_6.4
+     '<compiler language="Ada" version="3.16" />
+      <compiler language="Ada" version="5.00" />
+      <compiler language="Ada" version="5.01" />
+      <compiler language="Ada" version="5.02" />
+      <compiler language="Ada" version="5.03" />
+      <compiler language="Ada" version="5.04" />
+      <compiler language="Ada" version="6.0" />
+      <compiler language="Ada" version="6.1" />
+      <compiler language="Ada" version="6.2" />
+      <compiler language="Ada" version="6.3" />
+      <compiler language="Ada" version="6.4" />'
+   >
+]>
+
+<gprconfig>
+  <configuration>
+    <targets>
+      <target name="^.*$" />
+    </targets>
+    <config>
+   for Archive_Builder  use ("@AR@", "cr");
+   for Archive_Builder_Append_Option use ("q");
+   for Archive_Indexer  use ("@RANLIB@");
+   for Archive_Suffix   use ".a";
+
+   for Symbolic_Link_Supported use "true";
+   for Library_Major_Minor_Id_Supported use "true";
+
+   for Library_Builder  use "${GPRCONFIG_PREFIX}libexec/gprbuild/gprlib";
+   for Library_Support  use "full";
+   for Shared_Library_Prefix use "lib";
+   for Shared_Library_Minimum_Switches use ("-shared");
+   for Library_Version_Switches use ("-Wl,-soname,");
+
+   for Shared_Library_Suffix use ".so";
+   for Library_Auto_Init_Supported use "true";
+
+   package Binder is
+      for Bindfile_Option_Substitution ("-static") use ("");
+      for Bindfile_Option_Substitution ("-shared") use ("");
+   end Binder;
+    </config>
+  </configuration>
+</gprconfig>

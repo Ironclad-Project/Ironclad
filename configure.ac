@@ -72,6 +72,35 @@ AC_DEFUN([PROG_ABSPATH], [
     esac
 ])
 
+# $1 - UPERCASEVAR, $2 - default program
+AC_DEFUN([GET_PROG_FROM_TOOLCHAIN], [
+    AC_ARG_VAR([$1], [$2 command])
+
+    if ! test -z "$$1"; then
+        if test -x "$$1"; then
+            $1_USER_FOUND=yes
+        else
+            AC_CHECK_PROG([$1_USER_FOUND], [$$1], [yes])
+        fi
+
+        if ! test "x$$1_USER_FOUND" = "xyes"; then
+            AC_MSG_ERROR([$$1 not found, please install $$1 before configuring])
+        fi
+    else
+        $1="$($CC -dumpmachine)"-$2
+        AC_CHECK_PROG([$1_FOUND], [$$1], [yes])
+        if ! test "x$$1_FOUND" = "xyes"; then
+            $1=$2
+            AC_CHECK_PROG([$1_DEFAULT_FOUND], [$$1], [yes])
+            if ! test "x$$1_DEFAULT_FOUND" = "xyes"; then
+                AC_MSG_ERROR([$$1 not found, please install $$1 before configuring])
+            fi
+        fi
+    fi
+
+    AC_SUBST([$1])
+])
+
 # $1 - UPERCASEVAR, $2 - default program, $3 - nice name
 m4_define([GET_PROG], [
     m4_define([DEFAULT_$1], [$2])
@@ -90,9 +119,12 @@ PROG_ABSPATH([MKDIR_P])
 AC_PROG_INSTALL
 PROG_ABSPATH([INSTALL])
 
+AC_PROG_AR
+PROG_ABSPATH([AR])
+AC_PROG_RANLIB
+PROG_ABSPATH([RANLIB])
+
 GET_PROG([PERL], [perl], [perl])
-GET_PROG([OBJDUMP], [objdump], [objdump])
-GET_PROG([STRIP], [strip], [strip])
 GET_PROG([MAKEINFO], [makeinfo], [makeinfo])
 GET_PROG([TEXI2DVI], [texi2dvi], [texi2dvi])
 GET_PROG([TEXI2HTML], [makeinfo --no-split --html], [texi2html])
@@ -100,6 +132,7 @@ GET_PROG([GPRBUILD], [gprbuild], [gprbuild])
 GET_PROG([GNATPROVE], [gnatprove], [gnatprove])
 ###############################################################################
 # Target acquisition and checking.
+AC_CANONICAL_HOST
 AC_CANONICAL_TARGET
 
 case $target_cpu-$target_vendor in
@@ -109,6 +142,16 @@ case $target_cpu-$target_vendor in
         AC_MSG_ERROR([$target_cpu-$target_vendor is not available for compilation])
         ;;
 esac
+
+AC_LANG([C])
+AC_PROG_CC
+PROG_ABSPATH([CC])
+
+GET_PROG_FROM_TOOLCHAIN([STRIP], [strip])
+GET_PROG_FROM_TOOLCHAIN([OBJDUMP], [objdump])
+
+GPRBUILD_TARGET=$($CC -dumpmachine)
+AC_SUBST([GPRBUILD_TARGET])
 ###############################################################################
 # Prepare an RTS from the cooked, pretty sources in the kernel.
 mkdir -p rtsdir
@@ -117,29 +160,8 @@ mkdir -p rtsdir/adalib
 cp "$SRCDIR"/source/rts/*.adb rtsdir/adainclude
 cp "$SRCDIR"/source/rts/*.ads rtsdir/adainclude
 cp "$SRCDIR"/source/rts/$target_cpu-$target_vendor/*.ads rtsdir/adainclude
-############## WARNING: DRAGONS LIE AHEAD #####################################
-#           ____ __
-#          { --.\  |          .)%%%)%%
-#           '-._\\ | (\___   %)%%(%%(%%%
-#               `\\|{/ ^ _)-%(%%%%)%%;%%%
-#           .'^^^^^^^  /`    %%)%%%%)%%%'
-#          //\   ) ,  /       '%%%%(%%'
-#    ,  _.'/  `\<-- \<
-#     `^^^`     ^^   ^^
-###############################################################################
-# Some distros (looking at you, debian), despite we providing our RTS, will
-# require for their gprbuild to link against -lgnat-XX where XX is the system
-# version, this is not always provided by the distributions (sigh).
-# Since we need nothing from them apart of their existance, we are just going
-# to generate every possible file from libgnat-1.a to libgnat-99.a.
-# Thats 100 years of GCC (Sorry Ironclad users in 3026).
-mkdir -p libgnat-hack
-touch libgnat-hack/libgnat.a
-for i in $(seq 99); do
-   touch libgnat-hack/libgnat-$i.a
-done
 ###############################################################################
 # Finalize the settings and output the files.
 AC_PREFIX_DEFAULT([/usr/local])
-AC_CONFIG_FILES([GNUmakefile ironclad.gpr rts.gpr])
+AC_CONFIG_FILES([GNUmakefile ironclad.gpr rts.gpr gprconfig/compilers.xml gprconfig/linker.xml])
 AC_OUTPUT
