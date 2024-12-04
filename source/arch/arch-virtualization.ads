@@ -1,5 +1,5 @@
---  virtualization.adb: Virtualization module of the kernel.
---  Copyright (C) 2024 streaksu
+--  arch-virtualization.ads: Architecture-specific virtualization code.
+--  Copyright (C) 2024 mintsuki
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,11 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Virtualization;
-
-package body Virtualization is
-   function Is_Supported return Boolean is
-   begin
-      return Arch.Virtualization.Is_Supported;
-   end Is_Supported;
-end Virtualization;
+package Arch.Virtualization is
+   function Is_Supported return Boolean;
+end Arch.Virtualization;

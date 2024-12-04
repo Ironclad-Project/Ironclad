@@ -18,6 +18,7 @@ with System.Machine_Code; use System.Machine_Code;
 with Arch.APIC;
 with Arch.MMU;
 with Arch.IDT;
+with Arch.VMX;
 with Lib.Alignment;
 with Lib.Panic;
 with Arch.Snippets;
@@ -307,6 +308,11 @@ package body Arch.CPU with SPARK_Mode => Off is
       Core_Locals (Core_Number).Core_TSS.Stack_Ring0 :=
          To_Address (Integer_Address (Stack_Top));
       GDT.Load_TSS (Core_Locals (Core_Number).Core_TSS'Address);
+
+      --  Enable virtualization if available
+      if VMX.Is_Supported then
+         VMX.Initialize;
+      end if;
    end Init_Common;
 
    function Get_BSP_LAPIC_ID return Unsigned_32 is
