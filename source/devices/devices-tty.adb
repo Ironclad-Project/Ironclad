@@ -100,10 +100,13 @@ package body Devices.TTY is
       Success := Succ = PTY_Success;
    end Write;
 
-   function IO_Control
-      (Key      : System.Address;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean
+   procedure IO_Control
+      (Key       : System.Address;
+       Request   : Unsigned_64;
+       Argument  : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean)
    is
       pragma Unreferenced (Key);
 
@@ -112,13 +115,15 @@ package body Devices.TTY is
    begin
       Get_Controlling_TTY (Proc, PTY);
       if PTY = null then
-         return False;
+         Success := IPC.PTY.IO_Control
+            (PTY        => PTY,
+             Is_Primary => False,
+             Request    => Request,
+             Argument   => Argument);
+      else
+         Success := False;
       end if;
-
-      return IPC.PTY.IO_Control
-         (PTY        => PTY,
-          Is_Primary => False,
-          Request    => Request,
-          Argument   => Argument);
+      Has_Extra := False;
+      Extra     := 0;
    end IO_Control;
 end Devices.TTY;

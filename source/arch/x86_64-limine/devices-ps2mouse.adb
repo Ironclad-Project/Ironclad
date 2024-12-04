@@ -150,12 +150,15 @@ package body Devices.PS2Mouse is
       Has_Returned := False;
    end Read;
 
-   function IO_Control
-      (Data     : System.Address;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean
+   procedure IO_Control
+      (Key       : System.Address;
+       Request   : Unsigned_64;
+       Argument  : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean)
    is
-      pragma Unreferenced (Data);
+      pragma Unreferenced (Key);
 
       function To_Integer is
          new Ada.Unchecked_Conversion (System.Address, Unsigned_64);
@@ -168,6 +171,10 @@ package body Devices.PS2Mouse is
       Argument_Integer : constant Unsigned_64 := To_Integer (Argument);
       Unused : Unsigned_8;
    begin
+      Success   := True;
+      Has_Extra := False;
+      Extra     := 0;
+
       case Request is
          when IOCTL_Enable_2_1_Scaling =>
             Mouse_Write (16#E7#);
@@ -182,7 +189,8 @@ package body Devices.PS2Mouse is
                Mouse_Write (Unsigned_8 (Argument_Integer));
                Unused := Mouse_Read;
             else
-               return False;
+               Success := False;
+               return;
             end if;
          when IOCTL_Set_Sample_Rate =>
             if Argument_Integer <= 200 then
@@ -191,14 +199,15 @@ package body Devices.PS2Mouse is
                Mouse_Write (Unsigned_8 (Argument_Integer));
                Unused := Mouse_Read;
             else
-               return False;
+               Success := False;
+               return;
             end if;
          when others =>
-            return False;
+            Success := False;
+            return;
       end case;
 
       Current_Mouse_Cycle := 1;
-      return True;
    end IO_Control;
 
    procedure Poll

@@ -25,8 +25,11 @@ private
 
    procedure Delay_Execution (Cycles : Unsigned_64);
 
-   function IO_Control
-      (Data     : System.Address;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean;
+   procedure IO_Control
+      (Key       : System.Address;
+       Request   : Unsigned_64;
+       Argument  : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean);
 end Devices.PC_Speaker;

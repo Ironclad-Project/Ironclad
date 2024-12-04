@@ -1105,6 +1105,8 @@ package body Userland.Syscall is
       Proc  : constant                  PID := Arch.Local.Get_Current_Process;
       File  : constant File_Description_Acc := Get_File (Proc, FD);
       Succ  : Boolean;
+      Has_E : Boolean;
+      Extra : Unsigned_64;
       FSSuc : VFS.FS_Status;
       User  : Unsigned_32;
    begin
@@ -1119,9 +1121,20 @@ package body Userland.Syscall is
       case File.Description is
          when Description_Inode =>
             if File.Inner_Ino_Read and File.Inner_Ino_Write then
-               VFS.IO_Control (File.Inner_Ino_FS, File.Inner_Ino,
-                               Request, S_Arg, FSSuc);
+               VFS.IO_Control
+                  (Key       => File.Inner_Ino_FS,
+                   Ino       => File.Inner_Ino,
+                   Request   => Request,
+                   Arg       => S_Arg,
+                   Has_Extra => Has_E,
+                   Extra     => Extra,
+                   Status    => FSSuc);
                Succ := FSSuc = VFS.FS_Success;
+               if Succ and Has_E then
+                  Errno    := Error_No_Error;
+                  Returned := Extra;
+                  return;
+               end if;
             else
                Succ := False;
             end if;

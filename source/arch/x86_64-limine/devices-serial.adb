@@ -153,15 +153,20 @@ package body Devices.Serial is
       Success   := True;
    end Write;
 
-   function IO_Control
-      (Data     : System.Address;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean
+   procedure IO_Control
+      (Key       : System.Address;
+       Request   : Unsigned_64;
+       Argument  : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean)
    is
-      COM      : COM_Root          with Import, Address => Data;
+      COM      : COM_Root          with Import, Address => Key;
       Returned : TermIOs.Main_Data with Import, Address => Argument;
-      Success  : Boolean;
    begin
+      Has_Extra := False;
+      Extra     := 0;
+
       Lib.Synchronization.Seize (COM.Mutex);
       case Request is
          when TermIOs.TCGETS =>
@@ -182,7 +187,6 @@ package body Devices.Serial is
             Success := False;
       end case;
       Lib.Synchronization.Release (COM.Mutex);
-      return Success;
    end IO_Control;
 
    procedure Poll

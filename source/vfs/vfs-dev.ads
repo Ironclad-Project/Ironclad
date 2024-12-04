@@ -94,11 +94,13 @@ package VFS.Dev is
       with Pre => Devices.Is_Initialized;
 
    procedure IO_Control
-      (Data   : System.Address;
-       Ino    : File_Inode_Number;
-       Req    : Unsigned_64;
-       Arg    : System.Address;
-       Status : out FS_Status)
+      (Data      : System.Address;
+       Ino       : File_Inode_Number;
+       Req       : Unsigned_64;
+       Arg       : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Status    : out FS_Status)
       with Pre => Devices.Is_Initialized;
 
    procedure Mmap

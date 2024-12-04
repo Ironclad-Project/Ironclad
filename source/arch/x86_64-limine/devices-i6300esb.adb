@@ -89,37 +89,43 @@ package body Devices.i6300ESB is
       Success   := True;
    end Write;
 
-   function IO_Control
-      (Data     : System.Address;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean
+   procedure IO_Control
+      (Key       : System.Address;
+       Request   : Unsigned_64;
+       Argument  : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean)
    is
       WDOG_START     : constant := 1;
       WDOG_STOP      : constant := 2;
       WDOG_HEARTBEAT : constant := 3;
-      D : constant Dog_Data_Acc := Dog_Data_Acc (Con.To_Pointer (Data));
+      D : constant Dog_Data_Acc := Dog_Data_Acc (Con.To_Pointer (Key));
 
       Timeout    : Unsigned_32 with Import, Address => Argument;
       TIMER1_Reg : Unsigned_32 with Import, Address => D.Base_Addr + TIMER1;
       TIMER2_Reg : Unsigned_32 with Import, Address => D.Base_Addr + TIMER2;
    begin
+      Has_Extra := False;
+      Extra     := 0;
+
       Keep_Alive (D.Base_Addr);
       case Request is
          when WDOG_START =>
             Arch.PCI.Write8 (D.PCI_Data, LOCK, DOG_ENABLE);
-            return True;
+            Success := True;
          when WDOG_STOP =>
             Arch.PCI.Write8 (D.PCI_Data, LOCK, 0);
-            return Arch.PCI.Read8 (D.PCI_Data, LOCK) /= 0;
+            Success := Arch.PCI.Read8 (D.PCI_Data, LOCK) /= 0;
          when WDOG_HEARTBEAT =>
             Unlock_Registers (D.Base_Addr);
             TIMER1_Reg := Shift_Left (Timeout, 9);
             Unlock_Registers (D.Base_Addr);
             TIMER2_Reg := Shift_Left (Timeout, 9);
             Keep_Alive (D.Base_Addr);
-            return True;
+            Success := True;
          when others =>
-            return False;
+            Success := False;
       end case;
    end IO_Control;
    ----------------------------------------------------------------------------

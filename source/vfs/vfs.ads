@@ -449,18 +449,22 @@ package VFS is
        Status   : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
-   --  Do an FS-specific ioctl on the inode.
-   --  @param Key     FS Handle to open.
-   --  @param Ino     Inode to operate on.
-   --  @param Request FS-Specific request to issue.
-   --  @param Arg     Address of an optional argument for the FS.
-   --  @param Status  Status for the operation.
+   --  Do a userspace-only FS-specific ioctl on the inode.
+   --  @param Key       FS Handle to open.
+   --  @param Ino       Inode to operate on.
+   --  @param Request   FS-Specific request to issue.
+   --  @param Arg       Address of an optional argument for the FS.
+   --  @param Has_Extra True if an extra argument is returned;
+   --  @param Extra     If Has_Extra is true, the extra value.
+   --  @param Status    Status for the operation.
    procedure IO_Control
-      (Key     : FS_Handle;
-       Ino     : File_Inode_Number;
-       Request : Unsigned_64;
-       Arg     : System.Address;
-       Status  : out FS_Status)
+      (Key       : FS_Handle;
+       Ino       : File_Inode_Number;
+       Request   : Unsigned_64;
+       Arg       : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Status    : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Do an FS-specific mmap operation on a file.

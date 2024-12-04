@@ -859,22 +859,29 @@ package body VFS is
    end Truncate;
 
    procedure IO_Control
-      (Key     : FS_Handle;
-       Ino     : File_Inode_Number;
-       Request : Unsigned_64;
-       Arg     : System.Address;
-       Status  : out FS_Status)
+      (Key       : FS_Handle;
+       Ino       : File_Inode_Number;
+       Request   : Unsigned_64;
+       Arg       : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Status    : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_DEV =>
             Dev.IO_Control
-               (Mounts (Key).FS_Data, Ino, Request, Arg, Status);
+               (Mounts (Key).FS_Data, Ino, Request, Arg, Has_Extra, Extra,
+                Status);
          when FS_EXT =>
             EXT.IO_Control
                (Mounts (Key).FS_Data, Ino, Request, Arg, Status);
+            Has_Extra := False;
+            Extra     := 0;
          when others =>
-            Status := FS_Not_Supported;
+            Has_Extra := False;
+            Extra     := 0;
+            Status    := FS_Not_Supported;
       end case;
    end IO_Control;
 

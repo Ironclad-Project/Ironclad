@@ -28,10 +28,13 @@ private
        Success     : out Boolean;
        Is_Blocking : Boolean);
 
-   function IO_Control
-      (Data     : System.Address;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean;
+   procedure IO_Control
+      (Key       : System.Address;
+       Request   : Unsigned_64;
+       Argument  : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean);
 
    procedure Poll
       (Data      : System.Address;

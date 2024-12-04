@@ -314,16 +314,22 @@ package body VFS.Dev is
    end Stat;
 
    procedure IO_Control
-      (Data   : System.Address;
-       Ino    : File_Inode_Number;
-       Req    : Unsigned_64;
-       Arg    : System.Address;
-       Status : out FS_Status)
+      (Data      : System.Address;
+       Ino       : File_Inode_Number;
+       Req       : Unsigned_64;
+       Arg       : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Status    : out FS_Status)
    is
       pragma Unreferenced (Data);
 
       DEV_UUID : constant := 16#9821#;
+      Success  : Boolean;
    begin
+      Has_Extra := False;
+      Extra     := 0;
+
       if Ino = Root_Inode or else
          not (Ino in 0 .. File_Inode_Number (Natural'Last))
       then
@@ -341,10 +347,13 @@ package body VFS.Dev is
             if Req = DEV_UUID then
                Arg_UUID := Fetch (Handle);
                Status   := FS_Success;
-            elsif IO_Control (Handle, Req, Arg) then
-               Status := FS_Success;
             else
-               Status := FS_IO_Failure;
+               IO_Control (Handle, Req, Arg, Has_Extra, Extra, Success);
+               if Success then
+                  Status := FS_Success;
+               else
+                  Status := FS_IO_Failure;
+               end if;
             end if;
          end;
       end if;

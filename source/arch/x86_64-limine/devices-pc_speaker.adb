@@ -66,16 +66,21 @@ package body Devices.PC_Speaker is
       while Read_Cycles < Next_Stop loop null; end loop;
    end Delay_Execution;
 
-   function IO_Control
-      (Data     : System.Address;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean
+   procedure IO_Control
+      (Key       : System.Address;
+       Request   : Unsigned_64;
+       Argument  : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean)
    is
-      pragma Unreferenced (Data);
+      pragma Unreferenced (Key);
       pragma Unreferenced (Request);
       Frequency : Unsigned_32 with Import, Address => Argument;
    begin
       Beep (Frequency);
-      return True;
+      Has_Extra := False;
+      Extra     := 0;
+      Success   := True;
    end IO_Control;
 end Devices.PC_Speaker;

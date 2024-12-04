@@ -180,27 +180,33 @@ package body Devices.FB with SPARK_Mode => Off is
       return Success;
    end Init;
 
-   function IO_Control
-      (Data     : System.Address;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean
+   procedure IO_Control
+      (Key       : System.Address;
+       Request   : Unsigned_64;
+       Argument  : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean)
    is
       --  fbdev ioctl requests.
       FBIOGET_VSCREENINFO : constant := 16#4600#;
       FBIOPUT_VSCREENINFO : constant := 16#4601#;
       FBIOGET_FSCREENINFO : constant := 16#4602#;
 
-      Dev_Data : Internal_FB_Data  with Import, Address => Data;
+      Dev_Data : Internal_FB_Data  with Import, Address => Key;
       Var_Req  : FB_Var_ScreenInfo with Import, Address => Argument;
       Fix_Req  : FB_Fix_ScreenInfo with Import, Address => Argument;
    begin
+      Has_Extra := False;
+      Extra     := 0;
+      Success   := True;
+
       case Request is
          when FBIOGET_VSCREENINFO => Var_Req := Dev_Data.Variable_Info;
          when FBIOPUT_VSCREENINFO => Dev_Data.Variable_Info := Var_Req;
          when FBIOGET_FSCREENINFO => Fix_Req := Dev_Data.Fixed_Info;
-         when others => return False;
+         when others => Success := False;
       end case;
-      return True;
    end IO_Control;
 
    function Mmap
