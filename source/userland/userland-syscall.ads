@@ -1322,14 +1322,6 @@ private
        Success : out Boolean;
        Limit   : out MAC.Limit_Type);
 
-   --  Check limits and then add file.
-   procedure Check_Add_File
-      (Process : PID;
-       File    : File_Description_Acc;
-       Success : out Boolean;
-       FD      : out Natural;
-       Start   : Natural := 0);
-
    function Check_Userland_Access
       (Map        : Arch.MMU.Page_Table_Acc;
        Addr       : Memory.Virtual_Address;

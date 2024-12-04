@@ -96,7 +96,7 @@ package body Userland.Syscall is
       Dont_Follow : constant         Boolean := (Flags and O_NOFOLLOW) /= 0;
       Do_Append   : constant         Boolean := (Flags and O_APPEND)   /= 0;
       Do_Block    : constant         Boolean := (Flags and O_NONBLOCK) = 0;
-      Discard     : Boolean;
+      Success2    : Boolean;
       Success     : VFS.FS_Status;
       CWD_FS      : VFS.FS_Handle;
       CWD_Ino     : VFS.File_Inode_Number;
@@ -170,8 +170,8 @@ package body Userland.Syscall is
          return;
       end if;
 
-      Check_Add_File (Curr_Proc, New_Descr, Discard, Returned_FD);
-      if Discard then
+      Add_File (Curr_Proc, New_Descr, Returned_FD, Success2);
+      if Success2 then
          Process.Set_FD_Flags
             (Curr_Proc, Unsigned_64 (Returned_FD), Do_Cloexec, False);
          Errno    := Error_No_Error;
@@ -845,7 +845,7 @@ package body Userland.Syscall is
 
       Desc := new File_Description'
          (Description_Socket, 0, (DataType and SOCK_NONBLOCK) = 0, New_Sock);
-      Check_Add_File (Proc, Desc, Success, Natural (Returned));
+      Add_File (Proc, Desc, Natural (Returned), Success);
       if Success then
          Set_FD_Flags
            (Proc, Returned,
@@ -1221,8 +1221,8 @@ package body Userland.Syscall is
           Is_Blocking       => Block,
           Description       => Description_Writer_FIFO,
           Inner_Writer_FIFO => Returned2);
-      Check_Add_File (Proc, Reader_Desc, Succ1, Res (1));
-      Check_Add_File (Proc, Writer_Desc, Succ2, Res (2));
+      Add_File (Proc, Reader_Desc, Res (1), Succ1);
+      Add_File (Proc, Writer_Desc, Res (2), Succ2);
       if not Succ1 or not Succ2 then
          Close (Reader_Desc);
          Close (Writer_Desc);
@@ -1750,8 +1750,7 @@ package body Userland.Syscall is
       case Command is
          when F_DUPFD | F_DUPFD_CLOEXEC =>
             Duplicate (File, New_File);
-            Check_Add_File
-               (Proc, New_File, Temp, Result_FD, Natural (Argument));
+            Add_File (Proc, New_File, Result_FD, Temp, Natural (Argument));
             if Temp then
                Returned := Unsigned_64 (Result_FD);
                Process.Set_FD_Flags
@@ -2719,8 +2718,8 @@ package body Userland.Syscall is
          (Description_Primary_PTY, 0, True, Res_PTY);
       S_Desc := new File_Description'
          (Description_Secondary_PTY, 0, True, Res_PTY);
-      Check_Add_File (Proc, P_Desc, Succ1, Result (1));
-      Check_Add_File (Proc, S_Desc, Succ2, Result (2));
+      Add_File (Proc, P_Desc, Result (1), Succ1);
+      Add_File (Proc, S_Desc, Result (2), Succ2);
       if not Succ1 or not Succ2 then
          Close (Res_PTY);
          Close (Res_PTY);
@@ -2964,7 +2963,7 @@ package body Userland.Syscall is
 
       if Sock /= null then
          Desc := new File_Description'(Description_Socket, 0, not Block, Sock);
-         Check_Add_File (Proc, Desc, Succ, Ret);
+         Add_File (Proc, Desc, Ret, Succ);
          if Succ then
             Set_FD_Flags (Proc, Unsigned_64 (Ret), CExec, CloFork);
             Errno    := Error_No_Error;
@@ -5915,24 +5914,6 @@ package body Userland.Syscall is
       end case;
       Success := True;
    end MAC_Syscall_To_Kernel;
-
-   procedure Check_Add_File
-      (Process : PID;
-       File    : File_Description_Acc;
-       Success : out Boolean;
-       FD      : out Natural;
-       Start   : Natural := 0)
-   is
-   begin
-      if Unsigned_64 (Get_File_Count (Process)) <
-         Unsigned_64 (Get_Limit (Process, MAC.Opened_File_Limit))
-      then
-         Add_File (Process, File, FD, Success, Start);
-      else
-         FD      := 0;
-         Success := False;
-      end if;
-   end Check_Add_File;
 
    function Check_Userland_Access
       (Map        : Arch.MMU.Page_Table_Acc;

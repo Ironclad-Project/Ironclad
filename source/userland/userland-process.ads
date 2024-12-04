@@ -20,10 +20,10 @@ with Arch.MMU;
 with Lib.Synchronization;
 with Scheduler; use Scheduler;
 with Interfaces; use Interfaces;
-with Userland.MAC;
-with IPC.FIFO;   use IPC.FIFO;
-with IPC.PTY;    use IPC.PTY;
-with IPC.Socket; use IPC.Socket;
+with Userland.MAC; use Userland.MAC;
+with IPC.FIFO;     use IPC.FIFO;
+with IPC.PTY;      use IPC.PTY;
+with IPC.Socket;   use IPC.Socket;
 with Virtualization.VM;
 with Virtualization.VCPU;
 
@@ -279,12 +279,6 @@ package Userland.Process is
        FD      : out Natural;
        Success : out Boolean;
        Start   : Natural := 0)
-      with Pre => Process /= Error_PID;
-
-   --  Get the count of file descriptors held by the process.
-   --  @param Process Process to add a file to.
-   --  @return Number of file descriptors held by the process.
-   function Get_File_Count (Process : PID) return Natural
       with Pre => Process /= Error_PID;
 
    --  Duplicate an individual file.

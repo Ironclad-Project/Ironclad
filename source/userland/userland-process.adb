@@ -410,8 +410,25 @@ package body Userland.Process is
        Success : out Boolean;
        Start   : Natural := 0)
    is
+      Count_Of_FDs : Natural := 0;
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
+
+      FD      := 0;
+      Success := False;
+
+      for Ent of Registry (Process).File_Table loop
+         if Ent.Description = null then
+            Count_Of_FDs := Count_Of_FDs + 1;
+         end if;
+      end loop;
+
+      if Limit_Value (Count_Of_FDs) >=
+         MAC.Get_Limit (Registry (Process).Perms, MAC.Opened_File_Limit)
+      then
+         goto Cleanup;
+      end if;
+
       for I in Start .. Registry (Process).File_Table'Last loop
          if Registry (Process).File_Table (I).Description = null then
             Registry (Process).File_Table (I).Description := File;
@@ -420,24 +437,10 @@ package body Userland.Process is
             goto Cleanup;
          end if;
       end loop;
-      FD      := 0;
-      Success := False;
+
    <<Cleanup>>
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Add_File;
-
-   function Get_File_Count (Process : PID) return Natural is
-      Count_Of_FDs : Natural := 0;
-   begin
-      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
-      for Ent of Registry (Process).File_Table loop
-         if Ent.Description = null then
-            Count_Of_FDs := Count_Of_FDs + 1;
-         end if;
-      end loop;
-      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
-      return Count_Of_FDs;
-   end Get_File_Count;
 
    procedure Duplicate
       (F      : File_Description_Acc;
