@@ -29,7 +29,7 @@
    for Symbolic_Link_Supported use "true";
    for Library_Major_Minor_Id_Supported use "true";
 
-   for Library_Builder  use "${GPRCONFIG_PREFIX}libexec/gprbuild/gprlib";
+   for Library_Builder  use "@GPRLIB@";
    for Library_Support  use "full";
    for Shared_Library_Prefix use "lib";
    for Shared_Library_Minimum_Switches use ("-shared");

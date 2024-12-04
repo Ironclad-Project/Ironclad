@@ -130,6 +130,21 @@ GET_PROG([TEXI2DVI], [texi2dvi], [texi2dvi])
 GET_PROG([TEXI2HTML], [makeinfo --no-split --html], [texi2html])
 GET_PROG([GPRBUILD], [gprbuild], [gprbuild])
 GET_PROG([GNATPROVE], [gnatprove], [gnatprove])
+
+AC_ARG_VAR([GPRLIB], [gprlib executable path])
+if test "x$GPRLIB" = "x"; then
+    GPRLIB=/usr/libexec/gprbuild/gprlib
+    if ! test -x $GPRLIB; then
+        GPRLIB=/usr/lib/gprbuild/gprlib
+    fi
+    if ! test -x $GPRLIB; then
+        AC_MSG_ERROR([No recorded path to gprlib valid])
+    fi
+else
+    if ! test -x $GPRLIB; then
+        AC_MSG_ERROR([Provided gprlib path not valid])
+    fi
+fi
 ###############################################################################
 # Target acquisition and checking.
 AC_CANONICAL_HOST
