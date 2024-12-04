@@ -634,6 +634,22 @@ package VFS is
    --  @return The resulting mode.
    function Apply_Umask (Mode, Umask : File_Mode) return File_Mode is
       (File_Mode (Unsigned_32 (Mode) and not Unsigned_32 (Umask)));
+
+   --  Check whether a file can be executed.
+   --  @param User       User requesting.
+   --  @param File_Owner Owner of the file.
+   --  @param Mode       Mode to use.
+   --  @param Want_Read  True if read access is to be checked.
+   --  @param Want_Write True if write access is to be checked.
+   --  @param Want_Exec  True if exec access is to be checked.
+   --  @return True if all requested accesses are valid.
+   function Can_Access_File
+      (User       : Unsigned_32;
+       File_Owner : Unsigned_32;
+       Mode       : File_Mode;
+       Want_Read  : Boolean;
+       Want_Write : Boolean;
+       Want_Exec  : Boolean) return Boolean;
    ----------------------------------------------------------------------------
    --  Ghost function for checking whether the vfs handling is initialized.
    function Is_Initialized return Boolean with Ghost;
@@ -663,12 +679,4 @@ private
    Mounts_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
 
    function Is_Initialized return Boolean is (Mounts /= null);
-
-   function Can_Access_File
-      (User       : Unsigned_32;
-       File_Owner : Unsigned_32;
-       Mode       : File_Mode;
-       Want_Read  : Boolean;
-       Want_Write : Boolean;
-       Want_Exec  : Boolean) return Boolean;
 end VFS;

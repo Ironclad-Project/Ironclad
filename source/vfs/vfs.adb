@@ -1095,7 +1095,7 @@ package body VFS is
    begin
       return Path'Length >= 1 and then Path (Path'First) = '/';
    end Is_Absolute;
-   ----------------------------------------------------------------------------
+
    function Can_Access_File
       (User       : Unsigned_32;
        File_Owner : Unsigned_32;

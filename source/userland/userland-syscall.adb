@@ -5695,6 +5695,7 @@ package body Userland.Syscall is
       Rela_Ino   : File_Inode_Number;
       Success2   : FS_Status;
       Succ       : Boolean;
+      File_St    : File_Stat;
       File_Perms : MAC.Permissions;
       User       : Unsigned_32;
       Argv_IAddr : constant Integer_Address := Integer_Address (Argv_Addr);
@@ -5744,6 +5745,26 @@ package body Userland.Syscall is
          return;
       end if;
 
+      VFS.Stat (Path_FS, Path_Ino, File_St, Success2);
+      if Success2 /= VFS.FS_Success then
+         Errno   := Error_IO;
+         Success := False;
+         return;
+      end if;
+
+      if not VFS.Can_Access_File
+         (User       => User,
+          File_Owner => File_St.UID,
+          Mode       => File_St.Mode,
+          Want_Read  => True,
+          Want_Write => False,
+          Want_Exec  => True)
+      then
+         Errno   := Error_Bad_Access;
+         Success := False;
+         return;
+      end if;
+
       declare
          Argv : Arg_Arr (1 .. Natural (Argv_Len))
             with Import, Address => Argv_SAddr;
@@ -5783,13 +5804,11 @@ package body Userland.Syscall is
          end loop;
 
          if Succ then
-            Errno := Error_No_Error;
+            Errno   := Error_No_Error;
             Success := True;
-            return;
          else
-            Errno := Error_Bad_Access;
+            Errno   := Error_Bad_Access;
             Success := False;
-            return;
          end if;
       end;
    end Exec_Into_Process;
