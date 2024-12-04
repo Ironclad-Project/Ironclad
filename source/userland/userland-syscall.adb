@@ -270,15 +270,15 @@ package body Userland.Syscall is
                    Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
-            when Description_Writer_FIFO =>
-               Errno    := Error_Invalid_Value;
-               Returned := Unsigned_64'Last;
             when Description_Socket =>
                IPC.Socket.Read
                   (File.Inner_Socket, Data, File.Is_Blocking,
                    Ret_Count, Success4);
                Translate_Status
                   (Success4, Unsigned_64 (Ret_Count), Returned, Errno);
+            when Description_Writer_FIFO | Description_VM | Description_VCPU =>
+               Errno    := Error_Invalid_Value;
+               Returned := Unsigned_64'Last;
          end case;
       end;
    end Read;
@@ -361,15 +361,15 @@ package body Userland.Syscall is
                    Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
-            when Description_Reader_FIFO =>
-               Errno := Error_Invalid_Value;
-               Returned := Unsigned_64'Last;
             when Description_Socket =>
                IPC.Socket.Write
                   (File.Inner_Socket, Data, File.Is_Blocking, Ret_Count,
                    Success4);
                Translate_Status
                   (Success4, Unsigned_64 (Ret_Count), Returned, Errno);
+            when Description_Reader_FIFO | Description_VM | Description_VCPU =>
+               Errno := Error_Invalid_Value;
+               Returned := Unsigned_64'Last;
          end case;
       end;
    end Write;
@@ -950,8 +950,9 @@ package body Userland.Syscall is
             when Description_Inode =>
                FS  := File_Desc.Inner_Ino_FS;
                Ino := File_Desc.Inner_Ino;
-            when Description_Reader_FIFO | Description_Writer_FIFO |
-                 Description_Primary_PTY | Description_Secondary_PTY =>
+            when Description_Reader_FIFO | Description_Writer_FIFO   |
+                 Description_Primary_PTY | Description_Secondary_PTY |
+                 Description_VM          | Description_VCPU =>
                Stat_Buf :=
                   (Device_Number => 0,
                    Inode_Number  => 1,
@@ -1752,9 +1753,10 @@ package body Userland.Syscall is
             Check_Add_File
                (Proc, New_File, Temp, Result_FD, Natural (Argument));
             if Temp then
-               Returned               := Unsigned_64 (Result_FD);
-               Process.Set_FD_Flags (Proc, Unsigned_64 (Result_FD),
-                                     Command = F_DUPFD_CLOEXEC, False);
+               Returned := Unsigned_64 (Result_FD);
+               Process.Set_FD_Flags
+                  (Proc, Unsigned_64 (Result_FD),
+                   Command = F_DUPFD_CLOEXEC, False);
             else
                Errno := Error_Too_Many_Files;
                goto Error_Return;
@@ -3142,16 +3144,12 @@ package body Userland.Syscall is
       if not Check_Userland_Access (Map, FIAddr, Size_FD) or else
          not Check_Userland_Access (Map, TIAddr, Time_Spec'Size / 8)
       then
-         Errno    := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
+         goto Would_Fault_Error;
       end if;
 
       if S_IAddr /= 0 then
          if not Check_Userland_Access (Map, S_IAddr, Unsigned_28'Size / 8) then
-            Errno    := Error_Would_Fault;
-            Returned := Unsigned_64'Last;
-            return;
+            goto Would_Fault_Error;
          end if;
 
          declare
@@ -3216,6 +3214,8 @@ package body Userland.Syscall is
                   when Description_Inode =>
                      VFS.Poll (File.Inner_Ino_FS, File.Inner_Ino, Can_Read,
                         Can_Write, Is_Error);
+                  when Description_VM | Description_VCPU =>
+                     goto Invalid_Value_Error;
                end case;
 
                if Can_Read and (Polled.Events and POLLIN) /= 0 then
@@ -3254,6 +3254,17 @@ package body Userland.Syscall is
 
       Errno    := Error_No_Error;
       Returned := Unsigned_64 (Count);
+      return;
+
+   <<Would_Fault_Error>>
+      Errno    := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<Invalid_Value_Error>>
+      Errno    := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+      return;
    end PPoll;
 
    procedure Get_EUID (Returned : out Unsigned_64; Errno : out Errno_Value) is

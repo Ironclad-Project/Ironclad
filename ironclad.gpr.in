@@ -35,6 +35,7 @@ project Ironclad is
        "@SRCDIR@/source/networking",
        "@SRCDIR@/source/userland",
        "@SRCDIR@/source/vfs",
+       "@SRCDIR@/source/virtualization",
        "@SRCDIR@/source");
    for Object_Dir use "obj";
    for Exec_Dir use ".";

@@ -48,6 +48,7 @@ cryptic and scary Ada code.
 * Debugging facilities::               Ironclad-specific debugging facilities.
 * Syscalls::                           Listings and explanation of syscalls.
 * Networking::                         Networking support and details.
+* Virtualization::                     KVM virtualization inside Ironclad.
 * Filesystem support and interfaces::  VFS details and supported filesystems.
 * Devices and their properties::       Devices exposed by the kernel.
 * GNU Free Documentation License::     Copying and sharing this manual.
@@ -192,16 +193,21 @@ Syscalls
 * gettidid/settidid::       Get and set TID IDs.
 * failure_policy::          Get or set failure policies.
 
-Filesystem support and interfaces
-
-* Extended FileSystem::    EXT-series filesystems (ext2, ext3, ext4).
-* File Allocation Table::  FAT-series filesystems.
-
 Networking
 
 * Layering::             What Ironclad provides in terms of the OSI model.
 * Interface handling::   How interfaces work inside Ironclad.
 * Loopback::             Loopback device use and specification.
+
+Virtualization
+
+* The Kernel Virtual Machine (KVM)::         Details about KVM.
+* Differences between Linux and Ironclad::   Ditto.
+
+Filesystem support and interfaces
+
+* Extended FileSystem::    EXT-series filesystems (ext2, ext3, ext4).
+* File Allocation Table::  FAT-series filesystems.
 
 Devices and their properties
 
@@ -1882,7 +1888,6 @@ struct mem_info @{
 @end example
 
 @code{0} is returned on success.
-
 @end itemize
 
 The syscall return the requested information on success and @code{-1} on
@@ -4096,6 +4101,24 @@ physical layer of the network stack, packets are passed without that layer.
 Loopback will always have the static IP addresses @code{127.0.0.1/8} and
 @code{::1/128}. These addresses can be changed in runtime.
 @ref{config_netinter}.
+
+@node Virtualization
+@chapter Virtualization
+
+This chapter gives all the details about Ironclad's KVM support, which is how
+Ironclad provides accelerated hardware virtualization.
+
+@node The Kernel Virtual Machine (KVM)
+@section The Kernel Virtual Machine (KVM)
+
+KVM is a full virtualization solution for Linux on several architectures,
+Ironclad implements KVM's 12th version, you can find its specification inside
+@url{https://docs.kernel.org/virt/kvm/api.html, Linux's documetation}.
+
+@node Differences between Linux and Ironclad
+@section Differences between Linux and Ironclad
+
+A
 
 @node Devices and their properties
 @chapter Devices and their properties

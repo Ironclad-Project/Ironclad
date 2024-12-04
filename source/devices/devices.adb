@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Devices.Console;
+with Devices.KVM;
 with Devices.Loopback;
 with Devices.Streams;
 with Devices.TTY;
@@ -36,6 +37,8 @@ package body Devices is
 
 
       Console.Init (Success);
+      if not Success then goto Panic_Error; end if;
+      KVM.Init (Success);
       if not Success then goto Panic_Error; end if;
       Loopback.Init (Success);
       if not Success then goto Panic_Error; end if;

@@ -24,6 +24,8 @@ with Userland.MAC;
 with IPC.FIFO;   use IPC.FIFO;
 with IPC.PTY;    use IPC.PTY;
 with IPC.Socket; use IPC.Socket;
+with Virtualization.VM;
+with Virtualization.VCPU;
 
 package Userland.Process is
    --  A process is identifier by a PID (process identifier).
@@ -52,7 +54,9 @@ package Userland.Process is
        Description_Primary_PTY,
        Description_Secondary_PTY,
        Description_Inode,
-       Description_Socket);
+       Description_Socket,
+       Description_VM,
+       Description_VCPU);
    type File_Description;
    type File_Description_Acc is access File_Description;
    type File_Description (Description : File_Description_Type) is record
@@ -77,6 +81,10 @@ package Userland.Process is
             Inner_Ino       : VFS.File_Inode_Number;
          when Description_Socket =>
             Inner_Socket : IPC.Socket.Socket_Acc;
+         when Description_VM =>
+            Inner_VM : Virtualization.VM.Machine;
+         when Description_VCPU =>
+            Inner_VCPU : Virtualization.VCPU.CPU;
       end case;
    end record;
 

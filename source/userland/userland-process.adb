@@ -497,6 +497,8 @@ package body Userland.Process is
                end if;
                VFS.Close (F.Inner_Ino_FS, F.Inner_Ino);
             when Description_Socket => Close (F.Inner_Socket);
+            when Description_VM => Virtualization.VM.Close (F.Inner_VM);
+            when Description_VCPU => Virtualization.VCPU.Close (F.Inner_VCPU);
          end case;
          Free (F);
       else

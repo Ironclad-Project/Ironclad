@@ -368,7 +368,6 @@ package Userland.Syscall is
    SC_LIST_FILELOCKS   : constant := 18;
    SC_LOADAVG          : constant := 19;
    SC_MEMINFO          : constant := 20;
-   SC_FAILURE_POLICIES : constant := 21;
 
    PROC_IS_TRACED : constant := 2#01#;
    PROC_EXITED    : constant := 2#10#;
