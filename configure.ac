@@ -26,44 +26,7 @@ BUILDDIR="$(pwd -P)"
 AC_SUBST([SRCDIR])
 AC_SUBST([BUILDDIR])
 
-werror_state="no"
-AC_ARG_ENABLE([werror],
-    [AS_HELP_STRING([--enable-werror], [treat warnings as errors])],
-    [werror_state="$enableval"])
-
-MEMORY_ALLOCONLY="False"
-AC_ARG_ENABLE([alloconly],
-    [AS_HELP_STRING([--enable-alloconly], [Use the alloconly allocator instead of standard])],
-    [test "$enableval" = "yes" && MEMORY_ALLOCONLY="True"])
-AC_SUBST([MEMORY_ALLOCONLY])
-
-m4_define([DEFAULT_ADAFLAGS], [-g -O2 -pipe -gnaty -Wall -Wextra])
-AC_ARG_VAR([ADAFLAGS], [Ada flags @<:@default: ]DEFAULT_ADAFLAGS[@:>@])
-test "x${ADAFLAGS+set}" = "x" && ADAFLAGS="DEFAULT_ADAFLAGS"
-if test "$werror_state" = "yes"; then
-    ADAFLAGS="$ADAFLAGS -Werror"
-fi
-
-m4_define([DEFAULT_ASFLAGS], [-g -O2 -pipe -Wall])
-AC_ARG_VAR([ASFLAGS], [Assembler flags @<:@default: ]DEFAULT_ASFLAGS[@:>@])
-test "x${ASFLAGS+set}" = "x" && ASFLAGS="DEFAULT_ASFLAGS"
-if test "$werror_state" = "yes"; then
-    ASFLAGS="$ASFLAGS -Werror"
-fi
-
-m4_define([DEFAULT_LDFLAGS], [])
-AC_ARG_VAR([LDFLAGS], [Linker flags @<:@default: ]DEFAULT_LDFLAGS[@:>@])
-test "x${LDFLAGS+set}" = "x" && LDFLAGS="DEFAULT_LDFLAGS"
-###############################################################################
-# A ton of tools use source date epoch in order to not use date in the effort
-# of doing reproducible builds.
-# This command uses git, but thats no biggie because there is a fallback if
-# no git is present and it is meant to only be run when regenerating, so
-# tarball users will (ideally) never see this.
-SOURCE_DATE_EPOCH="m4_esyscmd([if git log -1 >/dev/null 2>&1; then git log -1 --pretty=%ct | tr -d '\n'; else printf 1546300800; fi])"
-AC_SUBST([SOURCE_DATE_EPOCH])
-###############################################################################
-# Get programs and put them in comfortable variables.
+AC_CANONICAL_HOST
 
 # Convert relative paths starting in '.' into absolute paths.
 AC_DEFUN([PROG_ABSPATH], [
@@ -71,6 +34,30 @@ AC_DEFUN([PROG_ABSPATH], [
         .*) $1="$(cd "$(dirname "$$1")" && pwd -P)/$(basename "$$1")" ;;
     esac
 ])
+
+test "x${CFLAGS+set}" = "x" && CFLAGS='-g -O2 -pipe'
+
+AC_LANG([C])
+AC_PROG_CC
+PROG_ABSPATH([CC])
+
+werror_state="no"
+AC_ARG_ENABLE([werror],
+    [AS_HELP_STRING([--enable-werror], [treat warnings as errors])],
+    [werror_state="$enableval"])
+
+AC_PROG_MKDIR_P
+PROG_ABSPATH([MKDIR_P])
+AC_PROG_INSTALL
+PROG_ABSPATH([INSTALL])
+
+AC_PROG_AR
+PROG_ABSPATH([AR])
+
+AC_CHECK_PROG([FIND_FOUND], [find], [yes])
+if ! test "x$FIND_FOUND" = "xyes"; then
+    AC_MSG_ERROR([find not found, please install find before configuring])
+fi
 
 # $1 - UPERCASEVAR, $2 - default program
 AC_DEFUN([GET_PROG_FROM_TOOLCHAIN], [
@@ -101,6 +88,40 @@ AC_DEFUN([GET_PROG_FROM_TOOLCHAIN], [
     AC_SUBST([$1])
 ])
 
+GET_PROG_FROM_TOOLCHAIN([STRIP], [strip])
+GET_PROG_FROM_TOOLCHAIN([OBJDUMP], [objdump])
+
+MEMORY_ALLOCONLY="False"
+AC_ARG_ENABLE([alloconly],
+    [AS_HELP_STRING([--enable-alloconly], [Use the alloconly allocator instead of standard])],
+    [test "$enableval" = "yes" && MEMORY_ALLOCONLY="True"])
+AC_SUBST([MEMORY_ALLOCONLY])
+
+m4_define([DEFAULT_ADAFLAGS], [-g -O2 -pipe -gnaty -Wall -Wextra])
+AC_ARG_VAR([ADAFLAGS], [Ada flags @<:@default: ]DEFAULT_ADAFLAGS[@:>@])
+test "x${ADAFLAGS+set}" = "x" && ADAFLAGS="DEFAULT_ADAFLAGS"
+if test "$werror_state" = "yes"; then
+    ADAFLAGS="$ADAFLAGS -Werror"
+fi
+
+m4_define([DEFAULT_ASFLAGS], [-g -O2 -pipe -Wall])
+AC_ARG_VAR([ASFLAGS], [Assembler flags @<:@default: ]DEFAULT_ASFLAGS[@:>@])
+test "x${ASFLAGS+set}" = "x" && ASFLAGS="DEFAULT_ASFLAGS"
+if test "$werror_state" = "yes"; then
+    ASFLAGS="$ASFLAGS -Werror"
+fi
+
+###############################################################################
+# A ton of tools use source date epoch in order to not use date in the effort
+# of doing reproducible builds.
+# This command uses git, but thats no biggie because there is a fallback if
+# no git is present and it is meant to only be run when regenerating, so
+# tarball users will (ideally) never see this.
+SOURCE_DATE_EPOCH="m4_esyscmd([if git log -1 >/dev/null 2>&1; then git log -1 --pretty=%ct | tr -d '\n'; else printf 1546300800; fi])"
+AC_SUBST([SOURCE_DATE_EPOCH])
+###############################################################################
+# Get programs and put them in comfortable variables.
+
 # $1 - UPERCASEVAR, $2 - default program, $3 - nice name
 m4_define([GET_PROG], [
     m4_define([DEFAULT_$1], [$2])
@@ -113,16 +134,6 @@ m4_define([GET_PROG], [
         PROG_ABSPATH([$1])
     fi
 ])
-
-AC_PROG_MKDIR_P
-PROG_ABSPATH([MKDIR_P])
-AC_PROG_INSTALL
-PROG_ABSPATH([INSTALL])
-
-AC_PROG_AR
-PROG_ABSPATH([AR])
-AC_PROG_RANLIB
-PROG_ABSPATH([RANLIB])
 
 GET_PROG([PERL], [perl], [perl])
 GET_PROG([MAKEINFO], [makeinfo], [makeinfo])
@@ -145,9 +156,23 @@ else
         AC_MSG_ERROR([Provided gprlib path not valid])
     fi
 fi
+
+AC_ARG_VAR([GPRBIND], [gprbind executable path])
+if test "x$GPRBIND" = "x"; then
+    GPRBIND=/usr/libexec/gprbuild/gprbind
+    if ! test -x $GPRBIND; then
+        GPRBIND=/usr/lib/gprbuild/gprbind
+    fi
+    if ! test -x $GPRBIND; then
+        AC_MSG_ERROR([No recorded path to gprbind valid])
+    fi
+else
+    if ! test -x $GPRBIND; then
+        AC_MSG_ERROR([Provided gprbind path not valid])
+    fi
+fi
 ###############################################################################
 # Target acquisition and checking.
-AC_CANONICAL_HOST
 AC_CANONICAL_TARGET
 
 case $target_cpu-$target_vendor in
@@ -157,13 +182,6 @@ case $target_cpu-$target_vendor in
         AC_MSG_ERROR([$target_cpu-$target_vendor is not available for compilation])
         ;;
 esac
-
-AC_LANG([C])
-AC_PROG_CC
-PROG_ABSPATH([CC])
-
-GET_PROG_FROM_TOOLCHAIN([STRIP], [strip])
-GET_PROG_FROM_TOOLCHAIN([OBJDUMP], [objdump])
 
 GPRBUILD_TARGET=$($CC -dumpmachine)
 AC_SUBST([GPRBUILD_TARGET])
@@ -178,5 +196,5 @@ cp "$SRCDIR"/source/rts/$target_cpu-$target_vendor/*.ads rtsdir/adainclude
 ###############################################################################
 # Finalize the settings and output the files.
 AC_PREFIX_DEFAULT([/usr/local])
-AC_CONFIG_FILES([GNUmakefile ironclad.gpr rts.gpr gprconfig/compilers.xml gprconfig/linker.xml])
+AC_CONFIG_FILES([GNUmakefile ironclad.gpr rts.gpr gprconfig/compilers.xml gprconfig/gprconfig.xml])
 AC_OUTPUT
