@@ -14,6 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System;
+with Interfaces; use Interfaces;
+
 package Virtualization is
    --  This module implements a KVM compatible interface, KVM's specification
    --  can be found at https://docs.kernel.org/virt/kvm/api.html
@@ -35,25 +38,73 @@ package Virtualization is
    KVM_MEMORY_ENCRYPT_UNREG_REGION : constant := 7;
 
    --  VM ioctl.
-   KVM_CREATE_VCPU       : constant := 8;
-   KVM_GET_DIRTY_LOG     : constant := 9;
-   KVM_MEMORY_ENCRYPT_OP : constant := 10;
+   KVM_CREATE_VCPU            : constant := 8;
+   KVM_GET_DIRTY_LOG          : constant := 9;
+   KVM_MEMORY_ENCRYPT_OP      : constant := 10;
+   KVM_SET_USER_MEMORY_REGION : constant := 11;
 
    --  VCPU ioctl.
-   KVM_RUN             : constant := 11;
-   KVM_GET_REGS        : constant := 12;
-   KVM_SET_REGS        : constant := 13;
-   KVM_GET_SREGS       : constant := 14;
-   KVM_SET_SREGS       : constant := 15;
-   KVM_TRANSLATE       : constant := 16;
-   KVM_INTERRUPT       : constant := 17;
-   KVM_GET_MSRS        : constant := 18;
-   KVM_SET_MSRS        : constant := 19;
-   KVM_SET_CPUID       : constant := 20;
-   KVM_SET_SIGNAL_MASK : constant := 21;
-   KVM_GET_FPU         : constant := 22;
-   KVM_SET_FPU         : constant := 23;
+   KVM_RUN             : constant := 12;
+   KVM_GET_REGS        : constant := 13;
+   KVM_SET_REGS        : constant := 14;
+   KVM_GET_SREGS       : constant := 15;
+   KVM_SET_SREGS       : constant := 16;
+   KVM_TRANSLATE       : constant := 17;
+   KVM_INTERRUPT       : constant := 18;
+   KVM_GET_MSRS        : constant := 19;
+   KVM_SET_MSRS        : constant := 20;
+   KVM_SET_CPUID       : constant := 21;
+   KVM_SET_SIGNAL_MASK : constant := 22;
+   KVM_GET_FPU         : constant := 23;
+   KVM_SET_FPU         : constant := 24;
+
+   --  KVM extensions the kernel supports that can be querried with
+   --  KVM_CHECK_EXTENSION.
+   KVM_CAP_USER_MEMORY : constant := 1;
    ----------------------------------------------------------------------------
    --  Returns True if virtualization is supported.
    function Is_Supported return Boolean;
+   ----------------------------------------------------------------------------
+   --  Type to represent a virtual machine.
+   --  Virtual machines have an address space, as well as some cores inside.
+   type Machine is private;
+
+   --  Create a virtual machine.
+   procedure Create_Machine (M : out Machine);
+
+   --  Close a virtual machine.
+   procedure Close (M : in out Machine);
+   ----------------------------------------------------------------------------
+   --  Type to represent a virtual CPU inside a virtual machine.
+   type CPU is private;
+
+   --  Close a virtual CPU.
+   procedure Close (C : in out CPU);
+   ----------------------------------------------------------------------------
+   --  Userland IO control operations.
+   procedure IO_Control
+      (M         : Machine;
+       Request   : Unsigned_64;
+       Arg       : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean);
+
+   procedure IO_Control
+      (C         : CPU;
+       Request   : Unsigned_64;
+       Arg       : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean);
+
+private
+
+   type Machine is record
+      Placeholder : Boolean;
+   end record;
+
+   type CPU is record
+      Placeholder : Boolean;
+   end record;
 end Virtualization;

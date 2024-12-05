@@ -24,8 +24,7 @@ with Userland.MAC; use Userland.MAC;
 with IPC.FIFO;     use IPC.FIFO;
 with IPC.PTY;      use IPC.PTY;
 with IPC.Socket;   use IPC.Socket;
-with Virtualization.VM;
-with Virtualization.VCPU;
+with Virtualization;
 
 package Userland.Process is
    --  A process is identifier by a PID (process identifier).
@@ -82,9 +81,9 @@ package Userland.Process is
          when Description_Socket =>
             Inner_Socket : IPC.Socket.Socket_Acc;
          when Description_VM =>
-            Inner_VM : Virtualization.VM.Machine;
+            Inner_VM : Virtualization.Machine;
          when Description_VCPU =>
-            Inner_VCPU : Virtualization.VCPU.CPU;
+            Inner_VCPU : Virtualization.CPU;
       end case;
    end record;
 

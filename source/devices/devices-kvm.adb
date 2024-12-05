@@ -14,7 +14,11 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Virtualization; use Virtualization;
+with Virtualization;
+with Userland.Process; use Userland.Process;
+with System.Storage_Elements; use System.Storage_Elements;
+with Arch.Local;
+with Arch.Virtualization;
 
 package body Devices.KVM is
    procedure Init (Success : out Boolean) is
@@ -50,26 +54,63 @@ package body Devices.KVM is
        Success   : out Boolean)
    is
       pragma Unreferenced (Key);
-      pragma Unreferenced (Argument);
+
+      Proc : constant PID := Arch.Local.Get_Current_Process;
    begin
       case Request is
-         when KVM_GET_API_VERSION =>
+         when Virtualization.KVM_GET_API_VERSION =>
             Has_Extra := True;
-            Extra     := KVM_Version;
+            Extra     := Virtualization.KVM_Version;
             Success   := True;
-         when KVM_CHECK_EXTENSION =>
-            --  We only support the core, thus, we will always return 0, which
-            --  means unsupported.
+         when Virtualization.KVM_CHECK_EXTENSION =>
+            if To_Integer (Argument) = Virtualization.KVM_CAP_USER_MEMORY then
+               Extra := 1;
+            else
+               Extra := 0;
+            end if;
+
             Has_Extra := True;
-            Extra     := 0;
             Success   := True;
-         when KVM_GET_VCPU_MMAP_SIZE =>
+         when Virtualization.KVM_GET_VCPU_MMAP_SIZE =>
             Has_Extra := True;
             Extra     := 4096;
             Success   := True;
-         when KVM_CREATE_VM | KVM_GET_MSR_INDEX_LIST |
-              KVM_MEMORY_ENCRYPT_REG_REGION |
-              KVM_MEMORY_ENCRYPT_UNREG_REGION =>
+         when Virtualization.KVM_CREATE_VM =>
+            declare
+               Desc : File_Description_Acc := new File_Description'
+                  (Children_Count => 0,
+                   Is_Blocking    => True,
+                   Description    => Description_VM,
+                   Inner_VM       => <>);
+               Returned_FD : Natural;
+            begin
+               Virtualization.Create_Machine (Desc.Inner_VM);
+               Add_File (Proc, Desc, Returned_FD, Success);
+               if Success then
+                  Has_Extra := True;
+                  Extra     := Unsigned_64 (Returned_FD);
+                  Success   := True;
+               else
+                  Close (Desc);
+                  Has_Extra := False;
+                  Extra     := 0;
+                  Success   := False;
+               end if;
+            end;
+         when Virtualization.KVM_GET_MSR_INDEX_LIST =>
+            Has_Extra := False;
+            Extra     := 0;
+            Success   := True;
+
+            declare
+               MSR_Count : Unsigned_32 with Import, Address => Argument;
+               MSRs : Arch.Virtualization.MSR_List (1 .. Natural (MSR_Count))
+                  with Import, Address => Argument + Storage_Offset (4);
+            begin
+               Arch.Virtualization.Get_MSR_List (MSRs, Natural (MSR_Count));
+            end;
+         when Virtualization.KVM_MEMORY_ENCRYPT_REG_REGION |
+              Virtualization.KVM_MEMORY_ENCRYPT_UNREG_REGION =>
             --  TODO: Actually implement.
             Has_Extra := False;
             Extra     := 0;

@@ -40,6 +40,7 @@ with Devices; use Devices;
 with Networking.Interfaces;
 with Userland.Memory_Failure;
 with Userland.OOM_Failure;
+with Virtualization;
 
 package body Userland.Syscall is
    procedure Sys_Exit
@@ -1131,29 +1132,53 @@ package body Userland.Syscall is
                    Extra     => Extra,
                    Status    => FSSuc);
                Succ := FSSuc = VFS.FS_Success;
-               if Succ and Has_E then
-                  Errno    := Error_No_Error;
-                  Returned := Extra;
-                  return;
-               end if;
             else
-               Succ := False;
+               Has_E := False;
+               Extra := 0;
+               Succ  := False;
             end if;
          when Description_Primary_PTY =>
             Succ := IPC.PTY.IO_Control
                (File.Inner_Primary_PTY, True, Request, S_Arg);
+            Has_E := False;
+            Extra := 0;
          when Description_Secondary_PTY =>
             Succ := IPC.PTY.IO_Control
                (File.Inner_Secondary_PTY, False, Request, S_Arg);
+            Has_E := False;
+            Extra := 0;
+         when Description_VM =>
+            Virtualization.IO_Control
+               (M         => File.Inner_VM,
+                Request   => Request,
+                Arg       => S_Arg,
+                Has_Extra => Has_E,
+                Extra     => Extra,
+                Success   => Succ);
+         when Description_VCPU =>
+            Virtualization.IO_Control
+               (C         => File.Inner_VCPU,
+                Request   => Request,
+                Arg       => S_Arg,
+                Has_Extra => Has_E,
+                Extra     => Extra,
+                Success   => Succ);
          when others =>
-            Succ := False;
+            Has_E := False;
+            Extra := 0;
+            Succ  := False;
       end case;
 
       if Succ then
-         Errno := Error_No_Error;
-         Returned := 0;
+         if Has_E then
+            Errno    := Error_No_Error;
+            Returned := Extra;
+         else
+            Errno    := Error_No_Error;
+            Returned := 0;
+         end if;
       else
-         Errno := Error_Not_A_TTY;
+         Errno    := Error_Not_A_TTY;
          Returned := Unsigned_64'Last;
       end if;
    end IOCTL;

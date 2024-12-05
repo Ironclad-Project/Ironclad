@@ -21,4 +21,68 @@ package body Virtualization is
    begin
       return Arch.Virtualization.Is_Supported;
    end Is_Supported;
+   ----------------------------------------------------------------------------
+   procedure Create_Machine (M : out Machine) is
+   begin
+      M := (others => False);
+   end Create_Machine;
+
+   procedure Close (M : in out Machine) is
+   begin
+      null;
+   end Close;
+   ----------------------------------------------------------------------------
+   procedure Close (C : in out CPU) is
+   begin
+      null;
+   end Close;
+   ----------------------------------------------------------------------------
+   procedure IO_Control
+      (M         : Machine;
+       Request   : Unsigned_64;
+       Arg       : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean)
+   is
+      pragma Unreferenced (M);
+      pragma Unreferenced (Arg);
+   begin
+      case Request is
+         when KVM_CREATE_VCPU | KVM_GET_DIRTY_LOG | KVM_MEMORY_ENCRYPT_OP =>
+            Has_Extra := False;
+            Extra     := 0;
+            Success   := False;
+         when others =>
+            Has_Extra := False;
+            Extra     := 0;
+            Success   := False;
+      end case;
+   end IO_Control;
+
+   procedure IO_Control
+      (C         : CPU;
+       Request   : Unsigned_64;
+       Arg       : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean)
+   is
+      pragma Unreferenced (C);
+      pragma Unreferenced (Arg);
+   begin
+      case Request is
+         when KVM_RUN | KVM_GET_REGS | KVM_SET_REGS | KVM_GET_SREGS |
+              KVM_SET_SREGS | KVM_TRANSLATE | KVM_INTERRUPT | KVM_GET_MSRS |
+              KVM_SET_MSRS | KVM_SET_CPUID | KVM_SET_SIGNAL_MASK |
+              KVM_GET_FPU | KVM_SET_FPU =>
+            Has_Extra := False;
+            Extra     := 0;
+            Success   := False;
+         when others =>
+            Has_Extra := False;
+            Extra     := 0;
+            Success   := False;
+      end case;
+   end IO_Control;
 end Virtualization;

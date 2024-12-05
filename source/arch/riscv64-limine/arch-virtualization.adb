@@ -19,4 +19,10 @@ package body Arch.Virtualization is
    begin
       return False;
    end Is_Supported;
+
+   procedure Get_MSR_List (List : out MSR_List; Count : out Natural) is
+   begin
+      List  := [others => 0];
+      Count := 0;
+   end Get_MSR_List;
 end Arch.Virtualization;

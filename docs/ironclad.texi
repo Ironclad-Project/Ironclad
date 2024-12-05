@@ -4118,8 +4118,8 @@ Ironclad implements KVM's 12th version, you can find its specification inside
 @node Differences between Linux and Ironclad
 @section Differences between Linux and Ironclad
 
-Ironclad only supports the base KVM version @code{12} as of right now, this
-means no extensions apart of the @code{basic} set will be supported.
+Ironclad only supports the base KVM version @code{12} and the
+@code{KVM_CAP_USER_MEMORY} extension.
 
 @code{/dev/kvm} will only be present if virtualization is supported, and must
 be opened read/write to operate on it, unlike systems like Linux which only
