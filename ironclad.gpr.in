@@ -19,7 +19,7 @@ project Ironclad is
       ("riscv64-limine",
        "x86_64-limine");
 
-   Arch : Arch_Name := "@target_cpu@-@target_vendor@";
+   Arch : Arch_Name := "@PLATFORM@";
    Ada_Flags        := "@ADAFLAGS@";
    Asm_Flags        := "@ASFLAGS@";
    Linker_Flags     := "@LDFLAGS@";

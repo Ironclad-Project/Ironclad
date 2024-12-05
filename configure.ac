@@ -28,10 +28,10 @@ AC_SUBST([BUILDDIR])
 
 AC_CANONICAL_HOST
 
-# Convert relative paths starting in '.' into absolute paths.
+# Convert paths containing '/' into absolute paths.
 AC_DEFUN([PROG_ABSPATH], [
     case "$$1" in
-        .*) $1="$(cd "$(dirname "$$1")" && pwd -P)/$(basename "$$1")" ;;
+        */*) $1="$(cd "$(dirname "$$1")" && pwd -P)/$(basename "$$1")" ;;
     esac
 ])
 
@@ -59,7 +59,7 @@ if ! test "x$FIND_FOUND" = "xyes"; then
     AC_MSG_ERROR([find not found, please install find before configuring])
 fi
 
-# $1 - UPERCASEVAR, $2 - default program
+# $1 - UPPERCASEVAR, $2 - default program
 AC_DEFUN([GET_PROG_FROM_TOOLCHAIN], [
     AC_ARG_VAR([$1], [$2 command])
 
@@ -122,14 +122,18 @@ AC_SUBST([SOURCE_DATE_EPOCH])
 ###############################################################################
 # Get programs and put them in comfortable variables.
 
-# $1 - UPERCASEVAR, $2 - default program, $3 - nice name
-m4_define([GET_PROG], [
+# $1 - UPPERCASEVAR, $2 - default program, $3 - nice name
+AC_DEFUN([GET_PROG], [
     m4_define([DEFAULT_$1], [$2])
-    AC_ARG_VAR([$1], [$3 executable @<:@default: ]DEFAULT_$1[@:>@])
+    AC_ARG_VAR([$1], [$3 command @<:@default: ]DEFAULT_$1[@:>@])
     test "x$$1" = "x" && $1="DEFAULT_$1"
-    AC_CHECK_PROG([$1_FOUND], [$$1], [$$1])
-    if ! test "x$$1_FOUND" = "x$$1"; then
-        AC_MSG_WARN([$3 not found, please install $3 or set $1 to a valid executable])
+    AC_CHECK_PROG([$1_FOUND], [$$1], [yes])
+    if ! test "x$$1_FOUND" = "xyes"; then
+        if test "x$$3" = "xerr"; then
+            AC_MSG_ERROR([$3 not found, please install $3 or set $1 to a valid command])
+        else
+            AC_MSG_WARN([$3 not found, please install $3 or set $1 to a valid command])
+        fi
     else
         PROG_ABSPATH([$1])
     fi
@@ -139,52 +143,47 @@ GET_PROG([PERL], [perl], [perl])
 GET_PROG([MAKEINFO], [makeinfo], [makeinfo])
 GET_PROG([TEXI2DVI], [texi2dvi], [texi2dvi])
 GET_PROG([TEXI2HTML], [makeinfo --no-split --html], [texi2html])
-GET_PROG([GPRBUILD], [gprbuild], [gprbuild])
+GET_PROG([GPRBUILD], [gprbuild], [gprbuild], [err])
 GET_PROG([GNATPROVE], [gnatprove], [gnatprove])
 
-AC_ARG_VAR([GPRLIB], [gprlib executable path])
-if test "x$GPRLIB" = "x"; then
-    GPRLIB=/usr/libexec/gprbuild/gprlib
-    if ! test -x $GPRLIB; then
-        GPRLIB=/usr/lib/gprbuild/gprlib
+# $1 - UPPERCASEVAR, $2 - default program
+AC_DEFUN([GET_TOOL_FROM_GPRBUILD], [
+    AC_ARG_VAR([$1], [$2 executable path])
+    if test "x$$1" = "x"; then
+        $1="$(dirname $(command -v gprbuild))"/../libexec/gprbuild/$2
+        if ! test -x "$$1"; then
+            $1="$(dirname $(command -v gprbuild))"/../lib/gprbuild/$2
+        fi
+        if ! test -x "$$1"; then
+            AC_MSG_ERROR([No recorded path to $2 valid])
+        fi
+    else
+        if ! test -x "$$1"; then
+            AC_MSG_ERROR([Provided $2 path not valid])
+        fi
     fi
-    if ! test -x $GPRLIB; then
-        AC_MSG_ERROR([No recorded path to gprlib valid])
-    fi
-else
-    if ! test -x $GPRLIB; then
-        AC_MSG_ERROR([Provided gprlib path not valid])
-    fi
-fi
+])
 
-AC_ARG_VAR([GPRBIND], [gprbind executable path])
-if test "x$GPRBIND" = "x"; then
-    GPRBIND=/usr/libexec/gprbuild/gprbind
-    if ! test -x $GPRBIND; then
-        GPRBIND=/usr/lib/gprbuild/gprbind
-    fi
-    if ! test -x $GPRBIND; then
-        AC_MSG_ERROR([No recorded path to gprbind valid])
-    fi
-else
-    if ! test -x $GPRBIND; then
-        AC_MSG_ERROR([Provided gprbind path not valid])
-    fi
-fi
+GET_TOOL_FROM_GPRBUILD([GPRBIND], [gprbind])
+GET_TOOL_FROM_GPRBUILD([GPRLIB], [gprlib])
 ###############################################################################
-# Target acquisition and checking.
-AC_CANONICAL_TARGET
+# Platform acquisition and checking.
+AC_ARG_VAR([PLATFORM], [target platform to build Ironclad for])
 
-case $target_cpu-$target_vendor in
+if test "x$PLATFORM" = "x"; then
+    AC_MSG_ERROR([PLATFORM variable not specified])
+fi
+
+case $PLATFORM in
     riscv64-limine|x86_64-limine)
         ;;
     *)
-        AC_MSG_ERROR([$target_cpu-$target_vendor is not available for compilation])
+        AC_MSG_ERROR([$PLATFORM is not a valid target platform])
         ;;
 esac
 
-GPRBUILD_TARGET=$($CC -dumpmachine)
-AC_SUBST([GPRBUILD_TARGET])
+CC_TOOLCHAIN=$($CC -dumpmachine)
+AC_SUBST([CC_TOOLCHAIN])
 ###############################################################################
 # Prepare an RTS from the cooked, pretty sources in the kernel.
 mkdir -p rtsdir
@@ -192,7 +191,7 @@ mkdir -p rtsdir/adainclude
 mkdir -p rtsdir/adalib
 cp "$SRCDIR"/source/rts/*.adb rtsdir/adainclude
 cp "$SRCDIR"/source/rts/*.ads rtsdir/adainclude
-cp "$SRCDIR"/source/rts/$target_cpu-$target_vendor/*.ads rtsdir/adainclude
+cp "$SRCDIR"/source/rts/$PLATFORM/*.ads rtsdir/adainclude
 ###############################################################################
 # Finalize the settings and output the files.
 AC_PREFIX_DEFAULT([/usr/local])

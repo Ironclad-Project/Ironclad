@@ -55,11 +55,8 @@ OBJDUMP      := @OBJDUMP@
 STRIP        := @STRIP@
 
 # Target information.
-override target_cpu    := @target_cpu@
-override target_vendor := @target_vendor@
-override target_full   := $(target_cpu)-$(target_vendor)
-
-GPRBUILD_TARGET := @GPRBUILD_TARGET@
+PLATFORM := @PLATFORM@
+CC_TOOLCHAIN := @CC_TOOLCHAIN@
 
 # Max threads. MAX POWAHH
 override PARALLELISM := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || psrinfo -tc 2>/dev/null || echo 1)
@@ -74,10 +71,10 @@ all: $(OUTPUT) info
 
 $(OUTPUT): GNUmakefile $(ADAFILES)
 	$(GPRBUILD) -P '$(call SHESCAPE,$(BUILDDIR))'/rts.gpr \
-      --target=$(GPRBUILD_TARGET) --db- --db '$(call SHESCAPE,$(BUILDDIR))'/gprconfig \
+      --target=$(CC_TOOLCHAIN) --db- --db '$(call SHESCAPE,$(BUILDDIR))'/gprconfig \
       -j$(PARALLELISM)
 	$(GPRBUILD) --RTS='$(call SHESCAPE,$(BUILDDIR))'/rtsdir \
-      --target=$(GPRBUILD_TARGET) --db- --db '$(call SHESCAPE,$(BUILDDIR))'/gprconfig \
+      --target=$(CC_TOOLCHAIN) --db- --db '$(call SHESCAPE,$(BUILDDIR))'/gprconfig \
       -P '$(call SHESCAPE,$(BUILDDIR))'/ironclad.gpr -j$(PARALLELISM)
 
 .PHONY: info
@@ -104,7 +101,7 @@ check: checkstack prove
 
 .PHONY: checkstack
 checkstack: $(OUTPUT)
-	$(OBJDUMP) -d $(OUTPUT) | $(PERL) '$(call SHESCAPE,$(SRCDIR))'/scripts/checkstack.pl ${target_full}
+	$(OBJDUMP) -d $(OUTPUT) | $(PERL) '$(call SHESCAPE,$(SRCDIR))'/scripts/checkstack.pl $(PLATFORM)
 
 .PHONY: prove
 prove:
