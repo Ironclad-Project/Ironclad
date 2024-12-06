@@ -23,7 +23,6 @@ with Lib.Panic;
 with Lib.Messages;
 with Scheduler;
 with Userland.Syscall; use Userland.Syscall;
-with Userland.Memory_Failure;
 with Arch.Snippets; use Arch.Snippets;
 with Arch.Local;
 with Userland.Corefile;
@@ -44,17 +43,6 @@ package body Arch.Interrupts is
           24 => "???", 25 => "???", 26 => "???", 27 => "???",
           28 => "#HV", 29 => "#VC", 30 => "#SX");
    begin
-      --  If this is a machine check, we need special logic to dump the banks
-      --  and unconditionally die.
-      if Num = 18 then
-         case Process_Machine_Check_Banks is
-            when Memory_MCE =>
-               Userland.Memory_Failure.Handle_Failure;
-            when Unrecognized_MCE =>
-               Lib.Panic.Hard_Panic ("MCE has no fixing");
-         end case;
-      end if;
-
       --  Check whether we have to panic or just exit the thread.
       if State.CS = (GDT.User_Code64_Segment or 3) then
          Lib.Messages.Put_Line ("Userland " & Exception_Text (Num));
