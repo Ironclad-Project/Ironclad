@@ -15,12 +15,13 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces;       use Interfaces;
-with Arch.MMU;         use Arch.MMU;
 with Userland.Process; use Userland.Process;
 with Userland.Syscall;
 with Lib.Messages;
 
 package body Userland.OOM_Failure is
+   pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE.
+
    procedure Get_Killing_Config (Enabled : out Boolean) is
    begin
       Seize (Config_Mutex);
@@ -36,9 +37,18 @@ package body Userland.OOM_Failure is
    end Configure_Killing;
 
    procedure Handle_Failure is
+      pragma Annotate (GNATProve,
+          False_Positive,
+          "memory leak might occur",
+          "Map being a pointer this way is required by API");
+      pragma Annotate
+         (GNATProve,
+          False_Positive,
+          "precondition might fail",
+          "Arch.MMU API fault");
+
       Count       : Natural;
       Items       : Process.Process_Info_Arr (1 .. 10);
-      Map         : Arch.MMU.Page_Table_Acc;
       Guilty      : Natural;
       Guilty_Size : Unsigned_64;
       Size        : Unsigned_64;
@@ -49,20 +59,18 @@ package body Userland.OOM_Failure is
          --  Get a selection of 10 processes.
          Process.List_All (Items, Count);
          if Count > Items'Length then
-            Count := Items'Last;
+            Count := Items'Length;
          end if;
 
          --  Check the one with the highest memory mapped of the 10.
          Guilty      := 0;
          Guilty_Size := 0;
-         for I in Items'First .. Count loop
-            Map := Process.Get_Common_Map (Items (I).Process);
-            if Map /= null then
-               Size := Arch.MMU.Get_User_Mapped_Size (Map);
-               if Size > Guilty_Size then
-                  Guilty      := I;
-                  Guilty_Size := Size;
-               end if;
+         for I in Items'First .. Items'First + Count - 1 loop
+            pragma Loop_Invariant (Guilty in 0 .. 10);
+            Process.Get_User_Mapped_Size (Items (I).Process, Size);
+            if Size > Guilty_Size then
+               Guilty      := I;
+               Guilty_Size := Size;
             end if;
          end loop;
 

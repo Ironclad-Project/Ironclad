@@ -578,17 +578,17 @@ package body Arch.MMU is
       return Success;
    end Unmap_Range;
 
-   function Get_User_Mapped_Size (Map : Page_Table_Acc) return Unsigned_64 is
-      Value      : Unsigned_64 := 0;
+   procedure Get_User_Mapped_Size (Map : Page_Table_Acc; Sz : out Unsigned_64)
+   is
       Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
    begin
       Lib.Synchronization.Seize_Reader (Map.Mutex);
+      Sz := 0;
       while Curr_Range /= null loop
-         Value      := Value + Unsigned_64 (Curr_Range.Length);
+         Sz         := Sz + Unsigned_64 (Curr_Range.Length);
          Curr_Range := Curr_Range.Next;
       end loop;
       Lib.Synchronization.Release_Reader (Map.Mutex);
-      return Value;
    end Get_User_Mapped_Size;
 
    procedure Get_Statistics (Stats : out Virtual_Statistics) is

@@ -183,8 +183,8 @@ package Arch.MMU is
 
    --  Get the user mapped memory size, thus, not including kernel space.
    --  @param Map Map to get the size for.
-   --  @return Size.
-   function Get_User_Mapped_Size (Map : Page_Table_Acc) return Unsigned_64
+   --  @param Sz  Size.
+   procedure Get_User_Mapped_Size (Map : Page_Table_Acc; Sz : out Unsigned_64)
       with Pre => Map /= null;
 
    --  Memory statistics of the system.

@@ -170,7 +170,7 @@ package Userland.Process is
    --  Information of a process.
    type Process_Info is record
       Identifier      : String (1 .. 20);
-      Identifier_Len  : Natural;
+      Identifier_Len  : Natural range 0 .. 20;
       Process         : PID;
       Parent          : PID;
       User            : Unsigned_32;
@@ -379,6 +379,12 @@ package Userland.Process is
    --  @param Length Length to bump to.
    --  @return Previous base.
    function Bump_Alloc_Base (P : PID; Length : Unsigned_64) return Unsigned_64
+      with Pre => P /= Error_PID;
+
+   --  Get the amount of mapped memory a process has.
+   --  @param Proc   Process to operate on.
+   --  @param Size   Mapped size;
+   procedure Get_User_Mapped_Size (P : PID; Size : out Unsigned_64)
       with Pre => P /= Error_PID;
 
    --  Get whether a process is traced and its tracer FD.

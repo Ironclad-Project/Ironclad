@@ -23,7 +23,7 @@ with Cryptography.Random;
 with Userland.Memory_Locations;
 with IPC.FileLock;
 
-package body Userland.Process is
+package body Userland.Process with SPARK_Mode => Off is
    procedure Free is new Ada.Unchecked_Deallocation
       (Process_Data, Process_Data_Acc);
 
@@ -722,6 +722,11 @@ package body Userland.Process is
       Lib.Synchronization.Release (Registry (P).Data_Mutex);
       return Result;
    end Bump_Alloc_Base;
+
+   procedure Get_User_Mapped_Size (P : PID; Size : out Unsigned_64) is
+   begin
+      Arch.MMU.Get_User_Mapped_Size (Registry (P).Common_Map, Size);
+   end Get_User_Mapped_Size;
 
    function Get_Parent (Proc : PID) return PID is
       Result : PID;

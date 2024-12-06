@@ -123,10 +123,11 @@ package body Arch.MMU is
       return True;
    end Unmap_Range;
 
-   function Get_User_Mapped_Size (Map : Page_Table_Acc) return Unsigned_64 is
+   procedure Get_User_Mapped_Size (Map : Page_Table_Acc; Sz : out Unsigned_64)
+   is
       pragma Unreferenced (Map);
    begin
-      return 0;
+      Sz := 0;
    end Get_User_Mapped_Size;
 
    procedure Get_Statistics (Stats : out Virtual_Statistics) is

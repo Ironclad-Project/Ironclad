@@ -41,7 +41,7 @@ with Networking.Interfaces;
 with Userland.OOM_Failure;
 with Virtualization;
 
-package body Userland.Syscall is
+package body Userland.Syscall with SPARK_Mode => Off is
    procedure Sys_Exit
       (Code     : Unsigned_64;
        Returned : out Unsigned_64;
@@ -455,6 +455,7 @@ package body Userland.Syscall is
       File       : File_Description_Acc;
       Success    : Boolean;
       Status     : FS_Status;
+      Size       : Unsigned_64;
    begin
       if not Get_Capabilities (Proc).Can_Modify_Memory then
          goto Bad_MAC_Return;
@@ -464,8 +465,10 @@ package body Userland.Syscall is
             Length = 0
       then
          goto Invalid_Value_Return;
-      elsif Get_User_Mapped_Size (Map) + Length >=
-         Unsigned_64 (Get_Limit (Proc, MAC.Memory_Size_Limit))
+      end if;
+
+      Get_User_Mapped_Size (Map, Size);
+      if Size + Length >= Unsigned_64 (Get_Limit (Proc, MAC.Memory_Size_Limit))
       then
          goto No_Memory_Return;
       end if;
