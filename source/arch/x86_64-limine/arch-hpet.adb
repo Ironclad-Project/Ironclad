@@ -18,6 +18,7 @@ with Interfaces; use Interfaces;
 with Memory;     use Memory;
 with Arch.ACPI;
 with Arch.MMU;
+with Arch.Snippets;
 
 package body Arch.HPET with SPARK_Mode => Off is
    HPET_Contents : Virtual_Address;
@@ -82,9 +83,9 @@ package body Arch.HPET with SPARK_Mode => Off is
       --  mode it doesnt hurt either.
       HPET    : ACPI.HPET_Contents with Address => To_Address (HPET_Contents);
       Counter : Unsigned_64
-         with Atomic, Address => HPET.Main_Counter_Value'Address;
+         with Address => HPET.Main_Counter_Value'Address, Volatile;
 
-      FemtoSec : constant Unsigned_64 := Unsigned_64 (Nanoseconds * 1000000);
+      FemtoSec : constant Unsigned_64 := Unsigned_64 (Nanoseconds) * 1000000;
       To_Add   : constant Unsigned_64 := FemtoSec / HPET_Period;
       Target   : constant Unsigned_64 := Counter + To_Add;
    begin
@@ -93,9 +94,8 @@ package body Arch.HPET with SPARK_Mode => Off is
       end if;
 
       loop
-         if Counter > Target then
-            exit;
-         end if;
+         exit when Counter > Target;
+         Snippets.Pause;
       end loop;
    end NSleep;
 end Arch.HPET;
