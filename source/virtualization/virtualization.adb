@@ -15,6 +15,9 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Virtualization;
+with Ada.Unchecked_Deallocation;
+with Userland.Process; use Userland.Process;
+with Arch.Local;
 
 package body Virtualization is
    function Is_Supported return Boolean is
@@ -22,38 +25,106 @@ package body Virtualization is
       return Arch.Virtualization.Is_Supported;
    end Is_Supported;
    ----------------------------------------------------------------------------
-   procedure Create_Machine (M : out Machine) is
+   function Create_Machine return Machine_Acc is
    begin
-      M := (others => False);
+      return new Machine'
+         (Is_Read_Only   => False,
+          Memory_Size    => 0,
+          Userspace_Addr => 0,
+          CPUs           => [others => (False, 0)]);
    end Create_Machine;
 
-   procedure Close (M : in out Machine) is
+   procedure Close (M : in out Machine_Acc) is
+      procedure Free is new Ada.Unchecked_Deallocation (Machine, Machine_Acc);
    begin
-      null;
+      Free (M);
    end Close;
    ----------------------------------------------------------------------------
-   procedure Close (C : in out CPU) is
+   procedure Get_CPU
+      (M       : Machine_Acc;
+       C       : out CPU_Handle;
+       Success : out Boolean)
+   is
    begin
-      null;
-   end Close;
+      C       := 1;
+      Success := False;
+
+      for Idx in M.CPUs'Range loop
+         if not M.CPUs (Idx).Is_Present then
+            M.CPUs (Idx).Is_Present := True;
+            C       := Idx;
+            Success := True;
+            exit;
+         end if;
+      end loop;
+   end Get_CPU;
    ----------------------------------------------------------------------------
    procedure IO_Control
-      (M         : Machine;
+      (M         : Machine_Acc;
        Request   : Unsigned_64;
        Arg       : System.Address;
        Has_Extra : out Boolean;
        Extra     : out Unsigned_64;
        Success   : out Boolean)
    is
-      pragma Unreferenced (M);
-      pragma Unreferenced (Arg);
+      KVM_MEM_READONLY : constant := 2#10#;
+      type KVM_Userspace_Memory_Region is record
+         Slot            : Unsigned_32;
+         Flags           : Unsigned_32;
+         Guest_Phys_Addr : Unsigned_64;
+         Memory_Size     : Unsigned_64;
+         Userspace_Addr  : Unsigned_64;
+      end record with Pack;
+
+      Proc : constant PID := Arch.Local.Get_Current_Process;
    begin
       case Request is
-         when KVM_CREATE_VCPU | KVM_GET_DIRTY_LOG | KVM_MEMORY_ENCRYPT_OP =>
+         when KVM_CREATE_VCPU =>
+            declare
+               Desc : File_Description_Acc := new File_Description'
+                  (Children_Count   => 0,
+                   Is_Blocking      => True,
+                   Description      => Description_VCPU,
+                   Inner_VCPU_Owner => M,
+                   Inner_VCPU       => <>);
+               Returned_FD : Natural;
+            begin
+               Get_CPU (M, Desc.Inner_VCPU, Success);
+               if not Success then
+                  Has_Extra := False;
+                  Extra     := 0;
+                  Success   := False;
+                  return;
+               end if;
+
+               Add_File (Proc, Desc, Returned_FD, Success);
+               if Success then
+                  Has_Extra := True;
+                  Extra     := Unsigned_64 (Returned_FD);
+                  Success   := True;
+               else
+                  Close (Desc);
+                  Has_Extra := False;
+                  Extra     := 0;
+                  Success   := False;
+               end if;
+            end;
+         when KVM_SET_USER_MEMORY_REGION =>
             Has_Extra := False;
             Extra     := 0;
             Success   := False;
-         when others =>
+
+            declare
+               Info : KVM_Userspace_Memory_Region with Import, Address => Arg;
+            begin
+               if Info.Guest_Phys_Addr = 0 then
+                  M.Is_Read_Only   := (Info.Flags and KVM_MEM_READONLY) /= 0;
+                  M.Memory_Size    := Info.Memory_Size;
+                  M.Userspace_Addr := Info.Userspace_Addr;
+                  Success          := True;
+               end if;
+            end;
+         when others  =>
             Has_Extra := False;
             Extra     := 0;
             Success   := False;
@@ -61,13 +132,15 @@ package body Virtualization is
    end IO_Control;
 
    procedure IO_Control
-      (C         : CPU;
+      (M         : Machine_Acc;
+       C         : CPU_Handle;
        Request   : Unsigned_64;
        Arg       : System.Address;
        Has_Extra : out Boolean;
        Extra     : out Unsigned_64;
        Success   : out Boolean)
    is
+      pragma Unreferenced (M);
       pragma Unreferenced (C);
       pragma Unreferenced (Arg);
    begin

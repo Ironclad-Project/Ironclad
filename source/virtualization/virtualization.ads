@@ -24,6 +24,9 @@ package Virtualization is
    --  KVM version that this module implements, we implement version 12, that
    --  means all ioctls marked as basic will be implemented.
    KVM_Version : constant := 12;
+
+   --  Maximum CPUs per VM.
+   MAX_CPUs_Per_VM : constant := 4;
    ----------------------------------------------------------------------------
    --  Mandatory ioctl calls to be provided by KVM version 12.
    --  They are listed here, but they may be implemented across the kernel.
@@ -61,29 +64,34 @@ package Virtualization is
    --  KVM extensions the kernel supports that can be querried with
    --  KVM_CHECK_EXTENSION.
    KVM_CAP_USER_MEMORY : constant := 1;
+   KVM_CAP_NR_VCPUS    : constant := 2;
    ----------------------------------------------------------------------------
    --  Returns True if virtualization is supported.
    function Is_Supported return Boolean;
    ----------------------------------------------------------------------------
-   --  Type to represent a virtual machine.
+   --  Type interface with a virtual machine.
    --  Virtual machines have an address space, as well as some cores inside.
-   type Machine is private;
+   type Machine     is private;
+   type Machine_Acc is access Machine;
 
    --  Create a virtual machine.
-   procedure Create_Machine (M : out Machine);
+   function Create_Machine return Machine_Acc;
 
    --  Close a virtual machine.
-   procedure Close (M : in out Machine);
+   procedure Close (M : in out Machine_Acc);
    ----------------------------------------------------------------------------
-   --  Type to represent a virtual CPU inside a virtual machine.
-   type CPU is private;
+   --  Type interface with a virtual CPU inside a virtual machine.
+   type CPU_Handle is private;
 
-   --  Close a virtual CPU.
-   procedure Close (C : in out CPU);
+   --  Allocate a VCPU inside a VM.
+   procedure Get_CPU
+      (M       : Machine_Acc;
+       C       : out CPU_Handle;
+       Success : out Boolean);
    ----------------------------------------------------------------------------
    --  Userland IO control operations.
    procedure IO_Control
-      (M         : Machine;
+      (M         : Machine_Acc;
        Request   : Unsigned_64;
        Arg       : System.Address;
        Has_Extra : out Boolean;
@@ -91,7 +99,8 @@ package Virtualization is
        Success   : out Boolean);
 
    procedure IO_Control
-      (C         : CPU;
+      (M         : Machine_Acc;
+       C         : CPU_Handle;
        Request   : Unsigned_64;
        Arg       : System.Address;
        Has_Extra : out Boolean;
@@ -100,11 +109,18 @@ package Virtualization is
 
 private
 
-   type Machine is record
-      Placeholder : Boolean;
-   end record;
+   type CPU_Handle is new Natural range 1 .. 4;
 
-   type CPU is record
-      Placeholder : Boolean;
+   type CPU_Inner_Data is record
+      Is_Present  : Boolean;
+      Placeholder : Natural;
+   end record;
+   type CPU_Inner_Arr is array (CPU_Handle range 1 .. 4) of CPU_Inner_Data;
+
+   type Machine is record
+      Is_Read_Only   : Boolean;
+      Memory_Size    : Unsigned_64;
+      Userspace_Addr : Unsigned_64;
+      CPUs           : CPU_Inner_Arr;
    end record;
 end Virtualization;

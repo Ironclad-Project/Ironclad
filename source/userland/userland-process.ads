@@ -81,9 +81,10 @@ package Userland.Process is
          when Description_Socket =>
             Inner_Socket : IPC.Socket.Socket_Acc;
          when Description_VM =>
-            Inner_VM : Virtualization.Machine;
+            Inner_VM : Virtualization.Machine_Acc;
          when Description_VCPU =>
-            Inner_VCPU : Virtualization.CPU;
+            Inner_VCPU_Owner : Virtualization.Machine_Acc;
+            Inner_VCPU       : Virtualization.CPU_Handle;
       end case;
    end record;
 

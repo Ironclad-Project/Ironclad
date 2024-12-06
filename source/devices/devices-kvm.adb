@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Virtualization;
+with Virtualization; use Virtualization;
 with Userland.Process; use Userland.Process;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Local;
@@ -63,11 +63,14 @@ package body Devices.KVM is
             Extra     := Virtualization.KVM_Version;
             Success   := True;
          when Virtualization.KVM_CHECK_EXTENSION =>
-            if To_Integer (Argument) = Virtualization.KVM_CAP_USER_MEMORY then
-               Extra := 1;
-            else
-               Extra := 0;
-            end if;
+            case To_Integer (Argument) is
+               when Virtualization.KVM_CAP_USER_MEMORY =>
+                  Extra := 1;
+               when Virtualization.KVM_CAP_NR_VCPUS =>
+                  Extra := MAX_CPUs_Per_VM;
+               when others =>
+                  Extra := 0;
+            end case;
 
             Has_Extra := True;
             Success   := True;
@@ -84,7 +87,14 @@ package body Devices.KVM is
                    Inner_VM       => <>);
                Returned_FD : Natural;
             begin
-               Virtualization.Create_Machine (Desc.Inner_VM);
+               Desc.Inner_VM := Create_Machine;
+               if Desc.Inner_VM = null then
+                  Has_Extra := False;
+                  Extra     := 0;
+                  Success   := False;
+                  return;
+               end if;
+
                Add_File (Proc, Desc, Returned_FD, Success);
                if Success then
                   Has_Extra := True;

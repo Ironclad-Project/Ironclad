@@ -1157,6 +1157,7 @@ package body Userland.Syscall is
          when Description_VCPU =>
             Virtualization.IO_Control
                (C         => File.Inner_VCPU,
+                M         => File.Inner_VCPU_Owner,
                 Request   => Request,
                 Arg       => S_Arg,
                 Has_Extra => Has_E,
