@@ -53,9 +53,6 @@ PROG_ABSPATH([INSTALL])
 AC_PROG_SED
 PROG_ABSPATH([SED])
 
-AC_PROG_AR
-PROG_ABSPATH([AR])
-
 AC_CHECK_PROG([FIND_FOUND], [find], [yes])
 if ! test "x$FIND_FOUND" = "xyes"; then
     AC_MSG_ERROR([find not found, please install find before configuring])
@@ -63,7 +60,7 @@ fi
 
 # $1 - UPPERCASEVAR, $2 - default program
 AC_DEFUN([GET_PROG_FROM_TOOLCHAIN], [
-    AC_ARG_VAR([$1], [$2 command])
+    AC_ARG_VAR([$1], [$2 command @<:@default: $2@:>@])
 
     if ! test -z "$$1"; then
         if test -x "$$1"; then
@@ -73,25 +70,21 @@ AC_DEFUN([GET_PROG_FROM_TOOLCHAIN], [
         fi
 
         if ! test "x$$1_USER_FOUND" = "xyes"; then
-            AC_MSG_ERROR([$$1 not found, please install $$1 before configuring])
+            AC_MSG_ERROR([$2 not found, please install $2 before configuring])
         fi
     else
-        $1="$($CC -dumpmachine)"-$2
-        AC_CHECK_PROG([$1_FOUND], [$$1], [yes])
-        if ! test "x$$1_FOUND" = "xyes"; then
-            $1=$2
-            AC_CHECK_PROG([$1_DEFAULT_FOUND], [$$1], [yes])
-            if ! test "x$$1_DEFAULT_FOUND" = "xyes"; then
-                AC_MSG_ERROR([$$1 not found, please install $$1 before configuring])
-            fi
+        AC_CHECK_TOOL([$1], [$2], [:])
+        if test "x$$1" = "x:"; then
+            AC_MSG_ERROR([$2 not found, please install $2 or set $1 to a valid command])
         fi
     fi
 
-    AC_SUBST([$1])
+    PROG_ABSPATH([$1])
 ])
 
-GET_PROG_FROM_TOOLCHAIN([STRIP], [strip])
+GET_PROG_FROM_TOOLCHAIN([AR], [ar])
 GET_PROG_FROM_TOOLCHAIN([OBJDUMP], [objdump])
+GET_PROG_FROM_TOOLCHAIN([STRIP], [strip])
 
 MEMORY_ALLOCONLY="False"
 AC_ARG_ENABLE([alloconly],
@@ -107,12 +100,11 @@ if test "$werror_state" = "yes"; then
 fi
 
 m4_define([DEFAULT_ASFLAGS], [-g -O2 -pipe -Wall])
-AC_ARG_VAR([ASFLAGS], [Assembler flags @<:@default: ]DEFAULT_ASFLAGS[@:>@])
+AC_ARG_VAR([ASFLAGS], [assembler flags @<:@default: ]DEFAULT_ASFLAGS[@:>@])
 test "x${ASFLAGS+set}" = "x" && ASFLAGS="DEFAULT_ASFLAGS"
 if test "$werror_state" = "yes"; then
     ASFLAGS="$ASFLAGS -Werror"
 fi
-
 ###############################################################################
 # A ton of tools use source date epoch in order to not use date in the effort
 # of doing reproducible builds.
@@ -124,21 +116,35 @@ AC_SUBST([SOURCE_DATE_EPOCH])
 ###############################################################################
 # Get programs and put them in comfortable variables.
 
-# $1 - UPPERCASEVAR, $2 - default program, $3 - nice name
+# $1 - UPPERCASEVAR, $2 - default program, $3 - nice name, $4 - set to "err" to error
+# on not program found
 AC_DEFUN([GET_PROG], [
     m4_define([DEFAULT_$1], [$2])
     AC_ARG_VAR([$1], [$3 command @<:@default: ]DEFAULT_$1[@:>@])
-    test "x$$1" = "x" && $1="DEFAULT_$1"
-    AC_CHECK_PROG([$1_FOUND], [$$1], [yes])
-    if ! test "x$$1_FOUND" = "xyes"; then
-        if test "x$$3" = "xerr"; then
-            AC_MSG_ERROR([$3 not found, please install $3 or set $1 to a valid command])
+
+    if ! test -z "$$1"; then
+        if test -x "$$1"; then
+            $1_USER_FOUND=yes
         else
-            AC_MSG_WARN([$3 not found, please install $3 or set $1 to a valid command])
+            AC_CHECK_PROG([$1_USER_FOUND], [$$1], [yes])
+        fi
+
+        if ! test "x$$1_USER_FOUND" = "xyes"; then
+            AC_MSG_ERROR([$3 not found, please install $3 or set $1 to a valid command])
         fi
     else
-        PROG_ABSPATH([$1])
+        $1="DEFAULT_$1"
+        AC_CHECK_PROG([$1_FOUND], [$$1], [yes])
+        if ! test "x$$1_FOUND" = "xyes"; then
+            if test "x$$4" = "xerr"; then
+                AC_MSG_ERROR([$3 not found, please install $3 or set $1 to a valid command])
+            else
+                AC_MSG_WARN([$3 not found, please install $3 or set $1 to a valid command])
+            fi
+        fi
     fi
+
+    PROG_ABSPATH([$1])
 ])
 
 GET_PROG([PERL], [perl], [perl])
@@ -170,22 +176,22 @@ GET_TOOL_FROM_GPRBUILD([GPRBIND], [gprbind])
 GET_TOOL_FROM_GPRBUILD([GPRLIB], [gprlib])
 ###############################################################################
 # Platform acquisition and checking.
-AC_ARG_VAR([PLATFORM], [target platform to build Ironclad for])
+AC_ARG_VAR([PLATFORM], [target platform to build Ironclad for @<:@default: limine@:>@])
 
 if test "x$PLATFORM" = "x"; then
-    AC_MSG_ERROR([PLATFORM variable not specified])
+    PLATFORM=limine
 fi
 
 case $PLATFORM in
-    riscv64-limine|x86_64-limine)
+    limine)
         ;;
     *)
         AC_MSG_ERROR([$PLATFORM is not a valid target platform])
         ;;
 esac
 
-CC_TOOLCHAIN=$($CC -dumpmachine)
-AC_SUBST([CC_TOOLCHAIN])
+GPRBUILD_TARGET=$($CC -dumpmachine)
+AC_SUBST([GPRBUILD_TARGET])
 ###############################################################################
 # Prepare an RTS from the cooked, pretty sources in the kernel.
 mkdir -p rtsdir
@@ -193,7 +199,7 @@ mkdir -p rtsdir/adainclude
 mkdir -p rtsdir/adalib
 cp "$SRCDIR"/source/rts/*.adb rtsdir/adainclude
 cp "$SRCDIR"/source/rts/*.ads rtsdir/adainclude
-cp "$SRCDIR"/source/rts/$PLATFORM/*.ads rtsdir/adainclude
+cp "$SRCDIR"/source/rts/$host_cpu-$PLATFORM/*.ads rtsdir/adainclude
 ###############################################################################
 # Finalize the settings and output the files.
 AC_PREFIX_DEFAULT([/usr/local])

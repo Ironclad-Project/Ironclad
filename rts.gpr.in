@@ -19,7 +19,7 @@ library project RTS is
       ("riscv64-limine",
        "x86_64-limine");
 
-   Arch : Arch_Name := "@PLATFORM@";
+   Arch : Arch_Name := "@host_cpu@-@PLATFORM@";
    Ada_Flags        := "@ADAFLAGS@";
    Asm_Flags        := "@ASFLAGS@";
    Linker_Flags     := "@LDFLAGS@";
