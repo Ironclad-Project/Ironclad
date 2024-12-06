@@ -50,6 +50,8 @@ AC_PROG_MKDIR_P
 PROG_ABSPATH([MKDIR_P])
 AC_PROG_INSTALL
 PROG_ABSPATH([INSTALL])
+AC_PROG_GREP
+PROG_ABSPATH([GREP])
 AC_PROG_SED
 PROG_ABSPATH([SED])
 
@@ -192,14 +194,6 @@ esac
 
 GPRBUILD_TARGET=$($CC -dumpmachine)
 AC_SUBST([GPRBUILD_TARGET])
-###############################################################################
-# Prepare an RTS from the cooked, pretty sources in the kernel.
-mkdir -p rtsdir
-mkdir -p rtsdir/adainclude
-mkdir -p rtsdir/adalib
-cp "$SRCDIR"/source/rts/*.adb rtsdir/adainclude
-cp "$SRCDIR"/source/rts/*.ads rtsdir/adainclude
-cp "$SRCDIR"/source/rts/$host_cpu-$PLATFORM/*.ads rtsdir/adainclude
 ###############################################################################
 # Finalize the settings and output the files.
 AC_PREFIX_DEFAULT([/usr/local])
