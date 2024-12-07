@@ -24,6 +24,9 @@
    for Inherit_Source_Path ("Asm_Cpp") use ("Asm");
    for Default_Language use "Ada";
 
+   for Toolchain_Version ("Ada") use "GNAT ${VERSION(ada)}";
+   for Runtime_Dir ("Ada") use "${RUNTIME_DIR(ada)}";
+
    package Naming is
       for Spec_Suffix ("Ada") use ".ads";
       for Body_Suffix ("Ada") use ".adb";
@@ -94,7 +97,7 @@
    end Compiler;
 
    package Compiler is
-      for Driver ("Asm_Cpp") use "${PATH(asm_cpp)}${EXEC(asm_cpp)}";
+      for Driver ("Asm_Cpp") use "@CC@";
       for Leading_Required_Switches ("Asm_Cpp") use ("-c", "-x", "assembler-with-cpp");
       for Include_Switches ("Asm_Cpp") use ("-I");
       for Max_Command_Line_Length use "8192";
