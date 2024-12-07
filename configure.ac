@@ -31,7 +31,11 @@ AC_CANONICAL_HOST
 # Convert paths containing '/' into absolute paths.
 AC_DEFUN([PROG_ABSPATH], [
     case "$$1" in
-        */*) $1="$(cd "$(dirname "$$1")" && pwd -P)/$(basename "$$1")" ;;
+        */*)
+            if test -d "$(dirname "$$1")"; then
+                $1="$(cd "$(dirname "$$1")" && pwd -P)/$(basename "$$1")"
+            fi
+            ;;
     esac
 ])
 
