@@ -93,17 +93,33 @@ package body Scheduler is
    function Init return Boolean is
    begin
       --  Initialize registries.
-      Thread_Pool  := new Thread_Info_Arr;
-      Cluster_Pool := new Cluster_Arr;
-      for Th of Thread_Pool.all loop
-         Th.Is_Present   := False;
-         Th.Kernel_Stack := null;
-      end loop;
-      for Cl of Cluster_Pool (Cluster_Pool'First + 1 .. Cluster_Pool'Last) loop
-         Cl.Is_Present       := False;
-         Cl.Progress_Seconds := 0;
-         Cl.Progress_Nanos   := 0;
-      end loop;
+      Thread_Pool := new Thread_Info_Arr'
+         [others =>
+            (Is_Present      => False,
+             Is_Running      => False,
+             Path            => [others => ' '],
+             Path_Len        => 0,
+             Nice            => 0,
+             Cluster         => Error_TCID,
+             TCB_Pointer     => System.Null_Address,
+             PageMap         => null,
+             Kernel_Stack    => null,
+             GP_State        => <>,
+             FP_State        => <>,
+             C_State         => <>,
+             Process         => Userland.Process.Error_PID,
+             Yield_Mutex     => Lib.Synchronization.Unlocked_Semaphore,
+             others          => 0)];
+
+      Cluster_Pool := new Cluster_Arr'
+         [others =>
+            (Is_Present       => False,
+             Algorithm        => Cluster_RR,
+             RR_Quantum       => 0,
+             Is_Interruptible => False,
+             Percentage       => 0,
+             Progress_Seconds => 0,
+             Progress_Nanos   => 0)];
 
       --  Create the default cluster.
       Cluster_Pool (Cluster_Pool'First).Is_Present       := True;
@@ -293,7 +309,8 @@ package body Scheduler is
        PID      : Natural;
        TCB      : System.Address) return TID
    is
-      New_TID : TID := Error_TID;
+      New_TID   : TID := Error_TID;
+      New_Stack : Kernel_Stack_Acc;
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex);
 
@@ -309,30 +326,27 @@ package body Scheduler is
 
    <<Found_TID>>
       if Thread_Pool (New_TID).Kernel_Stack = null then
-         Thread_Pool (New_TID).Kernel_Stack := new Kernel_Stack;
+         New_Stack := new Kernel_Stack'[others => 0];
+      else
+         New_Stack := Thread_Pool (New_TID).Kernel_Stack;
       end if;
 
-      Thread_Pool (New_TID).Is_Present := True;
-      Thread_Pool (New_TID).Is_Running := False;
-      Thread_Pool (New_TID).Path := (others => ' ');
-      Thread_Pool (New_TID).Path_Len := 0;
-      Thread_Pool (New_TID).Nice := 0;
-      Thread_Pool (New_TID).Cluster := Cluster;
-      Thread_Pool (New_TID).PageMap := Map;
-      Thread_Pool (New_TID).TCB_Pointer := TCB;
-      Thread_Pool (New_TID).GP_State := GP_State;
-      Thread_Pool (New_TID).FP_State := FP_State;
-      Thread_Pool (New_TID).Process := Userland.Process.Convert (PID);
-      Thread_Pool (New_TID).Last_Sched_Sec := 0;
-      Thread_Pool (New_TID).Last_Sched_NSec := 0;
-      Thread_Pool (New_TID).System_Sec := 0;
-      Thread_Pool (New_TID).System_NSec := 0;
-      Thread_Pool (New_TID).User_Sec := 0;
-      Thread_Pool (New_TID).User_NSec := 0;
-      Thread_Pool (New_TID).System_Tmp_Sec := 0;
-      Thread_Pool (New_TID).System_Tmp_NSec := 0;
-      Thread_Pool (New_TID).User_Tmp_Sec := 0;
-      Thread_Pool (New_TID).User_Tmp_NSec := 0;
+      Thread_Pool (New_TID) :=
+            (Is_Present   => True,
+             Is_Running   => False,
+             Path         => [others => ' '],
+             Path_Len     => 0,
+             Nice         => 0,
+             Cluster      => Cluster,
+             TCB_Pointer  => TCB,
+             PageMap      => Map,
+             Kernel_Stack => New_Stack,
+             GP_State     => GP_State,
+             FP_State     => FP_State,
+             C_State      => <>,
+             Process      => Userland.Process.Convert (PID),
+             Yield_Mutex  => Lib.Synchronization.Unlocked_Semaphore,
+             others       => 0);
 
       Lib.Synchronization.Release (Thread_Pool (New_TID).Yield_Mutex);
 
@@ -645,7 +659,7 @@ package body Scheduler is
                   C.Progress_Seconds := 0;
                   C.Progress_Nanos := 0;
                end loop;
-               Next_Cluster := Curr_Cluster;
+               Next_Cluster := 1;
             end if;
          end if;
 
@@ -801,18 +815,23 @@ package body Scheduler is
    end Waiting_Spot;
 
    function Has_Available_Time (C : TCID) return Boolean is
-      Secs  : Unsigned_64 := Cluster_Pool (C).Progress_Seconds / 1_000_000;
-      Nanos : Unsigned_64 := Cluster_Pool (C).Progress_Nanos   / 1_000;
+      Secs, Nanos : Unsigned_64;
    begin
-      if Secs > Unsigned_64 (Natural'Last) then
-         Secs := Unsigned_64 (Natural'Last);
-      end if;
-      if Nanos > Unsigned_64 (Natural'Last) then
-         Nanos := Unsigned_64 (Natural'Last);
-      end if;
+      if C /= Error_TCID then
+         Secs  := Cluster_Pool (C).Progress_Seconds / 1_000_000;
+         Nanos := Cluster_Pool (C).Progress_Nanos   / 1_000;
+         if Secs > Unsigned_64 (Natural'Last) then
+            Secs := Unsigned_64 (Natural'Last);
+         end if;
+         if Nanos > Unsigned_64 (Natural'Last) then
+            Nanos := Unsigned_64 (Natural'Last);
+         end if;
 
-      return Natural (Secs) * Natural (Nanos) <
-             Total_Slice * Cluster_Pool (C).Percentage / 100;
+         return Natural (Secs) * Natural (Nanos) <
+                Total_Slice * Cluster_Pool (C).Percentage / 100;
+      else
+         return False;
+      end if;
    end Has_Available_Time;
 
    function Is_Switchable (T : TID; C : TCID) return Boolean is
