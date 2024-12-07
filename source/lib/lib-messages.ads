@@ -86,7 +86,7 @@ private
    type Message_Buffer is array (Natural range <>) of String (1 .. Max_Line);
    type Message_Buffer_Acc is access Message_Buffer (1 .. 100);
 
-   Messages_Mutex   : aliased Mutex := Unlocked_Mutex
+   Messages_Mutex   : aliased Binary_Semaphore := Unlocked_Semaphore
       with Part_Of => Message_State;
    Curr_Entry       : Natural := 1
       with Part_Of => Message_State;

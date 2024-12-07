@@ -29,7 +29,7 @@ package Devices.Serial is
 private
 
    type COM_Root is record
-      Mutex : aliased Lib.Synchronization.Mutex;
+      Mutex : aliased Lib.Synchronization.Binary_Semaphore;
       Port  : Unsigned_16;
       Baud  : Unsigned_32;
    end record;
@@ -58,7 +58,7 @@ private
    --  COM1 is initialized statically in order for it to be shared easily
    --  with debug outputs, while sharing baud, lock, etc...
    COM1 : aliased COM_Root :=
-      (Lib.Synchronization.Unlocked_Mutex, COM_Ports (1), Default_Baud);
+      (Lib.Synchronization.Unlocked_Semaphore, COM_Ports (1), Default_Baud);
 
    procedure Read
       (Key         : System.Address;

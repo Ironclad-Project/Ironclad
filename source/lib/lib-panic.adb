@@ -1,5 +1,5 @@
---  lib-panic.adb: Soft and hard panic functions.
---  Copyright (C) 2021 streaksu
+--  lib-panic.adb: For when recovering is not an option!
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -26,6 +26,9 @@ is
 
    procedure Hard_Panic (Message : String) is
    begin
+      --  Disable interrupts to never be preempted outside of here.
+      Arch.Snippets.Disable_Interrupts;
+
       --  Ensure only this core panics.
       Synchronization.Seize (Panic_Mutex);
 
