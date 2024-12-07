@@ -208,7 +208,6 @@ package body Userland.Loader is
          if not LD_ELF.Was_Loaded then
             goto Error;
          end if;
-         Close (LD_FS, LD_Ino);
       else
          Entrypoint := To_Integer (Loaded_ELF.Entrypoint);
       end if;

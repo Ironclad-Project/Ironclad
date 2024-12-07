@@ -353,12 +353,6 @@ package VFS is
        Status   : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
-   --  Signal to the FS we do not need this inode anymore.
-   --  @param Key FS handle to operate on.
-   --  @param Ino Inode to signal to close.
-   procedure Close (Key : FS_Handle; Ino : File_Inode_Number)
-      with Pre => Is_Initialized and Key /= Error_Handle;
-
    --  Read the entries of an opened directory.
    --  @param Key       FS handle to operate on.
    --  @param Ino       Inode to operate on.

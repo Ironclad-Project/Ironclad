@@ -207,7 +207,6 @@ package body Kernel_Main is
             else
                Lib.Panic.Hard_Panic ("Could not start init");
             end if;
-            Close (Init_FS, Init_Ino);
          else
             Lib.Panic.Hard_Panic ("Init could not be opened");
          end if;

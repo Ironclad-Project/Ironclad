@@ -687,16 +687,6 @@ package body VFS is
       end case;
    end Unlink;
 
-   procedure Close (Key : FS_Handle; Ino : File_Inode_Number) is
-      pragma Unreferenced (Ino);
-   begin
-      case Mounts (Key).Mounted_FS is
-         when FS_DEV => null;
-         when FS_EXT => null;
-         when FS_FAT => null;
-      end case;
-   end Close;
-
    procedure Read_Entries
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;

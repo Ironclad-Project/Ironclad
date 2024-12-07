@@ -498,7 +498,6 @@ package body Userland.Process with SPARK_Mode => Off is
                      Lib.Messages.Put_Line ("Missing file lock on closure!");
                   end if;
                end if;
-               VFS.Close (F.Inner_Ino_FS, F.Inner_Ino);
             when Description_Socket => Close (F.Inner_Socket);
             when Description_VM => Virtualization.Close (F.Inner_VM);
             when Description_VCPU => null;

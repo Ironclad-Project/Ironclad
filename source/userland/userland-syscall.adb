@@ -2071,7 +2071,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       Add_Entity (Proc, FS, Ino, Perms, Status);
-      VFS.Close (FS, Ino);
 
       case Status is
          when MAC.Success =>
@@ -2310,7 +2309,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end if;
 
          VFS.Read_Symbolic_Link (CWD_FS, Opened_Ino, Data, Ret_Count, Status);
-         Close (CWD_FS, Opened_Ino);
          Translate_Status (Status, Unsigned_64 (Ret_Count), Returned, Errno);
       end;
    end Readlink;
@@ -5763,7 +5761,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       File_Perms := Check_Permissions (Proc, Path_FS, Path_Ino);
       if not File_Perms.Can_Execute then
-         VFS.Close (Path_FS, Path_Ino);
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("exec", Proc);
          Success := False;

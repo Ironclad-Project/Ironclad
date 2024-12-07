@@ -362,7 +362,7 @@ private
    end record;
 
    type EXT_Data is record
-      Mutex                 : aliased Lib.Synchronization.Mutex;
+      Mutex                 : aliased Lib.Synchronization.Readers_Writer_Lock;
       Handle                : Device_Handle;
       Super                 : Superblock;
       Is_Read_Only          : Boolean;
