@@ -14,7 +14,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# Nuke built-in rules and variables
+# Nuke built-in rules and variables.
 MAKEFLAGS += -rR
 .SUFFIXES:
 
@@ -24,7 +24,7 @@ override SPACE := $(subst ,, )
 override MKESCAPE = $(subst $(SPACE),\ ,$(1))
 override SHESCAPE = $(subst ','\'',$(1))
 
-# Import some autoconf variables as make variables
+# Import some autoconf variables as make variables.
 override SRCDIR          := @SRCDIR@
 override BUILDDIR        := @BUILDDIR@
 override PACKAGE_VERSION := @PACKAGE_VERSION@
@@ -62,14 +62,14 @@ override host_cpu := @host_cpu@
 override PLATFORM := @PLATFORM@
 
 # Attempt to get the job count from the make command line.
-override PARALLELISM := $(shell ps -o 'pid=,cmd=' | $(SED) -n 's%.*'$$PPID'.*$(MAKE).*\(-j\|--jobs\|--jobs=\) *\([0-9][0-9]*\).*%\2%p')
+override PARALLELISM := $(shell ps T | $(SED) -n 's%.*'$$PPID'.*$(MAKE).* \(-j\|--jobs\|--jobs=\) *\([0-9][0-9]*\).*%\2%p')
 ifeq ($(PARALLELISM),)
     override PARALLELISM := 1
 endif
 
 # Get a list of Ada source files to determine when to rebuild.
-override RTSFILES := $(shell LC_ALL=C find -L '$(call SHESCAPE,$(SRCDIR))/source/rts' -type f | sed 's| |\\ |g')
-override ADAFILES := $(shell LC_ALL=C find -L '$(call SHESCAPE,$(SRCDIR))/source' -type f | $(GREP) -v rts | sed 's| |\\ |g')
+override RTSFILES := $(shell LC_ALL=C find -L '$(call SHESCAPE,$(SRCDIR))/source/rts' -type f | $(SED) 's| |\\ |g')
+override ADAFILES := $(shell LC_ALL=C find -L '$(call SHESCAPE,$(SRCDIR))/source' -type f | $(GREP) -v rts | $(SED) 's| |\\ |g')
 
 ###############################################################################
 # Rules for generating executables, documentation, and other artifacts.
@@ -123,7 +123,7 @@ prove:
 	$(GNATPROVE) -U --prover=cvc4,altergo,z3 --mode=all --counterexamples=on \
 		-j$(PARALLELISM) -P '$(call SHESCAPE,$(SRCDIR))'/ironclad.gpr
 ###############################################################################
-# Rules for cleaning build and configuration artifacts
+# Rules for cleaning build and configuration artifacts.
 .PHONY: clean
 clean:
 	rm -rf $(OUTPUT) obj gnatprove rtsdir \

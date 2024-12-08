@@ -28,22 +28,39 @@ AC_SUBST([BUILDDIR])
 
 AC_CANONICAL_HOST
 
-# Convert paths containing '/' into absolute paths.
-AC_DEFUN([PROG_ABSPATH], [
-    case "$$1" in
-        */*)
-            if test -d "$(dirname "$$1")"; then
-                $1="$(cd "$(dirname "$$1")" && pwd -P)/$(basename "$$1")"
-            fi
-            ;;
-    esac
-])
+# Portably convert relative paths into absolute paths.
+rel2abs() {
+    rel2abs_first=true
+    for i in $1; do
+        if test $rel2abs_first = true; then
+            case "$i" in
+                /*)
+                    printf "%s" "$i"
+                    ;;
+                */*)
+                    if test -d "$(dirname "$i")"; then
+                        printf "%s" "$(cd "$(dirname "$i")" && pwd -P)/$(basename "$i")"
+                    else
+                        printf "false"
+                    fi
+                    ;;
+                *)
+                    printf "%s" "$i"
+                    ;;
+            esac
+            rel2abs_first=false
+        else
+            printf " %s" "$i"
+        fi
+    done
+    printf "\n"
+}
 
 test "x${CFLAGS+set}" = "x" && CFLAGS='-g -O2 -pipe'
 
 AC_LANG([C])
 AC_PROG_CC
-PROG_ABSPATH([CC])
+CC="$(rel2abs "$CC")"
 
 werror_state="no"
 AC_ARG_ENABLE([werror],
@@ -51,13 +68,13 @@ AC_ARG_ENABLE([werror],
     [werror_state="$enableval"])
 
 AC_PROG_MKDIR_P
-PROG_ABSPATH([MKDIR_P])
+MKDIR_P="$(rel2abs "$MKDIR_P")"
 AC_PROG_INSTALL
-PROG_ABSPATH([INSTALL])
+INSTALL="$(rel2abs "$INSTALL")"
 AC_PROG_GREP
-PROG_ABSPATH([GREP])
+GREP="$(rel2abs "$GREP")"
 AC_PROG_SED
-PROG_ABSPATH([SED])
+SED="$(rel2abs "$SED")"
 
 AC_CHECK_PROG([FIND_FOUND], [find], [yes])
 if ! test "x$FIND_FOUND" = "xyes"; then
@@ -69,11 +86,17 @@ AC_DEFUN([GET_PROG_FROM_TOOLCHAIN], [
     AC_ARG_VAR([$1], [$2 command @<:@default: $2@:>@])
 
     if ! test -z "$$1"; then
-        if test -x "$$1"; then
-            $1_USER_FOUND=yes
-        else
-            AC_CHECK_PROG([$1_USER_FOUND], [$$1], [yes])
-        fi
+        first_elem="$(echo "$$1" | cut -f 1 -d " ")"
+        case "$first_elem" in
+            */*)
+                if test -f "$first_elem" && test -x "$first_elem"; then
+                    $1_USER_FOUND=yes
+                fi
+                ;;
+            *)
+                AC_CHECK_PROG([$1_USER_FOUND], [$$1], [yes])
+                ;;
+        esac
 
         if ! test "x$$1_USER_FOUND" = "xyes"; then
             AC_MSG_ERROR([$2 not found, please install $2 before configuring])
@@ -85,7 +108,7 @@ AC_DEFUN([GET_PROG_FROM_TOOLCHAIN], [
         fi
     fi
 
-    PROG_ABSPATH([$1])
+    $1="$(rel2abs "$$1")"
 ])
 
 GET_PROG_FROM_TOOLCHAIN([AR], [ar])
@@ -129,11 +152,17 @@ AC_DEFUN([GET_PROG], [
     AC_ARG_VAR([$1], [$3 command @<:@default: ]DEFAULT_$1[@:>@])
 
     if ! test -z "$$1"; then
-        if test -x "$$1"; then
-            $1_USER_FOUND=yes
-        else
-            AC_CHECK_PROG([$1_USER_FOUND], [$$1], [yes])
-        fi
+        first_elem="$(echo "$$1" | cut -f 1 -d " ")"
+        case "$first_elem" in
+            */*)
+                if test -f "$first_elem" && test -x "$first_elem"; then
+                    $1_USER_FOUND=yes
+                fi
+                ;;
+            *)
+                AC_CHECK_PROG([$1_USER_FOUND], [$$1], [yes])
+                ;;
+        esac
 
         if ! test "x$$1_USER_FOUND" = "xyes"; then
             AC_MSG_ERROR([$3 not found, please install $3 or set $1 to a valid command])
@@ -142,7 +171,7 @@ AC_DEFUN([GET_PROG], [
         $1="DEFAULT_$1"
         AC_CHECK_PROG([$1_FOUND], [$$1], [yes])
         if ! test "x$$1_FOUND" = "xyes"; then
-            if test "x$$4" = "xerr"; then
+            if test "x$4" = "xerr"; then
                 AC_MSG_ERROR([$3 not found, please install $3 or set $1 to a valid command])
             else
                 AC_MSG_WARN([$3 not found, please install $3 or set $1 to a valid command])
@@ -150,7 +179,7 @@ AC_DEFUN([GET_PROG], [
         fi
     fi
 
-    PROG_ABSPATH([$1])
+    $1="$(rel2abs "$$1")"
 ])
 
 GET_PROG([PERL], [perl], [perl])
@@ -164,15 +193,15 @@ GET_PROG([GNATPROVE], [gnatprove], [gnatprove])
 AC_DEFUN([GET_TOOL_FROM_GPRBUILD], [
     AC_ARG_VAR([$1], [$2 executable path])
     if test "x$$1" = "x"; then
-        $1="$(dirname $(command -v gprbuild))"/../libexec/gprbuild/$2
-        if ! test -x "$$1"; then
-            $1="$(dirname $(command -v gprbuild))"/../lib/gprbuild/$2
+        $1="$(dirname "$(command -v gprbuild)")"/../libexec/gprbuild/$2
+        if ! ( test -f "$$1" && test -x "$$1"); then
+            $1="$(dirname "$(command -v gprbuild)")"/../lib/gprbuild/$2
         fi
-        if ! test -x "$$1"; then
+        if ! ( test -f "$$1" && test -x "$$1"); then
             AC_MSG_ERROR([No recorded path to $2 valid])
         fi
     else
-        if ! test -x "$$1"; then
+        if ! ( test -f "$$1" && test -x "$$1"); then
             AC_MSG_ERROR([Provided $2 path not valid])
         fi
     fi
@@ -196,7 +225,7 @@ case $PLATFORM in
         ;;
 esac
 
-GPRBUILD_TARGET=$($CC -dumpmachine)
+GPRBUILD_TARGET="$($CC -dumpmachine)"
 AC_SUBST([GPRBUILD_TARGET])
 ###############################################################################
 # Finalize the settings and output the files.

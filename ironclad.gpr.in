@@ -45,11 +45,12 @@ project Ironclad is
 
    package Builder is
       for Executable ("main.adb") use "ironclad";
+      for Switches ("Ada") use ("-nostdlib");
    end Builder;
 
    package Compiler is
       Base_Ada_Switches := Split (Ada_Flags, " ") &
-         ("-fno-stack-protector", "-fno-stack-check",
+         ("-fno-stack-protector", "-fno-stack-check", "-nostdinc",
           "-fdata-sections", "-ffunction-sections", "-fno-PIC",
           "-gnateDIroncladName=""" & "@PACKAGE_NAME@"      & """",
           "-gnateDVersion="""      & "@PACKAGE_VERSION@"   & """",
@@ -83,7 +84,7 @@ project Ironclad is
 
    package Linker is
       Base_Link_Switches := Split (Linker_Flags, " ") &
-         ("-T@SRCDIR@/source/arch/" & Arch & "/linker.ld", "-nostdlib",
+         ("-T@SRCDIR@/source/arch/" & Arch & "/linker.ld",
           "-static", "-Wl,-gc-sections");
 
       case Arch is

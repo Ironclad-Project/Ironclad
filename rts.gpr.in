@@ -32,12 +32,12 @@ library project RTS is
 
    package Builder is
       for Global_Configuration_Pragmas use "@SRCDIR@/source/pragmas.adc";
-      for Switches ("Ada") use ("-nostdlib", "-nostdinc");
+      for Switches ("Ada") use ("-nostdlib");
    end Builder;
 
    package Compiler is
       Base_Ada_Switches := Split (Ada_Flags, " ") & (
-         "-fno-stack-protector", "-fno-stack-check", "-nostdlib", "-nostdinc",
+         "-fno-stack-protector", "-fno-stack-check", "-nostdinc",
          "-gnatg", "-ffile-prefix-map=" & "@SRCDIR@" & "=.",
          "-fdata-sections", "-ffunction-sections", "-fno-PIC"
       );
