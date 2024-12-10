@@ -59,7 +59,8 @@ project Ironclad is
           "-ffile-prefix-map="     & "@SRCDIR@"            & "=.",
           "-gnateDALLOCONLY="      & "@MEMORY_ALLOCONLY@");
       Base_Asm_Switches := Split (Asm_Flags, " ") &
-         ("-ffile-prefix-map=" & "@SRCDIR@" & "=.", "-fno-PIC");
+         ("-ffile-prefix-map=" & "@SRCDIR@" & "=.", "-fno-PIC",
+          "-nostdinc");
 
       case Arch is
          when "riscv64-limine" =>
@@ -94,7 +95,7 @@ project Ironclad is
                 "-Wl,--no-relax");
          when "x86_64-limine" =>
             for Switches ("Ada") use Base_Link_Switches &
-               ("-zmax-page-size=0x1000");
+               ("-zmax-page-size=0x1000", "-Wl,-melf_x86_64");
       end case;
    end Linker;
 end Ironclad;

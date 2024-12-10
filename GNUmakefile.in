@@ -26,7 +26,6 @@ override SHESCAPE = $(subst ','\'',$(1))
 
 # Import some autoconf variables as make variables.
 override SRCDIR          := @SRCDIR@
-override BUILDDIR        := @BUILDDIR@
 override PACKAGE_VERSION := @PACKAGE_VERSION@
 override PACKAGE_TARNAME := @PACKAGE_TARNAME@
 override OUTPUT          := $(PACKAGE_TARNAME)
@@ -83,32 +82,32 @@ rtsdir/adalib/libgnat.a: GNUmakefile $(RTSFILES)
 	cp '$(call SHESCAPE,$(SRCDIR))'/source/rts/*.adb rtsdir/adainclude/
 	cp '$(call SHESCAPE,$(SRCDIR))'/source/rts/*.ads rtsdir/adainclude/
 	cp '$(call SHESCAPE,$(SRCDIR))'/source/rts/$(host_cpu)-$(PLATFORM)/*.ads rtsdir/adainclude/
-	$(GPRBUILD) -P '$(call SHESCAPE,$(BUILDDIR))'/rts.gpr \
-      --target=$(GPRBUILD_TARGET) --db- --db '$(call SHESCAPE,$(BUILDDIR))'/gprconfig \
+	$(GPRBUILD) -P ./rts.gpr \
+      --target=$(GPRBUILD_TARGET) --db- --db ./gprconfig \
       -j$(PARALLELISM)
 
 $(OUTPUT): GNUmakefile rtsdir/adalib/libgnat.a $(ADAFILES)
-	$(GPRBUILD) --RTS='$(call SHESCAPE,$(BUILDDIR))'/rtsdir \
-      --target=$(GPRBUILD_TARGET) --db- --db '$(call SHESCAPE,$(BUILDDIR))'/gprconfig \
-      -P '$(call SHESCAPE,$(BUILDDIR))'/ironclad.gpr -j$(PARALLELISM)
+	$(GPRBUILD) --RTS=./rtsdir \
+      --target=$(GPRBUILD_TARGET) --db- --db ./gprconfig \
+      -P ./ironclad.gpr -j$(PARALLELISM)
 
 .PHONY: info
 info: ironclad.info
 
 ironclad.info: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi GNUmakefile
-	$(MAKEINFO) '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
+	$(MAKEINFO) '$(call SHESCAPE,$<)' -o $@
 
 .PHONY: html
 html: ironclad.html
 
 ironclad.html: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi GNUmakefile
-	$(TEXI2HTML) --set-customization-variable 'HIGHLIGHT_SYNTAX highlight' '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
+	$(TEXI2HTML) --set-customization-variable 'HIGHLIGHT_SYNTAX highlight' '$(call SHESCAPE,$<)' -o $@
 
 .PHONY: dvi
 dvi: ironclad.dvi
 
 ironclad.dvi: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi GNUmakefile
-	$(TEXI2DVI) '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
+	$(TEXI2DVI) '$(call SHESCAPE,$<)' -o $@
 ###############################################################################
 # Rules for checks and formal verification.
 .PHONY: check
