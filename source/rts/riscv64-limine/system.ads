@@ -70,4 +70,15 @@ private
    Use_Ada_Main_Program_Name : constant Boolean := False;
    ZCX_By_Default            : constant Boolean := False;
    GCC_ZCX_Support           : constant Boolean := False;
+
+   --  Priority-related Declarations (RM D.1)
+   --  GNATProve does require these ones for some reason, if I could, I would
+   --  not have them, Ironclad doesnt use, as of right now, the stdlib for
+   --  tasking.
+   Max_Priority           : constant Positive := 30;
+   Max_Interrupt_Priority : constant Positive := 31;
+   subtype Any_Priority       is Integer      range  0 .. 31;
+   subtype Priority           is Any_Priority range  0 .. 30;
+   subtype Interrupt_Priority is Any_Priority range 31 .. 31;
+   Default_Priority : constant Priority := 15;
 end System;

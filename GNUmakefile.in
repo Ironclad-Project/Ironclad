@@ -118,9 +118,9 @@ checkstack: $(OUTPUT)
 	$(OBJDUMP) -d $(OUTPUT) | $(PERL) '$(call SHESCAPE,$(SRCDIR))'/scripts/checkstack.pl $(host_cpu)-$(PLATFORM)
 
 .PHONY: prove
-prove:
+prove: rtsdir/adalib/libgnat.a
 	$(GNATPROVE) -U --prover=cvc4,altergo,z3 --mode=all --counterexamples=on \
-		-j$(PARALLELISM) -P '$(call SHESCAPE,$(SRCDIR))'/ironclad.gpr
+		--RTS=./rtsdir -j$(PARALLELISM) -P ./ironclad.gpr
 ###############################################################################
 # Rules for cleaning build and configuration artifacts.
 .PHONY: clean
