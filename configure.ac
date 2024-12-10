@@ -25,6 +25,9 @@ SRCDIR="$(cd "$srcdir" && pwd -P)"
 AC_SUBST([SRCDIR])
 
 AC_CANONICAL_HOST
+case "$host_cpu" in
+    amd64) host_cpu=x86_64 ;;
+esac
 
 # Portably convert relative paths into absolute paths.
 rel2abs() {
@@ -190,10 +193,13 @@ GET_PROG([GNATPROVE], [gnatprove], [gnatprove])
 # $1 - UPPERCASEVAR, $2 - default program
 AC_DEFUN([GET_TOOL_FROM_GPRBUILD], [
     AC_ARG_VAR([$1], [$2 executable path])
+
+    gprbuild_path="$(command -v "$(echo "$GPRBUILD" | cut -f 1 -d " ")")"
+
     if test "x$$1" = "x"; then
-        $1="$(dirname "$(command -v gprbuild)")"/../libexec/gprbuild/$2
+        $1="$(dirname "$gprbuild_path")"/../libexec/gprbuild/$2
         if ! ( test -f "$$1" && test -x "$$1"); then
-            $1="$(dirname "$(command -v gprbuild)")"/../lib/gprbuild/$2
+            $1="$(dirname "$gprbuild_path")"/../lib/gprbuild/$2
         fi
         if ! ( test -f "$$1" && test -x "$$1"); then
             AC_MSG_ERROR([No recorded path to $2 valid])
