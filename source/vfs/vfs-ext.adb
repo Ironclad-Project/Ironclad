@@ -1476,12 +1476,26 @@ package body VFS.EXT is
             goto Error_Return;
          end if;
 
-         Entity :=
-            (Inode_Number => Unsigned_64 (Dir.Inode_Index),
-             Name_Buffer  => <>,
-             Name_Len     => Dir_Name'Length,
-             Type_Of_File => Tmp_Type);
-         Entity.Name_Buffer (1 .. Dir_Name'Length) := Dir_Name;
+         if Dir_Name'Length <= Entity.Name_Buffer'Length then
+            Entity :=
+               (Inode_Number => Unsigned_64 (Dir.Inode_Index),
+                Name_Buffer  => <>,
+                Name_Len     => Dir_Name'Length,
+                Type_Of_File => Tmp_Type);
+            Entity.Name_Buffer (1 .. Dir_Name'Length) := Dir_Name;
+         else
+            --  TODO: This is a shortcomming of Ironclad's VFS having a fixed
+            --  length for entities in a directory.
+            --  In a future, this has to be fixed.
+            Entity :=
+               (Inode_Number => Unsigned_64 (Dir.Inode_Index),
+                Name_Buffer  => <>,
+                Name_Len     => Entity.Name_Buffer'Length,
+                Type_Of_File => Tmp_Type);
+            Entity.Name_Buffer (1 .. Entity.Name_Buffer'Length) :=
+               Dir_Name (1 .. Entity.Name_Buffer'Length);
+         end if;
+
          Next_Index := Inode_Index + Unsigned_64 (Dir.Entry_Count);
          Success    := True;
          return;
@@ -2583,11 +2597,9 @@ package body VFS.EXT is
       case Data.Super.Error_Policy is
          when Policy_Ignore =>
             Lib.Messages.Put_Line (Message);
-         when Policy_Remount_RO =>
+         when Policy_Remount_RO | Policy_Panic =>
             Lib.Messages.Put_Line (Message);
             Data.Is_Read_Only := True;
-         when Policy_Panic =>
-            Lib.Panic.Hard_Panic (Message);
          when others =>
             Lib.Panic.Hard_Panic ("ext is dead, and we killed it");
       end case;

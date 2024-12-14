@@ -206,8 +206,8 @@ Virtualization
 
 Filesystem support and interfaces
 
-* Extended FileSystem::    EXT-series filesystems (ext2, ext3, ext4).
-* File Allocation Table::  FAT-series filesystems.
+* EXTended filesystem (EXT)::    EXT-series filesystems (ext2, ext3, ext4).
+* File Allocation Table (FAT)::  FAT-series filesystems.
 
 Devices and their properties
 
@@ -3986,8 +3986,8 @@ Support for several filesystems is provided, with filesystem-specific quirks at
 times, and exposes interfaces with @code{ioctl} calls. This section of the
 manual focuses on documenting said quirks, details, and additional features.
 
-@node Extended FileSystem
-@section Extended FileSystem
+@node EXTended filesystem (EXT)
+@section EXTended filesystem (EXT)
 
 Ironclad supports EXT-series filesystems read-only and read-write.
 
@@ -4012,8 +4012,15 @@ ioctl(fd, EXT_GETFLAGS, pointer_to_u32); // Get EXT's flags inode field.
 ioctl(fd, EXT_SETFLAGS, pointer_to_u32); // Set EXT's flags inode field.
 @end example
 
-@node File Allocation Table
-@section File Allocation Table
+@subsection Ironclad support quirks
+
+EXT features a error policy on EXT internal errors that dictates for the kernel
+to panic when triggered. While other operating systems honor the policy as-is,
+Ironclad deliverately acts on it was a "Remount read only" policy. This is done
+to avoid denial of service attacks by mounting deliverately faulty flesystems.
+
+@node File Allocation Table (FAT)
+@section File Allocation Table (FAT)
 
 Ironclad's FAT support is really rough. Only read-only FAT32 is supported.
 No special @code{ioctl} calls are provided. Long filenames are not supported.
