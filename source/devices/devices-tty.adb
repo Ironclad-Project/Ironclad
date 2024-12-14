@@ -114,7 +114,7 @@ package body Devices.TTY is
       PTY  : IPC.PTY.Inner_Acc;
    begin
       Get_Controlling_TTY (Proc, PTY);
-      if PTY = null then
+      if PTY /= null then
          Success := IPC.PTY.IO_Control
             (PTY        => PTY,
              Is_Primary => False,

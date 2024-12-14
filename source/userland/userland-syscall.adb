@@ -1124,21 +1124,15 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       case File.Description is
          when Description_Inode =>
-            if File.Inner_Ino_Read and File.Inner_Ino_Write then
-               VFS.IO_Control
-                  (Key       => File.Inner_Ino_FS,
-                   Ino       => File.Inner_Ino,
-                   Request   => Request,
-                   Arg       => S_Arg,
-                   Has_Extra => Has_E,
-                   Extra     => Extra,
-                   Status    => FSSuc);
-               Succ := FSSuc = VFS.FS_Success;
-            else
-               Has_E := False;
-               Extra := 0;
-               Succ  := False;
-            end if;
+            VFS.IO_Control
+               (Key       => File.Inner_Ino_FS,
+                Ino       => File.Inner_Ino,
+                Request   => Request,
+                Arg       => S_Arg,
+                Has_Extra => Has_E,
+                Extra     => Extra,
+                Status    => FSSuc);
+            Succ := FSSuc = VFS.FS_Success;
          when Description_Primary_PTY =>
             Succ := IPC.PTY.IO_Control
                (File.Inner_Primary_PTY, True, Request, S_Arg);
