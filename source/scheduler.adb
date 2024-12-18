@@ -125,7 +125,7 @@ package body Scheduler is
       Cluster_Pool (Cluster_Pool'First).Is_Present       := True;
       Cluster_Pool (Cluster_Pool'First).Algorithm        := Cluster_RR;
       Cluster_Pool (Cluster_Pool'First).Is_Interruptible := True;
-      Cluster_Pool (Cluster_Pool'First).RR_Quantum       := 4000;
+      Cluster_Pool (Cluster_Pool'First).RR_Quantum       := 20000;
       Cluster_Pool (Cluster_Pool'First).Percentage       := 100;
       Cluster_Pool (Cluster_Pool'First).Progress_Seconds := 0;
       Cluster_Pool (Cluster_Pool'First).Progress_Nanos   := 0;
@@ -375,7 +375,6 @@ package body Scheduler is
          Cluster_Pool (Thread_Pool (Curr_TID).Cluster).Is_Interruptible
       then
          Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex, True);
-         Arch.Snippets.Enable_Interrupts;
          Arch.Local.Reschedule_ASAP;
          Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex, True);
          Lib.Synchronization.Release (Thread_Pool (Curr_TID).Yield_Mutex);

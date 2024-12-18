@@ -386,7 +386,7 @@ queue another during long waits, in order to increase performance and
 responsiveness. This does not affect cluster-wide scheduling guarantees.
 
 At startup, Ironclad will have a single interruptible cluster assigned to 100%
-of execution time, configured to use a flat RR with a reasonable quantum with
+of execution time, configured to use a flat RR with a 20ms quantum with
 cluster number @code{1}. Software is free to modify it however it sees fit, it
 is just provided in order to have some natural-ish behaviour for running
 software blissfully unaware of the clusters beneath.
@@ -1948,7 +1948,27 @@ This syscall returns the current thread id. It never fails.
 int manage_tcluster(int cluster, int flags, int quantum, int percentage);
 @end example
 
-This syscall sets settings for the passed cluster.
+This syscall sets settings for the passed @code{cluster}. Flags is a bitmap of:
+
+@itemize @bullet
+@item
+@code{SCHED_RR}: Use a prioritized round robin as scheduling algorithm for
+threads inside the cluster. The quantum for niceness 0 will be @code{quantum}.
+For more information on how quantums are used to calculate execution times,
+check @ref{Thread clustering management}.
+@item
+@code{SCHED_COOP}: Use cooperative scheduling as algorithm for the threads of
+the cluster, which will just pass execution on interruptions (if enabled),
+manual execution yielding, or end of the cluster's percentage. This flag
+conflicts with @code{SCHED_RR}. @code{quantum} is ignored for this algorithm.
+@item
+@code{SCHED_INTR}: If set, the cluster will be interruptible, that means, it
+can have its threads rescheduled on IO events, or other situations deemed
+worthy by the kernel.
+@end itemize
+
+Quantum is the quantum for the algorithm chosen, in nanoseconds. Percentage
+is a 0 to 100 integer for the percentage of execution the cluster is given.
 
 The syscall returns @code{0} on success and @code{-1} on failure, with the
 following errno:
