@@ -1,5 +1,5 @@
 --  config.ads: Configuration values.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -19,10 +19,12 @@ package Config is
    pragma Style_Checks (Off);
 
    --  Project name, contact, and basic information.
-   Name      : constant String := $IroncladName;
-   Version   : constant String := $Version;
-   Arch_Name : constant String := $ArchName;
-   Bug_Site  : constant String := $BugSite;
+   Name         : constant String := $IroncladName;
+   Version      : constant String := $Version;
+   Architecture : constant String := $Architecture;
+   Platform     : constant String := $Platform;
+   Arch_Name    : constant String := $Architecture & $Platform;
+   Bug_Site     : constant String := $BugSite;
 
    --  Configuration for system internals.
    Support_Alloc_Only : constant Boolean := $ALLOCONLY;

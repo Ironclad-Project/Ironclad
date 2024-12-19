@@ -1455,10 +1455,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   Config.Name & Ada.Characters.Latin_1.NUL;
                UTS.Release (1 .. Config.Version'Length + 1) :=
                   Config.Version & Ada.Characters.Latin_1.NUL;
-               UTS.Version (1 .. Config.Version'Length + 1) :=
-                  Config.Version & Ada.Characters.Latin_1.NUL;
-               UTS.Machine (1 .. Config.Arch_Name'Length + 1) :=
+               UTS.Version (1 .. Config.Arch_Name'Length + 1) :=
                   Config.Arch_Name & Ada.Characters.Latin_1.NUL;
+               UTS.Machine (1 .. Config.Architecture'Length + 1) :=
+                  Config.Architecture & Ada.Characters.Latin_1.NUL;
 
                Result := 0;
             end;

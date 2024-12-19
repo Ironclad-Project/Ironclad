@@ -55,6 +55,8 @@ project Ironclad is
           "-gnateDIroncladName=""" & "@PACKAGE_NAME@"      & """",
           "-gnateDVersion="""      & "@PACKAGE_VERSION@"   & """",
           "-gnateDBugSite="""      & "@PACKAGE_BUGREPORT@" & """",
+          "-gnateDArchitecture=""" & "@host_cpu@"          & """",
+          "-gnateDPlatform="""     & "@PLATFORM@"          & """",
           "-gnateDArchName="""     & Arch                  & """",
           "-ffile-prefix-map="     & "@SRCDIR@"            & "=.",
           "-gnateDALLOCONLY="      & "@MEMORY_ALLOCONLY@");
