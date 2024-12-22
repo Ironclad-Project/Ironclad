@@ -57,12 +57,6 @@ rel2abs() {
     printf "\n"
 }
 
-test "x${CFLAGS+set}" = "x" && CFLAGS='-g -O2 -pipe'
-
-AC_LANG([C])
-AC_PROG_CC
-CC="$(rel2abs "$CC")"
-
 werror_state="no"
 AC_ARG_ENABLE([werror],
     [AS_HELP_STRING([--enable-werror], [treat warnings as errors])],
@@ -113,6 +107,7 @@ AC_DEFUN([GET_PROG_FROM_TOOLCHAIN], [
 ])
 
 GET_PROG_FROM_TOOLCHAIN([AR], [ar])
+GET_PROG_FROM_TOOLCHAIN([CC], [gcc])
 GET_PROG_FROM_TOOLCHAIN([OBJDUMP], [objdump])
 GET_PROG_FROM_TOOLCHAIN([STRIP], [strip])
 
@@ -135,6 +130,10 @@ test "x${ASFLAGS+set}" = "x" && ASFLAGS="DEFAULT_ASFLAGS"
 if test "$werror_state" = "yes"; then
     ASFLAGS="$ASFLAGS -Werror"
 fi
+
+m4_define([DEFAULT_LDFLAGS], [])
+AC_ARG_VAR([LDFLAGS], [linker flags @<:@default: ]DEFAULT_LDFLAGS[@:>@])
+test "x${LDFLAGS+set}" = "x" && LDFLAGS="DEFAULT_LDFLAGS"
 ###############################################################################
 # A ton of tools use source date epoch in order to not use date in the effort
 # of doing reproducible builds.
