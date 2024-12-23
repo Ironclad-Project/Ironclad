@@ -90,7 +90,7 @@ private
        Can_Write : out Boolean;
        Is_Error  : out Boolean);
 
-   function Can_Receive  (Port : Unsigned_16) return Boolean;
+   function Can_Receive (Port : Unsigned_16) return Boolean;
    function Can_Transmit (Port : Unsigned_16) return Boolean;
-   procedure Set_Baud    (Port : Unsigned_16; Baud : Unsigned_32);
+   procedure Set_Baud (Port : Unsigned_16; Baud : Unsigned_32);
 end Devices.Serial;

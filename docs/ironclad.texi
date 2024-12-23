@@ -100,8 +100,9 @@ Security and integrity facilities
 
 Debugging facilities
 
-* Corefile and process dumping::    Format of dumped files, and settings.
-* Program tracing::                 Details on program tracing.
+* Corefile and process dumping::      Format of dumped files, and settings.
+* Program tracing::                   Details on program tracing.
+* Kernel Address SANitizer (KASAN)::  Kernel memory debugging.
 
 Syscalls
 
@@ -700,6 +701,17 @@ The format is a register dump of the process.
 
 Ironclad allows tracing children processes for a variety of information, MAC
 willing, see @ref{ptrace}.
+
+@node Kernel Address SANitizer (KASAN)
+@section Kernel Address SANitizer (KASAN)
+
+Ironclad supports KASAN, which is useful for debugging memory use by the
+kernel. KASAN can be configured to be used by being built with
+@code{--enable-kasan}. KASAN comes with a big performance penalty, so only use
+it for debugging.
+
+KASAN errors will be printed to the architectural debug output and will
+not result in kernel panics.
 
 @node Syscalls
 @chapter Syscalls

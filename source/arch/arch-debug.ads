@@ -19,6 +19,9 @@ with Devices;
 package Arch.Debug is
    --  This package implements read / write access to a target-specific debug
    --  channel, which could take the shape of a serial port or debug monitor.
+   --
+   --  no_sanitize_address is turned on as we print in the case of failed
+   --  KASAN checks and we want to make sure there are no loops.
 
    --  Whether the abstracted channel supports write only or read / write.
    Supports_Read : constant Boolean;

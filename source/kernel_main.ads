@@ -23,5 +23,6 @@ package Kernel_Main is
    --  - Cores apart of this one having called Idle_Core in the scheduler, and
    --    with common global state loaded, basically ready to go.
    --  - Logging at Lib.Messages is already initialized.
+   --  - If KASAN is wanted, it must already be initialized.
    procedure Entrypoint (Cmdline : String);
 end Kernel_Main;

@@ -117,6 +117,18 @@ AC_ARG_ENABLE([alloconly],
     [test "$enableval" = "yes" && MEMORY_ALLOCONLY="True"])
 AC_SUBST([MEMORY_ALLOCONLY])
 
+KASAN="False"
+AC_ARG_ENABLE([kasan],
+    [AS_HELP_STRING([--enable-kasan], [Enable the Kernel Address SANitizer])],
+    [test "$enableval" = "yes" && KASAN="True"])
+AC_SUBST([KASAN])
+
+KASAN_FLAGS=""
+if test "$KASAN" = "True"; then
+    KASAN_FLAGS="-fsanitize=kernel-address"
+fi
+AC_SUBST([KASAN_FLAGS])
+
 m4_define([DEFAULT_ADAFLAGS], [-g -O2 -pipe -gnaty -Wall -Wextra])
 AC_ARG_VAR([ADAFLAGS], [Ada flags @<:@default: ]DEFAULT_ADAFLAGS[@:>@])
 test "x${ADAFLAGS+set}" = "x" && ADAFLAGS="DEFAULT_ADAFLAGS"

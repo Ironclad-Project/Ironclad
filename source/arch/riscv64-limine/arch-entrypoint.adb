@@ -25,6 +25,10 @@ with Lib.Panic;
 with Arch.DTB;
 with Arch.CPU;
 
+#if KASAN
+   with Lib.KASAN;
+#end if;
+
 package body Arch.Entrypoint is
    procedure Bootstrap_Main is
       Info     : Boot_Information renames Limine.Global_Info;
@@ -49,8 +53,11 @@ package body Arch.Entrypoint is
          Lib.Panic.Hard_Panic ("The VMM could not be initialized");
       end if;
 
-      --  Enable dmesg buffers and such.
+      --  Enable dmesg buffers and KASAN if wanted.
       Lib.Messages.Enable_Logging;
+      #if KASAN
+         Lib.KASAN.Init;
+      #end if;
 
       --  Print the memory map, it is useful at times.
       Lib.Messages.Put_Line ("Physical memory map:");
