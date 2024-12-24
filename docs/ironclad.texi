@@ -123,6 +123,7 @@ Syscalls
 * sethostname::             Hostname setting.
 * unlink::                  Queue files for deletion.
 * fstat::                   Fetch file information.
+* pivot_root::              Pivot the root mountpoint.
 * chdir::                   Current working directory manipulation.
 * ioctl::                   IO multiplexer.
 * sched_yield::             Relinquish CPU time.
@@ -764,7 +765,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{fstat}.
 @item
-Empty.
+@ref{pivot_root}.
 @item
 @ref{chdir}.
 @item
@@ -925,6 +926,8 @@ Empty.
 @ref{gettidid/settidid, gettidid}.
 @item
 @ref{gettidid/settidid, settidid}.
+@item
+@ref{failure_policy}.
 @end enumerate
 
 @subsection riscv64-limine
@@ -1573,6 +1576,54 @@ opening, either following or not following symlinks with
 @code{EFAULT}: The passed address for the path or stat buffer is not valid.
 @end itemize
 
+This syscalls return information about a file, be it an already opened one with
+@code{dir_fd} and @code{AT_EMPTY_PATH} in @code{flags}, or by relatively
+opening, either following or not following symlinks with
+@code{AT_SYMLINK_NOFOLLOW}.
+
+@code{0} is returned on success, @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EBADF}: The passed path or file descriptor is not valid.
+
+@item
+@code{ENOENT}: The file pointed by @code{path} does not exist.
+
+@item
+@code{EFAULT}: The passed address for the path or stat buffer is not valid.
+@end itemize
+
+@node pivot_root
+@section pivot_root
+
+@example c
+int pivot_root(char *new_root, size_t new_len, char *old_root, size_t old_len);
+@end example
+
+This syscall pivots the root FS of the system into a new root mountpoint
+mounted at @code{new_root}. @code{old_root} will be where the root mountpoint
+will be moved to. The current working directory is not changed in any way. And
+this change is system-wide, there is no mount namespace manipulation, unlike
+Linux.
+
+@code{old_root} can not exist inside the old root, and only exist inside
+@code{new_root}.
+
+This syscall returns 0 on success or @code{-1} on failure, with the errno:
+
+@table @code
+@item EFAULT
+One of the buffers (or both) point to invalid memory.
+
+@item EINVAL
+The values passed do not point to actual mountpoints, or point to the same
+mountpoint.
+
+@item EACCES
+The caller process does not have the @code{MAC_CAP_SYS_MNT} capability.
+@end table
+
 @node chdir
 @section chdir
 
@@ -1580,7 +1631,7 @@ opening, either following or not following symlinks with
 int chdir(int fd);
 @end example
 
-This syscalls will set the callee's process current working directory to
+This syscall will set the caller's process current working directory to
 the passed FD, which must point to a directory.
 
 The syscall returns @code{0} on success and @code{-1} on failure, with the

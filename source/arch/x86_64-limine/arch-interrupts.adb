@@ -128,6 +128,9 @@ package body Arch.Interrupts is
          when 17 =>
             FStat (State.RDI, State.RSI, State.RDX, State.R12,
                    State.R8, Returned, Errno);
+         when 18 =>
+            Pivot_Root (State.RDI, State.RSI, State.RDX, State.R12,
+                Returned, Errno);
          when 19 =>
             Chdir (State.RDI, Returned, Errno);
          when 20 =>

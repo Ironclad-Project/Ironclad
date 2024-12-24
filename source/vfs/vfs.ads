@@ -129,6 +129,13 @@ package VFS is
        Handle : out FS_Handle)
       with Pre => Is_Initialized;
 
+   procedure Get_Root (FS : out FS_Handle; Ino : out File_Inode_Number);
+
+   procedure Pivot_Root
+      (New_Mount : String;
+       Old_Mount : String;
+       Success   : out Boolean);
+
    --  Array of handles.
    type Mountpoint_Arr is array (Natural range <>) of FS_Handle;
 
@@ -675,6 +682,7 @@ private
 
    Mounts       : Mount_Registry_Acc;
    Mounts_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+   Root_Idx     : FS_Handle;
 
    function Is_Initialized return Boolean is (Mounts /= null);
 end VFS;

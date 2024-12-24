@@ -1067,6 +1067,61 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Returned := 0;
    end FStat;
 
+   procedure Pivot_Root
+      (New_Addr : Unsigned_64;
+       New_Len  : Unsigned_64;
+       Old_Addr : Unsigned_64;
+       Old_Len  : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      New_IAddr : constant Integer_Address := Integer_Address (New_Addr);
+      New_SAddr : constant  System.Address := To_Address (New_IAddr);
+      Old_IAddr : constant Integer_Address := Integer_Address (Old_Addr);
+      Old_SAddr : constant  System.Address := To_Address (Old_IAddr);
+      Curr_Proc : constant             PID := Arch.Local.Get_Current_Process;
+      Map       : constant  Page_Table_Acc := Get_Common_Map (Curr_Proc);
+      Success   : Boolean;
+   begin
+      if not Check_Userland_Access (Map, New_IAddr, New_Len) or
+         not Check_Userland_Access (Map, Old_IAddr, Old_Len)
+      then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Would_Fault;
+         return;
+      elsif New_Len > Unsigned_64 (Natural'Last) or
+            Old_Len > Unsigned_64 (Natural'Last)
+      then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_String_Too_Long;
+         return;
+      elsif not Get_Capabilities (Curr_Proc).Can_Manage_Mounts then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("pivot_root", Curr_Proc);
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      declare
+         New_Path : String (1 .. Natural (New_Len))
+            with Import, Address => New_SAddr;
+         Old_Path : String (1 .. Natural (Old_Len))
+            with Import, Address => Old_SAddr;
+      begin
+         VFS.Pivot_Root
+            (New_Mount => New_Path,
+             Old_Mount => Old_Path,
+             Success   => Success);
+         if Success then
+            Errno    := Error_No_Error;
+            Returned := 0;
+         else
+            Errno    := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
+         end if;
+      end;
+   end Pivot_Root;
+
    procedure Chdir
       (FD       : Unsigned_64;
        Returned : out Unsigned_64;

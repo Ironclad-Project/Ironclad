@@ -160,6 +160,9 @@ package body Userland.Process with SPARK_Mode => Off is
                Registry (I).Umask           := Registry (P).Umask;
                Lib.Synchronization.Release (Registry (P).Data_Mutex);
             else
+               VFS.Get_Root
+                  (Registry (I).Current_Dir_FS,
+                   Registry (I).Current_Dir_Ino);
                Reassign_Process_Addresses (PID (I));
             end if;
 

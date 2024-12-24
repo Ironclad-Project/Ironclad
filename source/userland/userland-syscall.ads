@@ -301,6 +301,14 @@ package Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
 
+   procedure Pivot_Root
+      (New_Addr : Unsigned_64;
+       New_Len  : Unsigned_64;
+       Old_Addr : Unsigned_64;
+       Old_Len  : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
    --  Set current working directory.
    procedure Chdir
       (FD       : Unsigned_64;

@@ -35,6 +35,7 @@ package body VFS is
           Base_Ino    => 0,
           Root_Ino    => 0));
       Mounts_Mutex := Lib.Synchronization.Unlocked_Semaphore;
+      Root_Idx     := Error_Handle;
    end Init;
 
    procedure Mount
@@ -130,6 +131,9 @@ package body VFS is
 
          Mounts (Free_I).Path_Buffer (1 .. Mount_Path'Length) := Mount_Path;
          Success := True;
+         if Root_Idx = Error_Handle then
+            Root_Idx := Free_I;
+         end if;
       end if;
 
    <<Cleanup>>
@@ -188,6 +192,71 @@ package body VFS is
          Match := Match - 1;
       end if;
    end Get_Mount;
+
+   procedure Get_Root (FS : out FS_Handle; Ino : out File_Inode_Number) is
+   begin
+      FS  := Root_Idx;
+      Ino := Mounts (Root_Idx).Root_Ino;
+   end Get_Root;
+
+   procedure Pivot_Root
+      (New_Mount : String;
+       Old_Mount : String;
+       Success   : out Boolean)
+   is
+      New_Idx : FS_Handle := Error_Handle;
+      Succ    : FS_Status;
+      Key     : FS_Handle;
+      Ino     : File_Inode_Number;
+   begin
+      Success := False;
+
+      if Root_Idx = Error_Handle then
+         return;
+      end if;
+
+      Lib.Synchronization.Seize (Mounts_Mutex);
+
+      for I in Mounts'Range loop
+         if Mounts (I).Mounted_Dev /= Devices.Error_Handle and then
+            Mounts (I).Path_Buffer (1 .. Mounts (I).Path_Length) = New_Mount
+         then
+            New_Idx := I;
+         end if;
+      end loop;
+
+      if New_Idx /= Error_Handle and then New_Idx /= Root_Idx then
+         Open
+            (Key        => New_Idx,
+             Relative   => Mounts (New_Idx).Root_Ino,
+             Path       => "./" & Old_Mount,
+             Final_Key  => Key,
+             Ino        => Ino,
+             Success    => Succ,
+             User       => 0,
+             Want_Read  => True,
+             Want_Write => False);
+         if Succ /= FS_Success then
+            goto Cleanup;
+         end if;
+
+         Mounts (Root_Idx).Path_Buffer (1 .. Old_Mount'Length) := Old_Mount;
+         Mounts (Root_Idx).Path_Length := Old_Mount'Length;
+         Mounts (Root_Idx).Base_Key    := Key;
+         Mounts (Root_Idx).Base_Ino    := Ino;
+
+         Root_Idx := New_Idx;
+
+         Mounts (Root_Idx).Path_Buffer (1) := '/';
+         Mounts (Root_Idx).Path_Length := 1;
+         Mounts (Root_Idx).Base_Key    := Error_Handle;
+         Mounts (Root_Idx).Base_Ino    := 0;
+         Success := True;
+      end if;
+
+   <<Cleanup>>
+      Lib.Synchronization.Release (Mounts_Mutex);
+   end Pivot_Root;
 
    procedure List_All (List : out Mountpoint_Arr; Total : out Natural) is
       pragma Annotate (GNATprove, False_Positive, "range check might fail",
@@ -359,13 +428,13 @@ package body VFS is
       Symlink_Path    : String_Acc := new String'(1 .. 60 => ' ');
       Symlink_Len     : Natural;
    begin
-      if Path'Length = 0 then
+      if Path'Length = 0 or Root_Idx = Error_Handle then
          goto Invalid_Value_Return;
       end if;
 
       if Is_Absolute (Path) then
-         Actual_Key := 1;
-         Actual_Ino := Mounts (1).Root_Ino;
+         Actual_Key := Root_Idx;
+         Actual_Ino := Mounts (Root_Idx).Root_Ino;
       end if;
 
       Path_Idx := 0;
@@ -1035,7 +1104,7 @@ package body VFS is
        Do_Follow  : Boolean := True)
    is
    begin
-      if Mounts (1).Mounted_Dev = Devices.Error_Handle then
+      if Root_Idx = Error_Handle then
          Key     := Error_Handle;
          Ino     := 0;
          Success := FS_Invalid_Value;
@@ -1043,8 +1112,8 @@ package body VFS is
       end if;
 
       Open
-         (Key        => 1,
-          Relative   => Mounts (1).Root_Ino,
+         (Key        => Root_Idx,
+          Relative   => Mounts (Root_Idx).Root_Ino,
           Path       => Path,
           Final_Key  => Key,
           Ino        => Ino,
@@ -1078,9 +1147,14 @@ package body VFS is
        User    : Unsigned_32)
    is
    begin
+      if Root_Idx = Error_Handle then
+         Success := FS_Invalid_Value;
+         return;
+      end if;
+
       Create_Node
-         (Key      => 1,
-          Relative => Mounts (1).Root_Ino,
+         (Key      => Root_Idx,
+          Relative => Mounts (Root_Idx).Root_Ino,
           Path     => Path,
           Typ      => Typ,
           Mode     => Mode,
