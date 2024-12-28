@@ -19,6 +19,7 @@ with Lib.Alignment;
 with Lib.Messages;
 with Ada.Unchecked_Deallocation;
 with Arch.Local;
+with Arch.Clocks;
 with Cryptography.Random;
 with Userland.Memory_Locations;
 with IPC.FileLock;
@@ -166,6 +167,10 @@ package body Userland.Process with SPARK_Mode => Off is
                Reassign_Process_Addresses (PID (I));
             end if;
 
+            Arch.Clocks.Get_Monotonic_Time
+               (Registry (I).Creation_Secs,
+                Registry (I).Creation_NSecs);
+
             Returned := PID (I);
             exit;
          end if;
@@ -257,6 +262,18 @@ package body Userland.Process with SPARK_Mode => Off is
       User_Nanoseconds := Registry (Proc).Children_UNSec;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_Children_Runtimes;
+
+   procedure Get_Elapsed_Time
+      (Proc        : PID;
+       Seconds     : out Unsigned_64;
+       Nanoseconds : out Unsigned_64)
+   is
+   begin
+      Arch.Clocks.Get_Monotonic_Time (Seconds, Nanoseconds);
+      Lib.Time.Substract
+         (Seconds, Nanoseconds,
+          Registry (Proc).Creation_Secs, Registry (Proc).Creation_NSecs);
+   end Get_Elapsed_Time;
 
    procedure Add_Thread
       (Proc    : PID;

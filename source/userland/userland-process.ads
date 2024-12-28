@@ -220,6 +220,12 @@ package Userland.Process is
        System_Seconds, System_Nanoseconds : out Unsigned_64;
        User_Seconds, User_Nanoseconds     : out Unsigned_64);
 
+   --  Get elapsed time since creation of the process.
+   procedure Get_Elapsed_Time
+      (Proc        : PID;
+       Seconds     : out Unsigned_64;
+       Nanoseconds : out Unsigned_64);
+
    --  Add a thread to the process.
    --  @param Proc    Process to add a thread.
    --  @param Thread  Thread to add.
@@ -692,6 +698,8 @@ private
       Children_SNSec  : Unsigned_64;
       Children_USec   : Unsigned_64;
       Children_UNSec  : Unsigned_64;
+      Creation_Secs   : Unsigned_64;
+      Creation_NSecs  : Unsigned_64;
    end record;
    type Process_Data_Acc is access Process_Data;
    type Process_Arr     is array (PID range 1 .. PID'Last) of Process_Data_Acc;

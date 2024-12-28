@@ -1,5 +1,5 @@
 --  arch-clocks.ads: Architectural clock sources.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -19,6 +19,18 @@ with Interfaces; use Interfaces;
 package Arch.Clocks with
    Abstract_State => (Monotonic_Clock_State, RT_Clock_State)
 is
+   --  This package exposes to the kernel 2 kinds of sources, monotonic and
+   --  real time.
+   --
+   --  Monotonic: Inexorable counter that only moves forward from an
+   --  architecture specific point of time. It cannot be changed, it is not
+   --  subject to timezones. Used for calculating intervals and such.
+   --
+   --  Real time: Classical clock, tells the real world time, can be changed.
+   --  Should only be used for real world usecases and user interaction, and
+   --  not for intervals, or anything of the sort, since it can change under
+   --  our own feet.
+
    --  Initialize clock sources.
    procedure Initialize_Sources
       with Global => (Output => (Monotonic_Clock_State, RT_Clock_State));

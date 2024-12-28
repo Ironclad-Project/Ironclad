@@ -1450,7 +1450,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
                       Parent_PID  => Unsigned_16 (Convert (KProc (I).Parent)),
                       Process_PID => Unsigned_16 (Convert (KProc (I).Process)),
                       UID         => KProc (I).User,
-                      Flags       => 0);
+                      Flags       => 0,
+                      Elapsed_Time => (0, 0));
+                  Get_Elapsed_Time
+                     (KProc (I).Process,
+                      Procs (I).Elapsed_Time.Seconds,
+                      Procs (I).Elapsed_Time.Nanoseconds);
                   if KProc (I).Is_Being_Traced then
                      Procs (I).Flags := Procs (I).Flags or PROC_IS_TRACED;
                   end if;

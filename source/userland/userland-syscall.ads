@@ -380,12 +380,13 @@ package Userland.Syscall is
    PROC_IS_TRACED : constant := 2#01#;
    PROC_EXITED    : constant := 2#10#;
    type Proc_Info is record
-      Identifier  : String (1 .. 20);
-      Id_Len      : Unsigned_16;
-      Parent_PID  : Unsigned_16;
-      Process_PID : Unsigned_16;
-      UID         : Unsigned_32;
-      Flags       : Unsigned_32;
+      Identifier   : String (1 .. 20);
+      Id_Len       : Unsigned_16;
+      Parent_PID   : Unsigned_16;
+      Process_PID  : Unsigned_16;
+      UID          : Unsigned_32;
+      Flags        : Unsigned_32;
+      Elapsed_Time : Time_Spec;
    end record with Pack;
    type Proc_Info_Arr is array (Natural range <>) of Proc_Info;
 
