@@ -25,7 +25,4 @@ package Config is
    Platform     : constant String := $Platform;
    Arch_Name    : constant String := $Architecture & $Platform;
    Bug_Site     : constant String := $BugSite;
-
-   --  Configuration for system internals.
-   Support_Alloc_Only : constant Boolean := $ALLOCONLY;
 end Config;

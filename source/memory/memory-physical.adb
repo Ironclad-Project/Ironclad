@@ -21,7 +21,6 @@ with Lib.Alignment;
 with Arch.MMU;
 with System; use System;
 with Lib.Messages;
-with Config;
 with Userland.OOM_Failure;
 
 package body Memory.Physical is
@@ -140,10 +139,7 @@ package body Memory.Physical is
       --  Calculate how many blocks to allocate, if we are doing alloconly, we
       --  do not need to use blocks for headers and checksums.
       Size               := Align.Align_Up (Size, Block_Size);
-      Blocks_To_Allocate := Size / Block_Size;
-      if not Config.Support_Alloc_Only then
-         Blocks_To_Allocate := Blocks_To_Allocate + 1;
-      end if;
+      Blocks_To_Allocate := (Size / Block_Size) + 1;
 
       --  Search for contiguous blocks, as many as needed.
       Lib.Synchronization.Seize (Alloc_Mutex);
@@ -204,18 +200,10 @@ package body Memory.Physical is
          Data : array (1 .. Blocks_To_Allocate * Block_Size) of Unsigned_8
             with Import, Address => To_Address (Ret);
       begin
-         for V of Data loop
-            V := 0;
-         end loop;
-
-         if Config.Support_Alloc_Only then
-            return Ret;
-         else
-            Header :=
-               (Block_Count => Blocks_To_Allocate,
-                Signature   => Calculate_Signature (Blocks_To_Allocate));
-            return Ret + Block_Size;
-         end if;
+         Header :=
+            (Block_Count => Blocks_To_Allocate,
+             Signature   => Calculate_Signature (Blocks_To_Allocate));
+         return Ret + Block_Size;
       end;
    end Alloc;
 
@@ -226,7 +214,7 @@ package body Memory.Physical is
          with Address => To_Address (Bitmap_Address), Import;
    begin
       --  Ensure the address is in the higher half and not null.
-      if Real_Address = 0 or Config.Support_Alloc_Only then
+      if Real_Address = 0 then
          return;
       elsif Real_Address < Memory_Offset then
          Real_Address := Real_Address + Memory_Offset;

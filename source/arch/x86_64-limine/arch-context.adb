@@ -96,6 +96,13 @@ package body Arch.Context is
       Ctx := To_Address (Memory.Physical.Alloc
          (Interfaces.C.size_t (FPU_Area_Size)));
 
+      declare
+         Arr : array (1 .. FPU_Area_Size) of Unsigned_8
+            with Import, Address => Ctx;
+      begin
+         Arr := [others => 0];
+      end;
+
       --  Save the current context with the control words and all.
       Save_FP_Context (Ctx);
    end Init_FP_Context;

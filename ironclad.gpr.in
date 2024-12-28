@@ -59,7 +59,6 @@ project Ironclad is
           "-gnateDPlatform="""     & "@PLATFORM@"          & """",
           "-gnateDArchName="""     & Arch                  & """",
           "-ffile-prefix-map="     & "@SRCDIR@"            & "=.",
-          "-gnateDALLOCONLY="      & "@MEMORY_ALLOCONLY@",
           "-gnateDKASAN="          & "@KASAN@");
       Base_Asm_Switches := Split (Asm_Flags, " ") &
          ("-ffile-prefix-map=" & "@SRCDIR@" & "=.", "-fno-PIC",
