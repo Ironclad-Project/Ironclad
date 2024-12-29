@@ -111,12 +111,6 @@ GET_PROG_FROM_TOOLCHAIN([CC], [gcc])
 GET_PROG_FROM_TOOLCHAIN([OBJDUMP], [objdump])
 GET_PROG_FROM_TOOLCHAIN([STRIP], [strip])
 
-MEMORY_ALLOCONLY="False"
-AC_ARG_ENABLE([alloconly],
-    [AS_HELP_STRING([--enable-alloconly], [Use the alloconly allocator instead of standard])],
-    [test "$enableval" = "yes" && MEMORY_ALLOCONLY="True"])
-AC_SUBST([MEMORY_ALLOCONLY])
-
 KASAN="False"
 AC_ARG_ENABLE([kasan],
     [AS_HELP_STRING([--enable-kasan], [Enable the Kernel Address SANitizer])],
