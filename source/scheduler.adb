@@ -819,15 +819,9 @@ package body Scheduler is
       if C /= Error_TCID then
          Secs  := Cluster_Pool (C).Progress_Seconds / 1_000_000;
          Nanos := Cluster_Pool (C).Progress_Nanos   / 1_000;
-         if Secs > Unsigned_64 (Natural'Last) then
-            Secs := Unsigned_64 (Natural'Last);
-         end if;
-         if Nanos > Unsigned_64 (Natural'Last) then
-            Nanos := Unsigned_64 (Natural'Last);
-         end if;
 
-         return Natural (Secs) * Natural (Nanos) <
-                Total_Slice * Cluster_Pool (C).Percentage / 100;
+         return Secs * Nanos <
+                Total_Slice * Unsigned_64 (Cluster_Pool (C).Percentage) / 100;
       else
          return False;
       end if;
