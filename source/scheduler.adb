@@ -77,7 +77,7 @@ package body Scheduler is
    --  Scheduling timeslices are calculated using a major frame
    --  (or cluster frame) and a minor frame (or cluster quantum).
    --  Both are calculated from the total slice.
-   Total_Slice : constant := 1_000_000; --  A second.
+   Total_Slice : constant := 1_000_000; --  A second in microseconds.
 
    Scheduler_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
    Cluster_Pool    : Cluster_Arr_Acc;
@@ -627,8 +627,9 @@ package body Scheduler is
          Curr_Cluster := Thread_Pool (Current_TID).Cluster;
          Lib.Synchronization.Release (Thread_Pool (Current_TID).Yield_Mutex);
          Lib.Time.Substract
-            (Thread_Pool (Current_TID).Last_Sched_Sec,
-             Thread_Pool (Current_TID).Last_Sched_NSec, Curr_Sec, Curr_NSec);
+            (Curr_Sec, Curr_NSec,
+             Thread_Pool (Current_TID).Last_Sched_Sec,
+             Thread_Pool (Current_TID).Last_Sched_NSec);
          Lib.Time.Increment
             (Cluster_Pool (Curr_Cluster).Progress_Seconds,
              Cluster_Pool (Curr_Cluster).Progress_Nanos, Curr_Sec, Curr_NSec);
@@ -663,8 +664,8 @@ package body Scheduler is
          end if;
 
          Max_Next_Timeout :=
-            (Total_Slice * Cluster_Pool (Curr_Cluster).Percentage / 100) -
-            Natural (Cluster_Pool (Curr_Cluster).Progress_Nanos / 1000);
+            (Total_Slice * Cluster_Pool (Next_Cluster).Percentage / 100) -
+            Natural (Cluster_Pool (Next_Cluster).Progress_Nanos / 1000);
 
          case Cluster_Pool (Next_Cluster).Algorithm is
             when Cluster_RR =>
@@ -672,6 +673,7 @@ package body Scheduler is
                   Cluster_Pool (Next_Cluster).RR_Quantum -
                   ((Cluster_Pool (Next_Cluster).RR_Quantum / 40) *
                    Thread_Pool (Current_TID).Nice);
+
                if Timeout > Max_Next_Timeout then
                   Timeout := Max_Next_Timeout;
                end if;
@@ -814,13 +816,13 @@ package body Scheduler is
    end Waiting_Spot;
 
    function Has_Available_Time (C : TCID) return Boolean is
-      Secs, Nanos : Unsigned_64;
+      Secs_To_Micros, Nanos_To_Micros : Unsigned_64;
    begin
       if C /= Error_TCID then
-         Secs  := Cluster_Pool (C).Progress_Seconds / 1_000_000;
-         Nanos := Cluster_Pool (C).Progress_Nanos   / 1_000;
+         Secs_To_Micros  := Cluster_Pool (C).Progress_Seconds * 1_000_000;
+         Nanos_To_Micros := Cluster_Pool (C).Progress_Nanos   / 1_000;
 
-         return Secs * Nanos <
+         return Secs_To_Micros + Nanos_To_Micros <
                 Total_Slice * Unsigned_64 (Cluster_Pool (C).Percentage) / 100;
       else
          return False;
