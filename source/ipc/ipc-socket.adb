@@ -800,6 +800,15 @@ package body IPC.Socket is
          end if;
       end loop;
       Lib.Synchronization.Release (UNIX_Bound_Mutex);
+
+      if To_Close.Typ = Stream    and then
+         not To_Close.Is_Listener and then
+         To_Close.Established /= null
+      then
+         Lib.Synchronization.Seize (To_Close.Established.Mutex);
+         To_Close.Established.Pending_Accept := null;
+         Lib.Synchronization.Release (To_Close.Established.Mutex);
+      end if;
    end Inner_UNIX_Close;
 
    procedure Inner_UNIX_Read
