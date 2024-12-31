@@ -208,6 +208,7 @@ Virtualization
 
 Filesystem support and interfaces
 
+* Generic filesystem options::   Elements common to all filesystems.
 * EXTended filesystem (EXT)::    EXT-series filesystems (ext2, ext3, ext4).
 * File Allocation Table (FAT)::  FAT-series filesystems.
 
@@ -2295,7 +2296,11 @@ following errno:
 #define MNT_FAT   1
 #define MNT_EXT   2
 #define MNT_DEV   3
-#define MS_RDONLY 1
+
+#define MS_RDONLY   0b0001
+#define MS_REMOUNT  0b0010
+#define MS_RELATIME 0b0100
+#define MS_NOATIME  0b1000
 
 #define MNT_FORCE 1
 
@@ -2321,7 +2326,20 @@ the filesystem type to mount, it must be specified, detection is not done.
 @code{MNT_DEV}: DevFS filesystem, cannot be used.
 @end itemize
 
-@code{flags} may contain @code{MS_RDONLY} to force mounting read-only mounting.
+For @code{mount}, @code{flags} allows:
+
+@itemize @bullet
+@item
+@code{MNT_RDONLY}: Mount as read-only.
+@item
+@code{MNT_REMOUNT}: Remount an existing filesystem.
+@item
+@code{MNT_RELATIME}: Use relative time for the mount, to know what it does,
+@ref{Generic filesystem options}. Conflicts with @code{MNT_NOATIME}.\
+@item
+@code{MNT_NOATIME}: Do not track access times. To know what it does,
+@ref{Generic filesystem options}.
+@end itemize
 
 For @code{umount}, @code{flags} allows the following options:
 
@@ -4065,9 +4083,27 @@ capability @code{MAC_CAP_SYSMAC}.
 @node Filesystem support and interfaces
 @chapter Filesystem support and interfaces
 
-Support for several filesystems is provided, with filesystem-specific quirks at
-times, and exposes interfaces with @code{ioctl} calls. This section of the
-manual focuses on documenting said quirks, details, and additional features.
+@node Generic filesystem options
+@section Generic filesystem options
+
+@subsection @code{relatime} and @code{noatime}
+
+Filesystems usually feature access, creation, and modification time tracking
+for their folders and files. These times are updated by the operating system,
+and later written to disk, increasing disk access.
+
+Modification and creation times are no big deal, but access times can carry a
+strong performance penalty, given read-only access is access. These access time
+updates can, over time, lead to missed performance on the table, and shorter
+lifespans for drives.
+
+In order to mitigate this, Ironclad allows filesystems to be mounted
+@code{relatime} and @code{noatime}. @code{relatime} will make it so access
+times are only updated if the modify time is greater, making it so only one
+access post-modification is tracked. @code{noatime} will not update access
+times at all.
+
+These flags can be applied on mount. @ref{mount/umount}.
 
 @node EXTended filesystem (EXT)
 @section EXTended filesystem (EXT)

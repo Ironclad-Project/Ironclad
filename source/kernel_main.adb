@@ -98,7 +98,7 @@ package body Kernel_Main is
       end if;
       if Found and Value_Len /= 0 then
          Lib.Messages.Put_Line ("Mounting root " & Value (1 .. Value_Len));
-         VFS.Mount (Value (1 .. Value_Len), "/", False, False, Found);
+         Mount (Value (1 .. Value_Len), "/", False, Relative_Update, Found);
          if not Found then
             Lib.Messages.Put_Line ("Failed mount " & Value (1 .. Value_Len));
          end if;
@@ -166,7 +166,7 @@ package body Kernel_Main is
       end if;
 
       --  Mount /dev.
-      VFS.Mount ("zero", "/dev/", VFS.FS_DEV, False, False, Found);
+      Mount ("zero", "/dev/", VFS.FS_DEV, False, Relative_Update, Found);
       if not Found then
          Lib.Panic.Hard_Panic ("Failed to mount /dev");
       end if;

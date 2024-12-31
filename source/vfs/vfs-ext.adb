@@ -30,16 +30,19 @@ package body VFS.EXT is
       (Operation_Data, Operation_Data_Acc);
 
    procedure Probe
-      (Handle       : Device_Handle;
-       Do_Read_Only : Boolean;
-       Do_Relatime  : Boolean;
-       Data_Addr    : out System.Address)
+      (Handle        : Device_Handle;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Data_Addr     : out System.Address;
+       Root_Ino      : out File_Inode_Number)
    is
       Sup     : Superblock;
       Data    : EXT_Data_Acc;
       Success : Boolean;
       Is_RO   : Boolean;
    begin
+      Root_Ino := Root_Inode;
+
       RW_Superblock
          (Handle          => Handle,
           Offset          => Main_Superblock_Offset,
@@ -80,7 +83,7 @@ package body VFS.EXT is
           Handle        => Handle,
           Super         => Sup,
           Is_Read_Only  => Is_RO,
-          Do_Relatime   => Do_Relatime,
+          Do_Relatime   => Access_Policy = Relative_Update,
           Block_Size    => Shift_Left (1024, Natural (Sup.Block_Size_Log)),
           Fragment_Size => Shift_Left (1024, Natural (Sup.Fragment_Size_Log)),
           Root          => <>,
@@ -100,16 +103,16 @@ package body VFS.EXT is
    end Probe;
 
    procedure Remount
-      (FS           : System.Address;
-       Do_Read_Only : Boolean;
-       Do_Relatime  : Boolean;
-       Success      : out Boolean)
+      (FS            : System.Address;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Success       : out Boolean)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
       Lib.Synchronization.Seize_Writer (Data.Mutex);
       Data.Is_Read_Only := Do_Read_Only;
-      Data.Do_Relatime  := Do_Relatime;
+      Data.Do_Relatime  := Access_Policy = Relative_Update;
       Lib.Synchronization.Release_Writer (Data.Mutex);
       Success := True;
    end Remount;

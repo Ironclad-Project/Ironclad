@@ -70,44 +70,54 @@ package VFS is
    Max_Symlink_Loop : constant Natural;
    ----------------------------------------------------------------------------
    --  Handle for interfacing with mounted FSs and FS types.
-   type FS_Type   is (FS_DEV, FS_EXT, FS_FAT);
    type FS_Handle is private;
-   Error_Handle       : constant FS_Handle;
+   Error_Handle : constant FS_Handle;
+
+   --  Supported filesystems.
+   type FS_Type is (FS_DEV, FS_EXT, FS_FAT);
+
+   --  Access time update policies supported.
+   type Access_Time_Policy is
+      (Always_Update,   --  Always update, at all costs.
+       Relative_Update, --  Only update if it is older than modification time.
+       Do_Not_Update);  --  Never update.
+
+   --  Maximum length of a path for a mount to be mounted to.
    Path_Buffer_Length : constant Natural;
 
    --  Initialize the internal VFS registries.
    procedure Init with Post => Is_Initialized = True;
 
    --  Mount the passed device name into the passed path, guessing the FS.
-   --  @param Device_Name  Name of the device (/dev/<name>).
-   --  @param Mount_Path   Absolute path for mounting.
-   --  @param Do_Read_Only Force to mount read only.
-   --  @param Do_Relatime  Use relative time for access times.v
-   --  @param Success      True on success, False on failure.
+   --  @param Device_Name   Name of the device (/dev/<name>).
+   --  @param Mount_Path    Absolute path for mounting.
+   --  @param Do_Read_Only  Force to mount read only.
+   --  @param Access_Policy Access policy to use for the new mount.
+   --  @param Success       True on success, False on failure.
    procedure Mount
-      (Device_Name  : String;
-       Mount_Path   : String;
-       Do_Read_Only : Boolean;
-       Do_Relatime  : Boolean;
-       Success      : out Boolean)
+      (Device_Name   : String;
+       Mount_Path    : String;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Success       : out Boolean)
       with Pre => Device_Name'Length <= Devices.Max_Name_Length and
                   Devices.Is_Initialized                        and
                   Is_Initialized;
 
    --  Mount the passed device name into the passed path.
-   --  @param Device_Name  Name of the device (/dev/<name>).
-   --  @param Mount_Path   Absolute path for mounting.
-   --  @param FS           FS Type to mount as.
-   --  @param Do_Read_Only Force to mount read only.
-   --  @param Do_Relatime  Use relative time for access times.
-   --  @param Success      True on success, False on failure.
+   --  @param Device_Name   Name of the device (/dev/<name>).
+   --  @param Mount_Path    Absolute path for mounting.
+   --  @param FS            FS Type to mount as.
+   --  @param Do_Read_Only  Force to mount read only.
+   --  @param Access_Policy Access policy to use for the new mount.
+   --  @param Success       True on success, False on failure.
    procedure Mount
-      (Device_Name  : String;
-       Mount_Path   : String;
-       FS           : FS_Type;
-       Do_Read_Only : Boolean;
-       Do_Relatime  : Boolean;
-       Success      : out Boolean)
+      (Device_Name   : String;
+       Mount_Path    : String;
+       FS            : FS_Type;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Success       : out Boolean)
       with Pre => Device_Name'Length <= Devices.Max_Name_Length and
                   Devices.Is_Initialized                        and
                   Is_Initialized;
@@ -179,10 +189,10 @@ package VFS is
    --  @param Do_Relatime  Use relative time for access times.
    --  @param Success      True on success, False on failure.
    procedure Remount
-      (Key          : FS_Handle;
-       Do_Read_Only : Boolean;
-       Do_Relatime  : Boolean;
-       Success      : out Boolean)
+      (Key           : FS_Handle;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Success       : out Boolean)
       with Pre => Is_Initialized and Key /= Error_Handle;
    ----------------------------------------------------------------------------
    --  Get the block size of the passed mounted FS. The unit symbolizes the

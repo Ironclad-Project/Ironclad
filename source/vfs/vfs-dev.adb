@@ -24,29 +24,29 @@ package body VFS.Dev is
    Device_Permissions : constant := 8#666#;
 
    procedure Probe
-      (Handle       : Device_Handle;
-       Do_Read_Only : Boolean;
-       Do_Relatime  : Boolean;
-       Data_Addr    : out System.Address;
-       Root_Ino     : out File_Inode_Number)
+      (Handle        : Device_Handle;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Data_Addr     : out System.Address;
+       Root_Ino      : out File_Inode_Number)
    is
       pragma Unreferenced (Handle);
       pragma Unreferenced (Do_Read_Only);
-      pragma Unreferenced (Do_Relatime);
+      pragma Unreferenced (Access_Policy);
    begin
       Data_Addr := System'To_Address (1);
       Root_Ino  := Root_Inode;
    end Probe;
 
    procedure Remount
-      (FS           : System.Address;
-       Do_Read_Only : Boolean;
-       Do_Relatime  : Boolean;
-       Success      : out Boolean)
+      (FS            : System.Address;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Success       : out Boolean)
    is
       pragma Unreferenced (FS);
       pragma Unreferenced (Do_Read_Only);
-      pragma Unreferenced (Do_Relatime);
+      pragma Unreferenced (Access_Policy);
    begin
       Success := True;
    end Remount;

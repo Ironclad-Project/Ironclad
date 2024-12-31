@@ -16,16 +16,17 @@
 
 package VFS.FAT is
    procedure Probe
-      (Handle       : Device_Handle;
-       Do_Read_Only : Boolean;
-       Data_Addr    : out System.Address;
-       Root_Ino     : out File_Inode_Number);
+      (Handle        : Device_Handle;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Data_Addr     : out System.Address;
+       Root_Ino      : out File_Inode_Number);
 
    procedure Remount
-      (FS           : System.Address;
-       Do_Read_Only : Boolean;
-       Do_Relatime  : Boolean;
-       Success      : out Boolean);
+      (FS            : System.Address;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Success       : out Boolean);
 
    procedure Unmount (FS : in out System.Address);
    ----------------------------------------------------------------------------

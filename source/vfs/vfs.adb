@@ -39,30 +39,30 @@ package body VFS is
    end Init;
 
    procedure Mount
-      (Device_Name  : String;
-       Mount_Path   : String;
-       Do_Read_Only : Boolean;
-       Do_Relatime  : Boolean;
-       Success      : out Boolean)
+      (Device_Name   : String;
+       Mount_Path    : String;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Success       : out Boolean)
    is
       pragma SPARK_Mode (Off);
       Name : String renames Device_Name;
    begin
       for FS in FS_Type'Range loop
          if FS /= FS_DEV then
-            Mount (Name, Mount_Path, FS, Do_Read_Only, Do_Relatime, Success);
+            Mount (Name, Mount_Path, FS, Do_Read_Only, Access_Policy, Success);
             exit when Success;
          end if;
       end loop;
    end Mount;
 
    procedure Mount
-      (Device_Name  : String;
-       Mount_Path   : String;
-       FS           : FS_Type;
-       Do_Read_Only : Boolean;
-       Do_Relatime  : Boolean;
-       Success      : out Boolean)
+      (Device_Name   : String;
+       Mount_Path    : String;
+       FS            : FS_Type;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Success       : out Boolean)
    is
       De         : constant Device_Handle := Devices.Fetch (Device_Name);
       Free_I     :              FS_Handle := VFS.Error_Handle;
@@ -110,12 +110,11 @@ package body VFS is
    <<Try_Probe>>
       case FS is
          when FS_DEV =>
-            Dev.Probe (De, Do_Read_Only, Do_Relatime, FS_Data, Root_Inode);
+            Dev.Probe (De, Do_Read_Only, Access_Policy, FS_Data, Root_Inode);
          when FS_EXT =>
-            EXT.Probe (De, Do_Read_Only, Do_Relatime, FS_Data);
-            Root_Inode := 2;
+            EXT.Probe (De, Do_Read_Only, Access_Policy, FS_Data, Root_Inode);
          when FS_FAT =>
-            FAT.Probe (De, Do_Read_Only, FS_Data, Root_Inode);
+            FAT.Probe (De, Do_Read_Only, Access_Policy, FS_Data, Root_Inode);
       end case;
 
       if FS_Data /= System.Null_Address then
@@ -308,17 +307,20 @@ package body VFS is
    end Get_Mount_Point;
 
    procedure Remount
-      (Key          : FS_Handle;
-       Do_Read_Only : Boolean;
-       Do_Relatime  : Boolean;
-       Success      : out Boolean)
+      (Key           : FS_Handle;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Success       : out Boolean)
    is
       Data : constant System.Address := Mounts (Key).FS_Data;
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_DEV => Dev.Remount (Data, Do_Read_Only, Do_Relatime, Success);
-         when FS_EXT => EXT.Remount (Data, Do_Read_Only, Do_Relatime, Success);
-         when FS_FAT => FAT.Remount (Data, Do_Read_Only, Do_Relatime, Success);
+         when FS_DEV =>
+            Dev.Remount (Data, Do_Read_Only, Access_Policy, Success);
+         when FS_EXT =>
+            EXT.Remount (Data, Do_Read_Only, Access_Policy, Success);
+         when FS_FAT =>
+            FAT.Remount (Data, Do_Read_Only, Access_Policy, Success);
       end case;
    end Remount;
    ----------------------------------------------------------------------------

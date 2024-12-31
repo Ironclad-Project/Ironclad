@@ -2184,10 +2184,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Tgt_IAddr  : constant  Integer_Address := Integer_Address (Target_Addr);
       Src_Addr   : constant   System.Address := To_Address (Src_IAddr);
       Tgt_Addr   : constant   System.Address := To_Address (Tgt_IAddr);
-      Do_RO      : constant          Boolean := (Flags and MS_RDONLY)  /= 0;
-      Do_Remount : constant          Boolean := (Flags and MS_REMOUNT) /= 0;
+      Do_RO      : constant          Boolean := (Flags and MS_RDONLY)   /= 0;
+      Do_Remount : constant          Boolean := (Flags and MS_REMOUNT)  /= 0;
       Do_Relatim : constant          Boolean := (Flags and MS_RELATIME) /= 0;
+      Do_Noatime : constant          Boolean := (Flags and MS_NOATIME)  /= 0;
       Parsed_Typ : VFS.FS_Type;
+      Parsed_Acc : VFS.Access_Time_Policy;
       Success    : Boolean;
    begin
       if not Check_Userland_Access (Map, Src_IAddr, Source_Len) or
@@ -2209,6 +2211,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return;
       end if;
 
+      Parsed_Acc :=
+         (if    Do_Relatim then VFS.Relative_Update
+          elsif Do_Noatime then Do_Not_Update
+          else  Always_Update);
+
       declare
          Source : String (1 .. Natural (Source_Len))
             with Import, Address => Src_Addr;
@@ -2222,7 +2229,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
             begin
                VFS.Get_Mount (Target, Matched, Handle);
                if Handle /= VFS.Error_Handle then
-                  VFS.Remount (Handle, Do_RO, Do_Relatim, Success);
+                  VFS.Remount (Handle, Do_RO, Parsed_Acc, Success);
                else
                   Success := False;
                end if;
@@ -2237,7 +2244,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   return;
             end case;
 
-            VFS.Mount (Source, Target, Parsed_Typ, Do_RO, Do_Relatim, Success);
+            VFS.Mount (Source, Target, Parsed_Typ, Do_RO, Parsed_Acc, Success);
          end if;
       end;
 

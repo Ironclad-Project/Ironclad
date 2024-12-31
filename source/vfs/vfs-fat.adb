@@ -33,12 +33,14 @@ package body VFS.FAT is
    File_Permissions : constant := 8#755#;
 
    procedure Probe
-      (Handle       : Device_Handle;
-       Do_Read_Only : Boolean;
-       Data_Addr    : out System.Address;
-       Root_Ino     : out File_Inode_Number)
+      (Handle        : Device_Handle;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Data_Addr     : out System.Address;
+       Root_Ino      : out File_Inode_Number)
    is
       pragma Unreferenced (Do_Read_Only);
+      pragma Unreferenced (Access_Policy);
 
       Data      : FAT_Data_Acc;
       BP        : BIOS_Parameter_Block;
@@ -74,14 +76,14 @@ package body VFS.FAT is
    end Probe;
 
    procedure Remount
-      (FS           : System.Address;
-       Do_Read_Only : Boolean;
-       Do_Relatime  : Boolean;
-       Success      : out Boolean)
+      (FS            : System.Address;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Success       : out Boolean)
    is
       pragma Unreferenced (FS);
       pragma Unreferenced (Do_Read_Only);
-      pragma Unreferenced (Do_Relatime);
+      pragma Unreferenced (Access_Policy);
    begin
       Success := True;
    end Remount;

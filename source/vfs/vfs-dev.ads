@@ -19,18 +19,18 @@ with Devices;
 
 package VFS.Dev is
    procedure Probe
-      (Handle       : Device_Handle;
-       Do_Read_Only : Boolean;
-       Do_Relatime  : Boolean;
-       Data_Addr    : out System.Address;
-       Root_Ino     : out File_Inode_Number)
+      (Handle        : Device_Handle;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Data_Addr     : out System.Address;
+       Root_Ino      : out File_Inode_Number)
       with Pre => Devices.Is_Initialized;
 
    procedure Remount
-      (FS           : System.Address;
-       Do_Read_Only : Boolean;
-       Do_Relatime  : Boolean;
-       Success      : out Boolean)
+      (FS            : System.Address;
+       Do_Read_Only  : Boolean;
+       Access_Policy : Access_Time_Policy;
+       Success       : out Boolean)
       with Pre => Devices.Is_Initialized;
 
    pragma Warnings (GNATprove, Off, "unused initial value");

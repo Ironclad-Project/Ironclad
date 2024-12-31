@@ -608,9 +608,10 @@ package Userland.Syscall is
    MNT_EXT : constant := 1;
    MNT_FAT : constant := 2;
    MNT_DEV : constant := 3;
-   MS_RDONLY   : constant := 2#001#;
-   MS_REMOUNT  : constant := 2#010#;
-   MS_RELATIME : constant := 2#100#;
+   MS_RDONLY   : constant := 2#0001#;
+   MS_REMOUNT  : constant := 2#0010#;
+   MS_RELATIME : constant := 2#0100#;
+   MS_NOATIME  : constant := 2#1000#;
    procedure Mount
       (Source_Addr : Unsigned_64;
        Source_Len  : Unsigned_64;
