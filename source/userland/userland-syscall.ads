@@ -200,16 +200,8 @@ package Userland.Syscall is
        Errno     : out Errno_Value);
 
    --  Create processes and threads with different flavours.
-   CLONE_PARENT : constant := 2#01#;
-   CLONE_THREAD : constant := 2#10#;
-   procedure Clone
-      (Callback : Unsigned_64;
-       Call_Arg : Unsigned_64;
-       Stack    : Unsigned_64;
-       Flags    : Unsigned_64;
-       TLS_Addr : Unsigned_64;
-       Cluster  : Unsigned_64;
-       GP_State : Arch.Context.GP_Context;
+   procedure Fork
+      (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
@@ -1247,6 +1239,15 @@ package Userland.Syscall is
    procedure Failure_Policy
       (Old_Addr : Unsigned_64;
        New_Addr : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure Create_Thread
+      (Callback : Unsigned_64;
+       Call_Arg : Unsigned_64;
+       Stack    : Unsigned_64;
+       TLS_Addr : Unsigned_64;
+       Cluster  : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
    ----------------------------------------------------------------------------

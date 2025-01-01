@@ -625,89 +625,53 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
    end Exec;
 
-   procedure Clone
-      (Callback : Unsigned_64;
-       Call_Arg : Unsigned_64;
-       Stack    : Unsigned_64;
-       Flags    : Unsigned_64;
-       TLS_Addr : Unsigned_64;
-       Cluster  : Unsigned_64;
-       GP_State : Arch.Context.GP_Context;
+   procedure Fork
+      (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Call_Arg);
-
-      Parent  : PID := Arch.Local.Get_Current_Process;
+      Proc    : constant PID := Arch.Local.Get_Current_Process;
       Child   : PID;
       New_TID : Scheduler.TID;
       Ret     : Unsigned_64;
       Id      : String (1 .. Process.Max_Name_Length);
       Id_Len  : Natural;
       Success : Boolean;
-
-      Use_Parent : constant Boolean := (Flags and CLONE_PARENT) /= 0;
-      Do_Thread  : constant Boolean := (Flags and CLONE_THREAD) /= 0;
    begin
-      if not Get_Capabilities (Parent).Can_Spawn_Others then
+      if not Get_Capabilities (Proc).Can_Spawn_Others then
          Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("clone", Parent);
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Cluster > Unsigned_64 (Natural'Last) then
-         Errno    := Error_Invalid_Value;
+         Execute_MAC_Failure ("fork", Proc);
          Returned := Unsigned_64'Last;
          return;
       end if;
 
-      if Use_Parent then
-         Parent := Get_Parent (Parent);
-         if Parent = Error_PID then
-            Errno := Error_Invalid_Value;
-            Returned := Unsigned_64'Last;
-            return;
-         end if;
+      Create_Process (Proc, Child);
+      if Child = Error_PID then
+         goto Block_Error;
       end if;
 
-      if Do_Thread then
-         Child   := Parent;
-         New_TID := Create_User_Thread
-            (Address    => Integer_Address (Callback),
-             Map        => Get_Common_Map (Child),
-             Stack_Addr => Stack,
-             TLS_Addr   => TLS_Addr,
-             Cluster    => Scheduler.Convert (Natural (Cluster)),
-             PID        => Convert (Child));
-         Ret := Unsigned_64 (Scheduler.Convert (New_TID));
-      else
-         Create_Process (Parent, Child);
-         if Child = Error_PID then
-            goto Block_Error;
-         end if;
+      Get_Identifier (Proc, Id, Id_Len);
+      Set_Identifier (Child, Id (1 .. Id_Len));
 
-         Get_Identifier (Parent, Id, Id_Len);
-         Set_Identifier (Child, Id (1 .. Id_Len));
-
-         Set_Common_Map (Child, Fork_Table (Get_Common_Map (Parent)));
-         if Get_Common_Map (Child) = null then
-            goto Block_Error;
-         end if;
-
-         Duplicate_FD_Table (Parent, Child);
-         New_TID := Scheduler.Create_User_Thread
-            (GP_State => GP_State,
-             FP_State => FP_State,
-             Map      => Get_Common_Map (Child),
-             Cluster  => Scheduler.Convert (Natural (Cluster)),
-             PID      => Convert (Child),
-             TCB      => Arch.Local.Fetch_TCB);
-         Ret := Unsigned_64 (Convert (Child));
+      Set_Common_Map (Child, Fork_Table (Get_Common_Map (Proc)));
+      if Get_Common_Map (Child) = null then
+         goto Block_Error;
       end if;
 
+      Duplicate_FD_Table (Proc, Child);
+      New_TID := Scheduler.Create_User_Thread
+         (GP_State => GP_State,
+          FP_State => FP_State,
+          Map      => Get_Common_Map (Child),
+          Cluster  => Scheduler.Convert (1),
+          PID      => Convert (Child),
+          TCB      => Arch.Local.Fetch_TCB);
+      Ret := Unsigned_64 (Convert (Child));
       if New_TID = Error_TID then
          goto Block_Error;
       end if;
+
       Add_Thread (Child, New_TID, Success);
       if not Success then
          goto Block_Error;
@@ -720,7 +684,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
    <<Block_Error>>
       Errno    := Error_Would_Block;
       Returned := Unsigned_64'Last;
-   end Clone;
+   end Fork;
 
    procedure Wait
       (Waited_PID, Exit_Addr, Options : Unsigned_64;
@@ -5568,6 +5532,58 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
    end Failure_Policy;
+
+   procedure Create_Thread
+      (Callback : Unsigned_64;
+       Call_Arg : Unsigned_64;
+       Stack    : Unsigned_64;
+       TLS_Addr : Unsigned_64;
+       Cluster  : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      pragma Unreferenced (Call_Arg);
+
+      Proc    : constant PID := Arch.Local.Get_Current_Process;
+      New_TID : Scheduler.TID;
+      Success : Boolean;
+   begin
+      if not Get_Capabilities (Proc).Can_Spawn_Others then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("create_thread", Proc);
+         Returned := Unsigned_64'Last;
+         return;
+      elsif Cluster > Unsigned_64 (Natural'Last) then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      New_TID := Create_User_Thread
+         (Address    => Integer_Address (Callback),
+          Map        => Get_Common_Map (Proc),
+          Stack_Addr => Stack,
+          TLS_Addr   => TLS_Addr,
+          Cluster    => Scheduler.Convert (Natural (Cluster)),
+          PID        => Convert (Proc));
+
+      if New_TID = Error_TID then
+         goto Block_Error;
+      end if;
+
+      Add_Thread (Proc, New_TID, Success);
+      if not Success then
+         goto Block_Error;
+      end if;
+
+      Errno    := Error_No_Error;
+      Returned := Unsigned_64 (Scheduler.Convert (New_TID));
+      return;
+
+   <<Block_Error>>
+      Errno    := Error_Would_Block;
+      Returned := Unsigned_64'Last;
+   end Create_Thread;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin

@@ -117,7 +117,7 @@ Syscalls
 * mmap/mprotect/munmap::    Manage memory regions.
 * getpid/getppid::          Get the PIDs of the caller.
 * exec::                    Launching new programs.
-* clone::                   Create new processes and threads.
+* fork::                    Create new processes.
 * wait::                    Waiting for execution of a child to finish.
 * socket::                  Create sockets.
 * sethostname::             Hostname setting.
@@ -194,6 +194,7 @@ Syscalls
 * getsockopt/setsockopt::   Get and set options on sockets.
 * gettidid/settidid::       Get and set TID IDs.
 * failure_policy::          Get or set failure policies.
+* create_thread::           Create new processes.
 
 Networking
 
@@ -754,7 +755,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{exec}.
 @item
-@ref{clone}.
+@ref{fork}.
 @item
 @ref{wait}.
 @item
@@ -929,6 +930,8 @@ supported architectures and the ABI for each of them. Here is the table:
 @ref{gettidid/settidid, settidid}.
 @item
 @ref{failure_policy}.
+@item
+@ref{create_thread}.
 @end enumerate
 
 @subsection riscv64-limine
@@ -1320,42 +1323,24 @@ This syscall only returns in failure with @code{-1} with the following errno:
 @code{EACCES}: The file couldn't be launched out of a permission error.
 @end itemize
 
-@node clone
-@section clone
+@node fork
+@section fork
 
 @example c
-#define CLONE_PARENT 0b01
-#define CLONE_THREAD 0b10
-
-pid_t clone(void *callback, uint64_t arg, void *stack, int flags, void *tls);
+pid_t fork();
 @end example
 
-This syscall creates a new thread or process depending on @code{flags}.
-@code{flags} can be an OR'd combination of the following flags:
+This syscall creates a new process based on the parent process. The created
+process will only have 1 thread copying the caller one, and will be placed
+on the 1st thread cluster.
 
-@itemize @bullet
-@item
-@code{CLONE_PARENT} (0b01): The process or thread will be a child of the parent
-of the caller process, instead of the caller process itself.
-
-@code{CLONE_THREAD} (0b10): If set, a thread will be created and added to the
-parent process, if not set, a process will be created instead. The child
-process will only have the callee thread cloned. The other threads, if any,
-are not cloned.
-@end itemize
-
-This syscall returns @code{0} on success for the child, and the children PID or
-TID to the parent, in failure, the parent gets @code{-1} with the following
-errno:
+This syscall returns @code{0} on success for the child, and the new child PID
+to the parent, in failure, the parent gets @code{-1} with the following errno:
 
 @itemize @bullet
 @item
 @code{EAGAIN}: The system could not create the entity right now, try again
 later.
-
-@item
-@code{EINVAL}: @code{CLONE_PARENT} is specified and the caller process has no
-parent.
 
 @item
 @code{EACCES}: MAC disallowed this.
@@ -4078,6 +4063,25 @@ The passed buffers were pointing to invalid memory.
 @item EACCES
 When setting new values with @code{new}, the calling process did not have the
 capability @code{MAC_CAP_SYSMAC}.
+@end table
+
+@node create_thread
+@section create_thread
+
+@example c
+int create_thread(void *callback, void *arg, void *stack, void *tls_addr, int cluster);
+@end example
+
+This syscall creates a thread for the caller process.
+
+This syscall returns the TID on success or @code{-1} on failure, with the errno:
+
+@table @code
+@item EFAULT
+The passed buffers were pointing to invalid memory.
+
+@item EACCES
+MAC disallowed this.
 @end table
 
 @node Filesystem support and interfaces
