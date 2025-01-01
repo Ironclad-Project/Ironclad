@@ -1672,6 +1672,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       Duplicate_FD_Table (Proc, Child);
+      Set_Common_Map (Child, Get_Common_Map (Proc));
 
       Exec_Into_Process
          (Path_Addr => Path_Addr,
