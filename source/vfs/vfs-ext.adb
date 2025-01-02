@@ -931,9 +931,10 @@ package body VFS.EXT is
              Byte_Size         => Size,
              IO_Block_Size     => Get_Block_Size (FS.Handle),
              IO_Block_Count    => Align.Divide_Round_Up (Size, Blk),
-             Creation_Time     => (Unsigned_64 (Inod.Creation_Time_Epoch), 0),
+             Birth_Time        => (Unsigned_64 (Inod.Creation_Time_Epoch), 0),
              Modification_Time => (Unsigned_64 (Inod.Modified_Time_Epoch), 0),
-             Access_Time       => (Unsigned_64 (Inod.Access_Time_Epoch),   0));
+             Access_Time       => (Unsigned_64 (Inod.Access_Time_Epoch),   0),
+             Change_Time       => (Unsigned_64 (Inod.Modified_Time_Epoch), 0));
          Success := FS_Success;
       else
          Success := FS_IO_Failure;

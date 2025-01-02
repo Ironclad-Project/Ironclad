@@ -931,7 +931,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
                    File_Size     => 512,
                    Access_Time   => (Seconds => 0, Nanoseconds => 0),
                    Modify_Time   => (Seconds => 0, Nanoseconds => 0),
-                   Create_Time   => (Seconds => 0, Nanoseconds => 0),
+                   Change_Time   => (Seconds => 0, Nanoseconds => 0),
+                   Birth_Time    => (Seconds => 0, Nanoseconds => 0),
                    Block_Size    => 512,
                    Block_Count   => 1);
                goto Success_Return;
@@ -947,7 +948,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
                    File_Size     => 512,
                    Access_Time   => (Seconds => 0, Nanoseconds => 0),
                    Modify_Time   => (Seconds => 0, Nanoseconds => 0),
-                   Create_Time   => (Seconds => 0, Nanoseconds => 0),
+                   Change_Time   => (Seconds => 0, Nanoseconds => 0),
+                   Birth_Time    => (Seconds => 0, Nanoseconds => 0),
                    Block_Size    => 512,
                    Block_Count   => 1);
                goto Success_Return;
@@ -1006,9 +1008,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
           Modify_Time   =>
              (Stat_Val.Modification_Time.Seconds_Since_Epoch,
               Stat_Val.Modification_Time.Additional_Nanoseconds),
-          Create_Time   =>
-             (Stat_Val.Creation_Time.Seconds_Since_Epoch,
-              Stat_Val.Creation_Time.Additional_Nanoseconds),
+          Change_Time  =>
+             (Stat_Val.Change_Time.Seconds_Since_Epoch,
+              Stat_Val.Change_Time.Additional_Nanoseconds),
+          Birth_Time   =>
+             (Stat_Val.Birth_Time.Seconds_Since_Epoch,
+              Stat_Val.Birth_Time.Additional_Nanoseconds),
           Block_Size    => Unsigned_64 (Stat_Val.IO_Block_Size),
           Block_Count   => Stat_Val.IO_Block_Count);
 

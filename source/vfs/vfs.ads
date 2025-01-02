@@ -48,9 +48,10 @@ package VFS is
       Byte_Size         : Unsigned_64;
       IO_Block_Size     : Natural;
       IO_Block_Count    : Unsigned_64;
-      Creation_Time     : File_Timestamp;
+      Change_Time       : File_Timestamp;
       Modification_Time : File_Timestamp;
       Access_Time       : File_Timestamp;
+      Birth_Time        : File_Timestamp;
    end record;
 
    --  Describes an entity inside the contents of a directory.

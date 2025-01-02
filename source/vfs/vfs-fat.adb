@@ -336,9 +336,10 @@ package body VFS.FAT is
              Byte_Size         => 0,
              IO_Block_Size     => 0,
              IO_Block_Count    => 0,
-             Creation_Time     => (0, 0),
+             Change_Time       => (0, 0),
              Modification_Time => (0, 0),
-             Access_Time       => (0, 0));
+             Access_Time       => (0, 0),
+             Birth_Time        => (0, 0));
       else
          Read_Directory_Entry
             (Data        => FS,
@@ -363,9 +364,10 @@ package body VFS.FAT is
              Byte_Size         => Unsigned_64 (Ent.Size),
              IO_Block_Size     => Devices.Get_Block_Size (FS.Handle),
              IO_Block_Count    => Unsigned_64 (Cnt),
-             Creation_Time     => (0, 0),
+             Change_Time       => (0, 0),
              Modification_Time => (0, 0),
-             Access_Time       => (0, 0));
+             Access_Time       => (0, 0),
+             Birth_Time        => (0, 0));
       end if;
 
       Success := FS_Success;
