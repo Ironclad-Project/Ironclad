@@ -65,6 +65,15 @@ package Lib.Time is
 
    --  Ghost function for checking whether a timestamp is normalized.
    function Is_Normalized (NS : Unsigned_64) return Boolean with Ghost;
+   ----------------------------------------------------------------------------
+   --  Transform time of year to epoch.
+   function Time_To_Epoch
+      (Year    : Natural;
+       Month   : Natural;
+       Day     : Natural;
+       Hours   : Natural;
+       Minutes : Natural;
+       Seconds : Natural) return Unsigned_64;
 
 private
 
@@ -74,4 +83,6 @@ private
 
    function Is_Normalized (NS : Unsigned_64) return Boolean is
       (NS < USec_Per_Sec);
+
+   function Get_Julian_Date (Days, Months, Years : Natural) return Unsigned_64;
 end Lib.Time;

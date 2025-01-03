@@ -60,4 +60,34 @@ package body Lib.Time is
    begin
       return (S1 > S2) or ((S1 = S2) and (NS1 >= NS2));
    end Is_Greater_Equal;
+   ----------------------------------------------------------------------------
+   function Time_To_Epoch
+      (Year    : Natural;
+       Month   : Natural;
+       Day     : Natural;
+       Hours   : Natural;
+       Minutes : Natural;
+       Seconds : Natural) return Unsigned_64
+   is
+      J_Current : constant Unsigned_64 := Get_Julian_Date (Day, Month, Year);
+      J_1970    : constant Unsigned_64 := Get_Julian_Date (1, 1, 1970);
+      J_Diff    : constant Unsigned_64 := J_Current - J_1970;
+   begin
+      return J_Diff * (60 * 60 * 24)    +
+             Unsigned_64 (Hours) * 3600 +
+             Unsigned_64 (Minutes) * 60 +
+             Unsigned_64 (Seconds);
+   end Time_To_Epoch;
+   ----------------------------------------------------------------------------
+   function Get_Julian_Date (Days, Months, Years : Natural) return Unsigned_64
+   is
+      Y : constant Unsigned_64 := Unsigned_64 (Years);
+      M : constant Unsigned_64 := Unsigned_64 (Months);
+      D : constant Unsigned_64 := Unsigned_64 (Days);
+   begin
+      return (1461 * (Y + 4800 + (M - 14) / 12)) / 4 + (367 *
+             (M - 2 - 12 * ((M - 14) / 12))) / 12 -
+             (3 * ((Y + 4900 + (M - 14) / 12) / 100)) / 4
+             + D - 32075;
+   end Get_Julian_Date;
 end Lib.Time;

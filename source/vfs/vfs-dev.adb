@@ -14,6 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Arch.Clocks;
+
 package body VFS.Dev is
    --  Unit passes GNATprove AoRTE, GNAT does not know this.
    pragma Suppress (All_Checks);
@@ -22,6 +24,11 @@ package body VFS.Dev is
    --  The only folder of the filesystem is the root, which has inode 0.
    Root_Inode         : constant := 0;
    Device_Permissions : constant := 8#666#;
+
+   --  We can save ourselves a bunch of code by just using globals instead of
+   --  mount specific data knowing there will only be 1 /dev mount point ever.
+   Birth_Seconds     : Unsigned_64;
+   Birth_Nanoseconds : Unsigned_64;
 
    procedure Probe
       (Handle        : Device_Handle;
@@ -34,6 +41,7 @@ package body VFS.Dev is
       pragma Unreferenced (Do_Read_Only);
       pragma Unreferenced (Access_Policy);
    begin
+      Arch.Clocks.Get_Real_Time (Birth_Seconds, Birth_Nanoseconds);
       Data_Addr := System'To_Address (1);
       Root_Ino  := Root_Inode;
    end Probe;
@@ -278,10 +286,10 @@ package body VFS.Dev is
              Byte_Size         => 0,
              IO_Block_Size     => 0,
              IO_Block_Count    => 0,
-             Change_Time       => (0, 0),
-             Modification_Time => (0, 0),
-             Access_Time       => (0, 0),
-             Birth_Time        => (0, 0));
+             Change_Time       => (Birth_Seconds, Birth_Nanoseconds),
+             Modification_Time => (Birth_Seconds, Birth_Nanoseconds),
+             Access_Time       => (Birth_Seconds, Birth_Nanoseconds),
+             Birth_Time        => (Birth_Seconds, Birth_Nanoseconds));
          Success := FS_Success;
       elsif not (Ino in 0 .. File_Inode_Number (Natural'Last)) then
          S       := Error_Stat;
@@ -304,10 +312,10 @@ package body VFS.Dev is
              Byte_Size         => 0,
              IO_Block_Size     => Devices.Get_Block_Size (Dev),
              IO_Block_Count    => Devices.Get_Block_Count (Dev),
-             Change_Time       => (0, 0),
-             Modification_Time => (0, 0),
-             Access_Time       => (0, 0),
-             Birth_Time        => (0, 0));
+             Change_Time       => (Birth_Seconds, Birth_Nanoseconds),
+             Modification_Time => (Birth_Seconds, Birth_Nanoseconds),
+             Access_Time       => (Birth_Seconds, Birth_Nanoseconds),
+             Birth_Time        => (Birth_Seconds, Birth_Nanoseconds));
          S.Byte_Size := Unsigned_64 (S.IO_Block_Size) * S.IO_Block_Count;
          if Devices.Is_Block_Device (Dev) then
             S.Type_Of_File := File_Block_Device;

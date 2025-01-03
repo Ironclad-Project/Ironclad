@@ -17,6 +17,7 @@
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
 with Lib.Alignment;
+with Lib.Time;
 
 package body VFS.FAT is
    package   Conv is new System.Address_To_Access_Conversions (FAT_Data);
@@ -323,6 +324,10 @@ package body VFS.FAT is
       Ent : Directory_Entry;
       Success2 : Boolean;
       Blk, Cnt : Unsigned_32;
+
+      C1 :  Unsigned_8 renames Ent.Creation_Time_1;
+      C2 : Unsigned_16 renames Ent.Creation_Time_2;
+      C3 : Unsigned_16 renames Ent.Creation_Time_3;
    begin
       if Ino = Root_PseudoInode then
          S :=
@@ -366,8 +371,21 @@ package body VFS.FAT is
              IO_Block_Count    => Unsigned_64 (Cnt),
              Change_Time       => (0, 0),
              Modification_Time => (0, 0),
-             Access_Time       => (0, 0),
-             Birth_Time        => (0, 0));
+             Birth_Time        => (0, 0),
+             Access_Time       => (0, 0));
+
+         S.Birth_Time.Seconds_Since_Epoch :=
+            Lib.Time.Time_To_Epoch
+               (Year    => Natural (Shift_Right (C3, 9) and 2#1111111#) + 1980,
+                Month   => Natural (Shift_Right (C3, 5)  and 2#0001111#),
+                Day     => Natural (Shift_Right (C3, 0)  and 2#0011111#) + 1,
+                Hours   => Natural (Shift_Right (C2, 10) and 2#0011111#),
+                Minutes => Natural (Shift_Right (C2,  4) and 2#0111111#),
+                Seconds => Natural (Shift_Right (C2,  0) and 2#0011111#) * 2);
+         S.Birth_Time.Additional_Nanoseconds := Unsigned_64 (C1) * 100_000_000;
+         S.Change_Time       := S.Birth_Time;
+         S.Modification_Time := S.Birth_Time;
+         S.Access_Time       := S.Birth_Time;
       end if;
 
       Success := FS_Success;
