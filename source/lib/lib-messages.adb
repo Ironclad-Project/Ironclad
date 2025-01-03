@@ -110,13 +110,17 @@ is
       Current    :              Natural := Buffer'Last;
    begin
       Buffer := (others => '0');
-      while To_Convert /= 0 and Current >= Buffer'First loop
-         pragma Loop_Invariant (Current <= Buffer'Last);
-         Buffer (Current) := Conversion (Integer (To_Convert rem Base) + 1);
-         To_Convert       := To_Convert / Base;
-         Current          := Current - 1;
-      end loop;
-      Length := Buffer'Length - Current;
+      if To_Convert = 0 then
+         Length := 1;
+      else
+         while To_Convert /= 0 and Current >= Buffer'First loop
+            pragma Loop_Invariant (Current <= Buffer'Last);
+            Buffer (Current) := Conversion (Integer (To_Convert rem Base) + 1);
+            To_Convert       := To_Convert / Base;
+            Current          := Current - 1;
+         end loop;
+         Length := Buffer'Length - Current;
+      end if;
    end Image;
    ----------------------------------------------------------------------------
    procedure Get_Timestamp (Timestamp : out Timestamp_Str) is
