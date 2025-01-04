@@ -30,6 +30,9 @@ is
    --  Should only be used for real world usecases and user interaction, and
    --  not for intervals, or anything of the sort, since it can change under
    --  our own feet.
+   --
+   --  Each clock has a resolution, the resolution is the smallest amount of
+   --  time the clock can detect.
 
    --  Initialize clock sources.
    procedure Initialize_Sources

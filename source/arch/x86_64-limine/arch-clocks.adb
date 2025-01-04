@@ -58,7 +58,7 @@ is
    is
    begin
       Seconds     := 0;
-      Nanoseconds := Mono_TSC_Freq * Nanos_Per_MS;
+      Nanoseconds := 1;
    end Get_Monotonic_Resolution;
 
    procedure Get_Monotonic_Time (Seconds, Nanoseconds : out Unsigned_64) is
@@ -72,7 +72,7 @@ is
    is
    begin
       Seconds     := 0;
-      Nanoseconds := Mono_TSC_Freq * Nanos_Per_MS;
+      Nanoseconds := 1;
    end Get_Real_Time_Resolution;
 
    procedure Get_Real_Time (Seconds, Nanoseconds : out Unsigned_64) is
