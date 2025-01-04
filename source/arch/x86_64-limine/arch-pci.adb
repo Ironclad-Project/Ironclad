@@ -29,6 +29,11 @@ package body Arch.PCI is
 
    PCI_Registry : PCI_Registry_Entry_Acc := null;
 
+   function Is_Supported return Boolean is
+   begin
+      return True;
+   end Is_Supported;
+
    procedure Scan_PCI is
       Root_Bus, Host_Bridge : PCI_Device;
       Success               : Boolean;
@@ -51,7 +56,7 @@ package body Arch.PCI is
          end loop;
       end if;
    end Scan_PCI;
-
+   ----------------------------------------------------------------------------
    function Enumerate_Devices
       (Device_Class : Unsigned_8;
        Subclass     : Unsigned_8;
@@ -61,6 +66,10 @@ package body Arch.PCI is
       Temp : PCI_Registry_Entry_Acc := PCI_Registry;
    begin
       loop
+         if Temp = null then
+            exit;
+         end if;
+
          if Temp.Dev.Device_Class = Device_Class and
             Temp.Dev.Subclass     = Subclass     and
             Temp.Dev.Prog_If      = Prog_If
@@ -68,11 +77,7 @@ package body Arch.PCI is
             Idx := Idx + 1;
          end if;
 
-         if Temp.Next /= null then
-            Temp := Temp.Next;
-         else
-            exit;
-         end if;
+         Temp := Temp.Next;
       end loop;
 
       return Idx;
@@ -90,6 +95,10 @@ package body Arch.PCI is
       Temp : PCI_Registry_Entry_Acc := PCI_Registry;
    begin
       loop
+         if Temp = null then
+            exit;
+         end if;
+
          if Temp.Dev.Device_Class = Device_Class and
             Temp.Dev.Subclass     = Subclass     and
             Temp.Dev.Prog_If      = Prog_If
@@ -102,11 +111,7 @@ package body Arch.PCI is
             end if;
          end if;
 
-         if Temp.Next /= null then
-            Temp := Temp.Next;
-         else
-            exit;
-         end if;
+         Temp := Temp.Next;
       end loop;
 
       Success := False;
@@ -253,6 +258,35 @@ package body Arch.PCI is
       Get_Address (Dev, Off);
       Snippets.Port_Out32 (PCI_Config_Data + (Off and 3), D);
    end Write32;
+   ----------------------------------------------------------------------------
+   procedure List_All (Buffer : out PCI_Listing_Arr; Length : out Natural) is
+      Temp : PCI_Registry_Entry_Acc := PCI_Registry;
+   begin
+      Buffer := [others => (0, 0, 0, 0, 0, 0, 0, 0, 0)];
+      Length := 0;
+
+      loop
+         if Temp = null then
+            exit;
+         end if;
+
+         Length := Length + 1;
+         if Buffer'Length >= Length then
+            Buffer (Buffer'First + Length - 1) :=
+               (Bus          => Temp.Dev.Bus,
+                Func         => Temp.Dev.Func,
+                Slot         => Temp.Dev.Slot,
+                Device_ID    => Temp.Dev.Device_ID,
+                Vendor_ID    => Temp.Dev.Vendor_ID,
+                Revision_ID  => Temp.Dev.Revision_ID,
+                Subclass     => Temp.Dev.Subclass,
+                Device_Class => Temp.Dev.Device_Class,
+                Prog_If      => Temp.Dev.Prog_If);
+         end if;
+
+         Temp := Temp.Next;
+      end loop;
+   end List_All;
    ----------------------------------------------------------------------------
    procedure Get_Address (Dev : PCI_Device; Offset : Unsigned_16) is
       Addr : constant Unsigned_32 :=

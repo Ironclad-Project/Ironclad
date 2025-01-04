@@ -21,7 +21,6 @@ with Arch.GDT;
 with Arch.HPET;
 with Arch.IDT;
 with Arch.PIC;
-with Arch.PCI;
 with Arch.PIT;
 with Arch.CPU;
 with Lib.Panic;
@@ -91,9 +90,6 @@ package body Arch.Entrypoint is
          Lib.Panic.Hard_Panic ("Could not start PIT");
       end if;
       Arch.HPET.Init;
-
-      --  Scan all PCI devices.
-      PCI.Scan_PCI;
 
       --  Initialize other cores, and then jump to the freestanding main.
       Arch.CPU.Init_Cores;

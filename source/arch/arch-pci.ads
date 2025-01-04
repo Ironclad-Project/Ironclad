@@ -17,21 +17,20 @@
 with Interfaces; use Interfaces;
 
 package Arch.PCI is
+   --  Generic PCI driver for the Ironclad kernel.
+
+   --  Check whether PCI is supported.
+   function Is_Supported return Boolean;
+
+   --  Scan all the system's PCI and store it for future use.
+   procedure Scan_PCI;
+   ----------------------------------------------------------------------------
    --  A PCI device is defined by a class, subclass, and prog if. And is
    --  addressed by its bus, slot, function, and parent.
    --
    --  Each PCI device has an associated set of base address registers, this
    --  structures hold MMIO addresses used by the device.
-   type Base_Address_Register is record
-      Base            : Integer_Address;
-      Size            : Unsigned_64;
-      Is_MMIO         : Boolean;
-      Is_Prefetchable : Boolean;
-   end record;
    type PCI_Device is private;
-
-   --  Scan all the system's PCI and store it for future use.
-   procedure Scan_PCI;
 
    --  Get how many devices are available on the system with the passed
    --  information.
@@ -58,6 +57,14 @@ package Arch.PCI is
    --  Get a BAR from the PCI device configuration space, return True if it
    --  exists and was successful, or false if not.
    type BAR_Index is range 0 .. 5;
+
+   type Base_Address_Register is record
+      Base            : Integer_Address;
+      Size            : Unsigned_64;
+      Is_MMIO         : Boolean;
+      Is_Prefetchable : Boolean;
+   end record;
+
    procedure Get_BAR
       (Dev     : PCI_Device;
        Index   : BAR_Index;
@@ -78,6 +85,24 @@ package Arch.PCI is
    procedure Write8  (Dev : PCI_Device; Off : Unsigned_16; D : Unsigned_8);
    procedure Write16 (Dev : PCI_Device; Off : Unsigned_16; D : Unsigned_16);
    procedure Write32 (Dev : PCI_Device; Off : Unsigned_16; D : Unsigned_32);
+   ----------------------------------------------------------------------------
+   type PCI_Listing is record
+      Bus          : Unsigned_8;
+      Func         : Unsigned_8;
+      Slot         : Unsigned_8;
+      Device_ID    : Unsigned_16;
+      Vendor_ID    : Unsigned_16;
+      Revision_ID  : Unsigned_8;
+      Subclass     : Unsigned_8;
+      Device_Class : Unsigned_8;
+      Prog_If      : Unsigned_8;
+   end record;
+   type PCI_Listing_Arr is array (Natural range <>) of PCI_Listing;
+
+   --  List all PCI devices on the system.
+   --  @param Buffer Where to write all the information.
+   --  @param Length Total count of devices, even if it is > Buffer'Length.
+   procedure List_All (Buffer : out PCI_Listing_Arr; Length : out Natural);
 
 private
 
@@ -97,23 +122,22 @@ private
       MSIX_Offset  : Unsigned_8;
    end record;
 
-   type PCI_Registry_Entry;
-   type PCI_Registry_Entry_Acc is access PCI_Registry_Entry;
-   type PCI_Registry_Entry is record
-      Dev  : PCI_Device;
-      Next : PCI_Registry_Entry_Acc;
-   end record;
+   #if ArchName = """x86_64-limine"""
+      type PCI_Registry_Entry;
+      type PCI_Registry_Entry_Acc is access PCI_Registry_Entry;
+      type PCI_Registry_Entry is record
+         Dev  : PCI_Device;
+         Next : PCI_Registry_Entry_Acc;
+      end record;
 
-   procedure Get_Address (Dev : PCI_Device; Offset : Unsigned_16);
-
-   procedure Check_Bus (Bus : Unsigned_8);
-
-   procedure Check_Function (Bus, Slot, Func : Unsigned_8);
-
-   procedure Fetch_Device
-      (Bus     : Unsigned_8;
-       Slot    : Unsigned_8;
-       Func    : Unsigned_8;
-       Result  : out PCI_Device;
-       Success : out Boolean);
+      procedure Get_Address (Dev : PCI_Device; Offset : Unsigned_16);
+      procedure Check_Bus (Bus : Unsigned_8);
+      procedure Check_Function (Bus, Slot, Func : Unsigned_8);
+      procedure Fetch_Device
+         (Bus     : Unsigned_8;
+          Slot    : Unsigned_8;
+          Func    : Unsigned_8;
+          Result  : out PCI_Device;
+          Success : out Boolean);
+   #end if;
 end Arch.PCI;

@@ -1762,6 +1762,7 @@ codes set on failure are:
 #define SC_LIST_FILELOCKS  18 // List all advisory file locks.
 #define SC_LOADAVG         19 // Dump load averages.
 #define SC_MEMINFO         20 // Dump memory information.
+#define SC_LIST_PCI        21 // List PCI devices.
 
 long int sysconf(int request, uintptr_t addr, uintptr_t len);
 @end example
@@ -1930,6 +1931,25 @@ struct mem_info @{
 @end example
 
 @code{0} is returned on success.
+
+@item
+@code{SC_LIST_PCI}: @code{addr} points to an array of items, and
+@code{len} is the count of bytes reserved in the array. The items have the
+structure:
+
+@example c
+struct devinfo @{
+    uint8_t  bus;
+    uint8_t  func;
+    uint8_t  slot;
+    uint16_t device_id;
+    uint16_t vendor_id;
+    uint8_t  rev_id;
+    uint8_t  subclass;
+    uint8_t  device_class;
+    uint8_t  prog_if;
+@};
+@end example
 @end itemize
 
 The syscall return the requested information on success and @code{-1} on

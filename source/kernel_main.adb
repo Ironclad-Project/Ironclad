@@ -17,6 +17,7 @@
 with Arch;
 with Arch.Clocks;
 with Arch.Hooks;
+with Arch.PCI;
 with Devices; use Devices;
 with VFS; use VFS;
 with Lib.Cmdline;
@@ -55,6 +56,11 @@ package body Kernel_Main is
       Lib.Messages.Put_Line (Config.Name & " " & Config.Version);
       Lib.Messages.Put_Line ("Please report bugs at " & Config.Bug_Site);
       pragma Style_Checks (On);
+
+      --  Initialize PCI if present.
+      if Arch.PCI.Is_Supported then
+         Arch.PCI.Scan_PCI;
+      end if;
 
       --  Initialize several subsystems.
       Userland.Process.Init;

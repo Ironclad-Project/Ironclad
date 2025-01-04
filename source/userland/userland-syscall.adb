@@ -40,6 +40,7 @@ with Devices; use Devices;
 with Networking.Interfaces;
 with Userland.OOM_Failure;
 with Virtualization;
+with Arch.PCI;
 
 package body Userland.Syscall with SPARK_Mode => Off is
    procedure Sys_Exit
@@ -1634,6 +1635,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
                    Table_Usage    => Unsigned_64 (St.Table_Usage),
                    Poison_Usage   => 0);
                Result := 0;
+            end;
+         when SC_LIST_PCI =>
+            declare
+               Ret  : Natural;
+               Devs : Arch.PCI.PCI_Listing_Arr
+                  (1 .. Natural (Length / (Arch.PCI.PCI_Listing'Size / 8)))
+                  with Import, Address => SAddr;
+            begin
+               Arch.PCI.List_All (Devs, Ret);
+               Result := Unsigned_64 (Ret);
             end;
          when others =>
             goto Invalid_Value_Error;
