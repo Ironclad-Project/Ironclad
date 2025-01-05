@@ -99,20 +99,19 @@ package body VFS.FAT is
    function Get_Block_Size (FS : System.Address) return Unsigned_64 is
       pragma Unreferenced (FS);
    begin
-      return 4096;
+      return Sector_Size;
    end Get_Block_Size;
 
    function Get_Fragment_Size (FS : System.Address) return Unsigned_64 is
       pragma Unreferenced (FS);
    begin
-      return 4096;
+      return Sector_Size;
    end Get_Fragment_Size;
 
    function Get_Size (FS : System.Address) return Unsigned_64 is
       Data : constant FAT_Data_Acc := FAT_Data_Acc (Conv.To_Pointer (FS));
    begin
-      return Unsigned_64 (Data.Sector_Count) *
-             Unsigned_64 (Data.BPB.Bytes_Per_Sector);
+      return Unsigned_64 (Data.Sector_Count);
    end Get_Size;
 
    function Get_Inode_Count (FS : System.Address) return Unsigned_64 is

@@ -29,7 +29,7 @@ package body Devices.LPT is
          Register
             ((Data        => Conv.To_Address (Conv.Object_Pointer (Data)),
               ID          => (others => 0),
-              Is_Block    => True,
+              Is_Block    => False,
               Block_Size  => 4096,
               Block_Count => 0,
               Read        => null,
