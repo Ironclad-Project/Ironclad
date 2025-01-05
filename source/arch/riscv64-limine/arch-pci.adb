@@ -110,7 +110,6 @@ package body Arch.PCI is
    end Write32;
    ----------------------------------------------------------------------------
    procedure List_All (Buffer : out PCI_Listing_Arr; Length : out Natural) is
-      Temp : PCI_Registry_Entry_Acc := PCI_Registry;
    begin
       Buffer := [others => (0, 0, 0, 0, 0, 0, 0, 0, 0)];
       Length := 0;
