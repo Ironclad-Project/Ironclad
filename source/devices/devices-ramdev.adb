@@ -16,10 +16,12 @@
 
 with System; use System;
 with Lib.Alignment;
+with Lib.Synchronization;
 
 package body Devices.Ramdev is
    --  Ramdev data.
    type Ramdev_Data is record
+      Mutex         : aliased Lib.Synchronization.Readers_Writer_Lock;
       Start_Address : System.Address;
       Size          : Unsigned_64;
    end record;
@@ -44,7 +46,8 @@ package body Devices.Ramdev is
    function Init_Module (Module : Arch.Boot_RAM_File) return Resource is
       package A is new Lib.Alignment (Unsigned_64);
       Data   : constant Ramdev_Data_Acc := new Ramdev_Data'
-         (Start_Address => Module.Start,
+         (Mutex         => Lib.Synchronization.Unlocked_RW_Lock,
+          Start_Address => Module.Start,
           Size          => Unsigned_64 (Module.Length));
    begin
       return
@@ -72,7 +75,7 @@ package body Devices.Ramdev is
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Is_Blocking);
-      Dev      : constant Ramdev_Data with Import, Address => Key;
+      Dev      : Ramdev_Data with Import, Address => Key;
       Dev_Size : constant        Natural := Natural (Dev.Size);
       Dev_Data : constant Operation_Data (1 .. Dev_Size)
          with Import, Address => Dev.Start_Address;
@@ -84,8 +87,10 @@ package body Devices.Ramdev is
          To_Write := To_Write - (Final_Loc - Dev_Size);
       end if;
 
+      Lib.Synchronization.Seize_Reader (Dev.Mutex);
       Data (Data'First .. Data'First + To_Write - 1) :=
          Dev_Data (Natural (Offset) + 1 .. Natural (Offset) + To_Write);
+      Lib.Synchronization.Release_Reader (Dev.Mutex);
 
       Ret_Count := To_Write;
       Success   := True;
@@ -100,7 +105,7 @@ package body Devices.Ramdev is
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Is_Blocking);
-      Dev      : constant Ramdev_Data with Import, Address => Key;
+      Dev      : Ramdev_Data with Import, Address => Key;
       Dev_Size : constant        Natural := Natural (Dev.Size);
       Dev_Data : Operation_Data (1 .. Dev_Size)
          with Import, Address => Dev.Start_Address;
@@ -112,8 +117,10 @@ package body Devices.Ramdev is
          To_Write := To_Write - (Final_Loc - Dev_Size);
       end if;
 
+      Lib.Synchronization.Seize_Writer (Dev.Mutex);
       Dev_Data (Natural (Offset) + 1 .. Natural (Offset) + To_Write) :=
          Data (Data'First .. Data'First + To_Write - 1);
+      Lib.Synchronization.Release_Writer (Dev.Mutex);
 
       Ret_Count := To_Write;
       Success   := True;
