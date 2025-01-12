@@ -119,7 +119,9 @@ checkstack: $(OUTPUT)
 
 .PHONY: prove
 prove: rtsdir/adalib/libgnat.a
-	$(GNATPROVE) -U --prover=cvc4,altergo,z3 --mode=all --counterexamples=on \
+	$(GNATPROVE) -U --level=4 --mode=all --counterexamples=on \
+		-j$(PARALLELISM) -P ./rts.gpr
+	$(GNATPROVE) -U --level=4 --mode=all --counterexamples=on \
 		--RTS=./rtsdir -j$(PARALLELISM) -P ./ironclad.gpr
 ###############################################################################
 # Rules for cleaning build and configuration artifacts.
