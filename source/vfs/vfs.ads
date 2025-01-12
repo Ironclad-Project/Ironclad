@@ -58,7 +58,7 @@ package VFS is
    type Directory_Entity is record
       Inode_Number : Unsigned_64;
       Name_Buffer  : String (1 .. 60);
-      Name_Len     : Natural;
+      Name_Len     : Natural range 0 .. 60;
       Type_Of_File : File_Type;
    end record;
    type Directory_Entities     is array (Natural range <>) of Directory_Entity;
@@ -140,12 +140,17 @@ package VFS is
        Handle : out FS_Handle)
       with Pre => Is_Initialized;
 
-   procedure Get_Root (FS : out FS_Handle; Ino : out File_Inode_Number);
+   procedure Get_Root (FS : out FS_Handle; Ino : out File_Inode_Number)
+      with Pre => Is_Initialized;
 
    procedure Pivot_Root
       (New_Mount : String;
        Old_Mount : String;
-       Success   : out Boolean);
+       Success   : out Boolean)
+      with Pre =>
+         Is_Initialized and
+         New_Mount'Length <= Path_Buffer_Length and
+         Old_Mount'Length <= Path_Buffer_Length;
 
    --  Array of handles.
    type Mountpoint_Arr is array (Natural range <>) of FS_Handle;
@@ -182,7 +187,8 @@ package VFS is
        Name   : out String;
        Length : out Natural)
       with Pre => Is_Initialized and Key /= Error_Handle and
-                  Name'Length <= Path_Buffer_Length;
+                  Name'Length >= Path_Buffer_Length and
+                  Name'First <= 100;
 
    --  Remount the passed path with the desired flags.
    --  @param Key          FS key.
@@ -376,7 +382,7 @@ package VFS is
    --  @param Ino       Inode to operate on.
    --  @param Offset    Offset to start from.
    --  @param Entities  Where to store the read entries, as many as possible.
-   --  @param Ret_Count The count of entries, even if num > Entities'Length.
+   --  @param Ret_Count The count of entries read inside entities.
    --  @param Success   Status for the operation.
    procedure Read_Entries
       (Key       : FS_Handle;
@@ -385,13 +391,17 @@ package VFS is
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
        Success   : out FS_Status)
-      with Pre => Is_Initialized and Key /= Error_Handle;
+      with Pre  => Is_Initialized and Key /= Error_Handle,
+           Post => Unsigned_64 (Ret_Count) <= Unsigned_64 (Entities'Length);
 
    --  Read the contents of a symbolic link.
    --  @param Key       FS handle to operate on.
    --  @param Ino       Inode to operate on.
    --  @param Path      Buffer to store the read path.
-   --  @param Ret_Count Symlink character count, even if num > Path'Length.
+   --  @param Ret_Count Symlink character count up to the length of the buffer.
+   --                   The symlink may be longer than this, so, it truncates.
+   --                   To check truncation, pass bigger strings until
+   --                   path'length /= ret_count
    --  @param Success   Status for the operation.
    procedure Read_Symbolic_Link
       (Key       : FS_Handle;
@@ -399,7 +409,8 @@ package VFS is
        Path      : out String;
        Ret_Count : out Natural;
        Success   : out FS_Status)
-      with Pre => Is_Initialized and Key /= Error_Handle;
+      with Pre  => Is_Initialized and Key /= Error_Handle,
+           Post => Unsigned_64 (Ret_Count) <= Unsigned_64 (Path'Length);
 
    --  Read from a regular file.
    --  @param Key         FS Handle to open.
@@ -693,7 +704,7 @@ private
 
    Mounts       : Mount_Registry_Acc;
    Mounts_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
-   Root_Idx     : FS_Handle;
+   Root_Idx     : FS_Handle := Error_Handle;
 
    function Is_Initialized return Boolean is (Mounts /= null);
 end VFS;

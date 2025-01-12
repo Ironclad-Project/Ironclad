@@ -56,7 +56,9 @@ package VFS.FAT is
        Offset    : Natural;
        Entities  : out Directory_Entities;
        Ret_Count : out Natural;
-       Success   : out FS_Status);
+       Success   : out FS_Status)
+      with Pre  => Devices.Is_Initialized,
+           Post => Unsigned_64 (Ret_Count) <= Unsigned_64 (Entities'Length);
 
    procedure Read
       (FS_Data   : System.Address;

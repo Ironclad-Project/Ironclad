@@ -144,6 +144,9 @@ package body VFS.Dev is
 
       Devices.List (Buffer, Buffer_Len);
       for I in 1 .. Buffer_Len loop
+         pragma Loop_Invariant
+            (Unsigned_64 (Ret_Count) <= Unsigned_64 (Entities'Length));
+
          if I - 1 >= Offset then
             if not (I in Buffer'Range)                      or else
                Entities'Length > Unsigned_64 (Natural'Last) or else

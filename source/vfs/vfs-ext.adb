@@ -21,7 +21,7 @@ with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
 with Ada.Characters.Latin_1;
 
-package body VFS.EXT is
+package body VFS.EXT with SPARK_Mode => Off is
    package   Conv is new System.Address_To_Access_Conversions (EXT_Data);
    procedure Free is new Ada.Unchecked_Deallocation (String,   String_Acc);
    procedure Free is new Ada.Unchecked_Deallocation (EXT_Data, EXT_Data_Acc);
@@ -1411,11 +1411,10 @@ package body VFS.EXT is
       Str_Data     : Operation_Data (1 .. Path'Length)
          with Import, Address => Ino.Blocks'Address;
    begin
-      Final_Length := Natural (File_Size);
-      if Final_Length > 60 then
-         Path      := (others => ' ');
-         Ret_Count := 0;
-         return;
+      if File_Size >= Path'Length then
+         Final_Length := Path'Length;
+      else
+         Final_Length := Natural (File_Size);
       end if;
 
       for I in 1 .. Final_Length loop

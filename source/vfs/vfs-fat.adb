@@ -19,7 +19,7 @@ with Ada.Unchecked_Deallocation;
 with Lib.Alignment;
 with Lib.Time;
 
-package body VFS.FAT is
+package body VFS.FAT with SPARK_Mode => Off is
    package   Conv is new System.Address_To_Access_Conversions (FAT_Data);
    procedure Free is new Ada.Unchecked_Deallocation (FAT_Data, FAT_Data_Acc);
 

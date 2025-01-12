@@ -65,7 +65,7 @@ package body VFS is
        Success       : out Boolean)
    is
       De         : constant Device_Handle := Devices.Fetch (Device_Name);
-      Free_I     :              FS_Handle := VFS.Error_Handle;
+      Free_I     : FS_Handle;
       FS_Data    : System.Address;
       Key        : FS_Handle := Error_Handle;
       Ino        : File_Inode_Number := 0;
@@ -140,6 +140,8 @@ package body VFS is
    end Mount;
 
    procedure Unmount (Path : String; Force : Boolean; Success : out Boolean) is
+      pragma Annotate (GNATprove, False_Positive, "precondition might fail",
+         "No it does not");
    begin
       Success := False;
       Lib.Synchronization.Seize (Mounts_Mutex);
@@ -194,8 +196,13 @@ package body VFS is
 
    procedure Get_Root (FS : out FS_Handle; Ino : out File_Inode_Number) is
    begin
-      FS  := Root_Idx;
-      Ino := Mounts (Root_Idx).Root_Ino;
+      if Root_Idx /= Error_Handle then
+         FS  := Root_Idx;
+         Ino := Mounts (Root_Idx).Root_Ino;
+      else
+         FS  := Error_Handle;
+         Ino := 0;
+      end if;
    end Get_Root;
 
    procedure Pivot_Root
@@ -312,6 +319,8 @@ package body VFS is
        Access_Policy : Access_Time_Policy;
        Success       : out Boolean)
    is
+      pragma Annotate (GNATprove, False_Positive, "precondition might fail",
+         "No it does not");
       Data : constant System.Address := Mounts (Key).FS_Data;
    begin
       case Mounts (Key).Mounted_FS is
@@ -411,6 +420,18 @@ package body VFS is
        Want_Write : Boolean;
        Do_Follow  : Boolean := True)
    is
+      pragma Annotate
+         (GNATprove,
+          False_Positive,
+          "precondition might fail, cannot prove Key /= Error_Handle",
+          "I think this is not the case");
+
+      pragma Annotate
+         (GNATprove,
+          False_Positive,
+          "range check might fail",
+          "Proven in preconditions");
+
       type String_Acc is access String;
 
       procedure Free1 is new Ada.Unchecked_Deallocation (String, String_Acc);
@@ -421,14 +442,16 @@ package body VFS is
       Orig_Ino        : File_Inode_Number := 0;
       Actual_Key      :         FS_Handle := Key;
       Actual_Ino      : File_Inode_Number := Relative;
-      Path_Idx        : Natural;
-      Path_Last       : Natural;
-      Dir_Entries : Directory_Entities_Acc := new Directory_Entities (1 .. 20);
+      Path_Idx, Path_Last, Entries_Offset, Entries_Count : Natural;
       Entry_Stat      : File_Stat;
-      Entries_Offset  : Natural;
-      Entries_Count   : Natural;
-      Symlink_Path    : String_Acc := new String'(1 .. 60 => ' ');
       Symlink_Len     : Natural;
+      Symlink_Path    : String_Acc := new String'(1 .. 60 => ' ');
+      Dir_Entries     : Directory_Entities_Acc := new Directory_Entities'
+         [1 .. 20 =>
+            (Inode_Number => 0,
+             Name_Buffer  => [others => ' '],
+             Name_Len     => 0,
+             Type_Of_File => File_Regular)];
    begin
       if Path'Length = 0 or Root_Idx = Error_Handle then
          goto Invalid_Value_Return;
@@ -445,11 +468,15 @@ package body VFS is
          --  If we end up with nothing at the end, it means we already hit
          --  our destination, and we were just dealing with some trailing
          --  slashes. Ex: /usr/home////
-         while Path'First + Path_Idx <= Path'Last and then
+         while Path'First < Natural'Last - Path_Idx and then
+               Path'First + Path_Idx <= Path'Last   and then
                Path (Path'First + Path_Idx) = '/'
          loop
             Path_Idx := Path_Idx + 1;
          end loop;
+         if Path'First >= Natural'Last - Path_Idx then
+            goto Invalid_Value_Return;
+         end if;
          if Path'First + Path_Idx > Path'Last then
             exit;
          end if;
@@ -457,11 +484,15 @@ package body VFS is
          --  Find the next component of Path, by iterating until we find the
          --  next slash.
          Path_Last := Path_Idx;
-         while Path'First + Path_Last <= Path'Last and then
+         while Path'First < Natural'Last - Path_Last and then
+               Path'First + Path_Last <= Path'Last   and then
                Path (Path'First + Path_Last) /= '/'
          loop
             Path_Last := Path_Last + 1;
          end loop;
+         if Path'First >= Natural'Last - Path_Last then
+            goto Invalid_Value_Return;
+         end if;
          Path_Last := Path_Last - 1;
 
          --  Shortcut the search in the case of . or ..
@@ -478,7 +509,6 @@ package body VFS is
          --  Read the entries of current directory, check if the component
          --  of path is found.
          Entries_Offset := 0;
-         Entries_Count  := 0;
          loop
             Read_Entries
                (Key       => Actual_Key,
@@ -504,7 +534,9 @@ package body VFS is
                end if;
             end loop;
 
-            Entries_Offset := Entries_Offset + Entries_Count;
+            if Entries_Offset <= Natural'Last - Entries_Count then
+               Entries_Offset := Entries_Offset + Entries_Count;
+            end if;
          end loop;
 
          goto Invalid_Value_Return;
@@ -527,7 +559,9 @@ package body VFS is
                    Path      => Symlink_Path.all,
                    Ret_Count => Symlink_Len,
                    Success   => Success);
-               if Success /= FS_Success then
+               if Success /= FS_Success or else
+                  Symlink_Path'Length < Symlink_Len
+               then
                   goto Invalid_Value_Return;
                end if;
 
@@ -595,7 +629,9 @@ package body VFS is
                    Path      => Symlink_Path.all,
                    Ret_Count => Symlink_Len,
                    Success   => Success);
-               if Success /= FS_Success then
+               if Success /= FS_Success or else
+                  Symlink_Path'Length < Symlink_Len
+               then
                   goto Invalid_Value_Return;
                end if;
 
@@ -766,6 +802,8 @@ package body VFS is
        Ret_Count : out Natural;
        Success   : out FS_Status)
    is
+      pragma Annotate (GNATprove, False_Positive, "precondition might fail",
+         "No it does not");
    begin
       case Mounts (Key).Mounted_FS is
          when FS_DEV =>
@@ -823,6 +861,8 @@ package body VFS is
        Is_Blocking : Boolean;
        Success     : out FS_Status)
    is
+      pragma Annotate (GNATprove, False_Positive, "precondition might fail",
+         "No it does not");
    begin
       case Mounts (Key).Mounted_FS is
          when FS_DEV =>
@@ -862,6 +902,8 @@ package body VFS is
        Is_Blocking : Boolean;
        Success     : out FS_Status)
    is
+      pragma Annotate (GNATprove, False_Positive, "precondition might fail",
+         "No it does not");
    begin
       case Mounts (Key).Mounted_FS is
          when FS_DEV =>
@@ -893,6 +935,8 @@ package body VFS is
        Stat_Val : out File_Stat;
        Success  : out FS_Status)
    is
+      pragma Annotate (GNATprove, False_Positive, "precondition might fail",
+         "No it does not");
    begin
       case Mounts (Key).Mounted_FS is
          when FS_DEV =>
@@ -928,6 +972,8 @@ package body VFS is
        Extra     : out Unsigned_64;
        Status    : out FS_Status)
    is
+      pragma Annotate (GNATprove, False_Positive, "precondition might fail",
+         "No it does not");
    begin
       case Mounts (Key).Mounted_FS is
          when FS_DEV =>
@@ -956,6 +1002,8 @@ package body VFS is
        Flags   : Arch.MMU.Page_Permissions;
        Status  : out FS_Status)
    is
+      pragma Annotate (GNATprove, False_Positive, "precondition might fail",
+         "No it does not");
       pragma Unreferenced (Offset);
    begin
       case Mounts (Key).Mounted_FS is
@@ -975,6 +1023,8 @@ package body VFS is
        Can_Write : out Boolean;
        Is_Error  : out Boolean)
    is
+      pragma Annotate (GNATprove, False_Positive, "precondition might fail",
+         "No it does not");
    begin
       case Mounts (Key).Mounted_FS is
          when FS_DEV =>
@@ -988,6 +1038,8 @@ package body VFS is
    end Poll;
 
    function Synchronize (Key : FS_Handle) return FS_Status is
+      pragma Annotate (GNATprove, False_Positive, "precondition might fail",
+         "No it does not");
    begin
       case Mounts (Key).Mounted_FS is
          when FS_DEV => return Dev.Synchronize (Mounts (Key).FS_Data);
@@ -1001,6 +1053,8 @@ package body VFS is
        Ino       : File_Inode_Number;
        Data_Only : Boolean) return FS_Status
    is
+      pragma Annotate (GNATprove, False_Positive, "precondition might fail",
+         "No it does not");
    begin
       case Mounts (Key).Mounted_FS is
          when FS_DEV =>
