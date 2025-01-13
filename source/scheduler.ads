@@ -30,7 +30,7 @@ package Scheduler is
    Error_TCID : constant TCID;
    ----------------------------------------------------------------------------
    --  Initialize the scheduler, return true on success, false on failure.
-   function Init return Boolean;
+   procedure Init (Success : out Boolean);
 
    --  Use when doing nothing and we want the scheduler to put us to work.
    --  Doubles as the function to initialize core locals.
@@ -38,7 +38,7 @@ package Scheduler is
 
    --  Creates a userland thread, and queues it for execution.
    --  Return thread ID or 0 on failure.
-   function Create_User_Thread
+   procedure Create_User_Thread
       (Address    : Virtual_Address;
        Args       : Userland.Argument_Arr;
        Env        : Userland.Environment_Arr;
@@ -46,25 +46,28 @@ package Scheduler is
        Vector     : Userland.ELF.Auxval;
        Cluster    : TCID;
        Stack_Size : Unsigned_64;
-       PID        : Natural) return TID;
+       PID        : Natural;
+       New_TID    : out TID);
 
    --  Create a userland thread with no arguments.
-   function Create_User_Thread
+   procedure Create_User_Thread
       (Address    : Virtual_Address;
        Map        : Arch.MMU.Page_Table_Acc;
        Stack_Addr : Unsigned_64;
        TLS_Addr   : Unsigned_64;
        Cluster    : TCID;
-       PID        : Natural) return TID;
+       PID        : Natural;
+       New_TID    : out TID);
 
    --  Create a user thread with a context.
-   function Create_User_Thread
+   procedure Create_User_Thread
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
        Map      : Arch.MMU.Page_Table_Acc;
        Cluster  : TCID;
        PID      : Natural;
-       TCB      : System.Address) return TID;
+       TCB      : System.Address;
+       New_TID  : out TID);
 
    --  Removes a thread, kernel or user, from existance (if it exists).
    procedure Delete_Thread (Thread : TID);
@@ -94,18 +97,25 @@ package Scheduler is
       (Cluster_RR,           --  Cluster will do a priority round robin.
        Cluster_Cooperative); --  Cluster will do cooperative scheduling.
 
-   function Set_Scheduling_Algorithm
+   procedure Set_Scheduling_Algorithm
       (Cluster          : TCID;
        Algo             : Cluster_Algorithm;
        Quantum          : Natural;
-       Is_Interruptible : Boolean) return Boolean;
+       Is_Interruptible : Boolean;
+       Success          : out Boolean);
 
-   function Set_Time_Slice (Cluster : TCID; Per : Natural) return Boolean;
+   procedure Set_Time_Slice
+      (Cluster : TCID;
+       Per     : Natural;
+       Success : out Boolean);
 
-   function Create_Cluster return TCID;
-   function Delete_Cluster (Cluster : TCID) return Boolean;
+   procedure Create_Cluster (New_TCID : out TCID);
+   procedure Delete_Cluster (Cluster : TCID; Success : out Boolean);
 
-   function Switch_Cluster (Cluster : TCID; Thread : TID) return Boolean;
+   procedure Switch_Cluster
+      (Cluster : TCID;
+       Thread  : TID;
+       Success : out Boolean);
    ----------------------------------------------------------------------------
    --  Some scheduling algorithms allow priority, in those cases, it is
    --  interacted with using POSIX-compatible niceness.

@@ -34,6 +34,8 @@ with Config;
 
 package body Kernel_Main is
    procedure Entrypoint (Cmdline : String) is
+      pragma SPARK_Mode (Off);
+
       Init_Path   : Userland.String_Acc;
       Init_Args   : Userland.Argument_Arr_Acc;
       Init_Env    : Userland.Environment_Arr (1 .. 0);
@@ -72,7 +74,8 @@ package body Kernel_Main is
       Arch.Hooks.Register_RAM_Files;
 
       --  Initialize the scheduler.
-      if not Scheduler.Init then
+      Scheduler.Init (Found);
+      if not Found then
          Lib.Panic.Hard_Panic ("Could not initialize the scheduler");
       end if;
 

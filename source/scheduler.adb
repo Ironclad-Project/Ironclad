@@ -26,7 +26,7 @@ with Arch.Snippets;
 with Lib;
 with Lib.Time;
 
-package body Scheduler is
+package body Scheduler with SPARK_Mode => Off is
    Kernel_Stack_Size : constant := 16#2000#;
    type Thread_Stack     is array (Natural range <>) of Unsigned_8;
    type Thread_Stack_64  is array (Natural range <>) of Unsigned_64;
@@ -90,7 +90,7 @@ package body Scheduler is
    Last_Bucket : Unsigned_64      := 0;
    Buckets     : Stats_Bucket_Arr := (others => 0);
 
-   function Init return Boolean is
+   procedure Init (Success : out Boolean) is
    begin
       --  Initialize registries.
       Thread_Pool := new Thread_Info_Arr'
@@ -109,7 +109,16 @@ package body Scheduler is
              C_State         => <>,
              Process         => Userland.Process.Error_PID,
              Yield_Mutex     => Lib.Synchronization.Unlocked_Semaphore,
-             others          => 0)];
+             Last_Sched_Sec  => 0,
+             Last_Sched_NSec => 0,
+             System_Sec      => 0,
+             System_NSec     => 0,
+             User_Sec        => 0,
+             User_NSec       => 0,
+             System_Tmp_Sec  => 0,
+             System_Tmp_NSec => 0,
+             User_Tmp_Sec    => 0,
+             User_Tmp_NSec   => 0)];
 
       Cluster_Pool := new Cluster_Arr'
          [others =>
@@ -132,7 +141,7 @@ package body Scheduler is
 
       Is_Initialized := True;
       Lib.Synchronization.Release (Scheduler_Mutex);
-      return True;
+      Success := True;
    end Init;
 
    procedure Idle_Core is
@@ -147,7 +156,7 @@ package body Scheduler is
       Waiting_Spot;
    end Idle_Core;
 
-   function Create_User_Thread
+   procedure Create_User_Thread
       (Address    : Virtual_Address;
        Args       : Userland.Argument_Arr;
        Env        : Userland.Environment_Arr;
@@ -155,7 +164,8 @@ package body Scheduler is
        Vector     : Userland.ELF.Auxval;
        Cluster    : TCID;
        Stack_Size : Unsigned_64;
-       PID        : Natural) return TID
+       PID        : Natural;
+       New_TID    : out TID)
    is
       Stack_Permissions : constant Arch.MMU.Page_Permissions :=
          (Is_User_Accesible => True,
@@ -165,13 +175,14 @@ package body Scheduler is
           Is_Global         => False);
 
       Proc : constant Userland.Process.PID := Userland.Process.Convert (PID);
-      New_TID   : TID := Error_TID;
       GP_State  : Arch.Context.GP_Context;
       FP_State  : Arch.Context.FP_Context;
       Result    : System.Address;
       Stack_Top : Unsigned_64;
       Success   : Boolean;
    begin
+      New_TID := Error_TID;
+
       --  Initialize thread state. Start by mapping the user stack.
       Stack_Top := Userland.Process.Get_Stack_Base (Proc);
       Userland.Process.Set_Stack_Base (Proc, Stack_Top + Stack_Size);
@@ -183,7 +194,7 @@ package body Scheduler is
           Permissions    => Stack_Permissions,
           Success        => Success);
       if not Success then
-         goto Cleanup;
+         return;
       end if;
 
       declare
@@ -261,28 +272,26 @@ package body Scheduler is
              To_Address (Address));
          Arch.Context.Init_FP_Context (FP_State);
 
-         New_TID := Create_User_Thread
+         Create_User_Thread
             (GP_State => GP_State,
              FP_State => FP_State,
              Map       => Map,
              PID       => PID,
              Cluster   => Cluster,
-             TCB       => System.Null_Address);
+             TCB       => System.Null_Address,
+             New_TID   => New_TID);
       end;
-
-   <<Cleanup>>
-      return New_TID;
    end Create_User_Thread;
 
-   function Create_User_Thread
+   procedure Create_User_Thread
       (Address    : Virtual_Address;
        Map        : Arch.MMU.Page_Table_Acc;
        Stack_Addr : Unsigned_64;
        TLS_Addr   : Unsigned_64;
        Cluster    : TCID;
-       PID        : Natural) return TID
+       PID        : Natural;
+       New_TID    : out TID)
    is
-      New_TID  : TID;
       GP_State : Arch.Context.GP_Context;
       FP_State : Arch.Context.FP_Context;
    begin
@@ -291,27 +300,28 @@ package body Scheduler is
           To_Address (Integer_Address (Stack_Addr)),
           To_Address (Address));
       Arch.Context.Init_FP_Context (FP_State);
-      New_TID := Create_User_Thread
+      Create_User_Thread
          (GP_State => GP_State,
           FP_State => FP_State,
           Map      => Map,
           PID      => PID,
           Cluster  => Cluster,
-          TCB      => To_Address (Integer_Address (TLS_Addr)));
-      return New_TID;
+          TCB      => To_Address (Integer_Address (TLS_Addr)),
+          New_TID  => New_TID);
    end Create_User_Thread;
 
-   function Create_User_Thread
+   procedure Create_User_Thread
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
        Map      : Arch.MMU.Page_Table_Acc;
        Cluster  : TCID;
        PID      : Natural;
-       TCB      : System.Address) return TID
+       TCB      : System.Address;
+       New_TID  : out TID)
    is
-      New_TID   : TID := Error_TID;
       New_Stack : Kernel_Stack_Acc;
    begin
+      New_TID := Error_TID;
       Lib.Synchronization.Seize (Scheduler_Mutex);
 
       --  Find a new TID.
@@ -354,7 +364,6 @@ package body Scheduler is
 
    <<End_Return>>
       Lib.Synchronization.Release (Scheduler_Mutex);
-      return New_TID;
    end Create_User_Thread;
 
    procedure Delete_Thread (Thread : TID) is
@@ -451,11 +460,12 @@ package body Scheduler is
       Lib.Synchronization.Release (Scheduler_Mutex);
    end Signal_Kernel_Exit;
    ----------------------------------------------------------------------------
-   function Set_Scheduling_Algorithm
+   procedure Set_Scheduling_Algorithm
       (Cluster          : TCID;
        Algo             : Cluster_Algorithm;
        Quantum          : Natural;
-       Is_Interruptible : Boolean) return Boolean
+       Is_Interruptible : Boolean;
+       Success          : out Boolean)
    is
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex);
@@ -463,12 +473,15 @@ package body Scheduler is
       Cluster_Pool (Cluster).RR_Quantum       := Quantum;
       Cluster_Pool (Cluster).Is_Interruptible := Is_Interruptible;
       Lib.Synchronization.Release (Scheduler_Mutex);
-      return True;
+      Success := True;
    end Set_Scheduling_Algorithm;
 
-   function Set_Time_Slice (Cluster : TCID; Per : Natural) return Boolean is
+   procedure Set_Time_Slice
+      (Cluster : TCID;
+       Per     : Natural;
+       Success : out Boolean)
+   is
       Consumed : Natural := 0;
-      Success  : Boolean;
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex);
       for I in Cluster_Pool'Range loop
@@ -484,11 +497,9 @@ package body Scheduler is
          Success := False;
       end if;
       Lib.Synchronization.Release (Scheduler_Mutex);
-      return Success;
    end Set_Time_Slice;
 
-   function Create_Cluster return TCID is
-      Returned : TCID;
+   procedure Create_Cluster (New_TCID : out TCID) is
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex);
       for I in Cluster_Pool'Range loop
@@ -500,18 +511,16 @@ package body Scheduler is
                 RR_Quantum       => 4000,
                 Percentage       => 0,
                 others           => 0);
-            Returned := I;
+            New_TCID := I;
             goto Cleanup;
          end if;
       end loop;
-      Returned := Error_TCID;
+      New_TCID := Error_TCID;
    <<Cleanup>>
       Lib.Synchronization.Release (Scheduler_Mutex);
-      return Returned;
    end Create_Cluster;
 
-   function Delete_Cluster (Cluster : TCID) return Boolean is
-      Success : Boolean;
+   procedure Delete_Cluster (Cluster : TCID; Success : out Boolean) is
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex);
       if Cluster_Pool (Cluster).Is_Present then
@@ -521,11 +530,13 @@ package body Scheduler is
          Success := False;
       end if;
       Lib.Synchronization.Release (Scheduler_Mutex);
-      return Success;
    end Delete_Cluster;
 
-   function Switch_Cluster (Cluster : TCID; Thread : TID) return Boolean is
-      Success : Boolean;
+   procedure Switch_Cluster
+      (Cluster : TCID;
+       Thread  : TID;
+       Success : out Boolean)
+   is
    begin
       Lib.Synchronization.Seize (Scheduler_Mutex);
       if Cluster_Pool (Cluster).Is_Present and
@@ -537,7 +548,6 @@ package body Scheduler is
          Success := False;
       end if;
       Lib.Synchronization.Release (Scheduler_Mutex);
-      return Success;
    end Switch_Cluster;
    ----------------------------------------------------------------------------
    function Get_Niceness (Thread : TID) return Niceness is

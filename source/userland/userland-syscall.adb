@@ -661,13 +661,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       Duplicate_FD_Table (Proc, Child);
-      New_TID := Scheduler.Create_User_Thread
+      Scheduler.Create_User_Thread
          (GP_State => GP_State,
           FP_State => FP_State,
           Map      => Get_Common_Map (Child),
           Cluster  => Scheduler.Convert (1),
           PID      => Convert (Child),
-          TCB      => Arch.Local.Fetch_TCB);
+          TCB      => Arch.Local.Fetch_TCB,
+          New_TID  => New_TID);
       Ret := Unsigned_64 (Convert (Child));
       if New_TID = Error_TID then
          goto Block_Error;
@@ -1219,19 +1220,26 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno    : out Errno_Value)
    is
       Proc : constant PID := Arch.Local.Get_Current_Process;
+      Succ : Boolean;
    begin
       if not Get_Capabilities (Proc).Can_Change_Scheduling then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("delete_thread_cluster", Proc);
          Returned := Unsigned_64'Last;
-      elsif Cluster > Unsigned_64 (Natural'Last) or else
-         not Scheduler.Delete_Cluster (Convert (Natural (Cluster)))
-      then
+         return;
+      elsif Cluster > Unsigned_64 (Natural'Last) then
          Errno    := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
-      else
+         return;
+      end if;
+
+      Scheduler.Delete_Cluster (Convert (Natural (Cluster)), Succ);
+      if Succ then
          Errno    := Error_No_Error;
          Returned := 0;
+      else
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
       end if;
    end Delete_Thread_Cluster;
 
@@ -1743,6 +1751,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc : constant PID := Arch.Local.Get_Current_Process;
       Clsr : Scheduler.TCID;
       Algo : Scheduler.Cluster_Algorithm;
+      Succ : Boolean;
    begin
       if not Get_Capabilities (Proc).Can_Change_Scheduling then
          Errno := Error_Bad_Access;
@@ -1762,7 +1771,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       if Cluster = 0 then
-         Clsr := Scheduler.Create_Cluster;
+         Scheduler.Create_Cluster (Clsr);
       else
          Clsr := Scheduler.Convert (Natural (Cluster));
       end if;
@@ -1771,12 +1780,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
          goto Invalid_Value_Error;
       end if;
 
-      if not Set_Scheduling_Algorithm
-         (Clsr, Algo, Natural (Quantum), (Flags and SCHED_INTR) /= 0)
-      then
+      Set_Scheduling_Algorithm
+         (Clsr, Algo, Natural (Quantum), (Flags and SCHED_INTR) /= 0, Succ);
+      if not Succ then
          goto Invalid_Value_Error;
       end if;
-      if not Set_Time_Slice (Clsr, Natural (Percentage)) then
+
+      Set_Time_Slice (Clsr, Natural (Percentage), Succ);
+      if not Succ then
          goto Invalid_Value_Error;
       end if;
 
@@ -4553,7 +4564,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return;
       end if;
 
-      Result := Scheduler.Create_Cluster;
+      Scheduler.Create_Cluster (Result);
       if Result /= Error_TCID then
          Errno    := Error_No_Error;
          Returned := Unsigned_64 (Convert (Result));
@@ -4572,19 +4583,26 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc  : constant  PID := Arch.Local.Get_Current_Process;
       Clust : constant TCID := Convert (Natural (Cluster and 16#FFFFFFFF#));
       Th    : constant  TID := Convert (Natural (Thread and 16#FFFFFFFF#));
+      Succ  : Boolean;
    begin
       if not Get_Capabilities (Proc).Can_Change_Scheduling then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("switch_tcluster", Proc);
          Returned := Unsigned_64'Last;
-      elsif Clust = Error_TCID or else Th = Error_TID or else
-         not Switch_Cluster (Clust, Th)
-      then
+         return;
+      elsif Clust = Error_TCID or else Th = Error_TID then
          Errno := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
-      else
+         return;
+      end if;
+
+      Switch_Cluster (Clust, Th, Succ);
+      if Succ then
          Errno    := Error_No_Error;
          Returned := 0;
+      else
+         Errno := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
       end if;
    end Switch_TCluster;
 
@@ -5576,13 +5594,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
          return;
       end if;
 
-      New_TID := Create_User_Thread
+      Create_User_Thread
          (Address    => Integer_Address (Callback),
           Map        => Get_Common_Map (Proc),
           Stack_Addr => Stack,
           TLS_Addr   => TLS_Addr,
           Cluster    => Scheduler.Convert (Natural (Cluster)),
-          PID        => Convert (Proc));
+          PID        => Convert (Proc),
+          New_TID    => New_TID);
 
       if New_TID = Error_TID then
          goto Block_Error;

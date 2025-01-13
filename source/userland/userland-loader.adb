@@ -169,18 +169,19 @@ package body Userland.Loader is
 
       Loaded_ELF, LD_ELF : ELF.Parsed_ELF;
       Entrypoint   : Virtual_Address;
-      LD_Slide : Unsigned_64;
-      LD_Path  : String (1 .. 100);
-      LD_FS    : FS_Handle;
-      LD_Ino   : File_Inode_Number;
-      Success  : FS_Status;
-      Success2 : Boolean;
+      LD_Slide     : Unsigned_64;
+      LD_Path      : String (1 .. 100);
+      LD_FS        : FS_Handle;
+      LD_Ino       : File_Inode_Number;
+      Success      : FS_Status;
+      Success2     : Boolean;
+      Returned_TID : Scheduler.TID;
    begin
       --  Load the executable.
       Loaded_ELF := ELF.Load_ELF (FS, Ino, Process.Get_Common_Map (Proc),
          Memory_Locations.Program_Offset);
       if not Loaded_ELF.Was_Loaded then
-         goto Error;
+         return False;
       end if;
 
       if Loaded_ELF.Linker_Path /= null then
@@ -191,7 +192,7 @@ package body Userland.Loader is
          Open (LD_Path (9 .. 7 + Loaded_ELF.Linker_Path.all'Length), LD_FS,
                LD_Ino, Success, 0, True, False);
          if Success /= VFS.FS_Success then
-            goto Error;
+            return False;
          end if;
          if Do_ASLR then
             Cryptography.Random.Get_Integer
@@ -206,37 +207,33 @@ package body Userland.Loader is
                                  LD_Slide);
          Entrypoint := To_Integer (LD_ELF.Entrypoint);
          if not LD_ELF.Was_Loaded then
-            goto Error;
+            return False;
          end if;
       else
          Entrypoint := To_Integer (Loaded_ELF.Entrypoint);
       end if;
 
-      declare
-         Returned_TID : constant Scheduler.TID := Scheduler.Create_User_Thread
-            (Address    => Entrypoint,
-             Args       => Arguments,
-             Env        => Environment,
-             Map        => Process.Get_Common_Map (Proc),
-             Vector     => Loaded_ELF.Vector,
-             Cluster    => Scheduler.Convert (1),
-             Stack_Size => Unsigned_64 (Get_Limit (Proc, Stack_Size_Limit)),
-             PID        => Process.Convert (Proc));
-      begin
-         if Returned_TID = Error_TID then
-            goto Error;
-         end if;
+      Scheduler.Create_User_Thread
+         (Address    => Entrypoint,
+          Args       => Arguments,
+          Env        => Environment,
+          Map        => Process.Get_Common_Map (Proc),
+          Vector     => Loaded_ELF.Vector,
+          Cluster    => Scheduler.Convert (1),
+          Stack_Size => Unsigned_64 (Get_Limit (Proc, Stack_Size_Limit)),
+          PID        => Process.Convert (Proc),
+          New_TID    => Returned_TID);
+      if Returned_TID = Error_TID then
+         return False;
+      end if;
 
-         Process.Add_Thread (Proc, Returned_TID, Success2);
-         if not Success2 then
-            Scheduler.Delete_Thread (Returned_TID);
-            goto Error;
-         end if;
-         return True;
-      end;
+      Process.Add_Thread (Proc, Returned_TID, Success2);
+      if not Success2 then
+         Scheduler.Delete_Thread (Returned_TID);
+         return False;
+      end if;
 
-   <<Error>>
-      return False;
+      return True;
    end Start_ELF;
 
    function Start_Shebang
