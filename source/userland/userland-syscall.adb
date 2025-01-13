@@ -579,8 +579,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Get_PID;
 
    procedure Get_PPID (Returned : out Unsigned_64; Errno : out Errno_Value) is
-      Parent : constant PID := Get_Parent (Arch.Local.Get_Current_Process);
+      Proc   : constant PID := Arch.Local.Get_Current_Process;
+      Parent : PID;
    begin
+      Get_Parent (Proc, Parent);
       Errno := Error_No_Error;
       Returned := Unsigned_64 (Convert (Parent));
    end Get_PPID;
@@ -639,6 +641,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Id      : String (1 .. Process.Max_Name_Length);
       Id_Len  : Natural;
       Success : Boolean;
+      Table   : Arch.MMU.Page_Table_Acc;
    begin
       if not Get_Capabilities (Proc).Can_Spawn_Others then
          Errno := Error_Bad_Access;
@@ -655,10 +658,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Get_Identifier (Proc, Id, Id_Len);
       Set_Identifier (Child, Id (1 .. Id_Len));
 
-      Set_Common_Map (Child, Fork_Table (Get_Common_Map (Proc)));
-      if Get_Common_Map (Child) = null then
+      Fork_Table (Get_Common_Map (Proc), Table);
+      if Table = null then
          goto Block_Error;
       end if;
+      Set_Common_Map (Child, Table);
 
       Duplicate_FD_Table (Proc, Child);
       Scheduler.Create_User_Thread
@@ -693,18 +697,18 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned                       : out Unsigned_64;
        Errno                          : out Errno_Value)
    is
-      Addr       : constant Integer_Address := Integer_Address (Exit_Addr);
-      Proc       : constant             PID := Arch.Local.Get_Current_Process;
-      Dont_Hang  : constant         Boolean := (Options and WNOHANG) /= 0;
-      Map        :           Page_Table_Acc := Get_Common_Map (Proc);
-      Waited     : PID;
-      Children   : Process.Children_Arr (1 .. 25);
-      Count      : Natural;
-      Did_Exit   : Boolean;
-      Was_Signal : Boolean;
-      Cause      : Signal;
-      Error_Code : Unsigned_8;
-      Exit_Value : Unsigned_32 with Address => To_Address (Addr), Import;
+      Addr        : constant Integer_Address := Integer_Address (Exit_Addr);
+      Proc        : constant             PID := Arch.Local.Get_Current_Process;
+      Dont_Hang   : constant         Boolean := (Options and WNOHANG) /= 0;
+      Map         :           Page_Table_Acc := Get_Common_Map (Proc);
+      Waited, Tmp : PID;
+      Children    : Process.Children_Arr (1 .. 25);
+      Count       : Natural;
+      Did_Exit    : Boolean;
+      Was_Signal  : Boolean;
+      Cause       : Signal;
+      Error_Code  : Unsigned_8;
+      Exit_Value  : Unsigned_32 with Address => To_Address (Addr), Import;
    begin
       --  If -1, we have to wait for any of the children, else, wait for the
       --  passed PID.
@@ -730,7 +734,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
          end loop;
       else
          Waited := Userland.Process.Convert (Natural (Waited_PID));
-         if Waited = Error_PID or else Get_Parent (Waited) /= Proc then
+         if Waited = Error_PID then
+            goto Child_Error;
+         end if;
+
+         Get_Parent (Waited, Tmp);
+         if Tmp /= Proc then
             goto Child_Error;
          end if;
 
@@ -2909,16 +2918,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       Proc  : constant PID := Arch.Local.Get_Current_Process;
       TProc : constant PID := Convert (Positive (Traced_PID));
+      TProc_Parent : PID;
    begin
-      if TProc = Error_PID or else Proc /= Get_Parent (TProc) then
-         Errno := Error_Bad_Permissions;
-         Returned := Unsigned_64'Last;
-         return;
+      if TProc = Error_PID then
+         goto Bad_Permission_Error;
       elsif not Get_Capabilities (Proc).Can_Trace_Children then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("ptrace", Proc);
          Returned := Unsigned_64'Last;
          return;
+      end if;
+
+      Get_Parent (TProc, TProc_Parent);
+      if TProc_Parent /= Proc then
+         goto Bad_Permission_Error;
       end if;
 
       case Request is
@@ -2932,6 +2945,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       Errno := Error_No_Error;
       Returned := 0;
+      return;
+
+   <<Bad_Permission_Error>>
+      Errno := Error_Bad_Permissions;
+      Returned := Unsigned_64'Last;
    end PTrace;
 
    procedure Listen
@@ -5918,18 +5936,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
          --  Create a new map for the process and reroll ASLR.
          Userland.Process.Flush_Exec_Files (Proc);
          Userland.Process.Reassign_Process_Addresses (Proc);
-         Map := Arch.MMU.Fork_Table (Arch.MMU.Kernel_Table);
+         Arch.MMU.Fork_Table (Arch.MMU.Kernel_Table, Map);
          Set_Common_Map (Proc, Map);
          Set_Identifier (Proc, Args (1).all);
 
          --  Start the actual program.
-         Succ := Userland.Loader.Start_Program
+         Userland.Loader.Start_Program
             (Exec_Path   => Path,
              FS          => Path_FS,
              Ino         => Path_Ino,
              Arguments   => Args,
              Environment => Env,
-             Proc        => Proc);
+             Proc        => Proc,
+             Success     => Succ);
 
          for Arg of Args loop
             Free (Arg);

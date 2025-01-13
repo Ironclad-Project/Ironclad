@@ -21,10 +21,10 @@ package body Arch.MMU is
       return True;
    end Init;
 
-   function Fork_Table (Map : Page_Table_Acc) return Page_Table_Acc is
+   procedure Fork_Table (Map : Page_Table_Acc; Forked : out Page_Table_Acc) is
       pragma Unreferenced (Map);
    begin
-      return null;
+      Forked := null;
    end Fork_Table;
 
    procedure Destroy_Table (Map : in out Page_Table_Acc) is

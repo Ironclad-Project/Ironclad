@@ -45,11 +45,12 @@ package Userland.ELF is
 
    --  Load an ELF from a file into memory with the passed base, and map it
    --  into the passed map. Return parsed info about the ELF.
-   function Load_ELF
+   procedure Load_ELF
       (FS             : VFS.FS_Handle;
        Ino            : VFS.File_Inode_Number;
        Map            : Arch.MMU.Page_Table_Acc;
-       Requested_Base : Unsigned_64) return Parsed_ELF;
+       Requested_Base : Unsigned_64;
+       Result         : out Parsed_ELF);
 
 private
 
@@ -127,16 +128,18 @@ private
    for ELF_Header'Size use 512;
 
    --  Get the linker path string from a given interpreter program header.
-   function Get_Linker
-      (FS     : VFS.FS_Handle;
-       Ino    : VFS.File_Inode_Number;
-       Header : Program_Header) return String_Acc;
-
-   --  Load and map a loadable program header to memory.
-   function Load_Header
+   procedure Get_Linker
       (FS     : VFS.FS_Handle;
        Ino    : VFS.File_Inode_Number;
        Header : Program_Header;
-       Map    : Arch.MMU.Page_Table_Acc;
-       Base   : Unsigned_64) return Boolean;
+       Linker : out String_Acc);
+
+   --  Load and map a loadable program header to memory.
+   procedure Load_Header
+      (FS      : VFS.FS_Handle;
+       Ino     : VFS.File_Inode_Number;
+       Header  : Program_Header;
+       Map     : Arch.MMU.Page_Table_Acc;
+       Base    : Unsigned_64;
+       Success : out Boolean);
 end Userland.ELF;

@@ -67,7 +67,7 @@ package Arch.MMU is
    --  allowing all kernel data to be accessed.
    --  @param Map Table to fork.
    --  @return Forked map, or null on failure.
-   function Fork_Table (Map : Page_Table_Acc) return Page_Table_Acc
+   procedure Fork_Table (Map : Page_Table_Acc; Forked : out Page_Table_Acc)
       with Pre => Map /= null;
 
    --  Free a table.

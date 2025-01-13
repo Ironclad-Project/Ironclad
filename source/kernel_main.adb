@@ -196,9 +196,9 @@ package body Kernel_Main is
              Want_Write => False);
 
          if Success = VFS.FS_Success then
-            Init_PID := Userland.Loader.Start_Program
+            Userland.Loader.Start_Program
                (Init_Args.all (1).all, Init_FS, Init_Ino, Init_Args.all,
-                Init_Env, Init_Stdin, Init_Stdout, Init_Stdout);
+                Init_Env, Init_Stdin, Init_Stdout, Init_Stdout, Init_PID);
             if Init_PID /= Error_PID then
                Userland.Process.Set_Identifier
                   (Init_PID, Init_Args.all (1).all);

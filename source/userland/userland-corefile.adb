@@ -23,26 +23,29 @@ with Lib.Messages;
 with VFS; use VFS;
 
 package body Userland.Corefile is
+   pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE.
+
    procedure Generate_Corefile (Ctx : Arch.Context.GP_Context) is
+      --  TODO: Take into account the file size limit for the corefile, and not
+      --  only the core file size.
+
+      Inner_Ct : aliased constant Arch.Context.GP_Context := Ctx;
       Proc     : constant Process.PID := Arch.Local.Get_Current_Process;
-      PID_Val  : constant Unsigned_64 := Unsigned_64 (Process.Convert (Proc));
-      Core_Lim : constant Limit_Value := Get_Limit (Proc, Core_Size_Limit);
-      File_Lim :          Limit_Value := Get_Limit (Proc, File_Size_Limit);
+      PID_Val  : Unsigned_64;
       PID_Len  : Natural;
       PID_Buf  : Lib.Messages.Translated_String;
       Success  : VFS.FS_Status;
       Core_FS  : VFS.FS_Handle;
       Core_Ino : VFS.File_Inode_Number;
       Ctx_Len  : Natural;
-      Ctx_Data : Devices.Operation_Data (1 .. Ctx'Size / 8)
-         with Import, Address => Ctx'Address;
+      Ctx_Data : constant Devices.Operation_Data (1 .. Inner_Ct'Size / 8)
+         with Import, Address => Inner_Ct'Address;
    begin
-      if Core_Lim = 0 then
+      if Proc = Error_PID or else Get_Limit (Proc, Core_Size_Limit) = 0 then
          return;
-      elsif Core_Lim < File_Lim then
-         File_Lim := Core_Lim;
       end if;
 
+      PID_Val := Unsigned_64 (Process.Convert (Proc));
       Lib.Messages.Image (PID_Val, PID_Buf, PID_Len);
 
       declare
@@ -67,10 +70,11 @@ package body Userland.Corefile is
             return;
          end if;
 
-         Success := VFS.Synchronize (Core_FS, Core_Ino, False);
-         Lib.Messages.Put_Line
-            ("Dumped core at " & File_Path & " (" &
-             VFS.FS_Status'Image (Success) & ")");
+         if VFS.Synchronize (Core_FS, Core_Ino, False) = VFS.FS_Success then
+            Lib.Messages.Put_Line ("Dumped core at " & File_Path);
+         else
+            Lib.Messages.Put_Line ("Failed dump at " & File_Path);
+         end if;
       end;
    end Generate_Corefile;
 end Userland.Corefile;

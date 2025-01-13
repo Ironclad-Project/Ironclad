@@ -294,17 +294,16 @@ package body Userland.Process with SPARK_Mode => Off is
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Add_Thread;
 
-   function Get_Thread_Count (Process : PID) return Natural is
-      Returned : Natural := 0;
+   procedure Get_Thread_Count (Process : PID; Count : out Natural) is
    begin
+      Count := 0;
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       for I in Registry (Process).Thread_List'Range loop
          if Registry (Process).Thread_List (I) /= Error_TID then
-            Returned := Returned + 1;
+            Count := Count + 1;
          end if;
       end loop;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
-      return Returned;
    end Get_Thread_Count;
 
    procedure Remove_Thread (Proc : PID; Thread : Scheduler.TID) is
@@ -747,13 +746,11 @@ package body Userland.Process with SPARK_Mode => Off is
       Arch.MMU.Get_User_Mapped_Size (Registry (P).Common_Map, Size);
    end Get_User_Mapped_Size;
 
-   function Get_Parent (Proc : PID) return PID is
-      Result : PID;
+   procedure Get_Parent (Proc : PID; Parent : out PID) is
    begin
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
-      Result := Registry (Proc).Parent;
+      Parent := Registry (Proc).Parent;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
-      return Result;
    end Get_Parent;
 
    procedure Set_Identifier (Proc : PID; Name : String) is

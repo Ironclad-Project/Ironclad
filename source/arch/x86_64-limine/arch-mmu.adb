@@ -155,34 +155,35 @@ package body Arch.MMU is
       return Make_Active (Kernel_Table);
    end Init;
 
-   function Fork_Table (Map : Page_Table_Acc) return Page_Table_Acc is
+   procedure Fork_Table (Map : Page_Table_Acc; Forked : out Page_Table_Acc) is
       type Page_Data is array (Storage_Count range <>) of Unsigned_8;
 
       Addr       : System.Address;
       Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
       Success    : Boolean;
-      Result     : Page_Table_Acc := new Page_Table'
+   begin
+      Forked := new Page_Table'
          (PML4_Level      => (others => 0),
           Mutex           => Lib.Synchronization.Unlocked_RW_Lock,
           Map_Ranges_Root => null);
-   begin
+
       Lib.Synchronization.Seize_Reader (Map.Mutex);
 
       --  Clone the higher half, which is the same in all maps.
-      Result.PML4_Level (257 .. 512) := Map.PML4_Level (257 .. 512);
+      Forked.PML4_Level (257 .. 512) := Map.PML4_Level (257 .. 512);
 
       --  Duplicate the rest of maps, which are mostly going to be lower half.
       while Curr_Range /= null loop
          if Curr_Range.Is_Allocated then
             Map_Allocated_Range
-               (Map            => Result,
+               (Map            => Forked,
                 Physical_Start => Addr,
                 Virtual_Start  => Curr_Range.Virtual_Start,
                 Length         => Curr_Range.Length,
                 Permissions    => Curr_Range.Flags,
                 Success        => Success);
             if not Success then
-               Destroy_Table (Result);
+               Destroy_Table (Forked);
                goto Cleanup;
             end if;
 
@@ -197,13 +198,13 @@ package body Arch.MMU is
             end;
          else
             if not Map_Range
-               (Map            => Result,
+               (Map            => Forked,
                 Physical_Start => Curr_Range.Physical_Start,
                 Virtual_Start  => Curr_Range.Virtual_Start,
                 Length         => Curr_Range.Length,
                 Permissions    => Curr_Range.Flags)
             then
-               Destroy_Table (Result);
+               Destroy_Table (Forked);
                goto Cleanup;
             end if;
          end if;
@@ -213,7 +214,6 @@ package body Arch.MMU is
 
    <<Cleanup>>
       Lib.Synchronization.Release_Reader (Map.Mutex);
-      return Result;
    end Fork_Table;
 
    procedure Destroy_Table (Map : in out Page_Table_Acc) is
@@ -728,6 +728,7 @@ package body Arch.MMU is
       Final : constant System.Address := Addr + Len;
       Curr  :          System.Address := Addr;
       Current_Proc : Userland.Process.PID;
+      Thread_Count : Natural;
    begin
       --  First, invalidate for ourselves.
       while To_Integer (Curr) < To_Integer (Final) loop
@@ -739,9 +740,12 @@ package body Arch.MMU is
       --  than one thread, we need to invalidate using funky IPIs.
       if CPU.Core_Locals /= null then
          Current_Proc := Local.Get_Current_Process;
-         if Current_Proc = Error_PID or else
-            Userland.Process.Get_Thread_Count (Current_Proc) < 2
-         then
+         if Current_Proc = Error_PID then
+            return;
+         end if;
+
+         Userland.Process.Get_Thread_Count (Current_Proc, Thread_Count);
+         if Thread_Count < 2 then
             return;
          end if;
 

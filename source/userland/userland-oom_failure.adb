@@ -37,10 +37,6 @@ package body Userland.OOM_Failure is
    end Configure_Killing;
 
    procedure Handle_Failure is
-      pragma Annotate (GNATProve,
-          False_Positive,
-          "memory leak might occur",
-          "Map being a pointer this way is required by API");
       pragma Annotate
          (GNATProve,
           False_Positive,

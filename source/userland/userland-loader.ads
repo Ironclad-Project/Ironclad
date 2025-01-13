@@ -26,7 +26,7 @@ package Userland.Loader is
    --  1 thread running it.
    --  The format of the file is guessed.
    --  Return the PID, or 0 if failure.
-   function Start_Program
+   procedure Start_Program
       (Exec_Path   : String;
        FS          : FS_Handle;
        Ino         : File_Inode_Number;
@@ -34,32 +34,36 @@ package Userland.Loader is
        Environment : Environment_Arr;
        StdIn_Path  : String;
        StdOut_Path : String;
-       StdErr_Path : String) return PID;
+       StdErr_Path : String;
+       Result      : out PID);
 
    --  Same as above but with an existing process instead.
    --  Returns true on success, false on failure.
-   function Start_Program
+   procedure Start_Program
       (Exec_Path   : String;
        FS          : FS_Handle;
        Ino         : File_Inode_Number;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       Proc        : PID) return Boolean;
+       Proc        : PID;
+       Success     : out Boolean);
 
    --  Start specifically an ELF file.
-   function Start_ELF
+   procedure Start_ELF
       (FS          : FS_Handle;
        Ino         : File_Inode_Number;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       Proc        : PID) return Boolean;
+       Proc        : PID;
+       Success     : out Boolean);
 
    --  Start specifically a shebang.
-   function Start_Shebang
+   procedure Start_Shebang
       (Exec_Path   : String;
        FS          : FS_Handle;
        Ino         : File_Inode_Number;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       Proc        : PID) return Boolean;
+       Proc        : PID;
+       Success     : out Boolean);
 end Userland.Loader;

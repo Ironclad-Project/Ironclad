@@ -21,11 +21,12 @@ with Devices;
 with Userland.Syscall;
 
 package body Userland.ELF is
-   function Load_ELF
+   procedure Load_ELF
       (FS             : VFS.FS_Handle;
        Ino            : VFS.File_Inode_Number;
        Map            : Arch.MMU.Page_Table_Acc;
-       Requested_Base : Unsigned_64) return Parsed_ELF
+       Requested_Base : Unsigned_64;
+       Result         : out Parsed_ELF)
    is
       use VFS;
 
@@ -35,7 +36,12 @@ package body Userland.ELF is
       Header_Data  : Devices.Operation_Data (1 .. Header_Bytes)
          with Import, Address => Header'Address;
 
-      Result : Parsed_ELF :=
+      Ret_Count : Natural;
+      Pos       : Unsigned_64 := 0;
+      Success   : FS_Status;
+      Success2  : Boolean;
+   begin
+      Result :=
          (Was_Loaded  => False,
           Entrypoint  => System.Null_Address,
           Linker_Path => null,
@@ -46,18 +52,13 @@ package body Userland.ELF is
              Program_Header_Size => 0),
          Exec_Stack => True);
 
-      Ret_Count : Natural;
-      Pos       : Unsigned_64 := 0;
-      Discard   : Boolean;
-      Success   : FS_Status;
-   begin
       --  Read and check the header.
       VFS.Read (FS, Ino, Pos, Header_Data, Ret_Count, True, Success);
       Pos := Pos + Unsigned_64 (Ret_Count);
       if Success /= FS_Success or Ret_Count /= Header_Bytes or
          Header.Identifier (1 .. 4) /= ELF_Signature
       then
-         return Result;
+         return;
       end if;
 
       --  If we have a dynamic ELF, we may run into the issue of it specifying
@@ -86,26 +87,27 @@ package body Userland.ELF is
             with Import, Address => PHDRs'Address;
       begin
          if HSize = 0 or PHDRs'Length = 0 then
-            return Result;
+            return;
          end if;
 
          Pos := Header.Program_Header_List;
          VFS.Read (FS, Ino, Pos, PHDRs_Data, Ret_Count, True, Success);
          Pos := Pos + Unsigned_64 (Ret_Count);
          if Success /= FS_Success or Ret_Count /= Natural (RSize) then
-            return Result;
+            return;
          end if;
 
          for HDR of PHDRs loop
             case HDR.Segment_Type is
                when Program_Loadable_Segment =>
-                  if not Load_Header (FS, Ino, HDR, Map, Base) then
-                     return Result;
+                  Load_Header (FS, Ino, HDR, Map, Base, Success2);
+                  if not Success2 then
+                     return;
                   end if;
                when Program_Header_Table_Segment =>
                   Result.Vector.Program_Headers := Base + HDR.Virt_Address;
                when Program_Interpreter_Segment =>
-                  Result.Linker_Path := Get_Linker (FS, Ino, HDR);
+                  Get_Linker (FS, Ino, HDR, Result.Linker_Path);
                when Program_GNU_Stack =>
                   Result.Exec_Stack := (HDR.Flags and Flags_Executable) /= 0;
                when others =>
@@ -115,18 +117,19 @@ package body Userland.ELF is
 
          --  Return success.
          Result.Was_Loaded := True;
-         return Result;
       end;
    end Load_ELF;
    ----------------------------------------------------------------------------
-   function Get_Linker
+   procedure Get_Linker
       (FS     : VFS.FS_Handle;
        Ino    : VFS.File_Inode_Number;
-       Header : Program_Header) return String_Acc
+       Header : Program_Header;
+       Linker : out String_Acc)
    is
       use VFS;
       Discard  : Unsigned_64;
-      Ret : constant String_Acc := new String (1 .. Header.File_Size_Bytes);
+      Ret : constant String_Acc :=
+         new String'[1 .. Header.File_Size_Bytes => ' '];
       Ret_Data : Devices.Operation_Data (1 .. Header.File_Size_Bytes)
          with Import, Address => Ret (1)'Address;
       Ret_Count : Natural;
@@ -135,18 +138,19 @@ package body Userland.ELF is
    begin
       VFS.Read (FS, Ino, Header.Offset, Ret_Data, Ret_Count, True, Success);
       if Success = FS_Success and Ret_Count = Header.File_Size_Bytes then
-         return Ret;
+         Linker := Ret;
       else
-         return null;
+         Linker := null;
       end if;
    end Get_Linker;
 
-   function Load_Header
-      (FS     : VFS.FS_Handle;
-       Ino    : VFS.File_Inode_Number;
-       Header : Program_Header;
-       Map    : Arch.MMU.Page_Table_Acc;
-       Base   : Unsigned_64) return Boolean
+   procedure Load_Header
+      (FS      : VFS.FS_Handle;
+       Ino     : VFS.File_Inode_Number;
+       Header  : Program_Header;
+       Map     : Arch.MMU.Page_Table_Acc;
+       Base    : Unsigned_64;
+       Success : out Boolean)
    is
       use VFS;
       package A1 is new Lib.Alignment (Unsigned_64);
@@ -164,27 +168,28 @@ package body Userland.ELF is
           Can_Execute       => (Header.Flags and Flags_Executable) /= 0,
           Is_Global         => False);
       Ret_Count  : Natural;
-      Success1   : Boolean;
       Success2   : FS_Status;
       Result     : System.Address;
       Ali_V      : Integer_Address;
       Ali_L      : Unsigned_64;
    begin
-      Success1 := Userland.Syscall.Check_Userland_Mappability
+      Success := Userland.Syscall.Check_Userland_Mappability
          (Map, ELF_Virtual, Load_Size);
-      if not Success1                            or
+      if not Success                             or
          (Flags.Can_Execute and Flags.Can_Write) or
          Header.Alignment = 0                    or
          (Header.Alignment and (Header.Alignment - 1)) /= 0
       then
-         return False;
+         Success := False;
+         return;
       end if;
 
       Ali_V := A2.Align_Down (ELF_Virtual, Integer_Address (Header.Alignment));
       Ali_L := A1.Align_Up   (Load_Size, Header.Alignment);
       if Ali_V mod Arch.MMU.Page_Size /= 0 or Ali_L mod Arch.MMU.Page_Size /= 0
       then
-         return False;
+         Success := False;
+         return;
       end if;
 
       Arch.MMU.Map_Allocated_Range
@@ -193,9 +198,9 @@ package body Userland.ELF is
           Length          => Storage_Count (Ali_L),
           Permissions     => Flags,
           Physical_Start  => Result,
-          Success         => Success1);
-      if not Success1 then
-         return False;
+          Success         => Success);
+      if not Success then
+         return;
       end if;
 
       declare
@@ -203,7 +208,8 @@ package body Userland.ELF is
             with Import, Address => Result + Storage_Offset (MisAlign);
       begin
          VFS.Read (FS, Ino, Header.Offset, Load2, Ret_Count, True, Success2);
-         return Success2 = FS_Success and Ret_Count = Header.File_Size_Bytes;
+         Success := Success2 = FS_Success and
+                    Ret_Count = Header.File_Size_Bytes;
       end;
    end Load_Header;
 end Userland.ELF;

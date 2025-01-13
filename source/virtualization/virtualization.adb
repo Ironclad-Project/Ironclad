@@ -86,7 +86,7 @@ package body Virtualization is
                    Is_Blocking      => True,
                    Description      => Description_VCPU,
                    Inner_VCPU_Owner => M,
-                   Inner_VCPU       => <>);
+                   Inner_VCPU       => 1);
                Returned_FD : Natural;
             begin
                Get_CPU (M, Desc.Inner_VCPU, Success);

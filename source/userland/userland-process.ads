@@ -238,8 +238,8 @@ package Userland.Process is
 
    --  Get the count of tgreads held by the process.
    --  @param Process Process to check.
-   --  @return Number of threads held by the process.
-   function Get_Thread_Count (Process : PID) return Natural
+   --  @param Count   Number of threads held by the process.
+   procedure Get_Thread_Count (Process : PID; Count : out Natural)
       with Pre => Process /= Error_PID;
 
    --  Remove a thread from the process.
@@ -462,9 +462,9 @@ package Userland.Process is
       with Pre => Proc /= Error_PID;
 
    --  Get the parent PID of the process.
-   --  @param Proc Process to get the info from.
-   --  @return Parent PID, or Error_PID if no parent.
-   function Get_Parent (Proc : PID) return PID
+   --  @param Proc   Process to get the info from.
+   --  @param Parent PID of the parent, or Error_PID if no parent.
+   procedure Get_Parent (Proc : PID; Parent : out PID)
       with Pre => Proc /= Error_PID;
 
    --  Set the identifier of the process, will be chopped if needed.

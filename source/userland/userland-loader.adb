@@ -37,7 +37,7 @@ package body Userland.Loader is
       Do_ASLR := False;
    end Disable_ASLR;
 
-   function Start_Program
+   procedure Start_Program
       (Exec_Path   : String;
        FS          : FS_Handle;
        Ino         : File_Inode_Number;
@@ -45,24 +45,26 @@ package body Userland.Loader is
        Environment : Environment_Arr;
        StdIn_Path  : String;
        StdOut_Path : String;
-       StdErr_Path : String) return PID
+       StdErr_Path : String;
+       Result      : out PID)
    is
-      Returned_PID : PID;
       Discard      : Natural;
       Success      : VFS.FS_Status;
       Success1, Success2, Success3         : Boolean;
       User_Stdin, User_StdOut, User_StdErr : File_Description_Acc;
+      Table : Arch.MMU.Page_Table_Acc;
    begin
-      Process.Create_Process (Error_PID, Returned_PID);
-      if Returned_PID = Error_PID then
+      Process.Create_Process (Error_PID, Result);
+      if Result = Error_PID then
          goto Error;
       end if;
-      Process.Set_Common_Map
-         (Returned_PID,
-          Arch.MMU.Fork_Table (Arch.MMU.Kernel_Table));
-      if not Start_Program (Exec_Path, FS, Ino, Arguments, Environment,
-                            Returned_PID)
-      then
+
+      Arch.MMU.Fork_Table (Arch.MMU.Kernel_Table, Table);
+      Process.Set_Common_Map (Result, Table);
+
+      Start_Program (Exec_Path, FS, Ino, Arguments, Environment, Result,
+                     Success1);
+      if not Success1 then
          goto Error_Process;
       end if;
 
@@ -106,7 +108,8 @@ package body Userland.Loader is
           Want_Read  => True,
           Want_Write => False);
       if Success /= FS_Success then
-         return Error_PID;
+         Result := Error_PID;
+         return;
       end if;
       VFS.Open
          (Path       => "/dev/" & StdOut_Path,
@@ -117,7 +120,8 @@ package body Userland.Loader is
           Want_Read  => False,
           Want_Write => True);
       if Success /= FS_Success then
-         return Error_PID;
+         Result := Error_PID;
+         return;
       end if;
       VFS.Open
          (Path       => "/dev/" & StdErr_Path,
@@ -128,42 +132,49 @@ package body Userland.Loader is
           Want_Read  => False,
           Want_Write => True);
       if Success /= FS_Success then
-         return Error_PID;
+         Result := Error_PID;
+         return;
       end if;
 
-      Process.Add_File (Returned_PID, User_Stdin,  Discard, Success1);
-      Process.Add_File (Returned_PID, User_StdOut, Discard, Success2);
-      Process.Add_File (Returned_PID, User_StdErr, Discard, Success3);
+      Process.Add_File (Result, User_Stdin,  Discard, Success1);
+      Process.Add_File (Result, User_StdOut, Discard, Success2);
+      Process.Add_File (Result, User_StdErr, Discard, Success3);
 
       if Success1 and Success2 and Success3 then
-         return Returned_PID;
+         return;
       end if;
 
    <<Error_Process>>
-      Process.Delete_Process (Returned_PID);
+      Process.Delete_Process (Result);
    <<Error>>
-      return Error_PID;
+      Result := Error_PID;
    end Start_Program;
 
-   function Start_Program
+   procedure Start_Program
       (Exec_Path   : String;
        FS          : FS_Handle;
        Ino         : File_Inode_Number;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       Proc        : PID) return Boolean
+       Proc        : PID;
+       Success     : out Boolean)
    is
    begin
-      return Start_ELF     (FS, Ino, Arguments, Environment, Proc) or else
-             Start_Shebang (Exec_Path, FS, Ino, Arguments, Environment, Proc);
+      Start_ELF (FS, Ino, Arguments, Environment, Proc, Success);
+      if Success then
+         return;
+      end if;
+      Start_Shebang (Exec_Path, FS, Ino, Arguments, Environment, Proc,
+                     Success);
    end Start_Program;
 
-   function Start_ELF
+   procedure Start_ELF
       (FS          : FS_Handle;
        Ino         : File_Inode_Number;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       Proc        : PID) return Boolean
+       Proc        : PID;
+       Success     : out Boolean)
    is
       package Aln is new Lib.Alignment (Unsigned_64);
 
@@ -173,15 +184,17 @@ package body Userland.Loader is
       LD_Path      : String (1 .. 100);
       LD_FS        : FS_Handle;
       LD_Ino       : File_Inode_Number;
-      Success      : FS_Status;
-      Success2     : Boolean;
+      Success2     : FS_Status;
       Returned_TID : Scheduler.TID;
+      Table        : Arch.MMU.Page_Table_Acc;
    begin
       --  Load the executable.
-      Loaded_ELF := ELF.Load_ELF (FS, Ino, Process.Get_Common_Map (Proc),
-         Memory_Locations.Program_Offset);
+      Table := Process.Get_Common_Map (Proc);
+      ELF.Load_ELF (FS, Ino, Table,
+         Memory_Locations.Program_Offset, Loaded_ELF);
       if not Loaded_ELF.Was_Loaded then
-         return False;
+         Success := False;
+         return;
       end if;
 
       if Loaded_ELF.Linker_Path /= null then
@@ -190,9 +203,10 @@ package body Userland.Loader is
          LD_Path (9 .. Loaded_ELF.Linker_Path.all'Length + 8) :=
             Loaded_ELF.Linker_Path (1 .. Loaded_ELF.Linker_Path.all'Length);
          Open (LD_Path (9 .. 7 + Loaded_ELF.Linker_Path.all'Length), LD_FS,
-               LD_Ino, Success, 0, True, False);
-         if Success /= VFS.FS_Success then
-            return False;
+               LD_Ino, Success2, 0, True, False);
+         if Success2 /= VFS.FS_Success then
+            Success := False;
+            return;
          end if;
          if Do_ASLR then
             Cryptography.Random.Get_Integer
@@ -203,11 +217,11 @@ package body Userland.Loader is
          else
             LD_Slide := Memory_Locations.LD_Offset_Min;
          end if;
-         LD_ELF := ELF.Load_ELF (LD_FS, LD_Ino, Process.Get_Common_Map (Proc),
-                                 LD_Slide);
+         ELF.Load_ELF (LD_FS, LD_Ino, Table, LD_Slide, LD_ELF);
          Entrypoint := To_Integer (LD_ELF.Entrypoint);
          if not LD_ELF.Was_Loaded then
-            return False;
+            Success := False;
+            return;
          end if;
       else
          Entrypoint := To_Integer (Loaded_ELF.Entrypoint);
@@ -217,32 +231,32 @@ package body Userland.Loader is
          (Address    => Entrypoint,
           Args       => Arguments,
           Env        => Environment,
-          Map        => Process.Get_Common_Map (Proc),
+          Map        => Table,
           Vector     => Loaded_ELF.Vector,
           Cluster    => Scheduler.Convert (1),
           Stack_Size => Unsigned_64 (Get_Limit (Proc, Stack_Size_Limit)),
           PID        => Process.Convert (Proc),
           New_TID    => Returned_TID);
       if Returned_TID = Error_TID then
-         return False;
+         Success := False;
+         return;
       end if;
 
-      Process.Add_Thread (Proc, Returned_TID, Success2);
-      if not Success2 then
+      Process.Add_Thread (Proc, Returned_TID, Success);
+      if not Success then
          Scheduler.Delete_Thread (Returned_TID);
-         return False;
+         return;
       end if;
-
-      return True;
    end Start_ELF;
 
-   function Start_Shebang
+   procedure Start_Shebang
       (Exec_Path   : String;
        FS          : FS_Handle;
        Ino         : File_Inode_Number;
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
-       Proc        : PID) return Boolean
+       Proc        : PID;
+       Success     : out Boolean)
    is
       procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
 
@@ -257,26 +271,27 @@ package body Userland.Loader is
       Char_Data : Devices.Operation_Data (1 .. 1)
          with Import, Address => Char'Address;
       Char_Len  : Natural;
-      Success   : VFS.FS_Status;
-      Returned  : Boolean;
+      Success2   : VFS.FS_Status;
       Banged_FS  : FS_Handle;
       Banged_Ino : File_Inode_Number;
       Path_Acc   : String_Acc;
       Arg_Acc    : String_Acc;
    begin
-      Read (FS, Ino, 0, Path_Data (1 .. 2), Path_Len, True, Success);
-      if Success /= VFS.FS_Success or Path_Len /= 2 or Path (1 .. 2) /= "#!"
+      Read (FS, Ino, 0, Path_Data (1 .. 2), Path_Len, True, Success2);
+      if Success2 /= VFS.FS_Success or Path_Len /= 2 or Path (1 .. 2) /= "#!"
       then
-         return False;
+         Success := False;
+         return;
       end if;
       Pos := Pos + Unsigned_64 (Path_Len);
 
       --  Format of a shebang: #![maybe spaces]path [arg]newline
       Path_Len := 0;
       loop
-         Read (FS, Ino, Pos, Char_Data, Char_Len, True, Success);
-         if Success /= VFS.FS_Success or Char_Len /= 1 then
-            return False;
+         Read (FS, Ino, Pos, Char_Data, Char_Len, True, Success2);
+         if Success2 /= VFS.FS_Success or Char_Len /= 1 then
+            Success := False;
+            return;
          end if;
          case Char is
             when ' '    => Pos := Pos + 1;
@@ -284,10 +299,11 @@ package body Userland.Loader is
          end case;
       end loop;
       loop
-         Read (FS, Ino, Pos, Char_Data, Char_Len, True, Success);
+         Read (FS, Ino, Pos, Char_Data, Char_Len, True, Success2);
          Pos := Pos + Unsigned_64 (Char_Len);
-         if Success /= VFS.FS_Success or Char_Len /= 1 then
-            return False;
+         if Success2 /= VFS.FS_Success or Char_Len /= 1 then
+            Success := False;
+            return;
          end if;
          case Char is
             when ' '                       => exit;
@@ -296,10 +312,11 @@ package body Userland.Loader is
          end case;
       end loop;
       loop
-         Read (FS, Ino, Pos, Char_Data, Char_Len, True, Success);
+         Read (FS, Ino, Pos, Char_Data, Char_Len, True, Success2);
          Pos := Pos + Unsigned_64 (Char_Len);
-         if Success /= VFS.FS_Success or Char_Len /= 1 then
-            return False;
+         if Success2 /= VFS.FS_Success or Char_Len /= 1 then
+            Success := False;
+            return;
          end if;
          case Char is
             when Ada.Characters.Latin_1.LF | ' ' => exit;
@@ -308,35 +325,37 @@ package body Userland.Loader is
       end loop;
 
    <<Return_Shebang>>
-      Open (Path (1 .. Path_Len), Banged_FS, Banged_Ino, Success, 0, True,
+      Open (Path (1 .. Path_Len), Banged_FS, Banged_Ino, Success2, 0, True,
          False);
-      if Success /= FS_Success then
-         return False;
+      if Success2 /= FS_Success then
+         Success := False;
+         return;
       end if;
 
       Path_Acc := new String'(Path (1 .. Path_Len));
       Arg_Acc  := new String'(Arg  (1 .. Arg_Len));
 
       if Arg_Len /= 0 then
-         Returned := Start_Program
+         Start_Program
             (Exec_Path   => Exec_Path,
              FS          => Banged_FS,
              Ino         => Banged_Ino,
              Arguments   => (Path_Acc, Arg_Acc) & Arguments,
              Environment => Environment,
-             Proc        => Proc);
+             Proc        => Proc,
+             Success     => Success);
       else
-         Returned := Start_Program
+         Start_Program
             (Exec_Path   => Exec_Path,
              FS          => Banged_FS,
              Ino         => Banged_Ino,
              Arguments   => (Path_Acc) & Arguments,
              Environment => Environment,
-             Proc        => Proc);
+             Proc        => Proc,
+             Success     => Success);
       end if;
 
       Free (Path_Acc);
       Free (Arg_Acc);
-      return Returned;
    end Start_Shebang;
 end Userland.Loader;
