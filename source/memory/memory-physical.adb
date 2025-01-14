@@ -118,6 +118,11 @@ package body Memory.Physical is
    end Init_Allocator;
 
    function Alloc (Sz : Interfaces.C.size_t) return Virtual_Address is
+      --  It being a function is forced by API, and functions with side-effects
+      --  is illegal in SPARK. So unless we want to use C for the allocator,
+      --  we cannot SPARK.
+      pragma SPARK_Mode (Off);
+
       package Align is new Lib.Alignment (Memory.Size);
 
       Bitmap_Body : Bitmap (0 .. Block_Count - 1) with Import;
