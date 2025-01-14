@@ -20,8 +20,6 @@ with Userland.Syscall;
 with Lib.Messages;
 
 package body Userland.OOM_Failure is
-   pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE.
-
    procedure Get_Killing_Config (Enabled : out Boolean) is
    begin
       Seize (Config_Mutex);

@@ -17,8 +17,6 @@
 with Ada.Characters.Latin_1;
 
 package body Networking is
-   pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE.
-
    procedure Get_Hostname (Name : out String; Length : out Natural) is
    begin
       Name := (others => Ada.Characters.Latin_1.NUL);

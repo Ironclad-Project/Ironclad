@@ -20,8 +20,6 @@ with VFS.EXT;
 with VFS.FAT;
 
 package body VFS is
-   pragma Suppress (All_Checks); --  Unit passes SPARK AoRTE.
-
    procedure Init is
       pragma SPARK_Mode (Off);
    begin

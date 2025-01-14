@@ -15,9 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Lib.Cmdline is
-   --  Unit passes GNATprove AoRTE, GNAT does not know this.
-   pragma Suppress (All_Checks);
-
    procedure Get_Key_Value
       (Cmdline, Key : String;
        Returned     : out String;

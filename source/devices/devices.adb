@@ -23,9 +23,6 @@ with Lib.Panic;
 with Arch.Hooks;
 
 package body Devices is
-   --  Unit passes GNATprove AoRTE, GNAT does not know this.
-   pragma Suppress (All_Checks);
-
    procedure Init is
       pragma SPARK_Mode (Off); --  Some devices here are not verified.
       Success : Boolean;

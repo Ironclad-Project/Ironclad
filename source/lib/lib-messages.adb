@@ -21,9 +21,6 @@ package body Lib.Messages with
    Refined_State => (Message_State =>
       (Messages_Mutex, Curr_Entry, Small_Log_Buffer, Log_Ring_Buffer))
 is
-   --  Unit passes GNATprove AoRTE, GNAT does not know this.
-   pragma Suppress (All_Checks);
-
    procedure Enable_Logging is
    begin
       Lib.Synchronization.Seize (Messages_Mutex);

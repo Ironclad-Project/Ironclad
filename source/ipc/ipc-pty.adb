@@ -23,8 +23,6 @@ with Userland.Process; use Userland.Process;
 with Arch.Local;
 
 package body IPC.PTY is
-   pragma Suppress (All_Checks);
-
    procedure Free is new Ada.Unchecked_Deallocation (Inner, Inner_Acc);
    package   Conv is new System.Address_To_Access_Conversions (Inner);
 

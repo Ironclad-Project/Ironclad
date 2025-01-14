@@ -17,9 +17,6 @@
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body Lib.Alignment is
-   --  Unit passes GNATprove AoRTE, GNAT does not know this.
-   pragma Suppress (All_Checks);
-
    function Align_Up (Value, Alignment : T) return T is
       Value2 : constant Integer_Address := Integer_Address (Value);
       Align2 : constant Integer_Address := Integer_Address (Alignment);

@@ -17,9 +17,6 @@
 with Scheduler;
 
 package body IPC.FileLock is
-   --  Unit passes GNATprove AoRTE, GNAT does not know this.
-   pragma Suppress (All_Checks);
-
    procedure Could_Acquire_Lock
       (Acquired_FS  : VFS.FS_Handle;
        Acquired_Ino : VFS.File_Inode_Number;

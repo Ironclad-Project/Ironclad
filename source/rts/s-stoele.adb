@@ -11,8 +11,6 @@
 with Ada.Unchecked_Conversion;
 
 package body System.Storage_Elements is
-   pragma Suppress (All_Checks);
-
    function To_Addr is new Ada.Unchecked_Conversion (Storage_Offset, Address);
    function To_Off  is new Ada.Unchecked_Conversion (Address, Storage_Offset);
 

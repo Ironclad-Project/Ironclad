@@ -23,8 +23,6 @@ with Lib.Messages;
 with VFS; use VFS;
 
 package body Userland.Corefile is
-   pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE.
-
    procedure Generate_Corefile (Ctx : Arch.Context.GP_Context) is
       --  TODO: Take into account the file size limit for the corefile, and not
       --  only the core file size.

@@ -28,8 +28,6 @@ package body Cryptography.Random is
    --  MD5 (but any cryptographic hash would work), and using it to seed a
    --  chacha20 keystream.
 
-   pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE.
-
    Accumulator_Mutex   : aliased Mutex := Unlocked_Mutex;
    Entropy_Accumulator : MD5.MD5_Blocks (1 .. 1) := (1 => (others => 16#33#));
 

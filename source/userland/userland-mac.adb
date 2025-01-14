@@ -15,9 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Userland.MAC is
-   --  Unit passes GNATprove AoRTE, GNAT does not know this.
-   pragma Suppress (All_Checks);
-
    function Get_Enforcement (Ctx : Context) return Enforcement is
    begin
       return Ctx.Action;

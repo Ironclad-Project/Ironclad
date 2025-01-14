@@ -18,14 +18,11 @@ with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body Lib is
-   --  Unit passes GNATprove AoRTE, GNAT does not know this.
-   pragma Suppress (All_Checks);
-   pragma Warnings (
-      GNATprove,
-      Off,
-      "indirect writes to ""C"" through a potential alias are ignored",
-      Reason => "No alias are taken"
-   );
+   pragma Warnings
+      (GNATprove,
+       Off,
+       "indirect writes to ""C"" through a potential alias are ignored",
+       Reason => "No alias are taken");
 
    function C_String_Length (Addr : Address) return Natural is
       Length : Natural := 0;

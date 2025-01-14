@@ -15,8 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Networking.Interfaces is
-   pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE.
-
    type Inner_Interface is record
       Handle     : Device_Handle;
       MAC        : MAC_Address;

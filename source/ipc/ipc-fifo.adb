@@ -18,8 +18,6 @@ with Ada.Unchecked_Deallocation;
 with Scheduler;
 
 package body IPC.FIFO is
-   pragma Suppress (All_Checks);
-
    procedure Free is new Ada.Unchecked_Deallocation (Inner, Inner_Acc);
    procedure Free is new Ada.Unchecked_Deallocation
       (Devices.Operation_Data, Devices.Operation_Data_Acc);
