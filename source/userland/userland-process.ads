@@ -365,7 +365,7 @@ package Userland.Process is
    --  Get the virtual map associated with the process.
    --  @param Proc Process to operate on.
    --  @return The map.
-   function Get_Common_Map (Proc : PID) return Arch.MMU.Page_Table_Acc
+   procedure Get_Common_Map (Proc : PID; Map : out Arch.MMU.Page_Table_Acc)
       with Pre => Proc /= Error_PID;
 
    --  Get the stack base of the process.

@@ -1,5 +1,5 @@
 --  arch-power.ads: Architecture-specific power management.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -19,11 +19,11 @@ package Arch.Power is
    type Power_Status is (Not_Supported, Failure);
 
    --  Halt the system, this function will only returns in failure.
-   function Halt return Power_Status;
+   procedure Halt (Status : out Power_Status);
 
    --  Reboot the system, this function will only returns in failure.
-   function Reboot return Power_Status;
+   procedure Reboot (Status : out Power_Status);
 
    --  Poweroff the system, this function will only returns in failure.
-   function Poweroff return Power_Status;
+   procedure Poweroff (Status : out Power_Status);
 end Arch.Power;

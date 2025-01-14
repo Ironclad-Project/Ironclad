@@ -1,5 +1,5 @@
 --  arch-power.adb: Architecture-specific power management.
---  Copyright (C) 2024 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -15,18 +15,18 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Arch.Power is
-   function Halt return Power_Status is
+   procedure Halt (Status : out Power_Status) is
    begin
-      return Failure;
+      Status := Failure;
    end Halt;
 
-   function Reboot return Power_Status is
+   procedure Reboot (Status : out Power_Status) is
    begin
-      return Failure;
+      Status := Failure;
    end Reboot;
 
-   function Poweroff return Power_Status is
+   procedure Poweroff (Status : out Power_Status) is
    begin
-      return Failure;
+      Status := Failure;
    end Poweroff;
 end Arch.Power;

@@ -1,5 +1,5 @@
 --  userland-loader.ads: Specification of the program loader.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 
 with Userland.Process; use Userland.Process;
 with VFS;              use VFS;
+with Arch.MMU;         use Arch.MMU;
 
 package Userland.Loader is
    --  By default, the offsets of loaded programs are randomized, this
@@ -35,7 +36,11 @@ package Userland.Loader is
        StdIn_Path  : String;
        StdOut_Path : String;
        StdErr_Path : String;
-       Result      : out PID);
+       Result      : out PID)
+      with Pre =>
+         Arch.MMU.Kernel_Table /= null and
+         VFS.Is_Initialized            and
+         FS /= VFS.Error_Handle;
 
    --  Same as above but with an existing process instead.
    --  Returns true on success, false on failure.
@@ -46,7 +51,11 @@ package Userland.Loader is
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        Proc        : PID;
-       Success     : out Boolean);
+       Success     : out Boolean)
+      with Pre =>
+         Arch.MMU.Kernel_Table /= null and
+         VFS.Is_Initialized            and
+         FS /= VFS.Error_Handle;
 
    --  Start specifically an ELF file.
    procedure Start_ELF
@@ -55,7 +64,11 @@ package Userland.Loader is
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        Proc        : PID;
-       Success     : out Boolean);
+       Success     : out Boolean)
+      with Pre =>
+         Arch.MMU.Kernel_Table /= null and
+         VFS.Is_Initialized            and
+         FS /= VFS.Error_Handle;
 
    --  Start specifically a shebang.
    procedure Start_Shebang
@@ -65,5 +78,9 @@ package Userland.Loader is
        Arguments   : Argument_Arr;
        Environment : Environment_Arr;
        Proc        : PID;
-       Success     : out Boolean);
+       Success     : out Boolean)
+      with Pre =>
+         Arch.MMU.Kernel_Table /= null and
+         VFS.Is_Initialized            and
+         FS /= VFS.Error_Handle;
 end Userland.Loader;

@@ -26,23 +26,25 @@ package IPC.SHM is
    Error_ID : constant Segment_ID := 0;
 
    --  Create a segment with a unique key.
-   function Create_Segment
+   procedure Create_Segment
       (Wanted_Key  : Unsigned_32;
        Wanted_Size : Unsigned_64;
        Creator_UID : Unsigned_32;
        Creator_GID : Unsigned_32;
-       Mode        : Unsigned_64) return Segment_ID
+       Mode        : Unsigned_64;
+       Segment     : out Segment_ID)
       with Pre => Wanted_Key /= 0;
 
    --  Create a segment without a unique key.
-   function Create_Unkeyed_Segment
+   procedure Create_Unkeyed_Segment
       (Wanted_Size : Unsigned_64;
        Creator_UID : Unsigned_32;
        Creator_GID : Unsigned_32;
-       Mode        : Unsigned_64) return Segment_ID;
+       Mode        : Unsigned_64;
+       Segment     : out Segment_ID);
 
    --  Fetch a segment from its key.
-   function Get_Segment (Key : Unsigned_32) return Segment_ID;
+   procedure Get_Segment (Key : Unsigned_32; Segment : out Segment_ID);
 
    --  Fetch a segment and its size from its physical address.
    procedure Get_Segment_And_Size
@@ -56,10 +58,11 @@ package IPC.SHM is
        Address : out Unsigned_64;
        Size    : out Unsigned_64);
 
-   function Check_Permissions
-      (ID  : Segment_ID;
-       UID : Unsigned_32;
-       GID : Unsigned_32) return Boolean;
+   procedure Check_Permissions
+      (ID      : Segment_ID;
+       UID     : Unsigned_32;
+       GID     : Unsigned_32;
+       Success : out Boolean);
 
    procedure Mark_Refcounted (ID : Segment_ID);
 

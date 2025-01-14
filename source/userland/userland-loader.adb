@@ -1,5 +1,5 @@
 --  userland-loader.adb: Program loader.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@ with Ada.Unchecked_Deallocation;
 with Interfaces; use Interfaces;
 with System;
 with System.Storage_Elements; use System.Storage_Elements;
-with Arch.MMU;
 with Memory; use Memory;
 with Userland.ELF; use Userland.ELF;
 with Scheduler; use Scheduler;
@@ -30,6 +29,8 @@ with Devices;
 with Userland.MAC; use Userland.MAC;
 
 package body Userland.Loader is
+   pragma Suppress (All_Checks); --  Unit passes GNATprove AoRTE.
+
    Do_ASLR : Boolean := True;
 
    procedure Disable_ASLR is
@@ -189,7 +190,7 @@ package body Userland.Loader is
       Table        : Arch.MMU.Page_Table_Acc;
    begin
       --  Load the executable.
-      Table := Process.Get_Common_Map (Proc);
+      Process.Get_Common_Map (Proc, Table);
       ELF.Load_ELF (FS, Ino, Table,
          Memory_Locations.Program_Offset, Loaded_ELF);
       if not Loaded_ELF.Was_Loaded then

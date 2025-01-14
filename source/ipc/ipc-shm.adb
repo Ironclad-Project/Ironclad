@@ -40,51 +40,58 @@ package body IPC.SHM is
    Registry : Segment_Arr :=
       (others => (False, 0, 0, 0, 0, 0, 0, 0, 0, 0, False));
 
-   function Create_Segment
+   procedure Create_Segment
       (Wanted_Key  : Unsigned_32;
        Wanted_Size : Unsigned_64;
        Creator_UID : Unsigned_32;
        Creator_GID : Unsigned_32;
-       Mode        : Unsigned_64) return Segment_ID
+       Mode        : Unsigned_64;
+       Segment     : out Segment_ID)
    is
-      Returned : Segment_ID := Error_ID;
    begin
+      Segment := Error_ID;
+
       Lib.Synchronization.Seize (Registry_Mutex);
       for I in Registry'Range loop
          if Registry (I).Is_Present and Registry (I).Key = Wanted_Key then
             goto Cleanup;
          end if;
-         if not Registry (I).Is_Present and Returned = Error_ID then
-            Returned := I;
+         if not Registry (I).Is_Present and Segment = Error_ID then
+            Segment := I;
          end if;
       end loop;
 
-      Registry (Returned).Is_Present := True;
-      Registry (Returned).Key := Wanted_Key;
-      Registry (Returned).Owner_UID := Creator_UID;
-      Registry (Returned).Owner_GID := Creator_GID;
-      Registry (Returned).Creator_UID := Creator_UID;
-      Registry (Returned).Creator_GID := Creator_GID;
-      Registry (Returned).Mode := Mode;
-      Registry (Returned).Physical_Address :=
+      if Segment = Error_ID then
+         goto Cleanup;
+      end if;
+
+      Registry (Segment).Is_Present := True;
+      Registry (Segment).Key := Wanted_Key;
+      Registry (Segment).Owner_UID := Creator_UID;
+      Registry (Segment).Owner_GID := Creator_GID;
+      Registry (Segment).Creator_UID := Creator_UID;
+      Registry (Segment).Creator_GID := Creator_GID;
+      Registry (Segment).Mode := Mode;
+      Registry (Segment).Physical_Address :=
          Alloc (size_t (Wanted_Size)) - Memory.Memory_Offset;
-      Registry (Returned).Size := Memory.Size (Wanted_Size);
-      Registry (Returned).Refcount := 0;
-      Registry (Returned).Is_Refcounted := False;
+      Registry (Segment).Size := Memory.Size (Wanted_Size);
+      Registry (Segment).Refcount := 0;
+      Registry (Segment).Is_Refcounted := False;
 
    <<Cleanup>>
       Lib.Synchronization.Release (Registry_Mutex);
-      return Returned;
    end Create_Segment;
 
-   function Create_Unkeyed_Segment
+   procedure Create_Unkeyed_Segment
       (Wanted_Size : Unsigned_64;
        Creator_UID : Unsigned_32;
        Creator_GID : Unsigned_32;
-       Mode        : Unsigned_64) return Segment_ID
+       Mode        : Unsigned_64;
+       Segment     : out Segment_ID)
    is
-      Returned : Segment_ID := Error_ID;
    begin
+      Segment := Error_ID;
+
       Lib.Synchronization.Seize (Registry_Mutex);
       for I in Registry'Range loop
          if not Registry (I).Is_Present then
@@ -100,27 +107,25 @@ package body IPC.SHM is
             Registry (I).Size := Memory.Size (Wanted_Size);
             Registry (I).Refcount := 0;
             Registry (I).Is_Refcounted := False;
-            Returned := I;
+            Segment := I;
             exit;
          end if;
       end loop;
 
       Lib.Synchronization.Release (Registry_Mutex);
-      return Returned;
    end Create_Unkeyed_Segment;
 
-   function Get_Segment (Key : Unsigned_32) return Segment_ID is
-      Returned : Segment_ID := Error_ID;
+   procedure Get_Segment (Key : Unsigned_32; Segment : out Segment_ID) is
    begin
+      Segment := Error_ID;
       Lib.Synchronization.Seize (Registry_Mutex);
       for I in Registry'Range loop
          if Registry (I).Is_Present and Registry (I).Key = Key then
-            Returned := I;
+            Segment := I;
             exit;
          end if;
       end loop;
       Lib.Synchronization.Release (Registry_Mutex);
-      return Returned;
    end Get_Segment;
 
    procedure Get_Segment_And_Size
@@ -162,23 +167,22 @@ package body IPC.SHM is
       Lib.Synchronization.Release (Registry_Mutex);
    end Get_Address;
 
-   function Check_Permissions
-      (ID  : Segment_ID;
-       UID : Unsigned_32;
-       GID : Unsigned_32) return Boolean
+   procedure Check_Permissions
+      (ID      : Segment_ID;
+       UID     : Unsigned_32;
+       GID     : Unsigned_32;
+       Success : out Boolean)
    is
-      Result : Boolean;
    begin
       Lib.Synchronization.Seize (Registry_Mutex);
       if Registry (ID).Is_Present then
-         Result := UID = Registry (ID).Owner_UID or
+         Success := UID = Registry (ID).Owner_UID or
             (GID = Registry (ID).Owner_GID and
             (Registry (ID).Mode and 8#040#) /= 0);
       else
-         Result := False;
+         Success := False;
       end if;
       Lib.Synchronization.Release (Registry_Mutex);
-      return Result;
    end Check_Permissions;
 
    procedure Mark_Refcounted (ID : Segment_ID) is

@@ -1,5 +1,5 @@
 --  ipc-socket.adb: Socket creation and management.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -158,40 +158,42 @@ package body IPC.Socket is
       end case;
    end Write;
 
-   function Shutdown
+   procedure Shutdown
       (Sock             : Socket_Acc;
        Do_Receptions    : Boolean;
-       Do_Transmissions : Boolean) return Boolean
+       Do_Transmissions : Boolean;
+       Success          : out Boolean)
    is
-      Suc : Boolean;
    begin
       Lib.Synchronization.Seize (Sock.Mutex);
       case Sock.Dom is
          when IPv4 | IPv6 =>
-            Suc := False;
+            Success := False;
          when UNIX =>
-            Suc := Inner_UNIX_Shutdown (Sock, Do_Receptions, Do_Transmissions);
+            Success :=
+               Inner_UNIX_Shutdown (Sock, Do_Receptions, Do_Transmissions);
       end case;
       Lib.Synchronization.Release (Sock.Mutex);
-      return Suc;
    end Shutdown;
 
-   function Is_Listening (Sock : Socket_Acc) return Boolean is
-      Result : Boolean;
+   procedure Is_Listening (Sock : Socket_Acc; Is_Listening : out Boolean) is
    begin
       Lib.Synchronization.Seize (Sock.Mutex);
-      Result := Sock.Is_Listener;
+      Is_Listening := Sock.Is_Listener;
       Lib.Synchronization.Release (Sock.Mutex);
-      return Result;
    end Is_Listening;
 
-   function Listen (Sock : Socket_Acc; Backlog : Natural) return Boolean is
+   procedure Listen
+      (Sock    : Socket_Acc;
+       Backlog : Natural;
+       Success : out Boolean)
+   is
       pragma Unreferenced (Backlog);
    begin
       Lib.Synchronization.Seize (Sock.Mutex);
       Sock.Is_Listener := True;
       Lib.Synchronization.Release (Sock.Mutex);
-      return True;
+      Success := True;
    end Listen;
 
    procedure Accept_Connection
@@ -250,19 +252,20 @@ package body IPC.Socket is
       return False;
    end Bind;
 
-   function Connect
-      (Sock : Socket_Acc;
-       Addr : Networking.IPv4_Address;
-       Port : Networking.IPv4_Port) return Boolean
+   procedure Connect
+      (Sock    : Socket_Acc;
+       Addr    : Networking.IPv4_Address;
+       Port    : Networking.IPv4_Port;
+       Success : out Boolean)
    is
    begin
       case Sock.Typ is
          when Raw =>
             Sock.IPv4_Cached_Address := Addr;
             Sock.IPv4_Cached_Port := Port;
-            return True;
+            Success := True;
          when others =>
-            return False;
+            Success := False;
       end case;
    end Connect;
 
@@ -410,19 +413,20 @@ package body IPC.Socket is
       return False;
    end Bind;
 
-   function Connect
-      (Sock : Socket_Acc;
-       Addr : Networking.IPv6_Address;
-       Port : Networking.IPv6_Port) return Boolean
+   procedure Connect
+      (Sock    : Socket_Acc;
+       Addr    : Networking.IPv6_Address;
+       Port    : Networking.IPv6_Port;
+       Success : out Boolean)
    is
    begin
       case Sock.Typ is
          when Raw =>
             Sock.IPv6_Cached_Address := Addr;
             Sock.IPv6_Cached_Port := Port;
-            return True;
+            Success := True;
          when others =>
-            return False;
+            Success := False;
       end case;
    end Connect;
 
@@ -611,9 +615,12 @@ package body IPC.Socket is
       return Success;
    end Bind;
 
-   function Connect (Sock : Socket_Acc; Path : String) return Boolean is
+   procedure Connect
+      (Sock    : Socket_Acc;
+       Path    : String;
+       Success : out Boolean)
+   is
       To_Connect : Socket_Acc;
-      Success    : Boolean;
    begin
       Lib.Synchronization.Seize (UNIX_Bound_Mutex);
 
@@ -644,7 +651,6 @@ package body IPC.Socket is
 
    <<End_Return>>
       Lib.Synchronization.Release (UNIX_Bound_Mutex);
-      return Success;
    end Connect;
 
    procedure Accept_Connection
@@ -695,7 +701,7 @@ package body IPC.Socket is
       Discard : Boolean;
       Temp : constant Socket_Acc := Sock.Simple_Connected;
    begin
-      Discard := Connect (Sock, Path);
+      Connect (Sock, Path, Discard);
       Inner_UNIX_Read (Sock, Data, Is_Blocking, Ret_Count, Success);
       Sock.Simple_Connected := Temp;
    end Read;
@@ -711,7 +717,7 @@ package body IPC.Socket is
       Discard : Boolean;
       Temp : constant Socket_Acc := Sock.Simple_Connected;
    begin
-      Discard := Connect (Sock, Path);
+      Connect (Sock, Path, Discard);
       Inner_UNIX_Write (Sock, Data, Is_Blocking, Ret_Count, Success);
       Sock.Simple_Connected := Temp;
    end Write;

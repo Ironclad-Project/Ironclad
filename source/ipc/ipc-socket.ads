@@ -1,5 +1,5 @@
 --  ipc-socket.ads: Socket creation and management.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -120,24 +120,28 @@ package IPC.Socket is
    --  @param Sock             Socket to disconnect
    --  @param Do_Receptions    If True, disable future RX for this connection.
    --  @param Do_Transmissions If True, disable future TX for this connection.
-   --  @return True on success, False on failure (not connected?).
-   function Shutdown
+   --  @param Success          True on success, False on failure.
+   procedure Shutdown
       (Sock             : Socket_Acc;
        Do_Receptions    : Boolean;
-       Do_Transmissions : Boolean) return Boolean;
+       Do_Transmissions : Boolean;
+       Success          : out Boolean);
 
    --  Get whether the socket is listening.
-   --  @param Sock Socket to check.
-   --  @return True if listening, False if not.
-   function Is_Listening (Sock : Socket_Acc) return Boolean
+   --  @param Sock         Socket to check.
+   --  @param Is_Listening True if listening, False if not.
+   procedure Is_Listening (Sock : Socket_Acc; Is_Listening : out Boolean)
       with Pre => Sock /= null;
 
    --  Make a socket into a listener, which makes the socket only able of
    --  accepting connections using Accept.
    --  @param Sock    Socket to use for listening, must be stream.
    --  @param Backlog Hint as to how many connections to prepare for.
-   --  @return True on success, False on failure.
-   function Listen (Sock : Socket_Acc; Backlog : Natural) return Boolean
+   --  @param Success True on success, False on failure.
+   procedure Listen
+      (Sock    : Socket_Acc;
+       Backlog : Natural;
+       Success : out Boolean)
       with Pre => Sock /= null and then Get_Type (Sock) = Stream;
 
    --  Accept a new connection, creating a connected socket for interfacing.
@@ -191,14 +195,15 @@ package IPC.Socket is
    --  Connect a socket, if connection-based, the function will do handshake
    --  and all the shinenigans. Connection-less sockets will use from now on
    --  this address only for sending and receiving.
-   --  @param Sock Socket to use to connect.
-   --  @param Addr Fetched address.
-   --  @param Port Fetched port.
-   --  @return True on success, False on failure.
-   function Connect
-      (Sock : Socket_Acc;
-       Addr : Networking.IPv4_Address;
-       Port : Networking.IPv4_Port) return Boolean
+   --  @param Sock    Socket to use to connect.
+   --  @param Addr    Fetched address.
+   --  @param Port    Fetched port.
+   --  @param Success True on success, False on failure.
+   procedure Connect
+      (Sock    : Socket_Acc;
+       Addr    : Networking.IPv4_Address;
+       Port    : Networking.IPv4_Port;
+       Success : out Boolean)
       with Pre => Sock /= null and then Get_Domain (Sock) = IPv4;
 
    --  Accept a new connection, creating a connected socket for interfacing.
@@ -294,14 +299,15 @@ package IPC.Socket is
    --  Connect a socket, if connection-based, the function will do handshake
    --  and all the shinenigans. Connection-less sockets will use from now on
    --  this address only for sending and receiving.
-   --  @param Sock Socket to use to connect.
-   --  @param Addr Fetched address.
-   --  @param Port Fetched port.
-   --  @return True on success, False on failure.
-   function Connect
-      (Sock : Socket_Acc;
-       Addr : Networking.IPv6_Address;
-       Port : Networking.IPv6_Port) return Boolean
+   --  @param Sock    Socket to use to connect.
+   --  @param Addr    Fetched address.
+   --  @param Port    Fetched port.
+   --  @param Success True on success, False on failure.
+   procedure Connect
+      (Sock    : Socket_Acc;
+       Addr    : Networking.IPv6_Address;
+       Port    : Networking.IPv6_Port;
+       Success : out Boolean)
       with Pre => Sock /= null and then Get_Domain (Sock) = IPv6;
 
    --  Accept a new connection, creating a connected socket for interfacing
@@ -397,10 +403,13 @@ package IPC.Socket is
    --  This process initiates the handshake that the other end will continue
    --  with its functions Listen and Accept, unless blocking, this function
    --  will block until accepted.
-   --  @param Sock Socket to use to connect.
-   --  @param Path Previously bound path to connect to.
-   --  @return True on success, False on failure.
-   function Connect (Sock : Socket_Acc; Path : String) return Boolean
+   --  @param Sock    Socket to use to connect.
+   --  @param Path    Previously bound path to connect to.
+   --  @param Success True on success, False on failure.
+   procedure Connect
+      (Sock    : Socket_Acc;
+       Path    : String;
+       Success : out Boolean)
       with Pre => Sock /= null and then Get_Domain (Sock) = UNIX;
 
    --  Accept a new connection, creating a connected socket for interfacing

@@ -24,7 +24,7 @@ with Cryptography.Random;
 with Userland.Memory_Locations;
 with IPC.FileLock;
 
-package body Userland.Process with SPARK_Mode => Off is
+package body Userland.Process is
    procedure Free is new Ada.Unchecked_Deallocation
       (Process_Data, Process_Data_Acc);
 
@@ -623,13 +623,11 @@ package body Userland.Process with SPARK_Mode => Off is
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Set_Common_Map;
 
-   function Get_Common_Map (Proc : PID) return Arch.MMU.Page_Table_Acc is
-      Result : Arch.MMU.Page_Table_Acc;
+   procedure Get_Common_Map (Proc : PID; Map : out Arch.MMU.Page_Table_Acc) is
    begin
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
-      Result := Registry (Proc).Common_Map;
+      Map := Registry (Proc).Common_Map;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
-      return Result;
    end Get_Common_Map;
 
    function Get_Stack_Base (Process : PID) return Unsigned_64 is
