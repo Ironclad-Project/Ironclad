@@ -4090,7 +4090,7 @@ package body Userland.Syscall is
                   Errno    := Error_No_Error;
                else
                   Returned := Unsigned_64'Last;
-                  Errno    := Error_No_Memory;
+                  Errno    := Error_Would_Block;
                end if;
             when FUTEX_WAKE =>
                IPC.Futex.Wake (Futexes);

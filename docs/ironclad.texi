@@ -3211,8 +3211,7 @@ futexes; the kernel maintains a futex only while operations such as
 @code{FUTEX_WAIT} are being performed on particular futex contents.
 
 When compared with other implementations like Linux's, Ironclad's allows for
-waiting and waking several futexes at once, this is done as to ease handling
-several futexes at once.
+waiting and waking several futexes at once.
 
 The available futex operations are:
 
@@ -3233,6 +3232,9 @@ The passed addresses would fault if accessed.
 
 @item EINVAL
 The passed operation is not valid.
+
+@item EAGAIN
+When waiting, a passed @code{addr} did not point to a @code{expected}.
 @end table
 
 @node clock
