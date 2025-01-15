@@ -30,10 +30,11 @@ package body IPC.Futex is
    Registry_Mutex : aliased Mutex := Unlocked_Mutex;
    Registry       :     Futex_Arr := (others => (null, False, 0));
 
-   function Wait
+   procedure Wait
       (Keys        : Element_Arr;
        Max_Seconds : Unsigned_64;
-       Max_Nanos   : Unsigned_64) return Boolean
+       Max_Nanos   : Unsigned_64;
+       Success     : out Boolean)
    is
       Curr_Sec, Curr_NSec, Final_Sec, Final_NSec : Unsigned_64;
       Idx : array (1 .. Keys'Length) of Natural;
@@ -41,7 +42,8 @@ package body IPC.Futex is
       --  Find and/or allocate indexes for the passed mutexes.
       for I in Keys'Range loop
          if Keys (I).Key.all /= Keys (I).Expected then
-            return False;
+            Success := False;
+            return;
          end if;
 
          Lib.Synchronization.Seize (Registry_Mutex);
@@ -63,7 +65,8 @@ package body IPC.Futex is
          end loop;
 
          Lib.Synchronization.Release (Registry_Mutex);
-         return False;
+         Success := False;
+         return;
       <<End_Of_Iter>>
          Lib.Synchronization.Release (Registry_Mutex);
       end loop;
@@ -91,7 +94,7 @@ package body IPC.Futex is
          Scheduler.Yield_If_Able;
       end loop;
 
-      return True;
+      Success := True;
    end Wait;
 
    procedure Wake (Keys : Element_Arr) is

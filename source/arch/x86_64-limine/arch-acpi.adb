@@ -44,12 +44,13 @@ package body Arch.ACPI with SPARK_Mode => Off is
 
       Map_Addr : Integer_Address;
       Map_Len  : Integer_Address;
+      Success  : Boolean;
    begin
       Map_Addr := A.Align_Down (To_Integer (RSDPonse.Addr), MMU.Page_Size);
       Map_Len  := To_Integer (RSDPonse.Addr) - Map_Addr;
       Map_Len  := A.Align_Up (MMU.Page_Size + Map_Len, MMU.Page_Size);
 
-      if not MMU.Map_Range
+      MMU.Map_Range
          (Map            => MMU.Kernel_Table,
           Physical_Start => To_Address (Map_Addr),
           Virtual_Start  => To_Address (Memory_Offset + Map_Addr),
@@ -59,8 +60,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
              Can_Read          => True,
              Can_Write         => False,
              Can_Execute       => False,
-             Is_Global         => True))
-      then
+             Is_Global         => True),
+          Success => Success);
+      if not Success then
          Lib.Messages.Put_Line ("Failed to map RSD* table");
          return False;
       end if;
@@ -84,7 +86,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
       --  really really tedious, so we just map 10 pages at the beginning of
       --  the root address, and that should be enough on 90% of the scenarios
       --  out there. And when it isnt, welp, we will implement it.
-      if not MMU.Map_Range
+      MMU.Map_Range
          (Map            => MMU.Kernel_Table,
           Physical_Start => To_Address (Map_Addr - Memory_Offset),
           Virtual_Start  => To_Address (Map_Addr),
@@ -94,8 +96,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
              Can_Read          => True,
              Can_Write         => False,
              Can_Execute       => False,
-             Is_Global         => True))
-      then
+             Is_Global         => True),
+          Success => Success);
+      if not Success then
          Lib.Messages.Put_Line ("Failed to map final RSD* table");
          return False;
       end if;

@@ -1,5 +1,5 @@
 --  lib.ads: Generic library functions.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ package body Lib is
       Length : Natural := 0;
    begin
       loop
+         pragma Loop_Variant (Increases => Length);
          declare
             C : constant Character
                with Address => Addr + Storage_Offset (Length), Import;
@@ -38,25 +39,4 @@ package body Lib is
       end loop;
       return Length;
    end C_String_Length;
-   ----------------------------------------------------------------------------
-   function Least_Common_Multiple (Val1, Val2 : Integer) return Integer is
-   begin
-      if Val1 = 0 or Val2 = 0 then
-         return 0;
-      end if;
-      return (abs (Val1 * Val2)) / Greatest_Common_Divisor (Val1, Val2);
-   end Least_Common_Multiple;
-
-   function Greatest_Common_Divisor (Val1, Val2 : Integer) return Integer is
-      M : Integer := Val1;
-      N : Integer := Val2;
-      T : Integer;
-   begin
-      while N /= 0 loop
-         T := M;
-         M := N;
-         N := T mod N;
-      end loop;
-      return M;
-   end Greatest_Common_Divisor;
 end Lib;

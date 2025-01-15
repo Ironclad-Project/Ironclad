@@ -30,10 +30,9 @@ package body IPC.PTY is
       Lib.Synchronization.Unlocked_Mutex;
    Tracked_Name : Natural := 1;
 
-   function Create return Inner_Acc is
+   procedure Create (Result : out Inner_Acc) is
       Name_Index : Natural;
       Modes      : constant Devices.TermIOs.Local_Modes := (others => False);
-      Result     : Inner_Acc;
       Resource   : Devices.Resource;
       Success    : Boolean;
       Num_Str    : Lib.Messages.Translated_String;
@@ -87,10 +86,9 @@ package body IPC.PTY is
          Devices.Register (Resource, Final_Name, Success);
          if Success then
             Result.Device_Handle := Devices.Fetch (Final_Name);
-            return Result;
          else
             Free (Result);
-            return null;
+            Result := null;
          end if;
       end;
    end Create;

@@ -388,13 +388,11 @@ package body Userland.Process is
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Reassign_Process_Addresses;
 
-   function Get_Niceness (Process : PID) return Scheduler.Niceness is
-      Result : Scheduler.Niceness;
+   procedure Get_Niceness (Process : PID; Nice : out Scheduler.Niceness) is
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
-      Result := Registry (Process).Niceness;
+      Nice := Registry (Process).Niceness;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
-      return Result;
    end Get_Niceness;
 
    procedure Set_Niceness (Process : PID; Nice : Scheduler.Niceness) is
@@ -409,8 +407,12 @@ package body Userland.Process is
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    end Set_Niceness;
 
-   function Is_Valid_File (Process : PID; FD : Unsigned_64) return Boolean is
-      R : Boolean;
+   procedure Is_Valid_File
+      (Process : PID;
+       FD      : Unsigned_64;
+       Success : out Boolean)
+   is
+      R : Boolean renames Success;
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       if FD <= Unsigned_64 (File_Arr'Last) then
@@ -419,7 +421,6 @@ package body Userland.Process is
          R := False;
       end if;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
-      return R;
    end Is_Valid_File;
 
    procedure Add_File
@@ -528,20 +529,19 @@ package body Userland.Process is
       F := null;
    end Close;
 
-   function Get_File
+   procedure Get_File
       (Process : PID;
-       FD      : Unsigned_64) return File_Description_Acc
+       FD      : Unsigned_64;
+       File    : out File_Description_Acc)
    is
-      Res : File_Description_Acc;
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       if FD <= Unsigned_64 (File_Arr'Last) then
-         Res := Registry (Process).File_Table (Natural (FD)).Description;
+         File := Registry (Process).File_Table (Natural (FD)).Description;
       else
-         Res := null;
+         File := null;
       end if;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
-      return Res;
    end Get_File;
 
    procedure Get_FD_Flags
@@ -728,15 +728,16 @@ package body Userland.Process is
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_CWD;
 
-   function Bump_Alloc_Base (P : PID; Length : Unsigned_64) return Unsigned_64
+   procedure Bump_Alloc_Base
+      (P        : PID;
+       Length   : Unsigned_64;
+       Previous : out Unsigned_64)
    is
-      Result : Unsigned_64;
    begin
       Lib.Synchronization.Seize (Registry (P).Data_Mutex);
-      Result := Registry (P).Alloc_Base;
-      Registry (P).Alloc_Base := Result + Length;
+      Previous := Registry (P).Alloc_Base;
+      Registry (P).Alloc_Base := Previous + Length;
       Lib.Synchronization.Release (Registry (P).Data_Mutex);
-      return Result;
    end Bump_Alloc_Base;
 
    procedure Get_User_Mapped_Size (P : PID; Size : out Unsigned_64) is

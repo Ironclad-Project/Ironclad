@@ -61,21 +61,23 @@ package body Arch.MMU is
       Is_Executable := False;
    end Translate_Address;
 
-   function Map_Range
+   procedure Map_Range
       (Map            : Page_Table_Acc;
        Physical_Start : System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
        Permissions    : Page_Permissions;
-       Caching        : Caching_Model := Write_Back) return Boolean
+       Success        : out Boolean;
+       Caching        : Caching_Model := Write_Back)
    is
       pragma Unreferenced (Map);
       pragma Unreferenced (Physical_Start);
       pragma Unreferenced (Virtual_Start);
       pragma Unreferenced (Length);
       pragma Unreferenced (Permissions);
+      pragma Unreferenced (Caching);
    begin
-      return True;
+      Success := False;
    end Map_Range;
 
    procedure Map_Allocated_Range
@@ -91,36 +93,40 @@ package body Arch.MMU is
       pragma Unreferenced (Virtual_Start);
       pragma Unreferenced (Length);
       pragma Unreferenced (Permissions);
+      pragma Unreferenced (Caching);
    begin
       Physical_Start := System.Null_Address;
       Success        := True;
    end Map_Allocated_Range;
 
-   function Remap_Range
+   procedure Remap_Range
       (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count;
        Permissions   : Page_Permissions;
-       Caching       : Caching_Model := Write_Back) return Boolean
+       Success       : out Boolean;
+       Caching       : Caching_Model := Write_Back)
    is
       pragma Unreferenced (Map);
       pragma Unreferenced (Virtual_Start);
       pragma Unreferenced (Length);
       pragma Unreferenced (Permissions);
+      pragma Unreferenced (Caching);
    begin
-      return True;
+      Success := False;
    end Remap_Range;
 
-   function Unmap_Range
+   procedure Unmap_Range
       (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
-       Length        : Storage_Count) return Boolean
+       Length        : Storage_Count;
+       Success       : out Boolean)
    is
       pragma Unreferenced (Map);
       pragma Unreferenced (Virtual_Start);
       pragma Unreferenced (Length);
    begin
-      return True;
+      Success := True;
    end Unmap_Range;
 
    procedure Get_User_Mapped_Size (Map : Page_Table_Acc; Sz : out Unsigned_64)

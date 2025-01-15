@@ -259,7 +259,7 @@ package Userland.Process is
       with Pre => Process /= Error_PID;
 
    --  Get the process's default niceness.
-   function Get_Niceness (Process : PID) return Scheduler.Niceness
+   procedure Get_Niceness (Process : PID; Nice : out Scheduler.Niceness)
       with Pre => Process /= Error_PID;
 
    --  Set the process's default niceness.
@@ -269,8 +269,11 @@ package Userland.Process is
    --  Check whether a file is registered in a process.
    --  @param Process Process to check.
    --  @param FD      FD to check.
-   --  @return True if valid and registered, False if not.
-   function Is_Valid_File (Process : PID; FD : Unsigned_64) return Boolean
+   --  @param Success True if valid and registered, False if not.
+   procedure Is_Valid_File
+      (Process : PID;
+       FD      : Unsigned_64;
+       Success : out Boolean)
       with Pre => Process /= Error_PID;
 
    --  Add a file to a process in the earliest available file descriptor slot.
@@ -314,10 +317,11 @@ package Userland.Process is
    --  Get a file held on a file descriptor.
    --  @param Process Process to operate on.
    --  @param FD      FD to fetch.
-   --  @return Returned file, or null in failure.
-   function Get_File
+   --  @param File    Returned file, or null in failure.
+   procedure Get_File
       (Process : PID;
-       FD      : Unsigned_64) return File_Description_Acc
+       FD      : Unsigned_64;
+       File    : out File_Description_Acc)
       with Pre => Process /= Error_PID;
 
    --  Get the Close on Exec flag for a file descriptor.
@@ -381,10 +385,13 @@ package Userland.Process is
       with Pre => Process /= Error_PID;
 
    --  Bump the alloc base of the process by the passed length.
-   --  @param P      Process to operate on.
-   --  @param Length Length to bump to.
-   --  @return Previous base.
-   function Bump_Alloc_Base (P : PID; Length : Unsigned_64) return Unsigned_64
+   --  @param P        Process to operate on.
+   --  @param Length   Length to bump to.
+   --  @param Previous Previous base.
+   procedure Bump_Alloc_Base
+      (P        : PID;
+       Length   : Unsigned_64;
+       Previous : out Unsigned_64)
       with Pre => P /= Error_PID;
 
    --  Get the amount of mapped memory a process has.

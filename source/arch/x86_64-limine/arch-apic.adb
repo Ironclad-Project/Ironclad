@@ -64,7 +64,7 @@ package body Arch.APIC with SPARK_Mode => Off is
          end if;
 
          --  Map the LAPIC base.
-         if not MMU.Map_Range
+         MMU.Map_Range
             (Map            => MMU.Kernel_Table,
              Physical_Start => To_Address (LAPIC_Base - Memory_Offset),
              Virtual_Start  => To_Address (LAPIC_Base),
@@ -75,8 +75,9 @@ package body Arch.APIC with SPARK_Mode => Off is
                Can_Write         => True,
                Can_Execute       => False,
                Is_Global         => True),
-             Caching        => MMU.Uncacheable)
-         then
+             Success        => Success,
+             Caching        => MMU.Uncacheable);
+         if not Success then
             Lib.Panic.Hard_Panic ("Could not map LAPIC base");
          end if;
       end if;
@@ -378,7 +379,7 @@ package body Arch.APIC with SPARK_Mode => Off is
           Is_Writeable       => Is_Writeable,
           Is_Executable      => Is_Exec);
       if not Is_Mapped then
-         if not MMU.Map_Range
+         MMU.Map_Range
             (Map            => MMU.Kernel_Table,
              Physical_Start => To_Address (MMIO - Memory_Offset),
              Virtual_Start  => To_Address (MMIO),
@@ -389,8 +390,9 @@ package body Arch.APIC with SPARK_Mode => Off is
                Can_Write         => True,
                Can_Execute       => False,
                Is_Global         => True),
-             Caching        => MMU.Uncacheable)
-         then
+             Success        => Is_Mapped,
+             Caching        => MMU.Uncacheable);
+         if not Is_Mapped then
             return 0;
          end if;
       end if;

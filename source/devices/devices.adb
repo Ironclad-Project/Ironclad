@@ -157,7 +157,9 @@ package body Devices is
        Length : out Natural)
    is
    begin
-      Name   := Devices_Data (Handle).Name;
+      Name := (others => ' ');
+      Name (Name'First .. Name'First + Devices_Data (Handle).Name_Len - 1) :=
+         Devices_Data (Handle).Name (1 .. Devices_Data (Handle).Name_Len);
       Length := Devices_Data (Handle).Name_Len;
    end Fetch_Name;
 

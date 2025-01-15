@@ -192,8 +192,10 @@ package body Userland.Syscall is
        Errno    : out Errno_Value)
    is
       Curr : constant PID := Arch.Local.Get_Current_Process;
+      Succ : Boolean;
    begin
-      if Userland.Process.Is_Valid_File (Curr, File_D) then
+      Userland.Process.Is_Valid_File (Curr, File_D, Succ);
+      if Succ then
          Userland.Process.Remove_File (Curr, Natural (File_D));
          Returned := 0;
          Errno    := Error_No_Error;
@@ -213,7 +215,7 @@ package body Userland.Syscall is
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
-      File      : constant File_Description_Acc := Get_File (Proc, File_D);
+      File      : File_Description_Acc;
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
       Success2  : IPC.FIFO.Pipe_Status;
@@ -224,6 +226,7 @@ package body Userland.Syscall is
       Map       : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, File_D, File);
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Returned := Unsigned_64'Last;
          Errno    := Error_Would_Fault;
@@ -297,7 +300,7 @@ package body Userland.Syscall is
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
-      File      : constant File_Description_Acc := Get_File (Proc, File_D);
+      File      : File_Description_Acc;
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
       Success2  : IPC.FIFO.Pipe_Status;
@@ -308,6 +311,7 @@ package body Userland.Syscall is
       Map       : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, File_D, File);
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
          Returned := Unsigned_64'Last;
@@ -393,7 +397,7 @@ package body Userland.Syscall is
       User     : Unsigned_32;
       Result   : Unsigned_64;
    begin
-      File := Get_File (Proc, File_D);
+      Get_File (Proc, File_D, File);
       if File = null then
          Errno := Error_Bad_File;
          Returned := Unsigned_64'Last;
@@ -485,12 +489,13 @@ package body Userland.Syscall is
          if (Flags and MAP_FIXED) /= 0 then
             goto Invalid_Value_Return;
          else
-            Final_Hint := Virtual_Address (Bump_Alloc_Base (Proc, Length));
+            Bump_Alloc_Base (Proc, Length, Unsigned_64 (Final_Hint));
          end if;
       end if;
 
       --  Check the address is good.
-      if not Check_Userland_Mappability (Map, Final_Hint, Length) then
+      Check_Userland_Mappability (Map, Final_Hint, Length, Success);
+      if not Success then
          goto Invalid_Value_Return;
       end if;
 
@@ -510,7 +515,7 @@ package body Userland.Syscall is
             goto No_Memory_Return;
          end if;
       else
-         File := Get_File (Proc, File_D);
+         Get_File (Proc, File_D, File);
          if File = null then
             goto Invalid_Value_Return;
          end if;
@@ -564,13 +569,18 @@ package body Userland.Syscall is
       Proc : constant            PID := Arch.Local.Get_Current_Process;
       Addr : constant System.Address := To_Address (Virtual_Address (Address));
       Map  : Page_Table_Acc;
+      Succ : Boolean;
    begin
       Get_Common_Map (Proc, Map);
       if not Get_Capabilities (Proc).Can_Modify_Memory then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("munmap", Proc);
          Returned := Unsigned_64'Last;
-      elsif Unmap_Range (Map, Addr, Storage_Count (Length)) then
+      end if;
+
+      Unmap_Range (Map, Addr, Storage_Count (Length), Succ);
+
+      if Succ then
          Errno := Error_No_Error;
          Returned := 0;
       else
@@ -931,7 +941,7 @@ package body Userland.Syscall is
       Userland.Process.Get_Effective_UID (Proc, User);
 
       if (Flags and AT_EMPTY_PATH) /= 0 then
-         File_Desc := Get_File (Proc, Dir_FD);
+         Get_File (Proc, Dir_FD, File_Desc);
          if File_Desc = null then
             Errno := Error_Bad_File;
             Returned := Unsigned_64'Last;
@@ -1122,12 +1132,13 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc : constant                  PID := Arch.Local.Get_Current_Process;
-      Desc : constant File_Description_Acc := Get_File (Proc, FD);
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      Desc : File_Description_Acc;
       St   : VFS.File_Stat;
       Succ : FS_Status;
       User : Unsigned_32;
    begin
+      Get_File (Proc, FD, Desc);
       if Desc = null or else Desc.Description /= Description_Inode then
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
@@ -1154,16 +1165,17 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      I_Arg : constant      Integer_Address := Integer_Address (Argument);
-      S_Arg : constant       System.Address := To_Address (I_Arg);
-      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
-      File  : constant File_Description_Acc := Get_File (Proc, FD);
+      I_Arg : constant Integer_Address := Integer_Address (Argument);
+      S_Arg : constant  System.Address := To_Address (I_Arg);
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      File  : File_Description_Acc;
       Succ  : Boolean;
       Has_E : Boolean;
       Extra : Unsigned_64;
       FSSuc : VFS.FS_Status;
       User  : Unsigned_32;
    begin
+      Get_File (Proc, FD, File);
       if File = null then
          Errno := Error_Not_A_TTY;
          Returned := Unsigned_64'Last;
@@ -1836,12 +1848,13 @@ package body Userland.Syscall is
        Errno    : out Errno_Value)
    is
       Proc        : PID := Arch.Local.Get_Current_Process;
-      File        : constant File_Description_Acc := Get_File (Proc, FD);
+      File        : File_Description_Acc;
       Temp, Temp2 : Boolean;
       New_File    : File_Description_Acc;
       Result_FD   : Natural;
       Map         : Page_Table_Acc;
    begin
+      Get_File (Proc, FD, File);
       if File = null then
          Errno := Error_Bad_File;
          goto Error_Return;
@@ -2028,6 +2041,7 @@ package body Userland.Syscall is
       Flags : constant Arch.MMU.Page_Permissions := Get_Mmap_Prot (Protection);
       Addr : constant System.Address := To_Address (Integer_Address (Address));
       Map  : Page_Table_Acc;
+      Succ : Boolean;
    begin
       if not Get_Capabilities (Proc).Can_Modify_Memory then
          Errno := Error_Bad_Access;
@@ -2044,13 +2058,13 @@ package body Userland.Syscall is
       end if;
 
       Get_Common_Map (Proc, Map);
-      if not Remap_Range (Map, Addr, Storage_Count (Length), Flags) then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      else
+      Remap_Range (Map, Addr, Storage_Count (Length), Flags, Succ);
+      if Succ then
          Errno := Error_No_Error;
          Returned := 0;
+      else
+         Errno := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
       end if;
    end MProtect;
 
@@ -2416,7 +2430,7 @@ package body Userland.Syscall is
       Buff_Addr  : constant  System.Address := To_Address (Buff_IAddr);
       Buff_Len   : constant     Unsigned_64 := Buffer_Len / (Dirent'Size / 8);
       Proc       : constant             PID := Arch.Local.Get_Current_Process;
-      File       : constant File_Description_Acc := Get_File (Proc, FD);
+      File       : File_Description_Acc;
       Tmp_Buffer : VFS.Directory_Entities_Acc;
       Buffer     : Dirents (1 .. Buff_Len) with Import, Address => Buff_Addr;
       Read_Len   : Natural;
@@ -2425,6 +2439,7 @@ package body Userland.Syscall is
       Map        : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, FD, File);
       if not Check_Userland_Access (Map, Buff_IAddr, Buffer_Len) then
          Returned := Unsigned_64'Last;
          Errno    := Error_Would_Fault;
@@ -2603,11 +2618,12 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc    : constant     PID := Arch.Local.Get_Current_Process;
-      File    : constant File_Description_Acc := Get_File (Proc, FD);
+      Proc    : constant PID := Arch.Local.Get_Current_Process;
+      File    : File_Description_Acc;
       Success : VFS.FS_Status;
       User    : Unsigned_32;
    begin
+      Get_File (Proc, FD, File);
       if File = null then
          Errno := Error_Bad_File;
          Returned := Unsigned_64'Last;
@@ -2633,14 +2649,15 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
-      File  : constant File_Description_Acc := Get_File (Proc, Sock_FD);
-      IAddr : constant      Integer_Address := Integer_Address (Addr_Addr);
-      SAddr : constant       System.Address := To_Address (IAddr);
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr_Addr);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      File  : File_Description_Acc;
       Succ  : Boolean;
       Map   : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, Sock_FD, File);
       if File = null or else File.Description /= Description_Socket then
          Errno := Error_Bad_File;
          Returned := Unsigned_64'Last;
@@ -2676,7 +2693,7 @@ package body Userland.Syscall is
                CLen : constant Natural := Lib.C_String_Length (A_SAddr2);
                Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
             begin
-               Succ := Bind (File.Inner_Socket, Addr);
+               Bind (File.Inner_Socket, Addr, Succ);
             end;
       end case;
 
@@ -2758,14 +2775,15 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
-      File  : constant File_Description_Acc := Get_File (Proc, Sock_FD);
-      IAddr : constant      Integer_Address := Integer_Address (Addr_Addr);
-      SAddr : constant       System.Address := To_Address (IAddr);
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr_Addr);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      File  : File_Description_Acc;
       Succ  : Boolean;
       Map   : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, Sock_FD, File);
       if File = null or else File.Description /= Description_Socket then
          Errno := Error_Bad_File;
          Returned := Unsigned_64'Last;
@@ -2837,7 +2855,7 @@ package body Userland.Syscall is
          return;
       end if;
 
-      Res_PTY := IPC.PTY.Create;
+      IPC.PTY.Create (Res_PTY);
       P_Desc := new File_Description'
          (Description_Primary_PTY, 0, True, Res_PTY);
       S_Desc := new File_Description'
@@ -2864,10 +2882,11 @@ package body Userland.Syscall is
        Errno    : out Errno_Value)
    is
       Proc : constant     PID := Arch.Local.Get_Current_Process;
-      File : constant File_Description_Acc := Get_File (Proc, FD);
-      Data : constant              Boolean := Flags /= 0;
+      Data : constant Boolean := Flags /= 0;
+      File : File_Description_Acc;
       Succ : VFS.FS_Status;
    begin
+      Get_File (Proc, FD, File);
       if File = null then
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
@@ -2995,10 +3014,11 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc : constant                  PID := Arch.Local.Get_Current_Process;
-      File : constant File_Description_Acc := Get_File (Proc, Sock_FD);
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      File : File_Description_Acc;
       Succ : Boolean;
    begin
+      Get_File (Proc, Sock_FD, File);
       if File = null or else File.Description /= Description_Socket then
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
@@ -3025,21 +3045,21 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
-      File  : constant File_Description_Acc := Get_File (Proc, Sock_FD);
-      CExec : constant              Boolean := (Flags and SOCK_CLOEXEC)  /= 0;
-      Block : constant              Boolean := (Flags and SOCK_NONBLOCK) /= 0;
-      CloFork : constant            Boolean := (Flags and SOCK_CLOFORK)  /= 0;
-      A_IAddr  : constant  Integer_Address := Integer_Address (Addr_Addr);
-      A_SAddr  : constant   System.Address := To_Address (A_IAddr);
-      AL_IAddr : constant  Integer_Address := Integer_Address (Addr_Len);
-      Desc  : File_Description_Acc;
-      Sock  : Socket_Acc;
-      Ret   : Natural;
-      Succ  : Boolean;
-      Map   : Page_Table_Acc;
+      Proc       : constant             PID := Arch.Local.Get_Current_Process;
+      CExec      : constant         Boolean := (Flags and SOCK_CLOEXEC)  /= 0;
+      Block      : constant         Boolean := (Flags and SOCK_NONBLOCK) /= 0;
+      CloFork    : constant         Boolean := (Flags and SOCK_CLOFORK)  /= 0;
+      A_IAddr    : constant Integer_Address := Integer_Address (Addr_Addr);
+      A_SAddr    : constant  System.Address := To_Address (A_IAddr);
+      AL_IAddr   : constant Integer_Address := Integer_Address (Addr_Len);
+      File, Desc : File_Description_Acc;
+      Sock       : Socket_Acc;
+      Ret        : Natural;
+      Succ       : Boolean;
+      Map        : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, Sock_FD, File);
       if File = null or else File.Description /= Description_Socket then
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
@@ -3317,7 +3337,7 @@ package body Userland.Syscall is
                end if;
 
                --  Check the FD actually points to anything valuable.
-               File := Get_File (Proc, Unsigned_64 (Polled.FD));
+               Get_File (Proc, Unsigned_64 (Polled.FD), File);
                if File = null then
                   Polled.Out_Events := POLLNVAL;
                   goto End_Iter;
@@ -3481,7 +3501,7 @@ package body Userland.Syscall is
       Process.Get_Effective_UID (Proc, User);
 
       if (Flags and AT_EMPTY_PATH) /= 0 then
-         File_Desc := Get_File (Proc, Dir_FD);
+         Get_File (Proc, Dir_FD, File_Desc);
          if File_Desc = null or else File_Desc.Description /= Description_Inode
          then
             Errno    := Error_Bad_File;
@@ -3626,7 +3646,7 @@ package body Userland.Syscall is
       Process.Get_Effective_UID (Proc, Usr);
 
       if (Flags and AT_EMPTY_PATH) /= 0 then
-         File_Desc := Get_File (Proc, Dir_FD);
+         Get_File (Proc, Dir_FD, File_Desc);
          if File_Desc = null or else File_Desc.Description /= Description_Inode
          then
             Errno    := Error_Bad_File;
@@ -3693,7 +3713,7 @@ package body Userland.Syscall is
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
-      File      : constant File_Description_Acc := Get_File (Proc, File_D);
+      File      : File_Description_Acc;
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
       User      : Unsigned_32;
@@ -3701,6 +3721,7 @@ package body Userland.Syscall is
       Map       : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, File_D, File);
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
          Returned := Unsigned_64'Last;
@@ -3751,7 +3772,7 @@ package body Userland.Syscall is
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
-      File      : constant File_Description_Acc := Get_File (Proc, File_D);
+      File      : File_Description_Acc;
       Ret_Count : Natural;
       Success1  : VFS.FS_Status;
       User      : Unsigned_32;
@@ -3759,6 +3780,7 @@ package body Userland.Syscall is
       Map       : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, File_D, File);
       if not Check_Userland_Access (Map, Buf_IAddr, Count) then
          Errno := Error_Would_Fault;
          Returned := Unsigned_64'Last;
@@ -3812,16 +3834,17 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      Proc   : constant                  PID := Arch.Local.Get_Current_Process;
-      File   : constant File_Description_Acc := Get_File (Proc, Sock_FD);
-      AIAddr : constant      Integer_Address := Integer_Address (Addr_Addr);
-      ASAddr : constant       System.Address := To_Address (AIAddr);
-      LIAddr : constant      Integer_Address := Integer_Address (Addr_Len);
-      LSAddr : constant       System.Address := To_Address (LIAddr);
+      Proc   : constant             PID := Arch.Local.Get_Current_Process;
+      AIAddr : constant Integer_Address := Integer_Address (Addr_Addr);
+      ASAddr : constant  System.Address := To_Address (AIAddr);
+      LIAddr : constant Integer_Address := Integer_Address (Addr_Len);
+      LSAddr : constant  System.Address := To_Address (LIAddr);
+      File   : File_Description_Acc;
       Succ   : Boolean;
       Map    : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, Sock_FD, File);
       if File = null or else File.Description /= Description_Socket then
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
@@ -3885,16 +3908,17 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      Proc   : constant                  PID := Arch.Local.Get_Current_Process;
-      File   : constant File_Description_Acc := Get_File (Proc, Sock_FD);
-      AIAddr : constant      Integer_Address := Integer_Address (Addr_Addr);
-      ASAddr : constant       System.Address := To_Address (AIAddr);
-      LIAddr : constant      Integer_Address := Integer_Address (Addr_Len);
-      LSAddr : constant       System.Address := To_Address (LIAddr);
+      Proc   : constant             PID := Arch.Local.Get_Current_Process;
+      AIAddr : constant Integer_Address := Integer_Address (Addr_Addr);
+      ASAddr : constant  System.Address := To_Address (AIAddr);
+      LIAddr : constant Integer_Address := Integer_Address (Addr_Len);
+      LSAddr : constant  System.Address := To_Address (LIAddr);
+      File   : File_Description_Acc;
       Succ   : Boolean;
       Map    : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, Sock_FD, File);
       if File = null or else File.Description /= Description_Socket then
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
@@ -3957,10 +3981,11 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc : constant                  PID := Arch.Local.Get_Current_Process;
-      File : constant File_Description_Acc := Get_File (Proc, Sock_FD);
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      File : File_Description_Acc;
       Succ : Boolean;
    begin
+      Get_File (Proc, Sock_FD, File);
       if File = null or else File.Description /= Description_Socket then
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
@@ -4005,7 +4030,8 @@ package body Userland.Syscall is
       Futex_Len : constant Unsigned_64 := Count * (Futex_Item'Size / 8);
       Time_Len  : constant Unsigned_64 := Time_Spec'Size / 8;
       U32_Len   : constant Unsigned_64 := Unsigned_32'Size / 8;
-      Map : Page_Table_Acc;
+      Map  : Page_Table_Acc;
+      Succ : Boolean;
    begin
       --  FIXME: These 2 Would_Fault should not have the
       --  "Check_Userland_Mappability" parts, but these checks fail
@@ -4025,11 +4051,10 @@ package body Userland.Syscall is
       if not Check_Userland_Access (Map, IAddr, Futex_Len) or else
          not Check_Userland_Access (Map, TIAddr, Time_Len)
       then
-         if not Check_Userland_Mappability (Map, IAddr, Futex_Len) or else
-            not Check_Userland_Mappability (Map, TIAddr, Time_Len)
-         then
-            goto Would_Fault_Error;
-         end if;
+         Check_Userland_Mappability (Map, IAddr, Futex_Len, Succ);
+         if not Succ then goto Would_Fault_Error; end if;
+         Check_Userland_Mappability (Map, TIAddr, Time_Len, Succ);
+         if not Succ then goto Would_Fault_Error; end if;
       elsif Count > Unsigned_64 (Natural'Last) then
          Errno    := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
@@ -4045,10 +4070,9 @@ package body Userland.Syscall is
       begin
          for I in Items'Range loop
             IA := Integer_Address (Items (I).Address);
-            if not Check_Userland_Access (Map, IA, U32_Len) and
-               not Check_Userland_Mappability (Map, IA, U32_Len)
-            then
-               goto Would_Fault_Error;
+            if not Check_Userland_Access (Map, IA, U32_Len) then
+               Check_Userland_Mappability (Map, IA, U32_Len, Succ);
+               if not Succ then goto Would_Fault_Error; end if;
             end if;
 
             declare
@@ -4060,7 +4084,8 @@ package body Userland.Syscall is
 
          case Operation is
             when FUTEX_WAIT =>
-               if IPC.Futex.Wait (Futexes, Time.Seconds, Time.Nanoseconds) then
+               IPC.Futex.Wait (Futexes, Time.Seconds, Time.Nanoseconds, Succ);
+               if Succ then
                   Returned := 0;
                   Errno    := Error_No_Error;
                else
@@ -4069,14 +4094,14 @@ package body Userland.Syscall is
                end if;
             when FUTEX_WAKE =>
                IPC.Futex.Wake (Futexes);
+               Returned := 0;
+               Errno    := Error_No_Error;
             when others =>
                Returned := Unsigned_64'Last;
                Errno    := Error_Invalid_Value;
          end case;
       end;
 
-      Returned := 0;
-      Errno    := Error_No_Error;
       return;
 
    <<Would_Fault_Error>>
@@ -4273,16 +4298,17 @@ package body Userland.Syscall is
 
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
-      AIAddr    : constant      Integer_Address := Integer_Address (Addr_Addr);
-      ASAddr    : constant       System.Address := To_Address (AIAddr);
+      AIAddr    : constant Integer_Address := Integer_Address (Addr_Addr);
+      ASAddr    : constant  System.Address := To_Address (AIAddr);
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
-      File      : constant File_Description_Acc := Get_File (Proc, Sock_FD);
+      File      : File_Description_Acc;
       Ret_Count : Natural;
       Success   : IPC.Socket.Socket_Status;
       Final_Cnt : Natural;
       Map       : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, Sock_FD, File);
       if not Check_Userland_Access (Map, Buf_IAddr, Count) or else
          (AIAddr /= 0 and not Check_Userland_Access (Map, AIAddr, Addr_Len))
       then
@@ -4367,16 +4393,17 @@ package body Userland.Syscall is
 
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
-      AIAddr    : constant      Integer_Address := Integer_Address (Addr_Addr);
-      ASAddr    : constant       System.Address := To_Address (AIAddr);
+      AIAddr    : constant Integer_Address := Integer_Address (Addr_Addr);
+      ASAddr    : constant  System.Address := To_Address (AIAddr);
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
-      File      : constant File_Description_Acc := Get_File (Proc, Sock_FD);
+      File      : File_Description_Acc;
       Ret_Count : Natural;
       Success   : IPC.Socket.Socket_Status;
       Final_Cnt : Natural;
       Map       : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, Sock_FD, File);
       if not Check_Userland_Access (Map, Buf_IAddr, Count) or else
          (AIAddr /= 0 and not Check_Userland_Access (Map, AIAddr, Addr_Len))
       then
@@ -4454,9 +4481,9 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
-      File  : constant File_Description_Acc := Get_File (Proc, InterDev);
-      IAddr : constant      Integer_Address := Integer_Address (Arg_Addr);
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Arg_Addr);
+      File  : File_Description_Acc;
       Handl : Devices.Device_Handle;
       Stat  : VFS.File_Stat;
       Suc   : Boolean;
@@ -4467,6 +4494,7 @@ package body Userland.Syscall is
       IP4 : Addr4_NetInterface with Import, Address => To_Address (IAddr);
       IP6 : Addr6_NetInterface with Import, Address => To_Address (IAddr);
    begin
+      Get_File (Proc, InterDev, File);
       if not Get_Capabilities (Proc).Can_Manage_Networking then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("config_netinter", Proc);
@@ -4560,7 +4588,7 @@ package body Userland.Syscall is
       Process.Get_Effective_UID (Proc, User);
 
       if (Flags and AT_EMPTY_PATH) /= 0 then
-         File_Desc := Get_File (Proc, Dir_FD);
+         Get_File (Proc, Dir_FD, File_Desc);
          if File_Desc = null or else File_Desc.Description /= Description_Inode
          then
             Errno    := Error_Bad_File;
@@ -4884,7 +4912,7 @@ package body Userland.Syscall is
                   goto Invalid_Value_Return;
                end if;
             end if;
-            FNice := Get_Niceness (Proc);
+            Get_Niceness (Proc, FNice);
          when PRIO_PGRP | PRIO_USER =>
             Errno    := Error_Not_Supported;
             Returned := Unsigned_64'Last;
@@ -5104,15 +5132,16 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
-      IAddr : constant      Integer_Address := Integer_Address (Addr);
-      SAddr : constant       System.Address := To_Address (IAddr);
-      File  : constant File_Description_Acc := Get_File (Proc, FD);
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      File  : File_Description_Acc;
       Data  : IPC.PTY.Inner_Acc;
       Map   : Page_Table_Acc;
       Str   : String (1 .. Natural (Length)) with Import, Address => SAddr;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, FD, File);
       if not Check_Userland_Access (Map, IAddr, Length) then
          Errno := Error_Would_Fault;
          Returned := Unsigned_64'Last;
@@ -5155,10 +5184,11 @@ package body Userland.Syscall is
    is
       pragma Unreferenced (Offset);
       pragma Unreferenced (Length);
-      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
-      File  : constant File_Description_Acc := Get_File (Proc, FD);
+      Proc  : constant PID := Arch.Local.Get_Current_Process;
+      File  : File_Description_Acc;
       Tmp   : FS_Status;
    begin
+      Get_File (Proc, FD, File);
       if File = null then
          Errno := Error_Bad_File;
          goto Error_Return;
@@ -5228,18 +5258,19 @@ package body Userland.Syscall is
             VAddr := Addr;
          end if;
       else
-         VAddr := Bump_Alloc_Base (Proc, Ret_Size);
+         Bump_Alloc_Base (Proc, Ret_Size, VAddr);
       end if;
 
       if Ret_Size /= 0 then
          Userland.Process.Get_Common_Map (Proc, Map);
-         if Arch.MMU.Map_Range
+         Arch.MMU.Map_Range
             (Map            => Map,
              Virtual_Start  => To_Address (Integer_Address (VAddr)),
              Physical_Start => To_Address (Integer_Address (Ret_Addr)),
              Length         => Storage_Count (Ret_Size),
-             Permissions    => Perms)
-         then
+             Permissions    => Perms,
+             Success        => Success);
+         if Success then
             IPC.SHM.Modify_Attachment (Truncated, True);
             Errno := Error_No_Error;
             Returned := VAddr;
@@ -5357,11 +5388,12 @@ package body Userland.Syscall is
       IPC.SHM.Get_Segment_And_Size (Unsigned_64 (To_Integer (Phys)), Size, ID);
 
       if Is_Mapped and ID /= IPC.SHM.Error_ID then
-         if Arch.MMU.Unmap_Range
+         Arch.MMU.Unmap_Range
             (Map           => Map,
              Virtual_Start => To_Address (Integer_Address (Address)),
-             Length        => Storage_Count (Size))
-         then
+             Length        => Storage_Count (Size),
+             Success       => Is_Mapped);
+         if Is_Mapped then
             IPC.SHM.Modify_Attachment (ID, False);
             Errno := Error_No_Error;
             Returned := 0;
@@ -5423,13 +5455,14 @@ package body Userland.Syscall is
    is
       pragma Unreferenced (Len);
 
-      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
-      File  : constant File_Description_Acc := Get_File (Proc, Sock);
-      IAddr : constant      Integer_Address := Integer_Address (Addr);
-      Map   : Page_Table_Acc;
+      Proc      : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr     : constant Integer_Address := Integer_Address (Addr);
+      File      : File_Description_Acc;
+      Map       : Page_Table_Acc;
       Is_Listen : Boolean;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, Sock, File);
       if File = null or else File.Description /= Description_Socket then
          Errno := Error_Bad_File;
          goto Generic_Error;
@@ -5486,12 +5519,13 @@ package body Userland.Syscall is
    is
       pragma Unreferenced (Len);
 
-      Proc  : constant                  PID := Arch.Local.Get_Current_Process;
-      File  : constant File_Description_Acc := Get_File (Proc, Sock);
-      IAddr : constant      Integer_Address := Integer_Address (Addr);
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      File  : File_Description_Acc;
       Map   : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
+      Get_File (Proc, Sock, File);
       if File = null or else File.Description /= Description_Socket then
          Errno := Error_Bad_File;
          goto Generic_Error;
@@ -5811,7 +5845,7 @@ package body Userland.Syscall is
       --  Take care of syscall tracing.
       Userland.Process.Get_Traced_Info (Proc, Is_Traced, Tracer_FD);
       if Is_Traced then
-         File := Get_File (Proc, Unsigned_64 (Tracer_FD));
+         Get_File (Proc, Unsigned_64 (Tracer_FD), File);
          if File /= null and then File.Description = Description_Writer_FIFO
          then
             while not Is_Empty (File.Inner_Writer_FIFO) loop
@@ -6148,17 +6182,19 @@ package body Userland.Syscall is
       return Is_User_Accessible;
    end Check_Userland_Access;
 
-   function Check_Userland_Mappability
+   procedure Check_Userland_Mappability
       (Map        : Arch.MMU.Page_Table_Acc;
        Addr       : Memory.Virtual_Address;
-       Byte_Count : Unsigned_64) return Boolean
+       Byte_Count : Unsigned_64;
+       Can_Map    : out Boolean)
    is
       Result : System.Address;
       Is_Mapped, Is_Readable, Is_Writeable, Is_Executable : Boolean;
       Is_User_Accessible : Boolean;
    begin
       if Addr + Virtual_Address (Byte_Count) > Memory_Offset then
-         return False;
+         Can_Map := False;
+         return;
       end if;
 
       Arch.MMU.Translate_Address
@@ -6171,7 +6207,7 @@ package body Userland.Syscall is
           Is_Readable        => Is_Readable,
           Is_Writeable       => Is_Writeable,
           Is_Executable      => Is_Executable);
-      return not Is_Mapped;
+      Can_Map := not Is_Mapped;
    end Check_Userland_Mappability;
 
    procedure Resolve_AT_Directive
@@ -6185,7 +6221,7 @@ package body Userland.Syscall is
       if Dir_FD = AT_FDCWD then
          Process.Get_CWD (Proc, FS, Ino);
       else
-         Descr := Get_File (Proc, Dir_FD);
+         Get_File (Proc, Dir_FD, Descr);
          if Descr = null or else Descr.Description /= Description_Inode then
             FS  := VFS.Error_Handle;
             Ino := 0;

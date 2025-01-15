@@ -56,7 +56,7 @@ package body Devices.SATA with SPARK_Mode => Off is
          Mem_Addr := PCI_BAR.Base + Memory.Memory_Offset;
          Dev_Mem  := HBA_Memory_Acc (C2.To_Pointer (To_Address (Mem_Addr)));
 
-         if not Arch.MMU.Map_Range
+         Arch.MMU.Map_Range
             (Map            => Arch.MMU.Kernel_Table,
              Physical_Start => To_Address (PCI_BAR.Base),
              Virtual_Start  => To_Address (Mem_Addr),
@@ -68,8 +68,9 @@ package body Devices.SATA with SPARK_Mode => Off is
                Can_Write         => True,
                Can_Execute       => False,
                Is_Global         => True),
-             Caching        => Arch.MMU.Uncacheable)
-         then
+             Success        => Success,
+             Caching        => Arch.MMU.Uncacheable);
+         if not Success then
             return False;
          end if;
 

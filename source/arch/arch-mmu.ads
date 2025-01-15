@@ -114,13 +114,16 @@ package Arch.MMU is
    --  @param Virtual_Start  Virtual address to start from.
    --  @param Length         Length in bytes to map.
    --  @param Permissions    Permissions to map with.
-   function Map_Range
+   --  @param Success        True if success, False if not.
+   --  @param Caching        Caching mode to use for this memory region.
+   procedure Map_Range
       (Map            : Page_Table_Acc;
        Physical_Start : System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
        Permissions    : Page_Permissions;
-       Caching        : Caching_Model := Write_Back) return Boolean
+       Success        : out Boolean;
+       Caching        : Caching_Model := Write_Back)
       with Pre =>
          (Map /= null)                      and
          (Physical_Start mod Page_Size = 0) and
@@ -156,12 +159,15 @@ package Arch.MMU is
    --  @param Virtual_Start  Virtual address to start from.
    --  @param Length         Length in bytes to map.
    --  @param Permissions    Permissions to remap with.
-   function Remap_Range
+   --  @param Success        True if success, False if not.
+   --  @param Caching        Caching model to use.
+   procedure Remap_Range
       (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count;
        Permissions   : Page_Permissions;
-       Caching       : Caching_Model := Write_Back) return Boolean
+       Success       : out Boolean;
+       Caching       : Caching_Model := Write_Back)
       with Pre =>
          (Map /= null)                      and
          (Virtual_Start  mod Page_Size = 0) and
@@ -172,10 +178,12 @@ package Arch.MMU is
    --  @param Map            Tables to map for.
    --  @param Virtual_Start  Virtual address to start from.
    --  @param Length         Length in bytes to unmap.
-   function Unmap_Range
+   --  @param Success        True if success, False if not.
+   procedure Unmap_Range
       (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
-       Length        : Storage_Count) return Boolean
+       Length        : Storage_Count;
+       Success       : out Boolean)
       with Pre =>
          (Map /= null)                      and
          (Virtual_Start  mod Page_Size = 0) and

@@ -1,5 +1,5 @@
 --  arch-mmu.adb: Architecture-specific MMU code.
---  Copyright (C) 2024 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -197,13 +197,14 @@ package body Arch.MMU is
                New_Data := Original_Data;
             end;
          else
-            if not Map_Range
+            Map_Range
                (Map            => Forked,
                 Physical_Start => Curr_Range.Physical_Start,
                 Virtual_Start  => Curr_Range.Virtual_Start,
                 Length         => Curr_Range.Length,
-                Permissions    => Curr_Range.Flags)
-            then
+                Permissions    => Curr_Range.Flags,
+                Success        => Success);
+            if not Success then
                Destroy_Table (Forked);
                goto Cleanup;
             end if;
@@ -337,13 +338,14 @@ package body Arch.MMU is
       end loop;
    end Translate_Address;
 
-   function Map_Range
+   procedure Map_Range
       (Map            : Page_Table_Acc;
        Physical_Start : System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
        Permissions    : Page_Permissions;
-       Caching        : Caching_Model := Write_Back) return Boolean
+       Success        : out Boolean;
+       Caching        : Caching_Model := Write_Back)
    is
       procedure F is new Ada.Unchecked_Deallocation
          (Mapping_Range, Mapping_Range_Acc);
@@ -351,8 +353,8 @@ package body Arch.MMU is
       New_Range  : Mapping_Range_Acc;
       Last_Range : Mapping_Range_Acc;
       Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
-      Success    :           Boolean := False;
    begin
+      Success   := False;
       New_Range := new Mapping_Range'
          (Next           => null,
           Is_Allocated   => False,
@@ -392,7 +394,6 @@ package body Arch.MMU is
 
    <<Ret>>
       Lib.Synchronization.Release_Writer (Map.Mutex);
-      return Success;
    end Map_Range;
 
    procedure Map_Allocated_Range
@@ -464,20 +465,22 @@ package body Arch.MMU is
       Lib.Synchronization.Release_Writer (Map.Mutex);
    end Map_Allocated_Range;
 
-   function Remap_Range
+   procedure Remap_Range
       (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
        Length        : Storage_Count;
        Permissions   : Page_Permissions;
-       Caching       : Caching_Model := Write_Back) return Boolean
+       Success       : out Boolean;
+       Caching       : Caching_Model := Write_Back)
    is
       Flags : constant Unsigned_64 := Flags_To_Bitmap (Permissions, Caching);
       Virt       : Virtual_Address          := To_Integer (Virtual_Start);
       Final      : constant Virtual_Address := Virt + Virtual_Address (Length);
       Addr       : Virtual_Address;
       Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
-      Success    : Boolean := False;
    begin
+      Success := False;
+
       Lib.Synchronization.Seize_Writer (Map.Mutex);
 
       while Curr_Range /= null loop
@@ -511,13 +514,13 @@ package body Arch.MMU is
 
    <<Ret>>
       Lib.Synchronization.Release_Writer (Map.Mutex);
-      return Success;
    end Remap_Range;
 
-   function Unmap_Range
+   procedure Unmap_Range
       (Map           : Page_Table_Acc;
        Virtual_Start : System.Address;
-       Length        : Storage_Count) return Boolean
+       Length        : Storage_Count;
+       Success       : out Boolean)
    is
       procedure F is new Ada.Unchecked_Deallocation
          (Mapping_Range, Mapping_Range_Acc);
@@ -525,10 +528,10 @@ package body Arch.MMU is
       Virt       : Virtual_Address          := To_Integer (Virtual_Start);
       Final      : constant Virtual_Address := Virt + Virtual_Address (Length);
       Addr       : Virtual_Address;
-      Success    : Boolean := False;
       Last_Range : Mapping_Range_Acc := null;
       Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
    begin
+      Success := False;
       Lib.Synchronization.Seize_Writer (Map.Mutex);
 
       while Curr_Range /= null loop
@@ -571,11 +574,10 @@ package body Arch.MMU is
 
       Lib.Synchronization.Release_Writer (Map.Mutex);
       F (Curr_Range);
-      return Success;
+      return;
 
    <<No_Free_Return>>
       Lib.Synchronization.Release_Writer (Map.Mutex);
-      return Success;
    end Unmap_Range;
 
    procedure Get_User_Mapped_Size (Map : Page_Table_Acc; Sz : out Unsigned_64)

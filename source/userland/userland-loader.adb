@@ -259,7 +259,7 @@ package body Userland.Loader is
    is
       procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
 
-      Path_Len  :     Natural := 0;
+      Path_Len  : Natural;
       Arg_Len   :     Natural := 0;
       Pos       : Unsigned_64 := 0;
       Path      : String (1 .. 100);

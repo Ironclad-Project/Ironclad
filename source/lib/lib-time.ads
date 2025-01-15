@@ -26,8 +26,6 @@ package Lib.Time is
    --  @param Nanoseconds Nanoseconds to normalize.
    procedure Normalize (Seconds, Nanoseconds : in out Unsigned_64)
       with Post => Is_Normalized (Nanoseconds);
-      pragma Annotate (GNATprove, False_Positive, "postcondition might fail",
-         "Impossible with the mod in the body, idk why it doesn't catch it");
 
    --  Add two passed timestamps write the normalized sum to the first one.
    --  @param Seconds1     Seconds to add and result value.

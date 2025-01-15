@@ -35,13 +35,14 @@ package body Arch.HPET with SPARK_Mode => Off is
       end if;
 
       declare
+         Success : Boolean;
          Table : ACPI.HPET
             with Import, Address => To_Address (ACPI_Address);
          HPET : ACPI.HPET_Contents with Import,
             Address => To_Address (Table.Address + Memory_Offset);
          pragma Volatile (HPET);
       begin
-         if not MMU.Map_Range
+         MMU.Map_Range
             (Map            => MMU.Kernel_Table,
              Physical_Start => To_Address (Table.Address),
              Virtual_Start  => To_Address (Table.Address + Memory_Offset),
@@ -52,8 +53,9 @@ package body Arch.HPET with SPARK_Mode => Off is
                Can_Write         => True,
                Can_Execute       => False,
                Is_Global         => True),
-             Caching        => MMU.Uncacheable)
-         then
+             Success        => Success,
+             Caching        => MMU.Uncacheable);
+         if not Success then
             return;
          end if;
 

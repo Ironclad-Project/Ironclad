@@ -35,11 +35,12 @@ package IPC.Futex is
    --  @param Keys Keys to wait for.
    --  @param Max_Seconds Maximum amount of seconds to wait for.
    --  @param Max_Nanos   Nanoseconds component of Max_Seconds.
-   --  @return True in success, False in failure.
-   function Wait
+   --  @param Success     True in success, False in failure.
+   procedure Wait
       (Keys        : Element_Arr;
        Max_Seconds : Unsigned_64;
-       Max_Nanos   : Unsigned_64) return Boolean;
+       Max_Nanos   : Unsigned_64;
+       Success     : out Boolean);
 
    --  Wake a set of keys.
    --  @param Keys Keys to wait for.

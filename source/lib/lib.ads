@@ -1,5 +1,5 @@
 --  lib.ads: Specification of generic library functions.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -22,14 +22,4 @@ package Lib with Pure is
    --  @return Length of the passed string.
    function C_String_Length (Addr : Address) return Natural
       with Pre => Addr /= System.Null_Address;
-   ----------------------------------------------------------------------------
-   --  Calculate the least common multiple.
-   function Least_Common_Multiple (Val1, Val2 : Integer) return Integer
-      with Pre  => (Val1 > 0 and Val1 <= 40000) and
-                   (Val2 > 0 and Val2 <= 40000);
-
-   --  Calculate the greatest common divisor.
-   function Greatest_Common_Divisor (Val1, Val2 : Integer) return Integer
-      with Pre  => Val1 /= 0 or Val2 /= 0,
-           Post => Greatest_Common_Divisor'Result /= 0;
 end Lib;

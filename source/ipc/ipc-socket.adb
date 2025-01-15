@@ -586,11 +586,12 @@ package body IPC.Socket is
       Lib.Synchronization.Release (UNIX_Bound_Mutex);
    end Get_Peer;
 
-   function Bind (Sock : Socket_Acc; Path : String) return Boolean is
-      Success : Boolean := False;
+   procedure Bind (Sock : Socket_Acc; Path : String; Success : out Boolean) is
    begin
+      Success := False;
+
       if Path'Length = 0 or Path'Length > Bind_Path_Max then
-         return False;
+         return;
       end if;
 
       Lib.Synchronization.Seize (UNIX_Bound_Mutex);
@@ -612,7 +613,6 @@ package body IPC.Socket is
 
    <<Cleanup>>
       Lib.Synchronization.Release (UNIX_Bound_Mutex);
-      return Success;
    end Bind;
 
    procedure Connect

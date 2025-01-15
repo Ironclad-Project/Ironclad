@@ -393,10 +393,10 @@ package IPC.Socket is
 
    --  Bind a socket to an address, since we only support UNIX sockets, this
    --  takes the shape of a path, but will probably change in the future.
-   --  @param Sock Socket to bind to an address.
-   --  @param Path Path to bind the socket to, must be unique.
-   --  @return True on success, False on failure.
-   function Bind (Sock : Socket_Acc; Path : String) return Boolean
+   --  @param Sock    Socket to bind to an address.
+   --  @param Path    Path to bind the socket to, must be unique.
+   --  @param Success True on success, False on failure.
+   procedure Bind (Sock : Socket_Acc; Path : String; Success : out Boolean)
       with Pre => Sock /= null and then Get_Domain (Sock) = UNIX;
 
    --  Connect a socket to a socket previously bound with Bind.

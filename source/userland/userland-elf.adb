@@ -173,8 +173,8 @@ package body Userland.ELF is
       Ali_V      : Integer_Address;
       Ali_L      : Unsigned_64;
    begin
-      Success := Userland.Syscall.Check_Userland_Mappability
-         (Map, ELF_Virtual, Load_Size);
+      Userland.Syscall.Check_Userland_Mappability
+         (Map, ELF_Virtual, Load_Size, Success);
       if not Success                             or
          (Flags.Can_Execute and Flags.Can_Write) or
          Header.Alignment = 0                    or

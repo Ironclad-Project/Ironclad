@@ -218,13 +218,16 @@ package body Devices.FB with SPARK_Mode => Off is
    is
       Dev_Data : Internal_FB_Data with Import, Address => Data;
       IntAddr  : constant Integer_Address := To_Integer (Dev_Data.Fb.Address);
+      Success  : Boolean;
    begin
-      return Arch.MMU.Map_Range
+      Arch.MMU.Map_Range
          (Map              => Map,
           Virtual_Start    => To_Address (Address),
           Physical_Start   => To_Address (IntAddr - Memory_Offset),
           Length           => Storage_Count (Length),
           Permissions      => Flags,
+          Success          => Success,
           Caching          => Arch.MMU.Write_Combining);
+      return Success;
    end Mmap;
 end Devices.FB;

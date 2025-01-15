@@ -1264,10 +1264,11 @@ package Userland.Syscall is
    procedure Post_Syscall_Hook (State : Arch.Context.GP_Context);
 
    --  Check whether an address may be mapped by the user.
-   function Check_Userland_Mappability
+   procedure Check_Userland_Mappability
       (Map        : Arch.MMU.Page_Table_Acc;
        Addr       : Memory.Virtual_Address;
-       Byte_Count : Unsigned_64) return Boolean;
+       Byte_Count : Unsigned_64;
+       Can_Map    : out Boolean);
 
 private
 
