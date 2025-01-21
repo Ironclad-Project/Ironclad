@@ -75,24 +75,25 @@ package body Devices.Ramdev is
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Is_Blocking);
+
       Dev      : Ramdev_Data with Import, Address => Key;
-      Dev_Size : constant        Natural := Natural (Dev.Size);
-      Dev_Data : constant Operation_Data (1 .. Dev_Size)
+      Dev_Data : constant array (1 .. Dev.Size) of Unsigned_8
          with Import, Address => Dev.Start_Address;
 
-      Final_Loc : constant Natural := Natural (Offset) + Data'Length;
-      To_Write  :          Natural := Data'Length;
+      Final_Loc : constant Unsigned_64 := Offset + Unsigned_64 (Data'Length);
+      To_Read   :              Natural := Data'Length;
    begin
-      if Final_Loc > Dev_Size then
-         To_Write := To_Write - (Final_Loc - Dev_Size);
+      if Final_Loc > Dev.Size then
+         To_Read := To_Read - (Natural (Final_Loc - Dev.Size));
       end if;
 
       Lib.Synchronization.Seize_Reader (Dev.Mutex);
-      Data (Data'First .. Data'First + To_Write - 1) :=
-         Dev_Data (Natural (Offset) + 1 .. Natural (Offset) + To_Write);
+      for I in 1 .. To_Read loop
+         Data (Data'First + I - 1) := Dev_Data (Offset + Unsigned_64 (I));
+      end loop;
       Lib.Synchronization.Release_Reader (Dev.Mutex);
 
-      Ret_Count := To_Write;
+      Ret_Count := To_Read;
       Success   := True;
    end Read;
 
@@ -105,21 +106,22 @@ package body Devices.Ramdev is
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Is_Blocking);
+
       Dev      : Ramdev_Data with Import, Address => Key;
-      Dev_Size : constant        Natural := Natural (Dev.Size);
-      Dev_Data : Operation_Data (1 .. Dev_Size)
+      Dev_Data : array (1 .. Dev.Size) of Unsigned_8
          with Import, Address => Dev.Start_Address;
 
-      Final_Loc : constant Natural := Natural (Offset) + Data'Length;
-      To_Write  :          Natural := Data'Length;
+      Final_Loc : constant Unsigned_64 := Offset + Unsigned_64 (Data'Length);
+      To_Write  :              Natural := Data'Length;
    begin
-      if Final_Loc > Dev_Size then
-         To_Write := To_Write - (Final_Loc - Dev_Size);
+      if Final_Loc > Dev.Size then
+         To_Write := To_Write - (Natural (Final_Loc - Dev.Size));
       end if;
 
       Lib.Synchronization.Seize_Writer (Dev.Mutex);
-      Dev_Data (Natural (Offset) + 1 .. Natural (Offset) + To_Write) :=
-         Data (Data'First .. Data'First + To_Write - 1);
+      for I in 1 .. To_Write loop
+         Dev_Data (Offset + Unsigned_64 (I)) := Data (Data'First + I - 1);
+      end loop;
       Lib.Synchronization.Release_Writer (Dev.Mutex);
 
       Ret_Count := To_Write;
