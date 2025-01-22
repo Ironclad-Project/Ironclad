@@ -3865,6 +3865,7 @@ struct ipc_perms @{
    uint32_t cgid;
    uint32_t mode;
    uint32_t __seq;
+   uint64_t reserved[2];
 @}
 
 struct shmid_ds @{

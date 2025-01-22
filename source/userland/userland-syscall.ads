@@ -1156,6 +1156,8 @@ package Userland.Syscall is
       CGID         : Unsigned_32;
       Mode         : Unsigned_32;
       IPC_Perm_Seq : Unsigned_32;
+      Unused1      : Unsigned_64;
+      Unused2      : Unsigned_64;
    end record;
 
    type SHMID_DS is record
