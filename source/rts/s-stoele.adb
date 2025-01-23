@@ -46,6 +46,12 @@ package body System.Storage_Elements is
 
    function "mod" (L : Address; R : Storage_Offset) return Storage_Offset is
    begin
-      return Storage_Offset (To_Integer (L) mod Integer_Address (R));
+      --  Need to do this awkward stuff to make sure the abs doesnt overflow.
+      if R = Storage_Offset'First then
+         return Storage_Offset (To_Integer (L) mod
+                (Integer_Address (Storage_Offset'Last) + 1));
+      else
+         return Storage_Offset (To_Integer (L) mod Integer_Address (abs R));
+      end if;
    end "mod";
 end System.Storage_Elements;

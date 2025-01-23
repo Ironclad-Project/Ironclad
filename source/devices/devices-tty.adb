@@ -115,11 +115,12 @@ package body Devices.TTY is
    begin
       Get_Controlling_TTY (Proc, PTY);
       if PTY /= null then
-         Success := IPC.PTY.IO_Control
+         IPC.PTY.IO_Control
             (PTY        => PTY,
              Is_Primary => False,
              Request    => Request,
-             Argument   => Argument);
+             Argument   => Argument,
+             Success    => Success);
       else
          Success := False;
       end if;

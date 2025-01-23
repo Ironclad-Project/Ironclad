@@ -1196,13 +1196,13 @@ package body Userland.Syscall is
                 Status    => FSSuc);
             Succ := FSSuc = VFS.FS_Success;
          when Description_Primary_PTY =>
-            Succ := IPC.PTY.IO_Control
-               (File.Inner_Primary_PTY, True, Request, S_Arg);
+            IPC.PTY.IO_Control
+               (File.Inner_Primary_PTY, True, Request, S_Arg, Succ);
             Has_E := False;
             Extra := 0;
          when Description_Secondary_PTY =>
-            Succ := IPC.PTY.IO_Control
-               (File.Inner_Secondary_PTY, False, Request, S_Arg);
+            IPC.PTY.IO_Control
+               (File.Inner_Secondary_PTY, False, Request, S_Arg, Succ);
             Has_E := False;
             Extra := 0;
          when Description_VM =>

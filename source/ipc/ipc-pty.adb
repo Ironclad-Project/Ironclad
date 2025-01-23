@@ -324,19 +324,20 @@ package body IPC.PTY is
       Lib.Synchronization.Release (P.Global_Data_Mutex);
    end Stop_Secondary;
 
-   function IO_Control
+   procedure IO_Control
       (PTY        : Inner_Acc;
        Is_Primary : Boolean;
        Request    : Unsigned_64;
-       Argument   : System.Address) return Boolean
+       Argument   : System.Address;
+       Success    : out Boolean)
    is
       Proc : constant PID := Arch.Local.Get_Current_Process;
       Result_Info : Main_Data with Import, Address => Argument;
       Result_Size :  Win_Size with Import, Address => Argument;
       Action      :   Integer with Import, Address => Argument;
       Do_R, Do_T  :   Boolean;
-      Success     :   Boolean;
    begin
+      Success := True;
       case Request is
          when TCGETS =>
             Get_TermIOs (PTY, Result_Info);
@@ -357,7 +358,7 @@ package body IPC.PTY is
                      Flush_Secondary (PTY, Do_R, Do_T);
                   end if;
                when others =>
-                  return False;
+                  Success := False;
             end case;
          when TCXONC =>
             case Action is
@@ -378,19 +379,15 @@ package body IPC.PTY is
                      Start_Secondary (PTY, Do_R, Do_T);
                   end if;
                when others =>
-                  return False;
+                  Success := False;
             end case;
          when TIOCSCTTY =>
             Set_Controlling_TTY (Proc, PTY, Success);
-            return Success;
          when TIOCNOTTY =>
             Clear_Controlling_TTY (Proc, PTY, Success);
-            return Success;
          when others =>
-            return False;
+            Success := False;
       end case;
-
-      return True;
    end IO_Control;
    ----------------------------------------------------------------------------
    procedure Read_From_End
@@ -555,11 +552,14 @@ package body IPC.PTY is
        Request  : Unsigned_64;
        Argument : System.Address) return Boolean
    is
+      Success : Boolean;
    begin
-      return IO_Control
+      IO_Control
          (PTY        => Inner_Acc (Conv.To_Pointer (Key)),
           Is_Primary => False,
           Request    => Request,
-          Argument   => Argument);
+          Argument   => Argument,
+          Success    => Success);
+      return Success;
    end Dev_IO_Control;
 end IPC.PTY;

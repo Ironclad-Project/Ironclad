@@ -374,8 +374,8 @@ package Userland.Process is
 
    --  Get the stack base of the process.
    --  @param Proc Process to operate on.
-   --  @return The stack base.
-   function Get_Stack_Base (Process : PID) return Unsigned_64
+   --  @param Base The stack base.
+   procedure Get_Stack_Base (Process : PID; Base : out Unsigned_64)
       with Pre => Process /= Error_PID;
 
    --  Set the stack base of the process.

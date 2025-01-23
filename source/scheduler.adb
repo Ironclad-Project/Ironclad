@@ -184,7 +184,7 @@ package body Scheduler with SPARK_Mode => Off is
       New_TID := Error_TID;
 
       --  Initialize thread state. Start by mapping the user stack.
-      Stack_Top := Userland.Process.Get_Stack_Base (Proc);
+      Userland.Process.Get_Stack_Base (Proc, Stack_Top);
       Userland.Process.Set_Stack_Base (Proc, Stack_Top + Stack_Size);
       Arch.MMU.Map_Allocated_Range
          (Map            => Map,

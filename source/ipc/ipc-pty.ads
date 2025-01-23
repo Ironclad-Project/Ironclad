@@ -145,11 +145,12 @@ package IPC.PTY is
       with Pre => Is_Valid (P);
 
    --  Userland-center IO control.
-   function IO_Control
+   procedure IO_Control
       (PTY        : Inner_Acc;
        Is_Primary : Boolean;
        Request    : Unsigned_64;
-       Argument   : System.Address) return Boolean;
+       Argument   : System.Address;
+       Success    : out Boolean);
 
    --  Ghost function for checking whether a PTY is properly initialized.
    function Is_Valid (P : Inner_Acc) return Boolean with Ghost;

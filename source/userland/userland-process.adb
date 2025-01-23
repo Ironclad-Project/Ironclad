@@ -630,13 +630,11 @@ package body Userland.Process is
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_Common_Map;
 
-   function Get_Stack_Base (Process : PID) return Unsigned_64 is
-      Result : Unsigned_64;
+   procedure Get_Stack_Base (Process : PID; Base : out Unsigned_64) is
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
-      Result := Registry (Process).Stack_Base;
+      Base := Registry (Process).Stack_Base;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
-      return Result;
    end Get_Stack_Base;
 
    procedure Set_Stack_Base (Process : PID; Base : Unsigned_64) is
