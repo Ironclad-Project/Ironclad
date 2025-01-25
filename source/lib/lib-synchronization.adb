@@ -61,9 +61,10 @@ package body Lib.Synchronization with SPARK_Mode => Off is
    end Seize;
 
    procedure Release (Lock : aliased in out Binary_Semaphore) is
+      Reenable_Ints : constant Boolean := Lock.Were_Interrupts_Enabled;
    begin
       Atomic_Clear (Lock.Is_Locked'Address, Mem_Release);
-      if Lock.Were_Interrupts_Enabled then
+      if Reenable_Ints then
          Arch.Snippets.Enable_Interrupts;
       end if;
    end Release;
