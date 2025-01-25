@@ -49,6 +49,17 @@ package body Arch.PCI is
    begin
       Success := False;
    end Search_Device;
+
+   procedure Search_Device
+      (Bus     : Unsigned_8;
+       Slot    : Unsigned_8;
+       Func    : Unsigned_8;
+       Result  : out PCI_Device;
+       Success : out Boolean)
+   is
+   begin
+      Success := False;
+   end Search_Device;
    ----------------------------------------------------------------------------
    procedure Enable_Bus_Mastering (Dev : PCI_Device) is
    begin

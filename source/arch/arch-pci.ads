@@ -43,6 +43,13 @@ package Arch.PCI is
        Subclass     : Unsigned_8;
        Prog_If      : Unsigned_8) return Natural;
 
+   --  Get a device's information with the passed information.
+   --  @param Device_Class Device to search for.
+   --  @param Subclass     Subclass to search for.
+   --  @param Prog_If      Prog if to search for.
+   --  @param Idx          Index of the device among others like it.
+   --  @param Result       Result device to write to.
+   --  @param Success      True in success, False in failure.
    procedure Search_Device
       (Device_Class : Unsigned_8;
        Subclass     : Unsigned_8;
@@ -50,6 +57,19 @@ package Arch.PCI is
        Idx          : Natural;
        Result       : out PCI_Device;
        Success      : out Boolean);
+
+   --  Get a device's information with the passed location.
+   --  @param Bus     Device to search for.
+   --  @param Slot    Subclass to search for.
+   --  @param Func    Prog if to search for.
+   --  @param Result  Result device to write to.
+   --  @param Success True in success, False in failure.
+   procedure Search_Device
+      (Bus     : Unsigned_8;
+       Slot    : Unsigned_8;
+       Func    : Unsigned_8;
+       Result  : out PCI_Device;
+       Success : out Boolean);
    ----------------------------------------------------------------------------
    --  Enable bus mastering for the passed PCI device.
    procedure Enable_Bus_Mastering (Dev : PCI_Device);

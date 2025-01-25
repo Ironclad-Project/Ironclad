@@ -24,5 +24,6 @@ package Kernel_Main is
    --    with common global state loaded, basically ready to go.
    --  - Logging at Lib.Messages is already initialized.
    --  - If KASAN is wanted, it must already be initialized.
+   --  - Clocks are already initialized.
    procedure Entrypoint (Cmdline : String);
 end Kernel_Main;

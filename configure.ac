@@ -1,5 +1,5 @@
 #  configure.ac: Configure template of the project.
-#  Copyright (C) 2023 streaksu
+#  Copyright (C) 2023-2024 streaksu
 #
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -57,10 +57,21 @@ rel2abs() {
     printf "\n"
 }
 
+test "x${CFLAGS+set}" = "x" && CFLAGS='-g -O2 -pipe'
+
+AC_LANG([C])
+AC_PROG_CC
+CC="$(rel2abs "$CC")"
+
 werror_state="no"
 AC_ARG_ENABLE([werror],
     [AS_HELP_STRING([--enable-werror], [treat warnings as errors])],
     [werror_state="$enableval"])
+if test "$werror_state" = "yes"; then
+    AC_SUBST([WERROR_FLAG], [-Werror])
+else
+    AC_SUBST([WERROR_FLAG], [-Wno-error])
+fi
 
 AC_PROG_MKDIR_P
 MKDIR_P="$(rel2abs "$MKDIR_P")"
@@ -107,7 +118,6 @@ AC_DEFUN([GET_PROG_FROM_TOOLCHAIN], [
 ])
 
 GET_PROG_FROM_TOOLCHAIN([AR], [ar])
-GET_PROG_FROM_TOOLCHAIN([CC], [gcc])
 GET_PROG_FROM_TOOLCHAIN([OBJDUMP], [objdump])
 GET_PROG_FROM_TOOLCHAIN([STRIP], [strip])
 
@@ -123,23 +133,13 @@ if test "$KASAN" = "True"; then
 fi
 AC_SUBST([KASAN_FLAGS])
 
-m4_define([DEFAULT_ADAFLAGS], [-g -O2 -pipe -gnaty -Wall -Wextra])
+m4_define([DEFAULT_ADAFLAGS], [-g -O2 -pipe])
 AC_ARG_VAR([ADAFLAGS], [Ada flags @<:@default: ]DEFAULT_ADAFLAGS[@:>@])
 test "x${ADAFLAGS+set}" = "x" && ADAFLAGS="DEFAULT_ADAFLAGS"
-if test "$werror_state" = "yes"; then
-    ADAFLAGS="$ADAFLAGS -Werror"
-fi
 
-m4_define([DEFAULT_ASFLAGS], [-g -O2 -pipe -Wall])
+m4_define([DEFAULT_ASFLAGS], [-g -O2 -pipe])
 AC_ARG_VAR([ASFLAGS], [assembler flags @<:@default: ]DEFAULT_ASFLAGS[@:>@])
 test "x${ASFLAGS+set}" = "x" && ASFLAGS="DEFAULT_ASFLAGS"
-if test "$werror_state" = "yes"; then
-    ASFLAGS="$ASFLAGS -Werror"
-fi
-
-m4_define([DEFAULT_LDFLAGS], [])
-AC_ARG_VAR([LDFLAGS], [linker flags @<:@default: ]DEFAULT_LDFLAGS[@:>@])
-test "x${LDFLAGS+set}" = "x" && LDFLAGS="DEFAULT_LDFLAGS"
 ###############################################################################
 # A ton of tools use source date epoch in order to not use date in the effort
 # of doing reproducible builds.

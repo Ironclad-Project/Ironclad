@@ -85,7 +85,20 @@ download_by_hash() {
 }
 
 if ! test -f version; then
-    :
+    clone_repo_commit \
+        https://github.com/osdev0/freestnd-c-hdrs-0bsd.git \
+        freestnd-c-hdrs \
+        a87c192f3eb66b0806740dc67325f9ad23fc2d0b
+
+    # 1.0
+    clone_repo_commit \
+        https://github.com/uACPI/uACPI.git \
+        uacpi-repository \
+        1bd2930030ef819519de32dd1f7a8f999440308f
+    rm -rf uacpi
+    mkdir -p uacpi
+    cp -rp uacpi-repository/include/uacpi uacpi/
+    cp -rp uacpi-repository/source/* uacpi/
 fi
 
 for auxfile in $AUXFILES; do

@@ -1,5 +1,5 @@
 --  rts.gpr.in: Project's RTS building script.
---  Copyright (C) 2024 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -21,8 +21,6 @@ library project RTS is
 
    Arch : Arch_Name := "@host_cpu@-@PLATFORM@";
    Ada_Flags        := "@ADAFLAGS@";
-   Asm_Flags        := "@ASFLAGS@";
-   Linker_Flags     := "@LDFLAGS@";
 
    for Create_Missing_Dirs use "True";
    for Source_Dirs use ("rtsdir/adainclude");
@@ -36,23 +34,19 @@ library project RTS is
    end Builder;
 
    package Compiler is
-      Base_Ada_Switches := Split (Ada_Flags, " ") & (
-         "-fno-stack-protector", "-fno-stack-check", "-nostdinc",
-         "-gnatg", "-ffile-prefix-map=" & "@SRCDIR@" & "=.",
-         "-fdata-sections", "-ffunction-sections", "-fno-PIC"
-      );
+      Base_Ada_Switches := Split (Ada_Flags, " ") &
+         ("-Wall", "-Wextra", "@WERROR_FLAG@", "-gnaty",
+          "-fno-stack-protector", "-fno-stack-check", "-nostdinc",
+          "-gnatg", "-ffile-prefix-map=" & "@SRCDIR@" & "=.",
+          "-fdata-sections", "-ffunction-sections", "-fno-PIC");
 
       case Arch is
          when "riscv64-limine" =>
-            for Switches ("Ada") use Base_Ada_Switches & (
-               "-mno-relax",
-               "-march=rv64imac_zicsr_zifencei", "-mabi=lp64"
-            );
+            for Switches ("Ada") use Base_Ada_Switches &
+               ("-mno-relax", "-march=rv64imac_zicsr_zifencei", "-mabi=lp64");
          when "x86_64-limine" =>
-            for Switches ("Ada") use Base_Ada_Switches & (
-               "-mgeneral-regs-only", "-mno-red-zone",
-               "-mcmodel=kernel"
-            );
+            for Switches ("Ada") use Base_Ada_Switches &
+               ("-mgeneral-regs-only", "-mno-red-zone", "-mcmodel=kernel");
       end case;
    end Compiler;
 

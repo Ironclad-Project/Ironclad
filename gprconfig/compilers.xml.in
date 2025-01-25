@@ -1,11 +1,38 @@
 <?xml version="1.0" ?>
 <gprconfig>
   <compiler_description>
+    <name>GCC</name>
+    <executable prefix="1">(.*)?gcc(-\d+)?</executable>
+    <version>
+      <external>$EXEC -v</external>
+      <grep regexp="^gcc \S+ (\S+)" group="1"></grep>
+    </version>
+    <languages>C</languages>
+    <target>
+      <external>$EXEC -dumpmachine</external>
+      <grep regexp="[^\r\n]+"></grep>
+    </target>
+  </compiler_description>
+
+  <compiler_description>
+    <name>CLANG</name>
+    <executable prefix="1">((.*)?)clang</executable>
+    <version>
+      <external>$EXEC -v</external>
+      <grep regexp=".*(LLVM|clang) version ([0-9.]*)" group="2"></grep>
+    </version>
+    <languages>C</languages>
+    <target>
+      <external>$EXEC -dumpmachine</external>
+      <grep regexp="[^\r\n]+"></grep>
+    </target>
+  </compiler_description>
+
+  <compiler_description>
     <name>GCC-ASM</name>
     <executable prefix="1">(.*)?gcc(-\d+)?</executable>
     <version>
       <external>$EXEC -v</external>
-      <nogrep regexp="for GNAT Pro"></nogrep>
       <grep regexp="^gcc \S+ (\S+)" group="1"></grep>
     </version>
     <languages>Asm,Asm_Cpp,Asm2</languages>

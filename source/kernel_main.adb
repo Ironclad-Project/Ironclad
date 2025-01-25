@@ -15,9 +15,10 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch;
-with Arch.Clocks;
 with Arch.Hooks;
 with Arch.PCI;
+with Arch.Clocks;
+with Arch.ACPI;
 with Devices; use Devices;
 with VFS; use VFS;
 with Lib.Cmdline;
@@ -62,6 +63,14 @@ package body Kernel_Main is
       --  Initialize PCI if present.
       if Arch.PCI.Is_Supported then
          Arch.PCI.Scan_PCI;
+      end if;
+
+      --  Initialize ACPI if present.
+      if Arch.ACPI.Is_Supported then
+         Arch.ACPI.Initialize (Found);
+         if not Found then
+            Lib.Panic.Hard_Panic ("Failed to initialize ACPI");
+         end if;
       end if;
 
       --  Initialize several subsystems.

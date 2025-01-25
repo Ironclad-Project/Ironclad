@@ -16,7 +16,6 @@
 
 with Interfaces; use Interfaces;
 with Arch.APIC;
-with Arch.ACPI;
 with Arch.GDT;
 with Arch.HPET;
 with Arch.IDT;
@@ -70,12 +69,6 @@ package body Arch.Entrypoint is
             Boot_Memory_Type'Image (E.MemType));
       end loop;
 
-      --  Scan the system's ACPI tables, which are needed for devices like
-      --  the HPET or IOAPIC.
-      if not Arch.ACPI.ScanTables then
-         Lib.Panic.Hard_Panic ("ACPI tables not found");
-      end if;
-
       --  Initialize the core's LAPIC and system's IOAPIC, essential for
       --  handling interrupts and IPIs.
       PIC.Mask_All;
@@ -93,6 +86,7 @@ package body Arch.Entrypoint is
 
       --  Initialize other cores, and then jump to the freestanding main.
       Arch.CPU.Init_Cores;
+
       Kernel_Main.Entrypoint (Info.Cmdline (1 .. Info.Cmdline_Len));
    end Bootstrap_Main;
 end Arch.Entrypoint;

@@ -116,6 +116,35 @@ package body Arch.PCI is
 
       Success := False;
    end Search_Device;
+
+   procedure Search_Device
+      (Bus     : Unsigned_8;
+       Slot    : Unsigned_8;
+       Func    : Unsigned_8;
+       Result  : out PCI_Device;
+       Success : out Boolean)
+   is
+      Temp : PCI_Registry_Entry_Acc := PCI_Registry;
+   begin
+      loop
+         if Temp = null then
+            exit;
+         end if;
+
+         if Temp.Dev.Bus  = Bus  and
+            Temp.Dev.Slot = Slot and
+            Temp.Dev.Func = Func
+         then
+            Result  := Temp.Dev;
+            Success := True;
+            return;
+         end if;
+
+         Temp := Temp.Next;
+      end loop;
+
+      Success := False;
+   end Search_Device;
    ----------------------------------------------------------------------------
    procedure Enable_Bus_Mastering (Dev : PCI_Device) is
       Bus_Master_Bit : constant := 2#100#;

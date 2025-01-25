@@ -33,6 +33,9 @@
 
       for Body_Suffix ("Asm_Cpp") use ".S";
 
+      for Body_Suffix ("C") use ".c";
+      for Spec_Suffix ("C") use ".h";
+
       for Casing use "lowercase";
       for Dot_Replacement use "-";
    end Naming;
@@ -40,6 +43,9 @@
    package Clean is
       for Source_Artifact_Extensions ("Ada") use (".dg", ".rep");
       for Object_Artifact_Extensions ("Ada") use (".s", ".ci", ".gcno", ".su");
+
+      for Source_Artifact_Extensions ("C") use (".gli");
+      for Object_Artifact_Extensions ("C") use (".s", "ci", ".gcno", ".su");
    end Clean;
 
    package Binder is
@@ -94,6 +100,16 @@
            "   Casing          => %c," &amp;
            "   Dot_Replacement => ""%d"");";
       for Config_File_Unique ("Ada") use "False";
+   end Compiler;
+
+   package Compiler is
+      for Driver ("C") use "@CC@";
+      for Leading_Required_Switches ("C") use ("-c", "-x", "c")
+        &amp; Compiler'Leading_Required_Switches ("C");
+      for Include_Switches ("C") use ("-I");
+      for Max_Command_Line_Length use "8192";
+      for Response_File_Format ("C") use "GCC_GNU";
+      for Dependency_Switches ("C") use ("-MMD", "-MF", "");
    end Compiler;
 
    package Compiler is
