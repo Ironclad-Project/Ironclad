@@ -31,7 +31,6 @@ package body Arch.ACPI with SPARK_Mode => Off is
    end FindTable;
    ----------------------------------------------------------------------------
    procedure Enter_Sleep (Level : Sleep_Level; Success : out Boolean) is
-      Translated : Sleep_State;
    begin
       Success := False;
    end Enter_Sleep;
