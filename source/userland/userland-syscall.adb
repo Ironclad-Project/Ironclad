@@ -2856,6 +2856,12 @@ package body Userland.Syscall is
       end if;
 
       IPC.PTY.Create (Res_PTY);
+      if Res_PTY = null then
+         Errno    := Error_No_Memory;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
       P_Desc := new File_Description'
          (Description_Primary_PTY, 0, True, Res_PTY);
       S_Desc := new File_Description'
