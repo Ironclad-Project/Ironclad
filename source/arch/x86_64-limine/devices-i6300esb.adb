@@ -14,7 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Memory;
+with Arch.MMU;
+with Memory; use Memory;
 with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
 
@@ -27,10 +28,11 @@ package body Devices.i6300ESB is
    package Con is new System.Address_To_Access_Conversions (Dog_Data);
 
    function Init return Boolean is
-      Success : Boolean;
-      Data    : Dog_Data_Acc;
-      PCI_Dev : Arch.PCI.PCI_Device;
-      PCI_BAR : Arch.PCI.Base_Address_Register;
+      Success  : Boolean;
+      Data     : Dog_Data_Acc;
+      PCI_Dev  : Arch.PCI.PCI_Device;
+      PCI_BAR  : Arch.PCI.Base_Address_Register;
+      Mem_Addr : Integer_Address;
    begin
       Arch.PCI.Search_Device (16#8#, 16#80#, 0, 1, PCI_Dev, Success);
       if not Success then
@@ -41,9 +43,27 @@ package body Devices.i6300ESB is
          return True;
       end if;
 
+      Mem_Addr := Memory_Offset + PCI_BAR.Base;
+      Arch.MMU.Map_Range
+         (Map            => Arch.MMU.Kernel_Table,
+          Physical_Start => To_Address (PCI_BAR.Base),
+          Virtual_Start  => To_Address (Mem_Addr),
+          Length         => Arch.MMU.Page_Size,
+          Permissions    =>
+            (Is_User_Accesible => False,
+             Can_Read          => True,
+             Can_Write         => True,
+             Can_Execute       => False,
+             Is_Global         => True),
+          Caching        => Arch.MMU.Uncacheable,
+          Success        => Success);
+      if not Success then
+         return False;
+      end if;
+
       Data := new Dog_Data'
          (PCI_Data  => PCI_Dev,
-          Base_Addr => To_Address (Memory.Memory_Offset + PCI_BAR.Base));
+          Base_Addr => To_Address (Mem_Addr));
 
       --  Initialize the device.
       Arch.PCI.Write16 (PCI_Dev, CONFIG, DOG_OUTPUT or DOG_INT_TYPE);
