@@ -683,7 +683,7 @@ package VFS is
 
 private
 
-   type FS_Handle is new Natural range 0 .. 5;
+   type FS_Handle is new Natural range 0 .. 10;
    Max_Symlink_Loop   : constant   Natural := 8;
    Error_Handle       : constant FS_Handle := 0;
    Path_Buffer_Length : constant   Natural := 100;
@@ -699,7 +699,7 @@ private
       Root_Ino    : File_Inode_Number;
    end record;
 
-   type Mount_Registry     is array (FS_Handle range 1 .. 5) of Mount_Data;
+   type Mount_Registry     is array (FS_Handle range 1 .. 10) of Mount_Data;
    type Mount_Registry_Acc is access Mount_Registry;
 
    Mounts       : Mount_Registry_Acc;

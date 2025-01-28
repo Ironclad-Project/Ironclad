@@ -282,7 +282,7 @@ package Devices is
 
 private
 
-   type Device_Handle is new Natural range 0 .. 30;
+   type Device_Handle is new Natural range 0 .. 50;
    Error_Handle    : constant Device_Handle := 0;
    Max_Name_Length : constant Natural       := 32;
    type Device is record
@@ -291,7 +291,7 @@ private
       Name_Len   : Natural range 0 .. Max_Name_Length;
       Contents   : Resource;
    end record;
-   type Device_Arr     is array (Device_Handle range 1 .. 30) of Device;
+   type Device_Arr     is array (Device_Handle range 1 .. 50) of Device;
    type Device_Arr_Acc is access Device_Arr;
 
    Devices_Data : Device_Arr_Acc;
