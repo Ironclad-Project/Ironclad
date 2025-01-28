@@ -97,12 +97,7 @@ project Ironclad is
           "-gnateDArchName="""     & Arch                  & """",
           "-gnateDKASAN="          & "@KASAN@");
       Base_C_Switches := Split (C_Flags, " ") & Common_Compiler_Flags;
-      Base_Asm_Switches := Split (Asm_Flags, " ") &
-         ("-Wall",
-          "-Wextra",
-          "@WERROR_FLAG@",
-          "-nostdinc",
-          "-ffile-prefix-map=" & "@SRCDIR@" & "=.");
+      Base_Asm_Switches := Split (Asm_Flags, " ") & Common_Compiler_Flags;
 
       for Default_Switches ("Ada") use Base_Ada_Switches & ("@KASAN_FLAGS@");
       for Default_Switches ("C") use Base_C_Switches;
