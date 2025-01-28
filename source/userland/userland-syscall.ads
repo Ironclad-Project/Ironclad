@@ -108,12 +108,13 @@ package Userland.Syscall is
        Errno    : out Errno_Value);
 
    --  Open a file.
-   O_RDONLY   : constant := 2#000001#;
-   O_WRONLY   : constant := 2#000010#;
-   O_APPEND   : constant := 2#000100#;
-   O_CLOEXEC  : constant := 2#001000#;
-   O_NOFOLLOW : constant := 2#010000#;
-   O_NONBLOCK : constant := 2#100000#;
+   O_RDONLY   : constant := 2#0000001#;
+   O_WRONLY   : constant := 2#0000010#;
+   O_APPEND   : constant := 2#0000100#;
+   O_CLOEXEC  : constant := 2#0001000#;
+   O_NOFOLLOW : constant := 2#0010000#;
+   O_NONBLOCK : constant := 2#0100000#;
+   O_CLOFORK  : constant := 2#1000000#;
    procedure Open
       (Dir_FD    : Unsigned_64;
        Path_Addr : Unsigned_64;

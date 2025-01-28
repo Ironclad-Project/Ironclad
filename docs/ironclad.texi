@@ -1092,24 +1092,30 @@ descriptor will remain open accross an @code{exec}.
 @code{flags} can be an OR'd field of the following elements:
 
 @table @code
-@item O_RDONLY (0b000001)
+@item O_RDONLY (0b0000001)
 Makes the file able to be read.
 
-@item O_WRONLY (0b000010)
+@item O_WRONLY (0b0000010)
 Makes the file able to be written to.
 
-@item O_APPEND (0b000100)
+@item O_APPEND (0b0000100)
 Makes the file be opened at the end of the file, instead of the beggining.
 
-@item O_CLOEXEC (0b001000)
+@item O_CLOEXEC (0b0001000)
 Will make the file close when @code{exec}'d.
 
-@item O_NOFOLLOW (0b0100000000)
+@item O_NOFOLLOW (0b0010000)
 Do not follow symlinks when opening the file.
 
-@item O_NONBLOCK (0b1000000000)
+@item O_NONBLOCK (0b0100000)
 Make the file not block on read or write operations when possible.
+
+@item O_CLOFORK (0b1000000)
+Will make the file close when @code{fork}'d.
 @end table
+
+If no @code{O_RDONLY} or @code{O_WRONLY} is passed, the open operation will
+result in a file descriptor supporting only stat and navigating operations.
 
 The syscall returns the opened file descriptor or @code{-1} on error, and errno
 is set to the following:

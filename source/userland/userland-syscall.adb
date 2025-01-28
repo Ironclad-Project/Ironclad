@@ -92,6 +92,7 @@ package body Userland.Syscall is
       Path_SAddr  : constant  System.Address := To_Address (Path_IAddr);
       Curr_Proc   : constant             PID := Arch.Local.Get_Current_Process;
       Do_Cloexec  : constant         Boolean := (Flags and O_CLOEXEC)  /= 0;
+      Do_CloFork  : constant         Boolean := (Flags and O_CLOFORK)  /= 0;
       Do_Read     : constant         Boolean := (Flags and O_RDONLY)   /= 0;
       Do_Write    : constant         Boolean := (Flags and O_WRONLY)   /= 0;
       Dont_Follow : constant         Boolean := (Flags and O_NOFOLLOW) /= 0;
@@ -149,34 +150,33 @@ package body Userland.Syscall is
          end if;
 
          File_Perms := Check_Permissions (Curr_Proc, CWD_FS, Opened_Ino);
-         New_Descr  := new File_Description'
-            (Children_Count    => 0,
-             Is_Blocking       => Do_Block,
-             Description       => Description_Inode,
-             Inner_Is_Locked   => False,
-             Inner_Ino_Read    => Do_Read,
-             Inner_Ino_Write   => Do_Write,
-             Inner_Ino_FS      => CWD_FS,
-             Inner_Ino_Pos     => Opened_Stat.Byte_Size,
-             Inner_Ino         => Opened_Ino);
       end;
 
-      if (not Do_Read   and not Do_Write)             or
-         (Do_Read       and not File_Perms.Can_Read)  or
+      if (Do_Read       and not File_Perms.Can_Read)  or
          (Do_Write      and not File_Perms.Can_Write) or
          (not Do_Append and File_Perms.Can_Append_Only)
       then
-         Close (New_Descr);
          Execute_MAC_Failure ("open", Curr_Proc);
          Returned := Unsigned_64'Last;
          Errno    := Error_Bad_Access;
          return;
       end if;
 
+      New_Descr  := new File_Description'
+         (Children_Count    => 0,
+          Is_Blocking       => Do_Block,
+          Description       => Description_Inode,
+          Inner_Is_Locked   => False,
+          Inner_Ino_Read    => Do_Read,
+          Inner_Ino_Write   => Do_Write,
+          Inner_Ino_FS      => CWD_FS,
+          Inner_Ino_Pos     => Opened_Stat.Byte_Size,
+          Inner_Ino         => Opened_Ino);
+
       Add_File (Curr_Proc, New_Descr, Returned_FD, Success2);
       if Success2 then
          Process.Set_FD_Flags
-            (Curr_Proc, Unsigned_64 (Returned_FD), Do_Cloexec, False);
+            (Curr_Proc, Unsigned_64 (Returned_FD), Do_Cloexec, Do_CloFork);
          Errno    := Error_No_Error;
          Returned := Unsigned_64 (Returned_FD);
       else
