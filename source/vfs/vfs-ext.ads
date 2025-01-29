@@ -394,7 +394,8 @@ private
        Success        : out Boolean);
 
    procedure Inner_Read_Symbolic_Link
-      (Ino       : Inode;
+      (FS_Data   : EXT_Data_Acc;
+       Ino       : Inode;
        File_Size : Unsigned_64;
        Path      : out String;
        Ret_Count : out Natural);

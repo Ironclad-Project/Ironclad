@@ -779,7 +779,8 @@ package body VFS.EXT with SPARK_Mode => Off is
          Get_Inode_Type (Fetched_Inode.all.Permissions) = File_Symbolic_Link
       then
          Inner_Read_Symbolic_Link
-            (Ino       => Fetched_Inode.all,
+            (FS_Data   => FS,
+             Ino       => Fetched_Inode.all,
              File_Size => Get_Size (Fetched_Inode.all, FS.Has_64bit_Filesizes),
              Path      => Path,
              Ret_Count => Ret_Count);
@@ -1239,13 +1240,16 @@ package body VFS.EXT with SPARK_Mode => Off is
        Parent_Inode   : out Inode;
        Success        : out Boolean)
    is
+      type String_Acc is access String;
+      procedure Free  is new Ada.Unchecked_Deallocation (String, String_Acc);
+
       Name_Start             : Natural;
       Target_Type            : File_Type;
       Target_Sz              : Unsigned_64;
       Entity                 : Directory_Entity;
       First_I, Last_I        : Natural;
       Curr_Index, Next_Index : Unsigned_64;
-      Symlink                : String (1 .. 60);
+      Symlink                : String_Acc;
       Symlink_Len            : Natural;
    begin
       Last_Component := null;
@@ -1350,25 +1354,29 @@ package body VFS.EXT with SPARK_Mode => Off is
                end if;
 
                if Last_I < Path'Last and Target_Type = File_Symbolic_Link then
+                  Symlink := new String'(1 .. Natural (Target_Sz) => ' ');
                   Inner_Read_Symbolic_Link
-                     (Target_Inode,
+                     (Data,
+                      Target_Inode,
                       Target_Sz,
-                      Symlink,
+                      Symlink.all,
                       Symlink_Len);
-                  if Symlink_Len = 0 then
+                  if Symlink_Len /= Symlink.all'Length then
                      goto Absolute_Miss_Return;
                   end if;
 
                   Inner_Open_Inode
                      (Data,
                       Parent_Index,
-                      Symlink (1 .. Symlink_Len) & Path (Last_I .. Path'Last),
+                      Symlink.all (1 .. Symlink_Len) &
+                        Path (Last_I .. Path'Last),
                       Last_Component,
                       Target_Index,
                       Target_Inode,
                       Parent_Index,
                       Parent_Inode,
                       Success);
+                  Free (Symlink);
                   return;
                end if;
                goto Next_Iteration;
@@ -1402,11 +1410,13 @@ package body VFS.EXT with SPARK_Mode => Off is
    end Inner_Open_Inode;
 
    procedure Inner_Read_Symbolic_Link
-      (Ino       : Inode;
+      (FS_Data   : EXT_Data_Acc;
+       Ino       : Inode;
        File_Size : Unsigned_64;
        Path      : out String;
        Ret_Count : out Natural)
    is
+      Success      : Boolean;
       Final_Length : Natural;
       Str_Data     : Operation_Data (1 .. Path'Length)
          with Import, Address => Ino.Blocks'Address;
@@ -1417,10 +1427,36 @@ package body VFS.EXT with SPARK_Mode => Off is
          Final_Length := Natural (File_Size);
       end if;
 
-      for I in 1 .. Final_Length loop
-         Path (Path'First + I - 1) := Character'Val (Str_Data (I));
-      end loop;
-      Ret_Count := Final_Length;
+
+      --  EXT implements a shortcut for short symlinks, by putting them
+      --  straight on the blocks array. This only applies to symlinks of length
+      --  60 or less. Else, we just have to read it straight.
+      if File_Size <= 60 then
+         declare
+            Str_Data : Operation_Data (1 .. Path'Length)
+               with Import, Address => Ino.Blocks'Address;
+         begin
+            for I in 1 .. Final_Length loop
+               Path (Path'First + I - 1) := Character'Val (Str_Data (I));
+            end loop;
+         end;
+      else
+         declare
+            Str_Data : Operation_Data (1 .. Final_Length)
+               with Import, Address => Path (Path'First)'Address;
+         begin
+            Read_From_Inode
+               (FS_Data    => FS_Data,
+                Inode_Data => Ino,
+                Inode_Size => File_Size,
+                Offset     => 0,
+                Data       => Str_Data,
+                Ret_Count  => Ret_Count,
+                Success    => Success);
+         end;
+      end if;
+
+      Ret_Count := Natural (File_Size);
    end Inner_Read_Symbolic_Link;
 
    procedure Inner_Read_Entry
