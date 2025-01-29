@@ -23,11 +23,12 @@ package Userland.ELF is
    type String_Acc is access String;
 
    --  Auxval values.
-   Auxval_Null            : constant := 0;
-   Auxval_Program_Headers : constant := 3;
-   Auxval_Header_Size     : constant := 4;
-   Auxval_Header_Count    : constant := 5;
-   Auxval_Entrypoint      : constant := 9;
+   Auxval_Null             : constant := 0;
+   Auxval_Program_Headers  : constant := 3;
+   Auxval_Header_Size      : constant := 4;
+   Auxval_Header_Count     : constant := 5;
+   Auxval_Entrypoint       : constant := 9;
+   Auxval_Secure_Treatment : constant := 23;
    type Auxval is record
       Entrypoint           : Unsigned_64;
       Program_Headers      : Unsigned_64;

@@ -229,17 +229,23 @@ package body Scheduler with SPARK_Mode => Off is
          Index_64 := Index_64 - ((Args'Length + Env'Length + 3) mod 2);
 
          --  Load auxval.
-         Stk_64 (Index_64 - 0) := 0;
-         Stk_64 (Index_64 - 1) := Userland.ELF.Auxval_Null;
-         Stk_64 (Index_64 - 2) := Vector.Entrypoint;
-         Stk_64 (Index_64 - 3) := Userland.ELF.Auxval_Entrypoint;
-         Stk_64 (Index_64 - 4) := Vector.Program_Headers;
-         Stk_64 (Index_64 - 5) := Userland.ELF.Auxval_Program_Headers;
-         Stk_64 (Index_64 - 6) := Vector.Program_Header_Count;
-         Stk_64 (Index_64 - 7) := Userland.ELF.Auxval_Header_Count;
-         Stk_64 (Index_64 - 8) := Vector.Program_Header_Size;
-         Stk_64 (Index_64 - 9) := Userland.ELF.Auxval_Header_Size;
-         Index_64 := Index_64 - 10;
+         Stk_64 (Index_64 - 0)  := 0;
+         Stk_64 (Index_64 - 1)  := Userland.ELF.Auxval_Null;
+         Stk_64 (Index_64 - 2)  := Vector.Entrypoint;
+         Stk_64 (Index_64 - 3)  := Userland.ELF.Auxval_Entrypoint;
+         Stk_64 (Index_64 - 4)  := Vector.Program_Headers;
+         Stk_64 (Index_64 - 5)  := Userland.ELF.Auxval_Program_Headers;
+         Stk_64 (Index_64 - 6)  := Vector.Program_Header_Count;
+         Stk_64 (Index_64 - 7)  := Userland.ELF.Auxval_Header_Count;
+         Stk_64 (Index_64 - 8)  := Vector.Program_Header_Size;
+         Stk_64 (Index_64 - 9)  := Userland.ELF.Auxval_Header_Size;
+         if Userland.Process.Get_Capabilities (Proc).Can_Change_Scheduling then
+            Stk_64 (Index_64 - 10) := 1;
+         else
+            Stk_64 (Index_64 - 10) := 0;
+         end if;
+         Stk_64 (Index_64 - 11) := Userland.ELF.Auxval_Secure_Treatment;
+         Index_64 := Index_64 - 12;
 
          --  Load envp taking into account the pointers at the beginning.
          Index_8 := Stk_8'Last;

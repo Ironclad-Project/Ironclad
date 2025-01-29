@@ -88,8 +88,9 @@ Memory architecture
 
 Userland state and conditions
 
-* Program loading::  Format of the loaded programs.
-* Memory layout::    Layout of memory in userland.
+* Program loading::    Format of the loaded programs.
+* Memory layout::      Layout of memory in userland.
+* Auxiliary vectors::  Auxiliary values passed to programs.
 
 Security and integrity facilities
 
@@ -509,6 +510,39 @@ and must not be relied upon. It is up to @code{ld.so} to optionally place
 additionally loaded libraries at random offsets.
 
 The stack is a fixed @code{128 KiB} in size, and is not executable, by default.
+
+@node Auxiliary vectors
+@section Auxiliary vectors
+
+Ironclad supports passing auxiliary vectors to the started processes. Auxiliary
+vectors are tags of data passed on the stack to programs detailing additional
+data. These values are passed behind @code{envp}.
+
+Each vector consists of a pair of values: an identifier, and a 64-bit integer.
+
+The vectors passed by the kernel by value are:
+
+@table @code
+@item AT_NULL (0)
+Signifies the end of the vector chain.
+
+@item AT_PHDR (3)
+The address of the program headers of the executable.
+
+@item AT_PHENT (4)
+The size of program header entry.
+
+@item AT_PHNUM (5)
+The number of program headers.
+
+@item AT_ENTRY (9)
+The entrypoint of the executable.
+
+@item AT_SECURE (23)
+The value will be 1 if the executable is to be treated securely, 0 if not.
+This flag will be set by Ironclad when the program holds the
+@code{MAC_CAP_SCHED} capability.
+@end table
 
 @node Security and integrity facilities
 @chapter Security and integrity facilities
