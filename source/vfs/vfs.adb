@@ -443,7 +443,7 @@ package body VFS is
       Path_Idx, Path_Last, Entries_Offset, Entries_Count : Natural;
       Entry_Stat      : File_Stat;
       Symlink_Len     : Natural;
-      Symlink_Path    : String_Acc := new String'(1 .. 60 => ' ');
+      Symlink_Path    : String_Acc := null;
       Dir_Entries     : Directory_Entities_Acc := new Directory_Entities'
          [1 .. 20 =>
             (Inode_Number => 0,
@@ -551,6 +551,12 @@ package body VFS is
          --  symlinks by recursion, and mount replacement, and be done.
          if Path'First + Path_Last = Path'Last then
             if Entry_Stat.Type_Of_File = File_Symbolic_Link and Do_Follow then
+               if Entry_Stat.Byte_Size > Unsigned_64 (Natural'Last) then
+                  goto Invalid_Value_Return;
+               end if;
+
+               Symlink_Path :=
+                  new String'(1 .. Natural (Entry_Stat.Byte_Size) => ' ');
                Read_Symbolic_Link
                   (Key       => Actual_Key,
                    Ino       => Actual_Ino,
@@ -621,6 +627,12 @@ package body VFS is
                   goto Not_Allowed_Return;
                end if;
             when File_Symbolic_Link =>
+               if Entry_Stat.Byte_Size > Unsigned_64 (Natural'Last) then
+                  goto Invalid_Value_Return;
+               end if;
+
+               Symlink_Path :=
+                  new String'(1 .. Natural (Entry_Stat.Byte_Size) => ' ');
                Read_Symbolic_Link
                   (Key       => Actual_Key,
                    Ino       => Actual_Ino,
