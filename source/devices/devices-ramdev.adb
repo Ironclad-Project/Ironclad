@@ -83,8 +83,13 @@ package body Devices.Ramdev is
       Final_Loc : constant Unsigned_64 := Offset + Unsigned_64 (Data'Length);
       To_Read   :              Natural := Data'Length;
    begin
-      if Final_Loc > Dev.Size then
-         To_Read := To_Read - (Natural (Final_Loc - Dev.Size));
+      if Offset > Dev.Size then
+         Data      := [others => 0];
+         Ret_Count := 0;
+         Success   := True;
+         return;
+      elsif Final_Loc >= Dev.Size then
+         To_Read := Natural (Dev.Size - Offset);
       end if;
 
       Lib.Synchronization.Seize_Reader (Dev.Mutex);
@@ -114,8 +119,12 @@ package body Devices.Ramdev is
       Final_Loc : constant Unsigned_64 := Offset + Unsigned_64 (Data'Length);
       To_Write  :              Natural := Data'Length;
    begin
-      if Final_Loc > Dev.Size then
-         To_Write := To_Write - (Natural (Final_Loc - Dev.Size));
+      if Offset > Dev.Size then
+         Ret_Count := 0;
+         Success   := True;
+         return;
+      elsif Final_Loc >= Dev.Size then
+         To_Write := Natural (Dev.Size - Offset);
       end if;
 
       Lib.Synchronization.Seize_Writer (Dev.Mutex);
