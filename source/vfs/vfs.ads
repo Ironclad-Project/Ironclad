@@ -57,8 +57,8 @@ package VFS is
    --  Describes an entity inside the contents of a directory.
    type Directory_Entity is record
       Inode_Number : Unsigned_64;
-      Name_Buffer  : String (1 .. 60);
-      Name_Len     : Natural range 0 .. 60;
+      Name_Buffer  : String (1 .. 255);
+      Name_Len     : Natural range 0 .. 255;
       Type_Of_File : File_Type;
    end record;
    type Directory_Entities     is array (Natural range <>) of Directory_Entity;

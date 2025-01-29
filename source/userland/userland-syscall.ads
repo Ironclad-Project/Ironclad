@@ -649,15 +649,8 @@ package Userland.Syscall is
       D_Off    : Unsigned_64;
       D_Reclen : Unsigned_16;
       D_Type   : Unsigned_8;
-      D_Name   : String (1 .. 61);
-   end record with Size => 640;
-   for Dirent use record
-      D_Ino    at 0 range   0 ..  63;
-      D_Off    at 0 range  64 .. 127;
-      D_Reclen at 0 range 128 .. 143;
-      D_Type   at 0 range 144 .. 151;
-      D_Name   at 0 range 152 .. 639;
-   end record;
+      D_Name   : String (1 .. 256);
+   end record with Pack;
    type Dirents is array (Unsigned_64 range <>) of Dirent with Pack;
    procedure GetDEnts
       (FD          : Unsigned_64;

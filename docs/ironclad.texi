@@ -2413,8 +2413,8 @@ struct dirent @{
    uint64_t d_ino;
    uint64_t d_off;
    uint16_t d_reclen;
-   uint8_t  d_type;     // One of the DT_ values.
-   char     d_name[61]; // Null-terminated.
+   uint8_t  d_type;      // One of the DT_ values.
+   char     d_name[256]; // Null-terminated.
 @};
 
 ssize_t getdents(int fd, struct dirent *buffer, size_t size);
