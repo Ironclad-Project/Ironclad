@@ -474,6 +474,12 @@ package Userland.Process is
    procedure Get_Parent (Proc : PID; Parent : out PID)
       with Pre => Proc /= Error_PID;
 
+   --  Set the parent PID of the process.
+   --  @param Proc   Process to get the info from.
+   --  @param Parent PID of the parent, or Error_PID if no parent.
+   procedure Set_Parent (Proc : PID; Parent : PID)
+      with Pre => Proc /= Error_PID;
+
    --  Set the identifier of the process, will be chopped if needed.
    --  @param Proc Process to set the name of.
    --  @param Name ID to set, it is not checked.

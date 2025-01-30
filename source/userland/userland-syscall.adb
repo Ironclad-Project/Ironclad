@@ -5757,35 +5757,15 @@ package body Userland.Syscall is
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
-      --  Switch to the kernel page table to make us immune to having it swept
-      --  from under out feet by process cleanup.
-      if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
-         Lib.Messages.Put_Line ("Could not switch table on thread exit");
-      end if;
-
-      --  Remove all state but the return value and keep the zombie around
-      --  until we are waited.
-      Userland.Process.Flush_Threads (Proc);
-      Userland.Process.Flush_Files   (Proc);
-      Userland.Process.Remove_Thread (Proc, Arch.Local.Get_Current_Thread);
-      Userland.Process.Issue_Exit    (Proc, Code);
+      Common_Death_Preparations (Proc);
+      Userland.Process.Issue_Exit (Proc, Code);
       Scheduler.Bail;
    end Do_Exit;
 
    procedure Do_Exit (Proc : PID; Sig : Signal) is
    begin
-      --  Switch to the kernel page table to make us immune to having it swept
-      --  from under out feet by process cleanup.
-      if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
-         Lib.Messages.Put_Line ("Could not switch table on thread exit");
-      end if;
-
-      --  Remove all state but the return value and keep the zombie around
-      --  until we are waited.
-      Userland.Process.Flush_Threads (Proc);
-      Userland.Process.Flush_Files   (Proc);
-      Userland.Process.Remove_Thread (Proc, Arch.Local.Get_Current_Thread);
-      Userland.Process.Issue_Exit    (Proc, Sig);
+      Common_Death_Preparations (Proc);
+      Userland.Process.Issue_Exit (Proc, Sig);
       Scheduler.Bail;
    end Do_Exit;
 
@@ -6253,4 +6233,27 @@ package body Userland.Syscall is
          Sig := Process.Signal_Kill;
       end if;
    end Translate_Signal;
+
+   procedure Common_Death_Preparations (Proc : PID) is
+      Children : Process.Children_Arr (1 .. 25);
+      Count    : Natural;
+   begin
+      --  Switch to the kernel page table to make us immune to having it swept
+      --  from under out feet by process cleanup.
+      if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
+         Lib.Messages.Put_Line ("Could not switch table on thread exit");
+      end if;
+
+      --  Inherit all our children to init, who will take care of them.
+      Process.Get_Children (Proc, Children, Count);
+      for Child of Children (1 .. Count) loop
+         Process.Set_Parent (Child, Process.Convert (1));
+      end loop;
+
+      --  Remove all state but the return value and keep the zombie around
+      --  until we are waited.
+      Userland.Process.Flush_Threads (Proc);
+      Userland.Process.Flush_Files   (Proc);
+      Userland.Process.Remove_Thread (Proc, Arch.Local.Get_Current_Thread);
+   end Common_Death_Preparations;
 end Userland.Syscall;

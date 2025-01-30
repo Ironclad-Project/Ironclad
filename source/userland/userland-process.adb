@@ -750,6 +750,13 @@ package body Userland.Process is
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Get_Parent;
 
+   procedure Set_Parent (Proc : PID; Parent : PID) is
+   begin
+      Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Registry (Proc).Parent := Parent;
+      Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   end Set_Parent;
+
    procedure Set_Identifier (Proc : PID; Name : String) is
       Length : Natural;
    begin

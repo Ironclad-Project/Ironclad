@@ -1344,4 +1344,6 @@ private
       (Val     : Unsigned_64;
        Sig     : out Signal;
        Success : out Boolean);
+
+   procedure Common_Death_Preparations (Proc : PID);
 end Userland.Syscall;
