@@ -1268,7 +1268,7 @@ package Userland.Syscall is
 
 private
 
-   procedure Do_Remote_Exit (Proc : PID; Code : Unsigned_8);
+   procedure Do_Remote_Exit (Proc : PID; Sig : Signal);
 
    procedure Common_Syscall_Hook
       (Thread : TID;

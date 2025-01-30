@@ -918,10 +918,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
 
       --  Set the signals and ensure that unmaskable signals are not masked.
-      Registry (Proc).Masked_Signals                     := Sig;
-      Registry (Proc).Masked_Signals (Signal_Kill)       := False;
-      Registry (Proc).Masked_Signals (Signal_Stop)       := False;
-      Registry (Proc).Masked_Signals (Signal_Tracepoint) := False;
+      Registry (Proc).Masked_Signals               := Sig;
+      Registry (Proc).Masked_Signals (Signal_Kill) := False;
+      Registry (Proc).Masked_Signals (Signal_Stop) := False;
 
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    end Set_Masked_Signals;
@@ -929,7 +928,10 @@ package body Userland.Process is
    procedure Raise_Signal (Proc : PID; Sig : Signal) is
    begin
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
-      if not Registry (Proc).Masked_Signals (Sig) then
+      if Sig /= Signal_Kill and then
+         Sig /= Signal_Stop and then
+         not Registry (Proc).Masked_Signals (Sig)
+      then
          Registry (Proc).Raised_Signals (Sig) := True;
       end if;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
@@ -953,7 +955,7 @@ package body Userland.Process is
    is
    begin
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
-      if Sig /= Signal_Kill then
+      if Sig /= Signal_Kill or Sig /= Signal_Stop then
          Registry (Proc).Signal_Handlers (Sig) := Addr;
       end if;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);

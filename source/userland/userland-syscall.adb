@@ -4872,10 +4872,6 @@ package body Userland.Syscall is
          Errno    := Error_Bad_Search;
          Returned := Unsigned_64'Last;
          return;
-      elsif not Actual'Valid then
-         Errno    := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
       end if;
 
       if not Get_Capabilities (Proc).Can_Signal_All then
@@ -4889,7 +4885,15 @@ package body Userland.Syscall is
          end if;
       end if;
 
-      Raise_Signal (Tgt, Actual);
+      if Actual = Process.Signal_Kill then
+         Do_Remote_Exit (Tgt, Process.Signal_Kill); --  The reaper himself.
+      elsif Actual = Process.Signal_Stop then
+         --  XXX: Actually implement this.
+         null;
+      else
+         Raise_Signal (Tgt, Actual);
+      end if;
+
       Errno    := Error_No_Error;
       Returned := 0;
    end Send_Signal;
@@ -5757,14 +5761,28 @@ package body Userland.Syscall is
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
+      --  Switch to the kernel page table to make us immune to having it swept
+      --  from under out feet by process cleanup.
+      if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
+         Lib.Messages.Put_Line ("Could not switch table on thread exit");
+      end if;
+
       Common_Death_Preparations (Proc);
+      Userland.Process.Remove_Thread (Proc, Arch.Local.Get_Current_Thread);
       Userland.Process.Issue_Exit (Proc, Code);
       Scheduler.Bail;
    end Do_Exit;
 
    procedure Do_Exit (Proc : PID; Sig : Signal) is
    begin
+      --  Switch to the kernel page table to make us immune to having it swept
+      --  from under out feet by process cleanup.
+      if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
+         Lib.Messages.Put_Line ("Could not switch table on thread exit");
+      end if;
+
       Common_Death_Preparations (Proc);
+      Userland.Process.Remove_Thread (Proc, Arch.Local.Get_Current_Thread);
       Userland.Process.Issue_Exit (Proc, Sig);
       Scheduler.Bail;
    end Do_Exit;
@@ -5783,11 +5801,10 @@ package body Userland.Syscall is
       Scheduler.Signal_Kernel_Exit (Thread);
    end Post_Syscall_Hook;
    ----------------------------------------------------------------------------
-   procedure Do_Remote_Exit (Proc : PID; Code : Unsigned_8) is
+   procedure Do_Remote_Exit (Proc : PID; Sig : Signal) is
    begin
-      Userland.Process.Flush_Threads (Proc);
-      Userland.Process.Flush_Files   (Proc);
-      Userland.Process.Issue_Exit    (Proc, Code);
+      Common_Death_Preparations (Proc);
+      Userland.Process.Issue_Exit (Proc, Sig);
    end Do_Remote_Exit;
 
    procedure Common_Syscall_Hook
@@ -6238,12 +6255,6 @@ package body Userland.Syscall is
       Children : Process.Children_Arr (1 .. 25);
       Count    : Natural;
    begin
-      --  Switch to the kernel page table to make us immune to having it swept
-      --  from under out feet by process cleanup.
-      if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
-         Lib.Messages.Put_Line ("Could not switch table on thread exit");
-      end if;
-
       --  Inherit all our children to init, who will take care of them.
       Process.Get_Children (Proc, Children, Count);
       for Child of Children (1 .. Count) loop
@@ -6254,6 +6265,5 @@ package body Userland.Syscall is
       --  until we are waited.
       Userland.Process.Flush_Threads (Proc);
       Userland.Process.Flush_Files   (Proc);
-      Userland.Process.Remove_Thread (Proc, Arch.Local.Get_Current_Thread);
    end Common_Death_Preparations;
 end Userland.Syscall;
