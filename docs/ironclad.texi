@@ -428,12 +428,14 @@ Standard Linux-like futexes. @ref{futex}.
 @node PTYs
 @section PTYs
 
-Pseudo terminals (PTYs) are available in Ironclad, with a few quirks. They are
-created using @pxref{openpty}.
+Pseudo terminals (PTYs) are available in Ironclad, They are created using
+@pxref{openpty}. Ironclad does not provide a @code{/dev/ptmx} like interface.
 
-PTYs, unlike other OSes like Linux, when created, do not populate @code{/dev}.
-They live exclusively as file descriptors, not unlike a pipe. Apart of that
-they behave as you would expect when compared with other UNIX-likes.
+PTYs populate @code{/dev} with names of the form @code{/dev/ptyX}, where X is
+a positive integer. PTYs are closed automatically when they are closed.
+
+PTYs react to a limited amount of termios flags, most of them left to userland.
+The ones Ironclad PTYs interact with are @code{OPOST} and @code{ONLCR}.
 
 @node Signals
 @section Signals

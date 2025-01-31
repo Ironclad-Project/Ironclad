@@ -16,6 +16,7 @@
 
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
+with Ada.Characters.Latin_1;
 with Scheduler;
 with Lib.Messages;
 with Devices.TermIOs; use Devices.TermIOs;
@@ -32,16 +33,26 @@ package body IPC.PTY is
 
    procedure Create (Result : out Inner_Acc) is
       Name_Index : Natural;
-      Modes      : constant Devices.TermIOs.Local_Modes := (others => False);
       Resource   : Devices.Resource;
       Success    : Boolean;
       Num_Str    : Lib.Messages.Translated_String;
       Num_Len    : Natural;
+      Termios_D  : Devices.TermIOs.Main_Data;
    begin
       Lib.Synchronization.Seize (Tracked_Lock);
       Name_Index := Tracked_Name;
       Tracked_Name := Tracked_Name + 1;
       Lib.Synchronization.Release (Tracked_Lock);
+
+      --  Some sane defaults.
+      Termios_D :=
+         (Input_Modes   => 0,
+          Output_Modes  => OPOST or ONLCR,
+          Control_Modes => 0,
+          Local_Mode    => (others => False),
+          Special_Chars => (others => 0),
+          Input_Baud    => 0,
+          Output_Baud   => 0);
 
       Result := new Inner'
          (Primary_Mutex      => Lib.Synchronization.Unlocked_Mutex,
@@ -53,7 +64,7 @@ package body IPC.PTY is
           Secondary_Transmit => True,
           Device_Handle      => Devices.Error_Handle,
           Name_Index         => Name_Index,
-          Term_Info          => (0, 0, 0, Modes, (others => 0), 0, 0),
+          Term_Info          => Termios_D,
           Term_Size          => (others => 0),
           Was_Closed         => False,
           Termios_Changed    => False,
@@ -136,7 +147,8 @@ package body IPC.PTY is
       Write_To_End
          (To_Write.Secondary_Mutex'Access, To_Write.Secondary_Length'Access,
           To_Write.Secondary_Data'Access, Is_Blocking,
-          To_Write.Primary_Transmit, Data, Ret_Count);
+          To_Write.Primary_Transmit, Data, To_Write.Term_Info, False,
+          Ret_Count);
       Success := PTY_Success;
    end Write_Primary;
 
@@ -166,7 +178,8 @@ package body IPC.PTY is
       Write_To_End
          (To_Write.Primary_Mutex'Access, To_Write.Primary_Length'Access,
           To_Write.Primary_Data'Access, Is_Blocking,
-          To_Write.Secondary_Transmit, Data, Ret_Count);
+          To_Write.Secondary_Transmit, Data, To_Write.Term_Info, True,
+          Ret_Count);
       Success := PTY_Success;
    end Write_Secondary;
 
@@ -450,16 +463,79 @@ package body IPC.PTY is
    end Read_From_End;
 
    procedure Write_To_End
-      (End_Mutex   : access Lib.Synchronization.Mutex;
-       Inner_Len   : access Data_Length;
-       Inner_Data  : access TTY_Data;
-       Is_Blocking : Boolean;
-       Is_Able_To  : Boolean;
-       Data        : Devices.Operation_Data;
-       Ret_Count   : out Natural)
+      (End_Mutex     : access Lib.Synchronization.Mutex;
+       Inner_Len     : access Data_Length;
+       Inner_Data    : access TTY_Data;
+       Is_Blocking   : Boolean;
+       Is_Able_To    : Boolean;
+       Data          : Devices.Operation_Data;
+       Termios       : Devices.TermIOs.Main_Data;
+       Is_To_Primary : Boolean;
+       Ret_Count     : out Natural)
    is
+      procedure Free is new Ada.Unchecked_Deallocation
+         (Devices.Operation_Data, Devices.Operation_Data_Acc);
+
       Final : Natural;
    begin
+      if Is_To_Primary                         and then
+         (Termios.Output_Modes and OPOST) /= 0 and then
+         (Termios.Output_Modes and ONLCR) /= 0
+      then
+         --  Check whether there are new lines, and if they are, make a
+         --  substring, replace there the newlines, and use that.
+         Final := 0;
+         for C of Data loop
+            if C = Unsigned_8 (Character'Pos (Ada.Characters.Latin_1.LF)) then
+               Final := Final + 1;
+            end if;
+            Final := Final + 1;
+         end loop;
+
+         if Final /= Data'Length then
+            declare
+               Tmp      : Devices.TermIOs.Main_Data := Termios;
+               New_Data : Devices.Operation_Data_Acc :=
+                  new Devices.Operation_Data'[1 .. Final => 0];
+            begin
+               Final := 1;
+               for C of Data loop
+                  if C = Unsigned_8 (Character'Pos (Ada.Characters.Latin_1.LF))
+                  then
+                     New_Data (Final) :=
+                        Unsigned_8 (Character'Pos (Ada.Characters.Latin_1.CR));
+                     Final := Final + 1;
+                  end if;
+                  New_Data (Final) := C;
+                  Final := Final + 1;
+               end loop;
+
+               Tmp.Output_Modes := 0;
+               Write_To_End
+                  (End_Mutex     => End_Mutex,
+                   Inner_Len     => Inner_Len,
+                   Inner_Data    => Inner_Data,
+                   Is_Blocking   => Is_Blocking,
+                   Is_Able_To    => Is_Able_To,
+                   Data          => New_Data.all,
+                   Termios       => Tmp,
+                   Is_To_Primary => Is_To_Primary,
+                   Ret_Count     => Ret_Count);
+
+               Final := Ret_Count;
+               for C of New_Data (1 .. Final) loop
+                  if C = Unsigned_8 (Character'Pos (Ada.Characters.Latin_1.CR))
+                  then
+                     Ret_Count := Ret_Count - 1;
+                  end if;
+               end loop;
+
+               Free (New_Data);
+               return;
+            end;
+         end if;
+      end if;
+
       if not Is_Able_To then
          Ret_Count := 0;
          return;

@@ -191,13 +191,15 @@ private
        Ret_Count   : out Natural);
 
    procedure Write_To_End
-      (End_Mutex   : access Lib.Synchronization.Mutex;
-       Inner_Len   : access Data_Length;
-       Inner_Data  : access TTY_Data;
-       Is_Blocking : Boolean;
-       Is_Able_To  : Boolean;
-       Data        : Devices.Operation_Data;
-       Ret_Count   : out Natural);
+      (End_Mutex     : access Lib.Synchronization.Mutex;
+       Inner_Len     : access Data_Length;
+       Inner_Data    : access TTY_Data;
+       Is_Blocking   : Boolean;
+       Is_Able_To    : Boolean;
+       Data          : Devices.Operation_Data;
+       Termios       : Devices.TermIOs.Main_Data;
+       Is_To_Primary : Boolean;
+       Ret_Count     : out Natural);
    ----------------------------------------------------------------------------
    procedure Dev_Read
       (Key         : System.Address;
