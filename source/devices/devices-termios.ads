@@ -16,7 +16,7 @@
 
 package Devices.TermIOs is
    --  Structures handled by the termios interface.
-   type Special_Characters is array (1 .. 11) of Unsigned_32;
+   type Special_Characters is array (0 .. 10) of Unsigned_8;
    type Local_Modes is record
       Echo_Input         : Boolean;
       Do_Erase           : Boolean;
@@ -49,7 +49,7 @@ package Devices.TermIOs is
       Special_Chars : Special_Characters;
       Input_Baud    : Unsigned_32;
       Output_Baud   : Unsigned_32;
-   end record with Size => 544;
+   end record with Pack;
 
    type Win_Size is record
       Rows     : Unsigned_16;
@@ -84,4 +84,7 @@ package Devices.TermIOs is
    --  Output modes for the Main_Data structure.
    OPOST : constant := 16#1#;
    ONLCR : constant := 16#2#;
+
+   --  Characters in the special characters array.
+   VERASE : constant := 2;
 end Devices.TermIOs;
