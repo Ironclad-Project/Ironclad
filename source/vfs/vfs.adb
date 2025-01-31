@@ -493,17 +493,6 @@ package body VFS is
          end if;
          Path_Last := Path_Last - 1;
 
-         --  Shortcut the search in the case of . or ..
-         if Path (Path'First + Path_Idx .. Path'First + Path_Last) = "." then
-            goto Found_Entry;
-         elsif Orig_Key /= Error_Handle and then
-               Path (Path'First + Path_Idx .. Path'First + Path_Last) = ".."
-         then
-            Actual_Key := Orig_Key;
-            Actual_Ino := Orig_Ino;
-            goto Found_Entry;
-         end if;
-
          --  Read the entries of current directory, check if the component
          --  of path is found.
          Entries_Offset := 0;
