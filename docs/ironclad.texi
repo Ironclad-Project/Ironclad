@@ -4,7 +4,7 @@
 @settitle Ironclad User's Guide
 
 @copying
-Copyright @copyright{} 2024 streaksu
+Copyright @copyright{} 2025 streaksu
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -4383,27 +4383,6 @@ discarded.
 @code{zero} returns exclusively a stream of zeros when read, and all write
 operations are discarded.
 
-@node riscv64-limine devices
-@section riscv64-limine devices
-
-To be determined.
-
-@node x86_64-limine devices
-@section x86_64-limine devices
-
-@subsection ata
-
-The devices starting by @code{sata} represent several ATA IDE block devices.
-These ATA drives have internal caching at the driver level, so they must be
-@code{sync}'d for data integrity when wanting to ensure data coherency.
-
-No special @code{ioctl} calls are supported.
-
-@subsection fb0
-
-The @code{fb0} device exposes the framebuffer passed as part of the boot
-protocol, when present. The device uses Linux's @url{https://docs.kernel.org/fb/api.html, fbdev} interface.
-
 @subsection i6300esb
 
 @code{i6300esb} is a hardware watchdog featured in a lot of intel hardware, it
@@ -4427,6 +4406,27 @@ MAC.
 While this piece of hardware allows for hooking up interrupts and reboot
 separately when the timer expires, Ironclad right now will only reboot when
 the timer expires.
+
+@subsection sata
+
+The devices starting by @code{sata} represent several SATA AHCI block devices.
+For now only SATA drives are supported, support for ATAPI is not present.
+
+These SATA drives have internal caching at the driver level, so they must be
+@code{sync}'d for data integrity when wanting to ensure data coherency.
+
+@node riscv64-limine devices
+@section riscv64-limine devices
+
+To be determined.
+
+@node x86_64-limine devices
+@section x86_64-limine devices
+
+@subsection fb0
+
+The @code{fb0} device exposes the framebuffer passed as part of the boot
+protocol, when present. The device uses Linux's @url{https://docs.kernel.org/fb/api.html, fbdev} interface.
 
 @subsection lpt
 
@@ -4481,14 +4481,6 @@ ioctl(mouse, PS2MOUSE_SET_SAMPLE_RATE, rate); // (0 - 200).
 Valid resolutions and sample rates are values for the PS2 controller, else
 the call is ignored. For valid values and their meaning refer to
 @uref{https://isdaman.com/alsos/hardware/mouse/ps2interface.htm, this website}.
-
-@subsection sata
-
-The devices starting by @code{sata} represent several SATA AHCI block devices.
-For now only SATA drives are supported, support for ATAPI is not present.
-
-These SATA drives have internal caching at the driver level, so they must be
-@code{sync}'d for data integrity when wanting to ensure data coherency.
 
 @subsection serial
 

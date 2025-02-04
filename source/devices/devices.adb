@@ -19,6 +19,8 @@ with Devices.KVM;
 with Devices.Loopback;
 with Devices.Streams;
 with Devices.TTY;
+with Devices.SATA;
+with Devices.i6300ESB;
 with Lib.Panic;
 with Arch.Hooks;
 
@@ -42,6 +44,8 @@ package body Devices is
       Streams.Init (Success);
       if not Success then goto Panic_Error; end if;
       TTY.Init (Success);
+
+      Success := Devices.SATA.Init and then Devices.i6300ESB.Init;
       if not Success or else not Arch.Hooks.Devices_Hook then
          goto Panic_Error;
       end if;

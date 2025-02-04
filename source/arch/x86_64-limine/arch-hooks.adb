@@ -18,15 +18,12 @@ with Devices.FB;
 with Devices.PS2Mouse;
 with Devices.PS2Keyboard;
 with Devices.PC_Speaker;
-with Devices.ATA;
-with Devices.SATA;
 with Devices.Serial;
 with Arch.Snippets;
 with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
 with Arch.Interrupts;
 with Interfaces; use Interfaces;
-with Devices.i6300ESB;
 with Devices.LPT;
 with Lib.Messages;
 with Devices.Ramdev;
@@ -36,15 +33,12 @@ with Arch.Limine;
 package body Arch.Hooks is
    function Devices_Hook return Boolean is
    begin
-      return Devices.ATA.Init         and then
-             Devices.FB.Init          and then
+      return Devices.FB.Init          and then
              Devices.HWRNG.Init       and then
-             Devices.i6300ESB.Init    and then
              Devices.LPT.Init         and then
              Devices.PC_Speaker.Init  and then
              Devices.PS2Keyboard.Init and then
              Devices.PS2Mouse.Init    and then
-             Devices.SATA.Init        and then
              Devices.Serial.Init;
    end Devices_Hook;
 
