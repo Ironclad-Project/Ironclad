@@ -30,36 +30,26 @@ is
    end Enable_Logging;
 
    procedure Put_Line (Message : String) is
-      Timestamp : String (1 .. 10);
-      Final     : String (1 .. Max_Line) := (others => ' ');
-      Last_Idx  : Natural;
+      Max_Len : constant Natural := Max_Line - Timestamp_Str'Length - 3;
+      Msg_Idx, Msg_LIdx : Natural;
    begin
-      Get_Timestamp (Timestamp);
-      Final (1) := '(';
-      Final (2 .. 11) := Timestamp;
-      Final (12 .. 13) := ") ";
-      Final (14 .. Message'Length + 13) := Message;
-
-      Lib.Synchronization.Seize (Messages_Mutex);
-
-      if Log_Ring_Buffer /= null then
-         Last_Idx := Log_Ring_Buffer'Last;
-         Log_Ring_Buffer (Curr_Entry) := Final;
+      if Message'Length = 0 then
+         Add_To_Buffers (Message);
       else
-         Last_Idx := Small_Log_Buffer'Last;
-         Small_Log_Buffer (Curr_Entry) := Final;
+         Msg_Idx := Message'First;
+         loop
+            if Message (Msg_Idx .. Message'Last)'Length > Max_Len then
+               Msg_LIdx := Msg_Idx + Max_Len - 1;
+            else
+               Msg_LIdx := Message'Last;
+            end if;
+
+            Add_To_Buffers (Message (Msg_Idx .. Msg_LIdx));
+
+            exit when Msg_Idx + Max_Len >= Message'Last;
+            Msg_Idx := Msg_Idx + Max_Len;
+         end loop;
       end if;
-
-      Arch.Debug.Print (Final);
-      Arch.Debug.Print (Ada.Characters.Latin_1.CR);
-      Arch.Debug.Print (Ada.Characters.Latin_1.LF);
-
-      Curr_Entry := Curr_Entry + 1;
-      if Curr_Entry > Last_Idx then
-         Curr_Entry := 1;
-      end if;
-
-      Lib.Synchronization.Release (Messages_Mutex);
    end Put_Line;
 
    procedure Dump_Logs (Buffer : out String; Length : out Natural) is
@@ -129,4 +119,37 @@ is
       Image (Sec, Stp, Stp_Len, True);
       Timestamp := Stp (11 .. Stp'Last);
    end Get_Timestamp;
+
+   procedure Add_To_Buffers (Message : String) is
+      Timestamp : String (1 .. 10);
+      Final     : String (1 .. Max_Line) := (others => ' ');
+      Last_Idx  : Natural;
+   begin
+      Get_Timestamp (Timestamp);
+      Final (1) := '(';
+      Final (2 .. 11) := Timestamp;
+      Final (12 .. 13) := ") ";
+      Final (14 .. Message'Length + 13) := Message;
+
+      Lib.Synchronization.Seize (Messages_Mutex);
+
+      if Log_Ring_Buffer /= null then
+         Last_Idx := Log_Ring_Buffer'Last;
+         Log_Ring_Buffer (Curr_Entry) := Final;
+      else
+         Last_Idx := Small_Log_Buffer'Last;
+         Small_Log_Buffer (Curr_Entry) := Final;
+      end if;
+
+      Arch.Debug.Print (Final);
+      Arch.Debug.Print (Ada.Characters.Latin_1.CR);
+      Arch.Debug.Print (Ada.Characters.Latin_1.LF);
+
+      Curr_Entry := Curr_Entry + 1;
+      if Curr_Entry > Last_Idx then
+         Curr_Entry := 1;
+      end if;
+
+      Lib.Synchronization.Release (Messages_Mutex);
+   end Add_To_Buffers;
 end Lib.Messages;

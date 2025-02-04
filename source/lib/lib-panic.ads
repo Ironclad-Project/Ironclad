@@ -30,9 +30,7 @@ is
    --  For situations that are too risky for recovery!
    --  @param Message Message to print before halting the system.
    procedure Hard_Panic (Message : String)
-      with Pre =>
-         Message'Length <= Messages.Max_Line - Panic_Header'Length - RC'Length,
-      Global =>
+      with Global =>
          (In_Out => (Panic_State, Arch.Clocks.Monotonic_Clock_State,
                      Messages.Message_State)),
       No_Return;

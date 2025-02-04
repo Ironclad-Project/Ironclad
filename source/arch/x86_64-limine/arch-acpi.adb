@@ -572,16 +572,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
       pragma Unreferenced (Level);
       Len : constant Natural := Lib.C_String_Length (Str_Addr);
       Str : String (1 .. Len - 1) with Import, Address => Str_Addr;
-      Idx : Natural := 1;
    begin
-      loop
-         if Str (Idx .. Str'Last)'Length > 65 then
-            Lib.Messages.Put_Line (Str (Idx .. Idx + 64));
-         else
-            Lib.Messages.Put_Line (Str (Idx .. Str'Last));
-         end if;
-         exit when Idx + 65 >= Str'Last;
-         Idx := Idx + 65;
-      end loop;
+      Lib.Messages.Put_Line (Str);
    end Kernel_Log;
 end Arch.ACPI;
