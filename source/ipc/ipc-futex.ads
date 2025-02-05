@@ -1,5 +1,5 @@
 --  ipc-futex.ads: Fast userland mutex.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -31,18 +31,21 @@ package IPC.Futex is
    end record;
    type Element_Arr is array (Natural range <>) of Element;
 
+   type Wait_Status is (Wait_Success, Wait_No_Space, Wait_Try_Again);
+
    --  Wait for a set of keys.
    --  @param Keys Keys to wait for.
    --  @param Max_Seconds Maximum amount of seconds to wait for.
    --  @param Max_Nanos   Nanoseconds component of Max_Seconds.
-   --  @param Success     True in success, False in failure.
+   --  @param Success     Status on the wait.
    procedure Wait
       (Keys        : Element_Arr;
        Max_Seconds : Unsigned_64;
        Max_Nanos   : Unsigned_64;
-       Success     : out Boolean);
+       Success     : out Wait_Status);
 
    --  Wake a set of keys.
-   --  @param Keys Keys to wait for.
-   procedure Wake (Keys : Element_Arr);
+   --  @param Keys         Keys to wait for.
+   --  @param Awoken_Count Count of awoken processes.
+   procedure Wake (Keys : Element_Arr; Awoken_Count : out Natural);
 end IPC.Futex;

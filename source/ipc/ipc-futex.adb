@@ -1,5 +1,5 @@
 --  ipc-futex.adb: Fast userland mutex.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -22,10 +22,10 @@ with Lib.Time;
 package body IPC.Futex is
    type Futex_Inner is record
       Key         : access Unsigned_32;
-      Wakey_Wakey : Boolean;
+      Wakey_Wakey : Boolean with Volatile;
       Waiters     : Unsigned_32;
    end record;
-   type Futex_Arr is array (1 .. 20) of Futex_Inner;
+   type Futex_Arr is array (1 .. 75) of Futex_Inner;
 
    Registry_Mutex : aliased Mutex := Unlocked_Mutex;
    Registry       :     Futex_Arr := (others => (null, False, 0));
@@ -34,7 +34,7 @@ package body IPC.Futex is
       (Keys        : Element_Arr;
        Max_Seconds : Unsigned_64;
        Max_Nanos   : Unsigned_64;
-       Success     : out Boolean)
+       Success     : out Wait_Status)
    is
       Curr_Sec, Curr_NSec, Final_Sec, Final_NSec : Unsigned_64;
       Idx : array (1 .. Keys'Length) of Natural;
@@ -42,11 +42,12 @@ package body IPC.Futex is
       --  Find and/or allocate indexes for the passed mutexes.
       for I in Keys'Range loop
          if Keys (I).Key.all /= Keys (I).Expected then
-            Success := False;
+            Success := Wait_Try_Again;
             return;
          end if;
 
          Lib.Synchronization.Seize (Registry_Mutex);
+
          for J in Registry'Range loop
             if Registry (J).Key = Keys (I).Key then
                Idx (I) := J;
@@ -65,7 +66,7 @@ package body IPC.Futex is
          end loop;
 
          Lib.Synchronization.Release (Registry_Mutex);
-         Success := False;
+         Success := Wait_No_Space;
          return;
       <<End_Of_Iter>>
          Lib.Synchronization.Release (Registry_Mutex);
@@ -94,16 +95,18 @@ package body IPC.Futex is
          Scheduler.Yield_If_Able;
       end loop;
 
-      Success := True;
+      Success := Wait_Success;
    end Wait;
 
-   procedure Wake (Keys : Element_Arr) is
+   procedure Wake (Keys : Element_Arr; Awoken_Count : out Natural) is
    begin
+      Awoken_Count := 0;
       for K of Keys loop
          Lib.Synchronization.Seize (Registry_Mutex);
          for I in Registry'Range loop
             if Registry (I).Key = K.Key then
                Registry (I).Wakey_Wakey := True;
+               Awoken_Count             := Awoken_Count + 1;
             end if;
          end loop;
          Lib.Synchronization.Release (Registry_Mutex);

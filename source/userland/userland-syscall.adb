@@ -4036,8 +4036,9 @@ package body Userland.Syscall is
       Futex_Len : constant Unsigned_64 := Count * (Futex_Item'Size / 8);
       Time_Len  : constant Unsigned_64 := Time_Spec'Size / 8;
       U32_Len   : constant Unsigned_64 := Unsigned_32'Size / 8;
-      Map  : Page_Table_Acc;
-      Succ : Boolean;
+      Map   : Page_Table_Acc;
+      Succ2 : IPC.Futex.Wait_Status;
+      Succ  : Boolean;
    begin
       --  FIXME: These 2 Would_Fault should not have the
       --  "Check_Userland_Mappability" parts, but these checks fail
@@ -4090,18 +4091,21 @@ package body Userland.Syscall is
 
          case Operation is
             when FUTEX_WAIT =>
-               IPC.Futex.Wait (Futexes, Time.Seconds, Time.Nanoseconds, Succ);
-               if Succ then
-                  Returned := 0;
-                  Errno    := Error_No_Error;
-               else
-                  Returned := Unsigned_64'Last;
-                  Errno    := Error_Would_Block;
-               end if;
+               IPC.Futex.Wait (Futexes, Time.Seconds, Time.Nanoseconds, Succ2);
+               case Succ2 is
+                  when IPC.Futex.Wait_No_Space =>
+                     Returned := Unsigned_64'Last;
+                     Errno    := Error_No_Memory;
+                  when IPC.Futex.Wait_Try_Again =>
+                     Returned := Unsigned_64'Last;
+                     Errno    := Error_Would_Block;
+                  when IPC.Futex.Wait_Success =>
+                     Returned := 0;
+                     Errno    := Error_No_Error;
+               end case;
             when FUTEX_WAKE =>
-               IPC.Futex.Wake (Futexes);
-               Returned := 0;
-               Errno    := Error_No_Error;
+               IPC.Futex.Wake (Futexes, Natural (Returned));
+               Errno := Error_No_Error;
             when others =>
                Returned := Unsigned_64'Last;
                Errno    := Error_Invalid_Value;

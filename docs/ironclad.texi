@@ -3265,8 +3265,8 @@ The passed values in futexes will be waited for.
 The passed values in futexes will be woken up.
 @end table
 
-The syscall returns @code{0} on success or @code{-1} on failure, with the
-following errno:
+When waiting, the syscall returns @code{0} on success or @code{-1} on failure,
+with the following errno:
 
 @table @code
 @item EFAULT
@@ -3278,6 +3278,9 @@ The passed operation is not valid.
 @item EAGAIN
 When waiting, a passed @code{addr} did not point to a @code{expected}.
 @end table
+
+When waking, the syscall returns the number of awoken futexes on success
+instead.
 
 @node clock
 @section clock
