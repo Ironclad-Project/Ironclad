@@ -282,6 +282,7 @@ package Arch.ACPI is
    end record;
 
    --  Search for an ACPI table and return its address, null if not found.
+   --  The table will not necessarily be mapped.
    function FindTable (Signature : SDT_Signature) return Virtual_Address;
    ----------------------------------------------------------------------------
    --  Power management functions.
@@ -638,5 +639,8 @@ private
           Table_Record_Addr : System.Address) return Status
          with Import, Convention => C,
               External_Name => "uacpi_table_find_by_signature";
+
+      function Unref_Table (Table_Record_Addr : System.Address) return Status
+         with Import, Convention => C, External_Name => "uacpi_table_unref";
    #end if;
 end Arch.ACPI;

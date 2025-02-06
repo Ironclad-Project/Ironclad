@@ -85,6 +85,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Sig : String (1 .. Signature'Length + 1) :=
          Signature & (1 => Ada.Characters.Latin_1.NUL);
       Rec : Table_Record;
+      Discard : Status;
    begin
       if not Is_Init and Early_Buffer = null then
          Early_Buffer := new Buffer'(others => 0);
@@ -97,6 +98,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
       end if;
 
       if Find_Table_By_Signature (Sig'Address, Rec'Address) = Status_OK then
+         Discard := Unref_Table (Rec'Address);
          return To_Integer (Rec.Virt_Addr);
       else
          return 0;
