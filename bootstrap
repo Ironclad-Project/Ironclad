@@ -90,11 +90,11 @@ if ! test -f version; then
         freestnd-c-hdrs \
         a87c192f3eb66b0806740dc67325f9ad23fc2d0b
 
-    # 1.0
+    # 1.0.1
     clone_repo_commit \
         https://github.com/uACPI/uACPI.git \
         uacpi-repository \
-        1bd2930030ef819519de32dd1f7a8f999440308f
+        757dcece1a9f1c069355b23f7feaf21656728f94
     rm -rf uacpi
     mkdir -p uacpi
     cp -rp uacpi-repository/include/uacpi uacpi/
