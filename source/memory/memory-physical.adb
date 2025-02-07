@@ -149,10 +149,9 @@ package body Memory.Physical is
       --  Search for contiguous blocks, as many as needed.
       Lib.Synchronization.Seize (Alloc_Mutex);
    <<Search_Blocks>>
-      for I in Bitmap_Last_Used + 1 .. Block_Count - 1 loop
+      for I in Bitmap_Last_Used .. Block_Count - 1 loop
          if Bitmap_Body (I) = Block_Free then
-            if First_Found_Index = 0 or I /= First_Found_Index + Found_Count
-            then
+            if I /= First_Found_Index + Found_Count then
                First_Found_Index := I;
                Found_Count       := 1;
             else
@@ -181,6 +180,7 @@ package body Memory.Physical is
          Lib.Synchronization.Release (Alloc_Mutex);
          Userland.OOM_Failure.Handle_Failure;
          Lib.Synchronization.Seize (Alloc_Mutex);
+         Bitmap_Last_Used  := 0;
          First_Found_Index := 0;
          Found_Count       := 0;
          goto Search_Blocks;
