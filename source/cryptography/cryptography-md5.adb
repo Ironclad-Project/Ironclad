@@ -89,28 +89,4 @@ package body Cryptography.MD5 is
 
       return (Total_A, Total_B, Total_C, Total_D);
    end Digest;
-
-   function To_String (Hash : MD5_Hash) return MD5_String is
-      Hex_Chars : constant array (0 .. 15) of Character :=
-         ('0', '1', '2', '3', '4', '5', '6', '7',
-          '8', '9', 'a', 'b', 'c', 'd', 'e', 'f');
-      Item     : MD5_Hash;
-      Result   : MD5_String := (others => '0');
-      Temp     : Unsigned_32;
-      Position : Integer range Result'First - 1 .. Result'Last := Result'Last;
-   begin
-      for I in Item'Range loop
-         Item (I) := BSwap32 (Hash (I));
-      end loop;
-
-      for Part in reverse Item'Range loop
-         Temp := Item (Part);
-         while Position > Result'Last - (5 - Part) * 8 loop
-            Result (Position) := Hex_Chars (Natural (Temp mod 16));
-            Position          := Position - 1;
-            Temp              := Temp / 16;
-         end loop;
-      end loop;
-      return Result;
-   end To_String;
 end Cryptography.MD5;
