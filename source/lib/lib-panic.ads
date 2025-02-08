@@ -14,24 +14,31 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
 with Lib.Messages;
 with Arch.Clocks;
-with Ada.Characters.Latin_1;
+with Arch.Context;
 
 package Lib.Panic with
    Abstract_State => Panic_State,
    Initializes    => Panic_State
 is
-   --  String header and ending to be added to passed message strings.
-   HP           : constant String := Ada.Characters.Latin_1.ESC & "[31m";
-   RC           : constant String := Ada.Characters.Latin_1.ESC & "[0m";
-   Panic_Header : constant String := HP & "Panic: ";
-
    --  For situations that are too risky for recovery!
    --  @param Message Message to print before halting the system.
    procedure Hard_Panic (Message : String)
-      with Global =>
+      with No_Return, Global =>
          (In_Out => (Panic_State, Arch.Clocks.Monotonic_Clock_State,
-                     Messages.Message_State)),
-      No_Return;
+                     Messages.Message_State));
+
+   --  The same as above, but this one takes a context for string printing.
+   procedure Hard_Panic (Message : String; Ctx : Arch.Context.GP_Context)
+      with No_Return, Global =>
+         (In_Out => (Panic_State, Arch.Clocks.Monotonic_Clock_State,
+                     Messages.Message_State));
+
+private
+
+   procedure Panic_Hook;
+   procedure Print_Seal_And_Goodnight (Message : String) with No_Return;
+   procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64);
 end Lib.Panic;

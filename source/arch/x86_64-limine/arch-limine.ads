@@ -21,13 +21,6 @@ package Arch.Limine with SPARK_Mode => Off is
    --  Global variable holding platform information.
    Global_Info : Boot_Information;
 
-   --  Smallest address of the memmap, filled when the proto is translated,
-   --  since this garbage architecture requires sub 1MiB memory regions for
-   --  SMP starting. Its fucking stupid.
-   --  Its meant to be always valid.
-   Max_Sub_1MiB_Size : constant := 16#1000#;
-   Sub_1MiB_Region : System.Address;
-
    --  Get physical address where the kernel is loaded.
    function Get_Physical_Address return System.Address;
 

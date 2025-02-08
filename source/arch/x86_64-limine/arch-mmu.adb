@@ -51,12 +51,6 @@ package body Arch.MMU is
           Can_Write         => True,
           Can_Execute       => False,
           Is_Global         => True);
-      X_Flags : constant Page_Permissions :=
-         (Is_User_Accesible => False,
-          Can_Read          => True,
-          Can_Write         => True,
-          Can_Execute       => True,
-          Is_Global         => True);
       RX_Flags : constant Page_Permissions :=
          (Is_User_Accesible => False,
           Can_Read          => True,
@@ -69,8 +63,6 @@ package body Arch.MMU is
           Can_Write         => False,
           Can_Execute       => False,
           Is_Global         => True);
-
-      First_MiB : constant := 16#000100000#;
 
       --  Start of sections for correct permission loading.
       text_start   : Character with Import, Convention => C;
@@ -91,20 +83,7 @@ package body Arch.MMU is
           Mutex           => Lib.Synchronization.Unlocked_RW_Lock,
           Map_Ranges_Root => null);
 
-      --  Map the first 4KiB - 1 MiB not NX, because we have the smp bootstrap
-      --  there and else hell will break loose.
-      if not Inner_Map_Range
-         (Map            => Kernel_Table,
-          Physical_Start => To_Address (Page_Size),
-          Virtual_Start  => To_Address (Page_Size),
-          Length         => First_MiB - Page_Size,
-          Permissions    => X_Flags,
-          Caching        => Write_Back)
-      then
-         return False;
-      end if;
-
-      --  Map the memmap memory to the memory window and identity
+      --  Map the memmap memory to the memory window.
       for E of Memmap loop
          if not Inner_Map_Range
             (Map            => Kernel_Table,

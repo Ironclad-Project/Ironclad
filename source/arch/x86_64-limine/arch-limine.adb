@@ -106,18 +106,5 @@ package body Arch.Limine with SPARK_Mode => Off is
              Length  => Storage_Count (Ent.Length),
              MemType => Type_Entry);
       end loop;
-
-      for I in 1 .. Global_Info.Memmap_Len loop
-         if Global_Info.Memmap (I).MemType = Memory_Free            and
-            To_Integer (Global_Info.Memmap (I).Start) <= 16#100000# and
-            Global_Info.Memmap (I).Length > Max_Sub_1MiB_Size
-         then
-            Sub_1MiB_Region := Global_Info.Memmap (I).Start;
-            Global_Info.Memmap (I).Start  :=
-               Global_Info.Memmap (I).Start + Max_Sub_1MiB_Size;
-            Global_Info.Memmap (I).Length :=
-               Global_Info.Memmap (I).Length - Max_Sub_1MiB_Size;
-         end if;
-      end loop;
    end Translate_Proto;
 end Arch.Limine;
