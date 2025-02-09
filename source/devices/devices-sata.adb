@@ -22,6 +22,7 @@ with Arch.PCI;
 with Arch.MMU;
 with Memory;
 with Lib.Alignment;
+with Cryptography.Random;
 
 package body Devices.SATA with SPARK_Mode => Off is
    package C1 is new System.Address_To_Access_Conversions (SATA_Data);
@@ -196,7 +197,11 @@ package body Devices.SATA with SPARK_Mode => Off is
 
       declare
          Sectors : Unsigned_64 with Address => Identify (101)'Address;
+         Serial  : Cryptography.Random.Crypto_Data (1 .. 20)
+            with Import, Address => Identify (10)'Address;
       begin
+         --  Serial numbers make great randomness to add.
+         Cryptography.Random.Feed_Entropy (Serial);
          Dev_Data.Sector_Count := Sectors;
       end;
       return Dev_Data;

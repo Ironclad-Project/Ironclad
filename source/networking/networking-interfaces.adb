@@ -14,6 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Cryptography.Random;
+
 package body Networking.Interfaces is
    type Inner_Interface is record
       Handle     : Device_Handle;
@@ -51,6 +53,14 @@ package body Networking.Interfaces is
       end loop;
 
       Release (Interfaces_Lock);
+
+      --  MACs can be pretty useful as random data.
+      declare
+         Data : constant Cryptography.Random.Crypto_Data (1 .. MAC'Size / 8)
+            with Import, Address => MAC'Address;
+      begin
+         Cryptography.Random.Feed_Entropy (Data);
+      end;
    end Register_Interface;
 
    procedure Get_Interface_Address

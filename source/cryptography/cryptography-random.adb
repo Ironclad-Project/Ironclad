@@ -158,9 +158,8 @@ package body Cryptography.Random is
    end Fill_Data;
 
    procedure Feed_Entropy (Data : Crypto_Data) is
-      E_Idx    : Natural renames Entropy_Feed_Idx;
-      Idx      : Unsigned_32 := 0;
-      Last_Val :  Unsigned_8 := 0;
+      E_Idx : Natural renames Entropy_Feed_Idx;
+      Idx   : Unsigned_32 := 0;
    begin
       Seize (Accumulator_Mutex);
 
@@ -169,20 +168,11 @@ package body Cryptography.Random is
          return;
       end if;
 
-      --  Choose where the Idx starts by reseeding count.
-      Idx :=
-         (Entropy_Pool (E_Idx)'Length / 16) *
-          Unsigned_32 (Reseeding_Count mod 16);
-
       --  Actually reseed.
       for C of Data loop
          Entropy_Pool (E_Idx) (Idx) :=
             Entropy_Pool (E_Idx) (Unsigned_32 (C) mod MD5_Block'Length) xor
-            Entropy_Pool (E_Idx) (Idx)              xor
-            Shift_Left (Unsigned_32 (Last_Val),  0) xor
-            Shift_Left (Unsigned_32 (C), 16);
-         Last_Val := Unsigned_8 (Entropy_Pool (E_Idx) (Idx) and 16#FF#);
-
+            Entropy_Pool (E_Idx) (Idx) xor Shift_Left (Unsigned_32 (C), 16);
          Idx := (if Idx = Entropy_Pool (E_Idx)'Last then 0 else Idx + 1);
       end loop;
 

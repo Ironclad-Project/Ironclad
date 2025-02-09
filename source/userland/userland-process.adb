@@ -179,11 +179,26 @@ package body Userland.Process is
    end Create_Process;
 
    procedure Delete_Process (Process : PID) is
+      Var1, Var2, Var3 : Unsigned_64;
+
+      CVar1 : Cryptography.Random.Crypto_Data (1 .. Var1'Size / 8)
+         with Import, Address => Var1'Address;
+      CVar2 : Cryptography.Random.Crypto_Data (1 .. Var2'Size / 8)
+         with Import, Address => Var2'Address;
+      CVar3 : Cryptography.Random.Crypto_Data (1 .. Var3'Size / 8)
+         with Import, Address => Var3'Address;
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       Lib.Synchronization.Seize (Registry_Mutex);
+      Var1 := Registry (Process).Creation_NSecs;
+      Var2 := Registry (Process).Children_UNSec;
+      Var3 := Registry (Process).Children_SNSec;
       Free (Registry (Process));
       Lib.Synchronization.Release (Registry_Mutex);
+
+      Cryptography.Random.Feed_Entropy (CVar1);
+      Cryptography.Random.Feed_Entropy (CVar2);
+      Cryptography.Random.Feed_Entropy (CVar3);
    end Delete_Process;
 
    procedure Get_Controlling_TTY (Proc : PID; TTY : out IPC.PTY.Inner_Acc) is
