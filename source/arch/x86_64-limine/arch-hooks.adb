@@ -27,14 +27,12 @@ with Interfaces; use Interfaces;
 with Devices.LPT;
 with Lib.Messages;
 with Devices.Ramdev;
-with Devices.HWRNG;
 with Arch.Limine;
 
 package body Arch.Hooks is
    function Devices_Hook return Boolean is
    begin
       return Devices.FB.Init          and then
-             Devices.HWRNG.Init       and then
              Devices.LPT.Init         and then
              Devices.PC_Speaker.Init  and then
              Devices.PS2Keyboard.Init and then

@@ -29,6 +29,7 @@ with Userland.Process; use Userland.Process;
 with Userland;
 with Scheduler;
 with Networking.ARP;
+with Cryptography.Random;
 with Lib.Runtime;
 pragma Unreferenced (Lib.Runtime);
 with Config;
@@ -74,6 +75,7 @@ package body Kernel_Main is
       end if;
 
       --  Initialize several subsystems.
+      Cryptography.Random.Init;
       Userland.Process.Init;
       Networking.ARP.Initialize;
       Devices.Init;

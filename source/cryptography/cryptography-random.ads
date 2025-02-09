@@ -1,5 +1,5 @@
 --  cryptography-random.ads: The random number generator of the kernel.
---  Copyright (C) 2024 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -17,12 +17,15 @@
 with Interfaces; use Interfaces;
 
 package Cryptography.Random is
+   --  Initialize the random number generator.
+   procedure Init;
+
    --  Fill a region in memory with random data.
    type Crypto_Data is array (Natural range <>) of Unsigned_8;
    procedure Fill_Data (Data : out Crypto_Data);
 
    --  Contribute a bit of entropy.
-   procedure Feed_Entropy (Data : Unsigned_32);
+   procedure Feed_Entropy (Data : Crypto_Data);
 
    --  Get random integers with optional ranges.
    procedure Get_Integer (Result : out Unsigned_64);
@@ -34,7 +37,4 @@ package Cryptography.Random is
            Post => Min <= Result and Result <= Max;
    pragma Annotate (GNATprove, False_Positive, "postcondition might fail",
                     "Counterexample works, could be a gnatprove bug?");
-private
-
-   procedure Entropy_Adjust;
 end Cryptography.Random;

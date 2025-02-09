@@ -1,5 +1,5 @@
 --  cryptography-random.adb: The random number generator of the kernel.
---  Copyright (C) 2024 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -15,51 +15,127 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Unchecked_Conversion;
-with Memory.Physical; use Memory.Physical;
-with Arch.Clocks;
-with Memory; use Memory;
 with Cryptography.Chacha20;
-with Cryptography.MD5;
+with Cryptography.MD5; use Cryptography.MD5;
 with Lib.Synchronization; use Lib.Synchronization;
+with Arch.Clocks;
+with Memory.Physical;
+with Arch.MMU;
 
 package body Cryptography.Random is
-   --  We maintain a pool of entropy that we shift and shuffle with new data
-   --  every time data is requested to be given. Then, we hash the data with
-   --  MD5 (but any cryptographic hash would work), and using it to seed a
-   --  chacha20 keystream.
+   --  We implement a fortuna-like PRNG as the kernel's random source.
+   --  https://en.wikipedia.org/wiki/Fortuna_(PRNG)
 
-   Accumulator_Mutex   : aliased Mutex := Unlocked_Mutex;
-   Entropy_Accumulator : MD5.MD5_Blocks (1 .. 1) := (1 => (others => 16#33#));
+   --  We have 6 pools, each the size of an MD5 block, since that makes it
+   --  easier for us to use MD5 to hash our fortuna pools.
+   --  Fortuna calls for 32, we use 16, I feel that is enough.
+   Pool_Count : constant := 16;
+   subtype Entropy_Pool_Idx is Natural range 1 .. Pool_Count;
+
+   --  Fortuna recommends we reseed every request but no faster than 10 times
+   --  a second, we will do no faster than 5 for extra speed.
+   Nanoseconds_Between_Reseed : constant := 200_000_000;
+
+   --  Data we use to store the current seed.
+   type Seed is record
+      Hash1, Hash2 : MD5.MD5_Hash;
+   end record with Size => 256;
+   function To_Seed is new Ada.Unchecked_Conversion (Seed, Chacha20.Key);
+
+   --  Globals to keep track of RNG state.
+   Accumulator_Mutex  :      aliased Mutex := Unlocked_Mutex;
+   Reseeding_Count    :        Unsigned_64 := 0;
+   Last_Reseed_Sec    :        Unsigned_64 := 0;
+   Last_Reseed_NSec   :        Unsigned_64 := 0;
+   Entropy_Feed_Idx   :   Entropy_Pool_Idx := 1;
+   Current_Seed_Block :        Unsigned_64 := 0;
+   Entropy_Pool       : MD5.MD5_Blocks_Acc := null;
+   Current_Seed       :               Seed := ([others => 0], [others => 0]);
+
+   procedure Init is
+      RSec, RNSec, MSec, MNSec : Unsigned_64;
+      S : Memory.Physical.Statistics;
+      V : Arch.MMU.Virtual_Statistics;
+
+      Data1 : Crypto_Data (1 .. 8) with Import, Address => RSec'Address;
+      Data2 : Crypto_Data (1 .. 8) with Import, Address => RNSec'Address;
+      Data3 : Crypto_Data (1 .. 8) with Import, Address => MSec'Address;
+      Data4 : Crypto_Data (1 .. 8) with Import, Address => MNSec'Address;
+      Data5 : Crypto_Data (1 .. 8) with Import, Address => S.Available'Address;
+      Data6 : Crypto_Data (1 .. 8) with Import, Address => S.Free'Address;
+      Data7 : Crypto_Data (1 .. 8) with Import, Address => S.Total'Address;
+      Data8 : Crypto_Data (1 .. 8)
+         with Import, Address => V.Kernel_Usage'Address;
+      Data9 : Crypto_Data (1 .. 8)
+         with Import, Address => V.Table_Usage'Address;
+   begin
+      --  Initialize.
+      Seize (Accumulator_Mutex);
+      Entropy_Pool := new MD5.MD5_Blocks'(1 .. Pool_Count => [others => 0]);
+      Release (Accumulator_Mutex);
+
+      --  Fill some preliminary data. This is just meant to have a baseline
+      --  that isnt just zeros, but the entropy here will be VERY VERY
+      --  anemic.
+      Memory.Physical.Get_Statistics (S);
+      Arch.Clocks.Get_Real_Time      (RSec, RNSec);
+      Arch.Clocks.Get_Monotonic_Time (MSec, MNSec);
+
+      Feed_Entropy (Data1); Feed_Entropy (Data2); Feed_Entropy (Data3);
+      Feed_Entropy (Data4); Feed_Entropy (Data5); Feed_Entropy (Data6);
+      Feed_Entropy (Data7); Feed_Entropy (Data8); Feed_Entropy (Data9);
+   end Init;
 
    procedure Fill_Data (Data : out Crypto_Data) is
-      type Seed is record
-         Entropy_Hash : MD5.MD5_Hash;
-         Mono_Sec     : Unsigned_64;
-         Mono_NSec    : Unsigned_64;
-      end record with Size => 256;
-      function To_Seed is new Ada.Unchecked_Conversion (Seed, Chacha20.Key);
-
-      S           : Seed;
-      Nonce       : Unsigned_64;
+      MSec, Nonce : Unsigned_64;
       Cha_Block   : Chacha20.Block := (others => 0);
       Index       : Natural     := Cha_Block'Last + 1;
       Mini_Index  : Natural     := 0;
-      Block_Index : Unsigned_64 := 0;
       Temp        : Unsigned_32 := 0;
    begin
       Seize (Accumulator_Mutex);
 
-      Entropy_Adjust;
+      --  Check whether we need to reseed at all, take the chance to take a
+      --  nonce as well.
+      Arch.Clocks.Get_Monotonic_Time (MSec, Nonce);
+      if MSec > Last_Reseed_Sec or else
+         Nonce - Last_Reseed_NSec >= Nanoseconds_Between_Reseed
+      then
+         Last_Reseed_Sec  := MSec;
+         Last_Reseed_NSec := Nonce;
 
-      S.Entropy_Hash := MD5.Digest (Entropy_Accumulator);
-      Arch.Clocks.Get_Monotonic_Time (S.Mono_Sec, S.Mono_NSec);
-      Nonce := S.Mono_NSec;
+         --  Choose which pools to seed with. We are doing this with a
+         --  fortuna-like approach, attempting for the higher pools to be used
+         --  less than the earlier ones.
+         for I in reverse 1 .. Pool_Count loop
+            if (I mod 2 ** (I - 1)) = 0 then
+               Current_Seed.Hash1 := MD5.Digest (Entropy_Pool (I .. I));
+               Current_Seed.Hash2 := Current_Seed.Hash1;
+               Current_Seed_Block := 0;
 
+               if Reseeding_Count = Unsigned_64'Last then
+                  Reseeding_Count := 0;
+               else
+                  Reseeding_Count := Reseeding_Count + 1;
+               end if;
+
+               exit;
+            end if;
+         end loop;
+      end if;
+      Nonce := Nonce xor Reseeding_Count; --  Just for some extra razzmatazz.
+
+      --  Do the block cypher thing.
       for Value of Data loop
          if Index > Cha_Block'Last then
-            Cha_Block   := Chacha20.Gen_Key (To_Seed (S), Nonce, Block_Index);
-            Index       := Cha_Block'First;
-            Block_Index := Block_Index + 1;
+            Cha_Block := Chacha20.Gen_Key
+               (To_Seed (Current_Seed), Nonce, Current_Seed_Block);
+            Index := Cha_Block'First;
+            if Current_Seed_Block /= Unsigned_64'Last then
+               Current_Seed_Block := Current_Seed_Block + 1;
+            else
+               Current_Seed_Block := 0;
+            end if;
          end if;
 
          case Mini_Index is
@@ -81,25 +157,45 @@ package body Cryptography.Random is
       Release (Accumulator_Mutex);
    end Fill_Data;
 
-   procedure Feed_Entropy (Data : Unsigned_32) is
+   procedure Feed_Entropy (Data : Crypto_Data) is
+      E_Idx    : Natural renames Entropy_Feed_Idx;
+      Idx      : Unsigned_32 := 0;
+      Last_Val :  Unsigned_8 := 0;
    begin
       Seize (Accumulator_Mutex);
-      Entropy_Accumulator (1) (0) := Entropy_Accumulator (1) (3) xor Data;
+
+      --  This function might be called before initialization.
+      if Entropy_Pool = null or Data'Length = 0 then
+         return;
+      end if;
+
+      --  Choose where the Idx starts by reseeding count.
+      Idx :=
+         (Entropy_Pool (E_Idx)'Length / 16) *
+          Unsigned_32 (Reseeding_Count mod 16);
+
+      --  Actually reseed.
+      for C of Data loop
+         Entropy_Pool (E_Idx) (Idx) :=
+            Entropy_Pool (E_Idx) (Unsigned_32 (C) mod MD5_Block'Length) xor
+            Entropy_Pool (E_Idx) (Idx)              xor
+            Shift_Left (Unsigned_32 (Last_Val),  0) xor
+            Shift_Left (Unsigned_32 (C), 16);
+         Last_Val := Unsigned_8 (Entropy_Pool (E_Idx) (Idx) and 16#FF#);
+
+         Idx := (if Idx = Entropy_Pool (E_Idx)'Last then 0 else Idx + 1);
+      end loop;
+
+      --  Adjust for next reseed.
+      E_Idx := (if E_Idx = Pool_Count then 1 else E_Idx + 1);
+
       Release (Accumulator_Mutex);
    end Feed_Entropy;
 
    procedure Get_Integer (Result : out Unsigned_64) is
-      Data : Crypto_Data (1 .. 8);
+      Data : Crypto_Data (1 .. 8) with Import, Address => Result'Address;
    begin
       Fill_Data (Data);
-      Result := Shift_Left (Unsigned_64 (Data (1)), 56) or
-                Shift_Left (Unsigned_64 (Data (2)), 48) or
-                Shift_Left (Unsigned_64 (Data (3)), 40) or
-                Shift_Left (Unsigned_64 (Data (4)), 32) or
-                Shift_Left (Unsigned_64 (Data (5)), 24) or
-                Shift_Left (Unsigned_64 (Data (6)), 16) or
-                Shift_Left (Unsigned_64 (Data (7)),  8) or
-                Shift_Left (Unsigned_64 (Data (8)),  0);
    end Get_Integer;
 
    procedure Get_Integer (Min, Max : Unsigned_64; Result : out Unsigned_64) is
@@ -107,35 +203,4 @@ package body Cryptography.Random is
       Get_Integer (Result);
       Result := (Result mod (Max + 1 - Min)) + Min;
    end Get_Integer;
-   ----------------------------------------------------------------------------
-   procedure Entropy_Adjust is
-      RSec, RNSec, MSec, MNSec, Avail, Free : Unsigned_64;
-      S      : Memory.Physical.Statistics;
-      Hashed : constant MD5.MD5_Hash := MD5.Digest (Entropy_Accumulator);
-   begin
-      Get_Statistics (S);
-      Arch.Clocks.Get_Real_Time (RSec, RNSec);
-      Arch.Clocks.Get_Monotonic_Time (MSec, MNSec);
-
-      Avail := Unsigned_64 (S.Available);
-      Free  := Unsigned_64 (S.Free);
-
-      Entropy_Accumulator (1) :=
-         (0  => Unsigned_32 (Shift_Right (MSec, 32) and 16#FFFFFFFF#),
-          1  => Unsigned_32 (MSec and 16#FFFFFFFF#),
-          2  => Unsigned_32 (Shift_Right (Avail, 32) and 16#FFFFFFFF#),
-          3  => Unsigned_32 (Avail and 16#FFFFFFFF#),
-          4  => Unsigned_32 (Shift_Right (RSec, 32) and 16#FFFFFFFF#),
-          5  => Unsigned_32 (RSec and 16#FFFFFFFF#),
-          6  => Unsigned_32 (Shift_Right (RNSec, 32) and 16#FFFFFFFF#),
-          7  => Unsigned_32 (RNSec and 16#FFFFFFFF#),
-          8  => Hashed (1),
-          9  => Hashed (2),
-          10 => Hashed (3),
-          11 => Hashed (4),
-          12 => Unsigned_32 (Shift_Right (Free, 32) and 16#FFFFFFFF#),
-          13 => Unsigned_32 (Free and 16#FFFFFFFF#),
-          14 => Unsigned_32 (MNSec and 16#FFFFFFFF#),
-          15 => 128);
-   end Entropy_Adjust;
 end Cryptography.Random;

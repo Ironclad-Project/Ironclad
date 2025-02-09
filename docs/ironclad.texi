@@ -4354,29 +4354,36 @@ otherwise used like any other block device. These RAM devices are read/write,
 but they cannot grow in size, so changes are constrained to the area the
 RAM device already has allocated.
 
-@subsection random/urandom/hwrng
+@subsection random/urandom
 
 The device @code{random} is equivalent to the one featured in other UNIX-like
 kernels, and can be read to get a stream of cryptographically secure
-pseudo-random bytes.
+pseudo-random bytes. It is implemented using a Fortuna-like PRNG, and does
+not block when waiting for new entropy.
 
-Ironclad has limited sources of entropy, so the quality of this random numbers
-may be limited as well. To mitigate this, one may write to the @code{random}
-device. The written data will be used as additional entropy.
+@code{random} allows for writing as well, which will take random data for
+mixing into the kernel's entropy pools.
+
+Ironclad does not go out of its way to feed user-accessible discrete randomness
+sources to the kernel's entropy pools, like a hardware RNG, or x86's
+@code{rdrand}. It is highly recommended to use userland daemons to periodically
+feed the kernel entropy with these kind of sources by writing to @code{random}.
+This can also be used to implement seed files, for example:
+
+@example sh
+# On boot, maybe as part of the init system.
+cat seedfile.bin > /dev/random
+
+# On poweroff.
+dd if=/dev/random of=seedfile.bin bs=4M count=1 iflag=fullblock
+@end example
 
 @code{/dev/urandom} does the same as @code{/dev/random}, and is only provided
-for compatibility.
+as a virtual alias for compatibility.
 
 @code{getrandom} is provided as well for avoiding the file interface when
-interfacing with @code{/dev/random}, as that may avoid certain kinds of DoS
+interfacing with @code{random}, as that may avoid certain kinds of DoS
 attacks related to opened file limits.
-
-When present, CPU random number generators may be exposed as @code{/dev/hwrng}.
-This device behaves the same as @code{/dev/random} apart from the fact that
-it does not allow writing to it. It is recommended that, unless necessary, you
-use @code{/dev/random} instead. If you are to use @code{hwrng}, be sure you
-trust your hardware to not be backdoored, else, those backdoors might be
-rendered useless by the kernel's own CSPRNG processing.
 
 @subsection null/zero
 

@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Cryptography.Random;
+with Cryptography.Random; use Cryptography.Random;
 
 package body Devices.Streams is
    procedure Init (Success : out Boolean) is
@@ -175,13 +175,7 @@ package body Devices.Streams is
       pragma Unreferenced (Offset);
       pragma Unreferenced (Is_Blocking);
    begin
-      if Data'Length >= 4 then
-         Cryptography.Random.Feed_Entropy
-            (Shift_Left (Unsigned_32 (Data (Data'First + 3)), 24) or
-             Shift_Left (Unsigned_32 (Data (Data'First + 2)), 16) or
-             Shift_Left (Unsigned_32 (Data (Data'First + 1)),  8) or
-             Shift_Left (Unsigned_32 (Data (Data'First + 0)),  0));
-      end if;
+      Feed_Entropy (Crypto_Data (Data));
       Ret_Count := Data'Length;
       Success   := True;
    end Random_Write;
