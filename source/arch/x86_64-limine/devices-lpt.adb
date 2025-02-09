@@ -28,7 +28,7 @@ package body Devices.LPT is
          Data := new LP_Data'(Port => LPT_Ports (I));
          Register
             ((Data        => Conv.To_Address (Conv.Object_Pointer (Data)),
-              ID          => (others => 0),
+              ID          => [others => 0],
               Is_Block    => False,
               Block_Size  => 4096,
               Block_Count => 0,
@@ -40,7 +40,7 @@ package body Devices.LPT is
               Mmap        => null,
               Poll        => null,
               Remove      => null),
-             "lpt" & (Character'Val (I + Character'Pos ('0'))), Success);
+             "lpt" & [Character'Val (I + Character'Pos ('0'))], Success);
       end loop;
       return Success;
    end Init;

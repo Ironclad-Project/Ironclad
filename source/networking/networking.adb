@@ -19,7 +19,7 @@ with Ada.Characters.Latin_1;
 package body Networking is
    procedure Get_Hostname (Name : out String; Length : out Natural) is
    begin
-      Name := (others => Ada.Characters.Latin_1.NUL);
+      Name := [others => Ada.Characters.Latin_1.NUL];
 
       if Name'Length < Hostname_Length then
          Length := Name'Length;

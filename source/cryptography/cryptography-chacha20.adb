@@ -21,13 +21,13 @@ package body Cryptography.Chacha20 is
       UN : constant Unsigned_64 := Shift_Right (Nonce, 32)    and 16#FFFFFFFF#;
       LN : constant Unsigned_64 := Shift_Right (Nonce, 0)     and 16#FFFFFFFF#;
 
-      Initial_Block : constant Block := (
+      Initial_Block : constant Block := [
          --  Hardcoded values of "expa", "nd 3", "2-by", "te k"
              16#65787061#,     16#6E642065#,     16#322D6279#,    16#7465206B#,
                  K.Value1,         K.Value2,         K.Value3,        K.Value4,
                  K.Value5,         K.Value6,         K.Value7,        K.Value8,
          Unsigned_32 (UB), Unsigned_32 (LB), Unsigned_32 (UN), Unsigned_32 (LN)
-      );
+      ];
       B : Block := Initial_Block;
    begin
       --  Do 2 iterations at once.

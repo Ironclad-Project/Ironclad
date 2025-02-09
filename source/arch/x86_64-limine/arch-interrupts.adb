@@ -32,14 +32,14 @@ package body Arch.Interrupts is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
    is
       Exception_Text : constant array (0 .. 30) of String (1 .. 3) :=
-         (0  => "#DE", 1  => "#DB", 2  => "???", 3  => "#BP",
+         [0  => "#DE", 1  => "#DB", 2  => "???", 3  => "#BP",
           4  => "#OF", 5  => "#BR", 6  => "#UD", 7  => "#NM",
           8  => "#DF", 9  => "???", 10 => "#TS", 11 => "#NP",
           12 => "#SS", 13 => "#GP", 14 => "#PF", 15 => "???",
           16 => "#MF", 17 => "#AC", 18 => "#MC", 19 => "#XM",
           20 => "#VE", 21 => "#CP", 22 => "???", 23 => "???",
           24 => "???", 25 => "???", 26 => "???", 27 => "???",
-          28 => "#HV", 29 => "#VC", 30 => "#SX");
+          28 => "#HV", 29 => "#VC", 30 => "#SX"];
    begin
       --  Check whether we have to panic or just exit the thread.
       if State.CS = (GDT.User_Code64_Segment or 3) then

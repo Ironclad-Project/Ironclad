@@ -22,7 +22,7 @@ package body Devices.Streams is
    begin
       Register
          ((Data        => System.Null_Address,
-           ID          => (others => 0),
+           ID          => Zero_UUID,
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,
@@ -36,7 +36,7 @@ package body Devices.Streams is
            Remove      => null), "null", Success_1);
       Register
          ((Data        => System.Null_Address,
-           ID          => (others => 0),
+           ID          => Zero_UUID,
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,
@@ -50,7 +50,7 @@ package body Devices.Streams is
            Remove      => null), "zero", Success_2);
       Register
          ((Data        => System.Null_Address,
-           ID          => (others => 0),
+           ID          => Zero_UUID,
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,
@@ -64,7 +64,7 @@ package body Devices.Streams is
            Remove      => null), "random", Success_3);
       Register
          ((Data        => System.Null_Address,
-           ID          => (others => 0),
+           ID          => Zero_UUID,
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,
@@ -92,7 +92,7 @@ package body Devices.Streams is
       pragma Unreferenced (Data);
       pragma Unreferenced (Is_Blocking);
    begin
-      Data      := (others => 0);
+      Data      := [others => 0];
       Ret_Count := 0;
       Success   := True;
    end Null_Read;
@@ -125,7 +125,7 @@ package body Devices.Streams is
       pragma Unreferenced (Offset);
       pragma Unreferenced (Is_Blocking);
    begin
-      Data      := (others => 0);
+      Data      := [others => 0];
       Ret_Count := Data'Length;
       Success   := True;
    end Zero_Read;

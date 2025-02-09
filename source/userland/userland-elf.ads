@@ -93,7 +93,7 @@ private
 
    type ELF_ID_Field is array (Natural range <>) of Unsigned_8;
    ELF_Signature : constant ELF_ID_Field (1 .. 4) :=
-      (16#7F#, Character'Pos ('E'), Character'Pos ('L'), Character'Pos ('F'));
+      [16#7F#, Character'Pos ('E'), Character'Pos ('L'), Character'Pos ('F')];
    type ELF_Header is record
       Identifier           : ELF_ID_Field (1 .. 16);
       ELF_Type             : Unsigned_16;

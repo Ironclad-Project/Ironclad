@@ -88,7 +88,7 @@ package body Scheduler with SPARK_Mode => Off is
    --  We take advantage of the monotic clock starting at 0 in boot.
    type Stats_Bucket_Arr is array (1 .. 15) of Unsigned_32;
    Last_Bucket : Unsigned_64      := 0;
-   Buckets     : Stats_Bucket_Arr := (others => 0);
+   Buckets     : Stats_Bucket_Arr := [others => 0];
 
    procedure Init (Success : out Boolean) is
    begin
@@ -575,7 +575,7 @@ package body Scheduler with SPARK_Mode => Off is
             Thread_Pool (Thread).Path (1 .. Thread_Pool (Thread).Path_Len);
          Len := Thread_Pool (Thread).Path_Len;
       else
-         Name := (others => ' ');
+         Name := [others => ' '];
          Len  := 0;
       end if;
    end Get_Name;
@@ -784,7 +784,7 @@ package body Scheduler with SPARK_Mode => Off is
    procedure List_All (List : out Thread_Listing_Arr; Total : out Natural) is
       Curr_Index : Natural := 0;
    begin
-      List  := (others => (Error_TID, Error_TCID, 0));
+      List  := [others => (Error_TID, Error_TCID, 0)];
       Total := 0;
 
       Lib.Synchronization.Seize (Scheduler_Mutex);
@@ -805,7 +805,7 @@ package body Scheduler with SPARK_Mode => Off is
    procedure List_All (List : out Cluster_Listing_Arr; Total : out Natural) is
       Curr_Index : Natural := 0;
    begin
-      List  := (others => (Error_TCID, Cluster_RR, False, 0));
+      List  := [others => (Error_TCID, Cluster_RR, False, 0)];
       Total := 0;
 
       Lib.Synchronization.Seize (Scheduler_Mutex);

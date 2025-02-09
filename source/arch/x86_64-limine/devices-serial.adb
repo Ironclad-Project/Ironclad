@@ -47,7 +47,7 @@ package body Devices.Serial is
             Device_Name (7) := Character'Val (I + Character'Pos ('0'));
             Device :=
                (Data        => C1.To_Address (C1.Object_Pointer (Data)),
-                ID          => (others => 0),
+                ID          => [others => 0],
                 Is_Block    => False,
                 Block_Size  => 4096,
                 Block_Count => 0,

@@ -118,7 +118,7 @@ package body IPC.FileLock is
    procedure List_All (Buffer : out Lock_Arr; Length : out Natural) is
       Curr_Index : Natural := 0;
    begin
-      Buffer := (others => (Error_PID, False, 0, 0, VFS.Error_Handle, 0));
+      Buffer := [others => (Error_PID, False, 0, 0, VFS.Error_Handle, 0)];
       Length := 0;
 
       if Buffer'Length /= 0 then

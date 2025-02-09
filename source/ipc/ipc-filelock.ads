@@ -113,7 +113,7 @@ private
 
    Registry_Mutex : aliased Mutex := Unlocked_Mutex;
    Registry       : Lock_Inner_Arr :=
-      (others => (VFS.Error_Handle, 0, 0, 0, Error_PID, False));
+      [others => (VFS.Error_Handle, 0, 0, 0, Error_PID, False)];
 
    procedure Inner_Could_Acquire
       (Acquired_FS  : VFS.FS_Handle;

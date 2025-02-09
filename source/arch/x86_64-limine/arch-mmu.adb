@@ -79,7 +79,7 @@ package body Arch.MMU is
    begin
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Table'
-         (PML4_Level      => (others => 0),
+         (PML4_Level      => [others => 0],
           Mutex           => Lib.Synchronization.Unlocked_RW_Lock,
           Map_Ranges_Root => null);
 
@@ -142,7 +142,7 @@ package body Arch.MMU is
       Success    : Boolean;
    begin
       Forked := new Page_Table'
-         (PML4_Level      => (others => 0),
+         (PML4_Level      => [others => 0],
           Mutex           => Lib.Synchronization.Unlocked_RW_Lock,
           Map_Ranges_Root => null);
 
@@ -434,7 +434,7 @@ package body Arch.MMU is
 
    <<Ret>>
       if Success then
-         Allocated      := (others => 0);
+         Allocated      := [others => 0];
          Physical_Start := To_Address (Addr);
       else
          F (New_Range);

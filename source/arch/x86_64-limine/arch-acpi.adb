@@ -35,8 +35,8 @@ package body Arch.ACPI with SPARK_Mode => Off is
    --  Request to get the RSDP.
    --  Response is a pointer to an RSDP_Response.
    RSDP_Request : Limine.Request :=
-      (ID => (Limine.Limine_Common_Magic_1, Limine.Limine_Common_Magic_2,
-              16#c5e77b6b397e7b43#, 16#27637845accdcf3c#),
+      (ID => [Limine.Limine_Common_Magic_1, Limine.Limine_Common_Magic_2,
+              16#c5e77b6b397e7b43#, 16#27637845accdcf3c#],
        Revision => 0,
        Response => System.Null_Address)
       with Export, Async_Writers;
@@ -83,7 +83,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    ----------------------------------------------------------------------------
    function FindTable (Signature : SDT_Signature) return Virtual_Address is
       Sig : String (1 .. Signature'Length + 1) :=
-         Signature & (1 => Ada.Characters.Latin_1.NUL);
+         Signature & [Ada.Characters.Latin_1.NUL];
       Rec : Table_Record;
       Discard : Status;
    begin

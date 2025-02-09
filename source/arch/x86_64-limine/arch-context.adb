@@ -146,9 +146,9 @@ package body Arch.Context is
    procedure Save_XSAVE  (Ctx : in out System.Address) is
    begin
       Asm ("xsave (%0)",
-           Inputs   => (System.Address'Asm_Input ("r", Ctx),
+           Inputs   => [System.Address'Asm_Input ("r", Ctx),
                         Unsigned_32'Asm_Input ("a", 16#FFFFFFFF#),
-                        Unsigned_32'Asm_Input ("d", 16#FFFFFFFF#)),
+                        Unsigned_32'Asm_Input ("d", 16#FFFFFFFF#)],
            Clobber  => "memory",
            Volatile => True);
    end Save_XSAVE;
@@ -164,9 +164,9 @@ package body Arch.Context is
    procedure Load_XRSTOR (Ctx : System.Address) is
    begin
       Asm ("xrstor (%0)",
-           Inputs   => (System.Address'Asm_Input ("r", Ctx),
+           Inputs   => [System.Address'Asm_Input ("r", Ctx),
                         Unsigned_32'Asm_Input ("a", 16#FFFFFFFF#),
-                        Unsigned_32'Asm_Input ("d", 16#FFFFFFFF#)),
+                        Unsigned_32'Asm_Input ("d", 16#FFFFFFFF#)],
            Clobber  => "memory",
            Volatile => True);
    end Load_XRSTOR;

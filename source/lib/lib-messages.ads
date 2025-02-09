@@ -88,7 +88,7 @@ private
       with Part_Of => Message_State;
    Curr_Entry       : Natural := 1
       with Part_Of => Message_State;
-   Small_Log_Buffer : Message_Buffer (1 .. 15) := (others => (1 .. 80 => ' '))
+   Small_Log_Buffer : Message_Buffer (1 .. 15) := [others => [1 .. 80 => ' ']]
       with Part_Of => Message_State;
    Log_Ring_Buffer  : Message_Buffer_Acc := null
       with Part_Of => Message_State;

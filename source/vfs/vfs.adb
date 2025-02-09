@@ -23,15 +23,15 @@ package body VFS is
    procedure Init is
       pragma SPARK_Mode (Off);
    begin
-      Mounts := new Mount_Registry'(others =>
+      Mounts := new Mount_Registry'[others =>
          (Mounted_Dev => Devices.Error_Handle,
           Mounted_FS  => FS_EXT,
           FS_Data     => System.Null_Address,
           Path_Length => 0,
-          Path_Buffer => (others => ' '),
+          Path_Buffer => [others => ' '],
           Base_Key    => Error_Handle,
           Base_Ino    => 0,
-          Root_Ino    => 0));
+          Root_Ino    => 0)];
       Mounts_Mutex := Lib.Synchronization.Unlocked_Semaphore;
       Root_Idx     := Error_Handle;
    end Init;
@@ -121,7 +121,7 @@ package body VFS is
              Mounted_FS  => FS,
              FS_Data     => FS_Data,
              Path_Length => Mount_Path'Length,
-             Path_Buffer => (others => ' '),
+             Path_Buffer => [others => ' '],
              Base_Key    => Key,
              Base_Ino    => Ino,
              Root_Ino    => Root_Inode);
@@ -269,7 +269,7 @@ package body VFS is
       Curr_Index : Natural := 0;
    begin
       Total := 0;
-      List  := (others => Error_Handle);
+      List  := [others => Error_Handle];
 
       Lib.Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
@@ -305,7 +305,7 @@ package body VFS is
        Length : out Natural)
    is
    begin
-      Name := (others => ' ');
+      Name := [others => ' '];
       Name (Name'First .. Name'First + Mounts (Key).Path_Length - 1) :=
          Mounts (Key).Path_Buffer (1 .. Mounts (Key).Path_Length);
       Length := Mounts (Key).Path_Length;
@@ -845,7 +845,7 @@ package body VFS is
             EXT.Read_Symbolic_Link
                (Mounts (Key).FS_Data, Ino, Path, Ret_Count, Success);
          when others =>
-            Path      := (others => ' ');
+            Path      := [others => ' '];
             Ret_Count := 0;
             Success   := FS_Not_Supported;
       end case;

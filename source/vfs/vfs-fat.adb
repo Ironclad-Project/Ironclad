@@ -249,7 +249,7 @@ package body VFS.FAT with SPARK_Mode => Off is
       Discard        : Natural;
       Succ           : Boolean;
    begin
-      Data      := (others => 0);
+      Data      := [others => 0];
       Ret_Count := 0;
       Success   := FS_Success;
 

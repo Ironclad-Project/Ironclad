@@ -48,7 +48,7 @@ package body Userland.Process is
    is
       Index : Natural := 0;
    begin
-      Buf := (others => Error_PID);
+      Buf := [others => Error_PID];
       Len := 0;
       Lib.Synchronization.Seize (Registry_Mutex);
       for I in Registry.all'Range loop
@@ -68,14 +68,14 @@ package body Userland.Process is
       Curr_Index : Natural := 0;
    begin
       List :=
-         (others =>
-            (Identifier      => (others => ' '),
+         [others =>
+            (Identifier      => [others => ' '],
              Identifier_Len  => 0,
              Process         => Error_PID,
              Parent          => 0,
              User            => 0,
              Is_Being_Traced => False,
-             Has_Exited      => False));
+             Has_Exited      => False)];
       Total := 0;
 
       Lib.Synchronization.Seize (Registry_Mutex);
@@ -111,9 +111,9 @@ package body Userland.Process is
             Registry (I) := new Process_Data'
                (Data_Mutex      => Lib.Synchronization.Unlocked_Mutex,
                 Controlling_TTY => null,
-                Masked_Signals  => (others => False),
-                Raised_Signals  => (others => False),
-                Signal_Handlers => (others => System.Null_Address),
+                Masked_Signals  => [others => False],
+                Raised_Signals  => [others => False],
+                Signal_Handlers => [others => System.Null_Address],
                 Niceness        => Scheduler.Default_Niceness,
                 Umask           => Default_Umask,
                 User            => 0,
@@ -121,16 +121,16 @@ package body Userland.Process is
                 Group           => 0,
                 Effective_Group => 0,
                 SGroup_Count    => 0,
-                SGroups         => (others => 0),
-                Identifier      => (others => ' '),
+                SGroups         => [others => 0],
+                Identifier      => [others => ' '],
                 Identifier_Len  => 0,
                 Parent          => 0,
                 Is_Traced       => False,
                 Tracer_FD       => 0,
                 Current_Dir_FS  => VFS.Error_Handle,
                 Current_Dir_Ino => 0,
-                Thread_List     => (others => Error_TID),
-                File_Table      => (others => (False, False, null)),
+                Thread_List     => [others => Error_TID],
+                File_Table      => [others => (False, False, null)],
                 Common_Map      => null,
                 Stack_Base      => 0,
                 Alloc_Base      => 0,
@@ -795,7 +795,7 @@ package body Userland.Process is
    is
       Length : Natural;
    begin
-      ID := (others => ' ');
+      ID := [others => ' '];
 
       if ID'Length > Registry (Proc).Identifier_Len then
          Length := Registry (Proc).Identifier_Len;

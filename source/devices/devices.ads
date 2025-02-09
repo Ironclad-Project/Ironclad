@@ -35,7 +35,7 @@ package Devices is
       with Pack, Object_Size => 16 * 8;
 
    subtype UUID_String is String (1 .. 36);
-   Zero_UUID : constant UUID := (others => 0);
+   Zero_UUID : constant UUID := [others => 0];
 
    --  Data that defines a device.
    type Resource is record

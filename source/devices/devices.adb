@@ -161,7 +161,7 @@ package body Devices is
        Length : out Natural)
    is
    begin
-      Name := (others => ' ');
+      Name := [others => ' '];
       Name (Name'First .. Name'First + Devices_Data (Handle).Name_Len - 1) :=
          Devices_Data (Handle).Name (1 .. Devices_Data (Handle).Name_Len);
       Length := Devices_Data (Handle).Name_Len;
@@ -171,7 +171,7 @@ package body Devices is
       Curr_Index : Natural := 0;
    begin
       Total  := 0;
-      Buffer := (others => Error_Handle);
+      Buffer := [others => Error_Handle];
 
       for I in Devices_Data'Range loop
          pragma Loop_Invariant (Total <= Devices_Data'Length);
@@ -265,7 +265,7 @@ package body Devices is
              Success   => Success,
              Is_Blocking => Is_Blocking);
       else
-         Data      := (others => 0);
+         Data      := [others => 0];
          Ret_Count := 0;
          Success   := False;
       end if;
@@ -378,7 +378,7 @@ package body Devices is
       Res : Unsigned_8;
       Idx : Natural := 0;
    begin
-      Frag := (others => 0);
+      Frag := [others => 0];
       for I in reverse Val'Range loop
          Res := To_Integer (Val (I));
 
@@ -396,7 +396,7 @@ package body Devices is
       Res : Unsigned_8;
       Idx : Natural := 0;
    begin
-      Frag := (others => 0);
+      Frag := [others => 0];
       for I in Val'Range loop
          Res := To_Integer (Val (I));
 

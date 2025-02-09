@@ -38,7 +38,7 @@ package body IPC.SHM is
 
    Registry_Mutex : aliased Mutex := Unlocked_Mutex;
    Registry : Segment_Arr :=
-      (others => (False, 0, 0, 0, 0, 0, 0, 0, 0, 0, False));
+      [others => (False, 0, 0, 0, 0, 0, 0, 0, 0, 0, False)];
 
    procedure Create_Segment
       (Wanted_Key  : Unsigned_32;

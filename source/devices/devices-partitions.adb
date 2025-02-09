@@ -251,7 +251,7 @@ package body Devices.Partitions is
       end if;
       MBR := MBR_Data_Acc (Con2.To_Pointer (S_Addr));
 
-      if MBR.Boot_Signature /= (16#55#, 16#AA#) then
+      if MBR.Boot_Signature /= [16#55#, 16#AA#] then
          Success := True;
          goto Return_End;
       end if;
@@ -264,7 +264,7 @@ package body Devices.Partitions is
                 Block_Size   => Block_Size,
                 LBA_Offset   => Unsigned_64 (MBR.Entries (I).First_Sector),
                 LBA_Length   => Unsigned_64 (MBR.Entries (I).Sector_Count));
-            if not Set_Part (Name, I, Block_Size, Part, (others => 0)) then
+            if not Set_Part (Name, I, Block_Size, Part, [others => 0]) then
                Success := False;
                goto Return_End;
             end if;
@@ -298,7 +298,7 @@ package body Devices.Partitions is
          Mmap        => null,
          Poll        => null,
          Remove      => null
-      ), Name & (1 => 'p', 2 => Character'Val (Index + Character'Pos ('0'))),
+      ), Name & [1 => 'p', 2 => Character'Val (Index + Character'Pos ('0'))],
          Success);
       return Success;
    end Set_Part;

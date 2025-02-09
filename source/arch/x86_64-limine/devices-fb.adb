@@ -125,7 +125,7 @@ package body Devices.FB with SPARK_Mode => Off is
             Data := new Internal_FB_Data'
                (Fb         => Fb.all,
                 Fixed_Info =>
-                  (ID           => "Limine BootFB" & (14 .. 16 => NUL),
+                  (ID           => "Limine BootFB" & [14 .. 16 => NUL],
                    SMem_Start   => 0,
                    SMem_Length  => Unsigned_32 (Fb.Pitch * Fb.Height),
                    FB_Type      => FB_TYPE_PACKED_PIXELS,
@@ -157,7 +157,7 @@ package body Devices.FB with SPARK_Mode => Off is
 
             Device :=
                (Data        => Data.all'Address,
-                ID          => (others => 0),
+                ID          => [others => 0],
                 Is_Block    => False,
                 Block_Size  => 4096,
                 Block_Count => 0,

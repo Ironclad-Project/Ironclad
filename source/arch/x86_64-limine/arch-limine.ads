@@ -213,36 +213,36 @@ package Arch.Limine with SPARK_Mode => Off is
 
    --  IDs of several kinds of requests.
    Framebuffer_ID : constant Request_ID :=
-      (Limine_Common_Magic_1, Limine_Common_Magic_2,
-       16#9d5827dcd881dd75#, 16#a3148604f6fab11b#);
+      [Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#9d5827dcd881dd75#, 16#a3148604f6fab11b#];
 
    Memmap_ID : constant Request_ID :=
-      (Limine_Common_Magic_1, Limine_Common_Magic_2,
-       16#67cf3d9d378a806f#, 16#e304acdfc50c3c62#);
+      [Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#67cf3d9d378a806f#, 16#e304acdfc50c3c62#];
 
    Kernel_File_ID : constant Request_ID :=
-      (Limine_Common_Magic_1, Limine_Common_Magic_2,
-       16#ad97e90e83f1ed67#, 16#31eb5d1c5ff23b69#);
+      [Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#ad97e90e83f1ed67#, 16#31eb5d1c5ff23b69#];
 
    Kernel_Address_ID : constant Request_ID :=
-      (Limine_Common_Magic_1, Limine_Common_Magic_2,
-       16#71ba76863cc55f63#, 16#b2644a48c516a487#);
+      [Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#71ba76863cc55f63#, 16#b2644a48c516a487#];
 
    Bootloader_Info_ID : constant Request_ID :=
-      (Limine_Common_Magic_1, Limine_Common_Magic_2,
-       16#f55038d8e2a1202f#, 16#279426fcf5f59740#);
+      [Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#f55038d8e2a1202f#, 16#279426fcf5f59740#];
 
    SMP_ID : constant Request_ID :=
-      (Limine_Common_Magic_1, Limine_Common_Magic_2,
-       16#95a67b819a1b857e#, 16#a0b61b723b6a73e0#);
+      [Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#95a67b819a1b857e#, 16#a0b61b723b6a73e0#];
 
    Modules_ID : constant Request_ID :=
-      (Limine_Common_Magic_1, Limine_Common_Magic_2,
-       16#3e7e279702be32af#, 16#ca1c4f3bd1280cee#);
+      [Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#3e7e279702be32af#, 16#ca1c4f3bd1280cee#];
 
    DTB_ID : constant Request_ID :=
-      (Limine_Common_Magic_1, Limine_Common_Magic_2,
-       16#b40ddb48fb54bac7#, 16#545081493f81ffb7#);
+      [Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#b40ddb48fb54bac7#, 16#545081493f81ffb7#];
 
 private
 

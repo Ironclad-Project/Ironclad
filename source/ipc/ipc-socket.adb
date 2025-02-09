@@ -35,7 +35,7 @@ package body IPC.Socket is
                    (Mutex        => Lib.Synchronization.Unlocked_Mutex,
                     Dom          => IPv4,
                     Typ          => Raw,
-                    IPv4_Cached_Address => (others => 0),
+                    IPv4_Cached_Address => [others => 0],
                     IPv4_Cached_Port => 0);
                when others =>
                   return null;
@@ -47,7 +47,7 @@ package body IPC.Socket is
                    (Mutex        => Lib.Synchronization.Unlocked_Mutex,
                     Dom          => IPv6,
                     Typ          => Raw,
-                    IPv6_Cached_Address => (others => 0),
+                    IPv6_Cached_Address => [others => 0],
                     IPv6_Cached_Port => 0);
                when others =>
                   return null;
@@ -63,7 +63,7 @@ package body IPC.Socket is
                     Connected      => null,
                     Pending_Accept => null,
                     Established    => null,
-                    Data           => (others => 0),
+                    Data           => [others => 0],
                     Data_Length    => 0);
                when Datagram =>
                   return new Socket'
@@ -71,7 +71,7 @@ package body IPC.Socket is
                     Dom              => UNIX,
                     Typ              => Datagram,
                     Simple_Connected => null,
-                    Data             => (others => 0),
+                    Data             => [others => 0],
                     Data_Length      => 0);
                when Raw =>
                   return null;
@@ -222,7 +222,7 @@ package body IPC.Socket is
    is
       pragma Unreferenced (Sock);
    begin
-      Addr := (others => 0);
+      Addr := [others => 0];
       Port := 0;
       Success := False;
    end Get_Bound;
@@ -235,7 +235,7 @@ package body IPC.Socket is
    is
       pragma Unreferenced (Sock);
    begin
-      Addr := (others => 0);
+      Addr := [others => 0];
       Port := 0;
       Success := False;
    end Get_Peer;
@@ -279,7 +279,7 @@ package body IPC.Socket is
       pragma Unreferenced (Sock);
       pragma Unreferenced (Is_Blocking);
    begin
-      Peer_Address := (others => 0);
+      Peer_Address := [others => 0];
       Peer_Port := 0;
       Result := null;
    end Accept_Connection;
@@ -303,7 +303,7 @@ package body IPC.Socket is
          when Raw =>
             Networking.Interfaces.Get_Suitable_Interface (Addr, Dev);
             if Dev = Devices.Error_Handle then
-               Data      := (others => 0);
+               Data      := [others => 0];
                Ret_Count := 0;
                Success   := Would_Block;
                return;
@@ -320,7 +320,7 @@ package body IPC.Socket is
                Success := Would_Block;
             end if;
          when others =>
-            Data := (others => 0);
+            Data := [others => 0];
             Ret_Count := 0;
             Success := Is_Bad_Type;
       end case;
@@ -382,7 +382,7 @@ package body IPC.Socket is
    is
       pragma Unreferenced (Sock);
    begin
-      Addr := (others => 0);
+      Addr := [others => 0];
       Port := 0;
       Success := False;
    end Get_Bound;
@@ -395,7 +395,7 @@ package body IPC.Socket is
    is
       pragma Unreferenced (Sock);
    begin
-      Addr := (others => 0);
+      Addr := [others => 0];
       Port := 0;
       Success := False;
    end Get_Peer;
@@ -440,7 +440,7 @@ package body IPC.Socket is
       pragma Unreferenced (Sock);
       pragma Unreferenced (Is_Blocking);
    begin
-      Peer_Address := (others => 0);
+      Peer_Address := [others => 0];
       Peer_Port := 0;
       Result := null;
    end Accept_Connection;
@@ -464,7 +464,7 @@ package body IPC.Socket is
          when Raw =>
             Networking.Interfaces.Get_Suitable_Interface (Addr, Dev);
             if Dev = Devices.Error_Handle then
-               Data      := (others => 0);
+               Data      := [others => 0];
                Ret_Count := 0;
                Success   := Would_Block;
                return;
@@ -541,7 +541,7 @@ package body IPC.Socket is
        Success : out Boolean)
    is
    begin
-      Path    := (others => ' ');
+      Path    := [others => ' '];
       Length  := 0;
       Success := False;
 
@@ -565,7 +565,7 @@ package body IPC.Socket is
        Success : out Boolean)
    is
    begin
-      Path    := (others => ' ');
+      Path    := [others => ' '];
       Length  := 0;
       Success := False;
 
@@ -662,7 +662,7 @@ package body IPC.Socket is
    is
       Tmp : Socket_Acc;
    begin
-      Peer_Address        := (others => ' ');
+      Peer_Address        := [others => ' '];
       Peer_Address_Length := 0;
       Result              := null;
 
@@ -841,7 +841,7 @@ package body IPC.Socket is
       case Sock.Typ is
          when Stream =>
             if Sock.Is_Listener or Sock.Pending_Accept = null then
-               Data      := (others => 0);
+               Data      := [others => 0];
                Ret_Count := 0;
                Success   := Is_Bad_Type;
                goto Cleanup;
@@ -850,7 +850,7 @@ package body IPC.Socket is
                   Lib.Synchronization.Release (Sock.Mutex);
                   goto Retry;
                else
-                  Data      := (others => 0);
+                  Data      := [others => 0];
                   Ret_Count := 0;
                   Success   := Would_Block;
                   goto Cleanup;

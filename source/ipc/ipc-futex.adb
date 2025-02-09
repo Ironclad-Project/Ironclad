@@ -28,7 +28,7 @@ package body IPC.Futex is
    type Futex_Arr is array (1 .. 75) of Futex_Inner;
 
    Registry_Mutex : aliased Mutex := Unlocked_Mutex;
-   Registry       :     Futex_Arr := (others => (null, False, 0));
+   Registry       :     Futex_Arr := [others => (null, False, 0)];
 
    procedure Wait
       (Keys        : Element_Arr;

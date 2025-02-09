@@ -21,13 +21,13 @@ package body Cryptography.MD5 is
    --  which is GPLv3-Or-Later compatible.
 
    S : constant array (Unsigned_32 range 0 .. 63) of Natural :=
-      (7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+      [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
        5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20,
        4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
-       6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21);
+       6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21];
 
    K : constant array (Unsigned_32 range 0 .. 63) of Unsigned_32 :=
-      (16#d76aa478#, 16#e8c7b756#, 16#242070db#, 16#c1bdceee#,
+      [16#d76aa478#, 16#e8c7b756#, 16#242070db#, 16#c1bdceee#,
        16#f57c0faf#, 16#4787c62a#, 16#a8304613#, 16#fd469501#,
        16#698098d8#, 16#8b44f7af#, 16#ffff5bb1#, 16#895cd7be#,
        16#6b901122#, 16#fd987193#, 16#a679438e#, 16#49b40821#,
@@ -42,7 +42,7 @@ package body Cryptography.MD5 is
        16#f4292244#, 16#432aff97#, 16#ab9423a7#, 16#fc93a039#,
        16#655b59c3#, 16#8f0ccc92#, 16#ffeff47d#, 16#85845dd1#,
        16#6fa87e4f#, 16#fe2ce6e0#, 16#a3014314#, 16#4e0811a1#,
-       16#f7537e82#, 16#bd3af235#, 16#2ad7d2bb#, 16#eb86d391#);
+       16#f7537e82#, 16#bd3af235#, 16#2ad7d2bb#, 16#eb86d391#];
 
    function Digest (Data : MD5_Blocks) return MD5_Hash is
       Total_A : Unsigned_32 := 16#67452301#;
@@ -87,6 +87,6 @@ package body Cryptography.MD5 is
          Total_D := Total_D + Round_D;
       end loop;
 
-      return (Total_A, Total_B, Total_C, Total_D);
+      return [Total_A, Total_B, Total_C, Total_D];
    end Digest;
 end Cryptography.MD5;

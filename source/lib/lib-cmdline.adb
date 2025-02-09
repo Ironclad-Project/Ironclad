@@ -31,7 +31,7 @@ package body Lib.Cmdline is
       Do_Until_Quotes : Boolean;
       Returned_Idx    : Natural := Returned'First;
    begin
-      Returned := (others => ' ');
+      Returned := [others => ' '];
 
       Find_Key (Cmdline, Key, Found, Last_Index);
       if not Found then

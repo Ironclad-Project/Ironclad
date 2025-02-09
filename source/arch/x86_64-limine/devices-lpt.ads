@@ -21,7 +21,7 @@ package Devices.LPT is
 private
 
    LPT_Ports : constant array (1 .. 3) of Unsigned_16 :=
-      (16#378#, 16#278#, 16#3BC#);
+      [16#378#, 16#278#, 16#3BC#];
 
    type LP_Data is record
       Port : Unsigned_16;

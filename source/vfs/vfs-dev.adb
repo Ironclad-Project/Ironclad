@@ -155,7 +155,7 @@ package body VFS.Dev is
             Entities (Entities'First + Ret_Count) :=
                (Inode_Number =>
                   Unsigned_64 (Devices.Get_Unique_ID (Buffer (I))),
-                Name_Buffer  => (others => ' '),
+                Name_Buffer  => [others => ' '],
                 Name_Len     => 0,
                 Type_Of_File => File_Character_Device);
             if Devices.Is_Block_Device (Buffer (I)) then

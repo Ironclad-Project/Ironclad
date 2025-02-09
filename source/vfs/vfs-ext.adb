@@ -286,12 +286,12 @@ package body VFS.EXT with SPARK_Mode => Off is
           Sectors             => 0,
           Flags               => 0,
           OS_Specific_Value_1 => 0,
-          Blocks              => (others => 0),
+          Blocks              => [others => 0],
           Generation_Number   => 0,
           EAB                 => 0,
           Size_High           => 0,
           Fragment_Address    => 0,
-          OS_Specific_Value_2 => (others => 0));
+          OS_Specific_Value_2 => [others => 0]);
 
       Add_Directory_Entry
          (FS_Data     => Data,
@@ -318,7 +318,7 @@ package body VFS.EXT with SPARK_Mode => Off is
              Data        => Ent_Data,
              Ret_Count   => Temp,
              Success     => Success);
-         Name := ('.', Ada.Characters.Latin_1.NUL);
+         Name := ['.', Ada.Characters.Latin_1.NUL];
          Write_To_Inode
             (FS_Data     => Data,
              Inode_Data  => Target_Inode.all,
@@ -786,7 +786,7 @@ package body VFS.EXT with SPARK_Mode => Off is
              Ret_Count => Ret_Count);
          Success := (if Ret_Count /= 0 then FS_Success else FS_IO_Failure);
       else
-         Path      := (others => ' ');
+         Path      := [others => ' '];
          Ret_Count := 0;
          Success   := FS_Invalid_Value;
       end if;

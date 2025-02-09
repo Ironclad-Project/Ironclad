@@ -161,18 +161,18 @@ private
       (Action  => Deny,
        Caps    => (others => True),
        Limits  =>
-         (Core_Size_Limit   => 0, --  Disabled by default due to privacy.
+         [Core_Size_Limit   => 0, --  Disabled by default due to privacy.
           CPU_Time_Limit    => Limit_Value'Last,
           File_Size_Limit   => Limit_Value'Last,
           Opened_File_Limit => Limit_Value'Last,
           Stack_Size_Limit  => 16#400000#, --  4 MiB by default.
-          Memory_Size_Limit => Limit_Value'Last),
-       Filters => (others =>
+          Memory_Size_Limit => Limit_Value'Last],
+       Filters => [others =>
          (Is_Used   => False,
           Is_Device => False,
           FS        => VFS.Error_Handle,
           Ino       => 0,
-          Perms     => (others => False))));
+          Perms     => (others => False))]);
 
    procedure Add_Filter
       (Data   : in out Context;

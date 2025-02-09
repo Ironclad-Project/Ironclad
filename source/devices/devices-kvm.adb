@@ -27,7 +27,7 @@ package body Devices.KVM is
       if Virtualization.Is_Supported then
          Device :=
             (Data        => System.Null_Address,
-             ID          => (others => 0),
+             ID          => Zero_UUID,
              Is_Block    => False,
              Block_Size  => 4096,
              Block_Count => 0,

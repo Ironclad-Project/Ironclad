@@ -339,7 +339,7 @@ package body Userland.Loader is
             (Exec_Path   => Exec_Path,
              FS          => Banged_FS,
              Ino         => Banged_Ino,
-             Arguments   => (Path_Acc, Arg_Acc) & Arguments,
+             Arguments   => [Path_Acc, Arg_Acc] & Arguments,
              Environment => Environment,
              Proc        => Proc,
              Success     => Success);

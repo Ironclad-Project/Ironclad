@@ -50,7 +50,7 @@ package body IPC.PTY is
           Output_Modes  => OPOST or ONLCR,
           Control_Modes => 0,
           Local_Mode    => (others => False),
-          Special_Chars => (others => 0),
+          Special_Chars => [others => 0],
           Input_Baud    => 0,
           Output_Baud   => 0);
 
@@ -70,14 +70,14 @@ package body IPC.PTY is
           Termios_Changed    => False,
           Primary_Length     => 0,
           Secondary_Length   => 0,
-          Primary_Data       => (others => 0),
-          Secondary_Data     => (others => 0));
+          Primary_Data       => [others => 0],
+          Secondary_Data     => [others => 0]);
 
       Lib.Messages.Image (Unsigned_32 (Name_Index), Num_Str, Num_Len);
 
       Resource :=
          (Data        => Conv.To_Address (Conv.Object_Pointer (Result)),
-          ID          => (others => 0),
+          ID          => Devices.Zero_UUID,
           Is_Block    => False,
           Block_Size  => 4096,
           Block_Count => 0,
@@ -261,13 +261,13 @@ package body IPC.PTY is
    begin
       if To_Read then
          Lib.Synchronization.Seize (P.Primary_Mutex);
-         P.Primary_Data   := (others => 0);
+         P.Primary_Data   := [others => 0];
          P.Primary_Length := 0;
          Lib.Synchronization.Release (P.Primary_Mutex);
       end if;
       if To_Transmit then
          Lib.Synchronization.Seize (P.Secondary_Mutex);
-         P.Secondary_Data   := (others => 0);
+         P.Secondary_Data   := [others => 0];
          P.Secondary_Length := 0;
          Lib.Synchronization.Release (P.Secondary_Mutex);
       end if;
@@ -277,13 +277,13 @@ package body IPC.PTY is
    begin
       if To_Read then
          Lib.Synchronization.Seize (P.Secondary_Mutex);
-         P.Secondary_Data   := (others => 0);
+         P.Secondary_Data   := [others => 0];
          P.Secondary_Length := 0;
          Lib.Synchronization.Release (P.Secondary_Mutex);
       end if;
       if To_Transmit then
          Lib.Synchronization.Seize (P.Primary_Mutex);
-         P.Primary_Data   := (others => 0);
+         P.Primary_Data   := [others => 0];
          P.Primary_Length := 0;
          Lib.Synchronization.Release (P.Primary_Mutex);
       end if;
@@ -413,7 +413,7 @@ package body IPC.PTY is
        Ret_Count   : out Natural)
    is
    begin
-      Data := (others => 0);
+      Data := [others => 0];
       if not Is_Able_To then
          Ret_Count := 0;
          return;

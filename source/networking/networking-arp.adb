@@ -18,11 +18,11 @@ package body Networking.ARP is
    procedure Initialize is
    begin
       Interface_Entries := new ARP_Entries'(others =>
-         (MAC        => (others => 0),
-          IP4        => (others => 0),
-          IP4_Subnet => (others => 0),
-          IP6        => (others => 0),
-          IP6_Subnet => (others => 0)));
+         (MAC        => [others => 0],
+          IP4        => [others => 0],
+          IP4_Subnet => [others => 0],
+          IP6        => [others => 0],
+          IP6_Subnet => [others => 0]));
    end Initialize;
 
    procedure Add_Static
@@ -34,7 +34,7 @@ package body Networking.ARP is
    is
    begin
       for E of Interface_Entries.all loop
-         if E.MAC = (0, 0, 0, 0, 0, 0) then
+         if E.MAC = [0, 0, 0, 0, 0, 0] then
             E := (MAC, IP4, IP4_Subnet, IP6, IP6_Subnet);
             return;
          end if;
@@ -81,8 +81,8 @@ package body Networking.ARP is
          end if;
       end loop;
 
-      IP     := (others => 0);
-      Subnet := (others => 0);
+      IP     := [others => 0];
+      Subnet := [others => 0];
    end Lookup;
 
    procedure Lookup (MAC : MAC_Address; IP, Subnet : out IPv6_Address) is
@@ -95,8 +95,8 @@ package body Networking.ARP is
          end if;
       end loop;
 
-      IP     := (others => 0);
-      Subnet := (others => 0);
+      IP     := [others => 0];
+      Subnet := [others => 0];
    end Lookup;
 
    procedure Lookup (IP : IPv4_Address; MAC : out MAC_Address) is
@@ -108,7 +108,7 @@ package body Networking.ARP is
          end if;
       end loop;
 
-      MAC := (others => 0);
+      MAC := [others => 0];
    end Lookup;
 
    procedure Lookup (IP : IPv6_Address; MAC : out MAC_Address) is
@@ -120,6 +120,6 @@ package body Networking.ARP is
          end if;
       end loop;
 
-      MAC := (others => 0);
+      MAC := [others => 0];
    end Lookup;
 end Networking.ARP;

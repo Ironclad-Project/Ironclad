@@ -23,7 +23,7 @@ with Scheduler;
 package body Devices.PS2Keyboard is
    --  Globals to communicate with the interrupt routine.
    Has_Data  : Boolean                      := False  with Volatile;
-   Scancodes : array (1 .. 2) of Unsigned_8 := (0, 0) with Volatile;
+   Scancodes : array (1 .. 2) of Unsigned_8 := [0, 0] with Volatile;
 
    function Init return Boolean is
       BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
@@ -68,7 +68,7 @@ package body Devices.PS2Keyboard is
 
       Register
          ((Data        => System.Null_Address,
-           ID          => (others => 0),
+           ID          => [others => 0],
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,

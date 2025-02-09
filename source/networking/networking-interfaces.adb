@@ -26,7 +26,7 @@ package body Networking.Interfaces is
 
    Interfaces_Lock : aliased Mutex := Unlocked_Mutex;
    Interfaces      : Inner_Arr :=
-      (others => (Devices.Error_Handle, (others => 0), True));
+      [others => (Devices.Error_Handle, [others => 0], True)];
 
    procedure Register_Interface
       (Interfaced  : Devices.Device_Handle;
@@ -69,7 +69,7 @@ package body Networking.Interfaces is
    is
       Discard : IPv4_Address;
    begin
-      IP := (others => 0);
+      IP := [others => 0];
       Seize (Interfaces_Lock);
       for Int of Interfaces loop
          if Int.Handle = Interfaced then
@@ -86,7 +86,7 @@ package body Networking.Interfaces is
    is
       Discard : IPv6_Address;
    begin
-      IP := (others => 0);
+      IP := [others => 0];
       Seize (Interfaces_Lock);
       for Int of Interfaces loop
          if Int.Handle = Interfaced then
@@ -210,14 +210,14 @@ package body Networking.Interfaces is
       Curr_Index : Natural := 0;
    begin
       Len := 0;
-      Buffer := (others =>
+      Buffer := [others =>
          (Handle      => Devices.Error_Handle,
           Is_Blocked  => True,
-          MAC         => (others => 0),
-          IPv4        => (others => 0),
-          IPv4_Subnet => (others => 0),
-          IPv6        => (others => 0),
-          IPv6_Subnet => (others => 0)));
+          MAC         => [others => 0],
+          IPv4        => [others => 0],
+          IPv4_Subnet => [others => 0],
+          IPv6        => [others => 0],
+          IPv6_Subnet => [others => 0])];
 
       Seize (Interfaces_Lock);
       for I in Interfaces'Range loop

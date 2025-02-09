@@ -87,7 +87,7 @@ package body Devices.SATA with SPARK_Mode => Off is
                begin
                   Register (
                      (Data => C1.To_Address (C1.Object_Pointer (Drive_Data)),
-                      ID          => (others => 0),
+                      ID          => Zero_UUID,
                       Is_Block    => True,
                       Block_Size  => Sector_Size,
                       Block_Count => Drive_Data.Sector_Count,
@@ -140,14 +140,14 @@ package body Devices.SATA with SPARK_Mode => Off is
       --  Allocate and initialize all the structures needed in advance.
       Port_FIS := new HBA_FIS'
          (DS_FIS     => (FIS_Type => FIS_Type_DMA_Setup, others => <>),
-          Reserved_1 => (others => 0),
+          Reserved_1 => [others => 0],
           PS_FIS     => (FIS_Type => FIS_Type_PIO_Setup, others => <>),
-          Reserved_2 => (others => 0),
+          Reserved_2 => [others => 0],
           Reg_FIS    => (FIS_Type => FIS_Type_D2H, others => <>),
-          Reserved_3 => (others => 0),
-          SDB_FIS    => (1 => FIS_Type_Device_Bits, others => 0),
-          U_FIS      => (others => 0),
-          Reserved_4 => (others => 0));
+          Reserved_3 => [others => 0],
+          SDB_FIS    => [1 => FIS_Type_Device_Bits, others => 0],
+          U_FIS      => [others => 0],
+          Reserved_4 => [others => 0]);
 
       Port_Data := M.Ports (I)'Access;
       Tmp       := To_Integer (Port_FIS.all'Address);
@@ -181,7 +181,7 @@ package body Devices.SATA with SPARK_Mode => Off is
           Command_TBLs  => Cmd_TBLs,
           Port_Data     => Port_Data,
           Sector_Count  => 0,
-          Caches        => (others => (Is_Used => False, others => <>)),
+          Caches        => [others => (Is_Used => False, others => <>)],
           Next_Evict    => 1);
       Success := Issue_Command
          (Drive       => Dev_Data,
@@ -253,8 +253,8 @@ package body Devices.SATA with SPARK_Mode => Off is
       Drive.Command_Area.Headers (Slot).PRDBC  := 0;
 
       --  Fill the command table of the header with the command.
-      Drive.Command_TBLs (Slot).FIS_Buffer := (others => 0);
-      Drive.Command_TBLs (Slot).Command := (others => 0);
+      Drive.Command_TBLs (Slot).FIS_Buffer := [others => 0];
+      Drive.Command_TBLs (Slot).Command := [others => 0];
       Drive.Command_TBLs (Slot).PRDT.DBA :=
          Unsigned_32 (Data_Addr and 16#FFFFFFFF#);
       Drive.Command_TBLs (Slot).PRDT.DBAU :=

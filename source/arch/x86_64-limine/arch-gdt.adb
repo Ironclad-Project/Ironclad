@@ -86,7 +86,7 @@ package body Arch.GDT is
 
    --  Global GDT and GDT pointer, the TSS is initialized when needed.
    Global_GDT : GDT := (
-      Entries => (
+      Entries => [
          1 =>        (0, 0, 0,           0,           0, 0), --  Null.
          2 => (16#FFFF#, 0, 0, 2#10011010#,           0, 0), --  16-bit kcode.
          3 => (16#FFFF#, 0, 0, 2#10010010#,           0, 0), --  16-bit kdata.
@@ -96,7 +96,7 @@ package body Arch.GDT is
          7 =>        (0, 0, 0, 2#10010010#,           0, 0), --  64-bit kdata.
          8 =>        (0, 0, 0, 2#11110010#,           0, 0), --  64-bit udata.
          9 =>        (0, 0, 0, 2#11111010#, 2#00100000#, 0)  --  64-bit ucode.
-      ),
+      ],
       TSS => <>
    );
    Global_Pointer : constant GDT_Pointer := (
@@ -129,10 +129,10 @@ package body Arch.GDT is
            "mov %3, %%fs"          & LF & HT &
            "mov %3, %%gs"          & LF & HT &
            "mov %1, %%ss"          & LF & HT,
-           Inputs   => (GDT_Pointer'Asm_Input ("m",  Global_Pointer),
+           Inputs   => [GDT_Pointer'Asm_Input ("m",  Global_Pointer),
                         Unsigned_16'Asm_Input ("rm", Kernel_Data64_Segment),
                         Unsigned_16'Asm_Input ("i",  Kernel_Code64_Segment),
-                        Unsigned_16'Asm_Input ("rm", User_Data64_Segment)),
+                        Unsigned_16'Asm_Input ("rm", User_Data64_Segment)],
            Clobber  => "memory",
            Volatile => True);
    end Load_GDT;

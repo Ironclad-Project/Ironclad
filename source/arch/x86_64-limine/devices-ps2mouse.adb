@@ -105,7 +105,7 @@ package body Devices.PS2Mouse is
 
       Register
          ((Data        => System.Null_Address,
-           ID          => (others => 0),
+           ID          => [others => 0],
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,

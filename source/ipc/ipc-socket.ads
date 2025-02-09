@@ -541,7 +541,7 @@ private
    UNIX_Bound_Mutex   : aliased Lib.Synchronization.Mutex :=
       Lib.Synchronization.Unlocked_Mutex;
    UNIX_Bound_Sockets : array (1 .. 10) of Bound_Socket :=
-      (others => (Sock => null, Path => (others => ' '), Path_Len => 1));
+      [others => (Sock => null, Path => [others => ' '], Path_Len => 1)];
 
    function Get_Bound (Path : String) return Socket_Acc;
 

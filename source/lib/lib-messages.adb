@@ -18,13 +18,13 @@ with Ada.Characters.Latin_1;
 with Arch.Debug;
 
 package body Lib.Messages with
-   Refined_State => (Message_State =>
-      (Messages_Mutex, Curr_Entry, Small_Log_Buffer, Log_Ring_Buffer))
+   Refined_State => [Message_State =>
+      [Messages_Mutex, Curr_Entry, Small_Log_Buffer, Log_Ring_Buffer]]
 is
    procedure Enable_Logging is
    begin
       Lib.Synchronization.Seize (Messages_Mutex);
-      Log_Ring_Buffer := new Message_Buffer'(1 .. 100 => (others => ' '));
+      Log_Ring_Buffer := new Message_Buffer'[1 .. 100 => [others => ' ']];
       Log_Ring_Buffer (1 .. Small_Log_Buffer'Length) := Small_Log_Buffer;
       Lib.Synchronization.Release (Messages_Mutex);
    end Enable_Logging;

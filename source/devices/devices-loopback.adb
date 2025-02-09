@@ -27,7 +27,7 @@ package body Devices.Loopback is
    begin
       Device :=
          (Data        => Data.all'Address,
-          ID          => (others => 0),
+          ID          => Zero_UUID,
           Is_Block    => False,
           Block_Size  => 4096,
           Block_Count => 0,
@@ -45,10 +45,10 @@ package body Devices.Loopback is
          Networking.Interfaces.Register_Interface
             (Interfaced  => Dev,
              MAC         => [others => 1],
-             IPv4        => (127, 0, 0, 1),
-             IPv4_Subnet => (255, 0, 0, 0),
-             IPv6        => (1 .. 15 => 0, 16 => 1),
-             IPv6_Subnet => (others => 16#FF#),
+             IPv4        => [127, 0, 0, 1],
+             IPv4_Subnet => [255, 0, 0, 0],
+             IPv6        => [1 .. 15 => 0, 16 => 1],
+             IPv6_Subnet => [others => 16#FF#],
              Success     => Success);
          Networking.Interfaces.Block (Dev, False, Success);
       end if;

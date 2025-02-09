@@ -26,8 +26,8 @@ package Networking is
    type IPv6_Port is new Unsigned_16;
 
    --  Standard submasks.
-   IPv4_8_Submask   : constant IPv4_Address := (255, 0, 0, 0);
-   IPv6_128_Submask : constant IPv6_Address := (others => 16#FF#);
+   IPv4_8_Submask   : constant IPv4_Address := [255, 0, 0, 0];
+   IPv6_128_Submask : constant IPv6_Address := [others => 16#FF#];
    ----------------------------------------------------------------------------
    --  Maximum size of a hostname.
    Hostname_Max_Len : constant Natural;
@@ -50,6 +50,6 @@ private
 
    Hostname_Lock   : aliased Mutex := Unlocked_Mutex;
    Hostname_Length : Natural range 0 .. Hostname_Max_Len := 4;
-   Hostname : String (1 .. Hostname_Max_Len) := "none" & (1 .. 251 => ' ');
+   Hostname : String (1 .. Hostname_Max_Len) := "none" & [1 .. 251 => ' '];
 
 end Networking;

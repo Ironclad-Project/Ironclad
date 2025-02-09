@@ -65,8 +65,8 @@ package body Arch.Snippets is
       Low  : Unsigned_32;
    begin
       Asm ("rdtsc",
-          Outputs => (Unsigned_32'Asm_Output ("=d", High),
-                      Unsigned_32'Asm_Output ("=a", Low)),
+          Outputs => [Unsigned_32'Asm_Output ("=d", High),
+                      Unsigned_32'Asm_Output ("=a", Low)],
           Volatile => True);
       return Shift_Left (Unsigned_64 (High), 32) or Unsigned_64 (Low);
    end Read_Cycles;
@@ -74,8 +74,8 @@ package body Arch.Snippets is
    procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) is
    begin
       Asm ("outb %0, %1",
-           Inputs   => (Unsigned_8'Asm_Input  ("a",  Value),
-                        Unsigned_16'Asm_Input ("Nd", Port)),
+           Inputs   => [Unsigned_8'Asm_Input  ("a",  Value),
+                        Unsigned_16'Asm_Input ("Nd", Port)],
            Clobber  => "memory",
            Volatile => True);
    end Port_Out;
@@ -94,8 +94,8 @@ package body Arch.Snippets is
    procedure Port_Out16 (Port, Value : Unsigned_16) is
    begin
       Asm ("outw %0, %1",
-           Inputs   => (Unsigned_16'Asm_Input ("a",  Value),
-                        Unsigned_16'Asm_Input ("Nd", Port)),
+           Inputs   => [Unsigned_16'Asm_Input ("a",  Value),
+                        Unsigned_16'Asm_Input ("Nd", Port)],
            Clobber  => "memory",
            Volatile => True);
    end Port_Out16;
@@ -114,8 +114,8 @@ package body Arch.Snippets is
    procedure Port_Out32 (Port : Unsigned_16; Value : Unsigned_32) is
    begin
       Asm ("out %0, %1",
-           Inputs   => (Unsigned_32'Asm_Input ("a",  Value),
-                        Unsigned_16'Asm_Input ("Nd", Port)),
+           Inputs   => [Unsigned_32'Asm_Input ("a",  Value),
+                        Unsigned_16'Asm_Input ("Nd", Port)],
            Clobber  => "memory",
            Volatile => True);
    end Port_Out32;
@@ -144,8 +144,8 @@ package body Arch.Snippets is
       Res_Low  : Unsigned_32;
    begin
       Asm ("rdmsr",
-           Outputs  => (Unsigned_32'Asm_Output ("=a", Res_Low),
-                        Unsigned_32'Asm_Output ("=d", Res_High)),
+           Outputs  => [Unsigned_32'Asm_Output ("=a", Res_Low),
+                        Unsigned_32'Asm_Output ("=d", Res_High)],
            Inputs   => Unsigned_32'Asm_Input  ("c", MSR),
            Clobber  => "memory",
            Volatile => True);
@@ -157,9 +157,9 @@ package body Arch.Snippets is
       Value_Lo : constant Unsigned_32 := Unsigned_32 (Value and 16#FFFFFFFF#);
    begin
       Asm ("wrmsr",
-           Inputs   => (Unsigned_32'Asm_Input ("a", Value_Lo),
+           Inputs   => [Unsigned_32'Asm_Input ("a", Value_Lo),
                         Unsigned_32'Asm_Input ("d", Value_Hi),
-                        Unsigned_32'Asm_Input ("c", MSR)),
+                        Unsigned_32'Asm_Input ("c", MSR)],
            Clobber  => "memory",
            Volatile => True);
    end Write_MSR;
@@ -233,9 +233,9 @@ package body Arch.Snippets is
       Hi_32 : constant Unsigned_64 := Shift_Right (Value, 32) and 16#FFFFFFFF#;
    begin
       Asm ("xsetbv",
-           Inputs   => (Unsigned_32'Asm_Input ("a", Unsigned_32 (Lo_32)),
+           Inputs   => [Unsigned_32'Asm_Input ("a", Unsigned_32 (Lo_32)),
                         Unsigned_32'Asm_Input ("d", Unsigned_32 (Hi_32)),
-                        Unsigned_32'Asm_Input ("c", Register)),
+                        Unsigned_32'Asm_Input ("c", Register)],
            Clobber  => "memory",
            Volatile => True);
    end Write_XCR;
@@ -304,12 +304,12 @@ package body Arch.Snippets is
       Success := Leaf <= CPUID_Max;
       if Success then
          Asm ("cpuid",
-              Outputs  => (Unsigned_32'Asm_Output ("=a", EAX),
+              Outputs  => [Unsigned_32'Asm_Output ("=a", EAX),
                            Unsigned_32'Asm_Output ("=b", EBX),
                            Unsigned_32'Asm_Output ("=c", ECX),
-                           Unsigned_32'Asm_Output ("=d", EDX)),
-              Inputs   => (Unsigned_32'Asm_Input ("a", Leaf),
-                           Unsigned_32'Asm_Input ("c", Subleaf)),
+                           Unsigned_32'Asm_Output ("=d", EDX)],
+              Inputs   => [Unsigned_32'Asm_Input ("a", Leaf),
+                           Unsigned_32'Asm_Input ("c", Subleaf)],
               Clobber  => "memory",
               Volatile => True);
       else

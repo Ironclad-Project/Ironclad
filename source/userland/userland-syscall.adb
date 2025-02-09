@@ -2466,7 +2466,7 @@ package body Userland.Syscall is
                    D_Off    => (Dirent'Size / 8) * Unsigned_64 (I),
                    D_Reclen => Dirent'Size / 8,
                    D_Type   => 0,
-                   D_Name   => (others => Ada.Characters.Latin_1.NUL));
+                   D_Name   => [others => Ada.Characters.Latin_1.NUL]);
                Buffer (Unsigned_64 (I)).D_Name (1 .. Tmp_Buffer (I).Name_Len)
                   := Tmp_Buffer (I).Name_Buffer (1 .. Tmp_Buffer (I).Name_Len);
                Buffer (Unsigned_64 (I)).D_Type :=

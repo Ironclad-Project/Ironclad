@@ -101,7 +101,7 @@ package body IPC.FIFO is
    begin
       Lib.Synchronization.Seize (P.Mutex);
       if Size >= P.Data_Count then
-         New_Buffer := new Devices.Operation_Data'(1 .. Size => 0);
+         New_Buffer := new Devices.Operation_Data'[1 .. Size => 0];
          New_Buffer (1 .. P.Data_Count) := P.Data (1 .. P.Data_Count);
          Free (P.Data);
          P.Data  := New_Buffer;
@@ -121,7 +121,7 @@ package body IPC.FIFO is
    is
       Final_Len : Natural := Data'Length;
    begin
-      Data := (others => 0);
+      Data := [others => 0];
 
       if Is_Blocking then
          loop

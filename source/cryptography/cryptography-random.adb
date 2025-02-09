@@ -88,7 +88,7 @@ package body Cryptography.Random is
 
    procedure Fill_Data (Data : out Crypto_Data) is
       MSec, Nonce : Unsigned_64;
-      Cha_Block   : Chacha20.Block := (others => 0);
+      Cha_Block   : Chacha20.Block := [others => 0];
       Index       : Natural     := Cha_Block'Last + 1;
       Mini_Index  : Natural     := 0;
       Temp        : Unsigned_32 := 0;
