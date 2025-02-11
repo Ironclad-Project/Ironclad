@@ -1892,6 +1892,25 @@ package body Userland.Syscall is
                 (Argument and FD_CLOFORK) /= 0);
          when F_GETFL =>
             Returned := (if File.Is_Blocking then 0 else O_NONBLOCK);
+            case File.Description is
+               when Description_Reader_FIFO =>
+                  Returned := Returned or O_RDONLY;
+               when Description_Writer_FIFO =>
+                  Returned := Returned or O_WRONLY;
+               when Description_Primary_PTY | Description_Secondary_PTY =>
+                  Returned := Returned or O_RDONLY or O_WRONLY;
+               when Description_Inode =>
+                  if File.Inner_Ino_Read then
+                     Returned := Returned or O_RDONLY;
+                  end if;
+                  if File.Inner_Ino_Write then
+                     Returned := Returned or O_WRONLY;
+                  end if;
+               when Description_Socket =>
+                  Returned := Returned or O_RDONLY or O_WRONLY;
+               when Description_VM | Description_VCPU =>
+                  null;
+            end case;
          when F_SETFL =>
             File.Is_Blocking := (Argument and O_NONBLOCK) = 0;
          when F_GETPIPE_SZ =>
