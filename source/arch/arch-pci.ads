@@ -59,6 +59,8 @@ package Arch.PCI is
        Success      : out Boolean);
 
    --  Get a device's information with the passed location.
+   --  When not found, a dummy device will be returned, for rationale, check
+   --  the function body.
    --  @param Bus     Device to search for.
    --  @param Slot    Subclass to search for.
    --  @param Func    Prog if to search for.

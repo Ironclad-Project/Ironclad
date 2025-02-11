@@ -125,7 +125,6 @@ package body Arch.PCI is
        Success : out Boolean)
    is
       Temp : PCI_Registry_Entry_Acc := PCI_Registry;
-      VDID : Unsigned_16;
    begin
       loop
          if Temp = null then
@@ -144,10 +143,10 @@ package body Arch.PCI is
          Temp := Temp.Next;
       end loop;
 
-      --  PCI has this funky quirk. Sometimes when addressing devices by their
-      --  position, AML, and other similar things, will request devices that
-      --  do not exist, but have a VCID field of FFFF. In those cases, we will
-      --  return a "fake" device.
+      --  Sometimes when addressing devices by their position, AML, and other
+      --  similar things, will request devices that do not exist, and check
+      --  fields themselves to confirm validity. In those cases, we will
+      --  return a "fake" device and let them figure it out.
       Result :=
          (Bus          => Bus,
           Func         => Slot,
@@ -162,9 +161,6 @@ package body Arch.PCI is
           MSIX_Support => False,
           MSI_Offset   => 0,
           MSIX_Offset  => 0);
-
-      VDID    := Read16 (Result, 16#2#);
-      Success := VDID = 16#FFFF#;
    end Search_Device;
    ----------------------------------------------------------------------------
    procedure Enable_Bus_Mastering (Dev : PCI_Device) is
