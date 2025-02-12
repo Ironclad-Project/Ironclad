@@ -20,7 +20,6 @@ with Arch.GDT;
 with Arch.HPET;
 with Arch.IDT;
 with Arch.PIC;
-with Arch.PIT;
 with Arch.CPU;
 with Lib.Panic;
 with Lib.Messages; use Lib.Messages;
@@ -79,10 +78,9 @@ package body Arch.Entrypoint is
       end if;
 
       --  Initialize some system timers for interval counting.
-      if not Arch.PIT.Init then
-         Lib.Panic.Hard_Panic ("Could not start PIT");
+      if not Arch.HPET.Init then
+         Lib.Panic.Hard_Panic ("Could not start HPET");
       end if;
-      Arch.HPET.Init;
 
       --  Initialize other cores, and then jump to the freestanding main.
       Arch.CPU.Init_Cores;

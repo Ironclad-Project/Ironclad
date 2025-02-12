@@ -86,7 +86,5 @@ package Arch.Snippets is
           ECX     : out Unsigned_32;
           EDX     : out Unsigned_32;
           Success : out Boolean);
-
-      procedure Calibrate_Sleep_1MS;
    #end if;
 end Arch.Snippets;

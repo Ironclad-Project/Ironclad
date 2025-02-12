@@ -19,6 +19,7 @@ with Arch.Snippets;
 with Lib.Panic;
 with Arch.MMU;
 with Lib.Messages;
+with Arch.HPET;
 
 package body Arch.APIC with SPARK_Mode => Off is
    LAPIC_MSR  : constant := 16#01B#;
@@ -138,7 +139,7 @@ package body Arch.APIC with SPARK_Mode => Off is
          LAPIC_Write (LAPIC_Timer_Init_Counter_Register, Sample);
 
          --  Check the ticks we get in 1 ms, and calculate with that.
-         Snippets.Calibrate_Sleep_1MS;
+         Arch.HPET.NSleep (1_000_000);
          Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
 
          --  Stop timer and adjust the ticks to make them ticks/ms -> ticks/s

@@ -229,7 +229,7 @@ package Arch.ACPI is
       Unused2               : HPET_Padding;
       Main_Counter_Value    : Interfaces.Unsigned_64;
       Unused3               : Interfaces.Unsigned_64;
-   end record;
+   end record with Volatile;
    for HPET_Contents use record
       General_Capabilities  at 0 range    0 ..   63;
       Unused0               at 0 range   64 ..  127;

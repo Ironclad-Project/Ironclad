@@ -14,24 +14,23 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
 with Memory;     use Memory;
 with Arch.ACPI;
 with Arch.MMU;
 with Arch.Snippets;
 
 package body Arch.HPET with SPARK_Mode => Off is
-   HPET_Contents : Virtual_Address;
-   HPET_Period   : Unsigned_64; --  Time in femtoseconds to increment by 1.
+   Is_Initialized : Boolean := False;
+   HPET_Contents  : Virtual_Address;
+   HPET_Period    : Unsigned_64; --  Time in femtoseconds to increment by 1.
+   HPET_Frequency : Unsigned_64 := 0;
 
-   procedure Init is
+   function Init return Boolean is
       ACPI_Address : Virtual_Address;
    begin
-      Is_Initialized := False;
-
       ACPI_Address := ACPI.FindTable (ACPI.HPET_Signature);
       if ACPI_Address = Null_Address then
-         return;
+         return False;
       end if;
 
       declare
@@ -56,15 +55,18 @@ package body Arch.HPET with SPARK_Mode => Off is
              Success        => Success,
              Caching        => MMU.Uncacheable);
          if not Success then
-            return;
+            return False;
          end if;
-
-         HPET_Contents := Table.Address + Memory_Offset;
-         HPET_Period   := Shift_Right (HPET.General_Capabilities, 32);
 
          --  TODO: Check if the HPET is 64 bits, if so, enable 64 bit mode.
          --  So far we are mode-agnostic, but we could use a timer upgrade.
-         --  HPET_Is64 := Shift_Right (HPET.General_Capabilities, 13) and 1;
+         if (Shift_Right (HPET.General_Capabilities, 13) and 1) = 0 then
+            return False;
+         end if;
+
+         HPET_Contents  := Table.Address + Memory_Offset;
+         HPET_Period    := Shift_Right (HPET.General_Capabilities, 32);
+         HPET_Frequency := 1_000_000_000_000_000 / HPET_Period;
 
          --  Disable the HPET by writting 0 the Enable CNF, so we can reset the
          --  counter, and then enable again.
@@ -73,30 +75,39 @@ package body Arch.HPET with SPARK_Mode => Off is
          HPET.General_Configuration := 1;
       end;
       Is_Initialized := True;
+      return True;
    end Init;
 
-   procedure USleep (Microseconds : Positive) is
+   procedure Get_Frequency (Freq : out Unsigned_64) is
    begin
-      NSleep (Microseconds * 1000);
-   end USleep;
+      Freq := HPET_Frequency;
+   end Get_Frequency;
+
+   procedure Get_Counter (Counter : out Unsigned_64) is
+      HPET : ACPI.HPET_Contents
+         with Import, Address => To_Address (HPET_Contents);
+   begin
+      if Is_Initialized then
+         Counter := HPET.Main_Counter_Value;
+      else
+         Counter := 0;
+      end if;
+   end Get_Counter;
 
    procedure NSleep (Nanoseconds : Positive) is
       --  Reads must be atomic according to spec in 64-bit mode, for 32-bit
       --  mode it doesnt hurt either.
-      HPET    : ACPI.HPET_Contents with Address => To_Address (HPET_Contents);
-      Counter : Unsigned_64
-         with Address => HPET.Main_Counter_Value'Address, Volatile;
-
-      FemtoSec : constant Unsigned_64 := Unsigned_64 (Nanoseconds) * 1000000;
-      To_Add   : constant Unsigned_64 := FemtoSec / HPET_Period;
-      Target   : constant Unsigned_64 := Counter + To_Add;
+      HPET : ACPI.HPET_Contents
+         with Import, Address => To_Address (HPET_Contents);
+      Target : constant Unsigned_64 :=
+         HPET.Main_Counter_Value + (Unsigned_64 (Nanoseconds) *
+         (1_000_000 / HPET_Period));
    begin
       if not Is_Initialized then
          return;
       end if;
 
-      loop
-         exit when Counter > Target;
+      while HPET.Main_Counter_Value < Target loop
          Snippets.Pause;
       end loop;
    end NSleep;

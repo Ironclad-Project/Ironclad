@@ -15,8 +15,9 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.RTC;
-with Arch.Snippets;
 with Lib.Time; use Lib.Time;
+with Arch.HPET;
+with Lib.Messages;
 
 package body Arch.Clocks with
    Refined_State =>
@@ -25,10 +26,12 @@ package body Arch.Clocks with
           RT_Timestamp_Nanoseconds,
           RT_Stored_Seconds,
           RT_Stored_Nanoseconds),
-       Monotonic_Clock_State => (Mono_TSC_Freq))
+       Monotonic_Clock_State =>
+         (HPET_Ticks_Per_Second,
+          HPET_Ticks_Per_Res_Nano))
 is
    --  The RTC is really slow and has inacceptably large resolutions, so we
-   --  will a cached RTC time as well as when it was cached in monotonic.
+   --  will cache RTC time as well as when it was cached in monotonic.
    --  That way, by adding deltas, we can build an okayish, finer-grained
    --  resolution clock.
    RT_Timestamp_Seconds     : Unsigned_64;
@@ -36,18 +39,28 @@ is
    RT_Stored_Seconds        : Unsigned_64;
    RT_Stored_Nanoseconds    : Unsigned_64;
 
-   --  Monotonic TSC cycles per millisecond. Before calibration, the value is
-   --  a placeholder, so monotonic always works, it is an estimation.
-   MS_Per_Sec    : constant := 1_000;
-   Nanos_Per_MS  : constant := 1_000_000;
-   Mono_TSC_Freq : Unsigned_64 := Nanos_Per_MS * 2;
+   --  For monotonic, we use the HPET, we could use the TSC, which would be
+   --  faster, but TSC requires calibration (innacurate), core synchronization
+   --  (pita), and invariant tsc (could not be there).
+   --  The HPET is guaranteed to be at least 10MHz, that means the smallest we
+   --  can do without detection code safely is one tick per 1000ns.
+   --  These values are placeholders for time measurements before init.
+   Timer_NS_Resolution     : constant    := 1_000;
+   Nanoseconds_In_Second   : constant    := 1_000_000_000;
+   Nano_Res_In_Second      : constant    := Nanoseconds_In_Second / 1_000;
+   HPET_Ticks_Per_Second   : Unsigned_64 := Nanoseconds_In_Second;
+   HPET_Ticks_Per_Res_Nano : Unsigned_64 := 1;
 
    procedure Initialize_Sources is
-      Beginning_TSC : constant Unsigned_64 := Snippets.Read_Cycles;
+      Stp : Lib.Messages.Translated_String;
+      Len : Natural;
    begin
-      --  Calibrate by checking the ticks we get in 1 ms.
-      Snippets.Calibrate_Sleep_1MS;
-      Mono_TSC_Freq := Snippets.Read_Cycles - Beginning_TSC;
+      HPET.Get_Frequency (HPET_Ticks_Per_Second);
+      HPET_Ticks_Per_Res_Nano := HPET_Ticks_Per_Second / Nano_Res_In_Second;
+      Lib.Messages.Image (Unsigned_64 (Timer_NS_Resolution), Stp, Len);
+      Lib.Messages.Put_Line
+         ("Monotonic resolution (HPET) fixed at " &
+          Stp (Stp'Last - Len + 1 .. Stp'Last) & " ns");
 
       Get_Monotonic_Time (RT_Timestamp_Seconds, RT_Timestamp_Nanoseconds);
       RTC.Get_RTC_Date (RT_Stored_Seconds);
@@ -58,21 +71,23 @@ is
    is
    begin
       Seconds     := 0;
-      Nanoseconds := 1;
+      Nanoseconds := Timer_NS_Resolution;
    end Get_Monotonic_Resolution;
 
    procedure Get_Monotonic_Time (Seconds, Nanoseconds : out Unsigned_64) is
-      Cycles : constant Unsigned_64 := Snippets.Read_Cycles / Mono_TSC_Freq;
+      Cnt : Unsigned_64;
    begin
-      Seconds     := Cycles / MS_Per_Sec;
-      Nanoseconds := (Cycles mod MS_Per_Sec) * Nanos_Per_MS;
+      HPET.Get_Counter (Cnt);
+      Seconds     := Cnt / HPET_Ticks_Per_Second;
+      Nanoseconds := (Cnt mod HPET_Ticks_Per_Second) / HPET_Ticks_Per_Res_Nano;
+      Nanoseconds := Nanoseconds * Timer_NS_Resolution;
    end Get_Monotonic_Time;
 
    procedure Get_Real_Time_Resolution (Seconds, Nanoseconds : out Unsigned_64)
    is
    begin
       Seconds     := 0;
-      Nanoseconds := 1;
+      Nanoseconds := Timer_NS_Resolution;
    end Get_Real_Time_Resolution;
 
    procedure Get_Real_Time (Seconds, Nanoseconds : out Unsigned_64) is

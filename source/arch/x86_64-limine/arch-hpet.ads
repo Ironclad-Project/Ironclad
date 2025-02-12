@@ -14,16 +14,18 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
+
 package Arch.HPET is
-   --  True if initialized.
-   Is_Initialized : Boolean;
-
    --  Initialize the HPET, if found.
-   procedure Init;
+   function Init return Boolean;
 
-   --  Loop for the passed microseconds.
-   procedure USleep (Microseconds : Positive);
+   --  get frequency.
+   procedure Get_Frequency (Freq : out Unsigned_64);
 
-   --  Do the same for nanoseconds.
+   --  Read main counter.
+   procedure Get_Counter (Counter : out Unsigned_64);
+
+   --  Sleep an amount of nanoseconds.
    procedure NSleep (Nanoseconds : Positive);
 end Arch.HPET;
