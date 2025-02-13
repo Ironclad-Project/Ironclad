@@ -135,5 +135,8 @@ project Ironclad is
             for Switches ("Ada") use Base_Link_Switches &
                ("-zmax-page-size=0x1000", "-Wl,-melf_x86_64");
       end case;
+
+      for Switches ("Ada") use Base_Link_Switches &
+         ("rtsdir/adalib/libgnat.a");
    end Linker;
 end Ironclad;
