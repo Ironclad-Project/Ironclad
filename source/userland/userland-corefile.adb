@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Devices;
-with Interfaces; use Interfaces;
 with Arch.Local;
 with Userland.Process; use Userland.Process;
 with Userland.MAC;     use Userland.MAC;
@@ -29,9 +28,7 @@ package body Userland.Corefile is
 
       Inner_Ct : aliased constant Arch.Context.GP_Context := Ctx;
       Proc     : constant Process.PID := Arch.Local.Get_Current_Process;
-      PID_Val  : Unsigned_64;
-      PID_Len  : Natural;
-      PID_Buf  : Lib.Messages.Translated_String;
+      PID_Val  : Natural;
       Success  : VFS.FS_Status;
       Core_FS  : VFS.FS_Handle;
       Core_Ino : VFS.File_Inode_Number;
@@ -43,12 +40,10 @@ package body Userland.Corefile is
          return;
       end if;
 
-      PID_Val := Unsigned_64 (Process.Convert (Proc));
-      Lib.Messages.Image (PID_Val, PID_Buf, PID_Len);
+      PID_Val := Process.Convert (Proc);
 
       declare
-         File_Path : constant String := "/tmp/" &
-            PID_Buf (PID_Buf'Last - PID_Len + 1 .. PID_Buf'Last) & ".core";
+         File_Path : constant String := "/tmp/" & PID_Val'Image & ".core";
       begin
          VFS.Create_Node (File_Path, VFS.File_Regular, 8#777#, Success, 0);
          if Success /= VFS.FS_Success then

@@ -18,7 +18,6 @@ with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
 with Ada.Characters.Latin_1;
 with Scheduler;
-with Lib.Messages;
 with Devices.TermIOs; use Devices.TermIOs;
 with Userland.Process; use Userland.Process;
 with Arch.Local;
@@ -35,8 +34,6 @@ package body IPC.PTY is
       Name_Index : Natural;
       Resource   : Devices.Resource;
       Success    : Boolean;
-      Num_Str    : Lib.Messages.Translated_String;
-      Num_Len    : Natural;
       Termios_D  : Devices.TermIOs.Main_Data;
    begin
       Lib.Synchronization.Seize (Tracked_Lock);
@@ -73,8 +70,6 @@ package body IPC.PTY is
           Primary_Data       => [others => 0],
           Secondary_Data     => [others => 0]);
 
-      Lib.Messages.Image (Unsigned_32 (Name_Index), Num_Str, Num_Len);
-
       Resource :=
          (Data        => Conv.To_Address (Conv.Object_Pointer (Result)),
           ID          => Devices.Zero_UUID,
@@ -91,8 +86,7 @@ package body IPC.PTY is
           Remove      => null);
 
       declare
-         Final_Name : constant String := "pty" &
-            Num_Str (Num_Str'Last - Num_Len + 1 .. Num_Str'Last);
+         Final_Name : constant String := "pty" & Name_Index'Image;
       begin
          Devices.Register (Resource, Final_Name, Success);
          if Success then
@@ -244,16 +238,13 @@ package body IPC.PTY is
    end Set_WinSize;
 
    procedure Get_Name (P : Inner_Acc; Str : out String; Len : out Natural) is
-      Root_Name  : constant String := "/dev/pty";
-      Buffer     : Lib.Messages.Translated_String;
-      Buffer_Len : Natural;
+      Root_Name : constant String := "/dev/pty";
+      Idx       : constant String := P.Name_Index'Image;
    begin
-      Lib.Messages.Image (Unsigned_32 (P.Name_Index), Buffer, Buffer_Len);
-      Len := Root_Name'Length + Buffer_Len;
+      Len := Root_Name'Length + Idx'Length;
       if Str'Length >= Len then
          Str (Str'First .. Str'First + Root_Name'Length - 1) := Root_Name;
-         Str (Str'First + Root_Name'Length .. Str'First + Len - 1) :=
-            Buffer (Buffer'Last - Buffer_Len + 1 .. Buffer'Last);
+         Str (Str'First + Root_Name'Length .. Str'First + Len - 1) := Idx;
       end if;
    end Get_Name;
 

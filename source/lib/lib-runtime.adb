@@ -14,23 +14,17 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Messages;
 with Lib.Panic;
-with Interfaces; use Interfaces;
 
 package body Lib.Runtime with SPARK_Mode => Off is
    --  Failing a check here would just make it infinitely recursive.
    pragma Suppress (All_Checks);
 
    procedure Last_Chance_Handler (File : System.Address; Line : Integer) is
-      Line_Len    : Natural;
-      Line_Buffer : Messages.Translated_String;
       File_String : String (1 .. Lib.C_String_Length (File))
          with Address => File, Import;
    begin
-      Messages.Image (Unsigned_32 (Line), Line_Buffer, Line_Len);
       Lib.Panic.Hard_Panic
-         ("Ada exception triggered at " & File_String & ":" &
-          Line_Buffer (Line_Buffer'Last - Line_Len + 1 .. Line_Buffer'Last));
+         ("Ada exception triggered at " & File_String & ": " & Line'Image);
    end Last_Chance_Handler;
 end Lib.Runtime;

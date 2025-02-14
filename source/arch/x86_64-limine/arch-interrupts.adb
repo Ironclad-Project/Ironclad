@@ -363,48 +363,4 @@ package body Arch.Interrupts is
       Lib.Messages.Put_Line ("LAPIC Spurious interrupt occured");
       Arch.APIC.LAPIC_EOI;
    end Spurious_Handler;
-   ----------------------------------------------------------------------------
-   procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64) is
-      Discard    : Natural;
-      B1, B2, B3 : Lib.Messages.Translated_String;
-   begin
-      Lib.Messages.Image (V1, B1, Discard, True);
-      Lib.Messages.Image (V2, B2, Discard, True);
-      Lib.Messages.Image (V3, B3, Discard, True);
-      Lib.Messages.Put_Line (N1 & " " & B1 (5 .. B1'Last) & " " &
-         N2 & " " & B2 (5 .. B2'Last) & " " & N3 & " " & B3 (5 .. B3'Last));
-   end Print_Triple;
-
-   function Process_Machine_Check_Banks return Machine_Check_Type is
-      IA32_MCG_CAP_MSR : constant := 16#00000179#;
-      IA32_MCI_CTL_MSR : constant := 16#00000404#;
-
-      Bank_Count, Bank_Val : Unsigned_64;
-      Len    : Natural;
-      B1, B2 : Lib.Messages.Translated_String;
-   begin
-      Lib.Messages.Put_Line ("The machine encountered a machine check, this");
-      Lib.Messages.Put_Line ("is usually indicative of hardware failure, and");
-      Lib.Messages.Put_Line ("the operating system is required to stop.");
-      Lib.Messages.Put_Line ("Please check the values of the MC banks dumped");
-      Lib.Messages.Put_Line ("below against processor and hardware manuals.");
-
-      --  Check how many banks we have and say how many, we dont know how far
-      --  we will get.
-      Bank_Count := Read_MSR (IA32_MCG_CAP_MSR) and 2#11111111#;
-      Lib.Messages.Image (Bank_Count, B1, Len, False);
-      Lib.Messages.Put_Line
-         ("Found " & B1 (B1'Last - Len + 1 .. B1'Last) & " banks.");
-
-      --  Read them and dump them, they are in intervals of four.
-      for I in 1 .. Bank_Count loop
-         Bank_Val := Read_MSR (IA32_MCI_CTL_MSR + ((Unsigned_32 (I) - 1) * 4));
-         Lib.Messages.Image (Bank_Val, B2, Len, True);
-         Lib.Messages.Image (I, B1, Len, False);
-         Lib.Messages.Put_Line
-            ("Bank #" & B1 (B1'Last - Len + 1 .. B1'Last) & ": " & B2);
-      end loop;
-
-      return Unrecognized_MCE;
-   end Process_Machine_Check_Banks;
 end Arch.Interrupts;

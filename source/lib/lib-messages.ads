@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
 with Arch.Clocks;
 with Lib.Synchronization; use Lib.Synchronization;
 
@@ -45,32 +44,6 @@ is
    procedure Dump_Logs (Buffer : out String; Length : out Natural)
       with Pre    => Is_Initialized and Buffer'First = 1,
            Global => (In_Out => (Message_State));
-   ----------------------------------------------------------------------------
-   --  Types for translation strings.
-   subtype Translated_String is String (1 .. 20);
-   subtype Translated_Length is Natural range 0 .. 20;
-
-   --  Put the value of an integer into a buffer, starting from the end.
-   --  @param Value   Value to translate.
-   --  @param Buffer  Buffer to build.
-   --  @param Length  Written length.
-   --  @param Use_Hex True for hex, false for decimal.
-   procedure Image
-      (Value   : Unsigned_32;
-       Buffer  : out Translated_String;
-       Length  : out Translated_Length;
-       Use_Hex : Boolean := False);
-
-   --  Put the value of an integer into a buffer, starting from the end.
-   --  @param Value   Value to translate.
-   --  @param Buffer  Buffer to build.
-   --  @param Length  Written length.
-   --  @param Use_Hex True for hex, false for decimal.
-   procedure Image
-      (Value   : Unsigned_64;
-       Buffer  : out Translated_String;
-       Length  : out Translated_Length;
-       Use_Hex : Boolean := False);
    ----------------------------------------------------------------------------
    --  Ghost function for checking whether login was initialized.
    function Is_Initialized return Boolean with Ghost;

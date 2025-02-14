@@ -16,6 +16,7 @@
 
 with Ada.Characters.Latin_1;
 with Arch.Debug;
+with Interfaces; use Interfaces;
 
 package body Lib.Messages with
    Refined_State => [Message_State =>
@@ -75,49 +76,13 @@ is
       Lib.Synchronization.Release (Messages_Mutex);
    end Dump_Logs;
    ----------------------------------------------------------------------------
-   procedure Image
-      (Value   : Unsigned_32;
-       Buffer  : out Translated_String;
-       Length  : out Translated_Length;
-       Use_Hex : Boolean := False)
-   is
-   begin
-      Image (Unsigned_64 (Value), Buffer, Length, Use_Hex);
-   end Image;
-
-   procedure Image
-      (Value   : Unsigned_64;
-       Buffer  : out Translated_String;
-       Length  : out Translated_Length;
-       Use_Hex : Boolean := False)
-   is
-      Conversion : constant      String := "0123456789ABCDEF";
-      To_Convert :          Unsigned_64 := Value;
-      Base       : constant Unsigned_64 := (if Use_Hex then 16 else 10);
-      Current    :              Natural := Buffer'Last;
-   begin
-      Buffer := (others => '0');
-      if To_Convert = 0 then
-         Length := 1;
-      else
-         while To_Convert /= 0 and Current >= Buffer'First loop
-            pragma Loop_Invariant (Current <= Buffer'Last);
-            Buffer (Current) := Conversion (Integer (To_Convert rem Base) + 1);
-            To_Convert       := To_Convert / Base;
-            Current          := Current - 1;
-         end loop;
-         Length := Buffer'Length - Current;
-      end if;
-   end Image;
-   ----------------------------------------------------------------------------
    procedure Get_Timestamp (Timestamp : out Timestamp_Str) is
-      Stp     : Translated_String;
-      Stp_Len : Natural;
       Sec, NSec : Unsigned_64;
    begin
       Arch.Clocks.Get_Monotonic_Time (Sec, NSec);
-      Image (Sec, Stp, Stp_Len, True);
-      Timestamp := Stp (11 .. Stp'Last);
+      Timestamp := [others => '0'];
+      Timestamp (Timestamp'Last - Sec'Image'Length + 1 .. Timestamp'Last) :=
+         Sec'Image;
    end Get_Timestamp;
 
    procedure Add_To_Buffers (Message : String) is

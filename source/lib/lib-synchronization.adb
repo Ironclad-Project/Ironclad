@@ -15,10 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Lib.Atomic; use Lib.Atomic;
-with System.Storage_Elements; use System.Storage_Elements;
 with Arch;
 with Arch.Snippets;
-with Lib.Messages;
 with Lib.Panic;
 with Scheduler;
 
@@ -30,8 +28,6 @@ package body Lib.Synchronization with SPARK_Mode => Off is
       (Lock : aliased in out Binary_Semaphore;
        Do_Not_Disable_Interrupts : Boolean := False)
    is
-      Stp  : Lib.Messages.Translated_String;
-      Len  : Natural;
       Ints : Boolean := Arch.Snippets.Interrupts_Enabled;
    begin
       Ints := Ints and not Do_Not_Disable_Interrupts;
@@ -54,10 +50,7 @@ package body Lib.Synchronization with SPARK_Mode => Off is
          end if;
       end loop;
 
-      Lib.Messages.Image
-         (Unsigned_64 (To_Integer (Caller_Address (0))), Stp, Len, True);
-      Lib.Panic.Hard_Panic
-         ("Deadlock at " & Stp (Stp'Last - Len + 1 .. Stp'Last));
+      Lib.Panic.Hard_Panic ("Deadlock at " & Caller_Address (0)'Image);
    end Seize;
 
    procedure Release (Lock : aliased in out Binary_Semaphore) is

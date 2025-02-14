@@ -1,39 +1,12 @@
-------------------------------------------------------------------------------
---                                                                          --
---                          GNAT RUN-TIME COMPONENTS                        --
---                                                                          --
---                S Y S T E M . U N S I G N E D _ T Y P E S                 --
---                                                                          --
---                                 S p e c                                  --
---                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
---                                                                          --
--- GNAT is free software;  you can  redistribute it  and/or modify it under --
--- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 3,  or (at your option) any later ver- --
--- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
--- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
---                                                                          --
--- As a special exception under Section 7 of GPL version 3, you are granted --
--- additional permissions described in the GCC Runtime Library Exception,   --
--- version 3.1, as published by the Free Software Foundation.               --
---                                                                          --
--- You should have received a copy of the GNU General Public License and    --
--- a copy of the GCC Runtime Library Exception along with this program;     --
--- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
--- <http://www.gnu.org/licenses/>.                                          --
---                                                                          --
--- GNAT was originally developed  by the GNAT team at  New York University. --
--- Extensive contributions were provided by Ada Core Technologies Inc.      --
---                                                                          --
-------------------------------------------------------------------------------
-
---  This package contains definitions of standard unsigned types that
---  correspond in size to the standard signed types declared in Standard,
---  and (unlike the types in Interfaces) have corresponding names. It
---  also contains some related definitions for other specialized types
---  used by the compiler in connection with packed array types.
+--  s-unstyp.ads: Generic unsigned types.
+--
+--  This specification is derived from the Ada Reference Manual. In accordance
+--  with the copyright of the original source, you can freely copy and modify
+--  this specification, provided that if you redistribute a modified version,
+--  any changes are clearly indicated.
+--
+--  This file is based on the distribution by the GNAT project, which is
+--  distributed under the GPLv3 with the GCC runtime exception.
 
 package System.Unsigned_Types with Pure is
    type Short_Short_Unsigned    is mod 2 ** Short_Short_Integer'Size;

@@ -6126,18 +6126,15 @@ package body Userland.Syscall is
    end Get_Mmap_Prot;
 
    procedure Execute_MAC_Failure (Name : String; Curr_Proc : PID) is
-      Curr_PID   : constant Unsigned_32 := Unsigned_32 (Convert (Curr_Proc));
-      PID_Buffer : Lib.Messages.Translated_String;
-      PID_Len    : Natural;
+      PID : constant Natural := Convert (Curr_Proc);
    begin
-      Lib.Messages.Image (Curr_PID, PID_Buffer, PID_Len);
       case Get_Enforcement (Curr_Proc) is
          when MAC.Deny =>
             null;
          when MAC.Deny_And_Scream =>
-            Lib.Messages.Put_Line (PID_Buffer & " MAC failure " & Name);
+            Lib.Messages.Put_Line (PID'Image & " MAC failure " & Name);
          when MAC.Kill =>
-            Lib.Messages.Put_Line (PID_Buffer & " MAC killing " & Name);
+            Lib.Messages.Put_Line (PID'Image & " MAC killing " & Name);
             Do_Exit (Curr_Proc, 42);
       end case;
    end Execute_MAC_Failure;

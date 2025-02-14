@@ -46,7 +46,6 @@ package body Userland.OOM_Failure is
       Guilty      : Natural;
       Guilty_Size : Unsigned_64;
       Size        : Unsigned_64;
-      Str         : Lib.Messages.Translated_String;
    begin
       --  TODO: Free internal memory.
       if Is_Killing_Allowed then
@@ -71,11 +70,9 @@ package body Userland.OOM_Failure is
          --  Once a guilty process has been chosen, move to execution.
          if Guilty /= 0 and then Items (Guilty).Process /= Process.Error_PID
          then
-            Lib.Messages.Image
-               (Unsigned_64 (Convert (Items (Guilty).Process)), Str, Count);
             Lib.Messages.Put_Line
                ("Killing PID "                         &
-                Str (Str'Last - Count + 1 .. Str'Last) &
+                Convert (Items (Guilty).Process)'Image &
                 " '"                                   &
                 Items (Guilty).Identifier (1 .. Items (Guilty).Identifier_Len)
                 &

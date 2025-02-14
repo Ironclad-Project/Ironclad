@@ -39,8 +39,6 @@ package body Devices.SATA with SPARK_Mode => Off is
       Drive_Idx  : Natural := 0;
       Success    : Boolean;
       Base_Name  : constant String := "sata";
-      Num_Str    : Lib.Messages.Translated_String;
-      Num_Len    : Natural;
    begin
       for Idx in 1 .. Arch.PCI.Enumerate_Devices (1, 6, 1) loop
          Arch.PCI.Search_Device (1, 6, 1, Idx, PCI_Dev, Success);
@@ -79,11 +77,9 @@ package body Devices.SATA with SPARK_Mode => Off is
             Drive_Data := Init_Port (Dev_Mem, I);
             if Drive_Data /= null then
                Drive_Idx := Drive_Idx + 1;
-               Lib.Messages.Image (Unsigned_32 (Drive_Idx), Num_Str, Num_Len);
 
                declare
-                  Final_Name : constant String := Base_Name &
-                     Num_Str (Num_Str'Last - Num_Len + 1 .. Num_Str'Last);
+                  Final_Name : constant String := Base_Name & Drive_Idx'Image;
                begin
                   Register (
                      (Data => C1.To_Address (C1.Object_Pointer (Drive_Data)),

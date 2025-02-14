@@ -93,14 +93,4 @@ package Arch.Interrupts is
 
    --  LAPIC spurious interrupt handling.
    procedure Spurious_Handler;
-
-private
-
-   procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64);
-
-   --  Returns true if memory error.
-
-   type Machine_Check_Type is (Memory_MCE, Unrecognized_MCE);
-
-   function Process_Machine_Check_Banks return Machine_Check_Type;
 end Arch.Interrupts;

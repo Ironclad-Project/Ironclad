@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
 with Arch.APIC;
 with Arch.GDT;
 with Arch.HPET;
@@ -35,9 +34,8 @@ with Arch.Limine;
 
 package body Arch.Entrypoint is
    procedure Bootstrap_Main is
-      Info     : Boot_Information renames Limine.Global_Info;
-      St1, St2 : Lib.Messages.Translated_String;
-      Stp_Len  : Natural;
+      Info : Boot_Information renames Limine.Global_Info;
+      Addr : System.Address;
    begin
       --  Initialize architectural state first.
       Devices.Serial.Init_COM1;
@@ -62,10 +60,10 @@ package body Arch.Entrypoint is
       --  Print the memory map, it is useful at times.
       Lib.Messages.Put_Line ("Physical memory map:");
       for E of Info.Memmap (1 .. Info.Memmap_Len) loop
-         Image (Unsigned_64 (To_Integer (E.Start)), St1, Stp_Len, True);
-         Image (Unsigned_64 (E.Length), St2, Stp_Len, True);
-         Lib.Messages.Put_Line (St1 & " + " & St2 & " " &
-            Boot_Memory_Type'Image (E.MemType));
+         Addr := E.Start + E.Length;
+         Lib.Messages.Put_Line
+            ("[" & E.Start'Image & " - " & Addr'Image & "] " &
+             Boot_Memory_Type'Image (E.MemType));
       end loop;
 
       --  Initialize the core's LAPIC and system's IOAPIC, essential for

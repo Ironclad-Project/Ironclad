@@ -52,15 +52,12 @@ is
    HPET_Ticks_Per_Res_Nano : Unsigned_64 := 1;
 
    procedure Initialize_Sources is
-      Stp : Lib.Messages.Translated_String;
-      Len : Natural;
    begin
       HPET.Get_Frequency (HPET_Ticks_Per_Second);
       HPET_Ticks_Per_Res_Nano := HPET_Ticks_Per_Second / Nano_Res_In_Second;
-      Lib.Messages.Image (Unsigned_64 (Timer_NS_Resolution), Stp, Len);
       Lib.Messages.Put_Line
          ("Monotonic resolution (HPET) fixed at " &
-          Stp (Stp'Last - Len + 1 .. Stp'Last) & " ns");
+          Natural (Timer_NS_Resolution)'Image & " ns");
 
       Get_Monotonic_Time (RT_Timestamp_Seconds, RT_Timestamp_Nanoseconds);
       RTC.Get_RTC_Date (RT_Stored_Seconds);

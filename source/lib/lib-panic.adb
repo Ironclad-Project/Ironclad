@@ -37,8 +37,6 @@ is
    end Hard_Panic;
 
    procedure Hard_Panic (Message : String; Ctx : Arch.Context.GP_Context) is
-      Len : Natural;
-      Str : Messages.Translated_String;
    begin
       Panic_Hook;
 
@@ -50,8 +48,7 @@ is
          Print_Triple ("R13", "R14", "R15", Ctx.R13, Ctx.R14, Ctx.R15);
          Print_Triple ("RIP", "RSP", "CR2", Ctx.RIP, Ctx.RSP,
                        Arch.Snippets.Read_CR2);
-         Messages.Image (Ctx.Error_Code, Str, Len, True);
-         Messages.Put_Line ("Error code: " & Str);
+         Messages.Put_Line ("Error code: " & Ctx.Error_Code'Image);
       #end if;
 
       Print_Seal_And_Goodnight (Message);
@@ -80,15 +77,10 @@ is
    end Print_Seal_And_Goodnight;
 
    procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64) is
-      Discard    : Natural;
-      B1, B2, B3 : Messages.Translated_String;
    begin
-      Messages.Image (V1, B1, Discard, True);
-      Messages.Image (V2, B2, Discard, True);
-      Messages.Image (V3, B3, Discard, True);
       Messages.Put_Line
-         (N1 & " " & B1 (5 .. B1'Last) & " " &
-          N2 & " " & B2 (5 .. B2'Last) & " " &
-          N3 & " " & B3 (5 .. B3'Last));
+         (N1 & " " & V1'Image & " " &
+          N2 & " " & V2'Image & " " &
+          N3 & " " & V3'Image);
    end Print_Triple;
 end Lib.Panic;
