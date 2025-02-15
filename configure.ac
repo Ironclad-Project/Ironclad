@@ -188,7 +188,6 @@ AC_DEFUN([GET_PROG], [
     $1="$(rel2abs "$$1")"
 ])
 
-GET_PROG([PERL], [perl], [perl])
 GET_PROG([MAKEINFO], [makeinfo], [makeinfo])
 GET_PROG([TEXI2DVI], [texi2dvi], [texi2dvi])
 GET_PROG([TEXI2HTML], [makeinfo --no-split --html], [texi2html])

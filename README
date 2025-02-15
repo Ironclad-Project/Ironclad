@@ -23,7 +23,6 @@ The tools needed are:
 - gprbuild for compilation, along with a compatible Ada compiler and assembler.
 - GNU Info for building the documentation.
 - highlight for syntax highlighting when building the HTML documentation.
-- perl for some checks, not for compilation.
 - gnatprove for formal verification, if desired.
 
 If checking out Git sources instead of building from a tarball, run

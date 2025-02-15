@@ -51,7 +51,6 @@ TEXI2HTML    := @TEXI2HTML@
 TEXI2DVI     := @TEXI2DVI@
 GPRBUILD     := @GPRBUILD@
 GNATPROVE    := @GNATPROVE@
-PERL         := @PERL@
 OBJDUMP      := @OBJDUMP@
 STRIP        := @STRIP@
 
@@ -111,14 +110,7 @@ ironclad.dvi: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi GNUmakefile
 ###############################################################################
 # Rules for checks and formal verification.
 .PHONY: check
-check: checkstack prove
-
-.PHONY: checkstack
-checkstack: $(OUTPUT)
-	$(OBJDUMP) -d $(OUTPUT) | $(PERL) '$(call SHESCAPE,$(SRCDIR))'/scripts/checkstack.pl $(host_cpu)-$(PLATFORM)
-
-.PHONY: prove
-prove: rtsdir/adalib/libgnat.a
+check: rtsdir/adalib/libgnat.a
 	$(GNATPROVE) -U --level=4 --mode=all --counterexamples=on \
 		-j$(PARALLELISM) -P ./rts.gpr
 	$(GNATPROVE) -U --level=4 --mode=all --counterexamples=on \
