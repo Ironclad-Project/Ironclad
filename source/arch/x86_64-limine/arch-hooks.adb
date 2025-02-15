@@ -24,7 +24,6 @@ with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
 with Arch.Interrupts;
 with Interfaces; use Interfaces;
-with Devices.LPT;
 with Lib.Messages;
 with Devices.Ramdev;
 with Arch.Limine;
@@ -33,7 +32,6 @@ package body Arch.Hooks is
    function Devices_Hook return Boolean is
    begin
       return Devices.FB.Init          and then
-             Devices.LPT.Init         and then
              Devices.PC_Speaker.Init  and then
              Devices.PS2Keyboard.Init and then
              Devices.PS2Mouse.Init    and then

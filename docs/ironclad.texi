@@ -4438,21 +4438,6 @@ To be determined.
 The @code{fb0} device exposes the framebuffer passed as part of the boot
 protocol, when present. The device uses Linux's @url{https://docs.kernel.org/fb/api.html, fbdev} interface.
 
-@subsection lpt
-
-The devices starting by @code{lpt} represent the several character devices
-representing the system's parallel ports. They support write operations, but no
-TTY interface is exposed, they are raw byte streams.
-
-@subsection pcspeaker
-
-@code{pcspeaker} represents the IBM PC speaker, it is interfaced with using
-@code{ioctl}, as such:
-
-@example c
-ioctl(fd, ignored, pointer_to_uint32_t_frequency_in_hz);
-@end example
-
 @subsection ps2keyboard/ps2mouse
 
 The devices @code{ps2keyboard} and @code{ps2mouse} exposes x86's native PS2
