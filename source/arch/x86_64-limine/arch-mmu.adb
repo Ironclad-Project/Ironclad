@@ -21,8 +21,6 @@ with Arch.Snippets;
 with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
 with Arch.Interrupts;
-with Arch.Local;
-with Userland.Process; use Userland.Process;
 with Memory.Physical;
 with Arch.Limine;
 
@@ -708,8 +706,6 @@ package body Arch.MMU is
    procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count) is
       Final : constant System.Address := Addr + Len;
       Curr  :          System.Address := Addr;
-      Current_Proc : Userland.Process.PID;
-      Thread_Count : Natural;
    begin
       --  First, invalidate for ourselves.
       while To_Integer (Curr) < To_Integer (Final) loop
@@ -720,16 +716,6 @@ package body Arch.MMU is
       --  If we are running on a process, and said process is running with more
       --  than one thread, we need to invalidate using funky IPIs.
       if CPU.Core_Locals /= null then
-         Current_Proc := Local.Get_Current_Process;
-         if Current_Proc = Error_PID then
-            return;
-         end if;
-
-         Userland.Process.Get_Thread_Count (Current_Proc, Thread_Count);
-         if Thread_Count < 2 then
-            return;
-         end if;
-
          for I in CPU.Core_Locals.all'Range loop
             if I /= CPU.Get_Local.Number then
                CPU.Core_Locals (I).Invalidate_Start := Addr;

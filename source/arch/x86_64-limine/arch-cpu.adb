@@ -222,8 +222,9 @@ package body Arch.CPU with SPARK_Mode => Off is
       CR0 := (CR0 and (not Shift_Left (1, 2))) or Shift_Left (1, 1);
       CR4 := CR4 or Shift_Left (3, 9);
 
-      --  Enable and configure MCE handling.
-      CR4 := CR4 or Shift_Left (1, 6);
+      --  Enable global page tables and disable TSC from userland for
+      --  mitigating side-channel attacks.
+      CR4 := CR4 or Shift_Left (1, 7) or Shift_Left (1, 2);
 
       --  Enable several security features if present.
       Snippets.Get_CPUID (7, 0, EAX, EBX, ECX, EDX, Success);
