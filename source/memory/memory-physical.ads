@@ -1,5 +1,5 @@
 --  memory-physical.ads: Specification of the physical memory allocator.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -15,12 +15,15 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch; use Arch;
-with Interfaces.C;
+with Interfaces.C; use Interfaces.C;
+with Interfaces; use Interfaces;
 
 package Memory.Physical is
    --  Initialize the allocator with a memmap.
    --  @param Memmap Memory map to use to initialize the allocator.
    procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map);
+   ----------------------------------------------------------------------------
+   --  Allocation functions.
 
    --  Called when doing 'new'.
    --  @param Sz Size to allocate in bytes. Sz = size_t'Last will
@@ -39,7 +42,7 @@ package Memory.Physical is
    --  @param Address Address of the object to free, higher half or not.
    procedure Free (Address : Interfaces.C.size_t)
       with Export, Convention => C, External_Name => "__gnat_free";
-
+   ----------------------------------------------------------------------------
    --  Allocator-wide memory statistics.
    --  @field Total     Total physical memory of the system.
    --  @field Available Non-reserved memory amount managed by the allocator.
@@ -56,5 +59,9 @@ package Memory.Physical is
 
 private
 
-   function Calculate_Signature (Count : Size) return Size;
+   function Alloc_Pgs (Sz : Interfaces.C.size_t) return Memory.Virtual_Address;
+   procedure Free_Pgs (Address : Interfaces.C.size_t);
+
+   function CLZ (Num : Unsigned_64) return Interfaces.C.int;
+   pragma Import (Intrinsic, CLZ, "__builtin_clzl");
 end Memory.Physical;

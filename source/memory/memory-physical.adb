@@ -1,5 +1,5 @@
 --  memory-physical.adb: Physical memory allocator and other utils.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
 with Lib.Panic;
 with Lib.Synchronization; use Lib.Synchronization;
 with Lib.Alignment;
@@ -40,13 +39,24 @@ package body Memory.Physical is
    --  Header of each memory allocation.
    type Allocation_Header is record
       Block_Count : Size;
-      Signature   : Size;
    end record;
 
-   function Calculate_Signature (Count : Size) return Size is
-   begin
-      return Count xor 2#10001011101010#;
-   end Calculate_Signature;
+   --  We have slabs built on top of the default allocator. These slabs
+   --  are all one page in size and individually locked.
+   type Page_Data is array (0 .. (4096 * 100) - 1) of Unsigned_8;
+   type Slab (Entity_Size : Natural) is record
+      Lock          : aliased Binary_Semaphore;
+      Element_Count : Natural;
+      Element_Bump  : Natural;
+      Pool          : Page_Data;
+   end record;
+   type Slab_Acc is access Slab;
+
+   type Slab_Arr     is array (1 .. 9) of Slab_Acc;
+   type Slab_Arr_Acc is access Slab_Arr;
+
+   Slab_Init : Boolean := False;
+   Slabs     : Slab_Arr_Acc;
 
    procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map) is
       Adjusted_Length : Storage_Count  := 0;
@@ -57,13 +67,10 @@ package body Memory.Physical is
             Free_Memory := Free_Memory + Size (E.Length);
          end if;
       end loop;
-      declare
-         Sta : constant Size := Size (To_Integer (Memmap (Memmap'Last).Start));
-         Len : constant Size := Size (Memmap (Memmap'Last).Length);
-      begin
-         Available_Memory := Free_Memory;
-         Total_Memory     := Sta + Len;
-      end;
+
+      Available_Memory := Free_Memory;
+      Total_Memory     := Size (To_Integer (Memmap (Memmap'Last).Start +
+                                Memmap (Memmap'Last).Length));
 
       --  Calculate what we will need for the bitmap, and find a hole for it.
       Block_Count   := Unsigned_64 (Total_Memory) / Block_Size;
@@ -115,12 +122,117 @@ package body Memory.Physical is
             end loop;
          end loop;
       end;
-   end Init_Allocator;
 
+      --  Allocate the slabs.
+      Slabs := new Slab_Arr'
+         [1 => new Slab'(0008, Unlocked_Semaphore, 0, 0, Pool => <>),
+          2 => new Slab'(0016, Unlocked_Semaphore, 0, 0, Pool => <>),
+          3 => new Slab'(0032, Unlocked_Semaphore, 0, 0, Pool => <>),
+          4 => new Slab'(0064, Unlocked_Semaphore, 0, 0, Pool => <>),
+          5 => new Slab'(0128, Unlocked_Semaphore, 0, 0, Pool => <>),
+          6 => new Slab'(0256, Unlocked_Semaphore, 0, 0, Pool => <>),
+          7 => new Slab'(0512, Unlocked_Semaphore, 0, 0, Pool => <>),
+          8 => new Slab'(1024, Unlocked_Semaphore, 0, 0, Pool => <>),
+          9 => new Slab'(2048, Unlocked_Semaphore, 0, 0, Pool => <>)];
+      Slab_Init := True;
+   end Init_Allocator;
+   ----------------------------------------------------------------------------
    function Alloc (Sz : Interfaces.C.size_t) return Virtual_Address is
-      --  It being a function is forced by API, and functions with side-effects
-      --  is illegal in SPARK. So unless we want to use C for the allocator,
-      --  we cannot SPARK.
+      Size   : Interfaces.C.size_t := Sz;
+      Result : Virtual_Address;
+      I      : Natural;
+   begin
+      --  Check the specific GNAT semantics.
+      if Size = Interfaces.C.size_t'Last then
+         Lib.Panic.Hard_Panic ("size_t'Last passed to 'new'");
+      elsif Size = 0 then
+         Size := 1;
+      end if;
+
+      if Slab_Init then
+         case Unsigned_32 (CLZ (Unsigned_64 (Size))) xor 63 is
+            when 0 .. 2 => I := 1;
+            when 3  => I := 2;
+            when 4  => I := 3;
+            when 5  => I := 4;
+            when 6  => I := 5;
+            when 7  => I := 6;
+            when 8  => I := 7;
+            when 9  => I := 8;
+            when 10 => I := 9;
+            when others => goto Default_Alloc;
+         end case;
+
+      <<Next_Slab_Try>>
+         Lib.Synchronization.Seize (Slabs (I).Lock);
+         if Slabs (I).Element_Bump >=
+            Slabs (I).Pool'Length / Slabs (I).Entity_Size
+         then
+            Lib.Synchronization.Release (Slabs (I).Lock);
+            if I = Slabs'Last then
+               goto Default_Alloc;
+            else
+               I := I + 1;
+               goto Next_Slab_Try;
+            end if;
+         end if;
+
+         Result :=
+            To_Integer (Slabs (I).Pool (Slabs (I).Element_Bump *
+                        Slabs (I).Entity_Size)'Address);
+         Slabs (I).Element_Bump  := Slabs (I).Element_Bump  + 1;
+         Slabs (I).Element_Count := Slabs (I).Element_Count + 1;
+         Lib.Synchronization.Release (Slabs (I).Lock);
+         return Result;
+      end if;
+
+   <<Default_Alloc>>
+      return Alloc_Pgs (Size);
+   end Alloc;
+
+   procedure Free (Address : Interfaces.C.size_t) is
+      Real_Address : Virtual_Address := Virtual_Address (Address);
+   begin
+      --  Ensure the address is in the higher half and not null.
+      if Real_Address = 0 then
+         return;
+      elsif Real_Address < Memory_Offset then
+         Real_Address := Real_Address + Memory_Offset;
+      end if;
+
+      if Slab_Init then
+         for S of Slabs.all loop
+            if Real_Address >= To_Integer (S.Pool (S.Pool'First)'Address) and
+               Real_Address <= To_Integer (S.Pool (S.Pool'Last)'Address)
+            then
+               Lib.Synchronization.Seize (S.Lock);
+               if S.Element_Count = 1 then
+                  S.Element_Count := 0;
+                  S.Element_Bump  := 0;
+               else
+                  S.Element_Count := S.Element_Count - 1;
+               end if;
+               Lib.Synchronization.Release (S.Lock);
+               return;
+            end if;
+         end loop;
+      end if;
+
+      Free_Pgs (size_t (Real_Address));
+   end Free;
+   ----------------------------------------------------------------------------
+   procedure Get_Statistics (Stats : out Statistics) is
+   begin
+      Lib.Synchronization.Seize (Alloc_Mutex);
+      Stats :=
+         (Total     => Total_Memory,
+          Available => Available_Memory,
+          Free      => Free_Memory);
+      Lib.Synchronization.Release (Alloc_Mutex);
+   end Get_Statistics;
+   ----------------------------------------------------------------------------
+   function Alloc_Pgs (Sz : Interfaces.C.size_t) return Memory.Virtual_Address
+   is
       pragma SPARK_Mode (Off);
 
       package Align is new Lib.Alignment (Memory.Size);
@@ -134,13 +246,6 @@ package body Memory.Physical is
       Size               : Memory.Size := Memory.Size (Sz);
       Blocks_To_Allocate : Memory.Size;
    begin
-      --  Check the specific GNAT semantics.
-      if Size = Memory.Size (Interfaces.C.size_t'Last) then
-         Lib.Panic.Hard_Panic ("Storage error (size_t'Last passed)");
-      elsif Size = 0 then
-         Size := 1;
-      end if;
-
       --  Calculate how many blocks to allocate, if we are doing alloconly, we
       --  do not need to use blocks for headers and checksums.
       Size               := Align.Align_Up (Size, Block_Size);
@@ -202,29 +307,20 @@ package body Memory.Physical is
          Ret : constant Virtual_Address :=
             Virtual_Address (First_Found_Index * Block_Size) + Memory_Offset;
          Header : Allocation_Header with Import, Address => To_Address (Ret);
-         Data : array (1 .. Blocks_To_Allocate * Block_Size) of Unsigned_8
-            with Import, Address => To_Address (Ret);
       begin
-         Header :=
-            (Block_Count => Blocks_To_Allocate,
-             Signature   => Calculate_Signature (Blocks_To_Allocate));
+         Header := (Block_Count => Blocks_To_Allocate);
          return Ret + Block_Size;
       end;
-   end Alloc;
+   end Alloc_Pgs;
 
-   procedure Free (Address : Interfaces.C.size_t) is
-      Real_Address : Virtual_Address := Virtual_Address (Address);
+   procedure Free_Pgs (Address : Interfaces.C.size_t) is
+      pragma SPARK_Mode (Off);
+
+      Real_Address : constant Virtual_Address := Virtual_Address (Address);
       Real_Block   : Unsigned_64;
       Bitmap_Body  : Bitmap (0 .. Block_Count - 1)
          with Address => To_Address (Bitmap_Address), Import;
    begin
-      --  Ensure the address is in the higher half and not null.
-      if Real_Address = 0 then
-         return;
-      elsif Real_Address < Memory_Offset then
-         Real_Address := Real_Address + Memory_Offset;
-      end if;
-
       --  Free the blocks in the header.
       declare
          IAddr  : constant Integer_Address := Real_Address - Block_Size;
@@ -233,27 +329,13 @@ package body Memory.Physical is
       begin
          Lib.Synchronization.Seize (Alloc_Mutex);
 
-         if Calculate_Signature (Header.Block_Count) = Header.Signature then
-            Real_Block  := Unsigned_64 (IAddr - Memory_Offset) / Block_Size;
-            Free_Memory := Free_Memory + (Header.Block_Count * Block_Size);
-            for I in 1 .. Header.Block_Count loop
-               Bitmap_Body (Real_Block + Unsigned_64 (I - 1)) := Block_Free;
-            end loop;
-         else
-            Lib.Messages.Put_Line ("Tried to deallocate a corrupted block!");
-         end if;
+         Real_Block  := Unsigned_64 (IAddr - Memory_Offset) / Block_Size;
+         Free_Memory := Free_Memory + (Header.Block_Count * Block_Size);
+         for I in 1 .. Header.Block_Count loop
+            Bitmap_Body (Real_Block + Unsigned_64 (I - 1)) := Block_Free;
+         end loop;
 
          Lib.Synchronization.Release (Alloc_Mutex);
       end;
-   end Free;
-
-   procedure Get_Statistics (Stats : out Statistics) is
-   begin
-      Lib.Synchronization.Seize (Alloc_Mutex);
-      Stats :=
-         (Total     => Total_Memory,
-          Available => Available_Memory,
-          Free      => Free_Memory);
-      Lib.Synchronization.Release (Alloc_Mutex);
-   end Get_Statistics;
+   end Free_Pgs;
 end Memory.Physical;
