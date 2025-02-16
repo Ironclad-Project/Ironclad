@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Snippets; use Arch.Snippets;
+with Arch.HPET;
 
 package body Devices.PC_Speaker is
    function Init return Boolean is
@@ -38,8 +39,9 @@ package body Devices.PC_Speaker is
    end Init;
 
    procedure Beep (Frequency : Unsigned_32 := 1000) is
-      Divisor : constant Unsigned_32 := 1193180 / Frequency;
-      Tmp     : Unsigned_8;
+      MS_In_NS : constant := 1_000_000;
+      Divisor  : constant Unsigned_32 := 1193180 / Frequency;
+      Tmp      : Unsigned_8;
    begin
 
       --  Set the PIT to the frequency we want.
@@ -53,19 +55,12 @@ package body Devices.PC_Speaker is
          Port_Out (16#61#, Tmp or 3);
       end if;
 
-      --  Wait for a few cycles.
-      Delay_Execution (300_000_000);
+      Arch.HPET.NSleep (333 * MS_In_NS);
 
       --  Make it stop.
       Port_Out (16#61#, Port_In (16#61#) and 16#FC#);
    end Beep;
    ----------------------------------------------------------------------------
-   procedure Delay_Execution (Cycles : Unsigned_64) is
-      Next_Stop : constant Unsigned_64 := Read_Cycles + Cycles;
-   begin
-      while Read_Cycles < Next_Stop loop null; end loop;
-   end Delay_Execution;
-
    procedure IO_Control
       (Key       : System.Address;
        Request   : Unsigned_64;

@@ -58,17 +58,6 @@ package body Arch.Snippets is
       Asm ("pause", Volatile => True);
    end Pause;
    ----------------------------------------------------------------------------
-   function Read_Cycles return Unsigned_64 is
-      High : Unsigned_32;
-      Low  : Unsigned_32;
-   begin
-      Asm ("rdtsc",
-          Outputs => [Unsigned_32'Asm_Output ("=d", High),
-                      Unsigned_32'Asm_Output ("=a", Low)],
-          Volatile => True);
-      return Shift_Left (Unsigned_64 (High), 32) or Unsigned_64 (Low);
-   end Read_Cycles;
-
    procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) is
    begin
       Asm ("outb %0, %1",

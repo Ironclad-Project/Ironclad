@@ -23,8 +23,6 @@ package Devices.PC_Speaker is
 
 private
 
-   procedure Delay_Execution (Cycles : Unsigned_64);
-
    procedure IO_Control
       (Key       : System.Address;
        Request   : Unsigned_64;

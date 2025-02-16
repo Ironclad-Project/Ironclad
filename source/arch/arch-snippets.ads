@@ -75,7 +75,6 @@ package Arch.Snippets is
       function Read_Kernel_GS return Unsigned_64 with Inline;
       procedure Write_Kernel_GS (Value : Unsigned_64) with Inline;
       procedure Swap_GS with Inline;
-      function Read_Cycles return Unsigned_64 with Inline;
       procedure Invalidate_Caches with Inline;
 
       procedure Get_CPUID
