@@ -25,7 +25,7 @@ package Lib.Alignment with Pure is
    --  @param Alignment Power-of-2 alignment to align to.
    --  @return The aligned value.
    function Align_Up (Value, Alignment : T) return T
-      with Pre  => Alignment /= 0 and (Alignment and (Alignment - 1)) = 0,
+      with Pre  => Alignment /= 0 and Alignment rem 2 = 0,
            Post => Align_Up'Result rem Alignment = 0;
 
    --  Align down a value.
@@ -33,11 +33,19 @@ package Lib.Alignment with Pure is
    --  @param Alignment Power-of-2 alignment to align to.
    --  @return The aligned value.
    function Align_Down (Value, Alignment : T) return T
-      with Pre  => Alignment /= 0 and (Alignment and (Alignment - 1)) = 0,
+      with Pre  => Alignment /= 0 and Alignment rem 2 = 0,
            Post => Align_Down'Result rem Alignment = 0;
 
    --  Divide and round up.
    function Divide_Round_Up (Dividend, Divisor : T) return T
       with Pre  => (Dividend + (Divisor - 1) <= T'Last) and (Divisor > 1),
            Post => Divide_Round_Up'Result mod Divisor = 0;
+
+   --  Align a memory range to the desired boundary.
+   --  This might result in a bigger window, but never a smaller one.
+   --  @param Base   Base of the memory range.
+   --  @param Length Length of the memory range.
+   --  @param Bounds Boundary to align the memory range to. Ex. Page size.
+   procedure Align_Memory_Range (Base, Length : in out T; Bounds : T)
+         with Pre => Bounds /= 0 and (Bounds and (Bounds - 1)) = 0;
 end Lib.Alignment;

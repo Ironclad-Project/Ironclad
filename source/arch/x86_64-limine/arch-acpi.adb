@@ -30,6 +30,7 @@ with Ada.Unchecked_Deallocation;
 with Ada.Characters.Latin_1;
 with Memory.Physical;
 with Scheduler;
+with Arch.IDT;
 
 package body Arch.ACPI with SPARK_Mode => Off is
    --  Request to get the RSDP.
@@ -416,20 +417,17 @@ package body Arch.ACPI with SPARK_Mode => Off is
       return Status_OK;
    end IO_Write32;
 
-   package A2 is new Lib.Alignment (Integer_Address);
-
    function Map
       (Phys_Addr : Unsigned_64;
        Length    : size_t) return System.Address
    is
+      package A is new Lib.Alignment (Integer_Address);
+
       Success : Boolean;
-      Start   : constant Integer_Address :=
-         A2.Align_Down (Integer_Address (Phys_Addr), Arch.MMU.Page_Size);
-      Top     : constant Integer_Address :=
-         A2.Align_Up (Integer_Address (Phys_Addr) + Integer_Address (Length),
-                      Arch.MMU.Page_Size);
-      Len     : constant Integer_Address := Top - Start;
+      Start   : Integer_Address := Integer_Address (Phys_Addr);
+      Len     : Integer_Address := Integer_Address (Length);
    begin
+      A.Align_Memory_Range (Start, Len, Arch.MMU.Page_Size);
       Arch.MMU.Map_Range
          (Map            => Arch.MMU.Kernel_Table,
           Physical_Start => To_Address (Start),
@@ -468,9 +466,11 @@ package body Arch.ACPI with SPARK_Mode => Off is
        Context : System.Address;
        Handle  : out System.Address) return Status
    is
-      pragma Unreferenced (IRQ, Handler, Context);
+      pragma Unreferenced (Context);
+      I : constant IDT.IRQ_Index := IDT.IRQ_Index (IRQ + 33);
    begin
-      Handle := System.Null_Address;
+      IDT.Load_ISR (Index => I, Address => Handler);
+      Handle := To_Address (Integer_Address (I));
       return Status_OK;
    end Install_Interrupt_Handler;
 
@@ -478,8 +478,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
       (Handler : System.Address;
        Handle  : System.Address) return Status
    is
-      pragma Unreferenced (Handler, Handle);
+      pragma Unreferenced (Handler);
    begin
+      IDT.Unload_ISR (IDT.IRQ_Index (To_Integer (Handle)));
       return Status_OK;
    end Uninstall_Interrupt_Handler;
 

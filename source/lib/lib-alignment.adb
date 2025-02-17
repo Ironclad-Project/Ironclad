@@ -35,4 +35,12 @@ package body Lib.Alignment is
    begin
       return (Dividend + (Divisor - 1)) / Divisor;
    end Divide_Round_Up;
+
+   procedure Align_Memory_Range (Base, Length : in out T; Bounds : T) is
+      Start : constant T := Align_Down (Base, Bounds);
+      Top   : constant T := Align_Up (Base + Length, Bounds);
+   begin
+      Base   := Start;
+      Length := Top - Start;
+   end Align_Memory_Range;
 end Lib.Alignment;

@@ -6185,13 +6185,15 @@ package body Userland.Syscall is
        Addr       : Memory.Virtual_Address;
        Byte_Count : Unsigned_64) return Boolean
    is
-      package Al is new Lib.Alignment (Unsigned_64);
-      Length : Unsigned_64;
+      package A is new Lib.Alignment (Integer_Address);
+
+      Start  : Integer_Address := Addr;
+      Length : Integer_Address := Integer_Address (Byte_Count);
       Result : System.Address;
       Is_Mapped, Is_Readable, Is_Writeable, Is_Executable : Boolean;
       Is_User_Accessible : Boolean;
    begin
-      Length := Al.Align_Up (Byte_Count + 1, Arch.MMU.Page_Size);
+      A.Align_Memory_Range (Start, Length, Arch.MMU.Page_Size);
       Arch.MMU.Translate_Address
          (Map                => Map,
           Virtual            => To_Address (Addr),

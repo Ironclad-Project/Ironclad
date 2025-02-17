@@ -127,6 +127,7 @@ package body Userland.ELF is
        Linker : out String_Acc)
    is
       use VFS;
+
       Discard  : Unsigned_64;
       Ret : constant String_Acc :=
          new String'[1 .. Header.File_Size_Bytes => ' '];
@@ -153,11 +154,11 @@ package body Userland.ELF is
        Success : out Boolean)
    is
       use VFS;
-      package A1 is new Lib.Alignment (Unsigned_64);
-      package A2 is new Lib.Alignment (Integer_Address);
+
+      package A is new Lib.Alignment (Integer_Address);
 
       MisAlign : constant Unsigned_64 :=
-         Header.Virt_Address and (Arch.MMU.Page_Size - 1);
+         Header.Virt_Address mod Arch.MMU.Page_Size;
       Load_Size : constant Unsigned_64 := MisAlign + Header.Mem_Size_Bytes;
       ELF_Virtual : constant Virtual_Address :=
          Virtual_Address (Base + Header.Virt_Address);
@@ -170,35 +171,31 @@ package body Userland.ELF is
       Ret_Count  : Natural;
       Success2   : FS_Status;
       Result     : System.Address;
-      Ali_V      : Integer_Address;
-      Ali_L      : Unsigned_64;
+      Ali_V      : Integer_Address := ELF_Virtual;
+      Ali_L      : Integer_Address := Integer_Address (Load_Size);
    begin
-      Userland.Syscall.Check_Userland_Mappability
-         (Map, ELF_Virtual, Load_Size, Success);
-      if not Success                             or
-         (Flags.Can_Execute and Flags.Can_Write) or
+      if (Flags.Can_Execute and Flags.Can_Write) or
          Header.Alignment = 0                    or
-         (Header.Alignment and (Header.Alignment - 1)) /= 0
+         (Header.Alignment mod Arch.MMU.Page_Size) /= 0
       then
          Success := False;
          return;
       end if;
 
-      Ali_V := A2.Align_Down (ELF_Virtual, Integer_Address (Header.Alignment));
-      Ali_L := A1.Align_Up   (Load_Size, Header.Alignment);
-      if Ali_V mod Arch.MMU.Page_Size /= 0 or Ali_L mod Arch.MMU.Page_Size /= 0
-      then
-         Success := False;
+      A.Align_Memory_Range (Ali_V, Ali_L, Integer_Address (Header.Alignment));
+      Syscall.Check_Userland_Mappability
+         (Map, Ali_V, Unsigned_64 (Ali_L), Success);
+      if not Success then
          return;
       end if;
 
       Arch.MMU.Map_Allocated_Range
-         (Map             => Map,
-          Virtual_Start   => To_Address (Ali_V),
-          Length          => Storage_Count (Ali_L),
-          Permissions     => Flags,
-          Physical_Start  => Result,
-          Success         => Success);
+         (Map            => Map,
+          Virtual_Start  => To_Address (Ali_V),
+          Length         => Storage_Count (Ali_L),
+          Permissions    => Flags,
+          Physical_Start => Result,
+          Success        => Success);
       if not Success then
          return;
       end if;
