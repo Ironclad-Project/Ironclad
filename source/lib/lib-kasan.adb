@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Messages;            use Lib.Messages;
+with Lib.Messages;
 with Interfaces;              use Interfaces;
 with System.Storage_Elements; use System.Storage_Elements;
 with Memory;
@@ -115,18 +115,9 @@ package body Lib.KASAN is
        Size               : size_t;
        Was_Load           : Boolean)
    is
-      Stp1, Stp2, Stp3 : Translated_String;
-      Len1, Len2, Len3 : Natural;
    begin
-      Image (Unsigned_64 (To_Integer (Fault_Addr)), Stp1, Len1, True);
-      Image (Unsigned_64 (To_Integer (Caller)),     Stp2, Len2, True);
-      Image (Unsigned_64 (Size),                    Stp3, Len3, False);
-
-      Put_Line
-         ("KASAN event at "                                           &
-          Stp1 (Stp1'Last - Len1 + 1 .. Stp1'Last)                    &
-          " (Size " & Stp3 (Stp3'Last - Len3 + 1 .. Stp3'Last) & ") " &
-          Stp2 (Stp2'Last - Len2 + 1 .. Stp2'Last)                    &
-          (if Was_Load then " (LOAD)" else " (STORE)"));
+      Lib.Messages.Put_Line
+         ("KASAN event at " & Fault_Addr'Image & " (Size " & Size'Image &
+          ") " & Caller'Image & (if Was_Load then " (LOAD)" else " (STORE)"));
    end Report_Event;
 end Lib.KASAN;
