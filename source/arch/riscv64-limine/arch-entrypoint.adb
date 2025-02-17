@@ -31,9 +31,7 @@ with Arch.CPU;
 
 package body Arch.Entrypoint is
    procedure Bootstrap_Main is
-      Info     : Boot_Information renames Limine.Global_Info;
-      St1, St2 : Lib.Messages.Translated_String;
-      Stp_Len  : Natural;
+      Info : Boot_Information renames Limine.Global_Info;
    begin
       --  Initialize architectural state first.
       Devices.UART.Init_UART0;
