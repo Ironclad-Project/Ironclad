@@ -110,9 +110,15 @@ ironclad.dvi: $(call MKESCAPE,$(SRCDIR))/docs/ironclad.texi GNUmakefile
 ###############################################################################
 # Rules for checks and formal verification.
 .PHONY: check
-check: rtsdir/adalib/libgnat.a
+check: check-rts check-kernel
+
+.PHONY: check-rts
+check-rts: rtsdir/adalib/libgnat.a
 	$(GNATPROVE) -U --level=4 --mode=all --counterexamples=on \
 		-j$(PARALLELISM) -P ./rts.gpr
+
+.PHONY: check-kernel
+check-kernel: rtsdir/adalib/libgnat.a
 	$(GNATPROVE) -U --level=4 --mode=all --counterexamples=on \
 		--RTS=./rtsdir -j$(PARALLELISM) -P ./ironclad.gpr
 ###############################################################################
