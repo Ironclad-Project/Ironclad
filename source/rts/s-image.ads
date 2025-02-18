@@ -1,4 +1,4 @@
---  s-imgint.ads: Integer printing version.
+--  s-image.ads: Generic integer imaging.
 --
 --  This specification is derived from the Ada Reference Manual. In accordance
 --  with the copyright of the original source, you can freely copy and modify
@@ -8,15 +8,17 @@
 --  This file is based on the distribution by the GNAT project, which is
 --  distributed under the GPLv3 with the GCC runtime exception.
 
-with System.Image;
-with System.Unsigned_Types;
-
-package System.Img_Int is
-   subtype Unsigned is Unsigned_Types.Unsigned;
-   package Impl is new Image (Integer, Unsigned, False);
+generic
+   type Int  is range <>;
+   type UInt is mod <>;
+   Do_Hex : Boolean;
+package System.Image is
    procedure Image_Integer
-      (V : Integer;
-       S : in out String;
-       P : out Natural)
-      renames Impl.Image_Integer;
-end System.Img_Int;
+     (V : Int;
+      S : in out String;
+      P : out Natural);
+   procedure Image_Unsigned
+     (V : UInt;
+      S : in out String;
+      P : out Natural);
+end System.Image;
