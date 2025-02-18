@@ -12,6 +12,10 @@ max_line_length = 79
 indent_style = space
 indent_size = 3
 
+[{*.ld}]
+indent_style = space
+indent_size = 4
+
 [{*.texi}]
 indent_style = space
 indent_size = 4
