@@ -22,6 +22,7 @@ with Arch.Snippets;
 with Ada.Unchecked_Conversion;
 with Scheduler;
 with Lib.Messages;
+with Lib.Synchronization;
 
 package body Devices.PS2Mouse is
    --  Type used by userland to fetch packets.
@@ -41,7 +42,9 @@ package body Devices.PS2Mouse is
    function To_Signed is new Ada.Unchecked_Conversion (Unsigned_8, Signed_8);
 
    --  Data used between the driver and the IRQ routine to synchronize.
-   Has_Returned        : Boolean    with Atomic, Volatile;
+   Data_Mutex : aliased Lib.Synchronization.Binary_Semaphore
+      := Lib.Synchronization.Unlocked_Semaphore;
+   Has_Returned        : Boolean    with Volatile;
    Return_Data         : Mouse_Data with Volatile;
    Current_Mouse_Flags : Unsigned_8;
    Has_4th_Packet      : Boolean := False;
@@ -128,26 +131,34 @@ package body Devices.PS2Mouse is
        Success     : out Boolean;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Key);
-      pragma Unreferenced (Offset);
-      Temp  : Boolean := Has_Returned;
+      pragma Unreferenced (Key, Offset);
+      Temp  : Boolean;
       Data2 : Mouse_Data with Address => Data (Data'First)'Address;
    begin
       if Is_Blocking then
          loop
-            exit when Temp;
-            Arch.Snippets.Wait_For_Interrupt;
+            Lib.Synchronization.Seize (Data_Mutex);
             Temp := Has_Returned;
+            exit when Temp;
+            Lib.Synchronization.Release (Data_Mutex);
+            Scheduler.Yield_If_Able;
          end loop;
-      elsif not Temp then
-         Success := False;
-         return;
+      else
+         Lib.Synchronization.Seize (Data_Mutex);
+         Temp := Has_Returned;
       end if;
 
-      Data2        := Return_Data;
-      Ret_Count    := Return_Data'Size / 8;
-      Success      := True;
-      Has_Returned := False;
+      if Temp then
+         Data2        := Return_Data;
+         Ret_Count    := Return_Data'Size / 8;
+         Success      := True;
+         Has_Returned := False;
+      else
+         Ret_Count := 0;
+         Success   := False;
+      end if;
+
+      Lib.Synchronization.Release (Data_Mutex);
    end Read;
 
    procedure IO_Control
@@ -175,6 +186,8 @@ package body Devices.PS2Mouse is
       Has_Extra := False;
       Extra     := 0;
 
+      Lib.Synchronization.Seize (Data_Mutex);
+
       case Request is
          when IOCTL_Enable_2_1_Scaling =>
             Mouse_Write (16#E7#);
@@ -190,7 +203,7 @@ package body Devices.PS2Mouse is
                Unused := Mouse_Read;
             else
                Success := False;
-               return;
+               goto Cleanup;
             end if;
          when IOCTL_Set_Sample_Rate =>
             if Argument_Integer <= 200 then
@@ -200,14 +213,17 @@ package body Devices.PS2Mouse is
                Unused := Mouse_Read;
             else
                Success := False;
-               return;
+               goto Cleanup;
             end if;
          when others =>
             Success := False;
-            return;
+            goto Cleanup;
       end case;
 
       Current_Mouse_Cycle := 1;
+
+   <<Cleanup>>
+      Lib.Synchronization.Release (Data_Mutex);
    end IO_Control;
 
    procedure Poll
@@ -218,14 +234,17 @@ package body Devices.PS2Mouse is
    is
       pragma Unreferenced (Data);
    begin
+      Lib.Synchronization.Seize (Data_Mutex);
       Can_Read  := Has_Returned;
       Can_Write := False;
       Is_Error  := False;
+      Lib.Synchronization.Release (Data_Mutex);
    end Poll;
 
    procedure Mouse_Handler is
       Data : Unsigned_8;
    begin
+      Lib.Synchronization.Seize (Data_Mutex);
       case Current_Mouse_Cycle is
          when 1 =>
             Data                := Arch.Snippets.Port_In (16#60#);
@@ -283,6 +302,8 @@ package body Devices.PS2Mouse is
             Current_Mouse_Cycle := 1;
             Has_Returned := True;
       end case;
+
+      Lib.Synchronization.Release (Data_Mutex);
 
       Arch.APIC.LAPIC_EOI;
    end Mouse_Handler;

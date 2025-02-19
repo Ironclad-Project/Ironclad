@@ -19,11 +19,15 @@ with Arch.APIC;
 with Arch.CPU;
 with Arch.Snippets;
 with Scheduler;
+with Lib.Synchronization;
 
 package body Devices.PS2Keyboard is
    --  Globals to communicate with the interrupt routine.
-   Has_Data  : Boolean                      := False  with Volatile;
-   Scancodes : array (1 .. 2) of Unsigned_8 := [0, 0] with Volatile;
+   Data_Mutex : aliased Lib.Synchronization.Binary_Semaphore
+      := Lib.Synchronization.Unlocked_Semaphore;
+   Has_Data   : Boolean := False with Volatile;
+   Scan_Count : Natural := 0     with Volatile;
+   Scancodes  : array (1 .. 10) of Unsigned_8 := [others => 0] with Volatile;
 
    function Init return Boolean is
       BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
@@ -119,36 +123,47 @@ package body Devices.PS2Keyboard is
        Success     : out Boolean;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Key);
-      pragma Unreferenced (Offset);
-      Temp : Boolean := Has_Data;
-      Code : Unsigned_8;
+      pragma Unreferenced (Key, Offset);
+      Temp : Boolean;
    begin
       if Is_Blocking then
          loop
-            exit when Temp;
-            Scheduler.Yield_If_Able;
+            Lib.Synchronization.Seize (Data_Mutex);
             Temp := Has_Data;
+            exit when Temp;
+            Lib.Synchronization.Release (Data_Mutex);
+            Scheduler.Yield_If_Able;
          end loop;
+      else
+         Lib.Synchronization.Seize (Data_Mutex);
+         Temp := Has_Data;
       end if;
 
-      if Temp then
-         Code := Scancodes (2);
-         if Code = 16#00# then
-            Data (Data'First) := Scancodes (1);
-            Ret_Count         := 1;
+      if Temp and Data'Length /= 0 then
+         if Data'Length > Scan_Count then
+            Ret_Count := Scan_Count;
          else
-            Data (Data'First)     := Scancodes (1);
-            Data (Data'First + 1) := Scancodes (2);
-            Ret_Count             := 2;
+            Ret_Count := Data'Length;
          end if;
 
-         Success  := True;
-         Has_Data := False;
+         Data (Data'First .. Data'First + Ret_Count - 1) :=
+            Operation_Data (Scancodes (1 .. Ret_Count));
+         if Ret_Count < Scan_Count then
+            Scancodes (1 .. Ret_Count) :=
+               Scancodes (Ret_Count + 1 .. Ret_Count * 2);
+            Scan_Count := Scan_Count - Ret_Count;
+         else
+            Scan_Count := 0;
+            Has_Data   := False;
+         end if;
+
+         Success := True;
       else
          Success   := False;
          Ret_Count := 0;
       end if;
+
+      Lib.Synchronization.Release (Data_Mutex);
    end Read;
 
    procedure Poll
@@ -159,25 +174,36 @@ package body Devices.PS2Keyboard is
    is
       pragma Unreferenced (Data);
    begin
+      Lib.Synchronization.Seize (Data_Mutex);
       Can_Read  := Has_Data;
       Can_Write := False;
       Is_Error  := False;
+      Lib.Synchronization.Release (Data_Mutex);
    end Poll;
 
    procedure Keyboard_Handler is
       Input : constant Unsigned_8 := Arch.Snippets.Port_In (16#60#);
-      C1    : constant Unsigned_8 := Scancodes (1);
-      C2    : constant Unsigned_8 := Scancodes (2);
    begin
-      if C1 = 16#E0# and C2 = 16#00# then
-         Scancodes (2) := Input;
-         Has_Data      := True;
-      else
-         Scancodes (1) := Input;
-         Scancodes (2) := 16#00#;
-         Has_Data      := Input /= 16#E0#;
+      Lib.Synchronization.Seize (Data_Mutex);
+
+      if Scan_Count < Scancodes'Length then
+         if Scan_Count > 1 and then Scancodes (Scan_Count - 1) = 16#E0# then
+            if Scan_Count + 1 = Scancodes'Length then
+               goto Cleanup;
+            end if;
+
+            Scancodes (Scancodes'First + Scan_Count) := Input;
+            Has_Data := True;
+         else
+            Scancodes (Scancodes'First + Scan_Count) := Input;
+            Has_Data := Input /= 16#E0#;
+         end if;
+
+         Scan_Count := Scan_Count + 1;
       end if;
 
+   <<Cleanup>>
+      Lib.Synchronization.Release (Data_Mutex);
       Arch.APIC.LAPIC_EOI;
    end Keyboard_Handler;
 end Devices.PS2Keyboard;
