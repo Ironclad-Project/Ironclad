@@ -65,11 +65,8 @@ package body Arch.CPU with SPARK_Mode => Off is
    end Init_Cores;
    ----------------------------------------------------------------------------
    procedure Core_Bootstrap (Info : access Limine.RISCV64_SMP_CPU_Info) is
-      Stp     : Lib.Messages.Translated_String;
-      Stp_Len : Natural;
    begin
-      Lib.Messages.Image (Info.Extra_Arg, Stp, Stp_Len);
-      Lib.Messages.Put_Line ("Hello from core " & Stp);
+      Lib.Messages.Put_Line ("Hello from core " & Info.Extra_Arg'Image);
       Init_Common (Natural (Info.Extra_Arg), Info.Hart_ID);
    end Core_Bootstrap;
 
