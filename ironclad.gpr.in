@@ -38,7 +38,8 @@ project Ironclad is
        "@SRCDIR@/source/vfs",
        "@SRCDIR@/source/virtualization",
        "@SRCDIR@/source",
-       "@SRCDIR@/freestnd-c-hdrs");
+       "@SRCDIR@/freestnd-c-hdrs",
+       "@SRCDIR@/cc-runtime");
 
    case Arch is
       when "riscv64-limine" =>
@@ -65,7 +66,8 @@ project Ironclad is
        "-fno-stack-check",
        "-fdata-sections",
        "-ffunction-sections",
-       "-ffile-prefix-map=" & "@SRCDIR@" & "=.");
+       "-ffile-prefix-map=" & "@SRCDIR@" & "=.",
+       "-DCC_RUNTIME_NO_FLOAT");
 
    case Arch is
       when "riscv64-limine" =>
