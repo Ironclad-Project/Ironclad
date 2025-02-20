@@ -23,10 +23,10 @@ with Arch.CPU;
 with Lib.Panic;
 with Lib.Messages; use Lib.Messages;
 with Memory.Physical;
-with Kernel_Main;
 with Arch.MMU;
 with Devices.Serial;
 with Arch.Limine;
+with Main;
 
 #if KASAN
    with Lib.KASAN;
@@ -83,6 +83,10 @@ package body Arch.Entrypoint is
       --  Initialize other cores, and then jump to the freestanding main.
       Arch.CPU.Init_Cores;
 
-      Kernel_Main.Entrypoint (Info.Cmdline (1 .. Info.Cmdline_Len));
+      Arch.Cmdline_Len := Info.Cmdline_Len;
+      Arch.Cmdline (1 .. Info.Cmdline_Len) :=
+         Info.Cmdline (1 .. Info.Cmdline_Len);
+
+      Main;
    end Bootstrap_Main;
 end Arch.Entrypoint;

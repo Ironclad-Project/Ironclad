@@ -49,4 +49,8 @@ package Arch is
       RAM_Files     : Boot_RAM_Files (1 .. 4);
       RAM_Files_Len : Natural range 0 .. 4;
    end record;
+
+   --  Cmdline of the kernel.
+   Cmdline_Len : Natural;
+   Cmdline     : String (1 .. 256);
 end Arch;

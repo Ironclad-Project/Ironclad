@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with Kernel_Main;
 with Devices.UART;
 with Arch.Limine;
 with Lib.Messages; use Lib.Messages;
@@ -24,6 +23,7 @@ with Arch.MMU;
 with Lib.Panic;
 with Arch.DTB;
 with Arch.CPU;
+with Main;
 
 #if KASAN
    with Lib.KASAN;
@@ -71,6 +71,10 @@ package body Arch.Entrypoint is
       Arch.CPU.Init_Cores;
 
       --  Go to main kernel.
-      Kernel_Main.Entrypoint (Info.Cmdline (1 .. Info.Cmdline_Len));
+      Arch.Cmdline_Len := Info.Cmdline_Len;
+      Arch.Cmdline (1 .. Info.Cmdline_Len) :=
+         Info.Cmdline (1 .. Info.Cmdline_Len);
+
+      Main;
    end Bootstrap_Main;
 end Arch.Entrypoint;
