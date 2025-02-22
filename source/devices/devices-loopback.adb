@@ -18,6 +18,8 @@ with Networking.Interfaces;
 with Scheduler;
 
 package body Devices.Loopback is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    procedure Init (Success : out Boolean) is
       Device : Resource;
       Dev    : Device_Handle;

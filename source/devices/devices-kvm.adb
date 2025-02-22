@@ -21,6 +21,8 @@ with Arch.Local;
 with Arch.Virtualization;
 
 package body Devices.KVM is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    procedure Init (Success : out Boolean) is
       Device : Resource;
    begin

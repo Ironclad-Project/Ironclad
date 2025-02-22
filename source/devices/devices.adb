@@ -25,6 +25,8 @@ with Lib.Panic;
 with Arch.Hooks;
 
 package body Devices is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    procedure Init is
       pragma SPARK_Mode (Off); --  Some devices here are not verified.
       Success : Boolean;
@@ -33,7 +35,6 @@ package body Devices is
       for Dev of Devices_Data.all loop
          Dev.Is_Present := False;
       end loop;
-
 
       Console.Init (Success);
       if not Success then goto Panic_Error; end if;

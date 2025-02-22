@@ -17,6 +17,8 @@
 with Arch.Debug;
 
 package body Devices.Console is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    procedure Init (Success : out Boolean) is
       Device : Resource;
    begin

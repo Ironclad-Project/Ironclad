@@ -17,6 +17,8 @@
 with Cryptography.Random; use Cryptography.Random;
 
 package body Devices.Streams is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    procedure Init (Success : out Boolean) is
       Success_1, Success_2, Success_3, Success_4 : Boolean;
    begin

@@ -137,9 +137,8 @@ package body Devices.Partitions is
        Success          : out Boolean)
    is
       Block_Size : constant Natural := Devices.Get_Block_Size (Dev);
-      Sector : Devices.Operation_Data_Acc :=
-         new Devices.Operation_Data (1 .. Block_Size);
-      S_Addr : constant System.Address  := Sector (1)'Address;
+      Sector : Devices.Operation_Data_Acc;
+      S_Addr : System.Address;
       GPT    : GPT_Header_Acc;
       Part   : Partition_Data_Acc;
 
@@ -152,6 +151,9 @@ package body Devices.Partitions is
    begin
       Success          := True;
       Found_Partitions := False;
+      Sector := new Devices.Operation_Data (1 .. Block_Size);
+      S_Addr := Sector (1)'Address;
+
       Devices.Read
          (Handle    => Dev,
           Offset    => Unsigned_64 (Block_Size),
@@ -221,6 +223,10 @@ package body Devices.Partitions is
 
    <<Return_End>>
       Free (Sector);
+   exception
+      when Constraint_Error =>
+         Found_Partitions := False;
+         Success          := False;
    end Parse_GPT_Partitions;
 
    procedure Parse_MBR_Partitions
@@ -230,15 +236,16 @@ package body Devices.Partitions is
        Success          : out Boolean)
    is
       Block_Size : constant Natural := Devices.Get_Block_Size (Dev);
-      Sector : Devices.Operation_Data_Acc :=
-         new Devices.Operation_Data (1 .. Block_Size);
-      S_Addr : constant System.Address  := Sector.all'Address;
+      Sector : Devices.Operation_Data_Acc;
+      S_Addr : System.Address;
       MBR     : MBR_Data_Acc;
       Part    : Partition_Data_Acc;
       Block_Return : Natural;
    begin
       Success          := True;
       Found_Partitions := False;
+      Sector := new Devices.Operation_Data (1 .. Block_Size);
+      S_Addr := Sector (1)'Address;
       Devices.Read
          (Handle    => Dev,
           Offset    => 0,
@@ -273,6 +280,10 @@ package body Devices.Partitions is
 
    <<Return_End>>
       Free (Sector);
+   exception
+      when Constraint_Error =>
+         Found_Partitions := False;
+         Success          := False;
    end Parse_MBR_Partitions;
 
    function Set_Part
@@ -301,6 +312,9 @@ package body Devices.Partitions is
       ), Name & [1 => 'p', 2 => Character'Val (Index + Character'Pos ('0'))],
          Success);
       return Success;
+   exception
+      when Constraint_Error =>
+         return False;
    end Set_Part;
    ----------------------------------------------------------------------------
    procedure Read
@@ -337,6 +351,11 @@ package body Devices.Partitions is
           Ret_Count => Ret_Count,
           Data  => Data (Data'First .. Data'First + Natural (Final_Count) - 1),
           Success   => Success);
+   exception
+      when Constraint_Error =>
+         Data      := [others => 0];
+         Ret_Count := 0;
+         Success   := False;
    end Read;
 
    procedure Write
@@ -373,6 +392,10 @@ package body Devices.Partitions is
           Ret_Count => Ret_Count,
           Data  => Data (Data'First .. Data'First + Natural (Final_Count) - 1),
           Success   => Success);
+   exception
+      when Constraint_Error =>
+         Ret_Count := 0;
+         Success   := False;
    end Write;
 
    function Sync (Key : System.Address) return Boolean is
@@ -383,6 +406,9 @@ package body Devices.Partitions is
          (Handle => Part.Inner_Device,
           Offset => Part.LBA_Offset * Unsigned_64 (Part.Block_Size),
           Count  => Part.LBA_Length * Unsigned_64 (Part.Block_Size));
+   exception
+      when Constraint_Error =>
+         return False;
    end Sync;
 
    function Sync_Range
@@ -397,5 +423,8 @@ package body Devices.Partitions is
          (Handle => Part.Inner_Device,
           Offset => (Part.LBA_Offset * Unsigned_64 (Part.Block_Size)) + Offset,
           Count  => Count);
+   exception
+      when Constraint_Error =>
+         return False;
    end Sync_Range;
 end Devices.Partitions;

@@ -107,6 +107,9 @@ package body Devices.SATA with SPARK_Mode => Off is
       end loop;
 
       return True;
+   exception
+      when Constraint_Error =>
+         return False;
    end Init;
 
    function Init_Port (M : HBA_Memory_Acc; I : Natural) return SATA_Data_Acc is
@@ -201,6 +204,9 @@ package body Devices.SATA with SPARK_Mode => Off is
          Dev_Data.Sector_Count := Sectors;
       end;
       return Dev_Data;
+   exception
+      when Constraint_Error =>
+         return null;
    end Init_Port;
 
    function Issue_Command
@@ -308,6 +314,9 @@ package body Devices.SATA with SPARK_Mode => Off is
       end loop;
       Stop_Command_Engine (Drive.Port_Data);
       return True;
+   exception
+      when Constraint_Error =>
+         return False;
    end Issue_Command;
 
    function Read_Sector
@@ -407,11 +416,16 @@ package body Devices.SATA with SPARK_Mode => Off is
       if not Success then
          Lib.Messages.Put_Line ("SATA could not read on cache fetch!");
       end if;
+   exception
+      when Constraint_Error =>
+         Idx     := 0;
+         Success := False;
    end Get_Cache_Index;
 
    function Find_Command_Slot (Port : HBA_Port_Acc) return Natural is
-      Slots : constant Unsigned_32 := Port.SATA_Active or Port.Command_Issue;
+      Slots : Unsigned_32;
    begin
+      Slots := Port.SATA_Active or Port.Command_Issue;
       for I in 1 .. Ports_Per_Controller loop
          if (Slots and Shift_Left (1, I - 1)) = 0 then
             return I;
@@ -419,6 +433,9 @@ package body Devices.SATA with SPARK_Mode => Off is
       end loop;
 
       return 0;
+   exception
+      when Constraint_Error =>
+         return 0;
    end Find_Command_Slot;
 
    procedure Start_Command_Engine (Port : HBA_Port_Acc) is
@@ -431,6 +448,9 @@ package body Devices.SATA with SPARK_Mode => Off is
       end loop;
       Port.Command_And_Status := Port.Command_And_Status or HBA_PxCMD_FRE;
       Port.Command_And_Status := Port.Command_And_Status or HBA_PxCMD_ST;
+   exception
+      when Constraint_Error =>
+         Lib.Messages.Put_Line ("Failed to start SATA command line");
    end Start_Command_Engine;
 
    procedure Stop_Command_Engine (Port : HBA_Port_Acc) is
@@ -442,6 +462,9 @@ package body Devices.SATA with SPARK_Mode => Off is
          end if;
       end loop;
       Port.Command_And_Status := Port.Command_And_Status and not HBA_PxCMD_FRE;
+   exception
+      when Constraint_Error =>
+         Lib.Messages.Put_Line ("Failed to stop SATA command line");
    end Stop_Command_Engine;
    ----------------------------------------------------------------------------
    procedure Read
@@ -487,6 +510,12 @@ package body Devices.SATA with SPARK_Mode => Off is
    <<Cleanup>>
       Lib.Synchronization.Release (D.Mutex);
       Ret_Count := Progress;
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (D.Mutex);
+         Data      := [others => 0];
+         Success   := False;
+         Ret_Count := 0;
    end Read;
 
    procedure Write
@@ -534,6 +563,11 @@ package body Devices.SATA with SPARK_Mode => Off is
    <<Cleanup>>
       Lib.Synchronization.Release (D.Mutex);
       Ret_Count := Progress;
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (D.Mutex);
+         Success   := False;
+         Ret_Count := 0;
    end Write;
 
    function Sync (Key : System.Address) return Boolean is
@@ -554,6 +588,10 @@ package body Devices.SATA with SPARK_Mode => Off is
    <<Cleanup>>
       Lib.Synchronization.Release (Drive.Mutex);
       return Success;
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Drive.Mutex);
+         return False;
    end Sync;
 
    function Sync_Range
@@ -562,11 +600,14 @@ package body Devices.SATA with SPARK_Mode => Off is
        Count  : Unsigned_64) return Boolean
    is
       Drive    : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
-      First_LBA : constant  Unsigned_64 := Offset / Sector_Size;
-      Last_LBA  : constant  Unsigned_64 := (Offset + Count) / Sector_Size;
+      First_LBA : Unsigned_64;
+      Last_LBA  : Unsigned_64;
       Success   : Boolean := True;
    begin
       Lib.Synchronization.Seize (Drive.Mutex);
+
+      First_LBA := Offset / Sector_Size;
+      Last_LBA  := (Offset + Count) / Sector_Size;
 
       for Cache of Drive.Caches loop
          if Cache.Is_Used                 and
@@ -585,5 +626,9 @@ package body Devices.SATA with SPARK_Mode => Off is
    <<Cleanup>>
       Lib.Synchronization.Release (Drive.Mutex);
       return Success;
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Drive.Mutex);
+         return False;
    end Sync_Range;
 end Devices.SATA;

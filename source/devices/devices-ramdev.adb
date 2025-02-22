@@ -41,6 +41,9 @@ package body Devices.Ramdev is
          end if;
       end loop;
       return True;
+   exception
+      when Constraint_Error =>
+         return False;
    end Init;
 
    function Init_Module (Module : Arch.Boot_RAM_File) return Resource is
@@ -80,9 +83,13 @@ package body Devices.Ramdev is
       Dev_Data : constant array (1 .. Dev.Size) of Unsigned_8
          with Import, Address => Dev.Start_Address;
 
-      Final_Loc : constant Unsigned_64 := Offset + Unsigned_64 (Data'Length);
-      To_Read   :              Natural := Data'Length;
+      Is_Holding : Boolean := False;
+      Final_Loc  : Unsigned_64;
+      To_Read    : Natural;
    begin
+      Final_Loc := Offset + Unsigned_64 (Data'Length);
+      To_Read   := Data'Length;
+
       if Offset > Dev.Size then
          Data      := [others => 0];
          Ret_Count := 0;
@@ -93,6 +100,7 @@ package body Devices.Ramdev is
       end if;
 
       Lib.Synchronization.Seize_Reader (Dev.Mutex);
+      Is_Holding := True;
       for I in 1 .. To_Read loop
          Data (Data'First + I - 1) := Dev_Data (Offset + Unsigned_64 (I));
       end loop;
@@ -100,6 +108,14 @@ package body Devices.Ramdev is
 
       Ret_Count := To_Read;
       Success   := True;
+   exception
+      when Constraint_Error =>
+         if Is_Holding then
+            Lib.Synchronization.Release_Reader (Dev.Mutex);
+         end if;
+         Data      := [others => 0];
+         Ret_Count := 0;
+         Success   := False;
    end Read;
 
    procedure Write
@@ -116,9 +132,13 @@ package body Devices.Ramdev is
       Dev_Data : array (1 .. Dev.Size) of Unsigned_8
          with Import, Address => Dev.Start_Address;
 
-      Final_Loc : constant Unsigned_64 := Offset + Unsigned_64 (Data'Length);
-      To_Write  :              Natural := Data'Length;
+      Is_Holding : Boolean := False;
+      Final_Loc  : Unsigned_64;
+      To_Write   : Natural;
    begin
+      Final_Loc := Offset + Unsigned_64 (Data'Length);
+      To_Write  := Data'Length;
+
       if Offset > Dev.Size then
          Ret_Count := 0;
          Success   := True;
@@ -128,6 +148,7 @@ package body Devices.Ramdev is
       end if;
 
       Lib.Synchronization.Seize_Writer (Dev.Mutex);
+      Is_Holding := True;
       for I in 1 .. To_Write loop
          Dev_Data (Offset + Unsigned_64 (I)) := Data (Data'First + I - 1);
       end loop;
@@ -135,5 +156,12 @@ package body Devices.Ramdev is
 
       Ret_Count := To_Write;
       Success   := True;
+   exception
+      when Constraint_Error =>
+         if Is_Holding then
+            Lib.Synchronization.Release_Writer (Dev.Mutex);
+         end if;
+         Ret_Count := 0;
+         Success   := False;
    end Write;
 end Devices.Ramdev;
