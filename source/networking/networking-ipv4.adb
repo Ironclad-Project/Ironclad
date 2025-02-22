@@ -15,6 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Networking.IPv4 is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    function Generate_Header
       (Source_IP, Desto_IP : IPv4_Address;
        Data_Length         : Natural) return IPv4_Packet_Header

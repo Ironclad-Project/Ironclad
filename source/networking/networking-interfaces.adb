@@ -17,6 +17,8 @@
 with Cryptography.Random;
 
 package body Networking.Interfaces is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    type Inner_Interface is record
       Handle     : Device_Handle;
       MAC        : MAC_Address;

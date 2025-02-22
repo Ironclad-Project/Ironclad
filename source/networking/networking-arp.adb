@@ -15,6 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Networking.ARP is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    procedure Initialize is
    begin
       Interface_Entries := new ARP_Entries'(others =>
