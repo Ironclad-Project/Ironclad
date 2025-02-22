@@ -40,6 +40,7 @@ package Userland.Syscall is
        Error_Would_Block,     --  EAGAIN
        Error_Busy,            --  EBUSY
        Error_Child,           --  ECHILD
+       Error_Exists,          --  EEXIST
        Error_Would_Fault,     --  EFAULT
        Error_File_Too_Big,    --  EFBIG
        Error_Invalid_ID,      --  EIDRM
@@ -67,6 +68,7 @@ package Userland.Syscall is
        Error_Would_Block     => 1006,
        Error_Busy            => 1010,
        Error_Child           => 1012,
+       Error_Exists          => 1019,
        Error_Would_Fault     => 1020,
        Error_File_Too_Big    => 1021,
        Error_Invalid_ID      => 1023,

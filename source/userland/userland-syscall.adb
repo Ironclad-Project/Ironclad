@@ -6258,6 +6258,7 @@ package body Userland.Syscall is
          when VFS.FS_IO_Failure    => Errno := Error_IO;
          when VFS.FS_Not_Allowed   => Errno := Error_Bad_Permissions;
          when VFS.FS_Loop          => Errno := Error_File_Loop;
+         when VFS.FS_Exists        => Errno := Error_Exists;
       end case;
       Returned := Unsigned_64'Last;
    exception

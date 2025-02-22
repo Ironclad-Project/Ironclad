@@ -257,6 +257,7 @@ package VFS is
    --  Status returned from file operations as result.
    type FS_Status is
       (FS_Success,       --  Success, only good value for ease of checking.
+       FS_Exists,        --  Creation operation and the file already exists.
        FS_Invalid_Value, --  One of the passed values is no good.
        FS_Is_Directory,  --  The operation does not accept directories!
        FS_Not_Supported, --  The operation is not supported for this FS.

@@ -286,7 +286,10 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Index   => Parent_Index,
           Parent_Inode   => Parent_Inode.all,
           Success        => Success);
-      if Success or else Parent_Index = 0 or else Target_Index /= 0 then
+      if Success then
+         Status := FS_Exists;
+         goto Cleanup;
+      elsif Parent_Index = 0 or Target_Index /= 0 then
          Status := FS_Invalid_Value;
          goto Cleanup;
       elsif not Check_User_Access (User, Parent_Inode.all, False, True, False)

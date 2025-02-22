@@ -1010,6 +1010,9 @@ The requested resource is busy and cannot handle the request.
 @item ECHILD (1012)
 The passed value is not a child process.
 
+@item EEXIST (1019)
+A resource that is trying to be created already exists.
+
 @item EFAULT (1020)
 The passed value would make the program fault.
 
@@ -2511,6 +2514,8 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @code{EINVAL}: The passed path length is way too big, or the mode is invalid.
 @item
 @code{EIO}: Internal error.
+@item
+@code{EEXIST}: The object already exists.
 @end itemize
 
 @node truncate
