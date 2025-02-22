@@ -15,6 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Cryptography.Chacha20 is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    function Gen_Key (K : Key; Nonce, Block_ID : Unsigned_64) return Block is
       UB : constant Unsigned_64 := Shift_Right (Block_ID, 32) and 16#FFFFFFFF#;
       LB : constant Unsigned_64 := Shift_Right (Block_ID, 0)  and 16#FFFFFFFF#;

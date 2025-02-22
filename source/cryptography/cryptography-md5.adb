@@ -15,6 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Cryptography.MD5 is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    --  Algorithm adapted from Wikipedia's MD5 pseudocode.
    --  https://en.wikipedia.org/wiki/MD5#Pseudocode
    --  Code in Wikipedia is CC-BY-SA 3.0, relicensed to BY-SA 4.0 under 4(b),

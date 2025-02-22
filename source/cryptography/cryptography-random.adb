@@ -23,6 +23,8 @@ with Memory.Physical;
 with Arch.MMU;
 
 package body Cryptography.Random is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    --  We implement a fortuna-like PRNG as the kernel's random source.
    --  https://en.wikipedia.org/wiki/Fortuna_(PRNG)
 
