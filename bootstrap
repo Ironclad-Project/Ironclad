@@ -95,11 +95,12 @@ if ! test -f version; then
         cc-runtime \
         576a01179f3298a4795b92f42c088f9f8800b56b
 
-    # 1.0.1
+    # 2.0.0
     clone_repo_commit \
         https://github.com/uACPI/uACPI.git \
         uacpi-repository \
-        757dcece1a9f1c069355b23f7feaf21656728f94
+        4ab3a78006a930e2cda5a92f33fc84e1ec6b4a3d
+
     rm -rf uacpi
     mkdir -p uacpi
     cp -rp uacpi-repository/include/uacpi uacpi/
