@@ -59,7 +59,6 @@ package body Scheduler with SPARK_Mode => Off is
       FP_State        : Arch.Context.FP_Context;
       C_State         : Arch.Context.Core_Context;
       Process         : Userland.Process.PID;
-      Yield_Mutex     : aliased Lib.Synchronization.Binary_Semaphore;
       Last_Sched_Sec  : Unsigned_64;
       Last_Sched_NSec : Unsigned_64;
       System_Sec      : Unsigned_64;
@@ -108,7 +107,6 @@ package body Scheduler with SPARK_Mode => Off is
              FP_State        => <>,
              C_State         => <>,
              Process         => Userland.Process.Error_PID,
-             Yield_Mutex     => Lib.Synchronization.Unlocked_Semaphore,
              Last_Sched_Sec  => 0,
              Last_Sched_NSec => 0,
              System_Sec      => 0,
@@ -354,23 +352,20 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       Thread_Pool (New_TID) :=
-            (Is_Present   => True,
-             Is_Running   => False,
-             Path         => [others => ' '],
-             Path_Len     => 0,
-             Nice         => 0,
-             Cluster      => Cluster,
-             TCB_Pointer  => TCB,
-             PageMap      => Map,
-             Kernel_Stack => New_Stack,
-             GP_State     => GP_State,
-             FP_State     => FP_State,
-             C_State      => <>,
-             Process      => Userland.Process.Convert (PID),
-             Yield_Mutex  => Lib.Synchronization.Unlocked_Semaphore,
-             others       => 0);
-
-      Lib.Synchronization.Release (Thread_Pool (New_TID).Yield_Mutex);
+         (Is_Present   => True,
+          Is_Running   => False,
+          Path         => [others => ' '],
+          Path_Len     => 0,
+          Nice         => 0,
+          Cluster      => Cluster,
+          TCB_Pointer  => TCB,
+          PageMap      => Map,
+          Kernel_Stack => New_Stack,
+          GP_State     => GP_State,
+          FP_State     => FP_State,
+          C_State      => <>,
+          Process      => Userland.Process.Convert (PID),
+          others       => 0);
 
       Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).GP_State);
 
@@ -402,10 +397,7 @@ package body Scheduler with SPARK_Mode => Off is
          Curr_TID /= Error_TID and then
          Cluster_Pool (Thread_Pool (Curr_TID).Cluster).Is_Interruptible
       then
-         Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex, True);
          Arch.Local.Reschedule_ASAP;
-         Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex, True);
-         Lib.Synchronization.Release (Thread_Pool (Curr_TID).Yield_Mutex);
       end if;
    exception
       when Constraint_Error =>
@@ -714,7 +706,6 @@ package body Scheduler with SPARK_Mode => Off is
       --  Else, we just need to go to a thread, any, and pick up from there.
       if Current_TID /= Error_TID then
          Curr_Cluster := Thread_Pool (Current_TID).Cluster;
-         Lib.Synchronization.Release (Thread_Pool (Current_TID).Yield_Mutex);
          Lib.Time.Substract
             (Curr_Sec, Curr_NSec,
              Thread_Pool (Current_TID).Last_Sched_Sec,
