@@ -17,6 +17,8 @@
 with Arch.Clocks;
 
 package body VFS.Dev is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    --  All devices share the same permissions.
    --  The only folder of the filesystem is the root, which has inode 0.
    Root_Inode         : constant := 0;

@@ -659,8 +659,7 @@ package VFS is
    --  @param Mode  Mode to use.
    --  @param Umask Umask to use.
    --  @return The resulting mode.
-   function Apply_Umask (Mode, Umask : File_Mode) return File_Mode is
-      (File_Mode (Unsigned_32 (Mode) and not Unsigned_32 (Umask)));
+   function Apply_Umask (Mode, Umask : File_Mode) return File_Mode;
 
    --  Check whether a file can be executed.
    --  @param User       User requesting.

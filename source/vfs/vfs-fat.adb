@@ -47,18 +47,21 @@ package body VFS.FAT with SPARK_Mode => Off is
       BP        : BIOS_Parameter_Block;
       Ret_Count : Natural;
       Success   : Boolean;
-      BP_Data   : Operation_Data (1 .. BP'Size / 8)
-         with Import, Address => BP'Address;
    begin
-      Devices.Read (Handle, 0, BP_Data, Ret_Count, Success);
-      if not Success                 or
-         Ret_Count /= BP_Data'Length or
-         BP.Boot_Signature /= Boot_Signature
-      then
-         Data_Addr := System.Null_Address;
-         Root_Ino  := 0;
-         return;
-      end if;
+      declare
+         BP_Data   : Operation_Data (1 .. BP'Size / 8)
+            with Import, Address => BP'Address;
+      begin
+         Devices.Read (Handle, 0, BP_Data, Ret_Count, Success);
+         if not Success                 or
+            Ret_Count /= BP_Data'Length or
+            BP.Boot_Signature /= Boot_Signature
+         then
+            Data_Addr := System.Null_Address;
+            Root_Ino  := 0;
+            return;
+         end if;
+      end;
 
       Data := new FAT_Data'
          (Handle         => Handle,
@@ -74,6 +77,10 @@ package body VFS.FAT with SPARK_Mode => Off is
 
       Data_Addr := Conv.To_Address (Conv.Object_Pointer (Data));
       Root_Ino  := Root_PseudoInode;
+   exception
+      when Constraint_Error =>
+         Data_Addr := System.Null_Address;
+         Root_Ino  := 0;
    end Probe;
 
    procedure Remount
@@ -112,6 +119,9 @@ package body VFS.FAT with SPARK_Mode => Off is
       Data : constant FAT_Data_Acc := FAT_Data_Acc (Conv.To_Pointer (FS));
    begin
       return Unsigned_64 (Data.Sector_Count);
+   exception
+      when Constraint_Error =>
+         return 0;
    end Get_Size;
 
    function Get_Inode_Count (FS : System.Address) return Unsigned_64 is
@@ -226,6 +236,10 @@ package body VFS.FAT with SPARK_Mode => Off is
 
          Index := Index + 1;
       end loop;
+   exception
+      when Constraint_Error =>
+         Ret_Count := 0;
+         Success   := FS_IO_Failure;
    end Read_Entries;
 
    procedure Read
@@ -241,17 +255,19 @@ package body VFS.FAT with SPARK_Mode => Off is
       Success2 : Boolean;
       Cluster        : Unsigned_32;
       Cluster_Offset : Unsigned_64;
-      Cluster_Sz     : constant Unsigned_32 :=
-         Unsigned_32 (FS.BPB.Sectors_Per_Cluster) * Sector_Size;
+      Cluster_Sz     : Unsigned_32;
       Final_Offset   : Unsigned_64 := Offset;
-      Final_Count    : Natural     := Data'Length;
+      Final_Count    : Natural;
       Step_Size      : Natural;
       Discard        : Natural;
       Succ           : Boolean;
    begin
-      Data      := [others => 0];
-      Ret_Count := 0;
-      Success   := FS_Success;
+      Data        := [others => 0];
+      Ret_Count   := 0;
+      Success     := FS_Success;
+      Final_Count := Data'Length;
+      Cluster_Sz   :=
+         Unsigned_32 (FS.BPB.Sectors_Per_Cluster) * Sector_Size;
 
       if Ino = Root_PseudoInode then
          Success := FS_Is_Directory;
@@ -309,6 +325,10 @@ package body VFS.FAT with SPARK_Mode => Off is
 
          Ret_Count := Ret_Count + Step_Size;
       end loop;
+   exception
+      when Constraint_Error =>
+         Ret_Count := 0;
+         Success   := FS_IO_Failure;
    end Read;
 
    procedure Stat
@@ -388,6 +408,9 @@ package body VFS.FAT with SPARK_Mode => Off is
       end if;
 
       Success := FS_Success;
+   exception
+      when Constraint_Error =>
+         Success := FS_IO_Failure;
    end Stat;
    ----------------------------------------------------------------------------
    procedure Read_Directory_Entry
@@ -416,6 +439,10 @@ package body VFS.FAT with SPARK_Mode => Off is
           Success   => Success);
       Disk_Offset := Offset + Index * 32;
       Success     := Success and Ret_Count = Result_Data'Length;
+   exception
+      when Constraint_Error =>
+         Disk_Offset := 0;
+         Success     := False;
    end Read_Directory_Entry;
 
    procedure Read_Directory_Entry
@@ -435,6 +462,9 @@ package body VFS.FAT with SPARK_Mode => Off is
           Ret_Count => Ret_Count,
           Success   => Success);
       Success := Success and Ret_Count = Result_Data'Length;
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Read_Directory_Entry;
 
    procedure Get_Next_Cluster
@@ -466,6 +496,10 @@ package body VFS.FAT with SPARK_Mode => Off is
             Success := Returned < 16#FFFFFFF8#;
          end if;
       end if;
+   exception
+      when Constraint_Error =>
+         Returned := 0;
+         Success  := False;
    end Get_Next_Cluster;
 
    procedure Compose_Path
@@ -503,5 +537,9 @@ package body VFS.FAT with SPARK_Mode => Off is
       end if;
 
       Length := Ret;
+   exception
+      when Constraint_Error =>
+         Result := [others => ' '];
+         Length := 0;
    end Compose_Path;
 end VFS.FAT;

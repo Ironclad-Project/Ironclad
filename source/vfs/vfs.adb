@@ -20,6 +20,8 @@ with VFS.EXT;
 with VFS.FAT;
 
 package body VFS is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    procedure Init is
       pragma SPARK_Mode (Off);
    begin
@@ -1221,6 +1223,11 @@ package body VFS is
    begin
       return Path'Length >= 1 and then Path (Path'First) = '/';
    end Is_Absolute;
+
+   function Apply_Umask (Mode, Umask : File_Mode) return File_Mode is
+   begin
+      return File_Mode (Unsigned_32 (Mode) and not Unsigned_32 (Umask));
+   end Apply_Umask;
 
    function Can_Access_File
       (User       : Unsigned_32;
