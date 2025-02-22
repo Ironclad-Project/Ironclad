@@ -14,6 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
+with Ada.Unchecked_Conversion;
 with Devices.Serial;
 
 package body Arch.Debug is
@@ -33,8 +35,10 @@ package body Arch.Debug is
    end Print;
 
    procedure Print (Message : Devices.Operation_Data) is
-      S : String (1 .. Message'Length) with Import, Address => Message'Address;
+      function Conv is new Ada.Unchecked_Conversion (Unsigned_8, Character);
    begin
-      Devices.Serial.Write_COM1 (S);
+      for C of Message loop
+         Devices.Serial.Write_COM1 (Conv (C));
+      end loop;
    end Print;
 end Arch.Debug;

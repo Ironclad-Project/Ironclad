@@ -63,6 +63,9 @@ package body Devices.Serial is
          end if;
       end loop;
       return True;
+   exception
+      when Constraint_Error =>
+         return False;
    end Init;
 
    procedure Init_COM1 is
@@ -100,6 +103,9 @@ package body Devices.Serial is
             Write (COM1'Address, 0, Data, Count, Succ, True);
          end;
       end if;
+   exception
+      when Constraint_Error =>
+         null;
    end Write_COM1;
    ----------------------------------------------------------------------------
    --  We will not yield instead of pausing here to avoid issues printing
@@ -113,20 +119,25 @@ package body Devices.Serial is
        Success     : out Boolean;
        Is_Blocking : Boolean)
    is
+      pragma Unreferenced (Offset, Is_Blocking);
       COM : COM_Root with Import, Address => Key;
-      pragma Unreferenced (Offset);
-      pragma Unreferenced (Is_Blocking);
    begin
+      Ret_Count := 0;
       Lib.Synchronization.Seize (COM.Mutex);
       for I of Data loop
          while not Can_Receive (COM.Port) loop
             Arch.Snippets.Pause;
          end loop;
          I := Arch.Snippets.Port_In (COM.Port);
+         Ret_Count := Ret_Count + 1;
       end loop;
       Lib.Synchronization.Release (COM.Mutex);
-      Ret_Count := Data'Length;
-      Success   := True;
+      Success := True;
+   exception
+      when Constraint_Error =>
+         Data      := [others => 0];
+         Ret_Count := 0;
+         Success   := False;
    end Read;
 
    procedure Write
@@ -137,20 +148,25 @@ package body Devices.Serial is
        Success     : out Boolean;
        Is_Blocking : Boolean)
    is
+      pragma Unreferenced (Offset, Is_Blocking);
       COM : COM_Root with Import, Address => Key;
-      pragma Unreferenced (Offset);
-      pragma Unreferenced (Is_Blocking);
    begin
+      Ret_Count := 0;
       Lib.Synchronization.Seize (COM.Mutex);
       for I of Data loop
          while not Can_Transmit (COM.Port) loop
             Arch.Snippets.Pause;
          end loop;
          Arch.Snippets.Port_Out (COM.Port, I);
+         Ret_Count := Ret_Count + 1;
       end loop;
       Lib.Synchronization.Release (COM.Mutex);
       Ret_Count := Data'Length;
       Success   := True;
+   exception
+      when Constraint_Error =>
+         Ret_Count := 0;
+         Success   := False;
    end Write;
 
    procedure IO_Control
@@ -215,13 +231,17 @@ package body Devices.Serial is
    end Can_Transmit;
 
    procedure Set_Baud (Port : Unsigned_16; Baud : Unsigned_32) is
-      New_Div : constant Unsigned_32 := 115200 / Baud;
-      Low_Div : constant Unsigned_32 := Shift_Right (New_Div, 8);
+      New_Div, Low_Div : Unsigned_32;
    begin
       --  Enable DLAB and set the low and high parts of the divisor.
+      New_Div := 115200 / Baud;
+      Low_Div := Shift_Right (New_Div, 8);
       Arch.Snippets.Port_Out (Port + Line_Control, 16#80#);
       Arch.Snippets.Port_Out (Port + DLAB_0, Unsigned_8 (New_Div and 16#FF#));
       Arch.Snippets.Port_Out (Port + DLAB_1, Unsigned_8 (Low_Div and 16#FF#));
       Arch.Snippets.Port_Out (Port + Line_Control, 16#03#);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Baud;
 end Devices.Serial;

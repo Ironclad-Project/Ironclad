@@ -104,6 +104,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
       else
          return 0;
       end if;
+   exception
+      when Constraint_Error =>
+         return 0;
    end FindTable;
    ----------------------------------------------------------------------------
    procedure Enter_Sleep (Level : Sleep_Level; Success : out Boolean) is
@@ -126,6 +129,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
       end if;
 
       Success := False;
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Enter_Sleep;
 
    procedure Do_Reboot is
@@ -140,6 +146,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Addr.all := Unsigned_64 (To_Integer (RSDPonse.Addr));
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end Get_RSDP;
 
    procedure Stall (USec : Unsigned_8) is
@@ -166,6 +175,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
             (Tgt_Sec, Tgt_Nsec, Curr_Sec, Curr_Nsec);
          Scheduler.Yield_If_Able;
       end loop;
+   exception
+      when Constraint_Error =>
+         null;
    end Sleep;
 
    function Create_Event return System.Address is
@@ -206,6 +218,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Lib.Synchronization.Seize (Lock.Lock);
       return 0;
+   exception
+      when Constraint_Error =>
+         return 0;
    end Lock_Spinlock;
 
    procedure Unlock_Spinlock (Handle : System.Address; Flags : Unsigned_64) is
@@ -214,6 +229,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
          uACPI_Spinlock_Acc (C1.To_Pointer (Handle));
    begin
       Lib.Synchronization.Release (Lock.Lock);
+   exception
+      when Constraint_Error =>
+         null;
    end Unlock_Spinlock;
 
    function Alloc (Size : size_t) return System.Address is
@@ -271,6 +289,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Value := Arch.PCI.Read8 (Dev.Dev, Unsigned_16 (Offset));
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end PCI_Read8;
 
    function PCI_Write8
@@ -282,6 +303,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Arch.PCI.Write8 (Dev.Dev, Unsigned_16 (Offset), Value);
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end PCI_Write8;
 
    function PCI_Read16
@@ -293,6 +317,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Value := Arch.PCI.Read16 (Dev.Dev, Unsigned_16 (Offset));
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end PCI_Read16;
 
    function PCI_Write16
@@ -304,6 +331,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Arch.PCI.Write16 (Dev.Dev, Unsigned_16 (Offset), Value);
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end PCI_Write16;
 
    function PCI_Read32
@@ -315,6 +345,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Value := Arch.PCI.Read32 (Dev.Dev, Unsigned_16 (Offset));
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end PCI_Read32;
 
    function PCI_Write32
@@ -326,6 +359,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Arch.PCI.Write32 (Dev.Dev, Unsigned_16 (Offset), Value);
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end PCI_Write32;
 
    function IO_Map
@@ -350,11 +386,13 @@ package body Arch.ACPI with SPARK_Mode => Off is
        Offset     : size_t;
        Value      : out Unsigned_8) return Status
    is
-      Base : constant Unsigned_16 := Unsigned_16 (To_Integer (Handle));
-      Port : constant Unsigned_16 := Base + Unsigned_16 (Offset);
    begin
-      Value := Arch.Snippets.Port_In (Port);
+      Value := Arch.Snippets.Port_In
+         (Unsigned_16 (To_Integer (Handle)) + Unsigned_16 (Offset));
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end IO_Read8;
 
    function IO_Write8
@@ -362,11 +400,13 @@ package body Arch.ACPI with SPARK_Mode => Off is
        Offset     : size_t;
        Value      : Unsigned_8) return Status
    is
-      Base : constant Unsigned_16 := Unsigned_16 (To_Integer (Handle));
-      Port : constant Unsigned_16 := Base + Unsigned_16 (Offset);
    begin
-      Arch.Snippets.Port_Out (Port, Value);
+      Arch.Snippets.Port_Out
+         ((Unsigned_16 (To_Integer (Handle)) + Unsigned_16 (Offset)), Value);
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end IO_Write8;
 
    function IO_Read16
@@ -374,11 +414,13 @@ package body Arch.ACPI with SPARK_Mode => Off is
        Offset     : size_t;
        Value      : out Unsigned_16) return Status
    is
-      Base : constant Unsigned_16 := Unsigned_16 (To_Integer (Handle));
-      Port : constant Unsigned_16 := Base + Unsigned_16 (Offset);
    begin
-      Value := Arch.Snippets.Port_In16 (Port);
+      Value := Arch.Snippets.Port_In16
+         ((Unsigned_16 (To_Integer (Handle)) + Unsigned_16 (Offset)));
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end IO_Read16;
 
    function IO_Write16
@@ -386,11 +428,13 @@ package body Arch.ACPI with SPARK_Mode => Off is
        Offset     : size_t;
        Value      : Unsigned_16) return Status
    is
-      Base : constant Unsigned_16 := Unsigned_16 (To_Integer (Handle));
-      Port : constant Unsigned_16 := Base + Unsigned_16 (Offset);
    begin
-      Arch.Snippets.Port_Out16 (Port, Value);
+      Arch.Snippets.Port_Out16
+         ((Unsigned_16 (To_Integer (Handle)) + Unsigned_16 (Offset)), Value);
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end IO_Write16;
 
    function IO_Read32
@@ -398,11 +442,13 @@ package body Arch.ACPI with SPARK_Mode => Off is
        Offset     : size_t;
        Value      : out Unsigned_32) return Status
    is
-      Base : constant Unsigned_16 := Unsigned_16 (To_Integer (Handle));
-      Port : constant Unsigned_16 := Base + Unsigned_16 (Offset);
    begin
-      Value := Arch.Snippets.Port_In32 (Port);
+      Value := Arch.Snippets.Port_In32
+         ((Unsigned_16 (To_Integer (Handle)) + Unsigned_16 (Offset)));
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end IO_Read32;
 
    function IO_Write32
@@ -410,11 +456,13 @@ package body Arch.ACPI with SPARK_Mode => Off is
        Offset     : size_t;
        Value      : Unsigned_32) return Status
    is
-      Base : constant Unsigned_16 := Unsigned_16 (To_Integer (Handle));
-      Port : constant Unsigned_16 := Base + Unsigned_16 (Offset);
    begin
-      Arch.Snippets.Port_Out32 (Port, Value);
+      Arch.Snippets.Port_Out32
+         ((Unsigned_16 (To_Integer (Handle)) + Unsigned_16 (Offset)), Value);
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end IO_Write32;
 
    function Map
@@ -441,6 +489,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
              Is_Global         => True),
           Success        => Success);
       return To_Address (Memory.Memory_Offset + Integer_Address (Phys_Addr));
+   exception
+      when Constraint_Error =>
+         return System.Null_Address;
    end Map;
 
    procedure Unmap (Address : System.Address; Length : size_t) is
@@ -467,11 +518,15 @@ package body Arch.ACPI with SPARK_Mode => Off is
        Handle  : out System.Address) return Status
    is
       pragma Unreferenced (Context);
-      I : constant IDT.IRQ_Index := IDT.IRQ_Index (IRQ + 33);
+      I : IDT.IRQ_Index;
    begin
+      I := IDT.IRQ_Index (IRQ + 33);
       IDT.Load_ISR (Index => I, Address => Handler);
       Handle := To_Address (Integer_Address (I));
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end Install_Interrupt_Handler;
 
    function Uninstall_Interrupt_Handler
@@ -482,6 +537,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       IDT.Unload_ISR (IDT.IRQ_Index (To_Integer (Handle)));
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end Uninstall_Interrupt_Handler;
 
    function Schedule_Work
@@ -557,6 +615,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Lib.Synchronization.Seize (Lock.Lock);
       return Status_OK;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end Acquire_Mutex;
 
    procedure Release_Mutex (Handle : System.Address) is
@@ -564,6 +625,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
          uACPI_Mutex_Acc (C2.To_Pointer (Handle));
    begin
       Lib.Synchronization.Release (Lock.Lock);
+   exception
+      when Constraint_Error =>
+         null;
    end Release_Mutex;
 
    function Get_Thread_ID return Unsigned_64 is

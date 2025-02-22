@@ -76,6 +76,9 @@ package body Arch.CPU with SPARK_Mode => Off is
             end loop;
          end;
       end if;
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception when initializing cores");
    end Init_Cores;
 
    function Get_Local return Core_Local_Acc is
@@ -114,6 +117,9 @@ package body Arch.CPU with SPARK_Mode => Off is
       Saved_MTRRs (Natural (Count * 2) + 12) := Snippets.Read_MSR (16#2FF#);
       Saved_MTRRs (Natural (Count * 2) + 12) :=
          Saved_MTRRs (Natural (Count * 2) + 12) and not Shift_Left (1, 11);
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception when saving MTRRs");
    end Save_MTRRs;
 
    procedure Restore_MTRRs is
@@ -152,6 +158,9 @@ package body Arch.CPU with SPARK_Mode => Off is
       Snippets.Write_CR3 (CR3);
       Snippets.Write_CR0 (CR0);
       Snippets.Invalidate_Caches;
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception when restoring MTRRs");
    end Restore_MTRRs;
 
    procedure Core_Bootstrap (Info : access Limine.SMP_CPU_Info) is
@@ -162,6 +171,9 @@ package body Arch.CPU with SPARK_Mode => Off is
          (Core_Number => Natural (Info.Extra_Arg),
           LAPIC_ID    => Unsigned_8 (Info.LAPIC_ID),
           Stack_Top   => Unsigned_64 (To_Integer (New_Stk_Top)));
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception when bootstrapping core");
    end Core_Bootstrap;
 
    procedure Init_Core
@@ -211,9 +223,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       FMASK : Unsigned_64;
       EAX, EBX, ECX, EDX : Unsigned_32;
       Success : Boolean;
-
-      Locals_Addr : constant Unsigned_64 :=
-         Unsigned_64 (To_Integer (Core_Locals (Core_Number)'Address));
+      Locals_Addr : Unsigned_64;
 
       procedure Syscall_Entry with Import, External_Name => "syscall_entry";
    begin
@@ -294,6 +304,8 @@ package body Arch.CPU with SPARK_Mode => Off is
       Snippets.Write_MSR (FMASK_MSR, FMASK);
 
       --  Prepare the core local structure and set it in GS.
+      Locals_Addr := Unsigned_64
+         (To_Integer (Core_Locals (Core_Number)'Address));
       Core_Locals (Core_Number) :=
          (Self            => Core_Locals (Core_Number)'Access,
           Number          => Core_Number,
@@ -314,6 +326,9 @@ package body Arch.CPU with SPARK_Mode => Off is
       if VMX.Is_Supported then
          VMX.Initialize;
       end if;
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception when initializing core");
    end Init_Common;
 
    function Get_BSP_LAPIC_ID return Unsigned_32 is

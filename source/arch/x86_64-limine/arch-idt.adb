@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces;              use Interfaces;
+with Lib.Panic;
 with System;                  use System;
 with System.Machine_Code;     use System.Machine_Code;
 with Arch.APIC;
@@ -102,6 +103,9 @@ package body Arch.IDT is
       --  Prepare the pointer and load the IDT.
       Global_Pointer := ((Global_IDT'Size / 8) - 1, Global_IDT'Address);
       Load_IDT;
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception when loading IDT");
    end Init;
 
    procedure Load_IDT is
@@ -132,6 +136,9 @@ package body Arch.IDT is
       else
          Global_IDT (Index).DPL := 0;
       end if;
+   exception
+      when Constraint_Error =>
+         null;
    end Load_ISR;
 
    procedure Load_ISR
@@ -159,6 +166,9 @@ package body Arch.IDT is
    procedure Unload_ISR (Index : IDT_Index) is
    begin
       ISR_Table (Index) := Interrupts.Default_ISR_Handler'Address;
+   exception
+      when Constraint_Error =>
+         null;
    end Unload_ISR;
 
    procedure Load_IDT_ISR (Index : IDT_Index; Address : System.Address) is
@@ -167,17 +177,19 @@ package body Arch.IDT is
       Mid16  : constant Unsigned_64 := Shift_Right (Addr, 16) and 16#FFFF#;
       High32 : constant Unsigned_64 := Shift_Right (Addr, 32) and 16#FFFFFFFF#;
    begin
-      Global_IDT (Index) := (
-         Offset_Low  => Unsigned_16 (Low16),
-         Selector    => GDT.Kernel_Code64_Segment,
-         IST         => 0,
-         Gate_Type   => Gate_Type_Interrupt,
-         Zero        => False,
-         DPL         => 0,
-         Present     => True,
-         Offset_Mid  => Unsigned_16 (Mid16),
-         Offset_High => Unsigned_32 (High32),
-         Reserved_2  => 0
-      );
+      Global_IDT (Index) :=
+         (Offset_Low  => Unsigned_16 (Low16),
+          Selector    => GDT.Kernel_Code64_Segment,
+          IST         => 0,
+          Gate_Type   => Gate_Type_Interrupt,
+          Zero        => False,
+          DPL         => 0,
+          Present     => True,
+          Offset_Mid  => Unsigned_16 (Mid16),
+          Offset_High => Unsigned_32 (High32),
+          Reserved_2  => 0);
+   exception
+      when Constraint_Error =>
+         null;
    end Load_IDT_ISR;
 end Arch.IDT;

@@ -76,6 +76,9 @@ package body Arch.HPET with SPARK_Mode => Off is
       end;
       Is_Initialized := True;
       return True;
+   exception
+      when Constraint_Error =>
+         return False;
    end Init;
 
    procedure Get_Frequency (Freq : out Unsigned_64) is
@@ -99,16 +102,19 @@ package body Arch.HPET with SPARK_Mode => Off is
       --  mode it doesnt hurt either.
       HPET : ACPI.HPET_Contents
          with Import, Address => To_Address (HPET_Contents);
-      Target : constant Unsigned_64 :=
-         HPET.Main_Counter_Value + (Unsigned_64 (Nanoseconds) *
-         (1_000_000 / HPET_Period));
+      Target : Unsigned_64;
    begin
       if not Is_Initialized then
          return;
       end if;
 
+      Target := HPET.Main_Counter_Value + (Unsigned_64 (Nanoseconds) *
+         (1_000_000 / HPET_Period));
       while HPET.Main_Counter_Value < Target loop
          Snippets.Pause;
       end loop;
+   exception
+      when Constraint_Error =>
+         null;
    end NSleep;
 end Arch.HPET;

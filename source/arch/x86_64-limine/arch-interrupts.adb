@@ -50,6 +50,9 @@ package body Arch.Interrupts is
       else
          Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Num), State.all);
       end if;
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception...  In the exception handler!");
    end Exception_Handler;
 
    procedure Syscall_Handler (State : not null ISR_GPRs_Acc) is
@@ -341,15 +344,21 @@ package body Arch.Interrupts is
    end Panic_Handler;
 
    procedure Invalidate_Handler is
-      I     : constant Positive := CPU.Get_Local.Number;
-      Final : constant System.Address := CPU.Core_Locals (I).Invalidate_End;
-      Curr  :          System.Address := CPU.Core_Locals (I).Invalidate_Start;
+      I            : Positive;
+      Final, Curr  : System.Address;
    begin
+      I     := CPU.Get_Local.Number;
+      Final := CPU.Core_Locals (I).Invalidate_End;
+      Curr  := CPU.Core_Locals (I).Invalidate_Start;
+
       while To_Integer (Curr) < To_Integer (Final) loop
          Snippets.Invalidate_Page (To_Integer (Curr));
          Curr := Curr + MMU.Page_Size;
       end loop;
       Arch.APIC.LAPIC_EOI;
+   exception
+      when Constraint_Error =>
+         null;
    end Invalidate_Handler;
 
    procedure Default_ISR_Handler is

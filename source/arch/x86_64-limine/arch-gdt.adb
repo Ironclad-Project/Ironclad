@@ -17,6 +17,7 @@
 with System.Machine_Code;     use System.Machine_Code;
 with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with Lib.Synchronization;
+with Lib.Panic;
 
 package body Arch.GDT is
    --  Records for the GDT structure and its entries.
@@ -99,16 +100,20 @@ package body Arch.GDT is
       ],
       TSS => <>
    );
-   Global_Pointer : constant GDT_Pointer := (
-      Size    => (Global_GDT'Size / 8) - 1,
-      Address => Global_GDT'Address
-   );
+   Global_Pointer : GDT_Pointer;
    TSS_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
 
    procedure Init is
    begin
+      Global_Pointer :=
+         (Size    => (Global_GDT'Size / 8) - 1,
+          Address => Global_GDT'Address);
+
       Load_GDT;
       Lib.Synchronization.Release (TSS_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception loading the GDT");
    end Init;
 
    procedure Load_GDT is
@@ -163,5 +168,8 @@ package body Arch.GDT is
            Volatile => True);
 
       Lib.Synchronization.Release (TSS_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (TSS_Mutex);
    end Load_TSS;
 end Arch.GDT;

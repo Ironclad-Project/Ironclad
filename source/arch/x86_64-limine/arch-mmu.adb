@@ -16,13 +16,13 @@
 
 with Interfaces.C;
 with Ada.Unchecked_Deallocation;
-with Lib.Atomic;
 with Arch.Snippets;
 with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
 with Arch.Interrupts;
 with Memory.Physical;
 with Arch.Limine;
+with Lib.Panic;
 
 package body Arch.MMU is
    --  Bits in the 4K page entries.
@@ -36,9 +36,6 @@ package body Arch.MMU is
    Page_NX    : constant Unsigned_64 := Shift_Left (1, 63);
 
    --  Global statistics.
-   function Atomic_Load_Size is new Lib.Atomic.Atomic_Load      (Memory.Size);
-   function Atomic_Add_Size  is new Lib.Atomic.Atomic_Fetch_Add (Memory.Size);
-   function Atomic_Sub_Size  is new Lib.Atomic.Atomic_Fetch_Sub (Memory.Size);
    Global_Kernel_Usage : Memory.Size := 0;
    Global_Table_Usage  : Memory.Size := 0;
 
@@ -130,13 +127,16 @@ package body Arch.MMU is
 
       --  Load the kernel table at last.
       return Make_Active (Kernel_Table);
+   exception
+      when Constraint_Error =>
+         return False;
    end Init;
 
    procedure Fork_Table (Map : Page_Table_Acc; Forked : out Page_Table_Acc) is
       type Page_Data is array (Storage_Count range <>) of Unsigned_8;
 
       Addr       : System.Address;
-      Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
+      Curr_Range : Mapping_Range_Acc;
       Success    : Boolean;
    begin
       Forked := new Page_Table'
@@ -150,6 +150,7 @@ package body Arch.MMU is
       Forked.PML4_Level (257 .. 512) := Map.PML4_Level (257 .. 512);
 
       --  Duplicate the rest of maps, which are mostly going to be lower half.
+      Curr_Range := Map.Map_Ranges_Root;
       while Curr_Range /= null loop
          if Curr_Range.Is_Allocated then
             Map_Allocated_Range
@@ -192,6 +193,9 @@ package body Arch.MMU is
 
    <<Cleanup>>
       Lib.Synchronization.Release_Reader (Map.Mutex);
+   exception
+      when Constraint_Error =>
+         Forked := null;
    end Fork_Table;
 
    procedure Destroy_Table (Map : in out Page_Table_Acc) is
@@ -200,9 +204,10 @@ package body Arch.MMU is
       procedure F is new Ada.Unchecked_Deallocation
          (Mapping_Range, Mapping_Range_Acc);
       Last_Range : Mapping_Range_Acc;
-      Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
+      Curr_Range : Mapping_Range_Acc;
       Discard    : Memory.Size;
    begin
+      Curr_Range := Map.Map_Ranges_Root;
       Lib.Synchronization.Seize_Writer (Map.Mutex);
       while Curr_Range /= null loop
          if Curr_Range.Is_Allocated then
@@ -237,23 +242,27 @@ package body Arch.MMU is
                   end;
                end loop;
             end if;
-            Discard := Atomic_Sub_Size
-               (Global_Table_Usage'Address,
-                PML4'Size / 8);
+            Global_Table_Usage := Global_Table_Usage - (PML4'Size / 8);
             Memory.Physical.Free (Interfaces.C.size_t (A3));
          end;
       end loop;
       F (Map);
+   exception
+      when Constraint_Error =>
+         return;
    end Destroy_Table;
 
    function Make_Active (Map : Page_Table_Acc) return Boolean is
-      Val : constant Unsigned_64 :=
-         Unsigned_64 (To_Integer (Map.PML4_Level'Address) - Memory_Offset);
+      Val : Unsigned_64;
    begin
+      Val := Unsigned_64 (To_Integer (Map.PML4_Level'Address) - Memory_Offset);
       if Arch.Snippets.Read_CR3 /= Val then
          Arch.Snippets.Write_CR3 (Val);
       end if;
       return True;
+   exception
+      when Constraint_Error =>
+         return False;
    end Make_Active;
 
    procedure Translate_Address
@@ -313,6 +322,14 @@ package body Arch.MMU is
          end;
          Virt := Virt + Page_Size;
       end loop;
+   exception
+      when Constraint_Error =>
+         Physical           := System.Null_Address;
+         Is_Mapped          := False;
+         Is_User_Accessible := False;
+         Is_Readable        := False;
+         Is_Writeable       := False;
+         Is_Executable      := False;
    end Translate_Address;
 
    procedure Map_Range
@@ -329,7 +346,7 @@ package body Arch.MMU is
 
       New_Range  : Mapping_Range_Acc;
       Last_Range : Mapping_Range_Acc;
-      Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
+      Curr_Range : Mapping_Range_Acc;
    begin
       Success   := False;
       New_Range := new Mapping_Range'
@@ -339,6 +356,8 @@ package body Arch.MMU is
           Physical_Start => Physical_Start,
           Length         => Length,
           Flags          => Permissions);
+
+      Curr_Range := Map.Map_Ranges_Root;
 
       Lib.Synchronization.Seize_Writer (Map.Mutex);
 
@@ -371,6 +390,9 @@ package body Arch.MMU is
 
    <<Ret>>
       Lib.Synchronization.Release_Writer (Map.Mutex);
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Map_Range;
 
    procedure Map_Allocated_Range
@@ -391,7 +413,7 @@ package body Arch.MMU is
          with Import, Address => To_Address (Addr);
       New_Range  : Mapping_Range_Acc;
       Last_Range : Mapping_Range_Acc;
-      Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
+      Curr_Range : Mapping_Range_Acc;
    begin
       Success   := False;
       New_Range := new Mapping_Range'
@@ -401,6 +423,8 @@ package body Arch.MMU is
           Physical_Start => To_Address (Addr - Memory.Memory_Offset),
           Length         => Length,
           Flags          => Permissions);
+
+      Curr_Range := Map.Map_Ranges_Root;
 
       Lib.Synchronization.Seize_Writer (Map.Mutex);
 
@@ -440,6 +464,10 @@ package body Arch.MMU is
          Physical_Start := System.Null_Address;
       end if;
       Lib.Synchronization.Release_Writer (Map.Mutex);
+   exception
+      when Constraint_Error =>
+         Physical_Start := System.Null_Address;
+         Success        := False;
    end Map_Allocated_Range;
 
    procedure Remap_Range
@@ -454,9 +482,10 @@ package body Arch.MMU is
       Virt       : Virtual_Address          := To_Integer (Virtual_Start);
       Final      : constant Virtual_Address := Virt + Virtual_Address (Length);
       Addr       : Virtual_Address;
-      Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
+      Curr_Range : Mapping_Range_Acc;
    begin
-      Success := False;
+      Success    := False;
+      Curr_Range := Map.Map_Ranges_Root;
 
       Lib.Synchronization.Seize_Writer (Map.Mutex);
 
@@ -491,6 +520,9 @@ package body Arch.MMU is
 
    <<Ret>>
       Lib.Synchronization.Release_Writer (Map.Mutex);
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Remap_Range;
 
    procedure Unmap_Range
@@ -506,9 +538,10 @@ package body Arch.MMU is
       Final      : constant Virtual_Address := Virt + Virtual_Address (Length);
       Addr       : Virtual_Address;
       Last_Range : Mapping_Range_Acc := null;
-      Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
+      Curr_Range : Mapping_Range_Acc;
    begin
-      Success := False;
+      Success    := False;
+      Curr_Range := Map.Map_Ranges_Root;
       Lib.Synchronization.Seize_Writer (Map.Mutex);
 
       while Curr_Range /= null loop
@@ -555,32 +588,43 @@ package body Arch.MMU is
 
    <<No_Free_Return>>
       Lib.Synchronization.Release_Writer (Map.Mutex);
+
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Unmap_Range;
 
    procedure Get_User_Mapped_Size (Map : Page_Table_Acc; Sz : out Unsigned_64)
    is
-      Curr_Range : Mapping_Range_Acc := Map.Map_Ranges_Root;
+      Curr_Range : Mapping_Range_Acc;
    begin
       Lib.Synchronization.Seize_Reader (Map.Mutex);
       Sz := 0;
+      Curr_Range := Map.Map_Ranges_Root;
       while Curr_Range /= null loop
          Sz         := Sz + Unsigned_64 (Curr_Range.Length);
          Curr_Range := Curr_Range.Next;
       end loop;
       Lib.Synchronization.Release_Reader (Map.Mutex);
+   exception
+      when Constraint_Error =>
+         Sz := 0;
    end Get_User_Mapped_Size;
 
    procedure Get_Statistics (Stats : out Virtual_Statistics) is
       Val1, Val2 : Memory.Size;
    begin
-      Val1 := Atomic_Load_Size (Global_Kernel_Usage'Address);
-      Val2 := Atomic_Load_Size (Global_Table_Usage'Address);
+      Val1 := Global_Kernel_Usage;
+      Val2 := Global_Table_Usage;
       Stats := (Val1, Val2, 0);
    end Get_Statistics;
    ----------------------------------------------------------------------------
    function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address is
    begin
       return Physical_Address (Entry_Body and 16#FFFFFFF000#);
+   exception
+      when Constraint_Error =>
+         return 0;
    end Clean_Entry;
 
    function Get_Next_Level
@@ -588,30 +632,35 @@ package body Arch.MMU is
        Index               : Unsigned_64;
        Create_If_Not_Found : Boolean) return Physical_Address
    is
-      Entry_Addr : constant Virtual_Address :=
-         Current_Level + Memory_Offset + Physical_Address (Index * 8);
-      Entry_Body : Unsigned_64 with Address => To_Address (Entry_Addr), Import;
       Discard : Memory.Size;
    begin
-      --  Check whether the entry is present.
-      if (Entry_Body and Page_P) /= 0 then
-         return Clean_Entry (Entry_Body);
-      elsif Create_If_Not_Found then
-         --  Allocate and put some default flags.
-         declare
-            New_Entry      : constant PML4_Acc := new PML4'(others => 0);
-            New_Entry_Addr : constant Physical_Address :=
-               To_Integer (New_Entry.all'Address) - Memory_Offset;
-         begin
-            Discard := Atomic_Add_Size
-               (Global_Table_Usage'Address,
-                PML4'Size / 8);
-            Entry_Body := Unsigned_64 (New_Entry_Addr) or Page_P or Page_U or
-                          Page_RW;
-            return New_Entry_Addr;
-         end;
-      end if;
+      declare
+         Entry_Addr : constant Virtual_Address :=
+            Current_Level + Memory_Offset + Physical_Address (Index * 8);
+         Entry_Body : Unsigned_64
+            with Address => To_Address (Entry_Addr), Import;
+      begin
+         --  Check whether the entry is present.
+         if (Entry_Body and Page_P) /= 0 then
+            return Clean_Entry (Entry_Body);
+         elsif Create_If_Not_Found then
+            --  Allocate and put some default flags.
+            declare
+               New_Entry      : constant PML4_Acc := new PML4'(others => 0);
+               New_Entry_Addr : constant Physical_Address :=
+                  To_Integer (New_Entry.all'Address) - Memory_Offset;
+            begin
+               Global_Table_Usage := Global_Table_Usage + (PML4'Size / 8);
+               Entry_Body := Unsigned_64 (New_Entry_Addr) or Page_P or
+                             Page_U or Page_RW;
+               return New_Entry_Addr;
+            end;
+         end if;
+      end;
       return Memory.Null_Address;
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception when getting next page level");
    end Get_Next_Level;
 
    function Get_Page
@@ -628,11 +677,10 @@ package body Arch.MMU is
          Shift_Right (Addr and Shift_Left (16#1FF#, 21), 21);
       PML1_Entry : constant Unsigned_64 :=
          Shift_Right (Addr and Shift_Left (16#1FF#, 12), 12);
-      Addr4 : constant Physical_Address :=
-         To_Integer (Map.PML4_Level'Address) - Memory_Offset;
-      Addr3, Addr2, Addr1 : Physical_Address := Memory.Null_Address;
+      Addr4, Addr3, Addr2, Addr1 : Physical_Address := Memory.Null_Address;
    begin
       --  Find the entries.
+      Addr4 := To_Integer (Map.PML4_Level'Address) - Memory_Offset;
       Addr3 := Get_Next_Level (Addr4, PML4_Entry, Allocate);
       if Addr3 = Memory.Null_Address then
          goto Error_Return;
@@ -649,6 +697,9 @@ package body Arch.MMU is
 
    <<Error_Return>>
       return Memory.Null_Address;
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception when fetching/allocating page");
    end Get_Page;
 
    function Inner_Map_Range
@@ -701,6 +752,9 @@ package body Arch.MMU is
       end case;
 
       return Result;
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception when translating bitmap flags");
    end Flags_To_Bitmap;
 
    procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count) is
@@ -726,5 +780,8 @@ package body Arch.MMU is
             end if;
          end loop;
       end if;
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Could not flish global TLBs");
    end Flush_Global_TLBs;
 end Arch.MMU;

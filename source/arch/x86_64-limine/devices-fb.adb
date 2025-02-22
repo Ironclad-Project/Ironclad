@@ -178,6 +178,9 @@ package body Devices.FB with SPARK_Mode => Off is
       end loop;
 
       return Success;
+   exception
+      when Constraint_Error =>
+         return False;
    end Init;
 
    procedure IO_Control
@@ -229,5 +232,8 @@ package body Devices.FB with SPARK_Mode => Off is
           Success          => Success,
           Caching          => Arch.MMU.Write_Combining);
       return Success;
+   exception
+      when Constraint_Error =>
+         return False;
    end Mmap;
 end Devices.FB;

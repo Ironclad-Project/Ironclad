@@ -52,7 +52,6 @@ package body Devices.PS2Mouse is
    Current_Mouse_Cycle : Integer range 1 .. 4 := 1;
 
    function Init return Boolean is
-      BSP_LAPIC    : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
       Index        : Arch.IDT.IRQ_Index;
       Data, Unused : Unsigned_8;
       Success      : Boolean;
@@ -62,7 +61,9 @@ package body Devices.PS2Mouse is
       if not Success then
          return False;
       end if;
-      if not Arch.APIC.IOAPIC_Set_Redirect (BSP_LAPIC, 45, Index, True) then
+      if not Arch.APIC.IOAPIC_Set_Redirect
+         (Arch.CPU.Core_Locals (1).LAPIC_ID, 45, Index, True)
+      then
          return False;
       end if;
 
@@ -121,6 +122,9 @@ package body Devices.PS2Mouse is
            Poll        => Poll'Access,
            Remove      => null), "ps2mouse", Success);
       return Success;
+   exception
+      when Constraint_Error =>
+         return False;
    end Init;
    ----------------------------------------------------------------------------
    procedure Read
@@ -133,7 +137,6 @@ package body Devices.PS2Mouse is
    is
       pragma Unreferenced (Key, Offset);
       Temp  : Boolean;
-      Data2 : Mouse_Data with Address => Data (Data'First)'Address;
    begin
       if Is_Blocking then
          loop
@@ -149,16 +152,25 @@ package body Devices.PS2Mouse is
       end if;
 
       if Temp then
-         Data2        := Return_Data;
-         Ret_Count    := Return_Data'Size / 8;
-         Success      := True;
-         Has_Returned := False;
+         declare
+            Data2 : Mouse_Data with Address => Data (Data'First)'Address;
+         begin
+            Data2        := Return_Data;
+            Ret_Count    := Return_Data'Size / 8;
+            Success      := True;
+            Has_Returned := False;
+         end;
       else
          Ret_Count := 0;
          Success   := False;
       end if;
 
       Lib.Synchronization.Release (Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Data_Mutex);
+         Ret_Count := 0;
+         Success   := False;
    end Read;
 
    procedure IO_Control
@@ -224,6 +236,12 @@ package body Devices.PS2Mouse is
 
    <<Cleanup>>
       Lib.Synchronization.Release (Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Data_Mutex);
+         Success   := False;
+         Has_Extra := False;
+         Extra     := 0;
    end IO_Control;
 
    procedure Poll
@@ -306,6 +324,9 @@ package body Devices.PS2Mouse is
       Lib.Synchronization.Release (Data_Mutex);
 
       Arch.APIC.LAPIC_EOI;
+   exception
+      when Constraint_Error =>
+         null;
    end Mouse_Handler;
 
    procedure Mouse_Wait_Read is

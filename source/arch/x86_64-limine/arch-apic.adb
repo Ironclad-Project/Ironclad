@@ -159,13 +159,15 @@ package body Arch.APIC with SPARK_Mode => Off is
        Hz           : Unsigned_64;
        Microseconds : Unsigned_64)
    is
-      Ms    : Unsigned_64 renames Microseconds;
-      Ticks : constant Unsigned_64 := (Ms * (Hz / 1000000) and 16#FFFFFFFF#);
    begin
       LAPIC_Timer_Stop;
       LAPIC_Write (LAPIC_Timer_Register, (Unsigned_32 (Vector) - 1));
       LAPIC_Write (LAPIC_Timer_Divisor_Register, LAPIC_Timer_2_Divisor);
-      LAPIC_Write (LAPIC_Timer_Init_Counter_Register, Unsigned_32 (Ticks));
+      LAPIC_Write (LAPIC_Timer_Init_Counter_Register,
+         Unsigned_32 ((Microseconds * (Hz / 1000000) and 16#FFFFFFFF#)));
+   exception
+      when Constraint_Error =>
+         null;
    end LAPIC_Timer_Oneshot;
 
    procedure LAPIC_EOI is
@@ -185,6 +187,9 @@ package body Arch.APIC with SPARK_Mode => Off is
             return Value_Mem;
          end;
       end if;
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception while reading LAPIC");
    end LAPIC_Read;
 
    procedure LAPIC_Write (Register : Unsigned_32; Value : Unsigned_32) is
@@ -280,16 +285,20 @@ package body Arch.APIC with SPARK_Mode => Off is
       end loop;
 
       return True;
+   exception
+      when Constraint_Error =>
+         return False;
    end Init_IOAPIC;
 
    function IOAPIC_Set_Redirect
       (LAPIC_ID  : Unsigned_32;
        IRQ       : IDT.IRQ_Index;
        IDT_Entry : IDT.IDT_Index;
-       Enable    : Boolean) return Boolean is
-      Actual_IRQ : constant Unsigned_8  :=
-         Unsigned_8 (IRQ) - Unsigned_8 (IDT.IRQ_Index'First);
+       Enable    : Boolean) return Boolean
+   is
+      Actual_IRQ : Unsigned_8;
    begin
+      Actual_IRQ := Unsigned_8 (IRQ) - Unsigned_8 (IDT.IRQ_Index'First);
       for ISO of MADT_ISOs.all loop
          if ISO.IRQ_Source = Actual_IRQ then
             return IOAPIC_Set_Redirect (LAPIC_ID, ISO.GSI, IDT_Entry,
@@ -298,6 +307,9 @@ package body Arch.APIC with SPARK_Mode => Off is
       end loop;
       return IOAPIC_Set_Redirect (LAPIC_ID, Unsigned_32 (Actual_IRQ),
                                   IDT_Entry, 0, Enable);
+   exception
+      when Constraint_Error =>
+         return False;
    end IOAPIC_Set_Redirect;
 
    function IOAPIC_Set_Redirect
@@ -340,6 +352,9 @@ package body Arch.APIC with SPARK_Mode => Off is
          IOAPIC_Write (IOAPIC_MMIO, IOREDTBL + 1, Unsigned_32 (Upper32));
       end;
       return True;
+   exception
+      when Constraint_Error =>
+         return False;
    end IOAPIC_Set_Redirect;
 
    procedure Get_IOAPIC_From_GSI
@@ -361,6 +376,10 @@ package body Arch.APIC with SPARK_Mode => Off is
 
       GSIB   := 0;
       Result := Null_Address;
+   exception
+      when Constraint_Error =>
+         GSIB   := 0;
+         Result := Null_Address;
    end Get_IOAPIC_From_GSI;
 
    function Get_IOAPIC_GSI_Count (MMIO : Virtual_Address) return Unsigned_32 is

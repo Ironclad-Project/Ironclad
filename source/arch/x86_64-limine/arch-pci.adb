@@ -81,6 +81,9 @@ package body Arch.PCI is
       end loop;
 
       return Idx;
+   exception
+      when Constraint_Error =>
+         return 0;
    end Enumerate_Devices;
 
    procedure Search_Device
@@ -115,6 +118,9 @@ package body Arch.PCI is
       end loop;
 
       Success := False;
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Search_Device;
 
    procedure Search_Device
@@ -161,6 +167,9 @@ package body Arch.PCI is
           MSIX_Support => False,
           MSI_Offset   => 0,
           MSIX_Offset  => 0);
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Search_Device;
    ----------------------------------------------------------------------------
    procedure Enable_Bus_Mastering (Dev : PCI_Device) is
@@ -245,7 +254,6 @@ package body Arch.PCI is
    end Get_MSI_Support;
 
    procedure Set_MSI_Vector (Dev : PCI_Device; Vector : Unsigned_8) is
-      BSP_LAPIC       : constant Unsigned_32 := CPU.Core_Locals (1).LAPIC_ID;
       MSI_Off         : constant Unsigned_16 := Unsigned_16 (Dev.MSI_Offset);
       Message_Control : Unsigned_16;
       Reg0            : Unsigned_16;
@@ -260,13 +268,17 @@ package body Arch.PCI is
       Message_Control := Read16 (Dev, MSI_Off + 2);
       Reg0 := 4;
       Reg1 := (if (Shift_Right (Message_Control, 7) and 1) = 1 then 12 else 8);
-      Addr := Shift_Left (16#FEE#, 20) or Shift_Left (BSP_LAPIC, 12);
+      Addr := Shift_Left (16#FEE#, 20) or
+              Shift_Left (CPU.Core_Locals (1).LAPIC_ID, 12);
 
       Write32 (Dev, MSI_Off + Reg0, Addr);
       Write32 (Dev, MSI_Off + Reg1, Unsigned_32 (Vector));
 
       Message_Control := (Message_Control or 1) and not Shift_Left (2#111#, 4);
       Write16 (Dev, MSI_Off + 1, Message_Control);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_MSI_Vector;
    ----------------------------------------------------------------------------
    function Read8 (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_8 is
@@ -332,6 +344,9 @@ package body Arch.PCI is
 
          Temp := Temp.Next;
       end loop;
+   exception
+      when Constraint_Error =>
+         Length := 0;
    end List_All;
    ----------------------------------------------------------------------------
    procedure Get_Address (Dev : PCI_Device; Offset : Unsigned_16) is
@@ -387,6 +402,9 @@ package body Arch.PCI is
          end loop;
          Temp.Next := new PCI_Registry_Entry'(Result, null);
       end if;
+   exception
+      when Constraint_Error =>
+         null;
    end Check_Function;
 
    procedure Fetch_Device
@@ -444,5 +462,8 @@ package body Arch.PCI is
       end if;
 
       Success := True;
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Fetch_Device;
 end Arch.PCI;

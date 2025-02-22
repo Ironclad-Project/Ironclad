@@ -30,17 +30,18 @@ package body Devices.PS2Keyboard is
    Scancodes  : array (1 .. 10) of Unsigned_8 := [others => 0] with Volatile;
 
    function Init return Boolean is
-      BSP_LAPIC : constant Unsigned_32 := Arch.CPU.Core_Locals (1).LAPIC_ID;
-      Index     : Arch.IDT.IRQ_Index;
-      Data      : Unsigned_8;
-      Success   : Boolean;
+      Index   : Arch.IDT.IRQ_Index;
+      Data    : Unsigned_8;
+      Success : Boolean;
    begin
       --  Set the interrupt up, which is always the 34 (we are 1 based).
       Arch.IDT.Load_ISR (Keyboard_Handler'Address, Index, Success);
       if not Success then
          return False;
       end if;
-      if not Arch.APIC.IOAPIC_Set_Redirect (BSP_LAPIC, 34, Index, True) then
+      if not Arch.APIC.IOAPIC_Set_Redirect
+         (Arch.CPU.Core_Locals (1).LAPIC_ID, 34, Index, True)
+      then
          return False;
       end if;
 
@@ -85,6 +86,9 @@ package body Devices.PS2Keyboard is
            Poll        => Poll'Access,
            Remove      => null), "ps2keyboard", Success);
       return Success;
+   exception
+      when Constraint_Error =>
+         return False;
    end Init;
 
    function Read_PS2 return Unsigned_8 is
@@ -164,6 +168,12 @@ package body Devices.PS2Keyboard is
       end if;
 
       Lib.Synchronization.Release (Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Data_Mutex);
+         Data      := [others => 0];
+         Ret_Count := 0;
+         Success   := False;
    end Read;
 
    procedure Poll
@@ -205,5 +215,9 @@ package body Devices.PS2Keyboard is
    <<Cleanup>>
       Lib.Synchronization.Release (Data_Mutex);
       Arch.APIC.LAPIC_EOI;
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Data_Mutex);
+         Arch.APIC.LAPIC_EOI;
    end Keyboard_Handler;
 end Devices.PS2Keyboard;

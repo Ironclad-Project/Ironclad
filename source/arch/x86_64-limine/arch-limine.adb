@@ -33,12 +33,6 @@ package body Arch.Limine with SPARK_Mode => Off is
    end Get_Physical_Address;
 
    procedure Translate_Proto is
-      CmdPonse : Kernel_File_Response
-         with Import, Address => Kernel_File_Request.Response;
-      Cmdline_Addr : constant System.Address := CmdPonse.Kernel_File.Cmdline;
-      Cmdline_Len  : constant Natural := Lib.C_String_Length (Cmdline_Addr);
-      Cmdline : String (1 .. Cmdline_Len) with Import, Address => Cmdline_Addr;
-
       InfoPonse : Bootloader_Info_Response
          with Import, Address => Bootloader_Info_Request.Response;
       Name_Addr : constant System.Address := InfoPonse.Name_Addr;
@@ -60,8 +54,18 @@ package body Arch.Limine with SPARK_Mode => Off is
          Lib.Messages.Put_Line ("The passed revision was not supported!");
       end if;
 
-      Global_Info.Cmdline (1 .. Cmdline_Len) := Cmdline;
-      Global_Info.Cmdline_Len := Cmdline_Len;
+      declare
+         CmdPonse : Kernel_File_Response
+            with Import, Address => Kernel_File_Request.Response;
+         Cmdline_Addr : constant System.Address :=
+            CmdPonse.Kernel_File.Cmdline;
+         Cmdline_Len  : constant Natural := Lib.C_String_Length (Cmdline_Addr);
+         Cmdline : String (1 .. Cmdline_Len)
+            with Import, Address => Cmdline_Addr;
+      begin
+         Global_Info.Cmdline (1 .. Cmdline_Len) := Cmdline;
+         Global_Info.Cmdline_Len := Cmdline_Len;
+      end;
 
       --  Translate RAM files.
       Global_Info.RAM_Files_Len := 0;
@@ -106,5 +110,8 @@ package body Arch.Limine with SPARK_Mode => Off is
              Length  => Storage_Count (Ent.Length),
              MemType => Type_Entry);
       end loop;
+   exception
+      when Constraint_Error =>
+         Lib.Messages.Put_Line ("Exception encountered translating limine");
    end Translate_Proto;
 end Arch.Limine;

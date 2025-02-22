@@ -50,6 +50,9 @@ package body Arch.Hooks is
          when others => return False;
       end case;
       return True;
+   exception
+      when Constraint_Error =>
+         return False;
    end PRCTL_Hook;
 
    procedure Panic_SMP_Hook is
@@ -67,6 +70,9 @@ package body Arch.Hooks is
          Devices.PC_Speaker.Beep (1000);
          Devices.PC_Speaker.Beep (500);
       end loop;
+   exception
+      when Constraint_Error =>
+         null;
    end Panic_SMP_Hook;
 
    function Get_Active_Core_Count return Positive is
@@ -81,5 +87,8 @@ package body Arch.Hooks is
       then
          Lib.Messages.Put_Line ("Could not load RAM files");
       end if;
+   exception
+      when Constraint_Error =>
+         Lib.Messages.Put_Line ("Errored while loading RAM files");
    end Register_RAM_Files;
 end Arch.Hooks;

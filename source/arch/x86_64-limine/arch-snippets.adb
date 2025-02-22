@@ -140,15 +140,19 @@ package body Arch.Snippets is
    end Read_MSR;
 
    procedure Write_MSR (MSR : Unsigned_32; Value : Unsigned_64) is
-      Value_Hi : constant Unsigned_32 := Unsigned_32 (Shift_Right (Value, 32));
-      Value_Lo : constant Unsigned_32 := Unsigned_32 (Value and 16#FFFFFFFF#);
+      Value_Hi, Value_Lo : Unsigned_32;
    begin
+      Value_Hi := Unsigned_32 (Shift_Right (Value, 32));
+      Value_Lo := Unsigned_32 (Value and 16#FFFFFFFF#);
       Asm ("wrmsr",
            Inputs   => [Unsigned_32'Asm_Input ("a", Value_Lo),
                         Unsigned_32'Asm_Input ("d", Value_Hi),
                         Unsigned_32'Asm_Input ("c", MSR)],
            Clobber  => "memory",
            Volatile => True);
+   exception
+      when Constraint_Error =>
+         null;
    end Write_MSR;
 
    function Read_CR0 return Unsigned_64 is
@@ -216,15 +220,19 @@ package body Arch.Snippets is
    end Write_CR4;
 
    procedure Write_XCR (Register : Unsigned_32; Value : Unsigned_64) is
-      Lo_32 : constant Unsigned_64 := Value and 16#FFFFFFFF#;
-      Hi_32 : constant Unsigned_64 := Shift_Right (Value, 32) and 16#FFFFFFFF#;
+      Lo_32, Hi_32 : Unsigned_64;
    begin
+      Lo_32 := Value and 16#FFFFFFFF#;
+      Hi_32 := Shift_Right (Value, 32) and 16#FFFFFFFF#;
       Asm ("xsetbv",
            Inputs   => [Unsigned_32'Asm_Input ("a", Unsigned_32 (Lo_32)),
                         Unsigned_32'Asm_Input ("d", Unsigned_32 (Hi_32)),
                         Unsigned_32'Asm_Input ("c", Register)],
            Clobber  => "memory",
            Volatile => True);
+   exception
+      when Constraint_Error =>
+         null;
    end Write_XCR;
 
    FS_MSR        : constant := 16#C0000100#;

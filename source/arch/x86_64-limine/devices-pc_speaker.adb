@@ -40,11 +40,12 @@ package body Devices.PC_Speaker is
 
    procedure Beep (Frequency : Unsigned_32 := 1000) is
       MS_In_NS : constant := 1_000_000;
-      Divisor  : constant Unsigned_32 := 1193180 / Frequency;
+      Divisor  : Unsigned_32;
       Tmp      : Unsigned_8;
    begin
 
       --  Set the PIT to the frequency we want.
+      Divisor := 1193180 / Frequency;
       Port_Out (16#43#, 16#B6#);
       Port_Out (16#42#, Unsigned_8 (Divisor and 16#FF#));
       Port_Out (16#42#, Unsigned_8 (Shift_Right (Divisor, 8) and 16#FF#));
@@ -59,6 +60,9 @@ package body Devices.PC_Speaker is
 
       --  Make it stop.
       Port_Out (16#61#, Port_In (16#61#) and 16#FC#);
+   exception
+      when Constraint_Error =>
+         null;
    end Beep;
    ----------------------------------------------------------------------------
    procedure IO_Control

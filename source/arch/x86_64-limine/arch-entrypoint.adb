@@ -88,5 +88,8 @@ package body Arch.Entrypoint is
          Info.Cmdline (1 .. Info.Cmdline_Len);
 
       Main;
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Uncatched exception on the arch entrypoint");
    end Bootstrap_Main;
 end Arch.Entrypoint;

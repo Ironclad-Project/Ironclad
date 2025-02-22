@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Lib.Panic;
 with Arch.CPU;
 with Arch.APIC;
 with Arch.Snippets;
@@ -31,6 +32,9 @@ package body Arch.Local is
          Unsigned_64 (Microseconds)
       );
       Asm ("popf", Volatile => True);
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception rescheduling");
    end Reschedule_In;
 
    procedure Reschedule_ASAP is
@@ -41,6 +45,9 @@ package body Arch.Local is
       APIC.LAPIC_Send_IPI (CPU.Get_Local.LAPIC_ID,
          Interrupts.Scheduler_Interrupt);
       Asm ("popf", Volatile => True);
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception rescheduling");
    end Reschedule_ASAP;
 
    function Fetch_TCB return System.Address is
@@ -60,6 +67,9 @@ package body Arch.Local is
    begin
       CPU.Get_Local.User_Stack   := Core;
       CPU.Get_Local.Kernel_Stack := Unsigned_64 (To_Integer (Kernel_Stack));
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception setting stacks");
    end Set_Stacks;
 
    function Get_Current_Thread return Scheduler.TID is
@@ -69,6 +79,9 @@ package body Arch.Local is
       Returned := CPU.Get_Local.Current_Thread;
       Asm ("popf", Volatile => True);
       return Returned;
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception getting current thread");
    end Get_Current_Thread;
 
    function Get_Current_Process return Userland.Process.PID is
@@ -78,6 +91,9 @@ package body Arch.Local is
       Returned := CPU.Get_Local.Current_Process;
       Asm ("popf", Volatile => True);
       return Returned;
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception getting current process");
    end Get_Current_Process;
 
    procedure Set_Current_Thread (Thread : Scheduler.TID) is
@@ -85,6 +101,9 @@ package body Arch.Local is
       Asm ("pushf; cli", Volatile => True);
       CPU.Get_Local.Current_Thread := Thread;
       Asm ("popf", Volatile => True);
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception setting current thread");
    end Set_Current_Thread;
 
    procedure Set_Current_Process (Proc : Userland.Process.PID) is
@@ -92,5 +111,8 @@ package body Arch.Local is
       Asm ("pushf; cli", Volatile => True);
       CPU.Get_Local.Current_Process := Proc;
       Asm ("popf", Volatile => True);
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception setting current process");
    end Set_Current_Process;
 end Arch.Local;

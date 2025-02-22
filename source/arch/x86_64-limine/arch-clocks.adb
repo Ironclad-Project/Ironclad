@@ -30,6 +30,8 @@ package body Arch.Clocks with
          (HPET_Ticks_Per_Second,
           HPET_Ticks_Per_Res_Nano))
 is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    --  The RTC is really slow and has inacceptably large resolutions, so we
    --  will cache RTC time as well as when it was cached in monotonic.
    --  That way, by adding deltas, we can build an okayish, finer-grained

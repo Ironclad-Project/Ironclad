@@ -17,6 +17,8 @@
 with Arch.Snippets;
 
 package body Arch.RTC is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    CMOS_Base_Port   : constant := 16#70#;
    CMOS_Data_Port   : constant := 16#71#;
 
