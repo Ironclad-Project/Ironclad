@@ -30,11 +30,10 @@ pragma Restrictions (No_Implicit_Dynamic_Code);
 pragma Ada_2022;
 pragma SPARK_Mode (On);
 
---  Disable these warnings.
---
---  Every function that does not have a 'when others' exception section will
---  just generate that warning, and thats not necesarily something we want to
---  do when we want to remove exceptions in the long run from the whole kernel
---  as part of formal verification, and until we do that it actually makes
---  reading compiler outputs quite hard.
-pragma Warnings (Off, "may call Last_Chance_Handler");
+--  FIXME: Sometimes GNAT will give warnings of the style:
+--     pragma Restrictions (No_Exception_Propagation) in effect [-gnatw.x]
+--     this handler can never be entered, and has been removed [-gnatw.x]
+--  But when these handlers are removed, GNAT asks for them again.
+--  I am not sure whether this is a compiler bug or me not understanding
+--  something, but in the meantime, we will silence these warnings.
+pragma Warnings (Off, "this handler can never be entered");
