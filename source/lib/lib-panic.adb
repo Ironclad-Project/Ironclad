@@ -22,6 +22,8 @@ with Lib.Synchronization;
 package body Lib.Panic with
    Refined_State => (Panic_State => Panic_Mutex)
 is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    --  String header and ending to be added to passed message strings.
    HP           : constant String := Ada.Characters.Latin_1.ESC & "[31m";
    RC           : constant String := Ada.Characters.Latin_1.ESC & "[0m";

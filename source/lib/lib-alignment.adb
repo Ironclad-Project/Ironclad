@@ -17,6 +17,8 @@
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body Lib.Alignment is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    function Align_Up (Value, Alignment : T) return T is
       Value2 : constant Integer_Address := Integer_Address (Value);
       Align2 : constant Integer_Address := Integer_Address (Alignment);

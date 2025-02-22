@@ -18,6 +18,8 @@ with Ada.Characters.Latin_1;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body Lib is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    pragma Warnings
       (GNATprove,
        Off,

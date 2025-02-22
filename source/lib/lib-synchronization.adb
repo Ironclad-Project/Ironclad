@@ -21,6 +21,8 @@ with Lib.Panic;
 with Scheduler;
 
 package body Lib.Synchronization with SPARK_Mode => Off is
+   pragma Suppress (All_Checks); --  Checks are too expensive in this paths.
+
    --  Both locks do a rough wait until the lock is free for cache-locality.
    --  https://en.wikipedia.org/wiki/Test_and_test-and-set
 

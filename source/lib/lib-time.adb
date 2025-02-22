@@ -15,6 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Lib.Time is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    procedure Normalize (Seconds, Nanoseconds : in out Unsigned_64) is
       Nanosecond_Seconds : constant Unsigned_64 := Nanoseconds / USec_Per_Sec;
    begin

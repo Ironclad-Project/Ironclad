@@ -22,6 +22,8 @@ package body Lib.Messages with
    Refined_State => [Message_State =>
       [Messages_Mutex, Curr_Entry, Small_Log_Buffer, Log_Ring_Buffer]]
 is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    procedure Enable_Logging is
    begin
       Lib.Synchronization.Seize (Messages_Mutex);
