@@ -135,6 +135,9 @@ package body Memory.Physical is
           8 => new Slab'(1024, Unlocked_Semaphore, 0, 0, Pool => <>),
           9 => new Slab'(2048, Unlocked_Semaphore, 0, 0, Pool => <>)];
       Slab_Init := True;
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception initializing the allocator");
    end Init_Allocator;
    ----------------------------------------------------------------------------
    function Alloc (Sz : Interfaces.C.size_t) return Virtual_Address is
@@ -188,6 +191,9 @@ package body Memory.Physical is
 
    <<Default_Alloc>>
       return Alloc_Pgs (Size);
+   exception
+      when Constraint_Error =>
+         return 0;
    end Alloc;
 
    procedure Free (Address : Interfaces.C.size_t) is
@@ -219,6 +225,9 @@ package body Memory.Physical is
       end if;
 
       Free_Pgs (size_t (Real_Address));
+   exception
+      when Constraint_Error =>
+         null;
    end Free;
    ----------------------------------------------------------------------------
    procedure Get_Statistics (Stats : out Statistics) is
@@ -311,6 +320,9 @@ package body Memory.Physical is
          Header := (Block_Count => Blocks_To_Allocate);
          return Ret + Block_Size;
       end;
+   exception
+      when Constraint_Error =>
+         return 0;
    end Alloc_Pgs;
 
    procedure Free_Pgs (Address : Interfaces.C.size_t) is
@@ -337,5 +349,8 @@ package body Memory.Physical is
 
          Lib.Synchronization.Release (Alloc_Mutex);
       end;
+   exception
+      when Constraint_Error =>
+         null;
    end Free_Pgs;
 end Memory.Physical;

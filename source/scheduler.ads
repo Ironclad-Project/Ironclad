@@ -183,11 +183,4 @@ private
    function Is_Switchable (T : TID; C : TCID) return Boolean;
 
    procedure Add_Bucket_And_Shift (Last_Bucket : Unsigned_32);
-
-   function Convert (Thread : TID) return Natural is (Natural (Thread));
-   function Convert (Group : TCID) return Natural is (Natural (Group));
-   function Convert (Value : Natural) return TID is
-      ((if Value > Natural (TID'Last) then Error_TID else TID (Value)));
-   function Convert (Value : Natural) return TCID is
-      ((if Value > Natural (TCID'Last) then Error_TCID else TCID (Value)));
 end Scheduler;

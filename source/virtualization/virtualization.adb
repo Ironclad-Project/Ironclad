@@ -57,6 +57,10 @@ package body Virtualization is
             exit;
          end if;
       end loop;
+   exception
+      when Constraint_Error =>
+         C       := 1;
+         Success := False;
    end Get_CPU;
    ----------------------------------------------------------------------------
    procedure IO_Control
@@ -129,6 +133,11 @@ package body Virtualization is
             Extra     := 0;
             Success   := False;
       end case;
+   exception
+      when Constraint_Error =>
+         Has_Extra := False;
+         Extra     := 0;
+         Success   := False;
    end IO_Control;
 
    procedure IO_Control

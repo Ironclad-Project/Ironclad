@@ -142,6 +142,9 @@ package body Scheduler with SPARK_Mode => Off is
       Is_Initialized := True;
       Lib.Synchronization.Release (Scheduler_Mutex);
       Success := True;
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Init;
 
    procedure Idle_Core is
@@ -287,6 +290,9 @@ package body Scheduler with SPARK_Mode => Off is
              TCB       => System.Null_Address,
              New_TID   => New_TID);
       end;
+   exception
+      when Constraint_Error =>
+         New_TID := Error_TID;
    end Create_User_Thread;
 
    procedure Create_User_Thread
@@ -370,6 +376,10 @@ package body Scheduler with SPARK_Mode => Off is
 
    <<End_Return>>
       Lib.Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Scheduler_Mutex);
+         New_TID := Error_TID;
    end Create_User_Thread;
 
    procedure Delete_Thread (Thread : TID) is
@@ -379,6 +389,9 @@ package body Scheduler with SPARK_Mode => Off is
          Thread_Pool (Thread).Is_Present := False;
       end if;
       Lib.Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Scheduler_Mutex);
    end Delete_Thread;
 
    procedure Yield_If_Able is
@@ -394,6 +407,9 @@ package body Scheduler with SPARK_Mode => Off is
          Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex, True);
          Lib.Synchronization.Release (Thread_Pool (Curr_TID).Yield_Mutex);
       end if;
+   exception
+      when Constraint_Error =>
+         null;
    end Yield_If_Able;
 
    procedure Bail is
@@ -406,6 +422,11 @@ package body Scheduler with SPARK_Mode => Off is
       Lib.Synchronization.Release (Scheduler_Mutex);
       Arch.Local.Reschedule_ASAP;
       Waiting_Spot;
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Scheduler_Mutex);
+         Arch.Local.Reschedule_ASAP;
+         Waiting_Spot;
    end Bail;
 
    procedure Get_Runtime_Times
@@ -420,6 +441,13 @@ package body Scheduler with SPARK_Mode => Off is
       User_Seconds := Thread_Pool (Thread).User_Sec;
       User_Nanoseconds := Thread_Pool (Thread).User_NSec;
       Lib.Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Scheduler_Mutex);
+         System_Seconds     := 0;
+         User_Seconds       := 0;
+         System_Nanoseconds := 0;
+         User_Nanoseconds   := 0;
    end Get_Runtime_Times;
 
    procedure Signal_Kernel_Entry (Thread : TID) is
@@ -440,6 +468,9 @@ package body Scheduler with SPARK_Mode => Off is
          (Thread_Pool (Thread).User_Sec, Thread_Pool (Thread).User_NSec,
           T1, T2);
       Lib.Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Scheduler_Mutex);
    end Signal_Kernel_Entry;
 
    procedure Signal_Kernel_Exit (Thread : TID) is
@@ -464,6 +495,9 @@ package body Scheduler with SPARK_Mode => Off is
              Temp_Sec, Temp_NSec);
       end if;
       Lib.Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Scheduler_Mutex);
    end Signal_Kernel_Exit;
    ----------------------------------------------------------------------------
    procedure Set_Scheduling_Algorithm
@@ -480,6 +514,10 @@ package body Scheduler with SPARK_Mode => Off is
       Cluster_Pool (Cluster).Is_Interruptible := Is_Interruptible;
       Lib.Synchronization.Release (Scheduler_Mutex);
       Success := True;
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Scheduler_Mutex);
+         Success := False;
    end Set_Scheduling_Algorithm;
 
    procedure Set_Time_Slice
@@ -503,6 +541,10 @@ package body Scheduler with SPARK_Mode => Off is
          Success := False;
       end if;
       Lib.Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Scheduler_Mutex);
+         Success := False;
    end Set_Time_Slice;
 
    procedure Create_Cluster (New_TCID : out TCID) is
@@ -524,6 +566,10 @@ package body Scheduler with SPARK_Mode => Off is
       New_TCID := Error_TCID;
    <<Cleanup>>
       Lib.Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Scheduler_Mutex);
+         New_TCID := Error_TCID;
    end Create_Cluster;
 
    procedure Delete_Cluster (Cluster : TCID; Success : out Boolean) is
@@ -536,6 +582,10 @@ package body Scheduler with SPARK_Mode => Off is
          Success := False;
       end if;
       Lib.Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Scheduler_Mutex);
+         Success := False;
    end Delete_Cluster;
 
    procedure Switch_Cluster
@@ -554,16 +604,26 @@ package body Scheduler with SPARK_Mode => Off is
          Success := False;
       end if;
       Lib.Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Scheduler_Mutex);
+         Success := False;
    end Switch_Cluster;
    ----------------------------------------------------------------------------
    function Get_Niceness (Thread : TID) return Niceness is
    begin
       return Thread_Pool (Thread).Nice;
+   exception
+      when Constraint_Error =>
+         return 0;
    end Get_Niceness;
 
    procedure Set_Niceness (Thread : TID; Nice : Niceness) is
    begin
       Thread_Pool (Thread).Nice := Nice;
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Niceness;
 
    procedure Get_Name (Thread : TID; Name : out String; Len : out Natural) is
@@ -578,6 +638,10 @@ package body Scheduler with SPARK_Mode => Off is
          Name := [others => ' '];
          Len  := 0;
       end if;
+   exception
+      when Constraint_Error =>
+         Name := [others => ' '];
+         Len  := 0;
    end Get_Name;
 
    procedure Set_Name (Thread : TID; Name : String; Success : out Boolean) is
@@ -589,6 +653,9 @@ package body Scheduler with SPARK_Mode => Off is
       else
          Success := False;
       end if;
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Set_Name;
    ----------------------------------------------------------------------------
    procedure Get_Load_Averages (Avg_1, Avg_5, Avg_15 : out Unsigned_32) is
@@ -609,6 +676,12 @@ package body Scheduler with SPARK_Mode => Off is
       Avg_15 := Avg_15 / 15;
 
       Lib.Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Scheduler_Mutex);
+         Avg_1  := 0;
+         Avg_5  := 0;
+         Avg_15 := 0;
    end Get_Load_Averages;
    ----------------------------------------------------------------------------
    procedure Scheduler_ISR (State : Arch.Context.GP_Context) is
@@ -779,8 +852,38 @@ package body Scheduler with SPARK_Mode => Off is
       Next_State := Thread_Pool (Next_TID).GP_State;
       Lib.Synchronization.Release (Scheduler_Mutex);
       Arch.Context.Load_GP_Context (Next_State);
+   exception
+      when Constraint_Error =>
+         Lib.Panic.Hard_Panic ("Exception while reescheduling");
    end Scheduler_ISR;
    ----------------------------------------------------------------------------
+
+   function Convert (Thread : TID) return Natural is
+   begin
+      return Natural (Thread);
+   end Convert;
+
+   function Convert (Group : TCID) return Natural is
+   begin
+      return Natural (Group);
+   end Convert;
+
+   function Convert (Value : Natural) return TID is
+   begin
+      return TID (Value);
+   exception
+      when Constraint_Error =>
+         return Error_TID;
+   end Convert;
+
+   function Convert (Value : Natural) return TCID is
+   begin
+      return TCID (Value);
+   exception
+      when Constraint_Error =>
+         return Error_TCID;
+   end Convert;
+
    procedure List_All (List : out Thread_Listing_Arr; Total : out Natural) is
       Curr_Index : Natural := 0;
    begin
@@ -800,6 +903,10 @@ package body Scheduler with SPARK_Mode => Off is
          end if;
       end loop;
       Lib.Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Scheduler_Mutex);
+         Total := 0;
    end List_All;
 
    procedure List_All (List : out Cluster_Listing_Arr; Total : out Natural) is
@@ -823,6 +930,10 @@ package body Scheduler with SPARK_Mode => Off is
          end if;
       end loop;
       Lib.Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Scheduler_Mutex);
+         Total := 0;
    end List_All;
    ----------------------------------------------------------------------------
    procedure Waiting_Spot is
@@ -843,12 +954,19 @@ package body Scheduler with SPARK_Mode => Off is
       else
          return False;
       end if;
+   exception
+      when Constraint_Error =>
+         return False;
    end Has_Available_Time;
 
    function Is_Switchable (T : TID; C : TCID) return Boolean is
-      Th : Thread_Info renames Thread_Pool (T);
    begin
-      return Th.Is_Present and not Th.Is_Running and Th.Cluster = C;
+      return Thread_Pool (T).Is_Present     and
+             not Thread_Pool (T).Is_Running and
+             Thread_Pool (T).Cluster = C;
+   exception
+      when Constraint_Error =>
+         return False;
    end Is_Switchable;
 
    procedure Add_Bucket_And_Shift (Last_Bucket : Unsigned_32) is
