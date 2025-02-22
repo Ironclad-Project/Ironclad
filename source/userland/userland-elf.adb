@@ -118,6 +118,9 @@ package body Userland.ELF is
          --  Return success.
          Result.Was_Loaded := True;
       end;
+   exception
+      when Constraint_Error =>
+         Result.Was_Loaded := False;
    end Load_ELF;
    ----------------------------------------------------------------------------
    procedure Get_Linker
@@ -128,21 +131,27 @@ package body Userland.ELF is
    is
       use VFS;
 
-      Discard  : Unsigned_64;
-      Ret : constant String_Acc :=
-         new String'[1 .. Header.File_Size_Bytes => ' '];
-      Ret_Data : Devices.Operation_Data (1 .. Header.File_Size_Bytes)
-         with Import, Address => Ret (1)'Address;
+      Discard   : Unsigned_64;
+      Ret       : String_Acc;
       Ret_Count : Natural;
       Discard2  : Boolean;
       Success   : FS_Status;
    begin
-      VFS.Read (FS, Ino, Header.Offset, Ret_Data, Ret_Count, True, Success);
+      Ret := new String'[1 .. Header.File_Size_Bytes => ' '];
+      declare
+         Ret_Data : Devices.Operation_Data (1 .. Header.File_Size_Bytes)
+            with Import, Address => Ret (1)'Address;
+      begin
+         VFS.Read (FS, Ino, Header.Offset, Ret_Data, Ret_Count, True, Success);
+      end;
       if Success = FS_Success and Ret_Count = Header.File_Size_Bytes then
          Linker := Ret;
       else
          Linker := null;
       end if;
+   exception
+      when Constraint_Error =>
+         Linker := null;
    end Get_Linker;
 
    procedure Load_Header
@@ -157,11 +166,8 @@ package body Userland.ELF is
 
       package A is new Lib.Alignment (Integer_Address);
 
-      MisAlign : constant Unsigned_64 :=
-         Header.Virt_Address mod Arch.MMU.Page_Size;
-      Load_Size : constant Unsigned_64 := MisAlign + Header.Mem_Size_Bytes;
-      ELF_Virtual : constant Virtual_Address :=
-         Virtual_Address (Base + Header.Virt_Address);
+      MisAlign, Load_Size : Unsigned_64;
+      ELF_Virtual : Virtual_Address;
       Flags : constant Arch.MMU.Page_Permissions :=
          (Is_User_Accesible => True,
           Can_Read          => (Header.Flags and Flags_Read)       /= 0,
@@ -171,9 +177,14 @@ package body Userland.ELF is
       Ret_Count  : Natural;
       Success2   : FS_Status;
       Result     : System.Address;
-      Ali_V      : Integer_Address := ELF_Virtual;
-      Ali_L      : Integer_Address := Integer_Address (Load_Size);
+      Ali_V, Ali_L : Integer_Address;
    begin
+      ELF_Virtual := Virtual_Address (Base + Header.Virt_Address);
+      MisAlign    :=  Header.Virt_Address mod Arch.MMU.Page_Size;
+      Load_Size   := MisAlign + Header.Mem_Size_Bytes;
+      Ali_V       := ELF_Virtual;
+      Ali_L       := Integer_Address (Load_Size);
+
       if (Flags.Can_Execute and Flags.Can_Write) or
          Header.Alignment = 0                    or
          (Header.Alignment mod Arch.MMU.Page_Size) /= 0
@@ -208,5 +219,8 @@ package body Userland.ELF is
          Success := Success2 = FS_Success and
                     Ret_Count = Header.File_Size_Bytes;
       end;
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Load_Header;
 end Userland.ELF;

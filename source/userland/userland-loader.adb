@@ -29,6 +29,8 @@ with Devices;
 with Userland.MAC; use Userland.MAC;
 
 package body Userland.Loader is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    Do_ASLR : Boolean := True;
 
    procedure Disable_ASLR is

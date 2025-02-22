@@ -52,6 +52,10 @@ package body Userland.Syscall is
       Returned := 0;
       Errno    := Error_No_Error;
       Do_Exit (Arch.Local.Get_Current_Process, Unsigned_8 (Code and 16#FF#));
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Sys_Exit;
 
    procedure Arch_PRCtl
@@ -78,6 +82,10 @@ package body Userland.Syscall is
          Returned := 0;
          Errno    := Error_No_Error;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Arch_PRCtl;
 
    procedure Open
@@ -184,6 +192,10 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
          Errno    := Error_Too_Many_Files;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Open;
 
    procedure Close
@@ -203,6 +215,10 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
          Errno    := Error_Bad_File;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Close;
 
    procedure Read
@@ -288,6 +304,10 @@ package body Userland.Syscall is
                Returned := Unsigned_64'Last;
          end case;
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Read;
 
    procedure Write
@@ -381,6 +401,10 @@ package body Userland.Syscall is
                Returned := Unsigned_64'Last;
          end case;
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Write;
 
    procedure Seek
@@ -443,7 +467,10 @@ package body Userland.Syscall is
    <<Invalid_Value_Error>>
       Errno := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
-      return;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Seek;
 
    procedure Mmap
@@ -558,6 +585,10 @@ package body Userland.Syscall is
       Errno := Error_Bad_Access;
       Execute_MAC_Failure ("mmap", Proc);
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Mmap;
 
    procedure Munmap
@@ -587,6 +618,10 @@ package body Userland.Syscall is
          Errno := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Munmap;
 
    procedure Get_PID (Returned : out Unsigned_64; Errno : out Errno_Value) is
@@ -710,6 +745,10 @@ package body Userland.Syscall is
    <<Block_Error>>
       Errno    := Error_Would_Block;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Fork;
 
    procedure Wait
@@ -809,6 +848,10 @@ package body Userland.Syscall is
    <<Child_Error>>
       Errno    := Error_Child;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Wait;
 
    procedure Socket
@@ -873,10 +916,8 @@ package body Userland.Syscall is
        Errno    : out Errno_Value)
    is
       Proc    : constant             PID := Arch.Local.Get_Current_Process;
-      Len     : constant         Natural := Natural (Length);
       IAddr   : constant Integer_Address := Integer_Address (Address);
       SAddr   : constant  System.Address := To_Address (IAddr);
-      Name    : String (1 .. Len) with Import, Address => SAddr;
       Success : Boolean;
       Map     : Page_Table_Acc;
    begin
@@ -894,7 +935,12 @@ package body Userland.Syscall is
          return;
       end if;
 
-      Networking.Set_Hostname (Name, Success);
+      declare
+         Len  : constant Natural := Natural (Length and 16#FFFF#);
+         Name : String (1 .. Len) with Import, Address => SAddr;
+      begin
+         Networking.Set_Hostname (Name, Success);
+      end;
 
       if not Success then
          Errno := Error_Invalid_Value;
@@ -903,6 +949,10 @@ package body Userland.Syscall is
          Errno := Error_No_Error;
          Returned := 0;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Set_Hostname;
 
    procedure FStat
@@ -1069,6 +1119,10 @@ package body Userland.Syscall is
    <<Success_Return>>
       Errno    := Error_No_Error;
       Returned := 0;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end FStat;
 
    procedure Pivot_Root
@@ -1125,6 +1179,10 @@ package body Userland.Syscall is
             Returned := Unsigned_64'Last;
          end if;
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Pivot_Root;
 
    procedure Chdir
@@ -1156,6 +1214,10 @@ package body Userland.Syscall is
       Set_CWD (Proc, Desc.Inner_Ino_FS, Desc.Inner_Ino);
       Errno    := Error_No_Error;
       Returned := 0;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Chdir;
 
    procedure IOCTL
@@ -1240,6 +1302,10 @@ package body Userland.Syscall is
          Errno    := Error_Not_A_TTY;
          Returned := Unsigned_64'Last;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end IOCTL;
 
    procedure Sched_Yield (Returned : out Unsigned_64; Errno : out Errno_Value)
@@ -1277,6 +1343,10 @@ package body Userland.Syscall is
          Errno    := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Delete_Thread_Cluster;
 
    procedure Pipe
@@ -1324,6 +1394,10 @@ package body Userland.Syscall is
          Errno := Error_No_Error;
          Returned := 0;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Pipe;
 
    procedure Get_UID (Returned : out Unsigned_64; Errno : out Errno_Value) is
@@ -1394,6 +1468,10 @@ package body Userland.Syscall is
          Rename (Src_FS, Src_Ino, Src, Tgt_Ino, Tgt, Do_Keep, User, Success);
          Translate_Status (Success, 0, Returned, Errno);
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Rename;
 
    procedure Sysconf
@@ -1710,6 +1788,10 @@ package body Userland.Syscall is
    <<Bad_Access_Error>>
       Errno    := Error_Bad_Access;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Sysconf;
 
    procedure Spawn
@@ -1838,6 +1920,10 @@ package body Userland.Syscall is
    <<Invalid_Value_Error>>
       Errno    := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Manage_Thread_Cluster;
 
    procedure Fcntl
@@ -2009,6 +2095,10 @@ package body Userland.Syscall is
 
    <<Error_Return>>
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Fcntl;
 
    procedure Exit_Thread (Returned : out Unsigned_64; Errno : out Errno_Value)
@@ -2031,8 +2121,6 @@ package body Userland.Syscall is
       IAddr  : constant  Integer_Address := Integer_Address (Address);
       SAddr  : constant   System.Address := To_Address (IAddr);
       Map    : Page_Table_Acc;
-      Result : Cryptography.Random.Crypto_Data (1 .. Natural (Length))
-         with Import, Address => SAddr;
    begin
       Get_Common_Map (Proc, Map);
       if not Get_Capabilities (Proc).Can_Access_Entropy then
@@ -2043,10 +2131,19 @@ package body Userland.Syscall is
          Errno := Error_Would_Fault;
          Returned := Unsigned_64'Last;
       else
-         Cryptography.Random.Fill_Data (Result);
-         Errno := Error_No_Error;
-         Returned := Result'Length * 4;
+         declare
+            Result : Cryptography.Random.Crypto_Data (1 .. Natural (Length))
+               with Import, Address => SAddr;
+         begin
+            Cryptography.Random.Fill_Data (Result);
+            Errno := Error_No_Error;
+            Returned := Result'Length * 4;
+         end;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Get_Random;
 
    procedure MProtect
@@ -2085,6 +2182,10 @@ package body Userland.Syscall is
          Errno := Error_Would_Fault;
          Returned := Unsigned_64'Last;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end MProtect;
 
    procedure Set_MAC_Capabilities
@@ -2194,6 +2295,10 @@ package body Userland.Syscall is
       end case;
 
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Add_MAC_Permissions;
 
    procedure Set_MAC_Enforcement
@@ -2314,6 +2419,10 @@ package body Userland.Syscall is
          Errno := Error_IO;
          Returned := Unsigned_64'Last;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Mount;
 
    procedure Umount
@@ -2360,6 +2469,10 @@ package body Userland.Syscall is
             return;
          end if;
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Umount;
 
    procedure Readlink
@@ -2433,6 +2546,10 @@ package body Userland.Syscall is
          VFS.Read_Symbolic_Link (CWD_FS, Opened_Ino, Data, Ret_Count, Status);
          Translate_Status (Status, Unsigned_64 (Ret_Count), Returned, Errno);
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Readlink;
 
    procedure GetDEnts
@@ -2447,11 +2564,10 @@ package body Userland.Syscall is
 
       Buff_IAddr : constant Integer_Address := Integer_Address (Buffer_Addr);
       Buff_Addr  : constant  System.Address := To_Address (Buff_IAddr);
-      Buff_Len   : constant     Unsigned_64 := Buffer_Len / (Dirent'Size / 8);
+      Buff_Len   : Unsigned_64;
       Proc       : constant             PID := Arch.Local.Get_Current_Process;
       File       : File_Description_Acc;
       Tmp_Buffer : VFS.Directory_Entities_Acc;
-      Buffer     : Dirents (1 .. Buff_Len) with Import, Address => Buff_Addr;
       Read_Len   : Natural;
       Success    : VFS.FS_Status;
       User       : Unsigned_32;
@@ -2467,6 +2583,7 @@ package body Userland.Syscall is
          Errno    := Error_Bad_File;
       else
          Userland.Process.Get_Effective_UID (Proc, User);
+         Buff_Len   := Buffer_Len / (Dirent'Size / 8);
          Tmp_Buffer := new VFS.Directory_Entities (1 .. Natural (Buff_Len));
          VFS.Read_Entries
             (Key       => File.Inner_Ino_FS,
@@ -2479,23 +2596,29 @@ package body Userland.Syscall is
          if Success = VFS.FS_Success then
             File.Inner_Ino_Pos := File.Inner_Ino_Pos + Unsigned_64 (Read_Len);
 
-            for I in 1 .. Read_Len loop
-               Buffer (Unsigned_64 (I)) :=
-                  (D_Ino    => Tmp_Buffer (I).Inode_Number,
-                   D_Off    => (Dirent'Size / 8) * Unsigned_64 (I),
-                   D_Reclen => Dirent'Size / 8,
-                   D_Type   => 0,
-                   D_Name   => [others => Ada.Characters.Latin_1.NUL]);
-               Buffer (Unsigned_64 (I)).D_Name (1 .. Tmp_Buffer (I).Name_Len)
-                  := Tmp_Buffer (I).Name_Buffer (1 .. Tmp_Buffer (I).Name_Len);
-               Buffer (Unsigned_64 (I)).D_Type :=
-                  (case Tmp_Buffer (I).Type_Of_File is
-                     when File_Regular          => DT_REG,
-                     when File_Directory        => DT_DIR,
-                     when File_Symbolic_Link    => DT_LNK,
-                     when File_Character_Device => DT_CHR,
-                     when File_Block_Device     => DT_BLK);
-            end loop;
+            declare
+               Buffer : Dirents (1 .. Buff_Len)
+                  with Import, Address => Buff_Addr;
+            begin
+               for I in 1 .. Read_Len loop
+                  Buffer (Unsigned_64 (I)) :=
+                     (D_Ino    => Tmp_Buffer (I).Inode_Number,
+                      D_Off    => (Dirent'Size / 8) * Unsigned_64 (I),
+                      D_Reclen => Dirent'Size / 8,
+                      D_Type   => 0,
+                      D_Name   => [others => Ada.Characters.Latin_1.NUL]);
+                  Buffer (Unsigned_64 (I)).D_Name
+                     (1 .. Tmp_Buffer (I).Name_Len) :=
+                     Tmp_Buffer (I).Name_Buffer (1 .. Tmp_Buffer (I).Name_Len);
+                  Buffer (Unsigned_64 (I)).D_Type :=
+                     (case Tmp_Buffer (I).Type_Of_File is
+                        when File_Regular          => DT_REG,
+                        when File_Directory        => DT_DIR,
+                        when File_Symbolic_Link    => DT_LNK,
+                        when File_Character_Device => DT_CHR,
+                        when File_Block_Device     => DT_BLK);
+               end loop;
+            end;
 
             Returned := Unsigned_64 (Read_Len * (Dirent'Size / 8));
             Errno    := Error_No_Error;
@@ -2506,6 +2629,10 @@ package body Userland.Syscall is
 
          Free (Tmp_Buffer);
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end GetDEnts;
 
    procedure Sync (Returned : out Unsigned_64; Errno : out Errno_Value) is
@@ -2538,7 +2665,7 @@ package body Userland.Syscall is
       CWD_FS     : VFS.FS_Handle;
       CWD_Ino    : VFS.File_Inode_Number;
       Node_Type  : File_Type;
-      Tmp_Mode   : constant File_Mode := File_Mode (Mode and 8#777#);
+      Tmp_Mode   : File_Mode;
       Status     : VFS.FS_Status;
       Umask      : VFS.File_Mode;
       User       : Unsigned_32;
@@ -2573,6 +2700,8 @@ package body Userland.Syscall is
             Node_Type := File_Regular;
          end if;
 
+         Tmp_Mode := File_Mode (Mode and 8#777#);
+
          Userland.Process.Get_Umask         (Proc, Umask);
          Userland.Process.Get_Effective_UID (Proc, User);
          Create_Node
@@ -2585,6 +2714,10 @@ package body Userland.Syscall is
              Status   => Status);
          Translate_Status (Status, 0, Returned, Errno);
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end MakeNode;
 
    procedure Unlink
@@ -2629,6 +2762,10 @@ package body Userland.Syscall is
          VFS.Unlink (CWD_FS, CWD_Ino, Path, User, Success);
          Translate_Status (Success, 0, Returned, Errno);
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Unlink;
 
    procedure Truncate
@@ -2659,6 +2796,10 @@ package body Userland.Syscall is
             Errno := Error_Bad_File;
             Returned := Unsigned_64'Last;
       end case;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Truncate;
 
    procedure Bind
@@ -2723,6 +2864,10 @@ package body Userland.Syscall is
          Errno := Error_IO;
          Returned := Unsigned_64'Last;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Bind;
 
    procedure Symlink
@@ -2785,6 +2930,10 @@ package body Userland.Syscall is
              Status   => Success);
          Translate_Status (Success, 0, Returned, Errno);
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Symlink;
 
    procedure Connect
@@ -2851,6 +3000,10 @@ package body Userland.Syscall is
          Errno := Error_IO;
          Returned := Unsigned_64'Last;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Connect;
 
    procedure Open_PTY
@@ -2898,6 +3051,10 @@ package body Userland.Syscall is
          Errno := Error_No_Error;
          Returned := 0;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Open_PTY;
 
    procedure FSync
@@ -2926,6 +3083,10 @@ package body Userland.Syscall is
             Errno    := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
       end case;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end FSync;
 
    procedure Link
@@ -2985,6 +3146,10 @@ package body Userland.Syscall is
          Create_Hard_Link (Src_FS, Src_Ino, Src, Dst_Ino, Dst, User, Success);
          Translate_Status (Success, 0, Returned, Errno);
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Link;
 
    procedure PTrace
@@ -2997,10 +3162,10 @@ package body Userland.Syscall is
    is
       pragma Unreferenced (Traced_Addr);
 
-      Proc  : constant PID := Arch.Local.Get_Current_Process;
-      TProc : constant PID := Convert (Positive (Traced_PID));
-      TProc_Parent : PID;
+      Proc : constant PID := Arch.Local.Get_Current_Process;
+      TProc, TProc_Parent : PID;
    begin
+      TProc := Convert (Positive (Traced_PID));
       if TProc = Error_PID then
          goto Bad_Permission_Error;
       elsif not Get_Capabilities (Proc).Can_Trace_Children then
@@ -3017,7 +3182,7 @@ package body Userland.Syscall is
 
       case Request is
          when PTRACE_SYSCALL_PIPE =>
-            Set_Traced_Info (TProc, True, Natural (Result_Addr));
+            Set_Traced_Info (TProc, True, Natural (Result_Addr and 16#FFFF#));
          when others =>
             Errno := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
@@ -3031,6 +3196,10 @@ package body Userland.Syscall is
    <<Bad_Permission_Error>>
       Errno := Error_Bad_Permissions;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end PTrace;
 
    procedure Listen
@@ -3060,6 +3229,10 @@ package body Userland.Syscall is
             Returned := Unsigned_64'Last;
          end if;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Listen;
 
    procedure Sys_Accept
@@ -3166,6 +3339,10 @@ package body Userland.Syscall is
    <<Would_Fault_Error>>
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Sys_Accept;
 
    procedure Get_RLimit
@@ -3291,6 +3468,10 @@ package body Userland.Syscall is
           Real_UID    => User,
           Status      => Succ);
       Translate_Status (Succ, 0, Returned, Errno);
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end FAccess;
 
    procedure PPoll
@@ -3447,7 +3628,10 @@ package body Userland.Syscall is
    <<Invalid_Value_Error>>
       Errno    := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
-      return;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end PPoll;
 
    procedure Get_EUID (Returned : out Unsigned_64; Errno : out Errno_Value) is
@@ -3479,7 +3663,8 @@ package body Userland.Syscall is
          Userland.Process.Get_UID (Proc, Curr_UID);
          if EUID <= Unsigned_64 (Unsigned_32'Last) then
             if EUID = Unsigned_64 (Curr_UID) then
-               Userland.Process.Set_Effective_UID (Proc, Unsigned_32 (EUID));
+               Userland.Process.Set_Effective_UID
+                  (Proc, Unsigned_32 (EUID and 16#FFFFFFFF#));
             else
                Errno := Error_Bad_Permissions;
                Returned := Unsigned_64'Last;
@@ -3490,6 +3675,10 @@ package body Userland.Syscall is
 
       Errno := Error_No_Error;
       Returned := 0;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Set_UIDs;
 
    procedure Fchmod
@@ -3580,6 +3769,10 @@ package body Userland.Syscall is
           Mode   => File_Mode (Mode and Unsigned_64 (File_Mode'Last)),
           Status => Succ);
       Translate_Status (Succ, 0, Returned, Errno);
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Fchmod;
 
    procedure Umask
@@ -3594,6 +3787,10 @@ package body Userland.Syscall is
       Process.Set_Umask (Proc, File_Mode (Mode and 8#777#));
       Errno := Error_No_Error;
       Returned := Unsigned_64 (Old);
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Umask;
 
    procedure Reboot
@@ -3634,6 +3831,10 @@ package body Userland.Syscall is
       else
          Lib.Panic.Hard_Panic ("reboot() operation failed");
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Reboot;
 
    procedure Fchown
@@ -3725,6 +3926,10 @@ package body Userland.Syscall is
           Unsigned_32 (Group and 16#FFFFFFFF#),
           Succ);
       Translate_Status (Succ, 0, Returned, Errno);
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Fchown;
 
    procedure PRead
@@ -3784,6 +3989,10 @@ package body Userland.Syscall is
                return;
          end case;
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end PRead;
 
    procedure PWrite
@@ -3850,6 +4059,10 @@ package body Userland.Syscall is
                return;
          end case;
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end PWrite;
 
    procedure Get_Sock_Name
@@ -3924,6 +4137,10 @@ package body Userland.Syscall is
    <<Would_Fault_Error>>
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Get_Sock_Name;
 
    procedure Get_Peer_Name
@@ -3998,6 +4215,10 @@ package body Userland.Syscall is
    <<Would_Fault_Error>>
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Get_Peer_Name;
 
    procedure Shutdown
@@ -4037,6 +4258,10 @@ package body Userland.Syscall is
          Errno    := Error_Not_Connected;
          Returned := Unsigned_64'Last;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Shutdown;
 
    procedure Futex
@@ -4052,13 +4277,15 @@ package body Userland.Syscall is
       SAddr  : constant  System.Address := To_Address (IAddr);
       TIAddr : constant Integer_Address := Integer_Address (Timeout);
       TSAddr : constant  System.Address := To_Address (TIAddr);
-      Futex_Len : constant Unsigned_64 := Count * (Futex_Item'Size / 8);
-      Time_Len  : constant Unsigned_64 := Time_Spec'Size / 8;
-      U32_Len   : constant Unsigned_64 := Unsigned_32'Size / 8;
+      Futex_Len, Time_Len, U32_Len : Unsigned_64;
       Map   : Page_Table_Acc;
       Succ2 : IPC.Futex.Wait_Status;
       Succ  : Boolean;
    begin
+      Futex_Len := Count * (Futex_Item'Size / 8);
+      Time_Len  := Time_Spec'Size / 8;
+      U32_Len   := Unsigned_32'Size / 8;
+
       --  FIXME: These 2 Would_Fault should not have the
       --  "Check_Userland_Mappability" parts, but these checks fail
       --  consistently under complicated and difficult to trace conditions,
@@ -4136,6 +4363,10 @@ package body Userland.Syscall is
    <<Would_Fault_Error>>
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Futex;
 
    procedure Clock
@@ -4311,6 +4542,10 @@ package body Userland.Syscall is
          Returned := 0;
          Errno    := Error_No_Error;
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Get_RUsage;
 
    procedure RecvFrom
@@ -4406,6 +4641,10 @@ package body Userland.Syscall is
          end if;
          Translate_Status (Success, Unsigned_64 (Ret_Count), Returned, Errno);
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end RecvFrom;
 
    procedure SendTo
@@ -4501,6 +4740,10 @@ package body Userland.Syscall is
          end if;
          Translate_Status (Success, Unsigned_64 (Ret_Count), Returned, Errno);
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end SendTo;
 
    procedure Config_NetInterface
@@ -4579,6 +4822,10 @@ package body Userland.Syscall is
    <<Would_Fault_Error>>
       Returned := Unsigned_64'Last;
       Errno    := Error_Would_Fault;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Config_NetInterface;
 
    procedure UTimes
@@ -4678,6 +4925,10 @@ package body Userland.Syscall is
              Status             => Succ);
          Translate_Status (Succ, 0, Returned, Errno);
       end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end UTimes;
 
    procedure Create_TCluster
@@ -4710,11 +4961,14 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc  : constant  PID := Arch.Local.Get_Current_Process;
-      Clust : constant TCID := Convert (Natural (Cluster and 16#FFFFFFFF#));
-      Th    : constant  TID := Convert (Natural (Thread and 16#FFFFFFFF#));
+      Proc  : constant PID := Arch.Local.Get_Current_Process;
+      Clust : TCID;
+      Th    : TID;
       Succ  : Boolean;
    begin
+      Clust := Convert (Natural (Cluster and 16#FFFFFFFF#));
+      Th    := Convert (Natural (Thread and 16#FFFFFFFF#));
+
       if not Get_Capabilities (Proc).Can_Change_Scheduling then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("switch_tcluster", Proc);
@@ -4734,6 +4988,10 @@ package body Userland.Syscall is
          Errno := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Switch_TCluster;
 
    procedure Sigprocmask
@@ -4870,6 +5128,10 @@ package body Userland.Syscall is
    <<Would_Fault_Error>>
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Sigaction;
 
    procedure Send_Signal
@@ -4879,7 +5141,7 @@ package body Userland.Syscall is
        Errno    : out Errno_Value)
    is
       Proc    : constant PID := Arch.Local.Get_Current_Process;
-      Tgt     : constant PID := Convert (Natural (Target and 16#FFFFFF#));
+      Tgt     : PID;
       Success : Boolean;
       Actual  : Process.Signal;
       EUID, Tgt_UID, Tgt_EUID : Unsigned_32;
@@ -4891,6 +5153,7 @@ package body Userland.Syscall is
          return;
       end if;
 
+      Tgt := Convert (Natural (Target and 16#FFFFFF#));
       if Tgt = Error_PID then
          Errno    := Error_Bad_Search;
          Returned := Unsigned_64'Last;
@@ -4919,6 +5182,10 @@ package body Userland.Syscall is
 
       Errno    := Error_No_Error;
       Returned := 0;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Send_Signal;
 
    procedure Get_Prio
@@ -4976,6 +5243,10 @@ package body Userland.Syscall is
    <<Invalid_Value_Return>>
       Errno := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Get_Prio;
 
    procedure Set_Prio
@@ -5040,6 +5311,10 @@ package body Userland.Syscall is
    <<Invalid_Value_Return>>
       Errno := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Set_Prio;
 
    procedure Get_GID (Returned : out Unsigned_64; Errno : out Errno_Value) is
@@ -5080,7 +5355,8 @@ package body Userland.Syscall is
          Userland.Process.Get_GID (Proc, Curr_GID);
          if EGID <= Unsigned_64 (Unsigned_32'Last) then
             if EGID = Unsigned_64 (Curr_GID) then
-               Userland.Process.Set_Effective_GID (Proc, Unsigned_32 (EGID));
+               Userland.Process.Set_Effective_GID
+                  (Proc, Unsigned_32 (EGID and 16#FFFFFFFF#));
             else
                Errno := Error_Bad_Permissions;
                Returned := Unsigned_64'Last;
@@ -5091,6 +5367,10 @@ package body Userland.Syscall is
 
       Errno := Error_No_Error;
       Returned := 0;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Set_GIDs;
 
    procedure Get_Groups
@@ -5103,24 +5383,32 @@ package body Userland.Syscall is
       IAddr : constant Integer_Address := Integer_Address (Addr);
       Ret   : Natural;
       Map   : Page_Table_Acc;
-      Arr   : Supplementary_GID_Arr (1 .. Natural (Count and 16#FFFF#))
-         with Import, Address => To_Address (IAddr);
    begin
       Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, IAddr, Arr'Size / 8) then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
 
-      Get_Supplementary_Groups (Proc, Arr, Ret);
-      if Ret <= Arr'Length then
-         Errno := Error_No_Error;
-         Returned := Unsigned_64 (Ret);
-      else
-         Errno := Error_Invalid_Value;
+      declare
+         Arr : Supplementary_GID_Arr (1 .. Natural (Count and 16#FFFF#))
+            with Import, Address => To_Address (IAddr);
+      begin
+         if not Check_Userland_Access (Map, IAddr, Arr'Size / 8) then
+            Errno := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         Get_Supplementary_Groups (Proc, Arr, Ret);
+         if Ret <= Arr'Length then
+            Errno := Error_No_Error;
+            Returned := Unsigned_64 (Ret);
+         else
+            Errno := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
+         end if;
+      end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
-      end if;
    end Get_Groups;
 
    procedure Set_Groups
@@ -5133,20 +5421,24 @@ package body Userland.Syscall is
       IAddr : constant Integer_Address := Integer_Address (Addr);
       Succ  : Boolean;
       Map   : Page_Table_Acc;
-      Arr   : Supplementary_GID_Arr (1 .. Natural (Count and 16#FFFF#))
-         with Import, Address => To_Address (IAddr);
    begin
       if Count = 0 and Addr = 0 then
          Empty_Supplementary_Groups (Proc);
       else
          Get_Common_Map (Proc, Map);
-         if not Check_Userland_Access (Map, IAddr, Arr'Size / 8) then
-            Errno := Error_Would_Fault;
-            Returned := Unsigned_64'Last;
-            return;
-         end if;
 
-         Set_Supplementary_Groups (Proc, Arr, Succ);
+         declare
+            Arr : Supplementary_GID_Arr (1 .. Natural (Count and 16#FFFF#))
+               with Import, Address => To_Address (IAddr);
+         begin
+            if not Check_Userland_Access (Map, IAddr, Count) then
+               Errno := Error_Would_Fault;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+            Set_Supplementary_Groups (Proc, Arr, Succ);
+         end;
+
          if not Succ then
             Errno := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
@@ -5156,6 +5448,10 @@ package body Userland.Syscall is
 
       Errno := Error_No_Error;
       Returned := 0;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Set_Groups;
 
    procedure TTY_Name
@@ -5171,7 +5467,6 @@ package body Userland.Syscall is
       File  : File_Description_Acc;
       Data  : IPC.PTY.Inner_Acc;
       Map   : Page_Table_Acc;
-      Str   : String (1 .. Natural (Length)) with Import, Address => SAddr;
    begin
       Get_Common_Map (Proc, Map);
       Get_File (Proc, FD, File);
@@ -5191,12 +5486,15 @@ package body Userland.Syscall is
          when others => goto Invalid_Error;
       end case;
 
-      IPC.PTY.Get_Name (Data, Str, Natural (Returned));
-      if Returned >= Length then
-         goto Invalid_Error;
-      end if;
-
-      Str (Natural (Returned) + 1) := Ada.Characters.Latin_1.NUL;
+      declare
+         Str : String (1 .. Natural (Length)) with Import, Address => SAddr;
+      begin
+         IPC.PTY.Get_Name (Data, Str, Natural (Returned));
+         if Returned >= Length then
+            goto Invalid_Error;
+         end if;
+         Str (Natural (Returned) + 1) := Ada.Characters.Latin_1.NUL;
+      end;
 
       Errno := Error_No_Error;
       Returned := 0;
@@ -5205,6 +5503,10 @@ package body Userland.Syscall is
    <<Invalid_Error>>
       Errno := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end TTY_Name;
 
    procedure FAdvise
@@ -5247,6 +5549,10 @@ package body Userland.Syscall is
 
    <<Error_Return>>
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end FAdvise;
 
    procedure SHMAt
@@ -5258,17 +5564,18 @@ package body Userland.Syscall is
    is
       package Align is new Lib.Alignment (Unsigned_64);
       Proc : constant PID := Arch.Local.Get_Current_Process;
-      Truncated : constant Unsigned_32 := Unsigned_32 (ID);
       Perms : constant Page_Permissions :=
          (Is_User_Accesible => True,
           Can_Read          => True,
           Can_Write         => (Flags and SHM_RDONLY) = 0,
           others            => False);
       Ret_Addr, Ret_Size, VAddr : Unsigned_64;
-      EUID, EGID : Unsigned_32;
+      Truncated, EUID, EGID : Unsigned_32;
       Map : Page_Table_Acc;
       Success : Boolean;
    begin
+      Truncated := Unsigned_32 (ID and 16#FFFFFFFF#);
+
       if not Get_Capabilities (Proc).Can_Bypass_IPC_Checks then
          Get_Effective_UID (Proc, EUID);
          Get_Effective_GID (Proc, EGID);
@@ -5317,6 +5624,10 @@ package body Userland.Syscall is
    <<Invalid_Error>>
       Errno := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end SHMAt;
 
    procedure SHMCtl
@@ -5326,15 +5637,17 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Trunc_ID : constant Unsigned_32 := Unsigned_32 (ID and 16#FFFFFFFF#);
+
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
       IAddr : constant Integer_Address := Integer_Address (Buffer);
       SAddr : constant  System.Address := To_Address (IAddr);
       Info : IPC.SHM.Segment_Information;
       Found : Boolean;
-      EUID, EGID : Unsigned_32;
+      Trunc_ID, EUID, EGID : Unsigned_32;
       Map : Page_Table_Acc;
    begin
+      Trunc_ID := Unsigned_32 (ID and 16#FFFFFFFF#);
+
       if not Get_Capabilities (Proc).Can_Bypass_IPC_Checks then
          Get_Effective_UID (Proc, EUID);
          Get_Effective_GID (Proc, EGID);
@@ -5392,6 +5705,10 @@ package body Userland.Syscall is
    <<Invalid_Error>>
       Errno := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end SHMCtl;
 
    procedure SHMDt
@@ -5438,6 +5755,10 @@ package body Userland.Syscall is
          Errno := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end SHMDt;
 
    procedure SHMGet
@@ -5449,15 +5770,15 @@ package body Userland.Syscall is
    is
       package Align is new Lib.Alignment (Unsigned_64);
       Proc : constant PID := Arch.Local.Get_Current_Process;
-      Truncated : constant Unsigned_32 := Unsigned_32 (Key and 16#FFFFFFFF#);
       Mode : constant Unsigned_64 := Flags and Unsigned_64 (File_Mode'Last);
       AlSz : constant Unsigned_64 := Align.Align_Up (Size, Arch.MMU.Page_Size);
       Created_Key : IPC.SHM.Segment_ID;
-      EUID : Unsigned_32;
-      EGID : Unsigned_32;
+      EUID, EGID, Truncated : Unsigned_32;
    begin
       Get_Effective_UID (Proc, EUID);
       Get_Effective_GID (Proc, EGID);
+
+      Truncated := Unsigned_32 (Key and 16#FFFFFFFF#);
 
       if Key = IPC_PRIVATE then
          IPC.SHM.Create_Unkeyed_Segment (AlSz, EUID, EGID, Mode, Created_Key);
@@ -5475,6 +5796,10 @@ package body Userland.Syscall is
          Errno := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
       end if;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end SHMGet;
 
    procedure GetSockOpt
@@ -5539,6 +5864,10 @@ package body Userland.Syscall is
       Errno := Error_Invalid_Value;
    <<Generic_Error>>
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end GetSockOpt;
 
    procedure SetSockOpt
@@ -5594,8 +5923,8 @@ package body Userland.Syscall is
        Errno    : out Errno_Value)
    is
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
-      Th    : constant   Scheduler.TID := Scheduler.Convert (Natural (TID));
       IAddr : constant Integer_Address := Integer_Address (Addr);
+      Th    : Scheduler.TID;
       Map   : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
@@ -5605,6 +5934,8 @@ package body Userland.Syscall is
       elsif Length >= Unsigned_64 (Natural'Last) then
          goto Invalid_Value_Error;
       end if;
+
+      Th := Scheduler.Convert (Natural (TID));
 
       declare
          Ret : Natural;
@@ -5626,6 +5957,10 @@ package body Userland.Syscall is
       Errno := Error_Invalid_Value;
    <<Generic_Error>>
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Get_Thread_Name;
 
    procedure Set_Thread_Name
@@ -5636,8 +5971,8 @@ package body Userland.Syscall is
        Errno    : out Errno_Value)
    is
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
-      Th    : constant   Scheduler.TID := Scheduler.Convert (Natural (TID));
       IAddr : constant Integer_Address := Integer_Address (Addr);
+      Th    : Scheduler.TID;
       Map   : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
@@ -5647,6 +5982,8 @@ package body Userland.Syscall is
       elsif Length >= Unsigned_64 (Natural'Last) then
          goto Invalid_Value_Error;
       end if;
+
+      Th := Scheduler.Convert (Natural (TID));
 
       declare
          Suc : Boolean;
@@ -5667,6 +6004,10 @@ package body Userland.Syscall is
       Errno := Error_Invalid_Value;
    <<Generic_Error>>
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Set_Thread_Name;
 
    procedure Failure_Policy
@@ -5725,6 +6066,10 @@ package body Userland.Syscall is
    <<Would_Fault_Error>>
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Failure_Policy;
 
    procedure Create_Thread
@@ -5780,6 +6125,10 @@ package body Userland.Syscall is
    <<Block_Error>>
       Errno    := Error_Would_Block;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Create_Thread;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
@@ -5850,8 +6199,6 @@ package body Userland.Syscall is
       Tracer_FD     : Natural;
       Is_Traced     : Boolean;
       TInfo         : Trace_Info;
-      TInfo_Data    : Devices.Operation_Data (1 .. TInfo'Size / 8)
-         with Import, Address => TInfo'Address;
    begin
       --  Solve signals first.
       loop
@@ -5877,11 +6224,19 @@ package body Userland.Syscall is
             while not Is_Empty (File.Inner_Writer_FIFO) loop
                Scheduler.Yield_If_Able;
             end loop;
-            TInfo := (Unsigned_16 (Convert (Thread)), State);
-            Write (File.Inner_Writer_FIFO, TInfo_Data, File.Is_Blocking,
-                   Ret_Count, Success);
+            declare
+               TInfo_Data : Devices.Operation_Data (1 .. TInfo'Size / 8)
+                  with Import, Address => TInfo'Address;
+            begin
+               TInfo := (Unsigned_16 (Convert (Thread)), State);
+               Write (File.Inner_Writer_FIFO, TInfo_Data, File.Is_Blocking,
+                      Ret_Count, Success);
+            end;
          end if;
       end if;
+   exception
+      when Constraint_Error =>
+         null;
    end Common_Syscall_Hook;
 
    procedure Translate_Status
@@ -5905,6 +6260,10 @@ package body Userland.Syscall is
          when VFS.FS_Loop          => Errno := Error_File_Loop;
       end case;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Translate_Status;
 
    procedure Translate_Status
@@ -5923,6 +6282,10 @@ package body Userland.Syscall is
          when Would_Block   => Errno := Error_Would_Block;
       end case;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Translate_Status;
 
    procedure Translate_Status
@@ -5941,6 +6304,10 @@ package body Userland.Syscall is
          when Would_Block_Failure => Errno := Error_Would_Block;
       end case;
       Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Translate_Status;
 
    procedure Translate_Status
@@ -5958,6 +6325,10 @@ package body Userland.Syscall is
             Errno    := Error_Would_Block;
             Returned := Unsigned_64'Last;
       end case;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Translate_Status;
 
    procedure Exec_Into_Process
@@ -5971,6 +6342,11 @@ package body Userland.Syscall is
        Success   : out Boolean;
        Errno     : out Errno_Value)
    is
+      --  FIXME: Catching exceptions in this function causes it to page fault.
+      --  I cannot imagine what kind of gargantuan thing GNAT is doing to this
+      --  code. So we will just disable checks for the time being.
+      pragma Suppress (All_Checks);
+
       procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
       type Arg_Arr is array (Natural range <>) of Unsigned_64;
 
@@ -6137,6 +6513,10 @@ package body Userland.Syscall is
             Lib.Messages.Put_Line (PID'Image & " MAC killing " & Name);
             Do_Exit (Curr_Proc, 42);
       end case;
+   exception
+      when Constraint_Error =>
+         Lib.Messages.Put_Line ("MAC recovery killing, no fancy printing");
+         Do_Exit (Curr_Proc, 42);
    end Execute_MAC_Failure;
 
    procedure Set_MAC_Capabilities (Proc : PID; Bits : Unsigned_64) is
@@ -6205,6 +6585,9 @@ package body Userland.Syscall is
           Is_Writeable       => Is_Writeable,
           Is_Executable      => Is_Executable);
       return Is_User_Accessible;
+   exception
+      when Constraint_Error =>
+         return False;
    end Check_Userland_Access;
 
    procedure Check_Userland_Mappability
@@ -6233,6 +6616,9 @@ package body Userland.Syscall is
           Is_Writeable       => Is_Writeable,
           Is_Executable      => Is_Executable);
       Can_Map := not Is_Mapped;
+   exception
+      when Constraint_Error =>
+         Can_Map := False;
    end Check_Userland_Mappability;
 
    procedure Resolve_AT_Directive
@@ -6255,6 +6641,10 @@ package body Userland.Syscall is
             Ino := Descr.Inner_Ino;
          end if;
       end if;
+   exception
+      when Constraint_Error =>
+         FS  := VFS.Error_Handle;
+         Ino := 0;
    end Resolve_AT_Directive;
 
    procedure Translate_Signal
@@ -6271,6 +6661,10 @@ package body Userland.Syscall is
       else
          Sig := Process.Signal_Kill;
       end if;
+   exception
+      when Constraint_Error =>
+         Sig     := Signal_Abort;
+         Success := False;
    end Translate_Signal;
 
    procedure Common_Death_Preparations (Proc : PID) is
@@ -6287,5 +6681,8 @@ package body Userland.Syscall is
       --  until we are waited.
       Userland.Process.Flush_Threads (Proc);
       Userland.Process.Flush_Files   (Proc);
+   exception
+      when Constraint_Error =>
+         null;
    end Common_Death_Preparations;
 end Userland.Syscall;

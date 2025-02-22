@@ -62,6 +62,10 @@ package body Userland.Process is
          end if;
       end loop;
       Lib.Synchronization.Release (Registry_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Registry_Mutex);
+         Len := 0;
    end Get_Children;
 
    procedure List_All (List : out Process_Info_Arr; Total : out Natural) is
@@ -98,6 +102,10 @@ package body Userland.Process is
          end if;
       end loop;
       Lib.Synchronization.Release (Registry_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Registry_Mutex);
+         Total := 0;
    end List_All;
 
    procedure Create_Process (Parent : PID; Returned : out PID) is
@@ -176,17 +184,14 @@ package body Userland.Process is
          end if;
       end loop;
       Lib.Synchronization.Release (Registry_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Registry_Mutex);
+         Returned := Error_PID;
    end Create_Process;
 
    procedure Delete_Process (Process : PID) is
       Var1, Var2, Var3 : Unsigned_64;
-
-      CVar1 : Cryptography.Random.Crypto_Data (1 .. Var1'Size / 8)
-         with Import, Address => Var1'Address;
-      CVar2 : Cryptography.Random.Crypto_Data (1 .. Var2'Size / 8)
-         with Import, Address => Var2'Address;
-      CVar3 : Cryptography.Random.Crypto_Data (1 .. Var3'Size / 8)
-         with Import, Address => Var3'Address;
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       Lib.Synchronization.Seize (Registry_Mutex);
@@ -196,14 +201,29 @@ package body Userland.Process is
       Free (Registry (Process));
       Lib.Synchronization.Release (Registry_Mutex);
 
-      Cryptography.Random.Feed_Entropy (CVar1);
-      Cryptography.Random.Feed_Entropy (CVar2);
-      Cryptography.Random.Feed_Entropy (CVar3);
+      declare
+         CVar1 : Cryptography.Random.Crypto_Data (1 .. Var1'Size / 8)
+            with Import, Address => Var1'Address;
+         CVar2 : Cryptography.Random.Crypto_Data (1 .. Var2'Size / 8)
+            with Import, Address => Var2'Address;
+         CVar3 : Cryptography.Random.Crypto_Data (1 .. Var3'Size / 8)
+            with Import, Address => Var3'Address;
+      begin
+         Cryptography.Random.Feed_Entropy (CVar1);
+         Cryptography.Random.Feed_Entropy (CVar2);
+         Cryptography.Random.Feed_Entropy (CVar3);
+      end;
+   exception
+      when Constraint_Error =>
+         null;
    end Delete_Process;
 
    procedure Get_Controlling_TTY (Proc : PID; TTY : out IPC.PTY.Inner_Acc) is
    begin
       TTY := Registry (Proc).Controlling_TTY;
+   exception
+      when Constraint_Error =>
+         TTY := null;
    end Get_Controlling_TTY;
 
    procedure Set_Controlling_TTY
@@ -218,6 +238,9 @@ package body Userland.Process is
       else
          Success := False;
       end if;
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Set_Controlling_TTY;
 
    procedure Clear_Controlling_TTY
@@ -232,6 +255,9 @@ package body Userland.Process is
       else
          Success := False;
       end if;
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Clear_Controlling_TTY;
 
    procedure Get_Runtime_Times
@@ -262,6 +288,12 @@ package body Userland.Process is
       Lib.Time.Normalize (User_Seconds, User_Nanoseconds);
 
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         System_Seconds     := 0;
+         System_Nanoseconds := 0;
+         User_Seconds       := 0;
+         User_Nanoseconds   := 0;
    end Get_Runtime_Times;
 
    procedure Get_Children_Runtimes
@@ -276,6 +308,12 @@ package body Userland.Process is
       User_Seconds := Registry (Proc).Children_USec;
       User_Nanoseconds := Registry (Proc).Children_UNSec;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         System_Seconds     := 0;
+         System_Nanoseconds := 0;
+         User_Seconds       := 0;
+         User_Nanoseconds   := 0;
    end Get_Children_Runtimes;
 
    procedure Get_Elapsed_Time
@@ -288,6 +326,10 @@ package body Userland.Process is
       Lib.Time.Substract
          (Seconds, Nanoseconds,
           Registry (Proc).Creation_Secs, Registry (Proc).Creation_NSecs);
+   exception
+      when Constraint_Error =>
+         Seconds     := 0;
+         Nanoseconds := 0;
    end Get_Elapsed_Time;
 
    procedure Add_Thread
@@ -307,6 +349,9 @@ package body Userland.Process is
          end if;
       end loop;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Add_Thread;
 
    procedure Get_Thread_Count (Process : PID; Count : out Natural) is
@@ -319,6 +364,9 @@ package body Userland.Process is
          end if;
       end loop;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Count := 0;
    end Get_Thread_Count;
 
    procedure Remove_Thread (Proc : PID; Thread : Scheduler.TID) is
@@ -345,6 +393,9 @@ package body Userland.Process is
          end if;
       end loop;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Remove_Thread;
 
    procedure Flush_Threads (Proc : PID) is
@@ -374,6 +425,9 @@ package body Userland.Process is
          Thread := Error_TID;
       end loop;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Flush_Threads;
 
    procedure Reassign_Process_Addresses (Process : PID) is
@@ -401,6 +455,9 @@ package body Userland.Process is
       Registry (Process).Alloc_Base := Rand_Addr;
       Registry (Process).Stack_Base := Rand_Addr + Rand_Jump;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Reassign_Process_Addresses;
 
    procedure Get_Niceness (Process : PID; Nice : out Scheduler.Niceness) is
@@ -408,6 +465,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       Nice := Registry (Process).Niceness;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Nice := 0;
    end Get_Niceness;
 
    procedure Set_Niceness (Process : PID; Nice : Scheduler.Niceness) is
@@ -420,6 +480,9 @@ package body Userland.Process is
          end if;
       end loop;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Niceness;
 
    procedure Is_Valid_File
@@ -436,6 +499,9 @@ package body Userland.Process is
          R := False;
       end if;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         R := False;
    end Is_Valid_File;
 
    procedure Add_File
@@ -475,6 +541,10 @@ package body Userland.Process is
 
    <<Cleanup>>
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         FD      := 0;
+         Success := False;
    end Add_File;
 
    procedure Duplicate
@@ -489,6 +559,9 @@ package body Userland.Process is
       else
          Result := null;
       end if;
+   exception
+      when Constraint_Error =>
+         null;
    end Duplicate;
 
    procedure Duplicate_FD_Table
@@ -496,23 +569,27 @@ package body Userland.Process is
        Target  : PID;
        Max_FD  : Natural := Max_File_Count)
    is
-      Src : File_Arr renames Registry (Process).File_Table;
-      Tgt : File_Arr renames Registry (Target).File_Table;
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       Lib.Synchronization.Seize (Registry (Target).Data_Mutex);
 
       for I in 0 .. Max_FD - 1 loop
-         if not Src (I).Close_On_Fork then
-            Tgt (I) := Src (I);
-            if Src (I).Description /= null then
-               Duplicate (Src (I).Description, Tgt (I).Description);
+         if not Registry (Process).File_Table (I).Close_On_Fork then
+            Registry (Target).File_Table (I) :=
+               Registry (Process).File_Table (I);
+            if Registry (Process).File_Table (I).Description /= null then
+               Duplicate
+                  (Registry (Process).File_Table (I).Description,
+                   Registry (Target).File_Table (I).Description);
             end if;
          end if;
       end loop;
 
       Lib.Synchronization.Release (Registry (Target).Data_Mutex);
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Duplicate_FD_Table;
 
    procedure Close (F : in out File_Description_Acc) is
@@ -542,6 +619,9 @@ package body Userland.Process is
          F.Children_Count := F.Children_Count - 1;
       end if;
       F := null;
+   exception
+      when Constraint_Error =>
+         F := null;
    end Close;
 
    procedure Get_File
@@ -557,6 +637,9 @@ package body Userland.Process is
          File := null;
       end if;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         File := null;
    end Get_File;
 
    procedure Get_FD_Flags
@@ -565,17 +648,22 @@ package body Userland.Process is
        Close_On_Exec : out Boolean;
        Close_On_Fork : out Boolean)
    is
-      Table : File_Arr renames Registry (Process).File_Table;
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       if FD <= Unsigned_64 (File_Arr'Last) then
-         Close_On_Exec := Table (Natural (FD)).Close_On_Exec;
-         Close_On_Fork := Table (Natural (FD)).Close_On_Fork;
+         Close_On_Exec :=
+            Registry (Process).File_Table (Natural (FD)).Close_On_Exec;
+         Close_On_Fork :=
+            Registry (Process).File_Table (Natural (FD)).Close_On_Fork;
       else
          Close_On_Exec := False;
          Close_On_Fork := False;
       end if;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Close_On_Exec := False;
+         Close_On_Fork := False;
    end Get_FD_Flags;
 
    procedure Set_FD_Flags
@@ -584,14 +672,18 @@ package body Userland.Process is
        Close_On_Exec : Boolean;
        Close_On_Fork : Boolean)
    is
-      Table : File_Arr renames Registry (Process).File_Table;
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       if FD <= Unsigned_64 (File_Arr'Last) then
-         Table (Natural (FD)).Close_On_Exec := Close_On_Exec;
-         Table (Natural (FD)).Close_On_Fork := Close_On_Fork;
+         Registry (Process).File_Table (Natural (FD)).Close_On_Exec :=
+            Close_On_Exec;
+         Registry (Process).File_Table (Natural (FD)).Close_On_Fork :=
+            Close_On_Fork;
       end if;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_FD_Flags;
 
    procedure Remove_File (Process : PID; FD : Natural) is
@@ -603,6 +695,9 @@ package body Userland.Process is
          Registry (Process).File_Table (FD).Close_On_Fork := False;
       end if;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Remove_File;
 
    procedure Flush_Files (Process : PID) is
@@ -616,6 +711,9 @@ package body Userland.Process is
          F.Close_On_Fork := False;
       end loop;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Flush_Files;
 
    procedure Flush_Exec_Files (Process : PID) is
@@ -629,6 +727,9 @@ package body Userland.Process is
          end if;
       end loop;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Flush_Exec_Files;
 
    procedure Set_Common_Map (Proc : PID; Map : Arch.MMU.Page_Table_Acc) is
@@ -636,6 +737,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Common_Map := Map;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Common_Map;
 
    procedure Get_Common_Map (Proc : PID; Map : out Arch.MMU.Page_Table_Acc) is
@@ -643,6 +747,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Map := Registry (Proc).Common_Map;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Map := null;
    end Get_Common_Map;
 
    procedure Get_Stack_Base (Process : PID; Base : out Unsigned_64) is
@@ -650,6 +757,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       Base := Registry (Process).Stack_Base;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Base := 0;
    end Get_Stack_Base;
 
    procedure Set_Stack_Base (Process : PID; Base : Unsigned_64) is
@@ -657,6 +767,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
       Registry (Process).Stack_Base := Base;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Stack_Base;
 
    procedure Get_Traced_Info
@@ -669,6 +782,10 @@ package body Userland.Process is
       Is_Traced := Registry (Process).Is_Traced;
       FD        := Registry (Process).Tracer_FD;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Is_Traced := False;
+         FD        := 0;
    end Get_Traced_Info;
 
    procedure Set_Traced_Info
@@ -681,6 +798,9 @@ package body Userland.Process is
       Registry (Process).Is_Traced := Is_Traced;
       Registry (Process).Tracer_FD := FD;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Traced_Info;
 
    procedure Issue_Exit (Process : PID; Code : Unsigned_8) is
@@ -690,6 +810,9 @@ package body Userland.Process is
       Registry (Process).Signal_Exit := False;
       Registry (Process).Exit_Code   := Code;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Issue_Exit;
 
    procedure Issue_Exit (Process : PID; Sig : Signal) is
@@ -699,6 +822,9 @@ package body Userland.Process is
       Registry (Process).Signal_Exit  := True;
       Registry (Process).Which_Signal := Sig;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Issue_Exit;
 
    procedure Check_Exit
@@ -715,6 +841,12 @@ package body Userland.Process is
       Was_Signal := Registry (Process).Signal_Exit;
       Sig        := Registry (Process).Which_Signal;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Did_Exit   := False;
+         Code       := 0;
+         Was_Signal := False;
+         Sig        := Signal_Abort;
    end Check_Exit;
 
    procedure Set_CWD
@@ -727,6 +859,9 @@ package body Userland.Process is
       Registry (Proc).Current_Dir_FS  := FS;
       Registry (Proc).Current_Dir_Ino := Ino;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_CWD;
 
    procedure Get_CWD
@@ -739,6 +874,10 @@ package body Userland.Process is
       FS  := Registry (Proc).Current_Dir_FS;
       Ino := Registry (Proc).Current_Dir_Ino;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         FS  := VFS.Error_Handle;
+         Ino := 0;
    end Get_CWD;
 
    procedure Bump_Alloc_Base
@@ -751,11 +890,17 @@ package body Userland.Process is
       Previous := Registry (P).Alloc_Base;
       Registry (P).Alloc_Base := Previous + Length;
       Lib.Synchronization.Release (Registry (P).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Previous := 0;
    end Bump_Alloc_Base;
 
    procedure Get_User_Mapped_Size (P : PID; Size : out Unsigned_64) is
    begin
       Arch.MMU.Get_User_Mapped_Size (Registry (P).Common_Map, Size);
+   exception
+      when Constraint_Error =>
+         Size := 0;
    end Get_User_Mapped_Size;
 
    procedure Get_Parent (Proc : PID; Parent : out PID) is
@@ -763,6 +908,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Parent := Registry (Proc).Parent;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Parent := Error_PID;
    end Get_Parent;
 
    procedure Set_Parent (Proc : PID; Parent : PID) is
@@ -770,6 +918,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Parent := Parent;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Parent;
 
    procedure Set_Identifier (Proc : PID; Name : String) is
@@ -786,6 +937,9 @@ package body Userland.Process is
       Registry (Proc).Identifier (1 .. Length) :=
          Name (Name'First .. Name'First + Length - 1);
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Identifier;
 
    procedure Get_Identifier
@@ -808,6 +962,10 @@ package body Userland.Process is
          Registry (Proc).Identifier (1 .. Length);
       Len := Length;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         ID  := [others => ' '];
+         Len := 0;
    end Get_Identifier;
 
    procedure Get_UID (Proc : PID; UID : out Unsigned_32) is
@@ -815,6 +973,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       UID := Registry (Proc).User;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         UID := 0;
    end Get_UID;
 
    procedure Set_UID (Proc : PID; UID : Unsigned_32) is
@@ -822,6 +983,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).User := UID;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_UID;
 
    procedure Get_Effective_UID (Proc : PID; EUID : out Unsigned_32) is
@@ -829,6 +993,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       EUID := Registry (Proc).Effective_User;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         EUID := 0;
    end Get_Effective_UID;
 
    procedure Set_Effective_UID (Proc : PID; EUID : Unsigned_32) is
@@ -836,6 +1003,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Effective_User := EUID;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Effective_UID;
 
    procedure Get_GID (Proc : PID; GID : out Unsigned_32) is
@@ -843,6 +1013,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       GID := Registry (Proc).Group;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         GID := 0;
    end Get_GID;
 
    procedure Set_GID (Proc : PID; GID : Unsigned_32) is
@@ -850,6 +1023,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Group := GID;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_GID;
 
    procedure Get_Effective_GID (Proc : PID; EGID : out Unsigned_32) is
@@ -857,6 +1033,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       EGID := Registry (Proc).Effective_Group;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         EGID := 0;
    end Get_Effective_GID;
 
    procedure Set_Effective_GID (Proc : PID; EGID : Unsigned_32) is
@@ -864,6 +1043,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Effective_Group := EGID;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Effective_GID;
 
    procedure Get_Supplementary_Groups
@@ -881,6 +1063,9 @@ package body Userland.Process is
       end if;
       Length := Registry (Proc).SGroup_Count;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Length := 0;
    end Get_Supplementary_Groups;
 
    procedure Set_Supplementary_Groups
@@ -898,6 +1083,9 @@ package body Userland.Process is
          Success := True;
       end if;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Set_Supplementary_Groups;
 
    procedure Empty_Supplementary_Groups (Proc : PID) is
@@ -905,6 +1093,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).SGroup_Count := 0;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Empty_Supplementary_Groups;
 
    procedure Get_Umask (Proc : PID; Umask : out VFS.File_Mode) is
@@ -912,6 +1103,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Umask := Registry (Proc).Umask;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Umask := 0;
    end Get_Umask;
 
    procedure Set_Umask (Proc : PID; Umask : VFS.File_Mode) is
@@ -919,6 +1113,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Umask := Umask;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Umask;
 
    procedure Get_Masked_Signals (Proc : PID; Sig : out Signal_Bitmap) is
@@ -926,6 +1123,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Sig := Registry (Proc).Masked_Signals;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Sig := [others => True];
    end Get_Masked_Signals;
 
    procedure Set_Masked_Signals (Proc : PID; Sig : Signal_Bitmap) is
@@ -938,6 +1138,9 @@ package body Userland.Process is
       Registry (Proc).Masked_Signals (Signal_Stop) := False;
 
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Masked_Signals;
 
    procedure Raise_Signal (Proc : PID; Sig : Signal) is
@@ -950,6 +1153,9 @@ package body Userland.Process is
          Registry (Proc).Raised_Signals (Sig) := True;
       end if;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Raise_Signal;
 
    procedure Get_Signal_Handler
@@ -961,6 +1167,9 @@ package body Userland.Process is
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       Addr := Registry (Proc).Signal_Handlers (Sig);
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Addr := System.Null_Address;
    end Get_Signal_Handler;
 
    procedure Set_Signal_Handler
@@ -974,6 +1183,9 @@ package body Userland.Process is
          Registry (Proc).Signal_Handlers (Sig) := Addr;
       end if;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Signal_Handler;
 
    procedure Get_Raised_Signal_Actions
@@ -1006,6 +1218,12 @@ package body Userland.Process is
          end if;
       end loop;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Sig    := Signal_FP_Exception;
+         Addr   := System.Null_Address;
+         No_Sig := True;
+         Ignore := False;
    end Get_Raised_Signal_Actions;
 
    function Convert (Proc : PID) return Natural is
@@ -1022,26 +1240,41 @@ package body Userland.Process is
       else
          return Error_PID;
       end if;
+   exception
+      when Constraint_Error =>
+         return Error_PID;
    end Convert;
    ----------------------------------------------------------------------------
    function Get_Enforcement (Proc : PID) return MAC.Enforcement is
    begin
       return MAC.Get_Enforcement (Registry (Proc).Perms);
+   exception
+      when Constraint_Error =>
+         return MAC.Deny_And_Scream;
    end Get_Enforcement;
 
    procedure Set_Enforcement (Proc : PID; Act : MAC.Enforcement) is
    begin
       MAC.Set_Enforcement (Registry (Proc).Perms, Act);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Enforcement;
 
    function Get_Capabilities (Proc : PID) return MAC.Capabilities is
    begin
       return MAC.Get_Capabilities (Registry (Proc).Perms);
+   exception
+      when Constraint_Error =>
+         return (others => False);
    end Get_Capabilities;
 
    procedure Set_Capabilities (Proc : PID; Caps : MAC.Capabilities) is
    begin
       MAC.Set_Capabilities (Registry (Proc).Perms, Caps);
+   exception
+      when Constraint_Error =>
+         null;
    end Set_Capabilities;
 
    function Check_Permissions
@@ -1051,6 +1284,9 @@ package body Userland.Process is
    is
    begin
       return MAC.Check_Permissions (Registry (Proc).Perms, FS, Ino);
+   exception
+      when Constraint_Error =>
+         return (others => False);
    end Check_Permissions;
 
    procedure Add_Entity
@@ -1062,6 +1298,9 @@ package body Userland.Process is
    is
    begin
       MAC.Add_Entity (Registry (Proc).Perms, FS, Ino, Perms, Status);
+   exception
+      when Constraint_Error =>
+         Status := MAC.Is_Conflicting;
    end Add_Entity;
 
    function Get_Limit
@@ -1070,6 +1309,9 @@ package body Userland.Process is
    is
    begin
       return MAC.Get_Limit (Registry (Proc).Perms, Resource);
+   exception
+      when Constraint_Error =>
+         return 0;
    end Get_Limit;
 
    procedure Set_Limit
@@ -1080,5 +1322,8 @@ package body Userland.Process is
    is
    begin
       MAC.Set_Limit (Registry (Proc).Perms, Resource, Limit, Could_Set);
+   exception
+      when Constraint_Error =>
+         Could_Set := False;
    end Set_Limit;
 end Userland.Process;
