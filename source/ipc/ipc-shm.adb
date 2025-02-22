@@ -80,6 +80,10 @@ package body IPC.SHM is
 
    <<Cleanup>>
       Lib.Synchronization.Release (Registry_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Registry_Mutex);
+         Segment := Error_ID;
    end Create_Segment;
 
    procedure Create_Unkeyed_Segment
@@ -113,6 +117,10 @@ package body IPC.SHM is
       end loop;
 
       Lib.Synchronization.Release (Registry_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Registry_Mutex);
+         Segment := Error_ID;
    end Create_Unkeyed_Segment;
 
    procedure Get_Segment (Key : Unsigned_32; Segment : out Segment_ID) is
@@ -148,6 +156,11 @@ package body IPC.SHM is
          end if;
       end loop;
       Lib.Synchronization.Release (Registry_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Registry_Mutex);
+         Size := 0;
+         ID   := Error_ID;
    end Get_Segment_And_Size;
 
    procedure Get_Address
@@ -165,6 +178,11 @@ package body IPC.SHM is
          Size := 0;
       end if;
       Lib.Synchronization.Release (Registry_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Registry_Mutex);
+         Size    := 0;
+         Address := 0;
    end Get_Address;
 
    procedure Check_Permissions
@@ -183,6 +201,10 @@ package body IPC.SHM is
          Success := False;
       end if;
       Lib.Synchronization.Release (Registry_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Registry_Mutex);
+         Success := False;
    end Check_Permissions;
 
    procedure Mark_Refcounted (ID : Segment_ID) is
@@ -193,6 +215,9 @@ package body IPC.SHM is
          Check_And_Maybe_Free (ID);
       end if;
       Lib.Synchronization.Release (Registry_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Registry_Mutex);
    end Mark_Refcounted;
 
    procedure Modify_Attachment (ID : Segment_ID; Increment : Boolean) is
@@ -204,6 +229,9 @@ package body IPC.SHM is
          Check_And_Maybe_Free (ID);
       end if;
       Lib.Synchronization.Release (Registry_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Registry_Mutex);
    end Modify_Attachment;
 
    procedure Modify_Permissions
@@ -220,6 +248,9 @@ package body IPC.SHM is
          Registry (ID).Mode := Mode;
       end if;
       Lib.Synchronization.Release (Registry_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Registry_Mutex);
    end Modify_Permissions;
 
    procedure Fetch_Information
@@ -244,6 +275,10 @@ package body IPC.SHM is
          Found := False;
       end if;
       Lib.Synchronization.Release (Registry_Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Registry_Mutex);
+         Found := False;
    end Fetch_Information;
 
    procedure Get_Total_Size (Size : out Unsigned_64) is
@@ -264,5 +299,8 @@ package body IPC.SHM is
          Registry (ID).Is_Present := False;
          Free (size_t (Registry (ID).Physical_Address));
       end if;
+   exception
+      when Constraint_Error =>
+         null;
    end Check_And_Maybe_Free;
 end IPC.SHM;

@@ -137,12 +137,6 @@ private
       Data          : Devices.Operation_Data_Acc;
    end record;
 
-   function Is_Valid (P : Inner_Acc) return Boolean is
-      (P      /= null                and then
-       P.Data /= null                and then
-       P.Data_Count <= P.Data'Length and then
-       P.Data'First = 1);
-
    procedure Common_Close (To_Close : in out Inner_Acc)
       with Pre => To_Close /= null, Post => To_Close = null;
 end IPC.FIFO;

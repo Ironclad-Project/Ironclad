@@ -21,6 +21,8 @@ with Networking.IPv6;
 with Networking.Interfaces;
 
 package body IPC.Socket is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    procedure Free is new Ada.Unchecked_Deallocation (Socket, Socket_Acc);
    procedure Free is new Ada.Unchecked_Deallocation
       (Operation_Data, Operation_Data_Acc);

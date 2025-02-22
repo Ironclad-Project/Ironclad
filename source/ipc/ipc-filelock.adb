@@ -17,6 +17,8 @@
 with Scheduler;
 
 package body IPC.FileLock is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    procedure Could_Acquire_Lock
       (Acquired_FS  : VFS.FS_Handle;
        Acquired_Ino : VFS.File_Inode_Number;

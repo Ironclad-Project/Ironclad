@@ -18,6 +18,8 @@ with Ada.Unchecked_Deallocation;
 with Scheduler;
 
 package body IPC.FIFO is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    procedure Free is new Ada.Unchecked_Deallocation (Inner, Inner_Acc);
    procedure Free is new Ada.Unchecked_Deallocation
       (Devices.Operation_Data, Devices.Operation_Data_Acc);
@@ -236,6 +238,15 @@ package body IPC.FIFO is
 
       Lib.Synchronization.Release (To_Write.Mutex);
    end Write;
+
+   function Is_Valid (P : Inner_Acc) return Boolean is
+   begin
+      return
+         (P      /= null                and then
+          P.Data /= null                and then
+          P.Data_Count <= P.Data'Length and then
+          P.Data'First = 1);
+   end Is_Valid;
    ----------------------------------------------------------------------------
    procedure Common_Close (To_Close : in out Inner_Acc) is
       pragma Annotate
