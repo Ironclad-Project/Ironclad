@@ -190,7 +190,16 @@ package body Memory.Physical is
       end if;
 
    <<Default_Alloc>>
-      return Alloc_Pgs (Size);
+      Result := Alloc_Pgs (Size);
+      if Result = 0 then
+         Lib.Messages.Put_Line ("Kernel OOM imminent, running handlers");
+         Userland.OOM_Failure.Handle_Failure;
+         Result := Alloc_Pgs (Size);
+         if Result = 0 then
+            Lib.Panic.Hard_Panic ("Exhausted memory (OOM)");
+         end if;
+      end if;
+      return Result;
    exception
       when Constraint_Error =>
          return 0;
@@ -230,6 +239,21 @@ package body Memory.Physical is
          null;
    end Free;
    ----------------------------------------------------------------------------
+   procedure User_Alloc
+      (Addr    : out Memory.Virtual_Address;
+       Size    : Unsigned_64;
+       Success : out Boolean)
+   is
+   begin
+      Addr    := Alloc_Pgs (size_t (Size));
+      Success := Addr /= 0;
+   end User_Alloc;
+
+   procedure User_Free (Addr : Memory.Virtual_Address) is
+   begin
+      Free (size_t (Addr));
+   end User_Free;
+   ----------------------------------------------------------------------------
    procedure Get_Statistics (Stats : out Statistics) is
    begin
       Lib.Synchronization.Seize (Alloc_Mutex);
@@ -249,7 +273,6 @@ package body Memory.Physical is
       Bitmap_Body : Bitmap (0 .. Block_Count - 1) with Import;
       for Bitmap_Body'Address use To_Address (Bitmap_Address);
 
-      Did_OOM_Once       :     Boolean := False;
       First_Found_Index  : Unsigned_64 := 0;
       Found_Count        : Unsigned_64 := 0;
       Size               : Memory.Size := Memory.Size (Sz);
@@ -286,19 +309,8 @@ package body Memory.Physical is
       end if;
 
       --  Handle OOM.
-      if Did_OOM_Once then
-         Lib.Panic.Hard_Panic ("Exhausted memory (OOM)");
-      else
-         Lib.Messages.Put_Line ("OOM imminent, running handlers");
-         Did_OOM_Once := True;
-         Lib.Synchronization.Release (Alloc_Mutex);
-         Userland.OOM_Failure.Handle_Failure;
-         Lib.Synchronization.Seize (Alloc_Mutex);
-         Bitmap_Last_Used  := 0;
-         First_Found_Index := 0;
-         Found_Count       := 0;
-         goto Search_Blocks;
-      end if;
+      Lib.Synchronization.Release (Alloc_Mutex);
+      return 0;
 
    <<Fill_Bitmap>>
       for I in 1 .. Blocks_To_Allocate loop

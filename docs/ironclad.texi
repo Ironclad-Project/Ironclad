@@ -1300,7 +1300,7 @@ for the running architecture, else it will fail.
 
 @item
 @code{MAP_ANON} (0b01000): Mapping is not backed by any file, and @code{fd} is
-ignored.
+ignored. Memory will be initialized to 0s.
 
 @item
 @code{MAP_WC} (0b10000): Map using write-combining when possible.

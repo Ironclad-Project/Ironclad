@@ -211,8 +211,7 @@ package body Arch.MMU is
       Lib.Synchronization.Seize_Writer (Map.Mutex);
       while Curr_Range /= null loop
          if Curr_Range.Is_Allocated then
-            Physical.Free
-               (Interfaces.C.size_t (To_Integer (Curr_Range.Physical_Start)));
+            Physical.User_Free (To_Integer (Curr_Range.Physical_Start));
          end if;
          Last_Range := Curr_Range;
          Curr_Range := Curr_Range.Next;
@@ -407,14 +406,20 @@ package body Arch.MMU is
       procedure F is new Ada.Unchecked_Deallocation
          (Mapping_Range, Mapping_Range_Acc);
 
-      Addr : constant Virtual_Address :=
-         Memory.Physical.Alloc (Interfaces.C.size_t (Length));
-      Allocated : array (1 .. Length) of Unsigned_8
-         with Import, Address => To_Address (Addr);
+      Addr       : Virtual_Address;
       New_Range  : Mapping_Range_Acc;
       Last_Range : Mapping_Range_Acc;
       Curr_Range : Mapping_Range_Acc;
    begin
+      Memory.Physical.User_Alloc
+         (Addr    => Addr,
+          Size    => Unsigned_64 (Length),
+          Success => Success);
+      if not Success then
+         Physical_Start := System.Null_Address;
+         return;
+      end if;
+
       Success   := False;
       New_Range := new Mapping_Range'
          (Next           => null,
@@ -456,8 +461,13 @@ package body Arch.MMU is
 
    <<Ret>>
       if Success then
-         Allocated      := [others => 0];
-         Physical_Start := To_Address (Addr);
+         declare
+            Allocated : array (1 .. Length) of Unsigned_8
+               with Import, Address => To_Address (Addr);
+         begin
+            Allocated      := [others => 0];
+            Physical_Start := To_Address (Addr);
+         end;
       else
          F (New_Range);
          Memory.Physical.Free (Interfaces.C.size_t (Addr));

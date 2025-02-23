@@ -23,8 +23,11 @@ package Memory.Physical is
    --  @param Memmap Memory map to use to initialize the allocator.
    procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map);
    ----------------------------------------------------------------------------
-   --  Allocation functions.
-
+   --  Generic kernel allocation functions, called when doing 'new' and
+   --  Unchecked_Deallocation. The memory allocated by these functions is not
+   --  to be remapped or given to userland, but to just to be used and released
+   --  by the kernel.
+   --
    --  Called when doing 'new'.
    --  @param Sz Size to allocate in bytes. Sz = size_t'Last will
    --  unconditionally error, and Sz as 0 for allocating a small,
@@ -42,6 +45,20 @@ package Memory.Physical is
    --  @param Address Address of the object to free, higher half or not.
    procedure Free (Address : Interfaces.C.size_t)
       with Export, Convention => C, External_Name => "__gnat_free";
+   ----------------------------------------------------------------------------
+   --  The functions above are only to be called by the kernel itself, these
+   --  ones are to be used by the kernel to give memory to userland. The memory
+   --  allocated can be remapped, passed to userland, and mangled in all other
+   --  ways.
+
+   --  Allocate.
+   procedure User_Alloc
+      (Addr    : out Memory.Virtual_Address;
+       Size    : Unsigned_64;
+       Success : out Boolean);
+
+   --  Free.
+   procedure User_Free (Addr : Memory.Virtual_Address);
    ----------------------------------------------------------------------------
    --  Allocator-wide memory statistics.
    --  @field Total     Total physical memory of the system.

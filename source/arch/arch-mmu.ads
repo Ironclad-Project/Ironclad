@@ -133,6 +133,7 @@ package Arch.MMU is
 
    --  Allocate and map a memory range, the contents will be forked and freed
    --  accordingly, and managed internally.
+   --  This function is intended to allocate memory for use in userland.
    --  @param Map            Tables to map for.
    --  @param Physical_Start Allocated physical address.
    --  @param Virtual_Start  Virtual address to start from.
