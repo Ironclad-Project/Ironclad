@@ -17,7 +17,6 @@
 with Lib.Synchronization; use Lib.Synchronization;
 with Memory;
 with Memory.Physical; use Memory.Physical;
-with Interfaces.C; use Interfaces.C;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body IPC.SHM is
@@ -48,6 +47,8 @@ package body IPC.SHM is
        Mode        : Unsigned_64;
        Segment     : out Segment_ID)
    is
+      Addr    : Integer_Address;
+      Success : Boolean;
    begin
       Segment := Error_ID;
 
@@ -65,18 +66,24 @@ package body IPC.SHM is
          goto Cleanup;
       end if;
 
-      Registry (Segment).Is_Present := True;
-      Registry (Segment).Key := Wanted_Key;
-      Registry (Segment).Owner_UID := Creator_UID;
-      Registry (Segment).Owner_GID := Creator_GID;
-      Registry (Segment).Creator_UID := Creator_UID;
-      Registry (Segment).Creator_GID := Creator_GID;
-      Registry (Segment).Mode := Mode;
-      Registry (Segment).Physical_Address :=
-         Alloc (size_t (Wanted_Size)) - Memory.Memory_Offset;
-      Registry (Segment).Size := Memory.Size (Wanted_Size);
-      Registry (Segment).Refcount := 0;
-      Registry (Segment).Is_Refcounted := False;
+      Memory.Physical.User_Alloc (Addr, Wanted_Size, Success);
+      if not Success then
+         Segment := Error_ID;
+         goto Cleanup;
+      end if;
+
+      Registry (Segment) :=
+         (Is_Present       => True,
+          Key              => Wanted_Key,
+          Owner_UID        => Creator_UID,
+          Owner_GID        => Creator_GID,
+          Creator_UID      => Creator_UID,
+          Creator_GID      => Creator_GID,
+          Mode             => Mode,
+          Physical_Address => Addr - Memory.Memory_Offset,
+          Size             => Memory.Size (Wanted_Size),
+          Refcount         => 0,
+          Is_Refcounted    => False);
 
    <<Cleanup>>
       Lib.Synchronization.Release (Registry_Mutex);
@@ -93,29 +100,37 @@ package body IPC.SHM is
        Mode        : Unsigned_64;
        Segment     : out Segment_ID)
    is
+      Addr    : Integer_Address;
+      Success : Boolean;
    begin
       Segment := Error_ID;
 
       Lib.Synchronization.Seize (Registry_Mutex);
       for I in Registry'Range loop
          if not Registry (I).Is_Present then
-            Registry (I).Is_Present := True;
-            Registry (I).Key := 0;
-            Registry (I).Owner_UID := Creator_UID;
-            Registry (I).Owner_GID := Creator_GID;
-            Registry (I).Creator_UID := Creator_UID;
-            Registry (I).Creator_GID := Creator_GID;
-            Registry (I).Mode := Mode;
-            Registry (I).Physical_Address :=
-               Alloc (size_t (Wanted_Size)) - Memory.Memory_Offset;
-            Registry (I).Size := Memory.Size (Wanted_Size);
-            Registry (I).Refcount := 0;
-            Registry (I).Is_Refcounted := False;
+            Memory.Physical.User_Alloc (Addr, Wanted_Size, Success);
+            if not Success then
+               goto Cleanup;
+            end if;
+
+            Registry (Segment) :=
+               (Is_Present       => True,
+                Key              => 0,
+                Owner_UID        => Creator_UID,
+                Owner_GID        => Creator_GID,
+                Creator_UID      => Creator_UID,
+                Creator_GID      => Creator_GID,
+                Mode             => Mode,
+                Physical_Address => Addr - Memory.Memory_Offset,
+                Size             => Memory.Size (Wanted_Size),
+                Refcount         => 0,
+                Is_Refcounted    => False);
             Segment := I;
             exit;
          end if;
       end loop;
 
+   <<Cleanup>>
       Lib.Synchronization.Release (Registry_Mutex);
    exception
       when Constraint_Error =>
@@ -297,7 +312,7 @@ package body IPC.SHM is
    begin
       if Registry (ID).Refcount = 0 and Registry (ID).Is_Refcounted then
          Registry (ID).Is_Present := False;
-         Free (size_t (Registry (ID).Physical_Address));
+         User_Free (Registry (ID).Physical_Address);
       end if;
    exception
       when Constraint_Error =>
