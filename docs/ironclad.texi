@@ -4430,6 +4430,14 @@ For now only SATA drives are supported, support for ATAPI is not present.
 These SATA drives have internal caching at the driver level, so they must be
 @code{sync}'d for data integrity when wanting to ensure data coherency.
 
+@subsection  nvme
+
+The devices starting by @code{nvme} represent NVMe block devices, namespaces
+are named using @code{n} followed by the namespace number.
+
+NVMe drives have internal caching at the driver level, so they must be
+@code{sync}'d for data integrity when wanting to ensure data coherency.
+
 @node riscv64-limine devices
 @section riscv64-limine devices
 
