@@ -113,6 +113,7 @@ package body IPC.SHM is
                goto Cleanup;
             end if;
 
+            Segment := I;
             Registry (Segment) :=
                (Is_Present       => True,
                 Key              => 0,
@@ -125,7 +126,6 @@ package body IPC.SHM is
                 Size             => Memory.Size (Wanted_Size),
                 Refcount         => 0,
                 Is_Refcounted    => False);
-            Segment := I;
             exit;
          end if;
       end loop;
