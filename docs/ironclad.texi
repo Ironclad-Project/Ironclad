@@ -440,7 +440,11 @@ The ones Ironclad PTYs interact with are @code{OPOST} and @code{ONLCR}.
 @node Signals
 @section Signals
 
-Ironclad implements standard POSIX signals.
+Ironclad implements standard POSIX signals for use between processes.
+
+Additionally, Ironclad uses POSIX signals for communicating certain events to
+userland, for example, a @code{SIGINT} will be sent to the init system on power
+button press.
 
 @node Sockets
 @section Sockets

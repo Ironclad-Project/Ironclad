@@ -373,6 +373,28 @@ private
          Virt_Addr : System.Address;
          Index     : Unsigned_64;
       end record;
+
+      type Fixed_Event is
+         (Fixed_Event_Timer_Status,
+          Fixed_Event_Power_Button,
+          Fixed_Event_Sleep_Button,
+          Fixed_Event_RTC);
+      for Fixed_Event use
+         (Fixed_Event_Timer_Status => 1,
+          Fixed_Event_Power_Button => 2,
+          Fixed_Event_Sleep_Button => 3,
+          Fixed_Event_RTC          => 4);
+      for Fixed_Event'Size use 32;
+
+      type Interrupt_Model is
+         (Interrupt_Model_PIC,
+          Interrupt_Model_IOAPIC,
+          Interrupt_Model_IOSAPIC);
+      for Interrupt_Model use
+         (Interrupt_Model_PIC     => 0,
+          Interrupt_Model_IOAPIC  => 1,
+          Interrupt_Model_IOSAPIC => 2);
+      for Interrupt_Model'Size use 32;
       -------------------------------------------------------------------------
       --  Bindings we provide.
       function Get_RSDP (Addr : access Unsigned_64) return Status
@@ -642,5 +664,22 @@ private
 
       function Unref_Table (Table_Record_Addr : System.Address) return Status
          with Import, Convention => C, External_Name => "uacpi_table_unref";
+
+      function Power_Button_Handler return Unsigned_32 with Convention => C;
+      function Sleep_Button_Handler return Unsigned_32 with Convention => C;
+
+      procedure Generic_uACPI_Handler (Num : Integer);
+
+      function Set_Interrupt_Model
+         (Model : Interrupt_Model) return Status
+         with Import, Convention => C,
+              External_Name => "uacpi_set_interrupt_model";
+
+      function Install_Fixed_Event_Handler
+         (Event   : Fixed_Event;
+          Handler : System.Address;
+          User    : System.Address) return Status
+         with Import, Convention => C,
+              External_Name => "uacpi_install_fixed_event_handler";
    #end if;
 end Arch.ACPI;

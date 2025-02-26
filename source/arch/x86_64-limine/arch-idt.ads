@@ -30,16 +30,14 @@ package Arch.IDT is
    type Gate is (Gate_Interrupt, Gate_Trap);
 
    procedure Load_ISR
-      (Index      : IDT_Index;
-       Address    : System.Address;
-       Gate_Type  : Gate := Gate_Interrupt;
-       Allow_User : Boolean := False);
+      (Index     : IDT_Index;
+       Address   : System.Address;
+       Gate_Type : Gate := Gate_Interrupt);
    procedure Load_ISR
-      (Address    : System.Address;
-       Index      : out IRQ_Index;
-       Success    : out Boolean;
-       Gate_Type  : Gate := Gate_Interrupt;
-       Allow_User : Boolean := False);
+      (Address   : System.Address;
+       Index     : out IRQ_Index;
+       Success   : out Boolean;
+       Gate_Type : Gate := Gate_Interrupt);
    procedure Unload_ISR (Index : IDT_Index);
 
 private

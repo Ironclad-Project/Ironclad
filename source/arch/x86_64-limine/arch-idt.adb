@@ -117,10 +117,9 @@ package body Arch.IDT is
    end Load_IDT;
 
    procedure Load_ISR
-      (Index      : IDT_Index;
-       Address    : System.Address;
-       Gate_Type  : Gate := Gate_Interrupt;
-       Allow_User : Boolean := False) is
+      (Index     : IDT_Index;
+       Address   : System.Address;
+       Gate_Type : Gate := Gate_Interrupt) is
    begin
       ISR_Table (Index) := Address;
 
@@ -131,29 +130,24 @@ package body Arch.IDT is
             Global_IDT (Index).Gate_Type := Gate_Type_Interrupt;
       end case;
 
-      if Allow_User then
-         Global_IDT (Index).DPL := 3;
-      else
-         Global_IDT (Index).DPL := 0;
-      end if;
+      Global_IDT (Index).DPL := 0;
    exception
       when Constraint_Error =>
          null;
    end Load_ISR;
 
    procedure Load_ISR
-      (Address    : System.Address;
-       Index      : out IRQ_Index;
-       Success    : out Boolean;
-       Gate_Type  : Gate := Gate_Interrupt;
-       Allow_User : Boolean := False)
+      (Address   : System.Address;
+       Index     : out IRQ_Index;
+       Success   : out Boolean;
+       Gate_Type : Gate := Gate_Interrupt)
    is
    begin
       --  Allocate an interrupt in the IRQ region.
       for I in IRQ_Index loop
          if ISR_Table (I) = Interrupts.Default_ISR_Handler'Address then
             Index := I;
-            Load_ISR (I, Address, Gate_Type, Allow_User);
+            Load_ISR (I, Address, Gate_Type);
             Success := True;
             return;
          end if;

@@ -20,6 +20,8 @@ with Arch.Snippets;
 with Arch.MMU;
 with Arch.PCI;
 with Arch.Local;
+with Arch.APIC;
+with Arch.CPU;
 with Lib.Alignment;
 with Lib.Time;
 with Lib.Synchronization;
@@ -30,7 +32,8 @@ with Ada.Unchecked_Deallocation;
 with Ada.Characters.Latin_1;
 with Memory.Physical;
 with Scheduler;
-with Arch.IDT;
+with Arch.IDT; use Arch.IDT;
+with Userland.Power_Events;
 
 package body Arch.ACPI with SPARK_Mode => Off is
    --  Request to get the RSDP.
@@ -55,8 +58,21 @@ package body Arch.ACPI with SPARK_Mode => Off is
       return True;
    end Is_Supported;
 
+   function Power_Button_Handler return Unsigned_32 is
+   begin
+      Userland.Power_Events.Power_Button_Handler;
+      return 1;
+   end Power_Button_Handler;
+
+   function Sleep_Button_Handler return Unsigned_32 is
+   begin
+      Userland.Power_Events.Sleep_Button_Handler;
+      return 1;
+   end Sleep_Button_Handler;
+
    procedure Initialize (Success : out Boolean) is
    begin
+      --  Initialize uACPI.
       if not Is_Init then
          if Initialize (0) /= Status_OK then
             Success := False;
@@ -70,16 +86,34 @@ package body Arch.ACPI with SPARK_Mode => Off is
          Is_Init := True;
       end if;
 
+      --  Parse ACPI.
       if Namespace_Load /= Status_OK then
          Success := False;
          return;
       end if;
+
+      --  Set interrupt model.
+      if Set_Interrupt_Model (Interrupt_Model_IOAPIC) /= Status_OK then
+         Success := False;
+         return;
+      end if;
+
+      --  Initialize namespace.
       if Namespace_Init /= Status_OK then
          Success := False;
          return;
       end if;
 
-      Success := True;
+      --  Install power button handlers.
+      Success := Install_Fixed_Event_Handler
+         (Fixed_Event_Power_Button, Power_Button_Handler'Address,
+          System.Null_Address) = Status_OK;
+      if not Success then
+         return;
+      end if;
+      Success := Install_Fixed_Event_Handler
+         (Fixed_Event_Sleep_Button, Sleep_Button_Handler'Address,
+          System.Null_Address) = Status_OK;
    end Initialize;
    ----------------------------------------------------------------------------
    function FindTable (Signature : SDT_Signature) return Virtual_Address is
@@ -511,18 +545,61 @@ package body Arch.ACPI with SPARK_Mode => Off is
       return Status_Unimplemented;
    end Wait_For_Work_Completion;
 
+   type uACPI_Interrupt is record
+      Idx      : Arch.IDT.IDT_Index;
+      Callback : System.Address;
+      Argument : System.Address;
+   end record;
+   type uACPI_Interrupt_Arr is array (1 .. 10) of uACPI_Interrupt;
+   Interrupts : uACPI_Interrupt_Arr :=
+      [others => (1, System.Null_Address, System.Null_Address)];
+
+   procedure Generic_uACPI_Handler (Num : Integer) is
+   begin
+      Arch.APIC.LAPIC_EOI;
+      for Int of Interrupts loop
+         if Natural (Int.Idx - 1) = Num then
+            declare
+               procedure A (Arg : System.Address)
+                  with Import, Convention => C, Address => Int.Callback;
+            begin
+               A (Int.Argument);
+               return;
+            end;
+         end if;
+      end loop;
+   end Generic_uACPI_Handler;
+
    function Install_Interrupt_Handler
       (IRQ     : Unsigned_32;
        Handler : System.Address;
        Context : System.Address;
        Handle  : out System.Address) return Status
    is
-      pragma Unreferenced (Context);
+      Index   : Arch.IDT.IRQ_Index;
+      Success : Boolean;
       I : IDT.IRQ_Index;
    begin
+      --  Allocate an interrupt in the IDT and unmask it.
       I := IDT.IRQ_Index (IRQ + 33);
-      IDT.Load_ISR (Index => I, Address => Handler);
-      Handle := To_Address (Integer_Address (I));
+      Arch.IDT.Load_ISR (Generic_uACPI_Handler'Address, Index, Success);
+      if not Success then
+         return Status_Internal_Error;
+      end if;
+      if not APIC.IOAPIC_Set_Redirect
+         (CPU.Core_Locals (1).LAPIC_ID, I, Index, True)
+      then
+         return Status_Denied;
+      end if;
+
+      --  Find a spot in the table.
+      for Int of Interrupts loop
+         if Int.Idx = 1 then
+            Int := (Index, Handler, Context);
+         end if;
+      end loop;
+
+      Handle := To_Address (Integer_Address (Index));
       return Status_OK;
    exception
       when Constraint_Error =>
