@@ -446,6 +446,39 @@ Additionally, Ironclad uses POSIX signals for communicating certain events to
 userland, for example, a @code{SIGINT} will be sent to the init system on power
 button press.
 
+Ironclad's signals with their values are:
+
+@enumerate 1
+@item SIGHUP
+@item SIGINT
+@item SIGQUIT
+@item SIGCONT
+@item SIGBUS
+@item SIGABRT
+@item SIGCHLD
+@item SIGFPE
+@item SIGKILL
+@item SIGILL
+@item SIGPIPE
+@item SIGSEGV
+@item SIGSTOP
+@item SIGALRM
+@item SIGTERM
+@item SIGTSTP
+@item SIGTTIN
+@item SIGTTOU
+@item SIGUSR1
+@item SIGUSR2
+@item SIGPOLL
+@item SIGPROF
+@item SIGSYS
+@item SIGTRAP
+@item SIGURG
+@item SIGVTALRM
+@item SIGXCPU
+@item SIGXFSZ
+@end enumerate
+
 @node Sockets
 @section Sockets
 

@@ -89,20 +89,20 @@ package Userland.Process is
    end record;
 
    type Signal is
-      (Signal_Abort,
-       Signal_Alarm,
-       Signal_Bad_Memory,
-       Signal_Child,
-       Signal_Continue,
-       Signal_FP_Exception,
-       Signal_Hang_Up,
-       Signal_Illegal_Instruction,
+      (Signal_Hang_Up,
        Signal_Interrupted,
-       Signal_Kill,
-       Signal_Broken_Pipe,
        Signal_Quit,
+       Signal_Continue,
+       Signal_Bad_Memory,
+       Signal_Abort,
+       Signal_Child,
+       Signal_FP_Exception,
+       Signal_Kill,
+       Signal_Illegal_Instruction,
+       Signal_Broken_Pipe,
        Signal_Segmentation_Fault,
        Signal_Stop,
+       Signal_Alarm,
        Signal_Terminated,
        Signal_Terminal_Stop,
        Signal_Terminal_In,
@@ -120,21 +120,26 @@ package Userland.Process is
 
    --  These values and the values of Signal_Bitmap are userland ABI, please
    --  dont touch them if you dont want to break them!
+   --
+   --  The index of SIGHUP, SIGINT, SIGQUIT, SIGABRT, SIGKILL, SIGALRM, and
+   --  SIGTERM is fixed due to POSIX, which requires the `kill` command to do
+   --  these signals when issued like `kill -9`, and if we do not respect
+   --  those numbers, userland needs to do weird translations.
    for Signal use
-      (Signal_Abort               =>  1,
-       Signal_Alarm               =>  2,
-       Signal_Bad_Memory          =>  3,
-       Signal_Child               =>  4,
-       Signal_Continue            =>  5,
-       Signal_FP_Exception        =>  6,
-       Signal_Hang_Up             =>  7,
-       Signal_Illegal_Instruction =>  8,
-       Signal_Interrupted         =>  9,
-       Signal_Kill                => 10,
+      (Signal_Hang_Up             =>  1,
+       Signal_Interrupted         =>  2,
+       Signal_Quit                =>  3,
+       Signal_Continue            =>  4,
+       Signal_Bad_Memory          =>  5,
+       Signal_Abort               =>  6,
+       Signal_Child               =>  7,
+       Signal_FP_Exception        =>  8,
+       Signal_Kill                =>  9,
+       Signal_Illegal_Instruction => 10,
        Signal_Broken_Pipe         => 11,
-       Signal_Quit                => 12,
-       Signal_Segmentation_Fault  => 13,
-       Signal_Stop                => 14,
+       Signal_Segmentation_Fault  => 12,
+       Signal_Stop                => 13,
+       Signal_Alarm               => 14,
        Signal_Terminated          => 15,
        Signal_Terminal_Stop       => 16,
        Signal_Terminal_In         => 17,
