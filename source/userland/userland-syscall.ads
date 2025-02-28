@@ -352,29 +352,6 @@ package Userland.Syscall is
        Returned    : out Unsigned_64;
        Errno       : out Errno_Value);
 
-   --  Fetch some system information.
-   SC_PAGESIZE         : constant := 1;
-   SC_OPEN_MAX         : constant := 2;
-   SC_HOST_NAME_MAX    : constant := 3;
-   SC_AVPHYS_PAGES     : constant := 4;
-   SC_PHYS_PAGES       : constant := 5;
-   SC_NPROCESSORS_ONLN : constant := 6;
-   SC_TOTAL_PAGES      : constant := 7;
-   SC_LIST_PROCS       : constant := 8;
-   SC_LIST_MOUNTS      : constant := 9;
-   SC_UNAME            : constant := 10;
-   SC_CHILD_MAX        : constant := 11;
-   SC_LIST_THREADS     : constant := 12;
-   SC_LIST_CLUSTERS    : constant := 13;
-   SC_LIST_NETINTER    : constant := 14;
-   SC_DUMPLOGS         : constant := 15;
-   SC_NGROUPS_MAX      : constant := 16;
-   SC_SYMLOOP_MAX      : constant := 17;
-   SC_LIST_FILELOCKS   : constant := 18;
-   SC_LOADAVG          : constant := 19;
-   SC_MEMINFO          : constant := 20;
-   SC_LIST_PCI         : constant := 21;
-
    PROC_IS_TRACED : constant := 2#01#;
    PROC_EXITED    : constant := 2#10#;
    type Proc_Info is record
@@ -387,6 +364,12 @@ package Userland.Syscall is
       Elapsed_Time : Time_Spec;
    end record with Pack;
    type Proc_Info_Arr is array (Natural range <>) of Proc_Info;
+
+   procedure List_Procs
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    type Mount_Info is record
       FS_Type       : Unsigned_32;
@@ -407,6 +390,12 @@ package Userland.Syscall is
    end record;
    type Mount_Info_Arr is array (Natural range <>) of Mount_Info;
 
+   procedure List_Mounts
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
    type UTS_Name is record
       System_Name : String (1 .. 65);
       Node_Name   : String (1 .. 65);
@@ -414,6 +403,11 @@ package Userland.Syscall is
       Version     : String (1 .. 65);
       Machine     : String (1 .. 65);
    end record;
+
+   procedure Uname
+      (Addr     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    type Thread_Info is record
       Thread_Id   : Unsigned_16;
@@ -423,12 +417,24 @@ package Userland.Syscall is
    end record with Pack;
    type Thread_Info_Arr is array (Natural range <>) of Thread_Info;
 
+   procedure List_Threads
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
    type Cluster_Info is record
       Cluster_Id : Unsigned_16;
       Cluster_Fl : Unsigned_16;
       Cluster_Q  : Unsigned_16;
    end record with Pack;
    type Cluster_Info_Arr is array (Natural range <>) of Cluster_Info;
+
+   procedure List_Clusters
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    NETINTR_BLOCKED : constant := 1;
 
@@ -443,6 +449,18 @@ package Userland.Syscall is
    end record with Pack;
    type Interface_Arr is array (Natural range <>) of Interface_Info;
 
+   procedure List_NetInter
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure Dump_Logs
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
    type Flock_Info is record
       PID    : Unsigned_32;
       Mode   : Unsigned_32;
@@ -453,7 +471,19 @@ package Userland.Syscall is
    end record;
    type Flock_Info_Arr is array (Natural range <>) of Flock_Info;
 
+   procedure List_Filelocks
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
    type Load_Arr is array (1 .. 3) of Unsigned_32;
+
+   procedure Loadavg
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    type Mem_Info is record
       Phys_Total     : Unsigned_64;
@@ -465,9 +495,13 @@ package Userland.Syscall is
       Poison_Usage   : Unsigned_64;
    end record;
 
-   procedure Sysconf
-      (Request  : Unsigned_64;
-       Addr     : Unsigned_64;
+   procedure Meminfo
+      (Addr     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure List_PCI
+      (Addr     : Unsigned_64;
        Length   : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);

@@ -1474,325 +1474,511 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
    end Rename;
 
-   procedure Sysconf
-      (Request  : Unsigned_64;
-       Addr     : Unsigned_64;
+   procedure List_Procs
+      (Addr     : Unsigned_64;
        Length   : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc   : constant             PID := Arch.Local.Get_Current_Process;
-      IAddr  : constant Integer_Address := Integer_Address (Addr);
-      SAddr  : constant  System.Address := To_Address (IAddr);
-      Stats  : Memory.Physical.Statistics;
-      Result : Unsigned_64;
-      Map    : Page_Table_Acc;
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      Map   : Page_Table_Acc;
    begin
-      --  Simple request that do not use the memory argument.
-      case Request is
-         when SC_PAGESIZE =>
-            Result := Page_Size;
-         when SC_OPEN_MAX =>
-            Result := Unsigned_64 (Process.Max_File_Count);
-         when SC_HOST_NAME_MAX =>
-            Result := Unsigned_64 (Networking.Hostname_Max_Len);
-         when SC_AVPHYS_PAGES =>
-            Memory.Physical.Get_Statistics (Stats);
-            Result := Unsigned_64 (Stats.Free) / Page_Size;
-         when SC_PHYS_PAGES =>
-            Memory.Physical.Get_Statistics (Stats);
-            Result := Unsigned_64 (Stats.Available) / Page_Size;
-         when SC_NPROCESSORS_ONLN =>
-            Result := Unsigned_64 (Arch.Hooks.Get_Active_Core_Count);
-         when SC_TOTAL_PAGES =>
-            Memory.Physical.Get_Statistics (Stats);
-            Result := Unsigned_64 (Stats.Total) / Page_Size;
-         when SC_CHILD_MAX =>
-            Result := Unsigned_64 (Process.Max_Process_Count);
-         when SC_NGROUPS_MAX =>
-            Result := Unsigned_64 (Process.Max_Supplementary_Groups);
-         when SC_SYMLOOP_MAX =>
-            Result := Unsigned_64 (VFS.Max_Symlink_Loop);
-         when others =>
-            goto Not_Matched;
-      end case;
-
-      goto Success_Return;
-
-   <<Not_Matched>>
-      --  Requests that use the memory argument, for common checking.
       Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, IAddr, Length) then
+      if not Check_Userland_Access
+         (Map, IAddr, Length * (Process_Info'Size / 8))
+      then
          Errno    := Error_Would_Fault;
          Returned := Unsigned_64'Last;
          return;
       end if;
 
-      case Request is
-         when SC_LIST_PROCS =>
-            declare
-               Len   : constant Natural :=
-                  Natural (Length / (Process_Info'Size / 8));
-               Procs : Proc_Info_Arr (1 .. Len) with Import, Address => SAddr;
-               KProc : Process_Info_Arr (1 .. Len);
-               Ret   : Natural;
-            begin
-               List_All (KProc, Ret);
-               for I in 1 .. Ret loop
-                  Procs (I) :=
-                     (Identifier  => KProc (I).Identifier,
-                      Id_Len      => Unsigned_16 (KProc (I).Identifier_Len),
-                      Parent_PID  => Unsigned_16 (Convert (KProc (I).Parent)),
-                      Process_PID => Unsigned_16 (Convert (KProc (I).Process)),
-                      UID         => KProc (I).User,
-                      Flags       => 0,
-                      Elapsed_Time => (0, 0));
-                  Get_Elapsed_Time
-                     (KProc (I).Process,
-                      Procs (I).Elapsed_Time.Seconds,
-                      Procs (I).Elapsed_Time.Nanoseconds);
-                  if KProc (I).Is_Being_Traced then
-                     Procs (I).Flags := Procs (I).Flags or PROC_IS_TRACED;
-                  end if;
-                  if KProc (I).Has_Exited then
-                     Procs (I).Flags := Procs (I).Flags or PROC_EXITED;
-                  end if;
-               end loop;
+      declare
+         KProc : Process_Info_Arr (1 .. Natural (Length));
+         Ret   : Natural;
+         Procs : Proc_Info_Arr (1 .. Natural (Length))
+            with Import, Address => SAddr;
+      begin
+         List_All (KProc, Ret);
+         for I in 1 .. Ret loop
+            Procs (I) :=
+               (Identifier  => KProc (I).Identifier,
+                Id_Len      => Unsigned_16 (KProc (I).Identifier_Len),
+                Parent_PID  => Unsigned_16 (Convert (KProc (I).Parent)),
+                Process_PID => Unsigned_16 (Convert (KProc (I).Process)),
+                UID         => KProc (I).User,
+                Flags       => 0,
+                Elapsed_Time => (0, 0));
+            Get_Elapsed_Time
+               (KProc (I).Process,
+                Procs (I).Elapsed_Time.Seconds,
+                Procs (I).Elapsed_Time.Nanoseconds);
+            if KProc (I).Is_Being_Traced then
+               Procs (I).Flags := Procs (I).Flags or PROC_IS_TRACED;
+            end if;
+            if KProc (I).Has_Exited then
+               Procs (I).Flags := Procs (I).Flags or PROC_EXITED;
+            end if;
+         end loop;
 
-               Result := Unsigned_64 (Ret);
-            end;
-         when SC_LIST_MOUNTS =>
-            declare
-               Len   : constant Natural :=
-                  Natural (Length / (Mount_Info'Size / 8));
-               Mnts  : Mount_Info_Arr (1 .. Len) with Import, Address => SAddr;
-               KMnts : Mountpoint_Arr (1 .. Len);
-               Ret   : Natural;
-            begin
-               List_All (KMnts, Ret);
-               for I in 1 .. Ret loop
-                  case Get_Backing_FS (KMnts (I)) is
-                     when FS_DEV => Mnts (I).FS_Type := MNT_DEV;
-                     when FS_EXT => Mnts (I).FS_Type := MNT_EXT;
-                     when FS_FAT => Mnts (I).FS_Type := MNT_FAT;
-                  end case;
-                  Mnts (I).Flags := 0;
-                  Fetch_Name
-                     (Get_Backing_Device (KMnts (I)),
-                      Mnts (I).Source,
-                      Natural (Mnts (I).Source_Len));
-                  Get_Mount_Point
-                     (KMnts (I),
-                      Mnts (I).Location,
-                      Natural (Mnts (I).Location_Len));
-                  Get_Block_Size (KMnts (I), Mnts (I).Block_Size);
-                  Get_Fragment_Size (KMnts (I), Mnts (I).Fragment_Size);
-                  Get_Size (KMnts (I), Mnts (I).Size_In_Frags);
-                  Get_Inode_Count (KMnts (I), Mnts (I).Inode_Count);
-                  Get_Max_Length (KMnts (I), Mnts (I).Max_File_Name);
-                  Get_Free_Blocks
-                     (KMnts (I), Mnts (I).Free_Blocks, Mnts (I).Free_BlocksU);
-                  Get_Free_Blocks
-                     (KMnts (I), Mnts (I).Free_Blocks, Mnts (I).Free_BlocksU);
-               end loop;
-
-               Result := Unsigned_64 (Ret);
-            end;
-         when SC_UNAME =>
-            declare
-               UTS      : UTS_Name with Import, Address => SAddr;
-               Host_Len : Natural;
-            begin
-               Networking.Get_Hostname (UTS.Node_Name, Host_Len);
-               UTS.Node_Name (Host_Len + 1) := Ada.Characters.Latin_1.NUL;
-
-               UTS.System_Name (1 .. Config.Name'Length + 1) :=
-                  Config.Name & Ada.Characters.Latin_1.NUL;
-               UTS.Release (1 .. Config.Version'Length + 1) :=
-                  Config.Version & Ada.Characters.Latin_1.NUL;
-               UTS.Version (1 .. Config.Arch_Name'Length + 1) :=
-                  Config.Arch_Name & Ada.Characters.Latin_1.NUL;
-               UTS.Machine (1 .. Config.Architecture'Length + 1) :=
-                  Config.Architecture & Ada.Characters.Latin_1.NUL;
-
-               Result := 0;
-            end;
-         when SC_LIST_THREADS =>
-            declare
-               Len   : constant Natural :=
-                  Natural (Length / (Thread_Info'Size / 8));
-               Ths  : Thread_Info_Arr (1 .. Len) with Import, Address => SAddr;
-               KThs : Scheduler.Thread_Listing_Arr (1 .. Len);
-               Ret  : Natural;
-               N    : Niceness;
-            begin
-               List_All (KThs, Ret);
-               for I in 1 .. Ret loop
-                  Ths (I) :=
-                     (Thread_Id   => Unsigned_16 (Convert (KThs (I).Thread)),
-                      Niceness    => 0,
-                      Cluster_Id  => Unsigned_16 (Convert (KThs (I).Cluster)),
-                      Process_PID => Unsigned_16 (KThs (I).Proc));
-                  N := Get_Niceness (KThs (I).Thread);
-                  if N >= 0 then
-                     Ths (I).Niceness := Unsigned_16 (N);
-                  else
-                     Ths (I).Niceness := Unsigned_16'Last -
-                        Unsigned_16 (abs N) + 1;
-                  end if;
-               end loop;
-
-               Result := Unsigned_64 (Ret);
-            end;
-         when SC_LIST_CLUSTERS =>
-            declare
-               Len   : constant Natural :=
-                  Natural (Length / (Thread_Info'Size / 8));
-               Ths : Cluster_Info_Arr (1 .. Len) with Import, Address => SAddr;
-               KThs : Scheduler.Cluster_Listing_Arr (1 .. Len);
-               Ret  : Natural;
-            begin
-               List_All (KThs, Ret);
-               for I in 1 .. Ret loop
-                  Ths (I) :=
-                     (Cluster_Id => Unsigned_16 (Convert (KThs (I).Cluster)),
-                      Cluster_Fl => 0,
-                      Cluster_Q  => Unsigned_16 (KThs (I).Cluster_Quan));
-                  case KThs (I).Cluster_Algo is
-                     when Cluster_RR =>
-                        Ths (I).Cluster_Fl := SCHED_RR;
-                     when Cluster_Cooperative =>
-                        Ths (I).Cluster_Fl := SCHED_COOP;
-                  end case;
-                  if KThs (I).Cluster_Int then
-                     Ths (I).Cluster_Fl := Ths (I).Cluster_Fl or SCHED_INTR;
-                  end if;
-               end loop;
-
-               Result := Unsigned_64 (Ret);
-            end;
-         when SC_LIST_NETINTER =>
-            declare
-               Len   : constant Natural :=
-                  Natural (Length / (Interface_Info'Size / 8));
-               Ths  : Interface_Arr (1 .. Len) with Import, Address => SAddr;
-               KThs : Networking.Interfaces.Interface_Arr (1 .. Len);
-               Ret  : Natural;
-               NLen : Natural;
-            begin
-               Networking.Interfaces.List_Interfaces (KThs, Ret);
-               for I in 1 .. Ret loop
-                  Fetch_Name (KThs (I).Handle, Ths (I).Name (1 .. 64), NLen);
-                  Ths (I).Name (NLen + 1) := Ada.Characters.Latin_1.NUL;
-                  if KThs (I).Is_Blocked then
-                     Ths (I).Flags := NETINTR_BLOCKED;
-                  else
-                     Ths (I).Flags := 0;
-                  end if;
-                  Ths (I).MAC := KThs (I).MAC;
-                  Ths (I).IPv4 := KThs (I).IPv4;
-                  Ths (I).IPv4_Subnet := KThs (I).IPv4_Subnet;
-                  Ths (I).IPv6 := KThs (I).IPv6;
-                  Ths (I).IPv6_Subnet := KThs (I).IPv6_Subnet;
-               end loop;
-
-               Result := Unsigned_64 (Ret);
-            end;
-         when SC_DUMPLOGS =>
-            declare
-               Log  : String (1 .. Natural (Length))
-                  with Import, Address => SAddr;
-               Ret  : Natural;
-            begin
-               if not Get_Capabilities (Proc).Can_Modify_Memory then
-                  goto Bad_Access_Error;
-               end if;
-
-               Lib.Messages.Dump_Logs (Log, Ret);
-               Result := Unsigned_64 (Ret);
-            end;
-         when SC_LIST_FILELOCKS =>
-            declare
-               Len   : constant Natural :=
-                  Natural (Length / (Flock_Info'Size / 8));
-               Lks  : Flock_Info_Arr (1 .. Len) with Import, Address => SAddr;
-               KLks : IPC.FileLock.Lock_Arr (1 .. Len);
-               Ret  : Natural;
-            begin
-               IPC.FileLock.List_All (KLks, Ret);
-               for I in 1 .. Ret loop
-                  Lks (I).PID    := Unsigned_32 (Convert (KLks (I).Acquirer));
-                  Lks (I).Mode   := (if KLks (I).Is_Writing then 1 else 0);
-                  Lks (I).Start  := KLks (I).Start;
-                  Lks (I).Length := KLks (I).Length;
-                  Lks (I).FS     := Unsigned_64
-                     (Get_Unique_ID (Get_Backing_Device (KLks (I).FS)));
-                  Lks (I).Ino    := Unsigned_64 (KLks (I).Ino);
-               end loop;
-
-               Result := Unsigned_64 (Ret);
-            end;
-         when SC_LOADAVG =>
-            declare
-               Lks : Load_Arr with Import, Address => SAddr;
-            begin
-               if Length / (Unsigned_32'Size / 8) < Lks'Length then
-                  goto Invalid_Value_Error;
-               end if;
-               Scheduler.Get_Load_Averages (Lks (1), Lks (2), Lks (3));
-               Result := 3;
-            end;
-         when SC_MEMINFO =>
-            declare
-               Lks         : Mem_Info with Import, Address => SAddr;
-               St          : Arch.MMU.Virtual_Statistics;
-               Shared_Size : Unsigned_64;
-            begin
-               Memory.Physical.Get_Statistics (Stats);
-               Arch.MMU.Get_Statistics (St);
-               IPC.SHM.Get_Total_Size (Shared_Size);
-               Lks :=
-                  (Phys_Total     => Unsigned_64 (Stats.Total),
-                   Phys_Available => Unsigned_64 (Stats.Available),
-                   Phys_Free      => Unsigned_64 (Stats.Free),
-                   Shared_Usage   => Shared_Size,
-                   Kernel_Usage   => Unsigned_64 (St.Kernel_Usage),
-                   Table_Usage    => Unsigned_64 (St.Table_Usage),
-                   Poison_Usage   => 0);
-               Result := 0;
-            end;
-         when SC_LIST_PCI =>
-            declare
-               Ret  : Natural;
-               Devs : Arch.PCI.PCI_Listing_Arr
-                  (1 .. Natural (Length / (Arch.PCI.PCI_Listing'Size / 8)))
-                  with Import, Address => SAddr;
-            begin
-               Arch.PCI.List_All (Devs, Ret);
-               Result := Unsigned_64 (Ret);
-            end;
-         when others =>
-            goto Invalid_Value_Error;
-      end case;
-
-   <<Success_Return>>
-      Errno    := Error_No_Error;
-      Returned := Result;
-      return;
-
-   <<Invalid_Value_Error>>
-      Errno    := Error_Invalid_Value;
-      Returned := Unsigned_64'Last;
-      return;
-
-   <<Bad_Access_Error>>
-      Errno    := Error_Bad_Access;
-      Returned := Unsigned_64'Last;
+         Returned := Unsigned_64 (Ret);
+         Errno    := Error_No_Error;
+      end;
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
-   end Sysconf;
+   end List_Procs;
+
+   procedure List_Mounts
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      Map   : Page_Table_Acc;
+   begin
+      Get_Common_Map (Proc, Map);
+      if not Check_Userland_Access
+         (Map, IAddr, Length * (Mount_Info'Size / 8))
+      then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      declare
+         KMnts : Mountpoint_Arr (1 .. Natural (Length));
+         Ret   : Natural;
+         Mnts : Mount_Info_Arr (1 .. Natural (Length))
+            with Import, Address => SAddr;
+      begin
+         List_All (KMnts, Ret);
+         for I in 1 .. Ret loop
+            case Get_Backing_FS (KMnts (I)) is
+               when FS_DEV => Mnts (I).FS_Type := MNT_DEV;
+               when FS_EXT => Mnts (I).FS_Type := MNT_EXT;
+               when FS_FAT => Mnts (I).FS_Type := MNT_FAT;
+            end case;
+            Mnts (I).Flags := 0;
+            Fetch_Name
+               (Get_Backing_Device (KMnts (I)),
+                Mnts (I).Source,
+                Natural (Mnts (I).Source_Len));
+            Get_Mount_Point
+               (KMnts (I),
+                Mnts (I).Location,
+                Natural (Mnts (I).Location_Len));
+            Get_Block_Size (KMnts (I), Mnts (I).Block_Size);
+            Get_Fragment_Size (KMnts (I), Mnts (I).Fragment_Size);
+            Get_Size (KMnts (I), Mnts (I).Size_In_Frags);
+            Get_Inode_Count (KMnts (I), Mnts (I).Inode_Count);
+            Get_Max_Length (KMnts (I), Mnts (I).Max_File_Name);
+            Get_Free_Blocks
+               (KMnts (I), Mnts (I).Free_Blocks, Mnts (I).Free_BlocksU);
+            Get_Free_Blocks
+               (KMnts (I), Mnts (I).Free_Blocks, Mnts (I).Free_BlocksU);
+         end loop;
+
+         Returned := Unsigned_64 (Ret);
+         Errno    := Error_No_Error;
+      end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end List_Mounts;
+
+   procedure Uname
+      (Addr     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      Map   : Page_Table_Acc;
+   begin
+      Get_Common_Map (Proc, Map);
+      if not Check_Userland_Access (Map, IAddr, UTS_Name'Size / 8) then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      declare
+         UTS      : UTS_Name with Import, Address => SAddr;
+         Host_Len : Natural;
+      begin
+         Networking.Get_Hostname (UTS.Node_Name, Host_Len);
+         UTS.Node_Name (Host_Len + 1) := Ada.Characters.Latin_1.NUL;
+
+         UTS.System_Name (1 .. Config.Name'Length + 1) :=
+            Config.Name & Ada.Characters.Latin_1.NUL;
+         UTS.Release (1 .. Config.Version'Length + 1) :=
+            Config.Version & Ada.Characters.Latin_1.NUL;
+         UTS.Version (1 .. Config.Arch_Name'Length + 1) :=
+            Config.Arch_Name & Ada.Characters.Latin_1.NUL;
+         UTS.Machine (1 .. Config.Architecture'Length + 1) :=
+            Config.Architecture & Ada.Characters.Latin_1.NUL;
+
+         Returned := 0;
+         Errno    := Error_No_Error;
+      end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end Uname;
+
+   procedure List_Threads
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      Map   : Page_Table_Acc;
+   begin
+      Get_Common_Map (Proc, Map);
+      if not Check_Userland_Access
+         (Map, IAddr, Length * (Thread_Info'Size / 8))
+      then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      declare
+         KThs : Scheduler.Thread_Listing_Arr (1 .. Natural (Length));
+         Ret  : Natural;
+         N    : Niceness;
+         Ths  : Thread_Info_Arr (1 .. Natural (Length))
+            with Import, Address => SAddr;
+      begin
+         List_All (KThs, Ret);
+         for I in 1 .. Ret loop
+            Ths (I) :=
+               (Thread_Id   => Unsigned_16 (Convert (KThs (I).Thread)),
+                Niceness    => 0,
+                Cluster_Id  => Unsigned_16 (Convert (KThs (I).Cluster)),
+                Process_PID => Unsigned_16 (KThs (I).Proc));
+            N := Get_Niceness (KThs (I).Thread);
+            if N >= 0 then
+               Ths (I).Niceness := Unsigned_16 (N);
+            else
+               Ths (I).Niceness := Unsigned_16'Last - Unsigned_16 (abs N) + 1;
+            end if;
+         end loop;
+
+         Returned := Unsigned_64 (Ret);
+         Errno    := Error_No_Error;
+      end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end List_Threads;
+
+   procedure List_Clusters
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      Map   : Page_Table_Acc;
+   begin
+      Get_Common_Map (Proc, Map);
+      if not Check_Userland_Access
+         (Map, IAddr, Length * (Cluster_Info'Size / 8))
+      then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      declare
+         Ret   : Natural;
+         Ths  : Cluster_Info_Arr (1 .. Natural (Length))
+            with Import, Address => SAddr;
+         KThs : Scheduler.Cluster_Listing_Arr (1 .. Natural (Length));
+      begin
+         List_All (KThs, Ret);
+         for I in 1 .. Ret loop
+            Ths (I) :=
+               (Cluster_Id => Unsigned_16 (Convert (KThs (I).Cluster)),
+                Cluster_Fl => 0,
+                Cluster_Q  => Unsigned_16 (KThs (I).Cluster_Quan));
+            case KThs (I).Cluster_Algo is
+               when Cluster_RR =>
+                  Ths (I).Cluster_Fl := SCHED_RR;
+               when Cluster_Cooperative =>
+                  Ths (I).Cluster_Fl := SCHED_COOP;
+            end case;
+            if KThs (I).Cluster_Int then
+               Ths (I).Cluster_Fl := Ths (I).Cluster_Fl or SCHED_INTR;
+            end if;
+         end loop;
+
+         Returned := Unsigned_64 (Ret);
+         Errno    := Error_No_Error;
+      end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end List_Clusters;
+
+   procedure List_NetInter
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      Map   : Page_Table_Acc;
+   begin
+      Get_Common_Map (Proc, Map);
+      if not Check_Userland_Access
+         (Map, IAddr, Length * (Interface_Info'Size / 8))
+      then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      declare
+         KThs : Networking.Interfaces.Interface_Arr (1 .. Natural (Length));
+         Ret  : Natural;
+         NLen : Natural;
+         Ths  : Interface_Arr (1 .. Natural (Length))
+            with Import, Address => SAddr;
+      begin
+         Networking.Interfaces.List_Interfaces (KThs, Ret);
+         for I in 1 .. Ret loop
+            Fetch_Name (KThs (I).Handle, Ths (I).Name (1 .. 64), NLen);
+            Ths (I).Name (NLen + 1) := Ada.Characters.Latin_1.NUL;
+            if KThs (I).Is_Blocked then
+               Ths (I).Flags := NETINTR_BLOCKED;
+            else
+               Ths (I).Flags := 0;
+            end if;
+            Ths (I).MAC := KThs (I).MAC;
+            Ths (I).IPv4 := KThs (I).IPv4;
+            Ths (I).IPv4_Subnet := KThs (I).IPv4_Subnet;
+            Ths (I).IPv6 := KThs (I).IPv6;
+            Ths (I).IPv6_Subnet := KThs (I).IPv6_Subnet;
+         end loop;
+
+         Returned := Unsigned_64 (Ret);
+         Errno    := Error_No_Error;
+      end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end List_NetInter;
+
+   procedure Dump_Logs
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      Map   : Page_Table_Acc;
+   begin
+      Get_Common_Map (Proc, Map);
+      if not Check_Userland_Access
+         (Map, IAddr, Length * (Interface_Info'Size / 8))
+      then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      declare
+         Log : String (1 .. Natural (Length)) with Import, Address => SAddr;
+         Ret : Natural;
+      begin
+         Lib.Messages.Dump_Logs (Log, Ret);
+         Returned := Unsigned_64 (Ret);
+         Errno    := Error_No_Error;
+      end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end Dump_Logs;
+
+   procedure List_Filelocks
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      Map   : Page_Table_Acc;
+   begin
+      Get_Common_Map (Proc, Map);
+      if not Check_Userland_Access
+         (Map, IAddr, Length * (Flock_Info'Size / 8))
+      then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      declare
+         KLks : IPC.FileLock.Lock_Arr (1 .. Natural (Length));
+         Ret  : Natural;
+         Lks  : Flock_Info_Arr (1 .. Natural (Length))
+            with Import, Address => SAddr;
+      begin
+         IPC.FileLock.List_All (KLks, Ret);
+         for I in 1 .. Ret loop
+            Lks (I).PID    := Unsigned_32 (Convert (KLks (I).Acquirer));
+            Lks (I).Mode   := (if KLks (I).Is_Writing then 1 else 0);
+            Lks (I).Start  := KLks (I).Start;
+            Lks (I).Length := KLks (I).Length;
+            Lks (I).FS     := Unsigned_64
+               (Get_Unique_ID (Get_Backing_Device (KLks (I).FS)));
+            Lks (I).Ino    := Unsigned_64 (KLks (I).Ino);
+         end loop;
+
+         Returned := Unsigned_64 (Ret);
+         Errno    := Error_No_Error;
+      end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end List_Filelocks;
+
+   procedure Loadavg
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      Map   : Page_Table_Acc;
+      Lks   : Load_Arr with Import, Address => To_Address (IAddr);
+   begin
+      Get_Common_Map (Proc, Map);
+      if not Check_Userland_Access (Map, IAddr, Lks'Size / 8) then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      elsif Length / (Unsigned_32'Size / 8) < Lks'Length then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Scheduler.Get_Load_Averages (Lks (1), Lks (2), Lks (3));
+      Returned := 3;
+      Errno    := Error_No_Error;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end Loadavg;
+
+   procedure Meminfo
+      (Addr     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      Map   : Page_Table_Acc;
+   begin
+      Get_Common_Map (Proc, Map);
+      if not Check_Userland_Access (Map, IAddr, Mem_Info'Size / 8) then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      declare
+         Info        : Mem_Info with Import, Address => SAddr;
+         St          : Arch.MMU.Virtual_Statistics;
+         Shared_Size : Unsigned_64;
+         Stats       : Memory.Physical.Statistics;
+      begin
+         Memory.Physical.Get_Statistics (Stats);
+         Arch.MMU.Get_Statistics (St);
+         IPC.SHM.Get_Total_Size (Shared_Size);
+         Info :=
+            (Phys_Total     => Unsigned_64 (Stats.Total),
+             Phys_Available => Unsigned_64 (Stats.Available),
+             Phys_Free      => Unsigned_64 (Stats.Free),
+             Shared_Usage   => Shared_Size,
+             Kernel_Usage   => Unsigned_64 (St.Kernel_Usage),
+             Table_Usage    => Unsigned_64 (St.Table_Usage),
+             Poison_Usage   => 0);
+
+         Returned := 0;
+         Errno    := Error_No_Error;
+      end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end Meminfo;
+
+   procedure List_PCI
+      (Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      Map   : Page_Table_Acc;
+   begin
+      Get_Common_Map (Proc, Map);
+      if not Check_Userland_Access
+         (Map, IAddr, Length * (Arch.PCI.PCI_Listing'Size / 8))
+      then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      declare
+         Ret  : Natural;
+         Devs : Arch.PCI.PCI_Listing_Arr (1 .. Natural (Length))
+            with Import, Address => SAddr;
+      begin
+         Arch.PCI.List_All (Devs, Ret);
+         Returned := Unsigned_64 (Ret);
+         Errno    := Error_No_Error;
+      end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end List_PCI;
 
    procedure Spawn
       (Path_Addr : Unsigned_64;

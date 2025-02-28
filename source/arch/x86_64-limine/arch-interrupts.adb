@@ -133,7 +133,7 @@ package body Arch.Interrupts is
             Rename (State.RDI, State.RSI, State.RDX, State.R12,
                     State.R8, State.R9, State.R10, Returned, Errno);
          when 26 =>
-            Sysconf (State.RDI, State.RSI, State.RDX, Returned, Errno);
+            List_Procs (State.RDI, State.RSI, Returned, Errno);
          when 27 =>
             Spawn (State.RDI, State.RSI, State.RDX, State.R12,
                    State.R8, State.R9, State.R10, Returned, Errno);
@@ -312,6 +312,26 @@ package body Arch.Interrupts is
             Create_Thread
                (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
                 Returned, Errno);
+         when 104 =>
+            List_Mounts (State.RDI, State.RSI, Returned, Errno);
+         when 105 =>
+            Uname (State.RDI, Returned, Errno);
+         when 106 =>
+            List_Threads (State.RDI, State.RSI, Returned, Errno);
+         when 107 =>
+            List_Clusters (State.RDI, State.RSI, Returned, Errno);
+         when 108 =>
+            List_NetInter (State.RDI, State.RSI, Returned, Errno);
+         when 109 =>
+            Dump_Logs (State.RDI, State.RSI, Returned, Errno);
+         when 110 =>
+            List_Filelocks (State.RDI, State.RSI, Returned, Errno);
+         when 111 =>
+            Loadavg (State.RDI, State.RSI, Returned, Errno);
+         when 112 =>
+            Meminfo (State.RDI, Returned, Errno);
+         when 113 =>
+            List_PCI (State.RDI, State.RSI, Returned, Errno);
          when others =>
             Userland.Process.Raise_Signal
                (Local.Get_Current_Process,
