@@ -4245,70 +4245,6 @@ MAC disallowed this.
 @node listpci
 @section listpci
 
-@node Filesystem support and interfaces
-@chapter Filesystem support and interfaces
-
-@node Generic filesystem options
-@section Generic filesystem options
-
-@subsection @code{relatime} and @code{noatime}
-
-Filesystems usually feature access, creation, and modification time tracking
-for their folders and files. These times are updated by the operating system,
-and later written to disk, increasing disk access.
-
-Modification and creation times are no big deal, but access times can carry a
-strong performance penalty, given read-only access is access. These access time
-updates can, over time, lead to missed performance on the table, and shorter
-lifespans for drives.
-
-In order to mitigate this, Ironclad allows filesystems to be mounted
-@code{relatime} and @code{noatime}. @code{relatime} will make it so access
-times are only updated if the modify time is greater, making it so only one
-access post-modification is tracked. @code{noatime} will not update access
-times at all.
-
-These flags can be applied on mount. @ref{mount/umount}.
-
-@node EXTended filesystem (EXT)
-@section EXTended filesystem (EXT)
-
-Ironclad supports EXT-series filesystems read-only and read-write.
-
-While a user may be used to the ext2/3/4 distinction, EXT internally works as
-an independent set of features, with the version numbers specifying a
-widely understood, assumed, and inconsistent set of features.
-
-Ironclad supports the feature list: @code{sparse_super}, @code{large_file},
-@code{filetype}, @code{resize_inode}, @code{dir_index}, @code{ext_attr}.
-
-Those features should translate to ext2 read-write support, and ext3 read-only
-support.
-
-Some @code{ioctl} calls exist for files inside EXT-series FSs, which can help
-manage specialized FS-specific inode flags and permissions, they are:
-
-@example c
-EXT_GETFLAGS = 0x5600
-EXT_SETFLAGS = 0x5601
-
-ioctl(fd, EXT_GETFLAGS, pointer_to_u32); // Get EXT's flags inode field.
-ioctl(fd, EXT_SETFLAGS, pointer_to_u32); // Set EXT's flags inode field.
-@end example
-
-@subsection Ironclad support quirks
-
-EXT features a error policy on EXT internal errors that dictates for the kernel
-to panic when triggered. While other operating systems honor the policy as-is,
-Ironclad deliverately acts on it was a "Remount read only" policy. This is done
-to avoid denial of service attacks by mounting deliverately faulty flesystems.
-
-@node File Allocation Table (FAT)
-@section File Allocation Table (FAT)
-
-Ironclad's FAT support is really rough. Only read-only FAT32 is supported.
-No special @code{ioctl} calls are provided. Long filenames are not supported.
-
 @node Networking
 @chapter Networking
 
@@ -4382,6 +4318,70 @@ Ironclad implements KVM's 12th version, you can find its specification inside
 Ironclad only supports the base KVM version @code{12} and the
 @code{KVM_CAP_USER_MEMORY} extension.
 @code{/dev/kvm} will only be present if virtualization is supported.
+
+@node Filesystem support and interfaces
+@chapter Filesystem support and interfaces
+
+@node Generic filesystem options
+@section Generic filesystem options
+
+@subsection @code{relatime} and @code{noatime}
+
+Filesystems usually feature access, creation, and modification time tracking
+for their folders and files. These times are updated by the operating system,
+and later written to disk, increasing disk access.
+
+Modification and creation times are no big deal, but access times can carry a
+strong performance penalty, given read-only access is access. These access time
+updates can, over time, lead to missed performance on the table, and shorter
+lifespans for drives.
+
+In order to mitigate this, Ironclad allows filesystems to be mounted
+@code{relatime} and @code{noatime}. @code{relatime} will make it so access
+times are only updated if the modify time is greater, making it so only one
+access post-modification is tracked. @code{noatime} will not update access
+times at all.
+
+These flags can be applied on mount. @ref{mount/umount}.
+
+@node EXTended filesystem (EXT)
+@section EXTended filesystem (EXT)
+
+Ironclad supports EXT-series filesystems read-only and read-write.
+
+While a user may be used to the ext2/3/4 distinction, EXT internally works as
+an independent set of features, with the version numbers specifying a
+widely understood, assumed, and inconsistent set of features.
+
+Ironclad supports the feature list: @code{sparse_super}, @code{large_file},
+@code{filetype}, @code{resize_inode}, @code{dir_index}, @code{ext_attr}.
+
+Those features should translate to ext2 read-write support, and ext3 read-only
+support.
+
+Some @code{ioctl} calls exist for files inside EXT-series FSs, which can help
+manage specialized FS-specific inode flags and permissions, they are:
+
+@example c
+EXT_GETFLAGS = 0x5600
+EXT_SETFLAGS = 0x5601
+
+ioctl(fd, EXT_GETFLAGS, pointer_to_u32); // Get EXT's flags inode field.
+ioctl(fd, EXT_SETFLAGS, pointer_to_u32); // Set EXT's flags inode field.
+@end example
+
+@subsection Ironclad support quirks
+
+EXT features a error policy on EXT internal errors that dictates for the kernel
+to panic when triggered. While other operating systems honor the policy as-is,
+Ironclad deliverately acts on it was a "Remount read only" policy. This is done
+to avoid denial of service attacks by mounting deliverately faulty flesystems.
+
+@node File Allocation Table (FAT)
+@section File Allocation Table (FAT)
+
+Ironclad's FAT support is really rough. Only read-only FAT32 is supported.
+No special @code{ioctl} calls are provided. Long filenames are not supported.
 
 @node Devices and their properties
 @chapter Devices and their properties
