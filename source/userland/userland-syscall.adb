@@ -511,13 +511,15 @@ package body Userland.Syscall is
          goto No_Memory_Return;
       end if;
 
-      --  Check for our own hint if none was provided.
-      if Hint = 0 then
-         if (Flags and MAP_FIXED) /= 0 then
+      --  FIXME: We purposedly ignore userland hints for non MAP_FIXED
+      --  allocations as to simply handling, we should change this on the
+      --  future as to satisfy poor userland, it already deals with enough.
+      if (Flags and MAP_FIXED) /= 0 then
+         if Hint = 0 then
             goto Invalid_Value_Return;
-         else
-            Bump_Alloc_Base (Proc, Length, Unsigned_64 (Final_Hint));
          end if;
+      else
+         Bump_Alloc_Base (Proc, Length, Unsigned_64 (Final_Hint));
       end if;
 
       --  Check the address is good.
