@@ -4252,7 +4252,8 @@ MAC disallowed this.
 
 @example c
 struct cpuinfo @{
-    uint64_t onln_count; // Total logical core count being used by the OS.
+    uint64_t conf_count; // Cores physically present in the system.
+    uint64_t onln_count; // Logical cores being used by the OS.
 @};
 
 int getcpuinfo(struct cpuinfo *info);
