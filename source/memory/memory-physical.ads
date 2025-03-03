@@ -46,6 +46,18 @@ package Memory.Physical is
    procedure Free (Address : Interfaces.C.size_t)
       with Export, Convention => C, External_Name => "__gnat_free";
    ----------------------------------------------------------------------------
+   --  The functions above can allocate kernel memory past 4 GiB, some devices
+   --  require memory below this boundary for their 32 bit address registers.
+
+   --  Allocate.
+   procedure Lower_Half_Alloc
+      (Addr    : out Memory.Virtual_Address;
+       Size    : Unsigned_64;
+       Success : out Boolean);
+
+   --  Free.
+   procedure Lower_Half_Free (Addr : Memory.Virtual_Address);
+   ----------------------------------------------------------------------------
    --  The functions above are only to be called by the kernel itself, these
    --  ones are to be used by the kernel to give memory to userland. The memory
    --  allocated can be remapped, passed to userland, and mangled in all other

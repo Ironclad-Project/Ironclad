@@ -239,6 +239,31 @@ package body Memory.Physical is
          null;
    end Free;
    ----------------------------------------------------------------------------
+   procedure Lower_Half_Alloc
+      (Addr    : out Memory.Virtual_Address;
+       Size    : Unsigned_64;
+       Success : out Boolean)
+   is
+   begin
+      --  Alloc_Pgs allocates from the bottom of memory, so if we can just wrap
+      --  the function with a simple sanity check.
+      Addr    := Alloc_Pgs (size_t (Size));
+      Success := Addr /= 0 and Addr + Virtual_Address (Size) <= 16#100000000#;
+   end Lower_Half_Alloc;
+
+   procedure Lower_Half_Free (Addr : Memory.Virtual_Address) is
+      Real_Address : Virtual_Address := Addr;
+   begin
+      --  Ensure the address is in the higher half and not null.
+      if Real_Address = 0 then
+         return;
+      elsif Real_Address < Memory_Offset then
+         Real_Address := Real_Address + Memory_Offset;
+      end if;
+
+      Free_Pgs (size_t (Real_Address));
+   end Lower_Half_Free;
+   ----------------------------------------------------------------------------
    procedure User_Alloc
       (Addr    : out Memory.Virtual_Address;
        Size    : Unsigned_64;
@@ -250,8 +275,16 @@ package body Memory.Physical is
    end User_Alloc;
 
    procedure User_Free (Addr : Memory.Virtual_Address) is
+      Real_Address : Virtual_Address := Addr;
    begin
-      Free (size_t (Addr));
+      --  Ensure the address is in the higher half and not null.
+      if Real_Address = 0 then
+         return;
+      elsif Real_Address < Memory_Offset then
+         Real_Address := Real_Address + Memory_Offset;
+      end if;
+
+      Free_Pgs (size_t (Real_Address));
    end User_Free;
    ----------------------------------------------------------------------------
    procedure Get_Statistics (Stats : out Statistics) is
