@@ -1285,6 +1285,15 @@ package Userland.Syscall is
        Cluster  : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
+
+   type CPU_Info is record
+      Config_Cores : Unsigned_64;
+      Online_Cores : Unsigned_64;
+   end record;
+   procedure Get_CPU_Info
+      (Addr     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.

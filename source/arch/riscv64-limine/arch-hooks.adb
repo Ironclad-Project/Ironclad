@@ -32,6 +32,11 @@ package body Arch.Hooks is
       null;
    end Panic_SMP_Hook;
 
+   function Get_Configured_Cores return Positive is
+   begin
+      return 1;
+   end Get_Configured_Cores;
+
    function Get_Active_Core_Count return Positive is
    begin
       return 1;

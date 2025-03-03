@@ -6318,6 +6318,37 @@ package body Userland.Syscall is
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Create_Thread;
+
+   procedure Get_CPU_Info
+      (Addr     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr : constant Integer_Address := Integer_Address (Addr);
+      Map   : Page_Table_Acc;
+   begin
+      Get_Common_Map (Proc, Map);
+      if not Check_Userland_Access (Map, IAddr, CPU_Info'Size / 8) then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      declare
+         Info : CPU_Info with Import, Address => To_Address (IAddr);
+      begin
+         Info :=
+            (Config_Cores => Unsigned_64 (Arch.Hooks.Get_Configured_Cores),
+             Online_Cores => Unsigned_64 (Arch.Hooks.Get_Active_Core_Count));
+         Errno    := Error_No_Error;
+         Returned := 0;
+      end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end Get_CPU_Info;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin

@@ -332,6 +332,8 @@ package body Arch.Interrupts is
             Meminfo (State.RDI, Returned, Errno);
          when 113 =>
             List_PCI (State.RDI, State.RSI, Returned, Errno);
+         when 114 =>
+            Get_CPU_Info (State.RDI, Returned, Errno);
          when others =>
             Userland.Process.Raise_Signal
                (Local.Get_Current_Process,

@@ -1041,6 +1041,8 @@ Empty.
 @ref{meminfo}
 @item
 @ref{listpci}
+@item
+@ref{getcpuinfo}
 @end enumerate
 
 @subsection riscv64-limine
@@ -4244,6 +4246,25 @@ MAC disallowed this.
 
 @node listpci
 @section listpci
+
+@node getcpuinfo
+@section getcpuinfo
+
+@example c
+struct cpuinfo @{
+    uint64_t onln_count; // Total logical core count being used by the OS.
+@};
+
+int getcpuinfo(struct cpuinfo *info);
+@end example
+
+This syscall gets information about the CPU or CPUs running on the system.
+
+This syscall returns @code{0} on success and @code{-1} on failure, with errno:
+@table @code
+@item EFAULT
+The passed buffers were pointing to invalid memory.
+@end table
 
 @node Networking
 @chapter Networking

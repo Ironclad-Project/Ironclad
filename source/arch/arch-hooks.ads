@@ -25,6 +25,10 @@ package Arch.Hooks is
    --  (but not the caller).
    procedure Panic_SMP_Hook with Global => null;
 
+   --  Get the number of cores provided by the system, even the ones we dont
+   --  use.
+   function Get_Configured_Cores return Positive;
+
    --  Get the number of cores which are active and used by the OS.
    function Get_Active_Core_Count return Positive;
 
