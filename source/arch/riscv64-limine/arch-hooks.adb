@@ -46,4 +46,34 @@ package body Arch.Hooks is
    begin
       null;
    end Register_RAM_Files;
+
+   procedure Get_CPU_Model (Model : out String) is
+      Returned : constant String := "GenericRISCV64";
+   begin
+      if Model'Length >= Returned'Length then
+         Model (Model'First .. Model'First + Returned'Length - 1) := Returned;
+      else
+         Model := Returned
+            (Returned'First .. Returned'First + Model'Length - 1);
+      end if;
+   end Get_CPU_Model;
+
+   procedure Get_CPU_Vendor (Vendor : out String) is
+      Returned : constant String := "GenericVendor";
+   begin
+      if Vendor'Length >= Returned'Length then
+         Vendor (Vendor'First .. Vendor'First + Returned'Length - 1) :=
+            Returned;
+      else
+         Vendor := Returned
+            (Returned'First .. Returned'First + Vendor'Length - 1);
+      end if;
+   end Get_CPU_Vendor;
+
+   procedure Get_CPU_Frequency (Base, Max, Reference : out Unsigned_32) is
+   begin
+      Base      := 0;
+      Max       := 0;
+      Reference := 0;
+   end Get_CPU_Frequency;
 end Arch.Hooks;

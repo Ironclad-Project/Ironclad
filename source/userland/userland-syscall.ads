@@ -1289,6 +1289,11 @@ package Userland.Syscall is
    type CPU_Info is record
       Config_Cores : Unsigned_64;
       Online_Cores : Unsigned_64;
+      Model_Name   : String (1 .. 64);
+      Vendor_Name  : String (1 .. 64);
+      Base_MHz     : Unsigned_32;
+      Max_MHz      : Unsigned_32;
+      Ref_MHz      : Unsigned_32;
    end record;
    procedure Get_CPU_Info
       (Addr     : Unsigned_64;

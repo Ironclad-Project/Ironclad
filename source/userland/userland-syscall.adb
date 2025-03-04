@@ -6340,7 +6340,16 @@ package body Userland.Syscall is
       begin
          Info :=
             (Config_Cores => Unsigned_64 (Arch.Hooks.Get_Configured_Cores),
-             Online_Cores => Unsigned_64 (Arch.Hooks.Get_Active_Core_Count));
+             Online_Cores => Unsigned_64 (Arch.Hooks.Get_Active_Core_Count),
+             Vendor_Name  => [others => Ada.Characters.Latin_1.NUL],
+             Model_Name   => [others => Ada.Characters.Latin_1.NUL],
+             Base_MHz     => 0,
+             Max_MHz      => 0,
+             Ref_MHz      => 0);
+         Arch.Hooks.Get_CPU_Frequency
+            (Info.Base_MHz, Info.Max_MHz, Info.Ref_MHz);
+         Arch.Hooks.Get_CPU_Vendor (Info.Vendor_Name);
+         Arch.Hooks.Get_CPU_Model (Info.Model_Name);
          Errno    := Error_No_Error;
          Returned := 0;
       end;

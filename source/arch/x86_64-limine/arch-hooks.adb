@@ -23,7 +23,6 @@ with Arch.Snippets;
 with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
 with Arch.Interrupts;
-with Interfaces; use Interfaces;
 with Lib.Messages;
 with Devices.Ramdev;
 with Arch.Limine;
@@ -96,4 +95,54 @@ package body Arch.Hooks is
       when Constraint_Error =>
          Lib.Messages.Put_Line ("Errored while loading RAM files");
    end Register_RAM_Files;
+
+   procedure Get_CPU_Model (Model : out String) is
+      use Arch.Snippets;
+
+      Discard : Boolean;
+      Result  : String (1 .. 48);
+      R       : array (1 .. 12) of Unsigned_32
+         with Import, Address => Result'Address;
+   begin
+      Get_CPUID (16#80000002#, 0, R (01), R (02), R (03), R (04), Discard);
+      Get_CPUID (16#80000003#, 0, R (05), R (06), R (07), R (08), Discard);
+      Get_CPUID (16#80000004#, 0, R (09), R (10), R (11), R (12), Discard);
+      if Model'Length >= Result'Length then
+         Model (Model'First .. Model'First + Result'Length - 1) := Result;
+      else
+         Model := Result (Result'First .. Result'First + Model'Length - 1);
+      end if;
+   exception
+      when Constraint_Error =>
+         Model := [others => 'E'];
+   end Get_CPU_Model;
+
+   procedure Get_CPU_Vendor (Vendor : out String) is
+      use Arch.Snippets;
+
+      Discard  : Boolean;
+      Discard2 : Unsigned_32;
+      Result   : String (1 .. 12);
+      R        : array (1 .. 3) of Unsigned_32
+         with Import, Address => Result'Address;
+   begin
+      Get_CPUID (0, 0, Discard2, R (1), R (3), R (2), Discard);
+      if Vendor'Length >= Result'Length then
+         Vendor (Vendor'First .. Vendor'First + Result'Length - 1) := Result;
+      else
+         Vendor := Result (Result'First .. Result'First + Vendor'Length - 1);
+      end if;
+   exception
+      when Constraint_Error =>
+         Vendor := [others => 'E'];
+   end Get_CPU_Vendor;
+
+   procedure Get_CPU_Frequency (Base, Max, Reference : out Unsigned_32) is
+      use Arch.Snippets;
+
+      Discard  : Boolean;
+      Discard2 : Unsigned_32;
+   begin
+      Get_CPUID (16#16#, 0, Base, Max, Reference, Discard2, Discard);
+   end Get_CPU_Frequency;
 end Arch.Hooks;

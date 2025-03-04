@@ -4252,8 +4252,13 @@ MAC disallowed this.
 
 @example c
 struct cpuinfo @{
-    uint64_t conf_count; // Cores physically present in the system.
-    uint64_t onln_count; // Logical cores being used by the OS.
+    uint64_t conf_count;  // Cores physically present in the system.
+    uint64_t onln_count;  // Logical cores being used by the OS.
+    char model_name[64];  // 0-padded
+    char vendor_name[64]; // 0-padded
+    uint32_t base_mhz;    // Base frequency in MHz.
+    uint32_t max_mhz;     // Max frequency in MHz.
+    uint32_t ref_mhz;     // Reference frequency in MHz.
 @};
 
 int getcpuinfo(struct cpuinfo *info);

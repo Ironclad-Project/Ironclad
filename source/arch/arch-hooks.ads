@@ -14,6 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces; use Interfaces;
+
 package Arch.Hooks is
    --  Register architecture-specific devices.
    function Devices_Hook return Boolean;
@@ -34,4 +36,14 @@ package Arch.Hooks is
 
    --  Hook to register architecture-specific RAM files inside the kernel.
    procedure Register_RAM_Files;
+
+   --  Get the running core's CPU model, if the model is too big, it truncates
+   --  silently.
+   procedure Get_CPU_Model (Model : out String);
+
+   --  Same as above with vendor.
+   procedure Get_CPU_Vendor (Vendor : out String);
+
+   --  Get frequencies of the CPU in MHz.
+   procedure Get_CPU_Frequency (Base, Max, Reference : out Unsigned_32);
 end Arch.Hooks;
