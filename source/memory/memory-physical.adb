@@ -248,7 +248,8 @@ package body Memory.Physical is
       --  Alloc_Pgs allocates from the bottom of memory, so if we can just wrap
       --  the function with a simple sanity check.
       Addr    := Alloc_Pgs (size_t (Size));
-      Success := Addr /= 0 and Addr + Virtual_Address (Size) <= 16#100000000#;
+      Success := Addr /= 0 and Addr + Virtual_Address (Size) <= (16#100000000#
+       + Memory.Memory_Offset);
    end Lower_Half_Alloc;
 
    procedure Lower_Half_Free (Addr : Memory.Virtual_Address) is
