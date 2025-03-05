@@ -40,16 +40,6 @@ package Arch is
    end record;
    type Boot_RAM_Files is array (Natural range <>) of Boot_RAM_File;
 
-   --  Struct to wrap it all together, along with cmdline information.
-   type Boot_Information is record
-      Cmdline       : String (1 .. 256);
-      Cmdline_Len   : Natural range 0 .. 256;
-      Memmap        : Boot_Memory_Map (1 .. 64);
-      Memmap_Len    : Natural range 0 .. 64;
-      RAM_Files     : Boot_RAM_Files (1 .. 4);
-      RAM_Files_Len : Natural range 0 .. 4;
-   end record;
-
    --  Cmdline of the kernel.
    Cmdline_Len : Natural;
    Cmdline     : String (1 .. 256);

@@ -34,7 +34,7 @@ with Main;
 
 package body Arch.Entrypoint is
    procedure Bootstrap_Main is
-      Info : Boot_Information renames Limine.Global_Info;
+      Info : Limine.Boot_Information renames Limine.Global_Info;
       Addr : System.Address;
    begin
       --  Initialize architectural state first.

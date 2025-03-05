@@ -19,6 +19,14 @@ with Interfaces; use Interfaces;
 
 package Arch.Limine with SPARK_Mode => Off is
    --  Global variable holding platform information.
+   type Boot_Information is record
+      Cmdline       : String (1 .. 256);
+      Cmdline_Len   : Natural range 0 .. 256;
+      Memmap        : Boot_Memory_Map (1 .. 64);
+      Memmap_Len    : Natural range 0 .. 64;
+      RAM_Files     : Boot_RAM_Files (1 .. 4);
+      RAM_Files_Len : Natural range 0 .. 4;
+   end record;
    Global_Info : Boot_Information;
 
    --  Get physical address where the kernel is loaded.
