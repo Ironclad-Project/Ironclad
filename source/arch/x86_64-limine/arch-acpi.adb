@@ -33,7 +33,7 @@ with Ada.Characters.Latin_1;
 with Memory.Physical;
 with Scheduler;
 with Arch.IDT; use Arch.IDT;
-with Userland.Power_Events;
+with Devices.Power_Buttons;
 
 package body Arch.ACPI with SPARK_Mode => Off is
    --  Request to get the RSDP.
@@ -60,13 +60,13 @@ package body Arch.ACPI with SPARK_Mode => Off is
 
    function Power_Button_Handler return Unsigned_32 is
    begin
-      Userland.Power_Events.Power_Button_Handler;
+      Devices.Power_Buttons.Trigger_Power_Button;
       return 1;
    end Power_Button_Handler;
 
    function Sleep_Button_Handler return Unsigned_32 is
    begin
-      Userland.Power_Events.Sleep_Button_Handler;
+      Devices.Power_Buttons.Trigger_Sleep_Button;
       return 1;
    end Sleep_Button_Handler;
 

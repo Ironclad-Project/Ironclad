@@ -1,4 +1,4 @@
---  userland-power_events.ads: Managing kernel power events.
+--  devices-power_buttons.ads: Power button virtual devices.
 --  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,10 +14,25 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Userland.Power_Events is
-   --  Called by the hardware when handling a power button event.
-   procedure Power_Button_Handler;
+package Devices.Power_Buttons is
+   --  Initialize the device.
+   function Init return Boolean;
 
-   --  Called by the hardware when handling a sleep button event.
-   procedure Sleep_Button_Handler;
-end Userland.Power_Events;
+   --  Issue power button events.
+   procedure Trigger_Power_Button;
+   procedure Trigger_Sleep_Button;
+
+private
+
+   procedure Poll_Power_Button
+      (Data      : System.Address;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean);
+
+   procedure Poll_Sleep_Button
+      (Data      : System.Address;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean);
+end Devices.Power_Buttons;

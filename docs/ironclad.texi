@@ -450,13 +450,8 @@ The ones Ironclad PTYs interact with are @code{OPOST} and @code{ONLCR}.
 @node Signals
 @section Signals
 
-Ironclad implements standard POSIX signals for use between processes.
-
-Additionally, Ironclad uses POSIX signals for communicating certain events to
-userland, for example, a @code{SIGINT} will be sent to the init system on power
-button press.
-
-Ironclad's signals with their values are:
+Ironclad implements standard POSIX signals for use between processes. The
+supported signals with their corresponding values are:
 
 @enumerate 1
 @item SIGHUP
@@ -4551,6 +4546,13 @@ are named using @code{n} followed by the namespace number.
 
 NVMe drives have internal caching at the driver level, so they must be
 @code{sync}'d for data integrity when wanting to ensure data coherency.
+
+@subsection pwrbutton/sleepbutton
+
+These devices are provided only by platforms implementing power and sleep
+buttons. Programs can @code{poll} on them for read permission. When the
+corresponding device reports being able to read, it shall be interpreted as a
+oneshot event representing a pressing of the corresponding button.
 
 @node riscv64-limine devices
 @section riscv64-limine devices
