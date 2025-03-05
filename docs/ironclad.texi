@@ -526,10 +526,15 @@ reason, memory overcommiting is not allowed.
 @node Memory failures
 @section Memory failures
 
-For OOM failures, Ironclad will try to free internal storage used for cache and
-retry allocation until it is deemed the situation is not recoverable, in which
-case it will panic. To this end, Ironclad will kill high memory consuming
-processes, this behaviour is configurable in @ref{failure_policy}.
+When facing an OOM condition caused by userland-born allocations, Ironclad will
+just fail the syscalls issuing them.
+
+When facing OOM conditions caused by kernel-born allocations, the kernel will
+panic. Process killing is the only alternative, which due to complexity,
+inherent non-determinism, and rarity of the scenario when compared with
+userland-born failures, the kernel does not implement.
+
+For hardware failures, behaviour can be configured at @ref{failure_policy}.
 
 @node Userland state and conditions
 @chapter Userland state and conditions
@@ -4167,7 +4172,7 @@ The passed buffers were pointing to invalid memory.
 #define OOM_ALLOW_PROC_KILL 1
 
 struct fail_modes @{
-    uint64_t oom_policy;
+    uint64_t placeholder;
 @};
 
 int failure_policy(struct fail_modes *old, struct fail_modes *new);
@@ -4178,14 +4183,8 @@ conditions. @code{old}, if not null, can be used for fetching the values
 used at the time of calling, while @code{new}, if not @code{null}, will be used
 to set new values.
 
-The valid values for @code{oom_policy} are:
-
-@table @code
-@item OOM_ALLOW_PROC_KILL
-When set, this value will make the kernel able to kill processes if deemed
-necessary for the prolonged function of the system, if not set, the kernel
-will not kill user processes at any cost.
-@end table
+The values contained by the arguments are ignored, these values are reserved
+for future error recovery configuration not implemented right now.
 
 This syscall returns 0 on success or @code{-1} on failure, with the errno:
 

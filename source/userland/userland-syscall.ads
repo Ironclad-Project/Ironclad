@@ -1266,11 +1266,9 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
-   OOM_ALLOW_PROC_KILL : constant := 1;
-   type Failure_Struct is record
-      OOM_Failure : Unsigned_64;
+   type Fail_Modes is record
+      Placeholder : Unsigned_64;
    end record;
-
    procedure Failure_Policy
       (Old_Addr : Unsigned_64;
        New_Addr : Unsigned_64;

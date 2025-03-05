@@ -38,7 +38,6 @@ with IPC.SHM;
 with Arch.Power;
 with Devices; use Devices;
 with Networking.Interfaces;
-with Userland.OOM_Failure;
 with Virtualization;
 with Arch.PCI;
 
@@ -6204,24 +6203,17 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc     : constant             PID := Arch.Local.Get_Current_Process;
-      O_IAddr  : constant Integer_Address := Integer_Address (Old_Addr);
-      N_IAddr  : constant Integer_Address := Integer_Address (New_Addr);
-      Old_Val  : Failure_Struct with Import, Address => To_Address (O_IAddr);
-      New_Val  : Failure_Struct with Import, Address => To_Address (N_IAddr);
-      OOM_Kill : Boolean;
-      Map      : Page_Table_Acc;
+      Proc    : constant             PID := Arch.Local.Get_Current_Process;
+      O_IAddr : constant Integer_Address := Integer_Address (Old_Addr);
+      N_IAddr : constant Integer_Address := Integer_Address (New_Addr);
+      Old_Val : Fail_Modes with Import, Address => To_Address (O_IAddr);
+      New_Val : Fail_Modes with Import, Address => To_Address (N_IAddr);
+      Map     : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
+
       if O_IAddr /= 0 then
-         if Check_Userland_Access (Map, O_IAddr, Failure_Struct'Size / 8) then
-            OOM_Failure.Get_Killing_Config (OOM_Kill);
-            if OOM_Kill then
-               Old_Val.OOM_Failure := OOM_ALLOW_PROC_KILL;
-            else
-               Old_Val.OOM_Failure := 0;
-            end if;
-         else
+         if not Check_Userland_Access (Map, O_IAddr, Fail_Modes'Size / 8) then
             goto Would_Fault_Error;
          end if;
       end if;
@@ -6234,15 +6226,7 @@ package body Userland.Syscall is
             return;
          end if;
 
-         if Check_Userland_Access (Map, N_IAddr, Failure_Struct'Size / 8) then
-            if (New_Val.OOM_Failure and OOM_ALLOW_PROC_KILL) /= 0 then
-               OOM_Kill := True;
-            else
-               OOM_Kill := False;
-            end if;
-
-            OOM_Failure.Configure_Killing (OOM_Kill);
-         else
+         if not Check_Userland_Access (Map, N_IAddr, Fail_Modes'Size / 8) then
             goto Would_Fault_Error;
          end if;
       end if;

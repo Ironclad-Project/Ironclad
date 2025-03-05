@@ -19,8 +19,6 @@ with Lib.Synchronization; use Lib.Synchronization;
 with Lib.Alignment;
 with Arch.MMU;
 with System; use System;
-with Lib.Messages;
-with Userland.OOM_Failure;
 
 package body Memory.Physical is
    Block_Size :         constant := Arch.MMU.Page_Size;
@@ -192,12 +190,7 @@ package body Memory.Physical is
    <<Default_Alloc>>
       Result := Alloc_Pgs (Size);
       if Result = 0 then
-         Lib.Messages.Put_Line ("Kernel OOM imminent, running handlers");
-         Userland.OOM_Failure.Handle_Failure;
-         Result := Alloc_Pgs (Size);
-         if Result = 0 then
-            Lib.Panic.Hard_Panic ("Exhausted memory (OOM)");
-         end if;
+         Lib.Panic.Hard_Panic ("Exhausted memory (OOM)");
       end if;
       return Result;
    exception
