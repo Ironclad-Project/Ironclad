@@ -108,7 +108,7 @@ is
          Small_Log_Buffer (Curr_Entry) := Final;
       end if;
 
-      Arch.Debug.Print (Final);
+      Arch.Debug.Print (Final (1 .. Message'Length + 13));
       Arch.Debug.Print (Ada.Characters.Latin_1.CR);
       Arch.Debug.Print (Ada.Characters.Latin_1.LF);
 
