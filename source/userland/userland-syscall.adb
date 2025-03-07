@@ -1803,9 +1803,7 @@ package body Userland.Syscall is
       Map   : Page_Table_Acc;
    begin
       Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access
-         (Map, IAddr, Length * (Interface_Info'Size / 8))
-      then
+      if not Check_Userland_Access (Map, IAddr, Length) then
          Errno    := Error_Would_Fault;
          Returned := Unsigned_64'Last;
          return;
