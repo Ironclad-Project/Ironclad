@@ -105,15 +105,14 @@ package body Arch.ACPI with SPARK_Mode => Off is
       end if;
 
       --  Install power button handlers.
-      Success := Install_Fixed_Event_Handler
+      Has_Power_Button := Install_Fixed_Event_Handler
          (Fixed_Event_Power_Button, Power_Button_Handler'Address,
           System.Null_Address) = Status_OK;
-      if not Success then
-         return;
-      end if;
-      Success := Install_Fixed_Event_Handler
+      Has_Sleep_Button := Install_Fixed_Event_Handler
          (Fixed_Event_Sleep_Button, Sleep_Button_Handler'Address,
           System.Null_Address) = Status_OK;
+
+      Success := True;
    end Initialize;
    ----------------------------------------------------------------------------
    function FindTable (Signature : SDT_Signature) return Virtual_Address is

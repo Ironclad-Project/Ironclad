@@ -298,6 +298,11 @@ package Arch.ACPI is
    --  Reboot the system.
    procedure Do_Reboot;
 
+   #if ArchName = """x86_64-limine"""
+      Has_Power_Button : Boolean := False;
+      Has_Sleep_Button : Boolean := False;
+   #end if;
+
 private
 
    --  uACPI is incompatible with the concept of SPARK.

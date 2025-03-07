@@ -14,6 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Arch.ACPI;
+
 package body Devices.Power_Buttons is
    --  Event variables.
    Power_Button_Triggered : Boolean := False;
@@ -22,39 +24,47 @@ package body Devices.Power_Buttons is
    function Init return Boolean is
       Success : Boolean;
    begin
-      Register
-         ((Data        => System.Null_Address,
-           ID          => [others => 0],
-           Is_Block    => False,
-           Block_Size  => 4096,
-           Block_Count => 0,
-           Read        => null,
-           Write       => null,
-           Sync        => null,
-           Sync_Range  => null,
-           IO_Control  => null,
-           Mmap        => null,
-           Poll        => Poll_Power_Button'Access,
-           Remove      => null), "pwrbutton", Success);
-      if not Success then
-         return False;
+      if Arch.ACPI.Has_Power_Button then
+         Register
+            ((Data        => System.Null_Address,
+              ID          => [others => 0],
+              Is_Block    => False,
+              Block_Size  => 4096,
+              Block_Count => 0,
+              Read        => null,
+              Write       => null,
+              Sync        => null,
+              Sync_Range  => null,
+              IO_Control  => null,
+              Mmap        => null,
+              Poll        => Poll_Power_Button'Access,
+              Remove      => null), "pwrbutton", Success);
+         if not Success then
+            return False;
+         end if;
       end if;
 
-      Register
-         ((Data        => System.Null_Address,
-           ID          => [others => 0],
-           Is_Block    => False,
-           Block_Size  => 4096,
-           Block_Count => 0,
-           Read        => null,
-           Write       => null,
-           Sync        => null,
-           Sync_Range  => null,
-           IO_Control  => null,
-           Mmap        => null,
-           Poll        => Poll_Sleep_Button'Access,
-           Remove      => null), "sleepbutton", Success);
-      return Success;
+      if Arch.ACPI.Has_Sleep_Button then
+         Register
+            ((Data        => System.Null_Address,
+              ID          => [others => 0],
+              Is_Block    => False,
+              Block_Size  => 4096,
+              Block_Count => 0,
+              Read        => null,
+              Write       => null,
+              Sync        => null,
+              Sync_Range  => null,
+              IO_Control  => null,
+              Mmap        => null,
+              Poll        => Poll_Sleep_Button'Access,
+              Remove      => null), "sleepbutton", Success);
+         if not Success then
+            return False;
+         end if;
+      end if;
+
+      return True;
    end Init;
 
    procedure Trigger_Power_Button is
