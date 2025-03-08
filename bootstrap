@@ -1,6 +1,6 @@
 #! /bin/sh
 #  bootstrap: Script for regenerating the whole circus.
-#  Copyright (C) 2023-2024 streaksu
+#  Copyright (C) 2023-2025 streaksu
 #
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -52,18 +52,18 @@ clone_repo_commit() {
 
 download_by_hash() {
     DOWNLOAD_COMMAND="curl -Lo"
-    if ! command -v $DOWNLOAD_COMMAND >/dev/null 2>&1; then
+    if ! command -v "${DOWNLOAD_COMMAND%% *}" >/dev/null 2>&1; then
         DOWNLOAD_COMMAND="wget -O"
-        if ! command -v $DOWNLOAD_COMMAND >/dev/null 2>&1; then
+        if ! command -v "${DOWNLOAD_COMMAND%% *}" >/dev/null 2>&1; then
             set +x
             echo "error: Neither curl nor wget found"
             exit 1
         fi
     fi
     SHA256_COMMAND="sha256sum"
-    if ! command -v $SHA256_COMMAND >/dev/null 2>&1; then
+    if ! command -v "${SHA256_COMMAND%% *}" >/dev/null 2>&1; then
         SHA256_COMMAND="sha256"
-        if ! command -v $SHA256_COMMAND >/dev/null 2>&1; then
+        if ! command -v "${SHA256_COMMAND%% *}" >/dev/null 2>&1; then
             set +x
             echo "error: Cannot find sha256(sum) command"
             exit 1
