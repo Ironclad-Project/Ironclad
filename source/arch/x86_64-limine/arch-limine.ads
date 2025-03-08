@@ -18,22 +18,8 @@ with System;
 with Interfaces; use Interfaces;
 
 package Arch.Limine with SPARK_Mode => Off is
-   --  Global variable holding platform information.
-   type Boot_Information is record
-      Cmdline       : String (1 .. 256);
-      Cmdline_Len   : Natural range 0 .. 256;
-      Memmap        : Boot_Memory_Map (1 .. 64);
-      Memmap_Len    : Natural range 0 .. 64;
-      RAM_Files     : Boot_RAM_Files (1 .. 4);
-      RAM_Files_Len : Natural range 0 .. 4;
-   end record;
-   Global_Info : Boot_Information;
-
-   --  Get physical address where the kernel is loaded.
-   function Get_Physical_Address return System.Address;
-
-   --  Translate a multiboot2 header into architecture info.
-   --  @param Proto Pointer to translate, if null, return cached or panic.
+   --  Translate limine information into the information presented under
+   --  arch.ads
    procedure Translate_Proto;
    ----------------------------------------------------------------------------
    Limine_Common_Magic_1 : constant := 16#c7b1dd30df4c8b88#;
@@ -251,44 +237,4 @@ package Arch.Limine with SPARK_Mode => Off is
    DTB_ID : constant Request_ID :=
       [Limine_Common_Magic_1, Limine_Common_Magic_2,
        16#b40ddb48fb54bac7#, 16#545081493f81ffb7#];
-
-private
-
-   --  Here lie requests that all limine architectures will depend on, and
-   --  are used internally for this module.
-
-   --  Response is a pointer to a Bootloader_Info_Response.
-   Bootloader_Info_Request : Request :=
-      (ID       => Bootloader_Info_ID,
-       Revision => 0,
-       Response => System.Null_Address)
-      with Export, Async_Writers;
-
-   --  Response is a pointer to a Kernel_File_Response.
-   Kernel_File_Request : Request :=
-      (ID       => Kernel_File_ID,
-       Revision => 0,
-       Response => System.Null_Address)
-      with Export, Async_Writers;
-
-   --  Response is a pointer to a Memmap_Response.
-   Memmap_Request : Request :=
-      (ID       => Memmap_ID,
-       Revision => 0,
-       Response => System.Null_Address)
-      with Export, Async_Writers;
-
-   --  Response is a pointer to an Kernel_Address_Response.
-   Address_Request : Request :=
-      (ID       => Kernel_Address_ID,
-       Revision => 0,
-       Response => System.Null_Address)
-      with Export, Async_Writers;
-
-   --  Response is a pointer to an Modules_Response.
-   Modules_Request : Request :=
-      (ID       => Modules_ID,
-       Revision => 0,
-       Response => System.Null_Address)
-      with Export, Async_Writers;
 end Arch.Limine;

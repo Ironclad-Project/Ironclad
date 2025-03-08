@@ -30,9 +30,22 @@ with Main;
 #end if;
 
 package body Arch.Entrypoint is
+   --  Response is a pointer to a Memmap_Response.
+   Memmap_Request : Limine.Request :=
+      (ID       => Limine.Memmap_ID,
+       Revision => 0,
+       Response => System.Null_Address)
+      with Export, Async_Writers;
+
    procedure Bootstrap_Main is
-      Info : Boot_Information renames Limine.Global_Info;
       Addr : System.Address;
+
+      MemPonse : Limine.Memmap_Response
+         with Import, Address => Memmap_Request.Response;
+      Inner_MMap : constant Limine.Memmap_Entry_Arr (1 .. MemPonse.Count)
+         with Import, Address => MemPonse.Entries;
+      Type_Entry : Boot_Memory_Type;
+      Idx : Natural := 0;
    begin
       --  Initialize architectural state first.
       Devices.UART.Init_UART0;
@@ -45,36 +58,59 @@ package body Arch.Entrypoint is
          Lib.Panic.Hard_Panic ("No DTB was found!");
       end if;
 
-      --  Initialize the allocators and MMU.
-      Lib.Messages.Put_Line ("Initializing allocators");
-      Memory.Physical.Init_Allocator (Info.Memmap (1 .. Info.Memmap_Len));
-      if not Arch.MMU.Init (Info.Memmap (1 .. Info.Memmap_Len)) then
-         Lib.Panic.Hard_Panic ("The VMM could not be initialized");
-      end if;
+      --  Translate the memory map.
+      declare
+         Memmap : Boot_Memory_Map (1 .. Natural (MemPonse.Count));
+      begin
+         for Ent of Inner_MMap loop
+            case Ent.EntryType is
+               when Limine.LIMINE_MEMMAP_USABLE =>
+                  Type_Entry := Memory_Free;
+               when Limine.LIMINE_MEMMAP_ACPI_RECLAIMABLE =>
+                  Type_Entry := Memory_ACPI_Reclaimable;
+               when Limine.LIMINE_MEMMAP_ACPI_NVS =>
+                  Type_Entry := Memory_ACPI_NVS;
+               when Limine.LIMINE_MEMMAP_KERNEL_AND_MODS =>
+                  Type_Entry := Memory_Kernel;
+               when others =>
+                  Type_Entry := Memory_Reserved;
+            end case;
 
-      --  Enable dmesg buffers and KASAN if wanted.
-      Lib.Messages.Enable_Logging;
+            Idx := Idx + 1;
+            Memmap (Idx) :=
+               (Start   => To_Address (Integer_Address (Ent.Base)),
+                Length  => Storage_Count (Ent.Length),
+                MemType => Type_Entry);
+         end loop;
+
+         --  Initialize the allocators and MMU.
+         Memory.Physical.Init_Allocator (Memmap);
+         if not Arch.MMU.Init (Memmap) then
+            Lib.Panic.Hard_Panic ("The VMM could not be initialized");
+         end if;
+
+         --  Enable dmesg buffers.
+         Lib.Messages.Enable_Logging;
+
+         --  Print the memory map, it is useful at times.
+         Lib.Messages.Put_Line ("Physical memory map:");
+         for E of Memmap loop
+            Addr := E.Start + E.Length;
+            Lib.Messages.Put_Line
+               ("[" & E.Start'Image & " - " & Addr'Image & "] " &
+                Boot_Memory_Type'Image (E.MemType));
+         end loop;
+      end;
+
+      --  Enable KASAN if desired.
       #if KASAN
          Lib.KASAN.Init;
       #end if;
 
-      --  Print the memory map, it is useful at times.
-      Lib.Messages.Put_Line ("Physical memory map:");
-      for E of Info.Memmap (1 .. Info.Memmap_Len) loop
-         Addr := E.Start + E.Length;
-         Lib.Messages.Put_Line
-            ("[" & E.Start'Image & " - " & Addr'Image & "] " &
-             Boot_Memory_Type'Image (E.MemType));
-      end loop;
-
       --  Initialize the other cores of the system.
       Arch.CPU.Init_Cores;
 
-      --  Go to main kernel.
-      Arch.Cmdline_Len := Info.Cmdline_Len;
-      Arch.Cmdline (1 .. Info.Cmdline_Len) :=
-         Info.Cmdline (1 .. Info.Cmdline_Len);
-
+      --  Hand it over to main.
       Main;
    end Bootstrap_Main;
 end Arch.Entrypoint;

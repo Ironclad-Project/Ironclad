@@ -35,6 +35,13 @@ package body Arch.MMU is
    Page_G     : constant Unsigned_64 := Shift_Left (1,  8);
    Page_NX    : constant Unsigned_64 := Shift_Left (1, 63);
 
+   --  Response is a pointer to an Kernel_Address_Response.
+   Address_Request : Limine.Request :=
+      (ID       => Limine.Kernel_Address_ID,
+       Revision => 0,
+       Response => System.Null_Address)
+      with Export, Async_Writers;
+
    --  Global statistics.
    Global_Kernel_Usage : Memory.Size := 0;
    Global_Table_Usage  : Memory.Size := 0;
@@ -69,8 +76,11 @@ package body Arch.MMU is
       TSAddr : constant Integer_Address := To_Integer (text_start'Address);
       OSAddr : constant Integer_Address := To_Integer (rodata_start'Address);
       DSAddr : constant Integer_Address := To_Integer (data_start'Address);
-      Phys   : constant Integer_Address :=
-         To_Integer (Limine.Get_Physical_Address);
+
+      --  Physical address.
+      PhysPonse : Limine.Kernel_Address_Response
+         with Import, Address => Address_Request.Response;
+      Phys : constant Integer_Address := To_Integer (PhysPonse.Phys_Addr);
    begin
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Table'

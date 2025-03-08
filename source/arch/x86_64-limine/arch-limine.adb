@@ -25,12 +25,17 @@ package body Arch.Limine with SPARK_Mode => Off is
        Revision => 3)
       with Export, Async_Writers;
 
-   function Get_Physical_Address return System.Address is
-      PhysPonse : Kernel_Address_Response
-         with Import, Address => Address_Request.Response;
-   begin
-      return PhysPonse.Phys_Addr;
-   end Get_Physical_Address;
+   Bootloader_Info_Request : Request :=
+      (ID       => Bootloader_Info_ID,
+       Revision => 0,
+       Response => System.Null_Address)
+      with Export, Async_Writers;
+
+   Kernel_File_Request : Request :=
+      (ID       => Kernel_File_ID,
+       Revision => 0,
+       Response => System.Null_Address)
+      with Export, Async_Writers;
 
    procedure Translate_Proto is
       InfoPonse : Bootloader_Info_Response
@@ -41,15 +46,8 @@ package body Arch.Limine with SPARK_Mode => Off is
       Vers_Addr : constant System.Address := InfoPonse.Version_Addr;
       Vers_Len  : constant        Natural := Lib.C_String_Length (Vers_Addr);
       Boot_Vers : String (1 .. Vers_Len) with Import, Address => Vers_Addr;
-
-      MemPonse : Memmap_Response
-         with Import, Address => Memmap_Request.Response;
-      Inner_MMap : constant Memmap_Entry_Arr (1 .. MemPonse.Count)
-         with Import, Address => MemPonse.Entries;
-      Type_Entry : Boot_Memory_Type;
    begin
       Lib.Messages.Put_Line ("Booted by " & Boot_Name & " " & Boot_Vers);
-
       if Base_Request.Revision /= 0 then
          Lib.Messages.Put_Line ("The passed revision was not supported!");
       end if;
@@ -63,53 +61,9 @@ package body Arch.Limine with SPARK_Mode => Off is
          Cmdline : String (1 .. Cmdline_Len)
             with Import, Address => Cmdline_Addr;
       begin
-         Global_Info.Cmdline (1 .. Cmdline_Len) := Cmdline;
-         Global_Info.Cmdline_Len := Cmdline_Len;
+         Arch.Cmdline_Len := Cmdline_Len;
+         Arch.Cmdline (1 .. Cmdline_Len) := Cmdline;
       end;
-
-      --  Translate RAM files.
-      Global_Info.RAM_Files_Len := 0;
-      if Modules_Request.Response /= System.Null_Address then
-         declare
-            ModPonse : Modules_Response
-               with Import, Address => Modules_Request.Response;
-            Inner_Mods : constant Limine_File_Arr (1 .. ModPonse.Mod_Count)
-               with Import, Address => ModPonse.Modules;
-         begin
-            for Ent of Inner_Mods loop
-               Global_Info.RAM_Files_Len := Global_Info.RAM_Files_Len + 1;
-               Global_Info.RAM_Files (Global_Info.RAM_Files_Len) :=
-                  (Start   => Ent.Address,
-                   Length  => Storage_Count (Ent.Size));
-            end loop;
-         end;
-      end if;
-
-      --  Translate memmap.
-      for Ent of Inner_MMap loop
-         case Ent.EntryType is
-            when LIMINE_MEMMAP_USABLE =>
-               Type_Entry := Memory_Free;
-            when LIMINE_MEMMAP_RESERVED   | LIMINE_MEMMAP_FRAMEBUFFER |
-                 LIMINE_MEMMAP_BAD_MEMORY | LIMINE_MEMMAP_BOOTLOADER_RECL =>
-               Type_Entry := Memory_Reserved;
-            when LIMINE_MEMMAP_ACPI_RECLAIMABLE =>
-               Type_Entry := Memory_ACPI_Reclaimable;
-            when LIMINE_MEMMAP_ACPI_NVS =>
-               Type_Entry := Memory_ACPI_NVS;
-            when LIMINE_MEMMAP_KERNEL_AND_MODS =>
-               Type_Entry := Memory_Kernel;
-            when others =>
-               Lib.Messages.Put_Line ("Unrecognized memory assumed reserved");
-               Type_Entry := Memory_Reserved;
-         end case;
-
-         Global_Info.Memmap_Len := Global_Info.Memmap_Len + 1;
-         Global_Info.Memmap (Global_Info.Memmap_Len) :=
-            (Start   => To_Address (Integer_Address (Ent.Base)),
-             Length  => Storage_Count (Ent.Length),
-             MemType => Type_Entry);
-      end loop;
    exception
       when Constraint_Error =>
          Lib.Messages.Put_Line ("Exception encountered translating limine");

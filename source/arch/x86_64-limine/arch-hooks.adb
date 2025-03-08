@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System; use System;
 with Devices.FB;
 with Devices.PS2Mouse;
 with Devices.PS2Keyboard;
@@ -86,12 +87,33 @@ package body Arch.Hooks is
       return Core_Count;
    end Get_Active_Core_Count;
 
+   --  Response is a pointer to an Modules_Response.
+   Modules_Request : Limine.Request :=
+      (ID       => Limine.Modules_ID,
+       Revision => 0,
+       Response => System.Null_Address)
+      with Export, Async_Writers;
+
    procedure Register_RAM_Files is
    begin
-      if not Devices.Ramdev.Init
-         (Limine.Global_Info.RAM_Files (1 .. Limine.Global_Info.RAM_Files_Len))
-      then
-         Lib.Messages.Put_Line ("Could not load RAM files");
+      if Modules_Request.Response /= System.Null_Address then
+         declare
+            ModPonse : Limine.Modules_Response
+               with Import, Address => Modules_Request.Response;
+            Inner : constant Limine.Limine_File_Arr (1 .. ModPonse.Mod_Count)
+               with Import, Address => ModPonse.Modules;
+            Translated : Boot_RAM_Files (1 .. Natural (ModPonse.Mod_Count));
+            Idx : Natural := 0;
+         begin
+            for Ent of Inner loop
+               Idx := Idx + 1;
+               Translated (Idx) := (Ent.Address, Storage_Count (Ent.Size));
+            end loop;
+
+            if not Devices.Ramdev.Init (Translated) then
+               Lib.Messages.Put_Line ("Could not load RAM files");
+            end if;
+         end;
       end if;
    exception
       when Constraint_Error =>
