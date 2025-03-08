@@ -48,7 +48,7 @@ package body Devices is
       TTY.Init (Success);
       if not Success then goto Panic_Error; end if;
 
-      Success := Devices.NVMe.Init or Devices.SATA.Init;
+      Success := Devices.NVMe.Init and then Devices.SATA.Init;
       Success := Success and then Devices.i6300ESB.Init;
       if not Success or else not Arch.Hooks.Devices_Hook then
          goto Panic_Error;
