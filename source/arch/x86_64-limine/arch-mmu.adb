@@ -216,6 +216,7 @@ package body Arch.MMU is
       Last_Range : Mapping_Range_Acc;
       Curr_Range : Mapping_Range_Acc;
       Discard    : Memory.Size;
+      PML4_Sz    : constant Memory.Size := PML4'Size / 8;
    begin
       Curr_Range := Map.Map_Ranges_Root;
       Lib.Synchronization.Seize_Writer (Map.Mutex);
@@ -243,16 +244,21 @@ package body Arch.MMU is
                   begin
                      if (L2 and Page_P) /= 0 then
                         for L1 of PML2 loop
-                           Memory.Physical.Free
-                              (Interfaces.C.size_t (Clean_Entry (L1)));
+                           if (L1 and Page_P) /= 0 then
+                              Global_Table_Usage := Global_Table_Usage -
+                                 PML4_Sz;
+                              Memory.Physical.Free
+                                 (Interfaces.C.size_t (Clean_Entry (L1)));
+                           end if;
                         end loop;
+                        Global_Table_Usage := Global_Table_Usage - PML4_Sz;
+                        Memory.Physical.Free (Interfaces.C.size_t (A2));
                      end if;
-                     Memory.Physical.Free (Interfaces.C.size_t (A2));
                   end;
                end loop;
+               Global_Table_Usage := Global_Table_Usage - PML4_Sz;
+               Memory.Physical.Free (Interfaces.C.size_t (A3));
             end if;
-            Global_Table_Usage := Global_Table_Usage - (PML4'Size / 8);
-            Memory.Physical.Free (Interfaces.C.size_t (A3));
          end;
       end loop;
       F (Map);
