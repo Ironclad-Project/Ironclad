@@ -482,6 +482,8 @@ supported signals with their corresponding values are:
 @item SIGVTALRM
 @item SIGXCPU
 @item SIGXFSZ
+@item SIGWINCH
+@item SIGPWR
 @end enumerate
 
 @node Sockets

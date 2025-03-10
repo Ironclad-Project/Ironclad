@@ -3667,9 +3667,9 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      type Unsigned_28 is mod 2**28;
-      function C1 is new Ada.Unchecked_Conversion (Signal_Bitmap, Unsigned_28);
-      function C2 is new Ada.Unchecked_Conversion (Unsigned_28, Signal_Bitmap);
+      type Unsigned_30 is mod 2 ** 30;
+      function C1 is new Ada.Unchecked_Conversion (Signal_Bitmap, Unsigned_30);
+      function C2 is new Ada.Unchecked_Conversion (Unsigned_30, Signal_Bitmap);
 
       Proc       : constant             PID := Arch.Local.Get_Current_Process;
       FIAddr     : constant Integer_Address := Integer_Address (FDs_Addr);
@@ -3697,12 +3697,12 @@ package body Userland.Syscall is
       end if;
 
       if S_IAddr /= 0 then
-         if not Check_Userland_Access (Map, S_IAddr, Unsigned_28'Size / 8) then
+         if not Check_Userland_Access (Map, S_IAddr, Unsigned_30'Size / 8) then
             goto Would_Fault_Error;
          end if;
 
          declare
-            Passed_Set : Unsigned_28 with Import, Address => S_SAddr;
+            Passed_Set : Unsigned_30 with Import, Address => S_SAddr;
          begin
             Get_Masked_Signals (Proc, Old_Set);
             Set_Masked_Signals (Proc, C2 (Passed_Set and not C1 (Old_Set)));
@@ -5186,9 +5186,9 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      type Unsigned_28 is mod 2**28;
-      function C1 is new Ada.Unchecked_Conversion (Signal_Bitmap, Unsigned_28);
-      function C2 is new Ada.Unchecked_Conversion (Unsigned_28, Signal_Bitmap);
+      type Unsigned_30 is mod 2 ** 30;
+      function C1 is new Ada.Unchecked_Conversion (Signal_Bitmap, Unsigned_30);
+      function C2 is new Ada.Unchecked_Conversion (Unsigned_30, Signal_Bitmap);
 
       Proc    : constant             PID := Arch.Local.Get_Current_Process;
       S_IAddr : constant Integer_Address := Integer_Address (Set_Addr);
@@ -5219,7 +5219,7 @@ package body Userland.Syscall is
          end if;
 
          declare
-            Set : Unsigned_28 with Import, Address => To_Address (S_IAddr);
+            Set : Unsigned_30 with Import, Address => To_Address (S_IAddr);
          begin
             case How is
                when SIG_BLOCK =>
