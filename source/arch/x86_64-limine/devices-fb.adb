@@ -19,6 +19,7 @@ with System; use System;
 with Memory; use Memory;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Limine;
+with Arch.Flanterm;
 
 package body Devices.FB with SPARK_Mode => Off is
    package Limine renames Arch.Limine;
@@ -96,6 +97,96 @@ package body Devices.FB with SPARK_Mode => Off is
    end record;
    type Internal_FB_Data_Acc is access Internal_FB_Data;
 
+   --  Data for early init purposes.
+   Early_Init_Addr     : System.Address := System.Null_Address;
+   Early_Init_PAddr    : System.Address := System.Null_Address;
+   Early_Init_PLength  :  Storage_Count := 0;
+   Early_Width         :    Unsigned_64 := 0;
+   Early_Height        :    Unsigned_64 := 0;
+   Early_Pitch         :    Unsigned_64 := 0;
+   Early_Red_Mask_Sz   :     Unsigned_8 := 0;
+   Early_Red_Mask_Sh   :     Unsigned_8 := 0;
+   Early_Green_Mask_Sz :     Unsigned_8 := 0;
+   Early_Green_Mask_Sh :     Unsigned_8 := 0;
+   Early_Blue_Mask_Sz  :     Unsigned_8 := 0;
+   Early_Blue_Mask_Sh  :     Unsigned_8 := 0;
+
+   procedure Early_Init is
+      FBPonse : Limine.Framebuffer_Response
+         with Import, Address => Framebuffer_Request.Response;
+   begin
+      if (Framebuffer_Request.Response = System.Null_Address) or else
+         (FBPonse.Count = 0)
+      then
+         return;
+      end if;
+
+      declare
+         Fb : access Limine.Framebuffer
+            with Import, Address =>
+               To_Address (To_Integer (FBPonse.Framebuffers));
+      begin
+         Early_Init_Addr     := Fb.Address;
+         Early_Init_PAddr    := To_Address (To_Integer (Fb.Address) -
+                                Memory.Memory_Offset);
+         Early_Init_PLength  := Storage_Count (Fb.Pitch * Fb.Height);
+         Early_Width         := Fb.Width;
+         Early_Height        := Fb.Height;
+         Early_Pitch         := Fb.Pitch;
+         Early_Red_Mask_Sz   := Fb.Red_Mask_Size;
+         Early_Red_Mask_Sh   := Fb.Red_Mask_Shift;
+         Early_Green_Mask_Sz := Fb.Green_Mask_Size;
+         Early_Green_Mask_Sh := Fb.Green_Mask_Shift;
+         Early_Blue_Mask_Sz  := Fb.Blue_Mask_Size;
+         Early_Blue_Mask_Sh  := Fb.Blue_Mask_Shift;
+      end;
+   exception
+      when Constraint_Error =>
+         Early_Init_Addr := System.Null_Address;
+   end Early_Init;
+
+   function Remap_Framebuffer return Boolean is
+      Success : Boolean;
+   begin
+      if Early_Init_Addr /= System.Null_Address then
+         Arch.MMU.Map_Range
+            (Map            => Arch.MMU.Kernel_Table,
+             Virtual_Start  => Early_Init_Addr,
+             Physical_Start => Early_Init_PAddr,
+             Length         => Early_Init_PLength,
+             Permissions    =>
+               (Is_User_Accesible => False,
+                Can_Read          => True,
+                Can_Write         => True,
+                Can_Execute       => False,
+                Is_Global         => True),
+             Success        => Success,
+             Caching        => Arch.MMU.Write_Combining);
+         return Success;
+      end if;
+      return True;
+   end Remap_Framebuffer;
+
+   procedure Get_Early_Framebuffer
+      (Addr                              : out System.Address;
+       Width, Height, Pitch              : out Unsigned_64;
+       Red_Mask_Size, Red_Mask_Shift     : out Unsigned_8;
+       Green_Mask_Size, Green_Mask_Shift : out Unsigned_8;
+       Blue_Mask_Size, Blue_Mask_Shift   : out Unsigned_8)
+   is
+   begin
+      Addr             := Early_Init_Addr;
+      Width            := Early_Width;
+      Height           := Early_Height;
+      Pitch            := Early_Pitch;
+      Red_Mask_Size    := Early_Red_Mask_Sz;
+      Red_Mask_Shift   := Early_Red_Mask_Sh;
+      Blue_Mask_Size   := Early_Blue_Mask_Sz;
+      Blue_Mask_Shift  := Early_Blue_Mask_Sh;
+      Green_Mask_Size  := Early_Green_Mask_Sz;
+      Green_Mask_Shift := Early_Green_Mask_Sh;
+   end Get_Early_Framebuffer;
+   ----------------------------------------------------------------------------
    function Init return Boolean is
       Device   : Resource;
       Dev_Name : String  := "fb0";
@@ -223,6 +314,11 @@ package body Devices.FB with SPARK_Mode => Off is
       IntAddr  : constant Integer_Address := To_Integer (Dev_Data.Fb.Address);
       Success  : Boolean;
    begin
+      --  If we are maping the early framebuffer, we have to deinitialize it.
+      if Dev_Data.Fb.Address = Early_Init_Addr then
+         Arch.Flanterm.Disable;
+      end if;
+
       Arch.MMU.Map_Range
          (Map              => Map,
           Virtual_Start    => To_Address (Address),

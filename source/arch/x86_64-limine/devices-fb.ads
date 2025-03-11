@@ -18,6 +18,20 @@ with Memory;
 with Arch.MMU;
 
 package Devices.FB is
+   --  Early init for console printing purposes.
+   procedure Early_Init;
+
+   --  Remap the framebuffer if present.
+   function Remap_Framebuffer return Boolean;
+
+   --  Get data about the early framebuffer.
+   procedure Get_Early_Framebuffer
+      (Addr                              : out System.Address;
+       Width, Height, Pitch              : out Unsigned_64;
+       Red_Mask_Size, Red_Mask_Shift     : out Unsigned_8;
+       Green_Mask_Size, Green_Mask_Shift : out Unsigned_8;
+       Blue_Mask_Size, Blue_Mask_Shift   : out Unsigned_8);
+   ----------------------------------------------------------------------------
    --  Initialize the device.
    function Init return Boolean;
 

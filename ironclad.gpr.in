@@ -46,7 +46,9 @@ project Ironclad is
          null;
       when "x86_64-limine" =>
          Common_Source_Dirs := Common_Source_Dirs &
-            ("@SRCDIR@/uacpi");
+            ("@SRCDIR@/uacpi",
+             "@SRCDIR@/flanterm",
+             "@SRCDIR@/flanterm/backends");
    end case;
 
    for Source_Dirs use Common_Source_Dirs;

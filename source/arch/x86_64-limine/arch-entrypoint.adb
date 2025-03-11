@@ -20,6 +20,8 @@ with Arch.HPET;
 with Arch.IDT;
 with Arch.PIC;
 with Arch.CPU;
+with Devices.FB;
+with Arch.Flanterm;
 with Lib.Panic;
 with Lib.Messages; use Lib.Messages;
 with Memory.Physical;
@@ -51,9 +53,11 @@ package body Arch.Entrypoint is
       Idx : Natural := 0;
    begin
       --  Initialize architectural state first.
-      Devices.Serial.Init_COM1;
       GDT.Init;
       IDT.Init;
+      Devices.Serial.Init_COM1;
+      Devices.FB.Early_Init;
+      Arch.Flanterm.Init;
 
       --  Translate the limine protocol into arch-agnostic structures.
       Limine.Translate_Proto;

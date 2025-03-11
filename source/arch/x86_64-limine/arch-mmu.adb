@@ -23,6 +23,7 @@ with Arch.Interrupts;
 with Memory.Physical;
 with Arch.Limine;
 with Lib.Panic;
+with Devices.FB;
 
 package body Arch.MMU is
    --  Bits in the 4K page entries.
@@ -126,6 +127,11 @@ package body Arch.MMU is
           Permissions    => NX_Flags,
           Caching        => Write_Back)
       then
+         return False;
+      end if;
+
+      --  Remap the kernel's framebuffer.
+      if not Devices.FB.Remap_Framebuffer then
          return False;
       end if;
 

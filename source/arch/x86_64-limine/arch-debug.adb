@@ -17,6 +17,7 @@
 with Interfaces; use Interfaces;
 with Ada.Unchecked_Conversion;
 with Devices.Serial;
+with Arch.Flanterm;
 
 package body Arch.Debug is
    procedure Read (Message : out Devices.Operation_Data) is
@@ -26,11 +27,13 @@ package body Arch.Debug is
 
    procedure Print (Message : Character) is
    begin
+      Arch.Flanterm.Put (Message);
       Devices.Serial.Write_COM1 (Message);
    end Print;
 
    procedure Print (Message : String) is
    begin
+      Arch.Flanterm.Put (Message);
       Devices.Serial.Write_COM1 (Message);
    end Print;
 
@@ -38,7 +41,7 @@ package body Arch.Debug is
       function Conv is new Ada.Unchecked_Conversion (Unsigned_8, Character);
    begin
       for C of Message loop
-         Devices.Serial.Write_COM1 (Conv (C));
+         Print (Conv (C));
       end loop;
    end Print;
 end Arch.Debug;
