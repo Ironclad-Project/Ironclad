@@ -31,6 +31,7 @@ package body Userland.Corefile is
       Success  : VFS.FS_Status;
       Core_FS  : VFS.FS_Handle;
       Core_Ino : VFS.File_Inode_Number;
+      Limit    : Limit_Value;
       Ctx_Len  : Natural;
       To_Write : Natural;
       Ctx_Data : constant Devices.Operation_Data (1 .. Inner_Ct'Size / 8)
@@ -41,14 +42,13 @@ package body Userland.Corefile is
       end if;
 
       To_Write := Ctx_Data'Length;
-      Ctx_Len  := Natural (Get_Limit (Proc, Core_Size_Limit) and 16#FFFFFFFF#);
-      if To_Write > Ctx_Len then
-         To_Write := Ctx_Len;
+      Limit    := Get_Limit (Proc, Core_Size_Limit);
+      if Limit < Limit_Value (To_Write) then
+         To_Write := Natural (Limit);
       end if;
-
-      Ctx_Len := Natural (Get_Limit (Proc, File_Size_Limit) and 16#FFFFFFFF#);
-      if To_Write > Ctx_Len then
-         To_Write := Ctx_Len;
+      Limit := Get_Limit (Proc, File_Size_Limit);
+      if Limit < Limit_Value (To_Write) then
+         To_Write := Natural (Limit);
       end if;
 
       if To_Write = 0 then
