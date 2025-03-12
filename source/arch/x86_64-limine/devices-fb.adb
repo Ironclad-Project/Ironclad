@@ -206,13 +206,6 @@ package body Devices.FB with SPARK_Mode => Off is
                   (FBPonse.Framebuffers) + ((Integer_Address (I) - 1) *
                   (Unsigned_64'Size / 8)));
          begin
-            --  Translate the boot information into fbdev info and register
-            --  one device per framebuffer.
-            --  They start at 0 by Linux convention, the best kind of
-            --  convention!
-            --  TODO: The 4 red/green/blue/transp values are hardcoded.
-            --  They can be fetched from the loader instead, which is
-            --  a bit painful in all honesty.
             Data := new Internal_FB_Data'
                (Fb         => Fb.all,
                 Fixed_Info =>
@@ -240,10 +233,13 @@ package body Devices.FB with SPARK_Mode => Off is
                    VMode          => FB_VMODE_NONINTERLACED,
                    Width          => Unsigned_32'Last,
                    Height         => Unsigned_32'Last,
-                   Red            => (16, 8, 0),
-                   Green          => (08, 8, 0),
-                   Blue           => (00, 8, 0),
-                   Transp         => (24, 8, 0), --  Look the TODO!
+                   Red            => (Unsigned_32 (Fb.Red_Mask_Shift),
+                                      Unsigned_32 (Fb.Red_Mask_Size), 0),
+                   Green          => (Unsigned_32 (Fb.Green_Mask_Shift),
+                                      Unsigned_32 (Fb.Green_Mask_Size), 0),
+                   Blue           => (Unsigned_32 (Fb.Blue_Mask_Shift),
+                                      Unsigned_32 (Fb.Blue_Mask_Size), 0),
+                   Transp         => (24, 8, 0), --  TODO: Implement this.
                    others         => 0));
 
             Device :=
