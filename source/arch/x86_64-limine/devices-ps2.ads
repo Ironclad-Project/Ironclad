@@ -1,5 +1,5 @@
---  devices-ps2keyboard.ads: PS2 keyboard driver.
---  Copyright (C) 2024 streaksu
+--  devices-ps2.adb: PS2 keyboard and mouse driver.
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,13 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Devices.PS2Keyboard is
+package Devices.PS2 is
    --  Initialize the device.
    function Init return Boolean;
 
 private
 
-   procedure Read
+   procedure Kb_Read
       (Key         : System.Address;
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
@@ -28,16 +28,43 @@ private
        Success     : out Boolean;
        Is_Blocking : Boolean);
 
-   procedure Poll
+   procedure Kb_Poll
       (Data      : System.Address;
        Can_Read  : out Boolean;
        Can_Write : out Boolean;
        Is_Error  : out Boolean);
+   ----------------------------------------------------------------------------
+   procedure Ms_Read
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Boolean;
+       Is_Blocking : Boolean);
 
+   procedure Ms_IO_Control
+      (Key       : System.Address;
+       Request   : Unsigned_64;
+       Argument  : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean);
+
+   procedure Ms_Poll
+      (Data      : System.Address;
+       Can_Read  : out Boolean;
+       Can_Write : out Boolean;
+       Is_Error  : out Boolean);
+   ----------------------------------------------------------------------------
+   procedure Set_Sample_Rate (Rate : Unsigned_8);
+   function Identify_Mouse return Unsigned_8;
+   ----------------------------------------------------------------------------
    function Read_PS2 return Unsigned_8;
    procedure Write_PS2 (Port : Unsigned_16; Value : Unsigned_8);
    function Read_PS2_Config return Unsigned_8;
    procedure Write_PS2_Config (Value : Unsigned_8);
-
+   procedure Mouse_Write (Data : Unsigned_8);
+   ----------------------------------------------------------------------------
    procedure Keyboard_Handler;
-end Devices.PS2Keyboard;
+   procedure Mouse_Handler;
+end Devices.PS2;

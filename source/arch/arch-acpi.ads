@@ -28,6 +28,9 @@ package Arch.ACPI is
    --  Check whether ACPI is supported.
    function Is_Supported return Boolean;
 
+   --  Get ACPI major revision.
+   function Get_Revision return Natural;
+
    --  Initialize ACPI, which usually means initializing the underlying uACPI.
    procedure Initialize (Success : out Boolean);
    ----------------------------------------------------------------------------
@@ -187,6 +190,47 @@ package Arch.ACPI is
       Processor_ID at 0 range 96 .. 127;
    end record;
    for MADT_x2APIC'Size use 128;
+
+   --  FADT table.
+   FADT_Signature : constant SDT_Signature := "FACP";
+   type FADT is record
+      Header              : SDT_Header;
+      Firmware_Control    : Unsigned_32;
+      DSDT                : Unsigned_32;
+      Reserved_1          : Unsigned_8;
+      Prefered_PM_Profile : Unsigned_8;
+      SCI_Interrupt       : Unsigned_16;
+      SMI_Command         : Unsigned_32;
+      ACPI_Enable         : Unsigned_8;
+      ACPI_Disable        : Unsigned_8;
+      S4BIOS_REQ          : Unsigned_8;
+      PSTATE_CNT          : Unsigned_8;
+      PM1a_EVT_BLK        : Unsigned_32;
+      PM1a_CNT_BLK        : Unsigned_32;
+      PM1b_CNT_BLK        : Unsigned_32;
+      PM2_CNT_BLK         : Unsigned_32;
+      PM_TMR_BLK          : Unsigned_32;
+      GPE0_BLK            : Unsigned_32;
+      GPE1_BLK            : Unsigned_32;
+      PM1_EVT_LEN         : Unsigned_8;
+      PM1_CNT_LEN         : Unsigned_8;
+      PM2_CNT_LEN         : Unsigned_8;
+      PM_TMR_LEN          : Unsigned_8;
+      GPE0_BLK_LEN        : Unsigned_8;
+      GPE1_BLK_LEN        : Unsigned_8;
+      GPE1_Base           : Unsigned_8;
+      CST_CNT             : Unsigned_8;
+      P_LVL2_LAT          : Unsigned_16;
+      P_LVL3_LAT          : Unsigned_16;
+      Flush_Size          : Unsigned_16;
+      Flush_Stride        : Unsigned_16;
+      Duty_Offset         : Unsigned_8;
+      Duty_Width          : Unsigned_8;
+      Day_Alarm           : Unsigned_8;
+      Mon_Alarm           : Unsigned_8;
+      Century             : Unsigned_8;
+      IAPC_Architecture   : Unsigned_16;
+   end record with Pack;
 
    --  HPET table.
    HPET_Signature : constant SDT_Signature := "HPET";

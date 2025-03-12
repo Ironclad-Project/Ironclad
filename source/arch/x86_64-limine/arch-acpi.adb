@@ -58,6 +58,15 @@ package body Arch.ACPI with SPARK_Mode => Off is
       return True;
    end Is_Supported;
 
+   function Get_Revision return Natural is
+      RSDPonse : Limine.RSDP_Response
+         with Import, Address => RSDP_Request.Response;
+      R : RSDP with Import, Address =>
+         To_Address (To_Integer (RSDPonse.Addr) + Memory.Memory_Offset);
+   begin
+      return Natural (R.Revision);
+   end Get_Revision;
+
    function Power_Button_Handler return Unsigned_32 is
    begin
       Devices.Power_Buttons.Trigger_Power_Button;
