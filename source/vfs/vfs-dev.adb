@@ -125,6 +125,7 @@ package body VFS.Dev is
    is
       pragma Unreferenced (FS_Data);
 
+      Off        : Natural := Offset;
       Buffer     : Devices.Device_List (1 .. 30);
       Buffer_Len : Natural;
    begin
@@ -141,12 +142,22 @@ package body VFS.Dev is
          return;
       end if;
 
+      if Off = 0 and Entities'Length > 0 then
+         Entities (Entities'First)  :=
+            (Inode_Number => Root_Inode,
+             Name_Buffer  => [1 => '.', others => ' '],
+             Name_Len     => 1,
+             Type_Of_File => File_Directory);
+         Ret_Count := Ret_Count + 1;
+         Off       := Off + 1;
+      end if;
+
       Devices.List (Buffer, Buffer_Len);
       for I in 1 .. Buffer_Len loop
          pragma Loop_Invariant
             (Unsigned_64 (Ret_Count) <= Unsigned_64 (Entities'Length));
 
-         if I - 1 >= Offset then
+         if I >= Off then
             if not (I in Buffer'Range)                      or else
                Entities'Length > Unsigned_64 (Natural'Last) or else
                Ret_Count >= Entities'Length
