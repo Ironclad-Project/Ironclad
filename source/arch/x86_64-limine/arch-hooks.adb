@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Arch.Flanterm;
 with System; use System;
 with Devices.FB;
 with Devices.PS2;
@@ -70,6 +71,8 @@ package body Arch.Hooks is
          Devices.PC_Speaker.Beep (1000);
          Devices.PC_Speaker.Beep (500);
       end loop;
+
+      Arch.Flanterm.Enable_For_Panic;
    exception
       when Constraint_Error =>
          null;

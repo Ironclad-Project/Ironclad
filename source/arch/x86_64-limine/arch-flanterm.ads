@@ -19,6 +19,7 @@ with Interfaces; use Interfaces;
 
 package Arch.Flanterm is
    procedure Init;
+   procedure Enable_For_Panic;
    procedure Disable;
    procedure Put (C : Character);
    procedure Put (Line : String);
@@ -56,14 +57,12 @@ private
        Margin            : Unsigned_64) return Flanterm_Ctx
       with Import, Convention => C, External_Name => "flanterm_fb_init";
 
-   procedure Ctx_Deinit
-      (Ctx  : Flanterm_Ctx;
-       Free : System.Address)
-      with Import, Convention => C, External_Name => "flanterm_fb_init";
-
    procedure Term_Write
       (Ctx : Flanterm_Ctx;
        Buf : System.Address;
        Len : Unsigned_64)
       with Import, Convention => C, External_Name => "flanterm_write";
+
+   procedure Term_Full_Refresh (Ctx : Flanterm_Ctx)
+      with Import, Convention => C, External_Name => "flanterm_full_refresh";
 end Arch.Flanterm;

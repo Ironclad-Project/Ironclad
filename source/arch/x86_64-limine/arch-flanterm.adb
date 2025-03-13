@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Characters.Latin_1;
 with Devices.FB;
 
 package body Arch.Flanterm is
@@ -70,28 +71,31 @@ package body Arch.Flanterm is
       Is_Enabled := Ctx /= System.Null_Address;
    end Init;
 
+   procedure Enable_For_Panic is
+   begin
+      Is_Enabled := True;
+      Term_Full_Refresh (Ctx);
+      Put ((Ada.Characters.Latin_1.ESC) & "[2J"); --  Clear screen.
+      Put ((Ada.Characters.Latin_1.ESC) & "[H");  --  Move back to first char.
+   end Enable_For_Panic;
+
    procedure Disable is
    begin
       Is_Enabled := False;
-      Ctx_Deinit (Ctx, System.Null_Address);
    end Disable;
 
    procedure Put (C : Character) is
    begin
-      if not Is_Enabled then
-         return;
+      if Is_Enabled then
+         Term_Write (Ctx, C'Address, 1);
       end if;
-
-      Term_Write (Ctx, C'Address, 1);
    end Put;
 
    procedure Put (Line : String) is
    begin
-      if not Is_Enabled then
-         return;
+      if Is_Enabled then
+         Term_Write (Ctx, Line (Line'First)'Address, Line'Length);
       end if;
-
-      Term_Write (Ctx, Line (Line'First)'Address, Line'Length);
    exception
       when Constraint_Error =>
          null;
