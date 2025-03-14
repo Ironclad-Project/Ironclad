@@ -663,13 +663,13 @@ private
        Success : out Boolean;
        Is_Blocking : Boolean);
 
-   function Sync
-      (Key : System.Address) return Boolean;
+   procedure Sync (Key : System.Address; Success : out Boolean);
 
-   function Sync_Range
-      (Key : System.Address;
-       Offset : Unsigned_64;
-       Count : Unsigned_64) return Boolean;
+   procedure Sync_Range
+      (Key     : System.Address;
+       Offset  : Unsigned_64;
+       Count   : Unsigned_64;
+       Success : out Boolean);
 
    --  Operations on the Controller
    procedure Controller_Await_Ready

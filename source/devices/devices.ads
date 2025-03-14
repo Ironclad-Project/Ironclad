@@ -59,11 +59,12 @@ package Devices is
           Ret_Count   : out Natural;
           Success     : out Boolean;
           Is_Blocking : Boolean);
-      Sync : access function (Key : System.Address) return Boolean;
-      Sync_Range : access function
-         (Key    : System.Address;
-          Offset : Unsigned_64;
-          Count  : Unsigned_64) return Boolean;
+      Sync : access procedure (Key : System.Address; Success : out Boolean);
+      Sync_Range : access procedure
+         (Key     : System.Address;
+          Offset  : Unsigned_64;
+          Count   : Unsigned_64;
+          Success : out Boolean);
       Poll : access procedure
          (Key       : System.Address;
           Can_Read  : out Boolean;
@@ -82,12 +83,13 @@ package Devices is
           Has_Extra : out Boolean;
           Extra     : out Unsigned_64;
           Success   : out Boolean);
-      Mmap : access function
+      Mmap : access procedure
          (Key     : System.Address;
           Map     : Arch.MMU.Page_Table_Acc;
           Address : Memory.Virtual_Address;
           Length  : Unsigned_64;
-          Flags   : Arch.MMU.Page_Permissions) return Boolean;
+          Flags   : Arch.MMU.Page_Permissions;
+          Success : out Boolean);
    end record;
 
    --  Handle for interfacing with devices, and device conditions.
@@ -180,20 +182,21 @@ package Devices is
       with Pre => (Is_Initialized = True);
 
    --  Synchronize internal device state, in order to ensure coherency.
-   --  @param Handle Handle to synchronize if supported, must be valid.
-   --  @return True on success or sync not supported. False on device failure.
-   function Synchronize (Handle : Device_Handle) return Boolean
+   --  @param Handle  Handle to synchronize if supported, must be valid.
+   --  @param Success True on success or sync not supported.
+   procedure Synchronize (Handle : Device_Handle; Success : out Boolean)
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
    --  Synchronize a data range of a device, in order to ensure coherency.
-   --  @param Handle Handle to synchronize if supported, must be valid.
-   --  @param Offset Offset to start synchronizing.
-   --  @param Count  Count of bytes to synchronize.
-   --  @return True on success or sync not supported. False on device failure.
-   function Synchronize
-      (Handle : Device_Handle;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64) return Boolean
+   --  @param Handle  Handle to synchronize if supported, must be valid.
+   --  @param Offset  Offset to start synchronizing.
+   --  @param Count   Count of bytes to synchronize.
+   --  @param Success True on success or sync not supported.
+   procedure Synchronize
+      (Handle  : Device_Handle;
+       Offset  : Unsigned_64;
+       Count   : Unsigned_64;
+       Success : out Boolean)
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
    --  Read from a device.
@@ -251,13 +254,14 @@ package Devices is
    --  @param Map      Map to map the device to.
    --  @param Address  Virtual address to map device memory to.
    --  @param Length   Length in bytes of the mapping.
-   --  @result True in success, False if not supported or failed.
-   function Mmap
+   --  @param Success  True in success, False if not supported or failed.
+   procedure Mmap
       (Handle  : Device_Handle;
        Map     : Arch.MMU.Page_Table_Acc;
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64;
-       Flags   : Arch.MMU.Page_Permissions) return Boolean
+       Flags   : Arch.MMU.Page_Permissions;
+       Success : out Boolean)
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
    --  Do a device-specific polling for status.

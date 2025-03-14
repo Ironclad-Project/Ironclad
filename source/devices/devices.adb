@@ -224,31 +224,32 @@ package body Devices is
       return Devices_Data (Handle).Contents.Write = null;
    end Is_Read_Only;
 
-   function Synchronize (Handle : Device_Handle) return Boolean is
-      Success : Boolean := True;
+   procedure Synchronize (Handle : Device_Handle; Success : out Boolean) is
    begin
       if Devices_Data (Handle).Contents.Sync /= null then
-         Success := Devices_Data (Handle).Contents.Sync
-            (Devices_Data (Handle).Contents.Data);
+         Devices_Data (Handle).Contents.Sync
+            (Devices_Data (Handle).Contents.Data, Success);
+      else
+         Success := True;
       end if;
-      return Success;
    end Synchronize;
 
-   function Synchronize
-      (Handle : Device_Handle;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64) return Boolean
+   procedure Synchronize
+      (Handle  : Device_Handle;
+       Offset  : Unsigned_64;
+       Count   : Unsigned_64;
+       Success : out Boolean)
    is
-      Success : Boolean := True;
    begin
       if Devices_Data (Handle).Contents.Sync_Range /= null then
-         Success := Devices_Data (Handle).Contents.Sync_Range
-            (Devices_Data (Handle).Contents.Data, Offset, Count);
+         Devices_Data (Handle).Contents.Sync_Range
+            (Devices_Data (Handle).Contents.Data, Offset, Count, Success);
       elsif Devices_Data (Handle).Contents.Sync /= null then
-         Success := Devices_Data (Handle).Contents.Sync
-            (Devices_Data (Handle).Contents.Data);
+         Devices_Data (Handle).Contents.Sync
+            (Devices_Data (Handle).Contents.Data, Success);
+      else
+         Success := True;
       end if;
-      return Success;
    end Synchronize;
 
    procedure Read
@@ -318,19 +319,21 @@ package body Devices is
       end if;
    end IO_Control;
 
-   function Mmap
+   procedure Mmap
       (Handle  : Device_Handle;
        Map     : Arch.MMU.Page_Table_Acc;
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64;
-       Flags   : Arch.MMU.Page_Permissions) return Boolean
+       Flags   : Arch.MMU.Page_Permissions;
+       Success : out Boolean)
    is
    begin
       if Devices_Data (Handle).Contents.Mmap /= null then
-         return Devices_Data (Handle).Contents.Mmap
-            (Devices_Data (Handle).Contents.Data, Map, Address, Length, Flags);
+         Devices_Data (Handle).Contents.Mmap
+            (Devices_Data (Handle).Contents.Data, Map, Address, Length, Flags,
+             Success);
       else
-         return False;
+         Success := False;
       end if;
    end Mmap;
 

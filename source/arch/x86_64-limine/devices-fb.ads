@@ -45,10 +45,11 @@ private
        Extra     : out Unsigned_64;
        Success   : out Boolean);
 
-   function Mmap
+   procedure Mmap
       (Data    : System.Address;
        Map     : Arch.MMU.Page_Table_Acc;
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64;
-       Flags   : Arch.MMU.Page_Permissions) return Boolean;
+       Flags   : Arch.MMU.Page_Permissions;
+       Success : out Boolean);
 end Devices.FB;

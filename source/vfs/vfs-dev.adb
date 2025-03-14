@@ -394,7 +394,8 @@ package body VFS.Dev is
    is
       pragma Unreferenced (Data);
 
-      Handle : Device_Handle;
+      Handle  : Device_Handle;
+      Success : Boolean;
    begin
       if Ino = Root_Inode or else
          not (Ino in 0 .. File_Inode_Number (Natural'Last))
@@ -405,11 +406,8 @@ package body VFS.Dev is
 
       Handle := From_Unique_ID (Natural (Ino));
       if Handle /= Devices.Error_Handle then
-         if Devices.Mmap (Handle, Map, Address, Length, Flags) then
-            Status := FS_Success;
-         else
-            Status := FS_IO_Failure;
-         end if;
+         Devices.Mmap (Handle, Map, Address, Length, Flags, Success);
+         Status := (if Success then FS_Success else FS_IO_Failure);
       else
          Status := FS_Invalid_Value;
       end if;
@@ -449,14 +447,15 @@ package body VFS.Dev is
 
    function Synchronize (Data : System.Address) return FS_Status is
       pragma Unreferenced (Data);
-
       Buffer     : Devices.Device_List (1 .. 30);
       Buffer_Len : Natural;
+      Success    : Boolean;
    begin
       Devices.List (Buffer, Buffer_Len);
       for I in 1 .. Buffer_Len loop
          exit when I > Buffer'Last;
-         if not Devices.Synchronize (Buffer (I)) then
+         Devices.Synchronize (Buffer (I), Success);
+         if not Success then
             return FS_IO_Failure;
          end if;
       end loop;
@@ -468,10 +467,9 @@ package body VFS.Dev is
        Ino       : File_Inode_Number;
        Data_Only : Boolean) return FS_Status
    is
-      pragma Unreferenced (Data);
-      pragma Unreferenced (Data_Only);
-
-      Handle : Device_Handle;
+      pragma Unreferenced (Data, Data_Only);
+      Handle  : Device_Handle;
+      Success : Boolean;
    begin
       if Ino = Root_Inode then
          return FS_Success;
@@ -481,11 +479,8 @@ package body VFS.Dev is
 
       Handle := From_Unique_ID (Natural (Ino));
       if Handle /= Devices.Error_Handle then
-         if Devices.Synchronize (Handle) then
-            return FS_Success;
-         else
-            return FS_IO_Failure;
-         end if;
+         Devices.Synchronize (Handle, Success);
+         return (if Success then FS_Success else FS_IO_Failure);
       else
          return FS_Invalid_Value;
       end if;

@@ -398,33 +398,35 @@ package body Devices.Partitions is
          Success   := False;
    end Write;
 
-   function Sync (Key : System.Address) return Boolean is
+   procedure Sync (Key : System.Address; Success : out Boolean) is
       Part : constant Partition_Data_Acc :=
          Partition_Data_Acc (Con1.To_Pointer (Key));
    begin
-      return Devices.Synchronize
-         (Handle => Part.Inner_Device,
-          Offset => Part.LBA_Offset * Unsigned_64 (Part.Block_Size),
-          Count  => Part.LBA_Length * Unsigned_64 (Part.Block_Size));
+      Devices.Synchronize
+         (Handle  => Part.Inner_Device,
+          Offset  => Part.LBA_Offset * Unsigned_64 (Part.Block_Size),
+          Count   => Part.LBA_Length * Unsigned_64 (Part.Block_Size),
+          Success => Success);
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Sync;
 
-   function Sync_Range
-      (Key    : System.Address;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64) return Boolean
+   procedure Sync_Range
+      (Key     : System.Address;
+       Offset  : Unsigned_64;
+       Count   : Unsigned_64;
+       Success : out Boolean)
    is
       Part : constant Partition_Data_Acc :=
          Partition_Data_Acc (Con1.To_Pointer (Key));
    begin
-      return Devices.Synchronize
+      Devices.Synchronize
          (Handle => Part.Inner_Device,
           Offset => (Part.LBA_Offset * Unsigned_64 (Part.Block_Size)) + Offset,
-          Count  => Count);
+          Count  => Count, Success => Success);
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Sync_Range;
 end Devices.Partitions;

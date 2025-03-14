@@ -889,11 +889,11 @@ package body Devices.NVMe with SPARK_Mode => Off is
          Ret_Count := 0;
    end Write;
 
-   function Sync (Key : System.Address) return Boolean is
+   procedure Sync (Key : System.Address; Success : out Boolean) is
       Drive   : constant Namespace_Data_Acc
          := Namespace_Data_Acc (C5.To_Pointer (Key));
-      Success : Boolean := True;
    begin
+      Success := True;
       Lib.Synchronization.Seize (Drive.Mutex);
       for Cache of Drive.Caches loop
          if Cache.Is_Used and Cache.Is_Dirty then
@@ -907,28 +907,28 @@ package body Devices.NVMe with SPARK_Mode => Off is
 
    <<Cleanup>>
       Lib.Synchronization.Release (Drive.Mutex);
-      return Success;
    exception
       when Constraint_Error =>
          Lib.Synchronization.Release (Drive.Mutex);
-         return False;
+         Success := False;
    end Sync;
 
-   function Sync_Range
-      (Key    : System.Address;
-       Offset : Unsigned_64;
-       Count  : Unsigned_64) return Boolean
+   procedure Sync_Range
+      (Key     : System.Address;
+       Offset  : Unsigned_64;
+       Count   : Unsigned_64;
+       Success : out Boolean)
    is
       Drive    : constant Namespace_Data_Acc
          := Namespace_Data_Acc (C5.To_Pointer (Key));
       First_LBA : Unsigned_64;
       Last_LBA  : Unsigned_64;
-      Success   : Boolean := True;
    begin
       Lib.Synchronization.Seize (Drive.Mutex);
 
       First_LBA := Offset / Unsigned_64 (Drive.LBA_Size);
       Last_LBA := (Offset + Count) / Unsigned_64 (Drive.LBA_Size);
+      Success := True;
 
       for Cache of Drive.Caches loop
          if Cache.Is_Used                 and
@@ -946,11 +946,10 @@ package body Devices.NVMe with SPARK_Mode => Off is
 
    <<Cleanup>>
       Lib.Synchronization.Release (Drive.Mutex);
-      return Success;
    exception
       when Constraint_Error =>
          Lib.Synchronization.Release (Drive.Mutex);
-         return False;
+         Success := False;
    end Sync_Range;
 
    function NS_Read

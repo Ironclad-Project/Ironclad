@@ -1302,12 +1302,10 @@ package body VFS.EXT with SPARK_Mode => Off is
 
    function Synchronize (Data : System.Address) return FS_Status is
       FS_Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
+      Success : Boolean;
    begin
-      if Devices.Synchronize (FS_Data.Handle) then
-         return FS_Success;
-      else
-         return FS_IO_Failure;
-      end if;
+      Devices.Synchronize (FS_Data.Handle, Success);
+      return (if Success then FS_Success else FS_IO_Failure);
    exception
       when Constraint_Error =>
          return FS_IO_Failure;

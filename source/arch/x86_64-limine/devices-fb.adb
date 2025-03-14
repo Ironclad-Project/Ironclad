@@ -299,16 +299,16 @@ package body Devices.FB with SPARK_Mode => Off is
       end case;
    end IO_Control;
 
-   function Mmap
+   procedure Mmap
       (Data    : System.Address;
        Map     : Arch.MMU.Page_Table_Acc;
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64;
-       Flags   : Arch.MMU.Page_Permissions) return Boolean
+       Flags   : Arch.MMU.Page_Permissions;
+       Success : out Boolean)
    is
       Dev_Data : Internal_FB_Data with Import, Address => Data;
       IntAddr  : constant Integer_Address := To_Integer (Dev_Data.Fb.Address);
-      Success  : Boolean;
    begin
       --  If we are maping the early framebuffer, we have to deinitialize it.
       if Dev_Data.Fb.Address = Early_Init_Addr then
@@ -323,9 +323,8 @@ package body Devices.FB with SPARK_Mode => Off is
           Permissions      => Flags,
           Success          => Success,
           Caching          => Arch.MMU.Write_Combining);
-      return Success;
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Mmap;
 end Devices.FB;
