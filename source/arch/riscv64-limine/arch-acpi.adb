@@ -20,6 +20,11 @@ package body Arch.ACPI with SPARK_Mode => Off is
       return False;
    end Is_Supported;
 
+   function Get_Revision return Natural is
+   begin
+      return 0;
+   end Get_Revision;
+
    procedure Initialize (Success : out Boolean) is
    begin
       Success := False;
