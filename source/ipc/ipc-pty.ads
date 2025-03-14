@@ -16,7 +16,7 @@
 
 with Lib.Synchronization;
 with Arch.MMU;
-with Devices;
+with Devices; use Devices;
 with Devices.TermIOs;
 with Interfaces; use Interfaces;
 with System;
@@ -206,7 +206,7 @@ private
        Offset      : Unsigned_64;
        Data        : out Devices.Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean);
 
    procedure Dev_Write
@@ -214,7 +214,7 @@ private
        Offset      : Unsigned_64;
        Data        : Devices.Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean);
 
    function Dev_IO_Control

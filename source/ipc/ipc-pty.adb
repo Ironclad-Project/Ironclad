@@ -577,11 +577,10 @@ package body IPC.PTY is
        Offset      : Unsigned_64;
        Data        : out Devices.Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Offset);
-
       PTY  : constant Inner_Acc := Inner_Acc (Conv.To_Pointer (Key));
       Succ : Status;
    begin
@@ -591,7 +590,7 @@ package body IPC.PTY is
           Is_Blocking => Is_Blocking,
           Ret_Count   => Ret_Count,
           Success     => Succ);
-      Success := Succ = PTY_Success;
+      Success := (if Succ = PTY_Success then Dev_Success else Dev_IO_Failure);
    end Dev_Read;
 
    procedure Dev_Write
@@ -599,11 +598,10 @@ package body IPC.PTY is
        Offset      : Unsigned_64;
        Data        : Devices.Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Offset);
-
       PTY  : constant Inner_Acc := Inner_Acc (Conv.To_Pointer (Key));
       Succ : Status;
    begin
@@ -613,7 +611,7 @@ package body IPC.PTY is
           Is_Blocking => Is_Blocking,
           Ret_Count   => Ret_Count,
           Success     => Succ);
-      Success := Succ = PTY_Success;
+      Success := (if Succ = PTY_Success then Dev_Success else Dev_IO_Failure);
    end Dev_Write;
 
    function Dev_IO_Control

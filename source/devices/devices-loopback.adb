@@ -61,11 +61,10 @@ package body Devices.Loopback is
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Offset);
-      pragma Unreferenced (Is_Blocking);
+      pragma Unreferenced (Offset, Is_Blocking);
       Dev : Loopback_Data with Import, Address => Key;
    begin
       while Dev.Len = 0 loop
@@ -83,7 +82,7 @@ package body Devices.Loopback is
          Dev.Len := Dev.Len - Data'Length;
       end if;
 
-      Success := True;
+      Success := Dev_Success;
    end Read;
 
    procedure Write
@@ -91,11 +90,10 @@ package body Devices.Loopback is
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Offset);
-      pragma Unreferenced (Is_Blocking);
+      pragma Unreferenced (Offset, Is_Blocking);
       Dev : Loopback_Data with Import, Address => Key;
    begin
       while Dev.Len /= 0 loop
@@ -106,10 +104,10 @@ package body Devices.Loopback is
          Dev.Data (1 .. Data'Length) := Data;
          Dev.Len := Data'Length;
          Ret_Count := Data'Length;
-         Success := True;
+         Success := Dev_Success;
       else
          Ret_Count := 0;
-         Success := False;
+         Success := Dev_Invalid_Value;
       end if;
    end Write;
 end Devices.Loopback;

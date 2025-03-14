@@ -257,22 +257,22 @@ package body Devices is
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean := True)
    is
    begin
       if Devices_Data (Handle).Contents.Read /= null then
          Devices_Data (Handle).Contents.Read
-            (Key       => Devices_Data (Handle).Contents.Data,
-             Offset    => Offset,
-             Data      => Data,
-             Ret_Count => Ret_Count,
-             Success   => Success,
+            (Key         => Devices_Data (Handle).Contents.Data,
+             Offset      => Offset,
+             Data        => Data,
+             Ret_Count   => Ret_Count,
+             Success     => Success,
              Is_Blocking => Is_Blocking);
       else
          Data      := [others => 0];
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_Not_Supported;
       end if;
    end Read;
 
@@ -281,21 +281,21 @@ package body Devices is
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean := True)
    is
    begin
       if Devices_Data (Handle).Contents.Write /= null then
          Devices_Data (Handle).Contents.Write
-            (Key       => Devices_Data (Handle).Contents.Data,
-             Offset    => Offset,
-             Data      => Data,
-             Ret_Count => Ret_Count,
-             Success   => Success,
+            (Key         => Devices_Data (Handle).Contents.Data,
+             Offset      => Offset,
+             Data        => Data,
+             Ret_Count   => Ret_Count,
+             Success     => Success,
              Is_Blocking => Is_Blocking);
       else
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_Not_Supported;
       end if;
    end Write;
 

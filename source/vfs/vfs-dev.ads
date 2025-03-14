@@ -130,4 +130,6 @@ package VFS.Dev is
        Ino       : File_Inode_Number;
        Data_Only : Boolean) return FS_Status
       with Pre => Devices.Is_Initialized;
+
+   function Dev_To_FS_Status (S : Devices.Dev_Status) return FS_Status;
 end VFS.Dev;

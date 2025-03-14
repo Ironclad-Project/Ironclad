@@ -296,7 +296,7 @@ package body IPC.Socket is
    is
       pragma Unreferenced (Port);
 
-      Succ : Boolean;
+      Succ : Devices.Dev_Status;
       Dev  : Devices.Device_Handle;
       Src  : Networking.IPv4_Address;
       Hdr_Size : constant Natural := Networking.IPv4.IPv4_Packet_Header'Size;
@@ -316,7 +316,7 @@ package body IPC.Socket is
             Data (Data'First .. Data'Last - (Hdr_Size / 8)) :=
                Data (Data'First + (Hdr_Size / 8) .. Data'Last);
             Ret_Count := Ret_Count - (Hdr_Size / 8);
-            if Succ then
+            if Succ = Devices.Dev_Success then
                Success := Plain_Success;
             else
                Success := Would_Block;
@@ -338,7 +338,7 @@ package body IPC.Socket is
    is
       pragma Unreferenced (Port);
 
-      Succ : Boolean;
+      Succ : Devices.Dev_Status;
       Dev  : Devices.Device_Handle;
       Tmp_Data : Operation_Data_Acc;
       Src  : Networking.IPv4_Address;
@@ -365,7 +365,7 @@ package body IPC.Socket is
             Devices.Write (Dev, 0, Tmp_Data.all, Ret_Count, Succ);
             Free (Tmp_Data);
 
-            if Succ then
+            if Succ = Devices.Dev_Success then
                Success := Plain_Success;
             else
                Success := Would_Block;
@@ -457,7 +457,7 @@ package body IPC.Socket is
    is
       pragma Unreferenced (Port);
 
-      Succ : Boolean;
+      Succ : Devices.Dev_Status;
       Dev  : Devices.Device_Handle;
       Src  : Networking.IPv6_Address;
       Hdr_Size : constant Natural := Networking.IPv6.IPv6_Packet_Header'Size;
@@ -477,7 +477,7 @@ package body IPC.Socket is
             Data (Data'First .. Data'Last - (Hdr_Size / 8)) :=
                Data (Data'First + (Hdr_Size / 8) .. Data'Last);
             Ret_Count := Ret_Count - (Hdr_Size / 8);
-            if Succ then
+            if Succ = Devices.Dev_Success then
                Success := Plain_Success;
             else
                Success := Would_Block;
@@ -498,7 +498,7 @@ package body IPC.Socket is
    is
       pragma Unreferenced (Port);
 
-      Succ : Boolean;
+      Succ : Devices.Dev_Status;
       Dev  : Devices.Device_Handle;
       Tmp_Data : Operation_Data_Acc;
       Src  : Networking.IPv6_Address;
@@ -525,7 +525,7 @@ package body IPC.Socket is
             Devices.Write (Dev, 0, Tmp_Data.all, Ret_Count, Succ);
             Free (Tmp_Data);
 
-            if Succ then
+            if Succ = Devices.Dev_Success then
                Success := Plain_Success;
             else
                Success := Would_Block;

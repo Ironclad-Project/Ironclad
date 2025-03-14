@@ -264,7 +264,8 @@ package VFS is
        FS_Not_Allowed,   --  Bad permissions for interacting with the inode.
        FS_RO_Failure,    --  The FS is read-only, but write access is needed.
        FS_IO_Failure,    --  The underlying device errored out.
-       FS_Loop);         --  Too many symlinks were encountered resolving path.
+       FS_Loop,          --  Too many symlinks were encountered resolving path.
+       FS_Full);         --  The file or device is full.
 
    --  Open a file with an absolute path inside the mount.
    --  @param Key        Relative FS Handle to start opening.

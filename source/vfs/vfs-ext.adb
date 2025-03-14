@@ -1655,6 +1655,7 @@ package body VFS.EXT with SPARK_Mode => Off is
        Write_Operation : Boolean;
        Success         : out Boolean)
    is
+      Succ       : Devices.Dev_Status;
       Ret_Count  : Natural;
       Super_Data : Operation_Data (1 .. Superblock'Size / 8)
          with Import, Address => Super'Address;
@@ -1665,17 +1666,18 @@ package body VFS.EXT with SPARK_Mode => Off is
              Offset    => Offset,
              Data      => Super_Data,
              Ret_Count => Ret_Count,
-             Success   => Success);
+             Success   => Succ);
       else
          Devices.Read
             (Handle    => Handle,
              Offset    => Offset,
              Data      => Super_Data,
              Ret_Count => Ret_Count,
-             Success   => Success);
+             Success   => Succ);
       end if;
 
-      Success := Success and (Ret_Count = Super_Data'Length);
+      Success := (Succ = Devices.Dev_Success) and
+                 (Ret_Count = Super_Data'Length);
    end RW_Superblock;
 
    procedure RW_Block_Group_Descriptor
@@ -1685,6 +1687,7 @@ package body VFS.EXT with SPARK_Mode => Off is
        Write_Operation  : Boolean;
        Success          : out Boolean)
    is
+      Succ        : Devices.Dev_Status;
       Descr_Size  : constant Natural := Block_Group_Descriptor'Size / 8;
       Offset      : Unsigned_32;
       Ret_Count   : Natural;
@@ -1704,17 +1707,17 @@ package body VFS.EXT with SPARK_Mode => Off is
              Offset    => Unsigned_64 (Offset),
              Data      => Result_Data,
              Ret_Count => Ret_Count,
-             Success   => Success);
+             Success   => Succ);
       else
          Devices.Read
             (Handle    => Data.Handle,
              Offset    => Unsigned_64 (Offset),
              Data      => Result_Data,
              Ret_Count => Ret_Count,
-             Success   => Success);
+             Success   => Succ);
       end if;
 
-      if Success and (Ret_Count = Result_Data'Length) then
+      if (Succ = Devices.Dev_Success) and (Ret_Count = Result_Data'Length) then
          Success := True;
       else
          Act_On_Policy (Data, "block group descriptor RW failure");
@@ -1734,6 +1737,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    is
       Table_Index, Descriptor_Index : Unsigned_32;
       Block_Descriptor : Block_Group_Descriptor;
+      Succ        : Devices.Dev_Status;
       Offset      : Unsigned_32;
       Ret_Count   : Natural;
       Result_Data : Operation_Data (1 .. Inode'Size / 8)
@@ -1761,16 +1765,16 @@ package body VFS.EXT with SPARK_Mode => Off is
              Offset    => Unsigned_64 (Offset),
              Data      => Result_Data,
              Ret_Count => Ret_Count,
-             Success   => Success);
+             Success   => Succ);
       else
          Devices.Read
             (Handle    => Data.Handle,
              Offset    => Unsigned_64 (Offset),
              Data      => Result_Data,
              Ret_Count => Ret_Count,
-             Success   => Success);
+             Success   => Succ);
       end if;
-      if Success and (Ret_Count = Result_Data'Length) then
+      if (Succ = Devices.Dev_Success) and (Ret_Count = Result_Data'Length) then
          Success := True;
       else
          Act_On_Policy (Data, "inode RW failure");
@@ -1803,7 +1807,7 @@ package body VFS.EXT with SPARK_Mode => Off is
          with Import, Address => Block_Index'Address;
 
       Discard_1 : Natural;
-      Discard_2 : Boolean;
+      Discard_2 : Devices.Dev_Status;
    begin
       Block_Level := FS_Data.Block_Size / 4;
 
@@ -1888,6 +1892,7 @@ package body VFS.EXT with SPARK_Mode => Off is
        Ret_Count   : out Natural;
        Success     : out Boolean)
    is
+      Succ           : Devices.Dev_Status;
       Final_Count    : Natural;
       Final_Offset   : Unsigned_64 := Offset;
       Block_Searched : Unsigned_64;
@@ -1924,9 +1929,10 @@ package body VFS.EXT with SPARK_Mode => Off is
                                 Data'First + Bytes_Read +
                                 Natural (Step_Size) - 1),
              Ret_Count => Ret_Count,
-             Success   => Success);
-         if not Success then
+             Success   => Succ);
+         if Succ /= Devices.Dev_Success then
             Act_On_Policy (FS_Data, "Error reading an inode");
+            Success := False;
             return;
          end if;
 
@@ -1951,6 +1957,7 @@ package body VFS.EXT with SPARK_Mode => Off is
        Ret_Count   : out Natural;
        Success     : out Boolean)
    is
+      Succ           : Devices.Dev_Status;
       Final_Offset   : Unsigned_64 := Offset;
       Block_Searched : Unsigned_64;
       Block_Index    : Unsigned_32;
@@ -2007,8 +2014,8 @@ package body VFS.EXT with SPARK_Mode => Off is
                                 Data'First + Bytes_Read +
                                 Natural (Step_Size) - 1),
              Ret_Count => Ret_Count,
-             Success   => Success);
-         if not Success then
+             Success   => Succ);
+         if Succ /= Devices.Dev_Success then
             goto Error_Return;
          end if;
 
@@ -2129,6 +2136,7 @@ package body VFS.EXT with SPARK_Mode => Off is
 
       Discard_1 : Natural;
       Discard_2 : Boolean;
+      Discard_3 : Devices.Dev_Status;
    begin
       Block_Level := FS_Data.Block_Size / 4;
 
@@ -2174,7 +2182,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                              FS_Data.Block_Size + Double_Indirect * 4),
                 Data      => Single_Indirect_Index_Data,
                 Ret_Count => Discard_1,
-                Success   => Discard_2);
+                Success   => Discard_3);
 
             if Single_Indirect_Index = 0 then
                Allocate_Block_For_Inode
@@ -2190,7 +2198,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                                FS_Data.Block_Size + Double_Indirect * 4),
                   Data      => Single_Indirect_Index_Data,
                   Ret_Count => Discard_1,
-                  Success   => Discard_2);
+                  Success   => Discard_3);
             end if;
 
             Devices.Read
@@ -2199,7 +2207,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                                           + Single_Indirect_Index * 4),
                 Data      => Indirect_Block_Data,
                 Ret_Count => Discard_1,
-                Success   => Discard_2);
+                Success   => Discard_3);
 
             if Indirect_Block = 0 then
                Allocate_Block_For_Inode
@@ -2216,7 +2224,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                                              Single_Indirect_Index * 4),
                   Data      => Indirect_Block_Data,
                   Ret_Count => Discard_1,
-                  Success   => Discard_2);
+                  Success   => Discard_3);
 
                Indirect_Block := Temp;
             end if;
@@ -2227,7 +2235,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                              Indirect_Offset * 4),
                 Data      => DBlock_Data,
                 Ret_Count => Discard_1,
-                Success   => Discard_2);
+                Success   => Discard_3);
             Success := True;
             return;
          end if;
@@ -2254,7 +2262,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                                        FS_Data.Block_Size + Single_Index * 4),
              Data      => Indirect_Block_Data,
              Ret_Count => Discard_1,
-             Success   => Discard_2);
+             Success   => Discard_3);
 
          if Indirect_Block = 0 then
             Allocate_Block_For_Inode
@@ -2271,7 +2279,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                                           Single_Index * 4),
                 Data      => Indirect_Block_Data,
                 Ret_Count => Discard_1,
-                Success   => Discard_2);
+                Success   => Discard_3);
          end if;
 
          Devices.Write
@@ -2280,7 +2288,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                                        Indirect_Offset * 4),
              Data      => DBlock_Data,
              Ret_Count => Discard_1,
-             Success   => Discard_2);
+             Success   => Discard_3);
          Success := True;
          return;
       end if;
@@ -2307,7 +2315,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                                     + Adjusted_Block * 4),
           Data      => DBlock_Data,
           Ret_Count => Discard_1,
-          Success   => Discard_2);
+          Success   => Discard_3);
       Success := True;
    exception
       when Constraint_Error =>
@@ -2321,6 +2329,7 @@ package body VFS.EXT with SPARK_Mode => Off is
        Ret_Block  : out Unsigned_32;
        Success    : out Boolean)
    is
+      Succ       : Devices.Dev_Status;
       Ret_Count  : Natural;
       Desc       : Block_Group_Descriptor;
       Curr_Block : Unsigned_32;
@@ -2348,8 +2357,8 @@ package body VFS.EXT with SPARK_Mode => Off is
                                        FS_Data.Block_Size),
              Data      => Bitmap.all,
              Ret_Count => Ret_Count,
-             Success   => Success);
-         if not Success then
+             Success   => Succ);
+         if Succ /= Devices.Dev_Success then
             goto Error_Return;
          end if;
 
@@ -2379,8 +2388,8 @@ package body VFS.EXT with SPARK_Mode => Off is
                                        FS_Data.Block_Size),
              Data      => Bitmap.all,
              Ret_Count => Ret_Count,
-             Success   => Success);
-         if not Success then
+             Success   => Succ);
+         if Succ /= Devices.Dev_Success then
             goto Error_Return;
          end if;
 
@@ -2432,6 +2441,7 @@ package body VFS.EXT with SPARK_Mode => Off is
        Success   : out Boolean)
    is
       Ret_Count  : Natural;
+      Succ       : Devices.Dev_Status;
       Desc       : Block_Group_Descriptor;
       Curr_Block : Unsigned_32;
       Bitmap     : Operation_Data_Acc;
@@ -2458,8 +2468,8 @@ package body VFS.EXT with SPARK_Mode => Off is
                                        FS_Data.Block_Size),
              Data      => Bitmap.all,
              Ret_Count => Ret_Count,
-             Success   => Success);
-         if not Success then
+             Success   => Succ);
+         if Succ /= Devices.Dev_Success then
             goto Error_Return;
          end if;
 
@@ -2493,8 +2503,8 @@ package body VFS.EXT with SPARK_Mode => Off is
                                        FS_Data.Block_Size),
              Data      => Bitmap.all,
              Ret_Count => Ret_Count,
-             Success   => Success);
-         if not Success then
+             Success   => Succ);
+         if Succ /= Devices.Dev_Success then
             goto Error_Return;
          end if;
 

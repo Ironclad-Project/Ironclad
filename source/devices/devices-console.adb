@@ -44,20 +44,18 @@ package body Devices.Console is
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Key);
-      pragma Unreferenced (Offset);
-      pragma Unreferenced (Is_Blocking);
+      pragma Unreferenced (Key, Offset, Is_Blocking);
    begin
       if Arch.Debug.Supports_Read then
          Arch.Debug.Read (Data);
          Ret_Count := Data'Length;
-         Success   := True;
+         Success   := Dev_Success;
       else
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_Not_Supported;
       end if;
    end Read;
 
@@ -66,15 +64,13 @@ package body Devices.Console is
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Key);
-      pragma Unreferenced (Offset);
-      pragma Unreferenced (Is_Blocking);
+      pragma Unreferenced (Key, Offset, Is_Blocking);
    begin
       Arch.Debug.Print (Data);
       Ret_Count := Data'Length;
-      Success   := True;
+      Success   := Dev_Success;
    end Write;
 end Devices.Console;

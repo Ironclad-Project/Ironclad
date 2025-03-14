@@ -31,11 +31,17 @@ package Devices is
 
    --  Devices might have a UUID. If all components are 0, they have no UUID.
    --  Example for the string version: 123e4567-e89b-12d3-a456-426614174000.
-   type UUID is array (1 .. 16) of Unsigned_8
-      with Pack, Object_Size => 16 * 8;
-
+   type UUID is array (1 .. 16) of Unsigned_8 with Pack, Object_Size => 16 * 8;
    subtype UUID_String is String (1 .. 36);
    Zero_UUID : constant UUID := [others => 0];
+
+   --  Status returned from device operations as result.
+   type Dev_Status is
+      (Dev_Success,       --  Success, only good value for ease of checking.
+       Dev_Invalid_Value, --  One of the passed values is no good.
+       Dev_Not_Supported, --  The operation is not supported by the device.
+       Dev_IO_Failure,    --  The underlying hardware errored out.
+       Dev_Full);         --  A write was completely out of capacity bounds.
 
    --  Data that defines a device.
    type Resource is record
@@ -50,14 +56,14 @@ package Devices is
           Offset      : Unsigned_64;
           Data        : out Operation_Data;
           Ret_Count   : out Natural;
-          Success     : out Boolean;
+          Success     : out Dev_Status;
           Is_Blocking : Boolean);
       Write : access procedure
          (Key         : System.Address;
           Offset      : Unsigned_64;
           Data        : Operation_Data;
           Ret_Count   : out Natural;
-          Success     : out Boolean;
+          Success     : out Dev_Status;
           Is_Blocking : Boolean);
       Sync : access procedure (Key : System.Address; Success : out Boolean);
       Sync_Range : access procedure
@@ -205,14 +211,14 @@ package Devices is
    --  @param Count     Count of bytes to read.
    --  @param Desto     Destination address where to write the read data.
    --  @param Ret_Count Count of bytes actually read, < count if EOF or error.
-   --  @param Success   True on success, False on non-supported/failure.
+   --  @param Success   Status of the operation.
    --  @param Is_Blocking Whether to do the operation blocking or non-blocking.
    procedure Read
       (Handle      : Device_Handle;
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean := True)
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
@@ -222,14 +228,14 @@ package Devices is
    --  @param Count     Count of bytes to write.
    --  @param To_Write  Source address for the data to write.
    --  @param Ret_Count Count of bytes actually written, < count if EOF/error.
-   --  @param Success   True on success, False on non-supported/failure.
+   --  @param Success   Status of the operation.
    --  @param Is_Blocking Whether to do the operation blocking or non-blocking.
    procedure Write
       (Handle      : Device_Handle;
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean := True)
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 

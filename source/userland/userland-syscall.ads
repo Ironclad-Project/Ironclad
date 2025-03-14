@@ -52,6 +52,7 @@ package Userland.Syscall is
        Error_String_Too_Long, --  ENAMETOOLONG
        Error_No_Entity,       --  ENOENT
        Error_No_Memory,       --  ENOMEM
+       Error_No_Space,        --  ENOSPC
        Error_Not_Implemented, --  ENOSYS
        Error_Not_Connected,   --  ENOTCONN
        Error_Not_A_TTY,       --  ENOTTY
@@ -80,6 +81,7 @@ package Userland.Syscall is
        Error_String_Too_Long => 1036,
        Error_No_Entity       => 1043,
        Error_No_Memory       => 1047,
+       Error_No_Space        => 1050,
        Error_Not_Implemented => 1051,
        Error_Not_Connected   => 1052,
        Error_Not_A_TTY       => 1058,

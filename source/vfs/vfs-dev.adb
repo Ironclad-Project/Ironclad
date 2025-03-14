@@ -196,9 +196,8 @@ package body VFS.Dev is
        Success     : out FS_Status)
    is
       pragma Unreferenced (FS_Data);
-
       Handle : Device_Handle;
-      Succ   : Boolean;
+      Succ   : Devices.Dev_Status;
    begin
       if Ino = Root_Inode or else
          not (Ino in 0 .. File_Inode_Number (Natural'Last))
@@ -222,7 +221,7 @@ package body VFS.Dev is
              Ret_Count   => Ret_Count,
              Success     => Succ,
              Is_Blocking => Is_Blocking);
-         Success := (if Succ then FS_Success else FS_IO_Failure);
+         Success := Dev_To_FS_Status (Succ);
       end if;
    end Read;
 
@@ -236,9 +235,8 @@ package body VFS.Dev is
        Success     : out FS_Status)
    is
       pragma Unreferenced (FS_Data);
-
       Handle : Device_Handle;
-      Succ   : Boolean;
+      Succ   : Devices.Dev_Status;
    begin
       if Ino = Root_Inode or else
          not (Ino in 0 .. File_Inode_Number (Natural'Last))
@@ -260,7 +258,7 @@ package body VFS.Dev is
              Ret_Count   => Ret_Count,
              Success     => Succ,
              Is_Blocking => Is_Blocking);
-         Success := (if Succ then FS_Success else FS_IO_Failure);
+         Success := Dev_To_FS_Status (Succ);
       end if;
    end Write;
 
@@ -485,4 +483,15 @@ package body VFS.Dev is
          return FS_Invalid_Value;
       end if;
    end Synchronize;
+
+   function Dev_To_FS_Status (S : Devices.Dev_Status) return FS_Status is
+   begin
+      case S is
+         when Devices.Dev_Success       => return FS_Success;
+         when Devices.Dev_Invalid_Value => return FS_Invalid_Value;
+         when Dev_Not_Supported         => return FS_Not_Supported;
+         when Dev_IO_Failure            => return FS_IO_Failure;
+         when Dev_Full                  => return FS_Full;
+      end case;
+   end Dev_To_FS_Status;
 end VFS.Dev;

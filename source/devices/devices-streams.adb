@@ -20,7 +20,7 @@ package body Devices.Streams is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    procedure Init (Success : out Boolean) is
-      Success_1, Success_2, Success_3, Success_4 : Boolean;
+      Success_1, Success_2, Success_3, Success_4, Success_5 : Boolean;
    begin
       Register
          ((Data        => System.Null_Address,
@@ -56,14 +56,14 @@ package body Devices.Streams is
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,
-           Read        => Random_Read'Access,
-           Write       => Random_Write'Access,
+           Read        => Full_Read'Access,
+           Write       => Full_Write'Access,
            Sync        => null,
            Sync_Range  => null,
            IO_Control  => null,
            Mmap        => null,
            Poll        => null,
-           Remove      => null), "random", Success_3);
+           Remove      => null), "full", Success_3);
       Register
          ((Data        => System.Null_Address,
            ID          => Zero_UUID,
@@ -77,8 +77,23 @@ package body Devices.Streams is
            IO_Control  => null,
            Mmap        => null,
            Poll        => null,
-           Remove      => null), "urandom", Success_4);
-      Success := Success_1 and Success_2 and Success_3 and Success_4;
+           Remove      => null), "random", Success_4);
+      Register
+         ((Data        => System.Null_Address,
+           ID          => Zero_UUID,
+           Is_Block    => False,
+           Block_Size  => 4096,
+           Block_Count => 0,
+           Read        => Random_Read'Access,
+           Write       => Random_Write'Access,
+           Sync        => null,
+           Sync_Range  => null,
+           IO_Control  => null,
+           Mmap        => null,
+           Poll        => null,
+           Remove      => null), "urandom", Success_5);
+      Success := Success_1 and Success_2 and Success_3 and Success_4 and
+                 Success_5;
    end Init;
    ----------------------------------------------------------------------------
    procedure Null_Read
@@ -86,17 +101,14 @@ package body Devices.Streams is
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Key);
-      pragma Unreferenced (Offset);
-      pragma Unreferenced (Data);
-      pragma Unreferenced (Is_Blocking);
+      pragma Unreferenced (Key, Offset, Data, Is_Blocking);
    begin
       Data      := [others => 0];
       Ret_Count := 0;
-      Success   := True;
+      Success   := Dev_Success;
    end Null_Read;
 
    procedure Null_Write
@@ -104,15 +116,13 @@ package body Devices.Streams is
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Key);
-      pragma Unreferenced (Offset);
-      pragma Unreferenced (Is_Blocking);
+      pragma Unreferenced (Key, Offset, Is_Blocking);
    begin
       Ret_Count := Data'Length;
-      Success   := True;
+      Success   := Dev_Success;
    end Null_Write;
    ----------------------------------------------------------------------------
    procedure Zero_Read
@@ -120,16 +130,14 @@ package body Devices.Streams is
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Key);
-      pragma Unreferenced (Offset);
-      pragma Unreferenced (Is_Blocking);
+      pragma Unreferenced (Key, Offset, Is_Blocking);
    begin
       Data      := [others => 0];
       Ret_Count := Data'Length;
-      Success   := True;
+      Success   := Dev_Success;
    end Zero_Read;
 
    procedure Zero_Write
@@ -137,32 +145,57 @@ package body Devices.Streams is
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Key);
-      pragma Unreferenced (Offset);
-      pragma Unreferenced (Is_Blocking);
+      pragma Unreferenced (Key, Offset, Is_Blocking);
    begin
       Ret_Count := Data'Length;
-      Success   := True;
+      Success   := Dev_Success;
    end Zero_Write;
+   ----------------------------------------------------------------------------
+   procedure Full_Read
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Dev_Status;
+       Is_Blocking : Boolean)
+   is
+      pragma Unreferenced (Key, Offset, Is_Blocking);
+   begin
+      Data      := [others => 0];
+      Ret_Count := Data'Length;
+      Success   := Dev_Full;
+   end Full_Read;
+
+   procedure Full_Write
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Dev_Status;
+       Is_Blocking : Boolean)
+   is
+      pragma Unreferenced (Key, Offset, Is_Blocking);
+   begin
+      Ret_Count := Data'Length;
+      Success   := Dev_Success;
+   end Full_Write;
    ----------------------------------------------------------------------------
    procedure Random_Read
       (Key         : System.Address;
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Key);
-      pragma Unreferenced (Offset);
-      pragma Unreferenced (Is_Blocking);
+      pragma Unreferenced (Key, Offset, Is_Blocking);
    begin
       Cryptography.Random.Fill_Data (Cryptography.Random.Crypto_Data (Data));
       Ret_Count := Data'Length;
-      Success   := True;
+      Success   := Dev_Success;
    end Random_Read;
 
    procedure Random_Write
@@ -170,15 +203,13 @@ package body Devices.Streams is
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Key);
-      pragma Unreferenced (Offset);
-      pragma Unreferenced (Is_Blocking);
+      pragma Unreferenced (Key, Offset, Is_Blocking);
    begin
       Feed_Entropy (Crypto_Data (Data));
       Ret_Count := Data'Length;
-      Success   := True;
+      Success   := Dev_Success;
    end Random_Write;
 end Devices.Streams;

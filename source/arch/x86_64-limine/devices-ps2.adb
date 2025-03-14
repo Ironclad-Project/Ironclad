@@ -213,7 +213,7 @@ package body Devices.PS2 is
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Key, Offset);
@@ -250,9 +250,9 @@ package body Devices.PS2 is
             Kb_Has_Data   := False;
          end if;
 
-         Success := True;
+         Success := Dev_Success;
       else
-         Success   := False;
+         Success   := Dev_IO_Failure;
          Ret_Count := 0;
       end if;
 
@@ -262,7 +262,7 @@ package body Devices.PS2 is
          Lib.Synchronization.Release (Kb_Data_Mutex);
          Data      := [others => 0];
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_IO_Failure;
    end Kb_Read;
 
    procedure Kb_Poll
@@ -285,7 +285,7 @@ package body Devices.PS2 is
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Key, Offset);
@@ -310,12 +310,12 @@ package body Devices.PS2 is
          begin
             Data2           := Ms_Return_Data;
             Ret_Count       := Ms_Return_Data'Size / 8;
-            Success         := True;
+            Success         := Dev_Success;
             Ms_Has_Returned := False;
          end;
       else
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_IO_Failure;
       end if;
 
       Lib.Synchronization.Release (Ms_Data_Mutex);
@@ -323,7 +323,7 @@ package body Devices.PS2 is
       when Constraint_Error =>
          Lib.Synchronization.Release (Ms_Data_Mutex);
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_IO_Failure;
    end Ms_Read;
 
    procedure Ms_IO_Control

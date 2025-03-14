@@ -42,12 +42,10 @@ package body Devices.TTY is
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Key);
-      pragma Unreferenced (Offset);
-
+      pragma Unreferenced (Key, Offset);
       Proc : constant PID := Arch.Local.Get_Current_Process;
       PTY  : IPC.PTY.Inner_Acc;
       Succ : Status;
@@ -56,7 +54,7 @@ package body Devices.TTY is
       if PTY = null then
          Data      := [others => 0];
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_Invalid_Value;
          return;
       end if;
 
@@ -66,7 +64,7 @@ package body Devices.TTY is
           Is_Blocking => Is_Blocking,
           Ret_Count   => Ret_Count,
           Success     => Succ);
-      Success := Succ = PTY_Success;
+      Success := (if Succ = PTY_Success then Dev_Success else Dev_IO_Failure);
    end Read;
 
    procedure Write
@@ -74,12 +72,10 @@ package body Devices.TTY is
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Key);
-      pragma Unreferenced (Offset);
-
+      pragma Unreferenced (Key, Offset);
       Proc : constant PID := Arch.Local.Get_Current_Process;
       PTY  : IPC.PTY.Inner_Acc;
       Succ : Status;
@@ -87,7 +83,7 @@ package body Devices.TTY is
       Get_Controlling_TTY (Proc, PTY);
       if PTY = null then
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_Invalid_Value;
          return;
       end if;
 
@@ -97,7 +93,7 @@ package body Devices.TTY is
           Is_Blocking => Is_Blocking,
           Ret_Count   => Ret_Count,
           Success     => Succ);
-      Success := Succ = PTY_Success;
+      Success := (if Succ = PTY_Success then Dev_Success else Dev_IO_Failure);
    end Write;
 
    procedure IO_Control

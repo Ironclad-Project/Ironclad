@@ -141,7 +141,7 @@ package body Devices.Partitions is
       S_Addr : System.Address;
       GPT    : GPT_Header_Acc;
       Part   : Partition_Data_Acc;
-
+      Succ   : Dev_Status;
       Parts_Per_Sector : Natural;
       Part_Count       : Natural;
       Block            : Natural := 0;
@@ -159,8 +159,8 @@ package body Devices.Partitions is
           Offset    => Unsigned_64 (Block_Size),
           Ret_Count => Block_Return,
           Data      => Sector.all,
-          Success   => Success);
-      if not Success or Block_Return /= Block_Size then
+          Success   => Succ);
+      if (Succ /= Dev_Success) or (Block_Return /= Block_Size) then
          Success := False;
          goto Return_End;
       end if;
@@ -181,8 +181,8 @@ package body Devices.Partitions is
              Offset    => Unsigned_64 (Block),
              Ret_Count => Block_Return,
              Data      => Sector.all,
-             Success   => Success);
-         if not Success or Block_Return /= Block_Size then
+             Success   => Succ);
+         if (Succ /= Dev_Success) or (Block_Return /= Block_Size) then
             Success := False;
             goto Return_End;
          end if;
@@ -238,6 +238,7 @@ package body Devices.Partitions is
       Block_Size : constant Natural := Devices.Get_Block_Size (Dev);
       Sector : Devices.Operation_Data_Acc;
       S_Addr : System.Address;
+      Succ   : Dev_Status;
       MBR     : MBR_Data_Acc;
       Part    : Partition_Data_Acc;
       Block_Return : Natural;
@@ -251,8 +252,8 @@ package body Devices.Partitions is
           Offset    => 0,
           Ret_Count => Block_Return,
           Data      => Sector.all,
-          Success   => Success);
-      if not Success or Block_Return /= Block_Size then
+          Success   => Succ);
+      if (Succ /= Dev_Success) or (Block_Return /= Block_Size) then
          Success := False;
          goto Return_End;
       end if;
@@ -322,7 +323,7 @@ package body Devices.Partitions is
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Is_Blocking);
@@ -335,7 +336,7 @@ package body Devices.Partitions is
 
       if Offset > LBA_Offset + LBA_Length then
          Ret_Count := 0;
-         Success   := True;
+         Success   := Dev_Success;
          return;
       end if;
 
@@ -355,7 +356,7 @@ package body Devices.Partitions is
       when Constraint_Error =>
          Data      := [others => 0];
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_IO_Failure;
    end Read;
 
    procedure Write
@@ -363,7 +364,7 @@ package body Devices.Partitions is
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Is_Blocking);
@@ -376,7 +377,7 @@ package body Devices.Partitions is
 
       if Offset > LBA_Offset + LBA_Length then
          Ret_Count := 0;
-         Success   := True;
+         Success   := Dev_Full;
          return;
       end if;
 
@@ -395,7 +396,7 @@ package body Devices.Partitions is
    exception
       when Constraint_Error =>
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_IO_Failure;
    end Write;
 
    procedure Sync (Key : System.Address; Success : out Boolean) is

@@ -100,7 +100,7 @@ package body Devices.i6300ESB is
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Offset, Data, Is_Blocking);
@@ -108,11 +108,11 @@ package body Devices.i6300ESB is
    begin
       Keep_Alive (D.Base_Addr);
       Ret_Count := 0;
-      Success   := True;
+      Success   := Dev_Success;
    exception
       when Constraint_Error =>
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_IO_Failure;
    end Write;
 
    procedure IO_Control

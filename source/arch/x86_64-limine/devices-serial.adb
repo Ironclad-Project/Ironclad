@@ -78,14 +78,14 @@ package body Devices.Serial is
 
    procedure Read_COM1 (S : out Operation_Data) is
       Count : Natural;
-      Succ  : Boolean;
+      Succ  : Dev_Status;
    begin
       Read (COM1'Address, 0, S, Count, Succ, True);
    end Read_COM1;
 
    procedure Write_COM1 (C : Character) is
       Count : Natural;
-      Succ  : Boolean;
+      Succ  : Dev_Status;
       Data  : Operation_Data (1 .. 1) with Import, Address => C'Address;
    begin
       Write (COM1'Address, 0, Data, Count, Succ, True);
@@ -96,7 +96,7 @@ package body Devices.Serial is
       if S'Length > 0 then
          declare
             Count : Natural;
-            Succ  : Boolean;
+            Succ  : Dev_Status;
             Data  : Operation_Data (1 .. S'Length)
                with Import, Address => S (S'First)'Address;
          begin
@@ -116,7 +116,7 @@ package body Devices.Serial is
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Offset, Is_Blocking);
@@ -132,12 +132,12 @@ package body Devices.Serial is
          Ret_Count := Ret_Count + 1;
       end loop;
       Lib.Synchronization.Release (COM.Mutex);
-      Success := True;
+      Success := Dev_Success;
    exception
       when Constraint_Error =>
          Data      := [others => 0];
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_IO_Failure;
    end Read;
 
    procedure Write
@@ -145,7 +145,7 @@ package body Devices.Serial is
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Offset, Is_Blocking);
@@ -162,11 +162,11 @@ package body Devices.Serial is
       end loop;
       Lib.Synchronization.Release (COM.Mutex);
       Ret_Count := Data'Length;
-      Success   := True;
+      Success   := Dev_Success;
    exception
       when Constraint_Error =>
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_IO_Failure;
    end Write;
 
    procedure IO_Control

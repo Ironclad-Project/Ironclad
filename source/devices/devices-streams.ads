@@ -26,7 +26,7 @@ private
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean);
 
    procedure Null_Write
@@ -34,7 +34,7 @@ private
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean);
    ----------------------------------------------------------------------------
    procedure Zero_Read
@@ -42,7 +42,7 @@ private
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean);
 
    procedure Zero_Write
@@ -50,7 +50,23 @@ private
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
+       Is_Blocking : Boolean);
+   ----------------------------------------------------------------------------
+   procedure Full_Read
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : out Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Dev_Status;
+       Is_Blocking : Boolean);
+
+   procedure Full_Write
+      (Key         : System.Address;
+       Offset      : Unsigned_64;
+       Data        : Operation_Data;
+       Ret_Count   : out Natural;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean);
    ----------------------------------------------------------------------------
    procedure Random_Read
@@ -58,7 +74,7 @@ private
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean);
 
    procedure Random_Write
@@ -66,6 +82,6 @@ private
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean);
 end Devices.Streams;

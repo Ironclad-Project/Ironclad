@@ -472,15 +472,16 @@ package body Devices.SATA with SPARK_Mode => Off is
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Is_Blocking);
       D : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
       Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
       Current_LBA : Unsigned_64;
+      Succ : Boolean;
    begin
-      Success := True;
+      Succ := True;
       Lib.Synchronization.Seize (D.Mutex);
       while Progress < Data'Length loop
          Current_LBA := (Offset + Unsigned_64 (Progress)) / Sector_Size;
@@ -489,9 +490,9 @@ package body Devices.SATA with SPARK_Mode => Off is
           (Drive   => D,
            LBA     => Current_LBA,
            Idx     => Cache_Idx,
-           Success => Success);
-         if not Success then
-            Success := True;
+           Success => Succ);
+         if not Succ then
+            Succ := True;
             goto Cleanup;
          end if;
 
@@ -510,11 +511,12 @@ package body Devices.SATA with SPARK_Mode => Off is
    <<Cleanup>>
       Lib.Synchronization.Release (D.Mutex);
       Ret_Count := Progress;
+      Success   := (if Succ then Dev_Success else Dev_IO_Failure);
    exception
       when Constraint_Error =>
          Lib.Synchronization.Release (D.Mutex);
          Data      := [others => 0];
-         Success   := False;
+         Success   := Dev_IO_Failure;
          Ret_Count := 0;
    end Read;
 
@@ -523,15 +525,16 @@ package body Devices.SATA with SPARK_Mode => Off is
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Is_Blocking);
       D : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
       Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
       Current_LBA : Unsigned_64;
+      Succ : Boolean;
    begin
-      Success := True;
+      Succ := True;
       Lib.Synchronization.Seize (D.Mutex);
       while Progress < Data'Length loop
          Current_LBA := (Offset + Unsigned_64 (Progress)) / Sector_Size;
@@ -540,9 +543,9 @@ package body Devices.SATA with SPARK_Mode => Off is
           (Drive   => D,
            LBA     => Current_LBA,
            Idx     => Cache_Idx,
-           Success => Success);
-         if not Success then
-            Success := Progress /= 0;
+           Success => Succ);
+         if not Succ then
+            Succ := Progress /= 0;
             goto Cleanup;
          end if;
 
@@ -563,10 +566,11 @@ package body Devices.SATA with SPARK_Mode => Off is
    <<Cleanup>>
       Lib.Synchronization.Release (D.Mutex);
       Ret_Count := Progress;
+      Success   := (if Succ then Dev_Success else Dev_IO_Failure);
    exception
       when Constraint_Error =>
          Lib.Synchronization.Release (D.Mutex);
-         Success   := False;
+         Success   := Dev_IO_Failure;
          Ret_Count := 0;
    end Write;
 

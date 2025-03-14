@@ -46,15 +46,15 @@ package body VFS.FAT with SPARK_Mode => Off is
       Data      : FAT_Data_Acc;
       BP        : BIOS_Parameter_Block;
       Ret_Count : Natural;
-      Success   : Boolean;
+      Success   : Devices.Dev_Status;
    begin
       declare
          BP_Data   : Operation_Data (1 .. BP'Size / 8)
             with Import, Address => BP'Address;
       begin
          Devices.Read (Handle, 0, BP_Data, Ret_Count, Success);
-         if not Success                 or
-            Ret_Count /= BP_Data'Length or
+         if Success /= Devices.Dev_Success or
+            Ret_Count /= BP_Data'Length    or
             BP.Boot_Signature /= Boot_Signature
          then
             Data_Addr := System.Null_Address;
@@ -261,6 +261,7 @@ package body VFS.FAT with SPARK_Mode => Off is
       Step_Size      : Natural;
       Discard        : Natural;
       Succ           : Boolean;
+      Succ2          : Devices.Dev_Status;
    begin
       Data        := [others => 0];
       Ret_Count   := 0;
@@ -310,8 +311,8 @@ package body VFS.FAT with SPARK_Mode => Off is
              Data      => Data (Data'First + Ret_Count ..
                                 Data'First + Ret_Count - 1 + Step_Size),
              Ret_Count => Discard,
-             Success   => Succ);
-         if not Succ then
+             Success   => Succ2);
+         if Succ2 /= Devices.Dev_Success then
             Success := FS_IO_Failure;
             return;
          end if;
@@ -423,6 +424,7 @@ package body VFS.FAT with SPARK_Mode => Off is
    is
       Offset      : Unsigned_64;
       Ret_Count   : Natural;
+      Succ        : Devices.Dev_Status;
       Result_Data : Operation_Data (1 .. Directory_Entry'Size / 8)
          with Import, Address => Result'Address;
    begin
@@ -436,9 +438,10 @@ package body VFS.FAT with SPARK_Mode => Off is
           Offset    => Offset + Index * 32,
           Data      => Result_Data,
           Ret_Count => Ret_Count,
-          Success   => Success);
+          Success   => Succ);
       Disk_Offset := Offset + Index * 32;
-      Success     := Success and Ret_Count = Result_Data'Length;
+      Success     := Succ = Devices.Dev_Success and
+                     Ret_Count = Result_Data'Length;
    exception
       when Constraint_Error =>
          Disk_Offset := 0;
@@ -452,6 +455,7 @@ package body VFS.FAT with SPARK_Mode => Off is
        Success     : out Boolean)
    is
       Ret_Count   : Natural;
+      Succ        : Devices.Dev_Status;
       Result_Data : Operation_Data (1 .. Directory_Entry'Size / 8)
          with Import, Address => Result'Address;
    begin
@@ -460,8 +464,9 @@ package body VFS.FAT with SPARK_Mode => Off is
           Offset    => Disk_Offset,
           Data      => Result_Data,
           Ret_Count => Ret_Count,
-          Success   => Success);
-      Success := Success and Ret_Count = Result_Data'Length;
+          Success   => Succ);
+      Success := Succ = Devices.Dev_Success and
+                 Ret_Count = Result_Data'Length;
    exception
       when Constraint_Error =>
          Success := False;
@@ -475,6 +480,7 @@ package body VFS.FAT with SPARK_Mode => Off is
    is
       Limit, Offset : Unsigned_64;
       Ret_Count     : Natural;
+      Succ          : Devices.Dev_Status;
       Returned_Data : Operation_Data (1 .. 4) with Address => Returned'Address;
    begin
       Limit  := (Unsigned_64 (Data.BPB.Sectors_Per_FAT) * Sector_Size) / 4;
@@ -489,8 +495,9 @@ package body VFS.FAT with SPARK_Mode => Off is
              Offset    => Offset + (Unsigned_64 (Cluster_Index) * 4),
              Data      => Returned_Data,
              Ret_Count => Ret_Count,
-             Success   => Success);
-         if not Success or Ret_Count /= Returned_Data'Length then
+             Success   => Succ);
+         if (Succ = Devices.Dev_Success) or (Ret_Count /= Returned_Data'Length)
+         then
             Success := False;
          else
             Success := Returned < 16#FFFFFFF8#;

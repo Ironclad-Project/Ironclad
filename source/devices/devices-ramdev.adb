@@ -74,7 +74,7 @@ package body Devices.Ramdev is
        Offset      : Unsigned_64;
        Data        : out Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Is_Blocking);
@@ -93,7 +93,7 @@ package body Devices.Ramdev is
       if Offset > Dev.Size then
          Data      := [others => 0];
          Ret_Count := 0;
-         Success   := True;
+         Success   := Dev_Success;
          return;
       elsif Final_Loc >= Dev.Size then
          To_Read := Natural (Dev.Size - Offset);
@@ -107,7 +107,7 @@ package body Devices.Ramdev is
       Lib.Synchronization.Release_Reader (Dev.Mutex);
 
       Ret_Count := To_Read;
-      Success   := True;
+      Success   := Dev_Success;
    exception
       when Constraint_Error =>
          if Is_Holding then
@@ -115,7 +115,7 @@ package body Devices.Ramdev is
          end if;
          Data      := [others => 0];
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_IO_Failure;
    end Read;
 
    procedure Write
@@ -123,7 +123,7 @@ package body Devices.Ramdev is
        Offset      : Unsigned_64;
        Data        : Operation_Data;
        Ret_Count   : out Natural;
-       Success     : out Boolean;
+       Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Is_Blocking);
@@ -141,7 +141,7 @@ package body Devices.Ramdev is
 
       if Offset > Dev.Size then
          Ret_Count := 0;
-         Success   := True;
+         Success   := Dev_Full;
          return;
       elsif Final_Loc >= Dev.Size then
          To_Write := Natural (Dev.Size - Offset);
@@ -155,13 +155,13 @@ package body Devices.Ramdev is
       Lib.Synchronization.Release_Writer (Dev.Mutex);
 
       Ret_Count := To_Write;
-      Success   := True;
+      Success   := Dev_Success;
    exception
       when Constraint_Error =>
          if Is_Holding then
             Lib.Synchronization.Release_Writer (Dev.Mutex);
          end if;
          Ret_Count := 0;
-         Success   := False;
+         Success   := Dev_IO_Failure;
    end Write;
 end Devices.Ramdev;

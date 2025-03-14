@@ -1117,6 +1117,12 @@ The passed value is too big for the syscall.
 @item ENOENT (1043)
 No such file or directory.
 
+@item ENOMEM (1047)
+No memory space left for the asked operation.
+
+@item ENOSPC (1050)
+The issued operation was out of capacity bounds.
+
 @item ENOSYS (1051)
 The requested syscall or flag is not implemented.
 
