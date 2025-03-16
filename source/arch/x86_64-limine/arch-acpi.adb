@@ -201,7 +201,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
       loop
          Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_Nsec);
          exit when Lib.Time.Is_Greater_Equal
-            (Tgt_Sec, Tgt_Nsec, Curr_Sec, Curr_Nsec);
+            (Curr_Sec, Curr_Nsec, Tgt_Sec, Tgt_Nsec);
       end loop;
    end Stall;
 
@@ -214,7 +214,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
       loop
          Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_Nsec);
          exit when Lib.Time.Is_Greater_Equal
-            (Tgt_Sec, Tgt_Nsec, Curr_Sec, Curr_Nsec);
+            (Curr_Sec, Curr_Nsec, Tgt_Sec, Tgt_Nsec);
          Scheduler.Yield_If_Able;
       end loop;
    exception

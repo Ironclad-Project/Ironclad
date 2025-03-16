@@ -418,6 +418,20 @@ private
           Sleep_S5 => 5);
       for Sleep_State'Size use 32;
 
+      type Log_Level is
+         (Log_Error,
+          Log_Warn,
+          Log_Info,
+          Log_Trace,
+          Log_Debug);
+      for Log_Level use
+         (Log_Error => 1,
+          Log_Warn  => 2,
+          Log_Info  => 3,
+          Log_Trace => 4,
+          Log_Debug => 5);
+      for Log_Level'Size use 32;
+
       type Table_Record is record
          Virt_Addr : System.Address;
          Index     : Unsigned_64;
@@ -687,6 +701,10 @@ private
       function Namespace_Init return Status
          with Import, Convention => C,
               External_Name => "uacpi_namespace_initialize";
+
+      procedure Context_Set_Log_Level (Level : Log_Level)
+         with Import, Convention => C,
+              External_Name => "uacpi_context_set_log_level";
 
       function Reboot return Status
          with Import, Convention => C, External_Name => "uacpi_reboot";

@@ -55,6 +55,9 @@ package Arch.MMU is
    --  Once initialized, it must have the kernel and other essentials, but
    --  nothing else! If you want to have a minimal map, this is your chance to
    --  fork it!
+   --  Kernel address space mappings should be shared between all maps forked
+   --  from this one, so this map can be used to map kernel memory to be shared
+   --  between cores.
    Kernel_Table : Page_Table_Acc;
 
    --  Initialize global MMU state, at the end, it will activate Kernel_Table.

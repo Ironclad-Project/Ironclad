@@ -89,6 +89,20 @@ package body Arch.MMU is
           Mutex           => Lib.Synchronization.Unlocked_RW_Lock,
           Map_Ranges_Root => null);
 
+      --  Preallocate the higher half PML4, so when we clone the kernel memmap,
+      --  we can just blindly copy the entries and share mapping between all
+      --  kernel instances.
+      for E of Kernel_Table.PML4_Level (257 .. 512) loop
+         declare
+            New_Entry      : constant PML4_Acc := new PML4'(others => 0);
+            New_Entry_Addr : constant Physical_Address :=
+               To_Integer (New_Entry.all'Address) - Memory_Offset;
+         begin
+            Global_Table_Usage := Global_Table_Usage + (PML4'Size / 8);
+            E := Unsigned_64 (New_Entry_Addr) or Page_P or Page_U or Page_RW;
+         end;
+      end loop;
+
       --  Map the memmap memory to the memory window.
       for E of Memmap loop
          if not Inner_Map_Range
