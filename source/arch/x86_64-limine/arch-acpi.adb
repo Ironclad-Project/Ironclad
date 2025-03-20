@@ -545,15 +545,25 @@ package body Arch.ACPI with SPARK_Mode => Off is
    end Map;
 
    procedure Unmap (Address : System.Address; Length : size_t) is
-      pragma Unreferenced (Address, Length);
+      package A is new Lib.Alignment (Integer_Address);
+
+      Success : Boolean;
+      Start   : Integer_Address := To_Integer (Address);
+      Len     : Integer_Address := Integer_Address (Length);
    begin
-      --  We implement Map as a map to the Higher Half Direct Map, where
-      --  we perform all our other accesses to miscellaneous physical memory.
-      --
-      --  We might want to keep using these addresses in the future, like
-      --  reading ACPI tables ourselves, and having uACPI unmap these will make
-      --  this confusing, therefore implement Unmap as a no-op.
-      null;
+      if Length < Arch.MMU.Page_Size then
+         return;
+      end if;
+
+      A.Align_Memory_Range (Start, Len, Arch.MMU.Page_Size);
+      Arch.MMU.Unmap_Range
+         (Map           => Arch.MMU.Kernel_Table,
+          Virtual_Start => To_Address (Start),
+          Length        => Storage_Count (Len),
+          Success       => Success);
+   exception
+      when Constraint_Error =>
+         null;
    end Unmap;
 
    function Wait_For_Work_Completion return Status is
