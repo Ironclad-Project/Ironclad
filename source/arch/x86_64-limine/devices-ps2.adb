@@ -62,20 +62,21 @@ package body Devices.PS2 is
    Ms_Current_Cycle     : Integer range 1 .. 4 := 1;
 
    function Init return Boolean is
-      Index                : Arch.IDT.IRQ_Index;
-      Data, Unused         : Unsigned_8;
-      Success              : Boolean;
-      FADT_Addr : Virtual_Address;
+      Index        : Arch.IDT.IRQ_Index;
+      Data, Unused : Unsigned_8;
+      Success      : Boolean;
+      FADT_Addr    : Arch.ACPI.Table_Record;
    begin
-      FADT_Addr := Arch.ACPI.FindTable (Arch.ACPI.FADT_Signature);
-      if FADT_Addr = Null_Address then
+      Arch.ACPI.FindTable (Arch.ACPI.FADT_Signature, FADT_Addr);
+      if FADT_Addr.Virt_Addr = Null_Address then
          return True;
       end if;
 
       --  TODO: This method is very not reliable, ideally we would want to do
       --  like https://wiki.osdev.org/UACPI#Treat_ACPI_Namespace_as_a_Bus.
       declare
-         FA : Arch.ACPI.FADT with Import, Address => To_Address (FADT_Addr);
+         FA : Arch.ACPI.FADT
+            with Import, Address => To_Address (FADT_Addr.Virt_Addr);
       begin
          --  If set, indicates that the motherboard contains support for a
          --  port 60 and 64 based keyboard controller, usually implemented as
@@ -86,6 +87,8 @@ package body Devices.PS2 is
             return True;
          end if;
       end;
+
+      Arch.ACPI.Unref_Table (FADT_Addr);
 
       --  Set the interrupt up, which is always the 34 (we are 1 based).
       Arch.IDT.Load_ISR (Keyboard_Handler'Address, Index, Success);

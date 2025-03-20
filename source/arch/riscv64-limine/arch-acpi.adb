@@ -30,10 +30,17 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Success := False;
    end Initialize;
    ----------------------------------------------------------------------------
-   function FindTable (Signature : SDT_Signature) return Virtual_Address is
+   procedure FindTable (Signature : SDT_Signature; Table : out Table_Record) is
+      pragma Unreferenced (Signature);
    begin
-      return 0;
+      Table := (0, 0);
    end FindTable;
+
+   procedure Unref_Table (Table : Table_Record) is
+      pragma Unreferenced (Table);
+   begin
+      null;
+   end Unref_Table;
    ----------------------------------------------------------------------------
    procedure Enter_Sleep (Level : Sleep_Level; Success : out Boolean) is
    begin

@@ -39,8 +39,7 @@ package body Arch.APIC with SPARK_Mode => Off is
    Supports_x2APIC : Boolean;
 
    procedure Init_LAPIC is
-      Addr : constant Virtual_Address := ACPI.FindTable (ACPI.DMAR_Signature);
-      DMAR : ACPI.DMAR with Import, Address => To_Address (Addr);
+      Addr               : ACPI.Table_Record;
       EAX, EBX, ECX, EDX : Unsigned_32;
       APIC_Base          : Unsigned_64;
       Success            : Boolean;
@@ -49,9 +48,18 @@ package body Arch.APIC with SPARK_Mode => Off is
    begin
       --  Check x2APIC support.
       Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX, Success);
-      Supports_x2APIC :=
-         Success and ((ECX and Shift_Left (1, 21)) /= 0) and
-         (Addr = 0 or else ((DMAR.Flags and 2#11#) /= 2#11#));
+      Supports_x2APIC := Success and ((ECX and Shift_Left (1, 21)) /= 0);
+      ACPI.FindTable (ACPI.DMAR_Signature, Addr);
+      if Addr.Virt_Addr /= Null_Address then
+         declare
+            DMAR : ACPI.DMAR
+               with Import, Address => To_Address (Addr.Virt_Addr);
+         begin
+            Supports_x2APIC := Supports_x2APIC and
+               ((DMAR.Flags and 2#11#) /= 2#11#);
+         end;
+         ACPI.Unref_Table (Addr);
+      end if;
 
       if Supports_x2APIC then
          Lib.Messages.Put_Line ("x2APIC support enabled");
@@ -229,61 +237,69 @@ package body Arch.APIC with SPARK_Mode => Off is
    MADT_ISOs    : access ISO_Array;
 
    function Init_IOAPIC return Boolean is
-      Addr : constant Virtual_Address := ACPI.FindTable (ACPI.MADT_Signature);
-      MADT           : ACPI.MADT with Import, Address => To_Address (Addr);
-      MADT_Length    : constant Unsigned_32 := MADT.Header.Length;
-      Current_Byte   : Unsigned_32          := 0;
-      Current_IOAPIC : Natural              := 1;
-      IOAPIC_Count   : Natural              := 0;
-      Current_ISO    : Natural              := 1;
-      ISO_Count      : Natural              := 0;
+      Addr           : ACPI.Table_Record;
+      Current_Byte   : Unsigned_32 := 0;
+      Current_IOAPIC : Natural     := 1;
+      IOAPIC_Count   : Natural     := 0;
+      Current_ISO    : Natural     := 1;
+      ISO_Count      : Natural     := 0;
    begin
-      if Addr = Null_Address then
+      ACPI.FindTable (ACPI.MADT_Signature, Addr);
+      if Addr.Virt_Addr = Null_Address then
          return False;
       end if;
 
-      --  Check how many entries do we need to allocate.
-      while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
-         declare
-            Header : ACPI.MADT_Header;
-            for Header'Address use
-               MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
-         begin
-            case Header.Entry_Type is
-               when ACPI.MADT_IOAPIC_Type => IOAPIC_Count := IOAPIC_Count + 1;
-               when ACPI.MADT_ISO_Type    => ISO_Count    := ISO_Count    + 1;
-               when others                => null;
-            end case;
-            Current_Byte := Current_Byte + Unsigned_32 (Header.Length);
-         end;
-      end loop;
+      declare
+         MADT : ACPI.MADT with Import, Address => To_Address (Addr.Virt_Addr);
+         MADT_Length : constant Unsigned_32 := MADT.Header.Length;
+      begin
+         --  Check how many entries do we need to allocate.
+         while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
+            declare
+               Header : ACPI.MADT_Header;
+               for Header'Address use
+                  MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
+            begin
+               case Header.Entry_Type is
+                  when ACPI.MADT_IOAPIC_Type =>
+                     IOAPIC_Count := IOAPIC_Count + 1;
+                  when ACPI.MADT_ISO_Type =>
+                     ISO_Count := ISO_Count + 1;
+                  when others => null;
+               end case;
+               Current_Byte := Current_Byte + Unsigned_32 (Header.Length);
+            end;
+         end loop;
 
-      --  Allocate and fill the entries.
-      Current_Byte := 0;
-      MADT_IOAPICs := new IOAPIC_Array (1 .. IOAPIC_Count);
-      MADT_ISOs    := new ISO_Array    (1 .. ISO_Count);
-      while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
-         declare
-            IOAPIC : ACPI.MADT_IOAPIC;
-            ISO    : ACPI.MADT_ISO;
-            for IOAPIC'Address use
-               MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
-            for ISO'Address use
-               MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
-         begin
-            case IOAPIC.Header.Entry_Type is
-               when ACPI.MADT_IOAPIC_Type =>
-                  MADT_IOAPICs (Current_IOAPIC) := IOAPIC;
-                  Current_IOAPIC := Current_IOAPIC + 1;
-               when ACPI.MADT_ISO_Type =>
-                  MADT_ISOs (Current_ISO) := ISO;
-                  Current_ISO := Current_ISO + 1;
-               when others => null;
-            end case;
-            Current_Byte := Current_Byte + Unsigned_32 (IOAPIC.Header.Length);
-         end;
-      end loop;
+         --  Allocate and fill the entries.
+         Current_Byte := 0;
+         MADT_IOAPICs := new IOAPIC_Array (1 .. IOAPIC_Count);
+         MADT_ISOs    := new ISO_Array    (1 .. ISO_Count);
+         while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
+            declare
+               IOAPIC : ACPI.MADT_IOAPIC;
+               ISO    : ACPI.MADT_ISO;
+               for IOAPIC'Address use
+                  MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
+               for ISO'Address use
+                  MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
+            begin
+               case IOAPIC.Header.Entry_Type is
+                  when ACPI.MADT_IOAPIC_Type =>
+                     MADT_IOAPICs (Current_IOAPIC) := IOAPIC;
+                     Current_IOAPIC := Current_IOAPIC + 1;
+                  when ACPI.MADT_ISO_Type =>
+                     MADT_ISOs (Current_ISO) := ISO;
+                     Current_ISO := Current_ISO + 1;
+                  when others => null;
+               end case;
+               Current_Byte := Current_Byte +
+                  Unsigned_32 (IOAPIC.Header.Length);
+            end;
+         end loop;
+      end;
 
+      ACPI.Unref_Table (Addr);
       return True;
    exception
       when Constraint_Error =>

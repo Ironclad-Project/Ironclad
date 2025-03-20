@@ -327,7 +327,12 @@ package Arch.ACPI is
 
    --  Search for an ACPI table and return its address, null if not found.
    --  The table will not necessarily be mapped.
-   function FindTable (Signature : SDT_Signature) return Virtual_Address;
+   type Table_Record is record
+      Virt_Addr : Integer_Address;
+      Index     : Unsigned_64;
+   end record;
+   procedure FindTable (Signature : SDT_Signature; Table : out Table_Record);
+   procedure Unref_Table (Table : Table_Record);
    ----------------------------------------------------------------------------
    --  Power management functions.
 
@@ -431,11 +436,6 @@ private
           Log_Trace => 4,
           Log_Debug => 5);
       for Log_Level'Size use 32;
-
-      type Table_Record is record
-         Virt_Addr : System.Address;
-         Index     : Unsigned_64;
-      end record;
 
       type Fixed_Event is
          (Fixed_Event_Timer_Status,

@@ -124,11 +124,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Success := True;
    end Initialize;
    ----------------------------------------------------------------------------
-   function FindTable (Signature : SDT_Signature) return Virtual_Address is
+   procedure FindTable (Signature : SDT_Signature; Table : out Table_Record) is
       Sig : String (1 .. Signature'Length + 1) :=
          Signature & [Ada.Characters.Latin_1.NUL];
-      Rec : Table_Record;
-      Discard : Status;
    begin
       if not Is_Init and Early_Buffer = null then
          Early_Buffer := new Buffer'(others => 0);
@@ -136,20 +134,30 @@ package body Arch.ACPI with SPARK_Mode => Off is
          if Setup_Early_Table_Access
             (Early_Buffer.all'Address, Early_Buffer'Length) /= Status_OK
          then
-            return 0;
+            goto Error_Return;
          end if;
       end if;
 
-      if Find_Table_By_Signature (Sig'Address, Rec'Address) = Status_OK then
-         Discard := Unref_Table (Rec'Address);
-         return To_Integer (Rec.Virt_Addr);
-      else
-         return 0;
+      if Find_Table_By_Signature (Sig'Address, Table'Address) = Status_OK then
+         return;
+      end if;
+
+   <<Error_Return>>
+      Table := (Null_Address, 0);
+   exception
+      when Constraint_Error =>
+         Table := (Null_Address, 0);
+   end FindTable;
+
+   procedure Unref_Table (Table : Table_Record) is
+   begin
+      if Unref_Table (Table'Address) /= Status_OK then
+         Lib.Messages.Put_Line ("Could not unref " & Table.Virt_Addr'Image);
       end if;
    exception
       when Constraint_Error =>
-         return 0;
-   end FindTable;
+         return;
+   end Unref_Table;
    ----------------------------------------------------------------------------
    procedure Enter_Sleep (Level : Sleep_Level; Success : out Boolean) is
       Translated : Sleep_State;

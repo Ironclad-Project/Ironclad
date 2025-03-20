@@ -26,21 +26,23 @@ package body Arch.HPET with SPARK_Mode => Off is
    HPET_Frequency : Unsigned_64 := 0;
 
    function Init return Boolean is
-      ACPI_Address : Virtual_Address;
+      ACPI_Address : ACPI.Table_Record;
    begin
-      ACPI_Address := ACPI.FindTable (ACPI.HPET_Signature);
-      if ACPI_Address = Null_Address then
+      ACPI.FindTable (ACPI.HPET_Signature, ACPI_Address);
+      if ACPI_Address.Virt_Addr = Null_Address then
          return False;
       end if;
 
       declare
          Success : Boolean;
          Table : ACPI.HPET
-            with Import, Address => To_Address (ACPI_Address);
+            with Import, Address => To_Address (ACPI_Address.Virt_Addr);
          HPET : ACPI.HPET_Contents with Import,
             Address => To_Address (Table.Address + Memory_Offset);
          pragma Volatile (HPET);
       begin
+         ACPI.Unref_Table (ACPI_Address);
+
          MMU.Map_Range
             (Map            => MMU.Kernel_Table,
              Physical_Start => To_Address (Table.Address),
