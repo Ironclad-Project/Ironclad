@@ -1,0 +1,37 @@
+name: Ironclad CI
+
+on: [push, pull_request]
+
+jobs:
+  ci_build:
+    name: Check for compilation failures
+    runs-on: ubuntu-latest
+    container: debian:sid
+    strategy:
+      matrix:
+        target_arch: [riscv64-limine, x86_64-limine]
+
+    steps:
+      - name: Install dependencies
+        run: apt-get update && apt-get -y dist-upgrade && apt-get install -y autoconf automake git build-essential findutils make texinfo highlight gprbuild gnat gnat-14-riscv64-linux-gnu gcc-riscv64-linux-gnu
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Bootstrap
+        run: ./bootstrap
+
+      - name: Configure step
+        run: |
+          set -ex
+
+          case "${{matrix.target_arch}}" in \
+            riscv64-limine) \
+              #./configure --host=riscv64-linux-gnu ;; \
+              ./configure ;; \
+            x86_64-limine) \
+              ./configure ;; \
+          esac
+
+      - name: Build kernel
+        run: make
