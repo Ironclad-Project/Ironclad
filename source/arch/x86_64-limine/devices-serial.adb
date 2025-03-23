@@ -28,7 +28,7 @@ package body Devices.Serial is
       Data        : COM_Root_Acc;
    begin
       for I in COM_Ports'Range loop
-         --  Check if the port exists by writting a value and checking.
+         --  Check if the port exists by writing a value and checking.
          Arch.Snippets.Port_Out (COM_Ports (I) + Scratch, 16#55#);
          if Arch.Snippets.Port_In (COM_Ports (I) + Scratch) = 16#55# then
             --  Disable all interrupts, set baud and FIFO.

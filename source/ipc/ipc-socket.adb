@@ -27,40 +27,40 @@ package body IPC.Socket is
    procedure Free is new Ada.Unchecked_Deallocation
       (Operation_Data, Operation_Data_Acc);
 
-   function Create (Dom : Domain; Typ : DataType) return Socket_Acc is
+   function Create (Dom : Domain; Kind : DataType) return Socket_Acc is
    begin
       case Dom is
          when IPv4 =>
-            case Typ is
+            case Kind is
                when Raw =>
                   return new Socket'
                    (Mutex        => Lib.Synchronization.Unlocked_Mutex,
                     Dom          => IPv4,
-                    Typ          => Raw,
+                    Kind          => Raw,
                     IPv4_Cached_Address => [others => 0],
                     IPv4_Cached_Port => 0);
                when others =>
                   return null;
             end case;
          when IPv6 =>
-            case Typ is
+            case Kind is
                when Raw =>
                   return new Socket'
                    (Mutex        => Lib.Synchronization.Unlocked_Mutex,
                     Dom          => IPv6,
-                    Typ          => Raw,
+                    Kind          => Raw,
                     IPv6_Cached_Address => [others => 0],
                     IPv6_Cached_Port => 0);
                when others =>
                   return null;
             end case;
          when UNIX =>
-            case Typ is
+            case Kind is
                when Stream =>
                   return new Socket'
                    (Mutex          => Lib.Synchronization.Unlocked_Mutex,
                     Dom            => UNIX,
-                    Typ            => Stream,
+                    Kind            => Stream,
                     Is_Listener    => False,
                     Connected      => null,
                     Pending_Accept => null,
@@ -71,7 +71,7 @@ package body IPC.Socket is
                   return new Socket'
                    (Mutex            => Lib.Synchronization.Unlocked_Mutex,
                     Dom              => UNIX,
-                    Typ              => Datagram,
+                    Kind              => Datagram,
                     Simple_Connected => null,
                     Data             => [others => 0],
                     Data_Length      => 0);
@@ -88,7 +88,7 @@ package body IPC.Socket is
 
    function Get_Type (Sock : Socket_Acc) return DataType is
    begin
-      return Sock.Typ;
+      return Sock.Kind;
    end Get_Type;
 
    procedure Close (To_Close : in out Socket_Acc) is
@@ -261,7 +261,7 @@ package body IPC.Socket is
        Success : out Boolean)
    is
    begin
-      case Sock.Typ is
+      case Sock.Kind is
          when Raw =>
             Sock.IPv4_Cached_Address := Addr;
             Sock.IPv4_Cached_Port := Port;
@@ -301,7 +301,7 @@ package body IPC.Socket is
       Src  : Networking.IPv4_Address;
       Hdr_Size : constant Natural := Networking.IPv4.IPv4_Packet_Header'Size;
    begin
-      case Sock.Typ is
+      case Sock.Kind is
          when Raw =>
             Networking.Interfaces.Get_Suitable_Interface (Addr, Dev);
             if Dev = Devices.Error_Handle then
@@ -347,7 +347,7 @@ package body IPC.Socket is
       Hdr_Data : Operation_Data (1 .. Hdr'Size / 8)
          with Import, Address => Hdr'Address;
    begin
-      case Sock.Typ is
+      case Sock.Kind is
          when Raw =>
             Networking.Interfaces.Get_Suitable_Interface (Addr, Dev);
             if Dev = Devices.Error_Handle then
@@ -422,7 +422,7 @@ package body IPC.Socket is
        Success : out Boolean)
    is
    begin
-      case Sock.Typ is
+      case Sock.Kind is
          when Raw =>
             Sock.IPv6_Cached_Address := Addr;
             Sock.IPv6_Cached_Port := Port;
@@ -462,7 +462,7 @@ package body IPC.Socket is
       Src  : Networking.IPv6_Address;
       Hdr_Size : constant Natural := Networking.IPv6.IPv6_Packet_Header'Size;
    begin
-      case Sock.Typ is
+      case Sock.Kind is
          when Raw =>
             Networking.Interfaces.Get_Suitable_Interface (Addr, Dev);
             if Dev = Devices.Error_Handle then
@@ -507,7 +507,7 @@ package body IPC.Socket is
       Hdr_Data : Operation_Data (1 .. Hdr'Size / 8)
          with Import, Address => Hdr'Address;
    begin
-      case Sock.Typ is
+      case Sock.Kind is
          when Raw =>
             Networking.Interfaces.Get_Suitable_Interface (Addr, Dev);
             if Dev = Devices.Error_Handle then
@@ -631,7 +631,7 @@ package body IPC.Socket is
          Success := False;
          goto End_Return;
       end if;
-      case Sock.Typ is
+      case Sock.Kind is
          when Stream =>
             Sock.Connected := To_Connect;
             loop
@@ -675,7 +675,7 @@ package body IPC.Socket is
             if Sock.Pending_Accept /= null then
                Result := Create
                   (Sock.Pending_Accept.Dom,
-                   Sock.Pending_Accept.Typ);
+                   Sock.Pending_Accept.Kind);
 
                Tmp := Sock.Pending_Accept;
                Result.Established := Sock;
@@ -809,7 +809,7 @@ package body IPC.Socket is
       end loop;
       Lib.Synchronization.Release (UNIX_Bound_Mutex);
 
-      if To_Close.Typ = Stream    and then
+      if To_Close.Kind = Stream    and then
          not To_Close.Is_Listener and then
          To_Close.Established /= null
       then
@@ -840,7 +840,7 @@ package body IPC.Socket is
          Lib.Synchronization.Seize (Sock.Mutex);
       end if;
 
-      case Sock.Typ is
+      case Sock.Kind is
          when Stream =>
             if Sock.Is_Listener or Sock.Pending_Accept = null then
                Data      := [others => 0];
@@ -907,7 +907,7 @@ package body IPC.Socket is
       Len   : Natural := Data'Length;
       Final : Natural;
    begin
-      case Sock.Typ is
+      case Sock.Kind is
          when Stream =>
             if Sock.Is_Listener or Sock.Pending_Accept = null then
                Ret_Count := 0;
@@ -994,7 +994,7 @@ package body IPC.Socket is
        Is_Error  : out Boolean)
    is
    begin
-      case Sock.Typ is
+      case Sock.Kind is
          when Stream =>
             if Sock.Is_Listener then
                Can_Read  := Sock.Pending_Accept /= null;

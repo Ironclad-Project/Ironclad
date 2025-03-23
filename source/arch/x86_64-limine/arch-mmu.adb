@@ -49,23 +49,23 @@ package body Arch.MMU is
 
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean is
       NX_Flags : constant Page_Permissions :=
-         (Is_User_Accesible => False,
-          Can_Read          => True,
-          Can_Write         => True,
-          Can_Execute       => False,
-          Is_Global         => True);
+         (Is_User_Accessible => False,
+          Can_Read           => True,
+          Can_Write          => True,
+          Can_Execute        => False,
+          Is_Global          => True);
       RX_Flags : constant Page_Permissions :=
-         (Is_User_Accesible => False,
-          Can_Read          => True,
-          Can_Write         => False,
-          Can_Execute       => True,
-          Is_Global         => True);
+         (Is_User_Accessible => False,
+          Can_Read           => True,
+          Can_Write          => False,
+          Can_Execute        => True,
+          Is_Global          => True);
       R_Flags : constant Page_Permissions :=
-         (Is_User_Accesible => False,
-          Can_Read          => True,
-          Can_Write         => False,
-          Can_Execute       => False,
-          Is_Global         => True);
+         (Is_User_Accessible => False,
+          Can_Read           => True,
+          Can_Write          => False,
+          Can_Execute        => False,
+          Is_Global          => True);
 
       --  Start of sections for correct permission loading.
       text_start   : Character with Import, Convention => C;
@@ -787,7 +787,7 @@ package body Arch.MMU is
          (if Perm.Can_Execute       then 0                  else Page_NX) or
          (if Perm.Can_Write         then Page_RW            else       0) or
          (if Perm.Is_Global         then Page_G             else       0) or
-         (if Perm.Is_User_Accesible then Page_U             else       0) or
+         (if Perm.Is_User_Accessible then Page_U             else       0) or
          Page_P;
 
       case Caching is

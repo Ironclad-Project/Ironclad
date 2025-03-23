@@ -166,10 +166,10 @@ package body Userland.ELF is
 
       package A is new Lib.Alignment (Integer_Address);
 
-      MisAlign, Load_Size : Unsigned_64;
+      Misalign, Load_Size : Unsigned_64;
       ELF_Virtual : Virtual_Address;
       Flags : constant Arch.MMU.Page_Permissions :=
-         (Is_User_Accesible => True,
+         (Is_User_Accessible => True,
           Can_Read          => (Header.Flags and Flags_Read)       /= 0,
           Can_Write         => (Header.Flags and Flags_Write)      /= 0,
           Can_Execute       => (Header.Flags and Flags_Executable) /= 0,
@@ -180,8 +180,8 @@ package body Userland.ELF is
       Ali_V, Ali_L : Integer_Address;
    begin
       ELF_Virtual := Virtual_Address (Base + Header.Virt_Address);
-      MisAlign    :=  Header.Virt_Address mod Arch.MMU.Page_Size;
-      Load_Size   := MisAlign + Header.Mem_Size_Bytes;
+      Misalign    := Header.Virt_Address mod Arch.MMU.Page_Size;
+      Load_Size   := Misalign + Header.Mem_Size_Bytes;
       Ali_V       := ELF_Virtual;
       Ali_L       := Integer_Address (Load_Size);
 
@@ -213,7 +213,7 @@ package body Userland.ELF is
 
       declare
          Load2 : Devices.Operation_Data (1 .. Header.File_Size_Bytes)
-            with Import, Address => Result + Storage_Offset (MisAlign);
+            with Import, Address => Result + Storage_Offset (Misalign);
       begin
          VFS.Read (FS, Ino, Header.Offset, Load2, Ret_Count, True, Success2);
          Success := Success2 = FS_Success and

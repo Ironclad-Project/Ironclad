@@ -50,7 +50,7 @@ package body Devices.i6300ESB is
           Virtual_Start  => To_Address (Mem_Addr),
           Length         => Arch.MMU.Page_Size,
           Permissions    =>
-            (Is_User_Accesible => False,
+            (Is_User_Accessible => False,
              Can_Read          => True,
              Can_Write         => True,
              Can_Execute       => False,

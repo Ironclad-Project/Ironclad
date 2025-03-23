@@ -42,7 +42,7 @@ is
    RT_Stored_Nanoseconds    : Unsigned_64;
 
    --  For monotonic, we use the HPET, we could use the TSC, which would be
-   --  faster, but TSC requires calibration (innacurate), core synchronization
+   --  faster, but TSC requires calibration (inaccurate), core synchronization
    --  (pita), and invariant tsc (could not be there).
    --  The HPET is guaranteed to be at least 10MHz, that means the smallest we
    --  can do without detection code safely is one tick per 1000ns.
@@ -93,7 +93,7 @@ is
       Temp1, Temp2 : Unsigned_64;
    begin
       Get_Monotonic_Time (Temp1, Temp2);
-      Substract (Temp1, Temp2, RT_Timestamp_Seconds, RT_Timestamp_Nanoseconds);
+      Subtract (Temp1, Temp2, RT_Timestamp_Seconds, RT_Timestamp_Nanoseconds);
       Seconds := RT_Stored_Seconds + Temp1;
       Nanoseconds := RT_Stored_Nanoseconds + Temp2;
    end Get_Real_Time;

@@ -42,7 +42,7 @@ package body Lib.Time is
       Normalize (Seconds1, Nanoseconds1);
    end Increment;
 
-   procedure Substract
+   procedure Subtract
       (Seconds1, Nanoseconds1 : in out Unsigned_64;
        Seconds2, Nanoseconds2 : Unsigned_64)
    is
@@ -53,7 +53,7 @@ package body Lib.Time is
          Nanoseconds1 := USec_Per_Sec + Nanoseconds1;
       end if;
       Nanoseconds1 := Nanoseconds1 - Nanoseconds2;
-   end Substract;
+   end Subtract;
 
    function Is_Greater_Equal (S1, NS1, S2, NS2 : Unsigned_64) return Boolean is
    begin

@@ -44,12 +44,12 @@ package VFS.EXT is
    procedure Get_Free_Blocks
       (FS                 : System.Address;
        Free_Blocks        : out Unsigned_64;
-       Free_Unpriviledged : out Unsigned_64);
+       Free_Unprivileged : out Unsigned_64);
 
    procedure Get_Free_Inodes
       (FS                 : System.Address;
        Free_Inodes        : out Unsigned_64;
-       Free_Unpriviledged : out Unsigned_64);
+       Free_Unprivileged : out Unsigned_64);
 
    function Get_Max_Length (FS : System.Address) return Unsigned_64;
    ----------------------------------------------------------------------------
@@ -57,7 +57,7 @@ package VFS.EXT is
       (FS       : System.Address;
        Relative : File_Inode_Number;
        Path     : String;
-       Typ      : File_Type;
+       Kind      : File_Type;
        Mode     : File_Mode;
        User     : Unsigned_32;
        Status   : out FS_Status);

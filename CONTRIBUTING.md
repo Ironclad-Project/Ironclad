@@ -5,5 +5,5 @@ appreciate it ❤️.
 
 Please check the official
 [contributing guide](https://ironclad-os.org/contributing.html) for
-information on beginer-friendly tasks to do, guidelines, licensing guidance, and
+information on beginner-friendly tasks to do, guidelines, licensing guidance, and
 other information.

@@ -372,10 +372,10 @@ package body VFS is
    procedure Get_Free_Blocks
       (Key                : FS_Handle;
        Free_Blocks        : out Unsigned_64;
-       Free_Unpriviledged : out Unsigned_64)
+       Free_Unprivileged : out Unsigned_64)
    is
       FB : Unsigned_64 renames Free_Blocks;
-      FU : Unsigned_64 renames Free_Unpriviledged;
+      FU : Unsigned_64 renames Free_Unprivileged;
    begin
       case Mounts (Key).Mounted_FS is
          when FS_DEV => Dev.Get_Free_Blocks (Mounts (Key).FS_Data, FB, FU);
@@ -387,10 +387,10 @@ package body VFS is
    procedure Get_Free_Inodes
       (Key                : FS_Handle;
        Free_Inodes        : out Unsigned_64;
-       Free_Unpriviledged : out Unsigned_64)
+       Free_Unprivileged : out Unsigned_64)
    is
       FI : Unsigned_64 renames Free_Inodes;
-      FU : Unsigned_64 renames Free_Unpriviledged;
+      FU : Unsigned_64 renames Free_Unprivileged;
    begin
       case Mounts (Key).Mounted_FS is
          when FS_DEV => Dev.Get_Free_Inodes (Mounts (Key).FS_Data, FI, FU);
@@ -703,7 +703,7 @@ package body VFS is
       (Key      : FS_Handle;
        Relative : File_Inode_Number;
        Path     : String;
-       Typ      : File_Type;
+       Kind     : File_Type;
        Mode     : File_Mode;
        User     : Unsigned_32;
        Status   : out FS_Status)
@@ -712,7 +712,8 @@ package body VFS is
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             EXT.Create_Node
-               (Mounts (Key).FS_Data, Relative, Path, Typ, Mode, User, Status);
+               (Mounts (Key).FS_Data, Relative, Path, Kind, Mode, User,
+                Status);
          when others =>
             Status := FS_Not_Supported;
       end case;
@@ -1198,7 +1199,7 @@ package body VFS is
 
    procedure Create_Node
       (Path    : String;
-       Typ     : File_Type;
+       Kind    : File_Type;
        Mode    : File_Mode;
        Success : out FS_Status;
        User    : Unsigned_32)
@@ -1213,7 +1214,7 @@ package body VFS is
          (Key      => Root_Idx,
           Relative => Mounts (Root_Idx).Root_Ino,
           Path     => Path,
-          Typ      => Typ,
+          Kind     => Kind,
           Mode     => Mode,
           User     => User,
           Status   => Success);

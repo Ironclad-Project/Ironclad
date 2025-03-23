@@ -26,7 +26,7 @@ package body VFS.FAT with SPARK_Mode => Off is
    --  FAT doesnt have a notion of inodes, but Ironclad requires it, thats how
    --  POSIX works. So we will need to translate inode to file and viceversa.
    --  Inode numbers will translate to the disk offset of the directory entry
-   --  except when refering to root, which has the hardcoded Inode of 2.
+   --  except when referring to root, which has the hardcoded Inode of 2.
    Root_PseudoInode : constant := 2;
 
    --  All files in FAT have the same permissions, since FAT does not handle
@@ -133,23 +133,23 @@ package body VFS.FAT with SPARK_Mode => Off is
    procedure Get_Free_Blocks
       (FS                 : System.Address;
        Free_Blocks        : out Unsigned_64;
-       Free_Unpriviledged : out Unsigned_64)
+       Free_Unprivileged : out Unsigned_64)
    is
       pragma Unreferenced (FS);
    begin
       Free_Blocks        := 1;
-      Free_Unpriviledged := 1;
+      Free_Unprivileged := 1;
    end Get_Free_Blocks;
 
    procedure Get_Free_Inodes
       (FS                 : System.Address;
        Free_Inodes        : out Unsigned_64;
-       Free_Unpriviledged : out Unsigned_64)
+       Free_Unprivileged : out Unsigned_64)
    is
       pragma Unreferenced (FS);
    begin
       Free_Inodes        := 1;
-      Free_Unpriviledged := 1;
+      Free_Unprivileged := 1;
    end Get_Free_Inodes;
 
    function Get_Max_Length (FS : System.Address) return Unsigned_64 is

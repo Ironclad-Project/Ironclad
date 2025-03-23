@@ -171,7 +171,7 @@ package body Scheduler with SPARK_Mode => Off is
        New_TID    : out TID)
    is
       Stack_Permissions : constant Arch.MMU.Page_Permissions :=
-         (Is_User_Accesible => True,
+         (Is_User_Accessible => True,
           Can_Read          => True,
           Can_Write         => True,
           Can_Execute       => False,
@@ -460,7 +460,7 @@ package body Scheduler with SPARK_Mode => Off is
       Thread_Pool (Thread).System_Tmp_Sec := T1;
       Thread_Pool (Thread).System_Tmp_NSec := T2;
 
-      Lib.Time.Substract
+      Lib.Time.Subtract
          (T1, T2,
           Thread_Pool (Thread).User_Tmp_Sec,
           Thread_Pool (Thread).User_Tmp_NSec);
@@ -485,7 +485,7 @@ package body Scheduler with SPARK_Mode => Off is
       if Thread_Pool (Thread).System_Tmp_Sec /= 0 or
          Thread_Pool (Thread).System_Tmp_NSec /= 0
       then
-         Lib.Time.Substract
+         Lib.Time.Subtract
             (Seconds1     => Temp_Sec,
              Nanoseconds1 => Temp_NSec,
              Seconds2     => Thread_Pool (Thread).System_Tmp_Sec,
@@ -715,7 +715,7 @@ package body Scheduler with SPARK_Mode => Off is
       if Current_TID /= Error_TID then
          Curr_Cluster := Thread_Pool (Current_TID).Cluster;
          Lib.Synchronization.Release (Thread_Pool (Current_TID).Yield_Mutex);
-         Lib.Time.Substract
+         Lib.Time.Subtract
             (Curr_Sec, Curr_NSec,
              Thread_Pool (Current_TID).Last_Sched_Sec,
              Thread_Pool (Current_TID).Last_Sched_NSec);
@@ -771,7 +771,7 @@ package body Scheduler with SPARK_Mode => Off is
          end case;
 
          --  Find the next thread from said cluster using the algorithm.
-         --  Cluter_Cooperative finds new threads the same way as RR, so we
+         --  Cluster_Cooperative finds new threads the same way as RR, so we
          --  do not need to handle it especially.
          for I in Current_TID + 1 .. Thread_Pool'Last loop
             if Is_Switchable (I, Next_Cluster) then

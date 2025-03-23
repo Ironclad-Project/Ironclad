@@ -47,7 +47,7 @@ interrupt_thunk_\num:
     push %rax
 
     # Calculate the index on the isr table and call the handler
-    # using C calling convetion.
+    # using C calling convention.
     cld
     mov $\num, %rdi
     mov $(\num * 8), %rax

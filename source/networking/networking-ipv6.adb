@@ -24,7 +24,7 @@ package body Networking.IPv6 is
    begin
       return
          (Version         => 6,
-          Trafic_Class    => 0,
+          Traffic_Class    => 0,
           Flow_Label      => 0,
           Payload_Length  => Unsigned_16 (Data_Length),
           Next_Header     => 6, --  Placeholder.

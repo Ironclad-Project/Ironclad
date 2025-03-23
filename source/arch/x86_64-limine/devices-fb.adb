@@ -155,7 +155,7 @@ package body Devices.FB with SPARK_Mode => Off is
              Physical_Start => Early_Init_PAddr,
              Length         => Early_Init_PLength,
              Permissions    =>
-               (Is_User_Accesible => False,
+               (Is_User_Accessible => False,
                 Can_Read          => True,
                 Can_Write         => True,
                 Can_Execute       => False,
@@ -310,7 +310,7 @@ package body Devices.FB with SPARK_Mode => Off is
       Dev_Data : Internal_FB_Data with Import, Address => Data;
       IntAddr  : constant Integer_Address := To_Integer (Dev_Data.Fb.Address);
    begin
-      --  If we are maping the early framebuffer, we have to deinitialize it.
+      --  If we are mapping the early framebuffer, we have to deinitialize it.
       if Dev_Data.Fb.Address = Early_Init_Addr then
          Arch.Flanterm.Disable;
       end if;

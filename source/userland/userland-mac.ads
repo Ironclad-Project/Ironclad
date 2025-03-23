@@ -51,7 +51,7 @@ package Userland.MAC is
 
    --  When a MAC failure is encountered, we can do a series of things.
    type Enforcement is
-      (Deny,            --  Just deny the operation with an appropiate error.
+      (Deny,            --  Just deny the operation with an appropriate error.
        Deny_And_Scream, --  Deny and obnoxiously report the error.
        Kill);           --  Don't panic process, but you are already dead.
 

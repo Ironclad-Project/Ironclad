@@ -1200,7 +1200,7 @@ package Userland.Syscall is
       SHM_CTime  : Unsigned_64;
       SHM_CPID   : Unsigned_32;
       SHM_LPID   : Unsigned_32;
-      SHM_NAttch : Unsigned_64;
+      SHM_Nattch : Unsigned_64;
    end record;
 
    IPC_RMID : constant := 0;

@@ -17,7 +17,7 @@
 with Interfaces; use Interfaces;
 
 package Lib.Time is
-   --  Inside Ironclad, time is often refered to as a tuple of seconds and
+   --  Inside Ironclad, time is often referred to as a tuple of seconds and
    --  nanoseconds. These functions make manipulating those values easier.
 
    --  Normalize a number of seconds and nanoseconds, by making sure
@@ -37,13 +37,13 @@ package Lib.Time is
        Seconds2, Nanoseconds2 : Unsigned_64)
       with Post => Is_Normalized (Nanoseconds1);
 
-   --  Substract two timestamps, for things like getting a delta. The first
+   --  Subtract two timestamps, for things like getting a delta. The first
    --  one will be used for output as well, and must be bigger than the second.
-   --  @param Seconds1     Seconds to substract from and result value.
-   --  @param Nanoseconds1 Nanoseconds to substract from and result value.
-   --  @param Seconds2     Seconds to substract.
-   --  @param Nanoseconds2 Nanoseconds to substract.
-   procedure Substract
+   --  @param Seconds1     Seconds to subtract from and result value.
+   --  @param Nanoseconds1 Nanoseconds to subtract from and result value.
+   --  @param Seconds2     Seconds to subtract.
+   --  @param Nanoseconds2 Nanoseconds to subtract.
+   procedure Subtract
       (Seconds1, Nanoseconds1 : in out Unsigned_64;
        Seconds2, Nanoseconds2 : Unsigned_64)
       with Pre =>

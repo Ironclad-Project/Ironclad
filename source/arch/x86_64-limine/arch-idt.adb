@@ -70,7 +70,7 @@ package body Arch.IDT is
    Global_IDT     : array (IDT_Index) of IDT_Entry;
    Global_Pointer : IDT_Pointer;
 
-   --  Thunk list and the isr table, the thunk list containts a list of thunks
+   --  Thunk list and the isr table, the thunk list contains a list of thunks
    --  to be loaded to the idt that directly call the elements in isr_table.
    type Addr_List is array (IDT_Index) of System.Address with Pack;
    Thunk_List : Addr_List with Import, External_Name => "interrupt_thunk_list";

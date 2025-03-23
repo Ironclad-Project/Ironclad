@@ -29,7 +29,7 @@ package IPC.FIFO is
    --  If the read side is closed, all subsequent writes will fail until
    --  increased. Reads will continue working. This is done instead of a
    --  in order to implement UNIXy behaviour easily. Do not hope for the
-   --  existance of SIGPIPE.
+   --  existence of SIGPIPE.
    --
    --  FIFOs can be used standalone or to implement other UNIXy interfaces
    --  like pipes or UNIX-domain sockets.

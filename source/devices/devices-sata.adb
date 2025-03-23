@@ -62,7 +62,7 @@ package body Devices.SATA with SPARK_Mode => Off is
              Length         => Storage_Count (A.Align_Up
               (HBA_Memory'Size / 8, Arch.MMU.Page_Size)),
              Permissions    =>
-              (Is_User_Accesible => False,
+              (Is_User_Accessible => False,
                Can_Read          => True,
                Can_Write         => True,
                Can_Execute       => False,

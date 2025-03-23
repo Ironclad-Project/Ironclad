@@ -49,7 +49,7 @@ package body Arch.HPET with SPARK_Mode => Off is
              Virtual_Start  => To_Address (Table.Address + Memory_Offset),
              Length         => MMU.Page_Size,
              Permissions    =>
-              (Is_User_Accesible => False,
+              (Is_User_Accessible => False,
                Can_Read          => True,
                Can_Write         => True,
                Can_Execute       => False,
@@ -70,7 +70,7 @@ package body Arch.HPET with SPARK_Mode => Off is
          HPET_Period    := Shift_Right (HPET.General_Capabilities, 32);
          HPET_Frequency := 1_000_000_000_000_000 / HPET_Period;
 
-         --  Disable the HPET by writting 0 the Enable CNF, so we can reset the
+         --  Disable the HPET by writing 0 the Enable CNF, so we can reset the
          --  counter, and then enable again.
          HPET.General_Configuration := 0;
          HPET.Main_Counter_Value    := 0;

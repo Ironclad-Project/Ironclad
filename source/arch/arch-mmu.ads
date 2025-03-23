@@ -24,11 +24,11 @@ package Arch.MMU is
    --  Ironclad forces W^X, so write and execute permissions will conflict,
    --  even though they might not necessarily conflict in hardware.
    type Page_Permissions is record
-      Is_User_Accesible : Boolean;
-      Can_Read          : Boolean;
-      Can_Write         : Boolean;
-      Can_Execute       : Boolean;
-      Is_Global         : Boolean; --  Hint for global (TLB optimization).
+      Is_User_Accessible : Boolean;
+      Can_Read           : Boolean;
+      Can_Write          : Boolean;
+      Can_Execute        : Boolean;
+      Is_Global          : Boolean; --  Hint for global (TLB optimization).
    end record;
 
    --  Caching models for mapping.
@@ -85,7 +85,7 @@ package Arch.MMU is
       with Pre => Map /= null;
 
    --  Do translation for a range, and report on some qualities.
-   --  If qualities vary in between the range beggining and end, that property
+   --  If qualities vary in between the range beginning and end, that property
    --  will fail.
    --  @param Map                Page table to walk for translation.
    --  @param Virtual            Virtual address to translate.

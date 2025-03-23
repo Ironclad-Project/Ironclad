@@ -230,22 +230,22 @@ package VFS is
 
    --  Get the total block count of the FS, allocated and unallocated.
    --  @param Key                FS Key.
-   --  @param Free_Blocks        Free blocks for the highest priviledge level.
-   --  @param Free_Unpriviledged Free blocks for everyone.
+   --  @param Free_Blocks        Free blocks for the highest privilege level.
+   --  @param Free_Unprivileged Free blocks for everyone.
    procedure Get_Free_Blocks
       (Key                : FS_Handle;
        Free_Blocks        : out Unsigned_64;
-       Free_Unpriviledged : out Unsigned_64)
+       Free_Unprivileged : out Unsigned_64)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Get the total inode count of the FS, allocated and unallocated.
    --  @param Key                FS Key.
-   --  @param Free_Inodes        Free inodes for the highest priviledge level.
-   --  @param Free_Unpriviledged Free inodes for everyone.
+   --  @param Free_Inodes        Free inodes for the highest privilege level.
+   --  @param Free_Unprivileged Free inodes for everyone.
    procedure Get_Free_Inodes
       (Key                : FS_Handle;
        Free_Inodes        : out Unsigned_64;
-       Free_Unpriviledged : out Unsigned_64)
+       Free_Unprivileged : out Unsigned_64)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Get the total length of a file name in the FS.
@@ -295,7 +295,7 @@ package VFS is
    --  @param Key      FS Handle to open.
    --  @param Relative Relative directory inode to create from.
    --  @param Path     Path to be created inside Relative, or absolute.
-   --  @param Typ      Type of file to create.
+   --  @param Kind     Type of file to create.
    --  @param Mode     Mode to use for the created file.
    --  @param User     UID to check against, 0 for root/bypass checks.
    --  @param Status   Status for the operation.
@@ -303,7 +303,7 @@ package VFS is
       (Key      : FS_Handle;
        Relative : File_Inode_Number;
        Path     : String;
-       Typ      : File_Type;
+       Kind     : File_Type;
        Mode     : File_Mode;
        User     : Unsigned_32;
        Status   : out FS_Status)
@@ -572,7 +572,7 @@ package VFS is
    --  Check access of for an inode.
    --  @param Key         FS Handle to use.
    --  @param Ino         Inode to change the mode of.
-   --  @param Exists_Only If True, only check for existance.
+   --  @param Exists_Only If True, only check for existence.
    --  @param Can_Read    If True, check for the ability to read.
    --  @param Can_Write   If True, check for the ability to write.
    --  @param Can_Exec    If True, check for the ability to execute.
@@ -608,7 +608,7 @@ package VFS is
       with Pre => Is_Initialized and Key /= Error_Handle;
    ----------------------------------------------------------------------------
    --  FS-independent versions of operations, that rely on the driver to search
-   --  for the appropiate FS, or operate on several FSes.
+   --  for the appropriate FS, or operate on several FSes.
 
    --  Open a file with an absolute path system-wide.
    --  @param Path       Absolute path inside the mount, creation is not done.
@@ -640,13 +640,13 @@ package VFS is
 
    --  Create several kinds of files.
    --  @param Path    System-wide absolute path.
-   --  @param Typ     File type to create.
+   --  @param Kind    File type to create.
    --  @param Mode    Mode to set for the created inode.
    --  @param Success Status of the operation.
    --  @param User    UID to check against, 0 for root/bypass checks.
    procedure Create_Node
       (Path    : String;
-       Typ     : File_Type;
+       Kind    : File_Type;
        Mode    : File_Mode;
        Success : out FS_Status;
        User    : Unsigned_32)

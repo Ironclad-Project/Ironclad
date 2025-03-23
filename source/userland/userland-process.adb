@@ -323,7 +323,7 @@ package body Userland.Process is
    is
    begin
       Arch.Clocks.Get_Monotonic_Time (Seconds, Nanoseconds);
-      Lib.Time.Substract
+      Lib.Time.Subtract
          (Seconds, Nanoseconds,
           Registry (Proc).Creation_Secs, Registry (Proc).Creation_NSecs);
    exception

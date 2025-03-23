@@ -510,7 +510,7 @@ package body Userland.Syscall is
          goto No_Memory_Return;
       end if;
 
-      --  FIXME: We purposedly ignore userland hints for non MAP_FIXED
+      --  FIXME: We purposely ignore userland hints for non MAP_FIXED
       --  allocations as to simply handling, we should change this on the
       --  future as to satisfy poor userland, it already deals with enough.
       if (Flags and MAP_FIXED) /= 0 then
@@ -1657,24 +1657,24 @@ package body Userland.Syscall is
       end if;
 
       declare
-         KThs : Scheduler.Thread_Listing_Arr (1 .. Natural (Length));
+         KInfo : Scheduler.Thread_Listing_Arr (1 .. Natural (Length));
          Ret  : Natural;
          N    : Niceness;
-         Ths  : Thread_Info_Arr (1 .. Natural (Length))
+         Info  : Thread_Info_Arr (1 .. Natural (Length))
             with Import, Address => SAddr;
       begin
-         List_All (KThs, Ret);
+         List_All (KInfo, Ret);
          for I in 1 .. Ret loop
-            Ths (I) :=
-               (Thread_Id   => Unsigned_16 (Convert (KThs (I).Thread)),
+            Info (I) :=
+               (Thread_Id   => Unsigned_16 (Convert (KInfo (I).Thread)),
                 Niceness    => 0,
-                Cluster_Id  => Unsigned_16 (Convert (KThs (I).Cluster)),
-                Process_PID => Unsigned_16 (KThs (I).Proc));
-            N := Get_Niceness (KThs (I).Thread);
+                Cluster_Id  => Unsigned_16 (Convert (KInfo (I).Cluster)),
+                Process_PID => Unsigned_16 (KInfo (I).Proc));
+            N := Get_Niceness (KInfo (I).Thread);
             if N >= 0 then
-               Ths (I).Niceness := Unsigned_16 (N);
+               Info (I).Niceness := Unsigned_16 (N);
             else
-               Ths (I).Niceness := Unsigned_16'Last - Unsigned_16 (abs N) + 1;
+               Info (I).Niceness := Unsigned_16'Last - Unsigned_16 (abs N) + 1;
             end if;
          end loop;
 
@@ -1709,24 +1709,24 @@ package body Userland.Syscall is
 
       declare
          Ret   : Natural;
-         Ths  : Cluster_Info_Arr (1 .. Natural (Length))
+         Info  : Cluster_Info_Arr (1 .. Natural (Length))
             with Import, Address => SAddr;
-         KThs : Scheduler.Cluster_Listing_Arr (1 .. Natural (Length));
+         KInfo : Scheduler.Cluster_Listing_Arr (1 .. Natural (Length));
       begin
-         List_All (KThs, Ret);
+         List_All (KInfo, Ret);
          for I in 1 .. Ret loop
-            Ths (I) :=
-               (Cluster_Id => Unsigned_16 (Convert (KThs (I).Cluster)),
+            Info (I) :=
+               (Cluster_Id => Unsigned_16 (Convert (KInfo (I).Cluster)),
                 Cluster_Fl => 0,
-                Cluster_Q  => Unsigned_16 (KThs (I).Cluster_Quan));
-            case KThs (I).Cluster_Algo is
+                Cluster_Q  => Unsigned_16 (KInfo (I).Cluster_Quan));
+            case KInfo (I).Cluster_Algo is
                when Cluster_RR =>
-                  Ths (I).Cluster_Fl := SCHED_RR;
+                  Info (I).Cluster_Fl := SCHED_RR;
                when Cluster_Cooperative =>
-                  Ths (I).Cluster_Fl := SCHED_COOP;
+                  Info (I).Cluster_Fl := SCHED_COOP;
             end case;
-            if KThs (I).Cluster_Int then
-               Ths (I).Cluster_Fl := Ths (I).Cluster_Fl or SCHED_INTR;
+            if KInfo (I).Cluster_Int then
+               Info (I).Cluster_Fl := Info (I).Cluster_Fl or SCHED_INTR;
             end if;
          end loop;
 
@@ -1760,26 +1760,26 @@ package body Userland.Syscall is
       end if;
 
       declare
-         KThs : Networking.Interfaces.Interface_Arr (1 .. Natural (Length));
+         KInfo : Networking.Interfaces.Interface_Arr (1 .. Natural (Length));
          Ret  : Natural;
          NLen : Natural;
-         Ths  : Interface_Arr (1 .. Natural (Length))
+         Info  : Interface_Arr (1 .. Natural (Length))
             with Import, Address => SAddr;
       begin
-         Networking.Interfaces.List_Interfaces (KThs, Ret);
+         Networking.Interfaces.List_Interfaces (KInfo, Ret);
          for I in 1 .. Ret loop
-            Fetch_Name (KThs (I).Handle, Ths (I).Name (1 .. 64), NLen);
-            Ths (I).Name (NLen + 1) := Ada.Characters.Latin_1.NUL;
-            if KThs (I).Is_Blocked then
-               Ths (I).Flags := NETINTR_BLOCKED;
+            Fetch_Name (KInfo (I).Handle, Info (I).Name (1 .. 64), NLen);
+            Info (I).Name (NLen + 1) := Ada.Characters.Latin_1.NUL;
+            if KInfo (I).Is_Blocked then
+               Info (I).Flags := NETINTR_BLOCKED;
             else
-               Ths (I).Flags := 0;
+               Info (I).Flags := 0;
             end if;
-            Ths (I).MAC := KThs (I).MAC;
-            Ths (I).IPv4 := KThs (I).IPv4;
-            Ths (I).IPv4_Subnet := KThs (I).IPv4_Subnet;
-            Ths (I).IPv6 := KThs (I).IPv6;
-            Ths (I).IPv6_Subnet := KThs (I).IPv6_Subnet;
+            Info (I).MAC := KInfo (I).MAC;
+            Info (I).IPv4 := KInfo (I).IPv4;
+            Info (I).IPv4_Subnet := KInfo (I).IPv4_Subnet;
+            Info (I).IPv6 := KInfo (I).IPv6;
+            Info (I).IPv6_Subnet := KInfo (I).IPv6_Subnet;
          end loop;
 
          Returned := Unsigned_64 (Ret);
@@ -2535,7 +2535,7 @@ package body Userland.Syscall is
       Do_Remount : constant          Boolean := (Flags and MS_REMOUNT)  /= 0;
       Do_Relatim : constant          Boolean := (Flags and MS_RELATIME) /= 0;
       Do_Noatime : constant          Boolean := (Flags and MS_NOATIME)  /= 0;
-      Parsed_Typ : VFS.FS_Type;
+      Parsed_Kind : VFS.FS_Type;
       Parsed_Acc : VFS.Access_Time_Policy;
       Map        : Page_Table_Acc;
       Success    : Boolean;
@@ -2585,15 +2585,16 @@ package body Userland.Syscall is
             end;
          else
             case FSType is
-               when MNT_EXT => Parsed_Typ := VFS.FS_EXT;
-               when MNT_FAT => Parsed_Typ := VFS.FS_FAT;
+               when MNT_EXT => Parsed_Kind := VFS.FS_EXT;
+               when MNT_FAT => Parsed_Kind := VFS.FS_FAT;
                when others  =>
                   Errno := Error_Invalid_Value;
                   Returned := Unsigned_64'Last;
                   return;
             end case;
 
-            VFS.Mount (Source, Target, Parsed_Typ, Do_RO, Parsed_Acc, Success);
+            VFS.Mount
+               (Source, Target, Parsed_Kind, Do_RO, Parsed_Acc, Success);
          end if;
       end;
 
@@ -2893,7 +2894,7 @@ package body Userland.Syscall is
             (Key      => CWD_FS,
              Relative => CWD_Ino,
              Path     => Path,
-             Typ      => Node_Type,
+             Kind      => Node_Type,
              Mode     => VFS.Apply_Umask (Tmp_Mode, Umask),
              User     => User,
              Status   => Status);
@@ -5750,7 +5751,7 @@ package body Userland.Syscall is
       package Align is new Lib.Alignment (Unsigned_64);
       Proc : constant PID := Arch.Local.Get_Current_Process;
       Perms : constant Page_Permissions :=
-         (Is_User_Accesible => True,
+         (Is_User_Accessible => True,
           Can_Read          => True,
           Can_Write         => (Flags and SHM_RDONLY) = 0,
           others            => False);
@@ -5876,7 +5877,7 @@ package body Userland.Syscall is
                   Orig.SHM_Perm.CGID := Info.Creator_GID;
                   Orig.SHM_Perm.Mode := Unsigned_32 (Info.Mode);
                   Orig.SHM_SegSz := Info.Size;
-                  Orig.SHM_NAttch := Unsigned_64 (Info.Refcount);
+                  Orig.SHM_Nattch := Unsigned_64 (Info.Refcount);
                end if;
             end;
          when others =>
@@ -6702,10 +6703,10 @@ package body Userland.Syscall is
    function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions is
    begin
       if P = PROT_NONE then
-         return (Is_User_Accesible => True, others => False);
+         return (Is_User_Accessible => True, others => False);
       else
          return
-            (Is_User_Accesible => True,
+            (Is_User_Accessible => True,
              Can_Read          => (P and PROT_READ)  /= 0,
              Can_Write         => (P and PROT_WRITE) /= 0,
              Can_Execute       => (P and PROT_EXEC)  /= 0,

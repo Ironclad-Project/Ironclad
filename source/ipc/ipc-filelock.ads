@@ -26,7 +26,7 @@ package IPC.FileLock is
    --  @param Acquired_FS  FS containing the inode to acquire.
    --  @param Acquired_Ino Inode to acquire.
    --  @param Start        Start to lock, or conflicting start.
-   --  @param Length       Lenght to lock, or conflicting length.
+   --  @param Length       Length to lock, or conflicting length.
    --  @param Acquirer     Acquirer of the lock, or current holder.
    --  @param Is_Write     Whether the lock is read (inclusive) or write.
    --  @param Success      True if the lock could be placed, else, information
@@ -44,7 +44,7 @@ package IPC.FileLock is
    --  @param Acquired_FS  FS containing the inode to acquire.
    --  @param Acquired_Ino Inode to acquire.
    --  @param Start        Start to lock.
-   --  @param Length       Lenght to lock.
+   --  @param Length       Length to lock.
    --  @param Acquirer     Acquirer of the lock.
    --  @param Is_Write     Whether the lock is read (inclusive) or write.
    --  @param Is_Blocking  Block until blocked, or give up early.
@@ -63,7 +63,7 @@ package IPC.FileLock is
    --  @param Acquired_FS  FS containing the inode to release.
    --  @param Acquired_Ino Inode to release.
    --  @param Start        Start to unlock.
-   --  @param Length       Lenght to unlock.
+   --  @param Length       Length to unlock.
    --  @param Acquirer     Acquirer of the lock.
    --  @param Success      True if the lock could be unlocked.
    procedure Release_Lock

@@ -328,7 +328,7 @@ package body Memory.Physical is
          end if;
       end loop;
 
-      --  Rewind to the beggining if memory was not found and we did not do
+      --  Rewind to the beginning if memory was not found and we did not do
       --  it already.
       if Bitmap_Last_Used /= Bitmap_Body'First then
          Bitmap_Last_Used := Bitmap_Body'First;

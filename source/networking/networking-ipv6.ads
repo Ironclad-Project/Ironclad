@@ -25,7 +25,7 @@ package Networking.IPv6 is
    pragma Warnings (Off, "scalar storage order specified");
    type IPv6_Packet_Header is record
       Version         : Unsigned_4;
-      Trafic_Class    : Unsigned_8;
+      Traffic_Class    : Unsigned_8;
       Flow_Label      : Unsigned_20;
       Payload_Length  : Unsigned_16;
       Next_Header     : Unsigned_8;
@@ -36,7 +36,7 @@ package Networking.IPv6 is
       Scalar_Storage_Order => System.High_Order_First;
    for IPv6_Packet_Header use record
       Version         at  0 range 0 .. 3;
-      Trafic_Class    at  0 range 4 .. 11;
+      Traffic_Class    at  0 range 4 .. 11;
       Flow_Label      at  0 range 12 .. 31;
       Payload_Length  at  4 range 0 .. 15;
       Next_Header     at  6 range 0 .. 7;

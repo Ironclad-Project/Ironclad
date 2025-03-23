@@ -36,7 +36,7 @@ package Arch.Snippets is
    --  Processor hint for waiting for interrupts in an energy-efficient state.
    procedure Wait_For_Interrupt with Inline;
 
-   --  Processor hint for optimizing spinlocks and another cache-intensitive
+   --  Processor hint for optimizing spinlocks and another cache-intensive
    --  situations.
    procedure Pause with Inline;
    ----------------------------------------------------------------------------

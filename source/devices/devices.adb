@@ -114,7 +114,7 @@ package body Devices is
       Returned : Device_Handle;
    begin
       --  UUID string formats are pretty messy. Representation is integer
-      --  based, but different UUID versions have different endianess, either
+      --  based, but different UUID versions have different endianness, either
       --  mixed or BE-only, so we need to try both.
 
       --  Check validity.

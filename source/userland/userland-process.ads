@@ -460,7 +460,7 @@ package Userland.Process is
    --  Set the current working directory.
    --  @param Proc    Process to set the CWD of.
    --  @param CWD     Path to set, it is not checked.
-   --  @param Success True if succesful, False if it did not fit, or others.
+   --  @param Success True if successful, False if it did not fit, or others.
    procedure Set_CWD
       (Proc : PID;
        FS   : VFS.FS_Handle;

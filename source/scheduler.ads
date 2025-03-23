@@ -69,14 +69,14 @@ package Scheduler is
        TCB      : System.Address;
        New_TID  : out TID);
 
-   --  Removes a thread, kernel or user, from existance (if it exists).
+   --  Removes a thread, kernel or user, from existence (if it exists).
    procedure Delete_Thread (Thread : TID);
 
    --  If interruptible, give up the rest of our execution time and go back to
    --  rescheduling, else just return.
    procedure Yield_If_Able;
 
-   --  Make the callee thread be dequed.
+   --  Make the callee thread be dequeued.
    procedure Bail with No_Return;
 
    --  Get runtime times of the thread.

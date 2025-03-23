@@ -97,7 +97,7 @@ Security and integrity facilities
 * Users and groups::                UIDs, EUIDs, GIDs, and all the fuzz.
 * Mandatory access control (MAC)::  MAC quickguide and configuration.
 * Resource limits::                 Limits on resources built into MAC.
-* Miscellaneous measures::          Miscelaneous security measures.
+* Miscellaneous measures::          Miscellaneous security measures.
 
 Debugging facilities
 
@@ -158,7 +158,7 @@ Syscalls
 * listen::                  Listen for connections to a socket.
 * accept::                  Accept socket connections.
 * getrlimit/setrlimit::     Get and set resource limits.
-* access::                  Check file access permissions and existance.
+* access::                  Check file access permissions and existence.
 * ppoll::                   I/O event multiplexer.
 * getuid/geteuid::          Get the UID and the effective UID.
 * setuids::                 Set the UID and the effective UID.
@@ -354,14 +354,14 @@ process in ARINC nomenclature respectively).
 
 Each cluster needs to have a percentage of CPU time assigned at creation
 (which can be modified later on), that the scheduler will uphold with
-preemption, effectively promissing that any given cluster will be given, at
+preemption, effectively promising that any given cluster will be given, at
 least, the specified execution time. Validy of the cluster configuration is
 checked when adding, deleting, or modifying individual clusters.
 
 Slack time (time not covered percent-wise by any cluster) will be used as seen
 fit, while not breaking scheduler guarantees, in an unspecified way. Thus, it
 shall be treated as @b{UNDEFINED BEHAVIOUR} by system users, and it is the
-responsability of the user to configure the scheduling to keep this into
+responsibility of the user to configure the scheduling to keep this into
 account. It is also why the above paragraph mentions "at least", as unspecified
 time can be assigned to other clusters.
 
@@ -373,7 +373,7 @@ while always keeping the assigned slices for each cluster.
 
 Thread clusters are identified by an integer id, not unlike threads or PIDs.
 Clusters rule over a group of threads, regardless of their process of origin,
-and allow specifiying an algorithm and a percentage over all the CPU time.
+and allow specifying an algorithm and a percentage over all the CPU time.
 
 The algorithm of a cluster affects how threads inside the cluster are
 scheduled. The available algorithms are:
@@ -617,7 +617,7 @@ Groups are not supported in any shape or form.
 @section Mandatory access control (MAC)
 
 Mandatory access control (MAC) is one of the main components of Ironclad's
-security. It does not necesarily help with preventing breaches, but, when
+security. It does not necessarily help with preventing breaches, but, when
 configured correctly, it can help mitigate consequences to a massive degree.
 
 MAC in Ironclad consists on a series of settings inherited from parent process
@@ -1209,7 +1209,7 @@ int open(int dir_fd, char *path, int path_len, int flags);
 
 @code{open} opens the passed file relative to @code{dir_fd}, depending on the
 flags passed. It does not create the file if not existent. By default, the file
-descriptor will remain open accross an @code{exec}.
+descriptor will remain open across an @code{exec}.
 
 @code{flags} can be an OR'd field of the following elements:
 
@@ -1221,7 +1221,7 @@ Makes the file able to be read.
 Makes the file able to be written to.
 
 @item O_APPEND (0b0000100)
-Makes the file be opened at the end of the file, instead of the beggining.
+Makes the file be opened at the end of the file, instead of the beginning.
 
 @item O_CLOEXEC (0b0001000)
 Will make the file close when @code{exec}'d.
@@ -1781,7 +1781,7 @@ following errno:
 @code{EBADF}: The passed file does not exist for the process.
 
 @item
-@code{EFAULT}: The passed argument is in non-accesible memory
+@code{EFAULT}: The passed argument is in non-accessible memory
 @end itemize
 
 @node sched_yield
@@ -2212,7 +2212,7 @@ starting by @code{arg}. Returns the resulting FD.
 
 @item
 @code{F_DUPFD_CLOEXEC}: The same as @code{F_DUPFD} but sets the close on exec
-flag for the cloned FD if succesful, in order to save a subsequent call.
+flag for the cloned FD if successful, in order to save a subsequent call.
 
 @item
 @code{F_GETFD}: The flags used for @code{fd} will be returned. These can be
@@ -2223,7 +2223,7 @@ signals that @code{fd} will not be cloned when calling @code{clone} or similar.
 @item
 @code{F_SETFD}: The flags for @code{fd} will be set with @code{arg} using
 the same values returned by @code{F_GETFD}. The syscall will return @code{0}
-on sucess.
+on success.
 
 @item
 @code{F_GETFL}: Returns as the function result the file access mode
@@ -2938,7 +2938,7 @@ POSIX file permissions and Ironclad's MAC. What to check for is specified in
 
 @itemize @bullet
 @item
-@code{F_OK}: When passed, only file existance will be checked.
+@code{F_OK}: When passed, only file existence will be checked.
 @item
 @code{R_OK}: When passed, read permissions will be checked.
 @item
@@ -3000,7 +3000,7 @@ If passed no FDs to ppoll, that is, with @code{nfds == 0}, @code{ppoll} will
 block for @code{timeout} time. This is used by some software as a means to
 implement @code{sleep} functionality, for those cases, @ref{clock_nanosleep}.
 
-If @code{sigmask} is not @code{NULL}, it will atomatically set the passed
+If @code{sigmask} is not @code{NULL}, it will atomically set the passed
 sigmask for waiting.
 
 Both @code{events} and @code{revents} are bitmaps of the values:
@@ -3146,7 +3146,7 @@ If the operation fails internally, for any reason, the kernel will panic, for
 returning an error instead, one can use @code{RB_ERROR_RET} in @code{flags}.
 
 This syscall does not return on success, it will only return in the case of
-invalid value for @code{cmd}, before comitting to an operation, or by using
+invalid value for @code{cmd}, before committing to an operation, or by using
 @code{RB_ERROR_RET} as previously said. In error, @code{-1} will be returned,
 and errno will be set to:
 
@@ -3310,7 +3310,7 @@ longer time until the condition becomes true. Other @code{futex} operations
 can be used to wake any processes or threads waiting for an address.
 
 When executing a futex operation that requests to block a thread, the kernel
-will block only if the futex contents has the value that the call suplied under
+will block only if the futex contents has the value that the call supplied under
 @code{expected}. The loading of the futex's contents and comparison of that
 value are atomic, and will be totally ordered with respect to concurrent
 operations performed by other threads on the same futex contents. Thus, the
@@ -3376,7 +3376,7 @@ Clock is passed in @code{clock_id}, with the following values.
 Wall-clock, may jump forward and back thanks to time setting.
 
 @item CLOCK_MONOTONIC
-Clock that only moves forward, and is unaffected by NTP or adjustements. It
+Clock that only moves forward, and is unaffected by NTP or adjustments. It
 starts from an unspecified, target-dependent point in time, usually boot.
 
 Unlike Linux, it is still counted during suspend.
@@ -3503,7 +3503,7 @@ ssize_t sendto(int socket_fd, void *restrict buffer, size_t length,
 @end example
 
 These syscalls compliment @code{read} and @code{write} for socket-based IO.
-They allow specifing or fetching the address of a read or write operation when
+They allow specifying or fetching the address of a read or write operation when
 doing them, which can be vital for reading connection-less socket protocols.
 
 Unlike doing @code{connect} on a connection-less socket, the addresses passed
@@ -3701,7 +3701,7 @@ errno:
 A non-@code{NULL} pointer points to not valid memory.
 
 @item EPERM
-The caller does not have the appropiate permissions over @code{pid} to actually
+The caller does not have the appropriate permissions over @code{pid} to actually
 kill.
 @end table
 
@@ -3948,7 +3948,7 @@ If shmaddr is @code{NULL}, the system chooses a suitable (unused) address at
 which to attach the segment. If it is not @code{NULL}, that address will be
 used for attaching.
 
-If @code{SHM_RDONLY} is specified in shmflg, the segment is attached fo
+If @code{SHM_RDONLY} is specified in shmflg, the segment is attached for
 reading and the process must have read permission for the segment. Otherwise
 the segment is attached for read and write and the process must have read and
 write permission for the segment. There is no notion of a write-only shared
@@ -4339,7 +4339,7 @@ Ironclad provides accelerated hardware virtualization.
 
 KVM is a full virtualization solution for Linux on several architectures,
 Ironclad implements KVM's 12th version, you can find its specification inside
-@url{https://docs.kernel.org/virt/kvm/api.html, Linux's documetation}.
+@url{https://docs.kernel.org/virt/kvm/api.html, Linux's documentation}.
 
 @node Differences between Linux and Ironclad
 @section Differences between Linux and Ironclad
@@ -4403,8 +4403,8 @@ ioctl(fd, EXT_SETFLAGS, pointer_to_u32); // Set EXT's flags inode field.
 
 EXT features a error policy on EXT internal errors that dictates for the kernel
 to panic when triggered. While other operating systems honor the policy as-is,
-Ironclad deliverately acts on it was a "Remount read only" policy. This is done
-to avoid denial of service attacks by mounting deliverately faulty flesystems.
+Ironclad deliberately acts on it was a "Remount read only" policy. This is done
+to avoid denial of service attacks by mounting deliberately faulty flesystems.
 
 @node File Allocation Table (FAT)
 @section File Allocation Table (FAT)
@@ -4421,7 +4421,7 @@ standard operations, like being manipulated by the usual file-related
 syscalls like @code{read} or @code{write}, while sporting device-specific
 interfaces in the form of device-specific @code{ioctl} requests.
 
-When quering device-specific information, Ironclad exposes information a bit
+When querying device-specific information, Ironclad exposes information a bit
 different than other kernels like Linux. Here is a quick list of the most
 notable differences:
 

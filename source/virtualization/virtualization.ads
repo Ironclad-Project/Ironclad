@@ -61,7 +61,7 @@ package Virtualization is
    KVM_GET_FPU         : constant := 23;
    KVM_SET_FPU         : constant := 24;
 
-   --  KVM extensions the kernel supports that can be querried with
+   --  KVM extensions the kernel supports that can be queried with
    --  KVM_CHECK_EXTENSION.
    KVM_CAP_USER_MEMORY : constant := 1;
    KVM_CAP_NR_VCPUS    : constant := 2;

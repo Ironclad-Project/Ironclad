@@ -35,7 +35,7 @@ package Arch.Interrupts is
       R13 : Unsigned_64;
       R14 : Unsigned_64;
       R15 : Unsigned_64;
-      --  Passed naturaly by the interrupt handler.
+      --  Passed naturally by the interrupt handler.
       Error_Code : Unsigned_64;
       RIP        : Unsigned_64;
       CS         : Unsigned_64;

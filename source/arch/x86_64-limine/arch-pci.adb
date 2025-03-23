@@ -19,7 +19,7 @@ with Lib.Panic;
 with Arch.CPU;
 
 package body Arch.PCI is
-   --  PCI configuration space starts at this IO Port addresess.
+   --  PCI configuration space starts at this IO Port addresses.
    PCI_Config_Address : constant := 16#CF8#;
    PCI_Config_Data    : constant := 16#CFC#;
 

@@ -204,37 +204,37 @@ package body VFS.EXT with SPARK_Mode => Off is
    procedure Get_Free_Blocks
       (FS                 : System.Address;
        Free_Blocks        : out Unsigned_64;
-       Free_Unpriviledged : out Unsigned_64)
+       Free_Unprivileged : out Unsigned_64)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
       Lib.Synchronization.Seize_Reader (Data.Mutex);
       Free_Blocks := Unsigned_64 (Data.Super.Unallocated_Block_Count);
-      Free_Unpriviledged := Unsigned_64 (Data.Super.Unallocated_Block_Count);
+      Free_Unprivileged := Unsigned_64 (Data.Super.Unallocated_Block_Count);
       Lib.Synchronization.Release_Reader (Data.Mutex);
    exception
       when Constraint_Error =>
          Lib.Synchronization.Release_Reader (Data.Mutex);
          Free_Blocks        := 0;
-         Free_Unpriviledged := 0;
+         Free_Unprivileged := 0;
    end Get_Free_Blocks;
 
    procedure Get_Free_Inodes
       (FS                 : System.Address;
        Free_Inodes        : out Unsigned_64;
-       Free_Unpriviledged : out Unsigned_64)
+       Free_Unprivileged : out Unsigned_64)
    is
       Data  : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
       Lib.Synchronization.Seize_Reader (Data.Mutex);
       Free_Inodes := Unsigned_64 (Data.Super.Unallocated_Inode_Count);
-      Free_Unpriviledged := Unsigned_64 (Data.Super.Unallocated_Inode_Count);
+      Free_Unprivileged := Unsigned_64 (Data.Super.Unallocated_Inode_Count);
       Lib.Synchronization.Release_Reader (Data.Mutex);
    exception
       when Constraint_Error =>
          Lib.Synchronization.Release_Reader (Data.Mutex);
          Free_Inodes        := 0;
-         Free_Unpriviledged := 0;
+         Free_Unprivileged := 0;
    end Get_Free_Inodes;
 
    function Get_Max_Length (FS : System.Address) return Unsigned_64 is
@@ -247,14 +247,14 @@ package body VFS.EXT with SPARK_Mode => Off is
       (FS       : System.Address;
        Relative : File_Inode_Number;
        Path     : String;
-       Typ      : File_Type;
+       Kind     : File_Type;
        Mode     : File_Mode;
        User     : Unsigned_32;
        Status   : out FS_Status)
    is
       Data     : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
-      Perms    : constant  Unsigned_16 := Get_Permissions (Typ);
-      Dir_Type : constant   Unsigned_8 := Get_Dir_Type (Typ);
+      Perms    : constant  Unsigned_16 := Get_Permissions (Kind);
+      Dir_Type : constant   Unsigned_8 := Get_Dir_Type (Kind);
       Last_Component             : String_Acc;
       Target_Index, Parent_Index : Unsigned_32;
       Target_Inode, Parent_Inode : Inode_Acc := new Inode;
@@ -341,7 +341,7 @@ package body VFS.EXT with SPARK_Mode => Off is
          goto Cleanup;
       end if;
 
-      if Typ = File_Directory then
+      if Kind = File_Directory then
          declare
             Ent_Data  : Operation_Data (1 .. Ent'Size / 8)
                with Import, Address => Ent'Address;
@@ -1164,7 +1164,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       FS      : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
       Inod    : Inode_Acc := new Inode;
       Success : Boolean;
-      Typ     : File_Type;
+      Kind     : File_Type;
    begin
       Lib.Synchronization.Seize_Writer (FS.Mutex);
 
@@ -1182,8 +1182,8 @@ package body VFS.EXT with SPARK_Mode => Off is
       if not Success then
          Status := FS_IO_Failure;
       else
-         Typ              := Get_Inode_Type (Inod.Permissions);
-         Inod.Permissions := Get_Permissions (Typ) or Unsigned_16 (Mode);
+         Kind             := Get_Inode_Type (Inod.Permissions);
+         Inod.Permissions := Get_Permissions (Kind) or Unsigned_16 (Mode);
          RW_Inode
             (Data            => FS,
              Inode_Index     => Unsigned_32 (Ino),
@@ -1622,7 +1622,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                 Type_Of_File => Tmp_Type);
             Entity.Name_Buffer (1 .. Dir_Name'Length) := Dir_Name;
          else
-            --  TODO: This is a shortcomming of Ironclad's VFS having a fixed
+            --  TODO: This is a shortcoming of Ironclad's VFS having a fixed
             --  length for entities in a directory.
             --  In a future, this has to be fixed.
             Entity :=

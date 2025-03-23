@@ -198,7 +198,7 @@ package Arch.ACPI is
       Firmware_Control    : Unsigned_32;
       DSDT                : Unsigned_32;
       Reserved_1          : Unsigned_8;
-      Prefered_PM_Profile : Unsigned_8;
+      Preferred_PM_Profile : Unsigned_8;
       SCI_Interrupt       : Unsigned_16;
       SMI_Command         : Unsigned_32;
       ACPI_Enable         : Unsigned_8;

@@ -33,7 +33,7 @@ package IPC.Socket is
        Raw);     --  Raw non-cleaned packets, not always available (UNIX).
 
    --  Data structures to define a socket.
-   type Socket (Dom : Domain; Typ : DataType) is private;
+   type Socket (Dom : Domain; Kind : DataType) is private;
    type Socket_Acc is access Socket;
 
    --  Returned status of a socket operation.
@@ -49,9 +49,9 @@ package IPC.Socket is
 
    --  Create a fresh socket.
    --  @param Dom Domain of the socket.
-   --  @param Typ Type of socket.
+   --  @param Kind Type of socket.
    --  @return The socket on success, null on failure.
-   function Create (Dom : Domain; Typ : DataType) return Socket_Acc;
+   function Create (Dom : Domain; Kind : DataType) return Socket_Acc;
 
    --  Get the domain of a socket, which is good to know because data changes.
    --  @param Sock Socket to check.
@@ -469,14 +469,14 @@ private
 
    Default_Socket_Size : constant Natural := 16#2000#;
 
-   type Socket (Dom : Domain; Typ : DataType) is record
+   type Socket (Dom : Domain; Kind : DataType) is record
       Mutex : aliased Lib.Synchronization.Mutex;
 
       case Dom is
          when UNIX =>
             Data        : Devices.Operation_Data (1 .. Default_Socket_Size);
             Data_Length : Natural range 0 .. Default_Socket_Size;
-            case Typ is
+            case Kind is
                when Stream =>
                   Is_Listener    : Boolean;
                   Connected      : Socket_Acc;
@@ -486,7 +486,7 @@ private
                   Simple_Connected : Socket_Acc;
             end case;
          when IPv4 =>
-            case Typ is
+            case Kind is
                when Raw =>
                   IPv4_Cached_Address : Networking.IPv4_Address;
                   IPv4_Cached_Port    : Networking.IPv4_Port;
@@ -494,7 +494,7 @@ private
                   null;
             end case;
          when IPv6 =>
-            case Typ is
+            case Kind is
                when Raw =>
                   IPv6_Cached_Address : Networking.IPv6_Address;
                   IPv6_Cached_Port    : Networking.IPv6_Port;

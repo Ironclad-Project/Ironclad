@@ -22,7 +22,7 @@ package Cryptography.Chacha20 is
 
    --  Chacha20 generates keys operating on a user key, nonce, and block
    --  number. This key, which is in the format of a 512-bit block, is then
-   --  XORd with the message for a successful encrytion.
+   --  XORd with the message for a successful encryption.
    --  For decrypting, the same key must be XORd again.
 
    type Block is array (0 .. 15) of Unsigned_32;

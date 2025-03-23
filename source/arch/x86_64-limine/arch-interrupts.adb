@@ -391,7 +391,7 @@ package body Arch.Interrupts is
 
    procedure Spurious_Handler is
    begin
-      Lib.Messages.Put_Line ("LAPIC Spurious interrupt occured");
+      Lib.Messages.Put_Line ("LAPIC Spurious interrupt occurred");
       Arch.APIC.LAPIC_EOI;
    end Spurious_Handler;
 end Arch.Interrupts;

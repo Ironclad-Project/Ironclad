@@ -90,23 +90,23 @@ package body VFS.Dev is
    procedure Get_Free_Blocks
       (FS                 : System.Address;
        Free_Blocks        : out Unsigned_64;
-       Free_Unpriviledged : out Unsigned_64)
+       Free_Unprivileged : out Unsigned_64)
    is
       pragma Unreferenced (FS);
    begin
       Free_Blocks := 0;
-      Free_Unpriviledged := 0;
+      Free_Unprivileged := 0;
    end Get_Free_Blocks;
 
    procedure Get_Free_Inodes
       (FS                 : System.Address;
        Free_Inodes        : out Unsigned_64;
-       Free_Unpriviledged : out Unsigned_64)
+       Free_Unprivileged : out Unsigned_64)
    is
       pragma Unreferenced (FS);
    begin
       Free_Inodes := 0;
-      Free_Unpriviledged := 0;
+      Free_Unprivileged := 0;
    end Get_Free_Inodes;
 
    function Get_Max_Length (FS : System.Address) return Unsigned_64 is
