@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Install dependencies
-        run: apt-get update && apt-get -y dist-upgrade && apt-get install -y autoconf automake git build-essential findutils make texinfo highlight gprbuild gnat gnat-14-riscv64-linux-gnu gcc-riscv64-linux-gnu
+        run: apt-get update && apt-get -y dist-upgrade && apt-get install -y wget autoconf automake git build-essential findutils make texinfo highlight gprbuild gnat
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -21,17 +21,19 @@ jobs:
       - name: Bootstrap
         run: ./bootstrap
 
-      - name: Configure step
+      - name: Build
         run: |
           set -ex
 
           case "${{matrix.target_arch}}" in \
             riscv64-limine) \
-              #./configure --host=riscv64-linux-gnu ;; \
-              ./configure ;; \
+              wget https://github.com/alire-project/GNAT-FSF-builds/releases/download/gnat-14.2.0-1/gnat-riscv64-elf-linux64-x86_64-14.2.0-1.tar.gz; \
+              tar -xf gnat-riscv64-elf-linux64-x86_64-14.2.0-1.tar.gz; \
+              export PATH=$PWD/gnat-riscv64-elf-linux64-x86_64-14.2.0-1/bin:$PATH; \
+              ln -s riscv64-elf-gnatbind gnat-riscv64-elf-linux64-x86_64-14.2.0-1/bin/riscv64-elf-gnatbind-14; \
+              ./configure --host=riscv64-elf ;; \
             x86_64-limine) \
               ./configure ;; \
           esac
 
-      - name: Build kernel
-        run: make
+          make
