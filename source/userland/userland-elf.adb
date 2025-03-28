@@ -61,13 +61,10 @@ package body Userland.ELF is
          return;
       end if;
 
-      --  If we have a dynamic ELF, we may run into the issue of it specifying
-      --  to load itself at 0, which can result on odd behaviour on
-      --  NULL-dereferences. For ease of debugging and predictable behaviour,
-      --  we will add a small 1 page slide. Since they are dynamic to begin
-      --  with, it wont hurt.
-      if Header.ELF_Type = ET_DYN and Base = 0 then
-         Base := Arch.MMU.Page_Size;
+      --  If we dont have a dynamic ELF, we cannot really use the kernel-passed
+      --  offset, we have to use 0 instead and let the headers figure it out.
+      if Header.ELF_Type /= ET_DYN then
+         Base := 0;
       end if;
 
       --  Assign the data we already know.

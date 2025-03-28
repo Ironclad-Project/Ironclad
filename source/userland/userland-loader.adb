@@ -181,6 +181,7 @@ package body Userland.Loader is
 
       Loaded_ELF, LD_ELF : ELF.Parsed_ELF;
       Entrypoint   : Virtual_Address;
+      Base_Slide   : Unsigned_64;
       LD_Slide     : Unsigned_64;
       LD_Path      : String (1 .. 100);
       LD_FS        : FS_Handle;
@@ -189,10 +190,26 @@ package body Userland.Loader is
       Returned_TID : Scheduler.TID;
       Table        : Arch.MMU.Page_Table_Acc;
    begin
+      --  Calculate the binary slides.
+      if Do_ASLR then
+         Cryptography.Random.Get_Integer
+            (Memory_Locations.Offset_Min,
+             Memory_Locations.LD_Offset_Max,
+             Base_Slide);
+         Cryptography.Random.Get_Integer
+            (Memory_Locations.LD_Offset_Min,
+             Memory_Locations.LD_Offset_Max,
+             LD_Slide);
+         Base_Slide := Aln.Align_Down (Base_Slide, Arch.MMU.Page_Size);
+         LD_Slide   := Aln.Align_Down (LD_Slide,   Arch.MMU.Page_Size);
+      else
+         Base_Slide := Memory_Locations.Offset_Min;
+         LD_Slide   := Memory_Locations.LD_Offset_Min;
+      end if;
+
       --  Load the executable.
       Process.Get_Common_Map (Proc, Table);
-      ELF.Load_ELF (FS, Ino, Table,
-         Memory_Locations.Program_Offset, Loaded_ELF);
+      ELF.Load_ELF (FS, Ino, Table, Base_Slide, Loaded_ELF);
       if not Loaded_ELF.Was_Loaded then
          Success := False;
          return;
@@ -209,15 +226,7 @@ package body Userland.Loader is
             Success := False;
             return;
          end if;
-         if Do_ASLR then
-            Cryptography.Random.Get_Integer
-               (Memory_Locations.LD_Offset_Min,
-                Memory_Locations.LD_Offset_Max,
-                LD_Slide);
-            LD_Slide := Aln.Align_Up (LD_Slide, Arch.MMU.Page_Size);
-         else
-            LD_Slide := Memory_Locations.LD_Offset_Min;
-         end if;
+
          ELF.Load_ELF (LD_FS, LD_Ino, Table, LD_Slide, LD_ELF);
          Entrypoint := To_Integer (LD_ELF.Entrypoint);
          if not LD_ELF.Was_Loaded then
