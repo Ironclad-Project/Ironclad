@@ -116,6 +116,11 @@ GET_PROG_FROM_TOOLCHAIN([CC], [gcc])
 GET_PROG_FROM_TOOLCHAIN([OBJDUMP], [objdump])
 GET_PROG_FROM_TOOLCHAIN([STRIP], [strip])
 
+GCC_VERSION="$($CC -dumpversion)"
+if test "${GCC_VERSION%%.*}" -lt "14"; then
+    AC_MSG_ERROR([GCC version 14 or greater is required to build Ironclad])
+fi
+
 KASAN="False"
 AC_ARG_ENABLE([kasan],
     [AS_HELP_STRING([--enable-kasan], [Enable the Kernel Address SANitizer])],
