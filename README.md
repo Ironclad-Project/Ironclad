@@ -1,6 +1,6 @@
 # Ironclad
 
-[<img src="https://ironclad-os.org/resources/ironclad.svg" width="250" align="right" alt="Gloire logo">]()
+[<img src="https://ironclad-os.org/resources/ironclad.svg" width="250" align="right" alt="Ironclad logo">]()
 
 Ironclad is a partially formally verified real-time kernel, with a small
 footprint, for general-purpose and embedded OSes, written in SPARK and Ada.
@@ -46,7 +46,7 @@ make install
 is not the default `make`).
 
 Several flags are provided in configure for customizing kernel settings, one
-can check them with ./configure --help.
+can check them with `./configure --help`.
 
 The above would build Ironclad for the architecture of the host system; so for
 example it would be built for x86_64 on an x86_64 host.
@@ -60,10 +60,7 @@ Additionally, the optional `PLATFORM=...` variable can be passed to
 for. So far, the only supported value for `PLATFORM` is `limine`, which is the
 default.
 
-Documentation will be generated and installed with the main executable in the
-info format, additional formats can be built with `make html` or `make dvi`.
-
-## Contributing
+## Contributing and bug reporting
 
 Thanks for considering contributing to Ironclad, it means a lot.
 
