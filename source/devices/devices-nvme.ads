@@ -572,7 +572,7 @@ private
       Keep_Alive_Support : Unsigned_16;
       Host_Controlled_Thermal_Management_Attributes : Unsigned_16;
       Minimum_Thermal_Management_Temperature : Unsigned_16;
-      Maxmum_Thermal_Management_Temperature : Unsigned_16;
+      Maximum_Thermal_Management_Temperature : Unsigned_16;
       Sanitize_Capabilities : Unsigned_32;
       Reserved_3 : NVMe_Padding (332 .. 511);
       Submission_Queue_Entry_Size : Unsigned_8;
