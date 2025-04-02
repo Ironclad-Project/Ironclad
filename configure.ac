@@ -201,6 +201,7 @@ GET_PROG([TEXI2DVI], [texi2dvi], [texi2dvi])
 GET_PROG([TEXI2HTML], [makeinfo --no-split --html], [texi2html])
 GET_PROG([GPRBUILD], [gprbuild], [gprbuild], [err])
 GET_PROG([GNATPROVE], [gnatprove], [gnatprove])
+GET_PROG([TYPOS], [typos], [typos])
 
 # $1 - UPPERCASEVAR, $2 - default program
 AC_DEFUN([GET_TOOL_FROM_GPRBUILD], [

@@ -28,6 +28,7 @@ The tools needed are:
 - GNU Info for building the documentation.
 - highlight for syntax highlighting when building the HTML documentation.
 - gnatprove for formal verification, if desired.
+- typos for spell-checking, if desired.
 
 If checking out Git sources instead of building from a tarball, run
 `./bootstrap` first.

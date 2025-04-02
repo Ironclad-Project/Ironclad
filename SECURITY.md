@@ -19,7 +19,7 @@ issue reporting channels, and instead either:
 - Send an email to the project directly, you can send those email to
 [this address](mailto:streaksu@ironclad-os.org).
 
-- Send an email to one (or several) of the members of the developent team, the
+- Send an email to one (or several) of the members of the development team, the
 lineup of which can be found [here](https://ironclad-os.org/orgstructure.html).
 
 ### Follow-up and vulnerability disclosure
