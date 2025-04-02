@@ -21,6 +21,7 @@ with Arch.Context;
 with Arch.MMU;
 with Lib.Panic;
 with Lib.Messages;
+with Lib.Synchronization;
 with Scheduler;
 with Userland.Syscall; use Userland.Syscall;
 with Arch.Snippets; use Arch.Snippets;
@@ -377,6 +378,8 @@ package body Arch.Interrupts is
          Snippets.Invalidate_Page (To_Integer (Curr));
          Curr := Curr + MMU.Page_Size;
       end loop;
+
+      Lib.Synchronization.Release (CPU.Core_Locals (I).Invalidate_Lock);
       Arch.APIC.LAPIC_EOI;
    exception
       when Constraint_Error =>

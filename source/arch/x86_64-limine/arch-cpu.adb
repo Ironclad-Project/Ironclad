@@ -307,13 +307,19 @@ package body Arch.CPU with SPARK_Mode => Off is
       Locals_Addr := Unsigned_64
          (To_Integer (Core_Locals (Core_Number)'Address));
       Core_Locals (Core_Number) :=
-         (Self            => Core_Locals (Core_Number)'Access,
-          Number          => Core_Number,
-          LAPIC_ID        => LAPIC,
-          LAPIC_Timer_Hz  => APIC.LAPIC_Timer_Calibrate,
-          Current_Thread  => Scheduler.Error_TID,
-          Current_Process => Userland.Process.Error_PID,
-          others          => <>);
+         (Self             => Core_Locals (Core_Number)'Access,
+          Kernel_Stack     => 0,
+          User_Stack       => 0,
+          Number           => Core_Number,
+          LAPIC_ID         => LAPIC,
+          LAPIC_Timer_Hz   => APIC.LAPIC_Timer_Calibrate,
+          Core_TSS         => <>,
+          Current_Thread   => Scheduler.Error_TID,
+          Current_Process  => Userland.Process.Error_PID,
+          Invalidate_Lock  => Lib.Synchronization.Unlocked_Semaphore,
+          Invalidate_Start => System.Null_Address,
+          Invalidate_End   => System.Null_Address);
+
       Snippets.Write_GS        (Locals_Addr);
       Snippets.Write_Kernel_GS (Locals_Addr);
 

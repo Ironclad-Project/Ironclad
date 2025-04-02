@@ -818,6 +818,7 @@ package body Arch.MMU is
       if CPU.Core_Locals /= null then
          for I in CPU.Core_Locals.all'Range loop
             if I /= CPU.Get_Local.Number then
+               Lib.Synchronization.Seize (CPU.Core_Locals (I).Invalidate_Lock, True);
                CPU.Core_Locals (I).Invalidate_Start := Addr;
                CPU.Core_Locals (I).Invalidate_End   := Final;
                APIC.LAPIC_Send_IPI
