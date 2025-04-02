@@ -64,5 +64,9 @@ default.
 
 Thanks for considering contributing to Ironclad, it means a lot.
 
-Please check <https://ironclad-os.org/contributing.html> for information
-on how to get started, and how to submit patches to the project.
+Please check [our contributing document](CONTRIBUTING.md) for information
+on how to get started, how to submit patches to the project, and how to submit
+bugs.
+
+For security vulnerabilities, or other security critical bugs, please follow
+the guidelines of [our security policy](SECURITY.md).
