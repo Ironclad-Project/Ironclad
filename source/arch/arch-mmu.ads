@@ -193,6 +193,11 @@ package Arch.MMU is
          (Virtual_Start  mod Page_Size = 0) and
          (Length         mod Page_Size = 0);
 
+   --  Fetch from the processor the loaded map address, and set it.
+   function Get_Curr_Table_Addr return System.Address;
+   function Get_Map_Table_Addr (Map : Page_Table_Acc) return System.Address;
+   procedure Set_Table_Addr (Addr : System.Address);
+
    --  Get the user mapped memory size, thus, not including kernel space.
    --  @param Map Map to get the size for.
    --  @param Sz  Size.

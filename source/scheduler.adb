@@ -53,7 +53,7 @@ package body Scheduler with SPARK_Mode => Off is
       Nice            : Niceness;
       Cluster         : TCID;
       TCB_Pointer     : System.Address;
-      PageMap         : Arch.MMU.Page_Table_Acc;
+      PageMap         : System.Address;
       Kernel_Stack    : Kernel_Stack_Acc;
       GP_State        : Arch.Context.GP_Context;
       FP_State        : Arch.Context.FP_Context;
@@ -102,7 +102,7 @@ package body Scheduler with SPARK_Mode => Off is
              Nice            => 0,
              Cluster         => Error_TCID,
              TCB_Pointer     => System.Null_Address,
-             PageMap         => null,
+             PageMap         => System.Null_Address,
              Kernel_Stack    => null,
              GP_State        => <>,
              FP_State        => <>,
@@ -354,21 +354,21 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       Thread_Pool (New_TID) :=
-            (Is_Present   => True,
-             Is_Running   => False,
-             Path         => [others => ' '],
-             Path_Len     => 0,
-             Nice         => 0,
-             Cluster      => Cluster,
-             TCB_Pointer  => TCB,
-             PageMap      => Map,
-             Kernel_Stack => New_Stack,
-             GP_State     => GP_State,
-             FP_State     => FP_State,
-             C_State      => <>,
-             Process      => Userland.Process.Convert (PID),
-             Yield_Mutex  => Lib.Synchronization.Unlocked_Semaphore,
-             others       => 0);
+         (Is_Present   => True,
+          Is_Running   => False,
+          Path         => [others => ' '],
+          Path_Len     => 0,
+          Nice         => 0,
+          Cluster      => Cluster,
+          TCB_Pointer  => TCB,
+          PageMap      => Arch.MMU.Get_Map_Table_Addr (Map),
+          Kernel_Stack => New_Stack,
+          GP_State     => GP_State,
+          FP_State     => FP_State,
+          C_State      => <>,
+          Process      => Userland.Process.Convert (PID),
+          Yield_Mutex  => Lib.Synchronization.Unlocked_Semaphore,
+          others       => 0);
 
       Lib.Synchronization.Release (Thread_Pool (New_TID).Yield_Mutex);
 
@@ -811,6 +811,7 @@ package body Scheduler with SPARK_Mode => Off is
          Thread_Pool (Current_TID).Is_Running := False;
 
          if Thread_Pool (Current_TID).Is_Present then
+            Thread_Pool (Current_TID).PageMap := Arch.MMU.Get_Curr_Table_Addr;
             Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
             Thread_Pool (Current_TID).GP_State    := State;
             Arch.Context.Save_Core_Context (Thread_Pool (Current_TID).C_State);
@@ -838,9 +839,7 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Local.Reschedule_In (Timeout);
 
       --  Reset state.
-      if not Arch.MMU.Make_Active (Thread_Pool (Next_TID).PageMap) then
-         Lib.Panic.Hard_Panic ("Could not make reschedule map active");
-      end if;
+      Arch.MMU.Set_Table_Addr (Thread_Pool (Next_TID).PageMap);
       Arch.Local.Set_Current_Process (Thread_Pool (Next_TID).Process);
       Arch.Local.Set_Current_Thread (Next_TID);
       Thread_Pool (Next_TID).Is_Running := True;

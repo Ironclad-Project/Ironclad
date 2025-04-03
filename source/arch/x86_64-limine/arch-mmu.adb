@@ -640,6 +640,28 @@ package body Arch.MMU is
          Success := False;
    end Unmap_Range;
 
+   function Get_Curr_Table_Addr return System.Address is
+   begin
+      return To_Address (Integer_Address (Arch.Snippets.Read_CR3));
+   end Get_Curr_Table_Addr;
+
+   function Get_Map_Table_Addr (Map : Page_Table_Acc) return System.Address is
+   begin
+      return To_Address (To_Integer (Map.PML4_Level'Address) - Memory_Offset);
+   exception
+      when Constraint_Error =>
+         return System.Null_Address;
+   end Get_Map_Table_Addr;
+
+   procedure Set_Table_Addr (Addr : System.Address) is
+      Val : Unsigned_64;
+   begin
+      Val := Unsigned_64 (To_Integer (Addr));
+      if Arch.Snippets.Read_CR3 /= Val then
+         Arch.Snippets.Write_CR3 (Val);
+      end if;
+   end Set_Table_Addr;
+
    procedure Get_User_Mapped_Size (Map : Page_Table_Acc; Sz : out Unsigned_64)
    is
       Curr_Range : Mapping_Range_Acc;

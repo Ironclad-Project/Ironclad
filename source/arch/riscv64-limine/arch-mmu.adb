@@ -129,6 +129,23 @@ package body Arch.MMU is
       Success := True;
    end Unmap_Range;
 
+   function Get_Curr_Table_Addr return System.Address is
+   begin
+      return System.Null_Address;
+   end Get_Curr_Table_Addr;
+
+   function Get_Map_Table_Addr (Map : Page_Table_Acc) return System.Address is
+      pragma Unreferenced (Map);
+   begin
+      return System.Null_Address;
+   end Get_Map_Table_Addr;
+
+   procedure Set_Table_Addr (Addr : System.Address) is
+      pragma Unreferenced (Addr);
+   begin
+      null;
+   end Set_Table_Addr;
+
    procedure Get_User_Mapped_Size (Map : Page_Table_Acc; Sz : out Unsigned_64)
    is
       pragma Unreferenced (Map);
