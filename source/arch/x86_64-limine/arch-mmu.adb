@@ -561,7 +561,7 @@ package body Arch.MMU is
 
          Virt := Virt + Page_Size;
       end loop;
-      Flush_Global_TLBs (Virtual_Start, Length);
+      Flush_TLBs (Map, Virtual_Start, Length);
       Success := True;
 
    <<Ret>>
@@ -625,7 +625,7 @@ package body Arch.MMU is
          end;
          Virt := Virt + Page_Size;
       end loop;
-      Flush_Global_TLBs (Virtual_Start, Length);
+      Flush_TLBs (Map, Virtual_Start, Length);
       Success := True;
 
       Lib.Synchronization.Release_Writer (Map.Mutex);
@@ -803,22 +803,33 @@ package body Arch.MMU is
          Lib.Panic.Hard_Panic ("Exception when translating bitmap flags");
    end Flags_To_Bitmap;
 
-   procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count) is
+   procedure Flush_TLBs
+     (Map  : Page_Table_Acc;
+      Addr : System.Address;
+      Len  : Storage_Count)
+   is
+      A1    : Unsigned_64;
       Final : constant System.Address := Addr + Len;
       Curr  :          System.Address := Addr;
    begin
       --  First, invalidate for ourselves.
-      while To_Integer (Curr) < To_Integer (Final) loop
-         Snippets.Invalidate_Page (To_Integer (Curr));
-         Curr := Curr + Page_Size;
-      end loop;
+      A1 := Unsigned_64 (To_Integer (Map.PML4_Level'Address) - Memory_Offset);
+      if Arch.Snippets.Read_CR3 = A1 then
+         while To_Integer (Curr) < To_Integer (Final) loop
+            Snippets.Invalidate_Page (To_Integer (Curr));
+            Curr := Curr + Page_Size;
+         end loop;
+      end if;
 
       --  If we are running on a process, and said process is running with more
       --  than one thread, we need to invalidate using funky IPIs.
       if CPU.Core_Locals /= null then
          for I in CPU.Core_Locals.all'Range loop
             if I /= CPU.Get_Local.Number then
-               Lib.Synchronization.Seize (CPU.Core_Locals (I).Invalidate_Lock, True);
+               Lib.Synchronization.Seize
+                  (CPU.Core_Locals (I).Invalidate_Lock, True);
+
+               CPU.Core_Locals (I).Invalidate_Map   := A1;
                CPU.Core_Locals (I).Invalidate_Start := Addr;
                CPU.Core_Locals (I).Invalidate_End   := Final;
                APIC.LAPIC_Send_IPI
@@ -830,5 +841,5 @@ package body Arch.MMU is
    exception
       when Constraint_Error =>
          Lib.Panic.Hard_Panic ("Could not flish global TLBs");
-   end Flush_Global_TLBs;
+   end Flush_TLBs;
 end Arch.MMU;

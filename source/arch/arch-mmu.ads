@@ -257,6 +257,9 @@ private
       function Flags_To_Bitmap
          (Perm    : Page_Permissions;
           Caching : Caching_Model) return Unsigned_64;
-      procedure Flush_Global_TLBs (Addr : System.Address; Len : Storage_Count);
+      procedure Flush_TLBs
+         (Map  : Page_Table_Acc;
+          Addr : System.Address;
+          Len  : Storage_Count);
    #end if;
 end Arch.MMU;

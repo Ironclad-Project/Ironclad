@@ -374,10 +374,12 @@ package body Arch.Interrupts is
       Final := CPU.Core_Locals (I).Invalidate_End;
       Curr  := CPU.Core_Locals (I).Invalidate_Start;
 
-      while To_Integer (Curr) < To_Integer (Final) loop
-         Snippets.Invalidate_Page (To_Integer (Curr));
-         Curr := Curr + MMU.Page_Size;
-      end loop;
+      if Snippets.Read_CR3 = CPU.Core_Locals (I).Invalidate_Map then
+         while To_Integer (Curr) < To_Integer (Final) loop
+            Snippets.Invalidate_Page (To_Integer (Curr));
+            Curr := Curr + Arch.MMU.Page_Size;
+         end loop;
+      end if;
 
       Lib.Synchronization.Release (CPU.Core_Locals (I).Invalidate_Lock);
       Arch.APIC.LAPIC_EOI;

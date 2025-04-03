@@ -39,6 +39,7 @@ package Arch.CPU is
       Current_Process : Userland.Process.PID;
 
       Invalidate_Lock  : aliased Lib.Synchronization.Binary_Semaphore;
+      Invalidate_Map   : Unsigned_64;
       Invalidate_Start : System.Address;
       Invalidate_End   : System.Address;
    end record;

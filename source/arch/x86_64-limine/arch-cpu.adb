@@ -317,6 +317,7 @@ package body Arch.CPU with SPARK_Mode => Off is
           Current_Thread   => Scheduler.Error_TID,
           Current_Process  => Userland.Process.Error_PID,
           Invalidate_Lock  => Lib.Synchronization.Unlocked_Semaphore,
+          Invalidate_Map   => 0,
           Invalidate_Start => System.Null_Address,
           Invalidate_End   => System.Null_Address);
 
