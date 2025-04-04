@@ -183,8 +183,16 @@ package body Scheduler with SPARK_Mode => Off is
       Result    : System.Address;
       Stack_Top : Unsigned_64;
       Success   : Boolean;
+      Curr_Map  : System.Address;
    begin
       New_TID := Error_TID;
+
+      --  Set the stack map so we can access the allocated range.
+      Curr_Map := Arch.MMU.Get_Curr_Table_Addr;
+      Success  := Arch.MMU.Make_Active (Map);
+      if not Success then
+         return;
+      end if;
 
       --  Initialize thread state. Start by mapping the user stack.
       Userland.Process.Get_Stack_Base (Proc, Stack_Top);
@@ -197,13 +205,15 @@ package body Scheduler with SPARK_Mode => Off is
           Permissions    => Stack_Permissions,
           Success        => Success);
       if not Success then
-         return;
+         goto Cleanup;
       end if;
 
       declare
          Sz     : constant Natural := Natural (Stack_Size);
-         Stk_8  : Thread_Stack (1 .. Sz) with Import, Address => Result;
-         Stk_64 : Thread_Stack_64 (1 .. Sz / 8) with Import, Address => Result;
+         Stk_8  : Thread_Stack (1 .. Sz)
+            with Import, Address => To_Address (Virtual_Address (Stack_Top));
+         Stk_64 : Thread_Stack_64 (1 .. Sz / 8)
+            with Import, Address => To_Address (Virtual_Address (Stack_Top));
          Index_8  : Natural := Stk_8'Last;
          Index_64 : Natural := Stk_64'Last;
       begin
@@ -290,6 +300,9 @@ package body Scheduler with SPARK_Mode => Off is
              TCB       => System.Null_Address,
              New_TID   => New_TID);
       end;
+
+   <<Cleanup>>
+      Arch.MMU.Set_Table_Addr (Curr_Map);
    exception
       when Constraint_Error =>
          New_TID := Error_TID;

@@ -171,9 +171,10 @@ package body Userland.ELF is
           Can_Write         => (Header.Flags and Flags_Write)      /= 0,
           Can_Execute       => (Header.Flags and Flags_Executable) /= 0,
           Is_Global         => False);
-      Ret_Count  : Natural;
-      Success2   : FS_Status;
-      Result     : System.Address;
+      Ret_Count    : Natural;
+      FS_Suc       : FS_Status;
+      Result       : System.Address;
+      Curr_Map     : System.Address;
       Ali_V, Ali_L : Integer_Address;
    begin
       ELF_Virtual := Virtual_Address (Base + Header.Virt_Address);
@@ -197,25 +198,45 @@ package body Userland.ELF is
          return;
       end if;
 
-      Arch.MMU.Map_Allocated_Range
-         (Map            => Map,
-          Virtual_Start  => To_Address (Ali_V),
-          Length         => Storage_Count (Ali_L),
-          Permissions    => Flags,
-          Physical_Start => Result,
-          Success        => Success);
+      --  Set the stack map so we can access the allocated range.
+      Curr_Map := Arch.MMU.Get_Curr_Table_Addr;
+      Success  := Arch.MMU.Make_Active (Map);
       if not Success then
          return;
       end if;
 
-      declare
-         Load2 : Devices.Operation_Data (1 .. Header.File_Size_Bytes)
-            with Import, Address => Result + Storage_Offset (Misalign);
-      begin
-         VFS.Read (FS, Ino, Header.Offset, Load2, Ret_Count, True, Success2);
-         Success := Success2 = FS_Success and
-                    Ret_Count = Header.File_Size_Bytes;
-      end;
+      Arch.MMU.Map_Allocated_Range
+         (Map            => Map,
+          Virtual_Start  => To_Address (Ali_V),
+          Length         => Storage_Count (Ali_L),
+          Physical_Start => Result,
+          Success        => Success,
+          Permissions    =>
+            (Is_User_Accessible => True,
+             Can_Read           => True,
+             Can_Write          => True,
+             Can_Execute        => False,
+             Is_Global          => False));
+      if Success then
+         declare
+            Load2 : Devices.Operation_Data (1 .. Header.File_Size_Bytes)
+               with Import,
+                    Address => To_Address (Ali_V) + Storage_Offset (Misalign);
+         begin
+            VFS.Read (FS, Ino, Header.Offset, Load2, Ret_Count, True, FS_Suc);
+            Success := FS_Suc = FS_Success and
+                       Ret_Count = Header.File_Size_Bytes;
+         end;
+
+         Arch.MMU.Remap_Range
+            (Map           => Map,
+             Virtual_Start => To_Address (Ali_V),
+             Length        => Storage_Count (Ali_L),
+             Permissions   => Flags,
+             Success       => Success);
+      end if;
+
+      Arch.MMU.Set_Table_Addr (Curr_Map);
    exception
       when Constraint_Error =>
          Success := False;
