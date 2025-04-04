@@ -180,7 +180,6 @@ package body Scheduler with SPARK_Mode => Off is
       Proc : constant Userland.Process.PID := Userland.Process.Convert (PID);
       GP_State  : Arch.Context.GP_Context;
       FP_State  : Arch.Context.FP_Context;
-      Result    : System.Address;
       Stack_Top : Unsigned_64;
       Success   : Boolean;
       Curr_Map  : System.Address;
@@ -198,12 +197,11 @@ package body Scheduler with SPARK_Mode => Off is
       Userland.Process.Get_Stack_Base (Proc, Stack_Top);
       Userland.Process.Set_Stack_Base (Proc, Stack_Top + Stack_Size);
       Arch.MMU.Map_Allocated_Range
-         (Map            => Map,
-          Physical_Start => Result,
-          Virtual_Start  => To_Address (Virtual_Address (Stack_Top)),
-          Length         => Storage_Offset (Stack_Size),
-          Permissions    => Stack_Permissions,
-          Success        => Success);
+         (Map           => Map,
+          Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
+          Length        => Storage_Offset (Stack_Size),
+          Permissions   => Stack_Permissions,
+          Success       => Success);
       if not Success then
          goto Cleanup;
       end if;

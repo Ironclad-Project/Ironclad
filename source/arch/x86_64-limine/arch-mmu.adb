@@ -183,7 +183,7 @@ package body Arch.MMU is
       Curr_Range := Map.Map_Ranges_Root;
       while Curr_Range /= null loop
          if Curr_Range.Is_Allocated then
-            Map_Allocated_Range
+            Inner_Map_Allocated_Range
                (Map            => Forked,
                 Physical_Start => Addr,
                 Virtual_Start  => Curr_Range.Virtual_Start,
@@ -432,88 +432,22 @@ package body Arch.MMU is
 
    procedure Map_Allocated_Range
       (Map            : Page_Table_Acc;
-       Physical_Start : out System.Address;
        Virtual_Start  : System.Address;
        Length         : Storage_Count;
        Permissions    : Page_Permissions;
        Success        : out Boolean;
        Caching        : Caching_Model := Write_Back)
    is
-      procedure F is new Ada.Unchecked_Deallocation
-         (Mapping_Range, Mapping_Range_Acc);
-
-      Addr       : Virtual_Address;
-      New_Range  : Mapping_Range_Acc;
-      Last_Range : Mapping_Range_Acc;
-      Curr_Range : Mapping_Range_Acc;
+      Discard : System.Address;
    begin
-      Memory.Physical.User_Alloc
-         (Addr    => Addr,
-          Size    => Unsigned_64 (Length),
-          Success => Success);
-      if not Success then
-         Physical_Start := System.Null_Address;
-         return;
-      end if;
-
-      Success   := False;
-      New_Range := new Mapping_Range'
-         (Next           => null,
-          Is_Allocated   => True,
-          Virtual_Start  => Virtual_Start,
-          Physical_Start => To_Address (Addr - Memory.Memory_Offset),
-          Length         => Length,
-          Flags          => Permissions);
-
-      Curr_Range := Map.Map_Ranges_Root;
-
-      Lib.Synchronization.Seize_Writer (Map.Mutex);
-
-      while Curr_Range /= null loop
-         if Curr_Range.Virtual_Start <= Virtual_Start and
-            Curr_Range.Virtual_Start + Length >= Virtual_Start + Length
-         then
-            goto Ret;
-         end if;
-
-         Last_Range := Curr_Range;
-         Curr_Range := Curr_Range.Next;
-      end loop;
-
-      Curr_Range := New_Range;
-      if Map.Map_Ranges_Root = null then
-         Map.Map_Ranges_Root := Curr_Range;
-      else
-         Last_Range.Next := Curr_Range;
-      end if;
-
-      Success := Inner_Map_Range
+      Inner_Map_Allocated_Range
          (Map            => Map,
-          Physical_Start => To_Address (Addr - Memory.Memory_Offset),
+          Physical_Start => Discard,
           Virtual_Start  => Virtual_Start,
           Length         => Length,
           Permissions    => Permissions,
+          Success        => Success,
           Caching        => Caching);
-
-   <<Ret>>
-      if Success then
-         declare
-            Allocated : array (1 .. Length) of Unsigned_8
-               with Import, Address => To_Address (Addr);
-         begin
-            Allocated      := [others => 0];
-            Physical_Start := To_Address (Addr);
-         end;
-      else
-         F (New_Range);
-         Memory.Physical.Free (Interfaces.C.size_t (Addr));
-         Physical_Start := System.Null_Address;
-      end if;
-      Lib.Synchronization.Release_Writer (Map.Mutex);
-   exception
-      when Constraint_Error =>
-         Physical_Start := System.Null_Address;
-         Success        := False;
    end Map_Allocated_Range;
 
    procedure Remap_Range
@@ -687,6 +621,92 @@ package body Arch.MMU is
       Stats := (Val1, Val2, 0);
    end Get_Statistics;
    ----------------------------------------------------------------------------
+   procedure Inner_Map_Allocated_Range
+      (Map            : Page_Table_Acc;
+       Physical_Start : out System.Address;
+       Virtual_Start  : System.Address;
+       Length         : Storage_Count;
+       Permissions    : Page_Permissions;
+       Success        : out Boolean;
+       Caching        : Caching_Model := Write_Back)
+   is
+      procedure F is new Ada.Unchecked_Deallocation
+         (Mapping_Range, Mapping_Range_Acc);
+
+      Addr       : Virtual_Address;
+      New_Range  : Mapping_Range_Acc;
+      Last_Range : Mapping_Range_Acc;
+      Curr_Range : Mapping_Range_Acc;
+   begin
+      Memory.Physical.User_Alloc
+         (Addr    => Addr,
+          Size    => Unsigned_64 (Length),
+          Success => Success);
+      if not Success then
+         Physical_Start := System.Null_Address;
+         return;
+      end if;
+
+      Success   := False;
+      New_Range := new Mapping_Range'
+         (Next           => null,
+          Is_Allocated   => True,
+          Virtual_Start  => Virtual_Start,
+          Physical_Start => To_Address (Addr - Memory.Memory_Offset),
+          Length         => Length,
+          Flags          => Permissions);
+
+      Curr_Range := Map.Map_Ranges_Root;
+
+      Lib.Synchronization.Seize_Writer (Map.Mutex);
+
+      while Curr_Range /= null loop
+         if Curr_Range.Virtual_Start <= Virtual_Start and
+            Curr_Range.Virtual_Start + Length >= Virtual_Start + Length
+         then
+            goto Ret;
+         end if;
+
+         Last_Range := Curr_Range;
+         Curr_Range := Curr_Range.Next;
+      end loop;
+
+      Curr_Range := New_Range;
+      if Map.Map_Ranges_Root = null then
+         Map.Map_Ranges_Root := Curr_Range;
+      else
+         Last_Range.Next := Curr_Range;
+      end if;
+
+      Success := Inner_Map_Range
+         (Map            => Map,
+          Physical_Start => To_Address (Addr - Memory.Memory_Offset),
+          Virtual_Start  => Virtual_Start,
+          Length         => Length,
+          Permissions    => Permissions,
+          Caching        => Caching);
+
+   <<Ret>>
+      if Success then
+         declare
+            Allocated : array (1 .. Length) of Unsigned_8
+               with Import, Address => To_Address (Addr);
+         begin
+            Allocated      := [others => 0];
+            Physical_Start := To_Address (Addr);
+         end;
+      else
+         F (New_Range);
+         Memory.Physical.Free (Interfaces.C.size_t (Addr));
+         Physical_Start := System.Null_Address;
+      end if;
+      Lib.Synchronization.Release_Writer (Map.Mutex);
+   exception
+      when Constraint_Error =>
+         Physical_Start := System.Null_Address;
+         Success        := False;
+   end Inner_Map_Allocated_Range;
+
    function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address is
    begin
       return Physical_Address (Entry_Body and 16#FFFFFFF000#);

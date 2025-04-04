@@ -81,13 +81,12 @@ package body Arch.MMU is
    end Map_Range;
 
    procedure Map_Allocated_Range
-      (Map            : Page_Table_Acc;
-       Physical_Start : out System.Address;
-       Virtual_Start  : System.Address;
-       Length         : Storage_Count;
-       Permissions    : Page_Permissions;
-       Success        : out Boolean;
-       Caching        : Caching_Model := Write_Back)
+      (Map           : Page_Table_Acc;
+       Virtual_Start : System.Address;
+       Length        : Storage_Count;
+       Permissions   : Page_Permissions;
+       Success       : out Boolean;
+       Caching       : Caching_Model := Write_Back)
    is
       pragma Unreferenced (Map);
       pragma Unreferenced (Virtual_Start);
@@ -95,8 +94,7 @@ package body Arch.MMU is
       pragma Unreferenced (Permissions);
       pragma Unreferenced (Caching);
    begin
-      Physical_Start := System.Null_Address;
-      Success        := True;
+      Success := True;
    end Map_Allocated_Range;
 
    procedure Remap_Range

@@ -138,25 +138,22 @@ package Arch.MMU is
    --  accordingly, and managed internally.
    --  This function is intended to allocate memory for use in userland.
    --  @param Map            Tables to map for.
-   --  @param Physical_Start Allocated physical address.
    --  @param Virtual_Start  Virtual address to start from.
    --  @param Length         Length in bytes to map.
    --  @param Permissions    Permissions to map with.
    --  @param Success        True on success, False on failure.
    procedure Map_Allocated_Range
-      (Map            : Page_Table_Acc;
-       Physical_Start : out System.Address;
-       Virtual_Start  : System.Address;
-       Length         : Storage_Count;
-       Permissions    : Page_Permissions;
-       Success        : out Boolean;
-       Caching        : Caching_Model := Write_Back)
+      (Map           : Page_Table_Acc;
+       Virtual_Start : System.Address;
+       Length        : Storage_Count;
+       Permissions   : Page_Permissions;
+       Success       : out Boolean;
+       Caching       : Caching_Model := Write_Back)
       with Pre =>
          (Map /= null)                      and
          (Virtual_Start  mod Page_Size = 0) and
          (Length         mod Page_Size = 0) and
-         not (Permissions.Can_Write and Permissions.Can_Execute),
-         Post => (Physical_Start mod Page_Size = 0);
+         not (Permissions.Can_Write and Permissions.Can_Execute);
 
    --  Remap a memory range.
    --  @param Map            Tables to map for.
@@ -242,6 +239,15 @@ private
          Mutex           : aliased Lib.Synchronization.Readers_Writer_Lock;
          Map_Ranges_Root : Mapping_Range_Acc;
       end record;
+
+      procedure Inner_Map_Allocated_Range
+         (Map            : Page_Table_Acc;
+          Physical_Start : out System.Address;
+          Virtual_Start  : System.Address;
+          Length         : Storage_Count;
+          Permissions    : Page_Permissions;
+          Success        : out Boolean;
+          Caching        : Caching_Model := Write_Back);
 
       function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address;
       function Get_Next_Level

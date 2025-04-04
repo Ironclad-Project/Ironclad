@@ -485,7 +485,6 @@ package body Userland.Syscall is
       Perms      : constant Page_Permissions := Get_Mmap_Prot (Protection);
       Proc       : constant              PID := Arch.Local.Get_Current_Process;
       Final_Hint :           Virtual_Address := Virtual_Address (Hint);
-      Ignored    : System.Address;
       File       : File_Description_Acc;
       Success    : Boolean;
       Status     : FS_Status;
@@ -530,12 +529,11 @@ package body Userland.Syscall is
       --  Do mmap anon or pass it to the VFS.
       if (Flags and MAP_ANON) /= 0 then
          Map_Allocated_Range
-            (Map            => Map,
-             Virtual_Start  => To_Address (Final_Hint),
-             Length         => Storage_Count (Length),
-             Permissions    => Perms,
-             Physical_Start => Ignored,
-             Success        => Success);
+            (Map           => Map,
+             Virtual_Start => To_Address (Final_Hint),
+             Length        => Storage_Count (Length),
+             Permissions   => Perms,
+             Success       => Success);
          if Success then
             Errno := Error_No_Error;
             Returned := Unsigned_64 (Final_Hint);

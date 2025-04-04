@@ -173,7 +173,6 @@ package body Userland.ELF is
           Is_Global         => False);
       Ret_Count    : Natural;
       FS_Suc       : FS_Status;
-      Result       : System.Address;
       Curr_Map     : System.Address;
       Ali_V, Ali_L : Integer_Address;
    begin
@@ -206,12 +205,11 @@ package body Userland.ELF is
       end if;
 
       Arch.MMU.Map_Allocated_Range
-         (Map            => Map,
-          Virtual_Start  => To_Address (Ali_V),
-          Length         => Storage_Count (Ali_L),
-          Physical_Start => Result,
-          Success        => Success,
-          Permissions    =>
+         (Map           => Map,
+          Virtual_Start => To_Address (Ali_V),
+          Length        => Storage_Count (Ali_L),
+          Success       => Success,
+          Permissions   =>
             (Is_User_Accessible => True,
              Can_Read           => True,
              Can_Write          => True,
