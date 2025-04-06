@@ -26,4 +26,20 @@ package Arch.Power is
 
    --  Poweroff the system, this function will only returns in failure.
    procedure Poweroff (Status : out Power_Status);
+   ----------------------------------------------------------------------------
+   --  Hardware (usually OEMs) can give us system-wide hits on how to run the
+   --  in terms of power profiles.
+   type Power_Profile is
+      (Unspecified,         --  Hardware has no preference.
+       Desktop,             --  Desktop computer, think, a home PC.
+       Mobile,              --  Power-conscious small devices and laptops.
+       Workstation,         --  High-spec power-hungry desktop usage.
+       Enterprise_Server,   --  Big bulky services oriented usage.
+       SOHO_Server,         --  Small office server.
+       Appliance,           --  Appliances, IoT, that fun stuff.
+       Performance_Server,  --  Like enterprise servers but with power in mind.
+       Tablet_Convertible); --  Tablet or tablet-convertible.
+
+   --  Get the power profile hint from the hardware.
+   procedure Get_Preferred_Profile (P : out Power_Profile);
 end Arch.Power;

@@ -29,4 +29,8 @@ package body Arch.Power is
    begin
       Status := Failure;
    end Poweroff;
+   ----------------------------------------------------------------------------
+   procedure Get_Preferred_Profile (P : out Power_Profile) is
+      P := Unspecified;
+   end Get_Preferred_Profile;
 end Arch.Power;
