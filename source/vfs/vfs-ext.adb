@@ -348,6 +348,19 @@ package body VFS.EXT with SPARK_Mode => Off is
             Name_Data : Operation_Data (1 .. 2)
                with Import, Address => Name'Address;
          begin
+            Grow_Inode
+               (FS_Data    => Data,
+                Inode_Data => Target_Inode.all,
+                Inode_Num  => Target_Index,
+                Start      => 0,
+                Count      => Unsigned_64 (Data.Block_Size),
+                Success    => Success);
+            Set_Size
+               (Ino        => Target_Inode.all,
+                New_Size   => Unsigned_64 (Data.Block_Size),
+                Is_64_Bits => Data.Has_64bit_Filesizes,
+                Success    => Success);
+
             Ent := (Target_Index, 12, 1, Dir_Type);
             Write_To_Inode
                (FS_Data     => Data,
@@ -2587,6 +2600,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                if Offset + Buffer'First + Offset + Natural (Contracted) >
                   Buffer'Length
                then
+                  --  FIXME: This fails on certain directory setups, fix that.
                   Success := False;
                   goto Cleanup;
                end if;
@@ -2629,7 +2643,6 @@ package body VFS.EXT with SPARK_Mode => Off is
 
    <<Cleanup>>
       Free (Buffer);
-
    exception
       when Constraint_Error =>
          Success := False;
