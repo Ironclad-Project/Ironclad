@@ -31,6 +31,7 @@ package body Arch.Power is
    end Poweroff;
    ----------------------------------------------------------------------------
    procedure Get_Preferred_Profile (P : out Power_Profile) is
+   begin
       P := Unspecified;
    end Get_Preferred_Profile;
 end Arch.Power;
