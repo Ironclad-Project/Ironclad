@@ -71,3 +71,8 @@ bugs.
 
 For security vulnerabilities, or other security critical bugs, please follow
 the guidelines of [our security policy](SECURITY.md).
+
+## Joining the community
+
+You can visit our list of community channels on Ironclad's
+[community tab] (https://ironclad-os.org/community.html).
