@@ -157,7 +157,6 @@ dist:
 	rm -rf "$(DIST_OUTPUT)"/.github
 	rm -rf "$(DIST_OUTPUT)"/autom4te.cache
 	rm -rf "$(DIST_OUTPUT)"/cc-runtime/.git
-	rm -rf "$(DIST_OUTPUT)"/cc-runtime/.gitignore
 	rm -rf "$(DIST_OUTPUT)"/flanterm/.git
 	rm -rf "$(DIST_OUTPUT)"/flanterm/.gitignore
 	rm -rf "$(DIST_OUTPUT)"/uacpi-repository
