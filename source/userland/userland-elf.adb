@@ -18,6 +18,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Memory; use Memory;
 with Lib.Alignment;
 with Devices;
+with Userland.Memory_Locations;
 with Userland.Syscall;
 
 package body Userland.ELF is
@@ -62,7 +63,8 @@ package body Userland.ELF is
       end if;
 
       --  If we dont have a dynamic ELF, we cannot really use the kernel-passed
-      --  offset, we have to use 0 instead and let the headers figure it out.
+      --  ASLR offset, we have to use 0 instead and let the headers figure it
+      --  out.
       if Header.ELF_Type /= ET_DYN then
          Base := 0;
       end if;
@@ -190,7 +192,15 @@ package body Userland.ELF is
          return;
       end if;
 
+      --  If the base is 0, which means we are loading a static executable, we
+      --  will disallow loading below the minimum offset, as a security measure
+      --  for making sure NULL remains unmapped on load.
       A.Align_Memory_Range (Ali_V, Ali_L, Integer_Address (Header.Alignment));
+      if (Base = 0) and (Ali_V < Memory_Locations.Offset_Min) then
+         Success := False;
+         return;
+      end if;
+
       Syscall.Check_Userland_Mappability
          (Map, Ali_V, Unsigned_64 (Ali_L), Success);
       if not Success then

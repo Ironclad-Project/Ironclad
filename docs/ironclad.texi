@@ -545,6 +545,9 @@ format of which, to memory layout.
 Loaded programs must be under the ELF64 format, other formats may be supported
 in the future. Loaded programs can be static or relocatable.
 
+When loading a static executable, no sections of the executable will be loaded
+below 2M in memory. This is done as to ensure NULL remains unmapped.
+
 @code{ld.so}, or any other linker program detailed on the interpreter segment
 of the ELF executable will be a special case, it is assumed to be relocatable.
 

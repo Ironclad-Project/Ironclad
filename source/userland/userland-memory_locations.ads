@@ -14,8 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.MMU;
-
 package Userland.Memory_Locations is
    --  These are locations in memory for processes that the kernel will use to
    --  load programs at.
@@ -23,7 +21,11 @@ package Userland.Memory_Locations is
    --  Max boundaries. When randomization is disabled, the kernel defaults to
    --  the Min boundary.
 
-   Offset_Min     : constant := Arch.MMU.Page_Size; -- Whole program offset.
+   --  We start at 2M and not 0 or 16#1000# to make userland and kernel null
+   --  dereferences properly trigger page faults, even when accessed as offsets
+   --  in a (reasonably sized) struct.
+
+   Offset_Min     : constant := 16#00000200000#; -- Whole program offset.
    Offset_Max     : constant := 16#00010000000#;
    LD_Offset_Min  : constant := 16#00060000000#; --  ELF LD payload.
    LD_Offset_Max  : constant := 16#000F0000000#;
