@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.RTC;
+with Lib.Panic;
 with Lib.Time; use Lib.Time;
 with Arch.HPET;
 with Lib.Messages;
@@ -22,7 +23,8 @@ with Lib.Messages;
 package body Arch.Clocks with
    Refined_State =>
       (RT_Clock_State =>
-         (RT_Timestamp_Seconds,
+         (Is_Initialized,
+          RT_Timestamp_Seconds,
           RT_Timestamp_Nanoseconds,
           RT_Stored_Seconds,
           RT_Stored_Nanoseconds),
@@ -31,6 +33,8 @@ package body Arch.Clocks with
           HPET_Ticks_Per_Res_Nano))
 is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
+   Is_Initialized : Boolean := False;
 
    --  The RTC is really slow and has inacceptably large resolutions, so we
    --  will cache RTC time as well as when it was cached in monotonic.
@@ -55,15 +59,20 @@ is
 
    procedure Initialize_Sources is
    begin
+      if not HPET.Init then
+         Lib.Panic.Hard_Panic ("Could not initialize HPET");
+      end if;
+
       HPET.Get_Frequency (HPET_Ticks_Per_Second);
       HPET_Ticks_Per_Res_Nano := HPET_Ticks_Per_Second / Nano_Res_In_Second;
       Lib.Messages.Put_Line
          ("Monotonic resolution (HPET) fixed at " &
-          Natural (Timer_NS_Resolution)'Image & " ns");
+          Timer_NS_Resolution'Image & " ns");
 
       Get_Monotonic_Time (RT_Timestamp_Seconds, RT_Timestamp_Nanoseconds);
       RTC.Get_RTC_Date (RT_Stored_Seconds);
       RT_Stored_Nanoseconds := 0;
+      Is_Initialized := True;
    end Initialize_Sources;
 
    procedure Get_Monotonic_Resolution (Seconds, Nanoseconds : out Unsigned_64)
@@ -74,13 +83,22 @@ is
    end Get_Monotonic_Resolution;
 
    procedure Get_Monotonic_Time (Seconds, Nanoseconds : out Unsigned_64) is
-      Cnt : Unsigned_64;
+      Cnt : Unsigned_64 := 0;
    begin
-      HPET.Get_Counter (Cnt);
+      if Is_Initialized then
+         HPET.Get_Counter (Cnt);
+      end if;
       Seconds     := Cnt / HPET_Ticks_Per_Second;
       Nanoseconds := (Cnt mod HPET_Ticks_Per_Second) / HPET_Ticks_Per_Res_Nano;
       Nanoseconds := Nanoseconds * Timer_NS_Resolution;
    end Get_Monotonic_Time;
+
+   procedure Busy_Monotonic_Sleep (Nanoseconds : Unsigned_64) is
+   begin
+      if Is_Initialized then
+         HPET.NSleep (Natural (Nanoseconds and 16#FFFFFFFF#));
+      end if;
+   end Busy_Monotonic_Sleep;
 
    procedure Get_Real_Time_Resolution (Seconds, Nanoseconds : out Unsigned_64)
    is

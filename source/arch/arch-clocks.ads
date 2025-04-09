@@ -46,6 +46,10 @@ is
    procedure Get_Monotonic_Time (Seconds, Nanoseconds : out Unsigned_64)
       with Global => (In_Out => Monotonic_Clock_State);
 
+   --  Do a quick busy monotonic sleep.
+   procedure Busy_Monotonic_Sleep (Nanoseconds : Unsigned_64)
+      with Global => (In_Out => Monotonic_Clock_State);
+
    --  Get the resolution of the real-time clock.
    procedure Get_Real_Time_Resolution (Seconds, Nanoseconds : out Unsigned_64)
       with Global => (In_Out => RT_Clock_State);

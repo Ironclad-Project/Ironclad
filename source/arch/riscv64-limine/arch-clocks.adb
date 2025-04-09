@@ -56,6 +56,12 @@ is
       Nanoseconds := 0;
    end Get_Monotonic_Time;
 
+   procedure Busy_Monotonic_Sleep (Nanoseconds : Unsigned_64) is
+      pragma Unreferenced (Nanoseconds);
+   begin
+      null;
+   end Busy_Monotonic_Sleep;
+
    procedure Get_Real_Time_Resolution (Seconds, Nanoseconds : out Unsigned_64)
    is
    begin

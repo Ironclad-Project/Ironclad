@@ -14,13 +14,12 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Memory;     use Memory;
+with Memory; use Memory;
 with Arch.ACPI;
 with Arch.MMU;
 with Arch.Snippets;
 
 package body Arch.HPET with SPARK_Mode => Off is
-   Is_Initialized : Boolean := False;
    HPET_Contents  : Virtual_Address;
    HPET_Period    : Unsigned_64; --  Time in femtoseconds to increment by 1.
    HPET_Frequency : Unsigned_64 := 0;
@@ -76,7 +75,6 @@ package body Arch.HPET with SPARK_Mode => Off is
          HPET.Main_Counter_Value    := 0;
          HPET.General_Configuration := 1;
       end;
-      Is_Initialized := True;
       return True;
    exception
       when Constraint_Error =>
@@ -92,11 +90,7 @@ package body Arch.HPET with SPARK_Mode => Off is
       HPET : ACPI.HPET_Contents
          with Import, Address => To_Address (HPET_Contents);
    begin
-      if Is_Initialized then
-         Counter := HPET.Main_Counter_Value;
-      else
-         Counter := 0;
-      end if;
+      Counter := HPET.Main_Counter_Value;
    end Get_Counter;
 
    procedure NSleep (Nanoseconds : Positive) is
@@ -106,10 +100,6 @@ package body Arch.HPET with SPARK_Mode => Off is
          with Import, Address => To_Address (HPET_Contents);
       Target : Unsigned_64;
    begin
-      if not Is_Initialized then
-         return;
-      end if;
-
       Target := HPET.Main_Counter_Value + (Unsigned_64 (Nanoseconds) *
          (1_000_000 / HPET_Period));
       while HPET.Main_Counter_Value < Target loop

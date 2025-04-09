@@ -14,8 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Arch.Clocks;
 with Arch.Snippets; use Arch.Snippets;
-with Arch.HPET;
 
 package body Devices.PC_Speaker is
    function Init return Boolean is
@@ -43,7 +43,6 @@ package body Devices.PC_Speaker is
       Divisor  : Unsigned_32;
       Tmp      : Unsigned_8;
    begin
-
       --  Set the PIT to the frequency we want.
       Divisor := 1193180 / Frequency;
       Port_Out (16#43#, 16#B6#);
@@ -56,7 +55,7 @@ package body Devices.PC_Speaker is
          Port_Out (16#61#, Tmp or 3);
       end if;
 
-      Arch.HPET.NSleep (333 * MS_In_NS);
+      Arch.Clocks.Busy_Monotonic_Sleep (333 * MS_In_NS);
 
       --  Make it stop.
       Port_Out (16#61#, Port_In (16#61#) and 16#FC#);

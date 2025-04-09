@@ -22,7 +22,6 @@ pragma Unreferenced (Lib.Runtime);
 with Arch;
 with Arch.Hooks;
 with Arch.PCI;
-with Arch.Clocks;
 with Arch.ACPI;
 with Devices; use Devices;
 with VFS; use VFS;
@@ -55,9 +54,6 @@ procedure Main is
    Init_Stdin  : constant String := "null";
    Init_Stdout : constant String := "console";
 begin
-   --  Initialize several printing-needed subsystems.
-   Arch.Clocks.Initialize_Sources;
-
    Lib.Messages.Put_Line (Config.Name & " " & Config.Version);
    Lib.Messages.Put_Line ("Please report bugs at " & Config.Bug_Site);
 
