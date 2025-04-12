@@ -99,7 +99,7 @@ is
 
       Lib.Panic.Hard_Panic
          ("Could not find a suitable TSC calibration source, tried:" &
-          "CPUID leaf detection, HPET, PIT");
+          "CPUID leaf detection, HPET");
 
    <<Found_TSC_Frequency>>
       Lib.Messages.Put_Line
