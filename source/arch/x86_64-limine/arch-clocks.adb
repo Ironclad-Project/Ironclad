@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Arch.Snippets;
 with Arch.RTC;
 with Lib.Panic;
 with Lib.Time; use Lib.Time;
@@ -29,8 +30,7 @@ package body Arch.Clocks with
           RT_Stored_Seconds,
           RT_Stored_Nanoseconds),
        Monotonic_Clock_State =>
-         (HPET_Ticks_Per_Second,
-          HPET_Ticks_Per_Res_Nano))
+         (TSC_Tick_Resolution, TSC_Ticks_Per_Res))
 is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
@@ -45,58 +45,109 @@ is
    RT_Stored_Seconds        : Unsigned_64;
    RT_Stored_Nanoseconds    : Unsigned_64;
 
-   --  For monotonic, we use the HPET, we could use the TSC, which would be
-   --  faster, but TSC requires calibration (inaccurate), core synchronization
-   --  (pita), and invariant tsc (could not be there).
-   --  The HPET is guaranteed to be at least 10MHz, that means the smallest we
-   --  can do without detection code safely is one tick per 1000ns.
-   --  These values are placeholders for time measurements before init.
-   Timer_NS_Resolution     : constant    := 1_000;
-   Nanoseconds_In_Second   : constant    := 1_000_000_000;
-   Nano_Res_In_Second      : constant    := Nanoseconds_In_Second / 1_000;
-   HPET_Ticks_Per_Second   : Unsigned_64 := Nanoseconds_In_Second;
-   HPET_Ticks_Per_Res_Nano : Unsigned_64 := 1;
+   --  For monotonic, we use the TSC.
+   Nanoseconds_In_Second : constant    := 1_000_000_000;
+   TSC_Tick_Resolution   : Unsigned_64 := 100_000;
+   TSC_Ticks_Per_Res     : Unsigned_64 := Nanoseconds_In_Second;
 
    procedure Initialize_Sources is
+      TSC_Start, TSC_End     : Unsigned_64;
+      EAX, EBX, ECX, EDX     : Unsigned_32;
+      EAX1, EBX1, ECX1, EDX1 : Unsigned_32;
+      Success                : Boolean;
    begin
-      if not HPET.Init then
-         Lib.Panic.Hard_Panic ("Could not initialize HPET");
+      --  We require invariant TSC.
+      Snippets.Get_CPUID (16#80000007#, 0, EAX, EBX, ECX, EDX, Success);
+      if not Success or else ((EDX and Shift_Left (1, 8)) = 0) then
+         Lib.Panic.Hard_Panic ("No invariant TSC detected");
       end if;
 
-      HPET.Get_Frequency (HPET_Ticks_Per_Second);
-      HPET_Ticks_Per_Res_Nano := HPET_Ticks_Per_Second / Nano_Res_In_Second;
-      Lib.Messages.Put_Line
-         ("Monotonic resolution (HPET) fixed at " &
-          Timer_NS_Resolution'Image & " ns");
+      --  We need to calibrate the TSC. For this we can check CPUID.
+      Snippets.Get_CPUID (16#15#, 0, EAX, EBX, ECX, EDX, Success);
+      if Success then
+         if EBX /= 0 and EBX /= 0 then
+            Lib.Messages.Put_Line ("Monotonic TSC calibration using CPUID 1");
+            TSC_Ticks_Per_Res   := Unsigned_64 (ECX) * Unsigned_64 (EBX / EAX);
+            TSC_Ticks_Per_Res   := TSC_Ticks_Per_Res / 1_000_000;
+            TSC_Tick_Resolution := 1_000;
+            goto Found_TSC_Frequency;
+         end if;
 
+         Snippets.Get_CPUID (16#16#, 0, EAX1, EBX1, ECX1, EDX1, Success);
+         if Success and EAX1 /= 0 then
+            Lib.Messages.Put_Line ("Monotonic TSC calibration using CPUID 2");
+            Snippets.Get_CPUID (16#16#, 0, EAX1, EBX1, ECX1, EDX1, Success);
+            TSC_Ticks_Per_Res := Unsigned_64 (EAX1 * 10_000_000) *
+                                 Unsigned_64 (EAX / EBX);
+            TSC_Ticks_Per_Res   := TSC_Ticks_Per_Res / 1_000_000;
+            TSC_Tick_Resolution := 1_000;
+            goto Found_TSC_Frequency;
+         end if;
+      end if;
+
+      --  If CPUID does not have the info, we can start checking for clocks.
+      --  First one we will use is the HPET.
+      if HPET.Init then
+         Lib.Messages.Put_Line ("Monotonic TSC calibration using HPET");
+         TSC_Tick_Resolution := 100_000; --  HPET limited.
+         TSC_Start := Snippets.Read_TSC;
+         HPET.NSleep (Natural (TSC_Tick_Resolution));
+         TSC_End := Snippets.Read_TSC;
+         TSC_Ticks_Per_Res := TSC_End - TSC_Start;
+         goto Found_TSC_Frequency;
+      end if;
+
+      Lib.Panic.Hard_Panic
+         ("Could not find a suitable TSC calibration source, tried:" &
+          "CPUID leaf detection, HPET, PIT");
+
+   <<Found_TSC_Frequency>>
+      Lib.Messages.Put_Line
+         ("Monotonic resolution fixed at 0x" &
+          TSC_Ticks_Per_Res'Image    & " ticks / 0x" &
+           TSC_Tick_Resolution'Image & " ns");
+
+      Is_Initialized := True;
+
+      --  Set the RTC base.
       Get_Monotonic_Time (RT_Timestamp_Seconds, RT_Timestamp_Nanoseconds);
       RTC.Get_RTC_Date (RT_Stored_Seconds);
       RT_Stored_Nanoseconds := 0;
-      Is_Initialized := True;
    end Initialize_Sources;
 
    procedure Get_Monotonic_Resolution (Seconds, Nanoseconds : out Unsigned_64)
    is
    begin
       Seconds     := 0;
-      Nanoseconds := Timer_NS_Resolution;
+      Nanoseconds := TSC_Tick_Resolution;
    end Get_Monotonic_Resolution;
 
    procedure Get_Monotonic_Time (Seconds, Nanoseconds : out Unsigned_64) is
-      Cnt : Unsigned_64 := 0;
+      Cnt : Unsigned_64;
    begin
       if Is_Initialized then
-         HPET.Get_Counter (Cnt);
+         Cnt         := Arch.Snippets.Read_TSC;
+         Nanoseconds := (Cnt / TSC_Ticks_Per_Res) * TSC_Tick_Resolution;
+         Seconds     := Nanoseconds / Nanoseconds_In_Second;
+         Nanoseconds := Nanoseconds mod Nanoseconds_In_Second;
+      else
+         Seconds     := 0;
+         Nanoseconds := 0;
       end if;
-      Seconds     := Cnt / HPET_Ticks_Per_Second;
-      Nanoseconds := (Cnt mod HPET_Ticks_Per_Second) / HPET_Ticks_Per_Res_Nano;
-      Nanoseconds := Nanoseconds * Timer_NS_Resolution;
    end Get_Monotonic_Time;
 
    procedure Busy_Monotonic_Sleep (Nanoseconds : Unsigned_64) is
+      Curr_Sec, Curr_Nano : Unsigned_64;
+      Next_Sec, Next_Nano : Unsigned_64;
    begin
       if Is_Initialized then
-         HPET.NSleep (Natural (Nanoseconds and 16#FFFFFFFF#));
+         Get_Monotonic_Time (Next_Sec, Next_Nano);
+         Lib.Time.Increment (Next_Sec, Next_Nano, 0, Nanoseconds);
+         loop
+            Get_Monotonic_Time (Curr_Sec, Curr_Nano);
+            exit when Lib.Time.Is_Greater_Equal
+               (Curr_Sec, Curr_Nano, Next_Sec, Next_Nano);
+         end loop;
       end if;
    end Busy_Monotonic_Sleep;
 
@@ -104,7 +155,7 @@ is
    is
    begin
       Seconds     := 0;
-      Nanoseconds := Timer_NS_Resolution;
+      Nanoseconds := TSC_Tick_Resolution;
    end Get_Real_Time_Resolution;
 
    procedure Get_Real_Time (Seconds, Nanoseconds : out Unsigned_64) is

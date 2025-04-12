@@ -59,12 +59,6 @@ package body Arch.HPET with SPARK_Mode => Off is
             return False;
          end if;
 
-         --  TODO: Check if the HPET is 64 bits, if so, enable 64 bit mode.
-         --  So far we are mode-agnostic, but we could use a timer upgrade.
-         if (Shift_Right (HPET.General_Capabilities, 13) and 1) = 0 then
-            return False;
-         end if;
-
          HPET_Contents  := Table.Address + Memory_Offset;
          HPET_Period    := Shift_Right (HPET.General_Capabilities, 32);
          HPET_Frequency := 1_000_000_000_000_000 / HPET_Period;
@@ -101,7 +95,7 @@ package body Arch.HPET with SPARK_Mode => Off is
       Target : Unsigned_64;
    begin
       Target := HPET.Main_Counter_Value + (Unsigned_64 (Nanoseconds) *
-         (1_000_000 / HPET_Period));
+         HPET_Frequency / 1_000_000_000);
       while HPET.Main_Counter_Value < Target loop
          Snippets.Pause;
       end loop;

@@ -76,7 +76,6 @@ package Arch.Snippets is
       procedure Write_Kernel_GS (Value : Unsigned_64) with Inline;
       procedure Swap_GS with Inline;
       procedure Invalidate_Caches with Inline;
-
       procedure Get_CPUID
          (Leaf    : Unsigned_32;
           Subleaf : Unsigned_32;
@@ -85,5 +84,8 @@ package Arch.Snippets is
           ECX     : out Unsigned_32;
           EDX     : out Unsigned_32;
           Success : out Boolean);
+
+      function Read_TSC return Unsigned_64;
+      pragma Import (Intrinsic, Read_TSC, "__builtin_ia32_rdtsc");
    #end if;
 end Arch.Snippets;
