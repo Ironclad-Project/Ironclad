@@ -154,7 +154,7 @@ dist:
 	rm -rf "$(DIST_OUTPUT)"/.git
 	rm -rf "$(DIST_OUTPUT)"/.gitignore
 	rm -rf "$(DIST_OUTPUT)"/.mailmap
-	rm -rf "$(DIST_OUTPUT)"/.github
+	rm -rf "$(DIST_OUTPUT)"/.forgejo
 	rm -rf "$(DIST_OUTPUT)"/autom4te.cache
 	rm -rf "$(DIST_OUTPUT)"/cc-runtime/.git
 	rm -rf "$(DIST_OUTPUT)"/flanterm/.git
