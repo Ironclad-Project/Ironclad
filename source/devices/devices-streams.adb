@@ -166,7 +166,7 @@ package body Devices.Streams is
    begin
       Data      := [others => 0];
       Ret_Count := Data'Length;
-      Success   := Dev_Full;
+      Success   := Dev_Success;
    end Full_Read;
 
    procedure Full_Write
@@ -177,10 +177,10 @@ package body Devices.Streams is
        Success     : out Dev_Status;
        Is_Blocking : Boolean)
    is
-      pragma Unreferenced (Key, Offset, Is_Blocking);
+      pragma Unreferenced (Key, Offset, Data, Is_Blocking);
    begin
-      Ret_Count := Data'Length;
-      Success   := Dev_Success;
+      Ret_Count := 0;
+      Success   := Dev_Full;
    end Full_Write;
    ----------------------------------------------------------------------------
    procedure Random_Read
