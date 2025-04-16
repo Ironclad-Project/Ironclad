@@ -19,11 +19,8 @@ with Arch.IDT;
 with Arch.APIC;
 with Arch.CPU;
 with Arch.Snippets;
-with Lib.Panic;
 with Scheduler;
 with Lib.Synchronization;
-with Memory; use Memory;
-with System.Storage_Elements; use System.Storage_Elements;
 with Ada.Unchecked_Conversion;
 with Lib.Messages;
 
