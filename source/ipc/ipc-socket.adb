@@ -707,7 +707,6 @@ package body IPC.Socket is
    procedure Direct_Connection (Sock : Socket_Acc; Result : out Socket_Acc) is
    begin
       Result := Create (Sock.Dom, Sock.Kind);
-      Result.Established    := Sock;
       Result.Pending_Accept := Sock;
       Sock.Pending_Accept   := Result;
    end Direct_Connection;
