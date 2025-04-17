@@ -153,6 +153,13 @@ package IPC.Socket is
        Is_Blocking : Boolean := True;
        Result      : out Socket_Acc)
       with Pre => Sock /= null and then Get_Type (Sock) = Stream;
+
+   --  Connect a socket and get a connected socket, directly, with no artifice.
+   --  Connect the passed socket to the connected socket as well.
+   --  @param Sock   Server listening socket to use for accepting.
+   --  @param Result New accepted socket, or null on failure.
+   procedure Pipe_Socket (Sock : Socket_Acc; Result : out Socket_Acc)
+      with Pre => Sock /= null and then Get_Type (Sock) = Stream;
    ----------------------------------------------------------------------------
    --  IPv4-specific versions of operations, along with domain-specific stuff.
    --  These operations use IPv4 addresses and ports.
@@ -425,6 +432,14 @@ package IPC.Socket is
        Peer_Address        : out String;
        Peer_Address_Length : out Natural;
        Result              : out Socket_Acc)
+      with Pre => Sock /= null             and then
+                  Get_Domain (Sock) = UNIX and then
+                  Get_Type (Sock) = Stream;
+
+   --  Create a new direct connection, with no artifice.
+   --  @param Sock   Server listening socket to use for accepting.
+   --  @param Result New accepted socket, or null on failure.
+   procedure Direct_Connection (Sock : Socket_Acc; Result : out Socket_Acc)
       with Pre => Sock /= null             and then
                   Get_Domain (Sock) = UNIX and then
                   Get_Type (Sock) = Stream;

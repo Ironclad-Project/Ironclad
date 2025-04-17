@@ -215,6 +215,18 @@ package body IPC.Socket is
       end case;
       Lib.Synchronization.Release (Sock.Mutex);
    end Accept_Connection;
+
+   procedure Pipe_Socket (Sock : Socket_Acc; Result : out Socket_Acc) is
+   begin
+      Lib.Synchronization.Seize (Sock.Mutex);
+      case Sock.Dom is
+         when IPv4 | IPv6 =>
+            Result := null;
+         when UNIX =>
+            Direct_Connection (Sock, Result);
+      end case;
+      Lib.Synchronization.Release (Sock.Mutex);
+   end Pipe_Socket;
    ----------------------------------------------------------------------------
    procedure Get_Bound
       (Sock    : Socket_Acc;
@@ -691,6 +703,14 @@ package body IPC.Socket is
 
       Lib.Synchronization.Release (Sock.Mutex);
    end Accept_Connection;
+
+   procedure Direct_Connection (Sock : Socket_Acc; Result : out Socket_Acc) is
+   begin
+      Result := Create (Sock.Dom, Sock.Kind);
+      Result.Established    := Sock;
+      Result.Pending_Accept := Sock;
+      Sock.Pending_Accept   := Result;
+   end Direct_Connection;
 
    procedure Read
       (Sock        : Socket_Acc;

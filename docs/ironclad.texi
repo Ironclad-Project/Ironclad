@@ -206,6 +206,8 @@ Syscalls
 * loadavg::                 List load averages of the system.
 * meminfo::                 List the system's memory configuration.
 * listpci::                 List the system's PCI devices.
+* getcpuinfo::              List system CPU information.
+* socketpair::              Comfortably create a pair of pipe-like sockets.
 
 Networking
 
@@ -1048,6 +1050,8 @@ Empty.
 @ref{listpci}
 @item
 @ref{getcpuinfo}
+@item
+@ref{socketpair}
 @end enumerate
 
 @subsection riscv64-limine
@@ -4276,6 +4280,20 @@ This syscall returns @code{0} on success and @code{-1} on failure, with errno:
 @item EFAULT
 The passed buffers were pointing to invalid memory.
 @end table
+
+@node socketpair
+@section socketpair
+
+@example c
+int socketpair(int domain, int type, int *fds);
+@end example
+
+This syscall creates a pair of interconnected sockets, that are otherwise
+identical, and returns their FDs on @code{fds[0]} and @code{fds[1]}. The
+arguments are the same as the parent @code{socket} syscall.
+
+This syscall returns @code{0} on success and @code{-1} on failure, and shares
+errnos with the main @code{socket} syscall.
 
 @node Networking
 @chapter Networking

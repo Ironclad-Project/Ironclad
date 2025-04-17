@@ -1299,6 +1299,13 @@ package Userland.Syscall is
       (Addr     : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
+
+   procedure Socket_Pair
+      (Domain   : Unsigned_64;
+       DataType : Unsigned_64;
+       FDs      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.

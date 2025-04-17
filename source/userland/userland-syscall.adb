@@ -6339,6 +6339,87 @@ package body Userland.Syscall is
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Get_CPU_Info;
+
+   procedure Socket_Pair
+      (Domain   : Unsigned_64;
+       DataType : Unsigned_64;
+       FDs      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      A     : constant Integer_Address := Integer_Address (FDs);
+      Proc  : constant             PID := Arch.Local.Get_Current_Process;
+      Block : constant         Boolean := (DataType and SOCK_NONBLOCK) = 0;
+      Res   : array (1 .. 2) of Integer with Import, Address => To_Address (A);
+      New_Sock1, New_Sock2 : IPC.Socket.Socket_Acc;
+      Dom                  : IPC.Socket.Domain;
+      Data                 : IPC.Socket.DataType;
+      Succ1, Succ2         : Boolean;
+      New_Desc1, New_Desc2 : File_Description_Acc;
+      Map                  : Page_Table_Acc;
+   begin
+      Get_Common_Map (Proc, Map);
+      if not Check_Userland_Access (Map, A, Res'Size / 8) then
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      case Domain is
+         when AF_INET  => Dom := IPC.Socket.IPv4;
+         when AF_INET6 => Dom := IPC.Socket.IPv6;
+         when AF_UNIX  => Dom := IPC.Socket.UNIX;
+         when others   => goto Invalid_Value_Return;
+      end case;
+
+      case DataType and 16#FFF# is
+         when SOCK_STREAM => Data := IPC.Socket.Stream;
+         when SOCK_DGRAM  => Data := IPC.Socket.Datagram;
+         when SOCK_RAW    => Data := IPC.Socket.Raw;
+         when others      => goto Invalid_Value_Return;
+      end case;
+
+      New_Sock1 := Create (Dom, Data);
+      if New_Sock1 = null then
+         goto Invalid_Value_Return;
+      end if;
+      Pipe_Socket (New_Sock1, New_Sock2);
+      if New_Sock2 = null then
+         goto Invalid_Value_Return;
+      end if;
+
+      New_Desc1 := new File_Description'
+         (Children_Count => 0,
+          Is_Blocking    => Block,
+          Description    => Description_Socket,
+          Inner_Socket   => New_Sock1);
+      New_Desc2 := new File_Description'
+         (Children_Count => 0,
+          Is_Blocking    => Block,
+          Description    => Description_Socket,
+          Inner_Socket   => New_Sock2);
+      Add_File (Proc, New_Desc1, Res (1), Succ1);
+      Add_File (Proc, New_Desc2, Res (2), Succ2);
+      if not Succ1 or not Succ2 then
+         Close (New_Desc1);
+         Close (New_Desc2);
+         Errno    := Error_Too_Many_Files;
+         Returned := Unsigned_64'Last;
+      else
+         Errno    := Error_No_Error;
+         Returned := 0;
+      end if;
+
+      return;
+
+   <<Invalid_Value_Return>>
+      Errno    := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end Socket_Pair;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin

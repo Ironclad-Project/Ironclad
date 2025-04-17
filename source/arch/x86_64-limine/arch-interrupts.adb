@@ -335,6 +335,8 @@ package body Arch.Interrupts is
             List_PCI (State.RDI, State.RSI, Returned, Errno);
          when 114 =>
             Get_CPU_Info (State.RDI, Returned, Errno);
+         when 115 =>
+            Socket_Pair (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when others =>
             Userland.Process.Raise_Signal
                (Local.Get_Current_Process,
