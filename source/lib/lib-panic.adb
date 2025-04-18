@@ -14,9 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Ada.Characters.Latin_1;
 with Arch.Hooks;
 with Arch.Snippets;
+with Config;
 with Lib.Synchronization;
 
 package body Lib.Panic with
@@ -25,9 +25,11 @@ is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    --  String header and ending to be added to passed message strings.
-   HP           : constant String := Ada.Characters.Latin_1.ESC & "[31m";
-   RC           : constant String := Ada.Characters.Latin_1.ESC & "[0m";
-   Panic_Header : constant String := HP & "Panic: ";
+   Panic_Header : constant String := "Kernel Panic: ";
+   Panic_Post   : constant String :=
+      "Please reboot your computer! State will be lost";
+   Panic_Bug : constant String :=
+      "Consider reporting this issue at " & Config.Bug_Site;
 
    Panic_Mutex : aliased Synchronization.Binary_Semaphore :=
       Synchronization.Unlocked_Semaphore;
@@ -35,12 +37,14 @@ is
    procedure Hard_Panic (Message : String) is
    begin
       Panic_Hook;
-      Print_Seal_And_Goodnight (Message);
+      Print_Header (Message);
+      Arch.Snippets.HCF;
    end Hard_Panic;
 
    procedure Hard_Panic (Message : String; Ctx : Arch.Context.GP_Context) is
    begin
       Panic_Hook;
+      Print_Header (Message);
 
       #if ArchName = """x86_64-limine"""
          Print_Triple ("RAX", "RBX", "RCX", Ctx.RAX, Ctx.RBX, Ctx.RCX);
@@ -53,7 +57,7 @@ is
          Messages.Put_Line ("Error code: " & Ctx.Error_Code'Image);
       #end if;
 
-      Print_Seal_And_Goodnight (Message);
+      Arch.Snippets.HCF;
    end Hard_Panic;
    ----------------------------------------------------------------------------
    procedure Panic_Hook is
@@ -63,20 +67,24 @@ is
       Arch.Hooks.Panic_SMP_Hook;           --  Tell the system to nap.
    end Panic_Hook;
 
-   procedure Print_Seal_And_Goodnight (Message : String) is
+   procedure Print_Header (Message : String) is
    begin
-      Messages.Put_Line (HP & "                   --:::-+*.            " & RC);
-      Messages.Put_Line (HP & "  ....             =%%%%%%:++==..:+#:   " & RC);
-      Messages.Put_Line (HP & "+*+++++**++=-.      +:%%%%%=+%%%:.-%%.  " & RC);
-      Messages.Put_Line (HP & "--=+++=-----=**+.   .+:%%%%*-%%%:.-%%   " & RC);
-      Messages.Put_Line (HP & "-=++++++----#@@=#-   -:=%%%%:%%%-.:%%:  " & RC);
-      Messages.Put_Line (HP & "++++++++*@@==%%-+#=   +.%%%#:%%%-.:%%#  " & RC);
-      Messages.Put_Line (HP & "+++++++--+==*%%**-#   .+*-   *%%=..#%%+ " & RC);
-      Messages.Put_Line (HP & "+++++++=----====-=%    -:            .- " & RC);
-      Messages.Put_Line (HP & "++++++++=---=+++++%     +               " & RC);
-      Messages.Put_Line (Panic_Header & Message & RC);
-      Arch.Snippets.HCF;
-   end Print_Seal_And_Goodnight;
+      Messages.Put_Line ("                   --:::-+*.            ");
+      Messages.Put_Line ("  ....             =%%%%%%:++==..:+#:   ");
+      Messages.Put_Line ("+*+++++**++=-.      +:%%%%%=+%%%:.-%%.  ");
+      Messages.Put_Line ("--=+++=-----=**+.   .+:%%%%*-%%%:.-%%   ");
+      Messages.Put_Line ("-=++++++----#@@=#-   -:=%%%%:%%%-.:%%:  ");
+      Messages.Put_Line ("++++++++*@@==%%-+#=   +.%%%#:%%%-.:%%#  ");
+      Messages.Put_Line ("+++++++--+==*%%**-#   .+*-   *%%=..#%%+ ");
+      Messages.Put_Line ("+++++++=----====-=%    -:            .- ");
+      Messages.Put_Line ("++++++++=---=+++++%     +               ");
+      Messages.Put_Line ("");
+      Messages.Put_Line (Panic_Header & Message);
+      Messages.Put_Line ("");
+      Messages.Put_Line (Panic_Post);
+      Messages.Put_Line ("");
+      Messages.Put_Line (Panic_Bug);
+   end Print_Header;
 
    procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64) is
    begin

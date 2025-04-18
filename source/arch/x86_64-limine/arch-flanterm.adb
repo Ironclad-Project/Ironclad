@@ -18,8 +18,13 @@ with Ada.Characters.Latin_1;
 with Devices.FB;
 
 package body Arch.Flanterm is
+   --  Global variables.
    Is_Enabled : Boolean := False;
    Ctx        : Flanterm_Ctx;
+
+   --  Colors.
+   Background_Color : constant Unsigned_32 := 16#204A87#;
+   Text_Color       : constant Unsigned_32 := 16#FFFFFF#;
 
    procedure Init is
       Addr : System.Address;
@@ -57,8 +62,8 @@ package body Arch.Flanterm is
           Canvas            => System.Null_Address,
           ANSI_Colours      => System.Null_Address,
           ANSI_Brights      => System.Null_Address,
-          Default_BG        => System.Null_Address,
-          Default_FG        => System.Null_Address,
+          Default_BG        => Background_Color'Address,
+          Default_FG        => Text_Color'Address,
           Default_BG_Bright => System.Null_Address,
           Default_FG_Bright => System.Null_Address,
           Font              => System.Null_Address,

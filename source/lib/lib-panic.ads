@@ -39,6 +39,6 @@ is
 private
 
    procedure Panic_Hook;
-   procedure Print_Seal_And_Goodnight (Message : String) with No_Return;
+   procedure Print_Header (Message : String);
    procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64);
 end Lib.Panic;
