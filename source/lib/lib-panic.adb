@@ -24,13 +24,6 @@ package body Lib.Panic with
 is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
-   --  String header and ending to be added to passed message strings.
-   Panic_Header : constant String := "Kernel Panic: ";
-   Panic_Post   : constant String :=
-      "Please reboot your computer! State will be lost";
-   Panic_Bug : constant String :=
-      "Consider reporting this issue at " & Config.Bug_Site;
-
    Panic_Mutex : aliased Synchronization.Binary_Semaphore :=
       Synchronization.Unlocked_Semaphore;
 
@@ -79,11 +72,12 @@ is
       Messages.Put_Line ("+++++++=----====-=%    -:            .- ");
       Messages.Put_Line ("++++++++=---=+++++%     +               ");
       Messages.Put_Line ("");
-      Messages.Put_Line (Panic_Header & Message);
+      Messages.Put_Line ("Kernel Panic: " & Message);
       Messages.Put_Line ("");
-      Messages.Put_Line (Panic_Post);
+      Messages.Put_Line ("Please reboot your computer! State will be lost");
       Messages.Put_Line ("");
-      Messages.Put_Line (Panic_Bug);
+      Messages.Put_Line ("Consider reporting this issue at:");
+      Messages.Put_Line (Config.Bug_Site);
    end Print_Header;
 
    procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64) is
