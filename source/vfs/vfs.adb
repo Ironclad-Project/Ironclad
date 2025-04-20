@@ -785,12 +785,14 @@ package body VFS is
        Relative : File_Inode_Number;
        Path     : String;
        User     : Unsigned_32;
+       Do_Dir   : Boolean;
        Status   : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
-            EXT.Unlink (Mounts (Key).FS_Data, Relative, Path, User, Status);
+            EXT.Unlink (Mounts (Key).FS_Data, Relative, Path, User, Do_Dir,
+                        Status);
          when others =>
             Status := FS_Not_Supported;
       end case;

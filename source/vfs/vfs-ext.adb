@@ -704,6 +704,7 @@ package body VFS.EXT with SPARK_Mode => Off is
        Relative : File_Inode_Number;
        Path     : String;
        User     : Unsigned_32;
+       Do_Dirs  : Boolean;
        Status   : out FS_Status)
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
@@ -711,6 +712,8 @@ package body VFS.EXT with SPARK_Mode => Off is
       Path_Index, Parent_Index : Unsigned_32;
       Path_Inode, Parent_Inode : Inode_Acc := new Inode;
       Success                  : Boolean;
+      Curr_Index, Next_Index   : Unsigned_64 := 0;
+      Entity                   : Directory_Entity;
    begin
       Lib.Synchronization.Seize_Writer (Data.Mutex);
 
@@ -739,6 +742,31 @@ package body VFS.EXT with SPARK_Mode => Off is
       then
          Status := FS_Not_Allowed;
          goto Cleanup;
+      end if;
+
+      if Get_Inode_Type (Path_Inode.Permissions) = File_Directory then
+         if Do_Dirs then
+            --  3 iterations for . .. and the first non . or .. file
+            for I in 1 .. 3 loop
+               Inner_Read_Entry
+                  (FS_Data     => Data,
+                   Inode_Sz    =>
+                     Get_Size (Path_Inode.all, Data.Has_64bit_Filesizes),
+                   File_Ino    => Path_Inode.all,
+                   Inode_Index => Curr_Index,
+                   Entity      => Entity,
+                   Next_Index  => Next_Index,
+                   Success     => Success);
+               Curr_Index := Next_Index;
+            end loop;
+            if Success then
+               Status := FS_Not_Empty;
+               goto Cleanup;
+            end if;
+         else
+            Status := FS_Is_Directory;
+            goto Cleanup;
+         end if;
       end if;
 
       Delete_Directory_Entry

@@ -95,6 +95,7 @@ package VFS.EXT is
        Relative : File_Inode_Number;
        Path     : String;
        User     : Unsigned_32;
+       Do_Dirs  : Boolean;
        Status   : out FS_Status);
 
    procedure Read_Entries

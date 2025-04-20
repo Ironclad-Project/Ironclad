@@ -55,6 +55,7 @@ package Userland.Syscall is
        Error_No_Space,        --  ENOSPC
        Error_Not_Implemented, --  ENOSYS
        Error_Not_Connected,   --  ENOTCONN
+       Error_Not_Empty,       --  ENOTEMPTY
        Error_Not_A_TTY,       --  ENOTTY
        Error_Not_Supported,   --  ENOTSUPP
        Error_Bad_Permissions, --  EPERM
@@ -84,6 +85,7 @@ package Userland.Syscall is
        Error_No_Space        => 1050,
        Error_Not_Implemented => 1051,
        Error_Not_Connected   => 1052,
+       Error_Not_Empty       => 1054,
        Error_Not_A_TTY       => 1058,
        Error_Not_Supported   => 1060,
        Error_Bad_Permissions => 1063,
@@ -96,6 +98,7 @@ package Userland.Syscall is
    AT_FDCWD            : constant := Natural'Last;
    AT_EMPTY_PATH       : constant := 2#01#;
    AT_SYMLINK_NOFOLLOW : constant := 2#10#;
+   AT_REMOVEDIR        : constant := 500;
    AT_EACCESS          : constant := 512;
 
    --  Exit the callee thread, flushing open files.
@@ -715,6 +718,7 @@ package Userland.Syscall is
       (Dir_FD    : Unsigned_64;
        Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
+       Flags     : Unsigned_64;
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
 

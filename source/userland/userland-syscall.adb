@@ -2908,9 +2908,11 @@ package body Userland.Syscall is
       (Dir_FD    : Unsigned_64;
        Path_Addr : Unsigned_64;
        Path_Len  : Unsigned_64;
+       Flags     : Unsigned_64;
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
+      Do_Dirs    : constant         Boolean := Flags = AT_REMOVEDIR;
       Curr_Proc  : constant             PID := Arch.Local.Get_Current_Process;
       Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
       Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
@@ -2943,7 +2945,7 @@ package body Userland.Syscall is
             return;
          end if;
 
-         VFS.Unlink (CWD_FS, CWD_Ino, Path, User, Success);
+         VFS.Unlink (CWD_FS, CWD_Ino, Path, User, Do_Dirs, Success);
          Translate_Status (Success, 0, Returned, Errno);
       end;
    exception
@@ -6550,6 +6552,7 @@ package body Userland.Syscall is
          when VFS.FS_Loop          => Errno := Error_File_Loop;
          when VFS.FS_Exists        => Errno := Error_Exists;
          when VFS.FS_Full          => Errno := Error_No_Space;
+         when VFS.FS_Not_Empty     => Errno := Error_Not_Empty;
       end case;
       Returned := Unsigned_64'Last;
    exception

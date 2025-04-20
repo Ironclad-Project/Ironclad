@@ -265,7 +265,8 @@ package VFS is
        FS_RO_Failure,    --  The FS is read-only, but write access is needed.
        FS_IO_Failure,    --  The underlying device errored out.
        FS_Loop,          --  Too many symlinks were encountered resolving path.
-       FS_Full);         --  The file or device is full.
+       FS_Full,          --  The file or device is full.
+       FS_Not_Empty);    --  A directory was to be removed with files inside.
 
    --  Open a file with an absolute path inside the mount.
    --  @param Key        Relative FS Handle to start opening.
@@ -370,12 +371,14 @@ package VFS is
    --  @param Relative Relative directory inode to unlink from.
    --  @param Path     Absolute path inside the mount, must exist.
    --  @param User     UID to check against, 0 for root/bypass checks.
+   --  @param Do_Dir   If true, unlink directories if empty, else, fail on dir.
    --  @param Status   Status for the operation.
    procedure Unlink
       (Key      : FS_Handle;
        Relative : File_Inode_Number;
        Path     : String;
        User     : Unsigned_32;
+       Do_Dir   : Boolean;
        Status   : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 

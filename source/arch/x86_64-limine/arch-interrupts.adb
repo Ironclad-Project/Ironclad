@@ -111,7 +111,8 @@ package body Arch.Interrupts is
          when 15 =>
             Set_Hostname (State.RDI, State.RSI, Returned, Errno);
          when 16 =>
-            Unlink (State.RDI, State.RSI, State.RDX, Returned, Errno);
+            Unlink (State.RDI, State.RSI, State.RDX, State.R12, Returned,
+                    Errno);
          when 17 =>
             FStat (State.RDI, State.RSI, State.RDX, State.R12,
                    State.R8, Returned, Errno);

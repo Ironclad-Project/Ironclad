@@ -1133,6 +1133,9 @@ The issued operation was out of capacity bounds.
 @item ENOSYS (1051)
 The requested syscall or flag is not implemented.
 
+@item ENOTEMPTY (1054)
+A non-empty directory was attempted to be removed.
+
 @item ENOTTY (1058)
 The passed argument is not a TTY.
 
@@ -1642,17 +1645,27 @@ returned on success and @code{-1} on failure, with the following errno:
 @section unlink
 
 @example c
-int unlink(int dir_fd, const char *path, int path_len);
+#define AT_REMOVEDIR 500
+
+int unlink(int dir_fd, const char *path, int path_len, flags);
 @end example
 
 The syscall queues for deletion the file pointed to by @code{path}. If
-@code{path} points to a directory, it must be empty.
+@code{path} points to a directory, it will fail unless @code{AT_REMOVEDIR} is
+passed in @code{flags}, in which case it will only remove it if the directory
+is empty.
 
 The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 
 @itemize @bullet
 @item
-@code{ENOENT}: @code{delete} points to a file not valid for deletion, if at all.
+@code{ENOENT}: @code{delete} points to a file not valid for deletion.
+@item
+@code{ENOTEMPTY}: A directory was attempted to be removed with
+@code{AT_REMOVEDIR}, and it was not empty.
+@item
+@code{EISDIR}: A directory was passed for unlinking with no
+@code{AT_REMOVEDIR}.
 @end itemize
 
 @node fstat
