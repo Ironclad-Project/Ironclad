@@ -2221,10 +2221,10 @@ package body Userland.Syscall is
                   goto Invalid_Return;
                end if;
 
-               Proc := Convert (Natural (Lock.PID));
-               IW   := Lock.Lock_Type = F_WRLCK;
+               IW := Lock.Lock_Type = F_WRLCK;
 
                if Command = F_GETLK then
+                  Proc := Convert (Natural (Lock.PID));
                   IPC.FileLock.Could_Acquire_Lock
                      (Acquired_FS  => File.Inner_Ino_FS,
                       Acquired_Ino => File.Inner_Ino,
