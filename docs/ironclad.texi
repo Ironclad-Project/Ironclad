@@ -208,6 +208,7 @@ Syscalls
 * listpci::                 List the system's PCI devices.
 * getcpuinfo::              List system CPU information.
 * socketpair::              Comfortably create a pair of pipe-like sockets.
+* madvise::                 Give optimization hints for memory ranges.
 
 Networking
 
@@ -4307,6 +4308,47 @@ arguments are the same as the parent @code{socket} syscall.
 
 This syscall returns @code{0} on success and @code{-1} on failure, and shares
 errnos with the main @code{socket} syscall.
+
+@node madvise
+@section madvise
+
+@example c
+#define POSIX_MADV_NORMAL     1
+#define POSIX_MADV_SEQUENTIAL 2
+#define POSIX_MADV_RANDOM     3
+#define POSIX_MADV_DONTNEED   4
+#define POSIX_MADV_WILLNEED   5
+
+int madvise(void *addr, size_t len, int advice);
+@end example
+
+This syscall gives a hint to the operating system on how the user plans to use
+the memory range. No access information is changed, this is just a hint for
+the operating system to do stuff with.
+
+@code{advice} can be one of:
+@table @code
+@item POSIX_MADV_NORMAL
+Average access. The equivalent of not advising anything.
+
+@item POSIX_MADV_SEQUENTIAL
+Memory will be accessed sequentially from bottom to top.
+
+@item POSIX_MADV_RANDOM
+Memory will be accessed with no real pattern, all over the place.
+
+@item POSIX_MADV_DONTNEED
+This memory range is not needed anymore.
+
+@item POSIX_MADV_WILLNEED
+This memory range will be needed shortly.
+@end table
+
+This syscall returns @code{0} on success and @code{-1} on failure, with errno:
+@table @code
+@item EFAULT
+The passed buffers were pointing to invalid memory.
+@end table
 
 @node Networking
 @chapter Networking

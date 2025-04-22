@@ -1310,6 +1310,18 @@ package Userland.Syscall is
        FDs      : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
+
+   POSIX_MADV_NORMAL     : constant := 1;
+   POSIX_MADV_SEQUENTIAL : constant := 2;
+   POSIX_MADV_RANDOM     : constant := 3;
+   POSIX_MADV_DONTNEED   : constant := 4;
+   POSIX_MADV_WILLNEED   : constant := 5;
+   procedure MAdvise
+      (Addr     : Unsigned_64;
+       Size     : Unsigned_64;
+       Advice   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Exit the current process in a POSIX standard-compliant way with the
    --  provided code.

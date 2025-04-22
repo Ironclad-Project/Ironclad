@@ -6422,6 +6422,19 @@ package body Userland.Syscall is
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Socket_Pair;
+
+   procedure MAdvise
+      (Addr     : Unsigned_64;
+       Size     : Unsigned_64;
+       Advice   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      pragma Unreferenced (Addr, Size, Advice);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end MAdvise;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin
