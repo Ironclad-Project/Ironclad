@@ -674,13 +674,27 @@ package body VFS.EXT with SPARK_Mode => Off is
          end if;
       end if;
 
+      --  Nuke the original directory entry.
+      Delete_Directory_Entry
+         (FS_Data     => Data,
+          Inode_Data  => Source_Parent_Inode.all,
+          Inode_Size  => Get_Size (Source_Parent_Inode.all,
+                                   Data.Has_64bit_Filesizes),
+          Inode_Index => Source_Parent_Index,
+          Added_Index => Source_Index,
+          Success     => Success1);
+      if not Success1 then
+         Status := FS_IO_Failure;
+         goto Cleanup;
+      end if;
+
       --  Add the directory entry on its place.
       Add_Directory_Entry
          (FS_Data     => Data,
           Inode_Data  => Target_Parent_Inode.all,
           Inode_Size  => Target_Parent_Size,
           Inode_Index => Target_Parent_Index,
-          Added_Index => Target_Index,
+          Added_Index => Source_Index,
           Dir_Type    => Get_Dir_Type (File_Regular),
           Name        => Last_Component.all,
           Success     => Success1);
