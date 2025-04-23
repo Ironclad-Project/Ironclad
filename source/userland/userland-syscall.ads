@@ -55,6 +55,7 @@ package Userland.Syscall is
        Error_No_Space,        --  ENOSPC
        Error_Not_Implemented, --  ENOSYS
        Error_Not_Connected,   --  ENOTCONN
+       Error_Not_Directory,   --  ENOTDIR
        Error_Not_Empty,       --  ENOTEMPTY
        Error_Not_A_TTY,       --  ENOTTY
        Error_Not_Supported,   --  ENOTSUPP
@@ -85,6 +86,7 @@ package Userland.Syscall is
        Error_No_Space        => 1050,
        Error_Not_Implemented => 1051,
        Error_Not_Connected   => 1052,
+       Error_Not_Directory   => 1053,
        Error_Not_Empty       => 1054,
        Error_Not_A_TTY       => 1058,
        Error_Not_Supported   => 1060,

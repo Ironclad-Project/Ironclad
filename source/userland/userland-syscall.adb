@@ -1205,7 +1205,7 @@ package body Userland.Syscall is
       Userland.Process.Get_Effective_UID (Proc, User);
       VFS.Stat (Desc.Inner_Ino_FS, Desc.Inner_Ino, St, Succ);
       if Succ /= VFS.FS_Success or else St.Type_Of_File /= File_Directory then
-         Errno    := Error_Bad_File;
+         Errno    := Error_Not_Directory;
          Returned := Unsigned_64'Last;
          return;
       end if;

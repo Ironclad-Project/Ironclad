@@ -1134,6 +1134,12 @@ The issued operation was out of capacity bounds.
 @item ENOSYS (1051)
 The requested syscall or flag is not implemented.
 
+@item ENOTCONN (1052)
+An operation on a connected socket was issued on an unconnected one.
+
+@item ENOTDIR (1053)
+An operation only for directories was issued for a non-directory.
+
 @item ENOTEMPTY (1054)
 A non-empty directory was attempted to be removed.
 
