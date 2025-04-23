@@ -2639,13 +2639,6 @@ package body VFS.EXT with SPARK_Mode => Off is
 
             if Available >= Required then
                Ent.Entry_Count := Unsigned_16 (Contracted);
-               if Offset + Buffer'First + Offset + Natural (Contracted) >
-                  Buffer'Length
-               then
-                  --  FIXME: This fails on certain directory setups, fix that.
-                  Success := False;
-                  goto Cleanup;
-               end if;
 
                declare
                   Ent2 : Directory_Entry with Import, Address =>
@@ -2681,6 +2674,7 @@ package body VFS.EXT with SPARK_Mode => Off is
          end;
       end loop;
 
+      Lib.Messages.Put_Line ("We dont support growing directory inodes");
       Success := False;
 
    <<Cleanup>>
