@@ -17,7 +17,7 @@
 with Lib.Synchronization;
 
 package Devices.NVMe with SPARK_Mode => Off is
-   function Init return Boolean;
+   procedure Init (Success : out Boolean);
 
 private
    pragma Warnings (Off, "size clause forces biased representation");

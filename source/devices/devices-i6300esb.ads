@@ -18,7 +18,7 @@ with Arch.PCI;
 
 package Devices.i6300ESB is
    --  Initialize the device.
-   function Init return Boolean;
+   procedure Init (Success : out Boolean);
 
 private
 

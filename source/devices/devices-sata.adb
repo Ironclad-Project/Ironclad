@@ -30,25 +30,27 @@ package body Devices.SATA with SPARK_Mode => Off is
    package C3 is new System.Address_To_Access_Conversions (FIS_Host_To_Device);
    package A  is new Lib.Alignment (Unsigned_64);
 
-   function Init return Boolean is
+   procedure Init (Success : out Boolean) is
       PCI_Dev    : Arch.PCI.PCI_Device;
       PCI_BAR    : Arch.PCI.Base_Address_Register;
       Drive_Data : SATA_Data_Acc;
       Mem_Addr   : Integer_Address;
       Dev_Mem    : HBA_Memory_Acc;
       Drive_Idx  : Natural := 0;
-      Success    : Boolean;
       Base_Name  : constant String := "sata";
    begin
+      Success := True;
       for Idx in 1 .. Arch.PCI.Enumerate_Devices (1, 6, 1) loop
          Arch.PCI.Search_Device (1, 6, 1, Idx, PCI_Dev, Success);
          if not Success then
-            return True;
+            Success := True;
+            return;
          end if;
 
          Arch.PCI.Get_BAR (PCI_Dev, 5, PCI_BAR, Success);
          if not Success or else not PCI_BAR.Is_MMIO then
-            return True;
+            Success := True;
+            return;
          end if;
 
          Arch.PCI.Enable_Bus_Mastering (PCI_Dev);
@@ -70,7 +72,7 @@ package body Devices.SATA with SPARK_Mode => Off is
              Success        => Success,
              Caching        => Arch.MMU.Uncacheable);
          if not Success then
-            return False;
+            return;
          end if;
 
          for I in 1 .. Ports_Per_Controller loop
@@ -99,17 +101,16 @@ package body Devices.SATA with SPARK_Mode => Off is
                      not Partitions.Parse_Partitions
                         (Final_Name, Fetch (Final_Name))
                   then
-                     return False;
+                     Success := False;
+                     return;
                   end if;
                end;
             end if;
          end loop;
       end loop;
-
-      return True;
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Init;
 
    function Init_Port (M : HBA_Memory_Acc; I : Natural) return SATA_Data_Acc is

@@ -38,7 +38,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
 
    package A  is new Lib.Alignment (Unsigned_64);
 
-   function Init return Boolean is
+   procedure Init (Success : out Boolean) is
       PCI_Dev : Arch.PCI.PCI_Device;
       PCI_BAR : Arch.PCI.Base_Address_Register;
 
@@ -60,18 +60,19 @@ package body Devices.NVMe with SPARK_Mode => Off is
       Namespace_List : Active_Namespace_Id_List_Acc;
 
       Drive_Idx : Natural := 0;
-
-      Success : Boolean;
    begin
+      Success := True;
       for Idx in 1 .. Arch.PCI.Enumerate_Devices (1, 8, 2) loop
          Arch.PCI.Search_Device (1, 8, 2, Idx, PCI_Dev, Success);
          if not Success then
-            return True;
+            Success := True;
+            return;
          end if;
 
          Arch.PCI.Get_BAR (PCI_Dev, 0, PCI_BAR, Success);
          if not Success or else not PCI_BAR.Is_MMIO then
-            return True;
+            Success := True;
+            return;
          end if;
 
          Arch.PCI.Enable_Bus_Mastering (PCI_Dev);
@@ -97,7 +98,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
              Success        => Success,
              Caching        => Arch.MMU.Uncacheable);
          if not Success then
-            return False;
+            return;
          end if;
 
          Controller_Caps := Dev_Mem.Controller_Capabilities;
@@ -110,7 +111,8 @@ package body Devices.NVMe with SPARK_Mode => Off is
              Natural (Controller_Caps.Memory_Page_Size_Maximum))
              < Unsigned_64 (Arch.MMU.Page_Size))
          then
-            return False;
+            Success := True;
+            return;
          end if;
 
          if (Controller_Caps.Command_Sets_Supported and Unsigned_8 (1)) = 0
@@ -142,7 +144,8 @@ package body Devices.NVMe with SPARK_Mode => Off is
                ("NVMe controller uses non-standard SQ Entry size, skipping.");
             Memory.Physical.Free
                (size_t (To_Integer (Ctrl_Identify.all'Address)));
-            return False;
+            Success := True;
+            return;
          end if;
 
          if Ctrl_Identify.Completion_Queue_Entry_Size /= 16#44# then
@@ -150,7 +153,8 @@ package body Devices.NVMe with SPARK_Mode => Off is
                ("NVMe controller uses non-standard CQ Entry size, skipping.");
             Memory.Physical.Free
                (size_t (To_Integer (Ctrl_Identify.all'Address)));
-            return False;
+            Success := True;
+            return;
          end if;
 
          Memory.Physical.Free
@@ -182,11 +186,9 @@ package body Devices.NVMe with SPARK_Mode => Off is
             end loop;
          end if;
       end loop;
-
-      return True;
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Init;
 
    procedure Request_IO_Queues

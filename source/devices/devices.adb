@@ -30,6 +30,13 @@ package body Devices is
 
    procedure Init is
       pragma SPARK_Mode (Off); --  Some devices here are not verified.
+
+      type Driver_Callback is access procedure (Success : out Boolean);
+      Drivers : constant array (1 .. 8) of Driver_Callback :=
+         [Console.Init'Access, i6300ESB.Init'Access, KVM.Init'Access,
+          Loopback.Init'Access, NVMe.Init'Access, SATA.Init'Access,
+          Streams.Init'Access, TTY.Init'Access];
+
       Success : Boolean;
    begin
       Devices_Data := new Device_Arr;
@@ -37,20 +44,14 @@ package body Devices is
          Dev.Is_Present := False;
       end loop;
 
-      Console.Init (Success);
-      if not Success then goto Panic_Error; end if;
-      KVM.Init (Success);
-      if not Success then goto Panic_Error; end if;
-      Loopback.Init (Success);
-      if not Success then goto Panic_Error; end if;
-      Streams.Init (Success);
-      if not Success then goto Panic_Error; end if;
-      TTY.Init (Success);
-      if not Success then goto Panic_Error; end if;
+      for Driver of Drivers loop
+         Driver.all (Success);
+         if not Success then
+            goto Panic_Error;
+         end if;
+      end loop;
 
-      Success := Devices.NVMe.Init and then Devices.SATA.Init;
-      Success := Success and then Devices.i6300ESB.Init;
-      if not Success or else not Arch.Hooks.Devices_Hook then
+      if not Arch.Hooks.Devices_Hook then
          goto Panic_Error;
       end if;
 

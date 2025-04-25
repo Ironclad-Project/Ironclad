@@ -27,8 +27,7 @@ package body Devices.i6300ESB is
 
    package Con is new System.Address_To_Access_Conversions (Dog_Data);
 
-   function Init return Boolean is
-      Success  : Boolean;
+   procedure Init (Success : out Boolean) is
       Data     : Dog_Data_Acc;
       PCI_Dev  : Arch.PCI.PCI_Device;
       PCI_BAR  : Arch.PCI.Base_Address_Register;
@@ -36,11 +35,13 @@ package body Devices.i6300ESB is
    begin
       Arch.PCI.Search_Device (16#8#, 16#80#, 0, 1, PCI_Dev, Success);
       if not Success then
-         return True;
+         Success := True;
+         return;
       end if;
       Arch.PCI.Get_BAR (PCI_Dev, 0, PCI_BAR, Success);
       if not Success or else not PCI_BAR.Is_MMIO then
-         return True;
+         Success := True;
+         return;
       end if;
 
       Mem_Addr := Memory_Offset + PCI_BAR.Base;
@@ -58,7 +59,7 @@ package body Devices.i6300ESB is
           Caching        => Arch.MMU.Uncacheable,
           Success        => Success);
       if not Success then
-         return False;
+         return;
       end if;
 
       Data := new Dog_Data'
@@ -89,10 +90,9 @@ package body Devices.i6300ESB is
            Mmap        => null,
            Poll        => null,
            Remove      => null), "i6300esb", Success);
-      return Success;
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Init;
    ----------------------------------------------------------------------------
    procedure Write

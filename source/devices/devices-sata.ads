@@ -18,7 +18,7 @@ with Lib.Synchronization;
 
 package Devices.SATA with SPARK_Mode => Off is
    --  Probe for ATA drives and add em.
-   function Init return Boolean;
+   procedure Init (Success : out Boolean);
 
 private
 
