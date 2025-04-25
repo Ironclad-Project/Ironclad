@@ -695,7 +695,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Inode_Size  => Target_Parent_Size,
           Inode_Index => Target_Parent_Index,
           Added_Index => Source_Index,
-          Dir_Type    => Get_Dir_Type (File_Regular),
+          Dir_Type => Get_Dir_Type (Get_Inode_Type (Source_Inode.Permissions)),
           Name        => Last_Component.all,
           Success     => Success1);
 
