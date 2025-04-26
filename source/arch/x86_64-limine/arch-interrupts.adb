@@ -32,6 +32,7 @@ with Userland.Process;
 package body Arch.Interrupts is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
    is
+      Signal : Userland.Process.Signal;
       Exception_Text : constant array (0 .. 30) of String (1 .. 3) :=
          [0  => "#DE", 1  => "#DB", 2  => "???", 3  => "#BP",
           4  => "#OF", 5  => "#BR", 6  => "#UD", 7  => "#NM",
@@ -44,10 +45,16 @@ package body Arch.Interrupts is
    begin
       --  Check whether we have to panic or just exit the thread.
       if State.CS = (GDT.User_Code64_Segment or 3) then
-         Lib.Messages.Put_Line ("Userland " & Exception_Text (Num));
+         Signal := (case Num is
+            when       6 => Userland.Process.Signal_Illegal_Instruction,
+            when 16 | 19 => Userland.Process.Signal_FP_Exception,
+            when  others => Userland.Process.Signal_Segmentation_Fault);
+
+         Lib.Messages.Put_Line
+            ("Userland " & Exception_Text (Num) &
+             " (" & Userland.Process.Signal'Image (Signal) & ")");
          Userland.Corefile.Generate_Corefile (Context.GP_Context (State.all));
-         Do_Exit (Local.Get_Current_Process,
-                  Userland.Process.Signal_Segmentation_Fault);
+         Do_Exit (Local.Get_Current_Process, Signal);
       else
          Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Num), State.all);
       end if;
