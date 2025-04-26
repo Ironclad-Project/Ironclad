@@ -1978,21 +1978,21 @@ package body Userland.Syscall is
    end List_PCI;
 
    procedure Spawn
-      (Path_Addr : Unsigned_64;
-       Path_Len  : Unsigned_64;
-       Argv_Addr : Unsigned_64;
-       Argv_Len  : Unsigned_64;
-       Envp_Addr : Unsigned_64;
-       Envp_Len  : Unsigned_64;
-       Caps_Addr : Unsigned_64;
-       Returned  : out Unsigned_64;
-       Errno     : out Errno_Value)
+      (Addr     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
    is
       Proc    : constant PID := Arch.Local.Get_Current_Process;
       Success : Boolean;
       Child   : PID;
       Map     : Page_Table_Acc;
+      IAddr   : constant Integer_Address := Integer_Address (Addr);
+      SAddr   : constant  System.Address := To_Address (IAddr);
    begin
+      if not Check_Userland_Access (Map, IAddr, Spawn_Argument'Size / 8) then
+         goto Error_Fault;
+      end if;
+
       Create_Process (Proc, Child);
       if Child = Error_PID then
          Errno    := Error_Would_Block;
@@ -2004,39 +2004,50 @@ package body Userland.Syscall is
       Get_Common_Map (Proc, Map);
       Set_Common_Map (Child, Map);
 
-      Exec_Into_Process
-         (Path_Addr => Path_Addr,
-          Path_Len  => Path_Len,
-          Argv_Addr => Argv_Addr,
-          Argv_Len  => Argv_Len,
-          Envp_Addr => Envp_Addr,
-          Envp_Len  => Envp_Len,
-          Proc      => Child,
-          Success   => Success,
-          Errno     => Errno);
-      if not Success then
-         Errno    := Error_Bad_Access;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
+      declare
+         Arg : Spawn_Argument with Import, Address => SAddr;
+      begin
+         Exec_Into_Process
+            (Path_Addr => Arg.Path_Addr,
+             Path_Len  => Arg.Path_Len,
+             Argv_Addr => Arg.Argv_Addr,
+             Argv_Len  => Arg.Argv_Len,
+             Envp_Addr => Arg.Envp_Addr,
+             Envp_Len  => Arg.Envp_Len,
+             Proc      => Child,
+             Success   => Success,
+             Errno     => Errno);
+         if not Success then
+            Errno    := Error_Bad_Access;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
 
-      if Caps_Addr /= 0 then
-         declare
-            CIAddr : constant Integer_Address := Integer_Address (Caps_Addr);
-            Caps   : Unsigned_64 with Import, Address => To_Address (CIAddr);
-         begin
-            if Check_Userland_Access (Map, CIAddr, Unsigned_64'Size / 8) then
-               Set_MAC_Capabilities (Child, Caps);
-            else
-               Errno    := Error_Would_Fault;
-               Returned := Unsigned_64'Last;
-               return;
-            end if;
-         end;
-      end if;
+         if Arg.Caps_Addr /= 0 then
+            declare
+               C : constant Integer_Address := Integer_Address (Arg.Caps_Addr);
+               Caps : Unsigned_64 with Import, Address => To_Address (C);
+            begin
+               if Check_Userland_Access (Map, C, Unsigned_64'Size / 8) then
+                  Set_MAC_Capabilities (Child, Caps);
+               else
+                  goto Error_Fault;
+               end if;
+            end;
+         end if;
+      end;
 
       Errno    := Error_No_Error;
       Returned := Unsigned_64 (Convert (Child));
+      return;
+
+   <<Error_Fault>>
+      Errno    := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Spawn;
 
    procedure Get_TID (Returned : out Unsigned_64; Errno : out Errno_Value) is

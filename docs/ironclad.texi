@@ -2106,22 +2106,36 @@ The errno codes set on failure are:
 @section spawn
 
 @example c
-pid_t spawn(const char *path, int path_len, char *const argv[],
-   int argv_len, char *const envp[], int envp_len, uint64_t *caps);
+struct spawn_args @{
+    const char *path;
+    int path_len;
+    char **argv;
+    int argv_len;
+    char **envp;
+    int envp_len;
+    uint64_t *caps;
+    void *file_actions;
+    uint64_t file_action_count;
+    void *spawn_actions;
+    uint64_t spawn_action_count;
+@};
+
+pid_t spawn(struct spawn_args *args);
 @end example
 
 This syscall spawns a child process in a way similar to what a
-@code{clone}+@code{exec} could be used for, but more efficiently, given it
+@code{fork}+@code{exec} could be used for, but more efficiently, given it
 doesn't need to copy the address space just to overwrite it.
 
 File descriptors are copied and treated the same way a @code{fork} followed
 by an @code{exec} call would. That is, @code{FD_CLOEXEC} FDs are closed, and
 @code{FD_CLOFORK} FDs are not carried over.
 
-The argument @code{caps}, if not @code{NULL}, points to a capability set in
-the same format as @ref{mac_capabilities}. This can be useful for deescalating
-capabilities in the same convenient way as a call to @code{mac_capabilities} in
-between @code{clone} and @code{exec} could.
+The arguments for the call are passed on @code{args}. Inside args, @code{caps},
+if not @code{NULL}, points to a capability set in the same format as
+@ref{mac_capabilities}. This can be useful for deescalating capabilities in the
+same convenient way as a call to @code{mac_capabilities} in between
+@code{fork} and @code{exec} could.
 
 The syscall returns the created PID on success and @code{0} on failure, with
 the errno codes being:
