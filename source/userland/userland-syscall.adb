@@ -6757,7 +6757,7 @@ package body Userland.Syscall is
          --  Create a new map for the process and reroll ASLR.
          Userland.Process.Flush_Exec_Files (Proc);
          Userland.Process.Reassign_Process_Addresses (Proc);
-         Arch.MMU.Fork_Table (Arch.MMU.Kernel_Table, Map);
+         Arch.MMU.Create_Table (Map);
          Set_Common_Map (Proc, Map);
          Set_Identifier (Proc, Args (1).all);
 

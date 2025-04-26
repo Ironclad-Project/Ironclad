@@ -60,7 +60,7 @@ package body Userland.Loader is
          goto Error;
       end if;
 
-      Arch.MMU.Fork_Table (Arch.MMU.Kernel_Table, Table);
+      Arch.MMU.Create_Table (Table);
       Process.Set_Common_Map (Result, Table);
 
       Start_Program (Exec_Path, FS, Ino, Arguments, Environment, Result,

@@ -66,6 +66,10 @@ package Arch.MMU is
    function Init (Memmap : Arch.Boot_Memory_Map) return Boolean
       with Post => (not Init'Result xor Kernel_Table /= null);
 
+   --  Create a new page table ready for switching.
+   --  @param New_Map New map, or null on failure.
+   procedure Create_Table (New_Map : out Page_Table_Acc);
+
    --  Create a new page table, which should be ready for switching to and
    --  allowing all kernel data to be accessed.
    --  @param Map Table to fork.

@@ -162,6 +162,20 @@ package body Arch.MMU is
          return False;
    end Init;
 
+   procedure Create_Table (New_Map : out Page_Table_Acc) is
+   begin
+      Lib.Synchronization.Seize_Reader (Kernel_Table.Mutex);
+      New_Map := new Page_Table'
+         (PML4_Level      => [others => 0],
+          Mutex           => Lib.Synchronization.Unlocked_RW_Lock,
+          Map_Ranges_Root => null);
+      New_Map.PML4_Level (257 .. 512) := Kernel_Table.PML4_Level (257 .. 512);
+      Lib.Synchronization.Release_Reader (Kernel_Table.Mutex);
+   exception
+      when Constraint_Error =>
+         New_Map := null;
+   end Create_Table;
+
    procedure Fork_Table (Map : Page_Table_Acc; Forked : out Page_Table_Acc) is
       type Page_Data is array (Storage_Count range <>) of Unsigned_8;
 

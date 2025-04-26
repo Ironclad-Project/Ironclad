@@ -21,6 +21,11 @@ package body Arch.MMU is
       return True;
    end Init;
 
+   procedure Create_Table (New_Map : out Page_Table_Acc) is
+   begin
+      New_Map := null;
+   end Create_Table;
+
    procedure Fork_Table (Map : Page_Table_Acc; Forked : out Page_Table_Acc) is
       pragma Unreferenced (Map);
    begin
