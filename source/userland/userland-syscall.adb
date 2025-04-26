@@ -1989,6 +1989,7 @@ package body Userland.Syscall is
       IAddr   : constant Integer_Address := Integer_Address (Addr);
       SAddr   : constant  System.Address := To_Address (IAddr);
    begin
+      Get_Common_Map (Proc, Map);
       if not Check_Userland_Access (Map, IAddr, Spawn_Argument'Size / 8) then
          goto Error_Fault;
       end if;
@@ -2001,7 +2002,6 @@ package body Userland.Syscall is
       end if;
 
       Duplicate_FD_Table (Proc, Child);
-      Get_Common_Map (Proc, Map);
       Set_Common_Map (Child, Map);
 
       declare
