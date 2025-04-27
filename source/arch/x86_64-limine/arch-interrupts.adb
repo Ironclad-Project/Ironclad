@@ -143,8 +143,6 @@ package body Arch.Interrupts is
                     State.R8, State.R9, State.R10, Returned, Errno);
          when 26 =>
             List_Procs (State.RDI, State.RSI, Returned, Errno);
-         when 27 =>
-            Spawn (State.RDI, Returned, Errno);
          when 28 =>
             Get_TID (Returned, Errno);
          when 29 =>

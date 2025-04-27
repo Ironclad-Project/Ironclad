@@ -132,7 +132,6 @@ Syscalls
 * pipe::                    Create pipes.
 * rename::                  Rename a file.
 * listprocs::               List system processes.
-* spawn::                   clone+exec power incarnate.
 * gettid::                  Get the current thread id.
 * manage_tcluster::         Manage and create thread clusters.
 * fcntl::                   Multiplexed operations for files.
@@ -876,7 +875,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{listprocs}.
 @item
-@ref{spawn}.
+Empty.
 @item
 @ref{gettid}.
 @item
@@ -2100,55 +2099,6 @@ The errno codes set on failure are:
 @itemize @bullet
 @item
 @code{EINVAL}: Invalid request.
-@end itemize
-
-@node spawn
-@section spawn
-
-@example c
-struct spawn_args @{
-    const char *path;
-    int path_len;
-    char **argv;
-    int argv_len;
-    char **envp;
-    int envp_len;
-    uint64_t *caps;
-    void *file_actions;
-    uint64_t file_action_count;
-    void *spawn_actions;
-    uint64_t spawn_action_count;
-@};
-
-pid_t spawn(struct spawn_args *args);
-@end example
-
-This syscall spawns a child process in a way similar to what a
-@code{fork}+@code{exec} could be used for, but more efficiently, given it
-doesn't need to copy the address space just to overwrite it.
-
-File descriptors are copied and treated the same way a @code{fork} followed
-by an @code{exec} call would. That is, @code{FD_CLOEXEC} FDs are closed, and
-@code{FD_CLOFORK} FDs are not carried over.
-
-The arguments for the call are passed on @code{args}. Inside args, @code{caps},
-if not @code{NULL}, points to a capability set in the same format as
-@ref{mac_capabilities}. This can be useful for deescalating capabilities in the
-same convenient way as a call to @code{mac_capabilities} in between
-@code{fork} and @code{exec} could.
-
-The syscall returns the created PID on success and @code{0} on failure, with
-the errno codes being:
-
-@itemize @bullet
-@item
-@code{EAGAIN}: The system could not create the process right now.
-
-@item
-@code{EFAULT}: One or more of the passed arguments point to invalid memory.
-
-@item
-@code{EACCES}: MAC disallowed this.
 @end itemize
 
 @node gettid

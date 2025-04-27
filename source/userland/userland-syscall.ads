@@ -513,27 +513,6 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
-   --  Spawn a process just like clone+exec would.
-   --  Main argument.
-   type Spawn_Argument is record
-      Path_Addr         : Unsigned_64;
-      Path_Len          : Unsigned_64;
-      Argv_Addr         : Unsigned_64;
-      Argv_Len          : Unsigned_64;
-      Envp_Addr         : Unsigned_64;
-      Envp_Len          : Unsigned_64;
-      Caps_Addr         : Unsigned_64;
-      File_Actions_Addr : Unsigned_64;
-      File_Actions_Len  : Unsigned_64;
-      Spawn_Attrib_Addr : Unsigned_64;
-      Spawn_Attrib_Len  : Unsigned_64;
-   end record;
-
-   procedure Spawn
-      (Addr     : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
-
    --  Get the current thread id.
    procedure Get_TID (Returned : out Unsigned_64; Errno : out Errno_Value);
 
