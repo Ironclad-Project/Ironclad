@@ -210,9 +210,12 @@ package Userland.Syscall is
        Errno     : out Errno_Value);
 
    --  Create processes and threads with different flavours.
+   FORK_VFORK : constant := 2#1#;
    procedure Fork
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
+       Flags    : Unsigned_64;
+       Cluster  : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 

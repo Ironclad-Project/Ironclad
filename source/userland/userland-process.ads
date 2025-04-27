@@ -275,6 +275,14 @@ package Userland.Process is
    procedure Set_Niceness (Process : PID; Nice : Scheduler.Niceness)
       with Pre => Process /= Error_PID;
 
+   --  Get a mark to know whether the process has been vforked.
+   procedure Pop_VFork_Marker (Process : PID; Marked : out Boolean)
+      with Pre => Process /= Error_PID;
+
+   --  Set a mark to know whether the process has been vforked.
+   procedure Set_VFork_Marker (Process : PID)
+      with Pre => Process /= Error_PID;
+
    --  Check whether a file is registered in a process.
    --  @param Process Process to check.
    --  @param FD      FD to check.
@@ -714,6 +722,7 @@ private
       Perms           : MAC.Context;
       Signal_Exit     : Boolean;
       Which_Signal    : Signal;
+      VFork_Mark      : Boolean;
       Did_Exit        : Boolean;
       Exit_Code       : Unsigned_8;
       Children_SSec   : Unsigned_64;

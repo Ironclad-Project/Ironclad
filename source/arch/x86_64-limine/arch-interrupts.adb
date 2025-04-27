@@ -107,7 +107,7 @@ package body Arch.Interrupts is
                   State.R12, State.R8, State.R9, Returned, Errno);
          when 12 =>
             Context.Init_FP_Context (FP_State);
-            Fork (State.all, FP_State, Returned, Errno);
+            Fork (State.all, FP_State, State.RDI, State.RSI, Returned, Errno);
             if Errno /= Error_No_Error then
                Context.Destroy_FP_Context (FP_State);
             end if;

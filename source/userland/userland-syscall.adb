@@ -776,8 +776,12 @@ package body Userland.Syscall is
 
          if Success and then Arch.MMU.Make_Active (Map) then
             --  Free critical state now that we know wont be running.
+            --  Of course dont remove the map if we are vforked.
             Userland.Process.Remove_Thread (Proc, Th);
-            Arch.MMU.Destroy_Table (Orig);
+            Pop_VFork_Marker (Proc, Success);
+            if not Success then
+               Arch.MMU.Destroy_Table (Orig);
+            end if;
             Scheduler.Bail;
          else
             Errno    := Error_Bad_Access;
@@ -793,6 +797,8 @@ package body Userland.Syscall is
    procedure Fork
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
+       Flags    : Unsigned_64;
+       Cluster  : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
@@ -804,6 +810,7 @@ package body Userland.Syscall is
       Id_Len  : Natural;
       Success : Boolean;
       Map, Table : Arch.MMU.Page_Table_Acc;
+      Do_VFORK : constant Boolean := (Flags and FORK_VFORK) /= 0;
    begin
       if not Get_Capabilities (Proc).Can_Spawn_Others then
          Errno := Error_Bad_Access;
@@ -821,9 +828,14 @@ package body Userland.Syscall is
       Set_Identifier (Child, Id (1 .. Id_Len));
 
       Get_Common_Map (Proc, Map);
-      Fork_Table (Map, Table);
-      if Table = null then
-         goto Block_Error;
+      if Do_VFORK then
+         Set_VFork_Marker (Child);
+         Table := Map;
+      else
+         Fork_Table (Map, Table);
+         if Table = null then
+            goto Block_Error;
+         end if;
       end if;
       Set_Common_Map (Child, Table);
 
@@ -832,7 +844,7 @@ package body Userland.Syscall is
          (GP_State => GP_State,
           FP_State => FP_State,
           Map      => Table,
-          Cluster  => Scheduler.Convert (1),
+          Cluster  => Scheduler.Convert (Natural (Cluster)),
           PID      => Convert (Child),
           TCB      => Arch.Local.Fetch_TCB,
           New_TID  => New_TID);
@@ -846,7 +858,15 @@ package body Userland.Syscall is
          goto Block_Error;
       end if;
 
-      Errno := Error_No_Error;
+      if Do_VFORK then
+         loop
+            Get_Common_Map (Child, Table);
+            exit when Table /= Map;
+            Scheduler.Yield_If_Able;
+         end loop;
+      end if;
+
+      Errno    := Error_No_Error;
       Returned := Ret;
       return;
 

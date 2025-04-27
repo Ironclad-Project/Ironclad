@@ -147,6 +147,7 @@ package body Userland.Process is
                 Which_Signal    => Signal_Kill,
                 Did_Exit        => False,
                 Exit_Code       => 0,
+                VFork_Mark      => False,
                 others          => 0);
 
             if Parent /= Error_PID then
@@ -484,6 +485,27 @@ package body Userland.Process is
       when Constraint_Error =>
          null;
    end Set_Niceness;
+
+   procedure Pop_VFork_Marker (Process : PID; Marked : out Boolean) is
+   begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
+      Marked := Registry (Process).VFork_Mark;
+      Registry (Process).VFork_Mark := False;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Marked := False;
+   end Pop_VFork_Marker;
+
+   procedure Set_VFork_Marker (Process : PID) is
+   begin
+      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
+      Registry (Process).VFork_Mark := True;
+      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_VFork_Marker;
 
    procedure Is_Valid_File
       (Process : PID;

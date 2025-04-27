@@ -1471,12 +1471,28 @@ This syscall only returns in failure with @code{-1} with the following errno:
 @section fork
 
 @example c
-pid_t fork();
+#define FORK_VFORK 0x1
+
+pid_t fork(int flags, int cluster);
 @end example
 
 This syscall creates a new process based on the parent process. The created
 process will only have 1 thread copying the caller one, and will be placed
-on the 1st thread cluster.
+on the passed thread cluster.
+
+@code{flags} is a bitmap that can be used to customize the forking operation,
+the values that can be passed are:
+
+@itemize @bullet
+@item
+@code{FORK_VFORK}: Instead of cloning the address space of the parent process.
+The child will use the same address space until an @code{exec} is done. During
+that time between @code{fork} and @code{exec}, the parent process will be
+halted. Thus, both processes will never share the same address space.
+
+This is provided for increased speed, as we can avoid copying memory just to
+trash it with exec.
+@end itemize
 
 This syscall returns @code{0} on success for the child, and the new child PID
 to the parent, in failure, the parent gets @code{-1} with the following errno:
