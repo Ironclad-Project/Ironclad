@@ -1362,18 +1362,6 @@ private
        Returned       : out Unsigned_64;
        Errno          : out Errno_Value);
 
-   --  Execute a path, with an argv and envp into the passed process.
-   procedure Exec_Into_Process
-      (Path_Addr : Unsigned_64;
-       Path_Len  : Unsigned_64;
-       Argv_Addr : Unsigned_64;
-       Argv_Len  : Unsigned_64;
-       Envp_Addr : Unsigned_64;
-       Envp_Len  : Unsigned_64;
-       Proc      : PID;
-       Success   : out Boolean;
-       Errno     : out Errno_Value);
-
    --  Go from C string to Ada string.
    function To_String (Addr : System.Address) return String_Acc;
 

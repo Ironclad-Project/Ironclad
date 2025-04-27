@@ -648,37 +648,146 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      Th      : constant TID := Arch.Local.Get_Current_Thread;
-      Proc    : constant PID := Arch.Local.Get_Current_Process;
-      Tmp_Map : Arch.MMU.Page_Table_Acc;
-      Fin_Map : Arch.MMU.Page_Table_Acc;
-      Success : Boolean;
-   begin
-      --  Flush our threads and keep the previous map just in case.
-      Userland.Process.Flush_Threads (Proc);
-      Get_Common_Map (Proc, Tmp_Map);
+      procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
+      type Arg_Arr is array (Natural range <>) of Unsigned_64;
 
-      Exec_Into_Process
-         (Path_Addr => Path_Addr,
-          Path_Len  => Path_Len,
-          Argv_Addr => Argv_Addr,
-          Argv_Len  => Argv_Len,
-          Envp_Addr => Envp_Addr,
-          Envp_Len  => Envp_Len,
-          Proc      => Proc,
-          Success   => Success,
-          Errno     => Errno);
-      if Success then
-         --  Free critical state now that we know wont be running.
-         Get_Common_Map (Proc, Fin_Map);
-         Success := Arch.MMU.Make_Active (Fin_Map);
-         Userland.Process.Remove_Thread (Proc, Th);
-         Arch.MMU.Destroy_Table (Tmp_Map);
-         Scheduler.Bail;
-      else
-         Set_Common_Map (Proc, Tmp_Map);
+      Th         : constant TID := Arch.Local.Get_Current_Thread;
+      Proc       : constant PID := Arch.Local.Get_Current_Process;
+      Map, Orig  : Arch.MMU.Page_Table_Acc;
+      Success    : Boolean;
+      Path_FS    : FS_Handle;
+      Path_Ino   : File_Inode_Number;
+      Rela_FS    : FS_Handle;
+      Rela_Ino   : File_Inode_Number;
+      Success2   : FS_Status;
+      File_St    : File_Stat;
+      File_Perms : MAC.Permissions;
+      User       : Unsigned_32;
+      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
+      Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
+      Argv_IAddr : constant Integer_Address := Integer_Address (Argv_Addr);
+      Argv_SAddr : constant  System.Address := To_Address (Argv_IAddr);
+      Envp_IAddr : constant Integer_Address := Integer_Address (Envp_Addr);
+      Envp_SAddr : constant  System.Address := To_Address (Envp_IAddr);
+   begin
+      --  Check the arguments are accessible.
+      Get_Common_Map (Proc, Orig);
+      if not Check_Userland_Access (Orig, Path_IAddr, Path_Len) or
+         not Check_Userland_Access (Orig, Argv_IAddr, Argv_Len) or
+         not Check_Userland_Access (Orig, Envp_IAddr, Envp_Len)
+      then
+         Errno    := Error_Would_Fault;
          Returned := Unsigned_64'Last;
+         return;
       end if;
+
+      Userland.Process.Get_Effective_UID (Proc, User);
+      Userland.Process.Get_CWD (Proc, Rela_FS, Rela_Ino);
+
+      declare
+         Path : String (1 .. Natural (Path_Len))
+            with Import, Address => Path_SAddr;
+      begin
+         Open
+            (Key        => Rela_FS,
+             Relative   => Rela_Ino,
+             Path       => Path,
+             Final_Key  => Path_FS,
+             Ino        => Path_Ino,
+             Success    => Success2,
+             User       => User,
+             Want_Read  => True,
+             Want_Write => False);
+         if Success2 /= VFS.FS_Success then
+            Errno    := Error_No_Entity;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         --  Open the exec file.
+         File_Perms := Check_Permissions (Proc, Path_FS, Path_Ino);
+         if not File_Perms.Can_Execute then
+            Errno := Error_Bad_Access;
+            Execute_MAC_Failure ("exec", Proc);
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+         VFS.Stat (Path_FS, Path_Ino, File_St, Success2);
+         if Success2 /= VFS.FS_Success then
+            Errno    := Error_IO;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+         if not VFS.Can_Access_File
+            (User       => User,
+             File_Owner => File_St.UID,
+             Mode       => File_St.Mode,
+             Want_Read  => True,
+             Want_Write => False,
+             Want_Exec  => True)
+         then
+            Errno    := Error_Bad_Access;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         declare
+            Argv : Arg_Arr (1 .. Natural (Argv_Len))
+               with Import, Address => Argv_SAddr;
+            Envp : Arg_Arr (1 .. Natural (Envp_Len))
+               with Import, Address => Envp_SAddr;
+            Args : Userland.Argument_Arr    (1 .. Argv'Length);
+            Env  : Userland.Environment_Arr (1 .. Envp'Length);
+         begin
+            for I in Argv'Range loop
+               Args (I) := To_String (To_Address (Integer_Address (Argv (I))));
+            end loop;
+            for I in Envp'Range loop
+               Env (I) := To_String (To_Address (Integer_Address (Envp (I))));
+            end loop;
+
+            --  Create a new map for the process and reroll ASLR.
+            Userland.Process.Flush_Threads (Proc);
+            Userland.Process.Flush_Exec_Files (Proc);
+            Userland.Process.Reassign_Process_Addresses (Proc);
+            Arch.MMU.Create_Table (Map);
+            Set_Common_Map (Proc, Map);
+            if Args'Length > 0 then
+               Set_Identifier (Proc, Args (1).all);
+            end if;
+
+            --  Start the actual program.
+            Userland.Loader.Start_Program
+               (Exec_Path   => Path,
+                FS          => Path_FS,
+                Ino         => Path_Ino,
+                Arguments   => Args,
+                Environment => Env,
+                Proc        => Proc,
+                Success     => Success);
+
+            for Arg of Args loop
+               Free (Arg);
+            end loop;
+            for En of Env loop
+               Free (En);
+            end loop;
+         end;
+
+         if Success and then Arch.MMU.Make_Active (Map) then
+            --  Free critical state now that we know wont be running.
+            Userland.Process.Remove_Thread (Proc, Th);
+            Arch.MMU.Destroy_Table (Orig);
+            Scheduler.Bail;
+         else
+            Errno    := Error_Bad_Access;
+            Returned := Unsigned_64'Last;
+         end if;
+      end;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Exec;
 
    procedure Fork
@@ -6576,155 +6685,6 @@ package body Userland.Syscall is
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Translate_Status;
-
-   procedure Exec_Into_Process
-      (Path_Addr : Unsigned_64;
-       Path_Len  : Unsigned_64;
-       Argv_Addr : Unsigned_64;
-       Argv_Len  : Unsigned_64;
-       Envp_Addr : Unsigned_64;
-       Envp_Len  : Unsigned_64;
-       Proc      : PID;
-       Success   : out Boolean;
-       Errno     : out Errno_Value)
-   is
-      --  FIXME: Catching exceptions in this function causes it to page fault.
-      --  I cannot imagine what kind of gargantuan thing GNAT is doing to this
-      --  code. So we will just disable checks for the time being.
-      pragma Suppress (All_Checks);
-
-      procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
-      type Arg_Arr is array (Natural range <>) of Unsigned_64;
-
-      Path_IAddr : constant Integer_Address := Integer_Address (Path_Addr);
-      Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
-      Path       : String (1 .. Natural (Path_Len))
-         with Import, Address => Path_SAddr;
-      Path_FS    : FS_Handle;
-      Path_Ino   : File_Inode_Number;
-      Rela_FS    : FS_Handle;
-      Rela_Ino   : File_Inode_Number;
-      Success2   : FS_Status;
-      Succ       : Boolean;
-      File_St    : File_Stat;
-      File_Perms : MAC.Permissions;
-      User       : Unsigned_32;
-      Map        : Page_Table_Acc;
-      Argv_IAddr : constant Integer_Address := Integer_Address (Argv_Addr);
-      Argv_SAddr : constant  System.Address := To_Address (Argv_IAddr);
-      Envp_IAddr : constant Integer_Address := Integer_Address (Envp_Addr);
-      Envp_SAddr : constant  System.Address := To_Address (Envp_IAddr);
-   begin
-      Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) or
-         not Check_Userland_Access (Map, Argv_IAddr, Argv_Len) or
-         not Check_Userland_Access (Map, Envp_IAddr, Envp_Len)
-      then
-         Errno := Error_Would_Fault;
-         Success := False;
-         return;
-      elsif not Get_Capabilities (Proc).Can_Spawn_Others then
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("spawn", Proc);
-         Success := False;
-         return;
-      end if;
-
-      Userland.Process.Get_Effective_UID (Proc, User);
-      Userland.Process.Get_CWD (Proc, Rela_FS, Rela_Ino);
-
-      Open
-         (Key        => Rela_FS,
-          Relative   => Rela_Ino,
-          Path       => Path,
-          Final_Key  => Path_FS,
-          Ino        => Path_Ino,
-          Success    => Success2,
-          User       => User,
-          Want_Read  => True,
-          Want_Write => False);
-      if Success2 /= VFS.FS_Success then
-         Errno := Error_No_Entity;
-         Success := False;
-         return;
-      end if;
-
-      File_Perms := Check_Permissions (Proc, Path_FS, Path_Ino);
-      if not File_Perms.Can_Execute then
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("exec", Proc);
-         Success := False;
-         return;
-      end if;
-
-      VFS.Stat (Path_FS, Path_Ino, File_St, Success2);
-      if Success2 /= VFS.FS_Success then
-         Errno   := Error_IO;
-         Success := False;
-         return;
-      end if;
-
-      if not VFS.Can_Access_File
-         (User       => User,
-          File_Owner => File_St.UID,
-          Mode       => File_St.Mode,
-          Want_Read  => True,
-          Want_Write => False,
-          Want_Exec  => True)
-      then
-         Errno   := Error_Bad_Access;
-         Success := False;
-         return;
-      end if;
-
-      declare
-         Argv : Arg_Arr (1 .. Natural (Argv_Len))
-            with Import, Address => Argv_SAddr;
-         Envp : Arg_Arr (1 .. Natural (Envp_Len))
-            with Import, Address => Envp_SAddr;
-         Args : Userland.Argument_Arr    (1 .. Argv'Length);
-         Env  : Userland.Environment_Arr (1 .. Envp'Length);
-      begin
-         for I in Argv'Range loop
-            Args (I) := To_String (To_Address (Integer_Address (Argv (I))));
-         end loop;
-         for I in Envp'Range loop
-            Env (I) := To_String (To_Address (Integer_Address (Envp (I))));
-         end loop;
-
-         --  Create a new map for the process and reroll ASLR.
-         Userland.Process.Flush_Exec_Files (Proc);
-         Userland.Process.Reassign_Process_Addresses (Proc);
-         Arch.MMU.Create_Table (Map);
-         Set_Common_Map (Proc, Map);
-         Set_Identifier (Proc, Args (1).all);
-
-         --  Start the actual program.
-         Userland.Loader.Start_Program
-            (Exec_Path   => Path,
-             FS          => Path_FS,
-             Ino         => Path_Ino,
-             Arguments   => Args,
-             Environment => Env,
-             Proc        => Proc,
-             Success     => Succ);
-
-         for Arg of Args loop
-            Free (Arg);
-         end loop;
-         for En of Env loop
-            Free (En);
-         end loop;
-
-         if Succ then
-            Errno   := Error_No_Error;
-            Success := True;
-         else
-            Errno   := Error_Bad_Access;
-            Success := False;
-         end if;
-      end;
-   end Exec_Into_Process;
 
    function To_String (Addr : System.Address) return String_Acc is
       Arg_Length : constant Natural := Lib.C_String_Length (Addr);
