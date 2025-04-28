@@ -465,7 +465,6 @@ package body Scheduler with SPARK_Mode => Off is
       T1, T2  : Unsigned_64;
       Discard : Boolean;
    begin
-      Lib.Synchronization.Seize (Scheduler_Mutex);
       Arch.Clocks.Get_Monotonic_Time (T1, T2);
 
       Thread_Pool (Thread).System_Tmp_Sec := T1;
@@ -478,16 +477,14 @@ package body Scheduler with SPARK_Mode => Off is
       Lib.Time.Increment
          (Thread_Pool (Thread).User_Sec, Thread_Pool (Thread).User_NSec,
           T1, T2);
-      Lib.Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Scheduler_Mutex);
+         null;
    end Signal_Kernel_Entry;
 
    procedure Signal_Kernel_Exit (Thread : TID) is
       Temp_Sec, Temp_NSec : Unsigned_64;
    begin
-      Lib.Synchronization.Seize (Scheduler_Mutex);
       Arch.Clocks.Get_Monotonic_Time (Temp_Sec, Temp_NSec);
 
       Thread_Pool (Thread).User_Tmp_Sec := Temp_Sec;
@@ -505,10 +502,9 @@ package body Scheduler with SPARK_Mode => Off is
             (Thread_Pool (Thread).System_Sec, Thread_Pool (Thread).System_NSec,
              Temp_Sec, Temp_NSec);
       end if;
-      Lib.Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Scheduler_Mutex);
+         null;
    end Signal_Kernel_Exit;
    ----------------------------------------------------------------------------
    procedure Set_Scheduling_Algorithm
