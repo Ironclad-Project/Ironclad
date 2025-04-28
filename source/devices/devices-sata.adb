@@ -181,8 +181,12 @@ package body Devices.SATA with SPARK_Mode => Off is
           Command_TBLs  => Cmd_TBLs,
           Port_Data     => Port_Data,
           Sector_Count  => 0,
-          Caches        => [others => (Is_Used => False, others => <>)],
-          Next_Evict    => 1);
+          Cache_Reg     => <>);
+      Caching.Init
+         (Dev_Data.all'Address,
+          Read_Sector'Address,
+          Write_Sector'Address,
+          Dev_Data.Cache_Reg);
       Success := Issue_Command
          (Drive       => Dev_Data,
           LBA         => 0,
@@ -320,15 +324,17 @@ package body Devices.SATA with SPARK_Mode => Off is
          return False;
    end Issue_Command;
 
-   function Read_Sector
-      (Drive       : SATA_Data_Acc;
+   procedure Read_Sector
+      (D           : System.Address;
        LBA         : Unsigned_64;
-       Data_Buffer : out Sector_Data) return Boolean
+       Data_Buffer : out Caching.Sector_Data;
+       Success     : out Boolean)
    is
-      SAddr   : constant  System.Address := Data_Buffer'Address;
-      IAddr   : constant Integer_Address := To_Integer (SAddr);
-      Success : Boolean;
+      Drive : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (D));
+      SAddr : constant  System.Address := Data_Buffer'Address;
+      IAddr : constant Integer_Address := To_Integer (SAddr);
    begin
+      Lib.Synchronization.Seize (Drive.Mutex);
       Success := Issue_Command
          (Drive       => Drive,
           LBA         => LBA,
@@ -339,18 +345,24 @@ package body Devices.SATA with SPARK_Mode => Off is
       if not Success then
          Lib.Messages.Put_Line ("SATA error while reading");
       end if;
-      return Success;
+      Lib.Synchronization.Release (Drive.Mutex);
+   exception
+      when Constraint_Error =>
+         Lib.Synchronization.Release (Drive.Mutex);
+         Success := False;
    end Read_Sector;
 
-   function Write_Sector
-      (Drive       : SATA_Data_Acc;
+   procedure Write_Sector
+      (D           : System.Address;
        LBA         : Unsigned_64;
-       Data_Buffer : Sector_Data) return Boolean
+       Data_Buffer : Caching.Sector_Data;
+       Success     : out Boolean)
    is
-      SAddr   : constant  System.Address := Data_Buffer'Address;
-      IAddr   : constant Integer_Address := To_Integer (SAddr);
-      Success : Boolean;
+      Drive : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (D));
+      SAddr : constant  System.Address := Data_Buffer'Address;
+      IAddr : constant Integer_Address := To_Integer (SAddr);
    begin
+      Lib.Synchronization.Seize (Drive.Mutex);
       Success := Issue_Command
          (Drive       => Drive,
           LBA         => LBA,
@@ -361,67 +373,12 @@ package body Devices.SATA with SPARK_Mode => Off is
       if not Success then
          Lib.Messages.Put_Line ("SATA error while reading");
       end if;
-      return Success;
-   end Write_Sector;
-
-   procedure Get_Cache_Index
-      (Drive   : SATA_Data_Acc;
-       LBA     : Unsigned_64;
-       Idx     : out Natural;
-       Success : out Boolean)
-   is
-   begin
-      Idx := 0;
-
-      for I in Drive.Caches'Range loop
-         if Drive.Caches (I).Is_Used and Drive.Caches (I).LBA_Offset = LBA then
-            Idx     := I;
-            Success := True;
-            return;
-         elsif not Drive.Caches (I).Is_Used and Idx = 0 then
-            Idx := I;
-         end if;
-      end loop;
-
-      if Idx = 0 then
-         Idx := Drive.Next_Evict;
-
-         if Drive.Caches (Drive.Next_Evict).Is_Dirty then
-            Success := Write_Sector
-               (Drive       => Drive,
-                LBA         => Drive.Caches (Idx).LBA_Offset,
-                Data_Buffer => Drive.Caches (Idx).Data);
-            if not Success then
-               Lib.Messages.Put_Line ("SATA could not write on cache fetch!");
-               return;
-            end if;
-         end if;
-
-         if Drive.Next_Evict = Drive.Caches'Last then
-            Drive.Next_Evict := Drive.Caches'First;
-         else
-            Drive.Next_Evict := Drive.Next_Evict + 1;
-         end if;
-      end if;
-
-      Drive.Caches (Idx) :=
-         (Is_Used    => True,
-          LBA_Offset => LBA,
-          Is_Dirty   => False,
-          Data       => <>);
-
-      Success := Read_Sector
-         (Drive       => Drive,
-          LBA         => Drive.Caches (Idx).LBA_Offset,
-          Data_Buffer => Drive.Caches (Idx).Data);
-      if not Success then
-         Lib.Messages.Put_Line ("SATA could not read on cache fetch!");
-      end if;
+      Lib.Synchronization.Release (Drive.Mutex);
    exception
       when Constraint_Error =>
-         Idx     := 0;
+         Lib.Synchronization.Release (Drive.Mutex);
          Success := False;
-   end Get_Cache_Index;
+   end Write_Sector;
 
    function Find_Command_Slot (Port : HBA_Port_Acc) return Natural is
       Slots : Unsigned_32;
@@ -478,44 +435,15 @@ package body Devices.SATA with SPARK_Mode => Off is
    is
       pragma Unreferenced (Is_Blocking);
       D : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
-      Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
-      Current_LBA : Unsigned_64;
-      Succ : Boolean;
    begin
-      Succ := True;
-      Lib.Synchronization.Seize (D.Mutex);
-      while Progress < Data'Length loop
-         Current_LBA := (Offset + Unsigned_64 (Progress)) / Sector_Size;
-
-         Get_Cache_Index
-          (Drive   => D,
-           LBA     => Current_LBA,
-           Idx     => Cache_Idx,
-           Success => Succ);
-         if not Succ then
-            Succ := True;
-            goto Cleanup;
-         end if;
-
-         Copy_Count   := Data'Length - Progress;
-         Cache_Offset := Natural ((Offset + Unsigned_64 (Progress)) mod
-                                  Sector_Size);
-         if Copy_Count > Sector_Size - Cache_Offset then
-            Copy_Count := Sector_Size - Cache_Offset;
-         end if;
-         Data (Data'First + Progress .. Data'First + Progress + Copy_Count - 1)
-            := D.Caches (Cache_Idx).Data (Cache_Offset + 1 ..
-                                          Cache_Offset + Copy_Count);
-         Progress := Progress + Copy_Count;
-      end loop;
-
-   <<Cleanup>>
-      Lib.Synchronization.Release (D.Mutex);
-      Ret_Count := Progress;
-      Success   := (if Succ then Dev_Success else Dev_IO_Failure);
+      Caching.Read
+         (Registry  => D.Cache_Reg,
+          Offset    => Offset,
+          Data      => Data,
+          Ret_Count => Ret_Count,
+          Success   => Success);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (D.Mutex);
          Data      := [others => 0];
          Success   := Dev_IO_Failure;
          Ret_Count := 0;
@@ -531,46 +459,15 @@ package body Devices.SATA with SPARK_Mode => Off is
    is
       pragma Unreferenced (Is_Blocking);
       D : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
-      Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
-      Current_LBA : Unsigned_64;
-      Succ : Boolean;
    begin
-      Succ := True;
-      Lib.Synchronization.Seize (D.Mutex);
-      while Progress < Data'Length loop
-         Current_LBA := (Offset + Unsigned_64 (Progress)) / Sector_Size;
-
-         Get_Cache_Index
-          (Drive   => D,
-           LBA     => Current_LBA,
-           Idx     => Cache_Idx,
-           Success => Succ);
-         if not Succ then
-            Succ := Progress /= 0;
-            goto Cleanup;
-         end if;
-
-         Copy_Count   := Data'Length - Progress;
-         Cache_Offset := Natural ((Offset + Unsigned_64 (Progress)) mod
-                                  Sector_Size);
-         if Copy_Count > Sector_Size - Cache_Offset then
-            Copy_Count := Sector_Size - Cache_Offset;
-         end if;
-         D.Caches (Cache_Idx).Data (Cache_Offset + 1 ..
-                                    Cache_Offset + Copy_Count) :=
-            Data (Data'First + Progress ..
-                  Data'First + Progress + Copy_Count - 1);
-         D.Caches (Cache_Idx).Is_Dirty := True;
-         Progress := Progress + Copy_Count;
-      end loop;
-
-   <<Cleanup>>
-      Lib.Synchronization.Release (D.Mutex);
-      Ret_Count := Progress;
-      Success   := (if Succ then Dev_Success else Dev_IO_Failure);
+      Caching.Write
+         (Registry  => D.Cache_Reg,
+          Offset    => Offset,
+          Data      => Data,
+          Ret_Count => Ret_Count,
+          Success   => Success);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (D.Mutex);
          Success   := Dev_IO_Failure;
          Ret_Count := 0;
    end Write;
@@ -578,23 +475,9 @@ package body Devices.SATA with SPARK_Mode => Off is
    procedure Sync (Key : System.Address; Success : out Boolean) is
       Drive : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
    begin
-      Success := True;
-      Lib.Synchronization.Seize (Drive.Mutex);
-      for Cache of Drive.Caches loop
-         if Cache.Is_Used and Cache.Is_Dirty then
-            if not Write_Sector (Drive, Cache.LBA_Offset, Cache.Data) then
-               Success := False;
-               goto Cleanup;
-            end if;
-            Cache.Is_Dirty := False;
-         end if;
-      end loop;
-
-   <<Cleanup>>
-      Lib.Synchronization.Release (Drive.Mutex);
+      Caching.Sync (Drive.Cache_Reg, Success);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Drive.Mutex);
          Success := False;
    end Sync;
 
@@ -604,35 +487,11 @@ package body Devices.SATA with SPARK_Mode => Off is
        Count   : Unsigned_64;
        Success : out Boolean)
    is
-      Drive    : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
-      First_LBA : Unsigned_64;
-      Last_LBA  : Unsigned_64;
+      Drive : constant SATA_Data_Acc := SATA_Data_Acc (C1.To_Pointer (Key));
    begin
-      Lib.Synchronization.Seize (Drive.Mutex);
-
-      First_LBA := Offset / Sector_Size;
-      Last_LBA  := (Offset + Count) / Sector_Size;
-      Success   := True;
-
-      for Cache of Drive.Caches loop
-         if Cache.Is_Used                 and
-            Cache.Is_Dirty                and
-            Cache.LBA_Offset >= First_LBA and
-            Cache.LBA_Offset <= Last_LBA
-         then
-            if not Write_Sector (Drive, Cache.LBA_Offset, Cache.Data) then
-               Success := False;
-               goto Cleanup;
-            end if;
-            Cache.Is_Dirty := False;
-         end if;
-      end loop;
-
-   <<Cleanup>>
-      Lib.Synchronization.Release (Drive.Mutex);
+      Caching.Sync_Range (Drive.Cache_Reg, Offset, Count, Success);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Drive.Mutex);
          Success := False;
    end Sync_Range;
 end Devices.SATA;

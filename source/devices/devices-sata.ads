@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Lib.Synchronization;
+with Devices.Drive_Cache;
 
 package Devices.SATA with SPARK_Mode => Off is
    --  Probe for ATA drives and add em.
@@ -357,17 +358,7 @@ private
    end record;
    type HBA_FIS_Acc is access HBA_FIS;
 
-   --  Data stored for each drive.
-   --  The sector data element must be aligned to 16 bytes if we are to pass it
-   --  to the driver by address.
-   subtype Sector_Data is Operation_Data (1 .. Sector_Size);
-   type Sector_Cache is record
-      Is_Used    : Boolean;
-      LBA_Offset : Unsigned_64;
-      Data       : Sector_Data;
-      Is_Dirty   : Boolean;
-   end record with Alignment => 16;
-   type Sector_Caches is array (Natural range <>) of Sector_Cache;
+   package Caching is new Devices.Drive_Cache (Sector_Size => 512);
 
    type SATA_Identify is array (1 .. 256) of Unsigned_16;
    type SATA_Identify_Acc is access all SATA_Identify;
@@ -378,8 +369,7 @@ private
       Command_TBLs : HBA_Command_TBL_Arr (1 .. Ports_Per_Controller);
       Port_Data    : HBA_Port_Acc;
       Sector_Count : Unsigned_64;
-      Caches       : Sector_Caches (1 .. 8000);
-      Next_Evict   : Natural range 1 .. 8000;
+      Cache_Reg    : aliased Caching.Cache_Registry;
    end record;
    type SATA_Data_Acc is access all SATA_Data;
 
@@ -396,23 +386,18 @@ private
        Data_Addr   : Unsigned_64) return Boolean;
 
    --  Read a single sector.
-   function Read_Sector
-      (Drive       : SATA_Data_Acc;
+   procedure Read_Sector
+      (D           : System.Address;
        LBA         : Unsigned_64;
-       Data_Buffer : out Sector_Data) return Boolean;
+       Data_Buffer : out Caching.Sector_Data;
+       Success     : out Boolean);
 
    --  Write a single sector.
-   function Write_Sector
-      (Drive       : SATA_Data_Acc;
+   procedure Write_Sector
+      (D           : System.Address;
        LBA         : Unsigned_64;
-       Data_Buffer : Sector_Data) return Boolean;
-
-   --  Find a cache index for the drive given the desired LBA.
-   procedure Get_Cache_Index
-      (Drive   : SATA_Data_Acc;
-       LBA     : Unsigned_64;
-       Idx     : out Natural;
-       Success : out Boolean);
+       Data_Buffer : Caching.Sector_Data;
+       Success     : out Boolean);
 
    --  Find a free slot in the command header table of a port.
    function Find_Command_Slot (Port : HBA_Port_Acc) return Natural;

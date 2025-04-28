@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Lib.Synchronization;
+with Devices.Drive_Cache;
 
 package Devices.NVMe with SPARK_Mode => Off is
    procedure Init (Success : out Boolean);
@@ -610,41 +611,29 @@ private
       (Q : Admin_Queue_Acc) return Active_Namespace_Id_List_Acc;
 
    --  I/O functions
-   subtype Sector_Data is Operation_Data (1 .. 512);
-   type Sector_Cache is record
-      Data : Sector_Data := [others => 0];
-      LBA_Offset : Unsigned_64 := 0;
-      Is_Used : Boolean := False;
-      Is_Dirty : Boolean := False;
-   end record with Alignment => 16;
-   type Sector_Caches is array (Natural range <>) of Sector_Cache;
+   package Caching is new Devices.Drive_Cache (Sector_Size => 512);
 
    type Namespace_Data is record
       Queue : IO_Queue_Acc;
       Namespace_Id : Unsigned_32;
       LBA_Size : Natural;
       LBA_Count : Unsigned_64;
-      Caches : Sector_Caches (1 .. 8000) := [others => <>];
-      Next_Evict : Natural range 1 .. 8000 := 1;
+      Cache_Reg : aliased Caching.Cache_Registry;
       Mutex : aliased Lib.Synchronization.Mutex
          := Lib.Synchronization.Unlocked_Mutex;
    end record;
    type Namespace_Data_Acc is access all Namespace_Data;
 
-   function NS_Read
-      (D : Namespace_Data_Acc;
+   procedure NS_Read
+      (Drive : System.Address;
        LBA : Unsigned_64;
-       Data_Buffer : out Sector_Data) return Boolean;
+       Data_Buffer : out Caching.Sector_Data;
+       Success : out Boolean);
 
-   function NS_Write
-      (D : Namespace_Data_Acc;
+   procedure NS_Write
+      (Drive : System.Address;
        LBA : Unsigned_64;
-       Data_Buffer : Sector_Data) return Boolean;
-
-   procedure Get_Cache_Index
-      (Drive : Namespace_Data_Acc;
-       LBA : Unsigned_64;
-       Idx : out Natural;
+       Data_Buffer : Caching.Sector_Data;
        Success : out Boolean);
 
    procedure Read

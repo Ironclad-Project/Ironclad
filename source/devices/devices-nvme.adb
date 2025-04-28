@@ -271,6 +271,12 @@ package body Devices.NVMe with SPARK_Mode => Off is
          Memory.Physical.Free
             (size_t (To_Integer (NS_Identify.all'Address)));
 
+         Caching.Init
+            (NS.all'Address,
+             NS_Read'Address,
+             NS_Write'Address,
+             NS.Cache_Reg);
+
          Register (
             (Data => C5.To_Address (C5.Object_Pointer (NS)),
              ID          => NS_UUID,
@@ -725,65 +731,6 @@ package body Devices.NVMe with SPARK_Mode => Off is
          return null;
    end Active_Namespaces;
 
-   procedure Get_Cache_Index
-      (Drive   : Namespace_Data_Acc;
-       LBA     : Unsigned_64;
-       Idx     : out Natural;
-       Success : out Boolean)
-   is
-   begin
-      Idx := 0;
-
-      for I in Drive.Caches'Range loop
-         if Drive.Caches (I).Is_Used and Drive.Caches (I).LBA_Offset = LBA then
-            Idx     := I;
-            Success := True;
-            return;
-         elsif not Drive.Caches (I).Is_Used and Idx = 0 then
-            Idx := I;
-         end if;
-      end loop;
-
-      if Idx = 0 then
-         Idx := Drive.Next_Evict;
-
-         if Drive.Caches (Drive.Next_Evict).Is_Dirty then
-            Success := NS_Write
-               (D       => Drive,
-                LBA         => Drive.Caches (Idx).LBA_Offset,
-                Data_Buffer => Drive.Caches (Idx).Data);
-            if not Success then
-               Lib.Messages.Put_Line ("NVMe could not write on cache fetch!");
-               return;
-            end if;
-         end if;
-
-         if Drive.Next_Evict = Drive.Caches'Last then
-            Drive.Next_Evict := Drive.Caches'First;
-         else
-            Drive.Next_Evict := Drive.Next_Evict + 1;
-         end if;
-      end if;
-
-      Drive.Caches (Idx) :=
-         (Is_Used    => True,
-          LBA_Offset => LBA,
-          Is_Dirty   => False,
-          Data       => <>);
-
-      Success := NS_Read
-         (D       => Drive,
-          LBA         => Drive.Caches (Idx).LBA_Offset,
-          Data_Buffer => Drive.Caches (Idx).Data);
-      if not Success then
-         Lib.Messages.Put_Line ("NVMe could not read on cache fetch!");
-      end if;
-   exception
-      when Constraint_Error =>
-         Idx     := 0;
-         Success := False;
-   end Get_Cache_Index;
-
    procedure Read
       (Key         : System.Address;
        Offset      : Unsigned_64;
@@ -793,47 +740,17 @@ package body Devices.NVMe with SPARK_Mode => Off is
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Is_Blocking);
-      D : constant Namespace_Data_Acc
-         := Namespace_Data_Acc (C5.To_Pointer (Key));
-      Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
-      Current_LBA : Unsigned_64;
-      Succ : Boolean;
+      D : constant Namespace_Data_Acc :=
+         Namespace_Data_Acc (C5.To_Pointer (Key));
    begin
-      Succ := True;
-      Lib.Synchronization.Seize (D.Mutex);
-      while Progress < Data'Length loop
-         Current_LBA := (Offset + Unsigned_64 (Progress))
-            / Unsigned_64 (D.LBA_Size);
-
-         Get_Cache_Index
-          (Drive   => D,
-           LBA     => Current_LBA,
-           Idx     => Cache_Idx,
-           Success => Succ);
-         if not Succ then
-            Succ := True;
-            goto Cleanup;
-         end if;
-
-         Copy_Count   := Data'Length - Progress;
-         Cache_Offset := Natural ((Offset + Unsigned_64 (Progress))) mod
-                                  (D.LBA_Size);
-         if Copy_Count > D.LBA_Size - Cache_Offset then
-            Copy_Count := D.LBA_Size - Cache_Offset;
-         end if;
-         Data (Data'First + Progress .. Data'First + Progress + Copy_Count - 1)
-            := D.Caches (Cache_Idx).Data (Cache_Offset + 1 ..
-                                          Cache_Offset + Copy_Count);
-         Progress := Progress + Copy_Count;
-      end loop;
-
-   <<Cleanup>>
-      Lib.Synchronization.Release (D.Mutex);
-      Ret_Count := Progress;
-      Success   := (if Succ then Dev_Success else Dev_IO_Failure);
+      Caching.Read
+         (Registry  => D.Cache_Reg,
+          Offset    => Offset,
+          Data      => Data,
+          Ret_Count => Ret_Count,
+          Success   => Success);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (D.Mutex);
          Data      := [others => 0];
          Success   := Dev_IO_Failure;
          Ret_Count := 0;
@@ -848,49 +765,17 @@ package body Devices.NVMe with SPARK_Mode => Off is
        Is_Blocking : Boolean)
    is
       pragma Unreferenced (Is_Blocking);
-      D : constant Namespace_Data_Acc
-         := Namespace_Data_Acc (C5.To_Pointer (Key));
-      Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
-      Current_LBA : Unsigned_64;
-      Succ : Boolean;
+      D : constant Namespace_Data_Acc :=
+         Namespace_Data_Acc (C5.To_Pointer (Key));
    begin
-      Succ := True;
-      Lib.Synchronization.Seize (D.Mutex);
-      while Progress < Data'Length loop
-         Current_LBA := (Offset + Unsigned_64 (Progress))
-            / Unsigned_64 (D.LBA_Size);
-
-         Get_Cache_Index
-          (Drive   => D,
-           LBA     => Current_LBA,
-           Idx     => Cache_Idx,
-           Success => Succ);
-         if not Succ then
-            Succ := Progress /= 0;
-            goto Cleanup;
-         end if;
-
-         Copy_Count   := Data'Length - Progress;
-         Cache_Offset := Natural ((Offset + Unsigned_64 (Progress))) mod
-                                  D.LBA_Size;
-         if Copy_Count > D.LBA_Size - Cache_Offset then
-            Copy_Count := D.LBA_Size - Cache_Offset;
-         end if;
-         D.Caches (Cache_Idx).Data (Cache_Offset + 1 ..
-                                    Cache_Offset + Copy_Count) :=
-            Data (Data'First + Progress ..
-                  Data'First + Progress + Copy_Count - 1);
-         D.Caches (Cache_Idx).Is_Dirty := True;
-         Progress := Progress + Copy_Count;
-      end loop;
-
-   <<Cleanup>>
-      Lib.Synchronization.Release (D.Mutex);
-      Ret_Count := Progress;
-      Success   := (if Succ then Dev_Success else Dev_IO_Failure);
+      Caching.Write
+         (Registry  => D.Cache_Reg,
+          Offset    => Offset,
+          Data      => Data,
+          Ret_Count => Ret_Count,
+          Success   => Success);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (D.Mutex);
          Success   := Dev_IO_Failure;
          Ret_Count := 0;
    end Write;
@@ -899,23 +784,9 @@ package body Devices.NVMe with SPARK_Mode => Off is
       Drive   : constant Namespace_Data_Acc
          := Namespace_Data_Acc (C5.To_Pointer (Key));
    begin
-      Success := True;
-      Lib.Synchronization.Seize (Drive.Mutex);
-      for Cache of Drive.Caches loop
-         if Cache.Is_Used and Cache.Is_Dirty then
-            if not NS_Write (Drive, Cache.LBA_Offset, Cache.Data) then
-               Success := False;
-               goto Cleanup;
-            end if;
-            Cache.Is_Dirty := False;
-         end if;
-      end loop;
-
-   <<Cleanup>>
-      Lib.Synchronization.Release (Drive.Mutex);
+      Caching.Sync (Drive.Cache_Reg, Success);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Drive.Mutex);
          Success := False;
    end Sync;
 
@@ -925,44 +796,23 @@ package body Devices.NVMe with SPARK_Mode => Off is
        Count   : Unsigned_64;
        Success : out Boolean)
    is
-      Drive    : constant Namespace_Data_Acc
+      Drive   : constant Namespace_Data_Acc
          := Namespace_Data_Acc (C5.To_Pointer (Key));
-      First_LBA : Unsigned_64;
-      Last_LBA  : Unsigned_64;
    begin
-      Lib.Synchronization.Seize (Drive.Mutex);
-
-      First_LBA := Offset / Unsigned_64 (Drive.LBA_Size);
-      Last_LBA := (Offset + Count) / Unsigned_64 (Drive.LBA_Size);
-      Success := True;
-
-      for Cache of Drive.Caches loop
-         if Cache.Is_Used                 and
-            Cache.Is_Dirty                and
-            Cache.LBA_Offset >= First_LBA and
-            Cache.LBA_Offset <= Last_LBA
-         then
-            if not NS_Write (Drive, Cache.LBA_Offset, Cache.Data) then
-               Success := False;
-               goto Cleanup;
-            end if;
-            Cache.Is_Dirty := False;
-         end if;
-      end loop;
-
-   <<Cleanup>>
-      Lib.Synchronization.Release (Drive.Mutex);
+      Caching.Sync_Range (Drive.Cache_Reg, Offset, Count, Success);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Drive.Mutex);
          Success := False;
    end Sync_Range;
 
-   function NS_Read
-      (D : Namespace_Data_Acc;
+   procedure NS_Read
+      (Drive : System.Address;
        LBA : Unsigned_64;
-       Data_Buffer : out Sector_Data) return Boolean
+       Data_Buffer : out Caching.Sector_Data;
+       Success : out Boolean)
    is
+      D : constant Namespace_Data_Acc
+         := Namespace_Data_Acc (C5.To_Pointer (Drive));
       Data_Addr : constant Unsigned_64
          := Unsigned_64 (To_Integer (Data_Buffer'Address));
       First_Page_Len : Unsigned_64;
@@ -971,6 +821,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
       Cmd : IO_Submission_Queue_Entry;
       Reply : Completion_Queue_Entry;
    begin
+      Lib.Synchronization.Seize (D.Mutex);
       First_Page_Len :=
          (Arch.MMU.Page_Size - (Data_Addr mod Arch.MMU.Page_Size));
       Page_Boundary_Cross := Natural (First_Page_Len) < D.LBA_Size;
@@ -989,21 +840,22 @@ package body Devices.NVMe with SPARK_Mode => Off is
 
       Reply := Submit_IO_Command (D.Queue, Cmd);
 
-      if Reply.Dword3.Status /= 0 then
-         return False;
-      end if;
-
-      return True;
+      Success := Reply.Dword3.Status = 0;
+      Lib.Synchronization.Release (D.Mutex);
    exception
       when Constraint_Error =>
-         return False;
+         Lib.Synchronization.Release (D.Mutex);
+         Success := False;
    end NS_Read;
 
-   function NS_Write
-      (D : Namespace_Data_Acc;
+   procedure NS_Write
+      (Drive : System.Address;
        LBA : Unsigned_64;
-       Data_Buffer : Sector_Data) return Boolean
+       Data_Buffer : Caching.Sector_Data;
+       Success : out Boolean)
    is
+      D : constant Namespace_Data_Acc
+         := Namespace_Data_Acc (C5.To_Pointer (Drive));
       Data_Addr : constant Unsigned_64
          := Unsigned_64 (To_Integer (Data_Buffer'Address));
       First_Page_Len : Unsigned_64;
@@ -1012,6 +864,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
       Cmd : IO_Submission_Queue_Entry;
       Reply : Completion_Queue_Entry;
    begin
+      Lib.Synchronization.Seize (D.Mutex);
       First_Page_Len :=
          (Arch.MMU.Page_Size - (Data_Addr mod Arch.MMU.Page_Size));
       Page_Boundary_Cross := Natural (First_Page_Len) < D.LBA_Size;
@@ -1031,14 +884,12 @@ package body Devices.NVMe with SPARK_Mode => Off is
 
       Reply := Submit_IO_Command (D.Queue, Cmd);
 
-      if Reply.Dword3.Status /= 0 then
-         return False;
-      end if;
-
-      return True;
+      Success := Reply.Dword3.Status = 0;
+      Lib.Synchronization.Release (D.Mutex);
    exception
       when Constraint_Error =>
-         return False;
+         Lib.Synchronization.Release (D.Mutex);
+         Success := False;
    end NS_Write;
 
    procedure Controller_Await_Ready
