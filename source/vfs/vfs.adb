@@ -528,7 +528,7 @@ package body VFS is
             end if;
          end loop;
 
-         goto Invalid_Value_Return;
+         goto Not_Found_Return;
 
    <<Found_Entry>>
          --  Get the stat for several checks.
@@ -676,6 +676,14 @@ package body VFS is
       Final_Key := Actual_Key;
       Ino       := Actual_Ino;
       Success   := FS_Success;
+      return;
+
+   <<Not_Found_Return>>
+      Free1 (Symlink_Path);
+      Free2 (Dir_Entries);
+      Final_Key := Error_Handle;
+      Ino       := 0;
+      Success   := FS_Not_Found;
       return;
 
    <<Invalid_Value_Return>>
