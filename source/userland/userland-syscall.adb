@@ -1191,8 +1191,7 @@ package body Userland.Syscall is
                 Want_Write => False,
                 Do_Follow  => (Flags and AT_SYMLINK_NOFOLLOW) = 0);
             if Success /= VFS.FS_Success then
-               Errno    := Error_No_Entity;
-               Returned := Unsigned_64'Last;
+               Translate_Status (Success, 0, Returned, Errno);
                return;
             end if;
          end;
@@ -1200,8 +1199,7 @@ package body Userland.Syscall is
 
       VFS.Stat (FS, Ino, Stat_Val, Success);
       if Success /= VFS.FS_Success then
-         Errno := Error_Bad_File;
-         Returned := Unsigned_64'Last;
+         Translate_Status (Success, 0, Returned, Errno);
          return;
       end if;
 
