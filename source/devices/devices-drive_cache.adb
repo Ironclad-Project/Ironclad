@@ -26,9 +26,10 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
          (Drive_Arg  => Drive_Arg,
           Read_Proc  => Read,
           Write_Proc => Write,
-          Mutex      => Lib.Synchronization.Unlocked_Mutex,
-          Caches     => [others => (Is_Used => False, others => <>)],
-          Next_Evict => 1);
+          Caches     => [others =>
+            (Mutex   => Lib.Synchronization.Unlocked_Mutex,
+             Is_Used => False,
+             others  => <>)]);
    end Init;
 
    procedure Read
@@ -43,7 +44,6 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
       Succ : Boolean;
    begin
       Succ := True;
-      Lib.Synchronization.Seize (Registry.Mutex);
       while Progress < Data'Length loop
          Current_LBA := (Offset + Unsigned_64 (Progress)) /
             Unsigned_64 (Sector_Size);
@@ -67,16 +67,15 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
          Data (Data'First + Progress .. Data'First + Progress + Copy_Count - 1)
             := Registry.Caches (Cache_Idx).Data (Cache_Offset + 1 ..
                                           Cache_Offset + Copy_Count);
+         Lib.Synchronization.Release (Registry.Caches (Cache_Idx).Mutex);
          Progress := Progress + Copy_Count;
       end loop;
 
    <<Cleanup>>
-      Lib.Synchronization.Release (Registry.Mutex);
       Ret_Count := Progress;
       Success   := (if Succ then Dev_Success else Dev_IO_Failure);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Registry.Mutex);
          Data      := [others => 0];
          Success   := Dev_IO_Failure;
          Ret_Count := 0;
@@ -94,7 +93,6 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
       Succ : Boolean;
    begin
       Succ := True;
-      Lib.Synchronization.Seize (Registry.Mutex);
       while Progress < Data'Length loop
          Current_LBA := (Offset + Unsigned_64 (Progress)) /
             Unsigned_64 (Sector_Size);
@@ -120,16 +118,15 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
             Data (Data'First + Progress ..
                   Data'First + Progress + Copy_Count - 1);
          Registry.Caches (Cache_Idx).Is_Dirty := True;
+         Lib.Synchronization.Release (Registry.Caches (Cache_Idx).Mutex);
          Progress := Progress + Copy_Count;
       end loop;
 
    <<Cleanup>>
-      Lib.Synchronization.Release (Registry.Mutex);
       Ret_Count := Progress;
       Success   := (if Succ then Dev_Success else Dev_IO_Failure);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Registry.Mutex);
          Success   := Dev_IO_Failure;
          Ret_Count := 0;
    end Write;
@@ -146,23 +143,17 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
       with Import, Address => Registry.Write_Proc;
    begin
       Success := True;
-      Lib.Synchronization.Seize (Registry.Mutex);
       for Cache of Registry.Caches loop
+         Lib.Synchronization.Seize (Cache.Mutex);
          if Cache.Is_Used and Cache.Is_Dirty then
             Write_Sector (Registry.Drive_Arg, Cache.LBA_Offset, Cache.Data,
                Success);
-            if not Success then
-               goto Cleanup;
-            end if;
             Cache.Is_Dirty := False;
          end if;
+         Lib.Synchronization.Release (Cache.Mutex);
       end loop;
-
-   <<Cleanup>>
-      Lib.Synchronization.Release (Registry.Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Registry.Mutex);
          Success := False;
    end Sync;
 
@@ -182,13 +173,12 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
       First_LBA : Unsigned_64;
       Last_LBA  : Unsigned_64;
    begin
-      Lib.Synchronization.Seize (Registry.Mutex);
-
       First_LBA := Offset / Unsigned_64 (Sector_Size);
       Last_LBA  := (Offset + Count) / Unsigned_64 (Sector_Size);
       Success   := True;
 
       for Cache of Registry.Caches loop
+         Lib.Synchronization.Seize (Cache.Mutex);
          if Cache.Is_Used                 and
             Cache.Is_Dirty                and
             Cache.LBA_Offset >= First_LBA and
@@ -196,18 +186,12 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
          then
             Write_Sector (Registry.Drive_Arg, Cache.LBA_Offset, Cache.Data,
                Success);
-            if not Success then
-               goto Cleanup;
-            end if;
             Cache.Is_Dirty := False;
          end if;
+         Lib.Synchronization.Release (Cache.Mutex);
       end loop;
-
-   <<Cleanup>>
-      Lib.Synchronization.Release (Registry.Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Registry.Mutex);
          Success := False;
    end Sync_Range;
    ----------------------------------------------------------------------------
@@ -229,47 +213,56 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
           Data_Buffer : Sector_Data;
           Success     : out Boolean)
       with Import, Address => Registry.Write_Proc;
-   begin
-      Idx := 0;
 
-      for I in Registry.Caches'Range loop
-         if Registry.Caches (I).Is_Used and
-            Registry.Caches (I).LBA_Offset = LBA
+      Beginning : Natural;
+   begin
+      --  Do as described in the package specification.
+      Beginning := Natural (LBA rem Registry.Caches'Length) + 1;
+      Idx       := Beginning;
+
+      --  See if we hit the cache (fingers crossed).
+      loop
+         Lib.Synchronization.Seize (Registry.Caches (Idx).Mutex);
+         if Registry.Caches (Idx).Is_Used then
+            if Registry.Caches (Idx).LBA_Offset = LBA then
+               Success := True;
+               return;
+            end if;
+         else
+            exit;
+         end if;
+         Lib.Synchronization.Release (Registry.Caches (Idx).Mutex);
+
+         if (Idx = Registry.Caches'Last) or
+            (Idx >= Beginning + Max_Caching_Step)
          then
-            Idx     := I;
-            Success := True;
-            return;
-         elsif not Registry.Caches (I).Is_Used and Idx = 0 then
-            Idx := I;
+            Idx := Beginning + (Natural (LBA rem Max_Caching_Step) + 1);
+            if Idx > Registry.Caches'Last then
+               Idx := Beginning;
+            end if;
+            Lib.Synchronization.Seize (Registry.Caches (Idx).Mutex);
+            exit;
+         else
+            Idx := Idx + 1;
          end if;
       end loop;
 
-      if Idx = 0 then
-         Idx := Registry.Next_Evict;
-
-         if Registry.Caches (Registry.Next_Evict).Is_Dirty then
-            Write_Sector
-               (Drive       => Registry.Drive_Arg,
-                LBA         => Registry.Caches (Idx).LBA_Offset,
-                Data_Buffer => Registry.Caches (Idx).Data,
-                Success     => Success);
-            if not Success then
-               return;
-            end if;
-         end if;
-
-         if Registry.Next_Evict = Registry.Caches'Last then
-            Registry.Next_Evict := Registry.Caches'First;
-         else
-            Registry.Next_Evict := Registry.Next_Evict + 1;
+      --  We didnt make it, so we have to evict.
+      if Registry.Caches (Idx).Is_Used and Registry.Caches (Idx).Is_Dirty then
+         Write_Sector
+            (Drive       => Registry.Drive_Arg,
+             LBA         => Registry.Caches (Idx).LBA_Offset,
+             Data_Buffer => Registry.Caches (Idx).Data,
+             Success     => Success);
+         if not Success then
+            Lib.Synchronization.Release (Registry.Caches (Idx).Mutex);
+            return;
          end if;
       end if;
 
-      Registry.Caches (Idx) :=
-         (Is_Used    => True,
-          LBA_Offset => LBA,
-          Is_Dirty   => False,
-          Data       => <>);
+      Registry.Caches (Idx).Is_Used    := True;
+      Registry.Caches (Idx).LBA_Offset := LBA;
+      Registry.Caches (Idx).Is_Dirty   := False;
 
       Read_Sector
          (Drive       => Registry.Drive_Arg,

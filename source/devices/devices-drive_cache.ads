@@ -71,7 +71,18 @@ package Devices.Drive_Cache with SPARK_Mode => Off is
 
 private
 
+   --  We use a flat array for sector caches.
+   --  To calculate where a sector cache goes, we take the LBA, divide it by
+   --  the total amount of cached items, and the modulo is our start index.
+   --  If that spot is already taken, go forward a maximum number of times. If
+   --  all are taken, just deallocate the modulo of the LBA and the maximum
+   --  times, and take its place.
+   --  This maximum number is vibes based, the current number strikes a balance
+   --  in my experience.
+   Max_Caching_Step : constant := 200;
+
    type Sector_Cache is record
+      Mutex      : aliased Lib.Synchronization.Mutex;
       Is_Used    : Boolean;
       LBA_Offset : Unsigned_64;
       Data       : Sector_Data;
@@ -83,9 +94,7 @@ private
       Drive_Arg  : System.Address;
       Read_Proc  : System.Address;
       Write_Proc : System.Address;
-      Mutex      : aliased Lib.Synchronization.Mutex;
-      Caches     : Sector_Caches (1 .. 8000);
-      Next_Evict : Natural range 1 .. 8000;
+      Caches     : Sector_Caches (1 .. 1_000_000);
    end record;
 
    procedure Get_Cache_Index
