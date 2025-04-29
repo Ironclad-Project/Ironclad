@@ -294,7 +294,8 @@ package body Devices.SATA with SPARK_Mode => Off is
       FIS_Ptr.Command_Completion := 0;
       FIS_Ptr.Control := 0;
 
-      --  Wait for completion.
+      --  Wait for completion of the port, we dont want to issue commands
+      --  while busy.
       Spin := 0;
       Tmp3 := ATA_Device_Busy or ATA_Device_DRQ;
       loop
@@ -309,6 +310,12 @@ package body Devices.SATA with SPARK_Mode => Off is
          Spin := Spin + 1;
       end loop;
 
+      --  Issue the command.
+      Drive.Port_Data.Command_Issue := Shift_Left (1, Slot - 1);
+
+      --  Unlock for other commands.
+      Lib.Synchronization.Release (Drive.Mutex);
+
       --  Poll for success.
       Drive.Port_Data.Command_Issue := Shift_Left (1, Slot - 1);
       loop
@@ -318,11 +325,10 @@ package body Devices.SATA with SPARK_Mode => Off is
          end if;
 
          if (Drive.Port_Data.Interrupt_Status and Shift_Left (1, 30)) /= 0 then
-            goto Failure_Cleanup;
+            return False;
          end if;
       end loop;
 
-      Lib.Synchronization.Release (Drive.Mutex);
       return True;
 
    <<Failure_Cleanup>>
