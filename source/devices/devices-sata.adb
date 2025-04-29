@@ -170,6 +170,9 @@ package body Devices.SATA with SPARK_Mode => Off is
          Cmd_Area.Headers (I).CTBAU := Unsigned_32 (Shift_Right (Tmp2, 32));
       end loop;
 
+      --  Start the command engine.
+      Start_Command_Engine (Port_Data);
+
       --  Find a slot for the identify command and setup the header.
       Identify := new SATA_Identify;
       Tmp      := To_Integer  (Identify.all'Address);
@@ -241,11 +244,13 @@ package body Devices.SATA with SPARK_Mode => Off is
          return False;
       end if;
 
+      Lib.Synchronization.Seize (Drive.Mutex);
+
       --  Find a slot for the identify command and setup the header.
-      Slot := Find_Command_Slot (Drive.Port_Data);
-      if Slot = 0 then
-         return False;
-      end if;
+      loop
+         Slot := Find_Command_Slot (Drive.Port_Data);
+         exit when Slot /= 0;
+      end loop;
 
       Tmp := (FIS_Host_To_Device'Size / 8) / 4;
       Drive.Command_Area.Headers (Slot).Control_Flags := Unsigned_5 (Tmp);
@@ -298,14 +303,13 @@ package body Devices.SATA with SPARK_Mode => Off is
          end if;
 
          if Spin >= 1000000 then
-            return False;
+            goto Failure_Cleanup;
          end if;
 
          Spin := Spin + 1;
       end loop;
 
-      --  Start the command engine, poll for success, and stop.
-      Start_Command_Engine (Drive.Port_Data);
+      --  Poll for success.
       Drive.Port_Data.Command_Issue := Shift_Left (1, Slot - 1);
       loop
          if (Drive.Port_Data.Command_Issue and Shift_Left (1, Slot - 1)) = 0
@@ -314,11 +318,16 @@ package body Devices.SATA with SPARK_Mode => Off is
          end if;
 
          if (Drive.Port_Data.Interrupt_Status and Shift_Left (1, 30)) /= 0 then
-            return False;
+            goto Failure_Cleanup;
          end if;
       end loop;
-      Stop_Command_Engine (Drive.Port_Data);
+
+      Lib.Synchronization.Release (Drive.Mutex);
       return True;
+
+   <<Failure_Cleanup>>
+      Lib.Synchronization.Release (Drive.Mutex);
+      return False;
    exception
       when Constraint_Error =>
          return False;
@@ -334,7 +343,6 @@ package body Devices.SATA with SPARK_Mode => Off is
       SAddr : constant  System.Address := Data_Buffer'Address;
       IAddr : constant Integer_Address := To_Integer (SAddr);
    begin
-      Lib.Synchronization.Seize (Drive.Mutex);
       Success := Issue_Command
          (Drive       => Drive,
           LBA         => LBA,
@@ -342,13 +350,8 @@ package body Devices.SATA with SPARK_Mode => Off is
           Is_Identify => False,
           Is_Write    => False,
           Data_Addr   => Unsigned_64 (IAddr - Memory.Memory_Offset));
-      if not Success then
-         Lib.Messages.Put_Line ("SATA error while reading");
-      end if;
-      Lib.Synchronization.Release (Drive.Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Drive.Mutex);
          Success := False;
    end Read_Sector;
 
@@ -362,7 +365,6 @@ package body Devices.SATA with SPARK_Mode => Off is
       SAddr : constant  System.Address := Data_Buffer'Address;
       IAddr : constant Integer_Address := To_Integer (SAddr);
    begin
-      Lib.Synchronization.Seize (Drive.Mutex);
       Success := Issue_Command
          (Drive       => Drive,
           LBA         => LBA,
@@ -370,13 +372,8 @@ package body Devices.SATA with SPARK_Mode => Off is
           Is_Identify => False,
           Is_Write    => True,
           Data_Addr   => Unsigned_64 (IAddr - Memory.Memory_Offset));
-      if not Success then
-         Lib.Messages.Put_Line ("SATA error while reading");
-      end if;
-      Lib.Synchronization.Release (Drive.Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Drive.Mutex);
          Success := False;
    end Write_Sector;
 
