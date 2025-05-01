@@ -220,7 +220,7 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
       Beginning := Natural (LBA rem Registry.Caches'Length) + 1;
       Idx       := Beginning;
 
-      --  See if we hit the cache (fingers crossed).
+      --  Find an index in the cache.
       loop
          Lib.Synchronization.Seize (Registry.Caches (Idx).Mutex);
          if Registry.Caches (Idx).Is_Used then
@@ -229,10 +229,15 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
                return;
             end if;
          else
+            --  If we have a free block, that means there are no versions of
+            --  this LBA in this window of 1 .. Max_Caching_Step, since we
+            --  allocate from bottom to the top. If this one is free,
+            --  everything behind is free, since we never go from used -> free.
             exit;
          end if;
          Lib.Synchronization.Release (Registry.Caches (Idx).Mutex);
 
+         --  We didnt make it, so we have to evict.
          if (Idx = Registry.Caches'Last) or
             (Idx >= Beginning + Max_Caching_Step)
          then
@@ -240,30 +245,29 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
             if Idx > Registry.Caches'Last then
                Idx := Beginning;
             end if;
+
             Lib.Synchronization.Seize (Registry.Caches (Idx).Mutex);
+            if Registry.Caches (Idx).Is_Dirty then
+               Write_Sector
+                  (Drive       => Registry.Drive_Arg,
+                   LBA         => Registry.Caches (Idx).LBA_Offset,
+                   Data_Buffer => Registry.Caches (Idx).Data,
+                   Success     => Success);
+               if not Success then
+                  Lib.Synchronization.Release (Registry.Caches (Idx).Mutex);
+                  return;
+               end if;
+            end if;
             exit;
          else
             Idx := Idx + 1;
          end if;
       end loop;
 
-      --  We didnt make it, so we have to evict.
-      if Registry.Caches (Idx).Is_Used and Registry.Caches (Idx).Is_Dirty then
-         Write_Sector
-            (Drive       => Registry.Drive_Arg,
-             LBA         => Registry.Caches (Idx).LBA_Offset,
-             Data_Buffer => Registry.Caches (Idx).Data,
-             Success     => Success);
-         if not Success then
-            Lib.Synchronization.Release (Registry.Caches (Idx).Mutex);
-            return;
-         end if;
-      end if;
-
+      --  Set the found index as not dirty and used, and read into it.
       Registry.Caches (Idx).Is_Used    := True;
       Registry.Caches (Idx).LBA_Offset := LBA;
       Registry.Caches (Idx).Is_Dirty   := False;
-
       Read_Sector
          (Drive       => Registry.Drive_Arg,
           LBA         => Registry.Caches (Idx).LBA_Offset,
