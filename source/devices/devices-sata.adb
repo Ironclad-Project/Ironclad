@@ -131,11 +131,15 @@ package body Devices.SATA with SPARK_Mode => Off is
       end if;
 
       --  Check the drive is SATA and not a bridge, SATAPI, or anything weird.
-      IPM := Unsigned_8 (Shift_Right (M.Ports (I).SATA_Status, 8) and 16#F#);
-      Det := Unsigned_8 (Shift_Right (M.Ports (I).SATA_Status, 0) and 16#F#);
-      if IPM /= 16#1# or Det /= 16#3# or M.Ports (I).Signature /= 16#101# then
+      Port_Data := M.Ports (I)'Access;
+      IPM := Unsigned_8 (Shift_Right (Port_Data.SATA_Status, 8) and 16#F#);
+      Det := Unsigned_8 (Shift_Right (Port_Data.SATA_Status, 0) and 16#F#);
+      if IPM /= 16#1# or Det /= 16#3# or Port_Data.Signature /= 16#101# then
          return null;
       end if;
+
+      --  Stop the command engine.
+      Stop_Command_Engine (Port_Data);
 
       --  Allocate and initialize all the structures needed in advance.
       Port_FIS := new HBA_FIS'
@@ -149,7 +153,6 @@ package body Devices.SATA with SPARK_Mode => Off is
           U_FIS      => [others => 0],
           Reserved_4 => [others => 0]);
 
-      Port_Data := M.Ports (I)'Access;
       Tmp       := To_Integer (Port_FIS.all'Address);
       Tmp2      := Unsigned_64 (Tmp - Memory.Memory_Offset);
       Port_Data.FIS_Base  := Unsigned_32 (Tmp2 and 16#FFFFFFFF#);
