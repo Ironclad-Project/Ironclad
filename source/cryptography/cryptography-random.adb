@@ -41,7 +41,7 @@ package body Cryptography.Random is
    --  Data we use to store the current seed.
    type Seed is record
       Hash1, Hash2 : MD5.MD5_Hash;
-   end record with Size => 256;
+   end record with Size => 256, Universal_Aliasing;
    function To_Seed is new Ada.Unchecked_Conversion (Seed, Chacha20.Key);
 
    --  Globals to keep track of RNG state.
