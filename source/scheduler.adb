@@ -17,12 +17,14 @@
 with System;
 with Lib.Synchronization;
 with Lib.Panic;
+with Lib.Messages;
 with System.Storage_Elements; use System.Storage_Elements;
 with Userland.Process;
 with Arch;
 with Arch.Local;
 with Arch.Clocks;
 with Arch.Snippets;
+with Arch.Power;
 with Lib;
 with Lib.Time;
 
@@ -91,6 +93,8 @@ package body Scheduler with SPARK_Mode => Off is
    Buckets     : Stats_Bucket_Arr := [others => 0];
 
    procedure Init (Success : out Boolean) is
+      RR_Quantum : Natural;
+      Profile    : Arch.Power.Power_Profile;
    begin
       --  Initialize registries.
       Thread_Pool := new Thread_Info_Arr'
@@ -134,10 +138,21 @@ package body Scheduler with SPARK_Mode => Off is
       Cluster_Pool (Cluster_Pool'First).Is_Present       := True;
       Cluster_Pool (Cluster_Pool'First).Algorithm        := Cluster_RR;
       Cluster_Pool (Cluster_Pool'First).Is_Interruptible := True;
-      Cluster_Pool (Cluster_Pool'First).RR_Quantum       := 20000;
       Cluster_Pool (Cluster_Pool'First).Percentage       := 100;
       Cluster_Pool (Cluster_Pool'First).Progress_Seconds := 0;
       Cluster_Pool (Cluster_Pool'First).Progress_Nanos   := 0;
+
+      --  Set a higher quantum, thus less power consumption, for small devices.
+      Arch.Power.Get_Preferred_Profile (Profile);
+      case Profile is
+         when Arch.Power.Mobile | Arch.Power.Appliance =>
+            Lib.Messages.Put_Line
+               ("Using higher latency RR_Quantum for low profile devices");
+            RR_Quantum := 60000;
+         when others =>
+            RR_Quantum := 20000;
+      end case;
+      Cluster_Pool (Cluster_Pool'First).RR_Quantum := RR_Quantum;
 
       Is_Initialized := True;
       Lib.Synchronization.Release (Scheduler_Mutex);
@@ -981,5 +996,8 @@ package body Scheduler with SPARK_Mode => Off is
          Buckets (I + 1) := Buckets (I);
       end loop;
       Buckets (Buckets'First) := Last_Bucket;
+   exception
+      when Constraint_Error =>
+         null;
    end Add_Bucket_And_Shift;
 end Scheduler;
