@@ -29,7 +29,7 @@ with Lib;
 with Lib.Time;
 
 package body Scheduler with SPARK_Mode => Off is
-   Kernel_Stack_Size : constant := 16#2000#;
+   Kernel_Stack_Size : constant := 16#4000#;
    type Thread_Stack     is array (Natural range <>) of Unsigned_8;
    type Thread_Stack_64  is array (Natural range <>) of Unsigned_64;
    type Kernel_Stack     is array (1 ..  Kernel_Stack_Size) of Unsigned_8;
@@ -61,7 +61,6 @@ package body Scheduler with SPARK_Mode => Off is
       FP_State        : Arch.Context.FP_Context;
       C_State         : Arch.Context.Core_Context;
       Process         : Userland.Process.PID;
-      Yield_Mutex     : aliased Lib.Synchronization.Binary_Semaphore;
       Last_Sched_Sec  : Unsigned_64;
       Last_Sched_NSec : Unsigned_64;
       System_Sec      : Unsigned_64;
@@ -112,7 +111,6 @@ package body Scheduler with SPARK_Mode => Off is
              FP_State        => <>,
              C_State         => <>,
              Process         => Userland.Process.Error_PID,
-             Yield_Mutex     => Lib.Synchronization.Unlocked_Semaphore,
              Last_Sched_Sec  => 0,
              Last_Sched_NSec => 0,
              System_Sec      => 0,
@@ -393,10 +391,7 @@ package body Scheduler with SPARK_Mode => Off is
           FP_State     => FP_State,
           C_State      => <>,
           Process      => Userland.Process.Convert (PID),
-          Yield_Mutex  => Lib.Synchronization.Unlocked_Semaphore,
           others       => 0);
-
-      Lib.Synchronization.Release (Thread_Pool (New_TID).Yield_Mutex);
 
       Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).GP_State);
 
@@ -428,10 +423,7 @@ package body Scheduler with SPARK_Mode => Off is
          Curr_TID /= Error_TID and then
          Cluster_Pool (Thread_Pool (Curr_TID).Cluster).Is_Interruptible
       then
-         Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex, True);
          Arch.Local.Reschedule_ASAP;
-         Lib.Synchronization.Seize (Thread_Pool (Curr_TID).Yield_Mutex, True);
-         Lib.Synchronization.Release (Thread_Pool (Curr_TID).Yield_Mutex);
       end if;
    exception
       when Constraint_Error =>
@@ -736,7 +728,6 @@ package body Scheduler with SPARK_Mode => Off is
       --  Else, we just need to go to a thread, any, and pick up from there.
       if Current_TID /= Error_TID then
          Curr_Cluster := Thread_Pool (Current_TID).Cluster;
-         Lib.Synchronization.Release (Thread_Pool (Current_TID).Yield_Mutex);
          Lib.Time.Subtract
             (Curr_Sec, Curr_NSec,
              Thread_Pool (Current_TID).Last_Sched_Sec,
