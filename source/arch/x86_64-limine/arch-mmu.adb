@@ -24,6 +24,7 @@ with Memory.Physical;
 with Arch.Limine;
 with Lib.Panic;
 with Devices.FB;
+with Userland.Process;
 
 package body Arch.MMU is
    --  Bits in the 4K page entries.
@@ -864,6 +865,8 @@ package body Arch.MMU is
       Addr : System.Address;
       Len  : Storage_Count)
    is
+      use Userland.Process;
+
       A1    : Unsigned_64;
       Final : constant System.Address := Addr + Len;
       Curr  :          System.Address := Addr;
@@ -879,23 +882,27 @@ package body Arch.MMU is
 
       --  If we are running on a process, and said process is running with more
       --  than one thread, we need to invalidate using funky IPIs.
-      if CPU.Core_Locals /= null then
-         for I in CPU.Core_Locals.all'Range loop
-            if I /= CPU.Get_Local.Number then
-               Lib.Synchronization.Seize
-                  (CPU.Core_Locals (I).Invalidate_Lock, True);
-
-               CPU.Core_Locals (I).Invalidate_Map   := A1;
-               CPU.Core_Locals (I).Invalidate_Start := Addr;
-               CPU.Core_Locals (I).Invalidate_End   := Final;
-               APIC.LAPIC_Send_IPI
-                  (CPU.Core_Locals (I).LAPIC_ID,
-                   Interrupts.Invalidate_Interrupt);
-            end if;
-         end loop;
+      if CPU.Core_Locals = null then
+         return;
       end if;
+
+      for I in CPU.Core_Locals.all'Range loop
+         if I /= CPU.Get_Local.Number and then
+            CPU.Core_Locals (I).Current_Process = CPU.Get_Local.Current_Process
+         then
+            Lib.Synchronization.Seize
+               (CPU.Core_Locals (I).Invalidate_Lock, True);
+
+            CPU.Core_Locals (I).Invalidate_Map   := A1;
+            CPU.Core_Locals (I).Invalidate_Start := Addr;
+            CPU.Core_Locals (I).Invalidate_End   := Final;
+            APIC.LAPIC_Send_IPI
+               (CPU.Core_Locals (I).LAPIC_ID,
+                Interrupts.Invalidate_Interrupt);
+         end if;
+      end loop;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Could not flish global TLBs");
+         Lib.Panic.Hard_Panic ("Could not flush global TLBs");
    end Flush_TLBs;
 end Arch.MMU;
