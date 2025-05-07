@@ -6622,6 +6622,7 @@ package body Userland.Syscall is
             Returned := Success_Return;
             return;
          when VFS.FS_Is_Directory  => Errno := Error_Is_Directory;
+         when VFS.FS_Not_Directory => Errno := Error_Not_Directory;
          when VFS.FS_Invalid_Value => Errno := Error_Invalid_Value;
          when VFS.FS_Not_Supported => Errno := Error_Not_Implemented;
          when VFS.FS_RO_Failure    => Errno := Error_Read_Only_FS;

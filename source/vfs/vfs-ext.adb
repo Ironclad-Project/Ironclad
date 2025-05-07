@@ -758,8 +758,8 @@ package body VFS.EXT with SPARK_Mode => Off is
          goto Cleanup;
       end if;
 
-      if Get_Inode_Type (Path_Inode.Permissions) = File_Directory then
-         if Do_Dirs then
+      if Do_Dirs then
+         if Get_Inode_Type (Path_Inode.Permissions) = File_Directory then
             --  3 iterations for . .. and the first non . or .. file
             for I in 1 .. 3 loop
                Inner_Read_Entry
@@ -778,9 +778,12 @@ package body VFS.EXT with SPARK_Mode => Off is
                goto Cleanup;
             end if;
          else
-            Status := FS_Is_Directory;
+            Status := FS_Not_Directory;
             goto Cleanup;
          end if;
+      elsif Get_Inode_Type (Path_Inode.Permissions) = File_Directory then
+         Status := FS_Is_Directory;
+         goto Cleanup;
       end if;
 
       Delete_Directory_Entry

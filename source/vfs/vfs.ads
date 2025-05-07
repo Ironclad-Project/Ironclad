@@ -261,6 +261,7 @@ package VFS is
        FS_Not_Found,     --  When opening a file, the file was not found.
        FS_Invalid_Value, --  One of the passed values is no good.
        FS_Is_Directory,  --  The operation does not accept directories!
+       FS_Not_Directory, --  The same as above but the opposite.
        FS_Not_Supported, --  The operation is not supported for this FS.
        FS_Not_Allowed,   --  Bad permissions for interacting with the inode.
        FS_RO_Failure,    --  The FS is read-only, but write access is needed.
