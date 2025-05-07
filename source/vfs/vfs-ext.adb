@@ -289,8 +289,8 @@ package body VFS.EXT with SPARK_Mode => Off is
       if Success then
          Status := FS_Exists;
          goto Cleanup;
-      elsif Parent_Index = 0 or Target_Index /= 0 then
-         Status := FS_Invalid_Value;
+      elsif Parent_Index = 0 then
+         Status := FS_Not_Found;
          goto Cleanup;
       elsif not Check_User_Access (User, Parent_Inode.all, False, True, False)
       then
@@ -537,8 +537,11 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Index   => Parent_Index,
           Parent_Inode   => Parent_Inode.all,
           Success        => Success);
-      if Success or else Parent_Index = 0 or else Target_Index /= 0 then
-         Status := FS_Invalid_Value;
+      if Success then
+         Status := FS_Exists;
+         goto Cleanup;
+      elsif Parent_Index = 0 then
+         Status := FS_Not_Found;
          goto Cleanup;
       elsif not Check_User_Access (User, Parent_Inode.all, False, True, False)
       then
@@ -646,8 +649,11 @@ package body VFS.EXT with SPARK_Mode => Off is
       --  Check that the source exists, that the parent of the target exists,
       --  and that we do not want to keep the file if it exists, along with
       --  permissions.
-      if not Success1 or Target_Parent_Index = 0 or (Keep and Success2) then
-         Status := FS_Invalid_Value;
+      if not Success1 or Target_Parent_Index = 0 then
+         Status := FS_Not_Found;
+         goto Cleanup;
+      elsif Keep and Success2 then
+         Status := FS_Exists;
          goto Cleanup;
       elsif not Check_User_Access (User, Target_Parent_Inode.all,
                                    False, True, False)
@@ -750,7 +756,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Parent_Inode => Parent_Inode.all,
           Success      => Success);
       if not Success then
-         Status := FS_Invalid_Value;
+         Status := FS_Not_Found;
          goto Cleanup;
       elsif not Check_User_Access (User, Parent_Inode.all, False, True, False)
       then
@@ -837,7 +843,7 @@ package body VFS.EXT with SPARK_Mode => Off is
          goto Cleanup;
       elsif Get_Inode_Type (Fetched_Inode.all.Permissions) /= File_Directory
       then
-         Success := FS_Invalid_Value;
+         Success := FS_Not_Directory;
          goto Cleanup;
       end if;
 
@@ -1006,10 +1012,12 @@ package body VFS.EXT with SPARK_Mode => Off is
       if not Succ then
          Success := FS_IO_Failure;
          goto Cleanup;
-      elsif Is_Immutable (Fetched_Inode.all) or
-            Get_Inode_Type (Fetched_Inode.all.Permissions) /= File_Regular
+      elsif Is_Immutable (Fetched_Inode.all) then
+         Success := FS_RO_Failure;
+         goto Cleanup;
+      elsif Get_Inode_Type (Fetched_Inode.all.Permissions) /= File_Regular
       then
-         Success := FS_Invalid_Value;
+         Success := FS_Is_Directory;
          goto Cleanup;
       end if;
 
@@ -1109,11 +1117,14 @@ package body VFS.EXT with SPARK_Mode => Off is
           Result          => Fetched.all,
           Write_Operation => False,
           Success         => Success);
-      if not Success                                              or else
-         Get_Inode_Type (Fetched.all.Permissions) /= File_Regular or else
-         Is_Immutable (Fetched.all)
-      then
-         Status := FS_Invalid_Value;
+      if not Success then
+         Status := FS_IO_Failure;
+         goto Cleanup;
+      elsif Get_Inode_Type (Fetched.all.Permissions) /= File_Regular then
+         Status := FS_Is_Directory;
+         goto Cleanup;
+      elsif Is_Immutable (Fetched.all) then
+         Status := FS_RO_Failure;
          goto Cleanup;
       end if;
 
