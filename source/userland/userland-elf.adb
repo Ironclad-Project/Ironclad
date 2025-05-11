@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Snippets;
 with System.Storage_Elements; use System.Storage_Elements;
 with Memory; use Memory;
 with Lib.Alignment;
@@ -221,7 +220,7 @@ package body Userland.ELF is
           Length        => Storage_Count (Ali_L),
           Success       => Success,
           Permissions   =>
-            (Is_User_Accessible => True,
+            (Is_User_Accessible => False,
              Can_Read           => True,
              Can_Write          => True,
              Can_Execute        => False,
@@ -232,9 +231,7 @@ package body Userland.ELF is
                with Import,
                     Address => To_Address (Ali_V) + Storage_Offset (Misalign);
          begin
-            Arch.Snippets.Enable_Userland_Memory_Access;
             VFS.Read (FS, Ino, Header.Offset, Load2, Ret_Count, True, FS_Suc);
-            Arch.Snippets.Disable_Userland_Memory_Access;
             Success := FS_Suc = FS_Success and
                        Ret_Count = Header.File_Size_Bytes;
          end;

@@ -183,6 +183,13 @@ package body Scheduler with SPARK_Mode => Off is
        PID        : Natural;
        New_TID    : out TID)
    is
+      Tmp_Stack_Permissions : constant Arch.MMU.Page_Permissions :=
+         (Is_User_Accessible => False,
+          Can_Read           => True,
+          Can_Write          => True,
+          Can_Execute        => False,
+          Is_Global          => False);
+
       Stack_Permissions : constant Arch.MMU.Page_Permissions :=
          (Is_User_Accessible => True,
           Can_Read           => True,
@@ -213,7 +220,7 @@ package body Scheduler with SPARK_Mode => Off is
          (Map           => Map,
           Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
           Length        => Storage_Offset (Stack_Size),
-          Permissions   => Stack_Permissions,
+          Permissions   => Tmp_Stack_Permissions,
           Success       => Success);
       if not Success then
          goto Cleanup;
@@ -229,7 +236,6 @@ package body Scheduler with SPARK_Mode => Off is
          Index_64 : Natural := Stk_64'Last;
       begin
          --  Load env into the stack.
-         Arch.Snippets.Enable_Userland_Memory_Access;
          for En of reverse Env loop
             Stk_8 (Index_8) := 0;
             Index_8 := Index_8 - 1;
@@ -294,7 +300,17 @@ package body Scheduler with SPARK_Mode => Off is
          --  Write argc and we are done!
          Stk_64 (Index_64) := Args'Length;
          Index_64 := Index_64 - 1;
-         Arch.Snippets.Disable_Userland_Memory_Access;
+
+         --  Remap the stack for user permissions.
+         Arch.MMU.Remap_Range
+            (Map           => Map,
+             Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
+             Length        => Storage_Offset (Stack_Size),
+             Permissions   => Stack_Permissions,
+             Success       => Success);
+         if not Success then
+            goto Cleanup;
+         end if;
 
          --  Initialize context information.
          Index_64 := Index_64 * 8;
