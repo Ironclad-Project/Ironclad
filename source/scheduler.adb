@@ -185,10 +185,10 @@ package body Scheduler with SPARK_Mode => Off is
    is
       Stack_Permissions : constant Arch.MMU.Page_Permissions :=
          (Is_User_Accessible => True,
-          Can_Read          => True,
-          Can_Write         => True,
-          Can_Execute       => False,
-          Is_Global         => False);
+          Can_Read           => True,
+          Can_Write          => True,
+          Can_Execute        => False,
+          Is_Global          => False);
 
       Proc : constant Userland.Process.PID := Userland.Process.Convert (PID);
       GP_State  : Arch.Context.GP_Context;
@@ -229,6 +229,7 @@ package body Scheduler with SPARK_Mode => Off is
          Index_64 : Natural := Stk_64'Last;
       begin
          --  Load env into the stack.
+         Arch.Snippets.Enable_Userland_Memory_Access;
          for En of reverse Env loop
             Stk_8 (Index_8) := 0;
             Index_8 := Index_8 - 1;
@@ -293,6 +294,7 @@ package body Scheduler with SPARK_Mode => Off is
          --  Write argc and we are done!
          Stk_64 (Index_64) := Args'Length;
          Index_64 := Index_64 - 1;
+         Arch.Snippets.Disable_Userland_Memory_Access;
 
          --  Initialize context information.
          Index_64 := Index_64 * 8;

@@ -68,6 +68,8 @@ package body Arch.Interrupts is
       Errno    : Errno_Value;
       FP_State : Context.FP_Context;
    begin
+      Snippets.Enable_Userland_Memory_Access;
+
       Arch.Snippets.Enable_Interrupts;
 
       --  Pre syscall hook.
@@ -358,6 +360,8 @@ package body Arch.Interrupts is
 
       --  Post syscall hook.
       Post_Syscall_Hook (Context.GP_Context (State.all));
+
+      Snippets.Disable_Userland_Memory_Access;
 
       Arch.Snippets.Disable_Interrupts;
    end Syscall_Handler;

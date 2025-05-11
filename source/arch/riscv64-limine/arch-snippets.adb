@@ -50,6 +50,16 @@ package body Arch.Snippets is
       null; --  No pause equivalent sadly, inneficient busy loops for you!
    end Pause;
 
+   procedure Enable_Userland_Memory_Access is
+   begin
+      null;
+   end Enable_Userland_Memory_Access;
+
+   procedure Disable_Userland_Memory_Access is
+   begin
+      null;
+   end Disable_Userland_Memory_Access;
+   ----------------------------------------------------------------------------
    function Read_SStatus return Unsigned_64 is
       Value : Unsigned_64;
    begin

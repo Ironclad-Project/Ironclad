@@ -39,6 +39,13 @@ package Arch.Snippets is
    --  Processor hint for optimizing spinlocks and another cache-intensive
    --  situations.
    procedure Pause with Inline;
+
+   --  Some architectures support Supervisor Mode Access Prevention (SMAP).
+   --  This makes you fault when accessing userland memory from kernel, as to
+   --  avoid malicious programs using this access for anything. This behaviour
+   --  can be enabled and disabled.
+   procedure Enable_Userland_Memory_Access  with Inline;
+   procedure Disable_Userland_Memory_Access with Inline;
    ----------------------------------------------------------------------------
    --  Architecture-specific snippets.
    --  FIXME: We use gnatprep for setting up architecture-specific snppets.

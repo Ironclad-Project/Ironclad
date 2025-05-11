@@ -57,6 +57,16 @@ package body Arch.Snippets is
    begin
       Asm ("pause", Volatile => True);
    end Pause;
+
+   procedure Enable_Userland_Memory_Access is
+   begin
+      Asm ("stac", Clobber => "cc", Volatile => True);
+   end Enable_Userland_Memory_Access;
+
+   procedure Disable_Userland_Memory_Access is
+   begin
+      Asm ("clac", Clobber => "cc", Volatile => True);
+   end Disable_Userland_Memory_Access;
    ----------------------------------------------------------------------------
    procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) is
    begin

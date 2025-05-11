@@ -245,6 +245,10 @@ package body Arch.CPU with SPARK_Mode => Off is
          if (EBX and Shift_Left (1, 7)) /= 0 then
             CR4 := CR4 or Shift_Left (1, 20); --  SMEP.
          end if;
+         if (EBX and Shift_Left (1, 20)) /= 0 then
+            CR4 := CR4 or Shift_Left (1, 21); --  SMAP.
+            Arch.Snippets.Disable_Userland_Memory_Access;
+         end if;
          if (EDX and Shift_Left (1, 20)) /= 0 then
             Snippets.Write_MSR (UCET_MSR, 2#100#); --  Enable just IBT.
             Snippets.Write_MSR (SCET_MSR, 2#100#); --  Enable just IBT.
