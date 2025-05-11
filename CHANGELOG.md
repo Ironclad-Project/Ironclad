@@ -17,6 +17,8 @@ stable, this section will have a table of all supported releases.
 - Greatly improved block device (SATA, NVMe) caching. Leading to big
   performance improvements.
 - Added a basic NVMe driver.
+- Implement support for x86's SMAP, and expose it in an architecture-independent way.
+- Harden syscall memory argument checks.
 - Added AT_REMOVEDIR for the `unlink` syscall.
 - Added a kernel-side terminal for easier early boot debugging for the
   x86_64-limine target.

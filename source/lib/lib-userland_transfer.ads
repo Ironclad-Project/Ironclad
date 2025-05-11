@@ -20,7 +20,7 @@ generic
    type T is private;
 package Lib.Userland_Transfer is
    --  Copy an object from userland to kernel memory.
-   --  Accessability checks are done by checking against the passed MMU table.
+   --  Accessibility checks are done by checking against the passed MMU table.
    procedure Take_From_Userland
       (Map     : Arch.MMU.Page_Table_Acc;
        Data    : out T;
@@ -28,7 +28,7 @@ package Lib.Userland_Transfer is
        Success : out Boolean);
 
    --  Copy an object from kernel memory to userland.
-   --  Accessability checks are done by checking against the passed MMU table.
+   --  Accessibility checks are done by checking against the passed MMU table.
    procedure Paste_Into_Userland
       (Map     : Arch.MMU.Page_Table_Acc;
        Data    : T;
