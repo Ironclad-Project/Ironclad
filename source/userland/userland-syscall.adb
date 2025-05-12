@@ -5426,7 +5426,7 @@ package body Userland.Syscall is
       if O_IAddr /= 0 then
          Old.Flags := 0;
          Old.Mask  := 0;
-         Get_Signal_Handler (Proc, Actual, Old.Handler);
+         Get_Signal_Handlers (Proc, Actual, Old.Handler, Old.Restorer);
 
          Trans.Paste_Into_Userland (Map, Old, O_SAddr, Success);
          if not Success then
@@ -5442,13 +5442,14 @@ package body Userland.Syscall is
 
          case To_Integer (Old.Handler) is
             when SIG_DFL =>
-               Set_Signal_Handler (Proc, Actual, System.Null_Address);
+               Set_Signal_Handlers (Proc, Actual, System.Null_Address,
+                  System.Null_Address);
             when SIG_IGN =>
                Get_Masked_Signals (Proc, Mask);
                Mask (Actual) := True;
                Set_Masked_Signals (Proc, Mask);
             when others =>
-               Set_Signal_Handler (Proc, Actual, Old.Handler);
+               Set_Signal_Handlers (Proc, Actual, Old.Handler, Old.Restorer);
          end case;
       end if;
 
@@ -6422,6 +6423,38 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
    end Create_Thread;
 
+   procedure Signal_Return
+      (Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+   begin
+      Errno    := Error_Would_Block;
+      Returned := Unsigned_64'Last;
+   end Signal_Return;
+
+   procedure Sigaltstack
+      (New_Addr : Unsigned_64;
+       Old_Addr : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      pragma Unreferenced (New_Addr, Old_Addr);
+   begin
+      Errno    := Error_Not_Supported;
+      Returned := Unsigned_64'Last;
+   end Sigaltstack;
+
+   procedure SigSuspend
+      (Mask     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      pragma Unreferenced (Mask);
+   begin
+      Errno    := Error_Interrupted;
+      Returned := Unsigned_64'Last;
+   end SigSuspend;
+
    procedure Get_CPU_Info
       (Addr     : Unsigned_64;
        Returned : out Unsigned_64;
@@ -6621,27 +6654,33 @@ package body Userland.Syscall is
       Success       : IPC.FIFO.Pipe_Status;
       Raised_Signal : Userland.Process.Signal;
       Signal_Addr   : System.Address;
+      Restorer_Addr : System.Address;
       No_Signal     : Boolean;
       Ignore_Signal : Boolean;
+      Mask          : Process.Signal_Bitmap;
       Ret_Count     : Natural;
       Tracer_FD     : Natural;
       Is_Traced     : Boolean;
       TInfo         : Trace_Info;
    begin
       --  Solve signals first.
-      loop
-         Userland.Process.Get_Raised_Signal_Actions
-            (Proc   => Proc,
-             Sig    => Raised_Signal,
-             Addr   => Signal_Addr,
-             No_Sig => No_Signal,
-             Ignore => Ignore_Signal);
-         exit when No_Signal;
-
-         if Signal_Addr = System.Null_Address and not Ignore_Signal then
+      Process.Get_Raised_Signal_Actions
+         (Proc     => Proc,
+          Sig      => Raised_Signal,
+          Handler  => Signal_Addr,
+          Restorer => Restorer_Addr,
+          No_Sig   => No_Signal,
+          Ignore   => Ignore_Signal,
+          Old_Mask => Mask);
+      if not No_Signal then
+         --  Handle signals.
+         if not Ignore_Signal and Signal_Addr = System.Null_Address then
             Do_Exit (Proc, Raised_Signal);
          end if;
-      end loop;
+
+         --  Restore old signals.
+         Process.Set_Masked_Signals (Proc, Mask);
+      end if;
 
       --  Take care of syscall tracing.
       Userland.Process.Get_Traced_Info (Proc, Is_Traced, Tracer_FD);

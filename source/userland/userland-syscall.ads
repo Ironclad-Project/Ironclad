@@ -44,6 +44,7 @@ package Userland.Syscall is
        Error_Would_Fault,     --  EFAULT
        Error_File_Too_Big,    --  EFBIG
        Error_Invalid_ID,      --  EIDRM
+       Error_Interrupted,     --  EINTR
        Error_Invalid_Value,   --  EINVAL
        Error_IO,              --  EIO
        Error_Is_Directory,    --  EISDIR
@@ -75,6 +76,7 @@ package Userland.Syscall is
        Error_Would_Fault     => 1020,
        Error_File_Too_Big    => 1021,
        Error_Invalid_ID      => 1023,
+       Error_Interrupted     => 1025,
        Error_Invalid_Value   => 1026,
        Error_IO              => 1027,
        Error_Is_Directory    => 1029,
@@ -1086,9 +1088,10 @@ package Userland.Syscall is
    SIG_IGN : constant := Integer_Address'Last - 1;
    SIG_DFL : constant := Integer_Address'Last - 2;
    type Sigaction_Info is record
-      Handler : System.Address; --  void handler(int, siginfo_t *, void *);
-      Mask    : Unsigned_64;
-      Flags   : Unsigned_32;
+      Handler  : System.Address; --  void handler(int, siginfo_t *, void *);
+      Restorer : System.Address; --  void restorer(void);
+      Mask     : Unsigned_64;
+      Flags    : Unsigned_32;
    end record;
    procedure Sigaction
       (Signal   : Unsigned_64;
@@ -1280,6 +1283,26 @@ package Userland.Syscall is
        Stack    : Unsigned_64;
        TLS_Addr : Unsigned_64;
        Cluster  : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure Signal_Return
+      (Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   type Stack is record
+      Addr  : Unsigned_64;
+      Flags : Unsigned_32;
+      Size  : Unsigned_64;
+   end record with Pack;
+   procedure Sigaltstack
+      (New_Addr : Unsigned_64;
+       Old_Addr : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure SigSuspend
+      (Mask     : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 

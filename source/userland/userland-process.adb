@@ -121,7 +121,7 @@ package body Userland.Process is
                 Controlling_TTY => null,
                 Masked_Signals  => [others => False],
                 Raised_Signals  => [others => False],
-                Signal_Handlers => [others => System.Null_Address],
+                Signal_Handlers => [others => (others => System.Null_Address)],
                 Niceness        => Scheduler.Default_Niceness,
                 Umask           => Default_Umask,
                 User            => 0,
@@ -168,6 +168,7 @@ package body Userland.Process is
                Registry (I).SGroup_Count    := Registry (P).SGroup_Count;
                Registry (I).SGroups         := Registry (P).SGroups;
                Registry (I).Umask           := Registry (P).Umask;
+               Registry (I).Signal_Handlers := Registry (P).Signal_Handlers;
                Lib.Synchronization.Release (Registry (P).Data_Mutex);
             else
                VFS.Get_Root
@@ -435,6 +436,7 @@ package body Userland.Process is
       package Aln is new Lib.Alignment (Unsigned_64);
       Rand_Addr, Rand_Jump : Unsigned_64;
    begin
+      --  Reassign the memory addresses.
       if Do_ASLR then
          Cryptography.Random.Get_Integer
             (Memory_Locations.Mmap_Anon_Min,
@@ -456,6 +458,12 @@ package body Userland.Process is
       Registry (Process).Alloc_Base := Rand_Addr;
       Registry (Process).Stack_Base := Rand_Addr + Rand_Jump;
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+
+      --  Reassign signal information.
+      Registry (Process).Masked_Signals  := [others => False];
+      Registry (Process).Raised_Signals  := [others => False];
+      Registry (Process).Signal_Handlers :=
+         [others => (others => System.Null_Address)];
    exception
       when Constraint_Error =>
          null;
@@ -828,9 +836,15 @@ package body Userland.Process is
    procedure Issue_Exit (Process : PID; Code : Unsigned_8) is
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
+
       Registry (Process).Did_Exit    := True;
       Registry (Process).Signal_Exit := False;
       Registry (Process).Exit_Code   := Code;
+
+      if Registry (Process).Parent /= Error_PID then
+         Raise_Signal (Registry (Process).Parent, Signal_Child);
+      end if;
+
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    exception
       when Constraint_Error =>
@@ -840,9 +854,15 @@ package body Userland.Process is
    procedure Issue_Exit (Process : PID; Sig : Signal) is
    begin
       Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
+
       Registry (Process).Did_Exit     := True;
       Registry (Process).Signal_Exit  := True;
       Registry (Process).Which_Signal := Sig;
+
+      if Registry (Process).Parent /= Error_PID then
+         Raise_Signal (Registry (Process).Parent, Signal_Child);
+      end if;
+
       Lib.Synchronization.Release (Registry (Process).Data_Mutex);
    exception
       when Constraint_Error =>
@@ -1180,55 +1200,67 @@ package body Userland.Process is
          null;
    end Raise_Signal;
 
-   procedure Get_Signal_Handler
-      (Proc : PID;
-       Sig  : Signal;
-       Addr : out System.Address)
+   procedure Get_Signal_Handlers
+      (Proc     : PID;
+       Sig      : Signal;
+       Handler  : out System.Address;
+       Restorer : out System.Address)
    is
    begin
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
-      Addr := Registry (Proc).Signal_Handlers (Sig);
+      Handler  := Registry (Proc).Signal_Handlers (Sig).Handler_Addr;
+      Restorer := Registry (Proc).Signal_Handlers (Sig).Restorer_Addr;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    exception
       when Constraint_Error =>
-         Addr := System.Null_Address;
-   end Get_Signal_Handler;
+         Handler  := System.Null_Address;
+         Restorer := System.Null_Address;
+   end Get_Signal_Handlers;
 
-   procedure Set_Signal_Handler
-      (Proc : PID;
-       Sig  : Signal;
-       Addr : System.Address)
+   procedure Set_Signal_Handlers
+      (Proc     : PID;
+       Sig      : Signal;
+       Handler  : System.Address;
+       Restorer : System.Address)
    is
    begin
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       if Sig /= Signal_Kill or Sig /= Signal_Stop then
-         Registry (Proc).Signal_Handlers (Sig) := Addr;
+         Registry (Proc).Signal_Handlers (Sig).Handler_Addr  := Handler;
+         Registry (Proc).Signal_Handlers (Sig).Restorer_Addr := Restorer;
       end if;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    exception
       when Constraint_Error =>
          null;
-   end Set_Signal_Handler;
+   end Set_Signal_Handlers;
 
    procedure Get_Raised_Signal_Actions
-      (Proc   : PID;
-       Sig    : out Signal;
-       Addr   : out System.Address;
-       No_Sig : out Boolean;
-       Ignore : out Boolean)
+      (Proc     : PID;
+       Sig      : out Signal;
+       Handler  : out System.Address;
+       Restorer : out System.Address;
+       No_Sig   : out Boolean;
+       Ignore   : out Boolean;
+       Old_Mask : out Signal_Bitmap)
    is
    begin
-      Sig    := Signal_FP_Exception;
-      Addr   := System.Null_Address;
-      No_Sig := True;
-      Ignore := False;
+      Sig      := Signal_FP_Exception;
+      Handler  := System.Null_Address;
+      Restorer := System.Null_Address;
+      No_Sig   := True;
+      Ignore   := False;
+      Old_Mask := [others => False];
 
       Lib.Synchronization.Seize (Registry (Proc).Data_Mutex);
       for I in Registry (Proc).Raised_Signals'Range loop
-         if Registry (Proc).Raised_Signals (I) then
-            Sig    := I;
-            Addr   := Registry (Proc).Signal_Handlers (I);
-            No_Sig := False;
+         if not Registry (Proc).Masked_Signals (I) and
+            Registry (Proc).Raised_Signals (I)
+         then
+            Sig      := I;
+            Handler  := Registry (Proc).Signal_Handlers (I).Handler_Addr;
+            Restorer := Registry (Proc).Signal_Handlers (I).Restorer_Addr;
+            No_Sig   := False;
 
             --  POSIX established only certain signals are safely ignored, when
             --  not ignored, POSIX instructs us to terminate the process if not
@@ -1236,16 +1268,19 @@ package body Userland.Process is
             Ignore := Sig = Signal_Child or Sig = Signal_Urgent;
 
             Registry (Proc).Raised_Signals (I) := False;
+            Old_Mask := Registry (Proc).Masked_Signals;
+            Registry (Proc).Masked_Signals (I) := True;
             exit;
          end if;
       end loop;
       Lib.Synchronization.Release (Registry (Proc).Data_Mutex);
    exception
       when Constraint_Error =>
-         Sig    := Signal_FP_Exception;
-         Addr   := System.Null_Address;
-         No_Sig := True;
-         Ignore := False;
+         Sig      := Signal_FP_Exception;
+         Handler  := System.Null_Address;
+         Restorer := System.Null_Address;
+         No_Sig   := True;
+         Ignore   := False;
    end Get_Raised_Signal_Actions;
 
    function Convert (Proc : PID) return Natural is

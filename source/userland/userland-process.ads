@@ -596,35 +596,44 @@ package Userland.Process is
    procedure Raise_Signal (Proc : PID; Sig : Signal);
 
    --  Get the address assigned for a process to use as a signal handler.
-   --  @param Proc Process to set the handler for.
-   --  @param Sig  Signal to set the handler to.
-   --  @param Addr Address set for the handler.
-   procedure Get_Signal_Handler
-      (Proc : PID;
-       Sig  : Signal;
-       Addr : out System.Address);
+   --  @param Proc     Process to get the handler for.
+   --  @param Sig      Signal to get the handler for.
+   --  @param Handler  Address set for the handler.
+   --  @param Restorer Address set for the restorer function.
+   procedure Get_Signal_Handlers
+      (Proc     : PID;
+       Sig      : Signal;
+       Handler  : out System.Address;
+       Restorer : out System.Address);
 
    --  Set an address for a process to use as a signal handler.
-   --  @param Proc Process to set the handler for.
-   --  @param Sig  Signal to set the handler to.
-   --  @param Addr Address to set for the handler.
-   procedure Set_Signal_Handler
-      (Proc : PID;
-       Sig  : Signal;
-       Addr : System.Address);
+   --  @param Proc     Process to set the handler for.
+   --  @param Sig      Signal to set the handlers for.
+   --  @param Handler  Address set for the handler.
+   --  @param Restorer Address set for the restorer function.
+   procedure Set_Signal_Handlers
+      (Proc     : PID;
+       Sig      : Signal;
+       Handler  : System.Address;
+       Restorer : System.Address);
 
    --  Get a raised signal for a process.
-   --  @param Proc   Process to fetch signals for.
-   --  @param Sig    Raised signal.
-   --  @param Addr   Address of the handler, Null_Address if not registered.
-   --  @param No_Sig The process has no more signals to process.
-   --  @param Ignore If not registered, this signal can be ignored, else, kill.
+   --  Getting a signal will mask it.
+   --  @param Proc     Process to fetch signals for.
+   --  @param Sig      Raised signal.
+   --  @param Handler  Address of the handler, Null_Address if not registered.
+   --  @param Restorer Address of the restorer.
+   --  @param No_Sig   The process has no more signals to process.
+   --  @param Ignore   If Addr = null, this signal can be ignored, else, kill.
+   --  @param Old_Mask Masked signals after maskng the raised one.
    procedure Get_Raised_Signal_Actions
-      (Proc   : PID;
-       Sig    : out Signal;
-       Addr   : out System.Address;
-       No_Sig : out Boolean;
-       Ignore : out Boolean);
+      (Proc     : PID;
+       Sig      : out Signal;
+       Handler  : out System.Address;
+       Restorer : out System.Address;
+       No_Sig   : out Boolean;
+       Ignore   : out Boolean;
+       Old_Mask : out Signal_Bitmap);
 
    --  Convert a PID to an integer. The results will be reproducible for the
    --  same PIDs.
@@ -690,9 +699,14 @@ private
       Description   : File_Description_Acc;
    end record;
 
+   type Signal_Handlers is record
+      Handler_Addr  : System.Address;
+      Restorer_Addr : System.Address;
+   end record;
+
    type Thread_Arr is array (1 .. Max_Thread_Count)   of Scheduler.TID;
    type File_Arr   is array (0 .. Max_File_Count - 1) of File_Descriptor;
-   type Handle_Arr is array (Signal)                  of System.Address;
+   type Handle_Arr is array (Signal)                  of Signal_Handlers;
    type Process_Data is record
       Data_Mutex      : aliased Lib.Synchronization.Mutex;
       Controlling_TTY : IPC.PTY.Inner_Acc;

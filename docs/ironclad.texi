@@ -195,6 +195,9 @@ Syscalls
 * gettidid/settidid::       Get and set TID IDs.
 * failure_policy::          Get or set failure policies.
 * create_thread::           Create new processes.
+* signal_return::           Return from a signal body.
+* sigaltstack::             Set alternative stacks for signal handling.
+* sigsuspend::              Suspend threads waiting for signals.
 * listmounts::              List the system's mounts.
 * uname::                   List system information.
 * listthreads::             List the system's threads.
@@ -487,6 +490,24 @@ supported signals with their corresponding values are:
 @item SIGWINCH
 @item SIGPWR
 @end enumerate
+
+A Linux-like signal model is provided, where the kernel takes care of signal
+dispatching and registering, and the only thing userland has to do in
+particular to support signal control flow transfer is using @code{sa_restorer}
+and @code{signal_return} syscalls, in a construct as such:
+
+@example c
+void restorer(void) @{
+    // Do whatever on signal end.
+    signal_return();
+    // Handle error, usually just panic.
+    __builtin_unreachable();
+@}
+@end example
+
+In a normal desktop system, this will be implemented by the libc or similar
+layer, but this is something to keep in mind when working without those
+abstractions. @ref{sigaction}, @ref{signal_return}.
 
 @node Sockets
 @section Sockets
@@ -1023,11 +1044,11 @@ Empty.
 @item
 @ref{create_thread}.
 @item
-Empty.
+@ref{signal_return}.
 @item
-Empty.
+@ref{sigaltstack}.
 @item
-Empty.
+@ref{sigsuspend}.
 @item
 @ref{listmounts}
 @item
@@ -1106,6 +1127,9 @@ File too large, or an attempt to surpass the limit on file size was issued.
 @item EIDRM (1023)
 Invalid identifier.
 
+@item EINTR (1025)
+The request was interrupted by an incoming signal.
+
 @item EINVAL (1026)
 The passed value is not valid for the called syscall.
 
@@ -1172,7 +1196,8 @@ void exit(uint64_t status);
 
 This syscall terminates the calling process "immediately".
 Any open file descriptors belonging to the process to be closed, and any
-threads of execution are terminated.
+threads of execution are terminated. @code{SIGCHLD} will be sent to the parent
+if any.
 
 This syscall does not return any value, but it sets errno on failure:
 
@@ -3688,6 +3713,13 @@ A non-@code{NULL} pointer points to not valid memory.
 @section sigaction
 
 @example c
+struct sigaction @{
+    void (*sa_sigaction)(int, siginfo_t *, void *);
+    void (*sa_restorer)(void);
+    sigset_t sa_mask;
+    int sa_flags;
+@};
+
 int sigaction(int sig, struct sigaction *act, struct sigaction *oldact);
 @end example
 
@@ -4224,6 +4256,73 @@ The passed buffers were pointing to invalid memory.
 
 @item EACCES
 MAC disallowed this.
+@end table
+
+@node signal_return
+@section signal_return
+
+@example c
+int signal_return(void);
+@end example
+
+This syscall is to be called to return to normal execution from a signal
+handler. Not calling this syscall at the end of handling a signal is very
+much undefined behaviour, and will most likely make you regret not doing so.
+
+This syscall does not return in success, and returns @code{-1} on failure, with
+the errno:
+
+@table @code
+@item EAGAIN
+Thread is not handling a signal.
+@end table
+
+@node sigaltstack
+@section  sigaltstack
+
+@example c
+typedef struct @{
+    void  *ss_sp;
+    int    ss_flags;
+    size_t ss_size;
+@} stack_t;
+
+int sigaltstack(const stack_t *ss, stack_t *old_ss);
+@end example
+
+This syscall allows a thread to define an alternative stack to use for signal
+handling. The alternative stack will be only used if @code{sa_sigaction}
+requested it.
+
+If @code{old_ss} is not @code{NULL}, the old alternative stack being replaced
+is returned there.
+
+This syscall returns @code{0} on success, and returns @code{-1} on failure,
+with the errno:
+
+@table @code
+@item EAGAIN
+Thread is not handling a signal.
+@end table
+
+@node sigsuspend
+@section sigsuspend
+
+@example c
+int sigsuspend(const sigset_t *mask);
+@end example
+
+This syscall temporarily replaces the signal mask of the calling with the given
+mask and then suspends the process until delivery of a signal whose action is
+to invoke a signal handler or to terminate a process. This syscall will return
+after the handling of the awaited signal.
+
+This syscall always returns @code{-1}, with the errno:
+
+@table @code
+@item EINTR
+The syscall was interrupted by a signal, this is basically a success return,
+since this is what we wanted!
 @end table
 
 @node listmounts
