@@ -21,7 +21,11 @@ package Arch.Hooks is
    function Devices_Hook return Boolean;
 
    --  PRCTL hook for the syscall.
-   function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean;
+   procedure PRCTL_Hook
+      (Code       : Natural;
+       Arg        : in out Unsigned_64;
+       Write_Back : out Boolean;
+       Success    : out Boolean);
 
    --  Hook to be called in panic procedures for bringing all cores to a stop
    --  (but not the caller).

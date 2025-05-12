@@ -39,21 +39,40 @@ package body Arch.Hooks is
              Devices.Serial.Init;
    end Devices_Hook;
 
-   function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean is
-      Int_Arg : constant Unsigned_64 := Unsigned_64 (To_Integer (Arg));
-      Value   : Unsigned_64 with Import, Address => Arg;
+   procedure PRCTL_Hook
+      (Code       : Natural;
+       Arg        : in out Unsigned_64;
+       Write_Back : out Boolean;
+       Success    : out Boolean)
+   is
    begin
       case Code is
-         when 1 => Snippets.Write_FS (Int_Arg);
-         when 2 => Value := Snippets.Read_FS;
-         when 3 => Snippets.Write_GS (Int_Arg);
-         when 4 => Value := Snippets.Read_GS;
-         when others => return False;
+         when 1 =>
+            Snippets.Write_FS (Arg);
+            Write_Back := False;
+            Success    := True;
+         when 2 =>
+            Arg := Snippets.Read_FS;
+            Write_Back := True;
+            Success    := True;
+         when 3 =>
+            Snippets.Write_GS (Arg);
+            Write_Back := False;
+            Success    := True;
+         when 4 =>
+            Arg := Snippets.Read_GS;
+            Write_Back := True;
+            Success    := True;
+         when others =>
+            Arg        := 0;
+            Write_Back := False;
+            Success    := False;
       end case;
-      return True;
    exception
       when Constraint_Error =>
-         return False;
+         Arg        := 0;
+         Write_Back := False;
+         Success    := False;
    end PRCTL_Hook;
 
    procedure Panic_SMP_Hook is

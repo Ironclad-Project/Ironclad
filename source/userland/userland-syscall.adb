@@ -65,25 +65,42 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      package Trans is new Lib.Userland_Transfer (Unsigned_64);
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
-      I_Arg : constant Integer_Address := Integer_Address (Argument);
-      S_Arg : constant  System.Address := To_Address (I_Arg);
+      IAddr : constant Integer_Address := Integer_Address (Argument);
+      SAddr : constant  System.Address := To_Address (IAddr);
+      Arg   : Unsigned_64;
       Map   : Page_Table_Acc;
+      Succ  : Boolean;
+      WB    : Boolean;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, I_Arg, 8) then
+      Trans.Take_From_Userland (Map, Arg, SAddr, Succ);
+      if not Succ then
+         goto Would_Fault_Error;
+      end if;
+
+      Arch.Hooks.PRCTL_Hook (Natural (Code and 16#FFFFFF#), Arg, WB, Succ);
+      if not Succ then
          Returned := Unsigned_64'Last;
          Errno    := Error_Would_Fault;
-      elsif Code > Unsigned_64 (Natural'Last) or else
-            not Arch.Hooks.PRCTL_Hook (Natural (Code), S_Arg)
-      then
-         Returned := Unsigned_64'Last;
-         Errno    := Error_Invalid_Value;
-      else
-         Returned := 0;
-         Errno    := Error_No_Error;
+         return;
       end if;
+
+      if WB then
+         Trans.Paste_Into_Userland (Map, Arg, SAddr, Succ);
+         if not Succ then
+            goto Would_Fault_Error;
+         end if;
+      end if;
+
+      Returned := 0;
+      Errno    := Error_No_Error;
+      return;
+
+   <<Would_Fault_Error>>
+      Returned := Unsigned_64'Last;
+      Errno    := Error_Would_Fault;
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;
@@ -5066,18 +5083,22 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
+      package Transfer_1 is new Lib.Userland_Transfer (Boolean);
+      package Transfer_2 is new Lib.Userland_Transfer (Addr4_NetInterface);
+      package Transfer_3 is new Lib.Userland_Transfer (Addr6_NetInterface);
+
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
       IAddr : constant Integer_Address := Integer_Address (Arg_Addr);
+      SAddr : constant  System.Address := To_Address (IAddr);
       File  : File_Description_Acc;
       Handl : Devices.Device_Handle;
       Stat  : VFS.File_Stat;
       Suc   : Boolean;
       Suc2  : VFS.FS_Status;
       Map   : Page_Table_Acc;
-
-      Blk :            Boolean with Import, Address => To_Address (IAddr);
-      IP4 : Addr4_NetInterface with Import, Address => To_Address (IAddr);
-      IP6 : Addr6_NetInterface with Import, Address => To_Address (IAddr);
+      Blk :            Boolean;
+      IP4 : Addr4_NetInterface;
+      IP6 : Addr6_NetInterface;
    begin
       Get_File (Proc, InterDev, File);
       if not Get_Capabilities (Proc).Can_Manage_Networking then
@@ -5099,22 +5120,24 @@ package body Userland.Syscall is
       end if;
       Handl := Devices.From_Unique_ID (Integer (File.Inner_Ino));
 
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
       case Operation is
          when NETINTER_SET_BLOCK =>
-            if not Check_Userland_Access (Map, IAddr, Blk'Size / 8) then
+            Transfer_1.Take_From_Userland (Map, Blk, SAddr, Suc);
+            if not Suc then
                goto Would_Fault_Error;
             end if;
             Networking.Interfaces.Block (Handl, Blk, Suc);
          when NETINTER_SET_STATIC_IP4 =>
-            if not Check_Userland_Access (Map, IAddr, IP4'Size / 8) then
+            Transfer_2.Take_From_Userland (Map, IP4, SAddr, Suc);
+            if not Suc then
                goto Would_Fault_Error;
             end if;
             Networking.Interfaces.Modify_Addresses
                (Handl, IP4.IP, IP4.Sub, Suc);
          when NETINTER_SET_STATIC_IP6 =>
-            if not Check_Userland_Access (Map, IAddr, IP6'Size / 8) then
+            Transfer_3.Take_From_Userland (Map, IP6, SAddr, Suc);
+            if not Suc then
                goto Would_Fault_Error;
             end if;
             Networking.Interfaces.Modify_Addresses

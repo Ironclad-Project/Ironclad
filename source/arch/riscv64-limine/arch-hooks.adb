@@ -20,11 +20,16 @@ package body Arch.Hooks is
       return True;
    end Devices_Hook;
 
-   function PRCTL_Hook (Code : Natural; Arg : System.Address) return Boolean is
-      pragma Unreferenced (Code);
-      pragma Unreferenced (Arg);
+   procedure PRCTL_Hook
+      (Code       : Natural;
+       Arg        : in out Unsigned_64;
+       Write_Back : out Boolean;
+       Success    : out Boolean)
+   is
+      pragma Unreferenced (Code, Arg);
    begin
-      return True;
+      Write_Back := False;
+      Success    := False;
    end PRCTL_Hook;
 
    procedure Panic_SMP_Hook is
