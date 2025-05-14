@@ -58,6 +58,7 @@ stable, this section will have a table of all supported releases.
 - streaksu - <streaksu@ironclad-os.org> | https://codeberg.org/streaksu
 - mintsuki - https://codeberg.org/mintsuki
 - no92 - https://github.com/no92
+- zhml - https://codeberg.org/zhml
 
 ### Feedback
 

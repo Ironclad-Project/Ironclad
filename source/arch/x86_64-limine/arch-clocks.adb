@@ -59,7 +59,7 @@ is
       --  We require invariant TSC.
       Snippets.Get_CPUID (16#80000007#, 0, EAX, EBX, ECX, EDX, Success);
       if not Success or else ((EDX and Shift_Left (1, 8)) = 0) then
-         Lib.Panic.Hard_Panic ("No invariant TSC detected");
+         Lib.Messages.Put_Line ("No invariant TSC detected");
       end if;
 
       --  We need to calibrate the TSC. For this we can check CPUID.
