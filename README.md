@@ -1,6 +1,6 @@
 # Ironclad
 
-[<img src="https://ironclad-os.org/resources/ironclad.svg" width="250" align="right" alt="Ironclad logo">]()
+[<img src="https://ironclad-os.org/images/ironclad.svg" width="250" align="right" alt="Ironclad logo">]()
 
 Ironclad is a partially formally verified real-time kernel, with a small
 footprint, for general-purpose and embedded OSes, written in SPARK and Ada.
