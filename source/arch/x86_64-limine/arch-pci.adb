@@ -14,9 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System.Machine_Code;
+with Arch.MMU;
+with Memory; use Memory;
 with Arch.Snippets;
 with Lib.Panic;
 with Arch.CPU;
+with Arch.ACPI;
 
 package body Arch.PCI is
    --  PCI configuration space starts at this IO Port addresses.
@@ -27,7 +31,9 @@ package body Arch.PCI is
    PCI_Max_Function : constant Unsigned_8 := 7;
    PCI_Max_Slot     : constant Unsigned_8 := 31;
 
-   PCI_Registry : PCI_Registry_Entry_Acc := null;
+   Use_PCIe        : Boolean;
+   PCIe_ECAM_Start : Unsigned_64;
+   PCI_Registry    : PCI_Registry_Entry_Acc := null;
 
    function Is_Supported return Boolean is
    begin
@@ -35,9 +41,25 @@ package body Arch.PCI is
    end Is_Supported;
 
    procedure Scan_PCI is
+      ACPI_Address          : ACPI.Table_Record;
       Root_Bus, Host_Bridge : PCI_Device;
       Success               : Boolean;
    begin
+      --  If we can, we will use PCIe instead of default barebones PCI. The
+      --  advantages are speed and more config space.
+      --  We can check presence by checking whether the MCFG table exists.
+      ACPI.FindTable (ACPI.MCFG_Signature, ACPI_Address);
+      Use_PCIe := ACPI_Address.Virt_Addr /= Null_Address;
+      if Use_PCIe then
+         declare
+            Table : ACPI.MCFG
+               with Import, Address => To_Address (ACPI_Address.Virt_Addr);
+         begin
+            PCIe_ECAM_Start := Table.Root_ECAM_Addr;
+            ACPI.Unref_Table (ACPI_Address);
+         end;
+      end if;
+
       Fetch_Device (0, 0, 0, Root_Bus, Success);
       if not Success then
          Lib.Panic.Hard_Panic ("Could not read root bus");
@@ -166,7 +188,8 @@ package body Arch.PCI is
           MSI_Support  => False,
           MSIX_Support => False,
           MSI_Offset   => 0,
-          MSIX_Offset  => 0);
+          MSIX_Offset  => 0,
+          Using_PCIe   => False);
    exception
       when Constraint_Error =>
          Success := False;
@@ -281,40 +304,149 @@ package body Arch.PCI is
          null;
    end Set_MSI_Vector;
    ----------------------------------------------------------------------------
+   --  For the read and write functions, we must use AX/EAX/RAX, since AMD
+   --  says in their manuals that they reserve the right to make the CPU only
+   --  allow reading the ECAM by using RAX. I have no idea why they though that
+   --  was a good idea.
    function Read8 (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_8 is
+      Val : Unsigned_8;
    begin
-      Get_Address (Dev, Off);
-      return Snippets.Port_In (PCI_Config_Data + (Off and 3));
+      if Dev.Using_PCIe then
+         declare
+            Addr : constant Unsigned_64 :=
+               Memory.Memory_Offset +
+               Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
+               Unsigned_64 (Off);
+         begin
+            System.Machine_Code.Asm
+               ("movb (%1), %0",
+                Outputs  => Unsigned_8'Asm_Output ("=a", Val),
+                Inputs   => Unsigned_64'Asm_Input ("r", Addr),
+                Clobber  => "memory",
+                Volatile => True);
+            return Val;
+         end;
+      else
+         Get_Address (Dev, Off);
+         return Snippets.Port_In (PCI_Config_Data + (Off and 3));
+      end if;
    end Read8;
 
    function Read16 (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_16 is
+      Val : Unsigned_16;
    begin
-      Get_Address (Dev, Off);
-      return Snippets.Port_In16 (PCI_Config_Data + (Off and 3));
+      if Dev.Using_PCIe then
+         declare
+            Addr : constant Unsigned_64 :=
+               Memory.Memory_Offset +
+               Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
+               Unsigned_64 (Off);
+         begin
+            System.Machine_Code.Asm
+               ("movw (%1), %0",
+                Outputs  => Unsigned_16'Asm_Output ("=a", Val),
+                Inputs   => Unsigned_64'Asm_Input ("r", Addr),
+                Clobber  => "memory",
+                Volatile => True);
+            return Val;
+         end;
+      else
+         Get_Address (Dev, Off);
+         return Snippets.Port_In16 (PCI_Config_Data + (Off and 3));
+      end if;
    end Read16;
 
    function Read32 (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_32 is
+      Val : Unsigned_32;
    begin
-      Get_Address (Dev, Off);
-      return Snippets.Port_In32 (PCI_Config_Data + (Off and 3));
+      if Dev.Using_PCIe then
+         declare
+            Addr : constant Unsigned_64 :=
+               Memory.Memory_Offset +
+               Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
+               Unsigned_64 (Off);
+         begin
+            System.Machine_Code.Asm
+               ("movl (%1), %0",
+                Outputs  => Unsigned_32'Asm_Output ("=a", Val),
+                Inputs   => Unsigned_64'Asm_Input ("r", Addr),
+                Clobber  => "memory",
+                Volatile => True);
+            return Val;
+         end;
+      else
+         Get_Address (Dev, Off);
+         return Snippets.Port_In32 (PCI_Config_Data + (Off and 3));
+      end if;
    end Read32;
 
    procedure Write8 (Dev : PCI_Device; Off : Unsigned_16; D : Unsigned_8) is
    begin
-      Get_Address (Dev, Off);
-      Snippets.Port_Out (PCI_Config_Data + (Off and 3), D);
+      if Dev.Using_PCIe then
+         declare
+            Addr : constant Unsigned_64 :=
+               Memory.Memory_Offset +
+               Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
+               Unsigned_64 (Off);
+         begin
+            System.Machine_Code.Asm
+               ("movb %0, (%1)",
+                Inputs  =>
+                  [Unsigned_8'Asm_Input ("a", D),
+                   Unsigned_64'Asm_Input ("r", Addr)],
+                Clobber => "memory",
+                Volatile => True);
+         end;
+      else
+         Get_Address (Dev, Off);
+         Snippets.Port_Out (PCI_Config_Data + (Off and 3), D);
+      end if;
    end Write8;
 
    procedure Write16 (Dev : PCI_Device; Off : Unsigned_16; D : Unsigned_16) is
    begin
-      Get_Address (Dev, Off);
-      Snippets.Port_Out16 (PCI_Config_Data + (Off and 3), D);
+      if Dev.Using_PCIe then
+         declare
+            Addr : constant Unsigned_64 :=
+               Memory.Memory_Offset +
+               Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
+               Unsigned_64 (Off);
+         begin
+            System.Machine_Code.Asm
+               ("movw %0, (%1)",
+                Inputs  =>
+                  [Unsigned_16'Asm_Input ("a", D),
+                   Unsigned_64'Asm_Input ("r", Addr)],
+                Clobber => "memory",
+                Volatile => True);
+         end;
+      else
+         Get_Address (Dev, Off);
+         Snippets.Port_Out16 (PCI_Config_Data + (Off and 3), D);
+      end if;
    end Write16;
 
    procedure Write32 (Dev : PCI_Device; Off : Unsigned_16; D : Unsigned_32) is
    begin
-      Get_Address (Dev, Off);
-      Snippets.Port_Out32 (PCI_Config_Data + (Off and 3), D);
+      if Dev.Using_PCIe then
+         declare
+            Addr : constant Unsigned_64 :=
+               Memory.Memory_Offset +
+               Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
+               Unsigned_64 (Off);
+         begin
+            System.Machine_Code.Asm
+               ("movl %0, (%1)",
+                Inputs  =>
+                  [Unsigned_32'Asm_Input ("a", D),
+                   Unsigned_64'Asm_Input ("r", Addr)],
+                Clobber => "memory",
+                Volatile => True);
+         end;
+      else
+         Get_Address (Dev, Off);
+         Snippets.Port_Out32 (PCI_Config_Data + (Off and 3), D);
+      end if;
    end Write32;
    ----------------------------------------------------------------------------
    procedure List_All (Buffer : out PCI_Listing_Arr; Length : out Natural) is
@@ -349,6 +481,14 @@ package body Arch.PCI is
          Length := 0;
    end List_All;
    ----------------------------------------------------------------------------
+   function Get_ECAM_Addr (Bus, Slot, Func : Unsigned_8) return Unsigned_64 is
+   begin
+      return PCIe_ECAM_Start +
+         (((Unsigned_64 (Bus) * 256) +
+          (Unsigned_64 (Slot) * 8) +
+          (Unsigned_64 (Func))) * 4096);
+   end Get_ECAM_Addr;
+
    procedure Get_Address (Dev : PCI_Device; Offset : Unsigned_16) is
       Addr : constant Unsigned_32 :=
          Shift_Left (Unsigned_32 (Dev.Bus),  16) or
@@ -370,6 +510,7 @@ package body Arch.PCI is
    end Check_Bus;
 
    procedure Check_Function (Bus, Slot, Func : Unsigned_8) is
+      Addr    : Virtual_Address;
       Success : Boolean;
       Config8 : Unsigned_32;
       Temp    : PCI_Registry_Entry_Acc := null;
@@ -390,6 +531,26 @@ package body Arch.PCI is
          Config8 := Read32 (Result, 16#18#);
          Check_Bus (Unsigned_8 (Shift_Right (Config8, 8) and 16#FF#));
          return;
+      end if;
+
+      --  Now that we know we are talking with an actual device, we can
+      --  map PCIe address space, which is 4096 bytes.
+      if Use_PCIe then
+         Addr := Integer_Address (Get_ECAM_Addr (Bus, Slot, Func));
+         MMU.Map_Range
+            (Map            => MMU.Kernel_Table,
+             Physical_Start => To_Address (Addr),
+             Virtual_Start  => To_Address (Memory.Memory_Offset + Addr),
+             Length         => 4096,
+             Permissions    =>
+               (Is_User_Accessible => False,
+                Can_Read           => True,
+                Can_Write          => True,
+                Can_Execute        => False,
+                Is_Global          => True),
+             Success       => Success,
+             Caching       => MMU.Uncacheable);
+         Result.Using_PCIe := Success;
       end if;
 
       --  Add the device to the list.
@@ -422,6 +583,7 @@ package body Arch.PCI is
       Result.Bus  := Bus;
       Result.Slot := Slot;
       Result.Func := Func;
+      Result.Using_PCIe := False;
 
       --  Read additional data and fill the device record.
       Config0 := Read32 (Result, 0);
@@ -439,7 +601,8 @@ package body Arch.PCI is
           MSI_Support  => False,
           MSIX_Support => False,
           MSI_Offset   => 0,
-          MSIX_Offset  => 0);
+          MSIX_Offset  => 0,
+          Using_PCIe   => False);
 
       --  Check for MSI/MSIX by reading the capabilities list.
       Config6 := Read16 (Result, 6);

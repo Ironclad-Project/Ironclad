@@ -142,6 +142,7 @@ private
       MSIX_Support : Boolean;
       MSI_Offset   : Unsigned_8;
       MSIX_Offset  : Unsigned_8;
+      Using_PCIe   : Boolean;
    end record;
 
    #if ArchName = """x86_64-limine"""
@@ -152,6 +153,7 @@ private
          Next : PCI_Registry_Entry_Acc;
       end record;
 
+      function Get_ECAM_Addr (Bus, Slot, Func : Unsigned_8) return Unsigned_64;
       procedure Get_Address (Dev : PCI_Device; Offset : Unsigned_16);
       procedure Check_Bus (Bus : Unsigned_8);
       procedure Check_Function (Bus, Slot, Func : Unsigned_8);

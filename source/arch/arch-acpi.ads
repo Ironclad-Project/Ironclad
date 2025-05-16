@@ -325,6 +325,19 @@ package Arch.ACPI is
       Header at 0 range 0 .. 287;
    end record;
 
+   --  MCFG table, for PCIe devices.
+   MCFG_Signature : constant SDT_Signature := "MCFG";
+   type MCFG is record
+      Header         : SDT_Header;
+      Reserved       : Unsigned_64;
+      Root_ECAM_Addr : Unsigned_64;
+   end record;
+   for MCFG use record
+      Header         at 0 range   0 .. 287;
+      Reserved       at 0 range 288 .. 351;
+      Root_ECAM_Addr at 0 range 352 .. 415;
+   end record;
+
    --  Search for an ACPI table and return its address, null if not found.
    --  The table will not necessarily be mapped.
    type Table_Record is record
