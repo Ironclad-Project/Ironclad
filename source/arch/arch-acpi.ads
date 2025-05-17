@@ -522,7 +522,7 @@ private
 
       function PCI_Device_Open
          (Address : PCI_Address;
-          Handle  : out System.Address) return Status
+          Handle  : access System.Address) return Status
          with Export, Convention => C,
               External_Name => "uacpi_kernel_pci_device_open";
 
@@ -671,7 +671,7 @@ private
 
       function Wait_For_Event
          (Handle  : System.Address;
-          Timeout : Unsigned_16) return int
+          Timeout : Unsigned_16) return Unsigned_8
          with Export, Convention => C,
               External_Name => "uacpi_kernel_wait_for_event";
 
@@ -697,7 +697,7 @@ private
          with Export, Convention => C,
               External_Name => "uacpi_kernel_release_mutex";
 
-      function Get_Thread_ID return Unsigned_64
+      function Get_Thread_ID return System.Address
          with Export, Convention => C,
               External_Name => "uacpi_kernel_get_thread_id";
 

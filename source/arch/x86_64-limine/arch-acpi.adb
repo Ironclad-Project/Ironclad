@@ -302,7 +302,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
 
    function PCI_Device_Open
       (Address : PCI_Address;
-       Handle  : out System.Address) return Status
+       Handle  : access System.Address) return Status
    is
       Ret     : constant uACPI_PCI_Acc := new uACPI_PCI;
       Success : Boolean;
@@ -314,12 +314,15 @@ package body Arch.ACPI with SPARK_Mode => Off is
           Result  => Ret.Dev,
           Success => Success);
       if Success then
-         Handle := C3.To_Address (C3.Object_Pointer (Ret));
+         Handle.all := C3.To_Address (C3.Object_Pointer (Ret));
          return Status_OK;
       else
-         Handle := System.Null_Address;
+         Handle.all := System.Null_Address;
          return Status_Not_Found;
       end if;
+   exception
+      when Constraint_Error =>
+         return Status_Internal_Error;
    end PCI_Device_Open;
 
    procedure PCI_Device_Close (Handle : System.Address) is
@@ -673,7 +676,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
 
    function Wait_For_Event
       (Handle  : System.Address;
-       Timeout : Unsigned_16) return int
+       Timeout : Unsigned_16) return Unsigned_8
    is
       pragma Unreferenced (Handle, Timeout);
    begin
@@ -733,9 +736,10 @@ package body Arch.ACPI with SPARK_Mode => Off is
          null;
    end Release_Mutex;
 
-   function Get_Thread_ID return Unsigned_64 is
+   function Get_Thread_ID return System.Address is
    begin
-      return Unsigned_64 (Scheduler.Convert (Arch.Local.Get_Current_Thread));
+      return To_Address
+         (Integer_Address (Scheduler.Convert (Arch.Local.Get_Current_Thread)));
    end Get_Thread_ID;
 
    procedure Kernel_Log (Level : int; Str_Addr : System.Address) is
