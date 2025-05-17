@@ -398,7 +398,7 @@ package body VFS.FAT with SPARK_Mode => Off is
             Lib.Time.Time_To_Epoch
                (Year    => Natural (Shift_Right (C3, 9) and 2#1111111#) + 1980,
                 Month   => Natural (Shift_Right (C3, 5)  and 2#0001111#),
-                Day     => Natural (Shift_Right (C3, 0)  and 2#0011111#) + 1,
+                Day     => Natural (Shift_Right (C3, 0)  and 2#0011111#),
                 Hours   => Natural (Shift_Right (C2, 10) and 2#0011111#),
                 Minutes => Natural (Shift_Right (C2,  4) and 2#0111111#),
                 Seconds => Natural (Shift_Right (C2,  0) and 2#0011111#) * 2);
