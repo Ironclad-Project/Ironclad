@@ -43,7 +43,7 @@ package body VFS is
        Mount_Path    : String;
        Do_Read_Only  : Boolean;
        Access_Policy : Access_Time_Policy;
-       Success       : out Boolean)
+       Success       : out FS_Status)
    is
       pragma SPARK_Mode (Off);
       Name : String renames Device_Name;
@@ -51,7 +51,7 @@ package body VFS is
       for FS in FS_Type'Range loop
          if FS /= FS_DEV then
             Mount (Name, Mount_Path, FS, Do_Read_Only, Access_Policy, Success);
-            exit when Success;
+            exit when Success = FS_Success;
          end if;
       end loop;
    end Mount;
@@ -62,7 +62,7 @@ package body VFS is
        FS            : FS_Type;
        Do_Read_Only  : Boolean;
        Access_Policy : Access_Time_Policy;
-       Success       : out Boolean)
+       Success       : out FS_Status)
    is
       De         : constant Device_Handle := Devices.Fetch (Device_Name);
       Free_I     : FS_Handle;
@@ -70,14 +70,12 @@ package body VFS is
       Key        : FS_Handle := Error_Handle;
       Ino        : File_Inode_Number := 0;
       Root_Inode : File_Inode_Number;
-      Succ       : FS_Status;
    begin
-      Success := False;
-
       if not Is_Absolute (Mount_Path)           or
          Mount_Path'Length > Path_Buffer_Length or
          De = Devices.Error_Handle
       then
+         Success := FS_Invalid_Value;
          return;
       end if;
 
@@ -86,12 +84,12 @@ package body VFS is
             (Path       => Mount_Path,
              Key        => Key,
              Ino        => Ino,
-             Success    => Succ,
+             Success    => Success,
              User       => 0,
              Want_Read  => True,
              Want_Write => False);
-         if Succ /= FS_Success then
-            Success := False;
+         if Success /= FS_Success then
+            return;
          end if;
       end if;
 
@@ -129,10 +127,12 @@ package body VFS is
              Root_Ino    => Root_Inode);
 
          Mounts (Free_I).Path_Buffer (1 .. Mount_Path'Length) := Mount_Path;
-         Success := True;
+         Success := FS_Success;
          if Root_Idx = Error_Handle then
             Root_Idx := Free_I;
          end if;
+      else
+         Success := FS_Invalid_Value;
       end if;
 
    <<Cleanup>>

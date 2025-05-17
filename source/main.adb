@@ -114,9 +114,11 @@ begin
       end if;
       if Found and Value_Len /= 0 then
          Lib.Messages.Put_Line ("Mounting root " & Value (1 .. Value_Len));
-         Mount (Value (1 .. Value_Len), "/", False, Relative_Update, Found);
-         if not Found then
-            Lib.Messages.Put_Line ("Failed mount " & Value (1 .. Value_Len));
+         Mount (Value (1 .. Value_Len), "/", False, Relative_Update, Success);
+         if Success /= FS_Success then
+            Lib.Messages.Put_Line
+               ("Failed to mount '" & Value (1 .. Value_Len) & "' (" &
+                VFS.FS_Status'Image (Success) & ")");
          end if;
       end if;
 
@@ -177,9 +179,10 @@ begin
       end if;
 
       --  Mount /dev.
-      Mount ("zero", "/dev/", VFS.FS_DEV, False, Relative_Update, Found);
-      if not Found then
-         Lib.Panic.Hard_Panic ("Failed to mount /dev");
+      Mount ("zero", "/dev/", VFS.FS_DEV, False, Relative_Update, Success);
+      if Success /= FS_Success then
+         Lib.Panic.Hard_Panic
+            ("Failed to mount /dev (" & VFS.FS_Status'Image (Success) & ")");
       end if;
 
       --  Init an init or panic.

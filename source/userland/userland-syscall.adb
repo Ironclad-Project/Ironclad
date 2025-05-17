@@ -2648,7 +2648,10 @@ package body Userland.Syscall is
       Parsed_Kind : VFS.FS_Type;
       Parsed_Acc : VFS.Access_Time_Policy;
       Map        : Page_Table_Acc;
-      Success    : Boolean;
+      Success_1  : VFS.FS_Status;
+      Success_2  : Boolean;
+      Handle     : FS_Handle;
+      Matched    : Natural;
    begin
       Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
@@ -2683,17 +2686,20 @@ package body Userland.Syscall is
             with Import, Address => Tgt_Addr;
       begin
          if Do_Remount then
-            declare
-               Handle  : FS_Handle;
-               Matched : Natural;
-            begin
-               VFS.Get_Mount (Target, Matched, Handle);
-               if Handle /= VFS.Error_Handle then
-                  VFS.Remount (Handle, Do_RO, Parsed_Acc, Success);
-               else
-                  Success := False;
-               end if;
-            end;
+            VFS.Get_Mount (Target, Matched, Handle);
+            if Handle /= VFS.Error_Handle then
+               VFS.Remount (Handle, Do_RO, Parsed_Acc, Success_2);
+            else
+               Success_2 := False;
+            end if;
+
+            if Success_2 then
+               Errno := Error_No_Error;
+               Returned := 0;
+            else
+               Errno := Error_IO;
+               Returned := Unsigned_64'Last;
+            end if;
          else
             case FSType is
                when MNT_EXT => Parsed_Kind := VFS.FS_EXT;
@@ -2705,17 +2711,10 @@ package body Userland.Syscall is
             end case;
 
             VFS.Mount
-               (Source, Target, Parsed_Kind, Do_RO, Parsed_Acc, Success);
+               (Source, Target, Parsed_Kind, Do_RO, Parsed_Acc, Success_1);
+            Translate_Status (Success_1, 0, Returned, Errno);
          end if;
       end;
-
-      if Success then
-         Errno := Error_No_Error;
-         Returned := 0;
-      else
-         Errno := Error_IO;
-         Returned := Unsigned_64'Last;
-      end if;
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;

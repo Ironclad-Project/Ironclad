@@ -77,6 +77,22 @@ package VFS is
    --  Supported filesystems.
    type FS_Type is (FS_DEV, FS_EXT, FS_FAT);
 
+   --  Status returned from file operations as result.
+   type FS_Status is
+      (FS_Success,       --  Success, only good value for ease of checking.
+       FS_Exists,        --  Creation operation and the file already exists.
+       FS_Not_Found,     --  When opening a file, the file was not found.
+       FS_Invalid_Value, --  One of the passed values is no good.
+       FS_Is_Directory,  --  The operation does not accept directories!
+       FS_Not_Directory, --  The same as above but the opposite.
+       FS_Not_Supported, --  The operation is not supported for this FS.
+       FS_Not_Allowed,   --  Bad permissions for interacting with the inode.
+       FS_RO_Failure,    --  The FS is read-only, but write access is needed.
+       FS_IO_Failure,    --  The underlying device errored out.
+       FS_Loop,          --  Too many symlinks were encountered resolving path.
+       FS_Full,          --  The file or device is full.
+       FS_Not_Empty);    --  A directory was to be removed with files inside.
+
    --  Access time update policies supported.
    type Access_Time_Policy is
       (Always_Update,   --  Always update, at all costs.
@@ -94,13 +110,13 @@ package VFS is
    --  @param Mount_Path    Absolute path for mounting.
    --  @param Do_Read_Only  Force to mount read only.
    --  @param Access_Policy Access policy to use for the new mount.
-   --  @param Success       True on success, False on failure.
+   --  @param Success       Success of the operation.
    procedure Mount
       (Device_Name   : String;
        Mount_Path    : String;
        Do_Read_Only  : Boolean;
        Access_Policy : Access_Time_Policy;
-       Success       : out Boolean)
+       Success       : out FS_Status)
       with Pre => Device_Name'Length <= Devices.Max_Name_Length and
                   Devices.Is_Initialized                        and
                   Is_Initialized;
@@ -111,14 +127,14 @@ package VFS is
    --  @param FS            FS Type to mount as.
    --  @param Do_Read_Only  Force to mount read only.
    --  @param Access_Policy Access policy to use for the new mount.
-   --  @param Success       True on success, False on failure.
+   --  @param Success       Success of the operation.
    procedure Mount
       (Device_Name   : String;
        Mount_Path    : String;
        FS            : FS_Type;
        Do_Read_Only  : Boolean;
        Access_Policy : Access_Time_Policy;
-       Success       : out Boolean)
+       Success       : out FS_Status)
       with Pre => Device_Name'Length <= Devices.Max_Name_Length and
                   Devices.Is_Initialized                        and
                   Is_Initialized;
@@ -254,22 +270,6 @@ package VFS is
    procedure Get_Max_Length (Key : FS_Handle; Length : out Unsigned_64)
       with Pre => Is_Initialized and Key /= Error_Handle;
    ----------------------------------------------------------------------------
-   --  Status returned from file operations as result.
-   type FS_Status is
-      (FS_Success,       --  Success, only good value for ease of checking.
-       FS_Exists,        --  Creation operation and the file already exists.
-       FS_Not_Found,     --  When opening a file, the file was not found.
-       FS_Invalid_Value, --  One of the passed values is no good.
-       FS_Is_Directory,  --  The operation does not accept directories!
-       FS_Not_Directory, --  The same as above but the opposite.
-       FS_Not_Supported, --  The operation is not supported for this FS.
-       FS_Not_Allowed,   --  Bad permissions for interacting with the inode.
-       FS_RO_Failure,    --  The FS is read-only, but write access is needed.
-       FS_IO_Failure,    --  The underlying device errored out.
-       FS_Loop,          --  Too many symlinks were encountered resolving path.
-       FS_Full,          --  The file or device is full.
-       FS_Not_Empty);    --  A directory was to be removed with files inside.
-
    --  Open a file with an absolute path inside the mount.
    --  @param Key        Relative FS Handle to start opening.
    --  @param Relative   Relative directory inode to open from.
