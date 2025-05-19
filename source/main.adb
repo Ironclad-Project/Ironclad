@@ -116,7 +116,7 @@ begin
          Lib.Messages.Put_Line ("Mounting root " & Value (1 .. Value_Len));
          Mount (Value (1 .. Value_Len), "/", False, Relative_Update, Success);
          if Success /= FS_Success then
-            Lib.Messages.Put_Line
+            Lib.Panic.Hard_Panic
                ("Failed to mount '" & Value (1 .. Value_Len) & "' (" &
                 VFS.FS_Status'Image (Success) & ")");
          end if;
