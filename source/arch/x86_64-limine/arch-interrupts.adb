@@ -153,7 +153,7 @@ package body Arch.Interrupts is
          when 31 =>
             Exit_Thread (Returned, Errno);
          when 32 =>
-            Get_Random (State.RDI, State.RSI, Returned, Errno);
+            Get_Entropy (State.RDI, State.RSI, Returned, Errno);
          when 33 =>
             MProtect (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 34 =>

@@ -572,7 +572,7 @@ package Userland.Syscall is
    procedure Exit_Thread (Returned : out Unsigned_64; Errno : out Errno_Value);
 
    --  Bypassing /dev/(u)random for getting random data.
-   procedure Get_Random
+   procedure Get_Entropy
      (Address  : Unsigned_64;
       Length   : Unsigned_64;
       Returned : out Unsigned_64;

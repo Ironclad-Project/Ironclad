@@ -2406,7 +2406,7 @@ package body Userland.Syscall is
       Scheduler.Bail;
    end Exit_Thread;
 
-   procedure Get_Random
+   procedure Get_Entropy
      (Address  : Unsigned_64;
       Length   : Unsigned_64;
       Returned : out Unsigned_64;
@@ -2432,15 +2432,15 @@ package body Userland.Syscall is
                with Import, Address => SAddr;
          begin
             Cryptography.Random.Fill_Data (Result);
-            Errno := Error_No_Error;
-            Returned := Result'Length * 4;
+            Errno    := Error_No_Error;
+            Returned := 0;
          end;
       end if;
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
-   end Get_Random;
+   end Get_Entropy;
 
    procedure MProtect
      (Address    : Unsigned_64;

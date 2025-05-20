@@ -136,7 +136,7 @@ Syscalls
 * manage_tcluster::         Manage and create thread clusters.
 * fcntl::                   Multiplexed operations for files.
 * exit_thread::             Exit the calling thread.
-* getrandom::               Bypass /dev/random for avoiding DoS attacks.
+* getentropy::              Bypass /dev/random for avoiding DoS attacks.
 * mac_capabilities::        Get and set MAC capabilities.
 * add_mac_permissions::     Configure MAC using filesystem-based filters.
 * set_mac_enforcement::     Set enforcement to follow on MAC violations.
@@ -906,7 +906,7 @@ Empty.
 @item
 @ref{exit_thread}.
 @item
-@ref{getrandom}.
+@ref{getentropy}.
 @item
 @ref{mmap/mprotect/munmap, mprotect}.
 @item
@@ -2328,11 +2328,11 @@ This syscall does not return any value, but it sets errno on failure:
 @code{EACCES}: MAC disallowed this.
 @end itemize
 
-@node getrandom
-@section getrandom
+@node getentropy
+@section getentropy
 
 @example c
-ssize_t getrandom(void *buffer, size_t length);
+int getentropy(void *buffer, size_t length);
 @end example
 
 This syscall fills the buffer pointed to @code{buffer} with up to @code{length}
@@ -2343,8 +2343,8 @@ instead of just reading from the device as to avoid denial of service attacks
 based on exhausting the file descriptor limit of the system, along with other
 vulnerabilities and inconveniences related to the classic file interface.
 
-The syscall returns the count of read random data or @code{-1} on failure, and
-sets the following errno:
+The syscall returns @code{0} on success or @code{-1} on failure, and sets the
+following errno:
 
 @itemize @bullet
 @item
@@ -4664,7 +4664,7 @@ dd if=/dev/random of=seedfile.bin bs=4M count=1 iflag=fullblock
 @code{/dev/urandom} does the same as @code{/dev/random}, and is only provided
 as a virtual alias for compatibility.
 
-@code{getrandom} is provided as well for avoiding the file interface when
+@code{getentropy} is provided as well for avoiding the file interface when
 interfacing with @code{random}, as that may avoid certain kinds of DoS
 attacks related to opened file limits.
 

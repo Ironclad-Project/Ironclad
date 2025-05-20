@@ -44,6 +44,7 @@ stable, this section will have a table of all supported releases.
 - Changed the mapping of the signal numbers handled by Ironclad due to POSIX
   requirements, affecting SIGHUP, SIGINT, SIGQUIT, SIGABRT, SIGKILL, SIGALRM,
   and SIGTERM.
+- Replaced the `getrandom` syscall for the POSIX-compliant `getentropy`.
 
 ### Non-code related changes
 
