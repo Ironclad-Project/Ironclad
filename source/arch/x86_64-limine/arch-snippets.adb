@@ -324,4 +324,34 @@ package body Arch.Snippets is
          EDX := 0;
       end if;
    end Get_CPUID;
+
+   function Read_TSC return Unsigned_64 is
+      Low32, High32 : Unsigned_32;
+   begin
+      --  Quoting Linux (arch/x86/include/asm/msr.h):
+      --
+      --  The RDTSC instruction is not ordered relative to memory
+      --  access.  The Intel SDM and the AMD APM are both vague on this
+      --  point, but empirically an RDTSC instruction can be
+      --  speculatively executed before prior loads.  An RDTSC
+      --  immediately after an appropriate barrier appears to be
+      --  ordered as a normal load, that is, it provides the same
+      --  ordering guarantees as reading from a global memory location
+      --  that some other imaginary CPU is updating continuously with a
+      --  time stamp.
+      --
+      --  RDTSCP behaves as a LFENCE + RDTSC, as said by the documentation:
+      --  "The RDTSCP instruction is not a serializing instruction, but it does
+      --   wait until all previous instructions have executed and all previous
+      --   loads are globally visible.."
+      --
+      --  RDTSCP is architectural, so we just use that.
+      Asm ("rdtscp",
+           Outputs  =>
+            [Unsigned_32'Asm_Output ("=a", Low32),
+             Unsigned_32'Asm_Output ("=d", High32)],
+           Clobber  => "memory, ecx", --  ecx is clobbered.
+           Volatile => True);
+      return Shift_Left (Unsigned_64 (High32), 32) or Unsigned_64 (Low32);
+   end Read_TSC;
 end Arch.Snippets;

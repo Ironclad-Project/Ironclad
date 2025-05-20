@@ -92,7 +92,6 @@ package Arch.Snippets is
           EDX     : out Unsigned_32;
           Success : out Boolean);
 
-      function Read_TSC return Unsigned_64;
-      pragma Import (Intrinsic, Read_TSC, "__builtin_ia32_rdtsc");
+      function Read_TSC return Unsigned_64 with Inline;
    #end if;
 end Arch.Snippets;
