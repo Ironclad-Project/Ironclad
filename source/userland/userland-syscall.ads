@@ -178,8 +178,8 @@ package Userland.Syscall is
    MAP_ANON      : constant := 2#01000#;
    MAP_NORESERVE : constant := 2#10000#;
    procedure Mmap
-      (Hint       : Unsigned_64;
-       Length     : Unsigned_64;
+      (Hint2      : Unsigned_64;
+       Length2    : Unsigned_64;
        Protection : Unsigned_64;
        Flags      : Unsigned_64;
        File_D     : Unsigned_64;

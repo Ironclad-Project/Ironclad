@@ -1407,8 +1407,8 @@ initialize the requested memory window, starting to read from @code{offset},
 filling with zeros the non-filled part, if any. This kind of filling does not
 advance the reading counter of the passed device or inode.
 
-@code{hint} and @code{length} are required to be aligned to page boundaries
-for the running architecture, else it will fail.
+@code{hint} and @code{length}, if not matching page boundaries for the
+architecture, will be aligned by the kernel to the closest page boundaries.
 
 @code{protection} and @code{flags} are a bitfield of the following flags:
 

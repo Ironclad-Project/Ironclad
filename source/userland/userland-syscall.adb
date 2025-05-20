@@ -496,8 +496,8 @@ package body Userland.Syscall is
    end Seek;
 
    procedure Mmap
-      (Hint       : Unsigned_64;
-       Length     : Unsigned_64;
+      (Hint2      : Unsigned_64;
+       Length2    : Unsigned_64;
        Protection : Unsigned_64;
        Flags      : Unsigned_64;
        File_D     : Unsigned_64;
@@ -505,26 +505,28 @@ package body Userland.Syscall is
        Returned   : out Unsigned_64;
        Errno      : out Errno_Value)
    is
+      package Al is new Lib.Alignment (Unsigned_64);
+
       Perms      : constant Page_Permissions := Get_Mmap_Prot (Protection);
       Proc       : constant              PID := Arch.Local.Get_Current_Process;
-      Final_Hint :           Virtual_Address := Virtual_Address (Hint);
+      Final_Hint : Virtual_Address;
       File       : File_Description_Acc;
       Success    : Boolean;
       Status     : FS_Status;
       Size       : Unsigned_64;
       Map        : Page_Table_Acc;
+      Hint       : Unsigned_64 := Hint2;
+      Length     : Unsigned_64 := Length2;
    begin
       Get_Common_Map (Proc, Map);
-
       if not Get_Capabilities (Proc).Can_Modify_Memory then
          goto Bad_MAC_Return;
-      elsif (Perms.Can_Write and Perms.Can_Execute) or
-            (Hint   mod Page_Size /= 0)             or
-            (Length mod Page_Size /= 0)             or
-            Length = 0
-      then
+      elsif (Perms.Can_Write and Perms.Can_Execute) or Length2 = 0 then
          goto Invalid_Value_Return;
       end if;
+
+      Al.Align_Memory_Range (Hint, Length, Arch.MMU.Page_Size);
+      Final_Hint := Memory.Virtual_Address (Hint);
 
       Get_User_Mapped_Size (Map, Size);
       if Size + Length >= Unsigned_64 (Get_Limit (Proc, MAC.Memory_Size_Limit))
