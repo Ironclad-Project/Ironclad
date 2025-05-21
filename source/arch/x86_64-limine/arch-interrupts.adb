@@ -384,19 +384,22 @@ package body Arch.Interrupts is
    procedure Invalidate_Handler is
       I            : Positive;
       Final, Curr  : System.Address;
+      Map          : Unsigned_64;
    begin
       I     := CPU.Get_Local.Number;
+      Lib.Synchronization.Seize (CPU.Core_Locals (I).Invalidate_Lock);
       Final := CPU.Core_Locals (I).Invalidate_End;
       Curr  := CPU.Core_Locals (I).Invalidate_Start;
+      Map   := CPU.Core_Locals (I).Invalidate_Map;
+      Lib.Synchronization.Release (CPU.Core_Locals (I).Invalidate_Lock);
 
-      if Snippets.Read_CR3 = CPU.Core_Locals (I).Invalidate_Map then
+      if Snippets.Read_CR3 = Map then
          while To_Integer (Curr) < To_Integer (Final) loop
             Snippets.Invalidate_Page (To_Integer (Curr));
             Curr := Curr + Arch.MMU.Page_Size;
          end loop;
       end if;
 
-      Lib.Synchronization.Release (CPU.Core_Locals (I).Invalidate_Lock);
       Arch.APIC.LAPIC_EOI;
    exception
       when Constraint_Error =>

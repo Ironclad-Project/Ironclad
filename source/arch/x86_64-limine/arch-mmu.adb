@@ -870,6 +870,7 @@ package body Arch.MMU is
       A1    : Unsigned_64;
       Final : constant System.Address := Addr + Len;
       Curr  :          System.Address := Addr;
+      Proc  : Userland.Process.PID;
    begin
       --  First, invalidate for ourselves.
       A1 := Unsigned_64 (To_Integer (Map.PML4_Level'Address) - Memory_Offset);
@@ -886,16 +887,17 @@ package body Arch.MMU is
          return;
       end if;
 
+      Proc := CPU.Get_Local.Current_Process;
+
       for I in CPU.Core_Locals.all'Range loop
          if I /= CPU.Get_Local.Number and then
-            CPU.Core_Locals (I).Current_Process = CPU.Get_Local.Current_Process
+            CPU.Core_Locals (I).Current_Process = Proc
          then
-            Lib.Synchronization.Seize
-               (CPU.Core_Locals (I).Invalidate_Lock, True);
-
+            Lib.Synchronization.Seize (CPU.Core_Locals (I).Invalidate_Lock);
             CPU.Core_Locals (I).Invalidate_Map   := A1;
             CPU.Core_Locals (I).Invalidate_Start := Addr;
             CPU.Core_Locals (I).Invalidate_End   := Final;
+            Lib.Synchronization.Release (CPU.Core_Locals (I).Invalidate_Lock);
             APIC.LAPIC_Send_IPI
                (CPU.Core_Locals (I).LAPIC_ID,
                 Interrupts.Invalidate_Interrupt);
