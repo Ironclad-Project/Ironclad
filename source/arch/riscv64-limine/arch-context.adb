@@ -18,7 +18,10 @@ package body Arch.Context is
    procedure Init_GP_Context
       (Ctx        : out GP_Context;
        Stack      : System.Address;
-       Start_Addr : System.Address)
+       Start_Addr : System.Address;
+       Argument_1 : Unsigned_64 := 0;
+       Argument_2 : Unsigned_64 := 0;
+       Argument_3 : Unsigned_64 := 0)
    is
       pragma Unreferenced (Stack);
       pragma Unreferenced (Start_Addr);

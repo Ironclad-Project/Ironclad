@@ -6429,6 +6429,7 @@ package body Userland.Syscall is
        Errno    : out Errno_Value)
    is
    begin
+      Scheduler.Exit_Signal_And_Reschedule;
       Errno    := Error_Would_Block;
       Returned := Unsigned_64'Last;
    end Signal_Return;
@@ -6675,12 +6676,20 @@ package body Userland.Syscall is
           Old_Mask => Mask);
       if not No_Signal then
          --  Handle signals.
-         if not Ignore_Signal and Signal_Addr = System.Null_Address then
+         if Signal_Addr /= System.Null_Address then
+            Scheduler.Launch_Signal_Thread
+               (Unsigned_64 (Process.Signal'Enum_Rep (Raised_Signal)),
+                Signal_Addr, Restorer_Addr, Is_Traced);
+         elsif not Ignore_Signal then
             Do_Exit (Proc, Raised_Signal);
+         else
+            Is_Traced := True;
          end if;
 
-         --  Restore old signals.
-         Process.Set_Masked_Signals (Proc, Mask);
+         --  Restore old signals if we were successful.
+         if Is_Traced then
+            Process.Set_Masked_Signals (Proc, Mask);
+         end if;
       end if;
 
       --  Take care of syscall tracing.

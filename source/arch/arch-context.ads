@@ -33,7 +33,10 @@ package Arch.Context is
    procedure Init_GP_Context
       (Ctx        : out GP_Context;
        Stack      : System.Address;
-       Start_Addr : System.Address);
+       Start_Addr : System.Address;
+       Argument_1 : Unsigned_64 := 0;
+       Argument_2 : Unsigned_64 := 0;
+       Argument_3 : Unsigned_64 := 0);
 
    --  Load the passed context.
    procedure Load_GP_Context (Ctx : GP_Context) with No_Return;

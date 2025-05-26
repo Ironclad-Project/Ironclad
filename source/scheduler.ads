@@ -128,6 +128,12 @@ package Scheduler is
    procedure Get_Name (Thread : TID; Name : out String; Len : out Natural);
    procedure Set_Name (Thread : TID; Name : String; Success : out Boolean);
    ----------------------------------------------------------------------------
+   procedure Launch_Signal_Thread
+      (Signal_Number    : Unsigned_64;
+       Handle, Restorer : System.Address;
+       Success          : out Boolean);
+   procedure Exit_Signal_And_Reschedule;
+   ----------------------------------------------------------------------------
    --  Get the number of processes set to run over various periods of time.
    --  @param Avg_1  1 minute average  * 100.
    --  @param Avg_5  5 minute average  * 100.

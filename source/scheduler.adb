@@ -91,6 +91,20 @@ package body Scheduler with SPARK_Mode => Off is
    Last_Bucket : Unsigned_64      := 0;
    Buckets     : Stats_Bucket_Arr := [others => 0];
 
+   --  Common stack permissions.
+   Tmp_Stack_Permissions : constant Arch.MMU.Page_Permissions :=
+      (Is_User_Accessible => False,
+       Can_Read           => True,
+       Can_Write          => True,
+       Can_Execute        => False,
+       Is_Global          => False);
+   Stack_Permissions : constant Arch.MMU.Page_Permissions :=
+      (Is_User_Accessible => True,
+       Can_Read           => True,
+       Can_Write          => True,
+       Can_Execute        => False,
+       Is_Global          => False);
+
    procedure Init (Success : out Boolean) is
       RR_Quantum : Natural;
       Profile    : Arch.Power.Power_Profile;
@@ -183,20 +197,6 @@ package body Scheduler with SPARK_Mode => Off is
        PID        : Natural;
        New_TID    : out TID)
    is
-      Tmp_Stack_Permissions : constant Arch.MMU.Page_Permissions :=
-         (Is_User_Accessible => False,
-          Can_Read           => True,
-          Can_Write          => True,
-          Can_Execute        => False,
-          Is_Global          => False);
-
-      Stack_Permissions : constant Arch.MMU.Page_Permissions :=
-         (Is_User_Accessible => True,
-          Can_Read           => True,
-          Can_Write          => True,
-          Can_Execute        => False,
-          Is_Global          => False);
-
       Proc : constant Userland.Process.PID := Userland.Process.Convert (PID);
       GP_State  : Arch.Context.GP_Context;
       FP_State  : Arch.Context.FP_Context;
@@ -689,6 +689,94 @@ package body Scheduler with SPARK_Mode => Off is
       when Constraint_Error =>
          Success := False;
    end Set_Name;
+   ----------------------------------------------------------------------------
+   procedure Launch_Signal_Thread
+      (Signal_Number    : Unsigned_64;
+       Handle, Restorer : System.Address;
+       Success          : out Boolean)
+   is
+      Stack_Size : constant := Kernel_Stack_Size;
+
+      GP_State  : Arch.Context.GP_Context;
+      FP_State  : Arch.Context.FP_Context;
+      New_TID   : TID;
+      Stack_Top : Unsigned_64;
+      Map       : Arch.MMU.Page_Table_Acc;
+      Curr_TID  : constant TID :=
+         Arch.Local.Get_Current_Thread;
+      Curr_Proc : constant Userland.Process.PID :=
+         Arch.Local.Get_Current_Process;
+   begin
+      --  Initialize signal stack. Start by mapping the user stack.
+      Userland.Process.Get_Stack_Base (Curr_Proc, Stack_Top);
+      Userland.Process.Set_Stack_Base (Curr_Proc, Stack_Top + Stack_Size);
+      Userland.Process.Get_Common_Map (Curr_Proc, Map);
+      Arch.MMU.Map_Allocated_Range
+         (Map           => Map,
+          Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
+          Length        => Storage_Offset (Stack_Size),
+          Permissions   => Tmp_Stack_Permissions,
+          Success       => Success);
+      if not Success then
+         return;
+      end if;
+
+      declare
+         Sz     : constant Natural := Natural (Stack_Size);
+         Stk_64 : Thread_Stack_64 (1 .. Sz / 8)
+            with Import, Address => To_Address (Virtual_Address (Stack_Top));
+         Index_64 : Natural := Stk_64'Last;
+      begin
+         Stk_64 (Index_64) := Unsigned_64 (To_Integer (Restorer));
+         Index_64 := Index_64 - 1;
+         Index_64 := Index_64 * 8;
+
+         Arch.MMU.Remap_Range
+            (Map           => Map,
+             Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
+             Length        => Storage_Offset (Stack_Size),
+             Permissions   => Stack_Permissions,
+             Success       => Success);
+         if not Success then
+            return;
+         end if;
+
+         --  Initialize context information.
+         --  TODO: Provide siginfo_t* and ucontext_t* on the 2nd and 3rd arg.
+         Arch.Context.Init_GP_Context
+            (GP_State,
+             To_Address (Integer_Address (Stack_Top + Unsigned_64 (Index_64))),
+             Handle,
+             Signal_Number,
+             0,
+             0);
+         Arch.Context.Init_FP_Context (FP_State);
+      end;
+
+      Create_User_Thread
+         (GP_State  => GP_State,
+          FP_State  => FP_State,
+          Map       => Map,
+          PID       => Userland.Process.Convert (Curr_Proc),
+          Cluster   => Thread_Pool (Curr_TID).Cluster,
+          TCB       => Arch.Local.Fetch_TCB,
+          New_TID   => New_TID);
+      if not Success then
+         return;
+      end if;
+
+      while Thread_Pool (New_TID).Is_Present loop
+         Yield_If_Able;
+      end loop;
+   exception
+      when Constraint_Error =>
+         Success := False;
+   end Launch_Signal_Thread;
+
+   procedure Exit_Signal_And_Reschedule is
+   begin
+      Bail;
+   end Exit_Signal_And_Reschedule;
    ----------------------------------------------------------------------------
    procedure Get_Load_Averages (Avg_1, Avg_5, Avg_15 : out Unsigned_32) is
    begin

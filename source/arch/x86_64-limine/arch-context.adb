@@ -26,18 +26,22 @@ package body Arch.Context is
    procedure Init_GP_Context
       (Ctx        : out GP_Context;
        Stack      : System.Address;
-       Start_Addr : System.Address)
+       Start_Addr : System.Address;
+       Argument_1 : Unsigned_64 := 0;
+       Argument_2 : Unsigned_64 := 0;
+       Argument_3 : Unsigned_64 := 0)
    is
    begin
-      Ctx := (
-         CS     => GDT.User_Code64_Segment or 3,
-         SS     => GDT.User_Data64_Segment or 3,
-         RFLAGS => 16#202#,
-         RIP    => Unsigned_64 (To_Integer (Start_Addr)),
-         RSP    => Unsigned_64 (To_Integer (Stack)),
-         RBP    => 0,
-         others => <>
-      );
+      Ctx :=
+         (RDI    => Argument_1,
+          RSI    => Argument_2,
+          RDX    => Argument_3,
+          CS     => GDT.User_Code64_Segment or 3,
+          SS     => GDT.User_Data64_Segment or 3,
+          RFLAGS => 16#202#,
+          RIP    => Unsigned_64 (To_Integer (Start_Addr)),
+          RSP    => Unsigned_64 (To_Integer (Stack)),
+          others => 0);
    end Init_GP_Context;
 
    procedure Load_GP_Context (Ctx : GP_Context) is

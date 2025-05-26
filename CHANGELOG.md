@@ -33,6 +33,7 @@ stable, this section will have a table of all supported releases.
 - Expand program loading ASLR applications by also using it for dynamic
   program bases.
 - Tons of bug fixes.
+- Improve signal handling.
 
 ### Breaking changes
 
