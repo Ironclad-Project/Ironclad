@@ -214,8 +214,7 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       --  Initialize thread state. Start by mapping the user stack.
-      Userland.Process.Get_Stack_Base (Proc, Stack_Top);
-      Userland.Process.Set_Stack_Base (Proc, Stack_Top + Stack_Size);
+      Userland.Process.Bump_Stack_Base (Proc, Stack_Size, Stack_Top);
       Arch.MMU.Map_Allocated_Range
          (Map           => Map,
           Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
@@ -708,8 +707,7 @@ package body Scheduler with SPARK_Mode => Off is
          Arch.Local.Get_Current_Process;
    begin
       --  Initialize signal stack. Start by mapping the user stack.
-      Userland.Process.Get_Stack_Base (Curr_Proc, Stack_Top);
-      Userland.Process.Set_Stack_Base (Curr_Proc, Stack_Top + Stack_Size);
+      Userland.Process.Bump_Stack_Base (Curr_Proc, Stack_Size, Stack_Top);
       Userland.Process.Get_Common_Map (Curr_Proc, Map);
       Arch.MMU.Map_Allocated_Range
          (Map           => Map,

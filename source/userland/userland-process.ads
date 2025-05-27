@@ -389,17 +389,15 @@ package Userland.Process is
    procedure Get_Common_Map (Proc : PID; Map : out Arch.MMU.Page_Table_Acc)
       with Pre => Proc /= Error_PID;
 
-   --  Get the stack base of the process.
-   --  @param Proc Process to operate on.
-   --  @param Base The stack base.
-   procedure Get_Stack_Base (Process : PID; Base : out Unsigned_64)
-      with Pre => Process /= Error_PID;
-
-   --  Set the stack base of the process.
-   --  @param Proc Process to operate on.
-   --  @param Base Base to set.
-   procedure Set_Stack_Base (Process : PID; Base : Unsigned_64)
-      with Pre => Process /= Error_PID;
+   --  Bump the stack base of the process by the passed length.
+   --  @param P        Process to operate on.
+   --  @param Length   Length to bump to.
+   --  @param Previous Previous base.
+   procedure Bump_Stack_Base
+      (P        : PID;
+       Length   : Unsigned_64;
+       Previous : out Unsigned_64)
+      with Pre => P /= Error_PID;
 
    --  Bump the alloc base of the process by the passed length.
    --  @param P        Process to operate on.

@@ -782,25 +782,20 @@ package body Userland.Process is
          Map := null;
    end Get_Common_Map;
 
-   procedure Get_Stack_Base (Process : PID; Base : out Unsigned_64) is
+   procedure Bump_Stack_Base
+      (P        : PID;
+       Length   : Unsigned_64;
+       Previous : out Unsigned_64)
+   is
    begin
-      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
-      Base := Registry (Process).Stack_Base;
-      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
+      Lib.Synchronization.Seize (Registry (P).Data_Mutex);
+      Previous := Registry (P).Stack_Base;
+      Registry (P).Stack_Base := Previous + Length;
+      Lib.Synchronization.Release (Registry (P).Data_Mutex);
    exception
       when Constraint_Error =>
-         Base := 0;
-   end Get_Stack_Base;
-
-   procedure Set_Stack_Base (Process : PID; Base : Unsigned_64) is
-   begin
-      Lib.Synchronization.Seize (Registry (Process).Data_Mutex);
-      Registry (Process).Stack_Base := Base;
-      Lib.Synchronization.Release (Registry (Process).Data_Mutex);
-   exception
-      when Constraint_Error =>
-         null;
-   end Set_Stack_Base;
+         Previous := 0;
+   end Bump_Stack_Base;
 
    procedure Get_Traced_Info
       (Process   : PID;
