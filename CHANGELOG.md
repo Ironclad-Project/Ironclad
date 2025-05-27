@@ -10,7 +10,12 @@ Ironclad, so far, is "pre-stable release" software, so no stability or
 support guarantees are made between releases. In a future, when Ironclad is
 stable, this section will have a table of all supported releases.
 
-## Upcoming release
+# Version history
+
+Here is a history of all releases ordered by release date including upcoming
+release changes.
+
+## 0.7.0 - May 27, 2025
 
 ### Non-breaking changes
 
@@ -68,9 +73,7 @@ For any feedback, please contact us at one of
 [Ironclad's communities](https://ironclad-os.org/community.html), or, as a
 second option, contact the people behind this release.
 
-## Latest release
-
-### 0.6.0 - Jan 31, 2025
+## 0.6.0 - Jan 31, 2025
 
 This release comes after a long gap of releases, and has had massive work done
 on almost every aspect of the kernel. Because of this, I find it hard to
@@ -88,11 +91,7 @@ This is a non-exhaustive list of the big changes included in this release:
 - improved PTY support.
 - Dozens of bug fixes.
 
-## Version history
-
-Here is a history of all previous releases.
-
-### 0.5.0 - Oct 31, 2023
+## 0.5.0 - Oct 31, 2023
 
 This release brings a lot of improvements to mainly the scheduling, time
 keeping, userland, and networking subsystems.
@@ -106,7 +105,7 @@ This is a non-exhaustive list of the big changes included in this release:
 - Added IPv4 and IPv6 local networking thru the new device loopback.
 - Implemented device enumeration using UUIDs.
 
-### 0.4.0 - Aug 31, 2023
+## 0.4.0 - Aug 31, 2023
 
 This release brings a lot of improvements on almost all subsystems of the
 kernel.
@@ -122,7 +121,7 @@ This is a non-exhaustive list of the big changes included in this release:
 - Start work on an arm-raspi2 port.
 - Improved filesystem support, work started on QNXFS.
 
-### 0.3.0 - Apr 2, 2023
+## 0.3.0 - Apr 2, 2023
 
 This release brings a lot of improvements on almost all subsystems of the
 kernel.
@@ -137,7 +136,7 @@ This is a terse list of some of the changes included in this release:
 - Formally verified the device management layer, along with some drivers.
 - Improved EXT and FAT support.
 
-### 0.2.0 - Nov 16, 2022
+## 0.2.0 - Nov 16, 2022
 
 This release is really security and cryptography heavy, with the addition of a
 lot of important tools in the task of making Ironclad a more resilient and
@@ -154,7 +153,7 @@ This is a terse changelog of the changes included in this release:
 - New architecture-independent RTC interfaces thru /dev/rtc.
 - Bug fixes and several small improvements.
 
-### 0.1.0 - Oct 16, 2022
+## 0.1.0 - Oct 16, 2022
 
 This release marks the start of versioned Ironclad development, following
 semver rules.
