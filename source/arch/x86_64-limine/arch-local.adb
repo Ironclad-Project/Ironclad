@@ -20,31 +20,31 @@ with Arch.APIC;
 with Arch.Snippets;
 with Arch.Interrupts;
 with Interfaces; use Interfaces;
-with System.Machine_Code; use System.Machine_Code;
 
 package body Arch.Local is
    procedure Reschedule_In (Microseconds : Natural) is
+      Is_Ints : constant Boolean := Snippets.Interrupts_Enabled;
    begin
-      Asm ("pushf; cli", Volatile => True);
-      APIC.LAPIC_Timer_Oneshot (
-         Interrupts.Scheduler_Interrupt,
-         CPU.Get_Local.LAPIC_Timer_Hz,
-         Unsigned_64 (Microseconds)
-      );
-      Asm ("popf", Volatile => True);
+      if Is_Ints then Snippets.Disable_Interrupts; end if;
+      APIC.LAPIC_Timer_Oneshot
+         (Interrupts.Scheduler_Interrupt,
+          CPU.Get_Local.LAPIC_Timer_Hz,
+          Unsigned_64 (Microseconds));
+      if Is_Ints then Snippets.Enable_Interrupts; end if;
    exception
       when Constraint_Error =>
          Lib.Panic.Hard_Panic ("Exception rescheduling");
    end Reschedule_In;
 
    procedure Reschedule_ASAP is
+      Is_Ints : constant Boolean := Snippets.Interrupts_Enabled;
    begin
       --  Force rescheduling by calling the ISR vector directly.
-      Asm ("pushf; cli", Volatile => True);
+      if Is_Ints then Snippets.Disable_Interrupts; end if;
       APIC.LAPIC_Timer_Stop;
-      APIC.LAPIC_Send_IPI (CPU.Get_Local.LAPIC_ID,
-         Interrupts.Scheduler_Interrupt);
-      Asm ("popf", Volatile => True);
+      APIC.LAPIC_Send_IPI
+         (CPU.Get_Local.LAPIC_ID, Interrupts.Scheduler_Interrupt);
+      if Is_Ints then Snippets.Enable_Interrupts; end if;
    exception
       when Constraint_Error =>
          Lib.Panic.Hard_Panic ("Exception rescheduling");
@@ -64,9 +64,12 @@ package body Arch.Local is
       (Core : Context.Core_Context;
        Kernel_Stack : System.Address)
    is
+      Is_Ints : constant Boolean := Snippets.Interrupts_Enabled;
    begin
+      if Is_Ints then Snippets.Disable_Interrupts; end if;
       CPU.Get_Local.User_Stack   := Core;
       CPU.Get_Local.Kernel_Stack := Unsigned_64 (To_Integer (Kernel_Stack));
+      if Is_Ints then Snippets.Enable_Interrupts; end if;
    exception
       when Constraint_Error =>
          Lib.Panic.Hard_Panic ("Exception setting stacks");
@@ -74,10 +77,11 @@ package body Arch.Local is
 
    function Get_Current_Thread return Scheduler.TID is
       Returned : Scheduler.TID;
+      Is_Ints  : constant Boolean := Snippets.Interrupts_Enabled;
    begin
-      Asm ("pushf; cli", Volatile => True);
+      if Is_Ints then Snippets.Disable_Interrupts; end if;
       Returned := CPU.Get_Local.Current_Thread;
-      Asm ("popf", Volatile => True);
+      if Is_Ints then Snippets.Enable_Interrupts; end if;
       return Returned;
    exception
       when Constraint_Error =>
@@ -86,10 +90,11 @@ package body Arch.Local is
 
    function Get_Current_Process return Userland.Process.PID is
       Returned : Userland.Process.PID;
+      Is_Ints  : constant Boolean := Snippets.Interrupts_Enabled;
    begin
-      Asm ("pushf; cli", Volatile => True);
+      if Is_Ints then Snippets.Disable_Interrupts; end if;
       Returned := CPU.Get_Local.Current_Process;
-      Asm ("popf", Volatile => True);
+      if Is_Ints then Snippets.Enable_Interrupts; end if;
       return Returned;
    exception
       when Constraint_Error =>
@@ -97,20 +102,22 @@ package body Arch.Local is
    end Get_Current_Process;
 
    procedure Set_Current_Thread (Thread : Scheduler.TID) is
+      Is_Ints : constant Boolean := Snippets.Interrupts_Enabled;
    begin
-      Asm ("pushf; cli", Volatile => True);
+      if Is_Ints then Snippets.Disable_Interrupts; end if;
       CPU.Get_Local.Current_Thread := Thread;
-      Asm ("popf", Volatile => True);
+      if Is_Ints then Snippets.Enable_Interrupts; end if;
    exception
       when Constraint_Error =>
          Lib.Panic.Hard_Panic ("Exception setting current thread");
    end Set_Current_Thread;
 
    procedure Set_Current_Process (Proc : Userland.Process.PID) is
+      Is_Ints : constant Boolean := Snippets.Interrupts_Enabled;
    begin
-      Asm ("pushf; cli", Volatile => True);
+      if Is_Ints then Snippets.Disable_Interrupts; end if;
       CPU.Get_Local.Current_Process := Proc;
-      Asm ("popf", Volatile => True);
+      if Is_Ints then Snippets.Enable_Interrupts; end if;
    exception
       when Constraint_Error =>
          Lib.Panic.Hard_Panic ("Exception setting current process");
