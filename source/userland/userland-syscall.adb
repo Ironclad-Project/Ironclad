@@ -6275,8 +6275,6 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Call_Arg);
-
       Proc    : constant PID := Arch.Local.Get_Current_Process;
       New_TID : Scheduler.TID;
       Success : Boolean;
@@ -6300,6 +6298,7 @@ package body Userland.Syscall is
           Stack_Addr => Stack,
           TLS_Addr   => TLS_Addr,
           Cluster    => Scheduler.Convert (Natural (Cluster)),
+          Argument   => Call_Arg,
           PID        => Convert (Proc),
           New_TID    => New_TID);
 

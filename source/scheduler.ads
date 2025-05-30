@@ -56,6 +56,7 @@ package Scheduler is
        Stack_Addr : Unsigned_64;
        TLS_Addr   : Unsigned_64;
        Cluster    : TCID;
+       Argument   : Unsigned_64;
        PID        : Natural;
        New_TID    : out TID);
 

@@ -342,6 +342,7 @@ package body Scheduler with SPARK_Mode => Off is
        Stack_Addr : Unsigned_64;
        TLS_Addr   : Unsigned_64;
        Cluster    : TCID;
+       Argument   : Unsigned_64;
        PID        : Natural;
        New_TID    : out TID)
    is
@@ -351,7 +352,8 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Context.Init_GP_Context
          (GP_State,
           To_Address (Integer_Address (Stack_Addr)),
-          To_Address (Address));
+          To_Address (Address),
+          Argument, 0, 0);
       Arch.Context.Init_FP_Context (FP_State);
       Create_User_Thread
          (GP_State => GP_State,
