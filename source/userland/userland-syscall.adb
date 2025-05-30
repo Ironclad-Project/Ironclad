@@ -2227,6 +2227,8 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      package Trans is new Lib.Userland_Transfer (Flock_Data);
+
       Proc        : PID := Arch.Local.Get_Current_Process;
       File        : File_Description_Acc;
       Temp, Temp2 : Boolean;
@@ -2234,7 +2236,6 @@ package body Userland.Syscall is
       Result_FD   : Natural;
       Map         : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_File (Proc, FD, File);
       if File = null then
          Errno := Error_Bad_File;
@@ -2323,16 +2324,18 @@ package body Userland.Syscall is
          when F_GETLK | F_SETLK | F_SETLKW =>
             declare
                IAddr : constant Integer_Address := Integer_Address (Argument);
-               Lock : Flock_Data with Import, Address => To_Address (IAddr);
-               IW   : Boolean;
+               Addr  : constant  System.Address := To_Address (IAddr);
+               Lock  : Flock_Data;
+               IW    : Boolean;
             begin
-               if not Check_Userland_Access (Map, IAddr, Lock'Size / 8) then
-                  Errno := Error_Would_Fault;
-                  goto Error_Return;
-               elsif File.Description /= Description_Inode then
+               if File.Description /= Description_Inode then
                   goto Invalid_Return;
                end if;
 
+               Trans.Take_From_Userland (Map, Lock, Addr, Temp);
+               if not Temp then
+                  goto Would_Fault_Error;
+               end if;
                IW := Lock.Lock_Type = F_WRLCK;
 
                if Command = F_GETLK then
@@ -2349,6 +2352,11 @@ package body Userland.Syscall is
                      Lock.Lock_Type := F_UNLCK;
                   end if;
                   Lock.PID := Unsigned_32 (Convert (Proc));
+
+                  Trans.Paste_Into_Userland (Map, Lock, Addr, Temp);
+                  if not Temp then
+                     goto Would_Fault_Error;
+                  end if;
                else
                   if Lock.Lock_Type = F_UNLCK then
                      IPC.FileLock.Release_Lock
@@ -2387,6 +2395,11 @@ package body Userland.Syscall is
 
    <<Invalid_Return>>
       Errno := Error_Invalid_Value;
+      goto Error_Return;
+
+   <<Would_Fault_Error>>
+      Errno := Error_Would_Fault;
+      goto Error_Return;
 
    <<Error_Return>>
       Returned := Unsigned_64'Last;
