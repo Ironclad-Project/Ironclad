@@ -88,9 +88,11 @@ package body Arch.Interrupts is
          when 3 =>
             Close (State.RDI, Returned, Errno);
          when 4 =>
-            Read (State.RDI, State.RSI, State.RDX, Returned, Errno);
+            Read (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
+                  Returned, Errno);
          when 5 =>
-            Write (State.RDI, State.RSI, State.RDX, Returned, Errno);
+            Write (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
+                   Returned, Errno);
          when 6 =>
             Seek (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 7 =>
@@ -229,12 +231,6 @@ package body Arch.Interrupts is
          when 63 =>
             Fchown (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
                     State.R9, Returned, Errno);
-         when 64 =>
-            PRead (State.RDI, State.RSI, State.RDX, State.R12, Returned,
-                   Errno);
-         when 65 =>
-            PWrite (State.RDI, State.RSI, State.RDX, State.R12, Returned,
-                    Errno);
          when 66 =>
             Get_Sock_Name (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 67 =>

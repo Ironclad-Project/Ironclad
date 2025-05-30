@@ -165,7 +165,6 @@ Syscalls
 * umask::                   Get and set the calling process umask.
 * reboot::                  Machine power management.
 * fchown::                  Change ownership of a file descriptor.
-* pread/pwrite::            Atomic read and write from file descriptors.
 * getsockname::             Get address of a bound socket.
 * getpeername::             Get address of a socket's peer.
 * shutdown::                Disconnect socket from its peer.
@@ -970,9 +969,9 @@ Empty.
 @item
 @ref{fchown}.
 @item
-@ref{pread/pwrite, pread}.
+Empty.
 @item
-@ref{pread/pwrite, pwrite}.
+Empty.
 @item
 @ref{getsockname}.
 @item
@@ -1318,8 +1317,8 @@ The syscall returns 0 on success and -1 in failure, and errno is set to:
 @section read/write
 
 @example c
-ssize_t read(int fd, void *buffer, size_t count);
-ssize_t write(int fd, void *buffer, size_t count);
+ssize_t read(int fd, void *buffer, size_t count, size_t offset, int flags);
+ssize_t write(int fd, void *buffer, size_t count, size_t offset, int flags);
 @end example
 
 These syscalls attempts to read or write up to passed count from the passed file descriptor.
@@ -1328,6 +1327,13 @@ On files that support seeking, the operation commences at the file offset, and
 the file offset is incremented by the number of bytes read or written. If the
 file offset is at or past the end of file, no bytes are read or written, and
 the operation returns zero.
+
+@code{offset} can be used to pass an offset in conjunction with flags.
+
+@code{flags} for now only supports being 0 or 1. If 0, it will update the
+offset in file as normal, if 1, it will not update the offset, and instead of
+using the local offset, will start the operation from @code{offset}, to do an
+operation similar to POSIX-standard @code{pread} and @code{pwrite}.
 
 These syscalls returns the number of bytes operated on, or @code{-1} on
 failure. errno is to be set to:
@@ -3217,26 +3223,6 @@ MAC did not allow this.
 @item EBADF
 The passed file is valid but it was not a physical file in a filesystem.
 @end table
-
-@node pread/pwrite
-@section pread/pwrite
-
-@example c
-ssize_t pread(int fd, void *buffer, size_t count, off_t offset);
-ssize_t pwrite(int fd, void *buffer, size_t count, off_t offset);
-@end example
-
-These syscalls do the same as @code{read} and @code{write} respectively, but
-instead of using the description's saved location for data access, they use the
-passed @code{offset}, and do not update it at the end of the operation.
-@code{fd} must point to a seekable file.
-
-These syscalls are made for use in multithreaded applications, as having more
-than one thread updating file locations for a shared file description can lead
-to sudden catharsis.
-
-These syscalls return the same values and errno as the non-p variants.
-@ref{read/write}.
 
 @node getsockname
 @section getsockname

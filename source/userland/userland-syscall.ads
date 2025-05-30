@@ -145,6 +145,8 @@ package Userland.Syscall is
       (File_D   : Unsigned_64;
        Buffer   : Unsigned_64;
        Count    : Unsigned_64;
+       Offset   : Unsigned_64;
+       Flags    : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
@@ -153,6 +155,8 @@ package Userland.Syscall is
       (File_D   : Unsigned_64;
        Buffer   : Unsigned_64;
        Count    : Unsigned_64;
+       Offset   : Unsigned_64;
+       Flags    : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
@@ -920,24 +924,6 @@ package Userland.Syscall is
        Flags     : Unsigned_64;
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
-
-   --  Read from the passed offset.
-   procedure PRead
-      (File_D   : Unsigned_64;
-       Buffer   : Unsigned_64;
-       Count    : Unsigned_64;
-       Offset   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
-
-   --  Write from the passed offset.
-   procedure PWrite
-      (File_D   : Unsigned_64;
-       Buffer   : Unsigned_64;
-       Count    : Unsigned_64;
-       Offset   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
 
    procedure Get_Sock_Name
       (Sock_FD   : Unsigned_64;

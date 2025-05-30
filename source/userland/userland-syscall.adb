@@ -245,6 +245,8 @@ package body Userland.Syscall is
       (File_D   : Unsigned_64;
        Buffer   : Unsigned_64;
        Count    : Unsigned_64;
+       Offset   : Unsigned_64;
+       Flags    : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
@@ -291,10 +293,18 @@ package body Userland.Syscall is
                   Returned := Unsigned_64'Last;
                   return;
                end if;
-               VFS.Read (File.Inner_Ino_FS, File.Inner_Ino, File.Inner_Ino_Pos,
-                         Data, Ret_Count, File.Is_Blocking, Success1);
-               File.Inner_Ino_Pos := File.Inner_Ino_Pos +
-                                     Unsigned_64 (Ret_Count);
+
+               if Flags = 0 then
+                  VFS.Read
+                     (File.Inner_Ino_FS, File.Inner_Ino, File.Inner_Ino_Pos,
+                      Data, Ret_Count, File.Is_Blocking, Success1);
+                  File.Inner_Ino_Pos := File.Inner_Ino_Pos +
+                                       Unsigned_64 (Ret_Count);
+               else
+                  VFS.Read
+                     (File.Inner_Ino_FS, File.Inner_Ino, Offset,
+                      Data, Ret_Count, File.Is_Blocking, Success1);
+               end if;
                Translate_Status
                   (Success1, Unsigned_64 (Ret_Count), Returned, Errno);
             when Description_Reader_FIFO =>
@@ -335,6 +345,8 @@ package body Userland.Syscall is
       (File_D   : Unsigned_64;
        Buffer   : Unsigned_64;
        Count    : Unsigned_64;
+       Offset   : Unsigned_64;
+       Flags    : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
@@ -349,6 +361,7 @@ package body Userland.Syscall is
       Success5  : IPC.PTY.Status;
       User      : Unsigned_32;
       Final_Cnt : Natural;
+      Final_Off : Unsigned_64;
       Map       : Page_Table_Acc;
    begin
       Arch.Snippets.Enable_Userland_Memory_Access;
@@ -380,7 +393,15 @@ package body Userland.Syscall is
                   Errno := Error_Invalid_Value;
                   Returned := Unsigned_64'Last;
                   return;
-               elsif File.Inner_Ino_Pos + Unsigned_64 (Final_Cnt) >
+               end if;
+
+               if Flags = 0 then
+                  Final_Off := File.Inner_Ino_Pos;
+               else
+                  Final_Off := Offset;
+               end if;
+
+               if Final_Off + Unsigned_64 (Final_Cnt) >
                   Unsigned_64 (Get_Limit (Proc, MAC.File_Size_Limit))
                then
                   Errno := Error_File_Too_Big;
@@ -389,10 +410,12 @@ package body Userland.Syscall is
                end if;
 
                VFS.Write (File.Inner_Ino_FS, File.Inner_Ino,
-                          File.Inner_Ino_Pos, Data, Ret_Count,
+                          Final_Off, Data, Ret_Count,
                           File.Is_Blocking, Success1);
-               File.Inner_Ino_Pos := File.Inner_Ino_Pos +
-                                     Unsigned_64 (Ret_Count);
+               if Flags = 0 then
+                  File.Inner_Ino_Pos := File.Inner_Ino_Pos +
+                                        Unsigned_64 (Ret_Count);
+               end if;
                Translate_Status (Success1, Unsigned_64 (Ret_Count), Returned,
                                         Errno);
             when Description_Writer_FIFO =>
@@ -4261,141 +4284,6 @@ package body Userland.Syscall is
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Fchown;
-
-   procedure PRead
-      (File_D   : Unsigned_64;
-       Buffer   : Unsigned_64;
-       Count    : Unsigned_64;
-       Offset   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
-   is
-      Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
-      Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
-      Proc      : constant             PID := Arch.Local.Get_Current_Process;
-      File      : File_Description_Acc;
-      Ret_Count : Natural;
-      Success1  : VFS.FS_Status;
-      User      : Unsigned_32;
-      Final_Cnt : Natural;
-      Map       : Page_Table_Acc;
-   begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
-      Get_File (Proc, File_D, File);
-      if not Check_Userland_Access (Map, Buf_IAddr, Count) then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif File = null then
-         Errno := Error_Bad_File;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Count > Unsigned_64 (Natural'Last) then
-         Final_Cnt := Natural'Last;
-      else
-         Final_Cnt := Natural (Count);
-      end if;
-
-      Userland.Process.Get_Effective_UID (Proc, User);
-
-      declare
-         Data : Devices.Operation_Data (1 .. Final_Cnt)
-            with Import, Address => Buf_SAddr;
-      begin
-         case File.Description is
-            when Description_Inode =>
-               if not File.Inner_Ino_Read then
-                  Errno := Error_Invalid_Value;
-                  Returned := Unsigned_64'Last;
-                  return;
-               end if;
-               VFS.Read (File.Inner_Ino_FS, File.Inner_Ino, Offset,
-                         Data, Ret_Count, File.Is_Blocking, Success1);
-               Translate_Status (Success1, Unsigned_64 (Ret_Count), Returned,
-                                        Errno);
-            when others =>
-               Errno := Error_Invalid_Value;
-               Returned := Unsigned_64'Last;
-               return;
-         end case;
-      end;
-   exception
-      when Constraint_Error =>
-         Errno    := Error_Would_Block;
-         Returned := Unsigned_64'Last;
-   end PRead;
-
-   procedure PWrite
-      (File_D   : Unsigned_64;
-       Buffer   : Unsigned_64;
-       Count    : Unsigned_64;
-       Offset   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
-   is
-      Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
-      Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
-      Proc      : constant             PID := Arch.Local.Get_Current_Process;
-      File      : File_Description_Acc;
-      Ret_Count : Natural;
-      Success1  : VFS.FS_Status;
-      User      : Unsigned_32;
-      Final_Cnt : Natural;
-      Map       : Page_Table_Acc;
-   begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
-      Get_File (Proc, File_D, File);
-      if not Check_Userland_Access (Map, Buf_IAddr, Count) then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif File = null then
-         Errno := Error_Bad_File;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Count > Unsigned_64 (Natural'Last) then
-         Final_Cnt := Natural'Last;
-      else
-         Final_Cnt := Natural (Count);
-      end if;
-
-      Process.Get_Effective_UID (Proc, User);
-
-      declare
-         Data : Devices.Operation_Data (1 .. Final_Cnt)
-            with Import, Address => Buf_SAddr;
-      begin
-         case File.Description is
-            when Description_Inode =>
-               if not File.Inner_Ino_Write then
-                  Errno := Error_Invalid_Value;
-                  Returned := Unsigned_64'Last;
-                  return;
-               elsif Offset + Unsigned_64 (Final_Cnt) >
-                  Unsigned_64 (Get_Limit (Proc, MAC.File_Size_Limit))
-               then
-                  Errno := Error_File_Too_Big;
-                  Returned := Unsigned_64'Last;
-                  return;
-               end if;
-
-               VFS.Write (File.Inner_Ino_FS, File.Inner_Ino, Offset,
-                          Data, Ret_Count, File.Is_Blocking, Success1);
-               Translate_Status (Success1, Unsigned_64 (Ret_Count), Returned,
-                                        Errno);
-            when others =>
-               Errno := Error_Invalid_Value;
-               Returned := Unsigned_64'Last;
-               return;
-         end case;
-      end;
-   exception
-      when Constraint_Error =>
-         Errno    := Error_Would_Block;
-         Returned := Unsigned_64'Last;
-   end PWrite;
 
    procedure Get_Sock_Name
       (Sock_FD   : Unsigned_64;
