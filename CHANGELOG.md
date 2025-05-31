@@ -15,6 +15,26 @@ stable, this section will have a table of all supported releases.
 Here is a history of all releases ordered by release date including upcoming
 release changes.
 
+## Upcoming release
+
+### Non-breaking changes
+
+- Fixed a bug that made the `create_thread` syscall ignore the passed
+  argument for the new thread.
+
+### Breaking changes
+
+- Removed the `pread`/`pwrite` syscalls in favour of arguments to the
+  `read`/`write` syscalls, saving a bunch of code.
+
+### Non-code related changes
+
+- 🦗🦗🦗
+
+### The people behind this release
+
+- streaksu - <streaksu@ironclad-os.org> | https://codeberg.org/streaksu
+
 ## 0.7.0 - May 27, 2025
 
 ### Non-breaking changes
