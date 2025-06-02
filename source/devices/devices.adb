@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Devices.Console;
-with Devices.KVM;
 with Devices.Loopback;
 with Devices.Streams;
 with Devices.TTY;
@@ -32,8 +31,8 @@ package body Devices is
       pragma SPARK_Mode (Off); --  Some devices here are not verified.
 
       type Driver_Callback is access procedure (Success : out Boolean);
-      Drivers : constant array (1 .. 8) of Driver_Callback :=
-         [Console.Init'Access, i6300ESB.Init'Access, KVM.Init'Access,
+      Drivers : constant array (1 .. 7) of Driver_Callback :=
+         [Console.Init'Access, i6300ESB.Init'Access,
           Loopback.Init'Access, NVMe.Init'Access, SATA.Init'Access,
           Streams.Init'Access, TTY.Init'Access];
 
