@@ -226,6 +226,7 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       declare
+         EUID   : Unsigned_32;
          Sz     : constant Natural := Natural (Stack_Size);
          Stk_8  : Thread_Stack (1 .. Sz)
             with Import, Address => To_Address (Virtual_Address (Stack_Top));
@@ -269,7 +270,12 @@ package body Scheduler with SPARK_Mode => Off is
          Stk_64 (Index_64 - 7)  := Userland.ELF.Auxval_Header_Count;
          Stk_64 (Index_64 - 8)  := Vector.Program_Header_Size;
          Stk_64 (Index_64 - 9)  := Userland.ELF.Auxval_Header_Size;
-         if Userland.Process.Get_Capabilities (Proc).Can_Change_Scheduling then
+
+         Userland.Process.Get_Effective_UID (Proc, EUID);
+
+         if Userland.Process.Get_Capabilities (Proc).Can_Manage_MAC and then
+            EUID = 0
+         then
             Stk_64 (Index_64 - 10) := 1;
          else
             Stk_64 (Index_64 - 10) := 0;
