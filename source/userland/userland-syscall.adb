@@ -6351,9 +6351,43 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Mask);
+      type Unsigned_30 is mod 2 ** 30;
+      function C1 is new Ada.Unchecked_Conversion (Unsigned_30, Signal_Bitmap);
+
+      package Trans_1 is new Lib.Userland_Transfer (Unsigned_30);
+
+      Proc    : constant             PID := Arch.Local.Get_Current_Process;
+      S_IAddr : constant Integer_Address := Integer_Address (Mask);
+      S_SAddr : constant  System.Address := To_Address (S_IAddr);
+      Old_Set : Signal_Bitmap;
+      New_Set : Unsigned_30;
+      Success : Boolean;
+      Map     : Page_Table_Acc;
    begin
+      Get_Common_Map (Proc, Map);
+      Get_Masked_Signals (Proc, Old_Set);
+
+      Trans_1.Take_From_Userland (Map, New_Set, S_SAddr, Success);
+      if not Success then
+         goto Would_Fault_Error;
+      end if;
+
+      Set_Masked_Signals (Proc, C1 (New_Set));
+
+      loop
+         Clear_Process_Signals (Proc, Success);
+         exit when Success;
+         Scheduler.Yield_If_Able;
+      end loop;
+
+      Set_Masked_Signals (Proc, Old_Set);
+
       Errno    := Error_Interrupted;
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<Would_Fault_Error>>
+      Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
    end SigSuspend;
 
@@ -6554,43 +6588,14 @@ package body Userland.Syscall is
       Proc          : constant PID := Arch.Local.Get_Current_Process;
       File          : File_Description_Acc;
       Success       : IPC.FIFO.Pipe_Status;
-      Raised_Signal : Userland.Process.Signal;
-      Signal_Addr   : System.Address;
-      Restorer_Addr : System.Address;
-      No_Signal     : Boolean;
       Ignore_Signal : Boolean;
-      Mask          : Process.Signal_Bitmap;
       Ret_Count     : Natural;
       Tracer_FD     : Natural;
       Is_Traced     : Boolean;
       TInfo         : Trace_Info;
    begin
       --  Solve signals first.
-      Process.Get_Raised_Signal_Actions
-         (Proc     => Proc,
-          Sig      => Raised_Signal,
-          Handler  => Signal_Addr,
-          Restorer => Restorer_Addr,
-          No_Sig   => No_Signal,
-          Ignore   => Ignore_Signal,
-          Old_Mask => Mask);
-      if not No_Signal then
-         --  Handle signals.
-         if Signal_Addr /= System.Null_Address then
-            Scheduler.Launch_Signal_Thread
-               (Unsigned_64 (Process.Signal'Enum_Rep (Raised_Signal)),
-                Signal_Addr, Restorer_Addr, Is_Traced);
-         elsif not Ignore_Signal then
-            Do_Exit (Proc, Raised_Signal);
-         else
-            Is_Traced := True;
-         end if;
-
-         --  Restore old signals if we were successful.
-         if Is_Traced then
-            Process.Set_Masked_Signals (Proc, Mask);
-         end if;
-      end if;
+      Clear_Process_Signals (Proc, Is_Traced);
 
       --  Take care of syscall tracing.
       Userland.Process.Get_Traced_Info (Proc, Is_Traced, Tracer_FD);
@@ -6918,4 +6923,41 @@ package body Userland.Syscall is
       when Constraint_Error =>
          null;
    end Common_Death_Preparations;
+
+   procedure Clear_Process_Signals (Proc : PID; Has_Handled : out Boolean) is
+      Raised_Signal : Userland.Process.Signal;
+      Signal_Addr   : System.Address;
+      Restorer_Addr : System.Address;
+      No_Signal     : Boolean;
+      Ignore_Signal : Boolean;
+      Mask          : Process.Signal_Bitmap;
+   begin
+      Process.Get_Raised_Signal_Actions
+         (Proc     => Proc,
+          Sig      => Raised_Signal,
+          Handler  => Signal_Addr,
+          Restorer => Restorer_Addr,
+          No_Sig   => No_Signal,
+          Ignore   => Ignore_Signal,
+          Old_Mask => Mask);
+      if not No_Signal then
+         --  Handle signals.
+         if Signal_Addr /= System.Null_Address then
+            Scheduler.Launch_Signal_Thread
+               (Unsigned_64 (Process.Signal'Enum_Rep (Raised_Signal)),
+                Signal_Addr, Restorer_Addr, Has_Handled);
+         elsif not Ignore_Signal then
+            Do_Exit (Proc, Raised_Signal);
+         else
+            Has_Handled := True;
+         end if;
+
+         --  Restore old signals if we were successful.
+         if Has_Handled then
+            Process.Set_Masked_Signals (Proc, Mask);
+         end if;
+      else
+         Has_Handled := False;
+      end if;
+   end Clear_Process_Signals;
 end Userland.Syscall;

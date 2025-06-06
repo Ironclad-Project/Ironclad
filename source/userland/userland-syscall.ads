@@ -1409,4 +1409,6 @@ private
        Success : out Boolean);
 
    procedure Common_Death_Preparations (Proc : PID);
+
+   procedure Clear_Process_Signals (Proc : PID; Has_Handled : out Boolean);
 end Userland.Syscall;
