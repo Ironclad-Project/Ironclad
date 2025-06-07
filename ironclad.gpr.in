@@ -46,9 +46,9 @@ project Ironclad is
          null;
       when "x86_64-limine" =>
          Common_Source_Dirs := Common_Source_Dirs &
-            ("@SRCDIR@/uacpi",
-             "@SRCDIR@/flanterm",
-             "@SRCDIR@/flanterm/backends");
+            ("@SRCDIR@/uacpi/source",
+             "@SRCDIR@/flanterm/src",
+             "@SRCDIR@/flanterm/src/flanterm_backends");
    end case;
 
    for Source_Dirs use Common_Source_Dirs;
@@ -100,7 +100,7 @@ project Ironclad is
           "-gnateDArchName="""     & Arch                  & """",
           "-gnateDKASAN="          & "@KASAN@");
       Base_C_Switches := Split (C_Flags, " ") & Common_Compiler_Flags &
-         ("-DCC_RUNTIME_NO_FLOAT");
+         ("-I@SRCDIR@/uacpi/include");
       Base_Asm_Switches := Split (Asm_Flags, " ") & Common_Compiler_Flags;
 
       for Default_Switches ("Ada") use Base_Ada_Switches & ("@KASAN_FLAGS@");

@@ -141,7 +141,7 @@ distclean: clean
 
 .PHONY: maintainer-clean
 maintainer-clean: distclean
-	cd '$(call SHESCAPE,$(SRCDIR))' && rm -rf configure build-aux *'~' autom4te.cache freestnd-c-hdrs cc-runtime flanterm uacpi-repository uacpi
+	cd '$(call SHESCAPE,$(SRCDIR))' && rm -rf configure build-aux *'~' autom4te.cache freestnd-c-hdrs cc-runtime flanterm uacpi
 ###############################################################################
 # Create a release tarball.
 .PHONY: dist
@@ -159,7 +159,10 @@ dist:
 	rm -rf "$(DIST_OUTPUT)"/cc-runtime/.git
 	rm -rf "$(DIST_OUTPUT)"/flanterm/.git
 	rm -rf "$(DIST_OUTPUT)"/flanterm/.gitignore
-	rm -rf "$(DIST_OUTPUT)"/uacpi-repository
+	rm -rf "$(DIST_OUTPUT)"/uacpi/.git
+	rm -rf "$(DIST_OUTPUT)"/uacpi/.github
+	rm -rf "$(DIST_OUTPUT)"/uacpi/.gitignore
+	rm -rf "$(DIST_OUTPUT)"/uacpi/tests/runner/.gitignore
 	echo "$(PACKAGE_VERSION)" >"$(DIST_OUTPUT)"/version
 	tar -zcf "$(DIST_OUTPUT)".tar.gz "$(DIST_OUTPUT)"
 	rm -rf "$(DIST_OUTPUT)"

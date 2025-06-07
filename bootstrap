@@ -95,22 +95,17 @@ if ! test -f version; then
         cc-runtime \
         b4d3b970b2f6e7d08360c66eea8314e8dd901490
 
-    # 1.0.2
+    # 2.0.0
     clone_repo_commit \
         https://codeberg.org/mintsuki/flanterm.git \
         flanterm \
-        9d0f67b89db1d83236f9ac291339248ba3d5f479
+        4cacad16218ba85d7d7f7566b2b3de46574c7d60
 
     # 2.1.1
     clone_repo_commit \
         https://github.com/uACPI/uACPI.git \
-        uacpi-repository \
+        uacpi \
         c163b24bada6069e13c564e57d1b0bbeb1c6d21f
-
-    rm -rf uacpi
-    mkdir -p uacpi
-    cp -rp uacpi-repository/include/uacpi uacpi/
-    cp -rp uacpi-repository/source/* uacpi/
 fi
 
 for auxfile in $AUXFILES; do
