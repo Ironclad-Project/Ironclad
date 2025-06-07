@@ -43,7 +43,7 @@ package Devices.Drive_Cache with SPARK_Mode => Off is
       (Drive_Arg : System.Address;
        Read      : System.Address;
        Write     : System.Address;
-       Registry  : out Cache_Registry);
+       Registry  : aliased out Cache_Registry);
 
    procedure Read
       (Registry  : aliased in out Cache_Registry;

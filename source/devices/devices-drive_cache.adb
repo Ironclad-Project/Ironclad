@@ -19,17 +19,16 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
       (Drive_Arg : System.Address;
        Read      : System.Address;
        Write     : System.Address;
-       Registry  : out Cache_Registry)
+       Registry  : aliased out Cache_Registry)
    is
    begin
-      Registry :=
-         (Drive_Arg  => Drive_Arg,
-          Read_Proc  => Read,
-          Write_Proc => Write,
-          Caches     => [others =>
-            (Mutex   => Lib.Synchronization.Unlocked_Mutex,
-             Is_Used => False,
-             others  => <>)]);
+      Registry.Drive_Arg  := Drive_Arg;
+      Registry.Read_Proc  := Read;
+      Registry.Write_Proc := Write;
+      for C of Registry.Caches loop
+         C.Mutex   := Lib.Synchronization.Unlocked_Mutex;
+         C.Is_Used := False;
+      end loop;
    end Init;
 
    procedure Read
