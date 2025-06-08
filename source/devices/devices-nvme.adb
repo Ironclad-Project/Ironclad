@@ -75,9 +75,8 @@ package body Devices.NVMe with SPARK_Mode => Off is
             return;
          end if;
 
-         Arch.PCI.Enable_Bus_Mastering (PCI_Dev);
          Arch.PCI.Write16 (PCI_Dev, 4,
-            Arch.PCI.Read16 (PCI_Dev, 4) and 16#37F#);
+            (Arch.PCI.Read16 (PCI_Dev, 4) and 16#77F#) or 16#406#);
 
          Mem_Addr := PCI_BAR.Base + Memory.Memory_Offset;
          Dev_Mem  := NVMe_Registers_Acc (C1.To_Pointer
