@@ -896,18 +896,9 @@ package body Devices.NVMe with SPARK_Mode => Off is
       (M : NVMe_Registers_Acc;
        Enabled : Boolean)
    is
-      Ready_Bit : Boolean;
-      Config : NVMe_Register_Controller_Status;
    begin
-      if Enabled then
-         Config := M.Controller_Status;
-         Ready_Bit := Config.Ready;
-      else
-         Ready_Bit := False;
-      end if;
-
       loop
-         exit when M.Controller_Status.Ready = Ready_Bit;
+         exit when M.Controller_Status.Ready = Enabled;
       end loop;
    exception
       when Constraint_Error =>
