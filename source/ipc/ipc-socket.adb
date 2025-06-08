@@ -61,19 +61,27 @@ package body IPC.Socket is
                    (Mutex          => Lib.Synchronization.Unlocked_Mutex,
                     Dom            => UNIX,
                     Kind            => Stream,
+                    Has_Credentials => False,
+                    Cred_PID => 0,
+                    Cred_UID => 0,
+                    Cred_GID => 0,
                     Is_Listener    => False,
                     Connected      => null,
                     Pending_Accept => null,
                     Established    => null,
-                    Data           => [others => 0],
+                    Data           => <>,
                     Data_Length    => 0);
                when Datagram =>
                   return new Socket'
                    (Mutex            => Lib.Synchronization.Unlocked_Mutex,
                     Dom              => UNIX,
                     Kind              => Datagram,
+                    Has_Credentials => False,
+                    Cred_PID => 0,
+                    Cred_UID => 0,
+                    Cred_GID => 0,
                     Simple_Connected => null,
-                    Data             => [others => 0],
+                    Data             => <>,
                     Data_Length      => 0);
                when Raw =>
                   return null;
@@ -199,9 +207,10 @@ package body IPC.Socket is
    end Listen;
 
    procedure Accept_Connection
-      (Sock        : Socket_Acc;
-       Is_Blocking : Boolean := True;
-       Result      : out Socket_Acc)
+      (Sock          : Socket_Acc;
+       Is_Blocking   : Boolean := True;
+       PID, UID, GID : Unsigned_32;
+       Result        : out Socket_Acc)
    is
       Path : String (1 .. 0);
       Len  : Natural;
@@ -211,7 +220,8 @@ package body IPC.Socket is
          when IPv4 | IPv6 =>
             Result := null;
          when UNIX =>
-            Accept_Connection (Sock, Is_Blocking, Path, Len, Result);
+            Accept_Connection
+               (Sock, Is_Blocking, Path, Len, PID, UID, GID, Result);
       end case;
       Lib.Synchronization.Release (Sock.Mutex);
    end Accept_Connection;
@@ -632,6 +642,9 @@ package body IPC.Socket is
    procedure Connect
       (Sock    : Socket_Acc;
        Path    : String;
+       PID     : Unsigned_32;
+       UID     : Unsigned_32;
+       GID     : Unsigned_32;
        Success : out Boolean)
    is
       To_Connect : Socket_Acc;
@@ -661,6 +674,10 @@ package body IPC.Socket is
             Sock.Simple_Connected := To_Connect;
       end case;
 
+      Sock.Has_Credentials := True;
+      Sock.Cred_GID := GID;
+      Sock.Cred_UID := UID;
+      Sock.Cred_PID := PID;
       Success := True;
 
    <<End_Return>>
@@ -672,6 +689,7 @@ package body IPC.Socket is
        Is_Blocking         : Boolean := True;
        Peer_Address        : out String;
        Peer_Address_Length : out Natural;
+       PID, UID, GID       : Unsigned_32;
        Result              : out Socket_Acc)
    is
       Tmp : Socket_Acc;
@@ -694,6 +712,11 @@ package body IPC.Socket is
                Tmp.Pending_Accept := Result;
                Result.Pending_Accept := Tmp;
                Sock.Pending_Accept := null;
+
+               Result.Has_Credentials := True;
+               Result.Cred_GID := GID;
+               Result.Cred_UID := UID;
+               Result.Cred_PID := PID;
                exit;
             end if;
             exit when not Is_Blocking;
@@ -712,36 +735,65 @@ package body IPC.Socket is
    end Direct_Connection;
 
    procedure Read
-      (Sock        : Socket_Acc;
-       Data        : out Devices.Operation_Data;
-       Is_Blocking : Boolean;
-       Ret_Count   : out Natural;
-       Path        : String;
-       Success     : out Socket_Status)
+      (Sock          : Socket_Acc;
+       Data          : out Devices.Operation_Data;
+       Is_Blocking   : Boolean;
+       Ret_Count     : out Natural;
+       Path          : String;
+       PID, UID, GID : Unsigned_32;
+       Success       : out Socket_Status)
    is
       Discard : Boolean;
       Temp : constant Socket_Acc := Sock.Simple_Connected;
    begin
-      Connect (Sock, Path, Discard);
+      Connect (Sock, Path, PID, UID, GID, Discard);
       Inner_UNIX_Read (Sock, Data, Is_Blocking, Ret_Count, Success);
       Sock.Simple_Connected := Temp;
    end Read;
 
    procedure Write
-      (Sock        : Socket_Acc;
-       Data        : Devices.Operation_Data;
-       Is_Blocking : Boolean;
-       Ret_Count   : out Natural;
-       Path        : String;
-       Success     : out Socket_Status)
+      (Sock          : Socket_Acc;
+       Data          : Devices.Operation_Data;
+       Is_Blocking   : Boolean;
+       Ret_Count     : out Natural;
+       Path          : String;
+       PID, UID, GID : Unsigned_32;
+       Success       : out Socket_Status)
    is
       Discard : Boolean;
       Temp : constant Socket_Acc := Sock.Simple_Connected;
    begin
-      Connect (Sock, Path, Discard);
+      Connect (Sock, Path, PID, UID, GID, Discard);
       Inner_UNIX_Write (Sock, Data, Is_Blocking, Ret_Count, Success);
       Sock.Simple_Connected := Temp;
    end Write;
+
+   procedure Get_Peer_Credentials
+      (Sock    : Socket_Acc;
+       PID     : out Unsigned_32;
+       UID     : out Unsigned_32;
+       GID     : out Unsigned_32;
+       Success : out Socket_Status)
+   is
+   begin
+      PID := 0;
+      GID := 0;
+      UID := 0;
+      Success := Is_Bad_Type;
+
+      Lib.Synchronization.Seize (Sock.Mutex);
+      if Sock.Pending_Accept /= null then
+         Lib.Synchronization.Seize (Sock.Pending_Accept.Mutex);
+         if Sock.Pending_Accept.Has_Credentials then
+            PID := Sock.Pending_Accept.Cred_PID;
+            UID := Sock.Pending_Accept.Cred_UID;
+            GID := Sock.Pending_Accept.Cred_GID;
+            Success := Plain_Success;
+         end if;
+         Lib.Synchronization.Release (Sock.Pending_Accept.Mutex);
+      end if;
+      Lib.Synchronization.Release (Sock.Mutex);
+   end Get_Peer_Credentials;
    ----------------------------------------------------------------------------
    procedure Inner_IPv4_Read
       (Sock      : Socket_Acc;

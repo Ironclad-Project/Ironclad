@@ -17,6 +17,7 @@
 with Lib.Synchronization;
 with Devices; use Devices;
 with Networking;
+with Interfaces; use Interfaces;
 
 package IPC.Socket is
    --  Here lies the implementation of the quintessential POSIX IPC, be it
@@ -149,9 +150,10 @@ package IPC.Socket is
    --  @param Is_Blocking True to make the accepted socket blocking.
    --  @param Result      New accepted socket, or null on failure.
    procedure Accept_Connection
-      (Sock        : Socket_Acc;
-       Is_Blocking : Boolean := True;
-       Result      : out Socket_Acc)
+      (Sock          : Socket_Acc;
+       Is_Blocking   : Boolean := True;
+       PID, UID, GID : Unsigned_32;
+       Result        : out Socket_Acc)
       with Pre => Sock /= null and then Get_Type (Sock) = Stream;
 
    --  Connect a socket and get a connected socket, directly, with no artifice.
@@ -416,6 +418,9 @@ package IPC.Socket is
    procedure Connect
       (Sock    : Socket_Acc;
        Path    : String;
+       PID     : Unsigned_32;
+       UID     : Unsigned_32;
+       GID     : Unsigned_32;
        Success : out Boolean)
       with Pre => Sock /= null and then Get_Domain (Sock) = UNIX;
 
@@ -431,6 +436,7 @@ package IPC.Socket is
        Is_Blocking         : Boolean := True;
        Peer_Address        : out String;
        Peer_Address_Length : out Natural;
+       PID, UID, GID       : Unsigned_32;
        Result              : out Socket_Acc)
       with Pre => Sock /= null             and then
                   Get_Domain (Sock) = UNIX and then
@@ -452,15 +458,14 @@ package IPC.Socket is
    --  @param Path        Path to read from.
    --  @param Success     Resulting status of the operation.
    procedure Read
-      (Sock        : Socket_Acc;
-       Data        : out Devices.Operation_Data;
-       Is_Blocking : Boolean;
-       Ret_Count   : out Natural;
-       Path        : String;
-       Success     : out Socket_Status)
-      with Pre => Sock /= null             and then
-                  Get_Domain (Sock) = IPv6 and then
-                  Get_Type (Sock) /= Stream;
+      (Sock          : Socket_Acc;
+       Data          : out Devices.Operation_Data;
+       Is_Blocking   : Boolean;
+       Ret_Count     : out Natural;
+       Path          : String;
+       PID, UID, GID : Unsigned_32;
+       Success       : out Socket_Status)
+      with Pre => Sock /= null and then Get_Domain (Sock) = UNIX;
 
    --  Write to a socket.
    --  @param Sock        Socket to write to, or its connection.
@@ -470,15 +475,22 @@ package IPC.Socket is
    --  @param Path        Path to write to.
    --  @param Success     Resulting status of the operation.
    procedure Write
-      (Sock        : Socket_Acc;
-       Data        : Devices.Operation_Data;
-       Is_Blocking : Boolean;
-       Ret_Count   : out Natural;
-       Path        : String;
-       Success     : out Socket_Status)
-      with Pre => Sock /= null             and then
-                  Get_Domain (Sock) = IPv6 and then
-                  Get_Type (Sock) /= Stream;
+      (Sock          : Socket_Acc;
+       Data          : Devices.Operation_Data;
+       Is_Blocking   : Boolean;
+       Ret_Count     : out Natural;
+       Path          : String;
+       PID, UID, GID : Unsigned_32;
+       Success       : out Socket_Status)
+      with Pre => Sock /= null and then Get_Domain (Sock) = UNIX;
+
+   procedure Get_Peer_Credentials
+      (Sock    : Socket_Acc;
+       PID     : out Unsigned_32;
+       UID     : out Unsigned_32;
+       GID     : out Unsigned_32;
+       Success : out Socket_Status)
+      with Pre => Sock /= null and then Get_Domain (Sock) = UNIX;
 
 private
 
@@ -489,6 +501,10 @@ private
 
       case Dom is
          when UNIX =>
+            Has_Credentials : Boolean;
+            Cred_PID : Unsigned_32;
+            Cred_UID : Unsigned_32;
+            Cred_GID : Unsigned_32;
             Data        : Devices.Operation_Data (1 .. Default_Socket_Size);
             Data_Length : Natural range 0 .. Default_Socket_Size;
             case Kind is

@@ -1221,6 +1221,13 @@ package Userland.Syscall is
    SO_ERROR      : constant := 5;
    SO_SNDBUF     : constant := 13;
    SO_TYPE       : constant := 16;
+   SO_PEERCRED   : constant := 18;
+
+   type UCred is record
+      PID : Unsigned_32;
+      UID : Unsigned_32;
+      GID : Unsigned_32;
+   end record;
 
    procedure GetSockOpt
       (Sock     : Unsigned_64;

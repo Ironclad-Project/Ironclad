@@ -3329,11 +3329,16 @@ package body Userland.Syscall is
             end;
          when IPC.Socket.UNIX =>
             declare
+               UID, GID : Unsigned_32;
                A_SAddr2 : constant System.Address := SAddr + 4;
                CLen : constant Natural := Lib.C_String_Length (A_SAddr2);
                Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
             begin
-               Connect (File.Inner_Socket, Addr, Succ);
+               Process.Get_UID (Proc, UID);
+               Process.Get_GID (Proc, GID);
+               Connect
+                  (File.Inner_Socket, Addr, Unsigned_32 (Convert (Proc)), UID,
+                   GID, Succ);
             end;
       end case;
 
@@ -3603,6 +3608,7 @@ package body Userland.Syscall is
       Ret        : Natural;
       Succ       : Boolean;
       Map        : Page_Table_Acc;
+      PI, UID, GID : Unsigned_32;
    begin
       Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
@@ -3617,8 +3623,12 @@ package body Userland.Syscall is
          return;
       end if;
 
+      PI := Unsigned_32 (Convert (Proc));
+      Get_UID (Proc, UID);
+      Get_GID (Proc, GID);
+
       if A_IAddr = 0 or AL_IAddr = 0 then
-         Accept_Connection (File.Inner_Socket, not Block, Sock);
+         Accept_Connection (File.Inner_Socket, not Block, PI, UID, GID, Sock);
       else
          if not Check_Userland_Access (Map, A_IAddr,  Natural'Size / 8) or
             not Check_Userland_Access (Map, AL_IAddr, Natural'Size / 8)
@@ -3660,6 +3670,9 @@ package body Userland.Syscall is
                       Is_Blocking         => not Block,
                       Peer_Address        => Addr,
                       Peer_Address_Length => CLen,
+                      PID                 => PI,
+                      GID                 => GID,
+                      UID                 => UID,
                       Result              => Sock);
                end;
          end case;
@@ -4853,16 +4866,23 @@ package body Userland.Syscall is
                   end;
                when IPC.Socket.UNIX =>
                   declare
+                     UID, GID : Unsigned_32;
                      A_SAddr : constant System.Address := ASAddr + 4;
                      CLen : constant Natural := Lib.C_String_Length (A_SAddr);
                      Addr : String (1 .. CLen) with Import, Address => A_SAddr;
                   begin
+                     Get_UID (Proc, UID);
+                     Get_GID (Proc, GID);
+
                      IPC.Socket.Read
                         (Sock        => File.Inner_Socket,
                          Data        => Data,
                          Is_Blocking => File.Is_Blocking,
                          Ret_Count   => Ret_Count,
                          Path        => Addr,
+                         PID         => Unsigned_32 (Convert (Proc)),
+                         UID         => UID,
+                         GID         => GID,
                          Success     => Success);
                   end;
             end case;
@@ -4953,16 +4973,23 @@ package body Userland.Syscall is
                   end;
                when IPC.Socket.UNIX =>
                   declare
+                     UID, GID : Unsigned_32;
                      A_SAddr : constant System.Address := ASAddr + 4;
                      CLen : constant Natural := Lib.C_String_Length (A_SAddr);
                      Addr : String (1 .. CLen) with Import, Address => A_SAddr;
                   begin
+                     Get_UID (Proc, UID);
+                     Get_GID (Proc, GID);
+
                      IPC.Socket.Write
                         (Sock        => File.Inner_Socket,
                          Data        => Data,
                          Is_Blocking => File.Is_Blocking,
                          Ret_Count   => Ret_Count,
                          Path        => Addr,
+                         PID         => Unsigned_32 (Convert (Proc)),
+                         UID         => UID,
+                         GID         => GID,
                          Success     => Success);
                   end;
             end case;
@@ -6055,20 +6082,26 @@ package body Userland.Syscall is
        Errno    : out Errno_Value)
    is
       pragma Unreferenced (Len);
-      package Trans is new Lib.Userland_Transfer (Unsigned_32);
+
+      package Trans1 is new Lib.Userland_Transfer (Unsigned_32);
+      package Trans2 is new Lib.Userland_Transfer (UCred);
+
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
       IAddr     : constant Integer_Address := Integer_Address (Addr);
       File      : File_Description_Acc;
       Map       : Page_Table_Acc;
       Is_Listen : Boolean;
       Val       : Unsigned_32;
+      UCred_Val : UCred;
       Success   : Boolean;
+      Success2  : IPC.Socket.Socket_Status;
    begin
       Get_Common_Map (Proc, Map);
       Get_File (Proc, Sock, File);
       if File = null or else File.Description /= Description_Socket then
          Errno := Error_Bad_File;
-         goto Generic_Error;
+         Returned := Unsigned_64'Last;
+         return;
       elsif Level /= SOL_SOCKET then
          goto Invalid_Value_Error;
       end if;
@@ -6077,10 +6110,22 @@ package body Userland.Syscall is
          when SO_ACCEPTCONN =>
             Is_Listening (File.Inner_Socket, Is_Listen);
             Val := (if Is_Listen then 1 else 0);
+            Trans1.Paste_Into_Userland (Map, Val, To_Address (IAddr), Success);
+            if not Success then
+               goto Would_Fault_Error;
+            end if;
          when SO_ERROR =>
             Val := 0;
+            Trans1.Paste_Into_Userland (Map, Val, To_Address (IAddr), Success);
+            if not Success then
+               goto Would_Fault_Error;
+            end if;
          when SO_SNDBUF =>
             Val := Unsigned_32 (IPC.Socket.Default_Socket_Size);
+            Trans1.Paste_Into_Userland (Map, Val, To_Address (IAddr), Success);
+            if not Success then
+               goto Would_Fault_Error;
+            end if;
          when SO_TYPE =>
             case Get_Type (File.Inner_Socket) is
                when Stream =>
@@ -6090,15 +6135,33 @@ package body Userland.Syscall is
                when Raw =>
                   Val := SOCK_RAW;
             end case;
+            Trans1.Paste_Into_Userland (Map, Val, To_Address (IAddr), Success);
+            if not Success then
+               goto Would_Fault_Error;
+            end if;
+         when SO_PEERCRED =>
+            if Get_Domain (File.Inner_Socket) /= IPC.Socket.UNIX then
+               goto Invalid_Value_Error;
+            end if;
+
+            Get_Peer_Credentials
+               (Sock    => File.Inner_Socket,
+                PID     => UCred_Val.PID,
+                UID     => UCred_Val.UID,
+                GID     => UCred_Val.GID,
+                Success => Success2);
+            if Success2 /= IPC.Socket.Plain_Success then
+               goto Invalid_Value_Error;
+            end if;
+
+            Trans2.Paste_Into_Userland
+               (Map, UCred_Val, To_Address (IAddr), Success);
+            if not Success then
+               goto Would_Fault_Error;
+            end if;
          when others =>
             goto Invalid_Value_Error;
       end case;
-
-      Trans.Paste_Into_Userland (Map, Val, To_Address (IAddr), Success);
-      if not Success then
-         Errno := Error_Would_Fault;
-         goto Generic_Error;
-      end if;
 
       Errno := Error_No_Error;
       Returned := 0;
@@ -6106,7 +6169,11 @@ package body Userland.Syscall is
 
    <<Invalid_Value_Error>>
       Errno := Error_Invalid_Value;
-   <<Generic_Error>>
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<Would_Fault_Error>>
+      Errno := Error_Would_Fault;
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
