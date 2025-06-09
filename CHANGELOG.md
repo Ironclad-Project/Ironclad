@@ -19,11 +19,15 @@ release changes.
 
 ### Non-breaking changes
 
+- Several fixes on x86_64-limine's PCI and NVMe code.
+- Implemented SO_PEERCRED for getsockopt.
 - Fixed a bug that made the `create_thread` syscall ignore the passed
   argument for the new thread.
 
 ### Breaking changes
 
+- Moved from KVM to NVMM for Ironclad's virtualization interface.
+- Now `AT_SECURE` is assed only when the `euid` of the process is 0.
 - Removed the `pread`/`pwrite` syscalls in favour of arguments to the
   `read`/`write` syscalls, saving a bunch of code.
 
@@ -34,6 +38,7 @@ release changes.
 ### The people behind this release
 
 - streaksu - <streaksu@ironclad-os.org> | https://codeberg.org/streaksu
+- no92 - https://codeberg.org/no92 | https://github.com/no92
 
 ## 0.7.0 - May 27, 2025
 
