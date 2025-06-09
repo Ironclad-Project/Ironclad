@@ -214,6 +214,9 @@ package body Arch.PCI is
       BAR_Low, BAR_Size_Low, BAR_High, BAR_Size_High : Unsigned_32;
       Is_MMIO, Is_Prefetchable, Is_64_Bits : Boolean;
       Base, Size : Unsigned_64;
+      Command_Byte : Unsigned_16;
+      IO_Decode_Bit : constant := 2#01#;
+      Memory_Decode_Bit : constant := 2#10#;
    begin
       --  Check if the BAR exists first of all.
       if Read32 (Dev, Reg_Index) = 0 then
@@ -238,6 +241,12 @@ package body Arch.PCI is
          Base := Base and not 2#11#;
       end if;
 
+      Command_Byte := Read16 (Dev, 4);
+      if (Command_Byte and (IO_Decode_Bit or Memory_Decode_Bit)) /= 0 then
+         --  mask out the I/O and memory decode bits
+         Write16 (Dev, 4, Command_Byte and not (IO_Decode_Bit or Memory_Decode_Bit));
+      end if;
+
       Write32 (Dev, Reg_Index, 16#FFFFFFFF#);
       BAR_Size_Low := Read32 (Dev, Reg_Index);
       Write32 (Dev, Reg_Index, BAR_Low);
@@ -248,6 +257,11 @@ package body Arch.PCI is
          Write32 (Dev, Reg_Index + 4, BAR_High);
       else
          BAR_Size_High := 16#FFFFFFFF#;
+      end if;
+
+      if (Command_Byte and (IO_Decode_Bit or Memory_Decode_Bit)) /= 0 then
+         --  restore the I/O and memory decode bits
+         Write16 (Dev, 4, Command_Byte);
       end if;
 
       Size := Shift_Left (Unsigned_64 (BAR_Size_High), 32) or
