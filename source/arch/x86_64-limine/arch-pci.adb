@@ -244,7 +244,8 @@ package body Arch.PCI is
       Command_Byte := Read16 (Dev, 4);
       if (Command_Byte and (IO_Decode_Bit or Memory_Decode_Bit)) /= 0 then
          --  mask out the I/O and memory decode bits
-         Write16 (Dev, 4, Command_Byte and not (IO_Decode_Bit or Memory_Decode_Bit));
+         Write16 (Dev, 4, Command_Byte and not
+            (IO_Decode_Bit or Memory_Decode_Bit));
       end if;
 
       Write32 (Dev, Reg_Index, 16#FFFFFFFF#);
