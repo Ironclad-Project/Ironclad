@@ -48,7 +48,7 @@ cryptic and scary Ada code.
 * Debugging facilities::               Ironclad-specific debugging facilities.
 * Syscalls::                           Listings and explanation of syscalls.
 * Networking::                         Networking support and details.
-* Virtualization::                     KVM virtualization inside Ironclad.
+* Virtualization::                     VM virtualization inside Ironclad.
 * Filesystem support and interfaces::  VFS details and supported filesystems.
 * Devices and their properties::       Devices exposed by the kernel.
 * GNU Free Documentation License::     Copying and sharing this manual.
@@ -210,6 +210,27 @@ Syscalls
 * getcpuinfo::              List system CPU information.
 * socketpair::              Comfortably create a pair of pipe-like sockets.
 * madvise::                 Give optimization hints for memory ranges.
+* nvmm_capability::         Check NVMM system capabilities.
+* nvmm_machine_create::     Create an NVMM virtual machine.
+* nvmm_machine_destroy::    Destroy an aforementioned VM.
+* nvmm_machine_configure::  Configure an aforementioned VM.
+* nvmm_vcpu_create::        Create an NVMM VCPU.
+* nvmm_vcpu_destroy::       Destroy an aforementioned VM.
+* nvmm_vcpu_configure::     Configure an aforementioned VM.
+* nvmm_vcpu_setstate::      Get VCPU state.
+* nvmm_vcpu_getstate::      Set VCPU state.
+* nvmm_vcpu_inject::        Inject code for a VCPU.
+* nvmm_vcpu_run::           Issue a VCPU for running.
+* nvmm_gpa_map::            Map a GPA.
+* nvmm_gpa_unmap::          Unmap a GPA.
+* nvmm_hva_map::            Map a HVA.
+* nvmm_hva_unmap::          Unmap a HVA.
+* nvmm_gva_2_gpa::          Map a GVA to a GPA.
+* nvmm_gpa_2_hva::          Map a GPA to a HVA.
+* nvmm_assist_io::          Assist NVMM machines at IO operations.
+* nvmm_assist_mem::         Assist NVMM machines at memory operations.
+* nvmm_vcpu_dump::          Dump VCPU state.
+* nvmm_vcpu_stop::          Stop a VCPU.
 
 Networking
 
@@ -219,8 +240,8 @@ Networking
 
 Virtualization
 
-* The Kernel Virtual Machine (KVM)::         Details about KVM.
-* Differences between Linux and Ironclad::   Ditto.
+* NetBSD Virtual Machine Monitor (NVMM)::  Details about NVMM.
+* Differences with NetBSD::                Specification of Ironclad's NVMM.
 
 Filesystem support and interfaces
 
@@ -1072,6 +1093,50 @@ Empty.
 @ref{getcpuinfo}
 @item
 @ref{socketpair}
+@item
+@ref{madvise}
+@item
+@ref{nvmm_capability}
+@item
+@ref{nvmm_machine_create}
+@item
+@ref{nvmm_machine_destroy}
+@item
+@ref{nvmm_machine_configure}
+@item
+@ref{nvmm_vcpu_create}
+@item
+@ref{nvmm_vcpu_destroy}
+@item
+@ref{nvmm_vcpu_configure}
+@item
+@ref{nvmm_vcpu_setstate}
+@item
+@ref{nvmm_vcpu_getstate}
+@item
+@ref{nvmm_vcpu_inject}
+@item
+@ref{nvmm_vcpu_run}
+@item
+@ref{nvmm_gpa_map}
+@item
+@ref{nvmm_gpa_unmap}
+@item
+@ref{nvmm_hva_map}
+@item
+@ref{nvmm_hva_unmap}
+@item
+@ref{nvmm_gva_2_gpa}
+@item
+@ref{nvmm_gpa_2_hva}
+@item
+@ref{nvmm_assist_io}
+@item
+@ref{nvmm_assist_mem}
+@item
+@ref{nvmm_vcpu_dump}
+@item
+@ref{nvmm_vcpu_stop}
 @end enumerate
 
 @subsection riscv64-limine
@@ -4426,6 +4491,135 @@ This syscall returns @code{0} on success and @code{-1} on failure, with errno:
 The passed buffers were pointing to invalid memory.
 @end table
 
+@node nvmm_capability
+@section nvmm_capability
+
+@example c
+struct nvmm_caps @{
+    uint32_t version;
+    uint32_t state_size;
+    uint32_t max_machines;
+    uint32_t max_vcpus;
+    uint64_t max_ram;
+@};
+
+int nvmm_capability(struct nvmm_caps *caps);
+@end example
+
+This syscall fetches details about the NVMM implementation that the kernel
+exposes to userland. @code{version} is always 2 for Ironclad, but should be
+checked as to future proof/portability.
+
+This syscall returns @code{0} on success or @code{-1} on failure, with the
+errno:
+
+@table @code
+@item EFAULT
+The passed buffers were pointing to invalid memory.
+@item ENOTSUPP
+The current configuration doesn't support NVMM.
+@end table
+
+@node nvmm_machine_create
+@section nvmm_machine_create
+
+TBD
+
+@node nvmm_machine_destroy
+@section nvmm_machine_destroy
+
+TBD
+
+@node nvmm_machine_configure
+@section nvmm_machine_configure
+
+TBD
+
+@node nvmm_vcpu_create
+@section nvmm_vcpu_create
+
+TBD
+
+@node nvmm_vcpu_destroy
+@section nvmm_vcpu_destroy
+
+TBD
+
+@node nvmm_vcpu_configure
+@section nvmm_vcpu_configure
+
+TBD
+
+@node nvmm_vcpu_setstate
+@section nvmm_vcpu_setstate
+
+TBD
+
+@node nvmm_vcpu_getstate
+@section nvmm_vcpu_getstate
+
+TBD
+
+@node nvmm_vcpu_inject
+@section nvmm_vcpu_inject
+
+TBD
+
+@node nvmm_vcpu_run
+@section nvmm_vcpu_run
+
+TBD
+
+@node nvmm_gpa_map
+@section nvmm_gpa_map
+
+TBD
+
+@node nvmm_gpa_unmap
+@section nvmm_gpa_unmap
+
+TBD
+
+@node nvmm_hva_map
+@section nvmm_hva_map
+
+TBD
+
+@node nvmm_hva_unmap
+@section nvmm_hva_unmap
+
+TBD
+
+@node nvmm_gva_2_gpa
+@section nvmm_gva_2_gpa
+
+TBD
+
+@node nvmm_gpa_2_hva
+@section nvmm_gpa_2_hva
+
+TBD
+
+@node nvmm_assist_io
+@section nvmm_assist_io
+
+TBD
+
+@node nvmm_assist_mem
+@section nvmm_assist_mem
+
+TBD
+
+@node nvmm_vcpu_dump
+@section nvmm_vcpu_dump
+
+TBD
+
+@node nvmm_vcpu_stop
+@section nvmm_vcpu_stop
+
+TBD
+
 @node Networking
 @chapter Networking
 
@@ -4483,22 +4677,28 @@ Loopback will always have the static IP addresses @code{127.0.0.1/8} and
 @node Virtualization
 @chapter Virtualization
 
-This chapter gives all the details about Ironclad's KVM support, which is how
+This chapter gives all the details about Ironclad's NVMM support, which is how
 Ironclad provides accelerated hardware virtualization.
 
-@node The Kernel Virtual Machine (KVM)
-@section The Kernel Virtual Machine (KVM)
+@node NetBSD Virtual Machine Monitor (NVMM)
+@section NetBSD Virtual Machine Monitor (NVMM)
 
-KVM is a full virtualization solution for Linux on several architectures,
-Ironclad implements KVM's 12th version, you can find its specification inside
-@url{https://docs.kernel.org/virt/kvm/api.html, Linux's documentation}.
+NVMM is a full type-2 hypervisor solution for NetBSD on several architectures,
+Ironclad implements it as a cleaner, more lightweight version of something like
+Linux's @url{https://docs.kernel.org/virt/kvm/api.html, KVM}. DragonFlyBSD
+hosts guides on using it
+@url{https://www.dragonflybsd.org/docs/docs/howtos/nvmm/, here}.
 
-@node Differences between Linux and Ironclad
-@section Differences between Linux and Ironclad
+NVMM usually gets exposed in the way of a library, like @code{libnvmm},
+Ironclad only provides the building blocks of said library in the form of
+syscalls.
 
-Ironclad only supports the base KVM version @code{12} and the
-@code{KVM_CAP_USER_MEMORY} extension.
-@code{/dev/kvm} will only be present if virtualization is supported.
+@node Differences with NetBSD
+@section Differences with NetBSD
+
+Ironclad only provides the non-IOCTL interfaces, using syscalls only. No
+@code{/dev/nvmm} is provided either. To check presence, @code{nvmm_capability}
+will fail with @code{ENOTSUPP} if there is no NVMM support.
 
 @node Filesystem support and interfaces
 @chapter Filesystem support and interfaces

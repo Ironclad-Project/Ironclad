@@ -330,7 +330,7 @@ package body Userland.Syscall is
                    Ret_Count, Success4);
                Translate_Status
                   (Success4, Unsigned_64 (Ret_Count), Returned, Errno);
-            when Description_Writer_FIFO | Description_VM | Description_VCPU =>
+            when Description_Writer_FIFO =>
                Errno    := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
          end case;
@@ -441,7 +441,7 @@ package body Userland.Syscall is
                    Success4);
                Translate_Status
                   (Success4, Unsigned_64 (Ret_Count), Returned, Errno);
-            when Description_Reader_FIFO | Description_VM | Description_VCPU =>
+            when Description_Reader_FIFO =>
                Errno := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
          end case;
@@ -1183,9 +1183,8 @@ package body Userland.Syscall is
             when Description_Inode =>
                FS  := File_Desc.Inner_Ino_FS;
                Ino := File_Desc.Inner_Ino;
-            when Description_Reader_FIFO | Description_Writer_FIFO   |
-                 Description_Primary_PTY | Description_Secondary_PTY |
-                 Description_VM          | Description_VCPU =>
+            when Description_Reader_FIFO | Description_Writer_FIFO |
+                 Description_Primary_PTY | Description_Secondary_PTY =>
                Stat_Buf :=
                   (Device_Number => 0,
                    Inode_Number  => 1,
@@ -1448,23 +1447,6 @@ package body Userland.Syscall is
                (File.Inner_Secondary_PTY, False, Request, S_Arg, Succ);
             Has_E := False;
             Extra := 0;
-         when Description_VM =>
-            Virtualization.IO_Control
-               (M         => File.Inner_VM,
-                Request   => Request,
-                Arg       => S_Arg,
-                Has_Extra => Has_E,
-                Extra     => Extra,
-                Success   => Succ);
-         when Description_VCPU =>
-            Virtualization.IO_Control
-               (C         => File.Inner_VCPU,
-                M         => File.Inner_VCPU_Owner,
-                Request   => Request,
-                Arg       => S_Arg,
-                Has_Extra => Has_E,
-                Extra     => Extra,
-                Success   => Succ);
          when others =>
             Has_E := False;
             Extra := 0;
@@ -2313,8 +2295,6 @@ package body Userland.Syscall is
                   end if;
                when Description_Socket =>
                   Returned := Returned or O_RDONLY or O_WRONLY;
-               when Description_VM | Description_VCPU =>
-                  null;
             end case;
          when F_SETFL =>
             File.Is_Blocking := (Argument and O_NONBLOCK) = 0;
@@ -3942,8 +3922,6 @@ package body Userland.Syscall is
                   when Description_Inode =>
                      VFS.Poll (File.Inner_Ino_FS, File.Inner_Ino, Can_Read,
                         Can_Write, Is_Error);
-                  when Description_VM | Description_VCPU =>
-                     goto Invalid_Value_Error;
                end case;
 
                if Can_Read and (Polled.Events and POLLIN) /= 0 then
@@ -3986,11 +3964,6 @@ package body Userland.Syscall is
 
    <<Would_Fault_Error>>
       Errno    := Error_Would_Fault;
-      Returned := Unsigned_64'Last;
-      return;
-
-   <<Invalid_Value_Error>>
-      Errno    := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
@@ -6594,6 +6567,297 @@ package body Userland.Syscall is
       Errno    := Error_No_Error;
       Returned := 0;
    end MAdvise;
+
+   procedure NVMM_Capability
+      (Cap_Addr : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      package Trans is new Lib.Userland_Transfer (NVMM_Caps);
+      Proc : constant             PID := Arch.Local.Get_Current_Process;
+      A    : constant Integer_Address := Integer_Address (Cap_Addr);
+      Caps : NVMM_Caps;
+      Map  : Page_Table_Acc;
+      Succ : Boolean;
+   begin
+      if not Virtualization.Is_Supported then
+         Errno    := Error_Not_Supported;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Caps :=
+         (Version      => Virtualization.NVMM_Version,
+          State_Size   => Virtualization.State_Size,
+          Max_Machines => Virtualization.Max_Virtual_Machines,
+          Max_VCPUs    => Virtualization.Max_CPUs_Per_VM,
+          Max_RAM      => Virtualization.Max_RAM_Per_VM);
+
+      Get_Common_Map (Proc, Map);
+      Trans.Paste_Into_Userland (Map, Caps, To_Address (A), Succ);
+      if Succ then
+         Errno    := Error_No_Error;
+         Returned := 0;
+      else
+         Errno    := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+      end if;
+   end NVMM_Capability;
+
+   procedure NVMM_Machine_Create
+      (Machine_Addr : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_Machine_Create;
+
+   procedure NVMM_Machine_Destroy
+      (Machine_Addr : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_Machine_Destroy;
+
+   procedure NVMM_Machine_Configure
+      (Machine_Addr  : Unsigned_64;
+       Operation     : Unsigned_64;
+       Argument_Addr : Unsigned_64;
+       Returned      : out Unsigned_64;
+       Errno         : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, Operation, Argument_Addr);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_Machine_Configure;
+
+   procedure NVMM_VCPU_Create
+      (Machine_Addr : Unsigned_64;
+       CPUID        : Unsigned_64;
+       CPU_Addr     : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, CPUID, CPU_Addr);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_VCPU_Create;
+
+   procedure NVMM_VCPU_Destroy
+      (Machine_Addr : Unsigned_64;
+       CPU_Addr     : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, CPU_Addr);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_VCPU_Destroy;
+
+   procedure NVMM_VCPU_Configure
+      (Machine_Addr  : Unsigned_64;
+       CPU_Addr      : Unsigned_64;
+       Operation     : Unsigned_64;
+       Argument_Addr : Unsigned_64;
+       Returned      : out Unsigned_64;
+       Errno         : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, CPU_Addr, Operation, Argument_Addr);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_VCPU_Configure;
+
+   procedure NVMM_VCPU_SetState
+      (Machine_Addr  : Unsigned_64;
+       CPU_Addr      : Unsigned_64;
+       Operation     : Unsigned_64;
+       Returned      : out Unsigned_64;
+       Errno         : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, CPU_Addr, Operation);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_VCPU_SetState;
+
+   procedure NVMM_VCPU_GetState
+      (Machine_Addr  : Unsigned_64;
+       CPU_Addr      : Unsigned_64;
+       Operation     : Unsigned_64;
+       Returned      : out Unsigned_64;
+       Errno         : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, CPU_Addr, Operation);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_VCPU_GetState;
+
+   procedure NVMM_VCPU_Inject
+      (Machine_Addr : Unsigned_64;
+       CPU_Addr     : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, CPU_Addr);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_VCPU_Inject;
+
+   procedure NVMM_VCPU_Run
+      (Machine_Addr : Unsigned_64;
+       CPU_Addr     : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, CPU_Addr);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_VCPU_Run;
+
+   procedure NVMM_GPA_Map
+      (Machine_Addr : Unsigned_64;
+       HVA          : Unsigned_64;
+       GPA          : Unsigned_64;
+       Size         : Unsigned_64;
+       Prot         : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, HVA, GPA, Size, Prot);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_GPA_Map;
+
+   procedure NVMM_GPA_Unmap
+      (Machine_Addr : Unsigned_64;
+       HVA          : Unsigned_64;
+       GPA          : Unsigned_64;
+       Size         : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, HVA, GPA, Size);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_GPA_Unmap;
+
+   procedure NVMM_HVA_Map
+      (Machine_Addr : Unsigned_64;
+       HVA          : Unsigned_64;
+       Size         : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, HVA, Size);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_HVA_Map;
+
+   procedure NVMM_HVA_Unmap
+      (Machine_Addr : Unsigned_64;
+       HVA          : Unsigned_64;
+       Size         : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, HVA, Size);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_HVA_Unmap;
+
+   procedure NVMM_GVA_2_GPA
+      (Machine_Addr : Unsigned_64;
+       CPU_Addr     : Unsigned_64;
+       GVA          : Unsigned_64;
+       GPA_Addr     : Unsigned_64;
+       Prot_Addr    : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, CPU_Addr, GVA, GPA_Addr, Prot_Addr);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_GVA_2_GPA;
+
+   procedure NVMM_GPA_2_HVA
+      (Machine_Addr : Unsigned_64;
+       GPA          : Unsigned_64;
+       HVA_Addr     : Unsigned_64;
+       Prot_Addr    : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, GPA, HVA_Addr, Prot_Addr);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_GPA_2_HVA;
+
+   procedure NVMM_Assist_IO
+      (Machine_Addr : Unsigned_64;
+       CPU_Addr     : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, CPU_Addr);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_Assist_IO;
+
+   procedure NVMM_Assist_Mem
+      (Machine_Addr : Unsigned_64;
+       CPU_Addr     : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, CPU_Addr);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_Assist_Mem;
+
+   procedure NVMM_VCPU_Dump
+      (Machine_Addr : Unsigned_64;
+       CPU_Addr     : Unsigned_64;
+       Returned     : out Unsigned_64;
+       Errno        : out Errno_Value)
+   is
+      pragma Unreferenced (Machine_Addr, CPU_Addr);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_VCPU_Dump;
+
+   procedure NVMM_VCPU_Stop
+      (CPU_Addr : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      pragma Unreferenced (CPU_Addr);
+   begin
+      Errno    := Error_No_Error;
+      Returned := 0;
+   end NVMM_VCPU_Stop;
    ----------------------------------------------------------------------------
    procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
    begin

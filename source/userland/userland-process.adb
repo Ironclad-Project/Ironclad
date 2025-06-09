@@ -641,8 +641,6 @@ package body Userland.Process is
                   end if;
                end if;
             when Description_Socket => Close (F.Inner_Socket);
-            when Description_VM => Virtualization.Close (F.Inner_VM);
-            when Description_VCPU => null;
          end case;
          Free (F);
       else
