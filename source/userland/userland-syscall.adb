@@ -137,25 +137,29 @@ package body Userland.Syscall is
       User        : Unsigned_32;
       Map         : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Curr_Proc, Map);
-      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
-         Returned := Unsigned_64'Last;
-         Errno    := Error_Would_Fault;
-         return;
-      elsif Path_Len > Unsigned_64 (Natural'Last) then
+      if Path_Len > Path_Max_Len then
          Returned := Unsigned_64'Last;
          Errno    := Error_String_Too_Long;
          return;
       end if;
 
-      Userland.Process.Get_Effective_UID (Curr_Proc, User);
-
       declare
+         subtype Path_String is String (1 .. Natural (Path_Len));
+         package Trans is new Lib.Userland_Transfer (Path_String);
+
+         Path    : Path_String;
          Rela_FS : VFS.FS_Handle;
-         Path : String (1 .. Natural (Path_Len))
-            with Import, Address => Path_SAddr;
       begin
+         Get_Common_Map (Curr_Proc, Map);
+         Trans.Take_From_Userland (Map, Path, Path_SAddr, Success2);
+         if not Success2 then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+            return;
+         end if;
+
+         Userland.Process.Get_Effective_UID (Curr_Proc, User);
+
          Resolve_AT_Directive (Curr_Proc, Dir_FD, Rela_FS, CWD_Ino);
          if Rela_FS = VFS.Error_Handle then
             Returned := Unsigned_64'Last;
@@ -1100,35 +1104,44 @@ package body Userland.Syscall is
       Success : Boolean;
       Map     : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       if not Get_Capabilities (Proc).Can_Manage_Networking then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("set_hostname", Proc);
          Returned := Unsigned_64'Last;
          return;
-      end if;
-
-      Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, IAddr, Length) then
-         Errno := Error_Would_Fault;
+      elsif Length > Unsigned_64 (Networking.Hostname_Max_Len) then
          Returned := Unsigned_64'Last;
+         Errno    := Error_String_Too_Long;
          return;
       end if;
 
       declare
-         Len  : constant Natural := Natural (Length and 16#FFFF#);
-         Name : String (1 .. Len) with Import, Address => SAddr;
+         subtype Host_String is String (1 .. Natural (Length));
+         package Trans is new Lib.Userland_Transfer (Host_String);
+         Name : Host_String;
       begin
-         Networking.Set_Hostname (Name, Success);
-      end;
+         Get_Common_Map (Proc, Map);
+         Trans.Take_From_Userland (Map, Name, SAddr, Success);
+         if not Success then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+            return;
+         end if;
 
-      if not Success then
-         Errno := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-      else
+         Networking.Set_Hostname (Name, Success);
+         if not Success then
+            goto Invalid_Value_Error;
+         end if;
+
          Errno := Error_No_Error;
          Returned := 0;
-      end if;
+      end;
+
+      return;
+
+   <<Invalid_Value_Error>>
+      Errno := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;
@@ -1144,6 +1157,8 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
+      package Trans is new Lib.Userland_Transfer (Stat);
+
       Proc       : constant             PID := Arch.Local.Get_Current_Process;
       Stat_IAddr : constant Integer_Address := Integer_Address (Stat_Addr);
       Stat_SAddr : constant  System.Address := To_Address (Stat_IAddr);
@@ -1155,20 +1170,12 @@ package body Userland.Syscall is
       Rel_FS, FS : VFS.FS_Handle;
       D_Ino, Ino : VFS.File_Inode_Number;
       Success    : VFS.FS_Status;
-      Stat_Buf   : Stat with Import, Address => Stat_SAddr;
+      Success2   : Boolean;
+      Stat_Buf   : Stat;
       User       : Unsigned_32;
       Map        : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, Stat_IAddr, Stat'Size / 8) or else
-         not Check_Userland_Access (Map, Path_IAddr, Path_Len)
-      then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
       Userland.Process.Get_Effective_UID (Proc, User);
 
       if (Flags and AT_EMPTY_PATH) /= 0 then
@@ -1200,7 +1207,7 @@ package body Userland.Syscall is
                    Birth_Time    => (Seconds => 0, Nanoseconds => 0),
                    Block_Size    => 512,
                    Block_Count   => 1);
-               goto Success_Return;
+               goto Write_Success;
             when Description_Socket =>
                Stat_Buf :=
                   (Device_Number => 0,
@@ -1217,13 +1224,25 @@ package body Userland.Syscall is
                    Birth_Time    => (Seconds => 0, Nanoseconds => 0),
                    Block_Size    => 512,
                    Block_Count   => 1);
-               goto Success_Return;
+               goto Write_Success;
          end case;
       else
+         if Path_Len > Path_Max_Len then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_String_Too_Long;
+            return;
+         end if;
+
          declare
-            Path : String (1 .. Natural (Path_Len))
-               with Import, Address => Path_SAddr;
+            subtype Path_String is String (1 .. Natural (Path_Len));
+            package Trans2 is new Lib.Userland_Transfer (Path_String);
+            Path : Path_String;
          begin
+            Trans2.Take_From_Userland (Map, Path, Path_SAddr, Success2);
+            if not Success2 then
+               goto Would_Fault_Error;
+            end if;
+
             Resolve_AT_Directive (Proc, Dir_FD, Rel_FS, D_Ino);
             if Rel_FS = VFS.Error_Handle then
                Errno    := Error_Bad_File;
@@ -1294,9 +1313,19 @@ package body Userland.Syscall is
             Stat_Buf.Mode := Stat_Buf.Mode or Stat_IFBLK;
       end case;
 
-   <<Success_Return>>
+   <<Write_Success>>
+      Trans.Paste_Into_Userland (Map, Stat_Buf, Stat_SAddr, Success2);
+      if not Success2 then
+         goto Would_Fault_Error;
+      end if;
+
       Errno    := Error_No_Error;
       Returned := 0;
+      return;
+
+   <<Would_Fault_Error>>
+      Returned := Unsigned_64'Last;
+      Errno    := Error_Would_Fault;
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;
@@ -1316,41 +1345,44 @@ package body Userland.Syscall is
       Old_IAddr : constant Integer_Address := Integer_Address (Old_Addr);
       Old_SAddr : constant  System.Address := To_Address (Old_IAddr);
       Curr_Proc : constant             PID := Arch.Local.Get_Current_Process;
-      Success   : Boolean;
+      Success1  : Boolean;
+      Success2  : Boolean;
       Map       : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Curr_Proc, Map);
-      if not Check_Userland_Access (Map, New_IAddr, New_Len) or
-         not Check_Userland_Access (Map, Old_IAddr, Old_Len)
-      then
-         Returned := Unsigned_64'Last;
-         Errno    := Error_Would_Fault;
-         return;
-      elsif New_Len > Unsigned_64 (Natural'Last) or
-            Old_Len > Unsigned_64 (Natural'Last)
-      then
-         Returned := Unsigned_64'Last;
-         Errno    := Error_String_Too_Long;
-         return;
-      elsif not Get_Capabilities (Curr_Proc).Can_Manage_Mounts then
+      if not Get_Capabilities (Curr_Proc).Can_Manage_Mounts then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("pivot_root", Curr_Proc);
          Returned := Unsigned_64'Last;
          return;
+      elsif New_Len > Path_Max_Len or Old_Len > Path_Max_Len then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_String_Too_Long;
+         return;
       end if;
 
       declare
-         New_Path : String (1 .. Natural (New_Len))
-            with Import, Address => New_SAddr;
-         Old_Path : String (1 .. Natural (Old_Len))
-            with Import, Address => Old_SAddr;
+         subtype New_String is String (1 .. Natural (New_Len));
+         subtype Old_String is String (1 .. Natural (Old_Len));
+         package Trans_1 is new Lib.Userland_Transfer (New_String);
+         package Trans_2 is new Lib.Userland_Transfer (Old_String);
+
+         New_Path : New_String;
+         Old_Path : Old_String;
       begin
+         Get_Common_Map (Curr_Proc, Map);
+         Trans_1.Take_From_Userland (Map, New_Path, New_SAddr, Success1);
+         Trans_2.Take_From_Userland (Map, Old_Path, Old_SAddr, Success2);
+         if not Success1 or not Success2 then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+            return;
+         end if;
+
          VFS.Pivot_Root
             (New_Mount => New_Path,
              Old_Mount => Old_Path,
-             Success   => Success);
-         if Success then
+             Success   => Success1);
+         if Success1 then
             Errno    := Error_No_Error;
             Returned := 0;
          else
@@ -1599,29 +1631,32 @@ package body Userland.Syscall is
       Success          : VFS.FS_Status;
       User             : Unsigned_32;
       Map              : Page_Table_Acc;
+      Success_1        : Boolean;
+      Success_2        : Boolean;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, Src_IAddr, Source_Len) or
-         not Check_Userland_Access (Map, Tgt_IAddr, Target_Len)
-      then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Source_Len > Unsigned_64 (Natural'Last) or
-            Target_Len > Unsigned_64 (Natural'Last)
-      then
+      if Source_Len > Path_Max_Len or Target_Len > Path_Max_Len then
          Errno := Error_String_Too_Long;
          Returned := Unsigned_64'Last;
          return;
       end if;
 
       declare
-         Src : String (1 .. Natural (Source_Len))
-            with Import, Address => Src_SAddr;
-         Tgt : String (1 .. Natural (Target_Len))
-            with Import, Address => Tgt_SAddr;
+         subtype Src_String is String (1 .. Natural (Source_Len));
+         subtype Tgt_String is String (1 .. Natural (Target_Len));
+         package Trans_1 is new Lib.Userland_Transfer (Src_String);
+         package Trans_2 is new Lib.Userland_Transfer (Tgt_String);
+         Src : Src_String;
+         Tgt : Tgt_String;
       begin
+         Get_Common_Map (Proc, Map);
+         Trans_1.Take_From_Userland (Map, Src, Src_SAddr, Success_1);
+         Trans_2.Take_From_Userland (Map, Tgt, Tgt_SAddr, Success_2);
+         if not Success_1 or not Success_2 then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+            return;
+         end if;
+
          Userland.Process.Get_Effective_UID (Proc, User);
          Resolve_AT_Directive (Proc, Source_FD, Src_FS, Src_Ino);
          Resolve_AT_Directive (Proc, Target_FD, Tgt_FS, Tgt_Ino);
@@ -2556,58 +2591,56 @@ package body Userland.Syscall is
       FS        : VFS.FS_Handle;
       Ino       : VFS.File_Inode_Number;
       Map       : Page_Table_Acc;
+      Success   : Boolean;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
-      if not Get_Capabilities (Proc).Can_Manage_MAC then
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("add_mac_perms", Proc);
+      if Path_Len > Path_Max_Len then
          Returned := Unsigned_64'Last;
-         return;
-      elsif not Check_Userland_Access (Map, Addr, Path_Len) then
-         Errno    := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Path_Len > Unsigned_64 (Natural'Last) then
-         Errno    := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
+         Errno    := Error_String_Too_Long;
          return;
       end if;
-
-      Perms :=
-         (Includes_Contents => (Flags and MAC_PERM_CONTENTS) /= 0,
-          Can_Read          => (Flags and MAC_PERM_READ)     /= 0,
-          Can_Write         => (Flags and MAC_PERM_WRITE)    /= 0,
-          Can_Execute       => (Flags and MAC_PERM_EXEC)     /= 0,
-          Can_Append_Only   => (Flags and MAC_PERM_APPEND)   /= 0,
-          Can_Lock_Files    => (Flags and MAC_PERM_FLOCK)    /= 0);
-
-      Userland.Process.Get_Effective_UID (Proc, User);
 
       declare
-         Path : String (1 .. Natural (Path_Len))
-            with Import, Address => To_Address (Addr);
+         subtype Path_String is String (1 .. Natural (Path_Len));
+         package Trans is new Lib.Userland_Transfer (Path_String);
+         Path : Path_String;
       begin
-         VFS.Open (Path, FS, Ino, FS_Status, User, True, False);
-      end;
-
-      if FS_Status /= VFS.FS_Success then
-         Translate_Status (FS_Status, 0, Returned, Errno);
-         return;
-      end if;
-
-      Add_Entity (Proc, FS, Ino, Perms, Status);
-
-      case Status is
-         when MAC.Success =>
-            Errno    := Error_No_Error;
-            Returned := 0;
+         Get_Common_Map (Proc, Map);
+         Trans.Take_From_Userland (Map, Path, To_Address (Addr), Success);
+         if not Success then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
             return;
-         when MAC.No_Space       => Errno := Error_No_Memory;
-         when MAC.Is_Conflicting => Errno := Error_Invalid_Value;
-      end case;
+         end if;
 
-      Returned := Unsigned_64'Last;
+         Perms :=
+            (Includes_Contents => (Flags and MAC_PERM_CONTENTS) /= 0,
+             Can_Read          => (Flags and MAC_PERM_READ)     /= 0,
+             Can_Write         => (Flags and MAC_PERM_WRITE)    /= 0,
+             Can_Execute       => (Flags and MAC_PERM_EXEC)     /= 0,
+             Can_Append_Only   => (Flags and MAC_PERM_APPEND)   /= 0,
+             Can_Lock_Files    => (Flags and MAC_PERM_FLOCK)    /= 0);
+
+         Userland.Process.Get_Effective_UID (Proc, User);
+
+         VFS.Open (Path, FS, Ino, FS_Status, User, True, False);
+         if FS_Status /= VFS.FS_Success then
+            Translate_Status (FS_Status, 0, Returned, Errno);
+            return;
+         end if;
+
+         Add_Entity (Proc, FS, Ino, Perms, Status);
+
+         case Status is
+            when MAC.Success =>
+               Errno    := Error_No_Error;
+               Returned := 0;
+               return;
+            when MAC.No_Space       => Errno := Error_No_Memory;
+            when MAC.Is_Conflicting => Errno := Error_Invalid_Value;
+         end case;
+
+         Returned := Unsigned_64'Last;
+      end;
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;
@@ -2668,27 +2701,18 @@ package body Userland.Syscall is
       Map        : Page_Table_Acc;
       Success_1  : VFS.FS_Status;
       Success_2  : Boolean;
+      Success_3  : Boolean;
       Handle     : FS_Handle;
       Matched    : Natural;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, Src_IAddr, Source_Len) or
-         not Check_Userland_Access (Map, Tgt_IAddr, Target_Len)
-      then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Source_Len > Unsigned_64 (Natural'Last) or
-            Target_Len > Unsigned_64 (Natural'Last)
-      then
-         Errno := Error_String_Too_Long;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif not Get_Capabilities (Proc).Can_Manage_Mounts then
+      if not Get_Capabilities (Proc).Can_Manage_Mounts then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("mount", Proc);
          Returned := Unsigned_64'Last;
+         return;
+      elsif Source_Len > Path_Max_Len or Target_Len > Path_Max_Len then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_String_Too_Long;
          return;
       end if;
 
@@ -2698,11 +2722,22 @@ package body Userland.Syscall is
           else  Always_Update);
 
       declare
-         Source : String (1 .. Natural (Source_Len))
-            with Import, Address => Src_Addr;
-         Target : String (1 .. Natural (Target_Len))
-            with Import, Address => Tgt_Addr;
+         subtype Src_String is String (1 .. Natural (Source_Len));
+         subtype Tgt_String is String (1 .. Natural (Target_Len));
+         package Trans_1 is new Lib.Userland_Transfer (Src_String);
+         package Trans_2 is new Lib.Userland_Transfer (Tgt_String);
+         Source : Src_String;
+         Target : Tgt_String;
       begin
+         Get_Common_Map (Proc, Map);
+         Trans_1.Take_From_Userland (Map, Source, Src_Addr, Success_2);
+         Trans_2.Take_From_Userland (Map, Target, Tgt_Addr, Success_3);
+         if not Success_2 or not Success_3 then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+            return;
+         end if;
+
          if Do_Remount then
             VFS.Get_Mount (Target, Matched, Handle);
             if Handle /= VFS.Error_Handle then
@@ -2751,29 +2786,32 @@ package body Userland.Syscall is
       Path_SAddr : constant  System.Address := To_Address (Path_IAddr);
       Flag_Force : constant Boolean := (Flags and MNT_FORCE) /= 0;
       Map        : Page_Table_Acc;
+      Success    : Boolean;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Curr_Proc, Map);
-      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Path_Len > Unsigned_64 (Natural'Last) then
-         Errno := Error_String_Too_Long;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif not Get_Capabilities (Curr_Proc).Can_Manage_Mounts then
+      if not Get_Capabilities (Curr_Proc).Can_Manage_Mounts then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("umount", Curr_Proc);
          Returned := Unsigned_64'Last;
          return;
+      elsif Path_Len > Path_Max_Len then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_String_Too_Long;
+         return;
       end if;
 
       declare
-         Success : Boolean;
-         Path    : String (1 .. Natural (Path_Len))
-            with Import, Address => Path_SAddr;
+         subtype Path_String is String (1 .. Natural (Path_Len));
+         package Trans is new Lib.Userland_Transfer (Path_String);
+         Path : Path_String;
       begin
+         Get_Common_Map (Curr_Proc, Map);
+         Trans.Take_From_Userland (Map, Path, Path_SAddr, Success);
+         if not Success then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+            return;
+         end if;
+
          VFS.Unmount (Path, Flag_Force, Success);
          if Success then
             Errno := Error_No_Error;
@@ -2987,23 +3025,27 @@ package body Userland.Syscall is
       Umask      : VFS.File_Mode;
       User       : Unsigned_32;
       Map        : Page_Table_Acc;
+      Success    : Boolean;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Path_Len > Unsigned_64 (Natural'Last) then
+      if Path_Len > Path_Max_Len then
          Errno := Error_String_Too_Long;
          Returned := Unsigned_64'Last;
          return;
       end if;
 
       declare
-         Path : String (1 .. Natural (Path_Len))
-            with Import, Address => Path_SAddr;
+         subtype Path_String is String (1 .. Natural (Path_Len));
+         package Trans is new Lib.Userland_Transfer (Path_String);
+         Path : Path_String;
       begin
+         Get_Common_Map (Proc, Map);
+         Trans.Take_From_Userland (Map, Path, Path_SAddr, Success);
+         if not Success then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+            return;
+         end if;
+
          Process.Get_Effective_UID (Proc, User);
          Resolve_AT_Directive (Proc, Dir_FD, CWD_FS, CWD_Ino);
          if CWD_FS = VFS.Error_Handle then
@@ -3053,25 +3095,29 @@ package body Userland.Syscall is
       CWD_FS     : VFS.FS_Handle;
       CWD_Ino    : VFS.File_Inode_Number;
       Success    : VFS.FS_Status;
+      Success2   : Boolean;
       User       : Unsigned_32;
       Map        : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Curr_Proc, Map);
-      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
-         Errno := Error_Would_Fault;
+      if Path_Len > Path_Max_Len then
          Returned := Unsigned_64'Last;
-         return;
-      elsif Path_Len > Unsigned_64 (Natural'Last) then
-         Errno := Error_String_Too_Long;
-         Returned := Unsigned_64'Last;
+         Errno    := Error_String_Too_Long;
          return;
       end if;
 
       declare
-         Path : String (1 .. Natural (Path_Len))
-            with Import, Address => Path_SAddr;
+         subtype Path_String is String (1 .. Natural (Path_Len));
+         package Trans is new Lib.Userland_Transfer (Path_String);
+         Path : Path_String;
       begin
+         Get_Common_Map (Curr_Proc, Map);
+         Trans.Take_From_Userland (Map, Path, Path_SAddr, Success2);
+         if not Success2 then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+            return;
+         end if;
+
          Process.Get_Effective_UID (Curr_Proc, User);
          Resolve_AT_Directive (Curr_Proc, Dir_FD, CWD_FS, CWD_Ino);
          if CWD_FS = VFS.Error_Handle then
@@ -3751,25 +3797,27 @@ package body Userland.Syscall is
       Succ       : VFS.FS_Status;
       User       : Unsigned_32;
       Map        : Page_Table_Acc;
+      Success    : Boolean;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
-         Errno    := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Path_Len > Unsigned_64 (Natural'Last) then
-         Errno    := Error_String_Too_Long;
+      if Path_Len > Path_Max_Len then
+         Errno := Error_String_Too_Long;
          Returned := Unsigned_64'Last;
          return;
       end if;
 
-      Process.Get_Effective_UID (Proc, User);
-
       declare
-         Path : String (1 .. Natural (Path_Len))
-               with Import, Address => Path_SAddr;
+         subtype Path_String is String (1 .. Natural (Path_Len));
+         package Trans is new Lib.Userland_Transfer (Path_String);
+         Path : Path_String;
       begin
+         Get_Common_Map (Proc, Map);
+         Trans.Take_From_Userland (Map, Path, Path_SAddr, Success);
+         if not Success then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+            return;
+         end if;
+
          Resolve_AT_Directive (Proc, Dir_FD, Rel_FS, D_Ino);
          if Rel_FS = VFS.Error_Handle then
             Errno    := Error_Bad_File;
@@ -4037,19 +4085,8 @@ package body Userland.Syscall is
       File_Desc   : File_Description_Acc;
       File_Perms  : MAC.Permissions;
       Map         : Page_Table_Acc;
+      Success     : Boolean;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
-         Errno    := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Path_Len > Unsigned_64 (Natural'Last) then
-         Errno    := Error_String_Too_Long;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
       Process.Get_Effective_UID (Proc, User);
 
       if (Flags and AT_EMPTY_PATH) /= 0 then
@@ -4063,10 +4100,25 @@ package body Userland.Syscall is
          FS  := File_Desc.Inner_Ino_FS;
          Ino := File_Desc.Inner_Ino;
       else
+         if Path_Len > Path_Max_Len then
+            Errno := Error_String_Too_Long;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
          declare
-            Path : String (1 .. Natural (Path_Len))
-               with Import, Address => Path_SAddr;
+            subtype Path_String is String (1 .. Natural (Path_Len));
+            package Trans is new Lib.Userland_Transfer (Path_String);
+            Path : Path_String;
          begin
+            Get_Common_Map (Proc, Map);
+            Trans.Take_From_Userland (Map, Path, Path_SAddr, Success);
+            if not Success then
+               Returned := Unsigned_64'Last;
+               Errno    := Error_Would_Fault;
+               return;
+            end if;
+
             Resolve_AT_Directive (Proc, Dir_FD, Rel_FS, D_Ino);
             if Rel_FS = VFS.Error_Handle then
                Errno    := Error_Bad_File;
@@ -4099,7 +4151,6 @@ package body Userland.Syscall is
             end if;
          end;
       end if;
-
 
       VFS.Change_Mode
          (Key    => FS,
@@ -4195,19 +4246,8 @@ package body Userland.Syscall is
       File_Desc   : File_Description_Acc;
       File_Perms  : MAC.Permissions;
       Map         : Page_Table_Acc;
+      Success     : Boolean;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) then
-         Errno    := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Path_Len > Unsigned_64 (Natural'Last) then
-         Errno    := Error_String_Too_Long;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
       Process.Get_Effective_UID (Proc, Usr);
 
       if (Flags and AT_EMPTY_PATH) /= 0 then
@@ -4221,10 +4261,25 @@ package body Userland.Syscall is
          FS  := File_Desc.Inner_Ino_FS;
          Ino := File_Desc.Inner_Ino;
       else
+         if Path_Len > Path_Max_Len then
+            Errno := Error_String_Too_Long;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
          declare
-            Path : String (1 .. Natural (Path_Len))
-               with Import, Address => Path_SAddr;
+            subtype Path_String is String (1 .. Natural (Path_Len));
+            package Trans is new Lib.Userland_Transfer (Path_String);
+            Path : Path_String;
          begin
+            Get_Common_Map (Proc, Map);
+            Trans.Take_From_Userland (Map, Path, Path_SAddr, Success);
+            if not Success then
+               Returned := Unsigned_64'Last;
+               Errno    := Error_Would_Fault;
+               return;
+            end if;
+
             Resolve_AT_Directive (Proc, Dir_FD, Rel_FS, D_Ino);
             if Rel_FS = VFS.Error_Handle then
                Errno    := Error_Bad_File;
@@ -5086,21 +5141,9 @@ package body Userland.Syscall is
       File_Desc   : File_Description_Acc;
       File_Perms  : MAC.Permissions;
       Map         : Page_Table_Acc;
+      Success     : Boolean;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, Path_IAddr, Path_Len) or
-         not Check_Userland_Access (Map, Time_IAddr, (Time_Spec'Size / 8) * 2)
-      then
-         Errno    := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Path_Len > Unsigned_64 (Natural'Last) then
-         Errno    := Error_String_Too_Long;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
       Process.Get_Effective_UID (Proc, User);
 
       if (Flags and AT_EMPTY_PATH) /= 0 then
@@ -5114,10 +5157,25 @@ package body Userland.Syscall is
          FS  := File_Desc.Inner_Ino_FS;
          Ino := File_Desc.Inner_Ino;
       else
+         if Path_Len > Path_Max_Len then
+            Errno := Error_String_Too_Long;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
          declare
-            Path : String (1 .. Natural (Path_Len))
-               with Import, Address => To_Address (Path_IAddr);
+            subtype Path_String is String (1 .. Natural (Path_Len));
+            package Trans is new Lib.Userland_Transfer (Path_String);
+            Path : Path_String;
          begin
+            Trans.Take_From_Userland (Map, Path, To_Address (Path_IAddr),
+               Success);
+            if not Success then
+               Returned := Unsigned_64'Last;
+               Errno    := Error_Would_Fault;
+               return;
+            end if;
+
             Resolve_AT_Directive (Proc, Dir_FD, Rel_FS, D_Ino);
             if Rel_FS = VFS.Error_Handle then
                Errno    := Error_Bad_File;
@@ -5153,8 +5211,17 @@ package body Userland.Syscall is
 
       declare
          type Time_Arr is array (1 .. 2) of Time_Spec;
-         Times : Time_Arr with Import, Address => To_Address (Time_IAddr);
+         package Trans is new Lib.Userland_Transfer (Time_Arr);
+         Times : Time_Arr;
       begin
+         Trans.Take_From_Userland (Map, Times, To_Address (Time_IAddr),
+            Success);
+         if not Success then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+            return;
+         end if;
+
          VFS.Change_Access_Times
             (Key                => FS,
              Ino                => Ino,
@@ -5615,26 +5682,33 @@ package body Userland.Syscall is
    is
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
       IAddr : constant Integer_Address := Integer_Address (Addr);
-      Ret   : Natural;
       Map   : Page_Table_Acc;
+      Succ  : Boolean;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
+      if Count > Groups_Max_Len then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_String_Too_Long;
+         return;
+      end if;
 
       declare
-         Arr : Supplementary_GID_Arr (1 .. Natural (Count and 16#FFFF#))
-            with Import, Address => To_Address (IAddr);
+         subtype Group_Arr is Supplementary_GID_Arr (1 .. Natural (Count));
+         package Trans is new Lib.Userland_Transfer (Group_Arr);
+         Groups : Group_Arr;
+         Length : Natural;
       begin
-         if not Check_Userland_Access (Map, IAddr, Arr'Size / 8) then
-            Errno := Error_Would_Fault;
-            Returned := Unsigned_64'Last;
-            return;
-         end if;
+         Get_Supplementary_Groups (Proc, Groups, Length);
+         if Length <= Groups'Length then
+            Get_Common_Map (Proc, Map);
+            Trans.Paste_Into_Userland (Map, Groups, To_Address (IAddr), Succ);
+            if not Succ then
+               Returned := Unsigned_64'Last;
+               Errno    := Error_Would_Fault;
+               return;
+            end if;
 
-         Get_Supplementary_Groups (Proc, Arr, Ret);
-         if Ret <= Arr'Length then
             Errno := Error_No_Error;
-            Returned := Unsigned_64 (Ret);
+            Returned := Unsigned_64 (Length);
          else
             Errno := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
@@ -5660,26 +5734,32 @@ package body Userland.Syscall is
       if Count = 0 and Addr = 0 then
          Empty_Supplementary_Groups (Proc);
       else
-         Arch.Snippets.Enable_Userland_Memory_Access;
-         Get_Common_Map (Proc, Map);
+         if Count > Groups_Max_Len then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_String_Too_Long;
+            return;
+         end if;
 
          declare
-            Arr : Supplementary_GID_Arr (1 .. Natural (Count and 16#FFFF#))
-               with Import, Address => To_Address (IAddr);
+            subtype Group_Arr is Supplementary_GID_Arr (1 .. Natural (Count));
+            package Trans is new Lib.Userland_Transfer (Group_Arr);
+            Groups : Group_Arr;
          begin
-            if not Check_Userland_Access (Map, IAddr, Count) then
-               Errno := Error_Would_Fault;
+            Get_Common_Map (Proc, Map);
+            Trans.Take_From_Userland (Map, Groups, To_Address (IAddr), Succ);
+            if not Succ then
+               Returned := Unsigned_64'Last;
+               Errno    := Error_Would_Fault;
+               return;
+            end if;
+            Set_Supplementary_Groups (Proc, Groups, Succ);
+
+            if not Succ then
+               Errno := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
                return;
             end if;
-            Set_Supplementary_Groups (Proc, Arr, Succ);
          end;
-
-         if not Succ then
-            Errno := Error_Invalid_Value;
-            Returned := Unsigned_64'Last;
-            return;
-         end if;
       end if;
 
       Errno := Error_No_Error;
@@ -5703,17 +5783,16 @@ package body Userland.Syscall is
       File  : File_Description_Acc;
       Data  : IPC.PTY.Inner_Acc;
       Map   : Page_Table_Acc;
+      Succ  : Boolean;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
       Get_File (Proc, FD, File);
-      if not Check_Userland_Access (Map, IAddr, Length) then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif File = null then
+      if File = null then
          Errno := Error_Bad_File;
          Returned := Unsigned_64'Last;
+         return;
+      elsif Length > Path_Max_Len then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_String_Too_Long;
          return;
       end if;
 
@@ -5724,18 +5803,28 @@ package body Userland.Syscall is
       end case;
 
       declare
-         Str : String (1 .. Natural (Length)) with Import, Address => SAddr;
+         subtype Name_String is String (1 .. Natural (Length));
+         package Trans is new Lib.Userland_Transfer (Name_String);
+         Name : Name_String;
       begin
-         IPC.PTY.Get_Name (Data, Str, Natural (Returned));
+         IPC.PTY.Get_Name (Data, Name, Natural (Returned));
          if Returned >= Length then
             goto Invalid_Error;
          end if;
-         Str (Natural (Returned) + 1) := Ada.Characters.Latin_1.NUL;
-      end;
+         Name (Natural (Returned) + 1) := Ada.Characters.Latin_1.NUL;
 
-      Errno := Error_No_Error;
-      Returned := 0;
-      return;
+         Get_Common_Map (Proc, Map);
+         Trans.Paste_Into_Userland (Map, Name, SAddr, Succ);
+         if not Succ then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+            return;
+         end if;
+
+         Errno := Error_No_Error;
+         Returned := 0;
+         return;
+      end;
 
    <<Invalid_Error>>
       Errno := Error_Invalid_Value;
@@ -6203,38 +6292,41 @@ package body Userland.Syscall is
       IAddr : constant Integer_Address := Integer_Address (Addr);
       Th    : Scheduler.TID;
       Map   : Page_Table_Acc;
+      Succ  : Boolean;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, IAddr, Length) then
-         Errno := Error_Would_Fault;
-         goto Generic_Error;
-      elsif Length >= Unsigned_64 (Natural'Last) then
-         goto Invalid_Value_Error;
+      if Length > Path_Max_Len then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_String_Too_Long;
+         return;
       end if;
 
       Th := Scheduler.Convert (Natural (TID));
 
       declare
+         subtype Name_String is String (1 .. Natural (Length));
+         package Trans is new Lib.Userland_Transfer (Name_String);
+         Str : Name_String;
          Ret : Natural;
-         Str : String (1 .. Natural (Length))
-            with Import, Address => To_Address (IAddr);
       begin
          Scheduler.Get_Name (Th, Str, Ret);
          if Ret /= 0 and Ret < Str'Length then
             Str (Ret + 1) := Ada.Characters.Latin_1.NUL;
+
+            Get_Common_Map (Proc, Map);
+            Trans.Paste_Into_Userland (Map, Str, To_Address (IAddr), Succ);
+            if not Succ then
+               Returned := Unsigned_64'Last;
+               Errno    := Error_Would_Fault;
+               return;
+            end if;
+
             Returned      := 0;
             Errno         := Error_No_Error;
          else
-            goto Invalid_Value_Error;
+            Errno := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
          end if;
-         return;
       end;
-
-   <<Invalid_Value_Error>>
-      Errno := Error_Invalid_Value;
-   <<Generic_Error>>
-      Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;
@@ -6252,37 +6344,37 @@ package body Userland.Syscall is
       IAddr : constant Integer_Address := Integer_Address (Addr);
       Th    : Scheduler.TID;
       Map   : Page_Table_Acc;
+      Succ  : Boolean;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, IAddr, Length) then
-         Errno := Error_Would_Fault;
-         goto Generic_Error;
-      elsif Length >= Unsigned_64 (Natural'Last) then
-         goto Invalid_Value_Error;
+      if Length > Path_Max_Len then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_String_Too_Long;
+         return;
       end if;
 
-      Th := Scheduler.Convert (Natural (TID));
-
       declare
-         Suc : Boolean;
-         Str : String (1 .. Natural (Length))
-            with Import, Address => To_Address (IAddr);
+         subtype Name_String is String (1 .. Natural (Length));
+         package Trans is new Lib.Userland_Transfer (Name_String);
+         Str : Name_String;
       begin
-         Scheduler.Set_Name (Th, Str, Suc);
-         if Suc then
+         Get_Common_Map (Proc, Map);
+         Trans.Take_From_Userland (Map, Str, To_Address (IAddr), Succ);
+         if not Succ then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+            return;
+         end if;
+
+         Th := Scheduler.Convert (Natural (TID));
+         Scheduler.Set_Name (Th, Str, Succ);
+         if Succ then
             Returned := 0;
             Errno    := Error_No_Error;
          else
-            goto Invalid_Value_Error;
+            Errno := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
          end if;
-         return;
       end;
-
-   <<Invalid_Value_Error>>
-      Errno := Error_Invalid_Value;
-   <<Generic_Error>>
-      Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;

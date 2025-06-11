@@ -98,6 +98,10 @@ package Userland.Syscall is
        Error_Bad_Search      => 1070,
        Error_Bad_File        => 1081);
 
+   --  Syscall limits.
+   Path_Max_Len   : constant := 1024;
+   Groups_Max_Len : constant := 30;
+
    --  AT_ directives for path-relative syscalls and common flags.
    AT_FDCWD            : constant := Natural'Last;
    AT_EMPTY_PATH       : constant := 2#01#;
