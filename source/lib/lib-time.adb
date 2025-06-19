@@ -61,21 +61,21 @@ package body Lib.Time is
    end Is_Greater_Equal;
    ----------------------------------------------------------------------------
    function Time_To_Epoch
-      (Year    : Natural;
-       Month   : Natural;
-       Day     : Natural;
-       Hours   : Natural;
-       Minutes : Natural;
-       Seconds : Natural) return Unsigned_64
+      (Y   : Year;
+       M   : Month;
+       D   : Day;
+       H   : Hours;
+       Min : Minutes;
+       S   : Seconds) return Unsigned_64
    is
-      J_Current : constant Unsigned_64 := Get_Julian_Date (Day, Month, Year);
+      J_Current : constant Unsigned_64 := Get_Julian_Date (D, M, Y);
       J_1970    : constant Unsigned_64 := Get_Julian_Date (1, 1, 1970);
       J_Diff    : constant Unsigned_64 := J_Current - J_1970;
    begin
-      return J_Diff * (60 * 60 * 24)    +
-             Unsigned_64 (Hours) * 3600 +
-             Unsigned_64 (Minutes) * 60 +
-             Unsigned_64 (Seconds);
+      return J_Diff * (60 * 60 * 24) +
+             Unsigned_64 (H) * 3600  +
+             Unsigned_64 (Min) * 60    +
+             Unsigned_64 (S);
    end Time_To_Epoch;
    ----------------------------------------------------------------------------
    function Get_Julian_Date (Days, Months, Years : Natural) return Unsigned_64

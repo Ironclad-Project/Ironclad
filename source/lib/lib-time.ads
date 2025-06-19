@@ -64,14 +64,22 @@ package Lib.Time is
    --  Ghost function for checking whether a timestamp is normalized.
    function Is_Normalized (NS : Unsigned_64) return Boolean with Ghost;
    ----------------------------------------------------------------------------
+   --  Types to represent several date elements.
+   subtype Year    is Natural;
+   subtype Month   is Natural range 1 .. 12;
+   subtype Day     is Natural range 1 .. 31;
+   subtype Hours   is Natural range 0 .. 23;
+   subtype Minutes is Natural range 0 .. 59;
+   subtype Seconds is Natural range 0 .. 59;
+
    --  Transform time of year to epoch.
    function Time_To_Epoch
-      (Year    : Natural;
-       Month   : Natural;
-       Day     : Natural;
-       Hours   : Natural;
-       Minutes : Natural;
-       Seconds : Natural) return Unsigned_64;
+      (Y   : Year;
+       M   : Month;
+       D   : Day;
+       H   : Hours;
+       Min : Minutes;
+       S   : Seconds) return Unsigned_64;
 
 private
 

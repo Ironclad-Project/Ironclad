@@ -396,12 +396,12 @@ package body VFS.FAT with SPARK_Mode => Off is
 
          S.Birth_Time.Seconds_Since_Epoch :=
             Lib.Time.Time_To_Epoch
-               (Year    => Natural (Shift_Right (C3, 9) and 2#1111111#) + 1980,
-                Month   => Natural (Shift_Right (C3, 5)  and 2#0001111#),
-                Day     => Natural (Shift_Right (C3, 0)  and 2#0011111#),
-                Hours   => Natural (Shift_Right (C2, 10) and 2#0011111#),
-                Minutes => Natural (Shift_Right (C2,  4) and 2#0111111#),
-                Seconds => Natural (Shift_Right (C2,  0) and 2#0011111#) * 2);
+               (Y   => Natural (Shift_Right (C3, 9) and 2#1111111#) + 1980,
+                M   => Natural (Shift_Right (C3, 5)  and 2#0001111#),
+                D   => Natural (Shift_Right (C3, 0)  and 2#0011111#),
+                H   => Natural (Shift_Right (C2, 10) and 2#0011111#),
+                Min => Natural (Shift_Right (C2,  4) and 2#0111111#),
+                S   => Natural (Shift_Right (C2,  0) and 2#0011111#) * 2);
          S.Birth_Time.Additional_Nanoseconds := Unsigned_64 (C1) * 100_000_000;
          S.Change_Time       := S.Birth_Time;
          S.Modification_Time := S.Birth_Time;
