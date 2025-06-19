@@ -99,8 +99,9 @@ package Userland.Syscall is
        Error_Bad_File        => 1081);
 
    --  Syscall limits.
-   Path_Max_Len   : constant := 1024;
-   Groups_Max_Len : constant := 30;
+   Path_Max_Len    : constant := 1024;
+   Groups_Max_Len  : constant := 30;
+   Entropy_Max_Len : constant := 256;
 
    --  AT_ directives for path-relative syscalls and common flags.
    AT_FDCWD            : constant := Natural'Last;
