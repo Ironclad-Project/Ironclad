@@ -170,11 +170,11 @@ secure platform.
 This is a terse changelog of the changes included in this release:
 
 - Added a new Mandatory Access Control (MAC) framework.
-- Implemented hardware-accelerated AES and several AES-based cyphers for
+- Implemented hardware-accelerated AES and several AES-based ciphers for
   userland use.
 - Implemented an initial version of Address Space Layout Randomization (ASLR).
 - Added unit-tests for a small set of kernel utilities that can easily be
-  tested on a host system, like cyphers or general library utilities.
+  tested on a host system, like ciphers or general library utilities.
 - New architecture-independent RTC interfaces thru /dev/rtc.
 - Bug fixes and several small improvements.
 
