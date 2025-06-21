@@ -22,8 +22,8 @@ with Arch.PIC;
 with Arch.CPU;
 with Devices.FB;
 with Arch.Flanterm;
-with Lib.Panic;
-with Lib.Messages; use Lib.Messages;
+with Panic;
+with Messages; use Messages;
 with Memory.Physical;
 with Arch.MMU;
 with Devices.Serial;
@@ -86,17 +86,17 @@ package body Arch.Entrypoint is
          --  Initialize the allocators and MMU.
          Memory.Physical.Init_Allocator (Memmap);
          if not Arch.MMU.Init (Memmap) then
-            Lib.Panic.Hard_Panic ("The VMM could not be initialized");
+            Panic.Hard_Panic ("The VMM could not be initialized");
          end if;
 
          --  Enable dmesg buffers.
-         Lib.Messages.Enable_Logging;
+         Messages.Enable_Logging;
 
          --  Print the memory map, it is useful at times.
-         Lib.Messages.Put_Line ("Physical memory map:");
+         Messages.Put_Line ("Physical memory map:");
          for E of Memmap loop
             Addr := E.Start + E.Length;
-            Lib.Messages.Put_Line
+            Messages.Put_Line
                ("[" & E.Start'Image & " - " & Addr'Image & "] " &
                 Boot_Memory_Type'Image (E.MemType));
          end loop;
@@ -108,7 +108,7 @@ package body Arch.Entrypoint is
       APIC.Init_LAPIC;
       APIC.Init_Core_LAPIC;
       if not Arch.APIC.Init_IOAPIC then
-         Lib.Panic.Hard_Panic ("Could not start IOAPIC");
+         Panic.Hard_Panic ("Could not start IOAPIC");
       end if;
 
       --  Initialize some system timers for interval counting.
@@ -121,6 +121,6 @@ package body Arch.Entrypoint is
       Main;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Uncatched exception on the arch entrypoint");
+         Panic.Hard_Panic ("Uncatched exception on the arch entrypoint");
    end Bootstrap_Main;
 end Arch.Entrypoint;

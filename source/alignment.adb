@@ -1,4 +1,4 @@
---  lib-alignment.adb: Generic alignment functions.
+--  alignment.adb: Generic alignment functions.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 
 with System.Storage_Elements; use System.Storage_Elements;
 
-package body Lib.Alignment is
+package body Alignment is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    function Align_Up (Value, Alignment : T) return T is
@@ -45,4 +45,4 @@ package body Lib.Alignment is
       Base   := Start;
       Length := Top - Start;
    end Align_Memory_Range;
-end Lib.Alignment;
+end Alignment;

@@ -16,13 +16,13 @@
 
 with Memory; use Memory;
 with Arch.Snippets;
-with Lib.Panic;
+with Panic;
 with Arch.ACPI;
 
 package body Arch.Power is
    procedure Halt (Status : out Power_Status) is
    begin
-      Lib.Panic.Hard_Panic ("Halting with panic! or is it panic as halting?!");
+      Panic.Hard_Panic ("Halting with panic! or is it panic as halting?!");
    end Halt;
 
    procedure Reboot (Status : out Power_Status) is

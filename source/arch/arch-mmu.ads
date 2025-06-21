@@ -17,7 +17,7 @@
 with Interfaces; use Interfaces;
 with System;     use System;
 with Memory;     use Memory;
-with Lib.Synchronization;
+with Synchronization;
 
 package Arch.MMU is
    --  Permissions used for mapping.
@@ -240,7 +240,7 @@ private
 
       type Page_Table is record
          PML4_Level      : PML4;
-         Mutex           : aliased Lib.Synchronization.Readers_Writer_Lock;
+         Mutex           : aliased Synchronization.Readers_Writer_Lock;
          Map_Ranges_Root : Mapping_Range_Acc;
       end record;
 

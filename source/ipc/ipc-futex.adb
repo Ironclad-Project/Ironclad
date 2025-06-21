@@ -15,9 +15,9 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Scheduler;
-with Lib.Synchronization; use Lib.Synchronization;
+with Synchronization; use Synchronization;
 with Arch.Clocks;
-with Lib.Time;
+with Time;
 
 package body IPC.Futex is
    type Futex_Inner is record
@@ -53,7 +53,7 @@ package body IPC.Futex is
                return;
             end if;
 
-            Lib.Synchronization.Seize (Registry_Mutex);
+            Synchronization.Seize (Registry_Mutex);
 
             for J in Registry'Range loop
                if Registry (J).Key = Keys (I).Key then
@@ -72,31 +72,31 @@ package body IPC.Futex is
                end if;
             end loop;
 
-            Lib.Synchronization.Release (Registry_Mutex);
+            Synchronization.Release (Registry_Mutex);
             Success := Wait_No_Space;
             return;
          <<End_Of_Iter>>
-            Lib.Synchronization.Release (Registry_Mutex);
+            Synchronization.Release (Registry_Mutex);
          end loop;
 
          --  Now that we have a built list of indexes to wait, we wait.
          Arch.Clocks.Get_Monotonic_Time (Final_Sec, Final_NSec);
-         Lib.Time.Increment (Final_Sec, Final_NSec, Max_Seconds, Max_Nanos);
+         Time.Increment (Final_Sec, Final_NSec, Max_Seconds, Max_Nanos);
 
          for I of Idx loop
-            Lib.Synchronization.Seize (Registry_Mutex);
+            Synchronization.Seize (Registry_Mutex);
             if Registry (I).Wakey_Wakey then
                Registry (I).Waiters := Registry (I).Waiters - 1;
                if Registry (I).Waiters = 0 then
                   Registry (I).Key := null;
                end if;
-               Lib.Synchronization.Release (Registry_Mutex);
+               Synchronization.Release (Registry_Mutex);
                exit;
             end if;
-            Lib.Synchronization.Release (Registry_Mutex);
+            Synchronization.Release (Registry_Mutex);
 
             Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_NSec);
-            exit when Lib.Time.Is_Greater_Equal
+            exit when Time.Is_Greater_Equal
                (Curr_Sec, Curr_NSec, Final_Sec, Final_NSec);
 
             Scheduler.Yield_If_Able;
@@ -113,17 +113,17 @@ package body IPC.Futex is
    begin
       Awoken_Count := 0;
       for K of Keys loop
-         Lib.Synchronization.Seize (Registry_Mutex);
+         Synchronization.Seize (Registry_Mutex);
          for I in Registry'Range loop
             if Registry (I).Key = K.Key then
                Registry (I).Wakey_Wakey := True;
                Awoken_Count             := Awoken_Count + 1;
             end if;
          end loop;
-         Lib.Synchronization.Release (Registry_Mutex);
+         Synchronization.Release (Registry_Mutex);
       end loop;
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Registry_Mutex);
+         Synchronization.Release (Registry_Mutex);
    end Wake;
 end IPC.Futex;

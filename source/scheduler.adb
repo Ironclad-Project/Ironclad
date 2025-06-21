@@ -15,9 +15,9 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
-with Lib.Synchronization;
-with Lib.Panic;
-with Lib.Messages;
+with Synchronization;
+with Panic;
+with Messages;
 with System.Storage_Elements; use System.Storage_Elements;
 with Userland.Process;
 with Arch;
@@ -25,8 +25,7 @@ with Arch.Local;
 with Arch.Clocks;
 with Arch.Snippets;
 with Arch.Power;
-with Lib;
-with Lib.Time;
+with Time;
 
 package body Scheduler with SPARK_Mode => Off is
    Kernel_Stack_Size : constant := 16#4000#;
@@ -80,7 +79,7 @@ package body Scheduler with SPARK_Mode => Off is
    --  Both are calculated from the total slice.
    Total_Slice : constant := 1_000_000; --  A second in microseconds.
 
-   Scheduler_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+   Scheduler_Mutex : aliased Synchronization.Binary_Semaphore;
    Cluster_Pool    : Cluster_Arr_Acc;
    Thread_Pool     : Thread_Info_Arr_Acc;
 
@@ -158,7 +157,7 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Power.Get_Preferred_Profile (Profile);
       case Profile is
          when Arch.Power.Mobile | Arch.Power.Appliance =>
-            Lib.Messages.Put_Line
+            Messages.Put_Line
                ("Using higher latency RR_Quantum for low profile devices");
             RR_Quantum := 60000;
          when others =>
@@ -167,7 +166,7 @@ package body Scheduler with SPARK_Mode => Off is
       Cluster_Pool (Cluster_Pool'First).RR_Quantum := RR_Quantum;
 
       Is_Initialized := True;
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
       Success := True;
    exception
       when Constraint_Error =>
@@ -383,7 +382,7 @@ package body Scheduler with SPARK_Mode => Off is
       New_Stack : Kernel_Stack_Acc;
    begin
       New_TID := Error_TID;
-      Lib.Synchronization.Seize (Scheduler_Mutex);
+      Synchronization.Seize (Scheduler_Mutex);
 
       --  Find a new TID.
       for I in Thread_Pool'Range loop
@@ -421,23 +420,23 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).GP_State);
 
    <<End_Return>>
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Scheduler_Mutex);
+         Synchronization.Release (Scheduler_Mutex);
          New_TID := Error_TID;
    end Create_User_Thread;
 
    procedure Delete_Thread (Thread : TID) is
    begin
-      Lib.Synchronization.Seize (Scheduler_Mutex);
+      Synchronization.Seize (Scheduler_Mutex);
       if Thread_Pool (Thread).Is_Present then
          Thread_Pool (Thread).Is_Present := False;
       end if;
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Scheduler_Mutex);
+         Synchronization.Release (Scheduler_Mutex);
    end Delete_Thread;
 
    procedure Yield_If_Able is
@@ -458,16 +457,16 @@ package body Scheduler with SPARK_Mode => Off is
    procedure Bail is
       Thread : constant TID := Arch.Local.Get_Current_Thread;
    begin
-      Lib.Synchronization.Seize (Scheduler_Mutex);
+      Synchronization.Seize (Scheduler_Mutex);
       if Thread_Pool (Thread).Is_Present then
          Thread_Pool (Thread).Is_Present := False;
       end if;
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
       Arch.Local.Reschedule_ASAP;
       Waiting_Spot;
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Scheduler_Mutex);
+         Synchronization.Release (Scheduler_Mutex);
          Arch.Local.Reschedule_ASAP;
          Waiting_Spot;
    end Bail;
@@ -478,15 +477,15 @@ package body Scheduler with SPARK_Mode => Off is
        User_Seconds, User_Nanoseconds     : out Unsigned_64)
    is
    begin
-      Lib.Synchronization.Seize (Scheduler_Mutex);
+      Synchronization.Seize (Scheduler_Mutex);
       System_Seconds := Thread_Pool (Thread).System_Sec;
       System_Nanoseconds := Thread_Pool (Thread).System_NSec;
       User_Seconds := Thread_Pool (Thread).User_Sec;
       User_Nanoseconds := Thread_Pool (Thread).User_NSec;
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Scheduler_Mutex);
+         Synchronization.Release (Scheduler_Mutex);
          System_Seconds     := 0;
          User_Seconds       := 0;
          System_Nanoseconds := 0;
@@ -502,11 +501,11 @@ package body Scheduler with SPARK_Mode => Off is
       Thread_Pool (Thread).System_Tmp_Sec := T1;
       Thread_Pool (Thread).System_Tmp_NSec := T2;
 
-      Lib.Time.Subtract
+      Time.Subtract
          (T1, T2,
           Thread_Pool (Thread).User_Tmp_Sec,
           Thread_Pool (Thread).User_Tmp_NSec);
-      Lib.Time.Increment
+      Time.Increment
          (Thread_Pool (Thread).User_Sec, Thread_Pool (Thread).User_NSec,
           T1, T2);
    exception
@@ -525,12 +524,12 @@ package body Scheduler with SPARK_Mode => Off is
       if Thread_Pool (Thread).System_Tmp_Sec /= 0 or
          Thread_Pool (Thread).System_Tmp_NSec /= 0
       then
-         Lib.Time.Subtract
+         Time.Subtract
             (Seconds1     => Temp_Sec,
              Nanoseconds1 => Temp_NSec,
              Seconds2     => Thread_Pool (Thread).System_Tmp_Sec,
              Nanoseconds2 => Thread_Pool (Thread).System_Tmp_NSec);
-         Lib.Time.Increment
+         Time.Increment
             (Thread_Pool (Thread).System_Sec, Thread_Pool (Thread).System_NSec,
              Temp_Sec, Temp_NSec);
       end if;
@@ -547,15 +546,15 @@ package body Scheduler with SPARK_Mode => Off is
        Success          : out Boolean)
    is
    begin
-      Lib.Synchronization.Seize (Scheduler_Mutex);
+      Synchronization.Seize (Scheduler_Mutex);
       Cluster_Pool (Cluster).Algorithm        := Algo;
       Cluster_Pool (Cluster).RR_Quantum       := Quantum;
       Cluster_Pool (Cluster).Is_Interruptible := Is_Interruptible;
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
       Success := True;
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Scheduler_Mutex);
+         Synchronization.Release (Scheduler_Mutex);
          Success := False;
    end Set_Scheduling_Algorithm;
 
@@ -566,7 +565,7 @@ package body Scheduler with SPARK_Mode => Off is
    is
       Consumed : Natural := 0;
    begin
-      Lib.Synchronization.Seize (Scheduler_Mutex);
+      Synchronization.Seize (Scheduler_Mutex);
       for I in Cluster_Pool'Range loop
          if Cluster_Pool (I).Is_Present and I /= Cluster then
             Consumed := Consumed + Cluster_Pool (I).Percentage;
@@ -579,16 +578,16 @@ package body Scheduler with SPARK_Mode => Off is
       else
          Success := False;
       end if;
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Scheduler_Mutex);
+         Synchronization.Release (Scheduler_Mutex);
          Success := False;
    end Set_Time_Slice;
 
    procedure Create_Cluster (New_TCID : out TCID) is
    begin
-      Lib.Synchronization.Seize (Scheduler_Mutex);
+      Synchronization.Seize (Scheduler_Mutex);
       for I in Cluster_Pool'Range loop
          if not Cluster_Pool (I).Is_Present then
             Cluster_Pool (I) :=
@@ -604,26 +603,26 @@ package body Scheduler with SPARK_Mode => Off is
       end loop;
       New_TCID := Error_TCID;
    <<Cleanup>>
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Scheduler_Mutex);
+         Synchronization.Release (Scheduler_Mutex);
          New_TCID := Error_TCID;
    end Create_Cluster;
 
    procedure Delete_Cluster (Cluster : TCID; Success : out Boolean) is
    begin
-      Lib.Synchronization.Seize (Scheduler_Mutex);
+      Synchronization.Seize (Scheduler_Mutex);
       if Cluster_Pool (Cluster).Is_Present then
          Cluster_Pool (Cluster).Is_Present := False;
          Success := True;
       else
          Success := False;
       end if;
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Scheduler_Mutex);
+         Synchronization.Release (Scheduler_Mutex);
          Success := False;
    end Delete_Cluster;
 
@@ -633,7 +632,7 @@ package body Scheduler with SPARK_Mode => Off is
        Success : out Boolean)
    is
    begin
-      Lib.Synchronization.Seize (Scheduler_Mutex);
+      Synchronization.Seize (Scheduler_Mutex);
       if Cluster_Pool (Cluster).Is_Present and
          Thread_Pool (Thread).Is_Present
       then
@@ -642,10 +641,10 @@ package body Scheduler with SPARK_Mode => Off is
       else
          Success := False;
       end if;
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Scheduler_Mutex);
+         Synchronization.Release (Scheduler_Mutex);
          Success := False;
    end Switch_Cluster;
    ----------------------------------------------------------------------------
@@ -786,7 +785,7 @@ package body Scheduler with SPARK_Mode => Off is
    ----------------------------------------------------------------------------
    procedure Get_Load_Averages (Avg_1, Avg_5, Avg_15 : out Unsigned_32) is
    begin
-      Lib.Synchronization.Seize (Scheduler_Mutex);
+      Synchronization.Seize (Scheduler_Mutex);
       Avg_1 := Buckets (Buckets'First) * 100;
 
       Avg_5 := 0;
@@ -801,10 +800,10 @@ package body Scheduler with SPARK_Mode => Off is
       end loop;
       Avg_15 := Avg_15 / 15;
 
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Scheduler_Mutex);
+         Synchronization.Release (Scheduler_Mutex);
          Avg_1  := 0;
          Avg_5  := 0;
          Avg_15 := 0;
@@ -821,7 +820,7 @@ package body Scheduler with SPARK_Mode => Off is
    begin
       Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_NSec);
 
-      Lib.Synchronization.Seize (Scheduler_Mutex);
+      Synchronization.Seize (Scheduler_Mutex);
 
       --  Adjust the moving stats if at least a minute has passed since
       --  last poll.
@@ -840,11 +839,11 @@ package body Scheduler with SPARK_Mode => Off is
       --  Else, we just need to go to a thread, any, and pick up from there.
       if Current_TID /= Error_TID then
          Curr_Cluster := Thread_Pool (Current_TID).Cluster;
-         Lib.Time.Subtract
+         Time.Subtract
             (Curr_Sec, Curr_NSec,
              Thread_Pool (Current_TID).Last_Sched_Sec,
              Thread_Pool (Current_TID).Last_Sched_NSec);
-         Lib.Time.Increment
+         Time.Increment
             (Cluster_Pool (Curr_Cluster).Progress_Seconds,
              Cluster_Pool (Curr_Cluster).Progress_Nanos, Curr_Sec, Curr_NSec);
 
@@ -926,7 +925,7 @@ package body Scheduler with SPARK_Mode => Off is
 
       --  We only get here if the thread search did not find anything, and we
       --  are just going back to whoever called.
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
       Arch.Local.Reschedule_In (Timeout);
       return;
 
@@ -974,11 +973,11 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Local.Load_TCB (Thread_Pool (Next_TID).TCB_Pointer);
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_State);
       Next_State := Thread_Pool (Next_TID).GP_State;
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
       Arch.Context.Load_GP_Context (Next_State);
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception while reescheduling");
+         Panic.Hard_Panic ("Exception while reescheduling");
    end Scheduler_ISR;
    ----------------------------------------------------------------------------
 
@@ -1014,7 +1013,7 @@ package body Scheduler with SPARK_Mode => Off is
       List  := [others => (Error_TID, Error_TCID, 0)];
       Total := 0;
 
-      Lib.Synchronization.Seize (Scheduler_Mutex);
+      Synchronization.Seize (Scheduler_Mutex);
       for I in Thread_Pool.all'Range loop
          if Thread_Pool (I).Is_Present then
             Total := Total + 1;
@@ -1026,10 +1025,10 @@ package body Scheduler with SPARK_Mode => Off is
             end if;
          end if;
       end loop;
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Scheduler_Mutex);
+         Synchronization.Release (Scheduler_Mutex);
          Total := 0;
    end List_All;
 
@@ -1039,7 +1038,7 @@ package body Scheduler with SPARK_Mode => Off is
       List  := [others => (Error_TCID, Cluster_RR, False, 0)];
       Total := 0;
 
-      Lib.Synchronization.Seize (Scheduler_Mutex);
+      Synchronization.Seize (Scheduler_Mutex);
       for I in Cluster_Pool.all'Range loop
          if Cluster_Pool (I).Is_Present then
             Total := Total + 1;
@@ -1053,10 +1052,10 @@ package body Scheduler with SPARK_Mode => Off is
             end if;
          end if;
       end loop;
-      Lib.Synchronization.Release (Scheduler_Mutex);
+      Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Scheduler_Mutex);
+         Synchronization.Release (Scheduler_Mutex);
          Total := 0;
    end List_All;
    ----------------------------------------------------------------------------

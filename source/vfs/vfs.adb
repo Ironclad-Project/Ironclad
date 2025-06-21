@@ -34,7 +34,7 @@ package body VFS is
           Base_Key    => Error_Handle,
           Base_Ino    => 0,
           Root_Ino    => 0)];
-      Mounts_Mutex := Lib.Synchronization.Unlocked_Semaphore;
+      Mounts_Mutex := Synchronization.Unlocked_Semaphore;
       Root_Idx     := Error_Handle;
    end Init;
 
@@ -93,7 +93,7 @@ package body VFS is
          end if;
       end if;
 
-      Lib.Synchronization.Seize (Mounts_Mutex);
+      Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev = De then
             goto Cleanup;
@@ -136,7 +136,7 @@ package body VFS is
       end if;
 
    <<Cleanup>>
-      Lib.Synchronization.Release (Mounts_Mutex);
+      Synchronization.Release (Mounts_Mutex);
    end Mount;
 
    procedure Unmount (Path : String; Force : Boolean; Success : out Boolean) is
@@ -144,7 +144,7 @@ package body VFS is
          "No it does not");
    begin
       Success := False;
-      Lib.Synchronization.Seize (Mounts_Mutex);
+      Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev /= Devices.Error_Handle and then
             Mounts (I).Path_Buffer (1 .. Mounts (I).Path_Length) = Path
@@ -162,7 +162,7 @@ package body VFS is
             exit;
          end if;
       end loop;
-      Lib.Synchronization.Release (Mounts_Mutex);
+      Synchronization.Release (Mounts_Mutex);
    end Unmount;
 
    procedure Get_Mount
@@ -174,7 +174,7 @@ package body VFS is
       Match  := 0;
       Handle := VFS.Error_Handle;
 
-      Lib.Synchronization.Seize (Mounts_Mutex);
+      Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev /= Devices.Error_Handle     and then
             Path'Length >= Mounts (I).Path_Length              and then
@@ -187,7 +187,7 @@ package body VFS is
             Match  := Mounts (I).Path_Length;
          end if;
       end loop;
-      Lib.Synchronization.Release (Mounts_Mutex);
+      Synchronization.Release (Mounts_Mutex);
 
       if Match > 0 then
          Match := Match - 1;
@@ -221,7 +221,7 @@ package body VFS is
          return;
       end if;
 
-      Lib.Synchronization.Seize (Mounts_Mutex);
+      Synchronization.Seize (Mounts_Mutex);
 
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev /= Devices.Error_Handle and then
@@ -261,7 +261,7 @@ package body VFS is
       end if;
 
    <<Cleanup>>
-      Lib.Synchronization.Release (Mounts_Mutex);
+      Synchronization.Release (Mounts_Mutex);
    end Pivot_Root;
 
    procedure List_All (List : out Mountpoint_Arr; Total : out Natural) is
@@ -273,7 +273,7 @@ package body VFS is
       Total := 0;
       List  := [others => Error_Handle];
 
-      Lib.Synchronization.Seize (Mounts_Mutex);
+      Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev /= Devices.Error_Handle then
             if Curr_Index < List'Length then
@@ -283,7 +283,7 @@ package body VFS is
             Total := Total + 1;
          end if;
       end loop;
-      Lib.Synchronization.Release (Mounts_Mutex);
+      Synchronization.Release (Mounts_Mutex);
    end List_All;
 
    function Get_Backing_FS (Key : FS_Handle) return FS_Type is
@@ -1196,7 +1196,7 @@ package body VFS is
    begin
       Success := True;
 
-      Lib.Synchronization.Seize (Mounts_Mutex);
+      Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev /= Devices.Error_Handle then
             if Synchronize (I) = FS_IO_Failure then
@@ -1204,7 +1204,7 @@ package body VFS is
             end if;
          end if;
       end loop;
-      Lib.Synchronization.Release (Mounts_Mutex);
+      Synchronization.Release (Mounts_Mutex);
    end Synchronize;
 
    procedure Create_Node

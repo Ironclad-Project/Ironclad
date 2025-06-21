@@ -1,4 +1,4 @@
---  lib-cmdline.ads: Parsing command line options.
+--  cmdline.ads: Parsing command line options.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Lib.Cmdline is
+package Cmdline is
    --  The format of the command line is as such:
    --  arg1=val1 arg2=val2 arg3="val3 val4" ... argN=(")valN(")
    --  Double quotes used for values with spaces.
@@ -60,4 +60,4 @@ private
        End_Index    : out Natural)
       with Pre  => Cmdline'Length /= 0 and Key'Length /= 0,
            Post => not Found or (Found and (End_Index in Cmdline'Range));
-end Lib.Cmdline;
+end Cmdline;

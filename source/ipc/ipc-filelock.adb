@@ -30,7 +30,7 @@ package body IPC.FileLock is
    is
       Conflicting : Natural;
    begin
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry_Mutex);
       Inner_Could_Acquire
          (Acquired_FS, Acquired_Ino, Start, Length, Is_Write,
           Conflicting, Success);
@@ -40,7 +40,7 @@ package body IPC.FileLock is
          Acquirer := Registry (Conflicting).Acquirer;
          Is_Write := Registry (Conflicting).Is_Write;
       end if;
-      Lib.Synchronization.Release (Registry_Mutex);
+      Synchronization.Release (Registry_Mutex);
    end Could_Acquire_Lock;
 
    procedure Acquire_Lock
@@ -56,7 +56,7 @@ package body IPC.FileLock is
       Discard : Natural;
    begin
       loop
-         Lib.Synchronization.Seize (Registry_Mutex);
+         Synchronization.Seize (Registry_Mutex);
          Inner_Could_Acquire
             (Acquired_FS, Acquired_Ino, Start, Length, Is_Write,
              Discard, Success);
@@ -75,7 +75,7 @@ package body IPC.FileLock is
                end if;
             end loop;
          end if;
-         Lib.Synchronization.Release (Registry_Mutex);
+         Synchronization.Release (Registry_Mutex);
          exit when not Is_Blocking or Success;
          Scheduler.Yield_If_Able;
       end loop;
@@ -102,7 +102,7 @@ package body IPC.FileLock is
        Success      : out Boolean)
    is
    begin
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry_Mutex);
       Success := False;
       for L of Registry loop
          if L.Acquirer /= Error_PID and then
@@ -114,7 +114,7 @@ package body IPC.FileLock is
             exit;
          end if;
       end loop;
-      Lib.Synchronization.Release (Registry_Mutex);
+      Synchronization.Release (Registry_Mutex);
    end Release_Lock;
 
    procedure List_All (Buffer : out Lock_Arr; Length : out Natural) is
@@ -127,7 +127,7 @@ package body IPC.FileLock is
          Curr_Index := Buffer'First;
       end if;
 
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry_Mutex);
       for I in Registry'Range loop
          if Registry (I).Acquirer /= Error_PID then
             Length := Length + 1;
@@ -147,7 +147,7 @@ package body IPC.FileLock is
             end if;
          end if;
       end loop;
-      Lib.Synchronization.Release (Registry_Mutex);
+      Synchronization.Release (Registry_Mutex);
    end List_All;
    ----------------------------------------------------------------------------
    procedure Inner_Could_Acquire

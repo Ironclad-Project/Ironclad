@@ -22,7 +22,7 @@ with Arch.APIC;
 with Arch.Interrupts;
 with Memory.Physical;
 with Arch.Limine;
-with Lib.Panic;
+with Panic;
 with Devices.FB;
 with Userland.Process;
 
@@ -87,7 +87,7 @@ package body Arch.MMU is
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Table'
          (PML4_Level      => [others => 0],
-          Mutex           => Lib.Synchronization.Unlocked_RW_Lock,
+          Mutex           => Synchronization.Unlocked_RW_Lock,
           Map_Ranges_Root => null);
 
       --  Preallocate the higher half PML4, so when we clone the kernel memmap,
@@ -165,13 +165,13 @@ package body Arch.MMU is
 
    procedure Create_Table (New_Map : out Page_Table_Acc) is
    begin
-      Lib.Synchronization.Seize_Reader (Kernel_Table.Mutex);
+      Synchronization.Seize_Reader (Kernel_Table.Mutex);
       New_Map := new Page_Table'
          (PML4_Level      => [others => 0],
-          Mutex           => Lib.Synchronization.Unlocked_RW_Lock,
+          Mutex           => Synchronization.Unlocked_RW_Lock,
           Map_Ranges_Root => null);
       New_Map.PML4_Level (257 .. 512) := Kernel_Table.PML4_Level (257 .. 512);
-      Lib.Synchronization.Release_Reader (Kernel_Table.Mutex);
+      Synchronization.Release_Reader (Kernel_Table.Mutex);
    exception
       when Constraint_Error =>
          New_Map := null;
@@ -186,10 +186,10 @@ package body Arch.MMU is
    begin
       Forked := new Page_Table'
          (PML4_Level      => [others => 0],
-          Mutex           => Lib.Synchronization.Unlocked_RW_Lock,
+          Mutex           => Synchronization.Unlocked_RW_Lock,
           Map_Ranges_Root => null);
 
-      Lib.Synchronization.Seize_Reader (Map.Mutex);
+      Synchronization.Seize_Reader (Map.Mutex);
 
       --  Clone the higher half, which is the same in all maps.
       Forked.PML4_Level (257 .. 512) := Map.PML4_Level (257 .. 512);
@@ -237,7 +237,7 @@ package body Arch.MMU is
       end loop;
 
    <<Cleanup>>
-      Lib.Synchronization.Release_Reader (Map.Mutex);
+      Synchronization.Release_Reader (Map.Mutex);
    exception
       when Constraint_Error =>
          Forked := null;
@@ -254,7 +254,7 @@ package body Arch.MMU is
       PML4_Sz    : constant Memory.Size := PML4'Size / 8;
    begin
       Curr_Range := Map.Map_Ranges_Root;
-      Lib.Synchronization.Seize_Writer (Map.Mutex);
+      Synchronization.Seize_Writer (Map.Mutex);
       while Curr_Range /= null loop
          if Curr_Range.Is_Allocated then
             Physical.User_Free (To_Integer (Curr_Range.Physical_Start));
@@ -339,9 +339,9 @@ package body Arch.MMU is
       Is_Executable      := False;
 
       while Virt < Final loop
-         Lib.Synchronization.Seize_Reader (Map.Mutex);
+         Synchronization.Seize_Reader (Map.Mutex);
          Page_Addr := Get_Page (Map, Virt, False);
-         Lib.Synchronization.Release_Reader (Map.Mutex);
+         Synchronization.Release_Reader (Map.Mutex);
          declare
             Page : Unsigned_64 with Address => To_Address (Page_Addr), Import;
          begin
@@ -409,7 +409,7 @@ package body Arch.MMU is
 
       Curr_Range := Map.Map_Ranges_Root;
 
-      Lib.Synchronization.Seize_Writer (Map.Mutex);
+      Synchronization.Seize_Writer (Map.Mutex);
 
       while Curr_Range /= null loop
          if Curr_Range.Virtual_Start <= Virtual_Start and
@@ -439,7 +439,7 @@ package body Arch.MMU is
           Caching        => Caching);
 
    <<Ret>>
-      Lib.Synchronization.Release_Writer (Map.Mutex);
+      Synchronization.Release_Writer (Map.Mutex);
    exception
       when Constraint_Error =>
          Success := False;
@@ -482,7 +482,7 @@ package body Arch.MMU is
       Success    := False;
       Curr_Range := Map.Map_Ranges_Root;
 
-      Lib.Synchronization.Seize_Writer (Map.Mutex);
+      Synchronization.Seize_Writer (Map.Mutex);
 
       while Curr_Range /= null loop
          if Curr_Range.Virtual_Start = Virtual_Start and
@@ -514,7 +514,7 @@ package body Arch.MMU is
       Success := True;
 
    <<Ret>>
-      Lib.Synchronization.Release_Writer (Map.Mutex);
+      Synchronization.Release_Writer (Map.Mutex);
    exception
       when Constraint_Error =>
          Success := False;
@@ -537,7 +537,7 @@ package body Arch.MMU is
    begin
       Success    := False;
       Curr_Range := Map.Map_Ranges_Root;
-      Lib.Synchronization.Seize_Writer (Map.Mutex);
+      Synchronization.Seize_Writer (Map.Mutex);
 
       while Curr_Range /= null loop
          if Curr_Range.Virtual_Start = Virtual_Start and
@@ -577,12 +577,12 @@ package body Arch.MMU is
       Flush_TLBs (Map, Virtual_Start, Length);
       Success := True;
 
-      Lib.Synchronization.Release_Writer (Map.Mutex);
+      Synchronization.Release_Writer (Map.Mutex);
       F (Curr_Range);
       return;
 
    <<No_Free_Return>>
-      Lib.Synchronization.Release_Writer (Map.Mutex);
+      Synchronization.Release_Writer (Map.Mutex);
 
    exception
       when Constraint_Error =>
@@ -615,14 +615,14 @@ package body Arch.MMU is
    is
       Curr_Range : Mapping_Range_Acc;
    begin
-      Lib.Synchronization.Seize_Reader (Map.Mutex);
+      Synchronization.Seize_Reader (Map.Mutex);
       Sz := 0;
       Curr_Range := Map.Map_Ranges_Root;
       while Curr_Range /= null loop
          Sz         := Sz + Unsigned_64 (Curr_Range.Length);
          Curr_Range := Curr_Range.Next;
       end loop;
-      Lib.Synchronization.Release_Reader (Map.Mutex);
+      Synchronization.Release_Reader (Map.Mutex);
    exception
       when Constraint_Error =>
          Sz := 0;
@@ -673,7 +673,7 @@ package body Arch.MMU is
 
       Curr_Range := Map.Map_Ranges_Root;
 
-      Lib.Synchronization.Seize_Writer (Map.Mutex);
+      Synchronization.Seize_Writer (Map.Mutex);
 
       while Curr_Range /= null loop
          if Curr_Range.Virtual_Start <= Virtual_Start and
@@ -715,7 +715,7 @@ package body Arch.MMU is
          Memory.Physical.Free (Interfaces.C.size_t (Addr));
          Physical_Start := System.Null_Address;
       end if;
-      Lib.Synchronization.Release_Writer (Map.Mutex);
+      Synchronization.Release_Writer (Map.Mutex);
    exception
       when Constraint_Error =>
          Physical_Start := System.Null_Address;
@@ -763,7 +763,7 @@ package body Arch.MMU is
       return Memory.Null_Address;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception when getting next page level");
+         Panic.Hard_Panic ("Exception when getting next page level");
    end Get_Next_Level;
 
    function Get_Page
@@ -802,7 +802,7 @@ package body Arch.MMU is
       return Memory.Null_Address;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception when fetching/allocating page");
+         Panic.Hard_Panic ("Exception when fetching/allocating page");
    end Get_Page;
 
    function Inner_Map_Range
@@ -857,7 +857,7 @@ package body Arch.MMU is
       return Result;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception when translating bitmap flags");
+         Panic.Hard_Panic ("Exception when translating bitmap flags");
    end Flags_To_Bitmap;
 
    procedure Flush_TLBs
@@ -893,11 +893,11 @@ package body Arch.MMU is
          if I /= CPU.Get_Local.Number and then
             CPU.Core_Locals (I).Current_Process = Proc
          then
-            Lib.Synchronization.Seize (CPU.Core_Locals (I).Invalidate_Lock);
+            Synchronization.Seize (CPU.Core_Locals (I).Invalidate_Lock);
             CPU.Core_Locals (I).Invalidate_Map   := A1;
             CPU.Core_Locals (I).Invalidate_Start := Addr;
             CPU.Core_Locals (I).Invalidate_End   := Final;
-            Lib.Synchronization.Release (CPU.Core_Locals (I).Invalidate_Lock);
+            Synchronization.Release (CPU.Core_Locals (I).Invalidate_Lock);
             APIC.LAPIC_Send_IPI
                (CPU.Core_Locals (I).LAPIC_ID,
                 Interrupts.Invalidate_Interrupt);
@@ -905,6 +905,6 @@ package body Arch.MMU is
       end loop;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Could not flush global TLBs");
+         Panic.Hard_Panic ("Could not flush global TLBs");
    end Flush_TLBs;
 end Arch.MMU;

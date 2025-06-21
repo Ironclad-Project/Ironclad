@@ -31,7 +31,6 @@ project Ironclad is
        "@SRCDIR@/source/cryptography",
        "@SRCDIR@/source/devices",
        "@SRCDIR@/source/ipc",
-       "@SRCDIR@/source/lib",
        "@SRCDIR@/source/memory",
        "@SRCDIR@/source/networking",
        "@SRCDIR@/source/userland",

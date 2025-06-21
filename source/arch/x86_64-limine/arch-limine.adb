@@ -16,7 +16,7 @@
 
 with System; use System;
 with Interfaces.C.Strings; use Interfaces.C.Strings;
-with Lib.Messages;
+with Messages;
 
 package body Arch.Limine with SPARK_Mode => Off is
    Base_Request : Limine.Base_Revision :=
@@ -47,9 +47,9 @@ package body Arch.Limine with SPARK_Mode => Off is
       Vers_Len  : constant Natural := Strlen (Vers_Addr);
       Boot_Vers : String (1 .. Vers_Len) with Import, Address => Vers_Addr;
    begin
-      Lib.Messages.Put_Line ("Booted by " & Boot_Name & " " & Boot_Vers);
+      Messages.Put_Line ("Booted by " & Boot_Name & " " & Boot_Vers);
       if Base_Request.Revision /= 0 then
-         Lib.Messages.Put_Line ("The passed revision was not supported!");
+         Messages.Put_Line ("The passed revision was not supported!");
       end if;
 
       declare
@@ -66,6 +66,6 @@ package body Arch.Limine with SPARK_Mode => Off is
       end;
    exception
       when Constraint_Error =>
-         Lib.Messages.Put_Line ("Exception encountered translating limine");
+         Messages.Put_Line ("Exception encountered translating limine");
    end Translate_Proto;
 end Arch.Limine;

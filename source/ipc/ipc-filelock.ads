@@ -17,7 +17,7 @@
 with Interfaces;          use Interfaces;
 with VFS;                 use VFS;
 with Userland.Process;    use Userland.Process;
-with Lib.Synchronization; use Lib.Synchronization;
+with Synchronization; use Synchronization;
 
 package IPC.FileLock is
    --  This module implements POSIX-compliant advisory file locking.

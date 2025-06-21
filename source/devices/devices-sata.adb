@@ -16,19 +16,19 @@
 
 with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
-with Lib.Messages;
+with Messages;
 with Devices.Partitions;
 with Arch.PCI;
 with Arch.MMU;
 with Memory;
-with Lib.Alignment;
+with Alignment;
 with Cryptography.Random;
 
 package body Devices.SATA with SPARK_Mode => Off is
    package C1 is new System.Address_To_Access_Conversions (SATA_Data);
    package C2 is new System.Address_To_Access_Conversions (HBA_Memory);
    package C3 is new System.Address_To_Access_Conversions (FIS_Host_To_Device);
-   package A  is new Lib.Alignment (Unsigned_64);
+   package A  is new Alignment (Unsigned_64);
 
    procedure Init (Success : out Boolean) is
       PCI_Dev    : Arch.PCI.PCI_Device;
@@ -181,7 +181,7 @@ package body Devices.SATA with SPARK_Mode => Off is
       Tmp      := To_Integer  (Identify.all'Address);
       Tmp2     := Unsigned_64 (Tmp - Memory.Memory_Offset);
       Dev_Data := new SATA_Data'
-         (Mutex         => Lib.Synchronization.Unlocked_Mutex,
+         (Mutex         => Synchronization.Unlocked_Mutex,
           FIS           => Port_FIS,
           Command_Area  => Cmd_Area,
           Command_TBLs  => Cmd_TBLs,
@@ -201,7 +201,7 @@ package body Devices.SATA with SPARK_Mode => Off is
           Is_Write    => False,
           Data_Addr   => Tmp2);
       if not Success then
-         Lib.Messages.Put_Line ("SATA error while issuing identify");
+         Messages.Put_Line ("SATA error while issuing identify");
          return null;
       end if;
 
@@ -247,7 +247,7 @@ package body Devices.SATA with SPARK_Mode => Off is
          return False;
       end if;
 
-      Lib.Synchronization.Seize (Drive.Mutex);
+      Synchronization.Seize (Drive.Mutex);
 
       --  Find a slot for the identify command and setup the header.
       loop
@@ -317,7 +317,7 @@ package body Devices.SATA with SPARK_Mode => Off is
       Drive.Port_Data.Command_Issue := Shift_Left (1, Slot - 1);
 
       --  Unlock for other commands.
-      Lib.Synchronization.Release (Drive.Mutex);
+      Synchronization.Release (Drive.Mutex);
 
       --  Poll for success.
       Drive.Port_Data.Command_Issue := Shift_Left (1, Slot - 1);
@@ -335,7 +335,7 @@ package body Devices.SATA with SPARK_Mode => Off is
       return True;
 
    <<Failure_Cleanup>>
-      Lib.Synchronization.Release (Drive.Mutex);
+      Synchronization.Release (Drive.Mutex);
       return False;
    exception
       when Constraint_Error =>
@@ -414,7 +414,7 @@ package body Devices.SATA with SPARK_Mode => Off is
       Port.Command_And_Status := Port.Command_And_Status or HBA_PxCMD_ST;
    exception
       when Constraint_Error =>
-         Lib.Messages.Put_Line ("Failed to start SATA command line");
+         Messages.Put_Line ("Failed to start SATA command line");
    end Start_Command_Engine;
 
    procedure Stop_Command_Engine (Port : HBA_Port_Acc) is
@@ -428,7 +428,7 @@ package body Devices.SATA with SPARK_Mode => Off is
       Port.Command_And_Status := Port.Command_And_Status and not HBA_PxCMD_FRE;
    exception
       when Constraint_Error =>
-         Lib.Messages.Put_Line ("Failed to stop SATA command line");
+         Messages.Put_Line ("Failed to stop SATA command line");
    end Stop_Command_Engine;
    ----------------------------------------------------------------------------
    procedure Read

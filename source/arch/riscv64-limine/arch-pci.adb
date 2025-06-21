@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Snippets;
-with Lib.Panic;
+with Panic;
 with Arch.CPU;
 
 package body Arch.PCI is

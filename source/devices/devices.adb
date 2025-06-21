@@ -21,7 +21,7 @@ with Devices.TTY;
 with Devices.SATA;
 with Devices.NVMe;
 with Devices.i6300ESB;
-with Lib.Panic;
+with Panic;
 with Arch.Hooks;
 
 package body Devices is
@@ -57,7 +57,7 @@ package body Devices is
       return;
 
    <<Panic_Error>>
-      Lib.Panic.Hard_Panic ("Some devices could not be added");
+      Panic.Hard_Panic ("Some devices could not be added");
    end Init;
 
    procedure Register (Dev : Resource; Name : String; Success : out Boolean) is

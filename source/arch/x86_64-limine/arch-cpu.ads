@@ -19,7 +19,7 @@ with Userland.Process;
 with Scheduler;
 with Arch.GDT;
 with Arch.Limine;
-with Lib.Synchronization;
+with Synchronization;
 
 package Arch.CPU is
    --  Core-local data, that each core holds an own version of.
@@ -38,7 +38,7 @@ package Arch.CPU is
       Current_Thread  : Scheduler.TID;
       Current_Process : Userland.Process.PID;
 
-      Invalidate_Lock  : aliased Lib.Synchronization.Binary_Semaphore;
+      Invalidate_Lock  : aliased Synchronization.Binary_Semaphore;
       Invalidate_Map   : Unsigned_64;
       Invalidate_Start : System.Address;
       Invalidate_End   : System.Address;

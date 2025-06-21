@@ -14,9 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Panic;
-with Lib.Synchronization; use Lib.Synchronization;
-with Lib.Alignment;
+with Panic;
+with Synchronization; use Synchronization;
+with Alignment;
 with Arch.MMU;
 with System; use System;
 
@@ -84,7 +84,7 @@ package body Memory.Physical is
          end if;
       end loop;
       if Bitmap_Address = Null_Address then
-         Lib.Panic.Hard_Panic ("Could not allocate the bitmap");
+         Panic.Hard_Panic ("Could not allocate the bitmap");
       end if;
 
       --  Initialize and fill the bitmap.
@@ -135,7 +135,7 @@ package body Memory.Physical is
       Slab_Init := True;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception initializing the allocator");
+         Panic.Hard_Panic ("Exception initializing the allocator");
    end Init_Allocator;
    ----------------------------------------------------------------------------
    function Alloc (Sz : Interfaces.C.size_t) return Virtual_Address is
@@ -145,7 +145,7 @@ package body Memory.Physical is
    begin
       --  Check the specific GNAT semantics.
       if Size = Interfaces.C.size_t'Last then
-         Lib.Panic.Hard_Panic ("size_t'Last passed to 'new'");
+         Panic.Hard_Panic ("size_t'Last passed to 'new'");
       elsif Size = 0 then
          Size := 1;
       end if;
@@ -165,11 +165,11 @@ package body Memory.Physical is
          end case;
 
       <<Next_Slab_Try>>
-         Lib.Synchronization.Seize (Slabs (I).Lock);
+         Synchronization.Seize (Slabs (I).Lock);
          if Slabs (I).Element_Bump >=
             Slabs (I).Pool'Length / Slabs (I).Entity_Size
          then
-            Lib.Synchronization.Release (Slabs (I).Lock);
+            Synchronization.Release (Slabs (I).Lock);
             if I = Slabs'Last then
                goto Default_Alloc;
             else
@@ -183,14 +183,14 @@ package body Memory.Physical is
                         Slabs (I).Entity_Size)'Address);
          Slabs (I).Element_Bump  := Slabs (I).Element_Bump  + 1;
          Slabs (I).Element_Count := Slabs (I).Element_Count + 1;
-         Lib.Synchronization.Release (Slabs (I).Lock);
+         Synchronization.Release (Slabs (I).Lock);
          return Result;
       end if;
 
    <<Default_Alloc>>
       Result := Alloc_Pgs (Size);
       if Result = 0 then
-         Lib.Panic.Hard_Panic ("Exhausted memory (OOM)");
+         Panic.Hard_Panic ("Exhausted memory (OOM)");
       end if;
       return Result;
    exception
@@ -213,14 +213,14 @@ package body Memory.Physical is
             if Real_Address >= To_Integer (S.Pool (S.Pool'First)'Address) and
                Real_Address <= To_Integer (S.Pool (S.Pool'Last)'Address)
             then
-               Lib.Synchronization.Seize (S.Lock);
+               Synchronization.Seize (S.Lock);
                if S.Element_Count = 1 then
                   S.Element_Count := 0;
                   S.Element_Bump  := 0;
                else
                   S.Element_Count := S.Element_Count - 1;
                end if;
-               Lib.Synchronization.Release (S.Lock);
+               Synchronization.Release (S.Lock);
                return;
             end if;
          end loop;
@@ -283,19 +283,19 @@ package body Memory.Physical is
    ----------------------------------------------------------------------------
    procedure Get_Statistics (Stats : out Statistics) is
    begin
-      Lib.Synchronization.Seize (Alloc_Mutex);
+      Synchronization.Seize (Alloc_Mutex);
       Stats :=
          (Total     => Total_Memory,
           Available => Available_Memory,
           Free      => Free_Memory);
-      Lib.Synchronization.Release (Alloc_Mutex);
+      Synchronization.Release (Alloc_Mutex);
    end Get_Statistics;
    ----------------------------------------------------------------------------
    function Alloc_Pgs (Sz : Interfaces.C.size_t) return Memory.Virtual_Address
    is
       pragma SPARK_Mode (Off);
 
-      package Align is new Lib.Alignment (Memory.Size);
+      package Align is new Alignment (Memory.Size);
 
       Bitmap_Body : Bitmap (0 .. Block_Count - 1) with Import;
       for Bitmap_Body'Address use To_Address (Bitmap_Address);
@@ -311,7 +311,7 @@ package body Memory.Physical is
       Blocks_To_Allocate := (Size / Block_Size) + 1;
 
       --  Search for contiguous blocks, as many as needed.
-      Lib.Synchronization.Seize (Alloc_Mutex);
+      Synchronization.Seize (Alloc_Mutex);
    <<Search_Blocks>>
       for I in Bitmap_Last_Used .. Block_Count - 1 loop
          if Bitmap_Body (I) = Block_Free then
@@ -336,7 +336,7 @@ package body Memory.Physical is
       end if;
 
       --  Handle OOM.
-      Lib.Synchronization.Release (Alloc_Mutex);
+      Synchronization.Release (Alloc_Mutex);
       return 0;
 
    <<Fill_Bitmap>>
@@ -347,7 +347,7 @@ package body Memory.Physical is
       --  Set statistic, global variables, the allocation header and return.
       Bitmap_Last_Used := First_Found_Index;
       Free_Memory      := Free_Memory - (Blocks_To_Allocate * Block_Size);
-      Lib.Synchronization.Release (Alloc_Mutex);
+      Synchronization.Release (Alloc_Mutex);
 
       --  If we are doing alloc only, we only have to return the allocated
       --  address, else, we have to actually fill the header and checksums.
@@ -378,7 +378,7 @@ package body Memory.Physical is
          SAddr  : constant  System.Address := To_Address (IAddr);
          Header : Allocation_Header with Import, Address => SAddr;
       begin
-         Lib.Synchronization.Seize (Alloc_Mutex);
+         Synchronization.Seize (Alloc_Mutex);
 
          Real_Block  := Unsigned_64 (IAddr - Memory_Offset) / Block_Size;
          Free_Memory := Free_Memory + (Header.Block_Count * Block_Size);
@@ -386,7 +386,7 @@ package body Memory.Physical is
             Bitmap_Body (Real_Block + Unsigned_64 (I - 1)) := Block_Free;
          end loop;
 
-         Lib.Synchronization.Release (Alloc_Mutex);
+         Synchronization.Release (Alloc_Mutex);
       end;
    exception
       when Constraint_Error =>

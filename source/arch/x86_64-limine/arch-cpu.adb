@@ -19,8 +19,8 @@ with Arch.APIC;
 with Arch.MMU;
 with Arch.IDT;
 with Arch.VMX;
-with Lib.Alignment;
-with Lib.Panic;
+with Alignment;
+with Panic;
 with Arch.Snippets;
 with Arch.Context;
 with System; use System;
@@ -78,7 +78,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       end if;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception when initializing cores");
+         Panic.Hard_Panic ("Exception when initializing cores");
    end Init_Cores;
 
    function Get_Local return Core_Local_Acc is
@@ -119,7 +119,7 @@ package body Arch.CPU with SPARK_Mode => Off is
          Saved_MTRRs (Natural (Count * 2) + 12) and not Shift_Left (1, 11);
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception when saving MTRRs");
+         Panic.Hard_Panic ("Exception when saving MTRRs");
    end Save_MTRRs;
 
    procedure Restore_MTRRs is
@@ -160,7 +160,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       Snippets.Invalidate_Caches;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception when restoring MTRRs");
+         Panic.Hard_Panic ("Exception when restoring MTRRs");
    end Restore_MTRRs;
 
    procedure Core_Bootstrap (Info : access Limine.SMP_CPU_Info) is
@@ -173,7 +173,7 @@ package body Arch.CPU with SPARK_Mode => Off is
           Stack_Top   => Unsigned_64 (To_Integer (New_Stk_Top)));
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception when bootstrapping core");
+         Panic.Hard_Panic ("Exception when bootstrapping core");
    end Core_Bootstrap;
 
    procedure Init_Core
@@ -203,7 +203,7 @@ package body Arch.CPU with SPARK_Mode => Off is
        LAPIC       : Unsigned_32;
        Stack_Top   : Unsigned_64)
    is
-      package A is new Lib.Alignment (Unsigned_32);
+      package A is new Alignment (Unsigned_32);
 
       PAT_MSR   : constant := 16#00000277#;
       EFER_MSR  : constant := 16#C0000080#;
@@ -320,7 +320,7 @@ package body Arch.CPU with SPARK_Mode => Off is
           Core_TSS         => <>,
           Current_Thread   => Scheduler.Error_TID,
           Current_Process  => Userland.Process.Error_PID,
-          Invalidate_Lock  => Lib.Synchronization.Unlocked_Semaphore,
+          Invalidate_Lock  => Synchronization.Unlocked_Semaphore,
           Invalidate_Map   => 0,
           Invalidate_Start => System.Null_Address,
           Invalidate_End   => System.Null_Address);
@@ -339,7 +339,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       end if;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception when initializing core");
+         Panic.Hard_Panic ("Exception when initializing core");
    end Init_Common;
 
    function Get_BSP_LAPIC_ID return Unsigned_32 is
@@ -348,7 +348,7 @@ package body Arch.CPU with SPARK_Mode => Off is
    begin
       Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX, Success);
       if not Success then
-         Lib.Panic.Hard_Panic ("Could not get BSP");
+         Panic.Hard_Panic ("Could not get BSP");
       end if;
       return Shift_Right (EBX, 24) and 16#FF#;
    end Get_BSP_LAPIC_ID;

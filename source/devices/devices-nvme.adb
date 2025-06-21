@@ -16,9 +16,9 @@
 
 with Arch.PCI;
 with Devices.Partitions;
-with Lib.Alignment;
-with Lib.Messages;
-with Lib.Panic;
+with Alignment;
+with Messages;
+with Panic;
 with Memory.Physical;
 with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
@@ -36,7 +36,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
    package C6 is
       new System.Address_To_Access_Conversions (Active_Namespace_Id_List);
 
-   package A  is new Lib.Alignment (Unsigned_64);
+   package A  is new Alignment (Unsigned_64);
 
    procedure Init (Success : out Boolean) is
       PCI_Dev : Arch.PCI.PCI_Device;
@@ -116,7 +116,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
 
          if (Controller_Caps.Command_Sets_Supported and Unsigned_8 (1)) = 0
          then
-            Lib.Messages.Put_Line
+            Messages.Put_Line
                ("NVMe controller does not support the NVM command set");
          end if;
 
@@ -139,7 +139,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
          Ctrl_Identify := Controller_Identify (Admin_Queue);
 
          if Ctrl_Identify.Submission_Queue_Entry_Size /= 16#66# then
-            Lib.Messages.Put_Line
+            Messages.Put_Line
                ("NVMe controller uses non-standard SQ Entry size, skipping.");
             Memory.Physical.Free
                (size_t (To_Integer (Ctrl_Identify.all'Address)));
@@ -148,7 +148,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
          end if;
 
          if Ctrl_Identify.Completion_Queue_Entry_Size /= 16#44# then
-            Lib.Messages.Put_Line
+            Messages.Put_Line
                ("NVMe controller uses non-standard CQ Entry size, skipping.");
             Memory.Physical.Free
                (size_t (To_Integer (Ctrl_Identify.all'Address)));
@@ -209,12 +209,12 @@ package body Devices.NVMe with SPARK_Mode => Off is
       Status := Submit_Admin_Command (Admin_Queue, Cmd);
 
       if Status.Dword3.Status /= 0 then
-         Lib.Panic.Hard_Panic ("Controller rejected Request for " &
+         Panic.Hard_Panic ("Controller rejected Request for " &
             SQ_Count'Image & " SQs and " & CQ_Count'Image & " CQs.");
       end if;
    exception
       when Constraint_Error =>
-         Lib.Messages.Put_Line ("Failed to request I/O queues");
+         Messages.Put_Line ("Failed to request I/O queues");
    end Request_IO_Queues;
 
    procedure Init_Namespace
@@ -242,7 +242,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
       FLBAS := Natural (NS_Identify.Formatted_LBA_Size and 16#F#);
 
       if FLBAS > Natural (NS_Identify.Number_of_LBA_Formats) then
-         Lib.Messages.Put_Line
+         Messages.Put_Line
             ("NVMe " & Drive_Idx'Image & " Namespace " & NS_Id'Image &
                " has no valid LBA formats");
          return;
@@ -369,7 +369,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
       end;
    exception
       when Constraint_Error =>
-         Lib.Messages.Put_Line ("Failed to set up admin queue");
+         Messages.Put_Line ("Failed to set up admin queue");
          return null;
    end Setup_Admin_Queue;
 
@@ -425,7 +425,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
             Integer_Address (((2 * Id) + 1) * Doorbell_Stride);
 
       if SQ_Size > Arch.MMU.Page_Size or CQ_Size > Arch.MMU.Page_Size then
-         Lib.Panic.Hard_Panic ("Queue sizes over 1 page are unimplemented");
+         Panic.Hard_Panic ("Queue sizes over 1 page are unimplemented");
       end if;
 
       SQ_Cmd := (Opcode => Create_IO_SQ,
@@ -484,17 +484,17 @@ package body Devices.NVMe with SPARK_Mode => Off is
 
       CQ_Status := Submit_Admin_Command (Admin_Queue, CQ_Cmd);
       if CQ_Status.Dword3.Status /= 0 then
-         Lib.Panic.Hard_Panic ("I/O CQ setup status != 0");
+         Panic.Hard_Panic ("I/O CQ setup status != 0");
       end if;
       SQ_Status := Submit_Admin_Command (Admin_Queue, SQ_Cmd);
       if SQ_Status.Dword3.Status /= 0 then
-         Lib.Panic.Hard_Panic ("I/O SQ setup status != 0");
+         Panic.Hard_Panic ("I/O SQ setup status != 0");
       end if;
 
       return Queue;
    exception
       when Constraint_Error =>
-         Lib.Messages.Put_Line ("Failed to setup I/O queue");
+         Messages.Put_Line ("Failed to setup I/O queue");
          return null;
    end Setup_IO_Queue;
 
@@ -562,7 +562,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
       end;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("failed to submit admin command");
+         Panic.Hard_Panic ("failed to submit admin command");
    end Submit_Admin_Command;
 
    function Submit_IO_Command
@@ -629,7 +629,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
       end;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("failed to submit I/O command");
+         Panic.Hard_Panic ("failed to submit I/O command");
    end Submit_IO_Command;
 
    function Controller_Identify
@@ -820,7 +820,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
       Cmd : IO_Submission_Queue_Entry;
       Reply : Completion_Queue_Entry;
    begin
-      Lib.Synchronization.Seize (D.Mutex);
+      Synchronization.Seize (D.Mutex);
       First_Page_Len :=
          (Arch.MMU.Page_Size - (Data_Addr mod Arch.MMU.Page_Size));
       Page_Boundary_Cross := Natural (First_Page_Len) < D.LBA_Size;
@@ -840,10 +840,10 @@ package body Devices.NVMe with SPARK_Mode => Off is
       Reply := Submit_IO_Command (D.Queue, Cmd);
 
       Success := Reply.Dword3.Status = 0;
-      Lib.Synchronization.Release (D.Mutex);
+      Synchronization.Release (D.Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (D.Mutex);
+         Synchronization.Release (D.Mutex);
          Success := False;
    end NS_Read;
 
@@ -863,7 +863,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
       Cmd : IO_Submission_Queue_Entry;
       Reply : Completion_Queue_Entry;
    begin
-      Lib.Synchronization.Seize (D.Mutex);
+      Synchronization.Seize (D.Mutex);
       First_Page_Len :=
          (Arch.MMU.Page_Size - (Data_Addr mod Arch.MMU.Page_Size));
       Page_Boundary_Cross := Natural (First_Page_Len) < D.LBA_Size;
@@ -884,10 +884,10 @@ package body Devices.NVMe with SPARK_Mode => Off is
       Reply := Submit_IO_Command (D.Queue, Cmd);
 
       Success := Reply.Dword3.Status = 0;
-      Lib.Synchronization.Release (D.Mutex);
+      Synchronization.Release (D.Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (D.Mutex);
+         Synchronization.Release (D.Mutex);
          Success := False;
    end NS_Write;
 
@@ -901,7 +901,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
       end loop;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Failed to await controller ready");
+         Panic.Hard_Panic ("Failed to await controller ready");
    end Controller_Await_Ready;
 
    procedure Disable_Controller (M : NVMe_Registers_Acc) is
@@ -914,7 +914,7 @@ package body Devices.NVMe with SPARK_Mode => Off is
       Controller_Await_Ready (M, False);
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Failed to disable controller");
+         Panic.Hard_Panic ("Failed to disable controller");
    end Disable_Controller;
 
    procedure Enable_Controller (M : NVMe_Registers_Acc) is
@@ -945,6 +945,6 @@ package body Devices.NVMe with SPARK_Mode => Off is
       Controller_Await_Ready (M, True);
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Failed to enable controller");
+         Panic.Hard_Panic ("Failed to enable controller");
    end Enable_Controller;
 end Devices.NVMe;

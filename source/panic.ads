@@ -1,4 +1,4 @@
---  lib-panic.ads: For when recovering is not an option!
+--  panic.ads: For when recovering is not an option!
 --  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -15,11 +15,11 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with Lib.Messages;
+with Messages;
 with Arch.Clocks;
 with Arch.Context;
 
-package Lib.Panic with
+package Panic with
    Abstract_State => Panic_State,
    Initializes    => Panic_State
 is
@@ -41,4 +41,4 @@ private
    procedure Panic_Hook;
    procedure Print_Header (Message : String);
    procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64);
-end Lib.Panic;
+end Panic;

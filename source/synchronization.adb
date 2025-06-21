@@ -1,4 +1,4 @@
---  lib-synchronization.adb: Synchronization primitives and such.
+--  synchronization.adb: Synchronization primitives and such.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,13 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Atomic; use Lib.Atomic;
+with Atomic; use Atomic;
 with Arch;
 with Arch.Snippets;
-with Lib.Panic;
+with Panic;
 with Scheduler;
 
-package body Lib.Synchronization with SPARK_Mode => Off is
+package body Synchronization with SPARK_Mode => Off is
    pragma Suppress (All_Checks); --  Checks are too expensive in this paths.
 
    --  Both locks do a rough wait until the lock is free for cache-locality.
@@ -52,7 +52,7 @@ package body Lib.Synchronization with SPARK_Mode => Off is
          end if;
       end loop;
 
-      Lib.Panic.Hard_Panic ("Deadlock at " & Caller_Address (0)'Image);
+      Panic.Hard_Panic ("Deadlock at " & Caller_Address (0)'Image);
    end Seize;
 
    procedure Release (Lock : aliased in out Binary_Semaphore) is
@@ -116,4 +116,4 @@ package body Lib.Synchronization with SPARK_Mode => Off is
    begin
       Release (Lock.Semaphore_2);
    end Release_Writer;
-end Lib.Synchronization;
+end Synchronization;

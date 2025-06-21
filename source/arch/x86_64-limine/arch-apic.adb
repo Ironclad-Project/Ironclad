@@ -17,9 +17,9 @@
 with Arch.ACPI;
 with Arch.Clocks;
 with Arch.Snippets;
-with Lib.Panic;
+with Panic;
 with Arch.MMU;
-with Lib.Messages;
+with Messages;
 
 package body Arch.APIC with SPARK_Mode => Off is
    LAPIC_MSR  : constant := 16#01B#;
@@ -62,14 +62,14 @@ package body Arch.APIC with SPARK_Mode => Off is
       end if;
 
       if Supports_x2APIC then
-         Lib.Messages.Put_Line ("x2APIC support enabled");
+         Messages.Put_Line ("x2APIC support enabled");
          APIC_Base := Snippets.Read_MSR (LAPIC_MSR);
          Snippets.Write_MSR (LAPIC_MSR, APIC_Base or Shift_Left (1, 10));
       else
          --  We assume the LAPIC base for performance reasons.
          --  Check the assumption is right tho.
          if (MSR_Read and 16#FFFFF000#) /= LAPIC_Base - Memory_Offset then
-            Lib.Panic.Hard_Panic ("Odd LAPIC base encountered");
+            Panic.Hard_Panic ("Odd LAPIC base encountered");
          end if;
 
          --  Map the LAPIC base.
@@ -87,7 +87,7 @@ package body Arch.APIC with SPARK_Mode => Off is
              Success        => Success,
              Caching        => MMU.Uncacheable);
          if not Success then
-            Lib.Panic.Hard_Panic ("Could not map LAPIC base");
+            Panic.Hard_Panic ("Could not map LAPIC base");
          end if;
       end if;
    end Init_LAPIC;
@@ -197,7 +197,7 @@ package body Arch.APIC with SPARK_Mode => Off is
       end if;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception while reading LAPIC");
+         Panic.Hard_Panic ("Exception while reading LAPIC");
    end LAPIC_Read;
 
    procedure LAPIC_Write (Register : Unsigned_32; Value : Unsigned_32) is

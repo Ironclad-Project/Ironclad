@@ -19,9 +19,9 @@ with Arch.GDT;
 with Arch.CPU;
 with Arch.Context;
 with Arch.MMU;
-with Lib.Panic;
-with Lib.Messages;
-with Lib.Synchronization;
+with Panic;
+with Messages;
+with Synchronization;
 with Scheduler;
 with Userland.Syscall; use Userland.Syscall;
 with Arch.Snippets; use Arch.Snippets;
@@ -50,17 +50,17 @@ package body Arch.Interrupts is
             when 16 | 19 => Userland.Process.Signal_FP_Exception,
             when  others => Userland.Process.Signal_Segmentation_Fault);
 
-         Lib.Messages.Put_Line
+         Messages.Put_Line
             ("Userland " & Exception_Text (Num) &
              " (" & Userland.Process.Signal'Image (Signal) & ")");
          Userland.Corefile.Generate_Corefile (Context.GP_Context (State.all));
          Do_Exit (Local.Get_Current_Process, Signal);
       else
-         Lib.Panic.Hard_Panic ("Kernel " & Exception_Text (Num), State.all);
+         Panic.Hard_Panic ("Kernel " & Exception_Text (Num), State.all);
       end if;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception...  In the exception handler!");
+         Panic.Hard_Panic ("Exception...  In the exception handler!");
    end Exception_Handler;
 
    procedure Syscall_Handler (State : not null ISR_GPRs_Acc) is
@@ -434,11 +434,11 @@ package body Arch.Interrupts is
       Map          : Unsigned_64;
    begin
       I     := CPU.Get_Local.Number;
-      Lib.Synchronization.Seize (CPU.Core_Locals (I).Invalidate_Lock);
+      Synchronization.Seize (CPU.Core_Locals (I).Invalidate_Lock);
       Final := CPU.Core_Locals (I).Invalidate_End;
       Curr  := CPU.Core_Locals (I).Invalidate_Start;
       Map   := CPU.Core_Locals (I).Invalidate_Map;
-      Lib.Synchronization.Release (CPU.Core_Locals (I).Invalidate_Lock);
+      Synchronization.Release (CPU.Core_Locals (I).Invalidate_Lock);
 
       if Snippets.Read_CR3 = Map then
          while To_Integer (Curr) < To_Integer (Final) loop
@@ -455,13 +455,13 @@ package body Arch.Interrupts is
 
    procedure Default_ISR_Handler is
    begin
-      Lib.Messages.Put_Line ("Default ISR triggered");
+      Messages.Put_Line ("Default ISR triggered");
       Arch.APIC.LAPIC_EOI;
    end Default_ISR_Handler;
 
    procedure Spurious_Handler is
    begin
-      Lib.Messages.Put_Line ("LAPIC Spurious interrupt occurred");
+      Messages.Put_Line ("LAPIC Spurious interrupt occurred");
       Arch.APIC.LAPIC_EOI;
    end Spurious_Handler;
 end Arch.Interrupts;

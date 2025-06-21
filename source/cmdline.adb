@@ -1,4 +1,4 @@
---  lib-cmdline.adb: Parsing command line options.
+--  cmdline.adb: Parsing command line options.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package body Lib.Cmdline is
+package body Cmdline is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    procedure Get_Key_Value
@@ -121,4 +121,4 @@ package body Lib.Cmdline is
       Found     := False;
       End_Index := 0;
    end Find_Key;
-end Lib.Cmdline;
+end Cmdline;

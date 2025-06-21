@@ -28,8 +28,8 @@ package body IPC.PTY is
    procedure Free is new Ada.Unchecked_Deallocation (Inner, Inner_Acc);
    package   Conv is new System.Address_To_Access_Conversions (Inner);
 
-   Tracked_Lock : aliased Lib.Synchronization.Mutex :=
-      Lib.Synchronization.Unlocked_Mutex;
+   Tracked_Lock : aliased Synchronization.Mutex :=
+      Synchronization.Unlocked_Mutex;
    Tracked_Name : Natural := 1;
 
    procedure Create (Result : out Inner_Acc) is
@@ -38,10 +38,10 @@ package body IPC.PTY is
       Success    : Boolean;
       Termios_D  : Devices.TermIOs.Main_Data;
    begin
-      Lib.Synchronization.Seize (Tracked_Lock);
+      Synchronization.Seize (Tracked_Lock);
       Name_Index := Tracked_Name;
       Tracked_Name := Tracked_Name + 1;
-      Lib.Synchronization.Release (Tracked_Lock);
+      Synchronization.Release (Tracked_Lock);
 
       --  Some sane defaults.
       Termios_D :=
@@ -54,9 +54,9 @@ package body IPC.PTY is
           Output_Baud   => 0);
 
       Result := new Inner'
-         (Primary_Mutex      => Lib.Synchronization.Unlocked_Mutex,
-          Secondary_Mutex    => Lib.Synchronization.Unlocked_Mutex,
-          Global_Data_Mutex  => Lib.Synchronization.Unlocked_Mutex,
+         (Primary_Mutex      => Synchronization.Unlocked_Mutex,
+          Secondary_Mutex    => Synchronization.Unlocked_Mutex,
+          Global_Data_Mutex  => Synchronization.Unlocked_Mutex,
           Primary_Read       => True,
           Primary_Transmit   => True,
           Secondary_Read     => True,
@@ -103,17 +103,17 @@ package body IPC.PTY is
    procedure Close (Closed : in out Inner_Acc) is
       Discard : Boolean;
    begin
-      Lib.Synchronization.Seize (Closed.Primary_Mutex);
-      Lib.Synchronization.Seize (Closed.Secondary_Mutex);
-      Lib.Synchronization.Seize (Closed.Global_Data_Mutex);
+      Synchronization.Seize (Closed.Primary_Mutex);
+      Synchronization.Seize (Closed.Secondary_Mutex);
+      Synchronization.Seize (Closed.Global_Data_Mutex);
       if Closed.Was_Closed then
          Devices.Remove (Closed.Device_Handle, Discard);
          Free (Closed);
       else
          Closed.Was_Closed := True;
-         Lib.Synchronization.Release (Closed.Primary_Mutex);
-         Lib.Synchronization.Release (Closed.Secondary_Mutex);
-         Lib.Synchronization.Release (Closed.Global_Data_Mutex);
+         Synchronization.Release (Closed.Primary_Mutex);
+         Synchronization.Release (Closed.Secondary_Mutex);
+         Synchronization.Release (Closed.Global_Data_Mutex);
       end if;
    end Close;
 
@@ -186,15 +186,15 @@ package body IPC.PTY is
        Can_Prio  : out Boolean)
    is
    begin
-      Lib.Synchronization.Seize (P.Global_Data_Mutex);
+      Synchronization.Seize (P.Global_Data_Mutex);
       Can_Prio := P.Termios_Changed;
       P.Termios_Changed := False;
-      Lib.Synchronization.Release (P.Global_Data_Mutex);
+      Synchronization.Release (P.Global_Data_Mutex);
 
-      Lib.Synchronization.Seize (P.Primary_Mutex);
+      Synchronization.Seize (P.Primary_Mutex);
       Can_Read  := P.Primary_Length /= 0;
       Can_Write := P.Primary_Length /= P.Primary_Data'Length;
-      Lib.Synchronization.Release (P.Primary_Mutex);
+      Synchronization.Release (P.Primary_Mutex);
    end Poll_Primary;
 
    procedure Poll_Secondary
@@ -203,40 +203,40 @@ package body IPC.PTY is
        Can_Write : out Boolean)
    is
    begin
-      Lib.Synchronization.Seize (P.Secondary_Mutex);
+      Synchronization.Seize (P.Secondary_Mutex);
       Can_Read  := P.Secondary_Length /= 0;
       Can_Write := P.Secondary_Length /= P.Secondary_Data'Length;
-      Lib.Synchronization.Release (P.Secondary_Mutex);
+      Synchronization.Release (P.Secondary_Mutex);
    end Poll_Secondary;
 
    procedure Get_TermIOs (P : Inner_Acc; T : out Devices.TermIOs.Main_Data) is
    begin
-      Lib.Synchronization.Seize (P.Global_Data_Mutex);
+      Synchronization.Seize (P.Global_Data_Mutex);
       T := P.Term_Info;
-      Lib.Synchronization.Release (P.Global_Data_Mutex);
+      Synchronization.Release (P.Global_Data_Mutex);
    end Get_TermIOs;
 
    procedure Set_TermIOs (P : Inner_Acc; T : Devices.TermIOs.Main_Data) is
    begin
-      Lib.Synchronization.Seize (P.Global_Data_Mutex);
+      Synchronization.Seize (P.Global_Data_Mutex);
       P.Term_Info := T;
       P.Termios_Changed := True;
-      Lib.Synchronization.Release (P.Global_Data_Mutex);
+      Synchronization.Release (P.Global_Data_Mutex);
    end Set_TermIOs;
 
    procedure Get_WinSize (P : Inner_Acc; W : out Devices.TermIOs.Win_Size) is
    begin
-      Lib.Synchronization.Seize (P.Global_Data_Mutex);
+      Synchronization.Seize (P.Global_Data_Mutex);
       W := P.Term_Size;
-      Lib.Synchronization.Release (P.Global_Data_Mutex);
+      Synchronization.Release (P.Global_Data_Mutex);
    end Get_WinSize;
 
    procedure Set_WinSize (P : Inner_Acc; W : Devices.TermIOs.Win_Size) is
    begin
-      Lib.Synchronization.Seize (P.Global_Data_Mutex);
+      Synchronization.Seize (P.Global_Data_Mutex);
       P.Term_Size := W;
       P.Termios_Changed := True;
-      Lib.Synchronization.Release (P.Global_Data_Mutex);
+      Synchronization.Release (P.Global_Data_Mutex);
    end Set_WinSize;
 
    procedure Get_Name (P : Inner_Acc; Str : out String; Len : out Natural) is
@@ -253,81 +253,81 @@ package body IPC.PTY is
    procedure Flush_Primary (P : Inner_Acc; To_Read, To_Transmit : Boolean) is
    begin
       if To_Read then
-         Lib.Synchronization.Seize (P.Primary_Mutex);
+         Synchronization.Seize (P.Primary_Mutex);
          P.Primary_Data   := [others => 0];
          P.Primary_Length := 0;
-         Lib.Synchronization.Release (P.Primary_Mutex);
+         Synchronization.Release (P.Primary_Mutex);
       end if;
       if To_Transmit then
-         Lib.Synchronization.Seize (P.Secondary_Mutex);
+         Synchronization.Seize (P.Secondary_Mutex);
          P.Secondary_Data   := [others => 0];
          P.Secondary_Length := 0;
-         Lib.Synchronization.Release (P.Secondary_Mutex);
+         Synchronization.Release (P.Secondary_Mutex);
       end if;
    end Flush_Primary;
 
    procedure Flush_Secondary (P : Inner_Acc; To_Read, To_Transmit : Boolean) is
    begin
       if To_Read then
-         Lib.Synchronization.Seize (P.Secondary_Mutex);
+         Synchronization.Seize (P.Secondary_Mutex);
          P.Secondary_Data   := [others => 0];
          P.Secondary_Length := 0;
-         Lib.Synchronization.Release (P.Secondary_Mutex);
+         Synchronization.Release (P.Secondary_Mutex);
       end if;
       if To_Transmit then
-         Lib.Synchronization.Seize (P.Primary_Mutex);
+         Synchronization.Seize (P.Primary_Mutex);
          P.Primary_Data   := [others => 0];
          P.Primary_Length := 0;
-         Lib.Synchronization.Release (P.Primary_Mutex);
+         Synchronization.Release (P.Primary_Mutex);
       end if;
    end Flush_Secondary;
 
    procedure Start_Primary (P : Inner_Acc; To_Read, To_Transmit : Boolean) is
    begin
-      Lib.Synchronization.Seize (P.Global_Data_Mutex);
+      Synchronization.Seize (P.Global_Data_Mutex);
       if To_Read then
          P.Primary_Read := True;
       end if;
       if To_Transmit then
          P.Primary_Transmit := True;
       end if;
-      Lib.Synchronization.Release (P.Global_Data_Mutex);
+      Synchronization.Release (P.Global_Data_Mutex);
    end Start_Primary;
 
    procedure Start_Secondary (P : Inner_Acc; To_Read, To_Transmit : Boolean) is
    begin
-      Lib.Synchronization.Seize (P.Global_Data_Mutex);
+      Synchronization.Seize (P.Global_Data_Mutex);
       if To_Read then
          P.Secondary_Read := True;
       end if;
       if To_Transmit then
          P.Secondary_Transmit := True;
       end if;
-      Lib.Synchronization.Release (P.Global_Data_Mutex);
+      Synchronization.Release (P.Global_Data_Mutex);
    end Start_Secondary;
 
    procedure Stop_Primary (P : Inner_Acc; To_Read, To_Transmit : Boolean) is
    begin
-      Lib.Synchronization.Seize (P.Global_Data_Mutex);
+      Synchronization.Seize (P.Global_Data_Mutex);
       if To_Read then
          P.Primary_Read := False;
       end if;
       if To_Transmit then
          P.Primary_Transmit := False;
       end if;
-      Lib.Synchronization.Release (P.Global_Data_Mutex);
+      Synchronization.Release (P.Global_Data_Mutex);
    end Stop_Primary;
 
    procedure Stop_Secondary (P : Inner_Acc; To_Read, To_Transmit : Boolean) is
    begin
-      Lib.Synchronization.Seize (P.Global_Data_Mutex);
+      Synchronization.Seize (P.Global_Data_Mutex);
       if To_Read then
          P.Secondary_Read := False;
       end if;
       if To_Transmit then
          P.Secondary_Transmit := False;
       end if;
-      Lib.Synchronization.Release (P.Global_Data_Mutex);
+      Synchronization.Release (P.Global_Data_Mutex);
    end Stop_Secondary;
 
    procedure IO_Control
@@ -397,7 +397,7 @@ package body IPC.PTY is
    end IO_Control;
    ----------------------------------------------------------------------------
    procedure Read_From_End
-      (End_Mutex   : access Lib.Synchronization.Mutex;
+      (End_Mutex   : access Synchronization.Mutex;
        Inner_Len   : access Data_Length;
        Inner_Data  : access TTY_Data;
        Is_Blocking : Boolean;
@@ -415,17 +415,17 @@ package body IPC.PTY is
       if Is_Blocking then
          loop
             if Inner_Len.all /= 0 then
-               Lib.Synchronization.Seize (End_Mutex.all);
+               Synchronization.Seize (End_Mutex.all);
                exit when Inner_Len.all /= 0;
-               Lib.Synchronization.Release (End_Mutex.all);
+               Synchronization.Release (End_Mutex.all);
             end if;
             Scheduler.Yield_If_Able;
          end loop;
       else
-         Lib.Synchronization.Seize (End_Mutex.all);
+         Synchronization.Seize (End_Mutex.all);
          if Inner_Len.all = 0 then
             Ret_Count := 0;
-            Lib.Synchronization.Release (End_Mutex.all);
+            Synchronization.Release (End_Mutex.all);
             return;
          end if;
       end if;
@@ -452,11 +452,11 @@ package body IPC.PTY is
          end if;
       end loop;
 
-      Lib.Synchronization.Release (End_Mutex.all);
+      Synchronization.Release (End_Mutex.all);
    end Read_From_End;
 
    procedure Write_To_End
-      (End_Mutex     : access Lib.Synchronization.Mutex;
+      (End_Mutex     : access Synchronization.Mutex;
        Inner_Len     : access Data_Length;
        Inner_Data    : access TTY_Data;
        Is_Blocking   : Boolean;
@@ -537,17 +537,17 @@ package body IPC.PTY is
       if Is_Blocking then
          loop
             if Inner_Len.all /= Inner_Data'Length then
-               Lib.Synchronization.Seize (End_Mutex.all);
+               Synchronization.Seize (End_Mutex.all);
                exit when Inner_Len.all /= Inner_Data'Length;
-               Lib.Synchronization.Release (End_Mutex.all);
+               Synchronization.Release (End_Mutex.all);
             end if;
             Scheduler.Yield_If_Able;
          end loop;
       else
-         Lib.Synchronization.Seize (End_Mutex.all);
+         Synchronization.Seize (End_Mutex.all);
          if Inner_Len.all = Data'Length then
             Ret_Count := 0;
-            Lib.Synchronization.Release (End_Mutex.all);
+            Synchronization.Release (End_Mutex.all);
             return;
          end if;
       end if;
@@ -569,7 +569,7 @@ package body IPC.PTY is
       Inner_Data (Inner_Len.all + 1 .. Final) :=
          Data (Data'First .. Data'First + Ret_Count - 1);
       Inner_Len.all := Final;
-      Lib.Synchronization.Release (End_Mutex.all);
+      Synchronization.Release (End_Mutex.all);
    end Write_To_End;
    ----------------------------------------------------------------------------
    procedure Dev_Read

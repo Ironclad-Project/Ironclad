@@ -1,4 +1,4 @@
---  lib-panic.adb: For when recovering is not an option!
+--  panic.adb: For when recovering is not an option!
 --  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -17,9 +17,9 @@
 with Arch.Hooks;
 with Arch.Snippets;
 with Config;
-with Lib.Synchronization;
+with Synchronization;
 
-package body Lib.Panic with
+package body Panic with
    Refined_State => (Panic_State => Panic_Mutex)
 is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
@@ -87,4 +87,4 @@ is
           N2 & " " & V2'Image & " " &
           N3 & " " & V3'Image);
    end Print_Triple;
-end Lib.Panic;
+end Panic;

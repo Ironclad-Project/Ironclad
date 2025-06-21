@@ -14,9 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Messages;
-with Lib.Panic;
-with Lib.Alignment;
+with Messages;
+with Panic;
+with Alignment;
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
 with Ada.Characters.Latin_1;
@@ -74,12 +74,12 @@ package body VFS.EXT with SPARK_Mode => Off is
          Sup.Mounts_Since_Check > Sup.Max_Mounts_Since_Check or
          (Sup.RO_If_Not_Features and RO_Binary_Trees) /= 0;
       if Is_RO then
-         Lib.Messages.Put_Line ("ext will be mounted RO, consider an fsck");
+         Messages.Put_Line ("ext will be mounted RO, consider an fsck");
       end if;
 
       --  Commit to mounting.
       Data := new EXT_Data'
-         (Mutex         => Lib.Synchronization.Unlocked_RW_Lock,
+         (Mutex         => Synchronization.Unlocked_RW_Lock,
           Handle        => Handle,
           Super         => Sup,
           Is_Read_Only  => Is_RO,
@@ -113,14 +113,14 @@ package body VFS.EXT with SPARK_Mode => Off is
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
-      Lib.Synchronization.Seize_Writer (Data.Mutex);
+      Synchronization.Seize_Writer (Data.Mutex);
       Data.Is_Read_Only := Do_Read_Only;
       Data.Do_Relatime  := Access_Policy = Relative_Update;
-      Lib.Synchronization.Release_Writer (Data.Mutex);
+      Synchronization.Release_Writer (Data.Mutex);
       Success := True;
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release_Writer (Data.Mutex);
+         Synchronization.Release_Writer (Data.Mutex);
          Success := False;
    end Remount;
 
@@ -128,7 +128,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Data    : EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
       Success : Boolean;
    begin
-      Lib.Synchronization.Seize_Writer (Data.Mutex);
+      Synchronization.Seize_Writer (Data.Mutex);
 
       if not Data.Is_Read_Only and
          Data.Super.Mounts_Since_Check /= Unsigned_16'Last
@@ -155,49 +155,49 @@ package body VFS.EXT with SPARK_Mode => Off is
    procedure Get_Block_Size (FS : System.Address; Size : out Unsigned_64) is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
-      Lib.Synchronization.Seize_Reader (Data.Mutex);
+      Synchronization.Seize_Reader (Data.Mutex);
       Size := Unsigned_64 (Data.Block_Size);
-      Lib.Synchronization.Release_Reader (Data.Mutex);
+      Synchronization.Release_Reader (Data.Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release_Reader (Data.Mutex);
+         Synchronization.Release_Reader (Data.Mutex);
          Size := 0;
    end Get_Block_Size;
 
    procedure Get_Fragment_Size (FS : System.Address; Size : out Unsigned_64) is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
-      Lib.Synchronization.Seize_Reader (Data.Mutex);
+      Synchronization.Seize_Reader (Data.Mutex);
       Size := Unsigned_64 (Data.Fragment_Size);
-      Lib.Synchronization.Release_Reader (Data.Mutex);
+      Synchronization.Release_Reader (Data.Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release_Reader (Data.Mutex);
+         Synchronization.Release_Reader (Data.Mutex);
          Size := 0;
    end Get_Fragment_Size;
 
    procedure Get_Size (FS : System.Address; Size : out Unsigned_64) is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
-      Lib.Synchronization.Seize_Reader (Data.Mutex);
+      Synchronization.Seize_Reader (Data.Mutex);
       Size := Unsigned_64 (Data.Super.Block_Count *
          Data.Block_Size / Data.Fragment_Size);
-      Lib.Synchronization.Release_Reader (Data.Mutex);
+      Synchronization.Release_Reader (Data.Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release_Reader (Data.Mutex);
+         Synchronization.Release_Reader (Data.Mutex);
          Size := 0;
    end Get_Size;
 
    procedure Get_Inode_Count (FS : System.Address; Count : out Unsigned_64) is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
-      Lib.Synchronization.Seize_Reader (Data.Mutex);
+      Synchronization.Seize_Reader (Data.Mutex);
       Count := Unsigned_64 (Data.Super.Inode_Count);
-      Lib.Synchronization.Release_Reader (Data.Mutex);
+      Synchronization.Release_Reader (Data.Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release_Reader (Data.Mutex);
+         Synchronization.Release_Reader (Data.Mutex);
          Count := 0;
    end Get_Inode_Count;
 
@@ -208,13 +208,13 @@ package body VFS.EXT with SPARK_Mode => Off is
    is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
-      Lib.Synchronization.Seize_Reader (Data.Mutex);
+      Synchronization.Seize_Reader (Data.Mutex);
       Free_Blocks := Unsigned_64 (Data.Super.Unallocated_Block_Count);
       Free_Unprivileged := Unsigned_64 (Data.Super.Unallocated_Block_Count);
-      Lib.Synchronization.Release_Reader (Data.Mutex);
+      Synchronization.Release_Reader (Data.Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release_Reader (Data.Mutex);
+         Synchronization.Release_Reader (Data.Mutex);
          Free_Blocks        := 0;
          Free_Unprivileged := 0;
    end Get_Free_Blocks;
@@ -226,13 +226,13 @@ package body VFS.EXT with SPARK_Mode => Off is
    is
       Data  : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
-      Lib.Synchronization.Seize_Reader (Data.Mutex);
+      Synchronization.Seize_Reader (Data.Mutex);
       Free_Inodes := Unsigned_64 (Data.Super.Unallocated_Inode_Count);
       Free_Unprivileged := Unsigned_64 (Data.Super.Unallocated_Inode_Count);
-      Lib.Synchronization.Release_Reader (Data.Mutex);
+      Synchronization.Release_Reader (Data.Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release_Reader (Data.Mutex);
+         Synchronization.Release_Reader (Data.Mutex);
          Free_Inodes        := 0;
          Free_Unprivileged := 0;
    end Get_Free_Inodes;
@@ -265,7 +265,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Temp                       : Natural;
       Success                    : Boolean;
    begin
-      Lib.Synchronization.Seize_Writer (Data.Mutex);
+      Synchronization.Seize_Writer (Data.Mutex);
 
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
@@ -446,7 +446,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Status := (if Success then FS_Success else FS_IO_Failure);
 
    <<Cleanup>>
-      Lib.Synchronization.Release_Writer (Data.Mutex);
+      Synchronization.Release_Writer (Data.Mutex);
       Free (Target_Inode);
       Free (Parent_Inode);
       Free (Last_Component);
@@ -469,7 +469,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       pragma Unreferenced (User);
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
-      Lib.Synchronization.Seize_Writer (Data.Mutex);
+      Synchronization.Seize_Writer (Data.Mutex);
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
       elsif Path'Length = 0 or Target'Length = 0 then
@@ -477,7 +477,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       else
          Status := FS_Not_Supported;
       end if;
-      Lib.Synchronization.Release_Writer (Data.Mutex);
+      Synchronization.Release_Writer (Data.Mutex);
    exception
       when Constraint_Error =>
          Status := FS_IO_Failure;
@@ -498,7 +498,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Path_Inode, Target_Inode, Parent_Inode : Inode_Acc := new Inode;
       Success                                : Boolean;
    begin
-      Lib.Synchronization.Seize_Writer (Data.Mutex);
+      Synchronization.Seize_Writer (Data.Mutex);
 
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
@@ -585,7 +585,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Status := (if Success then FS_Success else FS_IO_Failure);
 
    <<Cleanup>>
-      Lib.Synchronization.Release_Writer (Data.Mutex);
+      Synchronization.Release_Writer (Data.Mutex);
       Free (Path_Inode);
       Free (Target_Inode);
       Free (Parent_Inode);
@@ -614,7 +614,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Target_Parent_Size                       : Unsigned_64;
       Success1, Success2                       : Boolean;
    begin
-      Lib.Synchronization.Seize_Writer (Data.Mutex);
+      Synchronization.Seize_Writer (Data.Mutex);
 
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
@@ -708,7 +708,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Status := (if Success1 then FS_Success else FS_IO_Failure);
 
    <<Cleanup>>
-      Lib.Synchronization.Release_Writer (Data.Mutex);
+      Synchronization.Release_Writer (Data.Mutex);
       Free (Source_Inode);
       Free (Target_Inode);
       Free (Source_Parent_Inode);
@@ -735,7 +735,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Curr_Index, Next_Index   : Unsigned_64 := 0;
       Entity                   : Directory_Entity;
    begin
-      Lib.Synchronization.Seize_Writer (Data.Mutex);
+      Synchronization.Seize_Writer (Data.Mutex);
 
       if Data.Is_Read_Only then
          Status := FS_RO_Failure;
@@ -803,7 +803,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Status := (if Success then FS_Success else FS_IO_Failure);
 
    <<Cleanup>>
-      Lib.Synchronization.Release_Writer (Data.Mutex);
+      Synchronization.Release_Writer (Data.Mutex);
       Free (Path_Inode);
       Free (Parent_Inode);
       Free (Last_Component);
@@ -828,7 +828,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Entity        : Directory_Entity;
       Succ          : Boolean;
    begin
-      Lib.Synchronization.Seize_Reader (FS.Mutex);
+      Synchronization.Seize_Reader (FS.Mutex);
 
       Ret_Count := 0;
       Success   := FS_Success;
@@ -876,7 +876,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       end loop;
 
    <<Cleanup>>
-      Lib.Synchronization.Release_Reader (FS.Mutex);
+      Synchronization.Release_Reader (FS.Mutex);
       Free (Fetched_Inode);
    exception
       when Constraint_Error =>
@@ -895,7 +895,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Fetched_Inode : Inode_Acc := new Inode;
       Succ          : Boolean;
    begin
-      Lib.Synchronization.Seize_Reader (FS.Mutex);
+      Synchronization.Seize_Reader (FS.Mutex);
       Ret_Count := 0;
       RW_Inode
          (Data            => FS,
@@ -919,7 +919,7 @@ package body VFS.EXT with SPARK_Mode => Off is
          Success   := FS_Invalid_Value;
       end if;
 
-      Lib.Synchronization.Release_Reader (FS.Mutex);
+      Synchronization.Release_Reader (FS.Mutex);
       Free (Fetched_Inode);
    exception
       when Constraint_Error =>
@@ -941,7 +941,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Fetched_Inode : Inode_Acc := new Inode;
       Succ : Boolean;
    begin
-      Lib.Synchronization.Seize_Reader (FS.Mutex);
+      Synchronization.Seize_Reader (FS.Mutex);
 
       Ret_Count := 0;
       RW_Inode
@@ -974,7 +974,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success := (if Succ then FS_Success else FS_IO_Failure);
 
    <<Cleanup>>
-      Lib.Synchronization.Release_Reader (FS.Mutex);
+      Synchronization.Release_Reader (FS.Mutex);
       Free (Fetched_Inode);
    exception
       when Constraint_Error =>
@@ -995,7 +995,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Fetched_Inode : Inode_Acc := new Inode;
       Succ : Boolean;
    begin
-      Lib.Synchronization.Seize_Writer (FS.Mutex);
+      Synchronization.Seize_Writer (FS.Mutex);
 
       Ret_Count := 0;
       if FS.Is_Read_Only then
@@ -1034,7 +1034,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success := (if Succ then FS_Success else FS_IO_Failure);
 
    <<Cleanup>>
-      Lib.Synchronization.Release_Writer (FS.Mutex);
+      Synchronization.Release_Writer (FS.Mutex);
       Free (Fetched_Inode);
    exception
       when Constraint_Error =>
@@ -1048,7 +1048,7 @@ package body VFS.EXT with SPARK_Mode => Off is
        S       : out File_Stat;
        Success : out FS_Status)
    is
-      package Align is new Lib.Alignment (Unsigned_64);
+      package Align is new Alignment (Unsigned_64);
       FS   : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
       Blk  : Unsigned_64;
       Size : Unsigned_64;
@@ -1056,7 +1056,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Succ : Boolean;
    begin
       Blk := Unsigned_64 (Get_Block_Size (FS.Handle));
-      Lib.Synchronization.Seize_Reader (FS.Mutex);
+      Synchronization.Seize_Reader (FS.Mutex);
 
       RW_Inode
          (Data            => FS,
@@ -1086,7 +1086,7 @@ package body VFS.EXT with SPARK_Mode => Off is
          Success := FS_IO_Failure;
       end if;
 
-      Lib.Synchronization.Release_Reader (FS.Mutex);
+      Synchronization.Release_Reader (FS.Mutex);
       Free (Inod);
    exception
       when Constraint_Error =>
@@ -1104,7 +1104,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Fetched_Size : Unsigned_64;
       Success      : Boolean;
    begin
-      Lib.Synchronization.Seize_Writer (FS.Mutex);
+      Synchronization.Seize_Writer (FS.Mutex);
 
       if FS.Is_Read_Only then
          Status := FS_RO_Failure;
@@ -1160,7 +1160,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Status := (if Success then FS_Success else FS_IO_Failure);
 
    <<Cleanup>>
-      Lib.Synchronization.Release_Writer (FS.Mutex);
+      Synchronization.Release_Writer (FS.Mutex);
       Free (Fetched);
    exception
       when Constraint_Error =>
@@ -1182,7 +1182,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success : Boolean;
       Flags   : Unsigned_32 with Import, Address => Arg;
    begin
-      Lib.Synchronization.Seize_Writer (FS.Mutex);
+      Synchronization.Seize_Writer (FS.Mutex);
 
       if FS.Is_Read_Only then
          Status := FS_RO_Failure;
@@ -1217,7 +1217,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
    <<Cleanup>>
-      Lib.Synchronization.Release_Writer (FS.Mutex);
+      Synchronization.Release_Writer (FS.Mutex);
       Free (Inod);
    exception
       when Constraint_Error =>
@@ -1235,7 +1235,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success : Boolean;
       Kind     : File_Type;
    begin
-      Lib.Synchronization.Seize_Writer (FS.Mutex);
+      Synchronization.Seize_Writer (FS.Mutex);
 
       if FS.Is_Read_Only then
          Status := FS_RO_Failure;
@@ -1263,7 +1263,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
    <<Cleanup>>
-      Lib.Synchronization.Release_Writer (FS.Mutex);
+      Synchronization.Release_Writer (FS.Mutex);
       Free (Inod);
    exception
       when Constraint_Error =>
@@ -1281,7 +1281,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Inod    : Inode_Acc := new Inode;
       Success : Boolean;
    begin
-      Lib.Synchronization.Seize_Writer (FS.Mutex);
+      Synchronization.Seize_Writer (FS.Mutex);
 
       if FS.Is_Read_Only then
          Status := FS_RO_Failure;
@@ -1309,7 +1309,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
    <<Cleanup>>
-      Lib.Synchronization.Release_Writer (FS.Mutex);
+      Synchronization.Release_Writer (FS.Mutex);
       Free (Inod);
    exception
       when Constraint_Error =>
@@ -1334,7 +1334,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       MS      : Unsigned_64 renames Modify_Seconds;
       Success : Boolean;
    begin
-      Lib.Synchronization.Seize_Writer (FS.Mutex);
+      Synchronization.Seize_Writer (FS.Mutex);
 
       if FS.Is_Read_Only then
          Status := FS_RO_Failure;
@@ -1362,7 +1362,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
 
    <<Cleanup>>
-      Lib.Synchronization.Release_Writer (FS.Mutex);
+      Synchronization.Release_Writer (FS.Mutex);
       Free (Inod);
    exception
       when Constraint_Error =>
@@ -2688,7 +2688,7 @@ package body VFS.EXT with SPARK_Mode => Off is
          end;
       end loop;
 
-      Lib.Messages.Put_Line ("We dont support growing directory inodes");
+      Messages.Put_Line ("We dont support growing directory inodes");
       Success := False;
 
    <<Cleanup>>
@@ -2871,16 +2871,16 @@ package body VFS.EXT with SPARK_Mode => Off is
    begin
       case Data.Super.Error_Policy is
          when Policy_Ignore =>
-            Lib.Messages.Put_Line (Message);
+            Messages.Put_Line (Message);
          when Policy_Remount_RO | Policy_Panic =>
-            Lib.Messages.Put_Line (Message);
+            Messages.Put_Line (Message);
             Data.Is_Read_Only := True;
          when others =>
-            Lib.Panic.Hard_Panic ("ext is dead, and we killed it");
+            Panic.Hard_Panic ("ext is dead, and we killed it");
       end case;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception while acting on ext policy");
+         Panic.Hard_Panic ("Exception while acting on ext policy");
    end Act_On_Policy;
 
    function Check_User_Access

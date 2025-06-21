@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with Lib.Synchronization; use Lib.Synchronization;
+with Synchronization; use Synchronization;
 
 package Networking is
    --  Networking types.

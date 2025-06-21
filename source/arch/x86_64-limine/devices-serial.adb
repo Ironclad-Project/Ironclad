@@ -41,7 +41,7 @@ package body Devices.Serial is
             if (I = 1) then
                Data := COM1'Access;
             else
-               Data := new COM_Root'(Lib.Synchronization.Unlocked_Semaphore,
+               Data := new COM_Root'(Synchronization.Unlocked_Semaphore,
                   COM_Ports (I), Default_Baud);
             end if;
             Device_Name (7) := Character'Val (I + Character'Pos ('0'));
@@ -123,7 +123,7 @@ package body Devices.Serial is
       COM : COM_Root with Import, Address => Key;
    begin
       Ret_Count := 0;
-      Lib.Synchronization.Seize (COM.Mutex);
+      Synchronization.Seize (COM.Mutex);
       for I of Data loop
          while not Can_Receive (COM.Port) loop
             Arch.Snippets.Pause;
@@ -131,7 +131,7 @@ package body Devices.Serial is
          I := Arch.Snippets.Port_In (COM.Port);
          Ret_Count := Ret_Count + 1;
       end loop;
-      Lib.Synchronization.Release (COM.Mutex);
+      Synchronization.Release (COM.Mutex);
       Success := Dev_Success;
    exception
       when Constraint_Error =>
@@ -152,7 +152,7 @@ package body Devices.Serial is
       COM : COM_Root with Import, Address => Key;
    begin
       Ret_Count := 0;
-      Lib.Synchronization.Seize (COM.Mutex);
+      Synchronization.Seize (COM.Mutex);
       for I of Data loop
          while not Can_Transmit (COM.Port) loop
             Arch.Snippets.Pause;
@@ -160,7 +160,7 @@ package body Devices.Serial is
          Arch.Snippets.Port_Out (COM.Port, I);
          Ret_Count := Ret_Count + 1;
       end loop;
-      Lib.Synchronization.Release (COM.Mutex);
+      Synchronization.Release (COM.Mutex);
       Ret_Count := Data'Length;
       Success   := Dev_Success;
    exception
@@ -183,7 +183,7 @@ package body Devices.Serial is
       Has_Extra := False;
       Extra     := 0;
 
-      Lib.Synchronization.Seize (COM.Mutex);
+      Synchronization.Seize (COM.Mutex);
       case Request is
          when TermIOs.TCGETS =>
             Returned :=
@@ -202,7 +202,7 @@ package body Devices.Serial is
          when others =>
             Success := False;
       end case;
-      Lib.Synchronization.Release (COM.Mutex);
+      Synchronization.Release (COM.Mutex);
    end IO_Control;
 
    procedure Poll
@@ -213,11 +213,11 @@ package body Devices.Serial is
    is
       COM : COM_Root with Import, Address => Data;
    begin
-      Lib.Synchronization.Seize (COM.Mutex);
+      Synchronization.Seize (COM.Mutex);
       Can_Write := Can_Transmit (COM.Port);
       Can_Read  := Can_Receive  (COM.Port);
       Is_Error  := False;
-      Lib.Synchronization.Release (COM.Mutex);
+      Synchronization.Release (COM.Mutex);
    end Poll;
    ----------------------------------------------------------------------------
    function Can_Receive (Port : Unsigned_16) return Boolean is

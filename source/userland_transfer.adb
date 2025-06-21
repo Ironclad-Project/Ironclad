@@ -1,4 +1,4 @@
---  lib-userland_transfer.adb: Userland copy to/from userland.
+--  userland_transfer.adb: Userland copy to/from userland.
 --  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -16,10 +16,10 @@
 
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Snippets;
-with Lib.Alignment;
+with Alignment;
 
-package body Lib.Userland_Transfer is
-   package A is new Lib.Alignment (Integer_Address);
+package body Userland_Transfer is
+   package A is new Alignment (Integer_Address);
 
    procedure Take_From_Userland
       (Map     : Arch.MMU.Page_Table_Acc;
@@ -104,4 +104,4 @@ package body Lib.Userland_Transfer is
       when Constraint_Error =>
          Success := False;
    end Paste_Into_Userland;
-end Lib.Userland_Transfer;
+end Userland_Transfer;

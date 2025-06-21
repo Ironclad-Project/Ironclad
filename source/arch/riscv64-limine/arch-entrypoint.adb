@@ -17,10 +17,10 @@
 with Interfaces; use Interfaces;
 with Devices.UART;
 with Arch.Limine;
-with Lib.Messages; use Lib.Messages;
+with Messages; use Messages;
 with Memory.Physical;
 with Arch.MMU;
-with Lib.Panic;
+with Panic;
 with Arch.DTB;
 with Arch.CPU;
 with Main;
@@ -51,7 +51,7 @@ package body Arch.Entrypoint is
 
       --  Initialize device discovery facilities.
       if not Arch.DTB.Init then
-         Lib.Panic.Hard_Panic ("No DTB was found!");
+         Panic.Hard_Panic ("No DTB was found!");
       end if;
 
       --  Translate the memory map.
@@ -82,17 +82,17 @@ package body Arch.Entrypoint is
          --  Initialize the allocators and MMU.
          Memory.Physical.Init_Allocator (Memmap);
          if not Arch.MMU.Init (Memmap) then
-            Lib.Panic.Hard_Panic ("The VMM could not be initialized");
+            Panic.Hard_Panic ("The VMM could not be initialized");
          end if;
 
          --  Enable dmesg buffers.
-         Lib.Messages.Enable_Logging;
+         Messages.Enable_Logging;
 
          --  Print the memory map, it is useful at times.
-         Lib.Messages.Put_Line ("Physical memory map:");
+         Messages.Put_Line ("Physical memory map:");
          for E of Memmap loop
             Addr := E.Start + E.Length;
-            Lib.Messages.Put_Line
+            Messages.Put_Line
                ("[" & E.Start'Image & " - " & Addr'Image & "] " &
                 Boot_Memory_Type'Image (E.MemType));
          end loop;

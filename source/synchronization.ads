@@ -1,4 +1,4 @@
---  lib-synchronization.ads: Specification of the synchronization library.
+--  synchronization.ads: Specification of the synchronization library.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 with Interfaces; use Interfaces;
 with System;     use System;
 
-package Lib.Synchronization is
+package Synchronization is
    --  A simple binary semaphore for critical sections only.
    --
    --  Interrupt control is implemented with it, as to improve responsiveness,
@@ -114,4 +114,4 @@ private
    ----------------------------------------------------------------------------
    function Caller_Address (Depth : Natural) return System.Address;
    pragma Import (Intrinsic, Caller_Address, "__builtin_return_address");
-end Lib.Synchronization;
+end Synchronization;

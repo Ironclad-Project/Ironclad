@@ -25,7 +25,7 @@ with Arch.Snippets; use Arch.Snippets;
 with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
 with Arch.Interrupts;
-with Lib.Messages;
+with Messages;
 with Devices.Ramdev;
 with Arch.Limine;
 
@@ -131,13 +131,13 @@ package body Arch.Hooks is
             end loop;
 
             if not Devices.Ramdev.Init (Translated) then
-               Lib.Messages.Put_Line ("Could not load RAM files");
+               Messages.Put_Line ("Could not load RAM files");
             end if;
          end;
       end if;
    exception
       when Constraint_Error =>
-         Lib.Messages.Put_Line ("Errored while loading RAM files");
+         Messages.Put_Line ("Errored while loading RAM files");
    end Register_RAM_Files;
 
    procedure Get_CPU_Model (Model : out String) is

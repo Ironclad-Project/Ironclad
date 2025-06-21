@@ -1,4 +1,4 @@
---  lib-time.adb: Time-related functions.
+--  time.adb: Time-related functions.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package body Lib.Time is
+package body Time is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    procedure Normalize (Seconds, Nanoseconds : in out Unsigned_64) is
@@ -89,4 +89,4 @@ package body Lib.Time is
              (3 * ((Y + 4900 + (M - 14) / 12) / 100)) / 4
              + D - 32075;
    end Get_Julian_Date;
-end Lib.Time;
+end Time;

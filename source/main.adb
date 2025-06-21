@@ -15,9 +15,9 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Entrypoint;
-with Lib.Runtime;
+with Runtime;
 pragma Unreferenced (Arch.Entrypoint);
-pragma Unreferenced (Lib.Runtime);
+pragma Unreferenced (Runtime);
 
 with Arch;
 with Arch.Hooks;
@@ -25,9 +25,9 @@ with Arch.PCI;
 with Arch.ACPI;
 with Devices; use Devices;
 with VFS; use VFS;
-with Lib.Cmdline;
-with Lib.Messages;
-with Lib.Panic;
+with Cmdline;
+with Messages;
+with Panic;
 with Userland.Loader;
 with Userland.Process; use Userland.Process;
 with Userland;
@@ -39,7 +39,7 @@ with Config;
 procedure Main is
    pragma SPARK_Mode (Off);
 
-   package CL renames Lib.Cmdline;
+   package CL renames Cmdline;
    Init_Path   : Userland.String_Acc;
    Init_Args   : Userland.Argument_Arr_Acc;
    Init_Env    : Userland.Environment_Arr (1 .. 0);
@@ -54,8 +54,8 @@ procedure Main is
    Init_Stdin  : constant String := "null";
    Init_Stdout : constant String := "console";
 begin
-   Lib.Messages.Put_Line (Config.Name & " " & Config.Version);
-   Lib.Messages.Put_Line ("Please report bugs at " & Config.Bug_Site);
+   Messages.Put_Line (Config.Name & " " & Config.Version);
+   Messages.Put_Line ("Please report bugs at " & Config.Bug_Site);
 
    --  Initialize PCI if present.
    if Arch.PCI.Is_Supported then
@@ -66,7 +66,7 @@ begin
    if Arch.ACPI.Is_Supported then
       Arch.ACPI.Initialize (Found);
       if not Found then
-         Lib.Panic.Hard_Panic ("Failed to initialize ACPI");
+         Panic.Hard_Panic ("Failed to initialize ACPI");
       end if;
    end if;
 
@@ -83,7 +83,7 @@ begin
    --  Initialize the scheduler.
    Scheduler.Init (Found);
    if not Found then
-      Lib.Panic.Hard_Panic ("Could not initialize the scheduler");
+      Panic.Hard_Panic ("Could not initialize the scheduler");
    end if;
 
    --  Before loading init, check if the user wants us to enable thingies.
@@ -91,32 +91,32 @@ begin
       Cmdline : String renames Arch.Cmdline (1 .. Arch.Cmdline_Len);
    begin
       if CL.Is_Key_Present (Cmdline, CL.No_Program_ASLR) then
-         Lib.Messages.Put_Line ("Disabled loader ASLR");
+         Messages.Put_Line ("Disabled loader ASLR");
          Userland.Loader.Disable_ASLR;
       end if;
       if CL.Is_Key_Present (Cmdline, CL.No_Location_ASLR) then
-         Lib.Messages.Put_Line ("Disabled process ASLR");
+         Messages.Put_Line ("Disabled process ASLR");
          Userland.Process.Disable_ASLR;
       end if;
 
       --  Mount a root if specified.
       CL.Get_Key_Value (Cmdline, CL.Root_UUID_Key, Value, Found, Value_Len);
       if Found and Value_Len = Devices.UUID_String'Length then
-         Lib.Messages.Put_Line ("Searching root " & Value (1 .. Value_Len));
+         Messages.Put_Line ("Searching root " & Value (1 .. Value_Len));
          Init_Dev := Devices.Fetch_UUID (Value (1 .. Value_Len));
          if Init_Dev /= Devices.Error_Handle then
             Devices.Fetch_Name (Init_Dev, Value, Value_Len);
          else
-            Lib.Messages.Put_Line ("Failed to find " & Value (1 .. Value_Len));
+            Messages.Put_Line ("Failed to find " & Value (1 .. Value_Len));
          end if;
       else
          CL.Get_Key_Value (Cmdline, CL.Root_Key, Value, Found, Value_Len);
       end if;
       if Found and Value_Len /= 0 then
-         Lib.Messages.Put_Line ("Mounting root " & Value (1 .. Value_Len));
+         Messages.Put_Line ("Mounting root " & Value (1 .. Value_Len));
          Mount (Value (1 .. Value_Len), "/", False, Relative_Update, Success);
          if Success /= FS_Success then
-            Lib.Panic.Hard_Panic
+            Panic.Hard_Panic
                ("Failed to mount '" & Value (1 .. Value_Len) & "' (" &
                 VFS.FS_Status'Image (Success) & ")");
          end if;
@@ -127,7 +127,7 @@ begin
       if Found and Value_Len /= 0 then
          Init_Path := new String'(Value (1 .. Value_Len));
       else
-         Lib.Panic.Hard_Panic ("No init was found");
+         Panic.Hard_Panic ("No init was found");
       end if;
 
       --  Prepare arguments.
@@ -171,17 +171,17 @@ begin
          <<END_PARSE>>
          end;
 
-         Lib.Messages.Put_Line
+         Messages.Put_Line
             ("Booting init: " & Init_Path.all & " " & Value (1 .. Value_Len));
       else
          Init_Args := new Userland.Argument_Arr'(1 => Init_Path);
-         Lib.Messages.Put_Line ("Booting init: " & Init_Args.all (1).all);
+         Messages.Put_Line ("Booting init: " & Init_Args.all (1).all);
       end if;
 
       --  Mount /dev.
       Mount ("zero", "/dev/", VFS.FS_DEV, False, Relative_Update, Success);
       if Success /= FS_Success then
-         Lib.Panic.Hard_Panic
+         Panic.Hard_Panic
             ("Failed to mount /dev (" & VFS.FS_Status'Image (Success) & ")");
       end if;
 
@@ -218,13 +218,13 @@ begin
 
                Userland.Process.Set_CWD (Init_PID, Init_FS, Init_Ino);
             else
-               Lib.Panic.Hard_Panic ("Could not start init");
+               Panic.Hard_Panic ("Could not start init");
             end if;
          else
-            Lib.Panic.Hard_Panic ("Init could not be opened");
+            Panic.Hard_Panic ("Init could not be opened");
          end if;
       else
-         Lib.Panic.Hard_Panic ("No init was specified");
+         Panic.Hard_Panic ("No init was specified");
       end if;
    end;
 
@@ -232,5 +232,5 @@ begin
    Scheduler.Idle_Core;
 exception
    when Constraint_Error =>
-      Lib.Panic.Hard_Panic ("Exception in freestanding main");
+      Panic.Hard_Panic ("Exception in freestanding main");
 end Main;

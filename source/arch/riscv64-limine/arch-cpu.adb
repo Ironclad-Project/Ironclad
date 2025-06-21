@@ -15,8 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System; use System;
-with Lib.Messages;
-with Lib.Panic;
+with Messages;
+with Panic;
 
 package body Arch.CPU with SPARK_Mode => Off is
    SMP_Request : Limine.SMP_Request :=
@@ -36,7 +36,7 @@ package body Arch.CPU with SPARK_Mode => Off is
    begin
       --  Check we got a limine answer at all.
       if SMP_Request.Base.Response = System.Null_Address then
-         Lib.Panic.Hard_Panic ("Limine SMP request needed");
+         Panic.Hard_Panic ("Limine SMP request needed");
       end if;
 
       --  Fetch info.
@@ -66,7 +66,7 @@ package body Arch.CPU with SPARK_Mode => Off is
    ----------------------------------------------------------------------------
    procedure Core_Bootstrap (Info : access Limine.RISCV64_SMP_CPU_Info) is
    begin
-      Lib.Messages.Put_Line ("Hello from core " & Info.Extra_Arg'Image);
+      Messages.Put_Line ("Hello from core " & Info.Extra_Arg'Image);
       Init_Common (Natural (Info.Extra_Arg), Info.Hart_ID);
    end Core_Bootstrap;
 

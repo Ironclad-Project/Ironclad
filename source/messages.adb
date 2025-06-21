@@ -1,4 +1,4 @@
---  lib-messages.adb: Utilities for reporting messages to the user.
+--  messages.adb: Utilities for reporting messages to the user.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@ with Ada.Characters.Latin_1;
 with Arch.Debug;
 with Interfaces; use Interfaces;
 
-package body Lib.Messages with
+package body Messages with
    Refined_State => [Message_State =>
       [Messages_Mutex, Curr_Entry, Small_Log_Buffer, Log_Ring_Buffer]]
 is
@@ -26,10 +26,10 @@ is
 
    procedure Enable_Logging is
    begin
-      Lib.Synchronization.Seize (Messages_Mutex);
+      Synchronization.Seize (Messages_Mutex);
       Log_Ring_Buffer := new Message_Buffer'[1 .. 100 => [others => ' ']];
       Log_Ring_Buffer (1 .. Small_Log_Buffer'Length) := Small_Log_Buffer;
-      Lib.Synchronization.Release (Messages_Mutex);
+      Synchronization.Release (Messages_Mutex);
    end Enable_Logging;
 
    procedure Put_Line (Message : String) is
@@ -58,7 +58,7 @@ is
    procedure Dump_Logs (Buffer : out String; Length : out Natural) is
       Idx : Natural := 0;
    begin
-      Lib.Synchronization.Seize (Messages_Mutex);
+      Synchronization.Seize (Messages_Mutex);
 
       for C of Buffer loop
          C := ' ';
@@ -75,7 +75,7 @@ is
          Idx := Idx + Max_Line;
       end loop;
 
-      Lib.Synchronization.Release (Messages_Mutex);
+      Synchronization.Release (Messages_Mutex);
    end Dump_Logs;
    ----------------------------------------------------------------------------
    procedure Get_Timestamp (Timestamp : out Timestamp_Str) is
@@ -98,7 +98,7 @@ is
       Final (12 .. 13) := ") ";
       Final (14 .. Message'Length + 13) := Message;
 
-      Lib.Synchronization.Seize (Messages_Mutex);
+      Synchronization.Seize (Messages_Mutex);
 
       if Log_Ring_Buffer /= null then
          Last_Idx := Log_Ring_Buffer'Last;
@@ -117,6 +117,6 @@ is
          Curr_Entry := 1;
       end if;
 
-      Lib.Synchronization.Release (Messages_Mutex);
+      Synchronization.Release (Messages_Mutex);
    end Add_To_Buffers;
-end Lib.Messages;
+end Messages;

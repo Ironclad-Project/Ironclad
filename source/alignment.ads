@@ -1,4 +1,4 @@
---  lib-alignment.ads: Generic alignment functions.
+--  alignment.ads: Generic alignment functions.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 
 generic
    type T is mod <>;
-package Lib.Alignment with Pure is
+package Alignment with Pure is
    --  This functions are meant for powers of 2, using this for non powers of
    --  two is bogus, and broken.
 
@@ -48,4 +48,4 @@ package Lib.Alignment with Pure is
    --  @param Bounds Boundary to align the memory range to. Ex. Page size.
    procedure Align_Memory_Range (Base, Length : in out T; Bounds : T)
          with Pre => Bounds /= 0 and (Bounds and (Bounds - 1)) = 0;
-end Lib.Alignment;
+end Alignment;

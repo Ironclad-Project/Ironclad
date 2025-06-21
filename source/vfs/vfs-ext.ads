@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
-with Lib.Synchronization;
+with Synchronization;
 
 package VFS.EXT is
    procedure Probe
@@ -366,7 +366,7 @@ private
    end record;
 
    type EXT_Data is record
-      Mutex                 : aliased Lib.Synchronization.Readers_Writer_Lock;
+      Mutex                 : aliased Synchronization.Readers_Writer_Lock;
       Handle                : Device_Handle;
       Super                 : Superblock;
       Is_Read_Only          : Boolean;

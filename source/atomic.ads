@@ -1,4 +1,4 @@
---  lib-atomic.ads: Atomic operations.
+--  atomic.ads: Atomic operations.
 --  Copyright (C) 2021 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 with System;
 with Interfaces; use Interfaces;
 
-package Lib.Atomic is
+package Atomic is
    --  Values from libgnat/s-atopri.ads for memory ordering.
    Mem_Relaxed : constant := 0; --  Implies no ordering constraints.
    Mem_Consume : constant := 1; --  Implemented right now as acquire.
@@ -65,4 +65,4 @@ package Lib.Atomic is
      (Pointer : System.Address;
       Model   : Mem_Model := Mem_Seq_Cst);
    pragma Import (Intrinsic, Atomic_Clear, "__atomic_clear");
-end Lib.Atomic;
+end Atomic;

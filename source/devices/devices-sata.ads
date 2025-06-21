@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Synchronization;
+with Synchronization;
 with Devices.Drive_Cache;
 
 package Devices.SATA with SPARK_Mode => Off is
@@ -363,7 +363,7 @@ private
    type SATA_Identify is array (1 .. 256) of Unsigned_16;
    type SATA_Identify_Acc is access all SATA_Identify;
    type SATA_Data is record
-      Mutex        : aliased Lib.Synchronization.Mutex;
+      Mutex        : aliased Synchronization.Mutex;
       FIS          : HBA_FIS_Acc;
       Command_Area : HBA_Command_Area_Acc;
       Command_TBLs : HBA_Command_TBL_Arr (1 .. Ports_Per_Controller);

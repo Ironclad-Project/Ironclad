@@ -23,7 +23,7 @@ with Memory; use Memory;
 with Userland.ELF; use Userland.ELF;
 with Scheduler; use Scheduler;
 with Userland.Memory_Locations;
-with Lib.Alignment;
+with Alignment;
 with Cryptography.Random;
 with Devices;
 with Userland.MAC; use Userland.MAC;
@@ -177,7 +177,7 @@ package body Userland.Loader is
        Proc        : PID;
        Success     : out Boolean)
    is
-      package Aln is new Lib.Alignment (Unsigned_64);
+      package Aln is new Alignment (Unsigned_64);
 
       Loaded_ELF, LD_ELF : ELF.Parsed_ELF;
       Entrypoint   : Virtual_Address;

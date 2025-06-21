@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces;              use Interfaces;
-with Lib.Panic;
+with Panic;
 with System;                  use System;
 with System.Machine_Code;     use System.Machine_Code;
 with Arch.APIC;
@@ -105,7 +105,7 @@ package body Arch.IDT is
       Load_IDT;
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception when loading IDT");
+         Panic.Hard_Panic ("Exception when loading IDT");
    end Init;
 
    procedure Load_IDT is

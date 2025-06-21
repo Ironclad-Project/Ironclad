@@ -34,7 +34,7 @@ package body IPC.Socket is
             case Kind is
                when Raw =>
                   return new Socket'
-                   (Mutex        => Lib.Synchronization.Unlocked_Mutex,
+                   (Mutex        => Synchronization.Unlocked_Mutex,
                     Dom          => IPv4,
                     Kind          => Raw,
                     IPv4_Cached_Address => [others => 0],
@@ -46,7 +46,7 @@ package body IPC.Socket is
             case Kind is
                when Raw =>
                   return new Socket'
-                   (Mutex        => Lib.Synchronization.Unlocked_Mutex,
+                   (Mutex        => Synchronization.Unlocked_Mutex,
                     Dom          => IPv6,
                     Kind          => Raw,
                     IPv6_Cached_Address => [others => 0],
@@ -58,7 +58,7 @@ package body IPC.Socket is
             case Kind is
                when Stream =>
                   return new Socket'
-                   (Mutex          => Lib.Synchronization.Unlocked_Mutex,
+                   (Mutex          => Synchronization.Unlocked_Mutex,
                     Dom            => UNIX,
                     Kind            => Stream,
                     Has_Credentials => False,
@@ -73,7 +73,7 @@ package body IPC.Socket is
                     Data_Length    => 0);
                when Datagram =>
                   return new Socket'
-                   (Mutex            => Lib.Synchronization.Unlocked_Mutex,
+                   (Mutex            => Synchronization.Unlocked_Mutex,
                     Dom              => UNIX,
                     Kind              => Datagram,
                     Has_Credentials => False,
@@ -101,7 +101,7 @@ package body IPC.Socket is
 
    procedure Close (To_Close : in out Socket_Acc) is
    begin
-      Lib.Synchronization.Seize (To_Close.Mutex);
+      Synchronization.Seize (To_Close.Mutex);
       case To_Close.Dom is
          when IPv4 | IPv6 =>
             null;
@@ -119,7 +119,7 @@ package body IPC.Socket is
        Is_Error  : out Boolean)
    is
    begin
-      Lib.Synchronization.Seize (Sock.Mutex);
+      Synchronization.Seize (Sock.Mutex);
       case Sock.Dom is
          when IPv4 | IPv6 =>
             Can_Read  := False;
@@ -129,7 +129,7 @@ package body IPC.Socket is
          when UNIX =>
             Inner_UNIX_Poll (Sock, Can_Read, Can_Write, Is_Broken, Is_Error);
       end case;
-      Lib.Synchronization.Release (Sock.Mutex);
+      Synchronization.Release (Sock.Mutex);
    end Poll;
 
    procedure Read
@@ -175,7 +175,7 @@ package body IPC.Socket is
        Success          : out Boolean)
    is
    begin
-      Lib.Synchronization.Seize (Sock.Mutex);
+      Synchronization.Seize (Sock.Mutex);
       case Sock.Dom is
          when IPv4 | IPv6 =>
             Success := False;
@@ -183,14 +183,14 @@ package body IPC.Socket is
             Success :=
                Inner_UNIX_Shutdown (Sock, Do_Receptions, Do_Transmissions);
       end case;
-      Lib.Synchronization.Release (Sock.Mutex);
+      Synchronization.Release (Sock.Mutex);
    end Shutdown;
 
    procedure Is_Listening (Sock : Socket_Acc; Is_Listening : out Boolean) is
    begin
-      Lib.Synchronization.Seize (Sock.Mutex);
+      Synchronization.Seize (Sock.Mutex);
       Is_Listening := Sock.Is_Listener;
-      Lib.Synchronization.Release (Sock.Mutex);
+      Synchronization.Release (Sock.Mutex);
    end Is_Listening;
 
    procedure Listen
@@ -200,9 +200,9 @@ package body IPC.Socket is
    is
       pragma Unreferenced (Backlog);
    begin
-      Lib.Synchronization.Seize (Sock.Mutex);
+      Synchronization.Seize (Sock.Mutex);
       Sock.Is_Listener := True;
-      Lib.Synchronization.Release (Sock.Mutex);
+      Synchronization.Release (Sock.Mutex);
       Success := True;
    end Listen;
 
@@ -215,7 +215,7 @@ package body IPC.Socket is
       Path : String (1 .. 0);
       Len  : Natural;
    begin
-      Lib.Synchronization.Seize (Sock.Mutex);
+      Synchronization.Seize (Sock.Mutex);
       case Sock.Dom is
          when IPv4 | IPv6 =>
             Result := null;
@@ -223,19 +223,19 @@ package body IPC.Socket is
             Accept_Connection
                (Sock, Is_Blocking, Path, Len, PID, UID, GID, Result);
       end case;
-      Lib.Synchronization.Release (Sock.Mutex);
+      Synchronization.Release (Sock.Mutex);
    end Accept_Connection;
 
    procedure Pipe_Socket (Sock : Socket_Acc; Result : out Socket_Acc) is
    begin
-      Lib.Synchronization.Seize (Sock.Mutex);
+      Synchronization.Seize (Sock.Mutex);
       case Sock.Dom is
          when IPv4 | IPv6 =>
             Result := null;
          when UNIX =>
             Direct_Connection (Sock, Result);
       end case;
-      Lib.Synchronization.Release (Sock.Mutex);
+      Synchronization.Release (Sock.Mutex);
    end Pipe_Socket;
    ----------------------------------------------------------------------------
    procedure Get_Bound
@@ -569,7 +569,7 @@ package body IPC.Socket is
       Length  := 0;
       Success := False;
 
-      Lib.Synchronization.Seize (UNIX_Bound_Mutex);
+      Synchronization.Seize (UNIX_Bound_Mutex);
       for Ent of UNIX_Bound_Sockets loop
          if Ent.Sock = Sock then
             Path (Path'First .. Path'First + Ent.Path_Len - 1) :=
@@ -579,7 +579,7 @@ package body IPC.Socket is
             exit;
          end if;
       end loop;
-      Lib.Synchronization.Release (UNIX_Bound_Mutex);
+      Synchronization.Release (UNIX_Bound_Mutex);
    end Get_Bound;
 
    procedure Get_Peer
@@ -593,7 +593,7 @@ package body IPC.Socket is
       Length  := 0;
       Success := False;
 
-      Lib.Synchronization.Seize (UNIX_Bound_Mutex);
+      Synchronization.Seize (UNIX_Bound_Mutex);
       for Ent of UNIX_Bound_Sockets loop
          if Ent.Sock = Sock.Established then
             if Path'Length >= Ent.Path_Len then
@@ -607,7 +607,7 @@ package body IPC.Socket is
             exit;
          end if;
       end loop;
-      Lib.Synchronization.Release (UNIX_Bound_Mutex);
+      Synchronization.Release (UNIX_Bound_Mutex);
    end Get_Peer;
 
    procedure Bind (Sock : Socket_Acc; Path : String; Success : out Boolean) is
@@ -618,7 +618,7 @@ package body IPC.Socket is
          return;
       end if;
 
-      Lib.Synchronization.Seize (UNIX_Bound_Mutex);
+      Synchronization.Seize (UNIX_Bound_Mutex);
 
       for Ent of UNIX_Bound_Sockets loop
          if Ent.Sock = Sock then
@@ -636,7 +636,7 @@ package body IPC.Socket is
       end loop;
 
    <<Cleanup>>
-      Lib.Synchronization.Release (UNIX_Bound_Mutex);
+      Synchronization.Release (UNIX_Bound_Mutex);
    end Bind;
 
    procedure Connect
@@ -649,7 +649,7 @@ package body IPC.Socket is
    is
       To_Connect : Socket_Acc;
    begin
-      Lib.Synchronization.Seize (UNIX_Bound_Mutex);
+      Synchronization.Seize (UNIX_Bound_Mutex);
 
       To_Connect := Get_Bound (Path);
       if To_Connect = null then
@@ -681,7 +681,7 @@ package body IPC.Socket is
       Success := True;
 
    <<End_Return>>
-      Lib.Synchronization.Release (UNIX_Bound_Mutex);
+      Synchronization.Release (UNIX_Bound_Mutex);
    end Connect;
 
    procedure Accept_Connection
@@ -698,7 +698,7 @@ package body IPC.Socket is
       Peer_Address_Length := 0;
       Result              := null;
 
-      Lib.Synchronization.Seize (Sock.Mutex);
+      Synchronization.Seize (Sock.Mutex);
 
       if Sock.Is_Listener then
          loop
@@ -724,7 +724,7 @@ package body IPC.Socket is
          end loop;
       end if;
 
-      Lib.Synchronization.Release (Sock.Mutex);
+      Synchronization.Release (Sock.Mutex);
    end Accept_Connection;
 
    procedure Direct_Connection (Sock : Socket_Acc; Result : out Socket_Acc) is
@@ -781,18 +781,18 @@ package body IPC.Socket is
       UID := 0;
       Success := Is_Bad_Type;
 
-      Lib.Synchronization.Seize (Sock.Mutex);
+      Synchronization.Seize (Sock.Mutex);
       if Sock.Pending_Accept /= null then
-         Lib.Synchronization.Seize (Sock.Pending_Accept.Mutex);
+         Synchronization.Seize (Sock.Pending_Accept.Mutex);
          if Sock.Pending_Accept.Has_Credentials then
             PID := Sock.Pending_Accept.Cred_PID;
             UID := Sock.Pending_Accept.Cred_UID;
             GID := Sock.Pending_Accept.Cred_GID;
             Success := Plain_Success;
          end if;
-         Lib.Synchronization.Release (Sock.Pending_Accept.Mutex);
+         Synchronization.Release (Sock.Pending_Accept.Mutex);
       end if;
-      Lib.Synchronization.Release (Sock.Mutex);
+      Synchronization.Release (Sock.Mutex);
    end Get_Peer_Credentials;
    ----------------------------------------------------------------------------
    procedure Inner_IPv4_Read
@@ -871,22 +871,22 @@ package body IPC.Socket is
 
    procedure Inner_UNIX_Close (To_Close : Socket_Acc) is
    begin
-      Lib.Synchronization.Seize (UNIX_Bound_Mutex);
+      Synchronization.Seize (UNIX_Bound_Mutex);
       for Ent of UNIX_Bound_Sockets loop
          if Ent.Sock = To_Close then
             Ent.Sock := null;
             exit;
          end if;
       end loop;
-      Lib.Synchronization.Release (UNIX_Bound_Mutex);
+      Synchronization.Release (UNIX_Bound_Mutex);
 
       if To_Close.Kind = Stream    and then
          not To_Close.Is_Listener and then
          To_Close.Established /= null
       then
-         Lib.Synchronization.Seize (To_Close.Established.Mutex);
+         Synchronization.Seize (To_Close.Established.Mutex);
          To_Close.Established.Pending_Accept := null;
-         Lib.Synchronization.Release (To_Close.Established.Mutex);
+         Synchronization.Release (To_Close.Established.Mutex);
       end if;
    end Inner_UNIX_Close;
 
@@ -902,13 +902,13 @@ package body IPC.Socket is
    <<Retry>>
       if Is_Blocking then
          loop
-            Lib.Synchronization.Seize (Sock.Mutex);
+            Synchronization.Seize (Sock.Mutex);
             exit when Sock.Data_Length /= 0;
-            Lib.Synchronization.Release (Sock.Mutex);
+            Synchronization.Release (Sock.Mutex);
             Scheduler.Yield_If_Able;
          end loop;
       else
-         Lib.Synchronization.Seize (Sock.Mutex);
+         Synchronization.Seize (Sock.Mutex);
       end if;
 
       case Sock.Kind is
@@ -920,7 +920,7 @@ package body IPC.Socket is
                goto Cleanup;
             elsif Sock.Data_Length = 0 then
                if Is_Blocking then
-                  Lib.Synchronization.Release (Sock.Mutex);
+                  Synchronization.Release (Sock.Mutex);
                   goto Retry;
                else
                   Data      := [others => 0];
@@ -965,7 +965,7 @@ package body IPC.Socket is
       end case;
 
    <<Cleanup>>
-      Lib.Synchronization.Release (Sock.Mutex);
+      Synchronization.Release (Sock.Mutex);
    end Inner_UNIX_Read;
 
    procedure Inner_UNIX_Write
@@ -989,21 +989,21 @@ package body IPC.Socket is
          <<Retry>>
             if Is_Blocking then
                loop
-                  Lib.Synchronization.Seize (Sock.Pending_Accept.Mutex);
+                  Synchronization.Seize (Sock.Pending_Accept.Mutex);
                   exit when Sock.Pending_Accept.Data_Length /=
                      Default_Socket_Size;
-                  Lib.Synchronization.Release (Sock.Pending_Accept.Mutex);
+                  Synchronization.Release (Sock.Pending_Accept.Mutex);
                   Scheduler.Yield_If_Able;
                end loop;
             else
-               Lib.Synchronization.Seize (Sock.Pending_Accept.Mutex);
+               Synchronization.Seize (Sock.Pending_Accept.Mutex);
             end if;
 
-            Lib.Synchronization.Seize (Sock.Mutex);
+            Synchronization.Seize (Sock.Mutex);
 
             if Sock.Pending_Accept.Data_Length = Default_Socket_Size then
                if Is_Blocking then
-                  Lib.Synchronization.Release (Sock.Mutex);
+                  Synchronization.Release (Sock.Mutex);
                   goto Retry;
                else
                   Ret_Count := 0;
@@ -1029,8 +1029,8 @@ package body IPC.Socket is
             Ret_Count := Len;
             Success   := Plain_Success;
          <<Cleanup>>
-            Lib.Synchronization.Release (Sock.Pending_Accept.Mutex);
-            Lib.Synchronization.Release (Sock.Mutex);
+            Synchronization.Release (Sock.Pending_Accept.Mutex);
+            Synchronization.Release (Sock.Mutex);
          when others =>
             if Sock.Simple_Connected = null or
                Data'Length <= Default_Socket_Size
@@ -1041,7 +1041,7 @@ package body IPC.Socket is
             end if;
 
 
-            Lib.Synchronization.Seize (Sock.Simple_Connected.Mutex);
+            Synchronization.Seize (Sock.Simple_Connected.Mutex);
             if Sock.Simple_Connected.Data_Length = 0 and then
                Data'Length <= Default_Socket_Size
             then
@@ -1053,7 +1053,7 @@ package body IPC.Socket is
                Ret_Count := 0;
                Success   := Would_Block;
             end if;
-            Lib.Synchronization.Release (Sock.Simple_Connected.Mutex);
+            Synchronization.Release (Sock.Simple_Connected.Mutex);
       end case;
    end Inner_UNIX_Write;
 

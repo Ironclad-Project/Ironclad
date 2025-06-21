@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Synchronization;
+with Synchronization;
 
 generic
    --  Sector size in bytes.
@@ -82,7 +82,7 @@ private
    Max_Caching_Step : constant := 200;
 
    type Sector_Cache is record
-      Mutex      : aliased Lib.Synchronization.Mutex;
+      Mutex      : aliased Synchronization.Mutex;
       Is_Used    : Boolean;
       LBA_Offset : Unsigned_64;
       Data       : Sector_Data;

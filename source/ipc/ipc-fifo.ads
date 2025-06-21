@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Synchronization;
+with Synchronization;
 with Devices; use Devices;
 with Arch.MMU;
 
@@ -130,7 +130,7 @@ private
 
    Default_Data_Length : constant Natural := Arch.MMU.Page_Size * 10;
    type Inner is record
-      Mutex         : aliased Lib.Synchronization.Mutex;
+      Mutex         : aliased Synchronization.Mutex;
       Reader_Closed : Boolean;
       Writer_Closed : Boolean;
       Data_Count    : Natural;

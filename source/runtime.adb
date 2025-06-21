@@ -1,4 +1,4 @@
---  lib-runtime.adb: Functions needed by the compiler.
+--  runtime.adb: Functions needed by the compiler.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,9 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces.C.Strings;
-with Lib.Panic;
+with Panic;
 
-package body Lib.Runtime with SPARK_Mode => Off is
+package body Runtime with SPARK_Mode => Off is
    --  Failing a check here would just make it infinitely recursive.
    pragma Suppress (All_Checks);
 
@@ -25,7 +25,7 @@ package body Lib.Runtime with SPARK_Mode => Off is
       File_String : String (1 .. Interfaces.C.Strings.Strlen (File))
          with Address => File, Import;
    begin
-      Lib.Panic.Hard_Panic
+      Panic.Hard_Panic
          ("Ada exception triggered at " & File_String & ": " & Line'Image);
    end Last_Chance_Handler;
-end Lib.Runtime;
+end Runtime;

@@ -16,7 +16,7 @@
 
 with System.Storage_Elements; use System.Storage_Elements;
 with Memory; use Memory;
-with Lib.Alignment;
+with Alignment;
 with Devices;
 with Userland.Memory_Locations;
 with Userland.Syscall;
@@ -163,7 +163,7 @@ package body Userland.ELF is
    is
       use VFS;
 
-      package A is new Lib.Alignment (Integer_Address);
+      package A is new Alignment (Integer_Address);
 
       Misalign, Load_Size : Unsigned_64;
       ELF_Virtual : Virtual_Address;

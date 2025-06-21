@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Synchronization;
+with Synchronization;
 with Devices; use Devices;
 with Networking;
 with Interfaces; use Interfaces;
@@ -497,7 +497,7 @@ private
    Default_Socket_Size : constant Natural := 16#2000#;
 
    type Socket (Dom : Domain; Kind : DataType) is record
-      Mutex : aliased Lib.Synchronization.Mutex;
+      Mutex : aliased Synchronization.Mutex;
 
       case Dom is
          when UNIX =>
@@ -569,8 +569,8 @@ private
       Path_Len : Natural range 1 .. Bind_Path_Max;
    end record;
 
-   UNIX_Bound_Mutex   : aliased Lib.Synchronization.Mutex :=
-      Lib.Synchronization.Unlocked_Mutex;
+   UNIX_Bound_Mutex   : aliased Synchronization.Mutex :=
+      Synchronization.Unlocked_Mutex;
    UNIX_Bound_Sockets : array (1 .. 10) of Bound_Socket :=
       [others => (Sock => null, Path => [others => ' '], Path_Len => 1)];
 

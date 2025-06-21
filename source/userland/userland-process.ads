@@ -17,7 +17,7 @@
 with System;
 with VFS;
 with Arch.MMU;
-with Lib.Synchronization;
+with Synchronization;
 with Scheduler; use Scheduler;
 with Interfaces; use Interfaces;
 with Userland.MAC; use Userland.MAC;
@@ -698,7 +698,7 @@ private
    type File_Arr   is array (0 .. Max_File_Count - 1) of File_Descriptor;
    type Handle_Arr is array (Signal)                  of Signal_Handlers;
    type Process_Data is record
-      Data_Mutex      : aliased Lib.Synchronization.Mutex;
+      Data_Mutex      : aliased Synchronization.Mutex;
       Controlling_TTY : IPC.PTY.Inner_Acc;
       Masked_Signals  : Signal_Bitmap;
       Raised_Signals  : Signal_Bitmap;
@@ -740,6 +740,6 @@ private
    type Process_Arr     is array (PID range 1 .. PID'Last) of Process_Data_Acc;
    type Process_Arr_Acc  is access Process_Arr;
 
-   Registry_Mutex : aliased Lib.Synchronization.Mutex;
+   Registry_Mutex : aliased Synchronization.Mutex;
    Registry       : Process_Arr_Acc;
 end Userland.Process;

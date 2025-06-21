@@ -18,7 +18,7 @@ with System.Machine_Code;
 with Arch.MMU;
 with Memory; use Memory;
 with Arch.Snippets;
-with Lib.Panic;
+with Panic;
 with Arch.CPU;
 with Arch.ACPI;
 
@@ -62,7 +62,7 @@ package body Arch.PCI is
 
       Fetch_Device (0, 0, 0, Root_Bus, Success);
       if not Success then
-         Lib.Panic.Hard_Panic ("Could not read root bus");
+         Panic.Hard_Panic ("Could not read root bus");
       end if;
 
       if (Read32 (Root_Bus, 16#C#) and 16#800000#) = 0 then

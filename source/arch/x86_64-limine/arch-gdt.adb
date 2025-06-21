@@ -16,8 +16,8 @@
 
 with System.Machine_Code;     use System.Machine_Code;
 with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
-with Lib.Synchronization;
-with Lib.Panic;
+with Synchronization;
+with Panic;
 
 package body Arch.GDT is
    --  Records for the GDT structure and its entries.
@@ -101,7 +101,7 @@ package body Arch.GDT is
       TSS => <>
    );
    Global_Pointer : GDT_Pointer;
-   TSS_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+   TSS_Mutex : aliased Synchronization.Binary_Semaphore;
 
    procedure Init is
    begin
@@ -110,10 +110,10 @@ package body Arch.GDT is
           Address => Global_GDT'Address);
 
       Load_GDT;
-      Lib.Synchronization.Release (TSS_Mutex);
+      Synchronization.Release (TSS_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Panic.Hard_Panic ("Exception loading the GDT");
+         Panic.Hard_Panic ("Exception loading the GDT");
    end Init;
 
    procedure Load_GDT is
@@ -149,7 +149,7 @@ package body Arch.GDT is
       High8 : constant Unsigned_64 := Shift_Right (Addr, 24) and 16#FF#;
       Up32  : constant Unsigned_64 := Shift_Right (Addr, 32) and 16#FFFFFFFF#;
    begin
-      Lib.Synchronization.Seize (TSS_Mutex);
+      Synchronization.Seize (TSS_Mutex);
 
       Global_GDT.TSS := (
          Limit         => 103,
@@ -167,9 +167,9 @@ package body Arch.GDT is
            Clobber  => "memory",
            Volatile => True);
 
-      Lib.Synchronization.Release (TSS_Mutex);
+      Synchronization.Release (TSS_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (TSS_Mutex);
+         Synchronization.Release (TSS_Mutex);
    end Load_TSS;
 end Arch.GDT;

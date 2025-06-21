@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Synchronization;
+with Synchronization;
 with Devices.Drive_Cache;
 
 package Devices.NVMe with SPARK_Mode => Off is
@@ -619,8 +619,8 @@ private
       LBA_Size : Natural;
       LBA_Count : Unsigned_64;
       Cache_Reg : aliased Caching.Cache_Registry;
-      Mutex : aliased Lib.Synchronization.Mutex
-         := Lib.Synchronization.Unlocked_Mutex;
+      Mutex : aliased Synchronization.Mutex
+         := Synchronization.Unlocked_Mutex;
    end record;
    type Namespace_Data_Acc is access all Namespace_Data;
 

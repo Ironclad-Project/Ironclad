@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
-with Lib.Messages;
+with Messages;
 with System.Machine_Code;    use System.Machine_Code;
 with Arch.GDT;
 with Arch.CPU;
@@ -78,7 +78,7 @@ package body Arch.Context is
       Ctx := Arch.CPU.Get_Local.User_Stack;
    exception
       when Constraint_Error =>
-         Lib.Messages.Put_Line ("Could not save core context");
+         Messages.Put_Line ("Could not save core context");
          Ctx := 0;
    end Save_Core_Context;
 
@@ -121,7 +121,7 @@ package body Arch.Context is
       Save_Access (Ctx);
    exception
       when Constraint_Error =>
-         Lib.Messages.Put_Line ("Could not save core context");
+         Messages.Put_Line ("Could not save core context");
    end Save_FP_Context;
 
    procedure Load_FP_Context (Ctx : FP_Context) is
@@ -129,7 +129,7 @@ package body Arch.Context is
       Rstor_Access (Ctx);
    exception
       when Constraint_Error =>
-         Lib.Messages.Put_Line ("Could not save core context");
+         Messages.Put_Line ("Could not save core context");
    end Load_FP_Context;
 
    procedure Destroy_FP_Context (Ctx : in out FP_Context) is

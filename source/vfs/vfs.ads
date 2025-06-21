@@ -17,7 +17,7 @@
 with Interfaces; use Interfaces;
 with System;     use System;
 with Devices;    use Devices;
-with Lib.Synchronization;
+with Synchronization;
 with Arch.MMU;
 with Memory;
 
@@ -709,7 +709,7 @@ private
    type Mount_Registry_Acc is access Mount_Registry;
 
    Mounts       : Mount_Registry_Acc;
-   Mounts_Mutex : aliased Lib.Synchronization.Binary_Semaphore;
+   Mounts_Mutex : aliased Synchronization.Binary_Semaphore;
    Root_Idx     : FS_Handle := Error_Handle;
 
    function Is_Initialized return Boolean is (Mounts /= null);

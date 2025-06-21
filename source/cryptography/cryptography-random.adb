@@ -17,7 +17,7 @@
 with Ada.Unchecked_Conversion;
 with Cryptography.Chacha20;
 with Cryptography.MD5; use Cryptography.MD5;
-with Lib.Synchronization; use Lib.Synchronization;
+with Synchronization; use Synchronization;
 with Arch.Clocks;
 with Memory.Physical;
 with Arch.MMU;

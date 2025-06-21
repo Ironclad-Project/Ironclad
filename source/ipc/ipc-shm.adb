@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Lib.Synchronization; use Lib.Synchronization;
+with Synchronization; use Synchronization;
 with Memory;
 with Memory.Physical; use Memory.Physical;
 with System.Storage_Elements; use System.Storage_Elements;
@@ -52,7 +52,7 @@ package body IPC.SHM is
    begin
       Segment := Error_ID;
 
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry_Mutex);
       for I in Registry'Range loop
          if Registry (I).Is_Present and Registry (I).Key = Wanted_Key then
             goto Cleanup;
@@ -86,10 +86,10 @@ package body IPC.SHM is
           Is_Refcounted    => False);
 
    <<Cleanup>>
-      Lib.Synchronization.Release (Registry_Mutex);
+      Synchronization.Release (Registry_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Registry_Mutex);
+         Synchronization.Release (Registry_Mutex);
          Segment := Error_ID;
    end Create_Segment;
 
@@ -105,7 +105,7 @@ package body IPC.SHM is
    begin
       Segment := Error_ID;
 
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry_Mutex);
       for I in Registry'Range loop
          if not Registry (I).Is_Present then
             Memory.Physical.User_Alloc (Addr, Wanted_Size, Success);
@@ -131,24 +131,24 @@ package body IPC.SHM is
       end loop;
 
    <<Cleanup>>
-      Lib.Synchronization.Release (Registry_Mutex);
+      Synchronization.Release (Registry_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Registry_Mutex);
+         Synchronization.Release (Registry_Mutex);
          Segment := Error_ID;
    end Create_Unkeyed_Segment;
 
    procedure Get_Segment (Key : Unsigned_32; Segment : out Segment_ID) is
    begin
       Segment := Error_ID;
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry_Mutex);
       for I in Registry'Range loop
          if Registry (I).Is_Present and Registry (I).Key = Key then
             Segment := I;
             exit;
          end if;
       end loop;
-      Lib.Synchronization.Release (Registry_Mutex);
+      Synchronization.Release (Registry_Mutex);
    end Get_Segment;
 
    procedure Get_Segment_And_Size
@@ -160,7 +160,7 @@ package body IPC.SHM is
       Size := 0;
       ID   := Error_ID;
 
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry_Mutex);
       for I in Registry'Range loop
          if Registry (I).Is_Present and
             Registry (I).Physical_Address = Memory.Physical_Address (Address)
@@ -170,10 +170,10 @@ package body IPC.SHM is
             exit;
          end if;
       end loop;
-      Lib.Synchronization.Release (Registry_Mutex);
+      Synchronization.Release (Registry_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Registry_Mutex);
+         Synchronization.Release (Registry_Mutex);
          Size := 0;
          ID   := Error_ID;
    end Get_Segment_And_Size;
@@ -184,7 +184,7 @@ package body IPC.SHM is
        Size    : out Unsigned_64)
    is
    begin
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry_Mutex);
       if Registry (ID).Is_Present then
          Address := Unsigned_64 (Registry (ID).Physical_Address);
          Size := Unsigned_64 (Registry (ID).Size);
@@ -192,10 +192,10 @@ package body IPC.SHM is
          Address := 0;
          Size := 0;
       end if;
-      Lib.Synchronization.Release (Registry_Mutex);
+      Synchronization.Release (Registry_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Registry_Mutex);
+         Synchronization.Release (Registry_Mutex);
          Size    := 0;
          Address := 0;
    end Get_Address;
@@ -207,7 +207,7 @@ package body IPC.SHM is
        Success : out Boolean)
    is
    begin
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry_Mutex);
       if Registry (ID).Is_Present then
          Success := UID = Registry (ID).Owner_UID or
             (GID = Registry (ID).Owner_GID and
@@ -215,38 +215,38 @@ package body IPC.SHM is
       else
          Success := False;
       end if;
-      Lib.Synchronization.Release (Registry_Mutex);
+      Synchronization.Release (Registry_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Registry_Mutex);
+         Synchronization.Release (Registry_Mutex);
          Success := False;
    end Check_Permissions;
 
    procedure Mark_Refcounted (ID : Segment_ID) is
    begin
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry_Mutex);
       if Registry (ID).Is_Present then
          Registry (ID).Is_Refcounted := True;
          Check_And_Maybe_Free (ID);
       end if;
-      Lib.Synchronization.Release (Registry_Mutex);
+      Synchronization.Release (Registry_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Registry_Mutex);
+         Synchronization.Release (Registry_Mutex);
    end Mark_Refcounted;
 
    procedure Modify_Attachment (ID : Segment_ID; Increment : Boolean) is
    begin
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry_Mutex);
       if Registry (ID).Is_Present then
          Registry (ID).Refcount :=
             Registry (ID).Refcount + (if Increment then 1 else -1);
          Check_And_Maybe_Free (ID);
       end if;
-      Lib.Synchronization.Release (Registry_Mutex);
+      Synchronization.Release (Registry_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Registry_Mutex);
+         Synchronization.Release (Registry_Mutex);
    end Modify_Attachment;
 
    procedure Modify_Permissions
@@ -256,16 +256,16 @@ package body IPC.SHM is
        Mode : Unsigned_64)
    is
    begin
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry_Mutex);
       if Registry (ID).Is_Present then
          Registry (ID).Owner_UID := UID;
          Registry (ID).Owner_GID := GID;
          Registry (ID).Mode := Mode;
       end if;
-      Lib.Synchronization.Release (Registry_Mutex);
+      Synchronization.Release (Registry_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Registry_Mutex);
+         Synchronization.Release (Registry_Mutex);
    end Modify_Permissions;
 
    procedure Fetch_Information
@@ -274,7 +274,7 @@ package body IPC.SHM is
        Found : out Boolean)
    is
    begin
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry_Mutex);
       if Registry (ID).Is_Present then
          Info :=
             (Key         => Registry (ID).Key,
@@ -289,23 +289,23 @@ package body IPC.SHM is
       else
          Found := False;
       end if;
-      Lib.Synchronization.Release (Registry_Mutex);
+      Synchronization.Release (Registry_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Registry_Mutex);
+         Synchronization.Release (Registry_Mutex);
          Found := False;
    end Fetch_Information;
 
    procedure Get_Total_Size (Size : out Unsigned_64) is
    begin
       Size := 0;
-      Lib.Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry_Mutex);
       for Reg of Registry loop
          if Reg.Is_Present then
             Size := Size + Unsigned_64 (Reg.Size);
          end if;
       end loop;
-      Lib.Synchronization.Release (Registry_Mutex);
+      Synchronization.Release (Registry_Mutex);
    end Get_Total_Size;
    ----------------------------------------------------------------------------
    procedure Check_And_Maybe_Free (ID : Segment_ID) is

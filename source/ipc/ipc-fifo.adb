@@ -31,7 +31,7 @@ package body IPC.FIFO is
       return new Inner'
          (Reader_Closed => False,
           Writer_Closed => False,
-          Mutex         => Lib.Synchronization.Unlocked_Mutex,
+          Mutex         => Synchronization.Unlocked_Mutex,
           Data_Count    => 0,
           Data          => Data);
    end Create;
@@ -71,21 +71,21 @@ package body IPC.FIFO is
 
    procedure Close_Reader (To_Close : in out Inner_Acc) is
    begin
-      Lib.Synchronization.Seize (To_Close.Mutex);
+      Synchronization.Seize (To_Close.Mutex);
       To_Close.Reader_Closed := True;
       Common_Close (To_Close);
    end Close_Reader;
 
    procedure Close_Writer (To_Close : in out Inner_Acc) is
    begin
-      Lib.Synchronization.Seize (To_Close.Mutex);
+      Synchronization.Seize (To_Close.Mutex);
       To_Close.Writer_Closed := True;
       Common_Close (To_Close);
    end Close_Writer;
 
    procedure Close (To_Close : in out Inner_Acc) is
    begin
-      Lib.Synchronization.Seize (To_Close.Mutex);
+      Synchronization.Seize (To_Close.Mutex);
       To_Close.Reader_Closed := True;
       To_Close.Writer_Closed := True;
       Common_Close (To_Close);
@@ -93,15 +93,15 @@ package body IPC.FIFO is
 
    procedure Get_Size (P : Inner_Acc; Size : out Natural) is
    begin
-      Lib.Synchronization.Seize (P.Mutex);
+      Synchronization.Seize (P.Mutex);
       Size := P.Data'Length;
-      Lib.Synchronization.Release (P.Mutex);
+      Synchronization.Release (P.Mutex);
    end Get_Size;
 
    procedure Set_Size (P : Inner_Acc; Size : Natural; Success : out Boolean) is
       New_Buffer : Devices.Operation_Data_Acc;
    begin
-      Lib.Synchronization.Seize (P.Mutex);
+      Synchronization.Seize (P.Mutex);
       if Size >= P.Data_Count then
          New_Buffer := new Devices.Operation_Data'[1 .. Size => 0];
          New_Buffer (1 .. P.Data_Count) := P.Data (1 .. P.Data_Count);
@@ -111,7 +111,7 @@ package body IPC.FIFO is
       else
          Success := False;
       end if;
-      Lib.Synchronization.Release (P.Mutex);
+      Synchronization.Release (P.Mutex);
    end Set_Size;
 
    procedure Read
@@ -127,21 +127,21 @@ package body IPC.FIFO is
 
       if Is_Blocking then
          loop
-            Lib.Synchronization.Seize (To_Read.Mutex);
+            Synchronization.Seize (To_Read.Mutex);
             if To_Read.Data_Count /= 0 then
                exit when To_Read.Data_Count /= 0;
             end if;
             if To_Read.Writer_Closed then
                Ret_Count := 0;
                Success   := Pipe_Success;
-               Lib.Synchronization.Release (To_Read.Mutex);
+               Synchronization.Release (To_Read.Mutex);
                return;
             end if;
-            Lib.Synchronization.Release (To_Read.Mutex);
+            Synchronization.Release (To_Read.Mutex);
             Scheduler.Yield_If_Able;
          end loop;
       else
-         Lib.Synchronization.Seize (To_Read.Mutex);
+         Synchronization.Seize (To_Read.Mutex);
          if To_Read.Data_Count = 0 then
             Ret_Count := 0;
             if To_Read.Writer_Closed then
@@ -149,7 +149,7 @@ package body IPC.FIFO is
             else
                Success := Would_Block_Failure;
             end if;
-            Lib.Synchronization.Release (To_Read.Mutex);
+            Synchronization.Release (To_Read.Mutex);
             return;
          end if;
       end if;
@@ -174,7 +174,7 @@ package body IPC.FIFO is
          end if;
       end loop;
 
-      Lib.Synchronization.Release (To_Read.Mutex);
+      Synchronization.Release (To_Read.Mutex);
       Ret_Count := Final_Len;
       Success   := Pipe_Success;
    end Read;
@@ -197,17 +197,17 @@ package body IPC.FIFO is
 
       if Is_Blocking then
          loop
-            Lib.Synchronization.Seize (To_Write.Mutex);
+            Synchronization.Seize (To_Write.Mutex);
             exit when To_Write.Data_Count /= To_Write.Data'Length;
-            Lib.Synchronization.Release (To_Write.Mutex);
+            Synchronization.Release (To_Write.Mutex);
             Scheduler.Yield_If_Able;
          end loop;
       else
-         Lib.Synchronization.Seize (To_Write.Mutex);
+         Synchronization.Seize (To_Write.Mutex);
          if To_Write.Data_Count = To_Write.Data'Length then
             Ret_Count := 0;
             Success   := Would_Block_Failure;
-            Lib.Synchronization.Release (To_Write.Mutex);
+            Synchronization.Release (To_Write.Mutex);
             return;
          end if;
       end if;
@@ -236,7 +236,7 @@ package body IPC.FIFO is
          Success   := Would_Block_Failure;
       end if;
 
-      Lib.Synchronization.Release (To_Write.Mutex);
+      Synchronization.Release (To_Write.Mutex);
    end Write;
 
    function Is_Valid (P : Inner_Acc) return Boolean is
@@ -259,7 +259,7 @@ package body IPC.FIFO is
          Free (To_Close.Data);
          Free (To_Close);
       else
-         Lib.Synchronization.Release (To_Close.Mutex);
+         Synchronization.Release (To_Close.Mutex);
       end if;
       To_Close := null;
    end Common_Close;

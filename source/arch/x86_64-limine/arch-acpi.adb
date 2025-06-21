@@ -22,10 +22,10 @@ with Arch.PCI;
 with Arch.Local;
 with Arch.APIC;
 with Arch.CPU;
-with Lib.Alignment;
-with Lib.Time;
-with Lib.Synchronization;
-with Lib.Messages;
+with Alignment;
+with Time;
+with Synchronization;
+with Messages;
 with Interfaces.C.Strings;
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
@@ -152,7 +152,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    procedure Unref_Table (Table : Table_Record) is
    begin
       if Unref_Table (Table'Address) /= Status_OK then
-         Lib.Messages.Put_Line ("Could not unref " & Table.Virt_Addr'Image);
+         Messages.Put_Line ("Could not unref " & Table.Virt_Addr'Image);
       end if;
    exception
       when Constraint_Error =>
@@ -205,10 +205,10 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Curr_Sec, Curr_Nsec, Tgt_Sec, Tgt_Nsec : Unsigned_64;
    begin
       Arch.Clocks.Get_Monotonic_Time (Tgt_Sec, Tgt_Nsec);
-      Lib.Time.Increment (Tgt_Sec, Tgt_Nsec, 0, Unsigned_64 (USec) * 1000);
+      Time.Increment (Tgt_Sec, Tgt_Nsec, 0, Unsigned_64 (USec) * 1000);
       loop
          Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_Nsec);
-         exit when Lib.Time.Is_Greater_Equal
+         exit when Time.Is_Greater_Equal
             (Curr_Sec, Curr_Nsec, Tgt_Sec, Tgt_Nsec);
       end loop;
    end Stall;
@@ -217,11 +217,11 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Curr_Sec, Curr_Nsec, Tgt_Sec, Tgt_Nsec : Unsigned_64;
    begin
       Arch.Clocks.Get_Monotonic_Time (Tgt_Sec, Tgt_Nsec);
-      Lib.Time.Increment
+      Time.Increment
          (Tgt_Sec, Tgt_Nsec, MSec / 1000, (MSec mod 1000) * 1000000);
       loop
          Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_Nsec);
-         exit when Lib.Time.Is_Greater_Equal
+         exit when Time.Is_Greater_Equal
             (Curr_Sec, Curr_Nsec, Tgt_Sec, Tgt_Nsec);
          Scheduler.Yield_If_Able;
       end loop;
@@ -242,14 +242,14 @@ package body Arch.ACPI with SPARK_Mode => Off is
    end Free_Event;
 
    type uACPI_Spinlock is record
-      Lock : aliased Lib.Synchronization.Binary_Semaphore;
+      Lock : aliased Synchronization.Binary_Semaphore;
    end record;
    type uACPI_Spinlock_Acc is access all uACPI_Spinlock;
    package C1 is new System.Address_To_Access_Conversions (uACPI_Spinlock);
 
    function Create_Spinlock return System.Address is
       Lock : constant uACPI_Spinlock_Acc :=
-         new uACPI_Spinlock'(Lock => Lib.Synchronization.Unlocked_Semaphore);
+         new uACPI_Spinlock'(Lock => Synchronization.Unlocked_Semaphore);
    begin
       return C1.To_Address (C1.Object_Pointer (Lock));
    end Create_Spinlock;
@@ -266,7 +266,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Lock : constant uACPI_Spinlock_Acc :=
          uACPI_Spinlock_Acc (C1.To_Pointer (Handle));
    begin
-      Lib.Synchronization.Seize (Lock.Lock);
+      Synchronization.Seize (Lock.Lock);
       return 0;
    exception
       when Constraint_Error =>
@@ -278,7 +278,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Lock : constant uACPI_Spinlock_Acc :=
          uACPI_Spinlock_Acc (C1.To_Pointer (Handle));
    begin
-      Lib.Synchronization.Release (Lock.Lock);
+      Synchronization.Release (Lock.Lock);
    exception
       when Constraint_Error =>
          null;
@@ -522,7 +522,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
       (Phys_Addr : Unsigned_64;
        Length    : size_t) return System.Address
    is
-      package A is new Lib.Alignment (Integer_Address);
+      package A is new Alignment (Integer_Address);
 
       Success : Boolean;
       Start   : Integer_Address := Integer_Address (Phys_Addr);
@@ -548,7 +548,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    end Map;
 
    procedure Unmap (Address : System.Address; Length : size_t) is
-      package A is new Lib.Alignment (Integer_Address);
+      package A is new Alignment (Integer_Address);
 
       Success : Boolean;
       Start   : Integer_Address := To_Integer (Address);
@@ -691,14 +691,14 @@ package body Arch.ACPI with SPARK_Mode => Off is
    end Get_Nanoseconds_Since_Boot;
 
    type uACPI_Mutex is record
-      Lock : aliased Lib.Synchronization.Mutex;
+      Lock : aliased Synchronization.Mutex;
    end record;
    type uACPI_Mutex_Acc is access all uACPI_Mutex;
    package C2 is new System.Address_To_Access_Conversions (uACPI_Mutex);
 
    function Create_Mutex return System.Address is
       Lock : constant uACPI_Mutex_Acc :=
-         new uACPI_Mutex'(Lock => Lib.Synchronization.Unlocked_Mutex);
+         new uACPI_Mutex'(Lock => Synchronization.Unlocked_Mutex);
    begin
       return C2.To_Address (C2.Object_Pointer (Lock));
    end Create_Mutex;
@@ -719,7 +719,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Lock : constant uACPI_Mutex_Acc :=
          uACPI_Mutex_Acc (C2.To_Pointer (Handle));
    begin
-      Lib.Synchronization.Seize (Lock.Lock);
+      Synchronization.Seize (Lock.Lock);
       return Status_OK;
    exception
       when Constraint_Error =>
@@ -730,7 +730,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Lock : constant uACPI_Mutex_Acc :=
          uACPI_Mutex_Acc (C2.To_Pointer (Handle));
    begin
-      Lib.Synchronization.Release (Lock.Lock);
+      Synchronization.Release (Lock.Lock);
    exception
       when Constraint_Error =>
          null;
@@ -747,6 +747,6 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Len : constant Natural := Interfaces.C.Strings.Strlen (Str_Addr);
       Str : String (1 .. Len - 1) with Import, Address => Str_Addr;
    begin
-      Lib.Messages.Put_Line (Str);
+      Messages.Put_Line (Str);
    end Kernel_Log;
 end Arch.ACPI;

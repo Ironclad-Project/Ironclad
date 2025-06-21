@@ -16,10 +16,10 @@
 
 with Arch.Snippets;
 with Arch.RTC;
-with Lib.Panic;
-with Lib.Time; use Lib.Time;
+with Panic;
+with Time; use Time;
 with Arch.HPET;
-with Lib.Messages;
+with Messages;
 
 package body Arch.Clocks with
    Refined_State =>
@@ -59,14 +59,14 @@ is
       --  We require invariant TSC.
       Snippets.Get_CPUID (16#80000007#, 0, EAX, EBX, ECX, EDX, Success);
       if not Success or else ((EDX and Shift_Left (1, 8)) = 0) then
-         Lib.Messages.Put_Line ("No invariant TSC detected");
+         Messages.Put_Line ("No invariant TSC detected");
       end if;
 
       --  We need to calibrate the TSC. For this we can check CPUID.
       Snippets.Get_CPUID (16#15#, 0, EAX, EBX, ECX, EDX, Success);
       if Success then
          if EBX /= 0 and EBX /= 0 then
-            Lib.Messages.Put_Line ("Monotonic TSC calibration using CPUID 1");
+            Messages.Put_Line ("Monotonic TSC calibration using CPUID 1");
             TSC_Ticks_Per_Res   := Unsigned_64 (ECX) * Unsigned_64 (EBX / EAX);
             TSC_Ticks_Per_Res   := TSC_Ticks_Per_Res / 1_000_000;
             TSC_Tick_Resolution := 1_000;
@@ -75,7 +75,7 @@ is
 
          Snippets.Get_CPUID (16#16#, 0, EAX1, EBX1, ECX1, EDX1, Success);
          if Success and EAX1 /= 0 then
-            Lib.Messages.Put_Line ("Monotonic TSC calibration using CPUID 2");
+            Messages.Put_Line ("Monotonic TSC calibration using CPUID 2");
             Snippets.Get_CPUID (16#16#, 0, EAX1, EBX1, ECX1, EDX1, Success);
             TSC_Ticks_Per_Res := Unsigned_64 (EAX1 * 10_000_000) *
                                  Unsigned_64 (EAX / EBX);
@@ -88,7 +88,7 @@ is
       --  If CPUID does not have the info, we can start checking for clocks.
       --  First one we will use is the HPET.
       if HPET.Init then
-         Lib.Messages.Put_Line ("Monotonic TSC calibration using HPET");
+         Messages.Put_Line ("Monotonic TSC calibration using HPET");
          TSC_Tick_Resolution := 100_000; --  HPET limited.
          TSC_Start := Snippets.Read_TSC;
          HPET.NSleep (Natural (TSC_Tick_Resolution));
@@ -97,12 +97,12 @@ is
          goto Found_TSC_Frequency;
       end if;
 
-      Lib.Panic.Hard_Panic
+      Panic.Hard_Panic
          ("Could not find a suitable TSC calibration source, tried:" &
           "CPUID leaf detection, HPET");
 
    <<Found_TSC_Frequency>>
-      Lib.Messages.Put_Line
+      Messages.Put_Line
          ("Monotonic resolution fixed at 0x" &
           TSC_Ticks_Per_Res'Image    & " ticks / 0x" &
            TSC_Tick_Resolution'Image & " ns");
@@ -142,10 +142,10 @@ is
    begin
       if Is_Initialized then
          Get_Monotonic_Time (Next_Sec, Next_Nano);
-         Lib.Time.Increment (Next_Sec, Next_Nano, 0, Nanoseconds);
+         Time.Increment (Next_Sec, Next_Nano, 0, Nanoseconds);
          loop
             Get_Monotonic_Time (Curr_Sec, Curr_Nano);
-            exit when Lib.Time.Is_Greater_Equal
+            exit when Time.Is_Greater_Equal
                (Curr_Sec, Curr_Nano, Next_Sec, Next_Nano);
          end loop;
       end if;

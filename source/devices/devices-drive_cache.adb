@@ -26,7 +26,7 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
       Registry.Read_Proc  := Read;
       Registry.Write_Proc := Write;
       for C of Registry.Caches loop
-         C.Mutex   := Lib.Synchronization.Unlocked_Mutex;
+         C.Mutex   := Synchronization.Unlocked_Mutex;
          C.Is_Used := False;
       end loop;
    end Init;
@@ -66,7 +66,7 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
          Data (Data'First + Progress .. Data'First + Progress + Copy_Count - 1)
             := Registry.Caches (Cache_Idx).Data (Cache_Offset + 1 ..
                                           Cache_Offset + Copy_Count);
-         Lib.Synchronization.Release (Registry.Caches (Cache_Idx).Mutex);
+         Synchronization.Release (Registry.Caches (Cache_Idx).Mutex);
          Progress := Progress + Copy_Count;
       end loop;
 
@@ -117,7 +117,7 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
             Data (Data'First + Progress ..
                   Data'First + Progress + Copy_Count - 1);
          Registry.Caches (Cache_Idx).Is_Dirty := True;
-         Lib.Synchronization.Release (Registry.Caches (Cache_Idx).Mutex);
+         Synchronization.Release (Registry.Caches (Cache_Idx).Mutex);
          Progress := Progress + Copy_Count;
       end loop;
 
@@ -143,13 +143,13 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
    begin
       Success := True;
       for Cache of Registry.Caches loop
-         Lib.Synchronization.Seize (Cache.Mutex);
+         Synchronization.Seize (Cache.Mutex);
          if Cache.Is_Used and Cache.Is_Dirty then
             Write_Sector (Registry.Drive_Arg, Cache.LBA_Offset, Cache.Data,
                Success);
             Cache.Is_Dirty := False;
          end if;
-         Lib.Synchronization.Release (Cache.Mutex);
+         Synchronization.Release (Cache.Mutex);
       end loop;
    exception
       when Constraint_Error =>
@@ -177,7 +177,7 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
       Success   := True;
 
       for Cache of Registry.Caches loop
-         Lib.Synchronization.Seize (Cache.Mutex);
+         Synchronization.Seize (Cache.Mutex);
          if Cache.Is_Used                 and
             Cache.Is_Dirty                and
             Cache.LBA_Offset >= First_LBA and
@@ -187,7 +187,7 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
                Success);
             Cache.Is_Dirty := False;
          end if;
-         Lib.Synchronization.Release (Cache.Mutex);
+         Synchronization.Release (Cache.Mutex);
       end loop;
    exception
       when Constraint_Error =>
@@ -221,7 +221,7 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
 
       --  Find an index in the cache.
       loop
-         Lib.Synchronization.Seize (Registry.Caches (Idx).Mutex);
+         Synchronization.Seize (Registry.Caches (Idx).Mutex);
          if Registry.Caches (Idx).Is_Used then
             if Registry.Caches (Idx).LBA_Offset = LBA then
                Success := True;
@@ -234,7 +234,7 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
             --  everything behind is free, since we never go from used -> free.
             exit;
          end if;
-         Lib.Synchronization.Release (Registry.Caches (Idx).Mutex);
+         Synchronization.Release (Registry.Caches (Idx).Mutex);
 
          --  We didnt make it, so we have to evict.
          if (Idx = Registry.Caches'Last) or
@@ -245,7 +245,7 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
                Idx := Beginning;
             end if;
 
-            Lib.Synchronization.Seize (Registry.Caches (Idx).Mutex);
+            Synchronization.Seize (Registry.Caches (Idx).Mutex);
             if Registry.Caches (Idx).Is_Dirty then
                Write_Sector
                   (Drive       => Registry.Drive_Arg,
@@ -253,7 +253,7 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
                    Data_Buffer => Registry.Caches (Idx).Data,
                    Success     => Success);
                if not Success then
-                  Lib.Synchronization.Release (Registry.Caches (Idx).Mutex);
+                  Synchronization.Release (Registry.Caches (Idx).Mutex);
                   return;
                end if;
             end if;

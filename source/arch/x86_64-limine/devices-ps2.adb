@@ -20,14 +20,14 @@ with Arch.APIC;
 with Arch.CPU;
 with Arch.Snippets;
 with Scheduler;
-with Lib.Synchronization;
+with Synchronization;
 with Ada.Unchecked_Conversion;
-with Lib.Messages;
+with Messages;
 
 package body Devices.PS2 is
    --  Globals to communicate with the keyboard interrupt routine.
-   Kb_Data_Mutex : aliased Lib.Synchronization.Binary_Semaphore
-      := Lib.Synchronization.Unlocked_Semaphore;
+   Kb_Data_Mutex : aliased Synchronization.Binary_Semaphore
+      := Synchronization.Unlocked_Semaphore;
    Kb_Has_Data   : Boolean := False with Volatile;
    Kb_Scan_Count : Natural := 0     with Volatile;
    Kb_Scancodes  : array (1 .. 10) of Unsigned_8 := [others => 0]
@@ -50,8 +50,8 @@ package body Devices.PS2 is
    function To_Signed is new Ada.Unchecked_Conversion (Unsigned_8, Signed_8);
 
    --  Globals to communicate with the mouse interrupt routine.
-   Ms_Data_Mutex : aliased Lib.Synchronization.Binary_Semaphore
-      := Lib.Synchronization.Unlocked_Semaphore;
+   Ms_Data_Mutex : aliased Synchronization.Binary_Semaphore
+      := Synchronization.Unlocked_Semaphore;
    Ms_Has_Returned      : Boolean    with Volatile;
    Ms_Return_Data       : Mouse_Data with Volatile;
    Ms_Current_Flags     : Unsigned_8;
@@ -142,14 +142,14 @@ package body Devices.PS2 is
       Data := Identify_Mouse;
       if Data = 3 then
          Ms_Has_4th_Packet := True;
-         Lib.Messages.Put_Line ("Scrollwheel support enabled for mouse");
+         Messages.Put_Line ("Scrollwheel support enabled for mouse");
          Set_Sample_Rate (200);
          Set_Sample_Rate (200);
          Set_Sample_Rate (80);
          Data := Identify_Mouse;
          if Data = 4 then
             Ms_Has_Extra_Buttons := True;
-            Lib.Messages.Put_Line ("extra button support enabled for mouse");
+            Messages.Put_Line ("extra button support enabled for mouse");
          end if;
       end if;
 
@@ -206,14 +206,14 @@ package body Devices.PS2 is
    begin
       if Is_Blocking then
          loop
-            Lib.Synchronization.Seize (Kb_Data_Mutex);
+            Synchronization.Seize (Kb_Data_Mutex);
             Temp := Kb_Has_Data;
             exit when Temp;
-            Lib.Synchronization.Release (Kb_Data_Mutex);
+            Synchronization.Release (Kb_Data_Mutex);
             Scheduler.Yield_If_Able;
          end loop;
       else
-         Lib.Synchronization.Seize (Kb_Data_Mutex);
+         Synchronization.Seize (Kb_Data_Mutex);
          Temp := Kb_Has_Data;
       end if;
 
@@ -241,10 +241,10 @@ package body Devices.PS2 is
          Ret_Count := 0;
       end if;
 
-      Lib.Synchronization.Release (Kb_Data_Mutex);
+      Synchronization.Release (Kb_Data_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Kb_Data_Mutex);
+         Synchronization.Release (Kb_Data_Mutex);
          Data      := [others => 0];
          Ret_Count := 0;
          Success   := Dev_IO_Failure;
@@ -258,11 +258,11 @@ package body Devices.PS2 is
    is
       pragma Unreferenced (Data);
    begin
-      Lib.Synchronization.Seize (Kb_Data_Mutex);
+      Synchronization.Seize (Kb_Data_Mutex);
       Can_Read  := Kb_Has_Data;
       Can_Write := False;
       Is_Error  := False;
-      Lib.Synchronization.Release (Kb_Data_Mutex);
+      Synchronization.Release (Kb_Data_Mutex);
    end Kb_Poll;
    ----------------------------------------------------------------------------
    procedure Ms_Read
@@ -278,14 +278,14 @@ package body Devices.PS2 is
    begin
       if Is_Blocking then
          loop
-            Lib.Synchronization.Seize (Ms_Data_Mutex);
+            Synchronization.Seize (Ms_Data_Mutex);
             Temp := Ms_Has_Returned;
             exit when Temp;
-            Lib.Synchronization.Release (Ms_Data_Mutex);
+            Synchronization.Release (Ms_Data_Mutex);
             Scheduler.Yield_If_Able;
          end loop;
       else
-         Lib.Synchronization.Seize (Ms_Data_Mutex);
+         Synchronization.Seize (Ms_Data_Mutex);
          Temp := Ms_Has_Returned;
       end if;
 
@@ -303,10 +303,10 @@ package body Devices.PS2 is
          Success   := Dev_IO_Failure;
       end if;
 
-      Lib.Synchronization.Release (Ms_Data_Mutex);
+      Synchronization.Release (Ms_Data_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Ms_Data_Mutex);
+         Synchronization.Release (Ms_Data_Mutex);
          Ret_Count := 0;
          Success   := Dev_IO_Failure;
    end Ms_Read;
@@ -336,7 +336,7 @@ package body Devices.PS2 is
       Has_Extra := False;
       Extra     := 0;
 
-      Lib.Synchronization.Seize (Ms_Data_Mutex);
+      Synchronization.Seize (Ms_Data_Mutex);
 
       case Request is
          when IOCTL_Enable_2_1_Scaling =>
@@ -373,10 +373,10 @@ package body Devices.PS2 is
       Ms_Current_Cycle := 1;
 
    <<Cleanup>>
-      Lib.Synchronization.Release (Ms_Data_Mutex);
+      Synchronization.Release (Ms_Data_Mutex);
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Ms_Data_Mutex);
+         Synchronization.Release (Ms_Data_Mutex);
          Success   := False;
          Has_Extra := False;
          Extra     := 0;
@@ -390,11 +390,11 @@ package body Devices.PS2 is
    is
       pragma Unreferenced (Data);
    begin
-      Lib.Synchronization.Seize (Ms_Data_Mutex);
+      Synchronization.Seize (Ms_Data_Mutex);
       Can_Read  := Ms_Has_Returned;
       Can_Write := False;
       Is_Error  := False;
-      Lib.Synchronization.Release (Ms_Data_Mutex);
+      Synchronization.Release (Ms_Data_Mutex);
    end Ms_Poll;
    ----------------------------------------------------------------------------
    procedure Set_Sample_Rate (Rate : Unsigned_8) is
@@ -463,7 +463,7 @@ package body Devices.PS2 is
    procedure Keyboard_Handler is
       Input : constant Unsigned_8 := Arch.Snippets.Port_In (16#60#);
    begin
-      Lib.Synchronization.Seize (Kb_Data_Mutex);
+      Synchronization.Seize (Kb_Data_Mutex);
 
       if Kb_Scan_Count < Kb_Scancodes'Length then
          if Kb_Scan_Count > 1 and then
@@ -484,18 +484,18 @@ package body Devices.PS2 is
       end if;
 
    <<Cleanup>>
-      Lib.Synchronization.Release (Kb_Data_Mutex);
+      Synchronization.Release (Kb_Data_Mutex);
       Arch.APIC.LAPIC_EOI;
    exception
       when Constraint_Error =>
-         Lib.Synchronization.Release (Kb_Data_Mutex);
+         Synchronization.Release (Kb_Data_Mutex);
          Arch.APIC.LAPIC_EOI;
    end Keyboard_Handler;
 
    procedure Mouse_Handler is
       Data : Unsigned_8;
    begin
-      Lib.Synchronization.Seize (Ms_Data_Mutex);
+      Synchronization.Seize (Ms_Data_Mutex);
       case Ms_Current_Cycle is
          when 1 =>
             Data                := Arch.Snippets.Port_In (16#60#);
@@ -557,7 +557,7 @@ package body Devices.PS2 is
             Ms_Has_Returned := True;
       end case;
 
-      Lib.Synchronization.Release (Ms_Data_Mutex);
+      Synchronization.Release (Ms_Data_Mutex);
 
       Arch.APIC.LAPIC_EOI;
    exception

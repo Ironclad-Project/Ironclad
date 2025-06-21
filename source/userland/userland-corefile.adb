@@ -18,7 +18,7 @@ with Devices;
 with Arch.Local;
 with Userland.Process; use Userland.Process;
 with Userland.MAC;     use Userland.MAC;
-with Lib.Messages;
+with Messages;
 with VFS; use VFS;
 
 package body Userland.Corefile is
@@ -62,27 +62,27 @@ package body Userland.Corefile is
       begin
          VFS.Create_Node (File_Path, VFS.File_Regular, 8#777#, Success, 0);
          if Success /= VFS.FS_Success then
-            Lib.Messages.Put_Line ("Could not create core file " & File_Path);
+            Messages.Put_Line ("Could not create core file " & File_Path);
             return;
          end if;
 
          VFS.Open (File_Path, Core_FS, Core_Ino, Success, 0, True, True);
          if Success /= VFS.FS_Success then
-            Lib.Messages.Put_Line ("Could not open core file " & File_Path);
+            Messages.Put_Line ("Could not open core file " & File_Path);
             return;
          end if;
 
          VFS.Write (Core_FS, Core_Ino, 0, Ctx_Data (1 .. To_Write), Ctx_Len,
             True, Success);
          if Success /= VFS.FS_Success or Ctx_Len /= To_Write then
-            Lib.Messages.Put_Line ("Could not write core file " & File_Path);
+            Messages.Put_Line ("Could not write core file " & File_Path);
             return;
          end if;
 
          if VFS.Synchronize (Core_FS, Core_Ino, False) = VFS.FS_Success then
-            Lib.Messages.Put_Line ("Dumped core at " & File_Path);
+            Messages.Put_Line ("Dumped core at " & File_Path);
          else
-            Lib.Messages.Put_Line ("Failed dump at " & File_Path);
+            Messages.Put_Line ("Failed dump at " & File_Path);
          end if;
       end;
    end Generate_Corefile;

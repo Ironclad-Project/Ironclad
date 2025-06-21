@@ -1,4 +1,4 @@
---  lib-messages.ads: Utilities for reporting messages to the user.
+--  messages.ads: Utilities for reporting messages to the user.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,9 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Clocks;
-with Lib.Synchronization; use Lib.Synchronization;
+with Synchronization; use Synchronization;
 
-package Lib.Messages with
+package Messages with
    Abstract_State => Message_State,
    Initializes    => Message_State
 is
@@ -75,4 +75,4 @@ private
            Global => (In_Out => Arch.Clocks.Monotonic_Clock_State);
 
    function Is_Initialized return Boolean is (Log_Ring_Buffer /= null);
-end Lib.Messages;
+end Messages;

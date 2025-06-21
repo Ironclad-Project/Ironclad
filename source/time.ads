@@ -1,4 +1,4 @@
---  lib-time.ads: Time-related functions.
+--  time.ads: Time-related functions.
 --  Copyright (C) 2023 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 
-package Lib.Time is
+package Time is
    --  Inside Ironclad, time is often referred to as a tuple of seconds and
    --  nanoseconds. These functions make manipulating those values easier.
 
@@ -91,4 +91,4 @@ private
       (NS < USec_Per_Sec);
 
    function Get_Julian_Date (Days, Months, Years : Natural) return Unsigned_64;
-end Lib.Time;
+end Time;

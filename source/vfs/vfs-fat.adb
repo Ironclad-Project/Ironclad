@@ -16,8 +16,8 @@
 
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
-with Lib.Alignment;
-with Lib.Time;
+with Alignment;
+with Time;
 
 package body VFS.FAT with SPARK_Mode => Off is
    package   Conv is new System.Address_To_Access_Conversions (FAT_Data);
@@ -338,7 +338,7 @@ package body VFS.FAT with SPARK_Mode => Off is
        S       : out File_Stat;
        Success : out FS_Status)
    is
-      package Align is new Lib.Alignment (Unsigned_32);
+      package Align is new Alignment (Unsigned_32);
 
       FS : constant FAT_Data_Acc := FAT_Data_Acc (Conv.To_Pointer (Data));
       Ent : Directory_Entry;
@@ -395,7 +395,7 @@ package body VFS.FAT with SPARK_Mode => Off is
              Access_Time       => (0, 0));
 
          S.Birth_Time.Seconds_Since_Epoch :=
-            Lib.Time.Time_To_Epoch
+            Time.Time_To_Epoch
                (Y   => Natural (Shift_Right (C3, 9) and 2#1111111#) + 1980,
                 M   => Natural (Shift_Right (C3, 5)  and 2#0001111#),
                 D   => Natural (Shift_Right (C3, 0)  and 2#0011111#),

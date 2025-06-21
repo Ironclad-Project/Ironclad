@@ -15,13 +15,13 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System; use System;
-with Lib.Alignment;
-with Lib.Synchronization;
+with Alignment;
+with Synchronization;
 
 package body Devices.Ramdev is
    --  Ramdev data.
    type Ramdev_Data is record
-      Mutex         : aliased Lib.Synchronization.Readers_Writer_Lock;
+      Mutex         : aliased Synchronization.Readers_Writer_Lock;
       Start_Address : System.Address;
       Size          : Unsigned_64;
    end record;
@@ -47,9 +47,9 @@ package body Devices.Ramdev is
    end Init;
 
    function Init_Module (Module : Arch.Boot_RAM_File) return Resource is
-      package A is new Lib.Alignment (Unsigned_64);
+      package A is new Alignment (Unsigned_64);
       Data   : constant Ramdev_Data_Acc := new Ramdev_Data'
-         (Mutex         => Lib.Synchronization.Unlocked_RW_Lock,
+         (Mutex         => Synchronization.Unlocked_RW_Lock,
           Start_Address => Module.Start,
           Size          => Unsigned_64 (Module.Length));
    begin
@@ -99,19 +99,19 @@ package body Devices.Ramdev is
          To_Read := Natural (Dev.Size - Offset);
       end if;
 
-      Lib.Synchronization.Seize_Reader (Dev.Mutex);
+      Synchronization.Seize_Reader (Dev.Mutex);
       Is_Holding := True;
       for I in 1 .. To_Read loop
          Data (Data'First + I - 1) := Dev_Data (Offset + Unsigned_64 (I));
       end loop;
-      Lib.Synchronization.Release_Reader (Dev.Mutex);
+      Synchronization.Release_Reader (Dev.Mutex);
 
       Ret_Count := To_Read;
       Success   := Dev_Success;
    exception
       when Constraint_Error =>
          if Is_Holding then
-            Lib.Synchronization.Release_Reader (Dev.Mutex);
+            Synchronization.Release_Reader (Dev.Mutex);
          end if;
          Data      := [others => 0];
          Ret_Count := 0;
@@ -147,19 +147,19 @@ package body Devices.Ramdev is
          To_Write := Natural (Dev.Size - Offset);
       end if;
 
-      Lib.Synchronization.Seize_Writer (Dev.Mutex);
+      Synchronization.Seize_Writer (Dev.Mutex);
       Is_Holding := True;
       for I in 1 .. To_Write loop
          Dev_Data (Offset + Unsigned_64 (I)) := Data (Data'First + I - 1);
       end loop;
-      Lib.Synchronization.Release_Writer (Dev.Mutex);
+      Synchronization.Release_Writer (Dev.Mutex);
 
       Ret_Count := To_Write;
       Success   := Dev_Success;
    exception
       when Constraint_Error =>
          if Is_Holding then
-            Lib.Synchronization.Release_Writer (Dev.Mutex);
+            Synchronization.Release_Writer (Dev.Mutex);
          end if;
          Ret_Count := 0;
          Success   := Dev_IO_Failure;
