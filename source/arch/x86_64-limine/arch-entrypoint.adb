@@ -30,10 +30,6 @@ with Devices.Serial;
 with Arch.Limine;
 with Main;
 
-#if KASAN
-   with Lib.KASAN;
-#end if;
-
 package body Arch.Entrypoint is
    --  Response is a pointer to a Memmap_Response.
    Memmap_Request : Limine.Request :=
@@ -105,11 +101,6 @@ package body Arch.Entrypoint is
                 Boot_Memory_Type'Image (E.MemType));
          end loop;
       end;
-
-      --  Enable KASAN if desired.
-      #if KASAN
-         Lib.KASAN.Init;
-      #end if;
 
       --  Initialize the core's LAPIC and system's IOAPIC, essential for
       --  handling interrupts and IPIs.

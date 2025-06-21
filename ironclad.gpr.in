@@ -97,31 +97,14 @@ project Ironclad is
           "-gnateDBugSite="""      & "@PACKAGE_BUGREPORT@" & """",
           "-gnateDArchitecture=""" & "@host_cpu@"          & """",
           "-gnateDPlatform="""     & "@PLATFORM@"          & """",
-          "-gnateDArchName="""     & Arch                  & """",
-          "-gnateDKASAN="          & "@KASAN@");
+          "-gnateDArchName="""     & Arch                  & """");
       Base_C_Switches := Split (C_Flags, " ") & Common_Compiler_Flags &
          ("-I@SRCDIR@/uacpi/include");
       Base_Asm_Switches := Split (Asm_Flags, " ") & Common_Compiler_Flags;
 
-      for Default_Switches ("Ada") use Base_Ada_Switches & ("@KASAN_FLAGS@");
+      for Default_Switches ("Ada") use Base_Ada_Switches;
       for Default_Switches ("C") use Base_C_Switches;
       for Default_Switches ("Asm_Cpp") use Base_Asm_Switches;
-
-      --  FIXME: Ada does not provide us something like
-      --  __attribute__((no_sanitize_address)), so we have to have to go
-      --  thru the pain in the ass of disabling KASAN on specific files
-      --  so we do not get KASAN loops.
-      for Switches ("lib-messages.adb")        use Base_Ada_Switches;
-      for Switches ("lib-synchronization.adb") use Base_Ada_Switches;
-      for Switches ("arch-debug.adb")          use Base_Ada_Switches;
-      for Switches ("lib-kasan.adb")           use Base_Ada_Switches;
-      case Arch is
-         when "riscv64-limine" =>
-            null;
-         when "x86_64-limine" =>
-            for Switches ("devices-serial.adb") use Base_Ada_Switches;
-      end case;
-
       for Local_Configuration_Pragmas use "@SRCDIR@/source/pragmas.adc";
    end Compiler;
 
