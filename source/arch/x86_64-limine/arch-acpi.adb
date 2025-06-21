@@ -26,7 +26,7 @@ with Lib.Alignment;
 with Lib.Time;
 with Lib.Synchronization;
 with Lib.Messages;
-with Lib;
+with Interfaces.C.Strings;
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
 with Ada.Characters.Latin_1;
@@ -744,7 +744,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
 
    procedure Kernel_Log (Level : int; Str_Addr : System.Address) is
       pragma Unreferenced (Level);
-      Len : constant Natural := Lib.C_String_Length (Str_Addr);
+      Len : constant Natural := Interfaces.C.Strings.Strlen (Str_Addr);
       Str : String (1 .. Len - 1) with Import, Address => Str_Addr;
    begin
       Lib.Messages.Put_Line (Str);

@@ -19,7 +19,7 @@ with Ada.Unchecked_Conversion;
 with Config;
 with System; use System;
 with Lib.Messages;
-with Lib;
+with Interfaces.C.Strings; use Interfaces.C.Strings;
 with Lib.Time;
 with Lib.Panic;
 with Lib.Alignment;
@@ -3242,7 +3242,7 @@ package body Userland.Syscall is
          when IPC.Socket.UNIX =>
             declare
                A_SAddr2 : constant System.Address := SAddr + 4;
-               CLen : constant Natural := Lib.C_String_Length (A_SAddr2);
+               CLen : constant Natural := Strlen (A_SAddr2);
                Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
             begin
                Bind (File.Inner_Socket, Addr, Succ);
@@ -3383,7 +3383,7 @@ package body Userland.Syscall is
             declare
                UID, GID : Unsigned_32;
                A_SAddr2 : constant System.Address := SAddr + 4;
-               CLen : constant Natural := Lib.C_String_Length (A_SAddr2);
+               CLen : constant Natural := Strlen (A_SAddr2);
                Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
             begin
                Process.Get_UID (Proc, UID);
@@ -3716,7 +3716,7 @@ package body Userland.Syscall is
             when IPC.Socket.UNIX =>
                declare
                   A_SAddr2 : constant System.Address := A_SAddr + 4;
-                  CLen : Natural := Lib.C_String_Length (A_SAddr2);
+                  CLen : Natural := Strlen (A_SAddr2);
                   Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
                begin
                   Accept_Connection
@@ -4407,7 +4407,7 @@ package body Userland.Syscall is
          when IPC.Socket.UNIX =>
             declare
                A_SAddr2 : constant System.Address := ASAddr + 4;
-               CLen : Natural := Lib.C_String_Length (A_SAddr2);
+               CLen : Natural := Interfaces.C.Strings.Strlen (A_SAddr2);
                Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
             begin
                Get_Bound (File.Inner_Socket, Addr, CLen, Succ);
@@ -4486,7 +4486,7 @@ package body Userland.Syscall is
          when IPC.Socket.UNIX =>
             declare
                A_SAddr2 : constant System.Address := ASAddr + 4;
-               CLen : Natural := Lib.C_String_Length (A_SAddr2);
+               CLen : Natural := Interfaces.C.Strings.Strlen (A_SAddr2);
                Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
             begin
                Get_Peer (File.Inner_Socket, Addr, CLen, Succ);
@@ -4924,7 +4924,7 @@ package body Userland.Syscall is
                   declare
                      UID, GID : Unsigned_32;
                      A_SAddr : constant System.Address := ASAddr + 4;
-                     CLen : constant Natural := Lib.C_String_Length (A_SAddr);
+                     CLen : constant Natural := Strlen (A_SAddr);
                      Addr : String (1 .. CLen) with Import, Address => A_SAddr;
                   begin
                      Get_UID (Proc, UID);
@@ -5031,7 +5031,7 @@ package body Userland.Syscall is
                   declare
                      UID, GID : Unsigned_32;
                      A_SAddr : constant System.Address := ASAddr + 4;
-                     CLen : constant Natural := Lib.C_String_Length (A_SAddr);
+                     CLen : constant Natural := Strlen (A_SAddr);
                      Addr : String (1 .. CLen) with Import, Address => A_SAddr;
                   begin
                      Get_UID (Proc, UID);
@@ -7170,7 +7170,7 @@ package body Userland.Syscall is
    end Translate_Status;
 
    function To_String (Addr : System.Address) return String_Acc is
-      Arg_Length : constant Natural := Lib.C_String_Length (Addr);
+      Arg_Length : constant Natural := Interfaces.C.Strings.Strlen (Addr);
       Arg_String : String (1 .. Arg_Length) with Import, Address => Addr;
    begin
       return new String'(Arg_String);

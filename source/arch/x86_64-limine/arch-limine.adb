@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System; use System;
-with Lib;
+with Interfaces.C.Strings; use Interfaces.C.Strings;
 with Lib.Messages;
 
 package body Arch.Limine with SPARK_Mode => Off is
@@ -41,10 +41,10 @@ package body Arch.Limine with SPARK_Mode => Off is
       InfoPonse : Bootloader_Info_Response
          with Import, Address => Bootloader_Info_Request.Response;
       Name_Addr : constant System.Address := InfoPonse.Name_Addr;
-      Name_Len  : constant        Natural := Lib.C_String_Length (Name_Addr);
+      Name_Len  : constant Natural := Strlen (Name_Addr);
       Boot_Name : String (1 .. Name_Len) with Import, Address => Name_Addr;
       Vers_Addr : constant System.Address := InfoPonse.Version_Addr;
-      Vers_Len  : constant        Natural := Lib.C_String_Length (Vers_Addr);
+      Vers_Len  : constant Natural := Strlen (Vers_Addr);
       Boot_Vers : String (1 .. Vers_Len) with Import, Address => Vers_Addr;
    begin
       Lib.Messages.Put_Line ("Booted by " & Boot_Name & " " & Boot_Vers);
@@ -57,7 +57,7 @@ package body Arch.Limine with SPARK_Mode => Off is
             with Import, Address => Kernel_File_Request.Response;
          Cmdline_Addr : constant System.Address :=
             CmdPonse.Kernel_File.Cmdline;
-         Cmdline_Len  : constant Natural := Lib.C_String_Length (Cmdline_Addr);
+         Cmdline_Len : constant Natural := Strlen (Cmdline_Addr);
          Cmdline : String (1 .. Cmdline_Len)
             with Import, Address => Cmdline_Addr;
       begin

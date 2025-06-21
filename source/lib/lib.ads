@@ -14,12 +14,5 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System; use System;
-
 package Lib with Pure is
-   --  Get the length of a C-Style string.
-   --  @param Addr Address of the C-Style, NUL-terminated string to check.
-   --  @return Length of the passed string.
-   function C_String_Length (Addr : Address) return Natural
-      with Pre => Addr /= System.Null_Address;
 end Lib;

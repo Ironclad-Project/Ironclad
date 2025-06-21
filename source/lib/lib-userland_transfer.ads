@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.MMU;
+with System; use System;
 
 generic
    type T is private;

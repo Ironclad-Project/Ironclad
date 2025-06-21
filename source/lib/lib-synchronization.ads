@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
+with System;     use System;
 
 package Lib.Synchronization is
    --  A simple binary semaphore for critical sections only.

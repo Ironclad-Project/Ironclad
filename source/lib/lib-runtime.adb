@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Interfaces.C.Strings;
 with Lib.Panic;
 
 package body Lib.Runtime with SPARK_Mode => Off is
@@ -21,7 +22,7 @@ package body Lib.Runtime with SPARK_Mode => Off is
    pragma Suppress (All_Checks);
 
    procedure Last_Chance_Handler (File : System.Address; Line : Integer) is
-      File_String : String (1 .. Lib.C_String_Length (File))
+      File_String : String (1 .. Interfaces.C.Strings.Strlen (File))
          with Address => File, Import;
    begin
       Lib.Panic.Hard_Panic
