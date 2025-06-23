@@ -1,4 +1,4 @@
---  userland_transfer.adb: Userland copy to/from userland.
+--  memory-userland_transfer.adb: Userland copy to/from userland.
 --  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,11 +14,10 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Snippets;
 with Alignment;
 
-package body Userland_Transfer is
+package body Memory.Userland_Transfer is
    package A is new Alignment (Integer_Address);
 
    procedure Take_From_Userland
@@ -104,4 +103,4 @@ package body Userland_Transfer is
       when Constraint_Error =>
          Success := False;
    end Paste_Into_Userland;
-end Userland_Transfer;
+end Memory.Userland_Transfer;

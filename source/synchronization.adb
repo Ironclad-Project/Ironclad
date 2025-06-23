@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Atomic; use Atomic;
+with System.Atomic_Operations; use System.Atomic_Operations;
 with Arch;
 with Arch.Snippets;
 with Panic;

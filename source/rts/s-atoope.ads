@@ -1,5 +1,5 @@
---  atomic.ads: Atomic operations.
---  Copyright (C) 2021 streaksu
+--  s-atoope.ads: Atomic operations.
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,10 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
-with Interfaces; use Interfaces;
+with Interfaces;
 
-package Atomic is
+package System.Atomic_Operations is
    --  Values from libgnat/s-atopri.ads for memory ordering.
    Mem_Relaxed : constant := 0; --  Implies no ordering constraints.
    Mem_Consume : constant := 1; --  Implemented right now as acquire.
@@ -35,10 +34,10 @@ package Atomic is
       Model : Mem_Model := Mem_Seq_Cst) return Atomic_Type;
    pragma Import (Intrinsic, Atomic_Load, "__atomic_load_n");
 
-   function Atomic_Load_8  is new Atomic_Load (Unsigned_8);
-   function Atomic_Load_16 is new Atomic_Load (Unsigned_16);
-   function Atomic_Load_32 is new Atomic_Load (Unsigned_32);
-   function Atomic_Load_64 is new Atomic_Load (Unsigned_64);
+   function Atomic_Load_8  is new Atomic_Load (Interfaces.Unsigned_8);
+   function Atomic_Load_16 is new Atomic_Load (Interfaces.Unsigned_16);
+   function Atomic_Load_32 is new Atomic_Load (Interfaces.Unsigned_32);
+   function Atomic_Load_64 is new Atomic_Load (Interfaces.Unsigned_64);
 
    generic
       type Atomic_Type2 is mod <>;
@@ -65,4 +64,4 @@ package Atomic is
      (Pointer : System.Address;
       Model   : Mem_Model := Mem_Seq_Cst);
    pragma Import (Intrinsic, Atomic_Clear, "__atomic_clear");
-end Atomic;
+end System.Atomic_Operations;

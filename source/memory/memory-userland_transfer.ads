@@ -1,4 +1,4 @@
---  userland_transfer.ads: Userland copy to/from userland.
+--  memory-userland_transfer.ads: Userland copy to/from userland.
 --  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@ with System; use System;
 
 generic
    type T is private;
-package Userland_Transfer is
+package Memory.Userland_Transfer is
    --  Copy an object from userland to kernel memory.
    --  Accessibility checks are done by checking against the passed MMU table.
    procedure Take_From_Userland
@@ -35,4 +35,4 @@ package Userland_Transfer is
        Data    : T;
        Addr    : System.Address;
        Success : out Boolean);
-end Userland_Transfer;
+end Memory.Userland_Transfer;
