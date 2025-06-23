@@ -11,7 +11,7 @@
 with System.Image;
 with System.Unsigned_Types;
 
-package System.Img_LLLI with SPARK_Mode is
+package System.Img_LLLI with SPARK_Mode, Pure is
    subtype Long_Long_Long_Unsigned is Unsigned_Types.Long_Long_Long_Unsigned;
    package Impl is new Image
       (Long_Long_Long_Integer,

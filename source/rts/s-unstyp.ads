@@ -206,14 +206,4 @@ package System.Unsigned_Types with Pure is
    pragma Import (Intrinsic, Shift_Right_Arithmetic);
    pragma Import (Intrinsic, Rotate_Left);
    pragma Import (Intrinsic, Rotate_Right);
-
-   --  The following definitions are obsolescent. They were needed by the
-   --  previous version of the compiler and runtime, but are not needed
-   --  by the current version. We retain them to help with bootstrap path
-   --  problems. Also they seem harmless, and if any user programs have
-   --  been using these types, why discombobulate them?
-
-   subtype Packed_Bytes           is Packed_Bytes4;
-   subtype Packed_Bytes_Unaligned is Packed_Bytes1;
-
 end System.Unsigned_Types;

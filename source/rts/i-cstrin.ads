@@ -10,7 +10,7 @@
 
 with System;
 
-package Interfaces.C.Strings is
+package Interfaces.C.Strings with Pure is
    --  Get the length of a C-Style string.
    --  @param Addr Address of the C-Style, NUL-terminated string to check.
    --  @return Length of the passed string.

@@ -12,7 +12,7 @@ generic
    type Int  is range <>;
    type UInt is mod <>;
    Do_Hex : Boolean;
-package System.Image is
+package System.Image with Pure is
    procedure Image_Integer
      (V : Int;
       S : in out String;

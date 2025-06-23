@@ -11,7 +11,7 @@
 with System.Image;
 with System.Unsigned_Types;
 
-package System.Img_Int is
+package System.Img_Int with Pure is
    subtype Unsigned is Unsigned_Types.Unsigned;
    package Impl is new Image (Integer, Unsigned, False);
    procedure Image_Integer
