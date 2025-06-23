@@ -67,14 +67,26 @@ package body Arch.IDT is
    for IDT_Pointer'Size use 80;
 
    --  Global variables for the user IDT and its pointer.
-   Global_IDT     : array (IDT_Index) of IDT_Entry;
-   Global_Pointer : IDT_Pointer;
+   Global_IDT : array (IDT_Index) of IDT_Entry :=
+      [others =>
+         (Offset_Low  => 0,
+          Selector    => 0,
+          IST         => 0,
+          Gate_Type   => 0,
+          Zero        => False,
+          DPL         => 0,
+          Present     => False,
+          Offset_Mid  => 0,
+          Offset_High => 0,
+          Reserved_2  => 0)];
+   Global_Pointer : IDT_Pointer := (0, System.Null_Address);
 
    --  Thunk list and the isr table, the thunk list contains a list of thunks
    --  to be loaded to the idt that directly call the elements in isr_table.
    type Addr_List is array (IDT_Index) of System.Address with Pack;
    Thunk_List : Addr_List with Import, External_Name => "interrupt_thunk_list";
-   ISR_Table  : Addr_List with Export, External_Name => "isr_table";
+   ISR_Table  : Addr_List := [others => System.Null_Address]
+      with Export, External_Name => "isr_table";
 
    procedure Init is
    begin

@@ -709,8 +709,9 @@ private
    type Mount_Registry_Acc is access Mount_Registry;
 
    Mounts       : Mount_Registry_Acc;
-   Mounts_Mutex : aliased Synchronization.Binary_Semaphore;
    Root_Idx     : FS_Handle := Error_Handle;
+   Mounts_Mutex : aliased Synchronization.Binary_Semaphore :=
+      Synchronization.Unlocked_Semaphore;
 
    function Is_Initialized return Boolean is (Mounts /= null);
 end VFS;

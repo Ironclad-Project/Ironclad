@@ -98,10 +98,19 @@ package body Arch.GDT is
          8 =>        (0, 0, 0, 2#11110010#,           0, 0), --  64-bit udata.
          9 =>        (0, 0, 0, 2#11111010#, 2#00100000#, 0)  --  64-bit ucode.
       ],
-      TSS => <>
+      TSS =>
+         (Limit         => 0,
+          Base_Low_16   => 0,
+          Base_Mid_8    => 0,
+          Flags_1       => 0,
+          Flags_2       => 0,
+          Base_High_8   => 0,
+          Base_Upper_32 => 0,
+          Reserved      => 0)
    );
-   Global_Pointer : GDT_Pointer;
-   TSS_Mutex : aliased Synchronization.Binary_Semaphore;
+   Global_Pointer : GDT_Pointer := (0, System.Null_Address);
+   TSS_Mutex : aliased Synchronization.Binary_Semaphore :=
+      Synchronization.Unlocked_Semaphore;
 
    procedure Init is
    begin

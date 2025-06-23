@@ -79,7 +79,8 @@ package body Scheduler with SPARK_Mode => Off is
    --  Both are calculated from the total slice.
    Total_Slice : constant := 1_000_000; --  A second in microseconds.
 
-   Scheduler_Mutex : aliased Synchronization.Binary_Semaphore;
+   Scheduler_Mutex : aliased Synchronization.Binary_Semaphore :=
+      Synchronization.Unlocked_Semaphore;
    Cluster_Pool    : Cluster_Arr_Acc;
    Thread_Pool     : Thread_Info_Arr_Acc;
 

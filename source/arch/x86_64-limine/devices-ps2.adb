@@ -53,11 +53,15 @@ package body Devices.PS2 is
    Ms_Data_Mutex : aliased Synchronization.Binary_Semaphore
       := Synchronization.Unlocked_Semaphore;
    Ms_Has_Returned      : Boolean    with Volatile;
-   Ms_Return_Data       : Mouse_Data with Volatile;
    Ms_Current_Flags     : Unsigned_8;
    Ms_Has_4th_Packet    : Boolean := False;
    Ms_Has_Extra_Buttons : Boolean := False;
    Ms_Current_Cycle     : Integer range 1 .. 4 := 1;
+   Ms_Return_Data       : Mouse_Data :=
+      (X_Variation => 0,
+       Y_Variation => 0,
+       Z_Variation => 0,
+       others      => False) with Volatile;
 
    function Init return Boolean is
       Index        : Arch.IDT.IRQ_Index;
@@ -291,7 +295,8 @@ package body Devices.PS2 is
 
       if Temp then
          declare
-            Data2 : Mouse_Data with Address => Data (Data'First)'Address;
+            Data2 : Mouse_Data
+               with Import, Address => Data (Data'First)'Address;
          begin
             Data2           := Ms_Return_Data;
             Ret_Count       := Ms_Return_Data'Size / 8;

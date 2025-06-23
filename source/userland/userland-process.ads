@@ -26,6 +26,11 @@ with IPC.PTY;      use IPC.PTY;
 with IPC.Socket;   use IPC.Socket;
 
 package Userland.Process is
+   --  FIXME: This unit is not preelaborate, and that generates certain binding
+   --  code that generates exceptions. These functions are garbage collected at
+   --  linking, so we can just mute the warning for the time being.
+   pragma Warnings (Off, "Restrictions (No_Exception_Propagation) in effect");
+
    --  A process is identifier by a PID (process identifier).
    --  In order to obtain a classical integer that can be used for reporting
    --  or userland passing, PIDs can be converted to integers using functions
@@ -740,6 +745,7 @@ private
    type Process_Arr     is array (PID range 1 .. PID'Last) of Process_Data_Acc;
    type Process_Arr_Acc  is access Process_Arr;
 
-   Registry_Mutex : aliased Synchronization.Mutex;
-   Registry       : Process_Arr_Acc;
+   Registry       : Process_Arr_Acc := null;
+   Registry_Mutex : aliased Synchronization.Mutex :=
+      Synchronization.Unlocked_Mutex;
 end Userland.Process;

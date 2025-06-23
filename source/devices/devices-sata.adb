@@ -206,7 +206,7 @@ package body Devices.SATA with SPARK_Mode => Off is
       end if;
 
       declare
-         Sectors : Unsigned_64 with Address => Identify (101)'Address;
+         Sectors : Unsigned_64 with Import, Address => Identify (101)'Address;
          Serial  : Cryptography.Random.Crypto_Data (1 .. 20)
             with Import, Address => Identify (10)'Address;
       begin

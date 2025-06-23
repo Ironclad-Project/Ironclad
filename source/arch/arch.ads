@@ -41,6 +41,6 @@ package Arch is
    type Boot_RAM_Files is array (Natural range <>) of Boot_RAM_File;
 
    --  Cmdline of the kernel.
-   Cmdline_Len : Natural;
-   Cmdline     : String (1 .. 256);
+   Cmdline_Len : Natural := 0;
+   Cmdline     : String (1 .. 256) := [others => ' '];
 end Arch;

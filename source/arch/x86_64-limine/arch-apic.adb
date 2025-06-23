@@ -256,8 +256,7 @@ package body Arch.APIC with SPARK_Mode => Off is
          --  Check how many entries do we need to allocate.
          while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
             declare
-               Header : ACPI.MADT_Header;
-               for Header'Address use
+               Header : ACPI.MADT_Header with Import, Address =>
                   MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
             begin
                case Header.Entry_Type is
@@ -277,11 +276,9 @@ package body Arch.APIC with SPARK_Mode => Off is
          MADT_ISOs    := new ISO_Array    (1 .. ISO_Count);
          while (Current_Byte + ((MADT'Size / 8) - 1)) < MADT_Length loop
             declare
-               IOAPIC : ACPI.MADT_IOAPIC;
-               ISO    : ACPI.MADT_ISO;
-               for IOAPIC'Address use
+               IOAPIC : ACPI.MADT_IOAPIC with Import, Address =>
                   MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
-               for ISO'Address use
+               ISO    : ACPI.MADT_ISO with Import, Address =>
                   MADT.Entries_Start'Address + Storage_Offset (Current_Byte);
             begin
                case IOAPIC.Header.Entry_Type is

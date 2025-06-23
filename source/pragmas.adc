@@ -27,6 +27,7 @@ pragma Restrictions (No_Protected_Types);
 pragma Restrictions (No_Delay);
 pragma Restrictions (No_Dispatch);
 pragma Restrictions (No_Implicit_Dynamic_Code);
+pragma Normalize_Scalars;
 pragma Ada_2022;
 pragma SPARK_Mode (On);
 
