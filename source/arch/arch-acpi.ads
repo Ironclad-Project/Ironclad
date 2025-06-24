@@ -518,7 +518,7 @@ private
          Bus     : Unsigned_8;
          Device  : Unsigned_8;
          Func    : Unsigned_8;
-      end record with Convention => C_Pass_By_Copy;
+      end record with Convention => C_Pass_By_Copy, Universal_Aliasing;
 
       function PCI_Device_Open
          (Address : PCI_Address;
