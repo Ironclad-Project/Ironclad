@@ -93,7 +93,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://codeberg.org/osdev/cc-runtime.git \
         cc-runtime \
-        b4d3b970b2f6e7d08360c66eea8314e8dd901490
+        dae79833b57a01b9fd3e359ee31def69f5ae899b
 
     # 2.0.0
     clone_repo_commit \

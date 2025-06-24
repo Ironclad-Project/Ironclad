@@ -38,7 +38,7 @@ project Ironclad is
        "@SRCDIR@/source/virtualization",
        "@SRCDIR@/source",
        "@SRCDIR@/freestnd-c-hdrs",
-       "@SRCDIR@/cc-runtime");
+       "@SRCDIR@/cc-runtime/src");
 
    case Arch is
       when "riscv64-limine" =>
