@@ -179,7 +179,7 @@ private
    Error_TID  : constant  TID := 0;
    Error_TCID : constant TCID := 0;
 
-   Is_Initialized : Boolean
+   Is_Initialized : Boolean := False
       with Atomic, Volatile, Async_Readers => True, Async_Writers => True,
            Effective_Reads => True, Effective_Writes => True;
 
