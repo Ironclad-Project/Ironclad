@@ -930,6 +930,17 @@ package Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
 
+   procedure Get_PGID
+      (ID       : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure Set_PGID
+      (ID       : Unsigned_64;
+       PGID     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
    procedure Get_Sock_Name
       (Sock_FD   : Unsigned_64;
        Addr_Addr : Unsigned_64;

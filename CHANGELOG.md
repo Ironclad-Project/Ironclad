@@ -23,6 +23,8 @@ release changes.
 - Implemented SO_PEERCRED for getsockopt.
 - Fixed a bug that made the `create_thread` syscall ignore the passed
   argument for the new thread.
+- Added support for process groups, by implementing the `getpgid` and `setpgid`
+  syscalls.
 
 ### Breaking changes
 

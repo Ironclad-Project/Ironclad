@@ -231,6 +231,10 @@ package body Arch.Interrupts is
          when 63 =>
             Fchown (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
                     State.R9, Returned, Errno);
+         when 64 =>
+            Get_PGID (State.RDI, Returned, Errno);
+         when 65 =>
+            Set_PGID (State.RDI, State.RSI, Returned, Errno);
          when 66 =>
             Get_Sock_Name (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 67 =>

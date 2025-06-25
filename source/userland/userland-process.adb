@@ -128,6 +128,7 @@ package body Userland.Process is
                 Effective_User  => 0,
                 Group           => 0,
                 Effective_Group => 0,
+                Process_Group   => 0,
                 SGroup_Count    => 0,
                 SGroups         => [others => 0],
                 Identifier      => [others => ' '],
@@ -165,6 +166,7 @@ package body Userland.Process is
                Registry (I).Effective_User  := Registry (P).Effective_User;
                Registry (I).Group           := Registry (P).Group;
                Registry (I).Effective_Group := Registry (P).Effective_Group;
+               Registry (I).Process_Group   := Registry (P).Process_Group;
                Registry (I).SGroup_Count    := Registry (P).SGroup_Count;
                Registry (I).SGroups         := Registry (P).SGroups;
                Registry (I).Umask           := Registry (P).Umask;
@@ -1082,6 +1084,26 @@ package body Userland.Process is
       when Constraint_Error =>
          null;
    end Set_Effective_GID;
+
+   procedure Get_PGID (Proc : PID; PGID : out Unsigned_32) is
+   begin
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      PGID := Registry (Proc).Process_Group;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         PGID := 0;
+   end Get_PGID;
+
+   procedure Set_PGID (Proc : PID; PGID : Unsigned_32) is
+   begin
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Registry (Proc).Process_Group := PGID;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_PGID;
 
    procedure Get_Supplementary_Groups
       (Proc   : PID;

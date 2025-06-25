@@ -164,6 +164,7 @@ Syscalls
 * umask::                   Get and set the calling process umask.
 * reboot::                  Machine power management.
 * fchown::                  Change ownership of a file descriptor.
+* getpgid/setpgid::         Get or set the process group of a PID.
 * getsockname::             Get address of a bound socket.
 * getpeername::             Get address of a socket's peer.
 * shutdown::                Disconnect socket from its peer.
@@ -978,9 +979,9 @@ Empty.
 @item
 @ref{fchown}.
 @item
-Empty.
+@ref{getpgid/setpgid, getpgid}.
 @item
-Empty.
+@ref{getpgid/setpgid, setpgid}.
 @item
 @ref{getsockname}.
 @item
@@ -3275,6 +3276,33 @@ MAC did not allow this.
 
 @item EBADF
 The passed file is valid but it was not a physical file in a filesystem.
+@end table
+
+@node getpgid/setpgid
+@section getpgid/setpgid
+
+@example c
+pid_t getpgid(pid_t pid);
+int setpgid(pid_t pid, pid_t pgid);
+@end example
+
+This syscalls get and set the process group ID of a process, which is a
+separate ID inherited from parent to children processes used for grouping
+processes for operations like waiting or signal handling. The group ID of
+the first process started by Ironclad is @code{0}, and userland takes care of
+it from there.
+
+Both syscalls allow their arguments to be @code{0}. When @code{0} is passed,
+it will be taken to be the PID of the calling process for either the
+@code{pid} or @code{pgid} fields.
+
+On success, @code{getpgid} returns the desired group ID, and @code{setpgid}
+returns @code{0}. On failure, both syscalls return @code{-1} with the
+following errno:
+
+@table @code
+@item ESRCH
+The passed PID is not valid.
 @end table
 
 @node getsockname

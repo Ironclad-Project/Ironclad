@@ -4354,6 +4354,68 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
    end Fchown;
 
+   procedure Get_PGID
+      (ID       : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc : PID;
+   begin
+      if ID = 0 then
+         Proc := Arch.Local.Get_Current_Process;
+      else
+         Proc := Userland.Process.Convert (Natural (ID and 16#FFFFFF#));
+         if Proc = Error_PID then
+            Errno    := Error_Bad_Search;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+      end if;
+
+      Userland.Process.Get_PGID (Proc, Unsigned_32 (Returned));
+      Errno := Error_No_Error;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end Get_PGID;
+
+   procedure Set_PGID
+      (ID       : Unsigned_64;
+       PGID     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc : PID;
+   begin
+      if ID = 0 then
+         Proc := Arch.Local.Get_Current_Process;
+      else
+         Proc := Userland.Process.Convert (Natural (ID and 16#FFFFFF#));
+         if Proc = Error_PID then
+            goto Bad_Search_Error;
+         end if;
+      end if;
+
+      if PGID = 0 then
+         Userland.Process.Set_PGID (Proc, Unsigned_32 (Convert (Proc)));
+      else
+         Userland.Process.Set_PGID (Proc, Unsigned_32 (PGID and 16#FFFFFFFF#));
+      end if;
+
+      Returned := 0;
+      Errno    := Error_No_Error;
+      return;
+
+   <<Bad_Search_Error>>
+      Errno    := Error_Bad_Search;
+      Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end Set_PGID;
+
    procedure Get_Sock_Name
       (Sock_FD   : Unsigned_64;
        Addr_Addr : Unsigned_64;
