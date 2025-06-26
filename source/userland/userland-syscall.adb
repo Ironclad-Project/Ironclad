@@ -5562,13 +5562,6 @@ package body Userland.Syscall is
       Actual  : Process.Signal;
       EUID, Tgt_UID, Tgt_EUID : Unsigned_32;
    begin
-      Translate_Signal (Signal, Actual, Success);
-      if not Success then
-         Errno    := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
       Tgt := Convert (Natural (Target and 16#FFFFFF#));
       if Tgt = Error_PID then
          Errno    := Error_Bad_Search;
@@ -5587,13 +5580,22 @@ package body Userland.Syscall is
          end if;
       end if;
 
-      if Actual = Process.Signal_Kill then
-         Do_Remote_Exit (Tgt, Process.Signal_Kill); --  The reaper himself.
-      elsif Actual = Process.Signal_Stop then
-         --  XXX: Actually implement this.
-         null;
-      else
-         Raise_Signal (Tgt, Actual);
+      if Signal /= 0 then
+         Translate_Signal (Signal, Actual, Success);
+         if not Success then
+            Errno    := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         if Actual = Process.Signal_Kill then
+            Do_Remote_Exit (Tgt, Process.Signal_Kill); --  The reaper himself.
+         elsif Actual = Process.Signal_Stop then
+            --  XXX: Actually implement this.
+            null;
+         else
+            Raise_Signal (Tgt, Actual);
+         end if;
       end if;
 
       Errno    := Error_No_Error;
