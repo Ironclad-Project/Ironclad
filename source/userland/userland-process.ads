@@ -163,16 +163,6 @@ package Userland.Process is
    --  Disable location ASLR when creating processes.
    procedure Disable_ASLR;
 
-   --  Query children for the passed process.
-   --  @param Proc Process to search the children for.
-   --  @param Buf  Where to write the children.
-   --  @param Len  Count of children, even if it does not fit.
-   type Children_Arr is array (Natural range <>) of PID;
-   procedure Get_Children
-      (Proc : PID;
-       Buf  : out Children_Arr;
-       Len  : out Natural);
-
    --  Information of a process.
    type Process_Info is record
       Identifier      : String (1 .. 20);
@@ -458,6 +448,46 @@ package Userland.Process is
        Code       : out Unsigned_8;
        Was_Signal : out Boolean;
        Sig        : out Signal)
+      with Pre => Process /= Error_PID;
+
+
+   --  Check whether a process' children exited.
+   --  @param Process     Process to check.
+   --  @param Exited_Proc Process that exited, or Error_PID if none.
+   --- @param Did_Exit    True if exited, False if not.
+   --  @param Code        Exit code, if it exited.
+   --  @param Was_Signal  True if the exit was caused by a signal.
+   --  @param Sig         The signal that caused termination, if any.
+   procedure Check_Children_Exit
+      (Process     : PID;
+       Exited_Proc : out PID;
+       Did_Exit    : out Boolean;
+       Code        : out Unsigned_8;
+       Was_Signal  : out Boolean;
+       Sig         : out Signal)
+      with Pre => Process /= Error_PID;
+
+   --  Check whether a process' children exited.
+   --  @param Process     Process to check.
+   --  @param Group       Check for this group.
+   --  @param Exited_Proc Process that exited, or Error_PID if none.
+   --- @param Did_Exit    True if exited, False if not.
+   --  @param Code        Exit code, if it exited.
+   --  @param Was_Signal  True if the exit was caused by a signal.
+   --  @param Sig         The signal that caused termination, if any.
+   procedure Check_Children_Group_Exit
+      (Process     : PID;
+       Group       : Unsigned_32;
+       Exited_Proc : out PID;
+       Did_Exit    : out Boolean;
+       Code        : out Unsigned_8;
+       Was_Signal  : out Boolean;
+       Sig         : out Signal)
+      with Pre => Process /= Error_PID;
+
+   --  Reassign children to init.
+   --  @param Process Parent process to reassign from.
+   procedure Reassign_Parent_To_Init (Process : PID)
       with Pre => Process /= Error_PID;
 
    --  Set the current working directory.

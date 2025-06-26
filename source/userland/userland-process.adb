@@ -41,33 +41,6 @@ package body Userland.Process is
       Do_ASLR := False;
    end Disable_ASLR;
 
-   procedure Get_Children
-      (Proc : PID;
-       Buf  : out Children_Arr;
-       Len  : out Natural)
-   is
-      Index : Natural := 0;
-   begin
-      Buf := [others => Error_PID];
-      Len := 0;
-      Synchronization.Seize (Registry_Mutex);
-      for I in Registry.all'Range loop
-         if Registry (I) /= null and then Registry (I).Parent = Proc
-         then
-            Len := Len + 1;
-            if Index < Buf'Length then
-               Buf (Buf'First + Index) := I;
-               Index                   := Index + 1;
-            end if;
-         end if;
-      end loop;
-      Synchronization.Release (Registry_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Registry_Mutex);
-         Len := 0;
-   end Get_Children;
-
    procedure List_All (List : out Process_Info_Arr; Total : out Natural) is
       Curr_Index : Natural := 0;
    begin
@@ -885,6 +858,96 @@ package body Userland.Process is
          Was_Signal := False;
          Sig        := Signal_Abort;
    end Check_Exit;
+
+   procedure Check_Children_Exit
+      (Process     : PID;
+       Exited_Proc : out PID;
+       Did_Exit    : out Boolean;
+       Code        : out Unsigned_8;
+       Was_Signal  : out Boolean;
+       Sig         : out Signal)
+   is
+   begin
+      Did_Exit    := False;
+      Exited_Proc := Error_PID;
+      Code        := 0;
+      Was_Signal  := False;
+      Sig         := Signal_Abort;
+
+      for I in Registry'Range loop
+         if Registry (I) /= null and then Registry (I).Parent = Process then
+            Synchronization.Seize (Registry (I).Data_Mutex);
+            Exited_Proc := I;
+            Did_Exit    := Registry (I).Did_Exit;
+            Code        := Registry (I).Exit_Code;
+            Was_Signal  := Registry (I).Signal_Exit;
+            Sig         := Registry (I).Which_Signal;
+            Synchronization.Release (Registry (I).Data_Mutex);
+            exit when Did_Exit;
+         end if;
+      end loop;
+   exception
+      when Constraint_Error =>
+         Did_Exit    := False;
+         Exited_Proc := Error_PID;
+         Code        := 0;
+         Was_Signal  := False;
+         Sig         := Signal_Abort;
+   end Check_Children_Exit;
+
+   procedure Check_Children_Group_Exit
+      (Process     : PID;
+       Group       : Unsigned_32;
+       Exited_Proc : out PID;
+       Did_Exit    : out Boolean;
+       Code        : out Unsigned_8;
+       Was_Signal  : out Boolean;
+       Sig         : out Signal)
+   is
+   begin
+      Did_Exit    := False;
+      Exited_Proc := Error_PID;
+      Code        := 0;
+      Was_Signal  := False;
+      Sig         := Signal_Abort;
+
+      for I in Registry'Range loop
+         if Registry (I) /= null          and then
+            Registry (I).Parent = Process and then
+            Registry (I).Process_Group = Group
+         then
+            Synchronization.Seize (Registry (I).Data_Mutex);
+            Exited_Proc := I;
+            Did_Exit    := Registry (I).Did_Exit;
+            Code        := Registry (I).Exit_Code;
+            Was_Signal  := Registry (I).Signal_Exit;
+            Sig         := Registry (I).Which_Signal;
+            Synchronization.Release (Registry (I).Data_Mutex);
+            exit when Did_Exit;
+         end if;
+      end loop;
+   exception
+      when Constraint_Error =>
+         Did_Exit    := False;
+         Exited_Proc := Error_PID;
+         Code        := 0;
+         Was_Signal  := False;
+         Sig         := Signal_Abort;
+   end Check_Children_Group_Exit;
+
+   procedure Reassign_Parent_To_Init (Process : PID) is
+   begin
+      for Proc of Registry.all loop
+         if Proc /= null and then Proc.Parent = Process then
+            Synchronization.Seize (Proc.Data_Mutex);
+            Proc.Parent := 1;
+            Synchronization.Release (Proc.Data_Mutex);
+         end if;
+      end loop;
+   exception
+      when Constraint_Error =>
+         null;
+   end Reassign_Parent_To_Init;
 
    procedure Set_CWD
       (Proc : PID;

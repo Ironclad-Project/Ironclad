@@ -937,13 +937,16 @@ package body Userland.Syscall is
        Returned                       : out Unsigned_64;
        Errno                          : out Errno_Value)
    is
+      type Signed_32 is range -2 ** 31 + 1 .. +2 ** 31 - 1;
+      function Conv is new Ada.Unchecked_Conversion (Unsigned_32, Signed_32);
       package Trans is new Memory.Userland_Transfer (Unsigned_32);
+
       Addr        : constant Integer_Address := Integer_Address (Exit_Addr);
       Proc        : constant             PID := Arch.Local.Get_Current_Process;
       Dont_Hang   : constant         Boolean := (Options and WNOHANG) /= 0;
+      Signed_Wait : Signed_32;
       Waited, Tmp : PID;
-      Children    : Process.Children_Arr (1 .. 25);
-      Count       : Natural;
+      Group       : Unsigned_32;
       Did_Exit    : Boolean;
       Was_Signal  : Boolean;
       Cause       : Signal;
@@ -952,30 +955,52 @@ package body Userland.Syscall is
       Map         : Page_Table_Acc;
       Succ        : Boolean;
    begin
-      --  If -1, we have to wait for any of the children, else, wait for the
-      --  passed PID.
-      if Waited_PID = Unsigned_64 (Unsigned_32'Last) then
+      --  If < -1: wait on the children in abs number as process group id.
+      --  If = -1: wait on all children.
+      --  If =  0: wait on children in the process group of caller.
+      --  If >  0: Wait on the number as a PID.
+      Signed_Wait := Conv (Unsigned_32 (Waited_PID and 16#FFFFFFFF#));
+      if Signed_Wait < -1 or Signed_Wait = 0 then
+         if Signed_Wait = 0 then
+            Get_PGID (Proc, Group);
+         else
+            Group := Unsigned_32 (abs Signed_Wait);
+         end if;
+
          loop
-            Process.Get_Children (Proc, Children, Count);
-            if Count = 0 then
-               goto Child_Error;
+            Check_Children_Group_Exit
+               (Process     => Proc,
+                Group       => Group,
+                Exited_Proc => Waited,
+                Did_Exit    => Did_Exit,
+                Code        => Error_Code,
+                Was_Signal  => Was_Signal,
+                Sig         => Cause);
+            if Did_Exit then
+               goto Waited_Exited;
             end if;
 
-            for PID_Item of Children (1 .. Count) loop
-               Waited := PID_Item;
-               if Waited /= Error_PID then
-                  Check_Exit (Waited, Did_Exit, Error_Code, Was_Signal, Cause);
-                  if Did_Exit then
-                     goto Waited_Exited;
-                  end if;
-               end if;
-            end loop;
+            exit when Dont_Hang;
+            Scheduler.Yield_If_Able;
+         end loop;
+      elsif Signed_Wait = -1 then
+         loop
+            Check_Children_Exit
+               (Process     => Proc,
+                Exited_Proc => Waited,
+                Did_Exit    => Did_Exit,
+                Code        => Error_Code,
+                Was_Signal  => Was_Signal,
+                Sig         => Cause);
+            if Did_Exit then
+                  goto Waited_Exited;
+            end if;
 
             exit when Dont_Hang;
             Scheduler.Yield_If_Able;
          end loop;
       else
-         Waited := Userland.Process.Convert (Natural (Waited_PID));
+         Waited := Userland.Process.Convert (Natural (Signed_Wait));
          if Waited = Error_PID then
             goto Child_Error;
          end if;
@@ -7419,14 +7444,9 @@ package body Userland.Syscall is
    end Translate_Signal;
 
    procedure Common_Death_Preparations (Proc : PID) is
-      Children : Process.Children_Arr (1 .. 25);
-      Count    : Natural;
    begin
       --  Inherit all our children to init, who will take care of them.
-      Process.Get_Children (Proc, Children, Count);
-      for Child of Children (1 .. Count) loop
-         Process.Set_Parent (Child, Process.Convert (1));
-      end loop;
+      Reassign_Parent_To_Init (Proc);
 
       --  Remove all state but the return value and keep the zombie around
       --  until we are waited.
