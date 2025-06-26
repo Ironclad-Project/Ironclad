@@ -949,6 +949,62 @@ package body Userland.Process is
          null;
    end Reassign_Parent_To_Init;
 
+   procedure Exit_Process (Process : PID; Killer : Signal) is
+      Exiting_Ourselves : constant Boolean :=
+         Process = Arch.Local.Get_Current_Process;
+   begin
+      if Exiting_Ourselves then
+         --  Switch to the kernel page table to make us immune to having it
+         --  swept from under out feet by process cleanup.
+         if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
+            Messages.Put_Line ("Could not switch table on thread exit");
+         end if;
+
+         Remove_Thread (Process, Arch.Local.Get_Current_Thread);
+      end if;
+
+      --  Inherit all our children to init, who will take care of them.
+      Reassign_Parent_To_Init (Process);
+
+      --  Remove all state but the return value and keep the zombie around
+      --  until we are waited.
+      Flush_Threads (Process);
+      Flush_Files   (Process);
+      Issue_Exit (Process, Killer);
+
+      if Exiting_Ourselves then
+         Scheduler.Bail;
+      end if;
+   end Exit_Process;
+
+   procedure Exit_Process (Process : PID; Code : Unsigned_8) is
+      Exiting_Ourselves : constant Boolean :=
+         Process = Arch.Local.Get_Current_Process;
+   begin
+      if Exiting_Ourselves then
+         --  Switch to the kernel page table to make us immune to having it
+         --  swept from under out feet by process cleanup.
+         if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
+            Messages.Put_Line ("Could not switch table on thread exit");
+         end if;
+
+         Remove_Thread (Process, Arch.Local.Get_Current_Thread);
+      end if;
+
+      --  Inherit all our children to init, who will take care of them.
+      Reassign_Parent_To_Init (Process);
+
+      --  Remove all state but the return value and keep the zombie around
+      --  until we are waited.
+      Flush_Threads (Process);
+      Flush_Files   (Process);
+      Issue_Exit (Process, Code);
+
+      if Exiting_Ourselves then
+         Scheduler.Bail;
+      end if;
+   end Exit_Process;
+
    procedure Set_CWD
       (Proc : PID;
        FS   : VFS.FS_Handle;
@@ -1265,14 +1321,71 @@ package body Userland.Process is
 
    procedure Raise_Signal (Proc : PID; Sig : Signal) is
    begin
-      Synchronization.Seize (Registry (Proc).Data_Mutex);
-      if Sig /= Signal_Kill and then
-         Sig /= Signal_Stop and then
-         not Registry (Proc).Masked_Signals (Sig)
-      then
-         Registry (Proc).Raised_Signals (Sig) := True;
+      if Sig = Signal_Kill then
+         Exit_Process (Proc, Signal_Kill);
+      elsif Sig = Signal_Stop then
+         --  XXX: Implement this.
+         null;
+      else
+         Synchronization.Seize (Registry (Proc).Data_Mutex);
+         if not Registry (Proc).Masked_Signals (Sig) then
+            Registry (Proc).Raised_Signals (Sig) := True;
+         end if;
+         Synchronization.Release (Registry (Proc).Data_Mutex);
       end if;
-      Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
+   end Raise_Signal;
+
+   procedure Raise_Signal
+      (Sig        : Signal;
+       Sender_UID : Unsigned_32;
+       Bypass_UID : Boolean;
+       Group      : Unsigned_32)
+   is
+      Tgt_Group, EUID, UID : Unsigned_32;
+   begin
+      for I in Registry'Range loop
+         if Registry (I) /= null then
+            Synchronization.Seize (Registry (I).Data_Mutex);
+            Tgt_Group := Registry (I).Process_Group;
+            EUID      := Registry (I).Effective_User;
+            UID       := Registry (I).User;
+            Synchronization.Release (Registry (I).Data_Mutex);
+
+            if Tgt_Group = Group and
+               (Bypass_UID or (EUID = Sender_UID or UID = Sender_UID))
+            then
+               Raise_Signal (I, Sig);
+            end if;
+         end if;
+      end loop;
+   exception
+      when Constraint_Error =>
+         null;
+   end Raise_Signal;
+
+   procedure Raise_Signal
+      (Process    : PID;
+       Sig        : Signal;
+       Sender_UID : Unsigned_32;
+       Bypass_UID : Boolean)
+   is
+      EUID, UID : Unsigned_32;
+   begin
+      for I in Registry'Range loop
+         if Registry (I) /= null and then I /= Process and then I /= 1 then
+            Synchronization.Seize (Registry (I).Data_Mutex);
+            EUID      := Registry (I).Effective_User;
+            UID       := Registry (I).User;
+            Synchronization.Release (Registry (I).Data_Mutex);
+
+            if Bypass_UID or (EUID = Sender_UID or UID = Sender_UID) then
+               Raise_Signal (I, Sig);
+            end if;
+         end if;
+      end loop;
    exception
       when Constraint_Error =>
          null;

@@ -24,7 +24,9 @@ release changes.
 - Fixed a bug that made the `create_thread` syscall ignore the passed
   argument for the new thread.
 - Added support for process groups, by implementing the `getpgid` and `setpgid`
-  syscalls, and adding support to the `wait` syscall.
+  syscalls, and adding support to the `wait` and `send_signal` syscalls.
+- `send_signal` now does not report errors when the passed signal is `0`,
+  instead, it does a signal sending "dry run", checking permissions only.
 
 ### Breaking changes
 

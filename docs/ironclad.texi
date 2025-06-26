@@ -3833,8 +3833,10 @@ This syscall sends the passed signal to the passed PID.
 
 @itemize @bullet
 @item @code{Lesser than -1}: @code{pid} is taken as a process group ID.
-@item @code{-1}: Signals are sent to any process that we can send to.
-@item @code{0}: Signals are sent to any process in the caller's process group.
+@item @code{-1}: Signals are sent to any process that we can send to but init
+(PID 1) or the caller process.
+@item @code{0}: Signals are sent to any process in the caller's process group,
+including the caller process.
 @item @code{Greater than 0}: @code{pid} is taken as the PID to send to.
 @end itemize
 

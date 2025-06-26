@@ -52,7 +52,8 @@ package body Userland.Syscall is
    begin
       Returned := 0;
       Errno    := Error_No_Error;
-      Do_Exit (Arch.Local.Get_Current_Process, Unsigned_8 (Code and 16#FF#));
+      Exit_Process
+         (Arch.Local.Get_Current_Process, Unsigned_8 (Code and 16#FF#));
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;
@@ -993,7 +994,7 @@ package body Userland.Syscall is
                 Was_Signal  => Was_Signal,
                 Sig         => Cause);
             if Did_Exit then
-                  goto Waited_Exited;
+               goto Waited_Exited;
             end if;
 
             exit when Dont_Hang;
@@ -5556,44 +5557,76 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      type Signed_32 is range -2 ** 31 + 1 .. +2 ** 31 - 1;
+      function Conv is new Ada.Unchecked_Conversion (Unsigned_32, Signed_32);
+
       Proc    : constant PID := Arch.Local.Get_Current_Process;
+      Actually_Send   : constant Boolean := Signal /= 0;
+      Override_Checks : constant Boolean :=
+         Get_Capabilities (Proc).Can_Signal_All;
       Tgt     : PID;
       Success : Boolean;
       Actual  : Process.Signal;
+      Signed_Target : Signed_32;
       EUID, Tgt_UID, Tgt_EUID : Unsigned_32;
    begin
-      Tgt := Convert (Natural (Target and 16#FFFFFF#));
-      if Tgt = Error_PID then
-         Errno    := Error_Bad_Search;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
-      if not Get_Capabilities (Proc).Can_Signal_All then
-         Get_Effective_UID (Proc, EUID);
-         Get_UID (Tgt, Tgt_UID);
-         Get_Effective_UID (Tgt, Tgt_EUID);
-         if EUID /= Tgt_UID and EUID /= Tgt_EUID then
-            Errno    := Error_Bad_Permissions;
-            Returned := Unsigned_64'Last;
-            return;
-         end if;
-      end if;
-
-      if Signal /= 0 then
+      if Actually_Send then
          Translate_Signal (Signal, Actual, Success);
          if not Success then
             Errno    := Error_Invalid_Value;
             Returned := Unsigned_64'Last;
             return;
          end if;
+      end if;
 
-         if Actual = Process.Signal_Kill then
-            Do_Remote_Exit (Tgt, Process.Signal_Kill); --  The reaper himself.
-         elsif Actual = Process.Signal_Stop then
-            --  XXX: Actually implement this.
-            null;
-         else
+      Get_Effective_UID (Proc, EUID);
+
+      --  If < -1: send to the processes in abs number as process group id.
+      --  If = -1: send to any process we can signal in the system.
+      --  If =  0: signals are sent to processes in the caller's process group.
+      --  If >  0: send to the process with number as PID.
+      Signed_Target := Conv (Unsigned_32 (Target and 16#FFFFFFFF#));
+      if Signed_Target < -1 or Signed_Target = 0 then
+         if Actually_Send then
+            if Signed_Target = 0 then
+               Get_PGID (Proc, Tgt_EUID);
+            else
+               Tgt_EUID := Unsigned_32 (abs Signed_Target);
+            end if;
+
+            Raise_Signal
+               (Sig        => Actual,
+                Sender_UID => EUID,
+                Bypass_UID => Override_Checks,
+                Group      => Tgt_EUID);
+         end if;
+      elsif Signed_Target = -1 then
+         if Actually_Send then
+            Raise_Signal
+               (Process    => Proc,
+                Sig        => Actual,
+                Sender_UID => EUID,
+                Bypass_UID => Override_Checks);
+         end if;
+      else
+         Tgt := Convert (Natural (Signed_Target));
+         if Tgt = Error_PID then
+            Errno    := Error_Bad_Search;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         if not Override_Checks then
+            Get_UID (Tgt, Tgt_UID);
+            Get_Effective_UID (Tgt, Tgt_EUID);
+            if EUID /= Tgt_UID and EUID /= Tgt_EUID then
+               Errno    := Error_Bad_Permissions;
+               Returned := Unsigned_64'Last;
+               return;
+            end if;
+         end if;
+
+         if Actually_Send then
             Raise_Signal (Tgt, Actual);
          end if;
       end if;
@@ -7068,34 +7101,6 @@ package body Userland.Syscall is
       Returned := 0;
    end NVMM_VCPU_Stop;
    ----------------------------------------------------------------------------
-   procedure Do_Exit (Proc : PID; Code : Unsigned_8) is
-   begin
-      --  Switch to the kernel page table to make us immune to having it swept
-      --  from under out feet by process cleanup.
-      if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
-         Messages.Put_Line ("Could not switch table on thread exit");
-      end if;
-
-      Common_Death_Preparations (Proc);
-      Userland.Process.Remove_Thread (Proc, Arch.Local.Get_Current_Thread);
-      Userland.Process.Issue_Exit (Proc, Code);
-      Scheduler.Bail;
-   end Do_Exit;
-
-   procedure Do_Exit (Proc : PID; Sig : Signal) is
-   begin
-      --  Switch to the kernel page table to make us immune to having it swept
-      --  from under out feet by process cleanup.
-      if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
-         Messages.Put_Line ("Could not switch table on thread exit");
-      end if;
-
-      Common_Death_Preparations (Proc);
-      Userland.Process.Remove_Thread (Proc, Arch.Local.Get_Current_Thread);
-      Userland.Process.Issue_Exit (Proc, Sig);
-      Scheduler.Bail;
-   end Do_Exit;
-
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context) is
       Thread  : constant TID := Arch.Local.Get_Current_Thread;
    begin
@@ -7110,12 +7115,6 @@ package body Userland.Syscall is
       Scheduler.Signal_Kernel_Exit (Thread);
    end Post_Syscall_Hook;
    ----------------------------------------------------------------------------
-   procedure Do_Remote_Exit (Proc : PID; Sig : Signal) is
-   begin
-      Common_Death_Preparations (Proc);
-      Userland.Process.Issue_Exit (Proc, Sig);
-   end Do_Remote_Exit;
-
    procedure Common_Syscall_Hook
       (Thread : TID;
        State  : Arch.Context.GP_Context)
@@ -7289,12 +7288,12 @@ package body Userland.Syscall is
             Messages.Put_Line (PID'Image & " MAC failure " & Name);
          when MAC.Kill =>
             Messages.Put_Line (PID'Image & " MAC killing " & Name);
-            Do_Exit (Curr_Proc, 42);
+            Exit_Process (Curr_Proc, 42);
       end case;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("MAC recovery killing, no fancy printing");
-         Do_Exit (Curr_Proc, 42);
+         Exit_Process (Curr_Proc, 42);
    end Execute_MAC_Failure;
 
    procedure Set_MAC_Capabilities (Proc : PID; Bits : Unsigned_64) is
@@ -7482,7 +7481,7 @@ package body Userland.Syscall is
                (Unsigned_64 (Process.Signal'Enum_Rep (Raised_Signal)),
                 Signal_Addr, Restorer_Addr, Has_Handled);
          elsif not Ignore_Signal then
-            Do_Exit (Proc, Raised_Signal);
+            Exit_Process (Proc, Raised_Signal);
          else
             Has_Handled := True;
          end if;

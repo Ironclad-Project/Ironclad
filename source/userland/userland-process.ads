@@ -490,6 +490,20 @@ package Userland.Process is
    procedure Reassign_Parent_To_Init (Process : PID)
       with Pre => Process /= Error_PID;
 
+   --  Terminate process, if it is the caller one, this function will not
+   --  return.
+   --  @param Process Parent process to reassign from.
+   --  @param Killer  Signal that ended up killing this process.
+   procedure Exit_Process (Process : PID; Killer : Signal)
+      with Pre => Process /= Error_PID;
+
+   --  Terminate process, if it is the caller one, this function will not
+   --  return.
+   --  @param Process Parent process to reassign from.
+   --  @param Code    Code to exit the process with.
+   procedure Exit_Process (Process : PID; Code : Unsigned_8)
+      with Pre => Process /= Error_PID;
+
    --  Set the current working directory.
    --  @param Proc    Process to set the CWD of.
    --  @param CWD     Path to set, it is not checked.
@@ -629,6 +643,25 @@ package Userland.Process is
    --  @param Proc Process to raise for.
    --  @param Sig  Signal to raise.
    procedure Raise_Signal (Proc : PID; Sig : Signal);
+
+   --  Raise a signal to a process group.
+   --  @param Sig    Signal to raise.
+   --  @param Group  Group to send the signal to.
+   procedure Raise_Signal
+      (Sig        : Signal;
+       Sender_UID : Unsigned_32;
+       Bypass_UID : Boolean;
+       Group      : Unsigned_32);
+
+   --  Raise a signal to a process group.
+   --  @param Sig    Signal to raise.
+   --  @param Group  Group to send the signal to.
+   procedure Raise_Signal
+      (Process    : PID;
+       Sig        : Signal;
+       Sender_UID : Unsigned_32;
+       Bypass_UID : Boolean)
+      with Pre => Process /= Error_PID;
 
    --  Get the address assigned for a process to use as a signal handler.
    --  @param Proc     Process to get the handler for.

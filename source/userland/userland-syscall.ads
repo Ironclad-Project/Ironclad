@@ -1496,11 +1496,6 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
    ----------------------------------------------------------------------------
-   --  Exit the current process in a POSIX standard-compliant way with the
-   --  provided code.
-   procedure Do_Exit (Proc : PID; Code : Unsigned_8);
-   procedure Do_Exit (Proc : PID; Sig : Signal);
-
    --  Pre and post syscall hook.
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context);
    procedure Post_Syscall_Hook (State : Arch.Context.GP_Context);
@@ -1513,8 +1508,6 @@ package Userland.Syscall is
        Can_Map    : out Boolean);
 
 private
-
-   procedure Do_Remote_Exit (Proc : PID; Sig : Signal);
 
    procedure Common_Syscall_Hook
       (Thread : TID;

@@ -54,7 +54,7 @@ package body Arch.Interrupts is
             ("Userland " & Exception_Text (Num) &
              " (" & Userland.Process.Signal'Image (Signal) & ")");
          Userland.Corefile.Generate_Corefile (Context.GP_Context (State.all));
-         Do_Exit (Local.Get_Current_Process, Signal);
+         Userland.Process.Exit_Process (Local.Get_Current_Process, Signal);
       else
          Panic.Hard_Panic ("Kernel " & Exception_Text (Num), State.all);
       end if;
