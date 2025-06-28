@@ -392,6 +392,11 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
+   procedure Get_SID
+      (ID       : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
    type Mount_Info is record
       FS_Type       : Unsigned_32;
       Flags         : Unsigned_32;
@@ -1494,6 +1499,10 @@ package Userland.Syscall is
    procedure NVMM_VCPU_Stop
       (CPU_Addr : Unsigned_64;
        Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure Set_SID
+      (Returned : out Unsigned_64;
        Errno    : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Pre and post syscall hook.

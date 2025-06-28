@@ -102,6 +102,7 @@ package body Userland.Process is
                 Group           => 0,
                 Effective_Group => 0,
                 Process_Group   => 0,
+                Session_ID      => 0,
                 SGroup_Count    => 0,
                 SGroups         => [others => 0],
                 Identifier      => [others => ' '],
@@ -140,6 +141,7 @@ package body Userland.Process is
                Registry (I).Group           := Registry (P).Group;
                Registry (I).Effective_Group := Registry (P).Effective_Group;
                Registry (I).Process_Group   := Registry (P).Process_Group;
+               Registry (I).Session_ID      := Registry (P).Session_ID;
                Registry (I).SGroup_Count    := Registry (P).SGroup_Count;
                Registry (I).SGroups         := Registry (P).SGroups;
                Registry (I).Umask           := Registry (P).Umask;
@@ -1223,6 +1225,29 @@ package body Userland.Process is
       when Constraint_Error =>
          null;
    end Set_PGID;
+
+   procedure Get_Session_ID (Proc : PID; ID : out Unsigned_32) is
+   begin
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      ID := Registry (Proc).Session_ID;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         ID := 0;
+   end Get_Session_ID;
+
+   procedure Create_Session (Proc : PID; Success : out Boolean) is
+   begin
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Success := Registry (Proc).Process_Group /= Unsigned_32 (Proc);
+      if Success then
+         Registry (Proc).Session_ID := Unsigned_32 (Proc);
+      end if;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Success := False;
+   end Create_Session;
 
    procedure Get_Supplementary_Groups
       (Proc   : PID;

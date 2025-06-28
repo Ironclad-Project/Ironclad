@@ -145,6 +145,8 @@ package body Arch.Interrupts is
                     State.R8, State.R9, State.R10, Returned, Errno);
          when 26 =>
             List_Procs (State.RDI, State.RSI, Returned, Errno);
+         when 27 =>
+            Get_SID (State.RDI, Returned, Errno);
          when 28 =>
             Get_TID (Returned, Errno);
          when 29 =>
@@ -401,6 +403,8 @@ package body Arch.Interrupts is
             NVMM_VCPU_Dump (State.RDI, State.RSI, Returned, Errno);
          when 137 =>
             NVMM_VCPU_Stop (State.RDI, Returned, Errno);
+         when 138 =>
+            Set_SID (Returned, Errno);
          when others =>
             Userland.Process.Raise_Signal
                (Local.Get_Current_Process,

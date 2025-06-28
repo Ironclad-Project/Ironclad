@@ -165,6 +165,7 @@ Syscalls
 * reboot::                  Machine power management.
 * fchown::                  Change ownership of a file descriptor.
 * getpgid/setpgid::         Get or set the process group of a PID.
+* getsid/setsid::           Get or set the session ID of a process.
 * getsockname::             Get address of a bound socket.
 * getpeername::             Get address of a socket's peer.
 * shutdown::                Disconnect socket from its peer.
@@ -905,7 +906,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{listprocs}.
 @item
-Empty.
+@ref{getsid/setsid, getsid}.
 @item
 @ref{gettid}.
 @item
@@ -1126,6 +1127,8 @@ Empty.
 @ref{nvmm_vcpu_dump}
 @item
 @ref{nvmm_vcpu_stop}
+@item
+@ref{getsid/setsid, setsid}.
 @end enumerate
 
 @subsection riscv64-limine
@@ -3307,6 +3310,31 @@ it will be taken to be the PID of the calling process for either the
 
 On success, @code{getpgid} returns the desired group ID, and @code{setpgid}
 returns @code{0}. On failure, both syscalls return @code{-1} with the
+following errno:
+
+@table @code
+@item ESRCH
+The passed PID is not valid.
+@end table
+
+@node getsid/setsid
+@section getsid/setsid
+
+@example c
+pid_t getsid(pid_t pid);
+pid_t setsid(void);
+@end example
+
+This syscalls get and set the session ID of a process, which is a
+separate ID inherited from parent to children processes. The session ID of
+the first process started by Ironclad is @code{0}, and userland takes care of
+it from there.
+
+@code{getsid} allows its arguments to be @code{0}. When @code{0} is passed,
+it will be taken to be the PID of the calling process.
+
+On success, @code{getsid} returns the session ID, and @code{setsid}
+returns the new session ID. On failure, both syscalls return @code{-1} with the
 following errno:
 
 @table @code

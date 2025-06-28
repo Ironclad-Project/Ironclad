@@ -602,6 +602,16 @@ package Userland.Process is
    --  @param PGID Group ID.
    procedure Set_PGID (Proc : PID; PGID : Unsigned_32);
 
+   --  Get the process group id.
+   --  @param Proc Process to get the PGID of.
+   --  @param PGID Group ID.
+   procedure Get_Session_ID (Proc : PID; ID : out Unsigned_32);
+
+   --  Set the process group id.
+   --  @param Proc Process to set the PGID of.
+   --  @param PGID Group ID.
+   procedure Create_Session (Proc : PID; Success : out Boolean);
+
    Max_Supplementary_Groups : constant := 10;
    type Supplementary_GID_Arr is array (Natural range <>) of Unsigned_32;
 
@@ -788,6 +798,7 @@ private
       Group           : Unsigned_32;
       Effective_Group : Unsigned_32;
       Process_Group   : Unsigned_32;
+      Session_ID      : Unsigned_32;
       SGroup_Count    : Natural;
       SGroups         : Supplementary_GID_Arr (1 .. Max_Supplementary_Groups);
       Identifier      : String (1 .. Max_Name_Length);
