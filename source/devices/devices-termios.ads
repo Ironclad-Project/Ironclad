@@ -80,6 +80,9 @@ package Devices.TermIOs is
    TIOCGWINSZ : constant := 16#5413#;
    TIOCSWINSZ : constant := 16#5414#;
    TIOCNOTTY  : constant := 16#5422#; --  Decouple controlling TTY.
+   TIOCGPGRP  : constant := 16#540F#;
+   TIOCSPGRP  : constant := 16#5410#;
+   TIOCGSID   : constant := 16#5429#;
 
    --  Output modes for the Main_Data structure.
    OPOST : constant := 16#1#;

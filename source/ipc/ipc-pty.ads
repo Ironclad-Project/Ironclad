@@ -173,6 +173,8 @@ private
       Term_Size          : Devices.TermIOs.Win_Size;
       Was_Closed         : Boolean;
       Termios_Changed    : Boolean;
+      Process_Group      : Unsigned_32;
+      Session_ID         : Unsigned_32;
       Primary_Length     : aliased Data_Length;
       Secondary_Length   : aliased Data_Length;
       Primary_Data       : aliased TTY_Data;

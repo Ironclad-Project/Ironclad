@@ -67,6 +67,8 @@ package body IPC.PTY is
           Term_Size          => (others => 0),
           Was_Closed         => False,
           Termios_Changed    => False,
+          Process_Group      => 0,
+          Session_ID         => 0,
           Primary_Length     => 0,
           Secondary_Length   => 0,
           Primary_Data       => [others => 0],
@@ -338,9 +340,10 @@ package body IPC.PTY is
        Success    : out Boolean)
    is
       Proc : constant PID := Arch.Local.Get_Current_Process;
-      Result_Info : Main_Data with Import, Address => Argument;
-      Result_Size :  Win_Size with Import, Address => Argument;
-      Action      :   Integer with Import, Address => Argument;
+      Result_Info :   Main_Data with Import, Address => Argument;
+      Result_Size :    Win_Size with Import, Address => Argument;
+      Action      :     Integer with Import, Address => Argument;
+      Group       : Unsigned_32 with Import, Address => Argument;
       Do_R, Do_T  :   Boolean;
    begin
       Success := True;
@@ -391,6 +394,18 @@ package body IPC.PTY is
             Set_Controlling_TTY (Proc, PTY, Success);
          when TIOCNOTTY =>
             Clear_Controlling_TTY (Proc, PTY, Success);
+         when TIOCGPGRP =>
+            Synchronization.Seize (PTY.Global_Data_Mutex);
+            Group := PTY.Process_Group;
+            Synchronization.Release (PTY.Global_Data_Mutex);
+         when TIOCSPGRP =>
+            Synchronization.Seize (PTY.Global_Data_Mutex);
+            PTY.Process_Group := Group;
+            Synchronization.Release (PTY.Global_Data_Mutex);
+         when TIOCGSID =>
+            Synchronization.Seize (PTY.Global_Data_Mutex);
+            Group := PTY.Session_ID;
+            Synchronization.Release (PTY.Global_Data_Mutex);
          when others =>
             Success := False;
       end case;
