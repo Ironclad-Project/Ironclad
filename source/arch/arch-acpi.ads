@@ -191,6 +191,14 @@ package Arch.ACPI is
    end record;
    for MADT_x2APIC'Size use 128;
 
+   type Generic_Address_Structure is record
+      Address_Space : Unsigned_8;
+      Bit_Width     : Unsigned_8;
+      Bit_Offset    : Unsigned_8;
+      Access_Size   : Unsigned_8;
+      Address       : Unsigned_64;
+   end record with Pack;
+
    --  FADT table.
    FADT_Signature : constant SDT_Signature := "FACP";
    type FADT is record
@@ -206,6 +214,7 @@ package Arch.ACPI is
       S4BIOS_REQ          : Unsigned_8;
       PSTATE_CNT          : Unsigned_8;
       PM1a_EVT_BLK        : Unsigned_32;
+      PM1b_EVT_BLK        : Unsigned_32;
       PM1a_CNT_BLK        : Unsigned_32;
       PM1b_CNT_BLK        : Unsigned_32;
       PM2_CNT_BLK         : Unsigned_32;
@@ -229,7 +238,25 @@ package Arch.ACPI is
       Day_Alarm           : Unsigned_8;
       Mon_Alarm           : Unsigned_8;
       Century             : Unsigned_8;
+      --  Everything past here is ACPI 2.0 only.
       IAPC_Architecture   : Unsigned_16;
+      Reserved_2          : Unsigned_8;
+      Flags               : Unsigned_32;
+      Reset_Register      : Generic_Address_Structure;
+      Reset_Value         : Unsigned_8;
+      Reserved_3          : Unsigned_8;
+      Reserved_4          : Unsigned_8;
+      Reserved_5          : Unsigned_8;
+      X_Firmware_Ctl      : Unsigned_64;
+      X_DSDT              : Unsigned_64;
+      X_PM1aEventBlock    : Generic_Address_Structure;
+      X_PM1bEventBlock    : Generic_Address_Structure;
+      X_PM1aControlBlock  : Generic_Address_Structure;
+      X_PM1bControlBlock  : Generic_Address_Structure;
+      X_PM2ControlBlock   : Generic_Address_Structure;
+      X_PMTImerBlock      : Generic_Address_Structure;
+      X_GPE0Block         : Generic_Address_Structure;
+      X_GPE1Block         : Generic_Address_Structure;
    end record with Pack;
 
    --  HPET table.
