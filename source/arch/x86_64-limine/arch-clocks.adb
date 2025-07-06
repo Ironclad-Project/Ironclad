@@ -19,6 +19,7 @@ with Arch.RTC;
 with Panic;
 with Time; use Time;
 with Arch.HPET;
+with Arch.ACPI_PM_Timer;
 with Messages;
 
 package body Arch.Clocks with
@@ -67,9 +68,8 @@ is
       if Success then
          if EBX /= 0 and EBX /= 0 then
             Messages.Put_Line ("Monotonic TSC calibration using CPUID 1");
-            TSC_Ticks_Per_Res   := Unsigned_64 (ECX) * Unsigned_64 (EBX / EAX);
-            TSC_Ticks_Per_Res   := TSC_Ticks_Per_Res / 1_000_000;
-            TSC_Tick_Resolution := 1_000;
+            TSC_Ticks_Per_Res := Unsigned_64 (ECX) * Unsigned_64 (EBX / EAX);
+            Normalize_TSC_Hz;
             goto Found_TSC_Frequency;
          end if;
 
@@ -79,8 +79,7 @@ is
             Snippets.Get_CPUID (16#16#, 0, EAX1, EBX1, ECX1, EDX1, Success);
             TSC_Ticks_Per_Res := Unsigned_64 (EAX1 * 10_000_000) *
                                  Unsigned_64 (EAX / EBX);
-            TSC_Ticks_Per_Res   := TSC_Ticks_Per_Res / 1_000_000;
-            TSC_Tick_Resolution := 1_000;
+            Normalize_TSC_Hz;
             goto Found_TSC_Frequency;
          end if;
       end if;
@@ -89,17 +88,30 @@ is
       --  First one we will use is the HPET.
       if HPET.Init then
          Messages.Put_Line ("Monotonic TSC calibration using HPET");
-         TSC_Tick_Resolution := 100_000; --  HPET limited.
+         HPET.Get_Resolution (TSC_Tick_Resolution);
          TSC_Start := Snippets.Read_TSC;
-         HPET.NSleep (Natural (TSC_Tick_Resolution));
+         HPET.NSleep (TSC_Tick_Resolution * 100_000);
          TSC_End := Snippets.Read_TSC;
          TSC_Ticks_Per_Res := TSC_End - TSC_Start;
+         TSC_Ticks_Per_Res := TSC_Ticks_Per_Res / 100_000;
+         goto Found_TSC_Frequency;
+      end if;
+
+      --  After that, we will use the ACPI PM timer.
+      if ACPI_PM_Timer.Init then
+         Messages.Put_Line ("Monotonic TSC calibration using ACPI PM Timer");
+         ACPI_PM_Timer.Get_Resolution (TSC_Tick_Resolution);
+         TSC_Start := Snippets.Read_TSC;
+         ACPI_PM_Timer.NSleep (TSC_Tick_Resolution * 1000);
+         TSC_End := Snippets.Read_TSC;
+         TSC_Ticks_Per_Res := TSC_End - TSC_Start;
+         TSC_Ticks_Per_Res := TSC_Ticks_Per_Res / 1000;
          goto Found_TSC_Frequency;
       end if;
 
       Panic.Hard_Panic
          ("Could not find a suitable TSC calibration source, tried:" &
-          "CPUID leaf detection, HPET");
+          "CPUID leaf detection, HPET, ACPI PM Timer");
 
    <<Found_TSC_Frequency>>
       Messages.Put_Line
@@ -174,4 +186,11 @@ is
       Get_Monotonic_Time (RT_Timestamp_Seconds, RT_Timestamp_Nanoseconds);
       RTC.Set_RTC_Date (Seconds);
    end Set_Real_Time;
+   ----------------------------------------------------------------------------
+   procedure Normalize_TSC_Hz is
+   begin
+      --  Force a resolution rounding down to 100ns.
+      TSC_Ticks_Per_Res   := TSC_Ticks_Per_Res / 10_000_000;
+      TSC_Tick_Resolution := 100;
+   end Normalize_TSC_Hz;
 end Arch.Clocks;

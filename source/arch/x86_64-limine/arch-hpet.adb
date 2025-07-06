@@ -20,9 +20,8 @@ with Arch.MMU;
 with Arch.Snippets;
 
 package body Arch.HPET with SPARK_Mode => Off is
-   HPET_Contents  : Virtual_Address;
-   HPET_Period    : Unsigned_64; --  Time in femtoseconds to increment by 1.
-   HPET_Frequency : Unsigned_64 := 0;
+   HPET_Contents   : Virtual_Address;
+   HPET_Resolution : Unsigned_64; --  Time in nanoseconds to increment by 1.
 
    function Init return Boolean is
       ACPI_Address : ACPI.Table_Record;
@@ -36,9 +35,8 @@ package body Arch.HPET with SPARK_Mode => Off is
          Success : Boolean;
          Table : ACPI.HPET
             with Import, Address => To_Address (ACPI_Address.Virt_Addr);
-         HPET : ACPI.HPET_Contents with Import,
+         HPET : ACPI.HPET_Contents with Import, Volatile,
             Address => To_Address (Table.Address + Memory_Offset);
-         pragma Volatile (HPET);
       begin
          ACPI.Unref_Table (ACPI_Address);
 
@@ -59,9 +57,14 @@ package body Arch.HPET with SPARK_Mode => Off is
             return False;
          end if;
 
-         HPET_Contents  := Table.Address + Memory_Offset;
-         HPET_Period    := Shift_Right (HPET.General_Capabilities, 32);
-         HPET_Frequency := 1_000_000_000_000_000 / HPET_Period;
+         HPET_Contents   := Table.Address + Memory_Offset;
+         HPET_Resolution := Shift_Right (HPET.General_Capabilities, 32);
+
+         --  Get the resolution from the femtoseconds, if sub 1, round up.
+         HPET_Resolution := HPET_Resolution / 1_000_000;
+         if HPET_Resolution = 0 then
+            HPET_Resolution := 1;
+         end if;
 
          --  Disable the HPET by writing 0 the Enable CNF, so we can reset the
          --  counter, and then enable again.
@@ -75,27 +78,19 @@ package body Arch.HPET with SPARK_Mode => Off is
          return False;
    end Init;
 
-   procedure Get_Frequency (Freq : out Unsigned_64) is
+   procedure Get_Resolution (Resolution : out Unsigned_64) is
    begin
-      Freq := HPET_Frequency;
-   end Get_Frequency;
+      Resolution := HPET_Resolution;
+   end Get_Resolution;
 
-   procedure Get_Counter (Counter : out Unsigned_64) is
-      HPET : ACPI.HPET_Contents
-         with Import, Address => To_Address (HPET_Contents);
-   begin
-      Counter := HPET.Main_Counter_Value;
-   end Get_Counter;
-
-   procedure NSleep (Nanoseconds : Positive) is
+   procedure NSleep (Nanoseconds : Unsigned_64) is
       --  Reads must be atomic according to spec in 64-bit mode, for 32-bit
       --  mode it doesnt hurt either.
       HPET : ACPI.HPET_Contents
          with Import, Address => To_Address (HPET_Contents);
       Target : Unsigned_64;
    begin
-      Target := HPET.Main_Counter_Value + (Unsigned_64 (Nanoseconds) *
-         HPET_Frequency / 1_000_000_000);
+      Target := HPET.Main_Counter_Value + (Nanoseconds / HPET_Resolution);
       while HPET.Main_Counter_Value < Target loop
          Snippets.Pause;
       end loop;

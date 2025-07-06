@@ -1,4 +1,4 @@
---  arch-hpet.ads: Specification of the HPET driver.
+--  arch-acpi_pm_timer.ads: ACPI power management timer support.
 --  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -16,8 +16,8 @@
 
 with Interfaces; use Interfaces;
 
-package Arch.HPET is
-   --  Initialize the HPET, if found.
+package Arch.ACPI_PM_Timer is
+   --  Initialize the timer.
    --  @return True in Success, False on failure or not found.
    function Init return Boolean;
 
@@ -27,4 +27,8 @@ package Arch.HPET is
 
    --  Sleep an amount of nanoseconds.
    procedure NSleep (Nanoseconds : Unsigned_64);
-end Arch.HPET;
+
+private
+
+   procedure Get_Counter (Counter : out Unsigned_64);
+end Arch.ACPI_PM_Timer;

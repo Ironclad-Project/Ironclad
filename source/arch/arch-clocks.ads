@@ -61,4 +61,9 @@ is
    --  Set the time for the real time clock.
    procedure Set_Real_Time (Seconds, Nanoseconds : Unsigned_64)
       with Global => (In_Out => RT_Clock_State);
+
+private
+   #if ArchName = """x86_64-limine"""
+      procedure Normalize_TSC_Hz;
+   #end if;
 end Arch.Clocks;

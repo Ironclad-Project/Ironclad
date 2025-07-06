@@ -27,6 +27,9 @@ release changes.
   syscalls, and adding support to the `wait` and `send_signal` syscalls.
 - `send_signal` now does not report errors when the passed signal is `0`,
   instead, it does a signal sending "dry run", checking permissions only.
+- Add support for the ACPI Power Management Timer as a fallback for the
+  calibration of other x86_64-limine timers, adding more options for when HPET
+  or CPUID are not available.
 
 ### Breaking changes
 
