@@ -94,7 +94,7 @@ private
       Drive_Arg  : System.Address;
       Read_Proc  : System.Address;
       Write_Proc : System.Address;
-      Caches     : Sector_Caches (1 .. 1_000_000);
+      Caches     : Sector_Caches (1 .. 250_000);
    end record;
 
    procedure Get_Cache_Index
