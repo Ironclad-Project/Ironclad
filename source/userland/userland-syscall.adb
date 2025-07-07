@@ -2923,7 +2923,7 @@ package body Userland.Syscall is
       User         : Unsigned_32;
       Status       : VFS.FS_Status;
       Map          : Page_Table_Acc;
-      Succ1, Succ2 : Boolean;
+      Success      : Boolean;
    begin
       if Path_Len > Path_Max_Len or Buffer_Len > Path_Max_Len then
          Returned := Unsigned_64'Last;
@@ -2941,12 +2941,9 @@ package body Userland.Syscall is
          Data : Buff_String;
       begin
          Get_Common_Map (Proc, Map);
-         Trans_1.Take_From_Userland (Map, Path, Path_Add, Succ1);
-         Trans_2.Take_From_Userland (Map, Data, Buffer_Add, Succ2);
-         if not Succ1 or not Succ2 then
-            Returned := Unsigned_64'Last;
-            Errno    := Error_Would_Fault;
-            return;
+         Trans_1.Take_From_Userland (Map, Path, Path_Add, Success);
+         if not Success then
+            goto Would_Fault_Error;
          end if;
 
          Process.Get_Effective_UID (Proc, User);
@@ -2974,8 +2971,17 @@ package body Userland.Syscall is
          end if;
 
          VFS.Read_Symbolic_Link (CWD_FS, Opened_Ino, Data, Ret_Count, Status);
+         Trans_2.Paste_Into_Userland (Map, Data, Buffer_Add, Success);
+         if not Success then
+            goto Would_Fault_Error;
+         end if;
          Translate_Status (Status, Unsigned_64 (Ret_Count), Returned, Errno);
+         return;
       end;
+
+   <<Would_Fault_Error>>
+      Returned := Unsigned_64'Last;
+      Errno    := Error_Would_Fault;
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;
