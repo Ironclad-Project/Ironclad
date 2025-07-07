@@ -57,6 +57,7 @@ package Arch.CPU is
 
    --  CPU features detected during initialization.
    Global_Use_XSAVE : Boolean := False;
+   Global_Use_SMAP  : Boolean := False;
    Global_FPU_Size  : Unsigned_32;
 
    --  Init the cores and BSP.

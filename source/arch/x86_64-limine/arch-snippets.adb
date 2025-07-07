@@ -16,6 +16,7 @@
 
 with System.Machine_Code; use System.Machine_Code;
 with Arch.Entrypoint;
+with Arch.CPU;
 pragma Unreferenced (Arch.Entrypoint);
 
 package body Arch.Snippets is
@@ -60,12 +61,16 @@ package body Arch.Snippets is
 
    procedure Enable_Userland_Memory_Access is
    begin
-      Asm ("stac", Clobber => "cc", Volatile => True);
+      if CPU.Global_Use_SMAP then
+         Asm ("stac", Clobber => "cc", Volatile => True);
+      end if;
    end Enable_Userland_Memory_Access;
 
    procedure Disable_Userland_Memory_Access is
    begin
-      Asm ("clac", Clobber => "cc", Volatile => True);
+      if CPU.Global_Use_SMAP then
+         Asm ("clac", Clobber => "cc", Volatile => True);
+      end if;
    end Disable_Userland_Memory_Access;
    ----------------------------------------------------------------------------
    procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) is
