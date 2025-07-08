@@ -15,37 +15,25 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Memory; use Memory;
-with Arch.Snippets;
 with Panic;
 with Arch.ACPI;
 
 package body Arch.Power is
    procedure Halt (Status : out Power_Status) is
    begin
-      Panic.Hard_Panic ("Halting with panic! or is it panic as halting?!");
+      Panic.Hard_Panic ("Using panic as a halting mechanism");
    end Halt;
 
    procedure Reboot (Status : out Power_Status) is
    begin
-      --  If we are still here by the end of the call we can assume it failed.
       ACPI.Do_Reboot;
-
-      --  Now that uACPI just doesnt work, we try PS2's 8042 CPU reset line.
-      Snippets.Port_Out (16#64#, 16#FE#);
-
       Status := Failure;
    end Reboot;
 
    procedure Poweroff (Status : out Power_Status) is
       Discard : Boolean;
    begin
-      --  First try the actual correct way with uACPI.
       ACPI.Enter_Sleep (ACPI.S5, Discard);
-
-      --  Now that uACPI just doesnt work, try some VM specific codes or fail.
-      Snippets.Port_Out16 (16#0604#, 16#2000#); --  QEMU-specific magic code.
-      Snippets.Port_Out16 (16#B004#, 16#2000#); --  Bochs-specific ditto
-      Snippets.Port_Out16 (16#4004#, 16#3400#); --  Virtualbox-specific ditto.
       Status := Failure;
    end Poweroff;
    ----------------------------------------------------------------------------
