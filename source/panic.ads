@@ -38,7 +38,6 @@ is
 
 private
 
-   procedure Panic_Hook;
-   procedure Print_Header (Message : String);
+   procedure Panic_Common (Message : String);
    procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64);
 end Panic;

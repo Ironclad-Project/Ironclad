@@ -29,15 +29,13 @@ is
 
    procedure Hard_Panic (Message : String) is
    begin
-      Panic_Hook;
-      Print_Header (Message);
+      Panic_Common (Message);
       Arch.Snippets.HCF;
    end Hard_Panic;
 
    procedure Hard_Panic (Message : String; Ctx : Arch.Context.GP_Context) is
    begin
-      Panic_Hook;
-      Print_Header (Message);
+      Panic_Common (Message);
 
       #if ArchName = """x86_64-limine"""
          Print_Triple ("RAX", "RBX", "RCX", Ctx.RAX, Ctx.RBX, Ctx.RCX);
@@ -53,15 +51,14 @@ is
       Arch.Snippets.HCF;
    end Hard_Panic;
    ----------------------------------------------------------------------------
-   procedure Panic_Hook is
+   procedure Panic_Common (Message : String) is
    begin
-      Arch.Snippets.Disable_Interrupts;    --  Never be preempted outside here.
-      Synchronization.Seize (Panic_Mutex); --  Ensure only this core panics.
-      Arch.Hooks.Panic_SMP_Hook;           --  Tell the system to nap.
-   end Panic_Hook;
+      --  Common preparations.
+      Arch.Snippets.Disable_Interrupts;
+      Synchronization.Seize (Panic_Mutex);
+      Arch.Hooks.Panic_SMP_Hook;
 
-   procedure Print_Header (Message : String) is
-   begin
+      --  Print something nice.
       Messages.Put_Line ("                   --:::-+*.            ");
       Messages.Put_Line ("  ....             =%%%%%%:++==..:+#:   ");
       Messages.Put_Line ("+*+++++**++=-.      +:%%%%%=+%%%:.-%%.  ");
@@ -78,7 +75,7 @@ is
       Messages.Put_Line ("");
       Messages.Put_Line ("Consider reporting this issue at:");
       Messages.Put_Line (Config.Bug_Site);
-   end Print_Header;
+   end Panic_Common;
 
    procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64) is
    begin
