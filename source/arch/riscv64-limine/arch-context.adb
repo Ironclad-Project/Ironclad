@@ -23,8 +23,8 @@ package body Arch.Context is
        Argument_2 : Unsigned_64 := 0;
        Argument_3 : Unsigned_64 := 0)
    is
-      pragma Unreferenced (Stack);
-      pragma Unreferenced (Start_Addr);
+      pragma Unreferenced
+         (Argument_1, Argument_2, Argument_3, Stack, Start_Addr);
    begin
       Ctx := (others => 0);
    end Init_GP_Context;
@@ -49,12 +49,12 @@ package body Arch.Context is
 
    procedure Init_FP_Context (Ctx : out FP_Context) is
    begin
-      Ctx := (others => 0);
+      Ctx := [others => 0];
    end Init_FP_Context;
 
    procedure Save_FP_Context (Ctx : in out FP_Context) is
    begin
-      Ctx := (others => 0);
+      Ctx := [others => 0];
    end Save_FP_Context;
 
    procedure Load_FP_Context (Ctx : FP_Context) is

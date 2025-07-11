@@ -19,21 +19,21 @@ with Interfaces; use Interfaces;
 package Arch.Interrupts with SPARK_Mode => Off is
    --  Passed to every interrupt called ever as an access.
    type Frame is record
-      R15  : Unsigned_32;
-      R14  : Unsigned_32;
-      R13  : Unsigned_32;
-      R12  : Unsigned_32;
-      R11  : Unsigned_32;
-      R10  : Unsigned_32;
-      R9   : Unsigned_32;
-      R8   : Unsigned_32;
-      R7   : Unsigned_32;
-      R6   : Unsigned_32;
-      R5   : Unsigned_32;
-      R4   : Unsigned_32;
-      R3   : Unsigned_32;
-      R2   : Unsigned_32;
-      R1   : Unsigned_32;
-      R0   : Unsigned_32;
+      R15  : Unsigned_64;
+      R14  : Unsigned_64;
+      R13  : Unsigned_64;
+      R12  : Unsigned_64;
+      R11  : Unsigned_64;
+      R10  : Unsigned_64;
+      R9   : Unsigned_64;
+      R8   : Unsigned_64;
+      R7   : Unsigned_64;
+      R6   : Unsigned_64;
+      R5   : Unsigned_64;
+      R4   : Unsigned_64;
+      R3   : Unsigned_64;
+      R2   : Unsigned_64;
+      R1   : Unsigned_64;
+      R0   : Unsigned_64;
    end record with Pack;
 end Arch.Interrupts;

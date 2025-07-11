@@ -37,7 +37,14 @@ is
    begin
       Panic_Common (Message);
 
-      #if ArchName = """x86_64-limine"""
+      #if ArchName = """riscv64-limine"""
+         Print_Triple ("R0", "R1", "R2", Ctx.R0, Ctx.R1, Ctx.R2);
+         Print_Triple ("R3", "R4", "R5", Ctx.R3, Ctx.R4, Ctx.R5);
+         Print_Triple ("R6", " R7", " R8", Ctx.R6, Ctx.R7,  Ctx.R8);
+         Print_Triple ("R9", "R10", "R11", Ctx.R9, Ctx.R10, Ctx.R11);
+         Print_Triple ("R12", "R13", "R14", Ctx.R12, Ctx.R13, Ctx.R14);
+         Print_Triple ("R15", "RSP", "CR2", Ctx.R15, 0, 0);
+      #elsif ArchName = """x86_64-limine"""
          Print_Triple ("RAX", "RBX", "RCX", Ctx.RAX, Ctx.RBX, Ctx.RCX);
          Print_Triple ("RDX", "RSI", "RDI", Ctx.RDX, Ctx.RSI, Ctx.RDI);
          Print_Triple ("RBP", " R8", " R9", Ctx.RBP, Ctx.R8,  Ctx.R9);

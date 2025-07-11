@@ -61,6 +61,9 @@ package body Arch.Hooks is
          Model := Returned
             (Returned'First .. Returned'First + Model'Length - 1);
       end if;
+   exception
+      when Constraint_Error =>
+         Model := [others => ' '];
    end Get_CPU_Model;
 
    procedure Get_CPU_Vendor (Vendor : out String) is
@@ -73,6 +76,9 @@ package body Arch.Hooks is
          Vendor := Returned
             (Returned'First .. Returned'First + Vendor'Length - 1);
       end if;
+   exception
+      when Constraint_Error =>
+         Vendor := [others => ' '];
    end Get_CPU_Vendor;
 
    procedure Get_CPU_Frequency (Base, Max, Reference : out Unsigned_32) is

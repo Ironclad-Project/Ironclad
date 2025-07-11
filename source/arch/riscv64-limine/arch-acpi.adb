@@ -43,6 +43,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    end Unref_Table;
    ----------------------------------------------------------------------------
    procedure Enter_Sleep (Level : Sleep_Level; Success : out Boolean) is
+      pragma Unreferenced (Level);
    begin
       Success := False;
    end Enter_Sleep;

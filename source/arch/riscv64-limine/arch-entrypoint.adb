@@ -14,14 +14,12 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
 with Devices.UART;
 with Arch.Limine;
 with Messages; use Messages;
 with Memory.Physical;
 with Arch.MMU;
 with Panic;
-with Arch.DTB;
 with Arch.CPU;
 with Main;
 
@@ -48,11 +46,6 @@ package body Arch.Entrypoint is
 
       --  Translate the limine protocol into arch-agnostic structures.
       Limine.Translate_Proto;
-
-      --  Initialize device discovery facilities.
-      if not Arch.DTB.Init then
-         Panic.Hard_Panic ("No DTB was found!");
-      end if;
 
       --  Translate the memory map.
       declare
@@ -103,5 +96,8 @@ package body Arch.Entrypoint is
 
       --  Hand it over to main.
       Main;
+   exception
+      when Constraint_Error =>
+         Panic.Hard_Panic ("Uncatched exception on the arch entrypoint");
    end Bootstrap_Main;
 end Arch.Entrypoint;

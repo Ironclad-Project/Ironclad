@@ -62,12 +62,18 @@ package body Arch.CPU with SPARK_Mode => Off is
             end loop;
          end;
       end if;
+   exception
+      when Constraint_Error =>
+         null;
    end Init_Cores;
    ----------------------------------------------------------------------------
    procedure Core_Bootstrap (Info : access Limine.RISCV64_SMP_CPU_Info) is
    begin
       Messages.Put_Line ("Hello from core " & Info.Extra_Arg'Image);
       Init_Common (Natural (Info.Extra_Arg), Info.Hart_ID);
+   exception
+      when Constraint_Error =>
+         null;
    end Core_Bootstrap;
 
    procedure Init_Common (Core_Number : Positive; Hart_ID : Unsigned_64) is
@@ -80,5 +86,8 @@ package body Arch.CPU with SPARK_Mode => Off is
           Hart_ID         => Hart_ID,
           Current_Thread  => Scheduler.Error_TID,
           Current_Process => Userland.Process.Error_PID);
+   exception
+      when Constraint_Error =>
+         null;
    end Init_Common;
 end Arch.CPU;

@@ -16,28 +16,9 @@
 
 package body Arch.Clocks with
    Refined_State =>
-      (RT_Clock_State =>
-         (RT_Timestamp_Seconds,
-          RT_Timestamp_Nanoseconds,
-          RT_Stored_Seconds,
-          RT_Stored_Nanoseconds),
-       Monotonic_Clock_State => (Mono_TSC_Freq))
+      (RT_Clock_State => (null),
+       Monotonic_Clock_State => (null))
 is
-   --  The RTC is really slow and has inacceptably large resolutions, so we
-   --  will a cached RTC time as well as when it was cached in monotonic.
-   --  That way, by adding deltas, we can build an okayish, finer-grained
-   --  resolution clock.
-   RT_Timestamp_Seconds     : Unsigned_64;
-   RT_Timestamp_Nanoseconds : Unsigned_64;
-   RT_Stored_Seconds        : Unsigned_64;
-   RT_Stored_Nanoseconds    : Unsigned_64;
-
-   --  Monotonic TSC cycles per millisecond. Before calibration, the value is
-   --  a placeholder, so monotonic always works, it is an estimation.
-   MS_Per_Sec    : constant := 1_000;
-   Nanos_Per_MS  : constant := 1_000_000;
-   Mono_TSC_Freq : Unsigned_64 := Nanos_Per_MS * 2;
-
    procedure Initialize_Sources is
    begin
       null;

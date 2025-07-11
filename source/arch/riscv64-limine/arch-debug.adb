@@ -14,6 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Unchecked_Conversion;
+with Interfaces; use Interfaces;
 with Devices.UART;
 
 package body Arch.Debug with SPARK_Mode => Off is
@@ -33,8 +35,10 @@ package body Arch.Debug with SPARK_Mode => Off is
    end Print;
 
    procedure Print (Message : Devices.Operation_Data) is
-      S : String (1 .. Message'Length) with Import, Address => Message'Address;
+      function Conv is new Ada.Unchecked_Conversion (Unsigned_8, Character);
    begin
-      Devices.UART.Write_UART0 (S);
+      for C of Message loop
+         Print (Conv (C));
+      end loop;
    end Print;
 end Arch.Debug;

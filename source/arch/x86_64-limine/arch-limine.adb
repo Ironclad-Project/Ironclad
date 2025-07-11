@@ -48,9 +48,6 @@ package body Arch.Limine with SPARK_Mode => Off is
       Boot_Vers : String (1 .. Vers_Len) with Import, Address => Vers_Addr;
    begin
       Messages.Put_Line ("Booted by " & Boot_Name & " " & Boot_Vers);
-      if Base_Request.Revision /= 0 then
-         Messages.Put_Line ("The passed revision was not supported!");
-      end if;
 
       declare
          CmdPonse : Kernel_File_Response
