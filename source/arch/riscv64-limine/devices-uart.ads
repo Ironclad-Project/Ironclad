@@ -1,5 +1,5 @@
---  devices-uart.ads: UART driver.
---  Copyright (C) 2024 streaksu
+--  devices-uart.ads:  Provides basic UART functionality for RISC-V64 systems.
+--  Copyright (C) 2025 scweeks, streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -22,16 +22,23 @@ package Devices.UART with SPARK_Mode => Off is
    --  Early initialization of UART0 for early kernel output.
    procedure Init_UART0;
 
-   --  Print a character.
+   --  Print a single character to UART0.
    procedure Write_UART0 (Message : Character);
 
-   --  Print a string.
+   --  Print a string to UART0.
    procedure Write_UART0 (Message : String);
+
+   function Read_UART0 return Unsigned_8;
 
 private
 
-   UART_Base : constant :=  16#10000000#;
-
-   UART0_TX : Unsigned_8 with Import, Volatile,
-      Address => To_Address (Memory_Offset + UART_Base);
+   --  UART Memory-Mapped Registers
+   Base : constant := Memory_Offset + 16#10000000#;
+   THR  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 0);
+   RBR  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 0);
+   IER  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 1);
+   FCR  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 2);
+   LCR  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 3);
+   MCR  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 4);
+   LSR  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 5);
 end Devices.UART;

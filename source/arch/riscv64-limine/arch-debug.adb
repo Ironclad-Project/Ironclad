@@ -21,7 +21,9 @@ with Devices.UART;
 package body Arch.Debug with SPARK_Mode => Off is
    procedure Read (Message : out Devices.Operation_Data) is
    begin
-      null;
+      for C of Message loop
+         C := Devices.UART.Read_UART0;
+      end loop;
    end Read;
 
    procedure Print (Message : Character) is
