@@ -218,12 +218,57 @@ package Arch.MMU is
 private
 
    #if ArchName = """riscv64-limine"""
-      type Page_Level is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
-      type Page_Level_Acc is access Page_Level;
-      type Page_Table is record
-         TTBR0 : Page_Level;
-         TTBR1 : Page_Level;
+      type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
+      type PML4_Acc is access PML4;
+      type Mapping_Range;
+      type Mapping_Range_Acc is access Mapping_Range;
+      type Mapping_Range is record
+         Next           : Mapping_Range_Acc;
+         Is_Allocated   : Boolean;
+         Virtual_Start  : System.Address;
+         Physical_Start : System.Address;
+         Length         : Storage_Count;
+         Flags          : Page_Permissions;
       end record;
+
+      type Page_Table is record
+         PML4_Level      : PML4;
+         Mutex           : aliased Synchronization.Readers_Writer_Lock;
+         Map_Ranges_Root : Mapping_Range_Acc;
+      end record;
+
+      procedure Inner_Map_Allocated_Range
+         (Map            : Page_Table_Acc;
+          Physical_Start : out System.Address;
+          Virtual_Start  : System.Address;
+          Length         : Storage_Count;
+          Permissions    : Page_Permissions;
+          Success        : out Boolean;
+          Caching        : Caching_Model := Write_Back);
+
+      function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address;
+      function Get_Next_Level
+         (Current_Level       : Physical_Address;
+          Index               : Unsigned_64;
+          Create_If_Not_Found : Boolean) return Physical_Address;
+      function Get_Page
+         (Map      : Page_Table_Acc;
+          Virtual  : Virtual_Address;
+          Allocate : Boolean) return Virtual_Address;
+      function Inner_Map_Range
+         (Map            : Page_Table_Acc;
+          Physical_Start : System.Address;
+          Virtual_Start  : System.Address;
+          Length         : Storage_Count;
+          Permissions    : Page_Permissions;
+          Caching        : Caching_Model) return Boolean;
+      function Flags_To_Bitmap
+         (Perm    : Page_Permissions;
+          Caching : Caching_Model) return Unsigned_64;
+      procedure Flush_TLBs
+         (Map  : Page_Table_Acc;
+          Addr : System.Address;
+          Len  : Storage_Count);
    #elsif ArchName = """x86_64-limine"""
       type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
       type PML4_Acc is access PML4;

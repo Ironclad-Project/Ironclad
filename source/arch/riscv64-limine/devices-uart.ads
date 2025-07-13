@@ -30,10 +30,13 @@ package Devices.UART with SPARK_Mode => Off is
 
    function Read_UART0 return Unsigned_8;
 
+   function Remap_UART return Boolean;
+
 private
 
    --  UART Memory-Mapped Registers
-   Base : constant := Memory_Offset + 16#10000000#;
+   Orig : constant := 16#10000000#;
+   Base : constant := Memory_Offset + Orig;
    THR  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 0);
    RBR  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 0);
    IER  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 1);

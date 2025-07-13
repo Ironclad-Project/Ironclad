@@ -79,4 +79,23 @@ package body Devices.UART with SPARK_Mode => Off is
 
       return RBR;
    end Read_UART0;
+
+   function Remap_UART return Boolean is
+      Success : Boolean;
+   begin
+      Arch.MMU.Map_Range
+         (Map              => Arch.MMU.Kernel_Table,
+          Virtual_Start    => To_Address (Base),
+          Physical_Start   => To_Address (Orig),
+          Length           => Storage_Count (Arch.MMU.Page_Size),
+          Permissions      =>
+            (Is_User_Accessible => False,
+             Can_Read          => True,
+             Can_Write         => True,
+             Can_Execute       => False,
+             Is_Global         => True),
+          Success          => Success,
+          Caching          => Arch.MMU.Uncacheable);
+      return Success;
+   end Remap_UART;
 end Devices.UART;
