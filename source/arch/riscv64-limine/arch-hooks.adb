@@ -14,10 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Arch.Flanterm;
+with Devices.FB;
+
 package body Arch.Hooks is
    function Devices_Hook return Boolean is
    begin
-      return True;
+      return Devices.FB.Init;
    end Devices_Hook;
 
    procedure PRCTL_Hook
@@ -34,7 +37,7 @@ package body Arch.Hooks is
 
    procedure Panic_SMP_Hook is
    begin
-      null;
+      Arch.Flanterm.Enable_For_Panic;
    end Panic_SMP_Hook;
 
    function Get_Configured_Cores return Positive is

@@ -17,6 +17,7 @@
 with Ada.Unchecked_Conversion;
 with Interfaces; use Interfaces;
 with Devices.UART;
+with Arch.Flanterm;
 
 package body Arch.Debug with SPARK_Mode => Off is
    procedure Read (Message : out Devices.Operation_Data) is
@@ -28,11 +29,13 @@ package body Arch.Debug with SPARK_Mode => Off is
 
    procedure Print (Message : Character) is
    begin
+      Arch.Flanterm.Put (Message);
       Devices.UART.Write_UART0 (Message);
    end Print;
 
    procedure Print (Message : String) is
    begin
+      Arch.Flanterm.Put (Message);
       Devices.UART.Write_UART0 (Message);
    end Print;
 
