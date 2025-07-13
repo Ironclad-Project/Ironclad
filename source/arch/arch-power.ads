@@ -42,4 +42,6 @@ package Arch.Power is
 
    --  Get the power profile hint from the hardware.
    procedure Get_Preferred_Profile (P : out Power_Profile);
+   ----------------------------------------------------------------------------
+   procedure Get_Buttons (Has_Power_Button, Has_Sleep_Button : out Boolean);
 end Arch.Power;

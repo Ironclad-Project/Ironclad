@@ -61,4 +61,10 @@ package body Arch.Power is
          ACPI.Unref_Table (Addr);
       end if;
    end Get_Preferred_Profile;
+   ----------------------------------------------------------------------------
+   procedure Get_Buttons (Has_Power_Button, Has_Sleep_Button : out Boolean) is
+   begin
+      Has_Power_Button := ACPI.Has_Power_Button;
+      Has_Sleep_Button := ACPI.Has_Sleep_Button;
+   end Get_Buttons;
 end Arch.Power;

@@ -14,17 +14,19 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.ACPI;
+with Arch.Power;
 
 package body Devices.Power_Buttons is
    --  Event variables.
    Power_Button_Triggered : Boolean := False;
    Sleep_Button_Triggered : Boolean := False;
 
-   function Init return Boolean is
-      Success : Boolean;
+   procedure Init (Success : out Boolean) is
+      Has_Power, Has_Sleep : Boolean;
    begin
-      if Arch.ACPI.Has_Power_Button then
+      Arch.Power.Get_Buttons (Has_Power, Has_Sleep);
+
+      if Has_Power then
          Register
             ((Data        => System.Null_Address,
               ID          => [others => 0],
@@ -40,11 +42,11 @@ package body Devices.Power_Buttons is
               Poll        => Poll_Power_Button'Access,
               Remove      => null), "pwrbutton", Success);
          if not Success then
-            return False;
+            return;
          end if;
       end if;
 
-      if Arch.ACPI.Has_Sleep_Button then
+      if Has_Sleep then
          Register
             ((Data        => System.Null_Address,
               ID          => [others => 0],
@@ -60,11 +62,11 @@ package body Devices.Power_Buttons is
               Poll        => Poll_Sleep_Button'Access,
               Remove      => null), "sleepbutton", Success);
          if not Success then
-            return False;
+            return;
          end if;
       end if;
 
-      return True;
+      Success := True;
    end Init;
 
    procedure Trigger_Power_Button is

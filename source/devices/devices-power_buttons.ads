@@ -16,7 +16,7 @@
 
 package Devices.Power_Buttons is
    --  Initialize the device.
-   function Init return Boolean;
+   procedure Init (Success : out Boolean);
 
    --  Issue power button events.
    procedure Trigger_Power_Button;

@@ -34,4 +34,10 @@ package body Arch.Power is
    begin
       P := Unspecified;
    end Get_Preferred_Profile;
+   ----------------------------------------------------------------------------
+   procedure Get_Buttons (Has_Power_Button, Has_Sleep_Button : out Boolean) is
+   begin
+      Has_Power_Button := False;
+      Has_Sleep_Button := False;
+   end Get_Buttons;
 end Arch.Power;

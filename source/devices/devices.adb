@@ -21,6 +21,7 @@ with Devices.TTY;
 with Devices.SATA;
 with Devices.NVMe;
 with Devices.i6300ESB;
+with Devices.Power_Buttons;
 with Panic;
 with Arch.Hooks;
 
@@ -31,10 +32,10 @@ package body Devices is
       pragma SPARK_Mode (Off); --  Some devices here are not verified.
 
       type Driver_Callback is access procedure (Success : out Boolean);
-      Drivers : constant array (1 .. 7) of Driver_Callback :=
+      Drivers : constant array (1 .. 8) of Driver_Callback :=
          [Console.Init'Access, i6300ESB.Init'Access,
           Loopback.Init'Access, NVMe.Init'Access, SATA.Init'Access,
-          Streams.Init'Access, TTY.Init'Access];
+          Streams.Init'Access, TTY.Init'Access, Power_Buttons.Init'Access];
 
       Success : Boolean;
    begin
