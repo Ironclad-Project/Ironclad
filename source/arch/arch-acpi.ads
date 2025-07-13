@@ -365,6 +365,16 @@ package Arch.ACPI is
       Root_ECAM_Addr at 0 range 352 .. 415;
    end record;
 
+   --  RHCT, Hart capabilities for RISC-V
+   RHCT_Signature : constant SDT_Signature := "RHCT";
+   type RHCT is record
+      Header         : SDT_Header;
+      Flags          : Unsigned_32;
+      Time_Base_Freq : Unsigned_64;
+      Node_Count     : Unsigned_32;
+      Node_Offset    : Unsigned_32;
+   end record with Pack;
+
    --  Search for an ACPI table and return its address, null if not found.
    --  The table will not necessarily be mapped.
    type Table_Record is record
