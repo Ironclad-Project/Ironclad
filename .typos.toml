@@ -23,5 +23,7 @@ nattch = "nattch"
 WHT = "WHT"
 FRE = "FRE"
 ba = "ba"
+THR = "THR"
+THRE = "THRE"
 
 [default.extend-identifiers]
