@@ -30,9 +30,9 @@ package Devices.UART with SPARK_Mode => Off is
 
    function Read_UART0 return Unsigned_8;
 
-   function Remap_UART return Boolean;
-
 private
+
+   Is_Initialized : Boolean := False;
 
    --  UART Memory-Mapped Registers
    Orig : constant := 16#10000000#;

@@ -24,6 +24,7 @@ with Arch.MMU;
 with Panic;
 with Arch.CPU;
 with Main;
+with Arch.Interrupts;
 
 package body Arch.Entrypoint is
    --  Response is a pointer to a Memmap_Response.
@@ -44,7 +45,7 @@ package body Arch.Entrypoint is
       Idx : Natural := 0;
    begin
       --  Initialize architectural state first.
-      Devices.UART.Init_UART0;
+      Arch.Interrupts.Initialize;
       Devices.FB.Early_Init;
       Arch.Flanterm.Init;
 
@@ -83,6 +84,7 @@ package body Arch.Entrypoint is
          end if;
 
          --  Enable dmesg buffers.
+         Devices.UART.Init_UART0;
          Messages.Enable_Logging;
 
          --  Print the memory map, it is useful at times.

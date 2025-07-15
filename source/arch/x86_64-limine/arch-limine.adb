@@ -17,6 +17,7 @@
 with System; use System;
 with Interfaces.C.Strings; use Interfaces.C.Strings;
 with Messages;
+with Panic;
 
 package body Arch.Limine with SPARK_Mode => Off is
    Base_Request : Limine.Base_Revision :=
@@ -48,6 +49,9 @@ package body Arch.Limine with SPARK_Mode => Off is
       Boot_Vers : String (1 .. Vers_Len) with Import, Address => Vers_Addr;
    begin
       Messages.Put_Line ("Booted by " & Boot_Name & " " & Boot_Vers);
+      if Base_Request.Revision /= 0 then
+         Panic.Hard_Panic ("Revision unsupported");
+      end if;
 
       declare
          CmdPonse : Kernel_File_Response

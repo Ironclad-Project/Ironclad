@@ -38,50 +38,7 @@ package body Devices.UART with SPARK_Mode => Off is
    procedure Init_UART0 is
       Divisor_Low  : constant Unsigned_8 := 2;
       Divisor_High : constant Unsigned_8 := 0;
-   begin
-      IER := 0; --  Disable all UART interrupts
-      LCR := LCR_DLAB_Bit; --  Enable DLAB to set the baud rate divisor
-      THR := Divisor_Low; --  Write divisor (DLL, then DLM)
-      IER := Divisor_High; --  Write divisor (DLL, then DLM)
-      LCR := LCR_8N1; --  Clear DLAB, set 8N1
-      FCR := FCR_Enable_FIFO or FCR_Clear_Rx_FIFO or FCR_Clear_Tx_FIFO;
-      MCR := MCR_DTR or MCR_RTS;  --  Set Modem Control (DTR, RTS set)
-
-      --  (Optional) Read LSR to clear any existing status
-      declare
-         Dummy : Unsigned_8 := LSR;
-      begin
-         null;
-      end;
-   end Init_UART0;
-
-   procedure Write_UART0 (Message : Character) is
-   begin
-      while (LSR and THR_Empty_Bit) = 0 loop
-         Arch.Snippets.Pause;
-      end loop;
-
-      THR := Unsigned_8 (Character'Pos (Message));
-   end Write_UART0;
-
-   procedure Write_UART0 (Message : String) is
-   begin
-      for C of Message loop
-         Write_UART0 (C);
-      end loop;
-   end Write_UART0;
-
-   function Read_UART0 return Unsigned_8 is
-   begin
-      while (LSR and DATA_Ready_Bit) = 0 loop
-         Arch.Snippets.Pause;
-      end loop;
-
-      return RBR;
-   end Read_UART0;
-
-   function Remap_UART return Boolean is
-      Success : Boolean;
+      Success      : Boolean;
    begin
       Arch.MMU.Map_Range
          (Map              => Arch.MMU.Kernel_Table,
@@ -96,6 +53,62 @@ package body Devices.UART with SPARK_Mode => Off is
              Is_Global         => True),
           Success          => Success,
           Caching          => Arch.MMU.Uncacheable);
-      return Success;
-   end Remap_UART;
+      if not Success then
+         return;
+      end if;
+
+      IER := 0; --  Disable all UART interrupts
+      LCR := LCR_DLAB_Bit; --  Enable DLAB to set the baud rate divisor
+      THR := Divisor_Low; --  Write divisor (DLL, then DLM)
+      IER := Divisor_High; --  Write divisor (DLL, then DLM)
+      LCR := LCR_8N1; --  Clear DLAB, set 8N1
+      FCR := FCR_Enable_FIFO or FCR_Clear_Rx_FIFO or FCR_Clear_Tx_FIFO;
+      MCR := MCR_DTR or MCR_RTS;  --  Set Modem Control (DTR, RTS set)
+
+      --  (Optional) Read LSR to clear any existing status
+      declare
+         Dummy : Unsigned_8 := LSR;
+      begin
+         null;
+      end;
+
+      Is_Initialized := True;
+   end Init_UART0;
+
+   procedure Write_UART0 (Message : Character) is
+   begin
+      if not Is_Initialized then
+         return;
+      end if;
+
+      while (LSR and THR_Empty_Bit) = 0 loop
+         Arch.Snippets.Pause;
+      end loop;
+
+      THR := Unsigned_8 (Character'Pos (Message));
+   end Write_UART0;
+
+   procedure Write_UART0 (Message : String) is
+   begin
+      if not Is_Initialized then
+         return;
+      end if;
+
+      for C of Message loop
+         Write_UART0 (C);
+      end loop;
+   end Write_UART0;
+
+   function Read_UART0 return Unsigned_8 is
+   begin
+      if not Is_Initialized then
+         return 0;
+      end if;
+
+      while (LSR and DATA_Ready_Bit) = 0 loop
+         Arch.Snippets.Pause;
+      end loop;
+
+      return RBR;
+   end Read_UART0;
 end Devices.UART;

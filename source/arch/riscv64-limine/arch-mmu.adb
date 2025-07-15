@@ -20,7 +20,6 @@ with Ada.Unchecked_Deallocation;
 with Memory.Physical;
 with Arch.Limine;
 with Panic;
-with Devices.UART;
 with Devices.FB;
 
 package body Arch.MMU is
@@ -150,9 +149,7 @@ package body Arch.MMU is
          Memory.Size (data_end'Address - data_start'Address);
 
       --  Remap the kernel's UART.
-      if not Devices.UART.Remap_UART or
-         not Devices.FB.Remap_Framebuffer
-      then
+      if not Devices.FB.Remap_Framebuffer then
          return False;
       end if;
 
