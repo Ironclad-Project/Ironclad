@@ -21,7 +21,6 @@ pragma Unreferenced (Runtime);
 
 with Arch;
 with Arch.Hooks;
-with Arch.PCI;
 with Arch.ACPI;
 with Devices; use Devices;
 with VFS; use VFS;
@@ -56,11 +55,6 @@ procedure Main is
 begin
    Messages.Put_Line (Config.Name & " " & Config.Version);
    Messages.Put_Line ("Please report bugs at " & Config.Bug_Site);
-
-   --  Initialize PCI if present.
-   if Arch.PCI.Is_Supported then
-      Arch.PCI.Scan_PCI;
-   end if;
 
    --  Initialize ACPI if present.
    if Arch.ACPI.Is_Supported then

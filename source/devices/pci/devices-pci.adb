@@ -17,47 +17,24 @@
 with System.Machine_Code;
 with Arch.MMU;
 with Memory; use Memory;
-with Arch.Snippets;
 with Panic;
-with Arch.CPU;
 with Arch.ACPI;
 
-package body Arch.PCI is
-   --  PCI configuration space starts at this IO Port addresses.
-   PCI_Config_Address : constant := 16#CF8#;
-   PCI_Config_Data    : constant := 16#CFC#;
-
+package body Devices.PCI is
    --  Maximum number of different PCI entities.
    PCI_Max_Function : constant Unsigned_8 := 7;
    PCI_Max_Slot     : constant Unsigned_8 := 31;
 
-   Use_PCIe        : Boolean;
+   Is_Initialized  : Boolean := False;
    PCIe_ECAM_Start : Unsigned_64;
    PCI_Registry    : PCI_Registry_Entry_Acc := null;
 
-   function Is_Supported return Boolean is
-   begin
-      return True;
-   end Is_Supported;
-
-   procedure Scan_PCI is
-      ACPI_Address          : ACPI.Table_Record;
+   procedure Init (Success : out Boolean) is
       Root_Bus, Host_Bridge : PCI_Device;
-      Success               : Boolean;
    begin
-      --  If we can, we will use PCIe instead of default barebones PCI. The
-      --  advantages are speed and more config space.
-      --  We can check presence by checking whether the MCFG table exists.
-      ACPI.FindTable (ACPI.MCFG_Signature, ACPI_Address);
-      Use_PCIe := ACPI_Address.Virt_Addr /= Null_Address;
-      if Use_PCIe then
-         declare
-            Table : ACPI.MCFG
-               with Import, Address => To_Address (ACPI_Address.Virt_Addr);
-         begin
-            PCIe_ECAM_Start := Table.Root_ECAM_Addr;
-            ACPI.Unref_Table (ACPI_Address);
-         end;
+      Ensure_Initialized (Success);
+      if not Success then
+         return;
       end if;
 
       Fetch_Device (0, 0, 0, Root_Bus, Success);
@@ -77,16 +54,24 @@ package body Arch.PCI is
             end if;
          end loop;
       end if;
-   end Scan_PCI;
+
+      Success := True;
+   end Init;
    ----------------------------------------------------------------------------
    function Enumerate_Devices
       (Device_Class : Unsigned_8;
        Subclass     : Unsigned_8;
        Prog_If      : Unsigned_8) return Natural
    is
+      Succ : Boolean;
       Idx  :                Natural := 0;
       Temp : PCI_Registry_Entry_Acc := PCI_Registry;
    begin
+      Ensure_Initialized (Succ);
+      if not Succ then
+         return 0;
+      end if;
+
       loop
          if Temp = null then
             exit;
@@ -119,6 +104,11 @@ package body Arch.PCI is
       FIdx :                Natural := 0;
       Temp : PCI_Registry_Entry_Acc := PCI_Registry;
    begin
+      Ensure_Initialized (Success);
+      if not Success then
+         return;
+      end if;
+
       loop
          if Temp = null then
             exit;
@@ -154,6 +144,11 @@ package body Arch.PCI is
    is
       Temp : PCI_Registry_Entry_Acc := PCI_Registry;
    begin
+      Ensure_Initialized (Success);
+      if not Success then
+         return;
+      end if;
+
       loop
          if Temp = null then
             exit;
@@ -188,8 +183,7 @@ package body Arch.PCI is
           MSI_Support  => False,
           MSIX_Support => False,
           MSI_Offset   => 0,
-          MSIX_Offset  => 0,
-          Using_PCIe   => False);
+          MSIX_Offset  => 0);
    exception
       when Constraint_Error =>
          Success := False;
@@ -306,8 +300,7 @@ package body Arch.PCI is
       Message_Control := Read16 (Dev, MSI_Off + 2);
       Reg0 := 4;
       Reg1 := (if (Shift_Right (Message_Control, 7) and 1) = 1 then 12 else 8);
-      Addr := Shift_Left (16#FEE#, 20) or
-              Shift_Left (CPU.Core_Locals (1).LAPIC_ID, 12);
+      Addr := Shift_Left (16#FEE#, 20) or Shift_Left (1, 12); ---  XXX: A
 
       Write32 (Dev, MSI_Off + Reg0, Addr);
       Write32 (Dev, MSI_Off + Reg1, Unsigned_32 (Vector));
@@ -319,149 +312,143 @@ package body Arch.PCI is
          null;
    end Set_MSI_Vector;
    ----------------------------------------------------------------------------
-   --  For the read and write functions, we must use AX/EAX/RAX, since AMD
-   --  says in their manuals that they reserve the right to make the CPU only
-   --  allow reading the ECAM by using RAX. I have no idea why they though that
-   --  was a good idea.
+   --  For the read and write functions, we must use AX/EAX/RAX for x86, since
+   --  AMD says in their manuals that they reserve the right to make the CPU
+   --  only allow reading the ECAM by using RAX. I have no idea why they
+   --  thought that was a good idea.
    function Read8 (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_8 is
       Val : Unsigned_8;
+      Addr : constant Unsigned_64 :=
+         Memory.Memory_Offset +
+         Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
+         Unsigned_64 (Off);
+      Val2 : Unsigned_8
+         with Import, Atomic, Volatile,
+              Address => To_Address (Integer_Address (Addr));
    begin
-      if Dev.Using_PCIe then
-         declare
-            Addr : constant Unsigned_64 :=
-               Memory.Memory_Offset +
-               Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
-               Unsigned_64 (Off);
-         begin
-            System.Machine_Code.Asm
-               ("movb (%1), %0",
-                Outputs  => Unsigned_8'Asm_Output ("=a", Val),
-                Inputs   => Unsigned_64'Asm_Input ("r", Addr),
-                Clobber  => "memory",
-                Volatile => True);
-            return Val;
-         end;
-      else
-         Get_Address (Dev, Off);
-         return Snippets.Port_In (PCI_Config_Data + (Off and 3));
-      end if;
+      #if ArchName = """x86_64-limine"""
+         System.Machine_Code.Asm
+            ("movb (%1), %0",
+             Outputs  => Unsigned_8'Asm_Output ("=a", Val),
+             Inputs   => Unsigned_64'Asm_Input ("r", Addr),
+             Clobber  => "memory",
+             Volatile => True);
+         return Val;
+      #else
+         return Val2;
+      #end if;
    end Read8;
 
    function Read16 (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_16 is
       Val : Unsigned_16;
+      Addr : constant Unsigned_64 :=
+         Memory.Memory_Offset +
+         Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
+         Unsigned_64 (Off);
+      Val2 : Unsigned_16
+         with Import, Atomic, Volatile,
+              Address => To_Address (Integer_Address (Addr));
    begin
-      if Dev.Using_PCIe then
-         declare
-            Addr : constant Unsigned_64 :=
-               Memory.Memory_Offset +
-               Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
-               Unsigned_64 (Off);
-         begin
-            System.Machine_Code.Asm
-               ("movw (%1), %0",
-                Outputs  => Unsigned_16'Asm_Output ("=a", Val),
-                Inputs   => Unsigned_64'Asm_Input ("r", Addr),
-                Clobber  => "memory",
-                Volatile => True);
-            return Val;
-         end;
-      else
-         Get_Address (Dev, Off);
-         return Snippets.Port_In16 (PCI_Config_Data + (Off and 3));
-      end if;
+      #if ArchName = """x86_64-limine"""
+         System.Machine_Code.Asm
+            ("movw (%1), %0",
+             Outputs  => Unsigned_16'Asm_Output ("=a", Val),
+             Inputs   => Unsigned_64'Asm_Input ("r", Addr),
+             Clobber  => "memory",
+             Volatile => True);
+         return Val;
+      #else
+         return Val2;
+      #end if;
    end Read16;
 
    function Read32 (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_32 is
       Val : Unsigned_32;
+      Addr : constant Unsigned_64 :=
+         Memory.Memory_Offset +
+         Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
+         Unsigned_64 (Off);
+      Val2 : Unsigned_32
+         with Import, Atomic, Volatile,
+              Address => To_Address (Integer_Address (Addr));
    begin
-      if Dev.Using_PCIe then
-         declare
-            Addr : constant Unsigned_64 :=
-               Memory.Memory_Offset +
-               Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
-               Unsigned_64 (Off);
-         begin
-            System.Machine_Code.Asm
-               ("movl (%1), %0",
-                Outputs  => Unsigned_32'Asm_Output ("=a", Val),
-                Inputs   => Unsigned_64'Asm_Input ("r", Addr),
-                Clobber  => "memory",
-                Volatile => True);
-            return Val;
-         end;
-      else
-         Get_Address (Dev, Off);
-         return Snippets.Port_In32 (PCI_Config_Data + (Off and 3));
-      end if;
+      #if ArchName = """x86_64-limine"""
+         System.Machine_Code.Asm
+            ("movl (%1), %0",
+             Outputs  => Unsigned_32'Asm_Output ("=a", Val),
+             Inputs   => Unsigned_64'Asm_Input ("r", Addr),
+             Clobber  => "memory",
+             Volatile => True);
+         return Val;
+      #else
+         return Val2;
+      #end if;
    end Read32;
 
    procedure Write8 (Dev : PCI_Device; Off : Unsigned_16; D : Unsigned_8) is
+      Addr : constant Unsigned_64 :=
+         Memory.Memory_Offset +
+         Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
+         Unsigned_64 (Off);
+      Val : Unsigned_8
+         with Import, Atomic, Volatile,
+              Address => To_Address (Integer_Address (Addr));
    begin
-      if Dev.Using_PCIe then
-         declare
-            Addr : constant Unsigned_64 :=
-               Memory.Memory_Offset +
-               Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
-               Unsigned_64 (Off);
-         begin
-            System.Machine_Code.Asm
-               ("movb %0, (%1)",
-                Inputs  =>
-                  [Unsigned_8'Asm_Input ("a", D),
-                   Unsigned_64'Asm_Input ("r", Addr)],
-                Clobber => "memory",
-                Volatile => True);
-         end;
-      else
-         Get_Address (Dev, Off);
-         Snippets.Port_Out (PCI_Config_Data + (Off and 3), D);
-      end if;
+      #if ArchName = """x86_64-limine"""
+         System.Machine_Code.Asm
+            ("movb %0, (%1)",
+             Inputs  =>
+               [Unsigned_8'Asm_Input ("a", D),
+                Unsigned_64'Asm_Input ("r", Addr)],
+             Clobber => "memory",
+             Volatile => True);
+      #else
+         Val := D;
+      #end if;
    end Write8;
 
    procedure Write16 (Dev : PCI_Device; Off : Unsigned_16; D : Unsigned_16) is
+      Addr : constant Unsigned_64 :=
+         Memory.Memory_Offset +
+         Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
+         Unsigned_64 (Off);
+      Val : Unsigned_16
+         with Import, Atomic, Volatile,
+              Address => To_Address (Integer_Address (Addr));
    begin
-      if Dev.Using_PCIe then
-         declare
-            Addr : constant Unsigned_64 :=
-               Memory.Memory_Offset +
-               Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
-               Unsigned_64 (Off);
-         begin
-            System.Machine_Code.Asm
-               ("movw %0, (%1)",
-                Inputs  =>
-                  [Unsigned_16'Asm_Input ("a", D),
-                   Unsigned_64'Asm_Input ("r", Addr)],
-                Clobber => "memory",
-                Volatile => True);
-         end;
-      else
-         Get_Address (Dev, Off);
-         Snippets.Port_Out16 (PCI_Config_Data + (Off and 3), D);
-      end if;
+      #if ArchName = """x86_64-limine"""
+         System.Machine_Code.Asm
+            ("movw %0, (%1)",
+             Inputs  =>
+               [Unsigned_16'Asm_Input ("a", D),
+                Unsigned_64'Asm_Input ("r", Addr)],
+             Clobber => "memory",
+             Volatile => True);
+      #else
+         Val := D;
+      #end if;
    end Write16;
 
    procedure Write32 (Dev : PCI_Device; Off : Unsigned_16; D : Unsigned_32) is
+      Addr : constant Unsigned_64 :=
+         Memory.Memory_Offset +
+         Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
+         Unsigned_64 (Off);
+      Val : Unsigned_32
+         with Import, Atomic, Volatile,
+              Address => To_Address (Integer_Address (Addr));
    begin
-      if Dev.Using_PCIe then
-         declare
-            Addr : constant Unsigned_64 :=
-               Memory.Memory_Offset +
-               Get_ECAM_Addr (Dev.Bus, Dev.Slot, Dev.Func) +
-               Unsigned_64 (Off);
-         begin
-            System.Machine_Code.Asm
-               ("movl %0, (%1)",
-                Inputs  =>
-                  [Unsigned_32'Asm_Input ("a", D),
-                   Unsigned_64'Asm_Input ("r", Addr)],
-                Clobber => "memory",
-                Volatile => True);
-         end;
-      else
-         Get_Address (Dev, Off);
-         Snippets.Port_Out32 (PCI_Config_Data + (Off and 3), D);
-      end if;
+      #if ArchName = """x86_64-limine"""
+         System.Machine_Code.Asm
+            ("movl %0, (%1)",
+             Inputs  =>
+               [Unsigned_32'Asm_Input ("a", D),
+                Unsigned_64'Asm_Input ("r", Addr)],
+             Clobber => "memory",
+             Volatile => True);
+      #else
+         Val := D;
+      #end if;
    end Write32;
    ----------------------------------------------------------------------------
    procedure List_All (Buffer : out PCI_Listing_Arr; Length : out Natural) is
@@ -496,6 +483,37 @@ package body Arch.PCI is
          Length := 0;
    end List_All;
    ----------------------------------------------------------------------------
+   procedure Ensure_Initialized (Success : out Boolean) is
+      ACPI_Address : Arch.ACPI.Table_Record;
+   begin
+      if Is_Initialized then
+         Success := True;
+         return;
+      end if;
+
+      Success := False;
+
+      if not Arch.ACPI.Is_Supported then
+         return;
+      end if;
+
+      Arch.ACPI.FindTable (Arch.ACPI.MCFG_Signature, ACPI_Address);
+      if ACPI_Address.Virt_Addr = Null_Address then
+         return;
+      end if;
+
+      declare
+         Table : Arch.ACPI.MCFG
+            with Import, Address => To_Address (ACPI_Address.Virt_Addr);
+      begin
+         PCIe_ECAM_Start := Table.Root_ECAM_Addr;
+         Arch.ACPI.Unref_Table (ACPI_Address);
+      end;
+
+      Is_Initialized := True;
+      Success := True;
+   end Ensure_Initialized;
+
    function Get_ECAM_Addr (Bus, Slot, Func : Unsigned_8) return Unsigned_64 is
    begin
       return PCIe_ECAM_Start +
@@ -503,17 +521,6 @@ package body Arch.PCI is
           (Unsigned_64 (Slot) * 8) +
           (Unsigned_64 (Func))) * 4096);
    end Get_ECAM_Addr;
-
-   procedure Get_Address (Dev : PCI_Device; Offset : Unsigned_16) is
-      Addr : constant Unsigned_32 :=
-         Shift_Left (Unsigned_32 (Dev.Bus),  16) or
-         Shift_Left (Unsigned_32 (Dev.Slot), 11) or
-         Shift_Left (Unsigned_32 (Dev.Func),  8) or
-         (Unsigned_32 (Offset) and not 3)        or
-         16#80000000#;
-   begin
-      Snippets.Port_Out32 (PCI_Config_Address, Addr);
-   end Get_Address;
 
    procedure Check_Bus (Bus : Unsigned_8) is
    begin
@@ -525,7 +532,6 @@ package body Arch.PCI is
    end Check_Bus;
 
    procedure Check_Function (Bus, Slot, Func : Unsigned_8) is
-      Addr    : Virtual_Address;
       Success : Boolean;
       Config8 : Unsigned_32;
       Temp    : PCI_Registry_Entry_Acc := null;
@@ -546,26 +552,6 @@ package body Arch.PCI is
          Config8 := Read32 (Result, 16#18#);
          Check_Bus (Unsigned_8 (Shift_Right (Config8, 8) and 16#FF#));
          return;
-      end if;
-
-      --  Now that we know we are talking with an actual device, we can
-      --  map PCIe address space, which is 4096 bytes.
-      if Use_PCIe then
-         Addr := Integer_Address (Get_ECAM_Addr (Bus, Slot, Func));
-         MMU.Map_Range
-            (Map            => MMU.Kernel_Table,
-             Physical_Start => To_Address (Addr),
-             Virtual_Start  => To_Address (Memory.Memory_Offset + Addr),
-             Length         => 4096,
-             Permissions    =>
-               (Is_User_Accessible => False,
-                Can_Read           => True,
-                Can_Write          => True,
-                Can_Execute        => False,
-                Is_Global          => True),
-             Success       => Success,
-             Caching       => MMU.Uncacheable);
-         Result.Using_PCIe := Success;
       end if;
 
       --  Add the device to the list.
@@ -593,12 +579,31 @@ package body Arch.PCI is
       Config0, Config8 : Unsigned_32;
       Config6  : Unsigned_16;
       Config34 : Unsigned_8;
+      Addr     : Virtual_Address;
    begin
       --  Assign the needed values for reading from the PCI config space.
       Result.Bus  := Bus;
       Result.Slot := Slot;
       Result.Func := Func;
-      Result.Using_PCIe := False;
+
+      --  Map the ECAM address.
+      Addr := Integer_Address (Get_ECAM_Addr (Bus, Slot, Func));
+      Arch.MMU.Map_Range
+         (Map            => Arch.MMU.Kernel_Table,
+          Physical_Start => To_Address (Addr),
+          Virtual_Start  => To_Address (Memory.Memory_Offset + Addr),
+          Length         => 4096,
+          Permissions    =>
+            (Is_User_Accessible => False,
+             Can_Read           => True,
+             Can_Write          => True,
+             Can_Execute        => False,
+             Is_Global          => True),
+          Success       => Success,
+          Caching       => Arch.MMU.Uncacheable);
+      if not Success then
+         return;
+      end if;
 
       --  Read additional data and fill the device record.
       Config0 := Read32 (Result, 0);
@@ -616,8 +621,7 @@ package body Arch.PCI is
           MSI_Support  => False,
           MSIX_Support => False,
           MSI_Offset   => 0,
-          MSIX_Offset  => 0,
-          Using_PCIe   => False);
+          MSIX_Offset  => 0);
 
       --  Check for MSI/MSIX by reading the capabilities list.
       Config6 := Read16 (Result, 6);
@@ -644,4 +648,4 @@ package body Arch.PCI is
       when Constraint_Error =>
          Success := False;
    end Fetch_Device;
-end Arch.PCI;
+end Devices.PCI;

@@ -29,6 +29,7 @@ project Ironclad is
       ("@SRCDIR@/source/arch/" & Arch,
        "@SRCDIR@/source/arch",
        "@SRCDIR@/source/cryptography",
+       "@SRCDIR@/source/devices/pci",
        "@SRCDIR@/source/devices",
        "@SRCDIR@/source/ipc",
        "@SRCDIR@/source/memory",

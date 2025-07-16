@@ -14,9 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.PCI;
-
-package Devices.i6300ESB is
+package Devices.PCI.i6300ESB is
    --  Initialize the device.
    procedure Init (Success : out Boolean);
 
@@ -24,7 +22,7 @@ private
 
    --  Data stored for the watchdog.
    type Dog_Data is record
-      PCI_Data  : Arch.PCI.PCI_Device;
+      PCI_Data  : Devices.PCI.PCI_Device;
       Base_Addr : System.Address;
    end record;
    type Dog_Data_Acc is access all Dog_Data;
@@ -66,4 +64,4 @@ private
    ----------------------------------------------------------------------------
    procedure Unlock_Registers (Base_Addr : System.Address);
    procedure Keep_Alive (Base_Addr : System.Address);
-end Devices.i6300ESB;
+end Devices.PCI.i6300ESB;

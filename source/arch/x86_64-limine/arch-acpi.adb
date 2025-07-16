@@ -18,7 +18,7 @@ with Arch.Limine;
 with Arch.Clocks;
 with Arch.Snippets;
 with Arch.MMU;
-with Arch.PCI;
+with Devices.PCI;
 with Arch.Local;
 with Arch.APIC;
 with Arch.CPU;
@@ -295,7 +295,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    end Free;
 
    type uACPI_PCI is record
-      Dev : Arch.PCI.PCI_Device;
+      Dev : Devices.PCI.PCI_Device;
    end record;
    type uACPI_PCI_Acc is access all uACPI_PCI;
    package C3 is new System.Address_To_Access_Conversions (uACPI_PCI);
@@ -307,7 +307,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Ret     : constant uACPI_PCI_Acc := new uACPI_PCI;
       Success : Boolean;
    begin
-      Arch.PCI.Search_Device
+      Devices.PCI.Search_Device
          (Bus     => Address.Bus,
           Slot    => Address.Device,
           Func    => Address.Func,
@@ -340,7 +340,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    is
       Dev : constant uACPI_PCI_Acc := uACPI_PCI_Acc (C3.To_Pointer (Handle));
    begin
-      Value := Arch.PCI.Read8 (Dev.Dev, Unsigned_16 (Offset));
+      Value := Devices.PCI.Read8 (Dev.Dev, Unsigned_16 (Offset));
       return Status_OK;
    exception
       when Constraint_Error =>
@@ -354,7 +354,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    is
       Dev : constant uACPI_PCI_Acc := uACPI_PCI_Acc (C3.To_Pointer (Handle));
    begin
-      Arch.PCI.Write8 (Dev.Dev, Unsigned_16 (Offset), Value);
+      Devices.PCI.Write8 (Dev.Dev, Unsigned_16 (Offset), Value);
       return Status_OK;
    exception
       when Constraint_Error =>
@@ -368,7 +368,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    is
       Dev : constant uACPI_PCI_Acc := uACPI_PCI_Acc (C3.To_Pointer (Handle));
    begin
-      Value := Arch.PCI.Read16 (Dev.Dev, Unsigned_16 (Offset));
+      Value := Devices.PCI.Read16 (Dev.Dev, Unsigned_16 (Offset));
       return Status_OK;
    exception
       when Constraint_Error =>
@@ -382,7 +382,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    is
       Dev : constant uACPI_PCI_Acc := uACPI_PCI_Acc (C3.To_Pointer (Handle));
    begin
-      Arch.PCI.Write16 (Dev.Dev, Unsigned_16 (Offset), Value);
+      Devices.PCI.Write16 (Dev.Dev, Unsigned_16 (Offset), Value);
       return Status_OK;
    exception
       when Constraint_Error =>
@@ -396,7 +396,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    is
       Dev : constant uACPI_PCI_Acc := uACPI_PCI_Acc (C3.To_Pointer (Handle));
    begin
-      Value := Arch.PCI.Read32 (Dev.Dev, Unsigned_16 (Offset));
+      Value := Devices.PCI.Read32 (Dev.Dev, Unsigned_16 (Offset));
       return Status_OK;
    exception
       when Constraint_Error =>
@@ -410,7 +410,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    is
       Dev : constant uACPI_PCI_Acc := uACPI_PCI_Acc (C3.To_Pointer (Handle));
    begin
-      Arch.PCI.Write32 (Dev.Dev, Unsigned_16 (Offset), Value);
+      Devices.PCI.Write32 (Dev.Dev, Unsigned_16 (Offset), Value);
       return Status_OK;
    exception
       when Constraint_Error =>

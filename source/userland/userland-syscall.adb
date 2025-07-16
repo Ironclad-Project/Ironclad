@@ -39,7 +39,7 @@ with Arch.Power;
 with Devices; use Devices;
 with Networking.Interfaces;
 with Virtualization;
-with Arch.PCI;
+with Devices.PCI;
 with Arch.Snippets;
 with Memory.Userland_Transfer;
 
@@ -2234,7 +2234,7 @@ package body Userland.Syscall is
       Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
       if not Check_Userland_Access
-         (Map, IAddr, Length * (Arch.PCI.PCI_Listing'Size / 8))
+         (Map, IAddr, Length * (Devices.PCI.PCI_Listing'Size / 8))
       then
          Errno    := Error_Would_Fault;
          Returned := Unsigned_64'Last;
@@ -2243,10 +2243,10 @@ package body Userland.Syscall is
 
       declare
          Ret  : Natural;
-         Devs : Arch.PCI.PCI_Listing_Arr (1 .. Natural (Length))
+         Devs : Devices.PCI.PCI_Listing_Arr (1 .. Natural (Length))
             with Import, Address => SAddr;
       begin
-         Arch.PCI.List_All (Devs, Ret);
+         Devices.PCI.List_All (Devs, Ret);
          Returned := Unsigned_64 (Ret);
          Errno    := Error_No_Error;
       end;

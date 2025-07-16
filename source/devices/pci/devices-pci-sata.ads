@@ -17,7 +17,7 @@
 with Synchronization;
 with Devices.Drive_Cache;
 
-package Devices.SATA with SPARK_Mode => Off is
+package Devices.PCI.SATA with SPARK_Mode => Off is
    --  Probe for ATA drives and add em.
    procedure Init (Success : out Boolean);
 
@@ -429,4 +429,4 @@ private
        Offset  : Unsigned_64;
        Count   : Unsigned_64;
        Success : out Boolean);
-end Devices.SATA;
+end Devices.PCI.SATA;

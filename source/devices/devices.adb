@@ -14,13 +14,14 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Devices.PCI.i6300ESB;
+with Devices.PCI.NVMe;
+with Devices.PCI.SATA;
+with Devices.PCI;
 with Devices.Console;
 with Devices.Loopback;
 with Devices.Streams;
 with Devices.TTY;
-with Devices.SATA;
-with Devices.NVMe;
-with Devices.i6300ESB;
 with Devices.Power_Buttons;
 with Panic;
 with Arch.Hooks;
@@ -32,10 +33,17 @@ package body Devices is
       pragma SPARK_Mode (Off); --  Some devices here are not verified.
 
       type Driver_Callback is access procedure (Success : out Boolean);
-      Drivers : constant array (1 .. 8) of Driver_Callback :=
-         [Console.Init'Access, i6300ESB.Init'Access,
-          Loopback.Init'Access, NVMe.Init'Access, SATA.Init'Access,
-          Streams.Init'Access, TTY.Init'Access, Power_Buttons.Init'Access];
+      Drivers : constant array (1 .. 5) of Driver_Callback :=
+         [Console.Init'Access,
+          Loopback.Init'Access,
+          Streams.Init'Access,
+          TTY.Init'Access,
+          Power_Buttons.Init'Access];
+
+      PCI_Drivers : constant array (1 .. 3) of Driver_Callback :=
+         [PCI.i6300ESB.Init'Access,
+          PCI.NVMe.Init'Access,
+          PCI.SATA.Init'Access];
 
       Success : Boolean;
    begin
@@ -45,6 +53,18 @@ package body Devices is
       end loop;
 
       for Driver of Drivers loop
+         Driver.all (Success);
+         if not Success then
+            goto Panic_Error;
+         end if;
+      end loop;
+
+      PCI.Init (Success);
+      if not Success then
+         return;
+      end if;
+
+      for Driver of PCI_Drivers loop
          Driver.all (Success);
          if not Success then
             goto Panic_Error;

@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.PCI;
 with Devices.Partitions;
 with Alignment;
 with Messages;
@@ -25,7 +24,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 
 with Interfaces.C; use Interfaces.C;
 
-package body Devices.NVMe with SPARK_Mode => Off is
+package body Devices.PCI.NVMe with SPARK_Mode => Off is
    package C1 is new System.Address_To_Access_Conversions (NVMe_Registers);
    package C2 is new System.Address_To_Access_Conversions (NVMe_Doorbell);
    package C3 is
@@ -39,8 +38,8 @@ package body Devices.NVMe with SPARK_Mode => Off is
    package A  is new Alignment (Unsigned_64);
 
    procedure Init (Success : out Boolean) is
-      PCI_Dev : Arch.PCI.PCI_Device;
-      PCI_BAR : Arch.PCI.Base_Address_Register;
+      PCI_Dev : Devices.PCI.PCI_Device;
+      PCI_BAR : Devices.PCI.Base_Address_Register;
 
       Mem_Addr : Integer_Address;
       Dev_Mem : NVMe_Registers_Acc;
@@ -62,21 +61,21 @@ package body Devices.NVMe with SPARK_Mode => Off is
       Drive_Idx : Natural := 0;
    begin
       Success := True;
-      for Idx in 1 .. Arch.PCI.Enumerate_Devices (1, 8, 2) loop
-         Arch.PCI.Search_Device (1, 8, 2, Idx, PCI_Dev, Success);
+      for Idx in 1 .. Devices.PCI.Enumerate_Devices (1, 8, 2) loop
+         Devices.PCI.Search_Device (1, 8, 2, Idx, PCI_Dev, Success);
          if not Success then
             Success := True;
             return;
          end if;
 
-         Arch.PCI.Get_BAR (PCI_Dev, 0, PCI_BAR, Success);
+         Devices.PCI.Get_BAR (PCI_Dev, 0, PCI_BAR, Success);
          if not Success or else not PCI_BAR.Is_MMIO then
             Success := True;
             return;
          end if;
 
-         Arch.PCI.Write16 (PCI_Dev, 4,
-            (Arch.PCI.Read16 (PCI_Dev, 4) and 16#77F#) or 16#406#);
+         Devices.PCI.Write16 (PCI_Dev, 4,
+            (Devices.PCI.Read16 (PCI_Dev, 4) and 16#77F#) or 16#406#);
 
          Mem_Addr := PCI_BAR.Base + Memory.Memory_Offset;
          Dev_Mem  := NVMe_Registers_Acc (C1.To_Pointer
@@ -947,4 +946,4 @@ package body Devices.NVMe with SPARK_Mode => Off is
       when Constraint_Error =>
          Panic.Hard_Panic ("Failed to enable controller");
    end Enable_Controller;
-end Devices.NVMe;
+end Devices.PCI.NVMe;

@@ -19,7 +19,7 @@ with Memory; use Memory;
 with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
 
-package body Devices.i6300ESB is
+package body Devices.PCI.i6300ESB is
    --  TODO: This beautiful piece of hardware is a 2-stage  \ ______/ V`-,
    --  is a 2-stage watchdog, so far we only use the second  }        /~~
    --  instant death stage, maybe a software recoverable dog /_)^ --,r'
@@ -29,16 +29,16 @@ package body Devices.i6300ESB is
 
    procedure Init (Success : out Boolean) is
       Data     : Dog_Data_Acc;
-      PCI_Dev  : Arch.PCI.PCI_Device;
-      PCI_BAR  : Arch.PCI.Base_Address_Register;
+      PCI_Dev  : Devices.PCI.PCI_Device;
+      PCI_BAR  : Devices.PCI.Base_Address_Register;
       Mem_Addr : Integer_Address;
    begin
-      Arch.PCI.Search_Device (16#8#, 16#80#, 0, 1, PCI_Dev, Success);
+      Devices.PCI.Search_Device (16#8#, 16#80#, 0, 1, PCI_Dev, Success);
       if not Success then
          Success := True;
          return;
       end if;
-      Arch.PCI.Get_BAR (PCI_Dev, 0, PCI_BAR, Success);
+      Devices.PCI.Get_BAR (PCI_Dev, 0, PCI_BAR, Success);
       if not Success or else not PCI_BAR.Is_MMIO then
          Success := True;
          return;
@@ -67,8 +67,8 @@ package body Devices.i6300ESB is
           Base_Addr => To_Address (Mem_Addr));
 
       --  Initialize the device.
-      Arch.PCI.Write16 (PCI_Dev, CONFIG, DOG_OUTPUT or DOG_INT_TYPE);
-      Arch.PCI.Write8  (PCI_Dev, LOCK,   0);
+      Devices.PCI.Write16 (PCI_Dev, CONFIG, DOG_OUTPUT or DOG_INT_TYPE);
+      Devices.PCI.Write8  (PCI_Dev, LOCK,   0);
       Unlock_Registers (Data.Base_Addr);
       declare
          Reg : Unsigned_16 with Import, Address => Data.Base_Addr + RELOAD;
@@ -139,11 +139,11 @@ package body Devices.i6300ESB is
          Keep_Alive (D.Base_Addr);
          case Request is
             when WDOG_START =>
-               Arch.PCI.Write8 (D.PCI_Data, LOCK, DOG_ENABLE);
+               Devices.PCI.Write8 (D.PCI_Data, LOCK, DOG_ENABLE);
                Success := True;
             when WDOG_STOP =>
-               Arch.PCI.Write8 (D.PCI_Data, LOCK, 0);
-               Success := Arch.PCI.Read8 (D.PCI_Data, LOCK) /= 0;
+               Devices.PCI.Write8 (D.PCI_Data, LOCK, 0);
+               Success := Devices.PCI.Read8 (D.PCI_Data, LOCK) /= 0;
             when WDOG_HEARTBEAT =>
                Unlock_Registers (D.Base_Addr);
                TIMER1_Reg := Shift_Left (Timeout, 9);
@@ -175,4 +175,4 @@ package body Devices.i6300ESB is
       Unlock_Registers (Base_Addr);
       Reg := DOG_RELOAD;
    end Keep_Alive;
-end Devices.i6300ESB;
+end Devices.PCI.i6300ESB;

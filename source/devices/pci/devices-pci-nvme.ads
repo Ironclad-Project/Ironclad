@@ -17,7 +17,7 @@
 with Synchronization;
 with Devices.Drive_Cache;
 
-package Devices.NVMe with SPARK_Mode => Off is
+package Devices.PCI.NVMe with SPARK_Mode => Off is
    procedure Init (Success : out Boolean);
 
 private
@@ -679,4 +679,4 @@ private
        Drive_Idx : Natural;
        Admin_Queue : Admin_Queue_Acc;
        IO_Queue : IO_Queue_Acc);
-end Devices.NVMe;
+end Devices.PCI.NVMe;

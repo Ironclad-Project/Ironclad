@@ -45,7 +45,6 @@ package body Arch.Entrypoint is
       Idx : Natural := 0;
    begin
       --  Initialize architectural state first.
-      Arch.Interrupts.Initialize;
       Devices.FB.Early_Init;
       Arch.Flanterm.Init;
 

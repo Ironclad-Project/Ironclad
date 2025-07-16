@@ -18,21 +18,20 @@ with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
 with Messages;
 with Devices.Partitions;
-with Arch.PCI;
 with Arch.MMU;
 with Memory;
 with Alignment;
 with Cryptography.Random;
 
-package body Devices.SATA with SPARK_Mode => Off is
+package body Devices.PCI.SATA with SPARK_Mode => Off is
    package C1 is new System.Address_To_Access_Conversions (SATA_Data);
    package C2 is new System.Address_To_Access_Conversions (HBA_Memory);
    package C3 is new System.Address_To_Access_Conversions (FIS_Host_To_Device);
    package A  is new Alignment (Unsigned_64);
 
    procedure Init (Success : out Boolean) is
-      PCI_Dev    : Arch.PCI.PCI_Device;
-      PCI_BAR    : Arch.PCI.Base_Address_Register;
+      PCI_Dev    : Devices.PCI.PCI_Device;
+      PCI_BAR    : Devices.PCI.Base_Address_Register;
       Drive_Data : SATA_Data_Acc;
       Mem_Addr   : Integer_Address;
       Dev_Mem    : HBA_Memory_Acc;
@@ -40,20 +39,20 @@ package body Devices.SATA with SPARK_Mode => Off is
       Base_Name  : constant String := "sata";
    begin
       Success := True;
-      for Idx in 1 .. Arch.PCI.Enumerate_Devices (1, 6, 1) loop
-         Arch.PCI.Search_Device (1, 6, 1, Idx, PCI_Dev, Success);
+      for Idx in 1 .. Devices.PCI.Enumerate_Devices (1, 6, 1) loop
+         Devices.PCI.Search_Device (1, 6, 1, Idx, PCI_Dev, Success);
          if not Success then
             Success := True;
             return;
          end if;
 
-         Arch.PCI.Get_BAR (PCI_Dev, 5, PCI_BAR, Success);
+         Devices.PCI.Get_BAR (PCI_Dev, 5, PCI_BAR, Success);
          if not Success or else not PCI_BAR.Is_MMIO then
             Success := True;
             return;
          end if;
 
-         Arch.PCI.Enable_Bus_Mastering (PCI_Dev);
+         Devices.PCI.Enable_Bus_Mastering (PCI_Dev);
          Mem_Addr := PCI_BAR.Base + Memory.Memory_Offset;
          Dev_Mem  := HBA_Memory_Acc (C2.To_Pointer (To_Address (Mem_Addr)));
 
@@ -500,4 +499,4 @@ package body Devices.SATA with SPARK_Mode => Off is
       when Constraint_Error =>
          Success := False;
    end Sync_Range;
-end Devices.SATA;
+end Devices.PCI.SATA;

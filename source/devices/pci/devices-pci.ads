@@ -1,4 +1,4 @@
---  arch-pci.ads: PCI bus driver.
+--  devices-pci.ads: PCI bus driver.
 --  Copyright (C) 2024 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
@@ -14,16 +14,11 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
+with System.Storage_Elements; use System.Storage_Elements;
 
-package Arch.PCI is
-   --  Generic PCI driver for the Ironclad kernel.
-
-   --  Check whether PCI is supported.
-   function Is_Supported return Boolean;
-
+package Devices.PCI is
    --  Scan all the system's PCI and store it for future use.
-   procedure Scan_PCI;
+   procedure Init (Success : out Boolean);
    ----------------------------------------------------------------------------
    --  A PCI device is defined by a class, subclass, and prog if. And is
    --  addressed by its bus, slot, function, and parent.
@@ -142,26 +137,23 @@ private
       MSIX_Support : Boolean;
       MSI_Offset   : Unsigned_8;
       MSIX_Offset  : Unsigned_8;
-      Using_PCIe   : Boolean;
    end record;
 
-   #if ArchName = """x86_64-limine"""
-      type PCI_Registry_Entry;
-      type PCI_Registry_Entry_Acc is access PCI_Registry_Entry;
-      type PCI_Registry_Entry is record
-         Dev  : PCI_Device;
-         Next : PCI_Registry_Entry_Acc;
-      end record;
+   type PCI_Registry_Entry;
+   type PCI_Registry_Entry_Acc is access PCI_Registry_Entry;
+   type PCI_Registry_Entry is record
+      Dev  : PCI_Device;
+      Next : PCI_Registry_Entry_Acc;
+   end record;
 
-      function Get_ECAM_Addr (Bus, Slot, Func : Unsigned_8) return Unsigned_64;
-      procedure Get_Address (Dev : PCI_Device; Offset : Unsigned_16);
-      procedure Check_Bus (Bus : Unsigned_8);
-      procedure Check_Function (Bus, Slot, Func : Unsigned_8);
-      procedure Fetch_Device
-         (Bus     : Unsigned_8;
-          Slot    : Unsigned_8;
-          Func    : Unsigned_8;
-          Result  : out PCI_Device;
-          Success : out Boolean);
-   #end if;
-end Arch.PCI;
+   procedure Ensure_Initialized (Success : out Boolean);
+   function Get_ECAM_Addr (Bus, Slot, Func : Unsigned_8) return Unsigned_64;
+   procedure Check_Bus (Bus : Unsigned_8);
+   procedure Check_Function (Bus, Slot, Func : Unsigned_8);
+   procedure Fetch_Device
+      (Bus     : Unsigned_8;
+       Slot    : Unsigned_8;
+       Func    : Unsigned_8;
+       Result  : out PCI_Device;
+       Success : out Boolean);
+end Devices.PCI;
