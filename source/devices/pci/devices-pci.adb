@@ -14,6 +14,10 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+--  The need for these is outlined later on, only some architecture need these.
+pragma Warnings (Off, "unit *** is not referenced");
+pragma Warnings (Off, "variable *** is never read and never assigned");
+
 with System.Machine_Code;
 with Arch.MMU;
 with Memory; use Memory;
@@ -300,7 +304,10 @@ package body Devices.PCI is
       Message_Control := Read16 (Dev, MSI_Off + 2);
       Reg0 := 4;
       Reg1 := (if (Shift_Right (Message_Control, 7) and 1) = 1 then 12 else 8);
-      Addr := Shift_Left (16#FEE#, 20) or Shift_Left (1, 12); ---  XXX: A
+
+      --  FIXME: This "1" should be the BSP's LAPIC/Hart ID, we hardcode 1
+      --  since we dont have yet an architectural way to abstract this.
+      Addr := Shift_Left (16#FEE#, 20) or Shift_Left (1, 12);
 
       Write32 (Dev, MSI_Off + Reg0, Addr);
       Write32 (Dev, MSI_Off + Reg1, Unsigned_32 (Vector));
