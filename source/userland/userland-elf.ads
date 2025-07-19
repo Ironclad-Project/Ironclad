@@ -94,10 +94,46 @@ private
    type ELF_ID_Field is array (Natural range <>) of Unsigned_8;
    ELF_Signature : constant ELF_ID_Field (1 .. 4) :=
       [16#7F#, Character'Pos ('E'), Character'Pos ('L'), Character'Pos ('F')];
+
+   type ELF_Bits is (ELF_32bits, ELF_64bits) with Size => 8;
+   type ELF_Endianess is (ELF_Little_Endian, ELF_Big_Endian) with Size => 8;
+   for ELF_Bits      use (ELF_32bits => 1, ELF_64bits => 2);
+   for ELF_Endianess use (ELF_Little_Endian => 1, ELF_Big_Endian => 2);
+
+   type ELF_ISA is
+      (ELF_No_Specific,
+       ELF_SPARC,
+       ELF_x86,
+       ELF_MIPS,
+       ELF_PowerPC,
+       ELF_ARM,
+       ELF_SuperH,
+       ELF_IA64,
+       ELF_x86_64,
+       ELF_AArch64,
+       ELF_RISCV) with Size => 16;
+   for ELF_ISA use
+      (ELF_No_Specific => 0,
+       ELF_SPARC       => 16#02#,
+       ELF_x86         => 16#03#,
+       ELF_MIPS        => 16#08#,
+       ELF_PowerPC     => 16#14#,
+       ELF_ARM         => 16#28#,
+       ELF_SuperH      => 16#2A#,
+       ELF_IA64        => 16#32#,
+       ELF_x86_64      => 16#3E#,
+       ELF_AArch64     => 16#B7#,
+       ELF_RISCV       => 16#F3#);
+
    type ELF_Header is record
-      Identifier           : ELF_ID_Field (1 .. 16);
+      Magic_Number         : ELF_ID_Field (1 .. 4);
+      Bits                 : ELF_Bits;
+      Endianess            : ELF_Endianess;
+      ELF_Version          : Unsigned_8;
+      OS_ABI               : Unsigned_8;
+      Padding              : ELF_ID_Field (9 .. 16);
       ELF_Type             : Unsigned_16;
-      Machine              : Unsigned_16;
+      Machine              : ELF_ISA;
       Version              : Unsigned_32;
       Entrypoint           : System.Address;
       Program_Header_List  : Unsigned_64;
@@ -111,7 +147,12 @@ private
       Section_Names_Index  : Unsigned_16;
    end record;
    for ELF_Header use record
-      Identifier           at 0 range   0 .. 127;
+      Magic_Number         at 0 range   0 ..  31;
+      Bits                 at 0 range  32 ..  39;
+      Endianess            at 0 range  40 ..  47;
+      ELF_Version          at 0 range  48 ..  55;
+      OS_ABI               at 0 range  56 ..  63;
+      Padding              at 0 range  64 .. 127;
       ELF_Type             at 0 range 128 .. 143;
       Machine              at 0 range 144 .. 159;
       Version              at 0 range 160 .. 191;

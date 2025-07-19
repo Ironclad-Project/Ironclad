@@ -41,6 +41,7 @@ package body Userland.ELF is
       Pos       : Unsigned_64 := 0;
       Success   : FS_Status;
       Success2  : Boolean;
+      Desired_ISA : ELF_ISA;
    begin
       Result :=
          (Was_Loaded  => False,
@@ -56,8 +57,19 @@ package body Userland.ELF is
       --  Read and check the header.
       VFS.Read (FS, Ino, Pos, Header_Data, Ret_Count, True, Success);
       Pos := Pos + Unsigned_64 (Ret_Count);
-      if Success /= FS_Success or Ret_Count /= Header_Bytes or
-         Header.Identifier (1 .. 4) /= ELF_Signature
+      if Success /= FS_Success or else Ret_Count /= Header_Bytes then
+         return;
+      end if;
+
+      #if ArchName = """x86_64-limine""" then
+         Desired_ISA := ELF_x86_64;
+      #elsif ArchName = """riscv64-limine""" then
+         Desired_ISA := ELF_RISCV;
+      #end if;
+
+      if Header.Magic_Number /= ELF_Signature or else
+         Header.Bits         /= ELF_64bits    or else
+         Header.Machine      /= Desired_ISA
       then
          return;
       end if;
