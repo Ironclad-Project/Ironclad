@@ -25,6 +25,7 @@ with Panic;
 with Arch.CPU;
 with Main;
 with Arch.Interrupts;
+with Arch.Clocks;
 
 package body Arch.Entrypoint is
    --  Response is a pointer to a Memmap_Response.
@@ -45,6 +46,7 @@ package body Arch.Entrypoint is
       Idx : Natural := 0;
    begin
       --  Initialize architectural state first.
+      Arch.Interrupts.Initialize;
       Devices.FB.Early_Init;
       Arch.Flanterm.Init;
 
@@ -95,6 +97,9 @@ package body Arch.Entrypoint is
                 Boot_Memory_Type'Image (E.MemType));
          end loop;
       end;
+
+      --  Initialize some system timers for interval counting.
+      Arch.Clocks.Initialize_Sources;
 
       --  Initialize the other cores of the system.
       Arch.CPU.Init_Cores;

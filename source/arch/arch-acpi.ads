@@ -371,9 +371,12 @@ package Arch.ACPI is
       Header         : SDT_Header;
       Flags          : Unsigned_32;
       Time_Base_Freq : Unsigned_64;
-      Node_Count     : Unsigned_32;
-      Node_Offset    : Unsigned_32;
-   end record with Pack;
+   end record with Size => 384;
+   for RHCT use record
+      Header         at 0 range   0 .. 287;
+      Flags          at 0 range 288 .. 319;
+      Time_Base_Freq at 0 range 320 .. 383;
+   end record;
 
    --  Search for an ACPI table and return its address, null if not found.
    --  The table will not necessarily be mapped.
@@ -397,7 +400,7 @@ package Arch.ACPI is
    --  Reboot the system.
    procedure Do_Reboot;
 
-   #if ArchName = """x86_64-limine"""
+   #if ArchName = """x86_64-limine""" or ArchName = """riscv64-limine"""
       Has_Power_Button : Boolean := False;
       Has_Sleep_Button : Boolean := False;
    #end if;
@@ -410,7 +413,7 @@ private
    --  Actual uACPI bindings.
    --  These are in an architecture if-block for architectures that dont
    --  support ACPI to not have to make 30 quintillion stubs.
-   #if ArchName = """x86_64-limine"""
+   #if ArchName = """x86_64-limine""" or ArchName = """riscv64-limine"""
       type Status is
          (Status_OK,
           Status_Mapping_Failed,

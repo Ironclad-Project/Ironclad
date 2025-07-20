@@ -18,22 +18,36 @@ with Interfaces; use Interfaces;
 
 package Arch.Interrupts with SPARK_Mode => Off is
    --  Passed to every interrupt called ever as an access.
+   --  XXX: The order and contents are tied down by arch-trap.S, if these are
+   --  ever changed, change those too.
    type Frame is record
-      R15  : Unsigned_64;
-      R14  : Unsigned_64;
-      R13  : Unsigned_64;
-      R12  : Unsigned_64;
-      R11  : Unsigned_64;
-      R10  : Unsigned_64;
-      R9   : Unsigned_64;
-      R8   : Unsigned_64;
-      R7   : Unsigned_64;
-      R6   : Unsigned_64;
-      R5   : Unsigned_64;
-      R4   : Unsigned_64;
-      R3   : Unsigned_64;
-      R2   : Unsigned_64;
-      R1   : Unsigned_64;
-      R0   : Unsigned_64;
+      X1, X4, X5, X6, X7 : Unsigned_64;
+      X10, X11, X12, X13, X14, X15, X16, X17 : Unsigned_64;
+      X28, X29, X30, X31, X2, X3, X8, X9, X18, X19, X20 : Unsigned_64;
+      X21, X22, X23, X24, X25, X26, X27 : Unsigned_64;
+      SEPC, SCAUSE, STVAL, SSTATUS, FCSR : Unsigned_64;
+      FP_Context_Ptr : Unsigned_64;
    end record with Pack;
+   type Frame_Acc is access all Frame;
+
+   procedure Initialize;
+   procedure Load_Trap_Vector;
+
+   type Interrupt_Index is range 1 .. 100;
+   type Interrupt_Handler is access procedure;
+   procedure Setup_Interrupt
+      (Handler : Interrupt_Handler;
+       Index   : out Interrupt_Index;
+       Success : out Boolean);
+   procedure Unload_Interrupt (Index : Interrupt_Index);
+
+private
+
+   procedure Handle_Trap (Ctx : not null Frame_Acc)
+      with Export, Convention => C, External_Name => "handle_trap";
+
+   procedure Handle_Interrupt (Cause : Unsigned_64);
+   ----------------------------------------------------------------------------
+   procedure trap_entry
+      with Import, Convention => C, External_Name => "trap_entry";
 end Arch.Interrupts;

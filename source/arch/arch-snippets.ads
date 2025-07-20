@@ -15,7 +15,10 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with Memory;     use Memory;
+
+#if ArchName = """x86_64-limine"""
+   with Memory; use Memory;
+#end if;
 
 package Arch.Snippets is
    --  Lots of these are inlined because they usually are 3 or 4 instructions

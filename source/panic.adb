@@ -38,12 +38,19 @@ is
       Panic_Common (Message);
 
       #if ArchName = """riscv64-limine"""
-         Print_Triple ("R0", "R1", "R2", Ctx.R0, Ctx.R1, Ctx.R2);
-         Print_Triple ("R3", "R4", "R5", Ctx.R3, Ctx.R4, Ctx.R5);
-         Print_Triple ("R6", " R7", " R8", Ctx.R6, Ctx.R7,  Ctx.R8);
-         Print_Triple ("R9", "R10", "R11", Ctx.R9, Ctx.R10, Ctx.R11);
-         Print_Triple ("R12", "R13", "R14", Ctx.R12, Ctx.R13, Ctx.R14);
-         Print_Triple ("R15", "RSP", "CR2", Ctx.R15, 0, 0);
+         Print_Triple ("X1", "X2", "X3", Ctx.X1, Ctx.X2, Ctx.X3);
+         Print_Triple ("X4", "X5", "X6", Ctx.X4, Ctx.X5, Ctx.X6);
+         Print_Triple ("X7", "X8", "X9", Ctx.X7, Ctx.X8, Ctx.X9);
+         Print_Triple ("X10", "X11", "X12", Ctx.X10, Ctx.X11, Ctx.X12);
+         Print_Triple ("X13", "X14", "X15", Ctx.X13, Ctx.X14, Ctx.X15);
+         Print_Triple ("X16", "X17", "X18", Ctx.X16, Ctx.X17, Ctx.X18);
+         Print_Triple ("X19", "X20", "X21", Ctx.X19, Ctx.X20, Ctx.X21);
+         Print_Triple ("X22", "X23", "X24", Ctx.X22, Ctx.X23, Ctx.X24);
+         Print_Triple ("X25", "X26", "X27", Ctx.X25, Ctx.X26, Ctx.X27);
+         Print_Triple ("X28", "X29", "X30", Ctx.X28, Ctx.X29, Ctx.X30);
+         Print_Triple ("X31", "SEPC", "SCAUSE", Ctx.X31, Ctx.SEPC, Ctx.SCAUSE);
+         Print_Triple ("STVAL", "SSTATUS", "FCSR", Ctx.STVAL, Ctx.SSTATUS,
+            Ctx.FCSR);
       #elsif ArchName = """x86_64-limine"""
          Print_Triple ("RAX", "RBX", "RCX", Ctx.RAX, Ctx.RBX, Ctx.RCX);
          Print_Triple ("RDX", "RSI", "RDI", Ctx.RDX, Ctx.RSI, Ctx.RDI);
