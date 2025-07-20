@@ -50,14 +50,32 @@ package body Arch.Snippets is
       null; --  No pause equivalent sadly, inneficient busy loops for you!
    end Pause;
 
+   MSTATUS_SUM : constant Unsigned_64 := Shift_Right (1, 18);
+
    procedure Enable_Userland_Memory_Access is
+      Orig : Unsigned_64;
    begin
-      null;
+      System.Machine_Code.Asm
+         ("csrr %0, mstatus",
+          Outputs  => Unsigned_64'Asm_Output ("=r", Orig),
+          Volatile => True);
+      System.Machine_Code.Asm
+         ("csrw mstatus, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", Orig or MSTATUS_SUM),
+          Volatile => True);
    end Enable_Userland_Memory_Access;
 
    procedure Disable_Userland_Memory_Access is
+      Orig : Unsigned_64;
    begin
-      null;
+      System.Machine_Code.Asm
+         ("csrr %0, mstatus",
+          Outputs  => Unsigned_64'Asm_Output ("=r", Orig),
+          Volatile => True);
+      System.Machine_Code.Asm
+         ("csrw mstatus, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", Orig and not MSTATUS_SUM),
+          Volatile => True);
    end Disable_Userland_Memory_Access;
    ----------------------------------------------------------------------------
    function Read_SStatus return Unsigned_64 is
