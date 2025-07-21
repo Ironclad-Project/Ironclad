@@ -713,6 +713,12 @@ package Userland.Process is
        Ignore   : out Boolean;
        Old_Mask : out Signal_Bitmap);
 
+   procedure Get_Default_Policy (Proc : PID; Pol : out Scheduler.Policy);
+   procedure Set_Default_Policy (Proc : PID; Pol : Scheduler.Policy);
+
+   procedure Get_Priority (Proc : PID; Prio : out Scheduler.Priority);
+   procedure Set_Priority (Proc : PID; Prio : Scheduler.Priority);
+
    --  Convert a PID to an integer. The results will be reproducible for the
    --  same PIDs.
    --  @param Proc PID to convert, can be Error_PID.
@@ -791,7 +797,9 @@ private
       Masked_Signals  : Signal_Bitmap;
       Raised_Signals  : Signal_Bitmap;
       Signal_Handlers : Handle_Arr;
+      Prio            : Scheduler.Priority;
       Niceness        : Scheduler.Niceness;
+      Pol             : Scheduler.Policy;
       Umask           : VFS.File_Mode;
       User            : Unsigned_32;
       Effective_User  : Unsigned_32;

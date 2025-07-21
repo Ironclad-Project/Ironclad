@@ -226,7 +226,6 @@ package Userland.Syscall is
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
        Flags    : Unsigned_64;
-       Cluster  : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
@@ -344,11 +343,7 @@ package Userland.Syscall is
    --  Yield.
    procedure Sched_Yield (Returned : out Unsigned_64; Errno : out Errno_Value);
 
-   --  Delete a thread cluster.
-   procedure Delete_Thread_Cluster
-      (Cluster  : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
+   procedure Get_Min_Pri (Returned : out Unsigned_64; Errno : out Errno_Value);
 
    --  Create a pair of pipes.
    procedure Pipe
@@ -438,25 +433,12 @@ package Userland.Syscall is
    type Thread_Info is record
       Thread_Id   : Unsigned_16;
       Niceness    : Unsigned_16;
-      Cluster_Id  : Unsigned_16;
+      Priority    : Unsigned_16;
       Process_PID : Unsigned_16;
    end record with Pack;
    type Thread_Info_Arr is array (Natural range <>) of Thread_Info;
 
    procedure List_Threads
-      (Addr     : Unsigned_64;
-       Length   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
-
-   type Cluster_Info is record
-      Cluster_Id : Unsigned_16;
-      Cluster_Fl : Unsigned_16;
-      Cluster_Q  : Unsigned_16;
-   end record with Pack;
-   type Cluster_Info_Arr is array (Natural range <>) of Cluster_Info;
-
-   procedure List_Clusters
       (Addr     : Unsigned_64;
        Length   : Unsigned_64;
        Returned : out Unsigned_64;
@@ -535,17 +517,7 @@ package Userland.Syscall is
    --  Get the current thread id.
    procedure Get_TID (Returned : out Unsigned_64; Errno : out Errno_Value);
 
-   --  Manage an existing thread cluster or create a new one.
-   SCHED_RR   : constant := 2#001#;
-   SCHED_COOP : constant := 2#010#;
-   SCHED_INTR : constant := 2#100#;
-   procedure Manage_Thread_Cluster
-      (Cluster    : Unsigned_64;
-       Flags      : Unsigned_64;
-       Quantum    : Unsigned_64;
-       Percentage : Unsigned_64;
-       Returned   : out Unsigned_64;
-       Errno      : out Errno_Value);
+   procedure Get_Max_Pri (Returned : out Unsigned_64; Errno : out Errno_Value);
 
    --  Multiplexed operation for files.
    F_DUPFD         : constant := 1;
@@ -1071,15 +1043,26 @@ package Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
 
-   procedure Create_TCluster
-      (Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
+   SCHED_OTHER : constant := 0;
+   SCHED_FIFO  : constant := 1;
+   SCHED_RR    : constant := 2;
+   SCHED_IDLE  : constant := 5;
 
-   procedure Switch_TCluster
-      (Cluster  : Unsigned_64;
-       Thread   : Unsigned_64;
+   procedure Sched_GetScheduler
+      (PID      : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
+
+   type Sched_Param is record
+      Priority : Unsigned_32;
+   end record;
+
+   procedure Sched_SetScheduler
+      (PID        : Unsigned_64;
+       Policy     : Unsigned_64;
+       Param_Addr : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    SIG_BLOCK   : constant := 1;
    SIG_UNBLOCK : constant := 2;
@@ -1296,7 +1279,6 @@ package Userland.Syscall is
        Call_Arg : Unsigned_64;
        Stack    : Unsigned_64;
        TLS_Addr : Unsigned_64;
-       Cluster  : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 

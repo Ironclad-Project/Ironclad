@@ -37,6 +37,8 @@ release changes.
 - Now `AT_SECURE` is assed only when the `euid` of the process is 0.
 - Removed the `pread`/`pwrite` syscalls in favour of arguments to the
   `read`/`write` syscalls, saving a bunch of code.
+- Replaced the thread cluster system with a more POSIX-like mechanism
+  based on `sched_getscheduler` and `sched_setscheduler`.
 
 ### Non-code related changes
 

@@ -852,11 +852,11 @@ package body Userland.Syscall is
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
        Flags    : Unsigned_64;
-       Cluster  : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
       Proc    : constant PID := Arch.Local.Get_Current_Process;
+      Pol     : Scheduler.Policy;
       Child   : PID;
       New_TID : Scheduler.TID;
       Ret     : Unsigned_64;
@@ -894,11 +894,12 @@ package body Userland.Syscall is
       Set_Common_Map (Child, Table);
 
       Duplicate_FD_Table (Proc, Child);
+      Process.Get_Default_Policy (Proc, Pol);
       Scheduler.Create_User_Thread
          (GP_State => GP_State,
           FP_State => FP_State,
           Map      => Table,
-          Cluster  => Scheduler.Convert (Natural (Cluster)),
+          Pol      => Pol,
           PID      => Convert (Child),
           TCB      => Arch.Local.Fetch_TCB,
           New_TID  => New_TID);
@@ -1537,38 +1538,12 @@ package body Userland.Syscall is
       Errno    := Error_No_Error;
    end Sched_Yield;
 
-   procedure Delete_Thread_Cluster
-      (Cluster  : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
+   procedure Get_Min_Pri (Returned : out Unsigned_64; Errno : out Errno_Value)
    is
-      Proc : constant PID := Arch.Local.Get_Current_Process;
-      Succ : Boolean;
    begin
-      if not Get_Capabilities (Proc).Can_Change_Scheduling then
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("delete_thread_cluster", Proc);
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Cluster > Unsigned_64 (Natural'Last) then
-         Errno    := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
-      Scheduler.Delete_Cluster (Convert (Natural (Cluster)), Succ);
-      if Succ then
-         Errno    := Error_No_Error;
-         Returned := 0;
-      else
-         Errno    := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-      end if;
-   exception
-      when Constraint_Error =>
-         Errno    := Error_Would_Block;
-         Returned := Unsigned_64'Last;
-   end Delete_Thread_Cluster;
+      Returned := Unsigned_64 (Scheduler.Priority'First);
+      Errno    := Error_No_Error;
+   end Get_Min_Pri;
 
    procedure Pipe
       (Result_Addr : Unsigned_64;
@@ -1923,7 +1898,7 @@ package body Userland.Syscall is
             Info (I) :=
                (Thread_Id   => Unsigned_16 (Convert (KInfo (I).Thread)),
                 Niceness    => 0,
-                Cluster_Id  => Unsigned_16 (Convert (KInfo (I).Cluster)),
+                Priority    => 0,
                 Process_PID => Unsigned_16 (KInfo (I).Proc));
             N := Get_Niceness (KInfo (I).Thread);
             if N >= 0 then
@@ -1931,6 +1906,8 @@ package body Userland.Syscall is
             else
                Info (I).Niceness := Unsigned_16'Last - Unsigned_16 (abs N) + 1;
             end if;
+            Info (I).Priority := Unsigned_16
+               (Scheduler.Get_Priority (KInfo (I).Thread));
          end loop;
 
          Returned := Unsigned_64 (Ret);
@@ -1941,59 +1918,6 @@ package body Userland.Syscall is
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end List_Threads;
-
-   procedure List_Clusters
-      (Addr     : Unsigned_64;
-       Length   : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
-   is
-      Proc  : constant             PID := Arch.Local.Get_Current_Process;
-      IAddr : constant Integer_Address := Integer_Address (Addr);
-      SAddr : constant  System.Address := To_Address (IAddr);
-      Map   : Page_Table_Acc;
-   begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access
-         (Map, IAddr, Length * (Cluster_Info'Size / 8))
-      then
-         Errno    := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
-      declare
-         Ret   : Natural;
-         Info  : Cluster_Info_Arr (1 .. Natural (Length))
-            with Import, Address => SAddr;
-         KInfo : Scheduler.Cluster_Listing_Arr (1 .. Natural (Length));
-      begin
-         List_All (KInfo, Ret);
-         for I in 1 .. Ret loop
-            Info (I) :=
-               (Cluster_Id => Unsigned_16 (Convert (KInfo (I).Cluster)),
-                Cluster_Fl => 0,
-                Cluster_Q  => Unsigned_16 (KInfo (I).Cluster_Quan));
-            case KInfo (I).Cluster_Algo is
-               when Cluster_RR =>
-                  Info (I).Cluster_Fl := SCHED_RR;
-               when Cluster_Cooperative =>
-                  Info (I).Cluster_Fl := SCHED_COOP;
-            end case;
-            if KInfo (I).Cluster_Int then
-               Info (I).Cluster_Fl := Info (I).Cluster_Fl or SCHED_INTR;
-            end if;
-         end loop;
-
-         Returned := Unsigned_64 (Ret);
-         Errno    := Error_No_Error;
-      end;
-   exception
-      when Constraint_Error =>
-         Errno    := Error_Would_Block;
-         Returned := Unsigned_64'Last;
-   end List_Clusters;
 
    procedure List_NetInter
       (Addr     : Unsigned_64;
@@ -2262,69 +2186,12 @@ package body Userland.Syscall is
       Returned := Unsigned_64 (Convert (Arch.Local.Get_Current_Thread));
    end Get_TID;
 
-   procedure Manage_Thread_Cluster
-      (Cluster    : Unsigned_64;
-       Flags      : Unsigned_64;
-       Quantum    : Unsigned_64;
-       Percentage : Unsigned_64;
-       Returned   : out Unsigned_64;
-       Errno      : out Errno_Value)
+   procedure Get_Max_Pri (Returned : out Unsigned_64; Errno : out Errno_Value)
    is
-      Proc : constant PID := Arch.Local.Get_Current_Process;
-      Clsr : Scheduler.TCID;
-      Algo : Scheduler.Cluster_Algorithm;
-      Succ : Boolean;
    begin
-      if not Get_Capabilities (Proc).Can_Change_Scheduling then
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("manage_thread_cluster", Proc);
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Cluster > Unsigned_64 (Natural'Last) then
-         goto Invalid_Value_Error;
-      end if;
-
-      if (Flags and SCHED_RR) /= 0 then
-         Algo := Scheduler.Cluster_RR;
-      elsif (Flags and SCHED_COOP) /= 0 then
-         Algo := Scheduler.Cluster_Cooperative;
-      else
-         goto Invalid_Value_Error;
-      end if;
-
-      if Cluster = 0 then
-         Scheduler.Create_Cluster (Clsr);
-      else
-         Clsr := Scheduler.Convert (Natural (Cluster));
-      end if;
-
-      if Clsr = Error_TCID then
-         goto Invalid_Value_Error;
-      end if;
-
-      Set_Scheduling_Algorithm
-         (Clsr, Algo, Natural (Quantum), (Flags and SCHED_INTR) /= 0, Succ);
-      if not Succ then
-         goto Invalid_Value_Error;
-      end if;
-
-      Set_Time_Slice (Clsr, Natural (Percentage), Succ);
-      if not Succ then
-         goto Invalid_Value_Error;
-      end if;
-
+      Returned := Unsigned_64 (Scheduler.Priority'Last);
       Errno    := Error_No_Error;
-      Returned := Unsigned_64 (Scheduler.Convert (Clsr));
-      return;
-
-   <<Invalid_Value_Error>>
-      Errno    := Error_Invalid_Value;
-      Returned := Unsigned_64'Last;
-   exception
-      when Constraint_Error =>
-         Errno    := Error_Would_Block;
-         Returned := Unsigned_64'Last;
-   end Manage_Thread_Cluster;
+   end Get_Max_Pri;
 
    procedure Fcntl
       (FD       : Unsigned_64;
@@ -5386,68 +5253,108 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
    end UTimes;
 
-   procedure Create_TCluster
-      (Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
-   is
-      Proc   : constant PID := Arch.Local.Get_Current_Process;
-      Result : Scheduler.TCID;
-   begin
-      if not Get_Capabilities (Proc).Can_Change_Scheduling then
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("create_tcluster", Proc);
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
-      Scheduler.Create_Cluster (Result);
-      if Result /= Error_TCID then
-         Errno    := Error_No_Error;
-         Returned := Unsigned_64 (Convert (Result));
-      else
-         Errno    := Error_No_Memory;
-         Returned := Unsigned_64'Last;
-      end if;
-   end Create_TCluster;
-
-   procedure Switch_TCluster
-      (Cluster  : Unsigned_64;
-       Thread   : Unsigned_64;
+   procedure Sched_GetScheduler
+      (PID      : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Clust : TCID;
-      Th    : TID;
-      Succ  : Boolean;
+      Proc : Process.PID;
+      Pol  : Scheduler.Policy;
    begin
-      Clust := Convert (Natural (Cluster and 16#FFFFFFFF#));
-      Th    := Convert (Natural (Thread and 16#FFFFFFFF#));
-
-      if not Get_Capabilities (Proc).Can_Change_Scheduling then
-         Errno := Error_Bad_Access;
-         Execute_MAC_Failure ("switch_tcluster", Proc);
-         Returned := Unsigned_64'Last;
-         return;
-      elsif Clust = Error_TCID or else Th = Error_TID then
-         Errno := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
-      Switch_Cluster (Clust, Th, Succ);
-      if Succ then
-         Errno    := Error_No_Error;
-         Returned := 0;
+      if PID = 0 then
+         Proc := Arch.Local.Get_Current_Process;
       else
-         Errno := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
+         Proc := Convert (Natural (PID));
+         if Proc = Error_PID then
+            Errno    := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
       end if;
+
+      Process.Get_Default_Policy (Proc, Pol);
+      case Pol is
+         when Scheduler.Policy_RR    => Returned := SCHED_RR;
+         when Scheduler.Policy_Other => Returned := SCHED_OTHER;
+         when Scheduler.Policy_FIFO  => Returned := SCHED_FIFO;
+         when Scheduler.Policy_Idle  => Returned := SCHED_IDLE;
+      end case;
+      Errno    := Error_No_Error;
+      Returned := 0;
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
-   end Switch_TCluster;
+   end Sched_GetScheduler;
+
+   procedure Sched_SetScheduler
+      (PID        : Unsigned_64;
+       Policy     : Unsigned_64;
+       Param_Addr : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value)
+   is
+      package Trans is new Memory.Userland_Transfer (Sched_Param);
+      Curr    : constant Process.PID := Arch.Local.Get_Current_Process;
+      P_IAddr : constant Integer_Address := Integer_Address (Param_Addr);
+      Proc    : Process.PID;
+      Success : Boolean;
+      Map     : Page_Table_Acc;
+      Pol     : Scheduler.Policy;
+      Param   : Sched_Param;
+   begin
+      if not Get_Capabilities (Curr).Can_Change_Scheduling then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("sched_setscheduler", Curr);
+         Returned := Unsigned_64'Last;
+      end if;
+
+      if PID = 0 then
+         Proc := Curr;
+      else
+         Proc := Convert (Natural (PID));
+         if Proc = Error_PID then
+            goto Invalid_Value_Error;
+         end if;
+      end if;
+
+      case Policy is
+         when SCHED_RR    => Pol := Scheduler.Policy_RR;
+         when SCHED_FIFO  => Pol := Scheduler.Policy_FIFO;
+         when SCHED_OTHER => Pol := Scheduler.Policy_Other;
+         when SCHED_IDLE  => Pol := Scheduler.Policy_Idle;
+         when others      => goto Invalid_Value_Error;
+      end case;
+
+      Process.Set_Default_Policy (Proc, Pol);
+
+      if P_IAddr /= 0 then
+         Get_Common_Map (Curr, Map);
+         Trans.Take_From_Userland (Map, Param, To_Address (P_IAddr), Success);
+         if not Success then
+            Errno    := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         if Natural (Param.Priority) not in Scheduler.Priority'Range then
+            goto Invalid_Value_Error;
+         end if;
+         Process.Set_Priority (Proc, Scheduler.Priority (Param.Priority));
+      end if;
+
+      Errno    := Error_No_Error;
+      Returned := 0;
+      return;
+
+   <<Invalid_Value_Error>>
+      Errno    := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end Sched_SetScheduler;
 
    procedure Sigprocmask
       (How      : Unsigned_64;
@@ -6585,12 +6492,12 @@ package body Userland.Syscall is
        Call_Arg : Unsigned_64;
        Stack    : Unsigned_64;
        TLS_Addr : Unsigned_64;
-       Cluster  : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
       Proc    : constant PID := Arch.Local.Get_Current_Process;
       New_TID : Scheduler.TID;
+      Pol     : Scheduler.Policy;
       Success : Boolean;
       Map     : Page_Table_Acc;
    begin
@@ -6598,20 +6505,16 @@ package body Userland.Syscall is
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("create_thread", Proc);
          Returned := Unsigned_64'Last;
-         return;
-      elsif Cluster > Unsigned_64 (Natural'Last) then
-         Errno    := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
       end if;
 
       Get_Common_Map (Proc, Map);
+      Process.Get_Default_Policy (Proc, Pol);
       Create_User_Thread
          (Address    => Integer_Address (Callback),
           Map        => Map,
           Stack_Addr => Stack,
           TLS_Addr   => TLS_Addr,
-          Cluster    => Scheduler.Convert (Natural (Cluster)),
+          Pol        => Pol,
           Argument   => Call_Arg,
           PID        => Convert (Proc),
           New_TID    => New_TID);

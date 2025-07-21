@@ -243,7 +243,7 @@ package body Userland.Loader is
           Env        => Environment,
           Map        => Table,
           Vector     => Loaded_ELF.Vector,
-          Cluster    => Scheduler.Convert (1),
+          Pol        => Scheduler.Policy_Other,
           Stack_Size => Unsigned_64 (Get_Limit (Proc, Stack_Size_Limit)),
           PID        => Process.Convert (Proc),
           New_TID    => Returned_TID);

@@ -17,14 +17,12 @@
 with System;
 with Synchronization;
 with Panic;
-with Messages;
 with System.Storage_Elements; use System.Storage_Elements;
 with Userland.Process;
 with Arch;
 with Arch.Local;
 with Arch.Clocks;
 with Arch.Snippets;
-with Arch.Power;
 with Time;
 
 package body Scheduler with SPARK_Mode => Off is
@@ -34,25 +32,14 @@ package body Scheduler with SPARK_Mode => Off is
    type Kernel_Stack     is array (1 ..  Kernel_Stack_Size) of Unsigned_8;
    type Kernel_Stack_Acc is access Kernel_Stack;
 
-   type Thread_Cluster is record
-      Is_Present       : Boolean;
-      Algorithm        : Cluster_Algorithm;
-      RR_Quantum       : Natural;
-      Is_Interruptible : Boolean;
-      Percentage       : Natural range 0 .. 100;
-      Progress_Seconds : Unsigned_64;
-      Progress_Nanos   : Unsigned_64;
-   end record;
-   type Cluster_Arr     is array (TCID range 1 .. TCID'Last) of Thread_Cluster;
-   type Cluster_Arr_Acc is access Cluster_Arr;
-
    type Thread_Info is record
       Is_Present      : Boolean with Atomic;
       Is_Running      : Boolean with Atomic;
       Path            : String (1 .. 20);
       Path_Len        : Natural range 0 .. 20;
+      Pol             : Policy;
       Nice            : Niceness;
-      Cluster         : TCID;
+      Prio            : Priority;
       TCB_Pointer     : System.Address;
       PageMap         : System.Address;
       Kernel_Stack    : Kernel_Stack_Acc;
@@ -74,15 +61,9 @@ package body Scheduler with SPARK_Mode => Off is
    type Thread_Info_Arr     is array (TID range 1 .. TID'Last) of Thread_Info;
    type Thread_Info_Arr_Acc is access Thread_Info_Arr;
 
-   --  Scheduling timeslices are calculated using a major frame
-   --  (or cluster frame) and a minor frame (or cluster quantum).
-   --  Both are calculated from the total slice.
-   Total_Slice : constant := 1_000_000; --  A second in microseconds.
-
+   Thread_Pool     : Thread_Info_Arr_Acc;
    Scheduler_Mutex : aliased Synchronization.Binary_Semaphore :=
       Synchronization.Unlocked_Semaphore;
-   Cluster_Pool    : Cluster_Arr_Acc;
-   Thread_Pool     : Thread_Info_Arr_Acc;
 
    --  In order to keep statistics of usage, we keep a list of buckets of
    --  1 minute resolution, and calculate resolution on demand.
@@ -106,8 +87,6 @@ package body Scheduler with SPARK_Mode => Off is
        Is_Global          => False);
 
    procedure Init (Success : out Boolean) is
-      RR_Quantum : Natural;
-      Profile    : Arch.Power.Power_Profile;
    begin
       --  Initialize registries.
       Thread_Pool := new Thread_Info_Arr'
@@ -116,8 +95,9 @@ package body Scheduler with SPARK_Mode => Off is
              Is_Running      => False,
              Path            => [others => ' '],
              Path_Len        => 0,
-             Nice            => 0,
-             Cluster         => Error_TCID,
+             Pol             => Policy_Other,
+             Prio            => Default_Priority,
+             Nice            => Default_Niceness,
              TCB_Pointer     => System.Null_Address,
              PageMap         => System.Null_Address,
              Kernel_Stack    => null,
@@ -135,36 +115,6 @@ package body Scheduler with SPARK_Mode => Off is
              System_Tmp_NSec => 0,
              User_Tmp_Sec    => 0,
              User_Tmp_NSec   => 0)];
-
-      Cluster_Pool := new Cluster_Arr'
-         [others =>
-            (Is_Present       => False,
-             Algorithm        => Cluster_RR,
-             RR_Quantum       => 0,
-             Is_Interruptible => False,
-             Percentage       => 0,
-             Progress_Seconds => 0,
-             Progress_Nanos   => 0)];
-
-      --  Create the default cluster.
-      Cluster_Pool (Cluster_Pool'First).Is_Present       := True;
-      Cluster_Pool (Cluster_Pool'First).Algorithm        := Cluster_RR;
-      Cluster_Pool (Cluster_Pool'First).Is_Interruptible := True;
-      Cluster_Pool (Cluster_Pool'First).Percentage       := 100;
-      Cluster_Pool (Cluster_Pool'First).Progress_Seconds := 0;
-      Cluster_Pool (Cluster_Pool'First).Progress_Nanos   := 0;
-
-      --  Set a higher quantum, thus less power consumption, for small devices.
-      Arch.Power.Get_Preferred_Profile (Profile);
-      case Profile is
-         when Arch.Power.Mobile | Arch.Power.Appliance =>
-            Messages.Put_Line
-               ("Using higher latency RR_Quantum for low profile devices");
-            RR_Quantum := 60000;
-         when others =>
-            RR_Quantum := 20000;
-      end case;
-      Cluster_Pool (Cluster_Pool'First).RR_Quantum := RR_Quantum;
 
       Is_Initialized := True;
       Synchronization.Release (Scheduler_Mutex);
@@ -192,7 +142,7 @@ package body Scheduler with SPARK_Mode => Off is
        Env        : Userland.Environment_Arr;
        Map        : Arch.MMU.Page_Table_Acc;
        Vector     : Userland.ELF.Auxval;
-       Cluster    : TCID;
+       Pol        : Policy;
        Stack_Size : Unsigned_64;
        PID        : Natural;
        New_TID    : out TID)
@@ -328,11 +278,11 @@ package body Scheduler with SPARK_Mode => Off is
          Create_User_Thread
             (GP_State => GP_State,
              FP_State => FP_State,
-             Map       => Map,
-             PID       => PID,
-             Cluster   => Cluster,
-             TCB       => System.Null_Address,
-             New_TID   => New_TID);
+             Map      => Map,
+             PID      => PID,
+             Pol      => Pol,
+             TCB      => System.Null_Address,
+             New_TID  => New_TID);
       end;
 
    <<Cleanup>>
@@ -347,7 +297,7 @@ package body Scheduler with SPARK_Mode => Off is
        Map        : Arch.MMU.Page_Table_Acc;
        Stack_Addr : Unsigned_64;
        TLS_Addr   : Unsigned_64;
-       Cluster    : TCID;
+       Pol        : Policy;
        Argument   : Unsigned_64;
        PID        : Natural;
        New_TID    : out TID)
@@ -366,7 +316,7 @@ package body Scheduler with SPARK_Mode => Off is
           FP_State => FP_State,
           Map      => Map,
           PID      => PID,
-          Cluster  => Cluster,
+          Pol      => Pol,
           TCB      => To_Address (Integer_Address (TLS_Addr)),
           New_TID  => New_TID);
    end Create_User_Thread;
@@ -375,7 +325,7 @@ package body Scheduler with SPARK_Mode => Off is
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
        Map      : Arch.MMU.Page_Table_Acc;
-       Cluster  : TCID;
+       Pol      : Policy;
        PID      : Natural;
        TCB      : System.Address;
        New_TID  : out TID)
@@ -407,8 +357,9 @@ package body Scheduler with SPARK_Mode => Off is
           Is_Running   => False,
           Path         => [others => ' '],
           Path_Len     => 0,
-          Nice         => 0,
-          Cluster      => Cluster,
+          Pol          => Pol,
+          Prio         => Default_Priority,
+          Nice         => Default_Niceness,
           TCB_Pointer  => TCB,
           PageMap      => Arch.MMU.Get_Map_Table_Addr (Map),
           Kernel_Stack => New_Stack,
@@ -444,10 +395,7 @@ package body Scheduler with SPARK_Mode => Off is
       Curr_TID : constant     TID := Arch.Local.Get_Current_Thread;
       Is_Init  : constant Boolean := Is_Initialized;
    begin
-      if Is_Init               and then
-         Curr_TID /= Error_TID and then
-         Cluster_Pool (Thread_Pool (Curr_TID).Cluster).Is_Interruptible
-      then
+      if Is_Init and Curr_TID /= Error_TID then
          Arch.Local.Reschedule_ASAP;
       end if;
    exception
@@ -538,123 +486,13 @@ package body Scheduler with SPARK_Mode => Off is
       when Constraint_Error =>
          null;
    end Signal_Kernel_Exit;
-   ----------------------------------------------------------------------------
-   procedure Set_Scheduling_Algorithm
-      (Cluster          : TCID;
-       Algo             : Cluster_Algorithm;
-       Quantum          : Natural;
-       Is_Interruptible : Boolean;
-       Success          : out Boolean)
-   is
-   begin
-      Synchronization.Seize (Scheduler_Mutex);
-      Cluster_Pool (Cluster).Algorithm        := Algo;
-      Cluster_Pool (Cluster).RR_Quantum       := Quantum;
-      Cluster_Pool (Cluster).Is_Interruptible := Is_Interruptible;
-      Synchronization.Release (Scheduler_Mutex);
-      Success := True;
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Scheduler_Mutex);
-         Success := False;
-   end Set_Scheduling_Algorithm;
 
-   procedure Set_Time_Slice
-      (Cluster : TCID;
-       Per     : Natural;
-       Success : out Boolean)
-   is
-      Consumed : Natural := 0;
-   begin
-      Synchronization.Seize (Scheduler_Mutex);
-      for I in Cluster_Pool'Range loop
-         if Cluster_Pool (I).Is_Present and I /= Cluster then
-            Consumed := Consumed + Cluster_Pool (I).Percentage;
-         end if;
-      end loop;
-
-      if Cluster_Pool (Cluster).Is_Present and Per <= (100 - Consumed) then
-         Cluster_Pool (Cluster).Percentage := Per;
-         Success := True;
-      else
-         Success := False;
-      end if;
-      Synchronization.Release (Scheduler_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Scheduler_Mutex);
-         Success := False;
-   end Set_Time_Slice;
-
-   procedure Create_Cluster (New_TCID : out TCID) is
-   begin
-      Synchronization.Seize (Scheduler_Mutex);
-      for I in Cluster_Pool'Range loop
-         if not Cluster_Pool (I).Is_Present then
-            Cluster_Pool (I) :=
-               (Is_Present       => True,
-                Algorithm        => Cluster_RR,
-                Is_Interruptible => False,
-                RR_Quantum       => 4000,
-                Percentage       => 0,
-                others           => 0);
-            New_TCID := I;
-            goto Cleanup;
-         end if;
-      end loop;
-      New_TCID := Error_TCID;
-   <<Cleanup>>
-      Synchronization.Release (Scheduler_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Scheduler_Mutex);
-         New_TCID := Error_TCID;
-   end Create_Cluster;
-
-   procedure Delete_Cluster (Cluster : TCID; Success : out Boolean) is
-   begin
-      Synchronization.Seize (Scheduler_Mutex);
-      if Cluster_Pool (Cluster).Is_Present then
-         Cluster_Pool (Cluster).Is_Present := False;
-         Success := True;
-      else
-         Success := False;
-      end if;
-      Synchronization.Release (Scheduler_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Scheduler_Mutex);
-         Success := False;
-   end Delete_Cluster;
-
-   procedure Switch_Cluster
-      (Cluster : TCID;
-       Thread  : TID;
-       Success : out Boolean)
-   is
-   begin
-      Synchronization.Seize (Scheduler_Mutex);
-      if Cluster_Pool (Cluster).Is_Present and
-         Thread_Pool (Thread).Is_Present
-      then
-         Thread_Pool (Thread).Cluster := Cluster;
-         Success := True;
-      else
-         Success := False;
-      end if;
-      Synchronization.Release (Scheduler_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Scheduler_Mutex);
-         Success := False;
-   end Switch_Cluster;
-   ----------------------------------------------------------------------------
    function Get_Niceness (Thread : TID) return Niceness is
    begin
       return Thread_Pool (Thread).Nice;
    exception
       when Constraint_Error =>
-         return 0;
+         return Default_Niceness;
    end Get_Niceness;
 
    procedure Set_Niceness (Thread : TID; Nice : Niceness) is
@@ -664,6 +502,30 @@ package body Scheduler with SPARK_Mode => Off is
       when Constraint_Error =>
          null;
    end Set_Niceness;
+
+   function Get_Priority (Thread : TID) return Priority is
+   begin
+      return Thread_Pool (Thread).Prio;
+   exception
+      when Constraint_Error =>
+         return Default_Priority;
+   end Get_Priority;
+
+   procedure Set_Priority (Thread : TID; Prio : Priority) is
+   begin
+      Thread_Pool (Thread).Prio := Prio;
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_Priority;
+
+   procedure Set_Policy (Thread : TID; Pol : Policy) is
+   begin
+      Thread_Pool (Thread).Pol := Pol;
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_Policy;
 
    procedure Get_Name (Thread : TID; Name : out String; Len : out Natural) is
    begin
@@ -709,8 +571,6 @@ package body Scheduler with SPARK_Mode => Off is
       New_TID   : TID;
       Stack_Top : Unsigned_64;
       Map       : Arch.MMU.Page_Table_Acc;
-      Curr_TID  : constant TID :=
-         Arch.Local.Get_Current_Thread;
       Curr_Proc : constant Userland.Process.PID :=
          Arch.Local.Get_Current_Process;
    begin
@@ -760,13 +620,13 @@ package body Scheduler with SPARK_Mode => Off is
       end;
 
       Create_User_Thread
-         (GP_State  => GP_State,
-          FP_State  => FP_State,
-          Map       => Map,
-          PID       => Userland.Process.Convert (Curr_Proc),
-          Cluster   => Thread_Pool (Curr_TID).Cluster,
-          TCB       => Arch.Local.Fetch_TCB,
-          New_TID   => New_TID);
+         (GP_State => GP_State,
+          FP_State => FP_State,
+          Map      => Map,
+          Pol      => Policy_Other,
+          PID      => Userland.Process.Convert (Curr_Proc),
+          TCB      => Arch.Local.Fetch_TCB,
+          New_TID  => New_TID);
       if not Success then
          return;
       end if;
@@ -814,10 +674,10 @@ package body Scheduler with SPARK_Mode => Off is
       Current_TID : constant TID := Arch.Local.Get_Current_Thread;
       Next_TID    :          TID := Error_TID;
       Next_State  : Arch.Context.GP_Context;
-      Timeout, Max_Next_Timeout : Natural;
-      Curr_Cluster, Next_Cluster : TCID := Error_TCID;
-      Curr_Sec, Curr_NSec : Unsigned_64;
-      Count : Unsigned_32;
+      Timeout     : Natural;
+      Curr_Sec    : Unsigned_64;
+      Curr_NSec   : Unsigned_64;
+      Count       : Unsigned_32;
    begin
       Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_NSec);
 
@@ -833,93 +693,28 @@ package body Scheduler with SPARK_Mode => Off is
                Count := Count + 1;
             end if;
          end loop;
-         Add_Bucket_And_Shift (Count);
+
+         for I in reverse Buckets'First .. Buckets'Last - 1 loop
+            Buckets (I + 1) := Buckets (I);
+         end loop;
+         Buckets (Buckets'First) := Count;
       end if;
 
-      --  If we come from a thread, we can do cluster management and logic.
-      --  Else, we just need to go to a thread, any, and pick up from there.
+      Timeout := 100_000;
+
+      --  Find the next thread in a very rough RR.
+      for I in Current_TID + 1 .. Thread_Pool'Last loop
+         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running then
+            Next_TID := I;
+            goto Found_TID;
+         end if;
+      end loop;
       if Current_TID /= Error_TID then
-         Curr_Cluster := Thread_Pool (Current_TID).Cluster;
-         Time.Subtract
-            (Curr_Sec, Curr_NSec,
-             Thread_Pool (Current_TID).Last_Sched_Sec,
-             Thread_Pool (Current_TID).Last_Sched_NSec);
-         Time.Increment
-            (Cluster_Pool (Curr_Cluster).Progress_Seconds,
-             Cluster_Pool (Curr_Cluster).Progress_Nanos, Curr_Sec, Curr_NSec);
-
-         if Has_Available_Time (Curr_Cluster) then
-            Next_Cluster := Curr_Cluster;
-         else
-            --  Find a new cluster with available time.
-            for I in Curr_Cluster + 1 .. Cluster_Pool'Last loop
-               if Has_Available_Time (I) then
-                  Next_Cluster := I;
-                  exit;
-               end if;
-            end loop;
-            if Next_Cluster = Error_TCID then
-               for I in Cluster_Pool'First .. Curr_Cluster - 1 loop
-                  if Has_Available_Time (I) then
-                     Next_Cluster := I;
-                     exit;
-                  end if;
-               end loop;
-            end if;
-
-            --  If we find no new clusters, we just reset em.
-            if Next_Cluster = Error_TCID then
-               for C of Cluster_Pool.all loop
-                  C.Progress_Seconds := 0;
-                  C.Progress_Nanos := 0;
-               end loop;
-               Next_Cluster := 1;
-            end if;
-         end if;
-
-         Max_Next_Timeout :=
-            (Total_Slice * Cluster_Pool (Next_Cluster).Percentage / 100) -
-            Natural (Cluster_Pool (Next_Cluster).Progress_Nanos / 1000);
-
-         case Cluster_Pool (Next_Cluster).Algorithm is
-            when Cluster_RR =>
-               Timeout :=
-                  Cluster_Pool (Next_Cluster).RR_Quantum -
-                  ((Cluster_Pool (Next_Cluster).RR_Quantum / 40) *
-                   Thread_Pool (Current_TID).Nice);
-
-               if Timeout > Max_Next_Timeout then
-                  Timeout := Max_Next_Timeout;
-               end if;
-            when Cluster_Cooperative =>
-               Timeout := Max_Next_Timeout;
-         end case;
-
-         --  Find the next thread from said cluster using the algorithm.
-         --  Cluster_Cooperative finds new threads the same way as RR, so we
-         --  do not need to handle it especially.
-         for I in Current_TID + 1 .. Thread_Pool'Last loop
-            if Is_Switchable (I, Next_Cluster) then
-               Next_TID := I;
-               goto Found_TID_TCID_Combo;
-            end if;
-         end loop;
-         if Current_TID /= Error_TID then
-            for I in Thread_Pool'First .. Current_TID - 1 loop
-               if Is_Switchable (I, Next_Cluster) then
-                  Next_TID := I;
-                  goto Found_TID_TCID_Combo;
-               end if;
-            end loop;
-         end if;
-      else
-         Timeout := 4000;
-         for I in Thread_Pool'Range loop
+         for I in Thread_Pool'First .. Current_TID - 1 loop
             if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running
             then
                Next_TID := I;
-               Next_Cluster := Thread_Pool (I).Cluster;
-               goto Found_TID_TCID_Combo;
+               goto Found_TID;
             end if;
          end loop;
       end if;
@@ -930,10 +725,15 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Local.Reschedule_In (Timeout);
       return;
 
-   <<Found_TID_TCID_Combo>>
+   <<Found_TID>>
       --  Save state.
       if Current_TID /= Error_TID then
          Thread_Pool (Current_TID).Is_Running := False;
+
+         Time.Subtract
+            (Curr_Sec, Curr_NSec,
+             Thread_Pool (Current_TID).Last_Sched_Sec,
+             Thread_Pool (Current_TID).Last_Sched_NSec);
 
          if Thread_Pool (Current_TID).Is_Present then
             Thread_Pool (Current_TID).PageMap := Arch.MMU.Get_Curr_Table_Addr;
@@ -948,16 +748,13 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       --  Set the last time of entry to userland if none.
-      Arch.Clocks.Get_Monotonic_Time
-         (Thread_Pool (Next_TID).Last_Sched_Sec,
-          Thread_Pool (Next_TID).Last_Sched_NSec);
-      if Thread_Pool (Next_TID).User_Tmp_Sec = 0 and
+      Thread_Pool (Next_TID).Last_Sched_Sec  := Curr_Sec;
+      Thread_Pool (Next_TID).Last_Sched_NSec := Curr_NSec;
+      if Thread_Pool (Next_TID).User_Tmp_Sec  = 0 and
          Thread_Pool (Next_TID).User_Tmp_NSec = 0
       then
-         Thread_Pool (Next_TID).User_Tmp_Sec  :=
-            Thread_Pool (Next_TID).Last_Sched_Sec;
-         Thread_Pool (Next_TID).User_Tmp_NSec :=
-            Thread_Pool (Next_TID).Last_Sched_NSec;
+         Thread_Pool (Next_TID).User_Tmp_Sec  := Curr_Sec;
+         Thread_Pool (Next_TID).User_Tmp_NSec := Curr_NSec;
       end if;
 
       --  Rearm the timer for next tick and unlock.
@@ -981,15 +778,9 @@ package body Scheduler with SPARK_Mode => Off is
          Panic.Hard_Panic ("Exception while reescheduling");
    end Scheduler_ISR;
    ----------------------------------------------------------------------------
-
    function Convert (Thread : TID) return Natural is
    begin
       return Natural (Thread);
-   end Convert;
-
-   function Convert (Group : TCID) return Natural is
-   begin
-      return Natural (Group);
    end Convert;
 
    function Convert (Value : Natural) return TID is
@@ -1000,18 +791,10 @@ package body Scheduler with SPARK_Mode => Off is
          return Error_TID;
    end Convert;
 
-   function Convert (Value : Natural) return TCID is
-   begin
-      return TCID (Value);
-   exception
-      when Constraint_Error =>
-         return Error_TCID;
-   end Convert;
-
    procedure List_All (List : out Thread_Listing_Arr; Total : out Natural) is
       Curr_Index : Natural := 0;
    begin
-      List  := [others => (Error_TID, Error_TCID, 0)];
+      List  := [others => (Error_TID, 0)];
       Total := 0;
 
       Synchronization.Seize (Scheduler_Mutex);
@@ -1020,35 +803,7 @@ package body Scheduler with SPARK_Mode => Off is
             Total := Total + 1;
             if Curr_Index < Thread_Pool'Length then
                List (List'First + Curr_Index) :=
-                  (I, Thread_Pool (I).Cluster,
-                   Userland.Process.Convert (Thread_Pool (I).Process));
-               Curr_Index := Curr_Index + 1;
-            end if;
-         end if;
-      end loop;
-      Synchronization.Release (Scheduler_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Scheduler_Mutex);
-         Total := 0;
-   end List_All;
-
-   procedure List_All (List : out Cluster_Listing_Arr; Total : out Natural) is
-      Curr_Index : Natural := 0;
-   begin
-      List  := [others => (Error_TCID, Cluster_RR, False, 0)];
-      Total := 0;
-
-      Synchronization.Seize (Scheduler_Mutex);
-      for I in Cluster_Pool.all'Range loop
-         if Cluster_Pool (I).Is_Present then
-            Total := Total + 1;
-            if Curr_Index < Thread_Pool'Length then
-               List (List'First + Curr_Index) :=
-                  (I,
-                   Cluster_Pool (I).Algorithm,
-                   Cluster_Pool (I).Is_Interruptible,
-                   Cluster_Pool (I).RR_Quantum);
+                  (I, Userland.Process.Convert (Thread_Pool (I).Process));
                Curr_Index := Curr_Index + 1;
             end if;
          end if;
@@ -1065,42 +820,4 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Snippets.Enable_Interrupts;
       loop Arch.Snippets.Wait_For_Interrupt; end loop;
    end Waiting_Spot;
-
-   function Has_Available_Time (C : TCID) return Boolean is
-      Secs_To_Micros, Nanos_To_Micros : Unsigned_64;
-   begin
-      if C /= Error_TCID then
-         Secs_To_Micros  := Cluster_Pool (C).Progress_Seconds * 1_000_000;
-         Nanos_To_Micros := Cluster_Pool (C).Progress_Nanos   / 1_000;
-
-         return Secs_To_Micros + Nanos_To_Micros <
-                Total_Slice * Unsigned_64 (Cluster_Pool (C).Percentage) / 100;
-      else
-         return False;
-      end if;
-   exception
-      when Constraint_Error =>
-         return False;
-   end Has_Available_Time;
-
-   function Is_Switchable (T : TID; C : TCID) return Boolean is
-   begin
-      return Thread_Pool (T).Is_Present     and
-             not Thread_Pool (T).Is_Running and
-             Thread_Pool (T).Cluster = C;
-   exception
-      when Constraint_Error =>
-         return False;
-   end Is_Switchable;
-
-   procedure Add_Bucket_And_Shift (Last_Bucket : Unsigned_32) is
-   begin
-      for I in reverse Buckets'First .. Buckets'Last - 1 loop
-         Buckets (I + 1) := Buckets (I);
-      end loop;
-      Buckets (Buckets'First) := Last_Bucket;
-   exception
-      when Constraint_Error =>
-         null;
-   end Add_Bucket_And_Shift;
 end Scheduler;

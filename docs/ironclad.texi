@@ -69,8 +69,7 @@ Boot-time command-line options
 Scheduling and RTC
 
 * Ticks and other interruptions::  Thread interruptions to expect.
-* Scheduling basics::              Scheduling model used in Ironclad.
-* Thread clustering management::   Thread cluster management in Ironclad.
+* Scheduling algorithms::          Scheduling models used in Ironclad.
 
 Inter-process communication
 
@@ -127,12 +126,10 @@ Syscalls
 * chdir::                   Current working directory manipulation.
 * ioctl::                   IO multiplexer.
 * sched_yield::             Relinquish CPU time.
-* delete_tcluster::         Delete thread clusters.
 * pipe::                    Create pipes.
 * rename::                  Rename a file.
 * listprocs::               List system processes.
 * gettid::                  Get the current thread id.
-* manage_tcluster::         Manage and create thread clusters.
 * fcntl::                   Multiplexed operations for files.
 * exit_thread::             Exit the calling thread.
 * getentropy::              Bypass /dev/random for avoiding DoS attacks.
@@ -176,8 +173,8 @@ Syscalls
 * recvfrom/sendto::         Socket IO support functions.
 * config_netinter::         Configure network interfaces.
 * utimes::                  Modify timestamps for a file.
-* create_tcluster::         Create a thread cluster.
-* switch_tcluster::         Switch thread cluster.
+* get/set_scheduler::       Get and set scheduling details for a process.
+* get_min/max_priority::    Get the minimum and maximum scheduler priority.
 * sigprogmask::             Fetch and change a process' blocked signal.
 * sigaction::               Fetch and change a signal's action.
 * send_signal::             Send a signal to a process.
@@ -201,7 +198,6 @@ Syscalls
 * listmounts::              List the system's mounts.
 * uname::                   List system information.
 * listthreads::             List the system's threads.
-* listclusters::            List the system's thread clusters.
 * listnetinter::            List the system's network interfaces.
 * dumplogs::                List the system's kernel logs.
 * listflocks::              List the system's file locks.
@@ -369,72 +365,51 @@ A thread, however, may be interrupted for task-switching, which is needed for
 scheduling to work. This will not be an issue for most operations, but if the
 user desires absolutely 0 interruptions and/or jitter, one can use
 
-@node Scheduling basics
-@section Scheduling basics
+@node Scheduling algorithms
+@section Scheduling algorithms
 
-Scheduling in Ironclad is based broadly on
-@url{https://en.wikipedia.org/wiki/ARINC_653, ARINC 653 partitioning} and
-process models. Like the standard specifies, it employs 2 hierarchies of
-schedulable entities, the thread cluster, and the thread (or partition and
-process in ARINC nomenclature respectively).
+Ironclad provides several schedulers that individual processes can set for
+use using the @pxref{get/set_scheduler} syscalls.
 
-Each cluster needs to have a percentage of CPU time assigned at creation
-(which can be modified later on), that the scheduler will uphold with
-preemption, effectively promising that any given cluster will be given, at
-least, the specified execution time. Validy of the cluster configuration is
-checked when adding, deleting, or modifying individual clusters.
+Four schedulers are provided, two of them Real Time (RT) capable, two of them
+non-RT.
 
-Slack time (time not covered percent-wise by any cluster) will be used as seen
-fit, while not breaking scheduler guarantees, in an unspecified way. Thus, it
-shall be treated as @b{UNDEFINED BEHAVIOUR} by system users, and it is the
-responsibility of the user to configure the scheduling to keep this into
-account. It is also why the above paragraph mentions "at least", as unspecified
-time can be assigned to other clusters.
-
-Ironclad supports multicore configurations, shuffling cores around clusters,
-while always keeping the assigned slices for each cluster.
-
-@node Thread clustering management
-@section Thread clustering management
-
-Thread clusters are identified by an integer id, not unlike threads or PIDs.
-Clusters rule over a group of threads, regardless of their process of origin,
-and allow specifying an algorithm and a percentage over all the CPU time.
-
-The algorithm of a cluster affects how threads inside the cluster are
-scheduled. The available algorithms are:
-
+The non-RT ones are:
 @table @code
-@item SCHED_RR
-A prioritized round robin. One can specify a quantum to use when
-switching threads, while one can specify a priority using standard POSIX
-niceness. @ref{getprio/setprio}.
+@item SCHED_OTHER
+Default scheduling algorithm for every process created before being moved to a
+specific policy. The operating system reserves the right to change the
+algorithm used for this option, thus, users should not rely on any specifics
+about it.
 
-Priorities affect inter-thread quantum following the formula:
-
-@example
-timeout = quantum - ((quantum / 40) * niceness);
-@end example
-
-@item SCHED_COOP
-Cooperative scheduling, the scheduler will not attempt to preempt unless
-explicitly requested by exiting or yielding.
+@item SCHED_IDLE
+For use with largely inactive processes (like daemons, or services). Just like
+@code{SCHED_OTHER}, we reserve the right to change the specifics.
 @end table
 
-Additionally, by using the @code{SCHED_INTR} flag, a cluster can be configured
-to be interruptible, which makes the kernel able to interrupt a thread and
-queue another during long waits, in order to increase performance and
-responsiveness. This does not affect cluster-wide scheduling guarantees.
+The RT ones are:
+@table @code
+@item SCHED_FIFO
+The process will run in a first-in-first-out basis. Instead of niceness, this
+policy uses priority, governed by the @code{sched_param} argument of
+@code{set_scheduler}. Processes will be run until completion. To then go to the
+next available RT process with higher priority, or, if none available,
+non-RT tasks.
 
-At startup, Ironclad will have a single interruptible cluster assigned to 100%
-of execution time, configured to use a flat RR with a 20ms quantum with
-cluster number @code{1}. Software is free to modify it however it sees fit, it
-is just provided in order to have some natural-ish behaviour for running
-software blissfully unaware of the clusters beneath.
+@item SCHED_RR
+Similar to @code{SCHED_FIFO}. Processes of equal priority will be run in a
+round-robin fashion until time is freed by completion or explicit yielding or
+sleeping.
+@end table
 
-Syscalls used for modifying clusters and their settings are
-@code{manage_tcluster} and @code{delete_tcluster}, @code{create_tcluster}, and
-@code{switch_tcluster}.
+All RT policies have implicitly higher priority than non-RT ones, meaning that
+the OS will interrupt other tasks in order to fulfill the requirements of RT
+tasks regardless of other factors, like system responsibity or stability. Thus,
+be sure you know what you are doing when using RT policies!
+
+The range of priorities accepted by @code{sched_param} is comprised of the
+range between @code{get_min_priority} and @code{get_max_priority}.
+@pxref{get_min/max_priority}.
 
 @node Inter-process communication
 @chapter Inter-process communication
@@ -896,7 +871,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{sched_yield}.
 @item
-@ref{delete_tcluster}.
+@ref{get_min/max_priority, get_min_priority}.
 @item
 @ref{pipe}.
 @item
@@ -910,7 +885,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{gettid}.
 @item
-@ref{manage_tcluster}.
+@ref{get_min/max_priority, get_max_priority}.
 @item
 @ref{fcntl}.
 @item
@@ -1006,9 +981,9 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{utimes}.
 @item
-@ref{create_tcluster}.
+@ref{get/set_scheduler, get_scheduler}.
 @item
-@ref{switch_tcluster}.
+@ref{get/set_scheduler, set_scheduler}.
 @item
 @ref{sigprogmask}.
 @item
@@ -1066,7 +1041,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{listthreads}
 @item
-@ref{listclusters}
+Empty.
 @item
 @ref{listnetinter}
 @item
@@ -1936,24 +1911,6 @@ Its up for the kernel how far in the queue of execution this thread will go.
 This syscall returns @code{0} always, as it never fails, this is done for
 compatibility with POSIX instead of having a @code{void} return type.
 
-@node delete_tcluster
-@section delete_tcluster
-
-@example c
-int delete_tcluster(int cluster);
-@end example
-
-This syscall deletes the passed thread cluster, will only succeed if the
-cluster has no associated threads.
-
-The syscall returns @code{0} on success and @code{-1} on failure, with the
-following errno:
-
-@itemize @bullet
-@item
-@code{EINVAL}: The passed cluster does not exist or still has threads.
-@end itemize
-
 @node pipe
 @section pipe
 
@@ -2040,49 +1997,6 @@ int gettid(void);
 @end example
 
 This syscall returns the current thread id. It never fails.
-
-@node manage_tcluster
-@section manage_tcluster
-
-@example c
-#define SCHED_RR   0b001
-#define SCHED_COOP 0b010
-#define SCHED_INTR 0b100
-
-int manage_tcluster(int cluster, int flags, int quantum, int percentage);
-@end example
-
-This syscall sets settings for the passed @code{cluster}. Flags is a bitmap of:
-
-@itemize @bullet
-@item
-@code{SCHED_RR}: Use a prioritized round robin as scheduling algorithm for
-threads inside the cluster. The quantum for niceness 0 will be @code{quantum}.
-For more information on how quantums are used to calculate execution times,
-check @ref{Thread clustering management}.
-@item
-@code{SCHED_COOP}: Use cooperative scheduling as algorithm for the threads of
-the cluster, which will just pass execution on interruptions (if enabled),
-manual execution yielding, or end of the cluster's percentage. This flag
-conflicts with @code{SCHED_RR}. @code{quantum} is ignored for this algorithm.
-@item
-@code{SCHED_INTR}: If set, the cluster will be interruptible, that means, it
-can have its threads rescheduled on IO events, or other situations deemed
-worthy by the kernel.
-@end itemize
-
-Quantum is the quantum for the algorithm chosen, in nanoseconds. Percentage
-is a 0 to 100 integer for the percentage of execution the cluster is given.
-
-The syscall returns @code{0} on success and @code{-1} on failure, with the
-following errno:
-
-@itemize @bullet
-@item
-@code{EACCES}: MAC did not allow the operation.
-@item
-@code{EINVAL}: One of the passed values was not correct.
-@end itemize
 
 @node fcntl
 @section fcntl
@@ -3549,44 +3463,42 @@ MAC did not allow this.
 An argument is not valid.
 @end table
 
-@node create_tcluster
-@section create_tcluster
+@node get/set_scheduler
+@section get/set_scheduler
 
 @example c
-int create_tcluster(void);
+#define SCHED_OTHER 0
+#define SCHED_FIFO  1
+#define SCHED_RR    2
+#define SCHED_IDLE  5
+
+struct sched_param @{
+	int32_t sched_priority;
+@};
+
+int sched_getscheduler(pid_t pid);
+int sched_setscheduler(pid_t pid, int policy, struct sched_param *param);
 @end example
 
-This syscall creates a thread cluster. It returns the new cluster ID or
-@code {-1} on failure, with the following errno:
+This syscalls get and set scheduler details for the passed process. @code{pid}
+can be either a PID or @code{0} for the caller.
 
-@table @code
-@item ENOMEM
-A new cluster could not be made.
+@code{param}'s priority is only used for the real time policies, and is
+delimited by the values returned at @pxref{get_min/max_priority}.
 
-@item EACCES
-MAC did not allow this.
-@end table
+@code{sched_getscheduler} returns the scheduler or @code{-1} on failure,
+@code{sched_setscheduler} returns @code{0} on success or @code{-1} on failure.
 
-@node switch_tcluster
-@section switch_tcluster
+@node get_min/max_priority
+@section get_min/max_priority
 
 @example c
-int switch_tcluster(int cluster, int tid);
+int get_min_prio(void);
+int get_max_prio(void);
 @end example
 
-This syscall moves the thread identified by @code{tid} to the thread cluster
-identified by @code{cluster}. No checks of parenthood are done.
-
-It returns @code{0} on success and @code{-1} on failure, with the following
-errno:
-
-@table @code
-@item EINVAL
-@code{cluster} is not a valid cluster, or @code{tid} is not a valid tid.
-
-@item EACCES
-MAC did not allow this.
-@end table
+This syscalls return the minimum and maximum priority that the params for
+@code{sched_setscheduler} take, they never fail.
 
 @node sigprogmask
 @section sigprogmask
@@ -4271,9 +4183,6 @@ since this is what we wanted!
 
 @node listthreads
 @section listthreads
-
-@node listclusters
-@section listclusters
 
 @node listnetinter
 @section listnetinter

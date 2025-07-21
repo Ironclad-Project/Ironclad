@@ -109,7 +109,7 @@ package body Arch.Interrupts is
                   State.R12, State.R8, State.R9, Returned, Errno);
          when 12 =>
             Context.Init_FP_Context (FP_State);
-            Fork (State.all, FP_State, State.RDI, State.RSI, Returned, Errno);
+            Fork (State.all, FP_State, State.RDI, Returned, Errno);
             if Errno /= Error_No_Error then
                Context.Destroy_FP_Context (FP_State);
             end if;
@@ -135,7 +135,7 @@ package body Arch.Interrupts is
          when 21 =>
             Sched_Yield (Returned, Errno);
          when 22 =>
-            Delete_Thread_Cluster (State.RDI, Returned, Errno);
+            Get_Min_Pri (Returned, Errno);
          when 23 =>
             Pipe (State.RDI, State.RSI, Returned, Errno);
          when 24 =>
@@ -150,8 +150,7 @@ package body Arch.Interrupts is
          when 28 =>
             Get_TID (Returned, Errno);
          when 29 =>
-            Manage_Thread_Cluster (State.RDI, State.RSI, State.RDX, State.R12,
-                                   Returned, Errno);
+            Get_Max_Pri (Returned, Errno);
          when 30 =>
             Fcntl (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 31 =>
@@ -266,9 +265,10 @@ package body Arch.Interrupts is
             UTimes (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
                     Returned, Errno);
          when 77 =>
-            Create_TCluster (Returned, Errno);
+            Sched_GetScheduler (State.RDI, Returned, Errno);
          when 78 =>
-            Switch_TCluster (State.RDI, State.RSI, Returned, Errno);
+            Sched_SetScheduler
+               (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 79 =>
             Sigprocmask (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 80 =>
@@ -318,8 +318,7 @@ package body Arch.Interrupts is
             Failure_Policy (State.RDI, State.RSI, Returned, Errno);
          when 100 =>
             Create_Thread
-               (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
-                Returned, Errno);
+               (State.RDI, State.RSI, State.RDX, State.R12, Returned, Errno);
          when 101 =>
             Signal_Return (Returned, Errno);
          when 102 =>
@@ -332,8 +331,6 @@ package body Arch.Interrupts is
             Uname (State.RDI, Returned, Errno);
          when 106 =>
             List_Threads (State.RDI, State.RSI, Returned, Errno);
-         when 107 =>
-            List_Clusters (State.RDI, State.RSI, Returned, Errno);
          when 108 =>
             List_NetInter (State.RDI, State.RSI, Returned, Errno);
          when 109 =>

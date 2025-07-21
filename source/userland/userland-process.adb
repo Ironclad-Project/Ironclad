@@ -95,7 +95,9 @@ package body Userland.Process is
                 Masked_Signals  => [others => False],
                 Raised_Signals  => [others => False],
                 Signal_Handlers => [others => (others => System.Null_Address)],
+                Prio            => Scheduler.Default_Priority,
                 Niceness        => Scheduler.Default_Niceness,
+                Pol             => Scheduler.Policy_Other,
                 Umask           => Default_Umask,
                 User            => 0,
                 Effective_User  => 0,
@@ -127,7 +129,9 @@ package body Userland.Process is
 
             if Parent /= Error_PID then
                Synchronization.Seize (Registry (P).Data_Mutex);
+               Registry (I).Prio            := Registry (P).Prio;
                Registry (I).Niceness        := Registry (P).Niceness;
+               Registry (I).Pol             := Registry (P).Pol;
                Registry (I).Masked_Signals  := Registry (P).Masked_Signals;
                Registry (I).Controlling_TTY := Registry (P).Controlling_TTY;
                Registry (I).Parent          := Parent;
@@ -1498,6 +1502,56 @@ package body Userland.Process is
          No_Sig   := True;
          Ignore   := False;
    end Get_Raised_Signal_Actions;
+
+   procedure Get_Default_Policy (Proc : PID; Pol : out Scheduler.Policy) is
+   begin
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Pol := Registry (Proc).Pol;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Pol := Scheduler.Policy_Other;
+   end Get_Default_Policy;
+
+   procedure Set_Default_Policy (Proc : PID; Pol : Scheduler.Policy) is
+   begin
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Registry (Proc).Pol := Pol;
+      for Thread of Registry (Proc).Thread_List loop
+         if Thread /= Error_TID then
+            Scheduler.Set_Policy (Thread, Pol);
+         end if;
+      end loop;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_Default_Policy;
+
+   procedure Get_Priority (Proc : PID; Prio : out Scheduler.Priority) is
+   begin
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Prio := Registry (Proc).Prio;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Prio := Scheduler.Default_Priority;
+   end Get_Priority;
+
+   procedure Set_Priority (Proc : PID; Prio : Scheduler.Priority) is
+   begin
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Registry (Proc).Prio := Prio;
+      for Thread of Registry (Proc).Thread_List loop
+         if Thread /= Error_TID then
+            Scheduler.Set_Priority (Thread, Prio);
+         end if;
+      end loop;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_Priority;
 
    function Convert (Proc : PID) return Natural is
    begin

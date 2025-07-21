@@ -23,11 +23,16 @@ with Arch.MMU;
 with Arch.Context;
 
 package Scheduler is
-   --  Types to represent threads and thread clusters.
-   type TID  is private;
-   type TCID is private;
-   Error_TID  : constant TID;
-   Error_TCID : constant TCID;
+   --  Types to represent threads.
+   type TID is private;
+   Error_TID : constant TID;
+
+   --  Scheduler policies we support.
+   type Policy is
+      (Policy_FIFO,
+       Policy_RR,
+       Policy_Other,
+       Policy_Idle);
    ----------------------------------------------------------------------------
    --  Initialize the scheduler, return true on success, false on failure.
    procedure Init (Success : out Boolean);
@@ -44,7 +49,7 @@ package Scheduler is
        Env        : Userland.Environment_Arr;
        Map        : Arch.MMU.Page_Table_Acc;
        Vector     : Userland.ELF.Auxval;
-       Cluster    : TCID;
+       Pol        : Policy;
        Stack_Size : Unsigned_64;
        PID        : Natural;
        New_TID    : out TID);
@@ -55,7 +60,7 @@ package Scheduler is
        Map        : Arch.MMU.Page_Table_Acc;
        Stack_Addr : Unsigned_64;
        TLS_Addr   : Unsigned_64;
-       Cluster    : TCID;
+       Pol        : Policy;
        Argument   : Unsigned_64;
        PID        : Natural;
        New_TID    : out TID);
@@ -65,7 +70,7 @@ package Scheduler is
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
        Map      : Arch.MMU.Page_Table_Acc;
-       Cluster  : TCID;
+       Pol      : Policy;
        PID      : Natural;
        TCB      : System.Address;
        New_TID  : out TID);
@@ -91,40 +96,20 @@ package Scheduler is
    procedure Signal_Kernel_Entry (Thread : TID);
    procedure Signal_Kernel_Exit (Thread : TID);
    ----------------------------------------------------------------------------
-   --  Cluster creation, deletion, and management.
-
-   --  Algorithms used inside clusters for internal scheduling.
-   type Cluster_Algorithm is
-      (Cluster_RR,           --  Cluster will do a priority round robin.
-       Cluster_Cooperative); --  Cluster will do cooperative scheduling.
-
-   procedure Set_Scheduling_Algorithm
-      (Cluster          : TCID;
-       Algo             : Cluster_Algorithm;
-       Quantum          : Natural;
-       Is_Interruptible : Boolean;
-       Success          : out Boolean);
-
-   procedure Set_Time_Slice
-      (Cluster : TCID;
-       Per     : Natural;
-       Success : out Boolean);
-
-   procedure Create_Cluster (New_TCID : out TCID);
-   procedure Delete_Cluster (Cluster : TCID; Success : out Boolean);
-
-   procedure Switch_Cluster
-      (Cluster : TCID;
-       Thread  : TID;
-       Success : out Boolean);
-   ----------------------------------------------------------------------------
    --  Some scheduling algorithms allow priority, in those cases, it is
    --  interacted with using POSIX-compatible niceness.
    subtype Niceness is Integer range -20 .. 20;
+   subtype Priority is Natural range 0 .. 100;
    Default_Niceness : constant Niceness := 0;
+   Default_Priority : constant Priority := 0;
 
    function Get_Niceness (Thread : TID) return Niceness;
    procedure Set_Niceness (Thread : TID; Nice : Niceness);
+
+   function Get_Priority (Thread : TID) return Priority;
+   procedure Set_Priority (Thread : TID; Prio : Priority);
+
+   procedure Set_Policy (Thread : TID; Pol : Policy);
 
    procedure Get_Name (Thread : TID; Name : out String; Len : out Natural);
    procedure Set_Name (Thread : TID; Name : String; Success : out Boolean);
@@ -147,47 +132,27 @@ package Scheduler is
    ----------------------------------------------------------------------------
    --  Functions to convert from IDs to user readable values and viceversa.
    function Convert (Thread : TID) return Natural;
-   function Convert (Group : TCID) return Natural;
    function Convert (Value : Natural) return TID;
-   function Convert (Value : Natural) return TCID;
 
    type Thread_Listing is record
-      Thread  : TID;
-      Cluster : TCID;
-      Proc    : Natural;
+      Thread : TID;
+      Proc   : Natural;
    end record;
    type Thread_Listing_Arr is array (Natural range <>) of Thread_Listing;
-
-   type Cluster_Listing is record
-      Cluster      : TCID;
-      Cluster_Algo : Cluster_Algorithm;
-      Cluster_Int  : Boolean;
-      Cluster_Quan : Natural;
-   end record;
-   type Cluster_Listing_Arr is array (Natural range <>) of Cluster_Listing;
 
    --  List all threads on the system.
    --  @param List  Where to write all the thread information.
    --  @param Total Total count of processes, even if it is > List'Length.
    procedure List_All (List : out Thread_Listing_Arr; Total : out Natural);
-   procedure List_All (List : out Cluster_Listing_Arr; Total : out Natural);
 
 private
 
-   type TID  is new Natural range 0 .. 100;
-   type TCID is new Natural range 0 ..  20;
-   Error_TID  : constant  TID := 0;
-   Error_TCID : constant TCID := 0;
+   type TID is new Natural range 0 .. 100;
+   Error_TID : constant  TID := 0;
 
    Is_Initialized : Boolean := False
       with Atomic, Volatile, Async_Readers => True, Async_Writers => True,
            Effective_Reads => True, Effective_Writes => True;
 
    procedure Waiting_Spot with No_Return;
-
-   function Has_Available_Time (C : TCID) return Boolean;
-
-   function Is_Switchable (T : TID; C : TCID) return Boolean;
-
-   procedure Add_Bucket_And_Shift (Last_Bucket : Unsigned_32);
 end Scheduler;
