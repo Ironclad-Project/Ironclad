@@ -96,9 +96,9 @@ private
       [16#7F#, Character'Pos ('E'), Character'Pos ('L'), Character'Pos ('F')];
 
    type ELF_Bits is (ELF_32bits, ELF_64bits) with Size => 8;
-   type ELF_Endianess is (ELF_Little_Endian, ELF_Big_Endian) with Size => 8;
+   type ELF_Endianness is (ELF_Little_Endian, ELF_Big_Endian) with Size => 8;
    for ELF_Bits      use (ELF_32bits => 1, ELF_64bits => 2);
-   for ELF_Endianess use (ELF_Little_Endian => 1, ELF_Big_Endian => 2);
+   for ELF_Endianness use (ELF_Little_Endian => 1, ELF_Big_Endian => 2);
 
    type ELF_ISA is
       (ELF_No_Specific,
@@ -128,7 +128,7 @@ private
    type ELF_Header is record
       Magic_Number         : ELF_ID_Field (1 .. 4);
       Bits                 : ELF_Bits;
-      Endianess            : ELF_Endianess;
+      Endianness           : ELF_Endianness;
       ELF_Version          : Unsigned_8;
       OS_ABI               : Unsigned_8;
       Padding              : ELF_ID_Field (9 .. 16);
@@ -149,7 +149,7 @@ private
    for ELF_Header use record
       Magic_Number         at 0 range   0 ..  31;
       Bits                 at 0 range  32 ..  39;
-      Endianess            at 0 range  40 ..  47;
+      Endianness           at 0 range  40 ..  47;
       ELF_Version          at 0 range  48 ..  55;
       OS_ABI               at 0 range  56 ..  63;
       Padding              at 0 range  64 .. 127;
