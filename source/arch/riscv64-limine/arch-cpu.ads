@@ -49,6 +49,9 @@ package Arch.CPU is
    --  Init the cores and BSP.
    procedure Init_Cores;
 
+   --  Get the core local structure of the passed core.
+   function Get_Local return Core_Local_Acc;
+
 private
 
    procedure Core_Bootstrap (Info : access Limine.RISCV64_SMP_CPU_Info)

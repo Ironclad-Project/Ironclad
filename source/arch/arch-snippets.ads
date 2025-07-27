@@ -14,10 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
-
 #if ArchName = """x86_64-limine"""
-   with Memory; use Memory;
+   with Interfaces; use Interfaces;
+   with Memory;     use Memory;
 #end if;
 
 package Arch.Snippets is
@@ -56,10 +55,7 @@ package Arch.Snippets is
    --  little type changes, it is probably fine, else we would have to put
    --  more files on each port, and that would segregate fundamentally
    --  equivalent code for no reason.
-   #if ArchName = """riscv64-limine"""
-      function Read_SStatus return Unsigned_64 with Inline;
-      procedure Write_SStatus (Value : Unsigned_64) with Inline;
-   #elsif ArchName = """x86_64-limine"""
+   #if ArchName = """x86_64-limine"""
       procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) with Inline;
       function Port_In (Port : Unsigned_16) return Unsigned_8 with Inline;
       procedure Port_Out16 (Port, Value : Unsigned_16) with Inline;

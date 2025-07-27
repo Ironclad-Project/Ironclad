@@ -15,8 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System; use System;
-with Messages;
 with Panic;
+with System.Machine_Code;
 
 package body Arch.CPU with SPARK_Mode => Off is
    SMP_Request : Limine.SMP_Request :=
@@ -66,10 +66,22 @@ package body Arch.CPU with SPARK_Mode => Off is
       when Constraint_Error =>
          null;
    end Init_Cores;
+
+   function Get_Local return Core_Local_Acc is
+      Local : Core_Local_Acc;
+   begin
+      System.Machine_Code.Asm
+         ("csrr %0, sscratch",
+          Outputs  => Core_Local_Acc'Asm_Output ("=r", Local),
+          Volatile => True);
+      return Local;
+   exception
+      when Constraint_Error =>
+         return null;
+   end Get_Local;
    ----------------------------------------------------------------------------
    procedure Core_Bootstrap (Info : access Limine.RISCV64_SMP_CPU_Info) is
    begin
-      Messages.Put_Line ("Hello from core " & Info.Extra_Arg'Image);
       Init_Common (Natural (Info.Extra_Arg), Info.Hart_ID);
    exception
       when Constraint_Error =>
@@ -77,8 +89,10 @@ package body Arch.CPU with SPARK_Mode => Off is
    end Core_Bootstrap;
 
    procedure Init_Common (Core_Number : Positive; Hart_ID : Unsigned_64) is
+      Local : Core_Local_Acc;
    begin
-      Core_Locals (Core_Number) :=
+      Local     := Core_Locals (Core_Number)'Access;
+      Local.all :=
          (Self            => Core_Locals (Core_Number)'Access,
           Kernel_Stack    => 0,
           User_Stack      => 0,
@@ -86,6 +100,11 @@ package body Arch.CPU with SPARK_Mode => Off is
           Hart_ID         => Hart_ID,
           Current_Thread  => Scheduler.Error_TID,
           Current_Process => Userland.Process.Error_PID);
+
+      System.Machine_Code.Asm
+         ("csrw sscratch, %0",
+          Inputs   => Core_Local_Acc'Asm_Input ("r", Local),
+          Volatile => True);
    exception
       when Constraint_Error =>
          null;

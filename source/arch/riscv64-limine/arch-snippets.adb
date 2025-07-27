@@ -14,7 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System.Machine_Code; use System.Machine_Code;
+with Interfaces; use Interfaces;
+with System.Machine_Code;
 
 package body Arch.Snippets is
    procedure HCF is
@@ -25,29 +26,57 @@ package body Arch.Snippets is
       end loop;
    end HCF;
 
+   INT_BIT : constant := 2#10#;
+
    procedure Enable_Interrupts is
+      Value : Unsigned_64;
    begin
-      Write_SStatus (Read_SStatus or 2#10#);
+      System.Machine_Code.Asm
+         ("csrr %0, sstatus",
+          Outputs  => Unsigned_64'Asm_Output ("=r", Value),
+          Clobber  => "memory",
+          Volatile => True);
+      System.Machine_Code.Asm
+         ("csrw sstatus, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", Value or INT_BIT),
+          Clobber  => "memory",
+          Volatile => True);
    end Enable_Interrupts;
 
    procedure Disable_Interrupts is
+      Value : Unsigned_64;
    begin
-      Write_SStatus (Read_SStatus and not 2#10#);
+      System.Machine_Code.Asm
+         ("csrr %0, sstatus",
+          Outputs  => Unsigned_64'Asm_Output ("=r", Value),
+          Clobber  => "memory",
+          Volatile => True);
+      System.Machine_Code.Asm
+         ("csrw sstatus, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", Value and not INT_BIT),
+          Clobber  => "memory",
+          Volatile => True);
    end Disable_Interrupts;
 
    procedure Wait_For_Interrupt is
    begin
-      Asm ("wfi", Volatile => True);
+      System.Machine_Code.Asm ("wfi", Volatile => True);
    end Wait_For_Interrupt;
 
    function Interrupts_Enabled return Boolean is
+      Value : Unsigned_64;
    begin
-      return False;
+      System.Machine_Code.Asm
+         ("csrr %0, sstatus",
+          Outputs  => Unsigned_64'Asm_Output ("=r", Value),
+          Clobber  => "memory",
+          Volatile => True);
+      return (Value and INT_BIT) /= 0;
    end Interrupts_Enabled;
 
    procedure Pause is
    begin
-      null; --  No pause equivalent sadly, inneficient busy loops for you!
+      null; --  We dont target Zihintpause.
    end Pause;
 
    MSTATUS_SUM : constant Unsigned_64 := Shift_Right (1, 18);
@@ -58,10 +87,12 @@ package body Arch.Snippets is
       System.Machine_Code.Asm
          ("csrr %0, mstatus",
           Outputs  => Unsigned_64'Asm_Output ("=r", Orig),
+          Clobber  => "memory",
           Volatile => True);
       System.Machine_Code.Asm
          ("csrw mstatus, %0",
           Inputs   => Unsigned_64'Asm_Input ("r", Orig or MSTATUS_SUM),
+          Clobber  => "memory",
           Volatile => True);
    end Enable_Userland_Memory_Access;
 
@@ -71,28 +102,12 @@ package body Arch.Snippets is
       System.Machine_Code.Asm
          ("csrr %0, mstatus",
           Outputs  => Unsigned_64'Asm_Output ("=r", Orig),
+          Clobber  => "memory",
           Volatile => True);
       System.Machine_Code.Asm
          ("csrw mstatus, %0",
           Inputs   => Unsigned_64'Asm_Input ("r", Orig and not MSTATUS_SUM),
+          Clobber  => "memory",
           Volatile => True);
    end Disable_Userland_Memory_Access;
-   ----------------------------------------------------------------------------
-   function Read_SStatus return Unsigned_64 is
-      Value : Unsigned_64;
-   begin
-      Asm ("csrr %0, sstatus",
-           Outputs  => Unsigned_64'Asm_Output ("=r", Value),
-           Clobber  => "memory",
-           Volatile => True);
-      return Value;
-   end Read_SStatus;
-
-   procedure Write_SStatus (Value : Unsigned_64) is
-   begin
-      Asm ("csrw sstatus, %0",
-           Inputs   => Unsigned_64'Asm_Input ("r", Value),
-           Clobber  => "memory",
-           Volatile => True);
-   end Write_SStatus;
 end Arch.Snippets;
