@@ -15,18 +15,22 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 library project RTS is
-   type Arch_Name is
-      ("riscv64-limine",
-       "x86_64-limine");
+   type Arch_Name is (
+      "riscv64-limine",
+      "x86_64-limine"
+   );
 
    Arch : Arch_Name := "@host_cpu@-@PLATFORM@";
    Ada_Flags        := "@ADAFLAGS@";
 
-   for Create_Missing_Dirs use "True";
    for Source_Dirs use ("rtsdir/adainclude");
    for Object_Dir use "rtsdir/obj";
-
+   for Library_Dir use "rtsdir/adalib";
+   for Library_Kind use "static";
+   for Library_Name use "gnat";
+   for Runtime ("Ada") use "rtsdir";
    for Languages use ("Ada");
+   for Create_Missing_Dirs use "True";
 
    package Builder is
       for Global_Configuration_Pragmas use "@SRCDIR@/source/pragmas.adc";
@@ -34,24 +38,39 @@ library project RTS is
    end Builder;
 
    package Compiler is
-      Base_Ada_Switches := Split (Ada_Flags, " ") &
-         ("-Wall", "-Wextra", "@WERROR_FLAG@", "-gnaty",
-          "-fno-stack-protector", "-fno-stack-check", "-nostdinc",
-          "-gnatg", "-ffile-prefix-map=" & "@SRCDIR@" & "=.",
-          "-fdata-sections", "-ffunction-sections", "-fno-PIC");
+      Base_Ada_Switches := Split (Ada_Flags, " ") & (
+         "-Wall",
+         "-Wextra",
+         "@WERROR_FLAG@",
+         "-gnaty",
+         "-gnatg",
+         "-nostdinc",
+         "-fno-stack-protector",
+         "-fno-stack-check",
+         "-fno-PIC",
+         "-ffunction-sections",
+         "-fdata-sections",
+         "-ffile-prefix-map=" & "@SRCDIR@" & "=."
+      );
 
       case Arch is
          when "riscv64-limine" =>
-            for Switches ("Ada") use Base_Ada_Switches &
-               ("-mno-relax", "-march=rv64imac_zicsr_zifencei", "-mabi=lp64");
+            Base_Ada_Switches := Base_Ada_Switches & (
+               "-march=rv64imac_zicsr_zifencei",
+               "-mabi=lp64",
+               "-mno-relax"
+            );
          when "x86_64-limine" =>
-            for Switches ("Ada") use Base_Ada_Switches &
-               ("-mgeneral-regs-only", "-mno-red-zone", "-mcmodel=kernel");
+            Base_Ada_Switches := Base_Ada_Switches & (
+               "-m64",
+               "-march=x86-64",
+               "-mabi=sysv",
+               "-mgeneral-regs-only",
+               "-mno-red-zone",
+               "-mcmodel=kernel"
+            );
       end case;
-   end Compiler;
 
-   for Library_Dir  use "rtsdir/adalib";
-   for Library_Kind use "static";
-   for Library_Name use "gnat";
-   for Runtime ("Ada") use "rtsdir";
+      for Switches ("Ada") use Base_Ada_Switches;
+   end Compiler;
 end RTS;

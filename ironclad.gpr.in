@@ -15,9 +15,10 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 project Ironclad is
-   type Arch_Name is
-      ("riscv64-limine",
-       "x86_64-limine");
+   type Arch_Name is (
+      "riscv64-limine",
+      "x86_64-limine"
+   );
 
    Arch : Arch_Name := "@host_cpu@-@PLATFORM@";
    Ada_Flags        := "@ADAFLAGS@";
@@ -25,28 +26,30 @@ project Ironclad is
    Asm_Flags        := "@ASFLAGS@";
    Linker_Flags     := "@LDFLAGS@";
 
-   Common_Source_Dirs :=
-      ("@SRCDIR@/source/arch/" & Arch,
-       "@SRCDIR@/source/arch",
-       "@SRCDIR@/source/cryptography",
-       "@SRCDIR@/source/devices/pci",
-       "@SRCDIR@/source/devices",
-       "@SRCDIR@/source/ipc",
-       "@SRCDIR@/source/memory",
-       "@SRCDIR@/source/networking",
-       "@SRCDIR@/source/userland",
-       "@SRCDIR@/source/vfs",
-       "@SRCDIR@/source/virtualization",
-       "@SRCDIR@/source",
-       "@SRCDIR@/freestnd-c-hdrs",
-       "@SRCDIR@/cc-runtime/src");
+   Common_Source_Dirs := (
+      "@SRCDIR@/source/arch/" & Arch,
+      "@SRCDIR@/source/arch",
+      "@SRCDIR@/source/cryptography",
+      "@SRCDIR@/source/devices/pci",
+      "@SRCDIR@/source/devices",
+      "@SRCDIR@/source/ipc",
+      "@SRCDIR@/source/memory",
+      "@SRCDIR@/source/networking",
+      "@SRCDIR@/source/userland",
+      "@SRCDIR@/source/vfs",
+      "@SRCDIR@/source/virtualization",
+      "@SRCDIR@/source",
+      "@SRCDIR@/freestnd-c-hdrs",
+      "@SRCDIR@/cc-runtime/src"
+   );
 
    case Arch is
       when "riscv64-limine" | "x86_64-limine" =>
-         Common_Source_Dirs := Common_Source_Dirs &
-            ("@SRCDIR@/uacpi/source",
-             "@SRCDIR@/flanterm/src",
-             "@SRCDIR@/flanterm/src/flanterm_backends");
+         Common_Source_Dirs := Common_Source_Dirs & (
+            "@SRCDIR@/uacpi/source",
+            "@SRCDIR@/flanterm/src",
+            "@SRCDIR@/flanterm/src/flanterm_backends"
+         );
    end case;
 
    for Source_Dirs use Common_Source_Dirs;
@@ -56,48 +59,56 @@ project Ironclad is
    for Languages use ("Ada", "C", "Asm_Cpp");
    for Create_Missing_Dirs use "True";
 
-   Common_Compiler_Flags :=
-      ("-Wall",
-       "-Wextra",
-       "@WERROR_FLAG@",
-       "-nostdinc",
-       "-fno-PIC",
-       "-fno-stack-protector",
-       "-fno-stack-check",
-       "-fdata-sections",
-       "-ffunction-sections",
-       "-ffile-prefix-map=" & "@SRCDIR@" & "=.");
-
-   case Arch is
-      when "riscv64-limine" =>
-         Common_Compiler_Flags := Common_Compiler_Flags &
-            ("-march=rv64imac_zicsr_zifencei",
-             "-mabi=lp64",
-             "-mno-relax");
-      when "x86_64-limine" =>
-         Common_Compiler_Flags := Common_Compiler_Flags &
-            ("-fcf-protection",
-             "-mgeneral-regs-only",
-             "-mno-red-zone",
-             "-mcmodel=kernel");
-   end case;
-
    package Builder is
       for Executable ("main.adb") use "ironclad";
       for Switches ("Ada") use ("-nostdlib");
    end Builder;
 
+   Common_Compiler_Flags := (
+      "-Wall",
+      "-Wextra",
+      "@WERROR_FLAG@",
+      "-nostdinc",
+      "-fno-stack-protector",
+      "-fno-stack-check",
+      "-fno-PIC",
+      "-ffunction-sections",
+      "-fdata-sections",
+      "-ffile-prefix-map=" & "@SRCDIR@" & "=."
+   );
+
+   case Arch is
+      when "riscv64-limine" =>
+         Common_Compiler_Flags := Common_Compiler_Flags & (
+            "-march=rv64imac_zicsr_zifencei",
+            "-mabi=lp64",
+            "-mno-relax"
+         );
+      when "x86_64-limine" =>
+         Common_Compiler_Flags := Common_Compiler_Flags & (
+            "-fcf-protection",
+            "-m64",
+            "-march=x86-64",
+            "-mabi=sysv",
+            "-mgeneral-regs-only",
+            "-mno-red-zone",
+            "-mcmodel=kernel"
+         );
+   end case;
+
    package Compiler is
-      Base_Ada_Switches := Split (Ada_Flags, " ") & Common_Compiler_Flags &
-         ("-gnaty",
-          "-gnateDIroncladName=""" & "@PACKAGE_NAME@"      & """",
-          "-gnateDVersion="""      & "@PACKAGE_VERSION@"   & """",
-          "-gnateDBugSite="""      & "@PACKAGE_BUGREPORT@" & """",
-          "-gnateDArchitecture=""" & "@host_cpu@"          & """",
-          "-gnateDPlatform="""     & "@PLATFORM@"          & """",
-          "-gnateDArchName="""     & Arch                  & """");
-      Base_C_Switches := Split (C_Flags, " ") & Common_Compiler_Flags &
-         ("-I@SRCDIR@/uacpi/include");
+      Base_Ada_Switches := Split (Ada_Flags, " ") & Common_Compiler_Flags & (
+         "-gnaty",
+         "-gnateDIroncladName=""" & "@PACKAGE_NAME@"      & """",
+         "-gnateDVersion="""      & "@PACKAGE_VERSION@"   & """",
+         "-gnateDBugSite="""      & "@PACKAGE_BUGREPORT@" & """",
+         "-gnateDArchitecture=""" & "@host_cpu@"          & """",
+         "-gnateDPlatform="""     & "@PLATFORM@"          & """",
+         "-gnateDArchName="""     & Arch                  & """"
+      );
+      Base_C_Switches := Split (C_Flags, " ") & Common_Compiler_Flags & (
+         "-I@SRCDIR@/uacpi/include"
+      );
       Base_Asm_Switches := Split (Asm_Flags, " ") & Common_Compiler_Flags;
 
       for Default_Switches ("Ada") use Base_Ada_Switches;
@@ -107,21 +118,29 @@ project Ironclad is
    end Compiler;
 
    package Linker is
-      Base_Link_Switches := Split (Linker_Flags, " ") &
-         ("-T@SRCDIR@/source/arch/" & Arch & "/linker.ld",
-          "-static", "-Wl,-gc-sections");
+      Base_Link_Switches := Split (Linker_Flags, " ") & (
+         "-nostdlib",
+         "-static",
+         "-Wl,-nostdlib",
+         "-Wl,-static",
+         "-Wl,-z,max-page-size=0x1000",
+         "-Wl,--gc-sections",
+         "-T@SRCDIR@/source/arch/" & Arch & "/linker.ld",
+         "rtsdir/adalib/libgnat.a"
+      );
 
       case Arch is
          when "riscv64-limine" =>
-            for Switches ("Ada") use Base_Link_Switches &
-               ("-zmax-page-size=0x1000", "-Wl,-melf64lriscv",
-                "-Wl,--no-relax");
+            Base_Link_Switches := Base_Link_Switches & (
+               "-Wl,-m,elf64lriscv",
+               "-Wl,--no-relax"
+            );
          when "x86_64-limine" =>
-            for Switches ("Ada") use Base_Link_Switches &
-               ("-zmax-page-size=0x1000", "-Wl,-melf_x86_64");
+            Base_Link_Switches := Base_Link_Switches & (
+               "-Wl,-m,elf_x86_64"
+            );
       end case;
 
-      for Switches ("Ada") use Base_Link_Switches &
-         ("rtsdir/adalib/libgnat.a");
+      for Switches ("Ada") use Base_Link_Switches;
    end Linker;
 end Ironclad;
