@@ -16,6 +16,8 @@
 
 with System.Machine_Code;
 with Panic;
+with Arch.Snippets;
+with Scheduler;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
    Interrupt_Table : array (Interrupt_Index) of Interrupt_Handler
@@ -62,11 +64,31 @@ package body Arch.Interrupts with SPARK_Mode => Off is
    end Unload_Interrupt;
    ----------------------------------------------------------------------------
    procedure Handle_Trap (Ctx : not null Frame_Acc) is
-      Is_Int : constant Boolean := (Ctx.SCAUSE and Shift_Left (1, 63)) /= 0;
-      Cause  : constant Unsigned_64 := Ctx.SCAUSE and not Shift_Left (1, 63);
+      SCause : Unsigned_64;
+      Is_Int : Boolean;
+      Cause  : Unsigned_64;
    begin
+      --  Read exception data to determine cause.
+      System.Machine_Code.Asm
+         ("csrr %0, scause",
+          Outputs  => Unsigned_64'Asm_Output ("=r", SCause),
+          Clobber  => "memory",
+          Volatile => True);
+      Is_Int := (SCause and Shift_Left (1, 63)) /= 0;
+      Cause  := SCause and not Shift_Left (1, 63);
+
       if Is_Int then
-         Handle_Interrupt (Cause);
+         if Cause = 5 then
+            System.Machine_Code.Asm
+               ("csrc sie, %0",
+                Inputs   => Unsigned_64'Asm_Input ("r", 32),
+                Clobber  => "memory",
+                Volatile => True);
+
+            Scheduler.Scheduler_ISR (Ctx.all);
+         else
+            Panic.Hard_Panic ("Missing interrupt with cause " & Cause'Image);
+         end if;
       else
          --  FIXME: Adding or removing any case makes this not work.
          --  Like ????
@@ -83,16 +105,11 @@ package body Arch.Interrupts with SPARK_Mode => Off is
                when 8 => "Environment call",
                when others => "Reserved trap"), Ctx.all);
       end if;
+
+      --  Reenable interrupts.
+      Snippets.Enable_Interrupts;
    exception
       when Constraint_Error =>
          Panic.Hard_Panic ("Trap handler faced an exception");
    end Handle_Trap;
-
-   procedure Handle_Interrupt (Cause : Unsigned_64) is
-   begin
-      Panic.Hard_Panic ("Handling an interrupt with cause " & Cause'Image);
-   exception
-      when Constraint_Error =>
-         Panic.Hard_Panic ("Interrupt handler faced an exception");
-   end Handle_Interrupt;
 end Arch.Interrupts;

@@ -126,10 +126,6 @@ trap_entry:
     # ld      t1, TCB_FPCTX(tp)
     # sd      t1, FRAME_FPCTX(sp)
 
-    # --- re‑enable interrupts (for nested) ---
-    li      t0, 2                   # SIE mask
-    csrs    sstatus, t0
-
     # --- call into Ada trap handler ---
     mv      a0, sp
     call    handle_trap

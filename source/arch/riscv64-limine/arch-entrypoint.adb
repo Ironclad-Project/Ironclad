@@ -26,6 +26,7 @@ with Arch.CPU;
 with Main;
 with Arch.Interrupts;
 with Arch.Clocks;
+with Arch.SBI;
 
 package body Arch.Entrypoint is
    --  Response is a pointer to a Memmap_Response.
@@ -37,6 +38,7 @@ package body Arch.Entrypoint is
 
    procedure Bootstrap_Main is
       Addr : System.Address;
+      Success : Boolean;
 
       MemPonse : Limine.Memmap_Response
          with Import, Address => Memmap_Request.Response;
@@ -97,6 +99,11 @@ package body Arch.Entrypoint is
                 Boot_Memory_Type'Image (E.MemType));
          end loop;
       end;
+
+      Arch.SBI.Is_Present (Success);
+      if not Success then
+         Panic.Hard_Panic ("Need SBI support!");
+      end if;
 
       --  Initialize some system timers for interval counting.
       Arch.Clocks.Initialize_Sources;

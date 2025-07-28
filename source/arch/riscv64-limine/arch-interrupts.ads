@@ -45,8 +45,6 @@ private
 
    procedure Handle_Trap (Ctx : not null Frame_Acc)
       with Export, Convention => C, External_Name => "handle_trap";
-
-   procedure Handle_Interrupt (Cause : Unsigned_64);
    ----------------------------------------------------------------------------
    procedure trap_entry
       with Import, Convention => C, External_Name => "trap_entry";

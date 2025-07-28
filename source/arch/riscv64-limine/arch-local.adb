@@ -19,16 +19,25 @@ with System.Machine_Code;
 with Arch.Snippets;
 with Arch.CPU;
 with Panic;
+with Arch.SBI;
 
 package body Arch.Local is
    procedure Reschedule_In (Microseconds : Natural) is
+      Success : Boolean;
    begin
-      null;
+      Arch.SBI.Set_Timer (Unsigned_64 (Microseconds), Success);
+      if not Success then
+         Panic.Hard_Panic ("Could not reschedule in the future");
+      end if;
    end Reschedule_In;
 
    procedure Reschedule_ASAP is
+      Success : Boolean;
    begin
-      null;
+      Arch.SBI.Set_Timer (10000, Success);
+      if not Success then
+         Panic.Hard_Panic ("Could not reschedule now");
+      end if;
    end Reschedule_ASAP;
 
    function Fetch_TCB return System.Address is

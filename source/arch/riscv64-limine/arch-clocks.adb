@@ -126,4 +126,17 @@ is
    begin
       null;
    end Set_Real_Time;
+
+   function Ticks_Per_Microsecond return Unsigned_64 is
+      Result, Result_Res : Unsigned_64;
+   begin
+      Result     := TSC_Ticks_Per_Res;
+      Result_Res := TSC_Tick_Resolution;
+      while Result_Res < 1000 loop
+         Result     := Result     * 10;
+         Result_Res := Result_Res * 10;
+      end loop;
+
+      return Result;
+   end Ticks_Per_Microsecond;
 end Arch.Clocks;

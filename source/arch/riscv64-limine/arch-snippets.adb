@@ -26,34 +26,33 @@ package body Arch.Snippets is
       end loop;
    end HCF;
 
-   INT_BIT : constant := 2#10#;
+   INT_BIT   : constant := 2#10#;
+   TIMER_BIT : constant := 32;
 
    procedure Enable_Interrupts is
-      Value : Unsigned_64;
    begin
       System.Machine_Code.Asm
-         ("csrr %0, sstatus",
-          Outputs  => Unsigned_64'Asm_Output ("=r", Value),
+         ("csrs sstatus, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", INT_BIT),
           Clobber  => "memory",
           Volatile => True);
       System.Machine_Code.Asm
-         ("csrw sstatus, %0",
-          Inputs   => Unsigned_64'Asm_Input ("r", Value or INT_BIT),
+         ("csrs sie, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", TIMER_BIT),
           Clobber  => "memory",
           Volatile => True);
    end Enable_Interrupts;
 
    procedure Disable_Interrupts is
-      Value : Unsigned_64;
    begin
       System.Machine_Code.Asm
-         ("csrr %0, sstatus",
-          Outputs  => Unsigned_64'Asm_Output ("=r", Value),
+         ("csrc sstatus, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", INT_BIT),
           Clobber  => "memory",
           Volatile => True);
       System.Machine_Code.Asm
-         ("csrw sstatus, %0",
-          Inputs   => Unsigned_64'Asm_Input ("r", Value and not INT_BIT),
+         ("csrc sie, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", TIMER_BIT),
           Clobber  => "memory",
           Volatile => True);
    end Disable_Interrupts;
@@ -82,31 +81,19 @@ package body Arch.Snippets is
    MSTATUS_SUM : constant Unsigned_64 := Shift_Right (1, 18);
 
    procedure Enable_Userland_Memory_Access is
-      Orig : Unsigned_64;
    begin
       System.Machine_Code.Asm
-         ("csrr %0, mstatus",
-          Outputs  => Unsigned_64'Asm_Output ("=r", Orig),
-          Clobber  => "memory",
-          Volatile => True);
-      System.Machine_Code.Asm
-         ("csrw mstatus, %0",
-          Inputs   => Unsigned_64'Asm_Input ("r", Orig or MSTATUS_SUM),
+         ("csrs mstatus, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", MSTATUS_SUM),
           Clobber  => "memory",
           Volatile => True);
    end Enable_Userland_Memory_Access;
 
    procedure Disable_Userland_Memory_Access is
-      Orig : Unsigned_64;
    begin
       System.Machine_Code.Asm
-         ("csrr %0, mstatus",
-          Outputs  => Unsigned_64'Asm_Output ("=r", Orig),
-          Clobber  => "memory",
-          Volatile => True);
-      System.Machine_Code.Asm
-         ("csrw mstatus, %0",
-          Inputs   => Unsigned_64'Asm_Input ("r", Orig and not MSTATUS_SUM),
+         ("csrc mstatus, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", MSTATUS_SUM),
           Clobber  => "memory",
           Volatile => True);
    end Disable_Userland_Memory_Access;

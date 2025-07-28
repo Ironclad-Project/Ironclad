@@ -62,7 +62,12 @@ is
    procedure Set_Real_Time (Seconds, Nanoseconds : Unsigned_64)
       with Global => (In_Out => RT_Clock_State);
 
+   #if ArchName = """riscv64-limine"""
+      function Ticks_Per_Microsecond return Unsigned_64;
+   #end if;
+
 private
+
    #if ArchName = """x86_64-limine"""
       procedure Normalize_TSC_Hz;
    #end if;
