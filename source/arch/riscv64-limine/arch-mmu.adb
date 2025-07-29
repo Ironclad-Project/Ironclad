@@ -344,7 +344,7 @@ package body Arch.MMU is
                   Is_User_Accessible := (Page and Page_U) /= 0;
                   Is_Readable        := (Page and Page_R) /= 0;
                   Is_Writeable       := (Page and Page_W) /= 0;
-                  Is_Executable      := (Page and Page_X) = 0;
+                  Is_Executable      := (Page and Page_X) /= 0;
                end if;
                First_Iter := False;
             elsif Page_Addr = 0                                    or else

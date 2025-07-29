@@ -48,9 +48,8 @@ is
          Print_Triple ("X22", "X23", "X24", Ctx.X22, Ctx.X23, Ctx.X24);
          Print_Triple ("X25", "X26", "X27", Ctx.X25, Ctx.X26, Ctx.X27);
          Print_Triple ("X28", "X29", "X30", Ctx.X28, Ctx.X29, Ctx.X30);
-         Print_Triple ("X31", "SEPC", "SCAUSE", Ctx.X31, Ctx.SEPC, Ctx.SCAUSE);
-         Print_Triple ("STVAL", "SSTATUS", "FCSR", Ctx.STVAL, Ctx.SSTATUS,
-            Ctx.FCSR);
+         Print_Triple ("X31", "SEPC", "SSTATUS", Ctx.X31, Ctx.SEPC,
+            Ctx.SSTATUS);
       #elsif ArchName = """x86_64-limine"""
          Print_Triple ("RAX", "RBX", "RCX", Ctx.RAX, Ctx.RBX, Ctx.RCX);
          Print_Triple ("RDX", "RSI", "RDI", Ctx.RDX, Ctx.RSI, Ctx.RDI);

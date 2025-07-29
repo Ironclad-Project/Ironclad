@@ -78,12 +78,12 @@ package body Arch.Snippets is
       null; --  We dont target Zihintpause.
    end Pause;
 
-   MSTATUS_SUM : constant Unsigned_64 := Shift_Right (1, 18);
+   MSTATUS_SUM : constant Unsigned_64 := Shift_Left (1, 18);
 
    procedure Enable_Userland_Memory_Access is
    begin
       System.Machine_Code.Asm
-         ("csrs mstatus, %0",
+         ("csrs sstatus, %0",
           Inputs   => Unsigned_64'Asm_Input ("r", MSTATUS_SUM),
           Clobber  => "memory",
           Volatile => True);
@@ -92,7 +92,7 @@ package body Arch.Snippets is
    procedure Disable_Userland_Memory_Access is
    begin
       System.Machine_Code.Asm
-         ("csrc mstatus, %0",
+         ("csrc sstatus, %0",
           Inputs   => Unsigned_64'Asm_Input ("r", MSTATUS_SUM),
           Clobber  => "memory",
           Volatile => True);

@@ -25,7 +25,6 @@ package Arch.CPU is
    type Core_Local_Acc is access all Core_Local;
    type Core_Local is record
       --  Do not move the following members used in assembly code.
-      Self            : Core_Local_Acc; --  Here for performance reasons.
       Kernel_Stack    : Unsigned_64;
       User_Stack      : Unsigned_64;
       --  End of members not to move.
@@ -35,9 +34,8 @@ package Arch.CPU is
       Current_Process : Userland.Process.PID;
    end record;
    for Core_Local use record
-      Self         at 0 range   0 ..  63;
-      Kernel_Stack at 0 range  64 .. 127;
-      User_Stack   at 0 range 128 .. 191;
+      Kernel_Stack at 0 range  0 ..  63;
+      User_Stack   at 0 range 64 .. 127;
    end record;
 
    --  Core locals and the number of cores, used as an index for the former.

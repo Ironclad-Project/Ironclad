@@ -21,13 +21,13 @@ package Arch.Interrupts with SPARK_Mode => Off is
    --  XXX: The order and contents are tied down by arch-trap.S, if these are
    --  ever changed, change those too.
    type Frame is record
-      X1, X4, X5, X6, X7 : Unsigned_64;
-      X10, X11, X12, X13, X14, X15, X16, X17 : Unsigned_64;
-      X28, X29, X30, X31, X2, X3, X8, X9, X18, X19, X20 : Unsigned_64;
-      X21, X22, X23, X24, X25, X26, X27 : Unsigned_64;
-      SEPC, SCAUSE, STVAL, SSTATUS, FCSR : Unsigned_64;
-      FP_Context_Ptr : Unsigned_64;
-   end record with Pack;
+      X1,  X2,  X3,  X4,  X5,  X6  : Unsigned_64;
+      X7,  X8,  X9,  X10, X11, X12 : Unsigned_64;
+      X13, X14, X15, X16, X17, X18 : Unsigned_64;
+      X19, X20, X21, X22, X23, X24 : Unsigned_64;
+      X25, X26, X27, X28, X29, X30 : Unsigned_64;
+      X31, SSTATUS, SEPC           : Unsigned_64;
+   end record with Pack, Size => 2112;
    type Frame_Acc is access all Frame;
 
    procedure Initialize;
@@ -45,6 +45,8 @@ private
 
    procedure Handle_Trap (Ctx : not null Frame_Acc)
       with Export, Convention => C, External_Name => "handle_trap";
+
+   procedure Handle_Syscall (Ctx : not null Frame_Acc);
    ----------------------------------------------------------------------------
    procedure trap_entry
       with Import, Convention => C, External_Name => "trap_entry";

@@ -89,12 +89,17 @@ package body Arch.CPU with SPARK_Mode => Off is
    end Core_Bootstrap;
 
    procedure Init_Common (Core_Number : Positive; Hart_ID : Unsigned_64) is
+      Kernel_Stack_Size : constant := 16#4000#;
+      type Kernel_Stack is array (1 ..  Kernel_Stack_Size) of Unsigned_8;
+      type Kernel_Stack_Acc is access Kernel_Stack;
+
       Local : Core_Local_Acc;
+      Stk   : Kernel_Stack_Acc;
    begin
+      Stk       := new Kernel_Stack'[others => 0];
       Local     := Core_Locals (Core_Number)'Access;
       Local.all :=
-         (Self            => Core_Locals (Core_Number)'Access,
-          Kernel_Stack    => 0,
+         (Kernel_Stack    => Unsigned_64 (To_Integer (Stk (Stk'Last)'Address)),
           User_Stack      => 0,
           Number          => Core_Number,
           Hart_ID         => Hart_ID,
