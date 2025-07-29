@@ -101,6 +101,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       Local.all :=
          (Kernel_Stack    => Unsigned_64 (To_Integer (Stk (Stk'Last)'Address)),
           User_Stack      => 0,
+          Scratch_ISR     => 0,
           Number          => Core_Number,
           Hart_ID         => Hart_ID,
           Current_Thread  => Scheduler.Error_TID,

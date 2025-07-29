@@ -27,6 +27,7 @@ package Arch.CPU is
       --  Do not move the following members used in assembly code.
       Kernel_Stack    : Unsigned_64;
       User_Stack      : Unsigned_64;
+      Scratch_ISR     : Unsigned_64;
       --  End of members not to move.
       Number          : Positive;       --  Core number, 1 based.
       Hart_ID         : Unsigned_64;    --  LAPIC ID of the core.
@@ -34,8 +35,9 @@ package Arch.CPU is
       Current_Process : Userland.Process.PID;
    end record;
    for Core_Local use record
-      Kernel_Stack at 0 range  0 ..  63;
-      User_Stack   at 0 range 64 .. 127;
+      Kernel_Stack at 0 range   0 ..  63;
+      User_Stack   at 0 range  64 .. 127;
+      Scratch_ISR  at 0 range 128 .. 191;
    end record;
 
    --  Core locals and the number of cores, used as an index for the former.

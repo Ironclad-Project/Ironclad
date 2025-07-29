@@ -38,8 +38,8 @@ package body Arch.Context is
           X11     => Argument_2,
           X12     => Argument_3,
           SEPC    => Unsigned_64 (To_Integer (Start_Addr)),
-          --  Clear SPP to switch to user.
-          SSTATUS => Val and not Shift_Left (1, 8),
+          --  Clear SPP to switch to user and force enable interrupts.
+          SSTATUS => (Val and not Shift_Left (1, 8)) or 2,
           others  => 0);
    end Init_GP_Context;
 

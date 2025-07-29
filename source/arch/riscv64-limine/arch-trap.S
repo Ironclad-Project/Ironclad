@@ -53,6 +53,7 @@
 # Offsets of the CPU local.
 .set KERN_STACK_OFF, 0
 .set USER_STACK_OFF, 8
+.set SCRATCH_OFF,    16
 
 .section .text
 .global trap_entry
@@ -63,12 +64,18 @@ trap_entry:
     # We will load the kernel stack from there.
     csrrw tp, sscratch, tp
     sd sp, USER_STACK_OFF(tp)
+    sd a0, SCRATCH_OFF(tp)
+    li a0, 0xFF00000000000000
+    bltu sp, a0, 1f
+    j 2f
+1:
     ld sp, KERN_STACK_OFF(tp)
-
+2:
     # Allocate full trap frame
     addi    sp, sp, -FRAME_SIZE
 
     # Save the context
+    ld      a0, SCRATCH_OFF(tp)
     sd      x1, FRAME_X1(sp)
     sd      x3, FRAME_X3(sp)
     sd      x5, FRAME_X5(sp)
