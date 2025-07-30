@@ -111,6 +111,11 @@ package body Arch.CPU with SPARK_Mode => Off is
          ("csrw sscratch, %0",
           Inputs   => Core_Local_Acc'Asm_Input ("r", Local),
           Volatile => True);
+      System.Machine_Code.Asm
+         ("csrs sie, %0",
+          Inputs   => Unsigned_64'Asm_Input ("r", 32),
+          Clobber  => "memory",
+          Volatile => True);
    exception
       when Constraint_Error =>
          null;

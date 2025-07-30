@@ -84,7 +84,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       if Is_Int then
          if Cause = 5 then
             System.Machine_Code.Asm
-               ("csrc sie, %0",
+               ("csrc sip, %0",
                 Inputs   => Unsigned_64'Asm_Input ("r", 32),
                 Clobber  => "memory",
                 Volatile => True);
@@ -99,15 +99,25 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          else
             Panic.Hard_Panic
                ((case Cause is
-                when 0 => "Instruction misalign",
-                when 1 => "Instruction access",
-                when 2 => "Illegal instruction",
-                when 3 => "Breakpoint",
-                when 4 => "Reserved",
-                when 5 => "Load access fault",
-                when 6 => "AMO access misaligned",
-                when 7 => "Store/AMO access fault",
-                when others => "Reserved trap"), Ctx.all);
+                 when      0 => "Instruction misalign",
+                 when      1 => "Instruction access",
+                 when      2 => "Illegal instruction",
+                 when      3 => "Breakpoint",
+                 when      4 => "Reserved",
+                 when      5 => "Load access fault",
+                 when      6 => "AMO access misaligned",
+                 when      7 => "Store/AMO access fault",
+                 when      9 => "Environment call from HS mode",
+                 when     10 => "Environment call from VS mode",
+                 when     11 => "Environment call from M mode",
+                 when     12 => "Instruction page fault",
+                 when     13 => "Load page fault",
+                 when     15 => "Store/AMO page fault",
+                 when     20 => "Instruction guest-page fault",
+                 when     21 => "Load guest-page fault",
+                 when     22 => "Virtual instruction",
+                 when     23 => "Store/AMO guest-page fault",
+                 when others => "Reserved trap"), Ctx.all);
          end if;
       end if;
    exception

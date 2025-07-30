@@ -26,19 +26,13 @@ package body Arch.Snippets is
       end loop;
    end HCF;
 
-   INT_BIT   : constant := 2#10#;
-   TIMER_BIT : constant := 32;
+   INT_BIT : constant := 2#10#;
 
    procedure Enable_Interrupts is
    begin
       System.Machine_Code.Asm
          ("csrs sstatus, %0",
           Inputs   => Unsigned_64'Asm_Input ("r", INT_BIT),
-          Clobber  => "memory",
-          Volatile => True);
-      System.Machine_Code.Asm
-         ("csrs sie, %0",
-          Inputs   => Unsigned_64'Asm_Input ("r", TIMER_BIT),
           Clobber  => "memory",
           Volatile => True);
    end Enable_Interrupts;
@@ -48,11 +42,6 @@ package body Arch.Snippets is
       System.Machine_Code.Asm
          ("csrc sstatus, %0",
           Inputs   => Unsigned_64'Asm_Input ("r", INT_BIT),
-          Clobber  => "memory",
-          Volatile => True);
-      System.Machine_Code.Asm
-         ("csrc sie, %0",
-          Inputs   => Unsigned_64'Asm_Input ("r", TIMER_BIT),
           Clobber  => "memory",
           Volatile => True);
    end Disable_Interrupts;
