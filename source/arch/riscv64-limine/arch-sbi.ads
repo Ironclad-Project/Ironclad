@@ -25,6 +25,13 @@ package Arch.SBI is
    --  Set the timer interrupt to interrupt for the passed stime value.
    procedure Set_Timer (Microseconds : Unsigned_64; Success : out Boolean);
 
+   --  marchid is not always supported or gives issues, so we can just SBI.
+   procedure Get_Arch_ID (Result : out Unsigned_64; Success : out Boolean);
+
+   --  marchid is not always supported or gives issues, so we can just SBI.
+   --  Result is a JEDEC ID or 0.
+   procedure Get_Vendor_ID (Result : out Unsigned_64; Success : out Boolean);
+
 private
 
    SBI_SUCCESS             : constant := 0;

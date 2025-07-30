@@ -21,6 +21,7 @@ with Devices.Ramdev;
 with Arch.Limine;
 with Messages;
 with System; use System;
+with Arch.SBI;
 
 package body Arch.Hooks is
    function Devices_Hook return Boolean is
@@ -89,13 +90,36 @@ package body Arch.Hooks is
    end Register_RAM_Files;
 
    procedure Get_CPU_Model (Model : out String) is
-      Returned : constant String := "GenericRISCV64";
+      ID, Real_ID : Unsigned_64;
+      Discard     : Boolean;
+      Proprietary : Boolean;
+      Str         : String (1 .. 18);
+      Len         : Natural;
    begin
-      if Model'Length >= Returned'Length then
-         Model (Model'First .. Model'First + Returned'Length - 1) := Returned;
+      Arch.SBI.Get_Arch_ID (ID, Discard);
+      Proprietary := (ID and Shift_Left (1, 63)) /= 0;
+      Real_ID     := ID and not Shift_Left (1, 63);
+
+      if Proprietary then
+         Str (1 .. 17) := "Ewwww Proprietary";
+         Len           := 17;
       else
-         Model := Returned
-            (Returned'First .. Returned'First + Model'Length - 1);
+         --  These IDs are standard and maintained by the RISC-V foundation.
+         --  https://github.com/riscv/riscv-isa-manual/blob/main/marchid.md
+         case Real_ID is
+            when      1 => Str (1 ..  6) := "Rocket";             Len := 6;
+            when      2 => Str (1 ..  4) := "BOOM";               Len := 4;
+            when     31 => Str (1 ..  6) := "AIRISC";             Len := 6;
+            when     32 => Str (1 ..  7) := "Proteus";            Len := 7;
+            when     42 => Str (1 ..  4) := "QEMU";               Len := 4;
+            when others => Str (1 .. 18) := "Unrecognized Model"; Len := 18;
+         end case;
+      end if;
+
+      if Model'Length >= Len then
+         Model (Model'First .. Model'First + Len - 1) := Str (1 .. Len);
+      else
+         Model := Str (1 .. Model'Length);
       end if;
    exception
       when Constraint_Error =>
@@ -103,15 +127,20 @@ package body Arch.Hooks is
    end Get_CPU_Model;
 
    procedure Get_CPU_Vendor (Vendor : out String) is
-      Returned : constant String := "GenericVendor";
+      ID      : Unsigned_64;
+      Discard : Boolean;
    begin
-      if Vendor'Length >= Returned'Length then
-         Vendor (Vendor'First .. Vendor'First + Returned'Length - 1) :=
-            Returned;
-      else
-         Vendor := Returned
-            (Returned'First .. Returned'First + Vendor'Length - 1);
-      end if;
+      Arch.SBI.Get_Vendor_ID (ID, Discard);
+      declare
+         Str : constant  String := "JEDEC " & ID'Image;
+         Len : constant Natural := Str'Length;
+      begin
+         if Vendor'Length >= Len then
+            Vendor (Vendor'First .. Vendor'First + Len - 1) := Str (1 .. Len);
+         else
+            Vendor := Str (1 .. Vendor'Length);
+         end if;
+      end;
    exception
       when Constraint_Error =>
          Vendor := [others => ' '];

@@ -49,19 +49,6 @@ package body Arch.SBI is
          return;
       end if;
 
-      SBI_ECall
-         (Extension_ID => Time_Extension_EID,
-          Function_ID  => 0,
-          Result       => Result,
-          Error        => Error,
-          Arg0         => Unsigned_64'Last,
-          Arg1         => 0,
-          Arg2         => 0);
-      if Error /= SBI_SUCCESS then
-         Success := False;
-         return;
-      end if;
-
       System.Machine_Code.Asm
          ("rdtime %0",
           Outputs  => Unsigned_64'Asm_Output ("=r", Start),
@@ -80,6 +67,34 @@ package body Arch.SBI is
 
       Success := Error = SBI_SUCCESS;
    end Set_Timer;
+
+   procedure Get_Arch_ID (Result : out Unsigned_64; Success : out Boolean) is
+      Error : Unsigned_64;
+   begin
+      SBI_ECall
+         (Extension_ID => Base_Extension_EID,
+          Function_ID  => 5,
+          Result       => Result,
+          Error        => Error,
+          Arg0         => 0,
+          Arg1         => 0,
+          Arg2         => 0);
+      Success := Error = SBI_SUCCESS;
+   end Get_Arch_ID;
+
+   procedure Get_Vendor_ID (Result : out Unsigned_64; Success : out Boolean) is
+      Error : Unsigned_64;
+   begin
+      SBI_ECall
+         (Extension_ID => Base_Extension_EID,
+          Function_ID  => 4,
+          Result       => Result,
+          Error        => Error,
+          Arg0         => 0,
+          Arg1         => 0,
+          Arg2         => 0);
+      Success := Error = SBI_SUCCESS;
+   end Get_Vendor_ID;
    ----------------------------------------------------------------------------
    procedure SBI_ECall
      (Extension_ID : Unsigned_64;
