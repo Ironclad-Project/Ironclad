@@ -104,9 +104,7 @@ package body Arch.Context is
 
    procedure Init_FP_Context (Ctx : out FP_Context) is
    begin
-      Ctx :=
-         (FCSR   => 0,
-          others => 0);
+      Ctx := (others => 0);
    end Init_FP_Context;
 
    procedure Save_FP_Context (Ctx : in out FP_Context) is
@@ -142,10 +140,10 @@ package body Arch.Context is
           "fsd     f29, 224(%0);" &
           "fsd     f30, 232(%0);" &
           "fsd     f31, 240(%0);" &
-          "csrr     %1,    fcsr;",
+          "frcsr   a0;"           &
+          "sd      a0, 248(%0);",
           Inputs   => System.Address'Asm_Input ("r", Ctx'Address),
-          Outputs  => Unsigned_64'Asm_Output ("=r", Ctx.FCSR),
-          Clobber  => "memory",
+          Clobber  => "memory,a0",
           Volatile => True);
    end Save_FP_Context;
 
@@ -182,10 +180,10 @@ package body Arch.Context is
           "fld     f29, 224(%0);" &
           "fld     f30, 232(%0);" &
           "fld     f31, 240(%0);" &
-          "csrw   fcsr,      %1;",
-          Inputs   => [System.Address'Asm_Input ("r", Ctx'Address),
-                       Unsigned_64'Asm_Input    ("r", Ctx.FCSR)],
-          Clobber  => "memory",
+          "ld       a0, 248(%0);" &
+          "fscsr    a0;",
+          Inputs   => System.Address'Asm_Input ("r", Ctx'Address),
+          Clobber  => "memory,a0",
           Volatile => True);
    end Load_FP_Context;
 
