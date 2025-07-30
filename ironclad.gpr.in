@@ -80,7 +80,7 @@ project Ironclad is
    case Arch is
       when "riscv64-limine" =>
          Common_Compiler_Flags := Common_Compiler_Flags & (
-            "-march=rv64imac_zicsr_zifencei",
+            "-march=rv64imac_zicsr_zifencei_d",
             "-mabi=lp64",
             "-mno-relax"
          );

@@ -20,7 +20,14 @@ with Arch.Interrupts;
 package Arch.Context is
    #if ArchName = """riscv64-limine"""
       subtype GP_Context   is Arch.Interrupts.Frame;
-      type    FP_Context   is array (1 .. 512) of Unsigned_8;
+      type    FP_Context   is record
+         F0,  F1,  F2,  F3,  F4,  F5  : Unsigned_64;
+         F6,  F7,  F8,  F9,  F10, F11 : Unsigned_64;
+         F12, F13, F14, F15, F16, F17 : Unsigned_64;
+         F18, F19, F20, F21, F22, F23 : Unsigned_64;
+         F24, F25, F26, F27, F28, F29 : Unsigned_64;
+         F30, F31, FCSR : Unsigned_64;
+      end record with Pack;
       subtype Core_Context is Unsigned_64;
    #elsif ArchName = """x86_64-limine"""
       --  FIXME: Alignment should be 16, but GCC does not align then?

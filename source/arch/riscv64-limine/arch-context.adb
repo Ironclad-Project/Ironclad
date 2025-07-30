@@ -104,18 +104,89 @@ package body Arch.Context is
 
    procedure Init_FP_Context (Ctx : out FP_Context) is
    begin
-      Ctx := [others => 0];
+      Ctx :=
+         (FCSR   => 0,
+          others => 0);
    end Init_FP_Context;
 
    procedure Save_FP_Context (Ctx : in out FP_Context) is
    begin
-      Ctx := [others => 0];
+      System.Machine_Code.Asm
+         ("fsd      f1, 0(%0);"   &
+          "fsd      f3, 16(%0);"  &
+          "fsd      f4, 24(%0);"  &
+          "fsd      f5, 32(%0);"  &
+          "fsd      f6, 40(%0);"  &
+          "fsd      f7, 48(%0);"  &
+          "fsd      f8, 56(%0);"  &
+          "fsd      f9, 64(%0);"  &
+          "fsd     f10, 72(%0);"  &
+          "fsd     f11, 80(%0);"  &
+          "fsd     f12, 88(%0);"  &
+          "fsd     f13, 96(%0);"  &
+          "fsd     f14, 104(%0);" &
+          "fsd     f15, 112(%0);" &
+          "fsd     f16, 120(%0);" &
+          "fsd     f17, 128(%0);" &
+          "fsd     f18, 136(%0);" &
+          "fsd     f19, 144(%0);" &
+          "fsd     f20, 152(%0);" &
+          "fsd     f21, 160(%0);" &
+          "fsd     f22, 168(%0);" &
+          "fsd     f23, 176(%0);" &
+          "fsd     f24, 184(%0);" &
+          "fsd     f25, 192(%0);" &
+          "fsd     f26, 200(%0);" &
+          "fsd     f27, 208(%0);" &
+          "fsd     f28, 216(%0);" &
+          "fsd     f29, 224(%0);" &
+          "fsd     f30, 232(%0);" &
+          "fsd     f31, 240(%0);" &
+          "csrr     %1,    fcsr;",
+          Inputs   => System.Address'Asm_Input ("r", Ctx'Address),
+          Outputs  => Unsigned_64'Asm_Output ("=r", Ctx.FCSR),
+          Clobber  => "memory",
+          Volatile => True);
    end Save_FP_Context;
 
    procedure Load_FP_Context (Ctx : FP_Context) is
-      pragma Unreferenced (Ctx);
    begin
-      null;
+      System.Machine_Code.Asm
+         ("fld      f1, 0(%0);"   &
+          "fld      f3, 16(%0);"  &
+          "fld      f4, 24(%0);"  &
+          "fld      f5, 32(%0);"  &
+          "fld      f6, 40(%0);"  &
+          "fld      f7, 48(%0);"  &
+          "fld      f8, 56(%0);"  &
+          "fld      f9, 64(%0);"  &
+          "fld     f10, 72(%0);"  &
+          "fld     f11, 80(%0);"  &
+          "fld     f12, 88(%0);"  &
+          "fld     f13, 96(%0);"  &
+          "fld     f14, 104(%0);" &
+          "fld     f15, 112(%0);" &
+          "fld     f16, 120(%0);" &
+          "fld     f17, 128(%0);" &
+          "fld     f18, 136(%0);" &
+          "fld     f19, 144(%0);" &
+          "fld     f20, 152(%0);" &
+          "fld     f21, 160(%0);" &
+          "fld     f22, 168(%0);" &
+          "fld     f23, 176(%0);" &
+          "fld     f24, 184(%0);" &
+          "fld     f25, 192(%0);" &
+          "fld     f26, 200(%0);" &
+          "fld     f27, 208(%0);" &
+          "fld     f28, 216(%0);" &
+          "fld     f29, 224(%0);" &
+          "fld     f30, 232(%0);" &
+          "fld     f31, 240(%0);" &
+          "csrw   fcsr,      %1;",
+          Inputs   => [System.Address'Asm_Input ("r", Ctx'Address),
+                       Unsigned_64'Asm_Input    ("r", Ctx.FCSR)],
+          Clobber  => "memory",
+          Volatile => True);
    end Load_FP_Context;
 
    procedure Destroy_FP_Context (Ctx : in out FP_Context) is
