@@ -34,7 +34,7 @@ package body Arch.Local is
    procedure Reschedule_ASAP is
       Success : Boolean;
    begin
-      Arch.SBI.Set_Timer (10000, Success);
+      Arch.SBI.Set_Timer (0, Success);
       if not Success then
          Panic.Hard_Panic ("Could not reschedule now");
       end if;
