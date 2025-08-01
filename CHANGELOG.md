@@ -30,6 +30,9 @@ release changes.
 - Add support for the ACPI Power Management Timer as a fallback for the
   calibration of other x86_64-limine timers, adding more options for when HPET
   or CPUID are not available.
+- Implement SBI, fb, ACPI, and other architectural aspects of `riscv64-limine`,
+  for more details, visit [our blog's article on the matter](https://blog.ironclad-os.org/modernizing-process-initialization-in-ironclad/).
+- De-stub documentation for some syscalls.
 
 ### Breaking changes
 
@@ -39,6 +42,8 @@ release changes.
   `read`/`write` syscalls, saving a bunch of code.
 - Replaced the thread cluster system with a more POSIX-like mechanism
   based on `sched_getscheduler` and `sched_setscheduler`.
+- `riscv64-limine`'s `arch_prctl` now doesn't do anything, as architecturaly it
+  is no longer needed.
 
 ### Non-code related changes
 

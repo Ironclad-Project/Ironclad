@@ -269,27 +269,32 @@ target, @ref{Common devices}.
 @node riscv64-limine support
 @section riscv64-limine support
 
-Ironclad supports RISC-V64 systems supporting the IMAC, ZICSR, and ZIFENCEI
-extensions using the Limine boot protocol, which as of time of writing
-depends on UEFI support being present, but this might change in the future. The
-machines running Ironclad are required to provide a device tree blob (DTB).
+Ironclad supports RISC-V64 systems supporting the IMAC, ZICSR, D, and ZIFENCEI
+extensions.
 
-Refer to your limine compliant bootloader for instructions on where to put
-kernel images, configuration formats, and the like.
+A Limine protocol-compatible bootloader compliant is required, our
+recommendation is @uref{https://limine-bootloader.org, Limine}, as it is the
+only available for RISC-V64 right now. Refer to your bootloader for
+instructions on where to put kernel images, configuration formats, and the
+like.
 
-For supported devices and how they are abstracted, @ref{riscv64-limine devices}
+SBI support is required for Ironclad to properly work, other facilities like
+ACPI are optional.
+
+For an example of RISC-V based deployment, check the boot sequence of
+@uref{https://codeberg.org/Ironclad/Gloire, Gloire}, a FOSS Ironclad
+distribution.
 
 @node x86_64-limine support
 @section x86_64-limine support
 
-x86_64 systems are supported using the limine boot protocol, any
-limine compliant bootloader will be able to boot it just fine.
+Generic x86_64 systems are supported using the limine boot protocol, any
+limine compliant bootloader will be able to boot it just fine. Options exist
+for UEFI and BIOS, our recommendation is
+@uref{https://limine-bootloader.org, Limine}, which supports both.
 
-Refer to your limine compliant bootloader for instructions on where to put
-kernel images, configuration formats, and the like.
-
-For supported devices and how they are abstracted,
-@ref{x86_64-limine devices}.
+No requirements for specific SIMD extensions are made apart from what
+x86_64 features architecturally.
 
 @node Boot-time command-line options
 @chapter Boot-time command-line options
@@ -1110,9 +1115,10 @@ Empty.
 
 Syscalls are invoked in Ironclad by using @code{ecall}.
 
-The index of the syscall is passed over @code{a7}, while the return value is
-returned in @code{a0}, errno is returned in @code{a1}, arguments are passed
-over @code{a0} to @code{a6}.
+The index of the syscall is passed over @code{x17}, while the return value is
+returned in @code{x10}, errno is returned in @code{x11}, arguments are passed
+over @code{x10}, @code{x11}, @code{x12}, @code{x13}, @code{x14}, @code{x15},
+and @code{x16}.
 
 @subsection x86_64-limine
 
@@ -1245,7 +1251,7 @@ int arch_prctl(int code, uint64_t argument);
 @end example
 
 This syscall interacts with architecture-specific thread-local storage. For
-x86_64, these are the available codes:
+@code{x86_64}, these are the available codes:
 
 @table @code
 @item ARCH_SET_FS (1)
@@ -1260,6 +1266,10 @@ Sets @code{argument} as the current thread's FS.
 @item ARCH_GET_GS (4)
 Stores the current thread's GS into the variable pointed to by @code{argument}.
 @end table
+
+For @code{riscv64}, the architecture makes it so there is no need for this
+syscall, thus, the syscall does not have valid arguments, and all arguments
+will return @code{EINVAL}.
 
 This syscall returns @code{0} on success, and @code{-1} on failure.
 errno is to be set to the following values on failure:
@@ -4178,29 +4188,268 @@ since this is what we wanted!
 @node listmounts
 @section listmounts
 
+@example c
+struct mountinfo @{
+    uint32_t fs_type;
+    uint32_t flags;
+    char source[20];
+    uint32_t source_len;
+    char location[20];
+    uint32_t location_len;
+    uint64_t block_size;
+    uint64_t fragment_size;
+    uint64_t size_in_frags;
+    uint64_t free_blocks;
+    uint64_t free_blocks_user;
+    uint64_t inode_count;
+    uint64_t free_inodes;
+    uint64_t free_inodes_user;
+    uint64_t max_filename_len;
+@} __attribute__((packed));
+
+size_t listmounts(struct mountinfo *addr, size_t len);
+@end example
+
+This syscall writes a list of all mounts currently in use in the system to
+@code{addr}, which contains @code{len} items.
+
+The number of mounts in the system is returned in success, and @code{-1} in
+failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: The array pointed by @code{addr} is outside accessible memory.
+@end itemize
+
 @node uname
 @section uname
+
+@example c
+struct utsname @{
+    char system_name[65];
+    char node_name[65];
+    char release[65];
+    char version[65];
+    char machine[65];
+@} __attribute__((packed));
+
+int uname(struct utsname *addr);
+@end example
+
+This syscall writes system information to the passed structure. The strings
+on the structure are NUL-terminated.
+
+@itemize @bullet
+@item
+@code{EFAULT}: The struct pointed to by @code{addr} is not accessible.
+@end itemize
 
 @node listthreads
 @section listthreads
 
+@example c
+struct thread_info @{
+    uint16_t thread_id;
+    uint16_t niceness;
+    uint16_t priority;
+    uint16_t pid;
+@} __attribute__((packed));
+
+size_t listthreads(struct thread_info *addr, size_t len);
+@end example
+
+This syscall writes a list of all threads currently in the system to
+@code{addr}, which contains @code{len} items.
+
+The number of threads in the system is returned in success, and @code{-1} in
+failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: The array pointed by @code{addr} is outside accessible memory.
+@end itemize
+
 @node listnetinter
 @section listnetinter
+
+@example c
+#define NETINTER_BLOCKED 1
+struct netinter @{
+    char name[65];
+    uint64_t flags;
+    uint8_t mac_address[6];
+    uint8_t ipv4_addr[4];
+    uint8_t ipv4_subnet[4];
+    uint8_t ipv6_addr[16];
+    uint8_t ipv6_subnet[16];
+@} __attribute__((packed));
+
+size_t listnetinter(struct thread_info *addr, size_t len);
+@end example
+
+This syscall writes a list of all network interfaces currently in the system to
+@code{addr}, which contains @code{len} items.
+
+The number of threads in the system is returned in success, and @code{-1} in
+failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: The array pointed by @code{addr} is outside accessible memory.
+@end itemize
 
 @node dumplogs
 @section dumplogs
 
+@example c
+size_t dumplogs(char *buffer, size_t len);
+@end example
+
+This syscall writes the kernel logs to a buffer in memory.
+
+The buffer takes the form of a string in memory of, every log line in the
+buffer takes exactly 80 characters separated by no newlines or other special
+characters, thus the user needs to split it themselves for printing.
+
+The length of the buffer is returned in success, and @code{-1} in failure, with
+the following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: The array pointed by @code{addr} is outside accessible memory.
+@end itemize
+
 @node listflocks
 @section listflocks
+
+@example c
+struct flock_info @{
+    uint32_t pid;
+    uint32_t mode;
+    uint64_t start;
+    uint64_t length;
+    uint64_t fs;
+    uint64_t ino;
+@} __attribute__((packed));
+
+size_t listflocks(struct flock_info *addr, size_t len);
+@end example
+
+This syscall writes a list of all POSIX file locks currently in use set with
+@code{fcntl} to @code{addr}, which contains @code{len} items.
+
+The number of file locks is returned in success, and @code{-1} in
+failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: The array pointed by @code{addr} is outside accessible memory.
+@end itemize
 
 @node loadavg
 @section loadavg
 
+@example c
+int loadavg(uint32_t *buf, size_t len);
+@end example
+
+This syscall writes average load values to the passed buffer of @code{len}
+items
+
+The average values represent the number of processes executed by the system
+over various periods of time. Ironclad only implements the first three
+intervals, which represent the average for 1, 5, and 15 minutes respectively.
+
+The number of average values written is returned in success, and @code{-1} in
+failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: The array pointed by @code{buf} is outside accessible memory.
+@end itemize
+
 @node meminfo
 @section meminfo
 
+@example c
+struct meminfo @{
+    uint64_t phys_total;
+    uint64_t phys_avail;
+    uint64_t phys_free;
+    uint64_t shared_usage;
+    uint64_t kernel_usage;
+    uint64_t table_usage;
+    uint64_t poison_usage;
+@} __attribute__((packed));
+
+int meminfo(struct meminfo *addr);
+@end example
+
+This syscall writes memory usage information to the passed structure.
+
+The values stand for:
+
+@itemize @bullet
+@item
+@code{phys_total}: Total physical memory present in the system.
+@item
+@code{phys_avail}: Total physical memory available for OS use in the system.
+@item
+@code{phys_free}: Of the available physical memory, how much is not used.
+@item
+@code{shared_usage}: Memory used in shared memory segments.
+@item
+@code{kernel_usage}: Memory used by the kernel.
+@item
+@code{table_usage}: Memory used in the effort of keeping track of memory.
+@item
+@code{poison_usage}: Physical memory denied by memory poisoning, and other
+error-correcting and mitigating measures.
+@end itemize
+
+The syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: The struct pointed to by @code{addr} is not accessible.
+@end itemize
+
 @node listpci
 @section listpci
+
+@example c
+struct pci_info @{
+    uint8_t bus;
+    uint8_t func;
+    uint8_t slot;
+    uint16_t device_id;
+    uint16_t vendor_id;
+    uint8_t rev_id;
+    uint8_t subclass;
+    uint8_t device_class;
+    uint8_t prog_if;
+@} __attribute__((packed));
+
+size_t listpci(struct pci_info *addr, size_t len);
+@end example
+
+This syscall writes a list of all detected PCI devices in the system alongside
+their identification information to the buffer contained at @code{addr}, which
+contains @code{len} items.
+
+The numbers returned for device and vendor IDs can be translated to human
+readable strings by the use of a PCI database, like
+@uref{https://pci-ids.ucw.cz/, The PCI ID Repository}, distributed and
+maintained kindly by Albert Pool and @uref{http://mj.ucw.cz/, Martin Mares}.
+
+The number of detected PCI devices is returned in success, and @code{-1} in
+failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: The array pointed by @code{addr} is outside accessible memory.
+@end itemize
 
 @node getcpuinfo
 @section getcpuinfo
@@ -4220,6 +4469,10 @@ int getcpuinfo(struct cpuinfo *info);
 @end example
 
 This syscall gets information about the CPU or CPUs running on the system.
+
+This information is purely for user-facing purposes, and no consistency on the
+results is ensured or to be expected. This syscall just returns system
+information for pretty printing.
 
 This syscall returns @code{0} on success and @code{-1} on failure, with errno:
 @table @code
@@ -4708,15 +4961,20 @@ oneshot event representing a pressing of the corresponding button.
 @node riscv64-limine devices
 @section riscv64-limine devices
 
-To be determined.
+@subsection fb[0..x]
+
+The @code{fb} series devices, like @code{fb0} and @code{fb1}, expose the
+framebuffer passed as part of the boot protocol, when present. The device uses
+Linux's @url{https://docs.kernel.org/fb/api.html, fbdev} interface.
 
 @node x86_64-limine devices
 @section x86_64-limine devices
 
-@subsection fb0
+@subsection fb[0..x]
 
-The @code{fb0} device exposes the framebuffer passed as part of the boot
-protocol, when present. The device uses Linux's @url{https://docs.kernel.org/fb/api.html, fbdev} interface.
+The @code{fb} series devices, like @code{fb0} and @code{fb1}, expose the
+framebuffer passed as part of the boot protocol, when present. The device uses
+Linux's @url{https://docs.kernel.org/fb/api.html, fbdev} interface.
 
 @subsection ps2keyboard/ps2mouse
 
