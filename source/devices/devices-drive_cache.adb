@@ -134,6 +134,7 @@ package body Devices.Drive_Cache with SPARK_Mode => Off is
       (Registry : aliased in out Cache_Registry;
        Success  : out Boolean)
    is
+      pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
       procedure Write_Sector
          (Drive       : System.Address;
           LBA         : Unsigned_64;

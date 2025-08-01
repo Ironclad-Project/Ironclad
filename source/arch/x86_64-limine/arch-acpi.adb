@@ -214,6 +214,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    end Stall;
 
    procedure Sleep (MSec : Unsigned_64) is
+      pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
       Curr_Sec, Curr_Nsec, Tgt_Sec, Tgt_Nsec : Unsigned_64;
    begin
       Arch.Clocks.Get_Monotonic_Time (Tgt_Sec, Tgt_Nsec);

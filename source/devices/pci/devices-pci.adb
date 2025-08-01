@@ -314,9 +314,6 @@ package body Devices.PCI is
 
       Message_Control := (Message_Control or 1) and not Shift_Left (2#111#, 4);
       Write16 (Dev, MSI_Off + 1, Message_Control);
-   exception
-      when Constraint_Error =>
-         null;
    end Set_MSI_Vector;
    ----------------------------------------------------------------------------
    --  For the read and write functions, we must use AX/EAX/RAX for x86, since

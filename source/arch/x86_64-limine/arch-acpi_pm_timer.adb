@@ -27,6 +27,7 @@ package body Arch.ACPI_PM_Timer with SPARK_Mode => Off is
    IO_Addr      : Integer_Address;
 
    function Init return Boolean is
+      pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
       ACPI_Address : ACPI.Table_Record;
    begin
       if not ACPI.Is_Supported then
@@ -89,6 +90,7 @@ package body Arch.ACPI_PM_Timer with SPARK_Mode => Off is
    end Get_Resolution;
 
    procedure NSleep (Nanoseconds : Unsigned_64) is
+      pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
       Target  : Unsigned_64;
       Current : Unsigned_64 with Volatile;
    begin

@@ -75,9 +75,6 @@ package body Arch.CPU with SPARK_Mode => Off is
           Outputs  => Core_Local_Acc'Asm_Output ("=r", Local),
           Volatile => True);
       return Local;
-   exception
-      when Constraint_Error =>
-         return null;
    end Get_Local;
    ----------------------------------------------------------------------------
    procedure Core_Bootstrap (Info : access Limine.RISCV64_SMP_CPU_Info) is

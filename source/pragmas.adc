@@ -30,11 +30,3 @@ pragma Restrictions (No_Implicit_Dynamic_Code);
 pragma Normalize_Scalars;
 pragma Ada_2022;
 pragma SPARK_Mode (On);
-
---  FIXME: Sometimes GNAT will give warnings of the style:
---     pragma Restrictions (No_Exception_Propagation) in effect [-gnatw.x]
---     this handler can never be entered, and has been removed [-gnatw.x]
---  But when these handlers are removed, GNAT asks for them again.
---  I am not sure whether this is a compiler bug or me not understanding
---  something, but in the meantime, we will silence these warnings.
-pragma Warnings (Off, "this handler can never be entered");

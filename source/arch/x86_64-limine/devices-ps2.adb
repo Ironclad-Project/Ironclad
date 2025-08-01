@@ -324,6 +324,7 @@ package body Devices.PS2 is
        Extra     : out Unsigned_64;
        Success   : out Boolean)
    is
+      pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
       pragma Unreferenced (Key);
 
       function To_Integer is

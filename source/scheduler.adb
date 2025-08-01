@@ -119,9 +119,6 @@ package body Scheduler with SPARK_Mode => Off is
       Is_Initialized := True;
       Synchronization.Release (Scheduler_Mutex);
       Success := True;
-   exception
-      when Constraint_Error =>
-         Success := False;
    end Init;
 
    procedure Idle_Core is
@@ -398,9 +395,6 @@ package body Scheduler with SPARK_Mode => Off is
       if Is_Init and Curr_TID /= Error_TID then
          Arch.Local.Reschedule_ASAP;
       end if;
-   exception
-      when Constraint_Error =>
-         null;
    end Yield_If_Able;
 
    procedure Bail is
@@ -645,6 +639,7 @@ package body Scheduler with SPARK_Mode => Off is
    end Exit_Signal_And_Reschedule;
    ----------------------------------------------------------------------------
    procedure Get_Load_Averages (Avg_1, Avg_5, Avg_15 : out Unsigned_32) is
+      pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
    begin
       Synchronization.Seize (Scheduler_Mutex);
       Avg_1 := Buckets (Buckets'First) * 100;

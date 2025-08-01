@@ -210,6 +210,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    end Stall;
 
    procedure Sleep (MSec : Unsigned_64) is
+      pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
       Curr_Sec, Curr_Nsec, Tgt_Sec, Tgt_Nsec : Unsigned_64;
    begin
       Arch.Clocks.Get_Monotonic_Time (Tgt_Sec, Tgt_Nsec);
@@ -441,9 +442,6 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Value := Val;
       return Status_OK;
-   exception
-      when Constraint_Error =>
-         return Status_Internal_Error;
    end IO_Read8;
 
    function IO_Write8
@@ -457,9 +455,6 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Val := Value;
       return Status_OK;
-   exception
-      when Constraint_Error =>
-         return Status_Internal_Error;
    end IO_Write8;
 
    function IO_Read16
@@ -473,9 +468,6 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Value := Val;
       return Status_OK;
-   exception
-      when Constraint_Error =>
-         return Status_Internal_Error;
    end IO_Read16;
 
    function IO_Write16
@@ -489,9 +481,6 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Val := Value;
       return Status_OK;
-   exception
-      when Constraint_Error =>
-         return Status_Internal_Error;
    end IO_Write16;
 
    function IO_Read32
@@ -505,9 +494,6 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Value := Val;
       return Status_OK;
-   exception
-      when Constraint_Error =>
-         return Status_Internal_Error;
    end IO_Read32;
 
    function IO_Write32
@@ -521,9 +507,6 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Val := Value;
       return Status_OK;
-   exception
-      when Constraint_Error =>
-         return Status_Internal_Error;
    end IO_Write32;
 
    function Map
@@ -598,9 +581,6 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Messages.Put_Line ("Stubbed install handler!");
       Handle := System.Null_Address;
       return Status_OK;
-   exception
-      when Constraint_Error =>
-         return Status_Internal_Error;
    end Install_Interrupt_Handler;
 
    function Uninstall_Interrupt_Handler
@@ -611,9 +591,6 @@ package body Arch.ACPI with SPARK_Mode => Off is
    begin
       Messages.Put_Line ("Stubbed uninstall handler!");
       return Status_OK;
-   exception
-      when Constraint_Error =>
-         return Status_Internal_Error;
    end Uninstall_Interrupt_Handler;
 
    function Schedule_Work

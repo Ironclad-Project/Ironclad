@@ -358,9 +358,6 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
           Is_Identify => False,
           Is_Write    => False,
           Data_Addr   => Unsigned_64 (IAddr - Memory.Memory_Offset));
-   exception
-      when Constraint_Error =>
-         Success := False;
    end Read_Sector;
 
    procedure Write_Sector
@@ -380,9 +377,6 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
           Is_Identify => False,
           Is_Write    => True,
           Data_Addr   => Unsigned_64 (IAddr - Memory.Memory_Offset));
-   exception
-      when Constraint_Error =>
-         Success := False;
    end Write_Sector;
 
    function Find_Command_Slot (Port : HBA_Port_Acc) return Natural is

@@ -1595,10 +1595,6 @@ package body Userland.Syscall is
 
       Errno := Error_No_Error;
       Returned := 0;
-   exception
-      when Constraint_Error =>
-         Errno    := Error_Would_Block;
-         Returned := Unsigned_64'Last;
    end Pipe;
 
    procedure Get_UID (Returned : out Unsigned_64; Errno : out Errno_Value) is
@@ -2072,6 +2068,7 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
       package Trans is new Memory.Userland_Transfer (Load_Arr);
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
       IAddr : constant Integer_Address := Integer_Address (Addr);
@@ -2396,6 +2393,7 @@ package body Userland.Syscall is
       Returned : out Unsigned_64;
       Errno    : out Errno_Value)
    is
+      pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
       Proc   : constant              PID := Arch.Local.Get_Current_Process;
       IAddr  : constant  Integer_Address := Integer_Address (Address);
       SAddr  : constant   System.Address := To_Address (IAddr);
@@ -3380,10 +3378,6 @@ package body Userland.Syscall is
          Errno := Error_Would_Fault;
          Returned := Unsigned_64'Last;
       end if;
-   exception
-      when Constraint_Error =>
-         Errno    := Error_Would_Block;
-         Returned := Unsigned_64'Last;
    end Open_PTY;
 
    procedure FSync
@@ -4828,10 +4822,6 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
          Errno    := Error_Would_Fault;
       end if;
-   exception
-      when Constraint_Error =>
-         Errno    := Error_Would_Block;
-         Returned := Unsigned_64'Last;
    end Get_RUsage;
 
    procedure RecvFrom
@@ -6481,10 +6471,6 @@ package body Userland.Syscall is
       --  TODO: These dont do anything and are placeholders, make these work.
       Errno    := Error_No_Error;
       Returned := 0;
-   exception
-      when Constraint_Error =>
-         Errno    := Error_Would_Block;
-         Returned := Unsigned_64'Last;
    end Failure_Policy;
 
    procedure Create_Thread
@@ -6535,10 +6521,6 @@ package body Userland.Syscall is
    <<Block_Error>>
       Errno    := Error_Would_Block;
       Returned := Unsigned_64'Last;
-   exception
-      when Constraint_Error =>
-         Errno    := Error_Would_Block;
-         Returned := Unsigned_64'Last;
    end Create_Thread;
 
    procedure Signal_Return
@@ -6642,10 +6624,6 @@ package body Userland.Syscall is
          Errno    := Error_Would_Fault;
          Returned := Unsigned_64'Last;
       end if;
-   exception
-      when Constraint_Error =>
-         Errno    := Error_Would_Block;
-         Returned := Unsigned_64'Last;
    end Get_CPU_Info;
 
    procedure Socket_Pair
@@ -6726,10 +6704,6 @@ package body Userland.Syscall is
    <<Invalid_Value_Return>>
       Errno    := Error_Invalid_Value;
       Returned := Unsigned_64'Last;
-   exception
-      when Constraint_Error =>
-         Errno    := Error_Would_Block;
-         Returned := Unsigned_64'Last;
    end Socket_Pair;
 
    procedure MAdvise
@@ -7405,9 +7379,6 @@ package body Userland.Syscall is
       --  until we are waited.
       Userland.Process.Flush_Threads (Proc);
       Userland.Process.Flush_Files   (Proc);
-   exception
-      when Constraint_Error =>
-         null;
    end Common_Death_Preparations;
 
    procedure Clear_Process_Signals (Proc : PID; Has_Handled : out Boolean) is

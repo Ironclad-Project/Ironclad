@@ -302,9 +302,6 @@ package body Arch.MMU is
    begin
       Set_Table_Addr (Get_Map_Table_Addr (Map));
       return True;
-   exception
-      when Constraint_Error =>
-         return False;
    end Make_Active;
 
    procedure Translate_Address
@@ -846,20 +843,14 @@ package body Arch.MMU is
        Caching : Caching_Model) return Unsigned_64
    is
       pragma Unreferenced (Caching);
-      Result : Unsigned_64;
    begin
-      Result :=
+      return
          (if Perm.Can_Execute        then Page_X else 0) or
          (if Perm.Can_Read           then Page_R else 0) or
          (if Perm.Can_Write          then Page_W else 0) or
          (if Perm.Is_Global          then Page_G else 0) or
          (if Perm.Is_User_Accessible then Page_U else 0) or
          Page_P or Page_Acc or Page_Dirty;
-
-      return Result;
-   exception
-      when Constraint_Error =>
-         Panic.Hard_Panic ("Exception when translating bitmap flags");
    end Flags_To_Bitmap;
 
    procedure Flush_TLBs

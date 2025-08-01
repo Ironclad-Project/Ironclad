@@ -24,6 +24,7 @@ package body Arch.HPET with SPARK_Mode => Off is
    HPET_Resolution : Unsigned_64; --  Time in nanoseconds to increment by 1.
 
    function Init return Boolean is
+      pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
       ACPI_Address : ACPI.Table_Record;
    begin
       ACPI.FindTable (ACPI.HPET_Signature, ACPI_Address);
