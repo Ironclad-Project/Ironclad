@@ -42,6 +42,7 @@ with Virtualization;
 with Devices.PCI;
 with Arch.Snippets;
 with Memory.Userland_Transfer;
+with Userland.MAC;
 
 package body Userland.Syscall is
    procedure Sys_Exit
@@ -3698,12 +3699,18 @@ package body Userland.Syscall is
       Map       : Page_Table_Acc;
       Value     : MAC.Limit_Value;
    begin
-      MAC_Syscall_To_Kernel (Limit, Success, Resource);
-      if not Success then
-         Errno    := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
+      case Limit is
+         when RLIMIT_CORE   => Resource := MAC.Core_Size_Limit;
+         when RLIMIT_CPU    => Resource := MAC.CPU_Time_Limit;
+         when RLIMIT_FSIZE  => Resource := MAC.File_Size_Limit;
+         when RLIMIT_NOFILE => Resource := MAC.Opened_File_Limit;
+         when RLIMIT_STACK  => Resource := MAC.Stack_Size_Limit;
+         when RLIMIT_AS     => Resource := MAC.Memory_Size_Limit;
+         when others =>
+            Errno    := Error_Invalid_Value;
+            Returned := Unsigned_64'Last;
+            return;
+      end case;
 
       Get_Common_Map (Proc, Map);
 
@@ -7254,24 +7261,6 @@ package body Userland.Syscall is
            Caps.Can_Bypass_IPC_Checks and ((Bits and MAC_CAP_IPC) /= 0),
            Caps.Can_Check_System_Logs and ((Bits and MAC_CAP_SYS_LOG) /= 0)));
    end Set_MAC_Capabilities;
-
-   procedure MAC_Syscall_To_Kernel
-      (Val     : Unsigned_64;
-       Success : out Boolean;
-       Limit   : out MAC.Limit_Type)
-   is
-   begin
-      case Val is
-         when RLIMIT_CORE   => Limit := MAC.Core_Size_Limit;
-         when RLIMIT_CPU    => Limit := MAC.CPU_Time_Limit;
-         when RLIMIT_FSIZE  => Limit := MAC.File_Size_Limit;
-         when RLIMIT_NOFILE => Limit := MAC.Opened_File_Limit;
-         when RLIMIT_STACK  => Limit := MAC.Stack_Size_Limit;
-         when RLIMIT_AS     => Limit := MAC.Memory_Size_Limit;
-         when others => Limit := MAC.Opened_File_Limit; Success := False;
-      end case;
-      Success := True;
-   end MAC_Syscall_To_Kernel;
 
    function Check_Userland_Access
       (Map        : Arch.MMU.Page_Table_Acc;

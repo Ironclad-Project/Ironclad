@@ -21,7 +21,6 @@ with Arch.MMU;
 with IPC.PTY;
 with System;
 with Scheduler; use Scheduler;
-with Userland.MAC;
 with Memory;
 with Networking;
 with Userland.Process; use Userland.Process;
@@ -1535,12 +1534,6 @@ private
 
    --  Set MAC capabilities for a process from a bitmap.
    procedure Set_MAC_Capabilities (Proc : PID; Bits : Unsigned_64);
-
-   --  Transform a rlimit into a MAC limit.
-   procedure MAC_Syscall_To_Kernel
-      (Val     : Unsigned_64;
-       Success : out Boolean;
-       Limit   : out MAC.Limit_Type);
 
    function Check_Userland_Access
       (Map        : Arch.MMU.Page_Table_Acc;
