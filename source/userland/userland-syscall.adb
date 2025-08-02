@@ -5453,11 +5453,17 @@ package body Userland.Syscall is
       end if;
 
       Get_Common_Map (Proc, Map);
+      Get_Masked_Signals (Proc, Mask);
 
       if O_IAddr /= 0 then
          Old.Flags := 0;
          Old.Mask  := 0;
          Get_Signal_Handlers (Proc, Actual, Old.Handler, Old.Restorer);
+         if Mask (Actual) then
+            Old.Handler := To_Address (SIG_IGN);
+         elsif Old.Handler = System.Null_Address then
+            Old.Handler := To_Address (SIG_DFL);
+         end if;
 
          Trans.Paste_Into_Userland (Map, Old, O_SAddr, Success);
          if not Success then
@@ -5476,7 +5482,6 @@ package body Userland.Syscall is
                Set_Signal_Handlers (Proc, Actual, System.Null_Address,
                   System.Null_Address);
             when SIG_IGN =>
-               Get_Masked_Signals (Proc, Mask);
                Mask (Actual) := True;
                Set_Masked_Signals (Proc, Mask);
             when others =>
