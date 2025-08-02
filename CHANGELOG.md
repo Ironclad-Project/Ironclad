@@ -44,6 +44,8 @@ release changes.
   based on `sched_getscheduler` and `sched_setscheduler`.
 - `riscv64-limine`'s `arch_prctl` now doesn't do anything, as architecturaly it
   is no longer needed.
+- Merge the `getrlimit` and `setrlimit` into a new `rlimit` syscall with
+support for POSIX soft and hard limits.
 
 ### Non-code related changes
 

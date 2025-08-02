@@ -56,7 +56,11 @@ package Userland.MAC is
        Kill);           --  Don't panic process, but you are already dead.
 
    --  MAC allows specifying limits for several resources.
-   type Limit_Value is new Unsigned_64;
+   type Limit_Value is record
+      Soft_Limit : Unsigned_64; --  From 0 to the hard limit.
+      Hard_Limit : Unsigned_64; --  Hard kernel enforced limit.
+   end record;
+
    type Limit_Type  is
       (Core_Size_Limit,    --  Core file dump size limit.
        CPU_Time_Limit,     --  Total CPU time in seconds.
@@ -161,12 +165,12 @@ private
       (Action  => Deny,
        Caps    => (others => True),
        Limits  =>
-         [Core_Size_Limit   => 0, --  Disabled by default due to privacy.
-          CPU_Time_Limit    => Limit_Value'Last,
-          File_Size_Limit   => Limit_Value'Last,
-          Opened_File_Limit => Limit_Value'Last,
-          Stack_Size_Limit  => 16#400000#, --  4 MiB by default.
-          Memory_Size_Limit => Limit_Value'Last],
+         [Core_Size_Limit   => (0, Unsigned_64'Last), --  Disabled by default.
+          CPU_Time_Limit    => (Unsigned_64'Last, Unsigned_64'Last),
+          File_Size_Limit   => (Unsigned_64'Last, Unsigned_64'Last),
+          Opened_File_Limit => (Unsigned_64'Last, Unsigned_64'Last),
+          Stack_Size_Limit  => (16#400000#, Unsigned_64'Last), --  4 MiB.
+          Memory_Size_Limit => (Unsigned_64'Last, Unsigned_64'Last)],
        Filters => [others =>
          (Is_Used   => False,
           Is_Device => False,

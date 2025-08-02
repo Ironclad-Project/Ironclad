@@ -152,7 +152,7 @@ Syscalls
 * ptrace::                  Trace and debug children processes.
 * listen::                  Listen for connections to a socket.
 * accept::                  Accept socket connections.
-* getrlimit/setrlimit::     Get and set resource limits.
+* rlimit::                  Get and set resource limits.
 * access::                  Check file access permissions and existence.
 * ppoll::                   I/O event multiplexer.
 * getuid/geteuid::          Get the UID and the effective UID.
@@ -739,8 +739,7 @@ File access enforcement will kick in only once the first filter is added with
 
 As part of the UNIX-like package, Ironclad supports various resource limits
 that, in the case of Ironclad, are built inside MAC, and are passed down like
-MAC capabilities (@pxref{Mandatory access control (MAC)}).
-@xref{getrlimit/setrlimit}.
+MAC capabilities (@pxref{Mandatory access control (MAC)}). @xref{rlimit}.
 
 Limits mostly act as you would expect them to behave, and they are all
 initialized to the maximum possible value, there are only 2 quirks: For one,
@@ -940,9 +939,9 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{accept}.
 @item
-@ref{getrlimit/setrlimit, getrlimit}.
+@ref{rlimit}.
 @item
-@ref{getrlimit/setrlimit, setrlimit}.
+Empty.
 @item
 @ref{access}.
 @item
@@ -2713,8 +2712,8 @@ following errno:
 @code{ENOTSUPP}: The passed FD is a socket, but it is not a stream socket.
 @end itemize
 
-@node getrlimit/setrlimit
-@section getrlimit/setrlimit
+@node rlimit
+@section rlimit
 
 @example c
 #define RLIMIT_CORE   1 // Size of core files, 0 for disabling.
@@ -2724,16 +2723,19 @@ following errno:
 #define RLIMIT_STACK  6 // Maximum stack size in bytes.
 #define RLIMIT_AS     7 // Maximum memory size in bytes.
 
-uint64_t getrlimit(int resource);
-int setrlimit(int resource, uint64_t limit);
+struct ulimit @{
+    uint64_t soft;
+    uint64_t hard;
+@};
+
+int rlimit(int resource, struct ulimit *new, struct ulimit *old);
 @end example
 
-This syscall fetches and sets current limits for a specified resource, limits
-can only be lowered, are inherited from parent to children, and start
-maxed out.
+This syscall fetches and sets current limits for a specified resource, hard
+limits can only be lowered, are inherited from parent to children, and start
+maxed out. Soft limits can be moved around.
 
-When a limit is reached, the operation that would reach or exceed it will fail
-like the following:
+The available limits are:
 
 @itemize @bullet
 @item
@@ -2753,11 +2755,12 @@ there is no failure condition.
 fail with @code{ENOMEM}.
 @end itemize
 
-@code{setrlimit} returns @code{0} on success or @code{-1} on failure. For
-@code{getrlimit}, @code{0} is a valid return so checking errno is necessary.
-Both report the following errno:
+This syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
 
 @itemize @bullet
+@item
+@code{EFAULT}: One of the passed buffers was not 0 and not accessible.
 @item
 @code{EINVAL}: Invalid value for resource.
 @item

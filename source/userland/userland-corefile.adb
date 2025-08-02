@@ -20,6 +20,7 @@ with Userland.Process; use Userland.Process;
 with Userland.MAC;     use Userland.MAC;
 with Messages;
 with VFS; use VFS;
+with Interfaces; use Interfaces;
 
 package body Userland.Corefile is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
@@ -43,12 +44,12 @@ package body Userland.Corefile is
 
       To_Write := Ctx_Data'Length;
       Limit    := Get_Limit (Proc, Core_Size_Limit);
-      if Limit < Limit_Value (To_Write) then
-         To_Write := Natural (Limit);
+      if Limit.Soft_Limit < Unsigned_64 (To_Write) then
+         To_Write := Natural (Limit.Soft_Limit);
       end if;
       Limit := Get_Limit (Proc, File_Size_Limit);
-      if Limit < Limit_Value (To_Write) then
-         To_Write := Natural (Limit);
+      if Limit.Soft_Limit < Unsigned_64 (To_Write) then
+         To_Write := Natural (Limit.Soft_Limit);
       end if;
 
       if To_Write = 0 then

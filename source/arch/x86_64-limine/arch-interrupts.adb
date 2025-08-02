@@ -209,9 +209,7 @@ package body Arch.Interrupts is
             Sys_Accept (State.RDI, State.RSI, State.RDX, State.R12, Returned,
                                     Errno);
          when 54 =>
-            Get_RLimit (State.RDI, Returned, Errno);
-         when 55 =>
-            Set_RLimit (State.RDI, State.RSI, Returned, Errno);
+            RLimit (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 56 =>
             FAccess (State.RDI, State.RSI, State.RDX, State.R12,
                     State.R8, Returned, Errno);

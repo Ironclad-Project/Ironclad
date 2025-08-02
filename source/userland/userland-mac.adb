@@ -100,9 +100,16 @@ package body Userland.MAC is
        Could_Set : out Boolean)
    is
    begin
-      if Limit <= Data.Limits (Resource) then
-         Data.Limits (Resource) := Limit;
-         Could_Set              := True;
+      if Data.Limits (Resource).Hard_Limit >= Limit.Hard_Limit then
+         Data.Limits (Resource).Hard_Limit := Limit.Hard_Limit;
+      else
+         Could_Set := False;
+         return;
+      end if;
+
+      if Limit.Soft_Limit <= Data.Limits (Resource).Hard_Limit then
+         Data.Limits (Resource).Soft_Limit := Limit.Soft_Limit;
+         Could_Set := True;
       else
          Could_Set := False;
       end if;

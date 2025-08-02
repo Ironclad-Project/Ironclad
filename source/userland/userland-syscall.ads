@@ -806,22 +806,17 @@ package Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value);
 
-   --  Get a resource limit.
+   --  Get and set a resource limit.
    RLIMIT_CORE   : constant := 1;
    RLIMIT_CPU    : constant := 2;
    RLIMIT_FSIZE  : constant := 4;
    RLIMIT_NOFILE : constant := 5;
    RLIMIT_STACK  : constant := 6;
    RLIMIT_AS     : constant := 7;
-   procedure Get_RLimit
+   procedure RLimit
       (Limit    : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
-
-   --  Set a resource limit.
-   procedure Set_RLimit
-      (Limit    : Unsigned_64;
-       Data     : Unsigned_64;
+       New_Addr : Unsigned_64;
+       Old_Addr : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 

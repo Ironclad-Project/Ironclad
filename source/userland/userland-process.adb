@@ -522,6 +522,7 @@ package body Userland.Process is
        Success : out Boolean;
        Start   : Natural := 0)
    is
+      File_Limit   : Unsigned_64;
       Count_Of_FDs : Natural := 0;
    begin
       Synchronization.Seize (Registry (Process).Data_Mutex);
@@ -535,9 +536,9 @@ package body Userland.Process is
          end if;
       end loop;
 
-      if Limit_Value (Count_Of_FDs) >=
-         MAC.Get_Limit (Registry (Process).Perms, MAC.Opened_File_Limit)
-      then
+      File_Limit := MAC.Get_Limit
+         (Registry (Process).Perms, MAC.Opened_File_Limit).Soft_Limit;
+      if Unsigned_64 (Count_Of_FDs) >= File_Limit then
          goto Cleanup;
       end if;
 
@@ -1638,7 +1639,7 @@ package body Userland.Process is
       return MAC.Get_Limit (Registry (Proc).Perms, Resource);
    exception
       when Constraint_Error =>
-         return 0;
+         return (0, 0);
    end Get_Limit;
 
    procedure Set_Limit

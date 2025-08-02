@@ -183,6 +183,7 @@ package body Userland.Loader is
       Entrypoint   : Virtual_Address;
       Base_Slide   : Unsigned_64;
       LD_Slide     : Unsigned_64;
+      Stack_Size   : Unsigned_64;
       LD_Path      : String (1 .. 100);
       LD_FS        : FS_Handle;
       LD_Ino       : File_Inode_Number;
@@ -237,6 +238,8 @@ package body Userland.Loader is
          Entrypoint := To_Integer (Loaded_ELF.Entrypoint);
       end if;
 
+      Stack_Size := Get_Limit (Proc, Stack_Size_Limit).Soft_Limit;
+
       Scheduler.Create_User_Thread
          (Address    => Entrypoint,
           Args       => Arguments,
@@ -244,7 +247,7 @@ package body Userland.Loader is
           Map        => Table,
           Vector     => Loaded_ELF.Vector,
           Pol        => Scheduler.Policy_Other,
-          Stack_Size => Unsigned_64 (Get_Limit (Proc, Stack_Size_Limit)),
+          Stack_Size => Stack_Size,
           PID        => Process.Convert (Proc),
           New_TID    => Returned_TID);
       if Returned_TID = Error_TID then

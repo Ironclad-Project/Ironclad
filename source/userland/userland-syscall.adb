@@ -407,7 +407,7 @@ package body Userland.Syscall is
                end if;
 
                if Final_Off + Unsigned_64 (Final_Cnt) >
-                  Unsigned_64 (Get_Limit (Proc, MAC.File_Size_Limit))
+                  Get_Limit (Proc, MAC.File_Size_Limit).Soft_Limit
                then
                   Errno := Error_File_Too_Big;
                   Returned := Unsigned_64'Last;
@@ -557,7 +557,7 @@ package body Userland.Syscall is
       Final_Hint := Memory.Virtual_Address (Hint);
 
       Get_User_Mapped_Size (Map, Size);
-      if Size + Length >= Unsigned_64 (Get_Limit (Proc, MAC.Memory_Size_Limit))
+      if Size + Length >= Get_Limit (Proc, MAC.Memory_Size_Limit).Soft_Limit
       then
          goto No_Memory_Return;
       end if;
@@ -3680,52 +3680,62 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
    end Sys_Accept;
 
-   procedure Get_RLimit
+   procedure RLimit
       (Limit    : Unsigned_64;
+       New_Addr : Unsigned_64;
+       Old_Addr : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      Proc     : constant PID := Arch.Local.Get_Current_Process;
-      Success  : Boolean;
-      Resource : MAC.Limit_Type;
+      package Trans is new Memory.Userland_Transfer (MAC.Limit_Value);
+      Proc      : constant             PID := Arch.Local.Get_Current_Process;
+      New_IAddr : constant Integer_Address := Integer_Address (New_Addr);
+      New_SAddr : constant  System.Address := To_Address (New_IAddr);
+      Old_IAddr : constant Integer_Address := Integer_Address (Old_Addr);
+      Old_SAddr : constant  System.Address := To_Address (Old_IAddr);
+      Success   : Boolean;
+      Resource  : MAC.Limit_Type;
+      Map       : Page_Table_Acc;
+      Value     : MAC.Limit_Value;
    begin
       MAC_Syscall_To_Kernel (Limit, Success, Resource);
-      if Success then
-         Errno := Error_No_Error;
-         Returned := Unsigned_64 (Get_Limit (Proc, Resource));
+      if not Success then
+         Errno    := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
          return;
       end if;
 
-      Errno := Error_Invalid_Value;
-      Returned := Unsigned_64'Last;
-   end Get_RLimit;
+      Get_Common_Map (Proc, Map);
 
-   procedure Set_RLimit
-      (Limit    : Unsigned_64;
-       Data     : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
-   is
-      Success  : Boolean;
-      Resource : MAC.Limit_Type;
-   begin
-      MAC_Syscall_To_Kernel (Limit, Success, Resource);
-      if Success then
-         Process.Set_Limit
-            (Proc      => Arch.Local.Get_Current_Process,
-             Resource  => Resource,
-             Limit     => MAC.Limit_Value (Data),
-             Could_Set => Success);
-         if Success then
-            Errno := Error_No_Error;
-            Returned := 0;
+      if Old_IAddr /= 0 then
+         Value := Get_Limit (Proc, Resource);
+         Trans.Paste_Into_Userland (Map, Value, Old_SAddr, Success);
+         if not Success then
+            goto Would_Fault_Error;
+         end if;
+      end if;
+
+      if New_IAddr /= 0 then
+         Trans.Take_From_Userland (Map, Value, New_SAddr, Success);
+         if not Success then
+            goto Would_Fault_Error;
+         end if;
+         Set_Limit (Proc, Resource, Value, Success);
+         if not Success then
+            Errno    := Error_Bad_Permissions;
+            Returned := Unsigned_64'Last;
             return;
          end if;
       end if;
 
-      Errno := Error_Invalid_Value;
+      Errno    := Error_No_Error;
+      Returned := 0;
+      return;
+
+   <<Would_Fault_Error>>
+      Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
-   end Set_RLimit;
+   end RLimit;
 
    procedure FAccess
       (Dir_FD    : Unsigned_64;

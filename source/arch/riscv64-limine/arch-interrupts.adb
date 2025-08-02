@@ -272,9 +272,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Sys_Accept (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Returned,
                                     Errno);
          when 54 =>
-            Get_RLimit (Ctx.X10, Returned, Errno);
-         when 55 =>
-            Set_RLimit (Ctx.X10, Ctx.X11, Returned, Errno);
+            RLimit (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 56 =>
             FAccess (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13,
                     Ctx.X14, Returned, Errno);
