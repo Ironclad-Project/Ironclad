@@ -406,6 +406,8 @@ package body IPC.PTY is
             Synchronization.Seize (PTY.Global_Data_Mutex);
             Group := PTY.Session_ID;
             Synchronization.Release (PTY.Global_Data_Mutex);
+         when TCSBRKP =>
+            Success := True;
          when others =>
             Success := False;
       end case;
