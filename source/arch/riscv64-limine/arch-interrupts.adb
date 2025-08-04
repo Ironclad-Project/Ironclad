@@ -22,6 +22,8 @@ with Arch.Context;
 with Userland.Syscall; use Userland.Syscall;
 with Arch.Local;
 with Userland.Process;
+with Messages;
+with Userland.Corefile;
 
 package body Arch.Interrupts with SPARK_Mode => Off is
    Interrupt_Table : array (Interrupt_Index) of Interrupt_Handler
@@ -68,18 +70,23 @@ package body Arch.Interrupts with SPARK_Mode => Off is
    end Unload_Interrupt;
    ----------------------------------------------------------------------------
    procedure Handle_Trap (Ctx : not null Frame_Acc) is
-      SCause : Unsigned_64;
-      Is_Int : Boolean;
-      Cause  : Unsigned_64;
+      SCause, SStatus : Unsigned_64;
+      Is_Int, Is_User : Boolean;
+      Cause           : Unsigned_64;
+      Signal          : Userland.Process.Signal;
    begin
       --  Read exception data to determine cause.
       System.Machine_Code.Asm
          ("csrr %0, scause",
-          Outputs  => Unsigned_64'Asm_Output ("=r", SCause),
-          Clobber  => "memory",
-          Volatile => True);
-      Is_Int := (SCause and Shift_Left (1, 63)) /= 0;
-      Cause  := SCause and not Shift_Left (1, 63);
+          Outputs => Unsigned_64'Asm_Output ("=r", SCause),
+          Clobber => "memory");
+      System.Machine_Code.Asm
+         ("csrr %0, sstatus",
+          Outputs => Unsigned_64'Asm_Output ("=r", SStatus),
+          Clobber => "memory");
+      Is_Int  := (SCause and Shift_Left (1, 63)) /= 0;
+      Cause   := SCause and not Shift_Left (1, 63);
+      Is_User := (SStatus and Shift_Left (1, 8)) = 0;
 
       if Is_Int then
          if Cause = 5 then
@@ -96,6 +103,15 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          if Cause = 8 then
             Ctx.SEPC := Ctx.SEPC + (32 / 8);
             Handle_Syscall (Ctx);
+         elsif Is_User then
+            Signal :=
+               (case Cause is
+                 when      2 => Userland.Process.Signal_Illegal_Instruction,
+                 when others => Userland.Process.Signal_Segmentation_Fault);
+
+            Messages.Put_Line ("Userland exception: " & Signal'Image);
+            Userland.Corefile.Generate_Corefile (Context.GP_Context (Ctx.all));
+            Userland.Process.Exit_Process (Local.Get_Current_Process, Signal);
          else
             Panic.Hard_Panic
                ((case Cause is
