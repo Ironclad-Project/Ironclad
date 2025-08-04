@@ -78,12 +78,14 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       --  Read exception data to determine cause.
       System.Machine_Code.Asm
          ("csrr %0, scause",
-          Outputs => Unsigned_64'Asm_Output ("=r", SCause),
-          Clobber => "memory");
+          Outputs  => Unsigned_64'Asm_Output ("=r", SCause),
+          Clobber  => "memory",
+          Volatile => True);
       System.Machine_Code.Asm
          ("csrr %0, sstatus",
-          Outputs => Unsigned_64'Asm_Output ("=r", SStatus),
-          Clobber => "memory");
+          Outputs  => Unsigned_64'Asm_Output ("=r", SStatus),
+          Clobber  => "memory",
+          Volatile => True);
       Is_Int  := (SCause and Shift_Left (1, 63)) /= 0;
       Cause   := SCause and not Shift_Left (1, 63);
       Is_User := (SStatus and Shift_Left (1, 8)) = 0;
