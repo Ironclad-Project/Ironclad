@@ -52,8 +52,6 @@ package body Arch.Entrypoint is
       GDT.Init;
       IDT.Init;
       Devices.Serial.Init_COM1;
-      Devices.FB.Early_Init;
-      Arch.Flanterm.Init;
 
       --  Translate the limine protocol into arch-agnostic structures.
       Limine.Translate_Proto;
@@ -89,7 +87,9 @@ package body Arch.Entrypoint is
             Panic.Hard_Panic ("The VMM could not be initialized");
          end if;
 
-         --  Enable dmesg buffers.
+         --  Enable logging.
+         Devices.FB.Early_Init;
+         Arch.Flanterm.Init;
          Messages.Enable_Logging;
 
          --  Print the memory map, it is useful at times.

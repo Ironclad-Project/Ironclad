@@ -18,7 +18,6 @@ with Interfaces.C;
 with Ada.Unchecked_Deallocation;
 with Memory.Physical;
 with Panic;
-with Devices.FB;
 
 package body Memory.MMU is
    --  Global statistics.
@@ -125,11 +124,6 @@ package body Memory.MMU is
           Permissions    => NX_Flags,
           Caching        => Arch.MMU.Write_Back)
       then
-         return False;
-      end if;
-
-      --  Remap the kernel's framebuffer.
-      if not Devices.FB.Remap_Framebuffer then
          return False;
       end if;
 

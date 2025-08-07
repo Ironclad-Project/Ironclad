@@ -17,7 +17,6 @@
 with System.Machine_Code;
 with System; use System;
 with Arch.Limine;
-with Arch.CPU; use Arch.CPU;
 
 package body Arch.MMU is
    --  Bits in the 4K page entries.
@@ -71,6 +70,7 @@ package body Arch.MMU is
        Perm    : Page_Permissions;
        Caching : Caching_Model) return Unsigned_64
    is
+      pragma Unreferenced (Caching);
       Result : Unsigned_64;
    begin
       Result :=
@@ -82,9 +82,6 @@ package body Arch.MMU is
          Page_P or Page_Acc or Page_Dirty;
 
       return Shift_Right (Unsigned_64 (To_Integer (Addr)), 2) or Result;
-   exception
-      when Constraint_Error =>
-         return 0;
    end Construct_Entry;
 
    function Construct_Level (Addr : System.Address) return Unsigned_64 is

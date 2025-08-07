@@ -21,6 +21,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Limine;
 with Arch.Flanterm;
 with Arch.MMU;
+with Messages;
 
 package body Devices.FB with SPARK_Mode => Off is
    package Limine renames Arch.Limine;
@@ -113,6 +114,7 @@ package body Devices.FB with SPARK_Mode => Off is
    Early_Blue_Mask_Sh  :     Unsigned_8 := 0;
 
    procedure Early_Init is
+      Success : Boolean;
       FBPonse : Limine.Framebuffer_Response
          with Import, Address => Framebuffer_Request.Response;
    begin
@@ -140,16 +142,7 @@ package body Devices.FB with SPARK_Mode => Off is
          Early_Green_Mask_Sh := Fb.Green_Mask_Shift;
          Early_Blue_Mask_Sz  := Fb.Blue_Mask_Size;
          Early_Blue_Mask_Sh  := Fb.Blue_Mask_Shift;
-      end;
-   exception
-      when Constraint_Error =>
-         Early_Init_Addr := System.Null_Address;
-   end Early_Init;
 
-   function Remap_Framebuffer return Boolean is
-      Success : Boolean;
-   begin
-      if Early_Init_Addr /= System.Null_Address then
          Memory.MMU.Map_Range
             (Map            => Memory.MMU.Kernel_Table,
              Virtual_Start  => Early_Init_Addr,
@@ -163,10 +156,14 @@ package body Devices.FB with SPARK_Mode => Off is
                 Is_Global         => True),
              Success        => Success,
              Caching        => Arch.MMU.Write_Combining);
-         return Success;
-      end if;
-      return True;
-   end Remap_Framebuffer;
+         if not Success then
+            Messages.Put_Line ("Failed to map framebuffer");
+         end if;
+      end;
+   exception
+      when Constraint_Error =>
+         Early_Init_Addr := System.Null_Address;
+   end Early_Init;
 
    procedure Get_Early_Framebuffer
       (Addr                              : out System.Address;

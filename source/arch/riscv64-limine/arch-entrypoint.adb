@@ -49,8 +49,6 @@ package body Arch.Entrypoint is
    begin
       --  Initialize architectural state first.
       Arch.Interrupts.Initialize;
-      Devices.FB.Early_Init;
-      Arch.Flanterm.Init;
 
       --  Translate the limine protocol into arch-agnostic structures.
       Limine.Translate_Proto;
@@ -88,6 +86,8 @@ package body Arch.Entrypoint is
 
          --  Enable dmesg buffers.
          Devices.UART.Init_UART0;
+         Devices.FB.Early_Init;
+         Arch.Flanterm.Init;
          Messages.Enable_Logging;
 
          --  Print the memory map, it is useful at times.
