@@ -428,8 +428,8 @@ package body Userland.Process is
              Memory_Locations.Stack_Jump_Max,
              Rand_Jump);
 
-         Rand_Addr := Aln.Align_Up (Rand_Addr, Arch.MMU.Page_Size);
-         Rand_Jump := Aln.Align_Up (Rand_Jump, Arch.MMU.Page_Size);
+         Rand_Addr := Aln.Align_Up (Rand_Addr, Memory.MMU.Page_Size);
+         Rand_Jump := Aln.Align_Up (Rand_Jump, Memory.MMU.Page_Size);
       else
          Rand_Addr := Memory_Locations.Mmap_Anon_Min;
          Rand_Jump := Memory_Locations.Stack_Jump_Min;
@@ -742,7 +742,7 @@ package body Userland.Process is
          null;
    end Flush_Exec_Files;
 
-   procedure Set_Common_Map (Proc : PID; Map : Arch.MMU.Page_Table_Acc) is
+   procedure Set_Common_Map (Proc : PID; Map : Memory.MMU.Page_Table_Acc) is
    begin
       Synchronization.Seize (Registry (Proc).Data_Mutex);
       Registry (Proc).Common_Map := Map;
@@ -752,7 +752,8 @@ package body Userland.Process is
          null;
    end Set_Common_Map;
 
-   procedure Get_Common_Map (Proc : PID; Map : out Arch.MMU.Page_Table_Acc) is
+   procedure Get_Common_Map (Proc : PID; Map : out Memory.MMU.Page_Table_Acc)
+   is
    begin
       Synchronization.Seize (Registry (Proc).Data_Mutex);
       Map := Registry (Proc).Common_Map;
@@ -963,7 +964,7 @@ package body Userland.Process is
       if Exiting_Ourselves then
          --  Switch to the kernel page table to make us immune to having it
          --  swept from under out feet by process cleanup.
-         if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
+         if not Memory.MMU.Make_Active (Memory.MMU.Kernel_Table) then
             Messages.Put_Line ("Could not switch table on thread exit");
          end if;
 
@@ -991,7 +992,7 @@ package body Userland.Process is
       if Exiting_Ourselves then
          --  Switch to the kernel page table to make us immune to having it
          --  swept from under out feet by process cleanup.
-         if not Arch.MMU.Make_Active (Arch.MMU.Kernel_Table) then
+         if not Memory.MMU.Make_Active (Memory.MMU.Kernel_Table) then
             Messages.Put_Line ("Could not switch table on thread exit");
          end if;
 
@@ -1060,7 +1061,7 @@ package body Userland.Process is
 
    procedure Get_User_Mapped_Size (P : PID; Size : out Unsigned_64) is
    begin
-      Arch.MMU.Get_User_Mapped_Size (Registry (P).Common_Map, Size);
+      Memory.MMU.Get_User_Mapped_Size (Registry (P).Common_Map, Size);
    exception
       when Constraint_Error =>
          Size := 0;

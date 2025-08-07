@@ -16,8 +16,9 @@
 
 with Memory; use Memory;
 with Arch.ACPI;
-with Arch.MMU;
+with Memory.MMU;
 with Arch.Snippets;
+with Arch.MMU;
 
 package body Arch.ACPI_PM_Timer with SPARK_Mode => Off is
    --  Forced by spec. In ns, Resolution = 1 / Freq.
@@ -50,11 +51,11 @@ package body Arch.ACPI_PM_Timer with SPARK_Mode => Off is
             Use_IO_Ports := FADT.X_PMTImerBlock.Address_Space = 1;
             IO_Addr      := Integer_Address (FADT.X_PMTImerBlock.Address);
             if not Use_IO_Ports then
-               MMU.Map_Range
-                  (Map            => MMU.Kernel_Table,
+               Memory.MMU.Map_Range
+                  (Map            => Memory.MMU.Kernel_Table,
                    Physical_Start => To_Address (IO_Addr),
                    Virtual_Start  => To_Address (IO_Addr + Memory_Offset),
-                   Length         => MMU.Page_Size,
+                   Length         => Memory.MMU.Page_Size,
                    Permissions    =>
                     (Is_User_Accessible => False,
                      Can_Read          => True,
@@ -62,7 +63,7 @@ package body Arch.ACPI_PM_Timer with SPARK_Mode => Off is
                      Can_Execute       => False,
                      Is_Global         => True),
                    Success        => Success,
-                   Caching        => MMU.Uncacheable);
+                   Caching        => Arch.MMU.Uncacheable);
                if not Success then
                   return False;
                end if;

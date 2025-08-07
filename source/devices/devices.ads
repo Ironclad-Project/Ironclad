@@ -17,6 +17,7 @@
 with System;
 with Interfaces; use Interfaces;
 with Memory;
+with Memory.MMU;
 with Arch.MMU;
 
 package Devices is
@@ -91,7 +92,7 @@ package Devices is
           Success   : out Boolean);
       Mmap : access procedure
          (Key     : System.Address;
-          Map     : Arch.MMU.Page_Table_Acc;
+          Map     : Memory.MMU.Page_Table_Acc;
           Address : Memory.Virtual_Address;
           Length  : Unsigned_64;
           Flags   : Arch.MMU.Page_Permissions;
@@ -263,7 +264,7 @@ package Devices is
    --  @param Success  True in success, False if not supported or failed.
    procedure Mmap
       (Handle  : Device_Handle;
-       Map     : Arch.MMU.Page_Table_Acc;
+       Map     : Memory.MMU.Page_Table_Acc;
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64;
        Flags   : Arch.MMU.Page_Permissions;

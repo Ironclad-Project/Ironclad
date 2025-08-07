@@ -21,7 +21,7 @@ package body Memory.Userland_Transfer is
    package A is new Alignment (Integer_Address);
 
    procedure Take_From_Userland
-      (Map     : Arch.MMU.Page_Table_Acc;
+      (Map     : Memory.MMU.Page_Table_Acc;
        Data    : out T;
        Addr    : System.Address;
        Success : out Boolean)
@@ -33,8 +33,8 @@ package body Memory.Userland_Transfer is
       Is_User_Accessible : Boolean;
    begin
       Length := Integer_Address (T'Object_Size / 8);
-      A.Align_Memory_Range (Start, Length, Arch.MMU.Page_Size);
-      Arch.MMU.Translate_Address
+      A.Align_Memory_Range (Start, Length, Memory.MMU.Page_Size);
+      Memory.MMU.Translate_Address
          (Map                => Map,
           Virtual            => To_Address (Start),
           Length             => Storage_Count (Length),
@@ -63,7 +63,7 @@ package body Memory.Userland_Transfer is
    end Take_From_Userland;
 
    procedure Paste_Into_Userland
-      (Map     : Arch.MMU.Page_Table_Acc;
+      (Map     : Memory.MMU.Page_Table_Acc;
        Data    : T;
        Addr    : System.Address;
        Success : out Boolean)
@@ -75,8 +75,8 @@ package body Memory.Userland_Transfer is
       Is_User_Accessible : Boolean;
    begin
       Length := Integer_Address (T'Object_Size / 8);
-      A.Align_Memory_Range (Start, Length, Arch.MMU.Page_Size);
-      Arch.MMU.Translate_Address
+      A.Align_Memory_Range (Start, Length, Memory.MMU.Page_Size);
+      Memory.MMU.Translate_Address
          (Map                => Map,
           Virtual            => To_Address (Start),
           Length             => Storage_Count (Length),

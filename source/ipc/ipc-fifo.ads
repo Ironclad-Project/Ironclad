@@ -16,7 +16,7 @@
 
 with Synchronization;
 with Devices; use Devices;
-with Arch.MMU;
+with Memory.MMU;
 
 package IPC.FIFO is
    --  FIFOs are the simplest and most versatile IPC methods of Ironclad.
@@ -128,7 +128,7 @@ package IPC.FIFO is
 
 private
 
-   Default_Data_Length : constant Natural := Arch.MMU.Page_Size * 10;
+   Default_Data_Length : constant Natural := Memory.MMU.Page_Size * 10;
    type Inner is record
       Mutex         : aliased Synchronization.Mutex;
       Reader_Closed : Boolean;

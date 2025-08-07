@@ -18,10 +18,11 @@ with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
 with Messages;
 with Devices.Partitions;
-with Arch.MMU;
+with Memory.MMU;
 with Memory;
 with Alignment;
 with Cryptography.Random;
+with Arch.MMU;
 
 package body Devices.PCI.SATA with SPARK_Mode => Off is
    package C1 is new System.Address_To_Access_Conversions (SATA_Data);
@@ -56,12 +57,12 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
          Mem_Addr := PCI_BAR.Base + Memory.Memory_Offset;
          Dev_Mem  := HBA_Memory_Acc (C2.To_Pointer (To_Address (Mem_Addr)));
 
-         Arch.MMU.Map_Range
-            (Map            => Arch.MMU.Kernel_Table,
+         Memory.MMU.Map_Range
+            (Map            => Memory.MMU.Kernel_Table,
              Physical_Start => To_Address (PCI_BAR.Base),
              Virtual_Start  => To_Address (Mem_Addr),
              Length         => Storage_Count (A.Align_Up
-              (HBA_Memory'Size / 8, Arch.MMU.Page_Size)),
+              (HBA_Memory'Size / 8, Memory.MMU.Page_Size)),
              Permissions    =>
               (Is_User_Accessible => False,
                Can_Read          => True,

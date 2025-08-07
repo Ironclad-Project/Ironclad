@@ -20,6 +20,7 @@ with Memory; use Memory;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Limine;
 with Arch.Flanterm;
+with Arch.MMU;
 
 package body Devices.FB with SPARK_Mode => Off is
    package Limine renames Arch.Limine;
@@ -149,8 +150,8 @@ package body Devices.FB with SPARK_Mode => Off is
       Success : Boolean;
    begin
       if Early_Init_Addr /= System.Null_Address then
-         Arch.MMU.Map_Range
-            (Map            => Arch.MMU.Kernel_Table,
+         Memory.MMU.Map_Range
+            (Map            => Memory.MMU.Kernel_Table,
              Virtual_Start  => Early_Init_Addr,
              Physical_Start => Early_Init_PAddr,
              Length         => Early_Init_PLength,
@@ -301,7 +302,7 @@ package body Devices.FB with SPARK_Mode => Off is
 
    procedure Mmap
       (Data    : System.Address;
-       Map     : Arch.MMU.Page_Table_Acc;
+       Map     : Memory.MMU.Page_Table_Acc;
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64;
        Flags   : Arch.MMU.Page_Permissions;
@@ -315,7 +316,7 @@ package body Devices.FB with SPARK_Mode => Off is
          Arch.Flanterm.Disable;
       end if;
 
-      Arch.MMU.Map_Range
+      Memory.MMU.Map_Range
          (Map              => Map,
           Virtual_Start    => To_Address (Address),
           Physical_Start   => To_Address (IntAddr - Memory_Offset),

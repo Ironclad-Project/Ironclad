@@ -107,7 +107,7 @@ package VFS.Dev is
    procedure Mmap
       (Data    : System.Address;
        Ino     : File_Inode_Number;
-       Map     : Arch.MMU.Page_Table_Acc;
+       Map     : Memory.MMU.Page_Table_Acc;
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64;
        Flags   : Arch.MMU.Page_Permissions;

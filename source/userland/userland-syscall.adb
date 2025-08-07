@@ -24,7 +24,7 @@ with Time;
 with Panic;
 with Alignment;
 with Userland.Loader;
-with Arch.MMU; use Arch.MMU;
+with Memory.MMU; use Memory.MMU;
 with Arch.Clocks;
 with Arch.Local;
 with Memory.Physical;
@@ -536,7 +536,8 @@ package body Userland.Syscall is
    is
       package Al is new Alignment (Unsigned_64);
 
-      Perms      : constant Page_Permissions := Get_Mmap_Prot (Protection);
+      Perms      : constant Arch.MMU.Page_Permissions
+         := Get_Mmap_Prot (Protection);
       Proc       : constant              PID := Arch.Local.Get_Current_Process;
       Final_Hint : Virtual_Address;
       File       : File_Description_Acc;
@@ -554,7 +555,7 @@ package body Userland.Syscall is
          goto Invalid_Value_Return;
       end if;
 
-      Al.Align_Memory_Range (Hint, Length, Arch.MMU.Page_Size);
+      Al.Align_Memory_Range (Hint, Length, Memory.MMU.Page_Size);
       Final_Hint := Memory.Virtual_Address (Hint);
 
       Get_User_Mapped_Size (Map, Size);
@@ -707,7 +708,7 @@ package body Userland.Syscall is
 
       Th         : constant TID := Arch.Local.Get_Current_Thread;
       Proc       : constant PID := Arch.Local.Get_Current_Process;
-      Map, Orig  : Arch.MMU.Page_Table_Acc;
+      Map, Orig  : Memory.MMU.Page_Table_Acc;
       Success    : Boolean;
       Path_FS    : FS_Handle;
       Path_Ino   : File_Inode_Number;
@@ -805,7 +806,7 @@ package body Userland.Syscall is
             Userland.Process.Flush_Threads (Proc);
             Userland.Process.Flush_Exec_Files (Proc);
             Userland.Process.Reassign_Process_Addresses (Proc);
-            Arch.MMU.Create_Table (Map);
+            Memory.MMU.Create_Table (Map);
             Set_Common_Map (Proc, Map);
             if Args'Length > 0 then
                Set_Identifier (Proc, Args (1).all);
@@ -829,13 +830,13 @@ package body Userland.Syscall is
             end loop;
          end;
 
-         if Success and then Arch.MMU.Make_Active (Map) then
+         if Success and then Memory.MMU.Make_Active (Map) then
             --  Free critical state now that we know wont be running.
             --  Of course dont remove the map if we are vforked.
             Userland.Process.Remove_Thread (Proc, Th);
             Pop_VFork_Marker (Proc, Success);
             if not Success then
-               Arch.MMU.Destroy_Table (Orig);
+               Memory.MMU.Destroy_Table (Orig);
             end if;
             Scheduler.Bail;
          else
@@ -864,7 +865,7 @@ package body Userland.Syscall is
       Id      : String (1 .. Process.Max_Name_Length);
       Id_Len  : Natural;
       Success : Boolean;
-      Map, Table : Arch.MMU.Page_Table_Acc;
+      Map, Table : Memory.MMU.Page_Table_Acc;
       Do_VFORK : constant Boolean := (Flags and FORK_VFORK) /= 0;
    begin
       if not Get_Capabilities (Proc).Can_Spawn_Others then
@@ -1049,7 +1050,7 @@ package body Userland.Syscall is
 
       --  Now that we got the exit code, finally allow the process to die.
       Get_Common_Map (Waited, Map);
-      Arch.MMU.Destroy_Table          (Map);
+      Memory.MMU.Destroy_Table          (Map);
       Userland.Process.Delete_Process (Waited);
 
       Errno    := Error_No_Error;
@@ -2111,12 +2112,12 @@ package body Userland.Syscall is
       Map   : Page_Table_Acc;
       Info  : Mem_Info;
       Succ  : Boolean;
-      St          : Arch.MMU.Virtual_Statistics;
+      St          : Memory.MMU.Virtual_Statistics;
       Shared_Size : Unsigned_64;
       Stats       : Memory.Physical.Statistics;
    begin
       Memory.Physical.Get_Statistics (Stats);
-      Arch.MMU.Get_Statistics (St);
+      Memory.MMU.Get_Statistics (St);
       IPC.SHM.Get_Total_Size (Shared_Size);
       Info :=
          (Phys_Total     => Unsigned_64 (Stats.Total),
@@ -2441,7 +2442,8 @@ package body Userland.Syscall is
       Errno      : out Errno_Value)
    is
       Proc  : constant PID := Arch.Local.Get_Current_Process;
-      Flags : constant Arch.MMU.Page_Permissions := Get_Mmap_Prot (Protection);
+      Flags : constant Arch.MMU.Page_Permissions :=
+         Get_Mmap_Prot (Protection);
       Addr : constant System.Address := To_Address (Integer_Address (Address));
       Map  : Page_Table_Acc;
       Succ : Boolean;
@@ -5991,7 +5993,7 @@ package body Userland.Syscall is
    is
       package Align is new Alignment (Unsigned_64);
       Proc : constant PID := Arch.Local.Get_Current_Process;
-      Perms : constant Page_Permissions :=
+      Perms : constant Arch.MMU.Page_Permissions :=
          (Is_User_Accessible => True,
           Can_Read          => True,
           Can_Write         => (Flags and SHM_RDONLY) = 0,
@@ -6018,8 +6020,8 @@ package body Userland.Syscall is
 
       if Addr /= 0 then
          if (Flags and SHM_RND) /= 0 then
-            VAddr := Align.Align_Down (Addr, Arch.MMU.Page_Size);
-         elsif (Addr mod Arch.MMU.Page_Size) /= 0 then
+            VAddr := Align.Align_Down (Addr, Memory.MMU.Page_Size);
+         elsif (Addr mod Memory.MMU.Page_Size) /= 0 then
             goto Invalid_Error;
          else
             VAddr := Addr;
@@ -6030,7 +6032,7 @@ package body Userland.Syscall is
 
       if Ret_Size /= 0 then
          Userland.Process.Get_Common_Map (Proc, Map);
-         Arch.MMU.Map_Range
+         Memory.MMU.Map_Range
             (Map            => Map,
              Virtual_Start  => To_Address (Integer_Address (VAddr)),
              Physical_Start => To_Address (Integer_Address (Ret_Addr)),
@@ -6158,10 +6160,10 @@ package body Userland.Syscall is
       Size : Unsigned_64;
    begin
       Get_Common_Map (Proc, Map);
-      Arch.MMU.Translate_Address
+      Memory.MMU.Translate_Address
          (Map                => Map,
           Virtual            => To_Address (Integer_Address (Address)),
-          Length             => Arch.MMU.Page_Size,
+          Length             => Memory.MMU.Page_Size,
           Physical           => Phys,
           Is_Mapped          => Is_Mapped,
           Is_User_Accessible => Is_User_Accessible,
@@ -6171,7 +6173,7 @@ package body Userland.Syscall is
       IPC.SHM.Get_Segment_And_Size (Unsigned_64 (To_Integer (Phys)), Size, ID);
 
       if Is_Mapped and ID /= IPC.SHM.Error_ID then
-         Arch.MMU.Unmap_Range
+         Memory.MMU.Unmap_Range
             (Map           => Map,
              Virtual_Start => To_Address (Integer_Address (Address)),
              Length        => Storage_Count (Size),
@@ -6204,7 +6206,8 @@ package body Userland.Syscall is
       package Align is new Alignment (Unsigned_64);
       Proc : constant PID := Arch.Local.Get_Current_Process;
       Mode : constant Unsigned_64 := Flags and Unsigned_64 (File_Mode'Last);
-      AlSz : constant Unsigned_64 := Align.Align_Up (Size, Arch.MMU.Page_Size);
+      AlSz : constant Unsigned_64 :=
+         Align.Align_Up (Size, Memory.MMU.Page_Size);
       Created_Key : IPC.SHM.Segment_ID;
       EUID, EGID, Truncated : Unsigned_32;
    begin
@@ -7212,7 +7215,8 @@ package body Userland.Syscall is
       return new String'(Arg_String);
    end To_String;
 
-   function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions is
+   function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions
+   is
    begin
       if P = PROT_NONE then
          return (Is_User_Accessible => True, others => False);
@@ -7268,7 +7272,7 @@ package body Userland.Syscall is
    end Set_MAC_Capabilities;
 
    function Check_Userland_Access
-      (Map        : Arch.MMU.Page_Table_Acc;
+      (Map        : Memory.MMU.Page_Table_Acc;
        Addr       : Memory.Virtual_Address;
        Byte_Count : Unsigned_64) return Boolean
    is
@@ -7280,8 +7284,8 @@ package body Userland.Syscall is
       Is_Mapped, Is_Readable, Is_Writeable, Is_Executable : Boolean;
       Is_User_Accessible : Boolean;
    begin
-      A.Align_Memory_Range (Start, Length, Arch.MMU.Page_Size);
-      Arch.MMU.Translate_Address
+      A.Align_Memory_Range (Start, Length, Memory.MMU.Page_Size);
+      Memory.MMU.Translate_Address
          (Map                => Map,
           Virtual            => To_Address (Addr),
           Length             => Storage_Count (Length),
@@ -7298,7 +7302,7 @@ package body Userland.Syscall is
    end Check_Userland_Access;
 
    procedure Check_Userland_Mappability
-      (Map        : Arch.MMU.Page_Table_Acc;
+      (Map        : Memory.MMU.Page_Table_Acc;
        Addr       : Memory.Virtual_Address;
        Byte_Count : Unsigned_64;
        Can_Map    : out Boolean)
@@ -7312,7 +7316,7 @@ package body Userland.Syscall is
          return;
       end if;
 
-      Arch.MMU.Translate_Address
+      Memory.MMU.Translate_Address
          (Map                => Map,
           Virtual            => To_Address (Addr),
           Length             => Storage_Count (Byte_Count),

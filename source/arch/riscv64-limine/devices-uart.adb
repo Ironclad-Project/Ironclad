@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Snippets;
+with Arch.MMU;
 
 package body Devices.UART with SPARK_Mode => Off is
    --  UART Register Bit Definitions
@@ -40,11 +41,11 @@ package body Devices.UART with SPARK_Mode => Off is
       Divisor_High : constant Unsigned_8 := 0;
       Success      : Boolean;
    begin
-      Arch.MMU.Map_Range
-         (Map              => Arch.MMU.Kernel_Table,
+      Memory.MMU.Map_Range
+         (Map              => Memory.MMU.Kernel_Table,
           Virtual_Start    => To_Address (Base),
           Physical_Start   => To_Address (Orig),
-          Length           => Storage_Count (Arch.MMU.Page_Size),
+          Length           => Storage_Count (Memory.MMU.Page_Size),
           Permissions      =>
             (Is_User_Accessible => False,
              Can_Read          => True,

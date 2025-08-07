@@ -19,10 +19,11 @@ pragma Warnings (Off, "unit *** is not referenced");
 pragma Warnings (Off, "variable *** is never read and never assigned");
 
 with System.Machine_Code;
-with Arch.MMU;
+with Memory.MMU;
 with Memory; use Memory;
 with Panic;
 with Arch.ACPI;
+with Arch.MMU;
 
 package body Devices.PCI is
    --  Maximum number of different PCI entities.
@@ -592,8 +593,8 @@ package body Devices.PCI is
 
       --  Map the ECAM address.
       Addr := Integer_Address (Get_ECAM_Addr (Bus, Slot, Func));
-      Arch.MMU.Map_Range
-         (Map            => Arch.MMU.Kernel_Table,
+      Memory.MMU.Map_Range
+         (Map            => Memory.MMU.Kernel_Table,
           Physical_Start => To_Address (Addr),
           Virtual_Start  => To_Address (Memory.Memory_Offset + Addr),
           Length         => 4096,

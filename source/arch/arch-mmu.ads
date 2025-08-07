@@ -14,10 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System;
 with Interfaces; use Interfaces;
-with System;     use System;
-with Memory;     use Memory;
-with Synchronization;
 
 package Arch.MMU is
    --  Permissions used for mapping.
@@ -38,288 +36,39 @@ package Arch.MMU is
        Write_Combining, --  Allows write combining on the memory area.
        Uncacheable);    --  No caching of any kind whatsoever thanks.
 
-   --  Types to represent page tables.
-   type Page_Table     is private;
-   type Page_Table_Acc is access Page_Table;
+   Page_Size : constant := 16#1000#;
 
-   --  Default minimum page size supported by the MMU. Ports may use bigger
-   --  pages optionally if possible for optimization, but this size is always
-   --  be supported and accepted.
-   #if ArchName = """riscv64-limine"""
-      Page_Size : constant := 16#1000#;
-   #elsif ArchName = """x86_64-limine"""
-      Page_Size : constant := 16#1000#;
-   #end if;
+   --  Get the physical address at which the kernel was loaded as part of the
+   --  boot process.
+   procedure Get_Load_Addr (A : out System.Address; Success : out Boolean);
 
-   --  Kernel map, which is used by the freestanding kernel when called.
-   --  Once initialized, it must have the kernel and other essentials, but
-   --  nothing else! If you want to have a minimal map, this is your chance to
-   --  fork it!
-   --  Kernel address space mappings should be shared between all maps forked
-   --  from this one, so this map can be used to map kernel memory to be shared
-   --  between cores.
-   Kernel_Table : Page_Table_Acc;
+   --  Extract a physical address from a page table entry.
+   function Clean_Entry (Entry_Body : Unsigned_64) return Integer_Address;
 
-   --  Initialize global MMU state, at the end, it will activate Kernel_Table.
-   --  @param Memmap Physical memory map, may be used to map MMIO regions.
-   --  @return True in success, False in failure or if Kernel_Table failed.
-   function Init (Memmap : Arch.Boot_Memory_Map) return Boolean
-      with Post => (not Init'Result xor Kernel_Table /= null);
+   --  Extract a physical address and permissions from a page table entry.
+   function Clean_Entry_Perms (Entr : Unsigned_64) return Page_Permissions;
 
-   --  Create a new page table ready for switching.
-   --  @param New_Map New map, or null on failure.
-   procedure Create_Table (New_Map : out Page_Table_Acc);
+   --  Construct a page table entry.
+   function Construct_Entry
+      (Addr    : System.Address;
+       Perm    : Page_Permissions;
+       Caching : Caching_Model) return Unsigned_64;
 
-   --  Create a new page table, which should be ready for switching to and
-   --  allowing all kernel data to be accessed.
-   --  @param Map Table to fork.
-   --  @return Forked map, or null on failure.
-   procedure Fork_Table (Map : Page_Table_Acc; Forked : out Page_Table_Acc)
-      with Pre => Map /= null;
+   --  Construct a page table intermediary level.
+   function Construct_Level (Addr : System.Address) return Unsigned_64;
 
-   --  Free a table.
-   --  @param Map Table to free, will always be set to null at the end.
-   procedure Destroy_Table (Map : in out Page_Table_Acc)
-      with Pre => Map /= null, Post => Map = null;
+   --  Check whether a page entry or level is present.
+   function Is_Entry_Present (Entry_Body : Unsigned_64) return Boolean;
 
-   --  Make the passed map active.
-   --  @param Map Page table to make active.
-   --  @return True in success, False on failure.
-   function Make_Active (Map : Page_Table_Acc) return Boolean
-      with Pre => Map /= null;
+   --  Check whether a page entry or level is present.
+   function Make_Not_Present (Entry_Body : Unsigned_64) return Unsigned_64;
 
-   --  Do translation for a range, and report on some qualities.
-   --  If qualities vary in between the range beginning and end, that property
-   --  will fail.
-   --  @param Map                Page table to walk for translation.
-   --  @param Virtual            Virtual address to translate.
-   --  @param Length             Length in bytes to translate.
-   --  @param Physical           Address pointed to by the virtual address.
-   --  @param Is_Mapped          True if mapped, False if not mapped.
-   --  @param Is_User_Accessible True if userland can access the address.
-   --  @param Is_Readable        True if the mapping can be read.
-   --  @param Is_Writeable       True if the mapping can be written to.
-   --  @param Is_Executable      True if the mapping can be executed.
-   procedure Translate_Address
-      (Map                : Page_Table_Acc;
-       Virtual            : System.Address;
-       Length             : Storage_Count;
-       Physical           : out System.Address;
-       Is_Mapped          : out Boolean;
-       Is_User_Accessible : out Boolean;
-       Is_Readable        : out Boolean;
-       Is_Writeable       : out Boolean;
-       Is_Executable      : out Boolean)
-      with Pre =>
-         (Map /= null)               and
-         (Virtual mod Page_Size = 0) and
-         (Length  mod Page_Size = 0);
+   --  Flush the currently loaded page map's TLB.
+   procedure Flush_TLBs (Map, Addr : System.Address; Len : Storage_Count);
 
-   --  Map a memory range, allocation of the mapped addresses is not managed.
-   --  @param Map            Tables to map for.
-   --  @param Physical_Start Physical address to start from.
-   --  @param Virtual_Start  Virtual address to start from.
-   --  @param Length         Length in bytes to map.
-   --  @param Permissions    Permissions to map with.
-   --  @param Success        True if success, False if not.
-   --  @param Caching        Caching mode to use for this memory region.
-   procedure Map_Range
-      (Map            : Page_Table_Acc;
-       Physical_Start : System.Address;
-       Virtual_Start  : System.Address;
-       Length         : Storage_Count;
-       Permissions    : Page_Permissions;
-       Success        : out Boolean;
-       Caching        : Caching_Model := Write_Back)
-      with Pre =>
-         (Map /= null)                      and
-         (Physical_Start mod Page_Size = 0) and
-         (Virtual_Start  mod Page_Size = 0) and
-         (Length         mod Page_Size = 0) and
-         not (Permissions.Can_Write and Permissions.Can_Execute);
+   --  Get current map address.
+   procedure Get_Current_Table (Addr : out System.Address);
 
-   --  Allocate and map a memory range, the contents will be forked and freed
-   --  accordingly, and managed internally.
-   --  This function is intended to allocate memory for use in userland.
-   --  @param Map            Tables to map for.
-   --  @param Virtual_Start  Virtual address to start from.
-   --  @param Length         Length in bytes to map.
-   --  @param Permissions    Permissions to map with.
-   --  @param Success        True on success, False on failure.
-   procedure Map_Allocated_Range
-      (Map           : Page_Table_Acc;
-       Virtual_Start : System.Address;
-       Length        : Storage_Count;
-       Permissions   : Page_Permissions;
-       Success       : out Boolean;
-       Caching       : Caching_Model := Write_Back)
-      with Pre =>
-         (Map /= null)                      and
-         (Virtual_Start  mod Page_Size = 0) and
-         (Length         mod Page_Size = 0) and
-         not (Permissions.Can_Write and Permissions.Can_Execute);
-
-   --  Remap a memory range.
-   --  @param Map            Tables to map for.
-   --  @param Virtual_Start  Virtual address to start from.
-   --  @param Length         Length in bytes to map.
-   --  @param Permissions    Permissions to remap with.
-   --  @param Success        True if success, False if not.
-   --  @param Caching        Caching model to use.
-   procedure Remap_Range
-      (Map           : Page_Table_Acc;
-       Virtual_Start : System.Address;
-       Length        : Storage_Count;
-       Permissions   : Page_Permissions;
-       Success       : out Boolean;
-       Caching       : Caching_Model := Write_Back)
-      with Pre =>
-         (Map /= null)                      and
-         (Virtual_Start  mod Page_Size = 0) and
-         (Length         mod Page_Size = 0) and
-         not (Permissions.Can_Write and Permissions.Can_Execute);
-
-   --  Unmap a memory range.
-   --  @param Map            Tables to map for.
-   --  @param Virtual_Start  Virtual address to start from.
-   --  @param Length         Length in bytes to unmap.
-   --  @param Success        True if success, False if not.
-   procedure Unmap_Range
-      (Map           : Page_Table_Acc;
-       Virtual_Start : System.Address;
-       Length        : Storage_Count;
-       Success       : out Boolean)
-      with Pre =>
-         (Map /= null)                      and
-         (Virtual_Start  mod Page_Size = 0) and
-         (Length         mod Page_Size = 0);
-
-   --  Fetch from the processor the loaded map address, and set it.
-   function Get_Curr_Table_Addr return System.Address;
-   function Get_Map_Table_Addr (Map : Page_Table_Acc) return System.Address;
-   procedure Set_Table_Addr (Addr : System.Address);
-
-   --  Get the user mapped memory size, thus, not including kernel space.
-   --  @param Map Map to get the size for.
-   --  @param Sz  Size.
-   procedure Get_User_Mapped_Size (Map : Page_Table_Acc; Sz : out Unsigned_64)
-      with Pre => Map /= null;
-
-   --  Memory statistics of the system.
-   type Virtual_Statistics is record
-      Kernel_Usage : Memory.Size; --  Space mapped kernel only.
-      Table_Usage  : Memory.Size; --  Amount used for tables and tracking.
-      Poison_Usage : Memory.Size; --  Memory marked by the hardware as faulty.
-   end record;
-
-   --  Get memory statistics of the system.
-   procedure Get_Statistics (Stats : out Virtual_Statistics);
-
-private
-
-   #if ArchName = """riscv64-limine"""
-      type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
-      type PML4_Acc is access PML4;
-      type Mapping_Range;
-      type Mapping_Range_Acc is access Mapping_Range;
-      type Mapping_Range is record
-         Next           : Mapping_Range_Acc;
-         Is_Allocated   : Boolean;
-         Virtual_Start  : System.Address;
-         Physical_Start : System.Address;
-         Length         : Storage_Count;
-         Flags          : Page_Permissions;
-      end record;
-
-      type Page_Table is record
-         PML4_Level      : PML4;
-         Mutex           : aliased Synchronization.Readers_Writer_Lock;
-         Map_Ranges_Root : Mapping_Range_Acc;
-      end record;
-
-      procedure Inner_Map_Allocated_Range
-         (Map            : Page_Table_Acc;
-          Physical_Start : out System.Address;
-          Virtual_Start  : System.Address;
-          Length         : Storage_Count;
-          Permissions    : Page_Permissions;
-          Success        : out Boolean;
-          Caching        : Caching_Model := Write_Back);
-
-      function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address;
-      function Get_Next_Level
-         (Current_Level       : Physical_Address;
-          Index               : Unsigned_64;
-          Create_If_Not_Found : Boolean) return Physical_Address;
-      function Get_Page
-         (Map      : Page_Table_Acc;
-          Virtual  : Virtual_Address;
-          Allocate : Boolean) return Virtual_Address;
-      function Inner_Map_Range
-         (Map            : Page_Table_Acc;
-          Physical_Start : System.Address;
-          Virtual_Start  : System.Address;
-          Length         : Storage_Count;
-          Permissions    : Page_Permissions;
-          Caching        : Caching_Model) return Boolean;
-      function Flags_To_Bitmap
-         (Perm    : Page_Permissions;
-          Caching : Caching_Model) return Unsigned_64;
-      procedure Flush_TLBs
-         (Map  : Page_Table_Acc;
-          Addr : System.Address;
-          Len  : Storage_Count);
-   #elsif ArchName = """x86_64-limine"""
-      type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
-      type PML4_Acc is access PML4;
-      type Mapping_Range;
-      type Mapping_Range_Acc is access Mapping_Range;
-      type Mapping_Range is record
-         Next           : Mapping_Range_Acc;
-         Is_Allocated   : Boolean;
-         Virtual_Start  : System.Address;
-         Physical_Start : System.Address;
-         Length         : Storage_Count;
-         Flags          : Page_Permissions;
-      end record;
-
-      type Page_Table is record
-         PML4_Level      : PML4;
-         Mutex           : aliased Synchronization.Readers_Writer_Lock;
-         Map_Ranges_Root : Mapping_Range_Acc;
-      end record;
-
-      procedure Inner_Map_Allocated_Range
-         (Map            : Page_Table_Acc;
-          Physical_Start : out System.Address;
-          Virtual_Start  : System.Address;
-          Length         : Storage_Count;
-          Permissions    : Page_Permissions;
-          Success        : out Boolean;
-          Caching        : Caching_Model := Write_Back);
-
-      function Clean_Entry (Entry_Body : Unsigned_64) return Physical_Address;
-      function Get_Next_Level
-         (Current_Level       : Physical_Address;
-          Index               : Unsigned_64;
-          Create_If_Not_Found : Boolean) return Physical_Address;
-      function Get_Page
-         (Map      : Page_Table_Acc;
-          Virtual  : Virtual_Address;
-          Allocate : Boolean) return Virtual_Address;
-      function Inner_Map_Range
-         (Map            : Page_Table_Acc;
-          Physical_Start : System.Address;
-          Virtual_Start  : System.Address;
-          Length         : Storage_Count;
-          Permissions    : Page_Permissions;
-          Caching        : Caching_Model) return Boolean;
-      function Flags_To_Bitmap
-         (Perm    : Page_Permissions;
-          Caching : Caching_Model) return Unsigned_64;
-      procedure Flush_TLBs
-         (Map  : Page_Table_Acc;
-          Addr : System.Address;
-          Len  : Storage_Count);
-   #end if;
+   --  Set current map address.
+   procedure Set_Current_Table (Addr : System.Address; Success : out Boolean);
 end Arch.MMU;

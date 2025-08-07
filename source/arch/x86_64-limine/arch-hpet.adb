@@ -16,8 +16,9 @@
 
 with Memory; use Memory;
 with Arch.ACPI;
-with Arch.MMU;
+with Memory.MMU;
 with Arch.Snippets;
+with Arch.MMU;
 
 package body Arch.HPET with SPARK_Mode => Off is
    HPET_Contents   : Virtual_Address;
@@ -41,11 +42,11 @@ package body Arch.HPET with SPARK_Mode => Off is
       begin
          ACPI.Unref_Table (ACPI_Address);
 
-         MMU.Map_Range
-            (Map            => MMU.Kernel_Table,
+         Memory.MMU.Map_Range
+            (Map            => Memory.MMU.Kernel_Table,
              Physical_Start => To_Address (Table.Address),
              Virtual_Start  => To_Address (Table.Address + Memory_Offset),
-             Length         => MMU.Page_Size,
+             Length         => Memory.MMU.Page_Size,
              Permissions    =>
               (Is_User_Accessible => False,
                Can_Read          => True,
@@ -53,7 +54,7 @@ package body Arch.HPET with SPARK_Mode => Off is
                Can_Execute       => False,
                Is_Global         => True),
              Success        => Success,
-             Caching        => MMU.Uncacheable);
+             Caching        => Arch.MMU.Uncacheable);
          if not Success then
             return False;
          end if;

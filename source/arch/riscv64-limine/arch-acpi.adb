@@ -16,7 +16,7 @@
 
 with Arch.Limine;
 with Arch.Clocks;
-with Arch.MMU;
+with Memory.MMU;
 with Devices.PCI;
 with Arch.Local;
 with Alignment;
@@ -519,9 +519,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Start   : Integer_Address := Integer_Address (Phys_Addr);
       Len     : Integer_Address := Integer_Address (Length);
    begin
-      A.Align_Memory_Range (Start, Len, Arch.MMU.Page_Size);
-      Arch.MMU.Map_Range
-         (Map            => Arch.MMU.Kernel_Table,
+      A.Align_Memory_Range (Start, Len, Memory.MMU.Page_Size);
+      Memory.MMU.Map_Range
+         (Map            => Memory.MMU.Kernel_Table,
           Physical_Start => To_Address (Start),
           Virtual_Start  => To_Address (Memory.Memory_Offset + Start),
           Length         => Storage_Count (Len),
@@ -545,13 +545,13 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Start   : Integer_Address := To_Integer (Address);
       Len     : Integer_Address := Integer_Address (Length);
    begin
-      if Length < Arch.MMU.Page_Size then
+      if Length < Memory.MMU.Page_Size then
          return;
       end if;
 
-      A.Align_Memory_Range (Start, Len, Arch.MMU.Page_Size);
-      Arch.MMU.Unmap_Range
-         (Map           => Arch.MMU.Kernel_Table,
+      A.Align_Memory_Range (Start, Len, Memory.MMU.Page_Size);
+      Memory.MMU.Unmap_Range
+         (Map           => Memory.MMU.Kernel_Table,
           Virtual_Start => To_Address (Start),
           Length        => Storage_Count (Len),
           Success       => Success);

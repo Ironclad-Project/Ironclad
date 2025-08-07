@@ -21,6 +21,7 @@ with Panic;
 with Memory.Physical;
 with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
+with Arch.MMU;
 
 with Interfaces.C; use Interfaces.C;
 
@@ -81,12 +82,12 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
          Dev_Mem  := NVMe_Registers_Acc (C1.To_Pointer
             (To_Address (Mem_Addr)));
 
-         Arch.MMU.Map_Range
-            (Map            => Arch.MMU.Kernel_Table,
+         Memory.MMU.Map_Range
+            (Map            => Memory.MMU.Kernel_Table,
              Physical_Start => To_Address (PCI_BAR.Base),
              Virtual_Start  => To_Address (Mem_Addr),
              Length         => Storage_Count (A.Align_Up
-              (16#2000#, Arch.MMU.Page_Size)),
+              (16#2000#, Memory.MMU.Page_Size)),
              Permissions    =>
               (Is_User_Accessible => False,
                Can_Read          => True,
@@ -104,10 +105,10 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
 
          if (Shift_Left (1, 12 +
              Natural (Controller_Caps.Memory_Page_Size_Minimum))
-             > Unsigned_64 (Arch.MMU.Page_Size)) or
+             > Unsigned_64 (Memory.MMU.Page_Size)) or
             (Shift_Left (1, 12 +
              Natural (Controller_Caps.Memory_Page_Size_Maximum))
-             < Unsigned_64 (Arch.MMU.Page_Size))
+             < Unsigned_64 (Memory.MMU.Page_Size))
          then
             Success := True;
             return;
@@ -320,12 +321,12 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
    begin
       SQ_Size := Storage_Count (A.Align_Up (
          (Admin_Submission_Queue_Entry'Size / 8) * Unsigned_64 (Depth),
-          Arch.MMU.Page_Size));
+          Memory.MMU.Page_Size));
       SQ_Addr := Memory.Physical.Alloc (size_t (SQ_Size));
 
       CQ_Size := Storage_Count (A.Align_Up (
          (Completion_Queue_Entry'Size / 8) * Unsigned_64 (Depth),
-          Arch.MMU.Page_Size));
+          Memory.MMU.Page_Size));
       CQ_Addr := Memory.Physical.Alloc (size_t (CQ_Size));
 
       Controller_Caps := M.Controller_Capabilities;
@@ -407,12 +408,12 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
 
       SQ_Size := Storage_Count (A.Align_Up (
          (Admin_Submission_Queue_Entry'Size / 8) * Unsigned_64 (Depth),
-            Arch.MMU.Page_Size));
+            Memory.MMU.Page_Size));
       SQ_Addr := Memory.Physical.Alloc (size_t (SQ_Size));
 
       CQ_Size := Storage_Count (A.Align_Up (
          (Completion_Queue_Entry'Size / 8) * Unsigned_64 (Depth),
-            Arch.MMU.Page_Size));
+            Memory.MMU.Page_Size));
       CQ_Addr := Memory.Physical.Alloc (size_t (CQ_Size));
 
       Doorbell_Stride := 2 ** (Natural (Controller_Cap.Doorbell_Stride) + 2);
@@ -423,7 +424,7 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
          To_Integer (M.all'Address) + (NVMe_Registers'Size / 8) +
             Integer_Address (((2 * Id) + 1) * Doorbell_Stride);
 
-      if SQ_Size > Arch.MMU.Page_Size or CQ_Size > Arch.MMU.Page_Size then
+      if SQ_Size > Memory.MMU.Page_Size or CQ_Size > Memory.MMU.Page_Size then
          Panic.Hard_Panic ("Queue sizes over 1 page are unimplemented");
       end if;
 
@@ -635,7 +636,7 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
       (Q : Admin_Queue_Acc) return Identify_Controller_Data_Acc
    is
       Data_Addr : constant Memory.Virtual_Address
-         := Memory.Physical.Alloc (Arch.MMU.Page_Size);
+         := Memory.Physical.Alloc (Memory.MMU.Page_Size);
       Data : constant Identify_Controller_Data_Acc
          := Identify_Controller_Data_Acc (C3.To_Pointer
             (To_Address (Data_Addr)));
@@ -668,7 +669,7 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
        Namespace : NVMe_NS_Id) return Identify_Namespace_Data_Acc
    is
       Data_Addr : constant Memory.Virtual_Address
-         := Memory.Physical.Alloc (Arch.MMU.Page_Size);
+         := Memory.Physical.Alloc (Memory.MMU.Page_Size);
       Data : constant Identify_Namespace_Data_Acc
          := Identify_Namespace_Data_Acc
             (C4.To_Pointer (To_Address (Data_Addr)));
@@ -701,7 +702,7 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
       (Q : Admin_Queue_Acc) return Active_Namespace_Id_List_Acc
    is
       Data_Addr : constant Memory.Virtual_Address
-         := Memory.Physical.Alloc (Arch.MMU.Page_Size);
+         := Memory.Physical.Alloc (Memory.MMU.Page_Size);
       Data : constant Active_Namespace_Id_List_Acc
          := Active_Namespace_Id_List_Acc (C6.To_Pointer
             (To_Address (Data_Addr)));
@@ -821,7 +822,7 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
    begin
       Synchronization.Seize (D.Mutex);
       First_Page_Len :=
-         (Arch.MMU.Page_Size - (Data_Addr mod Arch.MMU.Page_Size));
+         (Memory.MMU.Page_Size - (Data_Addr mod Memory.MMU.Page_Size));
       Page_Boundary_Cross := Natural (First_Page_Len) < D.LBA_Size;
       Cmd := (Opcode => Read,
          Namespace_Id => D.Namespace_Id,
@@ -864,7 +865,7 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
    begin
       Synchronization.Seize (D.Mutex);
       First_Page_Len :=
-         (Arch.MMU.Page_Size - (Data_Addr mod Arch.MMU.Page_Size));
+         (Memory.MMU.Page_Size - (Data_Addr mod Memory.MMU.Page_Size));
       Page_Boundary_Cross := Natural (First_Page_Len) < D.LBA_Size;
 
       Cmd := (Opcode => Write,
@@ -927,7 +928,7 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
       Config.IO_Command_Set_Selected := 0;
 
       declare
-         MPS_Temp : Unsigned_32 := Arch.MMU.Page_Size / 16#1000#;
+         MPS_Temp : Unsigned_32 := Memory.MMU.Page_Size / 16#1000#;
          MPS : Unsigned_4 := 0;
       begin
          loop

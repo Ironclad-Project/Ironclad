@@ -14,10 +14,11 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.MMU;
+with Memory.MMU;
 with Memory; use Memory;
 with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
+with Arch.MMU;
 
 package body Devices.PCI.i6300ESB is
    --  TODO: This beautiful piece of hardware is a 2-stage  \ ______/ V`-,
@@ -45,11 +46,11 @@ package body Devices.PCI.i6300ESB is
       end if;
 
       Mem_Addr := Memory_Offset + PCI_BAR.Base;
-      Arch.MMU.Map_Range
-         (Map            => Arch.MMU.Kernel_Table,
+      Memory.MMU.Map_Range
+         (Map            => Memory.MMU.Kernel_Table,
           Physical_Start => To_Address (PCI_BAR.Base),
           Virtual_Start  => To_Address (Mem_Addr),
-          Length         => Arch.MMU.Page_Size,
+          Length         => Memory.MMU.Page_Size,
           Permissions    =>
             (Is_User_Accessible => False,
              Can_Read          => True,

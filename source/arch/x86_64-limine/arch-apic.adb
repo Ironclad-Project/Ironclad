@@ -18,8 +18,9 @@ with Arch.ACPI;
 with Arch.Clocks;
 with Arch.Snippets;
 with Panic;
-with Arch.MMU;
+with Memory.MMU;
 with Messages;
+with Arch.MMU;
 
 package body Arch.APIC with SPARK_Mode => Off is
    LAPIC_MSR  : constant := 16#01B#;
@@ -73,11 +74,11 @@ package body Arch.APIC with SPARK_Mode => Off is
          end if;
 
          --  Map the LAPIC base.
-         MMU.Map_Range
-            (Map            => MMU.Kernel_Table,
+         Memory.MMU.Map_Range
+            (Map            => Memory.MMU.Kernel_Table,
              Physical_Start => To_Address (LAPIC_Base - Memory_Offset),
              Virtual_Start  => To_Address (LAPIC_Base),
-             Length         => MMU.Page_Size,
+             Length         => Memory.MMU.Page_Size,
              Permissions    =>
               (Is_User_Accessible => False,
                Can_Read           => True,
@@ -85,7 +86,7 @@ package body Arch.APIC with SPARK_Mode => Off is
                Can_Execute        => False,
                Is_Global          => True),
              Success        => Success,
-             Caching        => MMU.Uncacheable);
+             Caching        => Arch.MMU.Uncacheable);
          if not Success then
             Panic.Hard_Panic ("Could not map LAPIC base");
          end if;
@@ -401,10 +402,10 @@ package body Arch.APIC with SPARK_Mode => Off is
       Read : Unsigned_32;
    begin
       --  Check whether its mapped, if it is not, map it.
-      MMU.Translate_Address
-         (Map                => MMU.Kernel_Table,
+      Memory.MMU.Translate_Address
+         (Map                => Memory.MMU.Kernel_Table,
           Virtual            => To_Address (MMIO),
-          Length             => MMU.Page_Size,
+          Length             => Memory.MMU.Page_Size,
           Physical           => Physical,
           Is_Mapped          => Is_Mapped,
           Is_User_Accessible => Is_User,
@@ -412,11 +413,11 @@ package body Arch.APIC with SPARK_Mode => Off is
           Is_Writeable       => Is_Writeable,
           Is_Executable      => Is_Exec);
       if not Is_Mapped then
-         MMU.Map_Range
-            (Map            => MMU.Kernel_Table,
+         Memory.MMU.Map_Range
+            (Map            => Memory.MMU.Kernel_Table,
              Physical_Start => To_Address (MMIO - Memory_Offset),
              Virtual_Start  => To_Address (MMIO),
-             Length         => MMU.Page_Size,
+             Length         => Memory.MMU.Page_Size,
              Permissions    =>
               (Is_User_Accessible => False,
                Can_Read          => True,
@@ -424,7 +425,7 @@ package body Arch.APIC with SPARK_Mode => Off is
                Can_Execute       => False,
                Is_Global         => True),
              Success        => Is_Mapped,
-             Caching        => MMU.Uncacheable);
+             Caching        => Arch.MMU.Uncacheable);
          if not Is_Mapped then
             return 0;
          end if;

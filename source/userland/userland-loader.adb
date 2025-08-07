@@ -53,14 +53,14 @@ package body Userland.Loader is
       Success      : VFS.FS_Status;
       Success1, Success2, Success3         : Boolean;
       User_Stdin, User_StdOut, User_StdErr : File_Description_Acc;
-      Table : Arch.MMU.Page_Table_Acc;
+      Table : Memory.MMU.Page_Table_Acc;
    begin
       Process.Create_Process (Error_PID, Result);
       if Result = Error_PID then
          goto Error;
       end if;
 
-      Arch.MMU.Create_Table (Table);
+      Memory.MMU.Create_Table (Table);
       Process.Set_Common_Map (Result, Table);
 
       Start_Program (Exec_Path, FS, Ino, Arguments, Environment, Result,
@@ -189,7 +189,7 @@ package body Userland.Loader is
       LD_Ino       : File_Inode_Number;
       Success2     : FS_Status;
       Returned_TID : Scheduler.TID;
-      Table        : Arch.MMU.Page_Table_Acc;
+      Table        : Memory.MMU.Page_Table_Acc;
    begin
       --  Calculate the binary slides.
       if Do_ASLR then
@@ -201,8 +201,8 @@ package body Userland.Loader is
             (Memory_Locations.LD_Offset_Min,
              Memory_Locations.LD_Offset_Max,
              LD_Slide);
-         Base_Slide := Aln.Align_Down (Base_Slide, Arch.MMU.Page_Size);
-         LD_Slide   := Aln.Align_Down (LD_Slide,   Arch.MMU.Page_Size);
+         Base_Slide := Aln.Align_Down (Base_Slide, Memory.MMU.Page_Size);
+         LD_Slide   := Aln.Align_Down (LD_Slide,   Memory.MMU.Page_Size);
       else
          Base_Slide := Memory_Locations.Offset_Min;
          LD_Slide   := Memory_Locations.LD_Offset_Min;

@@ -15,7 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Synchronization;
-with Arch.MMU;
+with Memory.MMU;
 with Devices; use Devices;
 with Devices.TermIOs;
 with Interfaces; use Interfaces;
@@ -157,8 +157,8 @@ package IPC.PTY is
 
 private
 
-   subtype Data_Length is Natural range 0 .. Arch.MMU.Page_Size;
-   subtype TTY_Data    is Devices.Operation_Data (1 .. Arch.MMU.Page_Size);
+   subtype Data_Length is Natural range 0 .. Memory.MMU.Page_Size;
+   subtype TTY_Data    is Devices.Operation_Data (1 .. Memory.MMU.Page_Size);
    type Inner is record
       Primary_Mutex      : aliased Synchronization.Mutex;
       Secondary_Mutex    : aliased Synchronization.Mutex;

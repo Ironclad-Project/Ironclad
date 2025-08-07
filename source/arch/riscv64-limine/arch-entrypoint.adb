@@ -20,7 +20,7 @@ with Arch.Flanterm;
 with Arch.Limine;
 with Messages; use Messages;
 with Memory.Physical;
-with Arch.MMU;
+with Memory.MMU;
 with Panic;
 with Arch.CPU;
 with Main;
@@ -82,7 +82,7 @@ package body Arch.Entrypoint is
 
          --  Initialize the allocators and MMU.
          Memory.Physical.Init_Allocator (Memmap);
-         if not Arch.MMU.Init (Memmap) then
+         if not Memory.MMU.Init (Memmap) then
             Panic.Hard_Panic ("The VMM could not be initialized");
          end if;
 

@@ -19,7 +19,7 @@ with Interfaces; use Interfaces;
 with Memory; use Memory;
 with Userland;
 with Userland.ELF;
-with Arch.MMU;
+with Memory.MMU;
 with Arch.Context;
 
 package Scheduler is
@@ -47,7 +47,7 @@ package Scheduler is
       (Address    : Virtual_Address;
        Args       : Userland.Argument_Arr;
        Env        : Userland.Environment_Arr;
-       Map        : Arch.MMU.Page_Table_Acc;
+       Map        : Memory.MMU.Page_Table_Acc;
        Vector     : Userland.ELF.Auxval;
        Pol        : Policy;
        Stack_Size : Unsigned_64;
@@ -57,7 +57,7 @@ package Scheduler is
    --  Create a userland thread with no arguments.
    procedure Create_User_Thread
       (Address    : Virtual_Address;
-       Map        : Arch.MMU.Page_Table_Acc;
+       Map        : Memory.MMU.Page_Table_Acc;
        Stack_Addr : Unsigned_64;
        TLS_Addr   : Unsigned_64;
        Pol        : Policy;
@@ -69,7 +69,7 @@ package Scheduler is
    procedure Create_User_Thread
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
-       Map      : Arch.MMU.Page_Table_Acc;
+       Map      : Memory.MMU.Page_Table_Acc;
        Pol      : Policy;
        PID      : Natural;
        TCB      : System.Address;

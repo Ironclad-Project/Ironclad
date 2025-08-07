@@ -18,6 +18,7 @@ with Interfaces; use Interfaces;
 with System;     use System;
 with Devices;    use Devices;
 with Synchronization;
+with Memory.MMU;
 with Arch.MMU;
 with Memory;
 
@@ -509,7 +510,7 @@ package VFS is
    procedure Mmap
       (Key     : FS_Handle;
        Ino     : File_Inode_Number;
-       Map     : Arch.MMU.Page_Table_Acc;
+       Map     : Memory.MMU.Page_Table_Acc;
        Offset  : Unsigned_64;
        Address : Memory.Virtual_Address;
        Length  : Unsigned_64;

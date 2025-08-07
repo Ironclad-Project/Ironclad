@@ -16,7 +16,7 @@
 
 with Userland.Process; use Userland.Process;
 with VFS;              use VFS;
-with Arch.MMU;         use Arch.MMU;
+with Memory.MMU;         use Memory.MMU;
 
 package Userland.Loader is
    --  By default, the offsets of loaded programs are randomized, this
@@ -38,7 +38,7 @@ package Userland.Loader is
        StdErr_Path : String;
        Result      : out PID)
       with Pre =>
-         Arch.MMU.Kernel_Table /= null and
+         Memory.MMU.Kernel_Table /= null and
          VFS.Is_Initialized            and
          FS /= VFS.Error_Handle;
 
@@ -53,7 +53,7 @@ package Userland.Loader is
        Proc        : PID;
        Success     : out Boolean)
       with Pre =>
-         Arch.MMU.Kernel_Table /= null and
+         Memory.MMU.Kernel_Table /= null and
          VFS.Is_Initialized            and
          FS /= VFS.Error_Handle;
 
@@ -66,7 +66,7 @@ package Userland.Loader is
        Proc        : PID;
        Success     : out Boolean)
       with Pre =>
-         Arch.MMU.Kernel_Table /= null and
+         Memory.MMU.Kernel_Table /= null and
          VFS.Is_Initialized            and
          FS /= VFS.Error_Handle;
 
@@ -80,7 +80,7 @@ package Userland.Loader is
        Proc        : PID;
        Success     : out Boolean)
       with Pre =>
-         Arch.MMU.Kernel_Table /= null and
+         Memory.MMU.Kernel_Table /= null and
          VFS.Is_Initialized            and
          FS /= VFS.Error_Handle;
 end Userland.Loader;

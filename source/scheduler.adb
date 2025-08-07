@@ -24,6 +24,7 @@ with Arch.Local;
 with Arch.Clocks;
 with Arch.Snippets;
 with Time;
+with Arch.MMU;
 
 package body Scheduler with SPARK_Mode => Off is
    Kernel_Stack_Size : constant := 16#4000#;
@@ -137,7 +138,7 @@ package body Scheduler with SPARK_Mode => Off is
       (Address    : Virtual_Address;
        Args       : Userland.Argument_Arr;
        Env        : Userland.Environment_Arr;
-       Map        : Arch.MMU.Page_Table_Acc;
+       Map        : Memory.MMU.Page_Table_Acc;
        Vector     : Userland.ELF.Auxval;
        Pol        : Policy;
        Stack_Size : Unsigned_64;
@@ -154,15 +155,15 @@ package body Scheduler with SPARK_Mode => Off is
       New_TID := Error_TID;
 
       --  Set the stack map so we can access the allocated range.
-      Curr_Map := Arch.MMU.Get_Curr_Table_Addr;
-      Success  := Arch.MMU.Make_Active (Map);
+      Curr_Map := Memory.MMU.Get_Curr_Table_Addr;
+      Success  := Memory.MMU.Make_Active (Map);
       if not Success then
          return;
       end if;
 
       --  Initialize thread state. Start by mapping the user stack.
       Userland.Process.Bump_Stack_Base (Proc, Stack_Size, Stack_Top);
-      Arch.MMU.Map_Allocated_Range
+      Memory.MMU.Map_Allocated_Range
          (Map           => Map,
           Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
           Length        => Storage_Offset (Stack_Size),
@@ -254,7 +255,7 @@ package body Scheduler with SPARK_Mode => Off is
          Index_64 := Index_64 - 1;
 
          --  Remap the stack for user permissions.
-         Arch.MMU.Remap_Range
+         Memory.MMU.Remap_Range
             (Map           => Map,
              Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
              Length        => Storage_Offset (Stack_Size),
@@ -283,7 +284,7 @@ package body Scheduler with SPARK_Mode => Off is
       end;
 
    <<Cleanup>>
-      Arch.MMU.Set_Table_Addr (Curr_Map);
+      Memory.MMU.Set_Table_Addr (Curr_Map);
    exception
       when Constraint_Error =>
          New_TID := Error_TID;
@@ -291,7 +292,7 @@ package body Scheduler with SPARK_Mode => Off is
 
    procedure Create_User_Thread
       (Address    : Virtual_Address;
-       Map        : Arch.MMU.Page_Table_Acc;
+       Map        : Memory.MMU.Page_Table_Acc;
        Stack_Addr : Unsigned_64;
        TLS_Addr   : Unsigned_64;
        Pol        : Policy;
@@ -321,7 +322,7 @@ package body Scheduler with SPARK_Mode => Off is
    procedure Create_User_Thread
       (GP_State : Arch.Context.GP_Context;
        FP_State : Arch.Context.FP_Context;
-       Map      : Arch.MMU.Page_Table_Acc;
+       Map      : Memory.MMU.Page_Table_Acc;
        Pol      : Policy;
        PID      : Natural;
        TCB      : System.Address;
@@ -358,7 +359,7 @@ package body Scheduler with SPARK_Mode => Off is
           Prio         => Default_Priority,
           Nice         => Default_Niceness,
           TCB_Pointer  => TCB,
-          PageMap      => Arch.MMU.Get_Map_Table_Addr (Map),
+          PageMap      => Memory.MMU.Get_Map_Table_Addr (Map),
           Kernel_Stack => New_Stack,
           GP_State     => GP_State,
           FP_State     => FP_State,
@@ -564,14 +565,14 @@ package body Scheduler with SPARK_Mode => Off is
       FP_State  : Arch.Context.FP_Context;
       New_TID   : TID;
       Stack_Top : Unsigned_64;
-      Map       : Arch.MMU.Page_Table_Acc;
+      Map       : Memory.MMU.Page_Table_Acc;
       Curr_Proc : constant Userland.Process.PID :=
          Arch.Local.Get_Current_Process;
    begin
       --  Initialize signal stack. Start by mapping the user stack.
       Userland.Process.Bump_Stack_Base (Curr_Proc, Stack_Size, Stack_Top);
       Userland.Process.Get_Common_Map (Curr_Proc, Map);
-      Arch.MMU.Map_Allocated_Range
+      Memory.MMU.Map_Allocated_Range
          (Map           => Map,
           Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
           Length        => Storage_Offset (Stack_Size),
@@ -591,7 +592,7 @@ package body Scheduler with SPARK_Mode => Off is
          Index_64 := Index_64 - 1;
          Index_64 := Index_64 * 8;
 
-         Arch.MMU.Remap_Range
+         Memory.MMU.Remap_Range
             (Map           => Map,
              Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
              Length        => Storage_Offset (Stack_Size),
@@ -731,7 +732,8 @@ package body Scheduler with SPARK_Mode => Off is
              Thread_Pool (Current_TID).Last_Sched_NSec);
 
          if Thread_Pool (Current_TID).Is_Present then
-            Thread_Pool (Current_TID).PageMap := Arch.MMU.Get_Curr_Table_Addr;
+            Thread_Pool (Current_TID).PageMap :=
+               Memory.MMU.Get_Curr_Table_Addr;
             Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
             Thread_Pool (Current_TID).GP_State    := State;
             Arch.Context.Save_Core_Context (Thread_Pool (Current_TID).C_State);
@@ -756,7 +758,7 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Local.Reschedule_In (Timeout);
 
       --  Reset state.
-      Arch.MMU.Set_Table_Addr (Thread_Pool (Next_TID).PageMap);
+      Memory.MMU.Set_Table_Addr (Thread_Pool (Next_TID).PageMap);
       Arch.Local.Set_Current_Process (Thread_Pool (Next_TID).Process);
       Arch.Local.Set_Current_Thread (Next_TID);
       Thread_Pool (Next_TID).Is_Running := True;

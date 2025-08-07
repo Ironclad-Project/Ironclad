@@ -17,6 +17,7 @@
 with Interfaces; use Interfaces;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.Context;
+with Memory.MMU;
 with Arch.MMU;
 with IPC.PTY;
 with System;
@@ -1487,7 +1488,7 @@ package Userland.Syscall is
 
    --  Check whether an address may be mapped by the user.
    procedure Check_Userland_Mappability
-      (Map        : Arch.MMU.Page_Table_Acc;
+      (Map        : Memory.MMU.Page_Table_Acc;
        Addr       : Memory.Virtual_Address;
        Byte_Count : Unsigned_64;
        Can_Map    : out Boolean);
@@ -1536,7 +1537,7 @@ private
    procedure Set_MAC_Capabilities (Proc : PID; Bits : Unsigned_64);
 
    function Check_Userland_Access
-      (Map        : Arch.MMU.Page_Table_Acc;
+      (Map        : Memory.MMU.Page_Table_Acc;
        Addr       : Memory.Virtual_Address;
        Byte_Count : Unsigned_64) return Boolean;
 

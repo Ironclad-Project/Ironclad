@@ -17,11 +17,11 @@
 with Panic;
 with Synchronization; use Synchronization;
 with Alignment;
-with Arch.MMU;
+with Memory.MMU;
 with System; use System;
 
 package body Memory.Physical is
-   Block_Size :         constant := Arch.MMU.Page_Size;
+   Block_Size :         constant := Memory.MMU.Page_Size;
    Block_Free : constant Boolean := True;
    Block_Used : constant Boolean := False;
    type Bitmap is array (Unsigned_64 range <>) of Boolean with Pack;

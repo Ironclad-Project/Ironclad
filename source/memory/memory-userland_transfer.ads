@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.MMU;
+with Memory.MMU;
 with System; use System;
 
 generic
@@ -23,7 +23,7 @@ package Memory.Userland_Transfer is
    --  Copy an object from userland to kernel memory.
    --  Accessibility checks are done by checking against the passed MMU table.
    procedure Take_From_Userland
-      (Map     : Arch.MMU.Page_Table_Acc;
+      (Map     : Memory.MMU.Page_Table_Acc;
        Data    : out T;
        Addr    : System.Address;
        Success : out Boolean);
@@ -31,7 +31,7 @@ package Memory.Userland_Transfer is
    --  Copy an object from kernel memory to userland.
    --  Accessibility checks are done by checking against the passed MMU table.
    procedure Paste_Into_Userland
-      (Map     : Arch.MMU.Page_Table_Acc;
+      (Map     : Memory.MMU.Page_Table_Acc;
        Data    : T;
        Addr    : System.Address;
        Success : out Boolean);

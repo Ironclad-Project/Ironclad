@@ -16,7 +16,7 @@
 
 with System;
 with VFS;
-with Arch.MMU;
+with Memory.MMU;
 with Synchronization;
 with Scheduler; use Scheduler;
 with Interfaces; use Interfaces;
@@ -367,13 +367,13 @@ package Userland.Process is
    --  Set the virtual map associated with the process.
    --  @param Proc Process to operate on.
    --  @param Map  Map to assign.
-   procedure Set_Common_Map (Proc : PID; Map : Arch.MMU.Page_Table_Acc)
+   procedure Set_Common_Map (Proc : PID; Map : Memory.MMU.Page_Table_Acc)
       with Pre => Proc /= Error_PID;
 
    --  Get the virtual map associated with the process.
    --  @param Proc Process to operate on.
    --  @return The map.
-   procedure Get_Common_Map (Proc : PID; Map : out Arch.MMU.Page_Table_Acc)
+   procedure Get_Common_Map (Proc : PID; Map : out Memory.MMU.Page_Table_Acc)
       with Pre => Proc /= Error_PID;
 
    --  Bump the stack base of the process by the passed length.
@@ -818,7 +818,7 @@ private
       Current_Dir_Ino : VFS.File_Inode_Number;
       Thread_List     : Thread_Arr;
       File_Table      : File_Arr;
-      Common_Map      : Arch.MMU.Page_Table_Acc;
+      Common_Map      : Memory.MMU.Page_Table_Acc;
       Stack_Base      : Unsigned_64;
       Alloc_Base      : Unsigned_64;
       Perms           : MAC.Context;

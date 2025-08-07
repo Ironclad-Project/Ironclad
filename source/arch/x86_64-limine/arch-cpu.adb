@@ -16,7 +16,7 @@
 
 with System.Machine_Code; use System.Machine_Code;
 with Arch.APIC;
-with Arch.MMU;
+with Memory.MMU;
 with Arch.IDT;
 with Arch.VMX;
 with Alignment;
@@ -186,7 +186,7 @@ package body Arch.CPU with SPARK_Mode => Off is
       --  Load the global GDT, IDT, mappings, and LAPIC.
       GDT.Load_GDT;
       IDT.Load_IDT;
-      Discard := Arch.MMU.Make_Active (Arch.MMU.Kernel_Table);
+      Discard := Memory.MMU.Make_Active (Memory.MMU.Kernel_Table);
       APIC.Init_Core_LAPIC;
 
       --  Load several goodies.
@@ -280,13 +280,13 @@ package body Arch.CPU with SPARK_Mode => Off is
 
          --  Get the size of the xsave area.
          Snippets.Get_CPUID (16#D#, 0, EAX, EBX, ECX, EDX, Success);
-         Global_FPU_Size := A.Align_Up (ECX, MMU.Page_Size);
+         Global_FPU_Size := A.Align_Up (ECX, Memory.MMU.Page_Size);
 
          Snippets.Write_CR4 (CR4);
          Snippets.Write_XCR (0, XCR0);
       else
          Global_Use_XSAVE := False;
-         Global_FPU_Size  := A.Align_Up (512, MMU.Page_Size);
+         Global_FPU_Size  := A.Align_Up (512, Memory.MMU.Page_Size);
       end if;
 
       --  Enable SYSCALL instructions.

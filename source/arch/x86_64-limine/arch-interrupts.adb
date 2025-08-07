@@ -18,7 +18,7 @@ with Arch.APIC;
 with Arch.GDT;
 with Arch.CPU;
 with Arch.Context;
-with Arch.MMU;
+with Memory.MMU;
 with Panic;
 with Messages;
 with Synchronization;
@@ -446,7 +446,7 @@ package body Arch.Interrupts is
       if Snippets.Read_CR3 = Map then
          while To_Integer (Curr) < To_Integer (Final) loop
             Snippets.Invalidate_Page (To_Integer (Curr));
-            Curr := Curr + Arch.MMU.Page_Size;
+            Curr := Curr + Memory.MMU.Page_Size;
          end loop;
       end if;
 

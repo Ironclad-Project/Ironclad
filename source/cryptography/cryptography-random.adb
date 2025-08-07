@@ -20,7 +20,7 @@ with Cryptography.MD5; use Cryptography.MD5;
 with Synchronization; use Synchronization;
 with Arch.Clocks;
 with Memory.Physical;
-with Arch.MMU;
+with Memory.MMU;
 
 package body Cryptography.Random is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
@@ -57,7 +57,7 @@ package body Cryptography.Random is
    procedure Init is
       RSec, RNSec, MSec, MNSec : Unsigned_64;
       S : Memory.Physical.Statistics;
-      V : Arch.MMU.Virtual_Statistics;
+      V : Memory.MMU.Virtual_Statistics;
 
       Data1 : Crypto_Data (1 .. 8) with Import, Address => RSec'Address;
       Data2 : Crypto_Data (1 .. 8) with Import, Address => RNSec'Address;

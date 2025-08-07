@@ -20,12 +20,13 @@ with Alignment;
 with Devices;
 with Userland.Memory_Locations;
 with Userland.Syscall;
+with Arch.MMU;
 
 package body Userland.ELF is
    procedure Load_ELF
       (FS             : VFS.FS_Handle;
        Ino            : VFS.File_Inode_Number;
-       Map            : Arch.MMU.Page_Table_Acc;
+       Map            : Memory.MMU.Page_Table_Acc;
        Requested_Base : Unsigned_64;
        Result         : out Parsed_ELF)
    is
@@ -169,7 +170,7 @@ package body Userland.ELF is
       (FS      : VFS.FS_Handle;
        Ino     : VFS.File_Inode_Number;
        Header  : Program_Header;
-       Map     : Arch.MMU.Page_Table_Acc;
+       Map     : Memory.MMU.Page_Table_Acc;
        Base    : Unsigned_64;
        Success : out Boolean)
    is
@@ -191,14 +192,14 @@ package body Userland.ELF is
       Ali_V, Ali_L : Integer_Address;
    begin
       ELF_Virtual := Virtual_Address (Base + Header.Virt_Address);
-      Misalign    := Header.Virt_Address mod Arch.MMU.Page_Size;
+      Misalign    := Header.Virt_Address mod Memory.MMU.Page_Size;
       Load_Size   := Misalign + Header.Mem_Size_Bytes;
       Ali_V       := ELF_Virtual;
       Ali_L       := Integer_Address (Load_Size);
 
       if (Flags.Can_Execute and Flags.Can_Write) or
          Header.Alignment = 0                    or
-         (Header.Alignment mod Arch.MMU.Page_Size) /= 0
+         (Header.Alignment mod Memory.MMU.Page_Size) /= 0
       then
          Success := False;
          return;
@@ -220,13 +221,13 @@ package body Userland.ELF is
       end if;
 
       --  Set the stack map so we can access the allocated range.
-      Curr_Map := Arch.MMU.Get_Curr_Table_Addr;
-      Success  := Arch.MMU.Make_Active (Map);
+      Curr_Map := Memory.MMU.Get_Curr_Table_Addr;
+      Success  := Memory.MMU.Make_Active (Map);
       if not Success then
          return;
       end if;
 
-      Arch.MMU.Map_Allocated_Range
+      Memory.MMU.Map_Allocated_Range
          (Map           => Map,
           Virtual_Start => To_Address (Ali_V),
           Length        => Storage_Count (Ali_L),
@@ -248,7 +249,7 @@ package body Userland.ELF is
                        Ret_Count = Header.File_Size_Bytes;
          end;
 
-         Arch.MMU.Remap_Range
+         Memory.MMU.Remap_Range
             (Map           => Map,
              Virtual_Start => To_Address (Ali_V),
              Length        => Storage_Count (Ali_L),
@@ -256,7 +257,7 @@ package body Userland.ELF is
              Success       => Success);
       end if;
 
-      Arch.MMU.Set_Table_Addr (Curr_Map);
+      Memory.MMU.Set_Table_Addr (Curr_Map);
    exception
       when Constraint_Error =>
          Success := False;

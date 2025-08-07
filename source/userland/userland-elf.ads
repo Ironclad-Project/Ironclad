@@ -17,7 +17,7 @@
 with System;
 with Interfaces; use Interfaces;
 with VFS;
-with Arch.MMU;
+with Memory.MMU;
 
 package Userland.ELF is
    type String_Acc is access String;
@@ -49,7 +49,7 @@ package Userland.ELF is
    procedure Load_ELF
       (FS             : VFS.FS_Handle;
        Ino            : VFS.File_Inode_Number;
-       Map            : Arch.MMU.Page_Table_Acc;
+       Map            : Memory.MMU.Page_Table_Acc;
        Requested_Base : Unsigned_64;
        Result         : out Parsed_ELF);
 
@@ -181,7 +181,7 @@ private
       (FS      : VFS.FS_Handle;
        Ino     : VFS.File_Inode_Number;
        Header  : Program_Header;
-       Map     : Arch.MMU.Page_Table_Acc;
+       Map     : Memory.MMU.Page_Table_Acc;
        Base    : Unsigned_64;
        Success : out Boolean);
 end Userland.ELF;
