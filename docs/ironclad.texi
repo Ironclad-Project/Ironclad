@@ -153,6 +153,7 @@ Syscalls
 * listen::                  Listen for connections to a socket.
 * accept::                  Accept socket connections.
 * rlimit::                  Get and set resource limits.
+* sched_rr_interval::       Get and set SCHED_RR intervals.
 * access::                  Check file access permissions and existence.
 * ppoll::                   I/O event multiplexer.
 * getuid/geteuid::          Get the UID and the effective UID.
@@ -941,7 +942,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{rlimit}.
 @item
-Empty.
+@ref{sched_rr_interval}.
 @item
 @ref{access}.
 @item
@@ -2763,6 +2764,31 @@ following errno:
 @code{EFAULT}: One of the passed buffers was not 0 and not accessible.
 @item
 @code{EINVAL}: Invalid value for resource.
+@item
+@code{EPERM}: MAC did not allow the operation.
+@end itemize
+
+@node sched_rr_interval
+@section sched_rr_interval
+
+@example c
+int sched_rr_interval(int pid, struct timespec *new, struct timespec *old);
+@end example
+
+This syscall fetches and/or sets current quantum periods for the passed process
+for use under @code{SCHED_RR} scheduling policies.
+
+If @code{pid} is 0, the PID of the caller is used. Both the @code{new} and
+@code{old} values are nullable.
+
+This syscall returns @code{0} on success or @code{-1} on failure, with the
+following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: One of the passed buffers was not 0 and not accessible.
+@item
+@code{ESRCH}: Invalid PID passed.
 @item
 @code{EPERM}: MAC did not allow the operation.
 @end itemize

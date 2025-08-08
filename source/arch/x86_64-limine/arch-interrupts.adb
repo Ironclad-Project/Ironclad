@@ -210,6 +210,9 @@ package body Arch.Interrupts is
                                     Errno);
          when 54 =>
             RLimit (State.RDI, State.RSI, State.RDX, Returned, Errno);
+         when 55 =>
+            Sched_RR_Interval
+               (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 56 =>
             FAccess (State.RDI, State.RSI, State.RDX, State.R12,
                     State.R8, Returned, Errno);

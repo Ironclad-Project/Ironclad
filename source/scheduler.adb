@@ -28,6 +28,7 @@ with Arch.MMU;
 
 package body Scheduler with SPARK_Mode => Off is
    Kernel_Stack_Size : constant := 16#4000#;
+   Fast_Reschedule_Micros : constant := 10_000;
    type Thread_Stack     is array (Natural range <>) of Unsigned_8;
    type Thread_Stack_64  is array (Natural range <>) of Unsigned_64;
    type Kernel_Stack     is array (1 ..  Kernel_Stack_Size) of Unsigned_8;
@@ -41,6 +42,7 @@ package body Scheduler with SPARK_Mode => Off is
       Pol             : Policy;
       Nice            : Niceness;
       Prio            : Priority;
+      RR_Micro_Inter  : Natural;
       TCB_Pointer     : System.Address;
       PageMap         : System.Address;
       Kernel_Stack    : Kernel_Stack_Acc;
@@ -96,6 +98,7 @@ package body Scheduler with SPARK_Mode => Off is
              Is_Running      => False,
              Path            => [others => ' '],
              Path_Len        => 0,
+             RR_Micro_Inter  => Default_RR_NS_Interval / 1000,
              Pol             => Policy_Other,
              Prio            => Default_Priority,
              Nice            => Default_Niceness,
@@ -351,21 +354,22 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       Thread_Pool (New_TID) :=
-         (Is_Present   => True,
-          Is_Running   => False,
-          Path         => [others => ' '],
-          Path_Len     => 0,
-          Pol          => Pol,
-          Prio         => Default_Priority,
-          Nice         => Default_Niceness,
-          TCB_Pointer  => TCB,
-          PageMap      => Memory.MMU.Get_Map_Table_Addr (Map),
-          Kernel_Stack => New_Stack,
-          GP_State     => GP_State,
-          FP_State     => FP_State,
-          C_State      => <>,
-          Process      => Userland.Process.Convert (PID),
-          others       => 0);
+         (Is_Present     => True,
+          Is_Running     => False,
+          Path           => [others => ' '],
+          Path_Len       => 0,
+          RR_Micro_Inter => Default_RR_NS_Interval / 1000,
+          Pol            => Pol,
+          Prio           => Default_Priority,
+          Nice           => Default_Niceness,
+          TCB_Pointer    => TCB,
+          PageMap        => Memory.MMU.Get_Map_Table_Addr (Map),
+          Kernel_Stack   => New_Stack,
+          GP_State       => GP_State,
+          FP_State       => FP_State,
+          C_State        => <>,
+          Process        => Userland.Process.Convert (PID),
+          others         => 0);
 
       Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).GP_State);
 
@@ -521,6 +525,16 @@ package body Scheduler with SPARK_Mode => Off is
       when Constraint_Error =>
          null;
    end Set_Policy;
+
+   procedure Set_RR_Interval (Thread : TID; RR_Sec, RR_NS : Unsigned_64)
+   is
+   begin
+      Thread_Pool (Thread).RR_Micro_Inter :=
+         Natural (RR_Sec * 1000000) + Natural (RR_NS / 1000);
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_RR_Interval;
 
    procedure Get_Name (Thread : TID; Name : out String; Len : out Natural) is
    begin
@@ -696,8 +710,6 @@ package body Scheduler with SPARK_Mode => Off is
          Buckets (Buckets'First) := Count;
       end if;
 
-      Timeout := 100_000;
-
       --  Find the next thread in a very rough RR.
       for I in Current_TID + 1 .. Thread_Pool'Last loop
          if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running then
@@ -713,6 +725,9 @@ package body Scheduler with SPARK_Mode => Off is
                goto Found_TID;
             end if;
          end loop;
+         Timeout := Thread_Pool (Current_TID).RR_Micro_Inter;
+      else
+         Timeout := Fast_Reschedule_Micros;
       end if;
 
       --  We only get here if the thread search did not find anything, and we
@@ -754,9 +769,6 @@ package body Scheduler with SPARK_Mode => Off is
          Thread_Pool (Next_TID).User_Tmp_NSec := Curr_NSec;
       end if;
 
-      --  Rearm the timer for next tick and unlock.
-      Arch.Local.Reschedule_In (Timeout);
-
       --  Reset state.
       Memory.MMU.Set_Table_Addr (Thread_Pool (Next_TID).PageMap);
       Arch.Local.Set_Current_Process (Thread_Pool (Next_TID).Process);
@@ -769,6 +781,7 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_State);
       Next_State := Thread_Pool (Next_TID).GP_State;
       Synchronization.Release (Scheduler_Mutex);
+      Arch.Local.Reschedule_In (Thread_Pool (Next_TID).RR_Micro_Inter);
       Arch.Context.Load_GP_Context (Next_State);
    exception
       when Constraint_Error =>

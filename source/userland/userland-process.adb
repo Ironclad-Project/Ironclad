@@ -125,6 +125,8 @@ package body Userland.Process is
                 Did_Exit        => False,
                 Exit_Code       => 0,
                 VFork_Mark      => False,
+                RR_Sec          => 0,
+                RR_NS        => Unsigned_64 (Scheduler.Default_RR_NS_Interval),
                 others          => 0);
 
             if Parent /= Error_PID then
@@ -150,6 +152,8 @@ package body Userland.Process is
                Registry (I).SGroups         := Registry (P).SGroups;
                Registry (I).Umask           := Registry (P).Umask;
                Registry (I).Signal_Handlers := Registry (P).Signal_Handlers;
+               Registry (I).RR_Sec          := Registry (P).RR_Sec;
+               Registry (I).RR_NS           := Registry (P).RR_NS;
                Synchronization.Release (Registry (P).Data_Mutex);
             else
                VFS.Get_Root
@@ -327,6 +331,10 @@ package body Userland.Process is
          if Registry (Proc).Thread_List (I) = Error_TID then
             Registry (Proc).Thread_List (I) := Thread;
             Scheduler.Set_Niceness (Thread, Registry (Proc).Niceness);
+            Scheduler.Set_Priority (Thread, Registry (Proc).Prio);
+            Scheduler.Set_Policy (Thread, Registry (Proc).Pol);
+            Scheduler.Set_RR_Interval (Thread,
+               Registry (Proc).RR_Sec, Registry (Proc).RR_NS);
             Success := True;
             exit;
          end if;
@@ -1554,6 +1562,34 @@ package body Userland.Process is
       when Constraint_Error =>
          null;
    end Set_Priority;
+
+   procedure Get_RR_Interval (Proc : PID; Sec, NS : out Unsigned_64) is
+   begin
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Sec := Registry (Proc).RR_Sec;
+      NS  := Registry (Proc).RR_NS;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         Sec := 0;
+         NS  := 0;
+   end Get_RR_Interval;
+
+   procedure Set_RR_Interval (Proc : PID; Sec, NS : Unsigned_64) is
+   begin
+      Synchronization.Seize (Registry (Proc).Data_Mutex);
+      Registry (Proc).RR_Sec := Sec;
+      Registry (Proc).RR_NS  := NS;
+      for Thread of Registry (Proc).Thread_List loop
+         if Thread /= Error_TID then
+            Scheduler.Set_RR_Interval (Thread, Sec, NS);
+         end if;
+      end loop;
+      Synchronization.Release (Registry (Proc).Data_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
+   end Set_RR_Interval;
 
    function Convert (Proc : PID) return Natural is
    begin

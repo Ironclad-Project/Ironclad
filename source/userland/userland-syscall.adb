@@ -3746,6 +3746,72 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    end RLimit;
 
+   procedure Sched_RR_Interval
+      (ID       : Unsigned_64;
+       New_Addr : Unsigned_64;
+       Old_Addr : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      package Trans is new Memory.Userland_Transfer (Time_Spec);
+      Proc      : PID;
+      New_IAddr : constant Integer_Address := Integer_Address (New_Addr);
+      New_SAddr : constant  System.Address := To_Address (New_IAddr);
+      Old_IAddr : constant Integer_Address := Integer_Address (Old_Addr);
+      Old_SAddr : constant  System.Address := To_Address (Old_IAddr);
+      Success   : Boolean;
+      Map       : Page_Table_Acc;
+      Value     : Time_Spec;
+   begin
+      if ID = 0 then
+         Proc := Arch.Local.Get_Current_Process;
+      else
+         Proc := Userland.Process.Convert (Natural (ID and 16#FFFFFF#));
+         if Proc = Error_PID then
+            Errno    := Error_Bad_Search;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+      end if;
+
+      Get_Common_Map (Proc, Map);
+
+      if Old_IAddr /= 0 then
+         Get_RR_Interval (Proc, Value.Seconds, Value.Nanoseconds);
+         Trans.Paste_Into_Userland (Map, Value, Old_SAddr, Success);
+         if not Success then
+            goto Would_Fault_Error;
+         end if;
+      end if;
+
+      if New_IAddr /= 0 then
+         if not Get_Capabilities (Proc).Can_Change_Scheduling then
+            Errno := Error_Bad_Access;
+            Execute_MAC_Failure ("sched_rr_interval", Proc);
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+
+         Trans.Take_From_Userland (Map, Value, New_SAddr, Success);
+         if not Success then
+            goto Would_Fault_Error;
+         end if;
+         Set_RR_Interval (Proc, Value.Seconds, Value.Nanoseconds);
+      end if;
+
+      Errno    := Error_No_Error;
+      Returned := 0;
+      return;
+
+   <<Would_Fault_Error>>
+      Errno    := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end Sched_RR_Interval;
+
    procedure FAccess
       (Dir_FD    : Unsigned_64;
        Path_Addr : Unsigned_64;

@@ -719,6 +719,9 @@ package Userland.Process is
    procedure Get_Priority (Proc : PID; Prio : out Scheduler.Priority);
    procedure Set_Priority (Proc : PID; Prio : Scheduler.Priority);
 
+   procedure Get_RR_Interval (Proc : PID; Sec, NS : out Unsigned_64);
+   procedure Set_RR_Interval (Proc : PID; Sec, NS : Unsigned_64);
+
    --  Convert a PID to an integer. The results will be reproducible for the
    --  same PIDs.
    --  @param Proc PID to convert, can be Error_PID.
@@ -833,6 +836,8 @@ private
       Children_UNSec  : Unsigned_64;
       Creation_Secs   : Unsigned_64;
       Creation_NSecs  : Unsigned_64;
+      RR_Sec          : Unsigned_64;
+      RR_NS           : Unsigned_64;
    end record;
    type Process_Data_Acc is access Process_Data;
    type Process_Arr     is array (PID range 1 .. PID'Last) of Process_Data_Acc;

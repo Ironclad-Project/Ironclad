@@ -291,6 +291,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
                                     Errno);
          when 54 =>
             RLimit (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
+         when 55 =>
+            Sched_RR_Interval (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 56 =>
             FAccess (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13,
                     Ctx.X14, Returned, Errno);

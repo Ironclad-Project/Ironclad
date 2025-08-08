@@ -820,6 +820,13 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
+   procedure Sched_RR_Interval
+      (ID       : Unsigned_64;
+       New_Addr : Unsigned_64;
+       Old_Addr : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
    --  Check access to files.
    F_OK : constant := 2#0001#;
    R_OK : constant := 2#0010#;

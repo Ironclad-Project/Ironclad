@@ -102,6 +102,7 @@ package Scheduler is
    subtype Priority is Natural range 0 .. 100;
    Default_Niceness : constant Niceness := 0;
    Default_Priority : constant Priority := 0;
+   Default_RR_NS_Interval : constant Natural := 100_000_000;
 
    function Get_Niceness (Thread : TID) return Niceness;
    procedure Set_Niceness (Thread : TID; Nice : Niceness);
@@ -110,6 +111,7 @@ package Scheduler is
    procedure Set_Priority (Thread : TID; Prio : Priority);
 
    procedure Set_Policy (Thread : TID; Pol : Policy);
+   procedure Set_RR_Interval (Thread : TID; RR_Sec, RR_NS : Unsigned_64);
 
    procedure Get_Name (Thread : TID; Name : out String; Len : out Natural);
    procedure Set_Name (Thread : TID; Name : String; Success : out Boolean);
