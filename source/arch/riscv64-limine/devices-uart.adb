@@ -16,6 +16,7 @@
 
 with Arch.Snippets;
 with Arch.MMU;
+with Memory; use Memory;
 
 package body Devices.UART with SPARK_Mode => Off is
    --  UART Register Bit Definitions
@@ -37,14 +38,27 @@ package body Devices.UART with SPARK_Mode => Off is
    MCR_RTS : constant Unsigned_8 := 2;  -- Request to Send
 
    procedure Init_UART0 is
+      THR  : Unsigned_8 with Import, Volatile,
+         Address => To_Address (Memory.Memory_Offset + Base + 0);
+      IER  : Unsigned_8 with Import, Volatile,
+         Address => To_Address (Memory.Memory_Offset + Base + 1);
+      FCR  : Unsigned_8 with Import, Volatile,
+         Address => To_Address (Memory.Memory_Offset + Base + 2);
+      LCR  : Unsigned_8 with Import, Volatile,
+         Address => To_Address (Memory.Memory_Offset + Base + 3);
+      MCR  : Unsigned_8 with Import, Volatile,
+         Address => To_Address (Memory.Memory_Offset + Base + 4);
+      LSR  : Unsigned_8 with Import, Volatile,
+         Address => To_Address (Memory.Memory_Offset + Base + 5);
+
       Divisor_Low  : constant Unsigned_8 := 2;
       Divisor_High : constant Unsigned_8 := 0;
       Success      : Boolean;
    begin
       Memory.MMU.Map_Range
          (Map              => Memory.MMU.Kernel_Table,
-          Virtual_Start    => To_Address (Base),
-          Physical_Start   => To_Address (Orig),
+          Virtual_Start    => To_Address (Memory.Memory_Offset + Base),
+          Physical_Start   => To_Address (Base),
           Length           => Storage_Count (Memory.MMU.Page_Size),
           Permissions      =>
             (Is_User_Accessible => False,
@@ -77,6 +91,10 @@ package body Devices.UART with SPARK_Mode => Off is
    end Init_UART0;
 
    procedure Write_UART0 (Message : Character) is
+      THR : Unsigned_8 with Import, Volatile,
+         Address => To_Address (Memory.Memory_Offset + Base + 0);
+      LSR : Unsigned_8 with Import, Volatile,
+         Address => To_Address (Memory.Memory_Offset + Base + 5);
    begin
       if not Is_Initialized then
          return;
@@ -101,6 +119,10 @@ package body Devices.UART with SPARK_Mode => Off is
    end Write_UART0;
 
    function Read_UART0 return Unsigned_8 is
+      RBR : Unsigned_8 with Import, Volatile,
+         Address => To_Address (Memory.Memory_Offset + Base + 0);
+      LSR : Unsigned_8 with Import, Volatile,
+         Address => To_Address (Memory.Memory_Offset + Base + 5);
    begin
       if not Is_Initialized then
          return 0;

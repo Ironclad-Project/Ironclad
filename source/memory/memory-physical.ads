@@ -16,7 +16,6 @@
 
 with Arch; use Arch;
 with Interfaces.C; use Interfaces.C;
-with Interfaces; use Interfaces;
 
 package Memory.Physical is
    --  Initialize the allocator with a memmap.

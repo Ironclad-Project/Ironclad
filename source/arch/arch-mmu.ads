@@ -42,6 +42,12 @@ package Arch.MMU is
    --  boot process.
    procedure Get_Load_Addr (A : out System.Address; Success : out Boolean);
 
+   --  Offset in virtual memory of the kernel's HDDM.
+   function Memory_Offset return Integer_Address;
+
+   --  Offset of the kernel in virtual memory.
+   function Kernel_Offset return Integer_Address;
+
    --  Extract a physical address from a page table entry.
    function Clean_Entry (Entry_Body : Unsigned_64) return Integer_Address;
 

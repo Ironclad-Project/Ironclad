@@ -740,9 +740,6 @@ package body Memory.MMU is
          end if;
       end;
       return Memory.Null_Address;
-   exception
-      when Constraint_Error =>
-         Panic.Hard_Panic ("Exception when getting next page level");
    end Get_Next_Level;
 
    function Get_Page

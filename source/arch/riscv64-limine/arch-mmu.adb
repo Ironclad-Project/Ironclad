@@ -36,6 +36,13 @@ package body Arch.MMU is
        Response => System.Null_Address)
       with Export, Async_Writers;
 
+   --  Response is a pointer to an HHDM_Response.
+   HHDM_Request : Arch.Limine.Request :=
+      (ID       => Arch.Limine.HHDM_ID,
+       Revision => 0,
+       Response => System.Null_Address)
+      with Export, Async_Writers;
+
    procedure Get_Load_Addr (A : out System.Address; Success : out Boolean) is
       PhysPonse : Arch.Limine.Kernel_Address_Response
          with Import, Address => Address_Request.Response;
@@ -48,6 +55,19 @@ package body Arch.MMU is
          Success := False;
       end if;
    end Get_Load_Addr;
+
+   function Memory_Offset return Integer_Address is
+      HHDM_Response : Arch.Limine.HHDM_Response
+         with Import, Address => HHDM_Request.Response;
+   begin
+      return HHDM_Response.Offset;
+   end Memory_Offset;
+
+   function Kernel_Offset return Integer_Address is
+   begin
+      --  Established in the linker script.
+      return 16#FFFFFFFF80000000#;
+   end Kernel_Offset;
 
    function Clean_Entry (Entry_Body : Unsigned_64) return Integer_Address is
    begin

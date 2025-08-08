@@ -138,6 +138,11 @@ package Arch.Limine with SPARK_Mode => Off is
       Virt_Addr : System.Address;
    end record with Pack;
 
+   type HHDM_Response is record
+      Base   : Response;
+      Offset : Integer_Address;
+   end record with Pack;
+
    SMP_ENABLE_X2APIC : constant := 1;
    type SMP_Request is record
       Base  : Request;
@@ -221,6 +226,10 @@ package Arch.Limine with SPARK_Mode => Off is
    Kernel_Address_ID : constant Request_ID :=
       [Limine_Common_Magic_1, Limine_Common_Magic_2,
        16#71ba76863cc55f63#, 16#b2644a48c516a487#];
+
+   HHDM_ID : constant Request_ID :=
+      [Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#48dcf1cb8ad2b852#, 16#63984e959a98244b#];
 
    Bootloader_Info_ID : constant Request_ID :=
       [Limine_Common_Magic_1, Limine_Common_Magic_2,

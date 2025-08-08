@@ -16,7 +16,6 @@
 
 with System.Storage_Elements; use System.Storage_Elements;
 with System;
-with Memory; use Memory;
 
 package Devices.UART with SPARK_Mode => Off is
    --  Early initialization of UART0 for early kernel output.
@@ -34,14 +33,6 @@ private
 
    Is_Initialized : Boolean := False;
 
-   --  UART Memory-Mapped Registers
-   Orig : constant := 16#10000000#;
-   Base : constant := Memory_Offset + Orig;
-   THR  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 0);
-   RBR  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 0);
-   IER  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 1);
-   FCR  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 2);
-   LCR  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 3);
-   MCR  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 4);
-   LSR  : Unsigned_8 with Import, Volatile, Address => To_Address (Base + 5);
+   --  UART Memory-Mapped Register base
+   Base : constant Integer_Address := 16#10000000#;
 end Devices.UART;

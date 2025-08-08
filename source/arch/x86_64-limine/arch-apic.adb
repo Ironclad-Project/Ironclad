@@ -25,7 +25,7 @@ with Arch.MMU;
 package body Arch.APIC with SPARK_Mode => Off is
    LAPIC_MSR  : constant := 16#01B#;
    x2APIC_MSR : constant := 16#800#;
-   LAPIC_Base : constant := Memory_Offset + 16#FEE00000#;
+   LAPIC_Base : Integer_Address;
 
    LAPIC_EOI_Register                : constant := 16#0B0#;
    LAPIC_Spurious_Register           : constant := 16#0F0#;
@@ -47,6 +47,8 @@ package body Arch.APIC with SPARK_Mode => Off is
 
       MSR_Read : constant Unsigned_64 := Arch.Snippets.Read_MSR (LAPIC_MSR);
    begin
+      LAPIC_Base := Memory_Offset + 16#FEE00000#;
+
       --  Check x2APIC support.
       Snippets.Get_CPUID (1, 0, EAX, EBX, ECX, EDX, Success);
       Supports_x2APIC := Success and ((ECX and Shift_Left (1, 21)) /= 0);
@@ -69,7 +71,9 @@ package body Arch.APIC with SPARK_Mode => Off is
       else
          --  We assume the LAPIC base for performance reasons.
          --  Check the assumption is right tho.
-         if (MSR_Read and 16#FFFFF000#) /= LAPIC_Base - Memory_Offset then
+         if Integer_Address (MSR_Read and 16#FFFFF000#) /=
+            LAPIC_Base - Memory_Offset
+         then
             Panic.Hard_Panic ("Odd LAPIC base encountered");
          end if;
 

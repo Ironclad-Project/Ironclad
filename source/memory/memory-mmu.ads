@@ -14,8 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Interfaces; use Interfaces;
-with System;     use System;
+with System; use System;
 with Arch;
 with Arch.MMU;
 with Synchronization;

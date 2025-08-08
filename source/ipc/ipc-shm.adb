@@ -171,11 +171,6 @@ package body IPC.SHM is
          end if;
       end loop;
       Synchronization.Release (Registry_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Registry_Mutex);
-         Size := 0;
-         ID   := Error_ID;
    end Get_Segment_And_Size;
 
    procedure Get_Address
