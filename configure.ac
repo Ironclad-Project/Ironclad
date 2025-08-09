@@ -1,5 +1,5 @@
 #  configure.ac: Configure template of the project.
-#  Copyright (C) 2023-2024 streaksu
+#  Copyright (C) 2025 streaksu
 #
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -113,7 +113,6 @@ AC_DEFUN([GET_PROG_FROM_TOOLCHAIN], [
 
 GET_PROG_FROM_TOOLCHAIN([AR], [gcc-ar])
 GET_PROG_FROM_TOOLCHAIN([CC], [gcc])
-GET_PROG_FROM_TOOLCHAIN([OBJDUMP], [objdump])
 GET_PROG_FROM_TOOLCHAIN([STRIP], [strip])
 
 GCC_VERSION="$($CC -dumpversion)"
@@ -121,17 +120,15 @@ if test "${GCC_VERSION%%.*}" -lt "14"; then
     AC_MSG_ERROR([GCC version 14 or greater is required to build Ironclad])
 fi
 
-m4_define([DEFAULT_ADAFLAGS], [-g -O2 -pipe])
-AC_ARG_VAR([ADAFLAGS], [Ada flags @<:@default: ]DEFAULT_ADAFLAGS[@:>@])
-test "x${ADAFLAGS+set}" = "x" && ADAFLAGS="DEFAULT_ADAFLAGS"
-
-m4_define([DEFAULT_ASFLAGS], [-g -O2 -pipe])
-AC_ARG_VAR([ASFLAGS], [assembler flags @<:@default: ]DEFAULT_ASFLAGS[@:>@])
-test "x${ASFLAGS+set}" = "x" && ASFLAGS="DEFAULT_ASFLAGS"
-
 m4_define([DEFAULT_CFLAGS], [-g -O2 -pipe])
 AC_ARG_VAR([CFLAGS], [C compiler flags @<:@default: ]DEFAULT_CFLAGS[@:>@])
 test "x${CFLAGS+set}" = "x" && CFLAGS="DEFAULT_CFLAGS"
+
+AC_ARG_VAR([ADAFLAGS], [Ada flags @<:@default: same as CFLAGS@:>@])
+test "x${ADAFLAGS+set}" = "x" && ADAFLAGS="$CFLAGS"
+
+AC_ARG_VAR([ASFLAGS], [assembler flags @<:@default: same as CFLAGS@:>@])
+test "x${ASFLAGS+set}" = "x" && ASFLAGS="$CFLAGS"
 
 m4_define([DEFAULT_LDFLAGS], [])
 AC_ARG_VAR([LDFLAGS], [linker flags @<:@default: ]DEFAULT_LDFLAGS[@:>@])
@@ -184,7 +181,7 @@ AC_DEFUN([GET_PROG], [
     $1="$(rel2abs "$$1")"
 ])
 
-GET_PROG([MAKEINFO], [makeinfo], [makeinfo])
+GET_PROG([MAKEINFO], [makeinfo], [makeinfo], [err])
 GET_PROG([TEXI2DVI], [texi2dvi], [texi2dvi])
 GET_PROG([TEXI2HTML], [makeinfo --no-split --html], [texi2html])
 GET_PROG([GPRBUILD], [gprbuild], [gprbuild], [err])
@@ -230,8 +227,6 @@ case $PLATFORM in
         ;;
 esac
 
-GPRBUILD_TARGET="$($CC -dumpmachine)"
-AC_SUBST([GPRBUILD_TARGET])
 ###############################################################################
 # Finalize the settings and output the files.
 AC_PREFIX_DEFAULT([/usr/local])

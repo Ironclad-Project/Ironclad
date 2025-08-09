@@ -1,5 +1,5 @@
 #  GNUmakefile.in: Standard-complying wrapper for gprbuild and install.
-#  Copyright (C) 2024 streaksu
+#  Copyright (C) 2025 streaksu
 #
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -14,8 +14,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# Nuke built-in rules and variables.
-MAKEFLAGS += -rR
+# Nuke built-in rules.
 .SUFFIXES:
 
 # Macros to make our build system still work from within paths with spaces
@@ -25,50 +24,50 @@ override MKESCAPE = $(subst $(SPACE),\ ,$(1))
 override SHESCAPE = $(subst ','\'',$(1))
 
 # Import some autoconf variables as make variables.
-override SRCDIR          := @SRCDIR@
+override SRCDIR := @SRCDIR@
 override PACKAGE_VERSION := @PACKAGE_VERSION@
 override PACKAGE_TARNAME := @PACKAGE_TARNAME@
-override OUTPUT          := $(PACKAGE_TARNAME)
-override DIST_OUTPUT     := $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
+override OUTPUT := $(PACKAGE_TARNAME)
+override DIST_OUTPUT := $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
 
 # Take care of reproducible dates.
 override SOURCE_DATE_EPOCH := @SOURCE_DATE_EPOCH@
 export SOURCE_DATE_EPOCH
 
 # Autoconf dir variables.
-prefix      := @prefix@
-datarootdir := @datarootdir@
-infodir     := @infodir@
+override prefix := @prefix@
+override datarootdir := @datarootdir@
+override infodir := @infodir@
 
 # Generator executables.
-MKDIR_P      := @MKDIR_P@
-INSTALL      := @INSTALL@
+MKDIR_P := @MKDIR_P@
+INSTALL := @INSTALL@
 INSTALL_DATA := @INSTALL_DATA@
-GREP         := @GREP@
-SED          := @SED@
-MAKEINFO     := @MAKEINFO@
-TEXI2HTML    := @TEXI2HTML@
-TEXI2DVI     := @TEXI2DVI@
-GPRBUILD     := @GPRBUILD@
-GNATPROVE    := @GNATPROVE@
-TYPOS        := @TYPOS@
-OBJDUMP      := @OBJDUMP@
-STRIP        := @STRIP@
+GREP := @GREP@
+SED := @SED@
+MAKEINFO := @MAKEINFO@
+TEXI2HTML := @TEXI2HTML@
+TEXI2DVI := @TEXI2DVI@
+GPRBUILD := @GPRBUILD@
+GNATPROVE := @GNATPROVE@
+TYPOS := @TYPOS@
+STRIP := @STRIP@
 
 # Target information.
-GPRBUILD_TARGET := @GPRBUILD_TARGET@
+override CC := @CC@
+override GPRBUILD_TARGET := $(shell $(CC) -dumpmachine)
 override host_cpu := @host_cpu@
 override PLATFORM := @PLATFORM@
 
 # Attempt to get the job count from the make command line.
-override PARALLELISM := $(shell ps T | $(SED) -E -n 's%.*'$$PPID'.*$(MAKE).* (-j *|--jobs +|--jobs=)([0-9]+).*%\2%p')
+override PARALLELISM := $(shell ps T | $(SED) -E -n 's%.*'$$PPID'.*$(MAKE).* (-j *|--jobs( +|=))([0-9]+).*%\3%p')
 ifeq ($(PARALLELISM),)
     override PARALLELISM := 1
 endif
 
 # Get a list of Ada source files to determine when to rebuild.
-override RTSFILES := $(shell LC_ALL=C find -L '$(call SHESCAPE,$(SRCDIR))/source/rts' -type f | $(SED) 's| |\\ |g')
-override ADAFILES := $(shell LC_ALL=C find -L '$(call SHESCAPE,$(SRCDIR))/source' -type f | $(GREP) -v rts | $(SED) 's| |\\ |g')
+override RTSFILES := $(shell find -L '$(call SHESCAPE,$(SRCDIR))/source/rts' -type f | $(SED) 's| |\\ |g')
+override ADAFILES := $(shell find -L '$(call SHESCAPE,$(SRCDIR))/source' -type f | $(GREP) -v rts | $(SED) 's| |\\ |g')
 
 ###############################################################################
 # Rules for generating executables, documentation, and other artifacts.
@@ -83,13 +82,13 @@ rtsdir/adalib/libgnat.a: GNUmakefile $(RTSFILES)
 	cp '$(call SHESCAPE,$(SRCDIR))'/source/rts/*.ads rtsdir/adainclude/
 	cp '$(call SHESCAPE,$(SRCDIR))'/source/rts/$(host_cpu)-$(PLATFORM)/*.ads rtsdir/adainclude/
 	$(GPRBUILD) -P ./rts.gpr \
-      --target=$(GPRBUILD_TARGET) --db- --db ./gprconfig \
-      -j$(PARALLELISM)
+		--target=$(GPRBUILD_TARGET) --db- --db ./gprconfig \
+		-j$(PARALLELISM)
 
 $(OUTPUT): GNUmakefile rtsdir/adalib/libgnat.a $(ADAFILES)
-	$(GPRBUILD) --RTS=./rtsdir \
-      --target=$(GPRBUILD_TARGET) --db- --db ./gprconfig \
-      -P ./ironclad.gpr -j$(PARALLELISM)
+	$(GPRBUILD) -P ./ironclad.gpr \
+		--RTS=./rtsdir --target=$(GPRBUILD_TARGET) --db- --db ./gprconfig \
+		-j$(PARALLELISM)
 
 .PHONY: info
 info: ironclad.info
@@ -115,17 +114,19 @@ check: check-typos check-rts check-kernel
 
 .PHONY: check-typos
 check-typos:
-	$(TYPOS) -c $(call MKESCAPE,$(SRCDIR))/.typos.toml $(call MKESCAPE,$(SRCDIR))
+	$(TYPOS) -c '$(call SHESCAPE,$(SRCDIR))'/.typos.toml '$(call SHESCAPE,$(SRCDIR))'
 
 .PHONY: check-rts
 check-rts: rtsdir/adalib/libgnat.a
-	$(GNATPROVE) -U --level=4 --mode=all --counterexamples=on \
-		-j$(PARALLELISM) -P ./rts.gpr
+	$(GNATPROVE) -P ./rts.gpr \
+		-U --level=4 --mode=all --counterexamples=on \
+		-j$(PARALLELISM)
 
 .PHONY: check-kernel
 check-kernel: rtsdir/adalib/libgnat.a
-	$(GNATPROVE) -U --level=4 --mode=all --counterexamples=on \
-		--RTS=./rtsdir -j$(PARALLELISM) -P ./ironclad.gpr
+	$(GNATPROVE) -P ./ironclad.gpr \
+		--RTS=./rtsdir -U --level=4 --mode=all --counterexamples=on \
+		-j$(PARALLELISM)
 ###############################################################################
 # Rules for cleaning build and configuration artifacts.
 .PHONY: clean
