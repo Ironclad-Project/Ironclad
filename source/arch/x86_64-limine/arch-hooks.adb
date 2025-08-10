@@ -19,6 +19,7 @@ with System; use System;
 with Devices.FB;
 with Devices.PS2;
 with Devices.PC_Speaker;
+with Devices.PCI.RTL8139;
 with Devices.Serial;
 with Arch.Snippets; use Arch.Snippets;
 with Arch.CPU; use Arch.CPU;
@@ -34,7 +35,8 @@ package body Arch.Hooks is
       return Devices.FB.Init            and then
              Devices.PC_Speaker.Init    and then
              Devices.PS2.Init           and then
-             Devices.Serial.Init;
+             Devices.Serial.Init        and then
+             Devices.PCI.RTL8139.Init;
    end Devices_Hook;
 
    procedure PRCTL_Hook

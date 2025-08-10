@@ -38,6 +38,15 @@ package Devices.PCI is
        Subclass     : Unsigned_8;
        Prog_If      : Unsigned_8) return Natural;
 
+   --  Get how many devices are available on the system with the passed
+   --  information.
+   --  @param Vendor_ID Device to search for.
+   --  @param Device_ID Subclass to search for.
+   --  @return Number of devices with these characteristics.
+   function Enumerate_Devices
+      (Vendor_ID : Unsigned_16;
+       Device_ID : Unsigned_16) return Natural;
+
    --  Get a device's information with the passed information.
    --  @param Device_Class Device to search for.
    --  @param Subclass     Subclass to search for.
@@ -49,6 +58,19 @@ package Devices.PCI is
       (Device_Class : Unsigned_8;
        Subclass     : Unsigned_8;
        Prog_If      : Unsigned_8;
+       Idx          : Natural;
+       Result       : out PCI_Device;
+       Success      : out Boolean);
+
+   --  Get a device's information with the passed information.
+   --  @param Vendor_ID Vendor ID to search for.
+   --  @param Device_ID Device ID to search for.
+   --  @param Idx       Index of the device among others like it.
+   --  @param Result    Result device to write to.
+   --  @param Success   True in success, False in failure.
+   procedure Search_Device
+      (Vendor_ID : Unsigned_16;
+       Device_ID     : Unsigned_16;
        Idx          : Natural;
        Result       : out PCI_Device;
        Success      : out Boolean);

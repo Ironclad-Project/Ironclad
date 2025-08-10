@@ -98,6 +98,33 @@ package body Devices.PCI is
          return 0;
    end Enumerate_Devices;
 
+   function Enumerate_Devices
+      (Vendor_ID : Unsigned_16;
+       Device_ID : Unsigned_16) return Natural
+   is
+      Idx  :                Natural := 0;
+      Temp : PCI_Registry_Entry_Acc := PCI_Registry;
+   begin
+      loop
+         if Temp = null then
+            exit;
+         end if;
+
+         if Temp.Dev.Vendor_ID = Vendor_ID and
+            Temp.Dev.Device_ID = Device_ID
+         then
+            Idx := Idx + 1;
+         end if;
+
+         Temp := Temp.Next;
+      end loop;
+
+      return Idx;
+   exception
+      when Constraint_Error =>
+         return 0;
+   end Enumerate_Devices;
+
    procedure Search_Device
       (Device_Class : Unsigned_8;
        Subclass     : Unsigned_8;
@@ -122,6 +149,41 @@ package body Devices.PCI is
          if Temp.Dev.Device_Class = Device_Class and
             Temp.Dev.Subclass     = Subclass     and
             Temp.Dev.Prog_If      = Prog_If
+         then
+            FIdx := FIdx + 1;
+            if Idx = FIdx then
+               Result  := Temp.Dev;
+               Success := True;
+               return;
+            end if;
+         end if;
+
+         Temp := Temp.Next;
+      end loop;
+
+      Success := False;
+   exception
+      when Constraint_Error =>
+         Success := False;
+   end Search_Device;
+
+   procedure Search_Device
+      (Vendor_ID : Unsigned_16;
+       Device_ID : Unsigned_16;
+       Idx          : Natural;
+       Result       : out PCI_Device;
+       Success      : out Boolean)
+   is
+      FIdx :                Natural := 0;
+      Temp : PCI_Registry_Entry_Acc := PCI_Registry;
+   begin
+      loop
+         if Temp = null then
+            exit;
+         end if;
+
+         if Temp.Dev.Vendor_ID = Vendor_ID and
+            Temp.Dev.Device_ID = Device_ID
          then
             FIdx := FIdx + 1;
             if Idx = FIdx then
