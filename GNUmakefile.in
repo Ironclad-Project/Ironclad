@@ -122,11 +122,21 @@ check-rts: rtsdir/adalib/libgnat.a
 		-U --level=4 --mode=all --counterexamples=on \
 		-j$(PARALLELISM)
 
+.PHONY: check-rts-stone
+check-rts-stone: rtsdir/adalib/libgnat.a
+	$(GNATPROVE) -P ./rts.gpr \
+		-U --level=4 --mode=stone -j$(PARALLELISM)
+
 .PHONY: check-kernel
 check-kernel: rtsdir/adalib/libgnat.a
 	$(GNATPROVE) -P ./ironclad.gpr \
 		--RTS=./rtsdir -U --level=4 --mode=all --counterexamples=on \
 		-j$(PARALLELISM)
+
+.PHONY: check-kernel-stone
+check-kernel-stone: rtsdir/adalib/libgnat.a
+	$(GNATPROVE) -P ./ironclad.gpr \
+		--RTS=./rtsdir --level=4 --mode=stone -j$(PARALLELISM)
 ###############################################################################
 # Rules for cleaning build and configuration artifacts.
 .PHONY: clean
