@@ -481,7 +481,8 @@ package body VFS.FAT with SPARK_Mode => Off is
       Limit, Offset : Unsigned_64;
       Ret_Count     : Natural;
       Succ          : Devices.Dev_Status;
-      Returned_Data : Operation_Data (1 .. 4) with Address => Returned'Address;
+      Returned_Data : Operation_Data (1 .. 4)
+         with Import, Address => Returned'Address;
    begin
       Limit  := (Unsigned_64 (Data.BPB.Sectors_Per_FAT) * Sector_Size) / 4;
       Offset := Sector_To_Disk_Offset (Data.FAT_Offset);
