@@ -23,6 +23,9 @@ with Scheduler;
 package body Synchronization with SPARK_Mode => Off is
    pragma Suppress (All_Checks); --  Checks are too expensive in this paths.
 
+   Max_Spinlock_Block_Iters : constant := 50_000_000;
+   Max_Mutex_Block_Iters    : constant := 100;
+
    --  Both locks do a rough wait until the lock is free for cache-locality.
    --  https://en.wikipedia.org/wiki/Test_and_test-and-set
 
@@ -44,7 +47,7 @@ package body Synchronization with SPARK_Mode => Off is
          return;
       end if;
 
-      for I in 1 .. 50_000_000 loop
+      for I in 1 .. Max_Spinlock_Block_Iters loop
          if Atomic_Load_8 (Lock.Is_Locked'Address, Mem_Relaxed) = 0 then
             goto RETEST;
          else
@@ -66,7 +69,7 @@ package body Synchronization with SPARK_Mode => Off is
    ----------------------------------------------------------------------------
    procedure Seize (Lock : aliased in out Mutex) is
    begin
-      loop
+      for I in 1 .. Max_Mutex_Block_Iters loop
       <<RETEST>>
          if not Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) then
             return;
@@ -80,6 +83,8 @@ package body Synchronization with SPARK_Mode => Off is
 
          Scheduler.Yield_If_Able;
       end loop;
+
+      Panic.Hard_Panic ("Mutex Deadlock at " & Caller_Address (0)'Image);
    end Seize;
 
    procedure Release (Lock : aliased in out Mutex) is

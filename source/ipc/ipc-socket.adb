@@ -884,9 +884,7 @@ package body IPC.Socket is
          not To_Close.Is_Listener and then
          To_Close.Established /= null
       then
-         Synchronization.Seize (To_Close.Established.Mutex);
          To_Close.Established.Pending_Accept := null;
-         Synchronization.Release (To_Close.Established.Mutex);
       end if;
    end Inner_UNIX_Close;
 
