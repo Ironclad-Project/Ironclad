@@ -180,8 +180,9 @@ package body VFS.EXT with SPARK_Mode => Off is
       Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
    begin
       Synchronization.Seize_Reader (Data.Mutex);
-      Size := Unsigned_64 (Data.Super.Block_Count *
-         Data.Block_Size / Data.Fragment_Size);
+      Size := Unsigned_64 (Data.Super.Block_Count) *
+         Unsigned_64 (Data.Block_Size) /
+         Unsigned_64 (Data.Fragment_Size);
       Synchronization.Release_Reader (Data.Mutex);
    exception
       when Constraint_Error =>
@@ -1757,30 +1758,30 @@ package body VFS.EXT with SPARK_Mode => Off is
        Success          : out Boolean)
    is
       Succ        : Devices.Dev_Status;
-      Descr_Size  : constant Natural := Block_Group_Descriptor'Size / 8;
-      Offset      : Unsigned_32;
+      Descr_Size  : constant Unsigned_64 := Block_Group_Descriptor'Size / 8;
+      Offset      : Unsigned_64;
       Ret_Count   : Natural;
-      Result_Data : Operation_Data (1 .. Descr_Size)
+      Result_Data : Operation_Data (1 .. Block_Group_Descriptor'Size / 8)
          with Import, Address => Result'Address;
    begin
-      Offset := Data.Block_Size;
+      Offset := Unsigned_64 (Data.Block_Size);
       if Data.Block_Size < 2048 then
          Offset := Offset * 2;
       end if;
 
-      Offset := Offset + (Unsigned_32 (Descr_Size) * Descriptor_Index);
+      Offset := Offset + (Descr_Size * Unsigned_64 (Descriptor_Index));
 
       if Write_Operation then
          Devices.Write
             (Handle    => Data.Handle,
-             Offset    => Unsigned_64 (Offset),
+             Offset    => Offset,
              Data      => Result_Data,
              Ret_Count => Ret_Count,
              Success   => Succ);
       else
          Devices.Read
             (Handle    => Data.Handle,
-             Offset    => Unsigned_64 (Offset),
+             Offset    => Offset,
              Data      => Result_Data,
              Ret_Count => Ret_Count,
              Success   => Succ);
@@ -1807,7 +1808,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Table_Index, Descriptor_Index : Unsigned_32;
       Block_Descriptor : Block_Group_Descriptor;
       Succ        : Devices.Dev_Status;
-      Offset      : Unsigned_32;
+      Offset      : Unsigned_64;
       Ret_Count   : Natural;
       Result_Data : Operation_Data (1 .. Inode'Size / 8)
          with Import, Address => Result'Address;
@@ -1825,20 +1826,22 @@ package body VFS.EXT with SPARK_Mode => Off is
          return;
       end if;
 
-      Offset := Block_Descriptor.Inode_Table_Block * Data.Block_Size +
-                Table_Index * Unsigned_32 (Data.Super.Inode_Size);
+      Offset :=
+         Unsigned_64 (Block_Descriptor.Inode_Table_Block) *
+         Unsigned_64 (Data.Block_Size) + Unsigned_64 (Table_Index) *
+         Unsigned_64 (Data.Super.Inode_Size);
 
       if Write_Operation then
          Devices.Write
             (Handle    => Data.Handle,
-             Offset    => Unsigned_64 (Offset),
+             Offset    => Offset,
              Data      => Result_Data,
              Ret_Count => Ret_Count,
              Success   => Succ);
       else
          Devices.Read
             (Handle    => Data.Handle,
-             Offset    => Unsigned_64 (Offset),
+             Offset    => Offset,
              Data      => Result_Data,
              Ret_Count => Ret_Count,
              Success   => Succ);
@@ -1900,22 +1903,25 @@ package body VFS.EXT with SPARK_Mode => Off is
 
             Devices.Read
                (Handle    => FS_Data.Handle,
-                Offset    => Unsigned_64 (Inode_Data.Blocks (14) *
-                             FS_Data.Block_Size + Double_Indirect * 4),
+                Offset    => Unsigned_64 (Inode_Data.Blocks (14)) *
+                             Unsigned_64 (FS_Data.Block_Size) +
+                             Unsigned_64 (Double_Indirect) * 4,
                 Data      => Single_Indirect_Index_Data,
                 Ret_Count => Discard_1,
                 Success   => Discard_2);
             Devices.Read
                (Handle    => FS_Data.Handle,
-                Offset    => Unsigned_64 (Double_Indirect * FS_Data.Block_Size
-                                          + Single_Indirect_Index * 4),
+                Offset    => Unsigned_64 (Double_Indirect) *
+                             Unsigned_64 (FS_Data.Block_Size) +
+                             Unsigned_64 (Single_Indirect_Index) * 4,
                 Data      => Indirect_Block_Data,
                 Ret_Count => Discard_1,
                 Success   => Discard_2);
             Devices.Read
                (Handle    => FS_Data.Handle,
-                Offset    => Unsigned_64 (Indirect_Block * FS_Data.Block_Size +
-                             Indirect_Offset * 4),
+                Offset    => Unsigned_64 (Indirect_Block) *
+                             Unsigned_64 (FS_Data.Block_Size) +
+                             Unsigned_64 (Indirect_Offset) * 4,
                 Data      => Block_Index_Data,
                 Ret_Count => Discard_1,
                 Success   => Discard_2);
@@ -1924,15 +1930,17 @@ package body VFS.EXT with SPARK_Mode => Off is
 
          Devices.Read
             (Handle    => FS_Data.Handle,
-             Offset    => Unsigned_64 (Inode_Data.Blocks (13) *
-                                       FS_Data.Block_Size + Single_Index * 4),
+             Offset    => Unsigned_64 (Inode_Data.Blocks (13)) *
+                          Unsigned_64 (FS_Data.Block_Size) +
+                          Unsigned_64 (Single_Index) * 4,
              Data      => Indirect_Block_Data,
              Ret_Count => Discard_1,
              Success   => Discard_2);
          Devices.Read
             (Handle    => FS_Data.Handle,
-             Offset    => Unsigned_64 (Indirect_Block * FS_Data.Block_Size +
-                                       Indirect_Offset * 4),
+             Offset    => Unsigned_64 (Indirect_Block) *
+                          Unsigned_64 (FS_Data.Block_Size) +
+                          Unsigned_64 (Indirect_Offset) * 4,
              Data      => Block_Index_Data,
              Ret_Count => Discard_1,
              Success   => Discard_2);
@@ -1941,8 +1949,9 @@ package body VFS.EXT with SPARK_Mode => Off is
 
       Devices.Read
          (Handle    => FS_Data.Handle,
-          Offset    => Unsigned_64 (Inode_Data.Blocks (12) * FS_Data.Block_Size
-                                    + Adjusted_Block * 4),
+          Offset    => Unsigned_64 (Inode_Data.Blocks (12)) *
+                       Unsigned_64 (FS_Data.Block_Size) +
+                       Unsigned_64 (Adjusted_Block) * 4,
           Data      => Block_Index_Data,
           Ret_Count => Discard_1,
           Success   => Discard_2);
@@ -2247,8 +2256,9 @@ package body VFS.EXT with SPARK_Mode => Off is
 
             Devices.Read
                (Handle    => FS_Data.Handle,
-                Offset    => Unsigned_64 (Inode_Data.Blocks (14) *
-                             FS_Data.Block_Size + Double_Indirect * 4),
+                Offset    => Unsigned_64 (Inode_Data.Blocks (14)) *
+                             Unsigned_64 (FS_Data.Block_Size) +
+                             Unsigned_64 (Double_Indirect) * 4,
                 Data      => Single_Indirect_Index_Data,
                 Ret_Count => Discard_1,
                 Success   => Discard_3);
@@ -2272,8 +2282,9 @@ package body VFS.EXT with SPARK_Mode => Off is
 
             Devices.Read
                (Handle    => FS_Data.Handle,
-                Offset    => Unsigned_64 (Double_Indirect * FS_Data.Block_Size
-                                          + Single_Indirect_Index * 4),
+                Offset    => Unsigned_64 (Double_Indirect) *
+                             Unsigned_64 (FS_Data.Block_Size) +
+                             Unsigned_64 (Single_Indirect_Index) * 4,
                 Data      => Indirect_Block_Data,
                 Ret_Count => Discard_1,
                 Success   => Discard_3);
@@ -2327,8 +2338,9 @@ package body VFS.EXT with SPARK_Mode => Off is
 
          Devices.Read
             (Handle    => FS_Data.Handle,
-             Offset    => Unsigned_64 (Inode_Data.Blocks (13) *
-                                       FS_Data.Block_Size + Single_Index * 4),
+             Offset    => Unsigned_64 (Inode_Data.Blocks (13)) *
+                          Unsigned_64 (FS_Data.Block_Size) +
+                          Unsigned_64 (Single_Index) * 4,
              Data      => Indirect_Block_Data,
              Ret_Count => Discard_1,
              Success   => Discard_3);
@@ -2422,8 +2434,8 @@ package body VFS.EXT with SPARK_Mode => Off is
 
          Devices.Read
             (Handle    => FS_Data.Handle,
-             Offset    => Unsigned_64 (Desc.Block_Usage_Bitmap_Block *
-                                       FS_Data.Block_Size),
+             Offset    => Unsigned_64 (Desc.Block_Usage_Bitmap_Block) *
+                          Unsigned_64 (FS_Data.Block_Size),
              Data      => Bitmap.all,
              Ret_Count => Ret_Count,
              Success   => Succ);
@@ -2533,8 +2545,8 @@ package body VFS.EXT with SPARK_Mode => Off is
 
          Devices.Read
             (Handle    => FS_Data.Handle,
-             Offset    => Unsigned_64 (Desc.Inode_Usage_Bitmap_Block *
-                                       FS_Data.Block_Size),
+             Offset    => Unsigned_64 (Desc.Inode_Usage_Bitmap_Block) *
+                          Unsigned_64 (FS_Data.Block_Size),
              Data      => Bitmap.all,
              Ret_Count => Ret_Count,
              Success   => Succ);
