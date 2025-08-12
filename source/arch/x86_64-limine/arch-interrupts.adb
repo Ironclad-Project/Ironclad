@@ -29,7 +29,7 @@ with Arch.Local;
 with Userland.Corefile;
 with Userland.Process;
 
-package body Arch.Interrupts is
+package body Arch.Interrupts with SPARK_Mode => Off is
    procedure Exception_Handler (Num : Integer; State : not null ISR_GPRs_Acc)
    is
       Signal : Userland.Process.Signal;

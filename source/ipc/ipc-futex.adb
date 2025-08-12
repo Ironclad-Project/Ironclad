@@ -19,7 +19,7 @@ with Synchronization; use Synchronization;
 with Arch.Clocks;
 with Time;
 
-package body IPC.Futex is
+package body IPC.Futex with SPARK_Mode => Off is
    type Futex_Inner is record
       Key         : access Unsigned_32;
       Wakey_Wakey : Boolean with Volatile;

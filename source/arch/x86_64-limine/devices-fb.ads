@@ -17,7 +17,7 @@
 with Memory;
 with Memory.MMU;
 
-package Devices.FB is
+package Devices.FB with SPARK_Mode => Off is
    --  Early init for console printing purposes.
    procedure Early_Init;
 

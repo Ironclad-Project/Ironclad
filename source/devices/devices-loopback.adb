@@ -17,7 +17,7 @@
 with Networking.Interfaces;
 with Scheduler;
 
-package body Devices.Loopback is
+package body Devices.Loopback with SPARK_Mode => Off is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    procedure Init (Success : out Boolean) is

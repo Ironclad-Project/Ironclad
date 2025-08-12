@@ -52,7 +52,7 @@ package body Arch.CPU with SPARK_Mode => Off is
          BSP_LAPIC_ID := SMPPonse.BSP_LAPIC_ID;
       else
          Core_Count   := 1;
-         BSP_LAPIC_ID := Get_BSP_LAPIC_ID;
+         Get_BSP_LAPIC_ID (BSP_LAPIC_ID);
       end if;
 
       --  Initialize the locals list, and initialize the cores.
@@ -317,7 +317,7 @@ package body Arch.CPU with SPARK_Mode => Off is
           User_Stack       => 0,
           Number           => Core_Number,
           LAPIC_ID         => LAPIC,
-          LAPIC_Timer_Hz   => APIC.LAPIC_Timer_Calibrate,
+          LAPIC_Timer_Hz   => <>,
           Core_TSS         => <>,
           Current_Thread   => Scheduler.Error_TID,
           Current_Process  => Userland.Process.Error_PID,
@@ -325,6 +325,7 @@ package body Arch.CPU with SPARK_Mode => Off is
           Invalidate_Map   => 0,
           Invalidate_Start => System.Null_Address,
           Invalidate_End   => System.Null_Address);
+      APIC.LAPIC_Timer_Calibrate (Core_Locals (Core_Number).LAPIC_Timer_Hz);
 
       Snippets.Write_GS        (Locals_Addr);
       Snippets.Write_Kernel_GS (Locals_Addr);
@@ -343,7 +344,7 @@ package body Arch.CPU with SPARK_Mode => Off is
          Panic.Hard_Panic ("Exception when initializing core");
    end Init_Common;
 
-   function Get_BSP_LAPIC_ID return Unsigned_32 is
+   procedure Get_BSP_LAPIC_ID (ID : out Unsigned_32) is
       EAX, EBX, ECX, EDX : Unsigned_32;
       Success : Boolean;
    begin
@@ -351,6 +352,6 @@ package body Arch.CPU with SPARK_Mode => Off is
       if not Success then
          Panic.Hard_Panic ("Could not get BSP");
       end if;
-      return Shift_Right (EBX, 24) and 16#FF#;
+      ID := Shift_Right (EBX, 24) and 16#FF#;
    end Get_BSP_LAPIC_ID;
 end Arch.CPU;

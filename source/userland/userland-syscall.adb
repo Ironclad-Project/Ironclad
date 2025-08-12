@@ -44,7 +44,7 @@ with Arch.Snippets;
 with Memory.Userland_Transfer;
 with Userland.MAC;
 
-package body Userland.Syscall is
+package body Userland.Syscall with SPARK_Mode => Off is
    procedure Sys_Exit
       (Code     : Unsigned_64;
        Returned : out Unsigned_64;

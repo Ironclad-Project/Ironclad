@@ -30,7 +30,7 @@ with IPC.Socket;       use IPC.Socket;
 with IPC.FIFO;         use IPC.FIFO;
 use IPC.PTY;
 
-package Userland.Syscall is
+package Userland.Syscall with SPARK_Mode => Off is
    --  Error conditions for syscalls.
    --  The representation values are arbitrary.
    type Errno_Value is

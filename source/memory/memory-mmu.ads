@@ -40,9 +40,9 @@ package Memory.MMU is
 
    --  Initialize global MMU state, at the end, it will activate Kernel_Table.
    --  @param Memmap Physical memory map, may be used to map MMIO regions.
-   --  @return True in success, False in failure or if Kernel_Table failed.
-   function Init (Memmap : Arch.Boot_Memory_Map) return Boolean
-      with Post => (not Init'Result xor Kernel_Table /= null);
+   --  @param Success True in success, False in failure.
+   procedure Init (Memmap : Arch.Boot_Memory_Map; Success : out Boolean)
+      with Post => (not Success xor Kernel_Table /= null);
 
    --  Create a new page table ready for switching.
    --  @param New_Map New map, or null on failure.
@@ -195,101 +195,57 @@ package Memory.MMU is
 
 private
 
-   #if ArchName = """riscv64-limine"""
-      type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
-      type PML4_Acc is access PML4;
-      type Mapping_Range;
-      type Mapping_Range_Acc is access Mapping_Range;
-      type Mapping_Range is record
-         Next           : Mapping_Range_Acc;
-         Is_Allocated   : Boolean;
-         Virtual_Start  : System.Address;
-         Physical_Start : System.Address;
-         Length         : Storage_Count;
-         Flags          : Arch.MMU.Page_Permissions;
-      end record;
+   type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
+   type PML4_Acc is access PML4;
+   type Mapping_Range;
+   type Mapping_Range_Acc is access Mapping_Range;
+   type Mapping_Range is record
+      Next           : Mapping_Range_Acc;
+      Is_Allocated   : Boolean;
+      Virtual_Start  : System.Address;
+      Physical_Start : System.Address;
+      Length         : Storage_Count;
+      Flags          : Arch.MMU.Page_Permissions;
+   end record;
 
-      type Page_Table is record
-         PML4_Level      : PML4;
-         Mutex           : aliased Synchronization.Readers_Writer_Lock;
-         Map_Ranges_Root : Mapping_Range_Acc;
-      end record;
+   type Page_Table is record
+      PML4_Level      : PML4;
+      Mutex           : aliased Synchronization.Readers_Writer_Lock;
+      Map_Ranges_Root : Mapping_Range_Acc;
+   end record;
 
-      procedure Inner_Map_Allocated_Range
-         (Map            : Page_Table_Acc;
-          Physical_Start : out System.Address;
-          Virtual_Start  : System.Address;
-          Length         : Storage_Count;
-          Permissions    : Arch.MMU.Page_Permissions;
-          Success        : out Boolean;
-          Caching        : Arch.MMU.Caching_Model := Arch.MMU.Write_Back);
+   procedure Inner_Map_Allocated_Range
+      (Map            : Page_Table_Acc;
+       Physical_Start : out System.Address;
+       Virtual_Start  : System.Address;
+       Length         : Storage_Count;
+       Permissions    : Arch.MMU.Page_Permissions;
+       Success        : out Boolean;
+       Caching        : Arch.MMU.Caching_Model := Arch.MMU.Write_Back);
 
-      function Get_Next_Level
-         (Current_Level       : Physical_Address;
-          Index               : Unsigned_64;
-          Create_If_Not_Found : Boolean) return Physical_Address;
-      function Get_Page
-         (Map      : Page_Table_Acc;
-          Virtual  : Virtual_Address;
-          Allocate : Boolean) return Virtual_Address;
-      function Inner_Map_Range
-         (Map            : Page_Table_Acc;
-          Physical_Start : System.Address;
-          Virtual_Start  : System.Address;
-          Length         : Storage_Count;
-          Permissions    : Arch.MMU.Page_Permissions;
-          Caching        : Arch.MMU.Caching_Model) return Boolean;
-      procedure Flush_TLBs
-         (Map  : Page_Table_Acc;
-          Addr : System.Address;
-          Len  : Storage_Count);
-   #elsif ArchName = """x86_64-limine"""
-      type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
-      type PML4_Acc is access PML4;
-      type Mapping_Range;
-      type Mapping_Range_Acc is access Mapping_Range;
-      type Mapping_Range is record
-         Next           : Mapping_Range_Acc;
-         Is_Allocated   : Boolean;
-         Virtual_Start  : System.Address;
-         Physical_Start : System.Address;
-         Length         : Storage_Count;
-         Flags          : Arch.MMU.Page_Permissions;
-      end record;
+   procedure Get_Next_Level
+      (Current_Level       : Physical_Address;
+       Index               : Unsigned_64;
+       Create_If_Not_Found : Boolean;
+       Addr                : out Physical_Address);
 
-      type Page_Table is record
-         PML4_Level      : PML4;
-         Mutex           : aliased Synchronization.Readers_Writer_Lock;
-         Map_Ranges_Root : Mapping_Range_Acc;
-      end record;
+   procedure Get_Page
+      (Map      : Page_Table_Acc;
+       Virtual  : Virtual_Address;
+       Allocate : Boolean;
+       Result   : out Virtual_Address);
 
-      procedure Inner_Map_Allocated_Range
-         (Map            : Page_Table_Acc;
-          Physical_Start : out System.Address;
-          Virtual_Start  : System.Address;
-          Length         : Storage_Count;
-          Permissions    : Arch.MMU.Page_Permissions;
-          Success        : out Boolean;
-          Caching        : Arch.MMU.Caching_Model := Arch.MMU.Write_Back);
+   procedure Inner_Map_Range
+      (Map            : Page_Table_Acc;
+       Physical_Start : System.Address;
+       Virtual_Start  : System.Address;
+       Length         : Storage_Count;
+       Permissions    : Arch.MMU.Page_Permissions;
+       Caching        : Arch.MMU.Caching_Model;
+       Success        : out Boolean);
 
-      function Get_Next_Level
-         (Current_Level       : Physical_Address;
-          Index               : Unsigned_64;
-          Create_If_Not_Found : Boolean) return Physical_Address;
-      function Get_Page
-         (Map      : Page_Table_Acc;
-          Virtual  : Virtual_Address;
-          Allocate : Boolean) return Virtual_Address;
-      function Inner_Map_Range
-         (Map            : Page_Table_Acc;
-          Physical_Start : System.Address;
-          Virtual_Start  : System.Address;
-          Length         : Storage_Count;
-          Permissions    : Arch.MMU.Page_Permissions;
-          Caching        : Arch.MMU.Caching_Model) return Boolean;
-      procedure Flush_TLBs
-         (Map  : Page_Table_Acc;
-          Addr : System.Address;
-          Len  : Storage_Count);
-   #end if;
+   procedure Flush_TLBs
+      (Map  : Page_Table_Acc;
+       Addr : System.Address;
+       Len  : Storage_Count);
 end Memory.MMU;

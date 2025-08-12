@@ -599,8 +599,9 @@ private
        Is_Broken : out Boolean;
        Is_Error  : out Boolean);
 
-   function Inner_UNIX_Shutdown
+   procedure Inner_UNIX_Shutdown
       (Sock             : Socket_Acc;
        Do_Receptions    : Boolean;
-       Do_Transmissions : Boolean) return Boolean;
+       Do_Transmissions : Boolean;
+       Success          : out Boolean);
 end IPC.Socket;

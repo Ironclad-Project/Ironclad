@@ -17,7 +17,7 @@
 with System;
 with Interfaces; use Interfaces;
 
-package Arch.Limine with SPARK_Mode => Off is
+package Arch.Limine is
    --  Translate limine information into the information presented under
    --  arch.ads
    procedure Translate_Proto;
@@ -30,7 +30,7 @@ package Arch.Limine with SPARK_Mode => Off is
       ID       : Request_ID;
       Revision : Unsigned_64;
       Response : System.Address;
-   end record with Pack, Volatile;
+   end record with Pack;
 
    type Response is record
       Revision : Unsigned_64;
@@ -147,7 +147,7 @@ package Arch.Limine with SPARK_Mode => Off is
    type SMP_Request is record
       Base  : Request;
       Flags : Unsigned_64;
-   end record;
+   end record with Pack, Volatile;
 
    type SMP_Response is record
       Base         : Response;

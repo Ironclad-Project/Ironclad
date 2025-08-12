@@ -24,7 +24,7 @@ with Synchronization;
 with Ada.Unchecked_Conversion;
 with Messages;
 
-package body Devices.PS2 is
+package body Devices.PS2 with SPARK_Mode => Off is
    --  Globals to communicate with the keyboard interrupt routine.
    Kb_Data_Mutex : aliased Synchronization.Binary_Semaphore
       := Synchronization.Unlocked_Semaphore;
@@ -91,9 +91,9 @@ package body Devices.PS2 is
       if not Success then
          return False;
       end if;
-      if not Arch.APIC.IOAPIC_Set_Redirect
-         (Arch.CPU.Core_Locals (1).LAPIC_ID, 34, Index, True)
-      then
+      Arch.APIC.IOAPIC_Set_Redirect
+         (Arch.CPU.Core_Locals (1).LAPIC_ID, 34, Index, True, Success);
+      if not Success then
          return False;
       end if;
 
@@ -102,9 +102,9 @@ package body Devices.PS2 is
       if not Success then
          return False;
       end if;
-      if not Arch.APIC.IOAPIC_Set_Redirect
-         (Arch.CPU.Core_Locals (1).LAPIC_ID, 45, Index, True)
-      then
+      Arch.APIC.IOAPIC_Set_Redirect
+         (Arch.CPU.Core_Locals (1).LAPIC_ID, 45, Index, True, Success);
+      if not Success then
          return False;
       end if;
 

@@ -20,7 +20,7 @@ with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
 with Arch.MMU;
 
-package body Devices.PCI.i6300ESB is
+package body Devices.PCI.i6300ESB with SPARK_Mode => Off is
    --  TODO: This beautiful piece of hardware is a 2-stage  \ ______/ V`-,
    --  is a 2-stage watchdog, so far we only use the second  }        /~~
    --  instant death stage, maybe a software recoverable dog /_)^ --,r'
@@ -128,6 +128,7 @@ package body Devices.PCI.i6300ESB is
       WDOG_STOP      : constant := 2;
       WDOG_HEARTBEAT : constant := 3;
       D : constant Dog_Data_Acc := Dog_Data_Acc (Con.To_Pointer (Key));
+      Val : Unsigned_8;
    begin
       Has_Extra := False;
       Extra     := 0;
@@ -144,7 +145,8 @@ package body Devices.PCI.i6300ESB is
                Success := True;
             when WDOG_STOP =>
                Devices.PCI.Write8 (D.PCI_Data, LOCK, 0);
-               Success := Devices.PCI.Read8 (D.PCI_Data, LOCK) /= 0;
+               Devices.PCI.Read8 (D.PCI_Data, LOCK, Val);
+               Success := Val /= 0;
             when WDOG_HEARTBEAT =>
                Unlock_Registers (D.Base_Addr);
                TIMER1_Reg := Shift_Left (Timeout, 9);

@@ -24,9 +24,9 @@ with System; use System;
 with Arch.SBI;
 
 package body Arch.Hooks is
-   function Devices_Hook return Boolean is
+   procedure Devices_Hook (Success : out Boolean) is
    begin
-      return Devices.FB.Init;
+      Success := Devices.FB.Init;
    end Devices_Hook;
 
    procedure PRCTL_Hook
@@ -61,9 +61,10 @@ package body Arch.Hooks is
       (ID       => Limine.Modules_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export, Async_Writers;
+      with Export;
 
    procedure Register_RAM_Files is
+      Success : Boolean;
    begin
       if Modules_Request.Response /= System.Null_Address then
          declare
@@ -79,7 +80,8 @@ package body Arch.Hooks is
                Translated (Idx) := (Ent.Address, Storage_Count (Ent.Size));
             end loop;
 
-            if not Devices.Ramdev.Init (Translated) then
+            Devices.Ramdev.Init (Translated, Success);
+            if not Success then
                Messages.Put_Line ("Could not load RAM files");
             end if;
          end;

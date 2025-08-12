@@ -33,7 +33,7 @@ package Arch.APIC is
    procedure LAPIC_Send_IPI (LAPIC_ID : Unsigned_32; Vector : IDT.IDT_Index);
 
    --  Find out the LAPIC timer frequency, in Hz.
-   function LAPIC_Timer_Calibrate return Unsigned_64;
+   procedure LAPIC_Timer_Calibrate (Hz : out Unsigned_64);
 
    --  Stop the timer.
    procedure LAPIC_Timer_Stop;
@@ -50,32 +50,34 @@ package Arch.APIC is
    procedure LAPIC_EOI;
    ----------------------------------------------------------------------------
    --  Initialize the IOAPICs, return True in success or False on failure.
-   function Init_IOAPIC return Boolean;
+   procedure Init_IOAPIC (Success : out Boolean);
 
    --  Use the IOAPIC to redirect an IRQ to an IDT entry for a given LAPIC.
    --  Set enable to true or false to enable or disable it.
    --  Return true on success.
-   function IOAPIC_Set_Redirect
+   procedure IOAPIC_Set_Redirect
       (LAPIC_ID  : Unsigned_32;
        IRQ       : IDT.IRQ_Index;
        IDT_Entry : IDT.IDT_Index;
-       Enable    : Boolean) return Boolean;
+       Enable    : Boolean;
+       Success   : out Boolean);
 
    --  Use the IOAPIC to redirect a GSI to an IDT entry for a given LAPIC.
    --  Use ISO flags for setting specific flags for the GSI, and set enable to
    --  true or false to enable or disable it. Return true on success.
    IOAPIC_ISO_Flag_Polarity : constant Unsigned_16 := Shift_Left (1, 1);
    IOAPIC_ISO_Flag_Trigger  : constant Unsigned_16 := Shift_Left (1, 3);
-   function IOAPIC_Set_Redirect
+   procedure IOAPIC_Set_Redirect
       (LAPIC_ID  : Unsigned_32;
        GSI       : Unsigned_32;
        IDT_Entry : IDT.IDT_Index;
        Flags     : Unsigned_16;
-       Enable    : Boolean) return Boolean;
+       Enable    : Boolean;
+       Success   : out Boolean);
 
 private
 
-   function LAPIC_Read (Register : Unsigned_32) return Unsigned_32;
+   procedure LAPIC_Read (Register : Unsigned_32; Result : out Unsigned_32);
    procedure LAPIC_Write (Register : Unsigned_32; Value : Unsigned_32);
 
    function x2APIC_Read (Register : Unsigned_32) return Unsigned_64;
@@ -85,7 +87,8 @@ private
       (GSI    : Unsigned_32;
        GSIB   : out Unsigned_32;
        Result : out Virtual_Address);
-   function Get_IOAPIC_GSI_Count (MMIO : Virtual_Address) return Unsigned_32;
+   procedure Get_IOAPIC_GSI_Count
+      (MMIO : Virtual_Address; Count : out Unsigned_32);
    function IOAPIC_Read
       (MMIO     : Virtual_Address;
        Register : Unsigned_32) return Unsigned_32;

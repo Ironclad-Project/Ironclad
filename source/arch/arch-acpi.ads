@@ -29,7 +29,7 @@ package Arch.ACPI is
    function Is_Supported return Boolean;
 
    --  Get ACPI major revision.
-   function Get_Revision return Natural;
+   procedure Get_Revision (Revision : out Natural);
 
    --  Initialize ACPI, which usually means initializing the underlying uACPI.
    procedure Initialize (Success : out Boolean);

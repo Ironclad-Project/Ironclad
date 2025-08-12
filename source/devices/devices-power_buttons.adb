@@ -16,7 +16,7 @@
 
 with Arch.Power;
 
-package body Devices.Power_Buttons is
+package body Devices.Power_Buttons with SPARK_Mode => Off is
    --  Event variables.
    Power_Button_Triggered : Boolean := False;
    Sleep_Button_Triggered : Boolean := False;

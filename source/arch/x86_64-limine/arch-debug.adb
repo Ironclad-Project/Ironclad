@@ -19,7 +19,7 @@ with Ada.Unchecked_Conversion;
 with Devices.Serial;
 with Arch.Flanterm;
 
-package body Arch.Debug is
+package body Arch.Debug with SPARK_Mode => Off is
    procedure Read (Message : out Devices.Operation_Data) is
    begin
       Devices.Serial.Read_COM1 (Message);

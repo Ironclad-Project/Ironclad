@@ -17,7 +17,7 @@
 with Ada.Characters.Latin_1;
 with Devices.FB;
 
-package body Arch.Flanterm is
+package body Arch.Flanterm with SPARK_Mode => Off is
    --  Global variables.
    Is_Enabled : Boolean := False;
    Ctx        : Flanterm_Ctx;

@@ -58,13 +58,13 @@ package body Arch.ACPI with SPARK_Mode => Off is
       return True;
    end Is_Supported;
 
-   function Get_Revision return Natural is
+   procedure Get_Revision (Revision : out Natural) is
       RSDPonse : Limine.RSDP_Response
          with Import, Address => RSDP_Request.Response;
       R : RSDP with Import, Address =>
          To_Address (To_Integer (RSDPonse.Addr) + Memory.Memory_Offset);
    begin
-      return Natural (R.Revision);
+      Revision := Natural (R.Revision);
    end Get_Revision;
 
    function Power_Button_Handler return Unsigned_32 is
@@ -286,8 +286,10 @@ package body Arch.ACPI with SPARK_Mode => Off is
    end Unlock_Spinlock;
 
    function Alloc (Size : size_t) return System.Address is
+      Result : Virtual_Address;
    begin
-      return To_Address (Memory.Physical.Alloc (Size));
+      Memory.Physical.Alloc (Size, Result);
+      return To_Address (Result);
    end Alloc;
 
    procedure Free (Ptr : System.Address) is
@@ -341,7 +343,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    is
       Dev : constant uACPI_PCI_Acc := uACPI_PCI_Acc (C3.To_Pointer (Handle));
    begin
-      Value := Devices.PCI.Read8 (Dev.Dev, Unsigned_16 (Offset));
+      Devices.PCI.Read8 (Dev.Dev, Unsigned_16 (Offset), Value);
       return Status_OK;
    exception
       when Constraint_Error =>
@@ -369,7 +371,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    is
       Dev : constant uACPI_PCI_Acc := uACPI_PCI_Acc (C3.To_Pointer (Handle));
    begin
-      Value := Devices.PCI.Read16 (Dev.Dev, Unsigned_16 (Offset));
+      Devices.PCI.Read16 (Dev.Dev, Unsigned_16 (Offset), Value);
       return Status_OK;
    exception
       when Constraint_Error =>
@@ -397,7 +399,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    is
       Dev : constant uACPI_PCI_Acc := uACPI_PCI_Acc (C3.To_Pointer (Handle));
    begin
-      Value := Devices.PCI.Read32 (Dev.Dev, Unsigned_16 (Offset));
+      Devices.PCI.Read32 (Dev.Dev, Unsigned_16 (Offset), Value);
       return Status_OK;
    exception
       when Constraint_Error =>
@@ -616,9 +618,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
       if not Success then
          return Status_Internal_Error;
       end if;
-      if not APIC.IOAPIC_Set_Redirect
-         (CPU.Core_Locals (1).LAPIC_ID, I, Index, True)
-      then
+      APIC.IOAPIC_Set_Redirect
+         (CPU.Core_Locals (1).LAPIC_ID, I, Index, True, Success);
+      if not Success then
          return Status_Denied;
       end if;
 

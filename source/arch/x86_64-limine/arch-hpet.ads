@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 
-package Arch.HPET is
+package Arch.HPET with SPARK_Mode => Off is
    --  Initialize the HPET, if found.
    --  @return True in Success, False on failure or not found.
    function Init return Boolean;

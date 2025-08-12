@@ -26,7 +26,7 @@ package Memory.Physical is
    --  Unchecked_Deallocation. The memory allocated by these functions is not
    --  to be remapped or given to userland, but to just to be used and released
    --  by the kernel.
-   --
+
    --  Called when doing 'new'.
    --  @param Sz Size to allocate in bytes. Sz = size_t'Last will
    --  unconditionally error, and Sz as 0 for allocating a small,
@@ -36,14 +36,15 @@ package Memory.Physical is
    --  - Not zero'd out, since SPARK requires us to initialize it ourselves.
    --  - For Sz >= Page_Size, alignment is Page_Size. Else, it is unspecified.
    --  - Never null, errors are handled internally, this includes OOM.
-   function Alloc (Sz : Interfaces.C.size_t) return Memory.Virtual_Address
-      with Export, Convention => C, External_Name => "__gnat_malloc";
+   procedure Alloc
+      (Sz : Interfaces.C.size_t; Result : out Memory.Virtual_Address)
+      with Export, Convention => C, External_Name => "internal_alloc";
 
    --  Called by Unchecked_Deallocation, it deallocates a previously allocated
    --  block, apart of that, it has no special Ada semantics.
    --  @param Address Address of the object to free, higher half or not.
    procedure Free (Address : Interfaces.C.size_t)
-      with Export, Convention => C, External_Name => "__gnat_free";
+      with Export, Convention => C, External_Name => "internal_free";
    ----------------------------------------------------------------------------
    --  The functions above can allocate kernel memory past 4 GiB, some devices
    --  require memory below this boundary for their 32 bit address registers.
@@ -87,7 +88,10 @@ package Memory.Physical is
 
 private
 
-   function Alloc_Pgs (Sz : Interfaces.C.size_t) return Memory.Virtual_Address;
+   procedure Alloc_Pgs
+      (Sz     : Interfaces.C.size_t;
+       Result : out Memory.Virtual_Address);
+
    procedure Free_Pgs (Address : Interfaces.C.size_t);
 
    function CLZ (Num : Unsigned_64) return Interfaces.C.int;

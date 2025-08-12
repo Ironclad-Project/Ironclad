@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 
-package Arch.ACPI_PM_Timer is
+package Arch.ACPI_PM_Timer with SPARK_Mode => Off is
    --  Initialize the timer.
    --  @return True in Success, False on failure or not found.
    function Init return Boolean;

@@ -89,5 +89,5 @@ private
        LAPIC       : Unsigned_32;
        Stack_Top   : Unsigned_64);
 
-   function Get_BSP_LAPIC_ID return Unsigned_32;
+   procedure Get_BSP_LAPIC_ID (ID : out Unsigned_32);
 end Arch.CPU;

@@ -118,9 +118,9 @@ package Devices.PCI is
    procedure Set_MSI_Vector (Dev : PCI_Device; Vector : Unsigned_8);
    ----------------------------------------------------------------------------
    --  Read and write data into the PCI device configuration space.
-   function Read8  (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_8;
-   function Read16 (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_16;
-   function Read32 (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_32;
+   procedure Read8 (Dev : PCI_Device; Off : Unsigned_16; R : out Unsigned_8);
+   procedure Read16 (Dev : PCI_Device; Off : Unsigned_16; R : out Unsigned_16);
+   procedure Read32 (Dev : PCI_Device; Off : Unsigned_16; R : out Unsigned_32);
    procedure Write8  (Dev : PCI_Device; Off : Unsigned_16; D : Unsigned_8);
    procedure Write16 (Dev : PCI_Device; Off : Unsigned_16; D : Unsigned_16);
    procedure Write32 (Dev : PCI_Device; Off : Unsigned_16; D : Unsigned_32);

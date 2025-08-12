@@ -54,3 +54,4 @@ jobs:
 
           make
           make check-rts-stone
+          make check-kernel-stone

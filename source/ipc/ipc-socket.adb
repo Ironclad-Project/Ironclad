@@ -20,7 +20,7 @@ with Networking.IPv4;
 with Networking.IPv6;
 with Networking.Interfaces;
 
-package body IPC.Socket is
+package body IPC.Socket with SPARK_Mode => Off is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    procedure Free is new Ada.Unchecked_Deallocation (Socket, Socket_Acc);
@@ -180,8 +180,8 @@ package body IPC.Socket is
          when IPv4 | IPv6 =>
             Success := False;
          when UNIX =>
-            Success :=
-               Inner_UNIX_Shutdown (Sock, Do_Receptions, Do_Transmissions);
+            Inner_UNIX_Shutdown
+               (Sock, Do_Receptions, Do_Transmissions, Success);
       end case;
       Synchronization.Release (Sock.Mutex);
    end Shutdown;
@@ -1085,10 +1085,11 @@ package body IPC.Socket is
       end case;
    end Inner_UNIX_Poll;
 
-   function Inner_UNIX_Shutdown
+   procedure Inner_UNIX_Shutdown
       (Sock             : Socket_Acc;
        Do_Receptions    : Boolean;
-       Do_Transmissions : Boolean) return Boolean
+       Do_Transmissions : Boolean;
+       Success          : out Boolean)
    is
       pragma Unreferenced (Do_Receptions);
       pragma Unreferenced (Do_Transmissions);
@@ -1097,6 +1098,6 @@ package body IPC.Socket is
          Sock.Established.Established := null;
          Sock.Established             := null;
       end if;
-      return True;
+      Success := True;
    end Inner_UNIX_Shutdown;
 end IPC.Socket;

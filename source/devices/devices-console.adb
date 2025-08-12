@@ -16,7 +16,7 @@
 
 with Arch.Debug;
 
-package body Devices.Console is
+package body Devices.Console with SPARK_Mode => Off is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    procedure Init (Success : out Boolean) is

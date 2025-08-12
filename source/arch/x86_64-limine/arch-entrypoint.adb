@@ -30,7 +30,7 @@ with Devices.Serial;
 with Arch.Limine;
 with Main;
 
-package body Arch.Entrypoint is
+package body Arch.Entrypoint with SPARK_Mode => Off is
    --  Response is a pointer to a Memmap_Response.
    Memmap_Request : Limine.Request :=
       (ID       => Limine.Memmap_ID,
@@ -39,6 +39,7 @@ package body Arch.Entrypoint is
       with Export, Async_Writers;
 
    procedure Bootstrap_Main is
+      Success : Boolean;
       Addr : System.Address;
 
       MemPonse : Limine.Memmap_Response
@@ -83,7 +84,8 @@ package body Arch.Entrypoint is
 
          --  Initialize the allocators and MMU.
          Memory.Physical.Init_Allocator (Memmap);
-         if not Memory.MMU.Init (Memmap) then
+         Memory.MMU.Init (Memmap, Success);
+         if not Success then
             Panic.Hard_Panic ("The VMM could not be initialized");
          end if;
 
@@ -107,7 +109,8 @@ package body Arch.Entrypoint is
       PIC.Mask_All;
       APIC.Init_LAPIC;
       APIC.Init_Core_LAPIC;
-      if not Arch.APIC.Init_IOAPIC then
+      Arch.APIC.Init_IOAPIC (Success);
+      if not Success then
          Panic.Hard_Panic ("Could not start IOAPIC");
       end if;
 

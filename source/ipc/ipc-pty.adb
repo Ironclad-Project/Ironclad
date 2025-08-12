@@ -22,7 +22,7 @@ with Devices.TermIOs; use Devices.TermIOs;
 with Userland.Process; use Userland.Process;
 with Arch.Local;
 
-package body IPC.PTY is
+package body IPC.PTY with SPARK_Mode => Off is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    procedure Free is new Ada.Unchecked_Deallocation (Inner, Inner_Acc);
@@ -84,7 +84,7 @@ package body IPC.PTY is
           Write       => Dev_Write'Access,
           Sync        => null,
           Sync_Range  => null,
-          IO_Control  => null,
+          IO_Control  => Dev_IO_Control'Access,
           Mmap        => null,
           Poll        => null,
           Remove      => null);
@@ -631,19 +631,24 @@ package body IPC.PTY is
       Success := (if Succ = PTY_Success then Dev_Success else Dev_IO_Failure);
    end Dev_Write;
 
-   function Dev_IO_Control
-      (Key      : System.Address;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean
+   procedure Dev_IO_Control
+      (Key       : System.Address;
+       Request   : Unsigned_64;
+       Argument  : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean)
    is
-      Success : Boolean;
+      P : Inner_Acc;
    begin
+      P := Inner_Acc (Conv.To_Pointer (Key));
       IO_Control
-         (PTY        => Inner_Acc (Conv.To_Pointer (Key)),
+         (PTY        => P,
           Is_Primary => False,
           Request    => Request,
           Argument   => Argument,
           Success    => Success);
-      return Success;
+      Has_Extra := False;
+      Extra := 0;
    end Dev_IO_Control;
 end IPC.PTY;

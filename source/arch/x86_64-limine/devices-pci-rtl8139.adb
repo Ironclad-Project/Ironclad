@@ -96,10 +96,10 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
          CD := new Controller_Data'
           (Receive_Buffer_Start   => Receive_Buffer_Start,
            IO_Base                => IO_Base,
-           Interrupt              => Devices.PCI.Read8 (PCI_Dev, 16#3C#),
+           Interrupt              => <>,
            Transmit_Desc_Idx      => 0,
            Transmit_Buffers       => [others => Memory.Null_Address]);
-
+         Devices.PCI.Read8 (PCI_Dev, 16#3C#, CD.Interrupt);
          --  Allocate the transmit buffers
          Memory.Physical.Lower_Half_Alloc
           (Addr    => Transmit_Buffers_Start,
@@ -255,12 +255,13 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
          return False;
       end if;
 
-      if not Arch.APIC.IOAPIC_Set_Redirect
+      Arch.APIC.IOAPIC_Set_Redirect
          (LAPIC_ID => Arch.CPU.Core_Locals (1).LAPIC_ID,
           IRQ => I,
           IDT_Entry => Index,
-          Enable => True)
-      then
+          Enable => True,
+          Success => Success);
+      if not Success then
          return False;
       end if;
 

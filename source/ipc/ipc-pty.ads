@@ -219,8 +219,11 @@ private
        Success     : out Dev_Status;
        Is_Blocking : Boolean);
 
-   function Dev_IO_Control
-      (Key      : System.Address;
-       Request  : Unsigned_64;
-       Argument : System.Address) return Boolean;
+   procedure Dev_IO_Control
+      (Key       : System.Address;
+       Request   : Unsigned_64;
+       Argument  : System.Address;
+       Has_Extra : out Boolean;
+       Extra     : out Unsigned_64;
+       Success   : out Boolean);
 end IPC.PTY;

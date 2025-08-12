@@ -19,7 +19,7 @@ with Arch.Entrypoint;
 with Arch.CPU;
 pragma Unreferenced (Arch.Entrypoint);
 
-package body Arch.Snippets is
+package body Arch.Snippets with SPARK_Mode => Off is
    procedure HCF is
    begin
       --  Interrupts ought to be disabled every iteration and not only once

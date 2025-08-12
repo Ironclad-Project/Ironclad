@@ -22,7 +22,7 @@ with Arch.CPU;
 with Memory.Physical;
 with Interfaces.C;
 
-package body Arch.Context is
+package body Arch.Context with SPARK_Mode => Off is
    procedure Init_GP_Context
       (Ctx        : out GP_Context;
        Stack      : System.Address;
@@ -90,6 +90,7 @@ package body Arch.Context is
    procedure Init_FP_Context (Ctx : out FP_Context) is
       FPU_Word : constant Unsigned_32 := 2#1100111111#;
       MXCSR    : constant Unsigned_64 := 2#1111110000000#;
+      Result   : Memory.Virtual_Address;
    begin
       --  Set up FPU control word and MXCSR as defined by SysV.
       Asm ("fldcw %0",
@@ -102,8 +103,8 @@ package body Arch.Context is
            Volatile => True);
 
       --  Allocate a block as big as needed and just set the context to that.
-      Ctx := To_Address (Memory.Physical.Alloc
-         (Interfaces.C.size_t (FPU_Area_Size)));
+      Memory.Physical.Alloc (Interfaces.C.size_t (FPU_Area_Size), Result);
+      Ctx := To_Address (Result);
 
       declare
          Arr : array (1 .. FPU_Area_Size) of Unsigned_8

@@ -23,7 +23,7 @@ with Arch.Interrupts;
 with Userland.Process;
 with Synchronization;
 
-package body Arch.MMU is
+package body Arch.MMU with SPARK_Mode => Off is
    --  Bits in the 4K page entries.
    Page_P     : constant Unsigned_64 := Shift_Left (1,  0);
    Page_RW    : constant Unsigned_64 := Shift_Left (1,  1);

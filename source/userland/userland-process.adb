@@ -24,7 +24,7 @@ with Cryptography.Random;
 with Userland.Memory_Locations;
 with IPC.FileLock;
 
-package body Userland.Process is
+package body Userland.Process with SPARK_Mode => Off is
    procedure Free is new Ada.Unchecked_Deallocation
       (Process_Data, Process_Data_Acc);
 

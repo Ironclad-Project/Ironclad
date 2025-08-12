@@ -18,11 +18,11 @@ with Arch;
 
 package Devices.Ramdev is
    --  Initialize devices from a list of RAM files.
-   function Init (Modules : Arch.Boot_RAM_Files) return Boolean;
+   procedure Init (Modules : Arch.Boot_RAM_Files; Success : out Boolean);
 
 private
 
-   function Init_Module (Module : Arch.Boot_RAM_File) return Resource;
+   procedure Init_Module (Module : Arch.Boot_RAM_File; Result : out Resource);
 
    procedure Read
       (Key         : System.Address;

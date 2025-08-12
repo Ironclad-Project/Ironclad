@@ -34,14 +34,14 @@ package body Arch.MMU is
       (ID       => Arch.Limine.Kernel_Address_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export, Async_Writers;
+      with Export;
 
    --  Response is a pointer to an HHDM_Response.
    HHDM_Request : Arch.Limine.Request :=
       (ID       => Arch.Limine.HHDM_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export, Async_Writers;
+      with Export;
 
    procedure Get_Load_Addr (A : out System.Address; Success : out Boolean) is
       PhysPonse : Arch.Limine.Kernel_Address_Response

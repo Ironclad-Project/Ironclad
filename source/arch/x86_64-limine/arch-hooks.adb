@@ -29,14 +29,15 @@ with Messages;
 with Devices.Ramdev;
 with Arch.Limine;
 
-package body Arch.Hooks is
-   function Devices_Hook return Boolean is
+package body Arch.Hooks with SPARK_Mode => Off is
+   procedure Devices_Hook (Success : out Boolean) is
    begin
-      return Devices.FB.Init            and then
-             Devices.PC_Speaker.Init    and then
-             Devices.PS2.Init           and then
-             Devices.Serial.Init        and then
-             Devices.PCI.RTL8139.Init;
+      Success :=
+         Devices.FB.Init            and then
+         Devices.PC_Speaker.Init    and then
+         Devices.PS2.Init           and then
+         Devices.Serial.Init        and then
+         Devices.PCI.RTL8139.Init;
    end Devices_Hook;
 
    procedure PRCTL_Hook
@@ -115,6 +116,7 @@ package body Arch.Hooks is
       with Export, Async_Writers;
 
    procedure Register_RAM_Files is
+      Success : Boolean;
    begin
       if Modules_Request.Response /= System.Null_Address then
          declare
@@ -130,7 +132,8 @@ package body Arch.Hooks is
                Translated (Idx) := (Ent.Address, Storage_Count (Ent.Size));
             end loop;
 
-            if not Devices.Ramdev.Init (Translated) then
+            Devices.Ramdev.Init (Translated, Success);
+            if not Success then
                Messages.Put_Line ("Could not load RAM files");
             end if;
          end;

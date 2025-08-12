@@ -102,7 +102,7 @@ package body Arch.APIC with SPARK_Mode => Off is
    begin
       --  Enable the LAPIC by setting the spurious interrupt vector and
       --  ORing the enable bit.
-      Value    := LAPIC_Read (LAPIC_Spurious_Register);
+      LAPIC_Read (LAPIC_Spurious_Register, Value);
       To_Write := Value or (LAPIC_Spurious_Entry - 1);
       LAPIC_Write (LAPIC_Spurious_Register, To_Write or Shift_Left (1, 8));
    end Init_Core_LAPIC;
@@ -124,7 +124,7 @@ package body Arch.APIC with SPARK_Mode => Off is
       LAPIC_Send_IPI_Raw (LAPIC_ID, Unsigned_32 (Vector) - 1);
    end LAPIC_Send_IPI;
 
-   function LAPIC_Timer_Calibrate return Unsigned_64 is
+   procedure LAPIC_Timer_Calibrate (Hz : out Unsigned_64) is
       Sample : constant Unsigned_32 := Unsigned_32'Last;
       Final_Count : Unsigned_32;
       EAX, EBX, ECX, EDX : Unsigned_32;
@@ -145,7 +145,7 @@ package body Arch.APIC with SPARK_Mode => Off is
           EDX     => EDX,
           Success => Success);
       if Success and ECX /= 0 then
-         return Unsigned_64 (ECX);
+         Hz := Unsigned_64 (ECX);
       else
          LAPIC_Write (LAPIC_Timer_Register, Shift_Left (1, 16) or 16#FF#);
          LAPIC_Write (LAPIC_Timer_Divisor_Register, LAPIC_Timer_2_Divisor);
@@ -153,11 +153,11 @@ package body Arch.APIC with SPARK_Mode => Off is
 
          --  Check the ticks we get in 1 ms, and calculate with that.
          Arch.Clocks.Busy_Monotonic_Sleep (1_000_000);
-         Final_Count := LAPIC_Read (LAPIC_Timer_Curr_Counter_Register);
+         LAPIC_Read (LAPIC_Timer_Curr_Counter_Register, Final_Count);
 
          --  Stop timer and adjust the ticks to make them ticks/ms -> ticks/s
          LAPIC_Timer_Stop;
-         return Unsigned_64 (Sample - Final_Count) * 1000;
+         Hz := Unsigned_64 (Sample - Final_Count) * 1000;
       end if;
    end LAPIC_Timer_Calibrate;
 
@@ -188,16 +188,16 @@ package body Arch.APIC with SPARK_Mode => Off is
       LAPIC_Write (LAPIC_EOI_Register, 0);
    end LAPIC_EOI;
 
-   function LAPIC_Read (Register : Unsigned_32) return Unsigned_32 is
+   procedure LAPIC_Read (Register : Unsigned_32; Result : out Unsigned_32) is
    begin
       if Supports_x2APIC then
-         return Unsigned_32 (x2APIC_Read (Register) and 16#FFFFFFFF#);
+         Result := Unsigned_32 (x2APIC_Read (Register) and 16#FFFFFFFF#);
       else
          declare
             Value_Mem : Unsigned_32 with Import, Volatile,
                Address => To_Address (LAPIC_Base + Integer_Address (Register));
          begin
-            return Value_Mem;
+            Result := Value_Mem;
          end;
       end if;
    exception
@@ -241,7 +241,7 @@ package body Arch.APIC with SPARK_Mode => Off is
    MADT_IOAPICs : access IOAPIC_Array;
    MADT_ISOs    : access ISO_Array;
 
-   function Init_IOAPIC return Boolean is
+   procedure Init_IOAPIC (Success : out Boolean) is
       Addr           : ACPI.Table_Record;
       Current_Byte   : Unsigned_32 := 0;
       Current_IOAPIC : Natural     := 1;
@@ -251,7 +251,8 @@ package body Arch.APIC with SPARK_Mode => Off is
    begin
       ACPI.FindTable (ACPI.MADT_Signature, Addr);
       if Addr.Virt_Addr = Null_Address then
-         return False;
+         Success := False;
+         return;
       end if;
 
       declare
@@ -302,40 +303,43 @@ package body Arch.APIC with SPARK_Mode => Off is
       end;
 
       ACPI.Unref_Table (Addr);
-      return True;
+      Success := True;
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Init_IOAPIC;
 
-   function IOAPIC_Set_Redirect
+   procedure IOAPIC_Set_Redirect
       (LAPIC_ID  : Unsigned_32;
        IRQ       : IDT.IRQ_Index;
        IDT_Entry : IDT.IDT_Index;
-       Enable    : Boolean) return Boolean
+       Enable    : Boolean;
+       Success   : out Boolean)
    is
       Actual_IRQ : Unsigned_8;
    begin
       Actual_IRQ := Unsigned_8 (IRQ) - Unsigned_8 (IDT.IRQ_Index'First);
       for ISO of MADT_ISOs.all loop
          if ISO.IRQ_Source = Actual_IRQ then
-            return IOAPIC_Set_Redirect (LAPIC_ID, ISO.GSI, IDT_Entry,
-                                        ISO.Flags, Enable);
+            IOAPIC_Set_Redirect
+               (LAPIC_ID, ISO.GSI, IDT_Entry, ISO.Flags, Enable, Success);
+            return;
          end if;
       end loop;
-      return IOAPIC_Set_Redirect (LAPIC_ID, Unsigned_32 (Actual_IRQ),
-                                  IDT_Entry, 0, Enable);
+      IOAPIC_Set_Redirect
+         (LAPIC_ID, Unsigned_32 (Actual_IRQ), IDT_Entry, 0, Enable, Success);
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end IOAPIC_Set_Redirect;
 
-   function IOAPIC_Set_Redirect
+   procedure IOAPIC_Set_Redirect
       (LAPIC_ID  : Unsigned_32;
        GSI       : Unsigned_32;
        IDT_Entry : IDT.IDT_Index;
        Flags     : Unsigned_16;
-       Enable    : Boolean) return Boolean
+       Enable    : Boolean;
+       Success   : out Boolean)
    is
       GSIB        :          Unsigned_32 := 0;
       Redirect    :          Unsigned_64 := Unsigned_64 (IDT_Entry) - 1;
@@ -345,7 +349,8 @@ package body Arch.APIC with SPARK_Mode => Off is
       --  Check if the IOAPIC could be found.
       Get_IOAPIC_From_GSI (GSI, GSIB, IOAPIC_MMIO);
       if IOAPIC_MMIO = Null_Address then
-         return False;
+         Success := False;
+         return;
       end if;
 
       --  Build the redirect value by translating the ISO flags into IOREDTBL
@@ -369,10 +374,10 @@ package body Arch.APIC with SPARK_Mode => Off is
          IOAPIC_Write (IOAPIC_MMIO, IOREDTBL,     Unsigned_32 (Lower32));
          IOAPIC_Write (IOAPIC_MMIO, IOREDTBL + 1, Unsigned_32 (Upper32));
       end;
-      return True;
+      Success := True;
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end IOAPIC_Set_Redirect;
 
    procedure Get_IOAPIC_From_GSI
@@ -380,15 +385,17 @@ package body Arch.APIC with SPARK_Mode => Off is
        GSIB   : out Unsigned_32;
        Result : out Virtual_Address)
    is
+      Cnt : Unsigned_32;
    begin
       for IOAPIC of MADT_IOAPICs.all loop
-         if IOAPIC.GSIB <= GSI and
-            IOAPIC.GSIB + Get_IOAPIC_GSI_Count
-               (Virtual_Address (IOAPIC.Address) + Memory_Offset) > GSI
-         then
-            GSIB   := IOAPIC.GSIB;
-            Result := Virtual_Address (IOAPIC.Address) + Memory_Offset;
-            return;
+         if IOAPIC.GSIB <= GSI then
+            Get_IOAPIC_GSI_Count
+               (Virtual_Address (IOAPIC.Address) + Memory_Offset, Cnt);
+            if IOAPIC.GSIB + Cnt > GSI then
+               GSIB   := IOAPIC.GSIB;
+               Result := Virtual_Address (IOAPIC.Address) + Memory_Offset;
+               return;
+            end if;
          end if;
       end loop;
 
@@ -400,7 +407,9 @@ package body Arch.APIC with SPARK_Mode => Off is
          Result := Null_Address;
    end Get_IOAPIC_From_GSI;
 
-   function Get_IOAPIC_GSI_Count (MMIO : Virtual_Address) return Unsigned_32 is
+   procedure Get_IOAPIC_GSI_Count
+      (MMIO : Virtual_Address; Count : out Unsigned_32)
+   is
       Physical : System.Address;
       Is_Mapped, Is_User, Is_Readable, Is_Writeable, Is_Exec : Boolean;
       Read : Unsigned_32;
@@ -431,14 +440,14 @@ package body Arch.APIC with SPARK_Mode => Off is
              Success        => Is_Mapped,
              Caching        => Arch.MMU.Uncacheable);
          if not Is_Mapped then
-            return 0;
+            Count := 0;
          end if;
       end if;
 
       --  The number of GSIs handled by the IOAPIC is in its IOAPICVER register
       --  in bits 16 - 23;
-      Read := IOAPIC_Read (MMIO, IOAPIC_VER_Register);
-      return Shift_Right (Read and 16#FF0000#, 16);
+      Read  := IOAPIC_Read (MMIO, IOAPIC_VER_Register);
+      Count := Shift_Right (Read and 16#FF0000#, 16);
    end Get_IOAPIC_GSI_Count;
 
    function IOAPIC_Read

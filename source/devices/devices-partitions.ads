@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Devices.Partitions is
+package Devices.Partitions with SPARK_Mode => Off is
    --  Register the partitions of the passed device as separate devices.
    --  The resulting support read/write, and that's it.
    --  @param Name Name to prepend all partitions with, p<index> will be added.

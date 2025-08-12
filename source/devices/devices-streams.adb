@@ -16,7 +16,7 @@
 
 with Cryptography.Random; use Cryptography.Random;
 
-package body Devices.Streams is
+package body Devices.Streams with SPARK_Mode => Off is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    procedure Init (Success : out Boolean) is

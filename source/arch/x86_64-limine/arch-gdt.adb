@@ -19,7 +19,7 @@ with Ada.Characters.Latin_1;  use Ada.Characters.Latin_1;
 with Synchronization;
 with Panic;
 
-package body Arch.GDT is
+package body Arch.GDT with SPARK_Mode => Off is
    --  Records for the GDT structure and its entries.
    type GDT_Entry is record
       Limit          : Unsigned_16;

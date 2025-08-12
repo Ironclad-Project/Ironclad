@@ -18,7 +18,7 @@ with Interfaces; use Interfaces;
 
 package Arch.Hooks is
    --  Register architecture-specific devices.
-   function Devices_Hook return Boolean;
+   procedure Devices_Hook (Success : out Boolean);
 
    --  PRCTL hook for the syscall.
    procedure PRCTL_Hook

@@ -25,7 +25,7 @@ with Panic;
 with Arch.ACPI;
 with Arch.MMU;
 
-package body Devices.PCI is
+package body Devices.PCI with SPARK_Mode => Off is
    --  Maximum number of different PCI entities.
    PCI_Max_Function : constant Unsigned_8 := 7;
    PCI_Max_Slot     : constant Unsigned_8 := 31;
@@ -36,6 +36,7 @@ package body Devices.PCI is
 
    procedure Init (Success : out Boolean) is
       Root_Bus, Host_Bridge : PCI_Device;
+      Val : Unsigned_32;
    begin
       Ensure_Initialized (Success);
       if not Success then
@@ -47,13 +48,15 @@ package body Devices.PCI is
          Panic.Hard_Panic ("Could not read root bus");
       end if;
 
-      if (Read32 (Root_Bus, 16#C#) and 16#800000#) = 0 then
+      Read32 (Root_Bus, 16#C#, Val);
+      if (Val and 16#800000#) = 0 then
          Check_Bus (0);
       else
          for I in 0 .. PCI_Max_Function loop
             Fetch_Device (0, 0, I, Host_Bridge, Success);
             if Success then
-               if Read32 (Host_Bridge, 0) /= 16#FFFFFFFF# then
+               Read32 (Host_Bridge, 0, Val);
+               if Val /= 16#FFFFFFFF# then
                   Check_Bus (I);
                end if;
             end if;
@@ -68,15 +71,11 @@ package body Devices.PCI is
        Subclass     : Unsigned_8;
        Prog_If      : Unsigned_8) return Natural
    is
+      pragma SPARK_Mode (Off);
       Succ : Boolean;
       Idx  :                Natural := 0;
       Temp : PCI_Registry_Entry_Acc := PCI_Registry;
    begin
-      Ensure_Initialized (Succ);
-      if not Succ then
-         return 0;
-      end if;
-
       loop
          if Temp = null then
             exit;
@@ -258,8 +257,9 @@ package body Devices.PCI is
    ----------------------------------------------------------------------------
    procedure Enable_Bus_Mastering (Dev : PCI_Device) is
       Bus_Master_Bit : constant := 2#100#;
-      Config4 : constant Unsigned_32 := Read32 (Dev, 4);
+      Config4 : Unsigned_32;
    begin
+      Read32 (Dev, 4, Config4);
       if (Config4 and Bus_Master_Bit) = 0 then
          Write32 (Dev, 4, Config4 or Bus_Master_Bit);
       end if;
@@ -271,6 +271,7 @@ package body Devices.PCI is
        BAR     : out Base_Address_Register;
        Success : out Boolean)
    is
+      Val : Unsigned_32;
       Reg_Index : constant Unsigned_16 := 16#10# + Unsigned_16 (Index) * 4;
       BAR_Low, BAR_Size_Low, BAR_High, BAR_Size_High : Unsigned_32;
       Is_MMIO, Is_Prefetchable, Is_64_Bits : Boolean;
@@ -280,19 +281,20 @@ package body Devices.PCI is
       Memory_Decode_Bit : constant := 2#10#;
    begin
       --  Check if the BAR exists first of all.
-      if Read32 (Dev, Reg_Index) = 0 then
+      Read32 (Dev, Reg_Index, Val);
+      if Val = 0 then
          Success := False;
          return;
       end if;
 
       --  Fetch the rest.
-      BAR_Low         := Read32 (Dev, Reg_Index);
+      Read32 (Dev, Reg_Index, BAR_Low);
       BAR_High        := 0;
       Is_MMIO         := (BAR_Low and 1) = 0;
       Is_Prefetchable := Is_MMIO and ((BAR_Low and 2#1000#) /= 0);
       Is_64_Bits := Is_MMIO and ((Shift_Right (BAR_Low, 1) and 2#11#) = 2#10#);
       if Is_64_Bits then
-         BAR_High := Read32 (Dev, Reg_Index + 4);
+         Read32 (Dev, Reg_Index + 4, BAR_High);
       end if;
 
       Base := Shift_Left (Unsigned_64 (BAR_High), 32) or Unsigned_64 (BAR_Low);
@@ -302,7 +304,7 @@ package body Devices.PCI is
          Base := Base and not 2#11#;
       end if;
 
-      Command_Byte := Read16 (Dev, 4);
+      Read16 (Dev, 4, Command_Byte);
       if (Command_Byte and (IO_Decode_Bit or Memory_Decode_Bit)) /= 0 then
          --  mask out the I/O and memory decode bits
          Write16 (Dev, 4, Command_Byte and not
@@ -310,12 +312,12 @@ package body Devices.PCI is
       end if;
 
       Write32 (Dev, Reg_Index, 16#FFFFFFFF#);
-      BAR_Size_Low := Read32 (Dev, Reg_Index);
+      Read32 (Dev, Reg_Index, BAR_Size_Low);
       Write32 (Dev, Reg_Index, BAR_Low);
 
       if Is_64_Bits then
          Write32 (Dev, Reg_Index + 4, 16#FFFFFFFF#);
-         BAR_Size_High := Read32 (Dev, Reg_Index + 4);
+         Read32 (Dev, Reg_Index + 4, BAR_Size_High);
          Write32 (Dev, Reg_Index + 4, BAR_High);
       else
          BAR_Size_High := 16#FFFFFFFF#;
@@ -364,7 +366,7 @@ package body Devices.PCI is
          return;
       end if;
 
-      Message_Control := Read16 (Dev, MSI_Off + 2);
+      Read16 (Dev, MSI_Off + 2, Message_Control);
       Reg0 := 4;
       Reg1 := (if (Shift_Right (Message_Control, 7) and 1) = 1 then 12 else 8);
 
@@ -383,7 +385,7 @@ package body Devices.PCI is
    --  AMD says in their manuals that they reserve the right to make the CPU
    --  only allow reading the ECAM by using RAX. I have no idea why they
    --  thought that was a good idea.
-   function Read8 (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_8 is
+   procedure Read8 (Dev : PCI_Device; Off : Unsigned_16; R : out Unsigned_8) is
       Val : Unsigned_8;
       Addr : constant Unsigned_64 :=
          Memory.Memory_Offset +
@@ -400,13 +402,14 @@ package body Devices.PCI is
              Inputs   => Unsigned_64'Asm_Input ("r", Addr),
              Clobber  => "memory",
              Volatile => True);
-         return Val;
+         R := Val;
       #else
-         return Val2;
+         R := Val2;
       #end if;
    end Read8;
 
-   function Read16 (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_16 is
+   procedure Read16 (Dev : PCI_Device; Off : Unsigned_16; R : out Unsigned_16)
+   is
       Val : Unsigned_16;
       Addr : constant Unsigned_64 :=
          Memory.Memory_Offset +
@@ -423,13 +426,14 @@ package body Devices.PCI is
              Inputs   => Unsigned_64'Asm_Input ("r", Addr),
              Clobber  => "memory",
              Volatile => True);
-         return Val;
+         R := Val;
       #else
-         return Val2;
+         R := Val2;
       #end if;
    end Read16;
 
-   function Read32 (Dev : PCI_Device; Off : Unsigned_16) return Unsigned_32 is
+   procedure Read32 (Dev : PCI_Device; Off : Unsigned_16; R : out Unsigned_32)
+   is
       Val : Unsigned_32;
       Addr : constant Unsigned_64 :=
          Memory.Memory_Offset +
@@ -446,9 +450,9 @@ package body Devices.PCI is
              Inputs   => Unsigned_64'Asm_Input ("r", Addr),
              Clobber  => "memory",
              Volatile => True);
-         return Val;
+         R := Val;
       #else
-         return Val2;
+         R := Val2;
       #end if;
    end Read32;
 
@@ -616,7 +620,7 @@ package body Devices.PCI is
 
       --  Check for PCI bridge, and take it.
       if Result.Device_Class = 6 and Result.Subclass = 4 then
-         Config8 := Read32 (Result, 16#18#);
+         Read32 (Result, 16#18#, Config8);
          Check_Bus (Unsigned_8 (Shift_Right (Config8, 8) and 16#FF#));
          return;
       end if;
@@ -645,7 +649,7 @@ package body Devices.PCI is
    is
       Config0, Config8 : Unsigned_32;
       Config6  : Unsigned_16;
-      Config34 : Unsigned_8;
+      Config34, Conf : Unsigned_8;
       Addr     : Virtual_Address;
    begin
       --  Assign the needed values for reading from the PCI config space.
@@ -673,8 +677,8 @@ package body Devices.PCI is
       end if;
 
       --  Read additional data and fill the device record.
-      Config0 := Read32 (Result, 0);
-      Config8 := Read32 (Result, 8);
+      Read32 (Result, 0, Config0);
+      Read32 (Result, 8, Config8);
       Result  :=
          (Bus          => Bus,
           Func         => Func,
@@ -691,11 +695,13 @@ package body Devices.PCI is
           MSIX_Offset  => 0);
 
       --  Check for MSI/MSIX by reading the capabilities list.
-      Config6 := Read16 (Result, 6);
+      Read16 (Result, 6, Config6);
       if (Config6 and Shift_Right (1, 4)) /= 0 then
-         Config34 := Read8 (Result, 34);
-         while Config34 /= 0 loop
-            case Read8 (Result, Unsigned_16 (Config34)) is
+         loop
+            Read8 (Result, 34, Config34);
+            exit when Config34 = 0;
+            Read8 (Result, Unsigned_16 (Config34), Conf);
+            case Conf is
                when 16#05# =>
                   Result.MSI_Support := True;
                   Result.MSI_Offset  := Config34;
@@ -706,7 +712,7 @@ package body Devices.PCI is
                   null;
             end case;
 
-            Config34 := Read8 (Result, Unsigned_16 (Config34) + 1);
+            Read8 (Result, Unsigned_16 (Config34) + 1, Config34);
          end loop;
       end if;
 

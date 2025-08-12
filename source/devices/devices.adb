@@ -71,7 +71,8 @@ package body Devices is
          end if;
       end loop;
 
-      if not Arch.Hooks.Devices_Hook then
+      Arch.Hooks.Devices_Hook (Success);
+      if not Success then
          goto Panic_Error;
       end if;
 

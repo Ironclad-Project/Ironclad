@@ -21,7 +21,7 @@ with Arch.Snippets;
 with Arch.Interrupts;
 with Interfaces; use Interfaces;
 
-package body Arch.Local is
+package body Arch.Local with SPARK_Mode => Off is
    procedure Reschedule_In (Microseconds : Natural) is
       Is_Ints : constant Boolean := Snippets.Interrupts_Enabled;
    begin
@@ -72,7 +72,7 @@ package body Arch.Local is
       if Is_Ints then Snippets.Enable_Interrupts; end if;
    exception
       when Constraint_Error =>
-         Panic.Hard_Panic ("Exception setting stacks");
+         null;
    end Set_Stacks;
 
    function Get_Current_Thread return Scheduler.TID is
@@ -85,7 +85,7 @@ package body Arch.Local is
       return Returned;
    exception
       when Constraint_Error =>
-         Panic.Hard_Panic ("Exception getting current thread");
+         return Scheduler.Error_TID;
    end Get_Current_Thread;
 
    function Get_Current_Process return Userland.Process.PID is
@@ -98,7 +98,7 @@ package body Arch.Local is
       return Returned;
    exception
       when Constraint_Error =>
-         Panic.Hard_Panic ("Exception getting current process");
+         return Userland.Process.Error_PID;
    end Get_Current_Process;
 
    procedure Set_Current_Thread (Thread : Scheduler.TID) is
@@ -109,7 +109,7 @@ package body Arch.Local is
       if Is_Ints then Snippets.Enable_Interrupts; end if;
    exception
       when Constraint_Error =>
-         Panic.Hard_Panic ("Exception setting current thread");
+         null;
    end Set_Current_Thread;
 
    procedure Set_Current_Process (Proc : Userland.Process.PID) is
@@ -120,6 +120,6 @@ package body Arch.Local is
       if Is_Ints then Snippets.Enable_Interrupts; end if;
    exception
       when Constraint_Error =>
-         Panic.Hard_Panic ("Exception setting current process");
+         null;
    end Set_Current_Process;
 end Arch.Local;

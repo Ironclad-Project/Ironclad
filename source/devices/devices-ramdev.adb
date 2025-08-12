@@ -18,7 +18,7 @@ with System; use System;
 with Alignment;
 with Synchronization;
 
-package body Devices.Ramdev is
+package body Devices.Ramdev with SPARK_Mode => Off is
    --  Ramdev data.
    type Ramdev_Data is record
       Mutex         : aliased Synchronization.Readers_Writer_Lock;
@@ -27,33 +27,33 @@ package body Devices.Ramdev is
    end record;
    type Ramdev_Data_Acc is access Ramdev_Data;
 
-   function Init (Modules : Arch.Boot_RAM_Files) return Boolean is
-      Success  : Boolean;
+   procedure Init (Modules : Arch.Boot_RAM_Files; Success : out Boolean) is
       Dev_Res  : Resource;
       Dev_Name : String := "ramdev0";
    begin
       for I in 1 .. Modules'Length loop
          Dev_Name (Dev_Name'Last) := Character'Val (I + Character'Pos ('0'));
-         Dev_Res                  := Init_Module (Modules (I));
+         Init_Module (Modules (I), Dev_Res);
          Devices.Register (Dev_Res, Dev_Name, Success);
          if not Success then
-            return False;
+            return;
          end if;
       end loop;
-      return True;
+      Success := True;
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Init;
 
-   function Init_Module (Module : Arch.Boot_RAM_File) return Resource is
+   procedure Init_Module (Module : Arch.Boot_RAM_File; Result : out Resource)
+   is
       package A is new Alignment (Unsigned_64);
       Data   : constant Ramdev_Data_Acc := new Ramdev_Data'
          (Mutex         => Synchronization.Unlocked_RW_Lock,
           Start_Address => Module.Start,
           Size          => Unsigned_64 (Module.Length));
    begin
-      return
+      Result :=
          (Data        => Data.all'Address,
           Is_Block    => False,
           ID          => [others => 0],

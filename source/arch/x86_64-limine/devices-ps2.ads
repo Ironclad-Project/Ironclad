@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Devices.PS2 is
+package Devices.PS2 with SPARK_Mode => Off is
    --  Initialize the device.
    function Init return Boolean;
 

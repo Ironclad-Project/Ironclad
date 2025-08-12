@@ -34,7 +34,7 @@ package body Arch.Entrypoint is
       (ID       => Limine.Memmap_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export, Async_Writers;
+      with Export;
 
    procedure Bootstrap_Main is
       Addr : System.Address;
@@ -80,7 +80,8 @@ package body Arch.Entrypoint is
 
          --  Initialize the allocators and MMU.
          Memory.Physical.Init_Allocator (Memmap);
-         if not Memory.MMU.Init (Memmap) then
+         Memory.MMU.Init (Memmap, Success);
+         if not Success then
             Panic.Hard_Panic ("The VMM could not be initialized");
          end if;
 

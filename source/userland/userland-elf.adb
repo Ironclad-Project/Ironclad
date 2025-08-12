@@ -22,7 +22,7 @@ with Userland.Memory_Locations;
 with Userland.Syscall;
 with Arch.MMU;
 
-package body Userland.ELF is
+package body Userland.ELF with SPARK_Mode => Off is
    procedure Load_ELF
       (FS             : VFS.FS_Handle;
        Ino            : VFS.File_Inode_Number;
@@ -141,6 +141,7 @@ package body Userland.ELF is
        Header : Program_Header;
        Linker : out String_Acc)
    is
+      pragma SPARK_Mode (Off);
       use VFS;
 
       Discard   : Unsigned_64;

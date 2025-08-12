@@ -59,6 +59,7 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
       Ctrl_Identify : Identify_Controller_Data_Acc;
       Namespace_List : Active_Namespace_Id_List_Acc;
 
+      Val : Unsigned_16;
       Drive_Idx : Natural := 0;
    begin
       Success := True;
@@ -75,8 +76,8 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
             return;
          end if;
 
-         Devices.PCI.Write16 (PCI_Dev, 4,
-            (Devices.PCI.Read16 (PCI_Dev, 4) and 16#77F#) or 16#406#);
+         Devices.PCI.Read16 (PCI_Dev, 4, Val);
+         Devices.PCI.Write16 (PCI_Dev, 4, (Val and 16#77F#) or 16#406#);
 
          Mem_Addr := PCI_BAR.Base + Memory.Memory_Offset;
          Dev_Mem  := NVMe_Registers_Acc (C1.To_Pointer
@@ -322,12 +323,12 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
       SQ_Size := Storage_Count (A.Align_Up (
          (Admin_Submission_Queue_Entry'Size / 8) * Unsigned_64 (Depth),
           Memory.MMU.Page_Size));
-      SQ_Addr := Memory.Physical.Alloc (size_t (SQ_Size));
+      Memory.Physical.Alloc (size_t (SQ_Size), SQ_Addr);
 
       CQ_Size := Storage_Count (A.Align_Up (
          (Completion_Queue_Entry'Size / 8) * Unsigned_64 (Depth),
           Memory.MMU.Page_Size));
-      CQ_Addr := Memory.Physical.Alloc (size_t (CQ_Size));
+      Memory.Physical.Alloc (size_t (CQ_Size), CQ_Addr);
 
       Controller_Caps := M.Controller_Capabilities;
       Doorbell_Stride := 2 ** (Natural (Controller_Caps.Doorbell_Stride) + 2);
@@ -409,12 +410,12 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
       SQ_Size := Storage_Count (A.Align_Up (
          (Admin_Submission_Queue_Entry'Size / 8) * Unsigned_64 (Depth),
             Memory.MMU.Page_Size));
-      SQ_Addr := Memory.Physical.Alloc (size_t (SQ_Size));
+      Memory.Physical.Alloc (size_t (SQ_Size), SQ_Addr);
 
       CQ_Size := Storage_Count (A.Align_Up (
          (Completion_Queue_Entry'Size / 8) * Unsigned_64 (Depth),
             Memory.MMU.Page_Size));
-      CQ_Addr := Memory.Physical.Alloc (size_t (CQ_Size));
+      Memory.Physical.Alloc (size_t (CQ_Size), CQ_Addr);
 
       Doorbell_Stride := 2 ** (Natural (Controller_Cap.Doorbell_Stride) + 2);
       SQ_Doorbell_Addr :=
@@ -635,15 +636,16 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
    function Controller_Identify
       (Q : Admin_Queue_Acc) return Identify_Controller_Data_Acc
    is
-      Data_Addr : constant Memory.Virtual_Address
-         := Memory.Physical.Alloc (Memory.MMU.Page_Size);
-      Data : constant Identify_Controller_Data_Acc
-         := Identify_Controller_Data_Acc (C3.To_Pointer
-            (To_Address (Data_Addr)));
+      Data_Addr : Memory.Virtual_Address;
+      Data : Identify_Controller_Data_Acc;
 
       Cmd : Admin_Submission_Queue_Entry;
       Reply : Completion_Queue_Entry;
    begin
+      Memory.Physical.Alloc (Memory.MMU.Page_Size, Data_Addr);
+      Data := Identify_Controller_Data_Acc (C3.To_Pointer
+            (To_Address (Data_Addr)));
+
       Cmd := (Opcode => Identify,
          Data_Pointer => [
             1 => Unsigned_64 (Data_Addr - Memory.Memory_Offset),
@@ -668,15 +670,16 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
       (Q : Admin_Queue_Acc;
        Namespace : NVMe_NS_Id) return Identify_Namespace_Data_Acc
    is
-      Data_Addr : constant Memory.Virtual_Address
-         := Memory.Physical.Alloc (Memory.MMU.Page_Size);
-      Data : constant Identify_Namespace_Data_Acc
-         := Identify_Namespace_Data_Acc
-            (C4.To_Pointer (To_Address (Data_Addr)));
+      Data_Addr : Memory.Virtual_Address;
+      Data : Identify_Namespace_Data_Acc;
 
       Cmd : Admin_Submission_Queue_Entry;
       Reply : Completion_Queue_Entry;
    begin
+      Memory.Physical.Alloc (Memory.MMU.Page_Size, Data_Addr);
+      Data := Identify_Namespace_Data_Acc
+            (C4.To_Pointer (To_Address (Data_Addr)));
+
       Cmd := (Opcode => Identify,
          Namespace_Id => Namespace,
          Data_Pointer => [
@@ -701,15 +704,16 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
    function Active_Namespaces
       (Q : Admin_Queue_Acc) return Active_Namespace_Id_List_Acc
    is
-      Data_Addr : constant Memory.Virtual_Address
-         := Memory.Physical.Alloc (Memory.MMU.Page_Size);
-      Data : constant Active_Namespace_Id_List_Acc
-         := Active_Namespace_Id_List_Acc (C6.To_Pointer
-            (To_Address (Data_Addr)));
+      Data_Addr : Memory.Virtual_Address;
+      Data : Active_Namespace_Id_List_Acc;
 
       Cmd : Admin_Submission_Queue_Entry;
       Reply : Completion_Queue_Entry;
    begin
+      Memory.Physical.Alloc (Memory.MMU.Page_Size, Data_Addr);
+      Data := Active_Namespace_Id_List_Acc (C6.To_Pointer
+            (To_Address (Data_Addr)));
+
       Cmd := (Opcode => Identify,
          Data_Pointer => [
             1 => Unsigned_64 (Data_Addr - Memory.Memory_Offset),

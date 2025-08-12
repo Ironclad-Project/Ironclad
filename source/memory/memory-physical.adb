@@ -20,7 +20,7 @@ with Alignment;
 with Memory.MMU;
 with System; use System;
 
-package body Memory.Physical is
+package body Memory.Physical with SPARK_Mode => Off is
    Block_Size :         constant := Memory.MMU.Page_Size;
    Block_Free : constant Boolean := True;
    Block_Used : constant Boolean := False;
@@ -138,9 +138,10 @@ package body Memory.Physical is
          Panic.Hard_Panic ("Exception initializing the allocator");
    end Init_Allocator;
    ----------------------------------------------------------------------------
-   function Alloc (Sz : Interfaces.C.size_t) return Virtual_Address is
+   procedure Alloc
+      (Sz : Interfaces.C.size_t; Result : out Memory.Virtual_Address)
+   is
       Size   : Interfaces.C.size_t := Sz;
-      Result : Virtual_Address;
       I      : Natural;
    begin
       --  Check the specific GNAT semantics.
@@ -184,18 +185,17 @@ package body Memory.Physical is
          Slabs (I).Element_Bump  := Slabs (I).Element_Bump  + 1;
          Slabs (I).Element_Count := Slabs (I).Element_Count + 1;
          Synchronization.Release (Slabs (I).Lock);
-         return Result;
+         return;
       end if;
 
    <<Default_Alloc>>
-      Result := Alloc_Pgs (Size);
+      Alloc_Pgs (Size, Result);
       if Result = 0 then
          Panic.Hard_Panic ("Exhausted memory (OOM)");
       end if;
-      return Result;
    exception
       when Constraint_Error =>
-         return 0;
+         Result := 0;
    end Alloc;
 
    procedure Free (Address : Interfaces.C.size_t) is
@@ -240,7 +240,7 @@ package body Memory.Physical is
    begin
       --  Alloc_Pgs allocates from the bottom of memory, so if we can just wrap
       --  the function with a simple sanity check.
-      Addr    := Alloc_Pgs (size_t (Size));
+      Alloc_Pgs (size_t (Size), Addr);
       Success := Addr /= 0 and Addr + Virtual_Address (Size) <= (16#100000000#
        + Memory.Memory_Offset);
    end Lower_Half_Alloc;
@@ -264,7 +264,7 @@ package body Memory.Physical is
        Success : out Boolean)
    is
    begin
-      Addr    := Alloc_Pgs (size_t (Size));
+      Alloc_Pgs (size_t (Size), Addr);
       Success := Addr /= 0;
    end User_Alloc;
 
@@ -291,7 +291,9 @@ package body Memory.Physical is
       Synchronization.Release (Alloc_Mutex);
    end Get_Statistics;
    ----------------------------------------------------------------------------
-   function Alloc_Pgs (Sz : Interfaces.C.size_t) return Memory.Virtual_Address
+   procedure Alloc_Pgs
+      (Sz     : Interfaces.C.size_t;
+       Result : out Memory.Virtual_Address)
    is
       pragma SPARK_Mode (Off);
 
@@ -337,7 +339,7 @@ package body Memory.Physical is
 
       --  Handle OOM.
       Synchronization.Release (Alloc_Mutex);
-      return 0;
+      Result := 0;
 
    <<Fill_Bitmap>>
       for I in 1 .. Blocks_To_Allocate loop
@@ -357,11 +359,11 @@ package body Memory.Physical is
          Header : Allocation_Header with Import, Address => To_Address (Ret);
       begin
          Header := (Block_Count => Blocks_To_Allocate);
-         return Ret + Block_Size;
+         Result := Ret + Block_Size;
       end;
    exception
       when Constraint_Error =>
-         return 0;
+         Result := 0;
    end Alloc_Pgs;
 
    procedure Free_Pgs (Address : Interfaces.C.size_t) is
