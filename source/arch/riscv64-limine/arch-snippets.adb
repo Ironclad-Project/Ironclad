@@ -17,7 +17,7 @@
 with Interfaces; use Interfaces;
 with System.Machine_Code;
 
-package body Arch.Snippets is
+package body Arch.Snippets with SPARK_Mode => Off is
    procedure HCF is
    begin
       loop

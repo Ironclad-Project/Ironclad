@@ -21,7 +21,7 @@ with Arch.CPU;
 with Panic;
 with Arch.SBI;
 
-package body Arch.Local is
+package body Arch.Local with SPARK_Mode => Off is
    procedure Reschedule_In (Microseconds : Natural) is
       Success : Boolean;
    begin
@@ -83,7 +83,7 @@ package body Arch.Local is
       return Returned;
    exception
       when Constraint_Error =>
-         Panic.Hard_Panic ("Exception getting current thread");
+         return Scheduler.Error_TID;
    end Get_Current_Thread;
 
    function Get_Current_Process return Userland.Process.PID is
@@ -96,7 +96,7 @@ package body Arch.Local is
       return Returned;
    exception
       when Constraint_Error =>
-         Panic.Hard_Panic ("Exception getting current process");
+         return Userland.Process.Error_PID;
    end Get_Current_Process;
 
    procedure Set_Current_Thread (Thread : Scheduler.TID) is

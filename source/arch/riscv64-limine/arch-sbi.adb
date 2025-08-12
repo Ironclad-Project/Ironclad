@@ -17,7 +17,7 @@
 with System.Machine_Code;
 with Arch.Clocks;
 
-package body Arch.SBI is
+package body Arch.SBI with SPARK_Mode => Off is
    Base_Extension_EID : constant := 16#10#;
    Time_Extension_EID : constant := 16#54494D45#;
 

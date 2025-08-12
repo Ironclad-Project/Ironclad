@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 
-package Arch.Interrupts with SPARK_Mode => Off is
+package Arch.Interrupts is
    --  Passed to every interrupt called ever as an access.
    --  XXX: The order and contents are tied down by arch-trap.S, if these are
    --  ever changed, change those too.

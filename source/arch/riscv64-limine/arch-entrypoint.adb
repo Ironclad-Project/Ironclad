@@ -28,7 +28,7 @@ with Arch.Interrupts;
 with Arch.Clocks;
 with Arch.SBI;
 
-package body Arch.Entrypoint is
+package body Arch.Entrypoint with SPARK_Mode => Off is
    --  Response is a pointer to a Memmap_Response.
    Memmap_Request : Limine.Request :=
       (ID       => Limine.Memmap_ID,

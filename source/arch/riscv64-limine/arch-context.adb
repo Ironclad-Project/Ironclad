@@ -16,7 +16,7 @@
 
 with System.Machine_Code;
 
-package body Arch.Context is
+package body Arch.Context with SPARK_Mode => Off is
    procedure Init_GP_Context
       (Ctx        : out GP_Context;
        Stack      : System.Address;

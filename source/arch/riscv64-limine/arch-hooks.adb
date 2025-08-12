@@ -23,7 +23,7 @@ with Messages;
 with System; use System;
 with Arch.SBI;
 
-package body Arch.Hooks is
+package body Arch.Hooks with SPARK_Mode => Off is
    procedure Devices_Hook (Success : out Boolean) is
    begin
       Success := Devices.FB.Init;

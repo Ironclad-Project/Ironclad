@@ -21,6 +21,7 @@ with Arch.ACPI;
 with System.Machine_Code;
 
 package body Arch.Clocks with
+   SPARK_Mode => Off,
    Refined_State =>
       (RT_Clock_State =>
          (null),
