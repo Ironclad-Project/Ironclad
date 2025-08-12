@@ -72,7 +72,8 @@ private
 
    procedure Add_To_Buffers (Message : String)
       with Pre    => Message'Length <= Max_Line - Timestamp_Str'Length - 3,
-           Global => (In_Out => Arch.Clocks.Monotonic_Clock_State);
+           Global => (In_Out =>
+                       (Arch.Clocks.Monotonic_Clock_State, Message_State));
 
    function Is_Initialized return Boolean is (Log_Ring_Buffer /= null);
 end Messages;

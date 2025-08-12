@@ -19,7 +19,6 @@ with Arch.Debug;
 with Interfaces; use Interfaces;
 
 package body Messages with
-   SPARK_Mode => Off,
    Refined_State => [Message_State =>
       [Messages_Mutex, Curr_Entry, Small_Log_Buffer, Log_Ring_Buffer]]
 is
