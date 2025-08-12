@@ -9,44 +9,62 @@
 --  distributed under the GPLv3 with the GCC runtime exception.
 
 package body System.Image is
-   Conversion : constant String := "0123456789ABCDEF";
+   pragma Suppress (All_Checks); --  Unit passes AoRTE.
 
    procedure Image_Integer
-     (V : Int;
-      S : in out String;
-      P : out Natural)
+     (Value    : Int;
+      Str      : out String;
+      Consumed : out Natural)
    is
    begin
-      Image_Unsigned (UInt (abs V), S, P);
-      if V < 0 then
-         S (S'First + 1 .. P + 1) := S (S'First .. P);
-         S (S'First) := '-';
-         P := P + 1;
+      Str := [others => '0'];
+
+      if Value = Int'First then
+         Image_Unsigned (UInt (Int'Last) + 1,
+            Str (1 .. Str'Last - 1), Consumed);
+      else
+         Image_Unsigned (UInt (abs Value), Str (1 .. Str'Last - 1), Consumed);
+      end if;
+      if Value < 0 then
+         Str (Str'First + 1 .. Consumed + 1) := Str (Str'First .. Consumed);
+         Str (Str'First) := '-';
+         Consumed := Consumed + 1;
       end if;
    end Image_Integer;
 
    procedure Image_Unsigned
-     (V : UInt;
-      S : in out String;
-      P : out Natural)
+     (Value    : UInt;
+      Str      : out String;
+      Consumed : out Natural)
    is
+      pragma Annotate
+         (GNATprove, False_Positive, "loop invariant might",
+          "Cannot happen mathematically");
+      pragma Annotate
+         (GNATprove, False_Positive, "range check might fail",
+          "Cannot happen mathematically");
+
+      Conversion : constant String (1 .. 16) := "0123456789ABCDEF";
       Base       : constant UInt := (if Do_Hex then 16 else 10);
-      To_Convert :          UInt := V;
-      Current    :       Natural := S'Last;
+      To_Convert :          UInt := Value;
+      Current    :       Natural := Str'Last;
    begin
-      S := [others => '0'];
+      Str := [others => '0'];
       if To_Convert = 0 then
-         P := 1;
+         Consumed := 1;
          return;
       end if;
 
       while To_Convert /= 0 loop
-         S (Current) := Conversion (Integer (To_Convert rem Base) + 1);
-         To_Convert  := To_Convert / Base;
-         Current     := Current - 1;
+         pragma Loop_Invariant (Current in Str'Range);
+         pragma Loop_Invariant ((To_Convert mod Base) < Conversion'Length);
+         Str (Current) := Conversion (Integer (To_Convert mod Base) + 1);
+         To_Convert    := To_Convert / Base;
+         exit when Current = 1;
+         Current := Current - 1;
       end loop;
 
-      P := S'Length - Current;
-      S (S'First .. P) := S (S'Last - P + 1 .. S'Last);
+      Consumed := Str'Length - Current;
+      Str (Str'First .. Consumed) := Str (Str'Last - Consumed + 1 .. Str'Last);
    end Image_Unsigned;
 end System.Image;

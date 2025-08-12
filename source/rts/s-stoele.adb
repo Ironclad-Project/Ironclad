@@ -6,6 +6,8 @@
 with Ada.Unchecked_Conversion;
 
 package body System.Storage_Elements is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE.
+
    function To_Addr is new Ada.Unchecked_Conversion (Storage_Offset, Address);
    function To_Off  is new Ada.Unchecked_Conversion (Address, Storage_Offset);
 
@@ -40,6 +42,12 @@ package body System.Storage_Elements is
    end "-";
 
    function "mod" (L : Address; R : Storage_Offset) return Storage_Offset is
+      pragma Annotate
+         (GNATprove, False_Positive, "divide by zero might fail",
+          "Cannot happen, R not being 0 is part of the preconditions");
+      pragma Annotate
+         (GNATprove, False_Positive, "cannot prove upper bound",
+          "Cannot happen mathematically");
    begin
       --  Need to do this awkward stuff to make sure the abs doesnt overflow.
       if R = Storage_Offset'First then

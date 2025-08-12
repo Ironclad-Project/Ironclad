@@ -14,11 +14,16 @@ generic
    Do_Hex : Boolean;
 package System.Image with Pure is
    procedure Image_Integer
-     (V : Int;
-      S : in out String;
-      P : out Natural);
+      (Value    : Int;
+       Str      : out String;
+       Consumed : out Natural)
+      with Pre  => Str'First = 1 and Str'Length = 21,
+           Post => Consumed <= Str'Length;
+
    procedure Image_Unsigned
-     (V : UInt;
-      S : in out String;
-      P : out Natural);
+      (Value    : UInt;
+       Str      : out String;
+       Consumed : out Natural)
+      with Pre  => Str'First = 1 and Str'Length = 20,
+           Post => Consumed <= Str'Length;
 end System.Image;

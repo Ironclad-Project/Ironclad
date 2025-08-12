@@ -16,7 +16,7 @@ package System.Img_UNS with SPARK_Mode, Pure is
    package Impl is new Image (Integer, Unsigned, False);
    procedure Image_Unsigned
       (V : Unsigned;
-       S : in out String;
+       S : out String;
        P : out Natural)
       renames Impl.Image_Unsigned;
 end System.Img_UNS;

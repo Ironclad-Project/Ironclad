@@ -16,7 +16,7 @@ package System.Img_Int with Pure is
    package Impl is new Image (Integer, Unsigned, False);
    procedure Image_Integer
       (V : Integer;
-       S : in out String;
+       S : out String;
        P : out Natural)
       renames Impl.Image_Integer;
 end System.Img_Int;

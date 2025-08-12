@@ -16,7 +16,7 @@ package System.Img_LLU with SPARK_Mode, Pure is
    package Impl is new Image (Long_Long_Integer, Long_Long_Unsigned, True);
    procedure Image_Long_Long_Unsigned
       (V : Long_Long_Unsigned;
-       S : in out String;
+       S : out String;
        P : out Natural)
       renames Impl.Image_Unsigned;
 end System.Img_LLU;

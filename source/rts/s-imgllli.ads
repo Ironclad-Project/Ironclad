@@ -18,7 +18,7 @@ package System.Img_LLLI with SPARK_Mode, Pure is
        Long_Long_Long_Unsigned, False);
    procedure Image_Long_Long_Long_Integer
       (V : Long_Long_Long_Integer;
-       S : in out String;
+       S : out String;
        P : out Natural)
       renames Impl.Image_Integer;
 end System.Img_LLLI;
