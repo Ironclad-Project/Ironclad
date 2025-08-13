@@ -51,9 +51,11 @@ SECTIONS
     data_start = .;
     .data : {
         *(.data .data.*)
+        *(.sdata .sdata.*)
     } :data
 
     .bss : {
+        *(.sbss .sbss.*)
         *(.bss .bss.*)
         *(COMMON)
     } :data
