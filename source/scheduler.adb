@@ -769,6 +769,11 @@ package body Scheduler with SPARK_Mode => Off is
          Thread_Pool (Next_TID).User_Tmp_NSec := Curr_NSec;
       end if;
 
+      --  FIXME: This originally was between the lock release and the
+      --  loading context, putting it there though makes the kernel panic under
+      --  SMP with memory corruption. It should be there though. Why?
+      Arch.Local.Reschedule_In (Thread_Pool (Next_TID).RR_Micro_Inter);
+
       --  Reset state.
       Memory.MMU.Set_Table_Addr (Thread_Pool (Next_TID).PageMap);
       Arch.Local.Set_Current_Process (Thread_Pool (Next_TID).Process);
@@ -781,7 +786,6 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_State);
       Next_State := Thread_Pool (Next_TID).GP_State;
       Synchronization.Release (Scheduler_Mutex);
-      Arch.Local.Reschedule_In (Thread_Pool (Next_TID).RR_Micro_Inter);
       Arch.Context.Load_GP_Context (Next_State);
    exception
       when Constraint_Error =>
