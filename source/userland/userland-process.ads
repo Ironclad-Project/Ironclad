@@ -44,7 +44,6 @@ package Userland.Process is
    Max_CWD_Length   : constant Natural;
    Max_Name_Length  : constant Natural;
    Max_Thread_Count : constant Natural;
-   Max_File_Count   : constant Natural;
 
    --  Each process has a umask, inherited from the parent, with a default mask
    --  for the first process.
@@ -304,15 +303,8 @@ package Userland.Process is
    --  Duplicate an entire process table to another process.
    --  @param Process Process to use.
    --  @param Target  Target process.
-   --  @param Max_FD  FDs to duplicate from the beginning, by default, all.
-   procedure Duplicate_FD_Table
-      (Process : PID;
-       Target  : PID;
-       Max_FD  : Natural := Max_File_Count)
-      with Pre => (Process /= Error_PID) and
-                  (Target /= Error_PID)  and
-                  Max_FD > 0             and
-                  Max_FD <= Max_File_Count;
+   procedure Duplicate_FD_Table (Process, Target : PID)
+      with Pre => Process /= Error_PID and Target /= Error_PID;
 
    --  Close and free an individual file.
    --  @param F File to operate on.
@@ -776,7 +768,6 @@ private
    Max_CWD_Length   : constant Natural := 100;
    Max_Name_Length  : constant Natural :=  20;
    Max_Thread_Count : constant Natural :=  20;
-   Max_File_Count   : constant Natural := 100;
 
    Default_Umask : constant VFS.File_Mode := 8#22#;
 
@@ -791,8 +782,11 @@ private
       Restorer_Addr : System.Address;
    end record;
 
+   Max_File_Count : constant Natural := 1024;
+   type File_Arr     is array (0 .. Max_File_Count - 1) of File_Descriptor;
+   type File_Arr_Acc is access File_Arr;
+
    type Thread_Arr is array (1 .. Max_Thread_Count)   of Scheduler.TID;
-   type File_Arr   is array (0 .. Max_File_Count - 1) of File_Descriptor;
    type Handle_Arr is array (Signal)                  of Signal_Handlers;
    type Process_Data is record
       Data_Mutex      : aliased Synchronization.Mutex;
@@ -820,7 +814,7 @@ private
       Current_Dir_FS  : VFS.FS_Handle;
       Current_Dir_Ino : VFS.File_Inode_Number;
       Thread_List     : Thread_Arr;
-      File_Table      : File_Arr;
+      File_Table      : File_Arr_Acc;
       Common_Map      : Memory.MMU.Page_Table_Acc;
       Stack_Base      : Unsigned_64;
       Alloc_Base      : Unsigned_64;

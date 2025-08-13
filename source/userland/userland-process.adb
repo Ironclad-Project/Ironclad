@@ -115,7 +115,7 @@ package body Userland.Process with SPARK_Mode => Off is
                 Current_Dir_FS  => VFS.Error_Handle,
                 Current_Dir_Ino => 0,
                 Thread_List     => [others => Error_TID],
-                File_Table      => [others => (False, False, null)],
+                File_Table => new File_Arr'[others => (False, False, null)],
                 Common_Map      => null,
                 Stack_Base      => 0,
                 Alloc_Base      => 0,
@@ -538,7 +538,7 @@ package body Userland.Process with SPARK_Mode => Off is
       FD      := 0;
       Success := False;
 
-      for Ent of Registry (Process).File_Table loop
+      for Ent of Registry (Process).File_Table.all loop
          if Ent.Description = null then
             Count_Of_FDs := Count_Of_FDs + 1;
          end if;
@@ -584,16 +584,12 @@ package body Userland.Process with SPARK_Mode => Off is
          null;
    end Duplicate;
 
-   procedure Duplicate_FD_Table
-      (Process : PID;
-       Target  : PID;
-       Max_FD  : Natural := Max_File_Count)
-   is
+   procedure Duplicate_FD_Table (Process, Target : PID) is
    begin
       Synchronization.Seize (Registry (Process).Data_Mutex);
       Synchronization.Seize (Registry (Target).Data_Mutex);
 
-      for I in 0 .. Max_FD - 1 loop
+      for I in Registry (Process).File_Table'Range loop
          if not Registry (Process).File_Table (I).Close_On_Fork then
             Registry (Target).File_Table (I) :=
                Registry (Process).File_Table (I);
@@ -721,7 +717,7 @@ package body Userland.Process with SPARK_Mode => Off is
    procedure Flush_Files (Process : PID) is
    begin
       Synchronization.Seize (Registry (Process).Data_Mutex);
-      for F of Registry (Process).File_Table loop
+      for F of Registry (Process).File_Table.all loop
          if F.Description /= null then
             Close (F.Description);
          end if;
@@ -737,7 +733,7 @@ package body Userland.Process with SPARK_Mode => Off is
    procedure Flush_Exec_Files (Process : PID) is
    begin
       Synchronization.Seize (Registry (Process).Data_Mutex);
-      for F of Registry (Process).File_Table loop
+      for F of Registry (Process).File_Table.all loop
          if F.Description /= null and then F.Close_On_Exec then
             Close (F.Description);
             F.Close_On_Exec := False;
