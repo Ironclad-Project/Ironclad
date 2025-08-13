@@ -15,7 +15,7 @@ stable, this section will have a table of all supported releases.
 Here is a history of all releases ordered by release date including upcoming
 release changes.
 
-## Upcoming release
+## 0.8.0 - Wed Aug 13, 2025
 
 ### Non-breaking changes
 
