@@ -40,6 +40,8 @@ SECTIONS
     rodata_start = .;
     .rodata : {
         *(.rodata .rodata.*)
+        *(.srodata .srodata.*)
+        *(.sdata2 .sdata2.*)
     } :rodata
 
     .note.gnu.build-id : {
@@ -55,8 +57,8 @@ SECTIONS
     } :data
 
     .bss : {
-        *(.sbss .sbss.*)
         *(.bss .bss.*)
+        *(.sbss .sbss.*)
         *(COMMON)
     } :data
     . = ALIGN(CONSTANT(MAXPAGESIZE));
