@@ -110,7 +110,9 @@ package body Arch.Context with SPARK_Mode => Off is
    procedure Save_FP_Context (Ctx : in out FP_Context) is
    begin
       System.Machine_Code.Asm
-         ("fsd      f1, 0(%0);"   &
+         (".option push;"         &
+          ".option arch, +d;"     &
+          "fsd      f1, 0(%0);"   &
           "fsd      f3, 16(%0);"  &
           "fsd      f4, 24(%0);"  &
           "fsd      f5, 32(%0);"  &
@@ -141,7 +143,8 @@ package body Arch.Context with SPARK_Mode => Off is
           "fsd     f30, 232(%0);" &
           "fsd     f31, 240(%0);" &
           "frcsr   a0;"           &
-          "sd      a0, 248(%0);",
+          "sd      a0, 248(%0);"  &
+          ".option pop;",
           Inputs   => System.Address'Asm_Input ("r", Ctx'Address),
           Clobber  => "memory,a0",
           Volatile => True);
@@ -150,7 +153,9 @@ package body Arch.Context with SPARK_Mode => Off is
    procedure Load_FP_Context (Ctx : FP_Context) is
    begin
       System.Machine_Code.Asm
-         ("fld      f1, 0(%0);"   &
+         (".option push;"         &
+          ".option arch, +d;"     &
+          "fld      f1, 0(%0);"   &
           "fld      f3, 16(%0);"  &
           "fld      f4, 24(%0);"  &
           "fld      f5, 32(%0);"  &
@@ -181,7 +186,8 @@ package body Arch.Context with SPARK_Mode => Off is
           "fld     f30, 232(%0);" &
           "fld     f31, 240(%0);" &
           "ld       a0, 248(%0);" &
-          "fscsr    a0;",
+          "fscsr    a0;"          &
+          ".option pop;",
           Inputs   => System.Address'Asm_Input ("r", Ctx'Address),
           Clobber  => "memory,a0",
           Volatile => True);

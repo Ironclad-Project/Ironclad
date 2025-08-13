@@ -82,7 +82,6 @@ project Ironclad is
          Common_Compiler_Flags := Common_Compiler_Flags & (
             "-march=rv64imac_zicsr_zifencei",
             "-mabi=lp64",
-            "-Wa,-march=rv64gc",
             "-mno-relax"
          );
       when "x86_64-limine" =>
