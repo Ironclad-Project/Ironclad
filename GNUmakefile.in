@@ -162,18 +162,20 @@ dist:
 	cp -rp '$(call SHESCAPE,$(SRCDIR))'/.git "$(DIST_OUTPUT)"/
 	cd "$(DIST_OUTPUT)" && git checkout .
 	cd "$(DIST_OUTPUT)" && ./bootstrap
+	rm -rf "$(DIST_OUTPUT)"/.well-known
 	rm -rf "$(DIST_OUTPUT)"/.git
 	rm -rf "$(DIST_OUTPUT)"/.gitignore
 	rm -rf "$(DIST_OUTPUT)"/.mailmap
 	rm -rf "$(DIST_OUTPUT)"/.forgejo
 	rm -rf "$(DIST_OUTPUT)"/autom4te.cache
 	rm -rf "$(DIST_OUTPUT)"/cc-runtime/.git
+	rm -rf "$(DIST_OUTPUT)"/freestnd-c-hdrs/.git
 	rm -rf "$(DIST_OUTPUT)"/flanterm/.git
 	rm -rf "$(DIST_OUTPUT)"/flanterm/.gitignore
 	rm -rf "$(DIST_OUTPUT)"/uacpi/.git
 	rm -rf "$(DIST_OUTPUT)"/uacpi/.github
 	rm -rf "$(DIST_OUTPUT)"/uacpi/.gitignore
-	rm -rf "$(DIST_OUTPUT)"/uacpi/tests/runner/.gitignore
+	rm -rf "$(DIST_OUTPUT)"/uacpi/tests
 	echo "$(PACKAGE_VERSION)" >"$(DIST_OUTPUT)"/version
 	tar -zcf "$(DIST_OUTPUT)".tar.gz "$(DIST_OUTPUT)"
 	rm -rf "$(DIST_OUTPUT)"
