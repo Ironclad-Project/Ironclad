@@ -42,7 +42,7 @@ SECTIONS
         *(.rodata .rodata.*)
     } :rodata
 
-    .note : {
+    .note.gnu.build-id : {
         *(.note.gnu.build-id)
     } : rodata
     . = ALIGN(CONSTANT(MAXPAGESIZE));
