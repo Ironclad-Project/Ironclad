@@ -56,25 +56,29 @@ package IPC.SHM is
    procedure Get_Address
       (ID      : Segment_ID;
        Address : out Unsigned_64;
-       Size    : out Unsigned_64);
+       Size    : out Unsigned_64)
+      with Pre => ID /= Error_ID;
 
    procedure Check_Permissions
       (ID      : Segment_ID;
        UID     : Unsigned_32;
        GID     : Unsigned_32;
-       Success : out Boolean);
+       Success : out Boolean)
+      with Pre => ID /= Error_ID;
 
-   procedure Mark_Refcounted (ID : Segment_ID);
+   procedure Mark_Refcounted (ID : Segment_ID) with Pre => ID /= Error_ID;
 
    --  Mark the segment has either been attached (incremented) or detached
    --  (decremented).
-   procedure Modify_Attachment (ID : Segment_ID; Increment : Boolean);
+   procedure Modify_Attachment (ID : Segment_ID; Increment : Boolean)
+      with Pre => ID /= Error_ID;
 
    procedure Modify_Permissions
       (ID   : Segment_ID;
        UID  : Unsigned_32;
        GID  : Unsigned_32;
-       Mode : Unsigned_64);
+       Mode : Unsigned_64)
+      with Pre => ID /= Error_ID;
 
    type Segment_Information is record
       Key         : Unsigned_32;
@@ -90,12 +94,14 @@ package IPC.SHM is
    procedure Fetch_Information
       (ID    : Segment_ID;
        Info  : out Segment_Information;
-       Found : out Boolean);
+       Found : out Boolean)
+      with Pre => ID /= Error_ID;
 
    --  Get size of all segments of the system.
    procedure Get_Total_Size (Size : out Unsigned_64);
 
 private
 
-   procedure Check_And_Maybe_Free (ID : Segment_ID);
+   procedure Check_And_Maybe_Free (ID : Segment_ID)
+      with Pre => ID /= Error_ID;
 end IPC.SHM;

@@ -238,15 +238,6 @@ package body IPC.FIFO is
 
       Synchronization.Release (To_Write.Mutex);
    end Write;
-
-   function Is_Valid (P : Inner_Acc) return Boolean is
-   begin
-      return
-         (P      /= null                and then
-          P.Data /= null                and then
-          P.Data_Count <= P.Data'Length and then
-          P.Data'First = 1);
-   end Is_Valid;
    ----------------------------------------------------------------------------
    procedure Common_Close (To_Close : in out Inner_Acc) is
       pragma Annotate

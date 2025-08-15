@@ -20,6 +20,8 @@ with Memory.Physical; use Memory.Physical;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package body IPC.SHM is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE.
+
    type Segment_Inner is record
       Is_Present       : Boolean;
       Key              : Unsigned_32;
@@ -87,10 +89,6 @@ package body IPC.SHM is
 
    <<Cleanup>>
       Synchronization.Release (Registry_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Registry_Mutex);
-         Segment := Error_ID;
    end Create_Segment;
 
    procedure Create_Unkeyed_Segment
@@ -132,10 +130,6 @@ package body IPC.SHM is
 
    <<Cleanup>>
       Synchronization.Release (Registry_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Registry_Mutex);
-         Segment := Error_ID;
    end Create_Unkeyed_Segment;
 
    procedure Get_Segment (Key : Unsigned_32; Segment : out Segment_ID) is
@@ -188,11 +182,6 @@ package body IPC.SHM is
          Size := 0;
       end if;
       Synchronization.Release (Registry_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Registry_Mutex);
-         Size    := 0;
-         Address := 0;
    end Get_Address;
 
    procedure Check_Permissions
@@ -211,10 +200,6 @@ package body IPC.SHM is
          Success := False;
       end if;
       Synchronization.Release (Registry_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Registry_Mutex);
-         Success := False;
    end Check_Permissions;
 
    procedure Mark_Refcounted (ID : Segment_ID) is
@@ -225,23 +210,20 @@ package body IPC.SHM is
          Check_And_Maybe_Free (ID);
       end if;
       Synchronization.Release (Registry_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Registry_Mutex);
    end Mark_Refcounted;
 
    procedure Modify_Attachment (ID : Segment_ID; Increment : Boolean) is
    begin
       Synchronization.Seize (Registry_Mutex);
       if Registry (ID).Is_Present then
-         Registry (ID).Refcount :=
-            Registry (ID).Refcount + (if Increment then 1 else -1);
+         if Increment and Registry (ID).Refcount /= Natural'Last then
+            Registry (ID).Refcount := Registry (ID).Refcount + 1;
+         elsif Registry (ID).Refcount /= 0 then
+            Registry (ID).Refcount := Registry (ID).Refcount - 1;
+         end if;
          Check_And_Maybe_Free (ID);
       end if;
       Synchronization.Release (Registry_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Registry_Mutex);
    end Modify_Attachment;
 
    procedure Modify_Permissions
@@ -258,9 +240,6 @@ package body IPC.SHM is
          Registry (ID).Mode := Mode;
       end if;
       Synchronization.Release (Registry_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Registry_Mutex);
    end Modify_Permissions;
 
    procedure Fetch_Information
@@ -282,13 +261,18 @@ package body IPC.SHM is
              Refcount    => Registry (ID).Refcount);
          Found := True;
       else
+         Info :=
+            (Key         => 0,
+             Size        => 0,
+             Owner_UID   => 0,
+             Owner_GID   => 0,
+             Creator_UID => 0,
+             Creator_GID => 0,
+             Mode        => 0,
+             Refcount    => 0);
          Found := False;
       end if;
       Synchronization.Release (Registry_Mutex);
-   exception
-      when Constraint_Error =>
-         Synchronization.Release (Registry_Mutex);
-         Found := False;
    end Fetch_Information;
 
    procedure Get_Total_Size (Size : out Unsigned_64) is
@@ -309,8 +293,5 @@ package body IPC.SHM is
          Registry (ID).Is_Present := False;
          User_Free (Registry (ID).Physical_Address);
       end if;
-   exception
-      when Constraint_Error =>
-         null;
    end Check_And_Maybe_Free;
 end IPC.SHM;
