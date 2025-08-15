@@ -82,7 +82,8 @@ is
       Messages.Put_Line ("+++++++=----====-=%    -:            .- ");
       Messages.Put_Line ("++++++++=---=+++++%     +               ");
       Messages.Put_Line ("");
-      Messages.Put_Line ("Kernel Panic: " & Message);
+      Messages.Put_Line ("KERNEL PANIC! Here's why:");
+      Messages.Put_Line (Message);
       Messages.Put_Line ("");
       Messages.Put_Line ("Please reboot your computer! State will be lost");
       Messages.Put_Line ("");
@@ -91,6 +92,8 @@ is
    end Panic_Common;
 
    procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64) is
+      pragma Annotate (GNATprove, False_Positive,
+         "range check might fail", "It does not happen");
    begin
       Messages.Put_Line
          (N1 & " " & V1'Image & " " &

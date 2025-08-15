@@ -25,6 +25,8 @@ is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    procedure Enable_Logging is
+      pragma Annotate (GNATprove, False_Positive,
+         "resource or memory leak might occur", "That's... the point");
    begin
       Synchronization.Seize (Messages_Mutex);
       Log_Ring_Buffer := new Message_Buffer'[1 .. 100 => [others => ' ']];
@@ -35,46 +37,60 @@ is
    procedure Put_Line (Message : String) is
       Max_Len : constant Natural := Max_Line - Timestamp_Str'Length - 3;
       Msg_Idx, Msg_LIdx : Natural;
+      Is_Last : Boolean;
    begin
       if Message'Length = 0 then
          Add_To_Buffers (Message);
-      else
-         Msg_Idx := Message'First;
-         loop
-            if Message (Msg_Idx .. Message'Last)'Length > Max_Len then
-               Msg_LIdx := Msg_Idx + Max_Len - 1;
-            else
-               Msg_LIdx := Message'Last;
-            end if;
-
-            Add_To_Buffers (Message (Msg_Idx .. Msg_LIdx));
-
-            exit when Msg_Idx + Max_Len >= Message'Last;
-            Msg_Idx := Msg_Idx + Max_Len;
-         end loop;
+         return;
       end if;
+
+      Msg_Idx  := Message'First;
+      Msg_LIdx := Message'First;
+      loop
+         pragma Loop_Invariant (Msg_Idx in Message'Range);
+         pragma Loop_Invariant (Msg_LIdx in Message'Range);
+         if Message (Msg_Idx .. Message'Last)'Length > Max_Len then
+            Msg_LIdx := Msg_Idx + Max_Len - 1;
+            Is_Last  := False;
+         else
+            Msg_LIdx := Message'Last;
+            Is_Last  := True;
+         end if;
+
+         Add_To_Buffers (Message (Msg_Idx .. Msg_LIdx));
+         exit when Is_Last;
+         Msg_Idx := Msg_Idx + Max_Len;
+      end loop;
    end Put_Line;
 
    procedure Dump_Logs (Buffer : out String; Length : out Natural) is
-      Idx : Natural := 0;
+      Idx, Tmp : Natural := 0;
    begin
       Synchronization.Seize (Messages_Mutex);
 
       for C of Buffer loop
          C := ' ';
       end loop;
-      Length := Log_Ring_Buffer'Length * Max_Line;
 
+      if Log_Ring_Buffer = null then
+         Length := 0;
+         goto Cleanup;
+      end if;
+
+      Length := Log_Ring_Buffer'Length * Max_Line;
       if Buffer'Length < Length or Buffer'Length mod Max_Line /= 0 then
          return;
       end if;
 
       for Line of Log_Ring_Buffer.all loop
-         Buffer (Buffer'First + Idx .. Buffer'First + Idx + Max_Line - 1) :=
-            Line;
+         Tmp := Buffer'First + Idx;
+         pragma Loop_Invariant (Tmp in Buffer'Range);
+         pragma Loop_Invariant ((Tmp + Max_Line - 1) in Buffer'Range);
+         Buffer (Tmp .. Tmp + Max_Line - 1) := Line;
          Idx := Idx + Max_Line;
       end loop;
 
+   <<Cleanup>>
       Synchronization.Release (Messages_Mutex);
    end Dump_Logs;
    ----------------------------------------------------------------------------

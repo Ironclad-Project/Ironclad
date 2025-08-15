@@ -17,11 +17,14 @@
 with Interfaces.C.Strings;
 with Panic;
 
-package body Runtime with SPARK_Mode => Off is
+package body Runtime is
    --  Failing a check here would just make it infinitely recursive.
    pragma Suppress (All_Checks);
 
    procedure Last_Chance_Handler (File : System.Address; Line : Integer) is
+      pragma Warnings
+         (GNATprove, Off, "through a potential alias",
+          Reason => "No alias are taken");
       File_String : String (1 .. Interfaces.C.Strings.Strlen (File))
          with Address => File, Import;
    begin

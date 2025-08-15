@@ -39,5 +39,6 @@ is
 private
 
    procedure Panic_Common (Message : String);
-   procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64);
+   procedure Print_Triple (N1, N2, N3 : String; V1, V2, V3 : Unsigned_64)
+      with Pre => N1'Length <= 3 and N2'Length <= 3 and N3'Length <= 3;
 end Panic;
