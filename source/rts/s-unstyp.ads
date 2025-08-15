@@ -9,6 +9,8 @@
 --  distributed under the GPLv3 with the GCC runtime exception.
 
 package System.Unsigned_Types with Pure is
+   pragma Warnings (Off, "(not yet supported)", Reason => "Clear output");
+
    type Short_Short_Unsigned    is mod 2 ** Short_Short_Integer'Size;
    type Short_Unsigned          is mod 2 ** Short_Integer'Size;
    type Unsigned                is mod 2 ** Integer'Size;

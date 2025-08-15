@@ -9,6 +9,8 @@
 --  distributed under the GPLv3 with the GCC runtime exception.
 
 package System.Storage_Elements with Pure is
+   pragma Warnings (Off, "(not yet supported)", Reason => "Clear output");
+
    type Storage_Offset is range
      -(2 ** (Integer'(Standard'Address_Size) - 1)) ..
      +(2 ** (Integer'(Standard'Address_Size) - 1)) - 1;

@@ -15,9 +15,7 @@ package body Interfaces.C.Strings is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    pragma Warnings
-      (GNATprove,
-       Off,
-       "indirect writes to ""C"" through a potential alias are ignored",
+      (GNATprove, Off, "through a potential alias",
        Reason => "No alias are taken");
 
    function Strlen (Addr : System.Address) return Natural is
