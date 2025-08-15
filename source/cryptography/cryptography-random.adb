@@ -44,6 +44,11 @@ package body Cryptography.Random is
    end record with Size => 256, Universal_Aliasing;
    function To_Seed is new Ada.Unchecked_Conversion (Seed, Chacha20.Key);
 
+
+   subtype U64_Data is Crypto_Data (1 .. 8);
+   function Conv is new Ada.Unchecked_Conversion (Unsigned_64, U64_Data);
+   function Conv is new Ada.Unchecked_Conversion (U64_Data, Unsigned_64);
+
    --  Globals to keep track of RNG state.
    Accumulator_Mutex  :      aliased Mutex := Unlocked_Mutex;
    Reseeding_Count    :        Unsigned_64 := 0;
@@ -58,18 +63,8 @@ package body Cryptography.Random is
       RSec, RNSec, MSec, MNSec : Unsigned_64;
       S : Memory.Physical.Statistics;
       V : Memory.MMU.Virtual_Statistics;
-
-      Data1 : Crypto_Data (1 .. 8) with Import, Address => RSec'Address;
-      Data2 : Crypto_Data (1 .. 8) with Import, Address => RNSec'Address;
-      Data3 : Crypto_Data (1 .. 8) with Import, Address => MSec'Address;
-      Data4 : Crypto_Data (1 .. 8) with Import, Address => MNSec'Address;
-      Data5 : Crypto_Data (1 .. 8) with Import, Address => S.Available'Address;
-      Data6 : Crypto_Data (1 .. 8) with Import, Address => S.Free'Address;
-      Data7 : Crypto_Data (1 .. 8) with Import, Address => S.Total'Address;
-      Data8 : Crypto_Data (1 .. 8)
-         with Import, Address => V.Kernel_Usage'Address;
-      Data9 : Crypto_Data (1 .. 8)
-         with Import, Address => V.Table_Usage'Address;
+      Data1, Data2, Data3, Data4, Data5, Data6, Data7 : U64_Data;
+      Data8, Data9 : U64_Data;
    begin
       --  Initialize.
       Seize (Accumulator_Mutex);
@@ -80,9 +75,22 @@ package body Cryptography.Random is
       --  that isnt just zeros, but the entropy here will be VERY VERY
       --  anemic.
       Memory.Physical.Get_Statistics (S);
+      Memory.MMU.Get_Statistics (V);
       Arch.Clocks.Get_Real_Time      (RSec, RNSec);
       Arch.Clocks.Get_Monotonic_Time (MSec, MNSec);
 
+      --  Translate to feedable data.
+      Data1 := Conv (RSec);
+      Data2 := Conv (RNSec);
+      Data3 := Conv (MSec);
+      Data4 := Conv (MNSec);
+      Data5 := Conv (Unsigned_64 (S.Available));
+      Data6 := Conv (Unsigned_64 (S.Free));
+      Data7 := Conv (Unsigned_64 (S.Total));
+      Data8 := Conv (Unsigned_64 (V.Kernel_Usage));
+      Data9 := Conv (Unsigned_64 (V.Table_Usage));
+
+      --  Feed.
       Feed_Entropy (Data1); Feed_Entropy (Data2); Feed_Entropy (Data3);
       Feed_Entropy (Data4); Feed_Entropy (Data5); Feed_Entropy (Data6);
       Feed_Entropy (Data7); Feed_Entropy (Data8); Feed_Entropy (Data9);
@@ -185,9 +193,10 @@ package body Cryptography.Random is
    end Feed_Entropy;
 
    procedure Get_Integer (Result : out Unsigned_64) is
-      Data : Crypto_Data (1 .. 8) with Import, Address => Result'Address;
+      Data : U64_Data;
    begin
       Fill_Data (Data);
+      Result := Conv (Data);
    end Get_Integer;
 
    procedure Get_Integer (Min, Max : Unsigned_64; Result : out Unsigned_64) is
