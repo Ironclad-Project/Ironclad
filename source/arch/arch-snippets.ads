@@ -89,7 +89,8 @@ package Arch.Snippets is
           EBX     : out Unsigned_32;
           ECX     : out Unsigned_32;
           EDX     : out Unsigned_32;
-          Success : out Boolean);
+          Success : out Boolean)
+         with Always_Terminates;
 
       function Read_TSC return Unsigned_64 with Inline;
    #end if;
