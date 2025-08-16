@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Unchecked_Conversion;
 with Devices;
 with Arch.Local;
 with Userland.Process; use Userland.Process;
@@ -26,7 +27,10 @@ package body Userland.Corefile is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    procedure Generate_Corefile (Ctx : Arch.Context.GP_Context) is
-      Inner_Ct : aliased constant Arch.Context.GP_Context := Ctx;
+      subtype Ctx_Data is Devices.Operation_Data (1 .. Ctx'Size / 8);
+      function Conv is new Ada.Unchecked_Conversion
+         (Arch.Context.GP_Context, Ctx_Data);
+
       Proc     : constant Process.PID := Arch.Local.Get_Current_Process;
       PID_Val  : Natural;
       Success  : VFS.FS_Status;
@@ -35,14 +39,13 @@ package body Userland.Corefile is
       Limit    : Limit_Value;
       Ctx_Len  : Natural;
       To_Write : Natural;
-      Ctx_Data : constant Devices.Operation_Data (1 .. Inner_Ct'Size / 8)
-         with Import, Address => Inner_Ct'Address;
+      Data     : constant Ctx_Data := Conv (Ctx);
    begin
       if Proc = Error_PID then
          return;
       end if;
 
-      To_Write := Ctx_Data'Length;
+      To_Write := Data'Length;
       Limit    := Get_Limit (Proc, Core_Size_Limit);
       if Limit.Soft_Limit < Unsigned_64 (To_Write) then
          To_Write := Natural (Limit.Soft_Limit);
@@ -73,7 +76,7 @@ package body Userland.Corefile is
             return;
          end if;
 
-         VFS.Write (Core_FS, Core_Ino, 0, Ctx_Data (1 .. To_Write), Ctx_Len,
+         VFS.Write (Core_FS, Core_Ino, 0, Data (1 .. To_Write), Ctx_Len,
             True, Success);
          if Success /= VFS.FS_Success or Ctx_Len /= To_Write then
             Messages.Put_Line ("Could not write core file " & File_Path);
