@@ -727,8 +727,7 @@ package Userland.Syscall with SPARK_Mode => Off is
    end record with Pack;
    type SockAddr_UNIX is record
       Sun_Family : Unsigned_32;
-      Length     : Unsigned_32;
-      Path       : System.Address;
+      Sun_Path   : String (1 .. 108);
    end record with Pack;
    procedure Bind
       (Sock_FD   : Unsigned_64;
@@ -1542,11 +1541,6 @@ private
 
    --  Set MAC capabilities for a process from a bitmap.
    procedure Set_MAC_Capabilities (Proc : PID; Bits : Unsigned_64);
-
-   function Check_Userland_Access
-      (Map        : Memory.MMU.Page_Table_Acc;
-       Addr       : Memory.Virtual_Address;
-       Byte_Count : Unsigned_64) return Boolean;
 
    procedure Resolve_AT_Directive
       (Proc   : PID;

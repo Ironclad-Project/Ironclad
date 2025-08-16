@@ -1684,7 +1684,7 @@ The address of a UNIX domain socket takes the shape of
 @example c
 struct sockaddr_un @{
    uint32_t sun_family; // AF_UNIX.
-   char path[];         // Must be null terminated.
+   char path[108];
 @};
 @end example
 @end itemize

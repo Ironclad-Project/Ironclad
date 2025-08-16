@@ -261,6 +261,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
       File      : File_Description_Acc;
       Ret_Count : Natural;
+      Success   : Boolean;
       Success1  : VFS.FS_Status;
       Success2  : IPC.FIFO.Pipe_Status;
       Success4  : IPC.Socket.Socket_Status;
@@ -269,14 +270,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Cnt : Natural;
       Map       : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
       Get_File (Proc, File_D, File);
-      if not Check_Userland_Access (Map, Buf_IAddr, Count) then
-         Returned := Unsigned_64'Last;
-         Errno    := Error_Would_Fault;
-         return;
-      elsif File = null then
+      if File = null then
          Returned := Unsigned_64'Last;
          Errno    := Error_Bad_File;
          return;
@@ -289,50 +285,53 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Userland.Process.Get_Effective_UID (Proc, User);
 
       declare
-         Data : Devices.Operation_Data (1 .. Final_Cnt)
-            with Import, Address => Buf_SAddr;
+         subtype Read_Data is Devices.Operation_Data (1 .. Final_Cnt);
+         package Trans is new Memory.Userland_Transfer (Read_Data);
+         procedure Free is new Ada.Unchecked_Deallocation
+            (Operation_Data, Operation_Data_Acc);
+         Data : Operation_Data_Acc := new Read_Data;
       begin
          case File.Description is
             when Description_Inode =>
-               if not File.Inner_Ino_Read then
+               if File.Inner_Ino_Read then
+                  if Flags = 0 then
+                     VFS.Read
+                        (File.Inner_Ino_FS, File.Inner_Ino, File.Inner_Ino_Pos,
+                         Data.all, Ret_Count, File.Is_Blocking, Success1);
+                     File.Inner_Ino_Pos := File.Inner_Ino_Pos +
+                                          Unsigned_64 (Ret_Count);
+                  else
+                     VFS.Read
+                        (File.Inner_Ino_FS, File.Inner_Ino, Offset,
+                         Data.all, Ret_Count, File.Is_Blocking, Success1);
+                  end if;
+                  Translate_Status
+                     (Success1, Unsigned_64 (Ret_Count), Returned, Errno);
+               else
                   Errno := Error_Invalid_Value;
                   Returned := Unsigned_64'Last;
                   return;
                end if;
-
-               if Flags = 0 then
-                  VFS.Read
-                     (File.Inner_Ino_FS, File.Inner_Ino, File.Inner_Ino_Pos,
-                      Data, Ret_Count, File.Is_Blocking, Success1);
-                  File.Inner_Ino_Pos := File.Inner_Ino_Pos +
-                                       Unsigned_64 (Ret_Count);
-               else
-                  VFS.Read
-                     (File.Inner_Ino_FS, File.Inner_Ino, Offset,
-                      Data, Ret_Count, File.Is_Blocking, Success1);
-               end if;
-               Translate_Status
-                  (Success1, Unsigned_64 (Ret_Count), Returned, Errno);
             when Description_Reader_FIFO =>
-               Read (File.Inner_Reader_FIFO, Data, File.Is_Blocking, Ret_Count,
-                     Success2);
+               Read (File.Inner_Reader_FIFO, Data.all, File.Is_Blocking,
+                     Ret_Count, Success2);
                Translate_Status (Success2, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Primary_PTY =>
                IPC.PTY.Read_Primary
-                  (File.Inner_Primary_PTY, Data, File.Is_Blocking, Ret_Count,
-                   Success5);
+                  (File.Inner_Primary_PTY, Data.all, File.Is_Blocking,
+                   Ret_Count, Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Secondary_PTY =>
                IPC.PTY.Read_Secondary
-                  (File.Inner_Secondary_PTY, Data, File.Is_Blocking, Ret_Count,
-                   Success5);
+                  (File.Inner_Secondary_PTY, Data.all, File.Is_Blocking,
+                   Ret_Count, Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Socket =>
                IPC.Socket.Read
-                  (File.Inner_Socket, Data, File.Is_Blocking,
+                  (File.Inner_Socket, Data.all, File.Is_Blocking,
                    Ret_Count, Success4);
                Translate_Status
                   (Success4, Unsigned_64 (Ret_Count), Returned, Errno);
@@ -340,6 +339,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Errno    := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
          end case;
+
+         if Errno = Error_No_Error then
+            Trans.Paste_Into_Userland (Map, Data.all, Buf_SAddr, Success);
+            if not Success then
+               Returned := Unsigned_64'Last;
+               Errno    := Error_Would_Fault;
+            end if;
+         end if;
+
+         Free (Data);
       end;
    exception
       when Constraint_Error =>
@@ -361,6 +370,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Proc      : constant             PID := Arch.Local.Get_Current_Process;
       File      : File_Description_Acc;
       Ret_Count : Natural;
+      Success   : Boolean;
       Success1  : VFS.FS_Status;
       Success2  : IPC.FIFO.Pipe_Status;
       Success4  : IPC.Socket.Socket_Status;
@@ -370,14 +380,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_Off : Unsigned_64;
       Map       : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
       Get_File (Proc, File_D, File);
-      if not Check_Userland_Access (Map, Buf_IAddr, Count) then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif File = null then
+      if File = null then
          Errno := Error_Bad_File;
          Returned := Unsigned_64'Last;
          return;
@@ -390,15 +395,25 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Process.Get_Effective_UID (Proc, User);
 
       declare
-         Data : Devices.Operation_Data (1 .. Final_Cnt)
-            with Import, Address => Buf_SAddr;
+         subtype Read_Data is Devices.Operation_Data (1 .. Final_Cnt);
+         package Trans is new Memory.Userland_Transfer (Read_Data);
+         procedure Free is new Ada.Unchecked_Deallocation
+            (Operation_Data, Operation_Data_Acc);
+         Data : Operation_Data_Acc := new Read_Data;
       begin
+         Trans.Take_From_Userland (Map, Data.all, Buf_SAddr, Success);
+         if not Success then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+            goto Cleanup;
+         end if;
+
          case File.Description is
             when Description_Inode =>
                if not File.Inner_Ino_Write then
                   Errno := Error_Invalid_Value;
                   Returned := Unsigned_64'Last;
-                  return;
+                  goto Cleanup;
                end if;
 
                if Flags = 0 then
@@ -412,11 +427,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
                then
                   Errno := Error_File_Too_Big;
                   Returned := Unsigned_64'Last;
-                  return;
+                  goto Cleanup;
                end if;
 
                VFS.Write (File.Inner_Ino_FS, File.Inner_Ino,
-                          Final_Off, Data, Ret_Count,
+                          Final_Off, Data.all, Ret_Count,
                           File.Is_Blocking, Success1);
                if Flags = 0 then
                   File.Inner_Ino_Pos := File.Inner_Ino_Pos +
@@ -425,25 +440,25 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Translate_Status (Success1, Unsigned_64 (Ret_Count), Returned,
                                         Errno);
             when Description_Writer_FIFO =>
-               Write (File.Inner_Writer_FIFO, Data, File.Is_Blocking,
+               Write (File.Inner_Writer_FIFO, Data.all, File.Is_Blocking,
                       Ret_Count, Success2);
                Translate_Status (Success2, Unsigned_64 (Ret_Count), Returned,
                                         Errno);
             when Description_Primary_PTY =>
                IPC.PTY.Write_Primary
-                  (File.Inner_Primary_PTY, Data, File.Is_Blocking, Ret_Count,
-                   Success5);
+                  (File.Inner_Primary_PTY, Data.all, File.Is_Blocking,
+                   Ret_Count, Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Secondary_PTY =>
                IPC.PTY.Write_Secondary
-                  (File.Inner_Secondary_PTY, Data, File.Is_Blocking, Ret_Count,
-                   Success5);
+                  (File.Inner_Secondary_PTY, Data.all, File.Is_Blocking,
+                   Ret_Count, Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Socket =>
                IPC.Socket.Write
-                  (File.Inner_Socket, Data, File.Is_Blocking, Ret_Count,
+                  (File.Inner_Socket, Data.all, File.Is_Blocking, Ret_Count,
                    Success4);
                Translate_Status
                   (Success4, Unsigned_64 (Ret_Count), Returned, Errno);
@@ -451,6 +466,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
                Errno := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
          end case;
+
+      <<Cleanup>>
+         Free (Data);
       end;
    exception
       when Constraint_Error =>
@@ -704,12 +722,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Errno     : out Errno_Value)
    is
       procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
-      type Arg_Arr is array (Natural range <>) of Unsigned_64;
-
       Th         : constant TID := Arch.Local.Get_Current_Thread;
       Proc       : constant PID := Arch.Local.Get_Current_Process;
       Map, Orig  : Memory.MMU.Page_Table_Acc;
       Success    : Boolean;
+      Success3   : Boolean;
+      Success4   : Boolean;
       Path_FS    : FS_Handle;
       Path_Ino   : File_Inode_Number;
       Rela_FS    : FS_Handle;
@@ -725,25 +743,34 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Envp_IAddr : constant Integer_Address := Integer_Address (Envp_Addr);
       Envp_SAddr : constant  System.Address := To_Address (Envp_IAddr);
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      --  Check the arguments are accessible.
       Get_Common_Map (Proc, Orig);
-      if not Check_Userland_Access (Orig, Path_IAddr, Path_Len) or
-         not Check_Userland_Access (Orig, Argv_IAddr, Argv_Len) or
-         not Check_Userland_Access (Orig, Envp_IAddr, Envp_Len)
-      then
-         Errno    := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
-
       Userland.Process.Get_Effective_UID (Proc, User);
       Userland.Process.Get_CWD (Proc, Rela_FS, Rela_Ino);
 
       declare
-         Path : String (1 .. Natural (Path_Len))
-            with Import, Address => Path_SAddr;
+         subtype Path_Str is String (1 .. Natural (Path_Len));
+         type    Argv_Arr is array (1 .. Natural (Argv_Len)) of Unsigned_64;
+         type    Envp_Arr is array (1 .. Natural (Envp_Len)) of Unsigned_64;
+         type    Argv_Acc is access Argv_Arr;
+         type    Envp_Acc is access Envp_Arr;
+         procedure Free is new Ada.Unchecked_Deallocation (Argv_Arr, Argv_Acc);
+         procedure Free is new Ada.Unchecked_Deallocation (Envp_Arr, Envp_Acc);
+         package Trans_1 is new Memory.Userland_Transfer (Path_Str);
+         package Trans_2 is new Memory.Userland_Transfer (Argv_Arr);
+         package Trans_3 is new Memory.Userland_Transfer (Envp_Arr);
+         Path : Path_Str;
+         Argv : Argv_Acc := new Argv_Arr;
+         Envp : Envp_Acc := new Envp_Arr;
       begin
+         Trans_1.Take_From_Userland (Orig, Path, Path_SAddr, Success);
+         Trans_2.Take_From_Userland (Orig, Argv.all, Argv_SAddr, Success3);
+         Trans_3.Take_From_Userland (Orig, Envp.all, Envp_SAddr, Success4);
+         if not Success or not Success3 or not Success4 then
+            Errno    := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+            goto Cleanup;
+         end if;
+
          Open
             (Key        => Rela_FS,
              Relative   => Rela_Ino,
@@ -757,7 +784,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          if Success2 /= VFS.FS_Success then
             Errno    := Error_No_Entity;
             Returned := Unsigned_64'Last;
-            return;
+            goto Cleanup;
          end if;
 
          --  Open the exec file.
@@ -766,13 +793,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Errno := Error_Bad_Access;
             Execute_MAC_Failure ("exec", Proc);
             Returned := Unsigned_64'Last;
-            return;
+            goto Cleanup;
          end if;
          VFS.Stat (Path_FS, Path_Ino, File_St, Success2);
          if Success2 /= VFS.FS_Success then
             Errno    := Error_IO;
             Returned := Unsigned_64'Last;
-            return;
+            goto Cleanup;
          end if;
          if not VFS.Can_Access_File
             (User       => User,
@@ -784,14 +811,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
          then
             Errno    := Error_Bad_Access;
             Returned := Unsigned_64'Last;
-            return;
+            goto Cleanup;
          end if;
 
          declare
-            Argv : Arg_Arr (1 .. Natural (Argv_Len))
-               with Import, Address => Argv_SAddr;
-            Envp : Arg_Arr (1 .. Natural (Envp_Len))
-               with Import, Address => Envp_SAddr;
             Args : Userland.Argument_Arr    (1 .. Argv'Length);
             Env  : Userland.Environment_Arr (1 .. Envp'Length);
          begin
@@ -838,11 +861,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
             if not Success then
                Memory.MMU.Destroy_Table (Orig);
             end if;
+            Free (Envp);
+            Free (Argv);
             Scheduler.Bail;
          else
             Errno    := Error_Bad_Access;
             Returned := Unsigned_64'Last;
          end if;
+
+      <<Cleanup>>
+         Free (Argv);
+         Free (Envp);
       end;
    exception
       when Constraint_Error =>
@@ -1477,7 +1506,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       FSSuc : VFS.FS_Status;
       User  : Unsigned_32;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
+      Arch.Snippets.Enable_Userland_Memory_Access; --  Simplify handling.
       Get_File (Proc, FD, File);
       if File = null then
          Errno := Error_Not_A_TTY;
@@ -1688,21 +1717,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
       SAddr : constant  System.Address := To_Address (IAddr);
       Map   : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access
-         (Map, IAddr, Length * (Process_Info'Size / 8))
-      then
-         Errno    := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
 
       declare
-         KProc : Process_Info_Arr (1 .. Natural (Length));
+         subtype KProc_List is Process_Info_Arr (1 .. Natural (Length));
+         subtype Proc_List  is Proc_Info_Arr (1 .. Natural (Length));
+         package Trans is new Memory.Userland_Transfer (Proc_List);
          Ret   : Natural;
-         Procs : Proc_Info_Arr (1 .. Natural (Length))
-            with Import, Address => SAddr;
+         KProc : KProc_List;
+         Procs : Proc_List;
+         Succs : Boolean;
       begin
          List_All (KProc, Ret);
          for I in 1 .. Ret loop
@@ -1726,8 +1750,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
             end if;
          end loop;
 
-         Returned := Unsigned_64 (Ret);
-         Errno    := Error_No_Error;
+         Trans.Paste_Into_Userland (Map, Procs, SAddr, Succs);
+         if Succs then
+            Returned := Unsigned_64 (Ret);
+            Errno    := Error_No_Error;
+         else
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+         end if;
       end;
    exception
       when Constraint_Error =>
@@ -1772,21 +1802,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
       SAddr : constant  System.Address := To_Address (IAddr);
       Map   : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access
-         (Map, IAddr, Length * (Mount_Info'Size / 8))
-      then
-         Errno    := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
 
       declare
-         KMnts : Mountpoint_Arr (1 .. Natural (Length));
+         subtype KMount_List is Mountpoint_Arr (1 .. Natural (Length));
+         subtype Mount_List  is Mount_Info_Arr (1 .. Natural (Length));
+         package Trans is new Memory.Userland_Transfer (Mount_List);
+
+         KMnts : KMount_List;
          Ret   : Natural;
-         Mnts : Mount_Info_Arr (1 .. Natural (Length))
-            with Import, Address => SAddr;
+         Mnts  : Mount_List;
+         Succs : Boolean;
       begin
          List_All (KMnts, Ret);
          for I in 1 .. Ret loop
@@ -1815,8 +1841,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
                (KMnts (I), Mnts (I).Free_Blocks, Mnts (I).Free_BlocksU);
          end loop;
 
-         Returned := Unsigned_64 (Ret);
-         Errno    := Error_No_Error;
+         Trans.Paste_Into_Userland (Map, Mnts, SAddr, Succs);
+         if Succs then
+            Returned := Unsigned_64 (Ret);
+            Errno    := Error_No_Error;
+         else
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+         end if;
       end;
    exception
       when Constraint_Error =>
@@ -1874,22 +1906,18 @@ package body Userland.Syscall with SPARK_Mode => Off is
       SAddr : constant  System.Address := To_Address (IAddr);
       Map   : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access
-         (Map, IAddr, Length * (Thread_Info'Size / 8))
-      then
-         Errno    := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
 
       declare
-         KInfo : Scheduler.Thread_Listing_Arr (1 .. Natural (Length));
+         subtype KTh is Scheduler.Thread_Listing_Arr  (1 .. Natural (Length));
+         subtype Th_List is Thread_Info_Arr (1 .. Natural (Length));
+         package Trans is new Memory.Userland_Transfer (Th_List);
+
+         KInfo : KTh;
          Ret  : Natural;
          N    : Niceness;
-         Info  : Thread_Info_Arr (1 .. Natural (Length))
-            with Import, Address => SAddr;
+         Info : Th_List;
+         Succ : Boolean;
       begin
          List_All (KInfo, Ret);
          for I in 1 .. Ret loop
@@ -1908,8 +1936,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
                (Scheduler.Get_Priority (KInfo (I).Thread));
          end loop;
 
-         Returned := Unsigned_64 (Ret);
-         Errno    := Error_No_Error;
+         Trans.Paste_Into_Userland (Map, Info, SAddr, Succ);
+         if Succ then
+            Returned := Unsigned_64 (Ret);
+            Errno    := Error_No_Error;
+         else
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+         end if;
       end;
    exception
       when Constraint_Error =>
@@ -1928,22 +1962,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
       SAddr : constant  System.Address := To_Address (IAddr);
       Map   : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access
-         (Map, IAddr, Length * (Interface_Info'Size / 8))
-      then
-         Errno    := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
 
       declare
-         KInfo : Networking.Interfaces.Interface_Arr (1 .. Natural (Length));
-         Ret  : Natural;
-         NLen : Natural;
-         Info  : Interface_Arr (1 .. Natural (Length))
-            with Import, Address => SAddr;
+         subtype KInter_Arr is
+            Networking.Interfaces.Interface_Arr (1 .. Natural (Length));
+         subtype Inter_Arr is Interface_Arr (1 .. Natural (Length));
+         package Trans is new Memory.Userland_Transfer (Inter_Arr);
+
+         KInfo : KInter_Arr;
+         Ret   : Natural;
+         NLen  : Natural;
+         Info  : Inter_Arr;
+         Succ  : Boolean;
       begin
          Networking.Interfaces.List_Interfaces (KInfo, Ret);
          for I in 1 .. Ret loop
@@ -1961,8 +1992,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Info (I).IPv6_Subnet := KInfo (I).IPv6_Subnet;
          end loop;
 
-         Returned := Unsigned_64 (Ret);
-         Errno    := Error_No_Error;
+         Trans.Paste_Into_Userland (Map, Info, SAddr, Succ);
+         if Succ then
+            Returned := Unsigned_64 (Ret);
+            Errno    := Error_No_Error;
+         else
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+         end if;
       end;
    exception
       when Constraint_Error =>
@@ -2028,21 +2065,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
       SAddr : constant  System.Address := To_Address (IAddr);
       Map   : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access
-         (Map, IAddr, Length * (Flock_Info'Size / 8))
-      then
-         Errno    := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
 
       declare
-         KLks : IPC.FileLock.Lock_Arr (1 .. Natural (Length));
+         subtype KLocks_Arr is IPC.FileLock.Lock_Arr (1 .. Natural (Length));
+         subtype Lock_Arr   is Flock_Info_Arr (1 .. Natural (Length));
+         package Trans is new Memory.Userland_Transfer (Lock_Arr);
+
+         KLks : KLocks_Arr;
          Ret  : Natural;
-         Lks  : Flock_Info_Arr (1 .. Natural (Length))
-            with Import, Address => SAddr;
+         Lks  : Lock_Arr;
+         Succ : Boolean;
       begin
          IPC.FileLock.List_All (KLks, Ret);
          for I in 1 .. Ret loop
@@ -2055,8 +2088,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
             Lks (I).Ino    := Unsigned_64 (KLks (I).Ino);
          end loop;
 
-         Returned := Unsigned_64 (Ret);
-         Errno    := Error_No_Error;
+         Trans.Paste_Into_Userland (Map, Lks, SAddr, Succ);
+         if Succ then
+            Returned := Unsigned_64 (Ret);
+            Errno    := Error_No_Error;
+         else
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+         end if;
       end;
    exception
       when Constraint_Error =>
@@ -2154,24 +2193,25 @@ package body Userland.Syscall with SPARK_Mode => Off is
       SAddr : constant  System.Address := To_Address (IAddr);
       Map   : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access
-         (Map, IAddr, Length * (Devices.PCI.PCI_Listing'Size / 8))
-      then
-         Errno    := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
-      end if;
 
       declare
+         subtype PCIs is Devices.PCI.PCI_Listing_Arr (1 .. Natural (Length));
+         package Trans is new Memory.Userland_Transfer (PCIs);
+
          Ret  : Natural;
-         Devs : Devices.PCI.PCI_Listing_Arr (1 .. Natural (Length))
-            with Import, Address => SAddr;
+         Devs : PCIs;
+         Succ : Boolean;
       begin
          Devices.PCI.List_All (Devs, Ret);
-         Returned := Unsigned_64 (Ret);
-         Errno    := Error_No_Error;
+         Trans.Paste_Into_Userland (Map, Devs, SAddr, Succ);
+         if Succ then
+            Returned := Unsigned_64 (Ret);
+            Errno    := Error_No_Error;
+         else
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+         end if;
       end;
    exception
       when Constraint_Error =>
@@ -2874,16 +2914,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Tmp_Buffer : VFS.Directory_Entities_Acc;
       Read_Len   : Natural;
       Success    : VFS.FS_Status;
+      Success2   : Boolean;
       User       : Unsigned_32;
       Map        : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
       Get_File (Proc, FD, File);
-      if not Check_Userland_Access (Map, Buff_IAddr, Buffer_Len) then
-         Returned := Unsigned_64'Last;
-         Errno    := Error_Would_Fault;
-      elsif File = null or else File.Description /= Description_Inode then
+      if File = null or else File.Description /= Description_Inode then
          Returned := Unsigned_64'Last;
          Errno    := Error_Bad_File;
       else
@@ -2902,8 +2939,9 @@ package body Userland.Syscall with SPARK_Mode => Off is
             File.Inner_Ino_Pos := File.Inner_Ino_Pos + Unsigned_64 (Read_Len);
 
             declare
-               Buffer : Dirents (1 .. Buff_Len)
-                  with Import, Address => Buff_Addr;
+               subtype Dirents_Arr is Dirents (1 .. Buff_Len);
+               package Trans is new Memory.Userland_Transfer (Dirents_Arr);
+               Buffer : Dirents_Arr;
             begin
                for I in 1 .. Read_Len loop
                   Buffer (Unsigned_64 (I)) :=
@@ -2923,19 +2961,25 @@ package body Userland.Syscall with SPARK_Mode => Off is
                         when File_Character_Device => DT_CHR,
                         when File_Block_Device     => DT_BLK);
                end loop;
-            end;
 
-            Returned := Unsigned_64 (Read_Len * (Dirent'Size / 8));
-            Errno    := Error_No_Error;
+               Trans.Paste_Into_Userland (Map, Buffer, Buff_Addr, Success2);
+               if Success2 then
+                  Returned := Unsigned_64 (Read_Len * (Dirent'Size / 8));
+                  Errno    := Error_No_Error;
+               else
+                  Returned := Unsigned_64'Last;
+                  Errno    := Error_Would_Fault;
+               end if;
+
+               Free (Tmp_Buffer);
+            end;
          else
             Returned := Unsigned_64'Last;
             Errno    := Error_No_Entity;
          end if;
-
-         Free (Tmp_Buffer);
       end if;
    exception
-      when Constraint_Error =>
+      when others =>
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end GetDEnts;
@@ -3126,6 +3170,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
+      pragma Unreferenced (Addr_Len);
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
       IAddr : constant Integer_Address := Integer_Address (Addr_Addr);
       SAddr : constant  System.Address := To_Address (IAddr);
@@ -3133,15 +3178,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Succ  : Boolean;
       Map   : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
       Get_File (Proc, Sock_FD, File);
       if File = null or else File.Description /= Description_Socket then
          Errno := Error_Bad_File;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif not Check_Userland_Access (Map, IAddr, Addr_Len) then
-         Errno := Error_Would_Fault;
          Returned := Unsigned_64'Last;
          return;
       end if;
@@ -3149,8 +3189,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
       case Get_Domain (File.Inner_Socket) is
          when IPC.Socket.IPv4 =>
             declare
-               Addr : SockAddr_In with Import, Address => SAddr;
+               package Trans is new Memory.Userland_Transfer (SockAddr_In);
+               Addr : SockAddr_In;
             begin
+               Trans.Take_From_Userland (Map, Addr, SAddr, Succ);
+               if not Succ then
+                  goto Would_Fault_Error;
+               end if;
+
                Succ := Bind
                   (Sock => File.Inner_Socket,
                    Addr => Addr.Sin_Addr,
@@ -3158,8 +3204,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
             end;
          when IPC.Socket.IPv6 =>
             declare
-               Addr : SockAddr_In6 with Import, Address => SAddr;
+               package Trans is new Memory.Userland_Transfer (SockAddr_In6);
+               Addr : SockAddr_In6;
             begin
+               Trans.Take_From_Userland (Map, Addr, SAddr, Succ);
+               if not Succ then
+                  goto Would_Fault_Error;
+               end if;
+
                Succ := Bind
                   (Sock => File.Inner_Socket,
                    Addr => Addr.Sin6_Addr,
@@ -3167,11 +3219,21 @@ package body Userland.Syscall with SPARK_Mode => Off is
             end;
          when IPC.Socket.UNIX =>
             declare
-               A_SAddr2 : constant System.Address := SAddr + 4;
-               CLen : constant Natural := Strlen (A_SAddr2);
-               Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
+               package Trans is new Memory.Userland_Transfer (SockAddr_UNIX);
+               Addr : SockAddr_UNIX;
+               Len  : Natural := 0;
             begin
-               Bind (File.Inner_Socket, Addr, Succ);
+               Trans.Take_From_Userland (Map, Addr, SAddr, Succ);
+               if not Succ then
+                  goto Would_Fault_Error;
+               end if;
+
+               for C of Addr.Sun_Path loop
+                  exit when C = Ada.Characters.Latin_1.NUL;
+                  Len := Len + 1;
+               end loop;
+
+               Bind (File.Inner_Socket, Addr.Sun_Path (1 .. Len), Succ);
             end;
       end case;
 
@@ -3182,6 +3244,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno := Error_IO;
          Returned := Unsigned_64'Last;
       end if;
+      return;
+
+   <<Would_Fault_Error>>
+      Errno := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;
@@ -3264,6 +3331,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
+      pragma Unreferenced (Addr_Len);
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
       IAddr : constant Integer_Address := Integer_Address (Addr_Addr);
       SAddr : constant  System.Address := To_Address (IAddr);
@@ -3271,15 +3339,10 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Succ  : Boolean;
       Map   : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
       Get_File (Proc, Sock_FD, File);
       if File = null or else File.Description /= Description_Socket then
          Errno := Error_Bad_File;
-         Returned := Unsigned_64'Last;
-         return;
-      elsif not Check_Userland_Access (Map, IAddr, Addr_Len) then
-         Errno := Error_Would_Fault;
          Returned := Unsigned_64'Last;
          return;
       end if;
@@ -3287,8 +3350,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
       case Get_Domain (File.Inner_Socket) is
          when IPC.Socket.IPv4 =>
             declare
-               Addr : SockAddr_In with Import, Address => SAddr;
+               package Trans is new Memory.Userland_Transfer (SockAddr_In);
+               Addr : SockAddr_In;
             begin
+               Trans.Take_From_Userland (Map, Addr, SAddr, Succ);
+               if not Succ then
+                  goto Would_Fault_Error;
+               end if;
+
                Connect
                   (Sock    => File.Inner_Socket,
                    Addr    => Addr.Sin_Addr,
@@ -3297,8 +3366,14 @@ package body Userland.Syscall with SPARK_Mode => Off is
             end;
          when IPC.Socket.IPv6 =>
             declare
-               Addr : SockAddr_In6 with Import, Address => SAddr;
+               package Trans is new Memory.Userland_Transfer (SockAddr_In6);
+               Addr : SockAddr_In6;
             begin
+               Trans.Take_From_Userland (Map, Addr, SAddr, Succ);
+               if not Succ then
+                  goto Would_Fault_Error;
+               end if;
+
                Connect
                   (Sock    => File.Inner_Socket,
                    Addr    => Addr.Sin6_Addr,
@@ -3308,15 +3383,25 @@ package body Userland.Syscall with SPARK_Mode => Off is
          when IPC.Socket.UNIX =>
             declare
                UID, GID : Unsigned_32;
-               A_SAddr2 : constant System.Address := SAddr + 4;
-               CLen : constant Natural := Strlen (A_SAddr2);
-               Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
+               package Trans is new Memory.Userland_Transfer (SockAddr_UNIX);
+               Addr : SockAddr_UNIX;
+               Len  : Natural := 0;
             begin
+               Trans.Take_From_Userland (Map, Addr, SAddr, Succ);
+               if not Succ then
+                  goto Would_Fault_Error;
+               end if;
+
+               for C of Addr.Sun_Path loop
+                  exit when C = Ada.Characters.Latin_1.NUL;
+                  Len := Len + 1;
+               end loop;
+
                Process.Get_UID (Proc, UID);
                Process.Get_GID (Proc, GID);
                Connect
-                  (File.Inner_Socket, Addr, Unsigned_32 (Convert (Proc)), UID,
-                   GID, Succ);
+                  (File.Inner_Socket, Addr.Sun_Path (1 .. Len),
+                   Unsigned_32 (Convert (Proc)), UID, GID, Succ);
             end;
       end case;
 
@@ -3327,6 +3412,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno := Error_IO;
          Returned := Unsigned_64'Last;
       end if;
+      return;
+
+   <<Would_Fault_Error>>
+      Errno := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;
@@ -3586,7 +3676,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Map        : Page_Table_Acc;
       PI, UID, GID : Unsigned_32;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
       Get_File (Proc, Sock_FD, File);
       if File = null or else File.Description /= Description_Socket then
@@ -3606,16 +3695,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
       if A_IAddr = 0 or AL_IAddr = 0 then
          Accept_Connection (File.Inner_Socket, not Block, PI, UID, GID, Sock);
       else
-         if not Check_Userland_Access (Map, A_IAddr,  Natural'Size / 8) or
-            not Check_Userland_Access (Map, AL_IAddr, Natural'Size / 8)
-         then
-            goto Would_Fault_Error;
-         end if;
-
          case Get_Domain (File.Inner_Socket) is
             when IPC.Socket.IPv4 =>
                declare
-                  Addr : SockAddr_In with Import, Address => A_SAddr;
+                  package Trans is new Memory.Userland_Transfer (SockAddr_In);
+                  Addr : SockAddr_In;
                begin
                   Accept_Connection
                      (Sock         => File.Inner_Socket,
@@ -3623,10 +3707,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
                       Peer_Address => Addr.Sin_Addr,
                       Peer_Port    => Networking.IPv4_Port (Addr.Sin_Port),
                       Result       => Sock);
+
+                  Trans.Paste_Into_Userland (Map, Addr, A_SAddr, Succ);
+                  if not Succ then
+                     goto Would_Fault_Error;
+                  end if;
                end;
             when IPC.Socket.IPv6 =>
                declare
-                  Addr : SockAddr_In6 with Import, Address => A_SAddr;
+                  package Trans is new Memory.Userland_Transfer (SockAddr_In6);
+                  Addr : SockAddr_In6;
                begin
                   Accept_Connection
                      (Sock         => File.Inner_Socket,
@@ -3634,22 +3724,37 @@ package body Userland.Syscall with SPARK_Mode => Off is
                       Peer_Address => Addr.Sin6_Addr,
                       Peer_Port    => Networking.IPv6_Port (Addr.Sin6_Port),
                       Result       => Sock);
+
+                  Trans.Paste_Into_Userland (Map, Addr, A_SAddr, Succ);
+                  if not Succ then
+                     goto Would_Fault_Error;
+                  end if;
                end;
             when IPC.Socket.UNIX =>
                declare
-                  A_SAddr2 : constant System.Address := A_SAddr + 4;
-                  CLen : Natural := Strlen (A_SAddr2);
-                  Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
+                  package Trans is new Memory.Userland_Transfer
+                     (SockAddr_UNIX);
+                  Addr : SockAddr_UNIX;
+                  Len  : Natural;
                begin
                   Accept_Connection
                      (Sock                => File.Inner_Socket,
                       Is_Blocking         => not Block,
-                      Peer_Address        => Addr,
-                      Peer_Address_Length => CLen,
+                      Peer_Address        => Addr.Sun_Path,
+                      Peer_Address_Length => Len,
                       PID                 => PI,
                       GID                 => GID,
                       UID                 => UID,
                       Result              => Sock);
+
+                  if Len < Addr.Sun_Path'Length then
+                     Addr.Sun_Path (Len + 1) := Ada.Characters.Latin_1.NUL;
+                  end if;
+
+                  Trans.Paste_Into_Userland (Map, Addr, A_SAddr, Succ);
+                  if not Succ then
+                     goto Would_Fault_Error;
+                  end if;
                end;
          end case;
       end if;
@@ -3916,7 +4021,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
       TSAddr     : constant  System.Address := To_Address (TIAddr);
       S_IAddr    : constant Integer_Address := Integer_Address (Sigmask);
       S_SAddr    : constant  System.Address := To_Address (S_IAddr);
-      Size_FD    : constant     Unsigned_64 := FDs_Count * (Poll_FD'Size / 8);
       Count      :                  Natural := 0;
       File       : File_Description_Acc;
       Curr_Sec   : Unsigned_64;
@@ -3925,24 +4029,20 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Final_NSec : Unsigned_64;
       Old_Set    : Signal_Bitmap;
       Map        : Page_Table_Acc;
+      Success    : Boolean;
       Can_Read, Can_Write, Can_PrioRead, Is_Error, Is_Broken : Boolean;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, FIAddr, Size_FD) or else
-         not Check_Userland_Access (Map, TIAddr, Time_Spec'Size / 8)
-      then
-         goto Would_Fault_Error;
-      end if;
 
       if S_IAddr /= 0 then
-         if not Check_Userland_Access (Map, S_IAddr, Unsigned_30'Size / 8) then
-            goto Would_Fault_Error;
-         end if;
-
          declare
-            Passed_Set : Unsigned_30 with Import, Address => S_SAddr;
+            package Trans is new Memory.Userland_Transfer (Unsigned_30);
+            Passed_Set : Unsigned_30;
          begin
+            Trans.Take_From_Userland (Map, Passed_Set, S_SAddr, Success);
+            if not Success then
+               goto Would_Fault_Error;
+            end if;
             Get_Masked_Signals (Proc, Old_Set);
             Set_Masked_Signals (Proc, C2 (Passed_Set and not C1 (Old_Set)));
          end;
@@ -3951,9 +4051,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Arch.Clocks.Get_Monotonic_Time (Final_Sec, Final_NSec);
 
       declare
-         FDs  : Poll_FDs (1 .. FDs_Count) with Import, Address => FSAddr;
-         Tim  : Time_Spec                 with Import, Address => TSAddr;
+         subtype Polled_FDs is Poll_FDs (1 .. FDs_Count);
+         package Trans_1 is new Memory.Userland_Transfer (Polled_FDs);
+         package Trans_2 is new Memory.Userland_Transfer (Time_Spec);
+         --  FDs  : Poll_FDs (1 .. FDs_Count) with Import, Address => FSAddr;
+         --  Tim  : Time_Spec                 with Import, Address => TSAddr;
+         FDs : Polled_FDs;
+         Tim : Time_Spec;
       begin
+         Trans_1.Take_From_Userland (Map, FDs, FSAddr, Success);
+         if not Success then goto Would_Fault_Error; end if;
+         Trans_2.Take_From_Userland (Map, Tim, TSAddr, Success);
+         if not Success then goto Would_Fault_Error; end if;
+
          Time.Increment (Final_Sec, Final_NSec, Tim.Seconds,
                              Tim.Nanoseconds);
 
@@ -4032,6 +4142,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
             Scheduler.Yield_If_Able;
          end loop;
+
+         Trans_1.Paste_Into_Userland (Map, FDs, FSAddr, Success);
+         if not Success then
+            goto Would_Fault_Error;
+         end if;
       end;
 
       if S_IAddr /= 0 then
@@ -4046,7 +4161,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Errno    := Error_Would_Fault;
       Returned := Unsigned_64'Last;
    exception
-      when Constraint_Error =>
+      when others =>
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end PPoll;
@@ -4427,6 +4542,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
+      package Trans_1 is new Memory.Userland_Transfer (Natural);
       Proc   : constant             PID := Arch.Local.Get_Current_Process;
       AIAddr : constant Integer_Address := Integer_Address (Addr_Addr);
       ASAddr : constant  System.Address := To_Address (AIAddr);
@@ -4434,60 +4550,82 @@ package body Userland.Syscall with SPARK_Mode => Off is
       LSAddr : constant  System.Address := To_Address (LIAddr);
       File   : File_Description_Acc;
       Succ   : Boolean;
+      BSucc  : Boolean;
       Map    : Page_Table_Acc;
+      Length : Natural;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
       Get_File (Proc, Sock_FD, File);
       if File = null or else File.Description /= Description_Socket then
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
          return;
-      elsif not Check_Userland_Access (Map, LIAddr, Natural'Size / 8) then
-         goto Would_Fault_Error;
       end if;
-
-      declare
-         Length : Natural with Import, Address => LSAddr;
-      begin
-         if not Check_Userland_Access (Map, AIAddr, Unsigned_64 (Length)) then
-            goto Would_Fault_Error;
-         end if;
-      end;
 
       case Get_Domain (File.Inner_Socket) is
          when IPC.Socket.IPv4 =>
             declare
-               Addr : SockAddr_In with Import, Address => ASAddr;
+               package Trans is new Memory.Userland_Transfer (SockAddr_In);
+               Addr : SockAddr_In;
             begin
+               Length := Addr'Size / 8;
+               Addr.Sin_Family := AF_INET;
                Get_Bound (File.Inner_Socket, Addr.Sin_Addr,
-                  Networking.IPv4_Port (Addr.Sin_Port), Succ);
+                  Networking.IPv4_Port (Addr.Sin_Port), BSucc);
+
+               Trans.Paste_Into_Userland (Map, Addr, ASAddr, Succ);
+               if not Succ then
+                  goto Would_Fault_Error;
+               end if;
             end;
          when IPC.Socket.IPv6 =>
             declare
-               Addr : SockAddr_In6 with Import, Address => ASAddr;
+               package Trans is new Memory.Userland_Transfer (SockAddr_In6);
+               Addr : SockAddr_In6;
             begin
+               Length := Addr'Size / 8;
+               Addr.Sin6_Family := AF_INET6;
                Get_Bound (File.Inner_Socket, Addr.Sin6_Addr,
-                  Networking.IPv6_Port (Addr.Sin6_Port), Succ);
+                  Networking.IPv6_Port (Addr.Sin6_Port), BSucc);
+
+               Trans.Paste_Into_Userland (Map, Addr, ASAddr, Succ);
+               if not Succ then
+                  goto Would_Fault_Error;
+               end if;
             end;
          when IPC.Socket.UNIX =>
             declare
-               A_SAddr2 : constant System.Address := ASAddr + 4;
-               CLen : Natural := Interfaces.C.Strings.Strlen (A_SAddr2);
-               Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
+               package Trans is new Memory.Userland_Transfer (SockAddr_UNIX);
+               Addr : SockAddr_UNIX;
+               Len  : Natural;
             begin
-               Get_Bound (File.Inner_Socket, Addr, CLen, Succ);
+               Addr.Sun_Family := AF_UNIX;
+               Get_Bound (File.Inner_Socket, Addr.Sun_Path, Len, BSucc);
+
+               if Len < Addr.Sun_Path'Length then
+                  Addr.Sun_Path (Len + 1) := Ada.Characters.Latin_1.NUL;
+               end if;
+               Length := 4 + Len;
+
+               Trans.Paste_Into_Userland (Map, Addr, ASAddr, Succ);
+               if not Succ then
+                  goto Would_Fault_Error;
+               end if;
             end;
       end case;
 
-      if Succ then
+      Trans_1.Paste_Into_Userland (Map, Length, LSAddr, Succ);
+      if not Succ then
+         goto Would_Fault_Error;
+      end if;
+
+      if BSucc then
          Errno := Error_No_Error;
          Returned := 0;
       else
          Errno := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
       end if;
-
       return;
 
    <<Would_Fault_Error>>
@@ -4506,6 +4644,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
+      package Trans_1 is new Memory.Userland_Transfer (Natural);
       Proc   : constant             PID := Arch.Local.Get_Current_Process;
       AIAddr : constant Integer_Address := Integer_Address (Addr_Addr);
       ASAddr : constant  System.Address := To_Address (AIAddr);
@@ -4513,53 +4652,76 @@ package body Userland.Syscall with SPARK_Mode => Off is
       LSAddr : constant  System.Address := To_Address (LIAddr);
       File   : File_Description_Acc;
       Succ   : Boolean;
+      BSucc  : Boolean;
       Map    : Page_Table_Acc;
+      Length : Natural;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
       Get_File (Proc, Sock_FD, File);
       if File = null or else File.Description /= Description_Socket then
          Errno    := Error_Bad_File;
          Returned := Unsigned_64'Last;
          return;
-      elsif not Check_Userland_Access (Map, LIAddr, Natural'Size / 8) then
-         goto Would_Fault_Error;
       end if;
-
-      declare
-         Length : Natural with Import, Address => LSAddr;
-      begin
-         if not Check_Userland_Access (Map, AIAddr, Unsigned_64 (Length)) then
-            goto Would_Fault_Error;
-         end if;
-      end;
 
       case Get_Domain (File.Inner_Socket) is
          when IPC.Socket.IPv4 =>
             declare
-               Addr : SockAddr_In with Import, Address => ASAddr;
+               package Trans is new Memory.Userland_Transfer (SockAddr_In);
+               Addr : SockAddr_In;
             begin
+               Length := Addr'Size / 8;
+               Addr.Sin_Family := AF_INET;
                Get_Peer (File.Inner_Socket, Addr.Sin_Addr,
-                  Networking.IPv4_Port (Addr.Sin_Port), Succ);
+                  Networking.IPv4_Port (Addr.Sin_Port), BSucc);
+
+               Trans.Paste_Into_Userland (Map, Addr, ASAddr, Succ);
+               if not Succ then
+                  goto Would_Fault_Error;
+               end if;
             end;
          when IPC.Socket.IPv6 =>
             declare
-               Addr : SockAddr_In6 with Import, Address => ASAddr;
+               package Trans is new Memory.Userland_Transfer (SockAddr_In6);
+               Addr : SockAddr_In6;
             begin
+               Length := Addr'Size / 8;
+               Addr.Sin6_Family := AF_INET6;
                Get_Peer (File.Inner_Socket, Addr.Sin6_Addr,
-                  Networking.IPv6_Port (Addr.Sin6_Port), Succ);
+                  Networking.IPv6_Port (Addr.Sin6_Port), BSucc);
+
+               Trans.Paste_Into_Userland (Map, Addr, ASAddr, Succ);
+               if not Succ then
+                  goto Would_Fault_Error;
+               end if;
             end;
          when IPC.Socket.UNIX =>
             declare
-               A_SAddr2 : constant System.Address := ASAddr + 4;
-               CLen : Natural := Interfaces.C.Strings.Strlen (A_SAddr2);
-               Addr : String (1 .. CLen) with Import, Address => A_SAddr2;
+               package Trans is new Memory.Userland_Transfer (SockAddr_UNIX);
+               Addr : SockAddr_UNIX;
+               Len  : Natural;
             begin
-               Get_Peer (File.Inner_Socket, Addr, CLen, Succ);
+               Addr.Sun_Family := AF_UNIX;
+               Get_Peer (File.Inner_Socket, Addr.Sun_Path, Len, BSucc);
+
+               if Len < Addr.Sun_Path'Length then
+                  Addr.Sun_Path (Len + 1) := Ada.Characters.Latin_1.NUL;
+               end if;
+               Length := 4 + Len;
+
+               Trans.Paste_Into_Userland (Map, Addr, ASAddr, Succ);
+               if not Succ then
+                  goto Would_Fault_Error;
+               end if;
             end;
       end case;
 
-      if Succ then
+      Trans_1.Paste_Into_Userland (Map, Length, LSAddr, Succ);
+      if not Succ then
+         goto Would_Fault_Error;
+      end if;
+
+      if BSucc then
          Errno := Error_No_Error;
          Returned := 0;
       else
@@ -4634,39 +4796,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
       SAddr  : constant  System.Address := To_Address (IAddr);
       TIAddr : constant Integer_Address := Integer_Address (Timeout);
       TSAddr : constant  System.Address := To_Address (TIAddr);
-      Futex_Len, Time_Len, U32_Len : Unsigned_64;
       Map   : Page_Table_Acc;
       Succ2 : IPC.Futex.Wait_Status;
       Succ  : Boolean;
    begin
-      Futex_Len := Count * (Futex_Item'Size / 8);
-      Time_Len  := Time_Spec'Size / 8;
-      U32_Len   := Unsigned_32'Size / 8;
-
-      --  FIXME: These 2 Would_Fault should not have the
-      --  "Check_Userland_Mappability" parts, but these checks fail
-      --  consistently under complicated and difficult to trace conditions,
-      --  most notably, when booting Gloire's graphical debug option.
-      --  God knows I cannot find a way to fix it without several TODOs and/or
-      --  hacks. I expect to be able to approach this issue much better down
-      --  the road after some new facilities are implemented and the debug
-      --  arm of the kernel flourishes.
-      --
-      --  For now, commenting out these checks does not open a huge security
-      --  hole, but there is one being opened. The additional checks for kernel
-      --  addresses should minimize the risk of kernel information being
-      --  leaked.
-
-      Arch.Snippets.Enable_Userland_Memory_Access;
-      Get_Common_Map (Proc, Map);
-      if not Check_Userland_Access (Map, IAddr, Futex_Len) or else
-         not Check_Userland_Access (Map, TIAddr, Time_Len)
-      then
-         Check_Userland_Mappability (Map, IAddr, Futex_Len, Succ);
-         if not Succ then goto Would_Fault_Error; end if;
-         Check_Userland_Mappability (Map, TIAddr, Time_Len, Succ);
-         if not Succ then goto Would_Fault_Error; end if;
-      elsif Count > Unsigned_64 (Natural'Last) then
+      if Count > Unsigned_64 (Natural'Last) then
          Errno    := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
          return;
@@ -4674,17 +4808,23 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
       declare
          Cnt     : constant Natural := Natural (Count);
-         Items   : Futex_Item_Arr (1 .. Cnt) with Import, Address => SAddr;
-         Time    : Time_Spec                 with Import, Address => TSAddr;
-         Futexes : IPC.Futex.Element_Arr (1 .. Cnt);
+         subtype User_Futex_Arr is Futex_Item_Arr (1 .. Cnt);
+         subtype Kern_Futex_Arr is IPC.Futex.Element_Arr (1 .. Cnt);
+         package Trans_1 is new Memory.Userland_Transfer (User_Futex_Arr);
+         package Trans_2 is new Memory.Userland_Transfer (Time_Spec);
+         Items   : User_Futex_Arr;
+         Time    : Time_Spec;
+         Futexes : Kern_Futex_Arr;
          IA      : Integer_Address;
       begin
+         Get_Common_Map (Proc, Map);
+         Trans_1.Take_From_Userland (Map, Items, SAddr, Succ);
+         if not Succ then goto Would_Fault_Error; end if;
+         Trans_2.Take_From_Userland (Map, Time, TSAddr, Succ);
+         if not Succ then goto Would_Fault_Error; end if;
+
          for I in Items'Range loop
             IA := Integer_Address (Items (I).Address);
-            if not Check_Userland_Access (Map, IA, U32_Len) then
-               Check_Userland_Mappability (Map, IA, U32_Len, Succ);
-               if not Succ then goto Would_Fault_Error; end if;
-            end if;
 
             declare
                V : aliased Unsigned_32 with Import, Address => To_Address (IA);
@@ -4919,8 +5059,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Flags);
-
+      pragma Unreferenced (Flags, Addr_Len);
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
       AIAddr    : constant Integer_Address := Integer_Address (Addr_Addr);
@@ -4929,19 +5068,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
       File      : File_Description_Acc;
       Ret_Count : Natural;
       Success   : IPC.Socket.Socket_Status;
+      Success2  : Boolean;
       Final_Cnt : Natural;
       Map       : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
       Get_File (Proc, Sock_FD, File);
-      if not Check_Userland_Access (Map, Buf_IAddr, Count) or else
-         (AIAddr /= 0 and not Check_Userland_Access (Map, AIAddr, Addr_Len))
-      then
-         Returned := Unsigned_64'Last;
-         Errno    := Error_Would_Fault;
-         return;
-      elsif File = null or else File.Description /= Description_Socket then
+      if File = null or else File.Description /= Description_Socket then
          Returned := Unsigned_64'Last;
          Errno    := Error_Bad_File;
          return;
@@ -4952,19 +5085,30 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       declare
-         Data : Devices.Operation_Data (1 .. Final_Cnt)
-            with Import, Address => Buf_SAddr;
+         subtype Read_Data is Devices.Operation_Data (1 .. Final_Cnt);
+         package Trans is new Memory.Userland_Transfer (Read_Data);
+         procedure Free is new Ada.Unchecked_Deallocation
+            (Operation_Data, Operation_Data_Acc);
+         Data : Operation_Data_Acc := new Read_Data;
       begin
          if AIAddr /= 0 and Get_Type (File.Inner_Socket) /= IPC.Socket.Stream
          then
             case Get_Domain (File.Inner_Socket) is
                when IPC.Socket.IPv4 =>
                   declare
-                     Addr : SockAddr_In with Import, Address => ASAddr;
+                     package T is new Memory.Userland_Transfer (SockAddr_In);
+                     Addr : SockAddr_In;
                   begin
+                     T.Take_From_Userland (Map, Addr, ASAddr, Success2);
+                     if not Success2 then
+                        Returned := Unsigned_64'Last;
+                        Errno    := Error_Would_Fault;
+                        goto Cleanup;
+                     end if;
+
                      IPC.Socket.Read
                         (Sock      => File.Inner_Socket,
-                         Data      => Data,
+                         Data      => Data.all,
                          Ret_Count => Ret_Count,
                          Addr      => Addr.Sin_Addr,
                          Port      => Networking.IPv4_Port (Addr.Sin_Port),
@@ -4972,11 +5116,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   end;
                when IPC.Socket.IPv6 =>
                   declare
-                     Addr : SockAddr_In6 with Import, Address => ASAddr;
+                     package T is new Memory.Userland_Transfer (SockAddr_In6);
+                     Addr : SockAddr_In6;
                   begin
+                     T.Take_From_Userland (Map, Addr, ASAddr, Success2);
+                     if not Success2 then
+                        Returned := Unsigned_64'Last;
+                        Errno    := Error_Would_Fault;
+                        goto Cleanup;
+                     end if;
+
                      IPC.Socket.Read
                         (Sock      => File.Inner_Socket,
-                         Data      => Data,
+                         Data      => Data.all,
                          Ret_Count => Ret_Count,
                          Addr      => Addr.Sin6_Addr,
                          Port      => Networking.IPv6_Port (Addr.Sin6_Port),
@@ -4985,19 +5137,31 @@ package body Userland.Syscall with SPARK_Mode => Off is
                when IPC.Socket.UNIX =>
                   declare
                      UID, GID : Unsigned_32;
-                     A_SAddr : constant System.Address := ASAddr + 4;
-                     CLen : constant Natural := Strlen (A_SAddr);
-                     Addr : String (1 .. CLen) with Import, Address => A_SAddr;
+                     Len      : Natural := 0;
+                     package T is new Memory.Userland_Transfer (SockAddr_UNIX);
+                     Addr : SockAddr_UNIX;
                   begin
                      Get_UID (Proc, UID);
                      Get_GID (Proc, GID);
 
+                     T.Take_From_Userland (Map, Addr, ASAddr, Success2);
+                     if not Success2 then
+                        Returned := Unsigned_64'Last;
+                        Errno    := Error_Would_Fault;
+                        goto Cleanup;
+                     end if;
+
+                     for C of Addr.Sun_Path loop
+                        exit when C = Ada.Characters.Latin_1.NUL;
+                        Len := Len + 1;
+                     end loop;
+
                      IPC.Socket.Read
                         (Sock        => File.Inner_Socket,
-                         Data        => Data,
+                         Data        => Data.all,
                          Is_Blocking => File.Is_Blocking,
                          Ret_Count   => Ret_Count,
-                         Path        => Addr,
+                         Path        => Addr.Sun_Path (1 .. Len),
                          PID         => Unsigned_32 (Convert (Proc)),
                          UID         => UID,
                          GID         => GID,
@@ -5006,9 +5170,21 @@ package body Userland.Syscall with SPARK_Mode => Off is
             end case;
          else
             IPC.Socket.Read
-               (File.Inner_Socket, Data, File.Is_Blocking, Ret_Count, Success);
+               (File.Inner_Socket, Data.all, File.Is_Blocking, Ret_Count,
+                Success);
          end if;
          Translate_Status (Success, Unsigned_64 (Ret_Count), Returned, Errno);
+
+         if Errno = Error_No_Error then
+            Trans.Paste_Into_Userland (Map, Data.all, Buf_SAddr, Success2);
+            if not Success2 then
+               Returned := Unsigned_64'Last;
+               Errno    := Error_Would_Fault;
+            end if;
+         end if;
+
+      <<Cleanup>>
+         Free (Data);
       end;
    exception
       when Constraint_Error =>
@@ -5026,8 +5202,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Flags);
-
+      pragma Unreferenced (Flags, Addr_Len);
       Buf_IAddr : constant Integer_Address := Integer_Address (Buffer);
       Buf_SAddr : constant  System.Address := To_Address (Buf_IAddr);
       AIAddr    : constant Integer_Address := Integer_Address (Addr_Addr);
@@ -5036,19 +5211,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
       File      : File_Description_Acc;
       Ret_Count : Natural;
       Success   : IPC.Socket.Socket_Status;
+      Success2  : Boolean;
       Final_Cnt : Natural;
       Map       : Page_Table_Acc;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access;
       Get_Common_Map (Proc, Map);
       Get_File (Proc, Sock_FD, File);
-      if not Check_Userland_Access (Map, Buf_IAddr, Count) or else
-         (AIAddr /= 0 and not Check_Userland_Access (Map, AIAddr, Addr_Len))
-      then
-         Returned := Unsigned_64'Last;
-         Errno    := Error_Would_Fault;
-         return;
-      elsif File = null or else File.Description /= Description_Socket then
+      if File = null or else File.Description /= Description_Socket then
          Returned := Unsigned_64'Last;
          Errno    := Error_Bad_File;
          return;
@@ -5059,19 +5228,37 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       declare
-         Data : Devices.Operation_Data (1 .. Final_Cnt)
-            with Import, Address => Buf_SAddr;
+         subtype Read_Data is Devices.Operation_Data (1 .. Final_Cnt);
+         package Trans is new Memory.Userland_Transfer (Read_Data);
+         procedure Free is new Ada.Unchecked_Deallocation
+            (Operation_Data, Operation_Data_Acc);
+         Data : Operation_Data_Acc := new Read_Data;
       begin
+         Trans.Take_From_Userland (Map, Data.all, Buf_SAddr, Success2);
+         if not Success2 then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Would_Fault;
+            goto Cleanup;
+         end if;
+
          if AIAddr /= 0 and Get_Type (File.Inner_Socket) /= IPC.Socket.Stream
          then
             case Get_Domain (File.Inner_Socket) is
                when IPC.Socket.IPv4 =>
                   declare
-                     Addr : SockAddr_In with Import, Address => ASAddr;
+                     package T is new Memory.Userland_Transfer (SockAddr_In);
+                     Addr : SockAddr_In;
                   begin
+                     T.Take_From_Userland (Map, Addr, ASAddr, Success2);
+                     if not Success2 then
+                        Returned := Unsigned_64'Last;
+                        Errno    := Error_Would_Fault;
+                        goto Cleanup;
+                     end if;
+
                      IPC.Socket.Write
                         (Sock      => File.Inner_Socket,
-                         Data      => Data,
+                         Data      => Data.all,
                          Ret_Count => Ret_Count,
                          Addr      => Addr.Sin_Addr,
                          Port      => Networking.IPv4_Port (Addr.Sin_Port),
@@ -5079,11 +5266,19 @@ package body Userland.Syscall with SPARK_Mode => Off is
                   end;
                when IPC.Socket.IPv6 =>
                   declare
-                     Addr : SockAddr_In6 with Import, Address => ASAddr;
+                     package T is new Memory.Userland_Transfer (SockAddr_In6);
+                     Addr : SockAddr_In6;
                   begin
+                     T.Take_From_Userland (Map, Addr, ASAddr, Success2);
+                     if not Success2 then
+                        Returned := Unsigned_64'Last;
+                        Errno    := Error_Would_Fault;
+                        goto Cleanup;
+                     end if;
+
                      IPC.Socket.Write
                         (Sock      => File.Inner_Socket,
-                         Data      => Data,
+                         Data      => Data.all,
                          Ret_Count => Ret_Count,
                          Addr      => Addr.Sin6_Addr,
                          Port      => Networking.IPv6_Port (Addr.Sin6_Port),
@@ -5092,19 +5287,31 @@ package body Userland.Syscall with SPARK_Mode => Off is
                when IPC.Socket.UNIX =>
                   declare
                      UID, GID : Unsigned_32;
-                     A_SAddr : constant System.Address := ASAddr + 4;
-                     CLen : constant Natural := Strlen (A_SAddr);
-                     Addr : String (1 .. CLen) with Import, Address => A_SAddr;
+                     Len      : Natural := 0;
+                     package T is new Memory.Userland_Transfer (SockAddr_UNIX);
+                     Addr : SockAddr_UNIX;
                   begin
                      Get_UID (Proc, UID);
                      Get_GID (Proc, GID);
 
+                     T.Take_From_Userland (Map, Addr, ASAddr, Success2);
+                     if not Success2 then
+                        Returned := Unsigned_64'Last;
+                        Errno    := Error_Would_Fault;
+                        goto Cleanup;
+                     end if;
+
+                     for C of Addr.Sun_Path loop
+                        exit when C = Ada.Characters.Latin_1.NUL;
+                        Len := Len + 1;
+                     end loop;
+
                      IPC.Socket.Write
                         (Sock        => File.Inner_Socket,
-                         Data        => Data,
+                         Data        => Data.all,
                          Is_Blocking => File.Is_Blocking,
                          Ret_Count   => Ret_Count,
-                         Path        => Addr,
+                         Path        => Addr.Sun_Path,
                          PID         => Unsigned_32 (Convert (Proc)),
                          UID         => UID,
                          GID         => GID,
@@ -5113,9 +5320,13 @@ package body Userland.Syscall with SPARK_Mode => Off is
             end case;
          else
             IPC.Socket.Write
-               (File.Inner_Socket, Data, File.Is_Blocking, Ret_Count, Success);
+               (File.Inner_Socket, Data.all, File.Is_Blocking, Ret_Count,
+                Success);
          end if;
          Translate_Status (Success, Unsigned_64 (Ret_Count), Returned, Errno);
+
+      <<Cleanup>>
+         Free (Data);
       end;
    exception
       when Constraint_Error =>
@@ -7275,10 +7486,17 @@ package body Userland.Syscall with SPARK_Mode => Off is
    end Translate_Status;
 
    function To_String (Addr : System.Address) return String_Acc is
-      Arg_Length : constant Natural := Interfaces.C.Strings.Strlen (Addr);
-      Arg_String : String (1 .. Arg_Length) with Import, Address => Addr;
    begin
-      return new String'(Arg_String);
+      Arch.Snippets.Enable_Userland_Memory_Access;
+      declare
+         Arg_Length : constant Natural := Interfaces.C.Strings.Strlen (Addr);
+         Arg_String : String (1 .. Arg_Length) with Import, Address => Addr;
+         Arg_Result : String_Acc;
+      begin
+         Arg_Result := new String'(Arg_String);
+         Arch.Snippets.Disable_Userland_Memory_Access;
+         return Arg_Result;
+      end;
    end To_String;
 
    function Get_Mmap_Prot (P : Unsigned_64) return Arch.MMU.Page_Permissions
@@ -7336,36 +7554,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
            Caps.Can_Bypass_IPC_Checks and ((Bits and MAC_CAP_IPC) /= 0),
            Caps.Can_Check_System_Logs and ((Bits and MAC_CAP_SYS_LOG) /= 0)));
    end Set_MAC_Capabilities;
-
-   function Check_Userland_Access
-      (Map        : Memory.MMU.Page_Table_Acc;
-       Addr       : Memory.Virtual_Address;
-       Byte_Count : Unsigned_64) return Boolean
-   is
-      package A is new Alignment (Integer_Address);
-
-      Start  : Integer_Address := Addr;
-      Length : Integer_Address := Integer_Address (Byte_Count);
-      Result : System.Address;
-      Is_Mapped, Is_Readable, Is_Writeable, Is_Executable : Boolean;
-      Is_User_Accessible : Boolean;
-   begin
-      A.Align_Memory_Range (Start, Length, Memory.MMU.Page_Size);
-      Memory.MMU.Translate_Address
-         (Map                => Map,
-          Virtual            => To_Address (Addr),
-          Length             => Storage_Count (Length),
-          Physical           => Result,
-          Is_Mapped          => Is_Mapped,
-          Is_User_Accessible => Is_User_Accessible,
-          Is_Readable        => Is_Readable,
-          Is_Writeable       => Is_Writeable,
-          Is_Executable      => Is_Executable);
-      return Is_User_Accessible;
-   exception
-      when Constraint_Error =>
-         return False;
-   end Check_Userland_Access;
 
    procedure Check_Userland_Mappability
       (Map        : Memory.MMU.Page_Table_Acc;

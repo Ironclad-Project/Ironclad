@@ -48,11 +48,6 @@ package body IPC.Futex with SPARK_Mode => Off is
       begin
          --  Find and/or allocate indexes for the passed mutexes.
          for I in Keys'Range loop
-            if Keys (I).Key.all /= Keys (I).Expected then
-               Success := Wait_Try_Again;
-               return;
-            end if;
-
             Synchronization.Seize (Registry_Mutex);
 
             for J in Registry'Range loop
