@@ -1183,27 +1183,33 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success : Boolean;
       Flags   : Unsigned_32 with Import, Address => Arg;
    begin
-      Synchronization.Seize_Writer (FS.Mutex);
-
-      if FS.Is_Read_Only then
-         Status := FS_RO_Failure;
-         goto Cleanup;
-      end if;
-
-      RW_Inode
-         (Data            => FS,
-          Inode_Index     => Unsigned_32 (Ino),
-          Result          => Inod.all,
-          Write_Operation => False,
-          Success         => Success);
-      if not Success then
-         Status := FS_IO_Failure;
-      else
-         case Req is
-            when EXT_GETFLAGS =>
+      case Req is
+         when EXT_GETFLAGS =>
+            Synchronization.Seize_Reader (FS.Mutex);
+            RW_Inode
+               (Data            => FS,
+                Inode_Index     => Unsigned_32 (Ino),
+                Result          => Inod.all,
+                Write_Operation => False,
+                Success         => Success);
+            if Success then
                Flags  := Inod.Flags;
                Status := FS_Success;
-            when EXT_SETFLAGS =>
+            else
+               Status := VFS.FS_IO_Failure;
+            end if;
+            Synchronization.Release_Reader (FS.Mutex);
+         when EXT_SETFLAGS =>
+            Synchronization.Seize_Writer (FS.Mutex);
+            RW_Inode
+               (Data            => FS,
+                Inode_Index     => Unsigned_32 (Ino),
+                Result          => Inod.all,
+                Write_Operation => False,
+                Success         => Success);
+            if not Success then
+               Status := VFS.FS_IO_Failure;
+            elsif not FS.Is_Read_Only then
                Inod.Flags := Flags;
                RW_Inode
                   (Data            => FS,
@@ -1212,13 +1218,14 @@ package body VFS.EXT with SPARK_Mode => Off is
                    Write_Operation => True,
                    Success         => Success);
                Status := (if Success then FS_Success else FS_IO_Failure);
-            when others =>
-               Status := FS_Invalid_Value;
-         end case;
-      end if;
+            else
+               Status := FS_RO_Failure;
+            end if;
+            Synchronization.Release_Writer (FS.Mutex);
+         when others =>
+            Status := FS_Invalid_Value;
+      end case;
 
-   <<Cleanup>>
-      Synchronization.Release_Writer (FS.Mutex);
       Free (Inod);
    exception
       when Constraint_Error =>
