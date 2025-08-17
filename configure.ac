@@ -81,39 +81,60 @@ if ! test "x$FIND_FOUND" = "xyes"; then
     AC_MSG_ERROR([find not found, please install find before configuring])
 fi
 
-# $1 - UPPERCASEVAR, $2 - default program
-AC_DEFUN([GET_PROG_FROM_TOOLCHAIN], [
-    AC_ARG_VAR([$1], [$2 command @<:@default: $2@:>@])
-
-    if ! test -z "$$1"; then
-        first_elem="$(echo "$$1" | cut -f 1 -d " ")"
+# $1 - UPPERCASEVAR, $2 - default command, $3 - 'tool' if toolchain, $4 - 'no-err' to ignore errors
+AC_DEFUN([GET_PROG], [
+    if test "x${$1+set}" = "xset"; then
+        first_elem="$(rel2abs $(echo "$$1" | cut -f 1 -d " "))"
         case "$first_elem" in
-            */*)
+            /*)
+                AC_MSG_CHECKING([for $first_elem])
                 if test -f "$first_elem" && test -x "$first_elem"; then
-                    $1_USER_FOUND=yes
+                    $1="$(rel2abs "$$1")"
+                    $1_FOUND=yes
+                else
+                    $1_FOUND=no
                 fi
+                AC_MSG_RESULT([$$1_FOUND])
                 ;;
             *)
-                AC_CHECK_PROG([$1_USER_FOUND], [$$1], [yes])
+                AC_CHECK_PROG([$1_FOUND], [$first_elem], [yes])
                 ;;
         esac
-
-        if ! test "x$$1_USER_FOUND" = "xyes"; then
-            AC_MSG_ERROR([$2 not found, please install $2 before configuring])
-        fi
     else
-        AC_CHECK_TOOL([$1], [$2], [:])
-        if test "x$$1" = "x:"; then
-            AC_MSG_ERROR([$2 not found, please install $2 or set $1 to a valid command])
+        if ! test -z "$2"; then
+            if test "x$3" = "xtool"; then
+                AC_CHECK_TOOL([$1_FOUND], [$2], [no])
+                if ! test "x$$1_FOUND" = "xno"; then
+                    $1="$(rel2abs "$$1_FOUND")"
+                    $1_FOUND=yes
+                fi
+            else
+                first_elem="$(rel2abs $(echo "$2" | cut -f 1 -d " "))"
+                AC_CHECK_PROG([$1_FOUND], [$first_elem], [yes])
+                if test "x$$1_FOUND" = "xyes"; then
+                    $1="$(rel2abs "$2")"
+                fi
+            fi
+        else
+            $1_FOUND=no
         fi
     fi
 
-    $1="$(rel2abs "$$1")"
+    if ! test "x$$1_FOUND" = "xyes"; then
+        if test "x$4" = "xno-err"; then
+            AC_MSG_WARN([$first_elem invalid, set $1 to a valid program])
+        else
+            AC_MSG_ERROR([$first_elem invalid, set $1 to a valid program])
+        fi
+    fi
 ])
 
-GET_PROG_FROM_TOOLCHAIN([AR], [gcc-ar])
-GET_PROG_FROM_TOOLCHAIN([CC], [gcc])
-GET_PROG_FROM_TOOLCHAIN([STRIP], [strip])
+AC_ARG_VAR([AR], [archiver command])
+GET_PROG([AR], [gcc-ar], [tool])
+AC_ARG_VAR([CC], [C compiler command])
+GET_PROG([CC], [gcc], [tool])
+AC_ARG_VAR([STRIP], [strip command])
+GET_PROG([STRIP], [strip], [tool])
 
 GCC_VERSION="$($CC -dumpversion)"
 if test "${GCC_VERSION%%.*}" -lt "14"; then
@@ -144,49 +165,18 @@ AC_SUBST([SOURCE_DATE_EPOCH])
 ###############################################################################
 # Get programs and put them in comfortable variables.
 
-# $1 - UPPERCASEVAR, $2 - default program, $3 - nice name, $4 - set to "err" to error
-# on not program found
-AC_DEFUN([GET_PROG], [
-    m4_define([DEFAULT_$1], [$2])
-    AC_ARG_VAR([$1], [$3 command @<:@default: ]DEFAULT_$1[@:>@])
-
-    if ! test -z "$$1"; then
-        first_elem="$(echo "$$1" | cut -f 1 -d " ")"
-        case "$first_elem" in
-            */*)
-                if test -f "$first_elem" && test -x "$first_elem"; then
-                    $1_USER_FOUND=yes
-                fi
-                ;;
-            *)
-                AC_CHECK_PROG([$1_USER_FOUND], [$$1], [yes])
-                ;;
-        esac
-
-        if ! test "x$$1_USER_FOUND" = "xyes"; then
-            AC_MSG_ERROR([$3 not found, please install $3 or set $1 to a valid command])
-        fi
-    else
-        $1="DEFAULT_$1"
-        AC_CHECK_PROG([$1_FOUND], [$$1], [yes])
-        if ! test "x$$1_FOUND" = "xyes"; then
-            if test "x$4" = "xerr"; then
-                AC_MSG_ERROR([$3 not found, please install $3 or set $1 to a valid command])
-            else
-                AC_MSG_WARN([$3 not found, please install $3 or set $1 to a valid command])
-            fi
-        fi
-    fi
-
-    $1="$(rel2abs "$$1")"
-])
-
-GET_PROG([MAKEINFO], [makeinfo], [makeinfo], [err])
-GET_PROG([TEXI2DVI], [texi2dvi], [texi2dvi])
-GET_PROG([TEXI2HTML], [makeinfo --no-split --html], [texi2html])
-GET_PROG([GPRBUILD], [gprbuild], [gprbuild], [err])
-GET_PROG([GNATPROVE], [gnatprove], [gnatprove])
-GET_PROG([TYPOS], [typos], [typos])
+AC_ARG_VAR([MAKEINFO], [makeinfo command])
+GET_PROG([MAKEINFO], [makeinfo])
+AC_ARG_VAR([TEXI2DVI], [texi2dvi command])
+GET_PROG([TEXI2DVI], [texi2dvi], [], [no-err])
+AC_ARG_VAR([TEXI2HTML], [texi2html command])
+GET_PROG([TEXI2HTML], [makeinfo --no-split --html], [], [no-err])
+AC_ARG_VAR([GPRBUILD], [gprbuild command])
+GET_PROG([GPRBUILD], [gprbuild])
+AC_ARG_VAR([GNATPROVE], [gnatprove command])
+GET_PROG([GNATPROVE], [gnatprove], [], [no-err])
+AC_ARG_VAR([TYPOS], [typos command])
+GET_PROG([TYPOS], [typos], [], [no-err])
 
 # $1 - UPPERCASEVAR, $2 - default program
 AC_DEFUN([GET_TOOL_FROM_GPRBUILD], [
