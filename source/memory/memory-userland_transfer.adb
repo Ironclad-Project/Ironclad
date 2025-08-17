@@ -20,6 +20,10 @@ with Alignment;
 package body Memory.Userland_Transfer is
    package A is new Alignment (Integer_Address);
 
+   pragma Warnings
+      (Off, "address specification on ""Mem_Data"" is imprecisely supported",
+       Reason => "Clear a bit of warning spam");
+
    procedure Take_From_Userland
       (Map     : Memory.MMU.Page_Table_Acc;
        Data    : out T;
@@ -50,7 +54,7 @@ package body Memory.Userland_Transfer is
       end if;
 
       declare
-         Mem_Data : T with Import, Convention => C, Address => Addr;
+         Mem_Data : constant T with Import, Convention => C, Address => Addr;
       begin
          Arch.Snippets.Enable_Userland_Memory_Access;
          Data    := Mem_Data;

@@ -19,16 +19,17 @@ with Synchronization; use Synchronization;
 with Arch.Clocks;
 with Time;
 
-package body IPC.Futex with SPARK_Mode => Off is
+package body IPC.Futex is
+   Empty_Futex : constant Unsigned_64 := 0;
    type Futex_Inner is record
-      Key         : access Unsigned_32;
-      Wakey_Wakey : Boolean with Volatile;
+      Key         : Unsigned_64;
+      Wakey_Wakey : Boolean with Atomic;
       Waiters     : Unsigned_32;
    end record;
    type Futex_Arr is array (1 .. 75) of Futex_Inner;
 
    Registry_Mutex : aliased Mutex := Unlocked_Mutex;
-   Registry       :     Futex_Arr := [others => (null, False, 0)];
+   Registry       :     Futex_Arr := [others => (0, False, 0)];
 
    procedure Wait
       (Keys        : Element_Arr;
@@ -58,7 +59,7 @@ package body IPC.Futex with SPARK_Mode => Off is
                end if;
             end loop;
             for J in Registry'Range loop
-               if Registry (J).Key = null then
+               if Registry (J).Key = Empty_Futex then
                   Idx (I) := J;
                   Registry (J).Key         := Keys (I).Key;
                   Registry (J).Wakey_Wakey := False;
@@ -83,7 +84,7 @@ package body IPC.Futex with SPARK_Mode => Off is
             if Registry (I).Wakey_Wakey then
                Registry (I).Waiters := Registry (I).Waiters - 1;
                if Registry (I).Waiters = 0 then
-                  Registry (I).Key := null;
+                  Registry (I).Key := Empty_Futex;
                end if;
                Synchronization.Release (Registry_Mutex);
                exit;

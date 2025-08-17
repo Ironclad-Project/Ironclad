@@ -16,7 +16,7 @@
 
 with Interfaces; use Interfaces;
 
-package IPC.Futex with SPARK_Mode => Off is
+package IPC.Futex is
    --  This module implements fast userland mutexes, despite the userland tag,
    --  they are perfectly usable inside kernel mode as well.
    --
@@ -26,7 +26,7 @@ package IPC.Futex with SPARK_Mode => Off is
 
    --  Information to depict an element to wait on.
    type Element is record
-      Key      : access Unsigned_32;
+      Key      : Unsigned_64;
       Expected : Unsigned_32;
    end record;
    type Element_Arr is array (Natural range <>) of Element;

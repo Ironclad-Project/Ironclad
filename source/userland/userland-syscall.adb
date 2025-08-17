@@ -44,7 +44,7 @@ with Arch.Snippets;
 with Memory.Userland_Transfer;
 with Userland.MAC;
 
-package body Userland.Syscall with SPARK_Mode => Off is
+package body Userland.Syscall is
    procedure Sys_Exit
       (Code     : Unsigned_64;
        Returned : out Unsigned_64;
@@ -285,11 +285,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Userland.Process.Get_Effective_UID (Proc, User);
 
       declare
-         subtype Read_Data is Devices.Operation_Data (1 .. Final_Cnt);
+         Final_Len : constant Natural := Final_Cnt;
+         subtype Read_Data is Devices.Operation_Data (1 .. Final_Len);
          package Trans is new Memory.Userland_Transfer (Read_Data);
          procedure Free is new Ada.Unchecked_Deallocation
             (Operation_Data, Operation_Data_Acc);
-         Data : Operation_Data_Acc := new Read_Data;
+         Data : Operation_Data_Acc := new Read_Data'[others => 0];
       begin
          case File.Description is
             when Description_Inode =>
@@ -395,11 +396,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
       Process.Get_Effective_UID (Proc, User);
 
       declare
-         subtype Read_Data is Devices.Operation_Data (1 .. Final_Cnt);
+         Final_Len : constant Natural := Final_Cnt;
+         subtype Read_Data is Devices.Operation_Data (1 .. Final_Len);
          package Trans is new Memory.Userland_Transfer (Read_Data);
          procedure Free is new Ada.Unchecked_Deallocation
             (Operation_Data, Operation_Data_Acc);
-         Data : Operation_Data_Acc := new Read_Data;
+         Data : Operation_Data_Acc := new Read_Data'[others => 0];
       begin
          Trans.Take_From_Userland (Map, Data.all, Buf_SAddr, Success);
          if not Success then
@@ -721,6 +723,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
+      pragma SPARK_Mode (Off); --  Some var manipulation.
       procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
       Th         : constant TID := Arch.Local.Get_Current_Thread;
       Proc       : constant PID := Arch.Local.Get_Current_Process;
@@ -886,6 +889,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      pragma SPARK_Mode (Off); --  Comparing page tables is against SPARK.
       Proc    : constant PID := Arch.Local.Get_Current_Process;
       Pol     : Scheduler.Policy;
       Child   : PID;
@@ -1101,6 +1105,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      pragma SPARK_Mode (Off); --  File modifications are against SPARK.
       Proc       : constant PID := Arch.Local.Get_Current_Process;
       Success    : Boolean;
       Desc       : File_Description_Acc;
@@ -1506,12 +1511,16 @@ package body Userland.Syscall with SPARK_Mode => Off is
       FSSuc : VFS.FS_Status;
       User  : Unsigned_32;
    begin
-      Arch.Snippets.Enable_Userland_Memory_Access; --  Simplify handling.
+      --  This degenerate localized SMAP disabling is required because of
+      --  our current API is really poorly positioned to cleanly handle the
+      --  massive variety of ioctl argument types.
+      Arch.Snippets.Enable_Userland_Memory_Access;
+
       Get_File (Proc, FD, File);
       if File = null then
          Errno := Error_Not_A_TTY;
          Returned := Unsigned_64'Last;
-         return;
+         goto Cleanup;
       end if;
 
       Userland.Process.Get_Effective_UID (Proc, User);
@@ -1555,8 +1564,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Errno    := Error_Not_A_TTY;
          Returned := Unsigned_64'Last;
       end if;
+
+   <<Cleanup>>
+      Arch.Snippets.Disable_Userland_Memory_Access;
    exception
       when Constraint_Error =>
+         Arch.Snippets.Disable_Userland_Memory_Access;
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end IOCTL;
@@ -1582,6 +1595,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned    : out Unsigned_64;
        Errno       : out Errno_Value)
    is
+      pragma SPARK_Mode (Off); --  File modifications are against SPARK.
       type Result_Arr is array (1 .. 2) of Integer;
       package Trans is new Memory.Userland_Transfer (Result_Arr);
 
@@ -2033,7 +2047,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          procedure Free is new Ada.Unchecked_Deallocation
             (Logs_String, Logs_String_Acc);
          package Trans is new Memory.Userland_Transfer (Logs_String);
-         Logs : Logs_String_Acc := new Logs_String;
+         Logs : Logs_String_Acc := new Logs_String'[others => ' '];
          Ret  : Natural;
       begin
          Get_Common_Map (Proc, Map);
@@ -2926,7 +2940,11 @@ package body Userland.Syscall with SPARK_Mode => Off is
       else
          Userland.Process.Get_Effective_UID (Proc, User);
          Buff_Len   := Buffer_Len / (Dirent'Size / 8);
-         Tmp_Buffer := new VFS.Directory_Entities (1 .. Natural (Buff_Len));
+         Tmp_Buffer := new VFS.Directory_Entities'[1 .. Natural (Buff_Len) =>
+            (Inode_Number => 0,
+             Name_Buffer  => [others => ' '],
+             Name_Len     => 0,
+             Type_Of_File => VFS.File_Regular)];
          VFS.Read_Entries
             (Key       => File.Inner_Ino_FS,
              Ino       => File.Inner_Ino,
@@ -2939,7 +2957,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
             File.Inner_Ino_Pos := File.Inner_Ino_Pos + Unsigned_64 (Read_Len);
 
             declare
-               subtype Dirents_Arr is Dirents (1 .. Buff_Len);
+               Len : constant Unsigned_64 := Buff_Len;
+               subtype Dirents_Arr is Dirents (1 .. Len);
                package Trans is new Memory.Userland_Transfer (Dirents_Arr);
                Buffer : Dirents_Arr;
             begin
@@ -3428,6 +3447,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned    : out Unsigned_64;
        Errno       : out Errno_Value)
    is
+      pragma SPARK_Mode (Off); --  File modifications are against SPARK.
       type Result_Arr is array (1 .. 2) of Integer;
       package Trans is new Memory.Userland_Transfer (Result_Arr);
 
@@ -3662,6 +3682,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
+      pragma SPARK_Mode (Off); --  File modifications are against SPARK.
       Proc       : constant             PID := Arch.Local.Get_Current_Process;
       CExec      : constant         Boolean := (Flags and SOCK_CLOEXEC)  /= 0;
       Block      : constant         Boolean := (Flags and SOCK_NONBLOCK) /= 0;
@@ -4815,7 +4836,6 @@ package body Userland.Syscall with SPARK_Mode => Off is
          Items   : User_Futex_Arr;
          Time    : Time_Spec;
          Futexes : Kern_Futex_Arr;
-         IA      : Integer_Address;
       begin
          Get_Common_Map (Proc, Map);
          Trans_1.Take_From_Userland (Map, Items, SAddr, Succ);
@@ -4824,13 +4844,7 @@ package body Userland.Syscall with SPARK_Mode => Off is
          if not Succ then goto Would_Fault_Error; end if;
 
          for I in Items'Range loop
-            IA := Integer_Address (Items (I).Address);
-
-            declare
-               V : aliased Unsigned_32 with Import, Address => To_Address (IA);
-            begin
-               Futexes (I) := (V'Unchecked_Access, Items (I).Expected);
-            end;
+            Futexes (I) := (Items (I).Address, Items (I).Expected);
          end loop;
 
          case Operation is
@@ -5085,11 +5099,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       declare
-         subtype Read_Data is Devices.Operation_Data (1 .. Final_Cnt);
+         Final_Len : constant Natural := Final_Cnt;
+         subtype Read_Data is Devices.Operation_Data (1 .. Final_Len);
          package Trans is new Memory.Userland_Transfer (Read_Data);
          procedure Free is new Ada.Unchecked_Deallocation
             (Operation_Data, Operation_Data_Acc);
-         Data : Operation_Data_Acc := new Read_Data;
+         Data : Operation_Data_Acc := new Read_Data'[others => 0];
       begin
          if AIAddr /= 0 and Get_Type (File.Inner_Socket) /= IPC.Socket.Stream
          then
@@ -5228,11 +5243,12 @@ package body Userland.Syscall with SPARK_Mode => Off is
       end if;
 
       declare
-         subtype Read_Data is Devices.Operation_Data (1 .. Final_Cnt);
+         Final_Len : constant Natural := Final_Cnt;
+         subtype Read_Data is Devices.Operation_Data (1 .. Final_Len);
          package Trans is new Memory.Userland_Transfer (Read_Data);
          procedure Free is new Ada.Unchecked_Deallocation
             (Operation_Data, Operation_Data_Acc);
-         Data : Operation_Data_Acc := new Read_Data;
+         Data : Operation_Data_Acc := new Read_Data'[others => 0];
       begin
          Trans.Take_From_Userland (Map, Data.all, Buf_SAddr, Success2);
          if not Success2 then
@@ -7487,6 +7503,8 @@ package body Userland.Syscall with SPARK_Mode => Off is
 
    function To_String (Addr : System.Address) return String_Acc is
    begin
+      --  This degenerate localized SMAP disabling is required because of
+      --  the fact that we have no previous specified length.
       Arch.Snippets.Enable_Userland_Memory_Access;
       declare
          Arg_Length : constant Natural := Interfaces.C.Strings.Strlen (Addr);
