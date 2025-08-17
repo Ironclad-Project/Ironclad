@@ -340,6 +340,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       --  Handle OOM.
       Synchronization.Release (Alloc_Mutex);
       Result := 0;
+      return;
 
    <<Fill_Bitmap>>
       for I in 1 .. Blocks_To_Allocate loop
