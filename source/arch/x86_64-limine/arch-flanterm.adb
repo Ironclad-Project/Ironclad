@@ -17,7 +17,9 @@
 with Ada.Characters.Latin_1;
 with Devices.FB;
 
-package body Arch.Flanterm with SPARK_Mode => Off is
+package body Arch.Flanterm is
+   pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
    --  Global variables.
    Is_Enabled : Boolean := False;
    Ctx        : Flanterm_Ctx;
@@ -27,6 +29,7 @@ package body Arch.Flanterm with SPARK_Mode => Off is
    Text_Color       : constant Unsigned_32 := 16#FFFFFF#;
 
    procedure Init is
+      pragma SPARK_Mode (Off); --  Passing the address argument is not SPARK.
       Addr : System.Address;
       Width, Height, Pitch         : Unsigned_64;
       RSz, RSh, GSz, GSh, BSz, BSh : Unsigned_8;
@@ -90,6 +93,7 @@ package body Arch.Flanterm with SPARK_Mode => Off is
    end Disable;
 
    procedure Put (C : Character) is
+      pragma SPARK_Mode (Off); --  Passing the address argument is not SPARK.
    begin
       if Is_Enabled then
          Term_Write (Ctx, C'Address, 1);
@@ -97,12 +101,10 @@ package body Arch.Flanterm with SPARK_Mode => Off is
    end Put;
 
    procedure Put (Line : String) is
+      pragma SPARK_Mode (Off); --  Passing the address argument is not SPARK.
    begin
-      if Is_Enabled then
+      if Is_Enabled and Line'Length >= 1 then
          Term_Write (Ctx, Line (Line'First)'Address, Line'Length);
       end if;
-   exception
-      when Constraint_Error =>
-         null;
    end Put;
 end Arch.Flanterm;

@@ -29,14 +29,15 @@ with Memory.MMU;
 with Devices.Serial;
 with Arch.Limine;
 with Main;
+with Interfaces; use Interfaces;
 
-package body Arch.Entrypoint with SPARK_Mode => Off is
+package body Arch.Entrypoint is
    --  Response is a pointer to a Memmap_Response.
    Memmap_Request : Limine.Request :=
       (ID       => Limine.Memmap_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export, Async_Writers;
+      with Export;
 
    procedure Bootstrap_Main is
       Success : Boolean;
@@ -44,7 +45,8 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
 
       MemPonse : Limine.Memmap_Response
          with Import, Address => Memmap_Request.Response;
-      Inner_MMap : constant Limine.Memmap_Entry_Arr (1 .. MemPonse.Count)
+      MemPonse_Len : constant Unsigned_64 := MemPonse.Count;
+      Inner_MMap : constant Limine.Memmap_Entry_Arr (1 .. MemPonse_Len)
          with Import, Address => MemPonse.Entries;
       Type_Entry : Boot_Memory_Type;
       Idx : Natural := 0;
@@ -59,7 +61,7 @@ package body Arch.Entrypoint with SPARK_Mode => Off is
 
       --  Translate the memory map.
       declare
-         Memmap : Boot_Memory_Map (1 .. Natural (MemPonse.Count));
+         Memmap : Boot_Memory_Map (1 .. Natural (MemPonse_Len));
       begin
          for Ent of Inner_MMap loop
             case Ent.EntryType is

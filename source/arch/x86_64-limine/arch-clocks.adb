@@ -23,7 +23,6 @@ with Arch.ACPI_PM_Timer;
 with Messages;
 
 package body Arch.Clocks with
-   SPARK_Mode => Off,
    Refined_State =>
       (RT_Clock_State =>
          (Is_Initialized,
