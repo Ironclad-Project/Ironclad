@@ -723,7 +723,6 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      pragma SPARK_Mode (Off); --  Some var manipulation.
       procedure Free is new Ada.Unchecked_Deallocation (String, String_Acc);
       Th         : constant TID := Arch.Local.Get_Current_Thread;
       Proc       : constant PID := Arch.Local.Get_Current_Process;
@@ -762,8 +761,8 @@ package body Userland.Syscall is
          package Trans_2 is new Memory.Userland_Transfer (Argv_Arr);
          package Trans_3 is new Memory.Userland_Transfer (Envp_Arr);
          Path : Path_Str;
-         Argv : Argv_Acc := new Argv_Arr;
-         Envp : Envp_Acc := new Envp_Arr;
+         Argv : Argv_Acc := new Argv_Arr'[others => 0];
+         Envp : Envp_Acc := new Envp_Arr'[others => 0];
       begin
          Trans_1.Take_From_Userland (Orig, Path, Path_SAddr, Success);
          Trans_2.Take_From_Userland (Orig, Argv.all, Argv_SAddr, Success3);
