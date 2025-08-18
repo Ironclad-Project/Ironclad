@@ -40,23 +40,23 @@ is
 
    --  Get the resolution of the monotonic clock.
    procedure Get_Monotonic_Resolution (Seconds, Nanoseconds : out Unsigned_64)
-      with Global => (In_Out => Monotonic_Clock_State);
+      with Global => (Input => Monotonic_Clock_State);
 
    --  Get the time from the monotonic clock.
    procedure Get_Monotonic_Time (Seconds, Nanoseconds : out Unsigned_64)
-      with Global => (In_Out => Monotonic_Clock_State);
+      with Global => (Input => Monotonic_Clock_State);
 
    --  Do a quick busy monotonic sleep.
    procedure Busy_Monotonic_Sleep (Nanoseconds : Unsigned_64)
-      with Global => (In_Out => Monotonic_Clock_State);
+      with Global => (Input => Monotonic_Clock_State);
 
    --  Get the resolution of the real-time clock.
    procedure Get_Real_Time_Resolution (Seconds, Nanoseconds : out Unsigned_64)
-      with Global => (In_Out => RT_Clock_State);
+      with Global => (Input => RT_Clock_State);
 
    --  Get the time from the real time clock.
    procedure Get_Real_Time (Seconds, Nanoseconds : out Unsigned_64)
-      with Global => (In_Out => RT_Clock_State);
+      with Global => (Input => RT_Clock_State);
 
    --  Set the time for the real time clock.
    procedure Set_Real_Time (Seconds, Nanoseconds : Unsigned_64)

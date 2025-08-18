@@ -18,7 +18,7 @@ with System.Machine_Code;
 with System; use System;
 with Arch.Limine;
 
-package body Arch.MMU with SPARK_Mode => Off is
+package body Arch.MMU is
    --  Bits in the 4K page entries.
    Page_P     : constant Unsigned_64 := Shift_Left (1, 0);
    Page_R     : constant Unsigned_64 := Shift_Left (1, 1);
@@ -121,6 +121,7 @@ package body Arch.MMU with SPARK_Mode => Off is
 
    procedure Flush_TLBs (Map, Addr : System.Address; Len : Storage_Count) is
       pragma Unreferenced (Map, Addr, Len);
+      pragma SPARK_Mode (Off); --  ASM is not SPARK-friendly.
    begin
       System.Machine_Code.Asm
          ("sfence.vma",
@@ -129,6 +130,7 @@ package body Arch.MMU with SPARK_Mode => Off is
    end Flush_TLBs;
 
    procedure Get_Current_Table (Addr : out System.Address) is
+      pragma SPARK_Mode (Off); --  ASM is not SPARK-friendly.
       Ret : Unsigned_64;
    begin
       System.Machine_Code.Asm
@@ -142,6 +144,7 @@ package body Arch.MMU with SPARK_Mode => Off is
 
    procedure Set_Current_Table (Addr : System.Address; Success : out Boolean)
    is
+      pragma SPARK_Mode (Off); --  ASM is not SPARK-friendly.
       Mode : constant Unsigned_64 := 8 + (4 - 3);
       Add2 :          Unsigned_64 := Unsigned_64 (To_Integer (Addr));
    begin

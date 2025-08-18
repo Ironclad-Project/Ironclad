@@ -17,7 +17,7 @@
 with System.Machine_Code;
 with Arch.Clocks;
 
-package body Arch.SBI with SPARK_Mode => Off is
+package body Arch.SBI is
    Base_Extension_EID : constant := 16#10#;
    Time_Extension_EID : constant := 16#54494D45#;
 
@@ -42,6 +42,7 @@ package body Arch.SBI with SPARK_Mode => Off is
    end Probe_Extension;
 
    procedure Set_Timer (Microseconds : Unsigned_64; Success : out Boolean) is
+      pragma SPARK_Mode (Off); --  ASM is not SPARK-friendly.
       Result, Error, Start : Unsigned_64;
    begin
       Probe_Extension (Time_Extension_EID, Success);
@@ -105,6 +106,7 @@ package body Arch.SBI with SPARK_Mode => Off is
       Arg1         : Unsigned_64;
       Arg2         : Unsigned_64)
    is
+      pragma SPARK_Mode (Off); --  ASM is not SPARK-friendly.
    begin
       System.Machine_Code.Asm
          ("mv a7, %2;" &

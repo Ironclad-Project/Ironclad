@@ -17,7 +17,7 @@
 with System.Storage_Elements; use System.Storage_Elements;
 with System;
 
-package Devices.UART with SPARK_Mode => Off is
+package Devices.UART is
    --  Early initialization of UART0 for early kernel output.
    procedure Init_UART0;
 

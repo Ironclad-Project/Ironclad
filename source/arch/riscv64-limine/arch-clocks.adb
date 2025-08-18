@@ -21,7 +21,6 @@ with Arch.ACPI;
 with System.Machine_Code;
 
 package body Arch.Clocks with
-   SPARK_Mode => Off,
    Refined_State =>
       (RT_Clock_State =>
          (null),
@@ -76,6 +75,7 @@ is
    end Get_Monotonic_Resolution;
 
    procedure Get_Monotonic_Time (Seconds, Nanoseconds : out Unsigned_64) is
+      pragma SPARK_Mode (Off); --  ASM is not SPARK-friendly.
       Cnt : Unsigned_64;
    begin
       if Is_Initialized then
