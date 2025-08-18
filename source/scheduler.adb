@@ -27,7 +27,7 @@ with Time;
 with Arch.MMU;
 
 package body Scheduler with SPARK_Mode => Off is
-   Kernel_Stack_Size : constant := 16#4000#;
+   Kernel_Stack_Size : constant := Memory.Kernel_Stack_Size;
    Fast_Reschedule_Micros : constant := 10_000;
    type Thread_Stack     is array (Natural range <>) of Unsigned_8;
    type Thread_Stack_64  is array (Natural range <>) of Unsigned_64;

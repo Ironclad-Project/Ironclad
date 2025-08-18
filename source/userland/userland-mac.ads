@@ -169,7 +169,7 @@ private
           CPU_Time_Limit    => (Unsigned_64'Last, Unsigned_64'Last),
           File_Size_Limit   => (Unsigned_64'Last, Unsigned_64'Last),
           Opened_File_Limit => (Unsigned_64'Last, Unsigned_64'Last),
-          Stack_Size_Limit  => (16#400000#, Unsigned_64'Last), --  4 MiB.
+          Stack_Size_Limit  => (16#F00000#, Unsigned_64'Last), --  16 MiB.
           Memory_Size_Limit => (Unsigned_64'Last, Unsigned_64'Last)],
        Filters => [others =>
          (Is_Used   => False,

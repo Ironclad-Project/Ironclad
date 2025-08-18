@@ -24,9 +24,10 @@ with Panic;
 with Arch.Snippets;
 with Arch.Context;
 with System; use System;
+with Memory;
 
 package body Arch.CPU with SPARK_Mode => Off is
-   type Interrupt_Stack is array (1 .. 16#4000#) of Unsigned_8;
+   type Interrupt_Stack is array (1 .. Memory.Kernel_Stack_Size) of Unsigned_8;
    type Interrupt_Stack_Acc is access Interrupt_Stack;
 
    SMP_Request : Limine.SMP_Request :=

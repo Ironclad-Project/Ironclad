@@ -21,8 +21,9 @@ with Interfaces; use Interfaces;
 package Memory is
    type Size is mod 2 ** Standard'Address_Size; --  Any object in bytes.
 
-   --  Some notable memory locations.
-   Null_Address : constant := 0;
+   --  Some notable memory locations and sizes.
+   Null_Address      : constant := 0;
+   Kernel_Stack_Size : constant := 16#F000#;
 
    subtype Physical_Address is Integer_Address;
    subtype Virtual_Address  is Integer_Address;
