@@ -16,7 +16,7 @@
 
 package Devices.PC_Speaker with SPARK_Mode => Off is
    --  Initialize the device.
-   function Init return Boolean;
+   procedure Init (Success : out Boolean);
 
    --  Beep!
    procedure Beep (Frequency : Unsigned_32 := 1000);

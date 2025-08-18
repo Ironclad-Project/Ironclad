@@ -16,10 +16,10 @@
 
 with Interfaces; use Interfaces;
 
-package Arch.ACPI_PM_Timer with SPARK_Mode => Off is
+package Arch.ACPI_PM_Timer is
    --  Initialize the timer.
    --  @return True in Success, False on failure or not found.
-   function Init return Boolean;
+   procedure Init (Success : out Boolean);
 
    --  Get resolution of the timer in nanoseconds, that is, the minimum amount
    --  of time the clock can measure.

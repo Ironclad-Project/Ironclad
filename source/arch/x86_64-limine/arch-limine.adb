@@ -19,24 +19,24 @@ with Interfaces.C.Strings; use Interfaces.C.Strings;
 with Messages;
 with Panic;
 
-package body Arch.Limine with SPARK_Mode => Off is
+package body Arch.Limine is
    Base_Request : Limine.Base_Revision :=
       (ID_1     => 16#f9562b2d5c95a6c8#,
        ID_2     => 16#6a7b384944536bdc#,
        Revision => 3)
-      with Export, Async_Writers;
+      with Export;
 
    Bootloader_Info_Request : Request :=
       (ID       => Bootloader_Info_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export, Async_Writers;
+      with Export;
 
    Kernel_File_Request : Request :=
       (ID       => Kernel_File_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export, Async_Writers;
+      with Export;
 
    procedure Translate_Proto is
       InfoPonse : Bootloader_Info_Response
@@ -47,9 +47,10 @@ package body Arch.Limine with SPARK_Mode => Off is
       Vers_Addr : constant System.Address := InfoPonse.Version_Addr;
       Vers_Len  : constant Natural := Strlen (Vers_Addr);
       Boot_Vers : String (1 .. Vers_Len) with Import, Address => Vers_Addr;
+      Revision  : constant Unsigned_64 := Base_Request.Revision;
    begin
       Messages.Put_Line ("Booted by " & Boot_Name & " " & Boot_Vers);
-      if Base_Request.Revision /= 0 then
+      if Revision /= 0 then
          Panic.Hard_Panic ("Revision unsupported");
       end if;
 

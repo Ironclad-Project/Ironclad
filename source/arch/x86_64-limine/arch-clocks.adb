@@ -87,7 +87,8 @@ is
 
       --  If CPUID does not have the info, we can start checking for clocks.
       --  First one we will use is the HPET.
-      if HPET.Init then
+      HPET.Init (Success);
+      if Success then
          Messages.Put_Line ("Monotonic TSC calibration using HPET");
          HPET.Get_Resolution (TSC_Tick_Resolution);
          TSC_Start := Snippets.Read_TSC;
@@ -99,7 +100,8 @@ is
       end if;
 
       --  After that, we will use the ACPI PM timer.
-      if ACPI_PM_Timer.Init then
+      ACPI_PM_Timer.Init (Success);
+      if Success then
          Messages.Put_Line ("Monotonic TSC calibration using ACPI PM Timer");
          ACPI_PM_Timer.Get_Resolution (TSC_Tick_Resolution);
          TSC_Start := Snippets.Read_TSC;

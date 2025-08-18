@@ -24,17 +24,17 @@ package body Arch.HPET with SPARK_Mode => Off is
    HPET_Contents   : Virtual_Address;
    HPET_Resolution : Unsigned_64; --  Time in nanoseconds to increment by 1.
 
-   function Init return Boolean is
+   procedure Init (Success : out Boolean) is
       pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
       ACPI_Address : ACPI.Table_Record;
    begin
       ACPI.FindTable (ACPI.HPET_Signature, ACPI_Address);
       if ACPI_Address.Virt_Addr = Null_Address then
-         return False;
+         Success := False;
+         return;
       end if;
 
       declare
-         Success : Boolean;
          Table : ACPI.HPET
             with Import, Address => To_Address (ACPI_Address.Virt_Addr);
          HPET : ACPI.HPET_Contents with Import, Volatile,
@@ -56,7 +56,7 @@ package body Arch.HPET with SPARK_Mode => Off is
              Success        => Success,
              Caching        => Arch.MMU.Uncacheable);
          if not Success then
-            return False;
+            return;
          end if;
 
          HPET_Contents   := Table.Address + Memory_Offset;
@@ -74,10 +74,10 @@ package body Arch.HPET with SPARK_Mode => Off is
          HPET.Main_Counter_Value    := 0;
          HPET.General_Configuration := 1;
       end;
-      return True;
+      Success := True;
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Init;
 
    procedure Get_Resolution (Resolution : out Unsigned_64) is

@@ -31,13 +31,20 @@ with Arch.Limine;
 
 package body Arch.Hooks with SPARK_Mode => Off is
    procedure Devices_Hook (Success : out Boolean) is
+      type Callback is not null access procedure (Success : out Boolean);
+      Drivers : constant array (1 .. 5) of Callback :=
+         [Devices.PC_Speaker.Init'Access,
+          Devices.Serial.Init'Access,
+          Devices.PS2.Init'Access,
+          Devices.FB.Init'Access,
+          Devices.PCI.RTL8139.Init'Access];
    begin
-      Success :=
-         Devices.FB.Init            and then
-         Devices.PC_Speaker.Init    and then
-         Devices.PS2.Init           and then
-         Devices.Serial.Init        and then
-         Devices.PCI.RTL8139.Init;
+      for Driver of Drivers loop
+         Driver.all (Success);
+         if not Success then
+            return;
+         end if;
+      end loop;
    end Devices_Hook;
 
    procedure PRCTL_Hook

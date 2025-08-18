@@ -185,16 +185,16 @@ package body Devices.FB with SPARK_Mode => Off is
       Green_Mask_Shift := Early_Green_Mask_Sh;
    end Get_Early_Framebuffer;
    ----------------------------------------------------------------------------
-   function Init return Boolean is
+   procedure Init (Success : out Boolean) is
       Device   : Resource;
       Dev_Name : String  := "fb0";
-      Success  : Boolean := True;
       Data     : Internal_FB_Data_Acc;
       FBPonse  : Limine.Framebuffer_Response
          with Import, Address => Framebuffer_Request.Response;
    begin
+      Success := True;
       if Framebuffer_Request.Response = System.Null_Address then
-         return True;
+         return;
       end if;
 
       for I in 1 .. FBPonse.Count loop
@@ -261,11 +261,9 @@ package body Devices.FB with SPARK_Mode => Off is
             exit when not Success;
          end;
       end loop;
-
-      return Success;
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Init;
 
    procedure IO_Control

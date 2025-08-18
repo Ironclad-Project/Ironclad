@@ -16,9 +16,9 @@
 
 with Synchronization;
 
-package Devices.Serial with SPARK_Mode => Off is
+package Devices.Serial is
    --  Initialize the serial devices.
-   function Init return Boolean;
+   procedure Init (Success : out Boolean);
 
    --  Little functions for debug reading and printing.
    procedure Init_COM1;

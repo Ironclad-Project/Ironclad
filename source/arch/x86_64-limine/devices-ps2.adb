@@ -63,10 +63,9 @@ package body Devices.PS2 with SPARK_Mode => Off is
        Z_Variation => 0,
        others      => False) with Volatile;
 
-   function Init return Boolean is
+   procedure Init (Success : out Boolean) is
       Index        : Arch.IDT.IRQ_Index;
       Data, Unused : Unsigned_8;
-      Success      : Boolean;
       Spin_Counter : Integer := 0;
    begin
       --  Take the chance for initializing the PS2 controller.
@@ -80,7 +79,8 @@ package body Devices.PS2 with SPARK_Mode => Off is
          exit when (Arch.Snippets.Port_In (16#64#) and 1) = 0;
          Data := Arch.Snippets.Port_In (16#60#);
          if Spin_Counter = 10 then
-            return True;
+            Success := True;
+            return;
          end if;
          Arch.Clocks.Busy_Monotonic_Sleep (1000); --  Purely vibes based.
          Spin_Counter := Spin_Counter + 1;
@@ -89,27 +89,27 @@ package body Devices.PS2 with SPARK_Mode => Off is
       --  Set the interrupt up, which is always the 34 (we are 1 based).
       Arch.IDT.Load_ISR (Keyboard_Handler'Address, Index, Success);
       if not Success then
-         return False;
+         return;
       end if;
       Arch.APIC.IOAPIC_Set_Redirect
          (Arch.CPU.Core_Locals (1).LAPIC_ID, 34, Index, True, Success);
       if not Success then
-         return False;
+         return;
       end if;
 
       --  Set the interrupt up, which is always the 45 (we are 1 based).
       Arch.IDT.Load_ISR (Mouse_Handler'Address, Index, Success);
       if not Success then
-         return False;
+         return;
       end if;
       Arch.APIC.IOAPIC_Set_Redirect
          (Arch.CPU.Core_Locals (1).LAPIC_ID, 45, Index, True, Success);
       if not Success then
-         return False;
+         return;
       end if;
 
       --  Enable keyboard interrupt and keyboard scancode translation.
-      Data := Read_PS2_Config;
+      Read_PS2_Config (Data);
       Data := Data or Shift_Left (1, 0) or Shift_Left (1, 6);
 
       --  Enable mouse interrupt if any
@@ -127,30 +127,30 @@ package body Devices.PS2 with SPARK_Mode => Off is
       --  Init the mouse.
       Write_PS2 (16#64#, 16#A8#);
       Write_PS2 (16#64#, 16#20#);
-      Data   := Read_PS2;
-      Unused := Read_PS2;
+      Read_PS2 (Data);
+      Read_PS2 (Unused);
       Data   := Data or  Shift_Left (1, 1);
       Data   := Data and (not Shift_Left (1, 5));
       Write_PS2 (16#64#, 16#60#);
       Write_PS2 (16#60#, Data);
-      Unused := Read_PS2;
+      Read_PS2 (Unused);
       Mouse_Write (16#F6#);
-      Unused := Read_PS2;
+      Read_PS2 (Unused);
       Mouse_Write (16#F4#);
-      Unused := Read_PS2;
+      Read_PS2 (Unused);
 
       --  Try to enable scrollwheel and 4th/5th buttons.
       Set_Sample_Rate (200);
       Set_Sample_Rate (100);
       Set_Sample_Rate (80);
-      Data := Identify_Mouse;
+      Identify_Mouse (Data);
       if Data = 3 then
          Ms_Has_4th_Packet := True;
          Messages.Put_Line ("Scrollwheel support enabled for mouse");
          Set_Sample_Rate (200);
          Set_Sample_Rate (200);
          Set_Sample_Rate (80);
-         Data := Identify_Mouse;
+         Identify_Mouse (Data);
          if Data = 4 then
             Ms_Has_Extra_Buttons := True;
             Messages.Put_Line ("extra button support enabled for mouse");
@@ -175,7 +175,7 @@ package body Devices.PS2 with SPARK_Mode => Off is
            Poll        => Kb_Poll'Access,
            Remove      => null), "ps2keyboard", Success);
       if not Success then
-         return False;
+         return;
       end if;
       Register
          ((Data        => System.Null_Address,
@@ -191,10 +191,9 @@ package body Devices.PS2 with SPARK_Mode => Off is
            Mmap        => null,
            Poll        => Ms_Poll'Access,
            Remove      => null), "ps2mouse", Success);
-      return Success;
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Init;
    ----------------------------------------------------------------------------
    procedure Kb_Read
@@ -347,16 +346,16 @@ package body Devices.PS2 with SPARK_Mode => Off is
       case Request is
          when IOCTL_Enable_2_1_Scaling =>
             Mouse_Write (16#E7#);
-            Unused := Read_PS2;
+            Read_PS2 (Unused);
          when IOCTL_Enable_1_1_Scaling =>
             Mouse_Write (16#E6#);
-            Unused := Read_PS2;
+            Read_PS2 (Unused);
          when IOCTL_Set_Resolution =>
             if Argument_Integer <= 3 then
                Mouse_Write (16#E8#);
-               Unused := Read_PS2;
+               Read_PS2 (Unused);
                Mouse_Write (Unsigned_8 (Argument_Integer));
-               Unused := Read_PS2;
+               Read_PS2 (Unused);
             else
                Success := False;
                goto Cleanup;
@@ -364,9 +363,9 @@ package body Devices.PS2 with SPARK_Mode => Off is
          when IOCTL_Set_Sample_Rate =>
             if Argument_Integer <= 200 then
                Mouse_Write (16#F3#);
-               Unused := Read_PS2;
+               Read_PS2 (Unused);
                Mouse_Write (Unsigned_8 (Argument_Integer));
-               Unused := Read_PS2;
+               Read_PS2 (Unused);
             else
                Success := False;
                goto Cleanup;
@@ -408,35 +407,33 @@ package body Devices.PS2 with SPARK_Mode => Off is
    begin
       Write_PS2 (16#64#, 16#D4#);
       Write_PS2 (16#60#, 16#F3#);
-      Discard := Read_PS2;
+      Read_PS2 (Discard);
       Write_PS2 (16#64#, 16#D4#);
       Write_PS2 (16#60#, Rate);
-      Discard := Read_PS2;
+      Read_PS2 (Discard);
    end Set_Sample_Rate;
 
-   function Identify_Mouse return Unsigned_8 is
+   procedure Identify_Mouse (ID : out Unsigned_8) is
       Discard : Unsigned_8;
-      Result  : Unsigned_8;
    begin
       Write_PS2 (16#64#, 16#D4#);
       Write_PS2 (16#60#, 16#F5#);
-      Discard := Read_PS2;
+      Read_PS2 (Discard);
       Write_PS2 (16#64#, 16#D4#);
       Write_PS2 (16#60#, 16#F2#);
-      Discard := Read_PS2;
-      Result  := Read_PS2;
+      Read_PS2 (Discard);
+      Read_PS2 (ID);
       Write_PS2 (16#64#, 16#D4#);
       Write_PS2 (16#60#, 16#F4#);
-      return Result;
    end Identify_Mouse;
    ----------------------------------------------------------------------------
-   function Read_PS2 return Unsigned_8 is
+   procedure Read_PS2 (Value : out Unsigned_8) is
    begin
       for I in 1 .. 100_000 loop
          exit when (Arch.Snippets.Port_In (16#64#) and 1) /= 0;
          Scheduler.Yield_If_Able;
       end loop;
-      return Arch.Snippets.Port_In (16#60#);
+      Value := Arch.Snippets.Port_In (16#60#);
    end Read_PS2;
 
    procedure Write_PS2 (Port : Unsigned_16; Value : Unsigned_8) is
@@ -448,10 +445,10 @@ package body Devices.PS2 with SPARK_Mode => Off is
       Arch.Snippets.Port_Out (Port, Value);
    end Write_PS2;
 
-   function Read_PS2_Config return Unsigned_8 is
+   procedure Read_PS2_Config (Value : out Unsigned_8) is
    begin
       Write_PS2 (16#64#, 16#20#);
-      return Read_PS2;
+      Read_PS2 (Value);
    end Read_PS2_Config;
 
    procedure Write_PS2_Config (Value : Unsigned_8) is

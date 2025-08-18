@@ -26,7 +26,7 @@ with Arch.SBI;
 package body Arch.Hooks with SPARK_Mode => Off is
    procedure Devices_Hook (Success : out Boolean) is
    begin
-      Success := Devices.FB.Init;
+      Devices.FB.Init (Success);
    end Devices_Hook;
 
    procedure PRCTL_Hook

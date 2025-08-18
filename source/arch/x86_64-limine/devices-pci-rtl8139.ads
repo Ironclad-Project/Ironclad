@@ -17,7 +17,7 @@
 with Memory;
 
 package Devices.PCI.RTL8139 with SPARK_Mode => Off is
-   function Init return Boolean;
+   procedure Init (Success : out Boolean);
 
 private
    --  There are 4 hardware transmit descriptors, 0 to 3

@@ -16,10 +16,10 @@
 
 with Interfaces; use Interfaces;
 
-package Arch.HPET with SPARK_Mode => Off is
+package Arch.HPET is
    --  Initialize the HPET, if found.
    --  @return True in Success, False on failure or not found.
-   function Init return Boolean;
+   procedure Init (Success : out Boolean);
 
    --  Get resolution of the timer in nanoseconds, that is, the minimum amount
    --  of time the clock can measure.

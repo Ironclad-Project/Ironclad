@@ -27,22 +27,23 @@ package body Arch.ACPI_PM_Timer with SPARK_Mode => Off is
    Use_IO_Ports : Boolean;
    IO_Addr      : Integer_Address;
 
-   function Init return Boolean is
+   procedure Init (Success : out Boolean) is
       pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
       ACPI_Address : ACPI.Table_Record;
    begin
       if not ACPI.Is_Supported then
-         return False;
+         Success := False;
+         return;
       end if;
 
       ACPI.FindTable (ACPI.FADT_Signature, ACPI_Address);
       if ACPI_Address.Virt_Addr = Null_Address then
-         return False;
+         Success := False;
+         return;
       end if;
 
       declare
          Rev     : Natural;
-         Success : Boolean;
          FADT    : ACPI.FADT
             with Import, Address => To_Address (ACPI_Address.Virt_Addr);
       begin
@@ -65,7 +66,7 @@ package body Arch.ACPI_PM_Timer with SPARK_Mode => Off is
                    Success        => Success,
                    Caching        => Arch.MMU.Uncacheable);
                if not Success then
-                  return False;
+                  return;
                end if;
 
                IO_Addr := IO_Addr + Memory_Offset;
@@ -74,15 +75,16 @@ package body Arch.ACPI_PM_Timer with SPARK_Mode => Off is
             Use_IO_Ports := True;
             IO_Addr      := Integer_Address (FADT.PM_TMR_BLK);
          else
-            return False;
+            Success := False;
+            return;
          end if;
       end;
 
       ACPI.Unref_Table (ACPI_Address);
-      return True;
+      Success := True;
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Init;
 
    procedure Get_Resolution (Resolution : out Unsigned_64) is

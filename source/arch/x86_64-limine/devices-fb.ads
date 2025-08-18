@@ -17,7 +17,7 @@
 with Memory;
 with Memory.MMU;
 
-package Devices.FB with SPARK_Mode => Off is
+package Devices.FB is
    --  Early init for console printing purposes.
    procedure Early_Init;
 
@@ -30,7 +30,7 @@ package Devices.FB with SPARK_Mode => Off is
        Blue_Mask_Size, Blue_Mask_Shift   : out Unsigned_8);
    ----------------------------------------------------------------------------
    --  Initialize the device.
-   function Init return Boolean;
+   procedure Init (Success : out Boolean);
 
 private
 

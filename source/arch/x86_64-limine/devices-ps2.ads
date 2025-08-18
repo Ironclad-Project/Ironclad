@@ -14,9 +14,9 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Devices.PS2 with SPARK_Mode => Off is
+package Devices.PS2 is
    --  Initialize the device.
-   function Init return Boolean;
+   procedure Init (Success : out Boolean);
 
 private
 
@@ -57,11 +57,11 @@ private
        Is_Error  : out Boolean);
    ----------------------------------------------------------------------------
    procedure Set_Sample_Rate (Rate : Unsigned_8);
-   function Identify_Mouse return Unsigned_8;
+   procedure Identify_Mouse (ID : out Unsigned_8);
    ----------------------------------------------------------------------------
-   function Read_PS2 return Unsigned_8;
+   procedure Read_PS2 (Value : out Unsigned_8);
    procedure Write_PS2 (Port : Unsigned_16; Value : Unsigned_8);
-   function Read_PS2_Config return Unsigned_8;
+   procedure Read_PS2_Config (Value : out Unsigned_8);
    procedure Write_PS2_Config (Value : Unsigned_8);
    procedure Mouse_Write (Data : Unsigned_8);
    ----------------------------------------------------------------------------

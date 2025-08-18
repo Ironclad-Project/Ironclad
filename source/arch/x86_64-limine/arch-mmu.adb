@@ -23,7 +23,7 @@ with Arch.Interrupts;
 with Userland.Process;
 with Synchronization;
 
-package body Arch.MMU with SPARK_Mode => Off is
+package body Arch.MMU is
    --  Bits in the 4K page entries.
    Page_P     : constant Unsigned_64 := Shift_Left (1,  0);
    Page_RW    : constant Unsigned_64 := Shift_Left (1,  1);
@@ -39,14 +39,14 @@ package body Arch.MMU with SPARK_Mode => Off is
       (ID       => Arch.Limine.Kernel_Address_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export, Async_Writers;
+      with Export;
 
    --  Response is a pointer to an HHDM_Response.
    HHDM_Request : Arch.Limine.Request :=
       (ID       => Arch.Limine.HHDM_ID,
        Revision => 0,
        Response => System.Null_Address)
-      with Export, Async_Writers;
+      with Export;
 
    procedure Get_Load_Addr (A : out System.Address; Success : out Boolean) is
       PhysPonse : Arch.Limine.Kernel_Address_Response
@@ -132,8 +132,8 @@ package body Arch.MMU with SPARK_Mode => Off is
    end Make_Not_Present;
 
    procedure Flush_TLBs (Map, Addr : System.Address; Len : Storage_Count) is
+      pragma SPARK_Mode (Off);
       use Userland.Process;
-
       A1    : constant    Unsigned_64 := Unsigned_64 (To_Integer (Map));
       Final : constant System.Address := Addr + Len;
       Curr  :          System.Address := Addr;

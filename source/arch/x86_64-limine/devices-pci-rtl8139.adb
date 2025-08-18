@@ -32,7 +32,7 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
    package A is new Alignment (Unsigned_64);
    package C1 is new System.Address_To_Access_Conversions (Controller_Data);
 
-   function Init return Boolean is
+   procedure Init (Success : out Boolean) is
       PCI_Dev : Devices.PCI.PCI_Device;
       PCI_Bar : Devices.PCI.Base_Address_Register;
 
@@ -46,8 +46,6 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
 
       Dev    : Device_Handle;
       Device : Resource;
-
-      Success : Boolean;
    begin
       Success := True;
 
@@ -62,7 +60,7 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
              Result => PCI_Dev,
              Success => Success);
          if not Success then
-            return False;
+            return;
          end if;
 
          Devices.PCI.Get_BAR (PCI_Dev, 0, PCI_Bar, Success);
@@ -81,12 +79,12 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
             Messages.Put_Line ("Failed to allocate receive buffer; "
             & "got addr=" & Memory.Virtual_Address'Image
              (Receive_Buffer_Start));
-            return False;
+            return;
          end if;
 
          if PCI_Bar.Base > Memory.Virtual_Address (Unsigned_16'Last) then
             Messages.Put_Line ("IO Base out of range");
-            return False;
+            return;
          end if;
 
          --  Really ugly code to convert the PCI Bar to a port IO offset
@@ -106,7 +104,7 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
            Size    => A.Align_Up (16#700# * 4, Arch.MMU.Page_Size),
            Success => Success);
          if not Success then
-            return False;
+            return;
          end if;
 
          for Idx in Transmit_Desc_Idx_Type loop
@@ -117,7 +115,7 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
          --  Hook the interrupt
          Success := Install_Interrupt_Handler (CD);
          if not Success then
-            return False;
+            return;
          end if;
 
          --  Power on the NIC
@@ -147,7 +145,7 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
          Success := Set_Receive_Buffer (CD);
          if not Success then
             Messages.Put_Line ("Failed to set receive buffer");
-            return False;
+            return;
          end if;
 
          --  Enable the receive and transmit engines now
@@ -193,10 +191,10 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
             Unsigned_64'Image (Unsigned_64 (Get_IO_8 (CD, REG_ID + 4))) & ":" &
             Unsigned_64'Image (Unsigned_64 (Get_IO_8 (CD, REG_ID + 5))));
       end loop;
-      return True;
+      Success := True;
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Init;
 
    function Set_Receive_Buffer (CD : Controller_Data_Acc) return Boolean

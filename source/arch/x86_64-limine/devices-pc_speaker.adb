@@ -18,8 +18,7 @@ with Arch.Clocks;
 with Arch.Snippets; use Arch.Snippets;
 
 package body Devices.PC_Speaker with SPARK_Mode => Off is
-   function Init return Boolean is
-      Success : Boolean;
+   procedure Init (Success : out Boolean) is
    begin
       Register
          ((Data        => System.Null_Address,
@@ -35,7 +34,6 @@ package body Devices.PC_Speaker with SPARK_Mode => Off is
            Mmap        => null,
            Poll        => null,
            Remove      => null), "pcspeaker", Success);
-      return Success;
    end Init;
 
    procedure Beep (Frequency : Unsigned_32 := 1000) is

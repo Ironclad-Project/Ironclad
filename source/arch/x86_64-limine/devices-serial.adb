@@ -21,12 +21,12 @@ with Arch.Snippets;
 package body Devices.Serial with SPARK_Mode => Off is
    package C1 is new System.Address_To_Access_Conversions (COM_Root);
 
-   function Init return Boolean is
+   procedure Init (Success : out Boolean) is
       Device_Name : String (1 .. 7) := "serial0";
-      Discard     : Boolean;
       Device      : Resource;
       Data        : COM_Root_Acc;
    begin
+      Success := True;
       for I in COM_Ports'Range loop
          --  Check if the port exists by writing a value and checking.
          Arch.Snippets.Port_Out (COM_Ports (I) + Scratch, 16#55#);
@@ -59,13 +59,15 @@ package body Devices.Serial with SPARK_Mode => Off is
                 Mmap        => null,
                 Poll        => Poll'Access,
                 Remove      => null);
-            Register (Device, Device_Name, Discard);
+            Register (Device, Device_Name, Success);
+            if not Success then
+               return;
+            end if;
          end if;
       end loop;
-      return True;
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Init;
 
    procedure Init_COM1 is
