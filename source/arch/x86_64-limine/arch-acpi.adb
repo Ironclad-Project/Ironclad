@@ -544,7 +544,12 @@ package body Arch.ACPI with SPARK_Mode => Off is
              Can_Execute       => False,
              Is_Global         => True),
           Success        => Success);
-      return To_Address (Memory.Memory_Offset + Integer_Address (Phys_Addr));
+      if Success then
+         return To_Address
+            (Memory.Memory_Offset + Integer_Address (Phys_Addr));
+      else
+         return System.Null_Address;
+      end if;
    exception
       when Constraint_Error =>
          return System.Null_Address;
@@ -557,16 +562,15 @@ package body Arch.ACPI with SPARK_Mode => Off is
       Start   : Integer_Address := To_Integer (Address);
       Len     : Integer_Address := Integer_Address (Length);
    begin
-      if Length < Memory.MMU.Page_Size then
-         return;
-      end if;
-
-      A.Align_Memory_Range (Start, Len, Memory.MMU.Page_Size);
+      A.Crop_Memory_Range (Start, Len, Memory.MMU.Page_Size);
       Memory.MMU.Unmap_Range
          (Map           => Memory.MMU.Kernel_Table,
           Virtual_Start => To_Address (Start),
           Length        => Storage_Count (Len),
           Success       => Success);
+      if not Success then
+         Messages.Put_Line ("Failed to unmap for uACPI!");
+      end if;
    exception
       when Constraint_Error =>
          null;

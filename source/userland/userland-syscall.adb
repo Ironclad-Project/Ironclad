@@ -7578,29 +7578,9 @@ package body Userland.Syscall is
        Byte_Count : Unsigned_64;
        Can_Map    : out Boolean)
    is
-      Result : System.Address;
-      Is_Mapped, Is_Readable, Is_Writeable, Is_Executable : Boolean;
-      Is_User_Accessible : Boolean;
+      pragma Unreferenced (Map);
    begin
-      if Addr + Virtual_Address (Byte_Count) > Memory_Offset then
-         Can_Map := False;
-         return;
-      end if;
-
-      Memory.MMU.Translate_Address
-         (Map                => Map,
-          Virtual            => To_Address (Addr),
-          Length             => Storage_Count (Byte_Count),
-          Physical           => Result,
-          Is_Mapped          => Is_Mapped,
-          Is_User_Accessible => Is_User_Accessible,
-          Is_Readable        => Is_Readable,
-          Is_Writeable       => Is_Writeable,
-          Is_Executable      => Is_Executable);
-      Can_Map := not Is_Mapped;
-   exception
-      when Constraint_Error =>
-         Can_Map := False;
+      Can_Map := Addr + Virtual_Address (Byte_Count) < Memory_Offset;
    end Check_Userland_Mappability;
 
    procedure Resolve_AT_Directive

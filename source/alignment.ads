@@ -48,4 +48,12 @@ package Alignment with Pure is
    --  @param Bounds Boundary to align the memory range to. Ex. Page size.
    procedure Align_Memory_Range (Base, Length : in out T; Bounds : T)
          with Pre => Bounds /= 0 and (Bounds and (Bounds - 1)) = 0;
+
+   --  Crop a memory range into the desired boundary.
+   --  This might result in a smaller window, but never a bigger one.
+   --  @param Base   Base of the memory range.
+   --  @param Length Length of the memory range.
+   --  @param Bounds Boundary to align the memory range to. Ex. Page size.
+   procedure Crop_Memory_Range (Base, Length : in out T; Bounds : T)
+         with Pre => Bounds /= 0 and (Bounds and (Bounds - 1)) = 0;
 end Alignment;

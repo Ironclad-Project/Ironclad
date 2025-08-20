@@ -197,31 +197,10 @@ private
 
    type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
    type PML4_Acc is access PML4;
-   type Mapping_Range;
-   type Mapping_Range_Acc is access Mapping_Range;
-   type Mapping_Range is record
-      Next           : Mapping_Range_Acc;
-      Is_Allocated   : Boolean;
-      Virtual_Start  : System.Address;
-      Physical_Start : System.Address;
-      Length         : Storage_Count;
-      Flags          : Arch.MMU.Page_Permissions;
-   end record;
-
    type Page_Table is record
-      PML4_Level      : PML4;
-      Mutex           : aliased Synchronization.Readers_Writer_Lock;
-      Map_Ranges_Root : Mapping_Range_Acc;
+      PML4_Level : PML4;
+      Mutex      : aliased Synchronization.Readers_Writer_Lock;
    end record;
-
-   procedure Inner_Map_Allocated_Range
-      (Map            : Page_Table_Acc;
-       Physical_Start : out System.Address;
-       Virtual_Start  : System.Address;
-       Length         : Storage_Count;
-       Permissions    : Arch.MMU.Page_Permissions;
-       Success        : out Boolean;
-       Caching        : Arch.MMU.Caching_Model := Arch.MMU.Write_Back);
 
    procedure Get_Next_Level
       (Current_Level       : Physical_Address;
@@ -235,17 +214,6 @@ private
        Allocate : Boolean;
        Result   : out Virtual_Address);
 
-   procedure Inner_Map_Range
-      (Map            : Page_Table_Acc;
-       Physical_Start : System.Address;
-       Virtual_Start  : System.Address;
-       Length         : Storage_Count;
-       Permissions    : Arch.MMU.Page_Permissions;
-       Caching        : Arch.MMU.Caching_Model;
-       Success        : out Boolean);
-
-   procedure Flush_TLBs
-      (Map  : Page_Table_Acc;
-       Addr : System.Address;
-       Len  : Storage_Count);
+   function Idx_To_Addr (Idx_4, Idx_3, Idx_2, Idx_1 : Positive)
+      return Integer_Address;
 end Memory.MMU;

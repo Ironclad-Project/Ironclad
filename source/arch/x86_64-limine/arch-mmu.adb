@@ -32,6 +32,7 @@ package body Arch.MMU is
    Page_PCD   : constant Unsigned_64 := Shift_Left (1,  4);
    Page_PAT   : constant Unsigned_64 := Shift_Left (1,  7);
    Page_G     : constant Unsigned_64 := Shift_Left (1,  8);
+   Page_USER  : constant Unsigned_64 := Shift_Left (1,  9);
    Page_NX    : constant Unsigned_64 := Shift_Left (1, 63);
 
    --  Response is a pointer to an Kernel_Address_Response.
@@ -79,28 +80,42 @@ package body Arch.MMU is
       return Integer_Address (Entry_Body and 16#FFFFFFF000#);
    end Clean_Entry;
 
-   function Clean_Entry_Perms (Entr : Unsigned_64) return Page_Permissions is
+   function Clean_Entry_Perms (Entr : Unsigned_64) return Clean_Result is
+      Result : Clean_Result;
    begin
-      return
+      Result.User_Flag := (Entr and Page_USER) /= 0;
+      Result.Perms :=
          (Is_User_Accessible => (Entr and Page_U) /= 0,
           Can_Read           => True,
           Can_Write          => (Entr and Page_RW) /= 0,
           Can_Execute        => (Entr and Page_NX) = 0,
           Is_Global          => (Entr and Page_G) /= 0);
+      if (Entr and (Page_PWT and Page_PCD)) /= 0 then
+         Result.Caching := Uncacheable;
+      elsif (Entr and (Page_PWT and Page_PAT)) /= 0 then
+         Result.Caching := Write_Combining;
+      elsif (Entr and Page_PWT) /= 0 then
+         Result.Caching := Write_Through;
+      else
+         Result.Caching := Write_Back;
+      end if;
+      return Result;
    end Clean_Entry_Perms;
 
    function Construct_Entry
-      (Addr    : System.Address;
-       Perm    : Page_Permissions;
-       Caching : Caching_Model) return Unsigned_64
+      (Addr      : System.Address;
+       Perm      : Page_Permissions;
+       Caching   : Caching_Model;
+       User_Flag : Boolean) return Unsigned_64
    is
       Result : Unsigned_64;
    begin
       Result :=
-         (if Perm.Can_Execute        then 0       else Page_NX) or
-         (if Perm.Can_Write          then Page_RW else       0) or
-         (if Perm.Is_Global          then Page_G  else       0) or
-         (if Perm.Is_User_Accessible then Page_U  else       0) or
+         (if Perm.Can_Execute        then 0         else Page_NX) or
+         (if Perm.Can_Write          then Page_RW   else       0) or
+         (if Perm.Is_Global          then Page_G    else       0) or
+         (if Perm.Is_User_Accessible then Page_U    else       0) or
+         (if User_Flag               then Page_USER else       0) or
          Page_P;
 
       case Caching is

@@ -45,4 +45,16 @@ package body Alignment is
       Base   := Start;
       Length := Top - Start;
    end Align_Memory_Range;
+
+   procedure Crop_Memory_Range (Base, Length : in out T; Bounds : T) is
+      Start : constant T := Align_Up (Base, Bounds);
+      Top   : constant T := Align_Down (Base + Length, Bounds);
+   begin
+      Base := Start;
+      if Top > Start then
+         Length := Top - Start;
+      else
+         Length := 0;
+      end if;
+   end Crop_Memory_Range;
 end Alignment;

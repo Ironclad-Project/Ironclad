@@ -52,13 +52,19 @@ package Arch.MMU is
    function Clean_Entry (Entry_Body : Unsigned_64) return Integer_Address;
 
    --  Extract a physical address and permissions from a page table entry.
-   function Clean_Entry_Perms (Entr : Unsigned_64) return Page_Permissions;
+   type Clean_Result is record
+      User_Flag : Boolean;
+      Perms     : Page_Permissions;
+      Caching   : Caching_Model;
+   end record;
+   function Clean_Entry_Perms (Entr : Unsigned_64) return Clean_Result;
 
    --  Construct a page table entry.
    function Construct_Entry
-      (Addr    : System.Address;
-       Perm    : Page_Permissions;
-       Caching : Caching_Model) return Unsigned_64;
+      (Addr      : System.Address;
+       Perm      : Page_Permissions;
+       Caching   : Caching_Model;
+       User_Flag : Boolean) return Unsigned_64;
 
    --  Construct a page table intermediary level.
    function Construct_Level (Addr : System.Address) return Unsigned_64;

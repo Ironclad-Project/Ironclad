@@ -24,6 +24,8 @@ package body Memory.MMU with SPARK_Mode => Off is
    Global_Kernel_Usage : Memory.Size := 0;
    Global_Table_Usage  : Memory.Size := 0;
 
+   procedure F is new Ada.Unchecked_Deallocation (Page_Table, Page_Table_Acc);
+
    procedure Init (Memmap : Arch.Boot_Memory_Map; Success : out Boolean) is
       NX_Flags : constant Arch.MMU.Page_Permissions :=
          (Is_User_Accessible => False,
@@ -67,9 +69,8 @@ package body Memory.MMU with SPARK_Mode => Off is
 
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Table'
-         (PML4_Level      => [others => 0],
-          Mutex           => Synchronization.Unlocked_RW_Lock,
-          Map_Ranges_Root => null);
+         (PML4_Level => [others => 0],
+          Mutex      => Synchronization.Unlocked_RW_Lock);
 
       --  Preallocate the higher half PML4, so when we clone the kernel memmap,
       --  we can just blindly copy the entries and share mapping between all
@@ -87,7 +88,7 @@ package body Memory.MMU with SPARK_Mode => Off is
 
       --  Map the memmap memory to the memory window.
       for E of Memmap loop
-         Inner_Map_Range
+         Map_Range
             (Map            => Kernel_Table,
              Physical_Start => To_Address (To_Integer (E.Start)),
              Virtual_Start  => To_Address (To_Integer (E.Start) +
@@ -102,7 +103,7 @@ package body Memory.MMU with SPARK_Mode => Off is
       end loop;
 
       --  Map the kernel sections.
-      Inner_Map_Range
+      Map_Range
          (Map            => Kernel_Table,
           Physical_Start => To_Address (TSAddr - Kernel_Offset + Phys),
           Virtual_Start  => text_start'Address,
@@ -111,7 +112,7 @@ package body Memory.MMU with SPARK_Mode => Off is
           Caching        => Arch.MMU.Write_Back,
           Success        => Success);
       if not Success then return; end if;
-      Inner_Map_Range
+      Map_Range
          (Map            => Kernel_Table,
           Physical_Start => To_Address (OSAddr - Kernel_Offset + Phys),
           Virtual_Start  => rodata_start'Address,
@@ -120,7 +121,7 @@ package body Memory.MMU with SPARK_Mode => Off is
           Caching        => Arch.MMU.Write_Back,
           Success        => Success);
       if not Success then return; end if;
-      Inner_Map_Range
+      Map_Range
          (Map            => Kernel_Table,
           Physical_Start => To_Address (DSAddr - Kernel_Offset + Phys),
           Virtual_Start  => data_start'Address,
@@ -147,9 +148,8 @@ package body Memory.MMU with SPARK_Mode => Off is
    begin
       Synchronization.Seize_Reader (Kernel_Table.Mutex);
       New_Map := new Page_Table'
-         (PML4_Level      => [others => 0],
-          Mutex           => Synchronization.Unlocked_RW_Lock,
-          Map_Ranges_Root => null);
+         (PML4_Level => [others => 0],
+          Mutex      => Synchronization.Unlocked_RW_Lock);
       New_Map.PML4_Level (257 .. 512) := Kernel_Table.PML4_Level (257 .. 512);
       Synchronization.Release_Reader (Kernel_Table.Mutex);
    exception
@@ -158,92 +158,117 @@ package body Memory.MMU with SPARK_Mode => Off is
    end Create_Table;
 
    procedure Fork_Table (Map : Page_Table_Acc; Forked : out Page_Table_Acc) is
-      type Page_Data is array (Storage_Count range <>) of Unsigned_8;
-
-      Addr       : System.Address;
-      Curr_Range : Mapping_Range_Acc;
-      Success    : Boolean;
+      type Arr is array (1 .. Page_Size) of Unsigned_8;
+      Addr, Addr2, Addr3 : Virtual_Address;
+      Perms : Arch.MMU.Clean_Result;
+      Success : Boolean;
    begin
       Forked := new Page_Table'
-         (PML4_Level      => [others => 0],
-          Mutex           => Synchronization.Unlocked_RW_Lock,
-          Map_Ranges_Root => null);
+         (PML4_Level => [others => 0],
+          Mutex      => Synchronization.Unlocked_RW_Lock);
 
-      Synchronization.Seize_Reader (Map.Mutex);
+      Synchronization.Seize_Writer (Map.Mutex);
 
       --  Clone the higher half, which is the same in all maps.
       Forked.PML4_Level (257 .. 512) := Map.PML4_Level (257 .. 512);
 
-      --  Duplicate the rest of maps, which are mostly going to be lower half.
-      Curr_Range := Map.Map_Ranges_Root;
-      while Curr_Range /= null loop
-         if Curr_Range.Is_Allocated then
-            Inner_Map_Allocated_Range
-               (Map            => Forked,
-                Physical_Start => Addr,
-                Virtual_Start  => Curr_Range.Virtual_Start,
-                Length         => Curr_Range.Length,
-                Permissions    => Curr_Range.Flags,
-                Success        => Success);
-            if not Success then
-               Destroy_Table (Forked);
-               goto Cleanup;
+      --  Go thru the lower half entries and copy.
+      for I3 in Map.PML4_Level (1 .. 256)'Range loop
+         declare
+            L3   : constant Unsigned_64 := Map.PML4_Level (I3);
+            A3   : constant Integer_Address :=
+               Arch.MMU.Clean_Entry (Map.PML4_Level (I3));
+            PML3 : PML4
+               with Import, Address => To_Address (Memory_Offset + A3);
+         begin
+            if Arch.MMU.Is_Entry_Present (L3) then
+               for I2 in PML3'Range loop
+                  declare
+                     L2   : constant Unsigned_64 := PML3 (I2);
+                     A2   : constant Integer_Address :=
+                        Arch.MMU.Clean_Entry (PML3 (I2));
+                     PML2 : PML4 with Import,
+                        Address => To_Address (Memory_Offset + A2);
+                  begin
+                     if Arch.MMU.Is_Entry_Present (L2) then
+                        for I1 in PML2'Range loop
+                           declare
+                              L1  : constant Unsigned_64 := PML2 (I1);
+                              A1  : constant Integer_Address :=
+                                 Arch.MMU.Clean_Entry (L1);
+                              PML1 : PML4 with Import,
+                                 Address => To_Address (Memory_Offset + A1);
+                           begin
+                              if Arch.MMU.Is_Entry_Present (L1) then
+                                 for I0 in PML1'Range loop
+                                    declare
+                                       L0  : constant Unsigned_64 := PML1 (I0);
+                                       A0  : constant Integer_Address :=
+                                          Arch.MMU.Clean_Entry (L0);
+                                    begin
+                                       Addr := Idx_To_Addr (I3, I2, I1, I0);
+                                       Perms :=
+                                          Arch.MMU.Clean_Entry_Perms (L0);
+                                       Get_Page (Forked, Addr, True, Addr2);
+                                       declare
+                                          Res : Unsigned_64 with Import,
+                                             Address => To_Address (Addr2);
+                                       begin
+                                          if Perms.User_Flag then
+                                             Memory.Physical.User_Alloc
+                                                (Addr    => Addr3,
+                                                 Size    => Page_Size,
+                                                 Success => Success);
+                                             if not Success then
+                                                goto Error_Cleanup;
+                                             end if;
+                                             declare
+                                                Allocated : Arr with Import,
+                                                   Address =>
+                                                      To_Address (Addr3);
+                                                Orig : Arr with Import,
+                                                   Address => To_Address
+                                                   (Memory.Memory_Offset + A0);
+                                             begin
+                                                Allocated := Orig;
+                                             end;
+                                             Res := Arch.MMU.Construct_Entry
+                                                (To_Address (Addr3 -
+                                                 Memory.Memory_Offset),
+                                                 Perms.Perms, Perms.Caching,
+                                                 True);
+                                          else
+                                             Res := L0;
+                                          end if;
+                                       end;
+                                    end;
+                                 end loop;
+                              end if;
+                           end;
+                        end loop;
+                     end if;
+                  end;
+               end loop;
             end if;
-
-            declare
-               New_Data : Page_Data (1 .. Curr_Range.Length)
-                  with Import, Address => Addr;
-               Original_Data : Page_Data (1 .. Curr_Range.Length)
-                  with Import, Address => To_Address
-                     (To_Integer (Curr_Range.Physical_Start) + Memory_Offset);
-            begin
-               New_Data := Original_Data;
-            end;
-         else
-            Map_Range
-               (Map            => Forked,
-                Physical_Start => Curr_Range.Physical_Start,
-                Virtual_Start  => Curr_Range.Virtual_Start,
-                Length         => Curr_Range.Length,
-                Permissions    => Curr_Range.Flags,
-                Success        => Success);
-            if not Success then
-               Destroy_Table (Forked);
-               goto Cleanup;
-            end if;
-         end if;
-
-         Curr_Range := Curr_Range.Next;
+         end;
       end loop;
 
-   <<Cleanup>>
-      Synchronization.Release_Reader (Map.Mutex);
+      Synchronization.Release_Writer (Map.Mutex);
+      return;
+
+   <<Error_Cleanup>>
+      F (Forked);
    exception
       when Constraint_Error =>
          Forked := null;
    end Fork_Table;
 
    procedure Destroy_Table (Map : in out Page_Table_Acc) is
-      procedure F is new Ada.Unchecked_Deallocation
-         (Page_Table, Page_Table_Acc);
-      procedure F is new Ada.Unchecked_Deallocation
-         (Mapping_Range, Mapping_Range_Acc);
-      Last_Range : Mapping_Range_Acc;
-      Curr_Range : Mapping_Range_Acc;
       Discard    : Memory.Size;
+      Perms      : Arch.MMU.Clean_Result;
       PML4_Sz    : constant Memory.Size := PML4'Size / 8;
    begin
-      Curr_Range := Map.Map_Ranges_Root;
       Synchronization.Seize_Writer (Map.Mutex);
-      while Curr_Range /= null loop
-         if Curr_Range.Is_Allocated then
-            Physical.User_Free (To_Integer (Curr_Range.Physical_Start));
-         end if;
-         Last_Range := Curr_Range;
-         Curr_Range := Curr_Range.Next;
-         F (Last_Range);
-      end loop;
-
       for L3 of Map.PML4_Level (1 .. 256) loop
          declare
             A3   : constant Integer_Address := Arch.MMU.Clean_Entry (L3);
@@ -260,13 +285,30 @@ package body Memory.MMU with SPARK_Mode => Off is
                   begin
                      if Arch.MMU.Is_Entry_Present (L2) then
                         for L1 of PML2 loop
-                           if Arch.MMU.Is_Entry_Present (L1) then
-                              Global_Table_Usage := Global_Table_Usage -
-                                 PML4_Sz;
-                              Memory.Physical.Free
-                                 (Interfaces.C.size_t
-                                    (Arch.MMU.Clean_Entry (L1)));
-                           end if;
+                           declare
+                              A1   : constant Integer_Address :=
+                                 Arch.MMU.Clean_Entry (L1);
+                              PML1 : PML4 with Import,
+                                 Address => To_Address (Memory_Offset + A1);
+                           begin
+                              if Arch.MMU.Is_Entry_Present (L1) then
+                                 for L0 of PML1 loop
+                                    if Arch.MMU.Is_Entry_Present (L0) then
+                                       Perms :=
+                                          Arch.MMU.Clean_Entry_Perms (L0);
+                                       if Perms.User_Flag then
+                                          Physical.User_Free
+                                             (Memory.Memory_Offset +
+                                              Arch.MMU.Clean_Entry (L0));
+                                       end if;
+                                    end if;
+                                 end loop;
+                                 Global_Table_Usage :=
+                                    Global_Table_Usage - PML4_Sz;
+                                 Memory.Physical.Free
+                                    (Interfaces.C.size_t (A1));
+                              end if;
+                           end;
                         end loop;
                         Global_Table_Usage := Global_Table_Usage - PML4_Sz;
                         Memory.Physical.Free (Interfaces.C.size_t (A2));
@@ -329,7 +371,7 @@ package body Memory.MMU with SPARK_Mode => Off is
          begin
             if Page_Addr /= 0 then
                Physical := To_Address (Arch.MMU.Clean_Entry (Page));
-               Perms    := Arch.MMU.Clean_Entry_Perms (Page);
+               Perms    := Arch.MMU.Clean_Entry_Perms (Page).Perms;
             end if;
             if First_Iter then
                if Page_Addr /= 0 then
@@ -378,56 +420,34 @@ package body Memory.MMU with SPARK_Mode => Off is
        Success        : out Boolean;
        Caching        : Arch.MMU.Caching_Model := Arch.MMU.Write_Back)
    is
-      procedure F is new Ada.Unchecked_Deallocation
-         (Mapping_Range, Mapping_Range_Acc);
-
-      New_Range  : Mapping_Range_Acc;
-      Last_Range : Mapping_Range_Acc;
-      Curr_Range : Mapping_Range_Acc;
+      Virt  : Virtual_Address          := To_Integer (Virtual_Start);
+      Phys  : Virtual_Address          := To_Integer (Physical_Start);
+      Final : constant Virtual_Address := Virt + Virtual_Address (Length);
+      Addr  : Virtual_Address;
+      Orig  : Integer_Address;
+      Perms : Arch.MMU.Clean_Result;
    begin
-      Success   := False;
-      New_Range := new Mapping_Range'
-         (Next           => null,
-          Is_Allocated   => False,
-          Virtual_Start  => Virtual_Start,
-          Physical_Start => Physical_Start,
-          Length         => Length,
-          Flags          => Permissions);
-
-      Curr_Range := Map.Map_Ranges_Root;
-
       Synchronization.Seize_Writer (Map.Mutex);
+      while Virt < Final loop
+         Get_Page (Map, Virt, True, Addr);
 
-      while Curr_Range /= null loop
-         if Curr_Range.Virtual_Start <= Virtual_Start and
-            Curr_Range.Virtual_Start + Length >= Virtual_Start + Length
-         then
-            F (New_Range);
-            goto Ret;
-         end if;
+         declare
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            Orig  := Arch.MMU.Clean_Entry (Entry_Body);
+            Perms := Arch.MMU.Clean_Entry_Perms (Entry_Body);
+            if Perms.User_Flag and then Orig /= Phys then
+               Physical.User_Free (Memory.Memory_Offset + Orig);
+            end if;
+            Entry_Body := Arch.MMU.Construct_Entry
+               (To_Address (Phys), Permissions, Caching, False);
+         end;
 
-         Last_Range := Curr_Range;
-         Curr_Range := Curr_Range.Next;
+         Virt := Virt + Page_Size;
+         Phys := Phys + Page_Size;
       end loop;
-
-      Curr_Range := New_Range;
-      if Map.Map_Ranges_Root = null then
-         Map.Map_Ranges_Root := Curr_Range;
-      else
-         Last_Range.Next := Curr_Range;
-      end if;
-
-      Inner_Map_Range
-         (Map            => Map,
-          Physical_Start => Physical_Start,
-          Virtual_Start  => Virtual_Start,
-          Length         => Length,
-          Permissions    => Permissions,
-          Caching        => Caching,
-          Success        => Success);
-
-   <<Ret>>
       Synchronization.Release_Writer (Map.Mutex);
+      Success := True;
    exception
       when Constraint_Error =>
          Success := False;
@@ -441,16 +461,53 @@ package body Memory.MMU with SPARK_Mode => Off is
        Success        : out Boolean;
        Caching        : Arch.MMU.Caching_Model := Arch.MMU.Write_Back)
    is
-      Discard : System.Address;
+      Virt  : Virtual_Address          := To_Integer (Virtual_Start);
+      Final : constant Virtual_Address := Virt + Virtual_Address (Length);
+      Addr  : Virtual_Address;
+      Addr1 : Virtual_Address;
+      Phys  : Virtual_Address;
    begin
-      Inner_Map_Allocated_Range
-         (Map            => Map,
-          Physical_Start => Discard,
-          Virtual_Start  => Virtual_Start,
-          Length         => Length,
-          Permissions    => Permissions,
-          Success        => Success,
-          Caching        => Caching);
+      Synchronization.Seize_Writer (Map.Mutex);
+      while Virt < Final loop
+         Get_Page (Map, Virt, True, Addr);
+
+         Memory.Physical.User_Alloc
+            (Addr    => Addr1,
+             Size    => Page_Size,
+             Success => Success);
+         if not Success then
+            Synchronization.Release_Writer (Map.Mutex);
+            return;
+         end if;
+         Phys := Addr1 - Memory.Memory_Offset;
+         declare
+            Allocated : array (1 .. Page_Size) of Unsigned_8
+               with Import, Address => To_Address (Addr1);
+         begin
+            Allocated := [others => 0];
+         end;
+
+         declare
+            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
+         begin
+            Orig  := Arch.MMU.Clean_Entry (Entry_Body);
+            Perms := Arch.MMU.Clean_Entry_Perms (Entry_Body);
+            if Perms.User_Flag and then Orig /= Phys then
+               Physical.User_Free (Memory.Memory_Offset + Orig);
+            end if;
+            Entry_Body := Arch.MMU.Construct_Entry
+               (To_Address (Phys), Permissions, Caching, True);
+         end;
+
+         Virt := Virt + Page_Size;
+         Phys := Phys + Page_Size;
+      end loop;
+      Synchronization.Release_Writer (Map.Mutex);
+
+      Success := True;
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Map_Allocated_Range;
 
    procedure Remap_Range
@@ -461,29 +518,12 @@ package body Memory.MMU with SPARK_Mode => Off is
        Success       : out Boolean;
        Caching       : Arch.MMU.Caching_Model := Arch.MMU.Write_Back)
    is
-      Virt       : Virtual_Address          := To_Integer (Virtual_Start);
-      Final      : constant Virtual_Address := Virt + Virtual_Address (Length);
-      Addr       : Virtual_Address;
-      Curr_Range : Mapping_Range_Acc;
+      Virt  : Virtual_Address          := To_Integer (Virtual_Start);
+      Final : constant Virtual_Address := Virt + Virtual_Address (Length);
+      Addr  : Virtual_Address;
+      Perms : Arch.MMU.Clean_Result;
    begin
-      Success    := False;
-      Curr_Range := Map.Map_Ranges_Root;
-
       Synchronization.Seize_Writer (Map.Mutex);
-
-      while Curr_Range /= null loop
-         if Curr_Range.Virtual_Start = Virtual_Start and
-            Curr_Range.Length        = Length
-         then
-            Curr_Range.Flags := Permissions;
-            goto Actually_Remap;
-         end if;
-
-         Curr_Range := Curr_Range.Next;
-      end loop;
-      goto Ret;
-
-   <<Actually_Remap>>
       while Virt < Final loop
          Get_Page (Map, Virt, False, Addr);
 
@@ -491,19 +531,18 @@ package body Memory.MMU with SPARK_Mode => Off is
             Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
          begin
             if Addr /= 0 then
+               Perms      := Arch.MMU.Clean_Entry_Perms (Entry_Body);
                Entry_Body := Arch.MMU.Construct_Entry
                   (To_Address (Arch.MMU.Clean_Entry (Entry_Body)),
-                      Permissions, Caching);
+                      Permissions, Caching, Perms.User_Flag);
             end if;
          end;
 
          Virt := Virt + Page_Size;
       end loop;
-      Flush_TLBs (Map, Virtual_Start, Length);
-      Success := True;
-
-   <<Ret>>
       Synchronization.Release_Writer (Map.Mutex);
+      Arch.MMU.Flush_TLBs (Get_Map_Table_Addr (Map), Virtual_Start, Length);
+      Success := True;
    exception
       when Constraint_Error =>
          Success := False;
@@ -515,42 +554,13 @@ package body Memory.MMU with SPARK_Mode => Off is
        Length        : Storage_Count;
        Success       : out Boolean)
    is
-      procedure F is new Ada.Unchecked_Deallocation
-         (Mapping_Range, Mapping_Range_Acc);
-
-      Virt       : Virtual_Address          := To_Integer (Virtual_Start);
-      Final      : constant Virtual_Address := Virt + Virtual_Address (Length);
-      Addr       : Virtual_Address;
-      Last_Range : Mapping_Range_Acc := null;
-      Curr_Range : Mapping_Range_Acc;
+      Virt  : Virtual_Address          := To_Integer (Virtual_Start);
+      Final : constant Virtual_Address := Virt + Virtual_Address (Length);
+      Addr  : Virtual_Address;
+      Orig  : Virtual_Address;
+      Perms : Arch.MMU.Clean_Result;
    begin
-      Success    := False;
-      Curr_Range := Map.Map_Ranges_Root;
       Synchronization.Seize_Writer (Map.Mutex);
-
-      while Curr_Range /= null loop
-         if Curr_Range.Virtual_Start = Virtual_Start and
-            Curr_Range.Length        = Length
-         then
-            if Curr_Range.Is_Allocated then
-               Physical.Free (Interfaces.C.size_t
-                  (To_Integer (Curr_Range.Physical_Start)));
-            end if;
-            goto Actually_Unmap;
-         end if;
-
-         Last_Range := Curr_Range;
-         Curr_Range := Curr_Range.Next;
-      end loop;
-      goto No_Free_Return;
-
-   <<Actually_Unmap>>
-      if Last_Range /= null then
-         Last_Range.Next := Curr_Range.Next;
-      else
-         Map.Map_Ranges_Root := null;
-      end if;
-
       while Virt < Final loop
          Get_Page (Map, Virt, False, Addr);
 
@@ -558,21 +568,20 @@ package body Memory.MMU with SPARK_Mode => Off is
             Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
          begin
             if Addr /= 0 then
+               Orig  := Arch.MMU.Clean_Entry (Entry_Body);
+               Perms := Arch.MMU.Clean_Entry_Perms (Entry_Body);
+               if Perms.User_Flag then
+                  Physical.User_Free (Memory.Memory_Offset + Orig);
+               end if;
                Entry_Body := Arch.MMU.Make_Not_Present (Entry_Body);
             end if;
          end;
          Virt := Virt + Page_Size;
       end loop;
-      Flush_TLBs (Map, Virtual_Start, Length);
+      Synchronization.Release_Writer (Map.Mutex);
+
+      Arch.MMU.Flush_TLBs (Get_Map_Table_Addr (Map), Virtual_Start, Length);
       Success := True;
-
-      Synchronization.Release_Writer (Map.Mutex);
-      F (Curr_Range);
-      return;
-
-   <<No_Free_Return>>
-      Synchronization.Release_Writer (Map.Mutex);
-
    exception
       when Constraint_Error =>
          Success := False;
@@ -604,15 +613,9 @@ package body Memory.MMU with SPARK_Mode => Off is
 
    procedure Get_User_Mapped_Size (Map : Page_Table_Acc; Sz : out Unsigned_64)
    is
-      Curr_Range : Mapping_Range_Acc;
    begin
       Synchronization.Seize_Reader (Map.Mutex);
       Sz := 0;
-      Curr_Range := Map.Map_Ranges_Root;
-      while Curr_Range /= null loop
-         Sz         := Sz + Unsigned_64 (Curr_Range.Length);
-         Curr_Range := Curr_Range.Next;
-      end loop;
       Synchronization.Release_Reader (Map.Mutex);
    exception
       when Constraint_Error =>
@@ -627,93 +630,6 @@ package body Memory.MMU with SPARK_Mode => Off is
       Stats := (Val1, Val2, 0);
    end Get_Statistics;
    ----------------------------------------------------------------------------
-   procedure Inner_Map_Allocated_Range
-      (Map            : Page_Table_Acc;
-       Physical_Start : out System.Address;
-       Virtual_Start  : System.Address;
-       Length         : Storage_Count;
-       Permissions    : Arch.MMU.Page_Permissions;
-       Success        : out Boolean;
-       Caching        : Arch.MMU.Caching_Model := Arch.MMU.Write_Back)
-   is
-      procedure F is new Ada.Unchecked_Deallocation
-         (Mapping_Range, Mapping_Range_Acc);
-
-      Addr       : Virtual_Address;
-      New_Range  : Mapping_Range_Acc;
-      Last_Range : Mapping_Range_Acc;
-      Curr_Range : Mapping_Range_Acc;
-   begin
-      Memory.Physical.User_Alloc
-         (Addr    => Addr,
-          Size    => Unsigned_64 (Length),
-          Success => Success);
-      if not Success then
-         Physical_Start := System.Null_Address;
-         return;
-      end if;
-
-      Success   := False;
-      New_Range := new Mapping_Range'
-         (Next           => null,
-          Is_Allocated   => True,
-          Virtual_Start  => Virtual_Start,
-          Physical_Start => To_Address (Addr - Memory.Memory_Offset),
-          Length         => Length,
-          Flags          => Permissions);
-
-      Curr_Range := Map.Map_Ranges_Root;
-
-      Synchronization.Seize_Writer (Map.Mutex);
-
-      while Curr_Range /= null loop
-         if Curr_Range.Virtual_Start <= Virtual_Start and
-            Curr_Range.Virtual_Start + Length >= Virtual_Start + Length
-         then
-            goto Ret;
-         end if;
-
-         Last_Range := Curr_Range;
-         Curr_Range := Curr_Range.Next;
-      end loop;
-
-      Curr_Range := New_Range;
-      if Map.Map_Ranges_Root = null then
-         Map.Map_Ranges_Root := Curr_Range;
-      else
-         Last_Range.Next := Curr_Range;
-      end if;
-
-      Inner_Map_Range
-         (Map            => Map,
-          Physical_Start => To_Address (Addr - Memory.Memory_Offset),
-          Virtual_Start  => Virtual_Start,
-          Length         => Length,
-          Permissions    => Permissions,
-          Caching        => Caching,
-          Success        => Success);
-
-   <<Ret>>
-      if Success then
-         declare
-            Allocated : array (1 .. Length) of Unsigned_8
-               with Import, Address => To_Address (Addr);
-         begin
-            Allocated      := [others => 0];
-            Physical_Start := To_Address (Addr);
-         end;
-      else
-         F (New_Range);
-         Memory.Physical.Free (Interfaces.C.size_t (Addr));
-         Physical_Start := System.Null_Address;
-      end if;
-      Synchronization.Release_Writer (Map.Mutex);
-   exception
-      when Constraint_Error =>
-         Physical_Start := System.Null_Address;
-         Success        := False;
-   end Inner_Map_Allocated_Range;
-
    procedure Get_Next_Level
       (Current_Level       : Physical_Address;
        Index               : Unsigned_64;
@@ -792,42 +708,14 @@ package body Memory.MMU with SPARK_Mode => Off is
          Panic.Hard_Panic ("Exception when fetching/allocating page");
    end Get_Page;
 
-   procedure Inner_Map_Range
-      (Map            : Page_Table_Acc;
-       Physical_Start : System.Address;
-       Virtual_Start  : System.Address;
-       Length         : Storage_Count;
-       Permissions    : Arch.MMU.Page_Permissions;
-       Caching        : Arch.MMU.Caching_Model;
-       Success        : out Boolean)
-   is
-      Virt  : Virtual_Address          := To_Integer (Virtual_Start);
-      Phys  : Virtual_Address          := To_Integer (Physical_Start);
-      Final : constant Virtual_Address := Virt + Virtual_Address (Length);
-      Addr  : Virtual_Address;
-   begin
-      while Virt < Final loop
-         Get_Page (Map, Virt, True, Addr);
-
-         declare
-            Entry_Body : Unsigned_64 with Address => To_Address (Addr), Import;
-         begin
-            Entry_Body := Arch.MMU.Construct_Entry
-               (To_Address (Phys), Permissions, Caching);
-         end;
-
-         Virt := Virt + Page_Size;
-         Phys := Phys + Page_Size;
-      end loop;
-      Success := True;
-   end Inner_Map_Range;
-
-   procedure Flush_TLBs
-     (Map  : Page_Table_Acc;
-      Addr : System.Address;
-      Len  : Storage_Count)
+   function Idx_To_Addr (Idx_4, Idx_3, Idx_2, Idx_1 : Positive)
+      return Integer_Address
    is
    begin
-      Arch.MMU.Flush_TLBs (Get_Map_Table_Addr (Map), Addr, Len);
-   end Flush_TLBs;
+      return
+         (Integer_Address (Idx_4) - 1) * 16#8000000000# +
+         (Integer_Address (Idx_3) - 1) * 16#0040000000# +
+         (Integer_Address (Idx_2) - 1) * 16#0000200000# +
+         (Integer_Address (Idx_1) - 1) * 16#0000001000#;
+   end Idx_To_Addr;
 end Memory.MMU;
