@@ -380,6 +380,84 @@ package body Devices.PCI with SPARK_Mode => Off is
       Message_Control := (Message_Control or 1) and not Shift_Left (2#111#, 4);
       Write16 (Dev, MSI_Off + 1, Message_Control);
    end Set_MSI_Vector;
+
+   function Enumerate_Capability
+      (Dev : PCI_Device;
+       Capability_Id : Unsigned_8) return Natural
+   is
+      PciStatus : Unsigned_16;
+      NextCapability, Conf : Unsigned_8;
+      Instances : Natural := 0;
+   begin
+      --  read status field
+      Read16 (Dev, 6, PciStatus);
+      --  if capabilities list supported
+      if (PciStatus and Shift_Left (1, 4)) /= 0 then
+         --  read PCI Capabilities Pointer
+         Read8 (Dev, 16#34#, NextCapability);
+
+         loop
+            if NextCapability = 0 or NextCapability = 16#FF# then
+               return Instances;
+            end if;
+            NextCapability := NextCapability and 16#FC#;
+            Read8 (Dev, Unsigned_16 (NextCapability), Conf);
+            if Conf = Capability_Id then
+               Instances := Instances + 1;
+            end if;
+
+            Read8 (Dev, Unsigned_16 (NextCapability) + 1, NextCapability);
+         end loop;
+      end if;
+
+      return Instances;
+   exception
+      when Constraint_Error =>
+         return 0;
+   end Enumerate_Capability;
+
+   procedure Search_Capability
+      (Dev : PCI_Device;
+       Capability_Id : Unsigned_8;
+       Instance : Natural;
+       Offset : out Unsigned_8;
+       Success : out Boolean)
+   is
+      PciStatus : Unsigned_16;
+      NextCapability, Conf : Unsigned_8;
+      Encounter : Natural := 0;
+   begin
+      Offset := 0;
+      Success := False;
+
+      --  read status field
+      Read16 (Dev, 6, PciStatus);
+      --  if capabilities list supported
+      if (PciStatus and Shift_Left (1, 4)) /= 0 then
+         --  read PCI Capabilities Pointer
+         Read8 (Dev, 16#34#, NextCapability);
+
+         loop
+            exit when NextCapability = 0 or NextCapability = 16#FF#;
+            NextCapability := NextCapability and 16#FC#;
+            Read8 (Dev, Unsigned_16 (NextCapability), Conf);
+            if Conf = Capability_Id then
+               Encounter := Encounter + 1;
+               if Encounter = Instance then
+                  Offset := NextCapability;
+                  Success := True;
+                  return;
+               end if;
+            end if;
+
+            Read8 (Dev, Unsigned_16 (NextCapability) + 1, NextCapability);
+         end loop;
+      end if;
+   exception
+      when Constraint_Error =>
+         Offset := 0;
+         Success := False;
+   end Search_Capability;
    ----------------------------------------------------------------------------
    --  For the read and write functions, we must use AX/EAX/RAX for x86, since
    --  AMD says in their manuals that they reserve the right to make the CPU
@@ -694,27 +772,25 @@ package body Devices.PCI with SPARK_Mode => Off is
           MSI_Offset   => 0,
           MSIX_Offset  => 0);
 
-      --  Check for MSI/MSIX by reading the capabilities list.
-      Read16 (Result, 6, Config6);
-      if (Config6 and Shift_Right (1, 4)) /= 0 then
-         loop
-            Read8 (Result, 34, Config34);
-            exit when Config34 = 0;
-            Read8 (Result, Unsigned_16 (Config34), Conf);
-            case Conf is
-               when 16#05# =>
-                  Result.MSI_Support := True;
-                  Result.MSI_Offset  := Config34;
-               when 16#11# =>
-                  Result.MSIX_Support := True;
-                  Result.MSIX_Offset  := Config34;
-               when others =>
-                  null;
-            end case;
+      declare
+         MSI_Offset, MSIX_Offset : Unsigned_8;
+         MSI_Support, MSIX_Support : Boolean;
+      begin
+         --  Check for MSI/MSI-X by reading the capabilities list.
+         Search_Capability (Result, 16#05#, 1, MSI_Offset,
+            MSI_Support);
+         Result.MSI_Support := MSI_Support;
+         if MSI_Support then
+            Result.MSI_Offset := MSI_Offset;
+         end if;
 
-            Read8 (Result, Unsigned_16 (Config34) + 1, Config34);
-         end loop;
-      end if;
+         Search_Capability (Result, 16#11#, 1, MSIX_Offset,
+            MSIX_Support);
+         Result.MSIX_Support := MSIX_Support;
+         if MSIX_Support then
+            Result.MSIX_Offset := MSIX_Offset;
+         end if;
+      end;
 
       Success := True;
    exception
