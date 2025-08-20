@@ -143,7 +143,7 @@ package body Arch.MMU is
 
    function Make_Not_Present (Entry_Body : Unsigned_64) return Unsigned_64 is
    begin
-      return Entry_Body and not Page_P;
+      return Entry_Body and not (Page_P or Page_USER);
    end Make_Not_Present;
 
    procedure Flush_TLBs (Map, Addr : System.Address; Len : Storage_Count) is

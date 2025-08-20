@@ -466,6 +466,8 @@ package body Memory.MMU with SPARK_Mode => Off is
       Addr  : Virtual_Address;
       Addr1 : Virtual_Address;
       Phys  : Virtual_Address;
+      Orig  : Virtual_Address;
+      Perms : Arch.MMU.Clean_Result;
    begin
       Synchronization.Seize_Writer (Map.Mutex);
       while Virt < Final loop

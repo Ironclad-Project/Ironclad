@@ -28,6 +28,7 @@ package body Arch.MMU is
    Page_G     : constant Unsigned_64 := Shift_Left (1, 5);
    Page_Acc   : constant Unsigned_64 := Shift_Left (1, 6);
    Page_Dirty : constant Unsigned_64 := Shift_Left (1, 7);
+   Page_User  : constant Unsigned_64 := Shift_Left (1, 8);
 
    --  Response is a pointer to an Kernel_Address_Response.
    Address_Request : Arch.Limine.Request :=
@@ -75,20 +76,24 @@ package body Arch.MMU is
          (Shift_Left (Entry_Body and 16#003ffffffffffc00#, 2));
    end Clean_Entry;
 
-   function Clean_Entry_Perms (Entr : Unsigned_64) return Page_Permissions is
+   function Clean_Entry_Perms (Entr : Unsigned_64) return Clean_Result is
    begin
       return
-         (Is_User_Accessible => (Entr and Page_U) /= 0,
-          Can_Read           => (Entr and Page_R) /= 0,
-          Can_Write          => (Entr and Page_W) /= 0,
-          Can_Execute        => (Entr and Page_X) /= 0,
-          Is_Global          => (Entr and Page_G) /= 0);
+         (User_Flag => (Entr and Page_User) /= 0,
+          Perms     =>
+            (Is_User_Accessible => (Entr and Page_U) /= 0,
+             Can_Read           => (Entr and Page_R) /= 0,
+             Can_Write          => (Entr and Page_W) /= 0,
+             Can_Execute        => (Entr and Page_X) /= 0,
+             Is_Global          => (Entr and Page_G) /= 0),
+          Caching => Write_Back);
    end Clean_Entry_Perms;
 
    function Construct_Entry
-      (Addr    : System.Address;
-       Perm    : Page_Permissions;
-       Caching : Caching_Model) return Unsigned_64
+      (Addr      : System.Address;
+       Perm      : Page_Permissions;
+       Caching   : Caching_Model;
+       User_Flag : Boolean) return Unsigned_64
    is
       pragma Unreferenced (Caching);
       Result : Unsigned_64;
@@ -99,6 +104,7 @@ package body Arch.MMU is
          (if Perm.Can_Write          then Page_W else 0) or
          (if Perm.Is_Global          then Page_G else 0) or
          (if Perm.Is_User_Accessible then Page_U else 0) or
+         (if User_Flag then Page_User else 0) or
          Page_P or Page_Acc or Page_Dirty;
 
       return Shift_Right (Unsigned_64 (To_Integer (Addr)), 2) or Result;
@@ -116,7 +122,7 @@ package body Arch.MMU is
 
    function Make_Not_Present (Entry_Body : Unsigned_64) return Unsigned_64 is
    begin
-      return Entry_Body and not Page_P;
+      return Entry_Body and not (Page_P or Page_User);
    end Make_Not_Present;
 
    procedure Flush_TLBs (Map, Addr : System.Address; Len : Storage_Count) is
