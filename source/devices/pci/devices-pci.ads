@@ -116,6 +116,17 @@ package Devices.PCI is
        Has_MSI, Has_MSIX : out Boolean);
 
    procedure Set_MSI_Vector (Dev : PCI_Device; Vector : Unsigned_8);
+
+   function Enumerate_Capability
+      (Dev : PCI_Device;
+       Capability_Id : Unsigned_8) return Natural;
+
+   procedure Search_Capability
+      (Dev : PCI_Device;
+       Capability_Id : Unsigned_8;
+       Instance : Natural;
+       Offset : out Unsigned_8;
+       Success : out Boolean);
    ----------------------------------------------------------------------------
    --  Read and write data into the PCI device configuration space.
    procedure Read8 (Dev : PCI_Device; Off : Unsigned_16; R : out Unsigned_8);
