@@ -40,7 +40,8 @@ package IPC.FileLock is
        Is_Write     : in out Boolean;
        Success      : out Boolean);
 
-   --  Acquire a lock.
+   --  Acquire a lock. If a competing lock is found that matches the passed
+   --  acquirer, instead, it is updated.
    --  @param Acquired_FS  FS containing the inode to acquire.
    --  @param Acquired_Ino Inode to acquire.
    --  @param Start        Start to lock.

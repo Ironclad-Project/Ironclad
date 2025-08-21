@@ -2107,7 +2107,9 @@ make sure only one instance of the same daemon is running.
 
 @item
 @code{F_SETLK}: The same as @code{F_GETLK}, but actually sets the passed lock.
-If it cannot be set, it will return failure with @code{EAGAIN}.
+If it cannot be set, it will return failure with @code{EAGAIN}. If an
+overlapping lock already exists acquired by the same process, this call will
+instead just update permissions and return success.
 
 @item
 @code{F_SETLKW}: The same as @code{F_SETLK}, but instead of being non-blocking,

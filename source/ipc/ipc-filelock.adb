@@ -74,6 +74,18 @@ package body IPC.FileLock is
                   exit;
                end if;
             end loop;
+         else
+            Success := False;
+            for L of Registry loop
+               if L.Acquirer = Acquirer and then
+                  L.Start = Start and then
+                  L.Length = Length
+               then
+                  L.Is_Write := Is_Write;
+                  Success    := True;
+                  exit;
+               end if;
+            end loop;
          end if;
          Synchronization.Release (Registry_Mutex);
          exit when not Is_Blocking or Success;
