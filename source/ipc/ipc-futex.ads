@@ -15,6 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
+with Memory.MMU;
+with System;
 
 package IPC.Futex is
    --  This module implements fast userland mutexes, despite the userland tag,
@@ -26,7 +28,7 @@ package IPC.Futex is
 
    --  Information to depict an element to wait on.
    type Element is record
-      Key      : Unsigned_64;
+      Key_Addr : System.Address;
       Expected : Unsigned_32;
    end record;
    type Element_Arr is array (Natural range <>) of Element;
@@ -34,12 +36,14 @@ package IPC.Futex is
    type Wait_Status is (Wait_Success, Wait_No_Space, Wait_Try_Again);
 
    --  Wait for a set of keys.
+   --  @param Map  Map to use to check keys.
    --  @param Keys Keys to wait for.
    --  @param Max_Seconds Maximum amount of seconds to wait for.
    --  @param Max_Nanos   Nanoseconds component of Max_Seconds.
    --  @param Success     Status on the wait.
    procedure Wait
-      (Keys        : Element_Arr;
+      (Map         : Memory.MMU.Page_Table_Acc;
+       Keys        : Element_Arr;
        Max_Seconds : Unsigned_64;
        Max_Nanos   : Unsigned_64;
        Success     : out Wait_Status);

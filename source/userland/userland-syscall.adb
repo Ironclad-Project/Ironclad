@@ -4843,12 +4843,15 @@ package body Userland.Syscall is
          if not Succ then goto Would_Fault_Error; end if;
 
          for I in Items'Range loop
-            Futexes (I) := (Items (I).Address, Items (I).Expected);
+            Futexes (I) :=
+               (To_Address (Integer_Address (Items (I).Address)),
+                Items (I).Expected);
          end loop;
 
          case Operation is
             when FUTEX_WAIT =>
-               IPC.Futex.Wait (Futexes, Time.Seconds, Time.Nanoseconds, Succ2);
+               IPC.Futex.Wait
+                  (Map, Futexes, Time.Seconds, Time.Nanoseconds, Succ2);
                case Succ2 is
                   when IPC.Futex.Wait_No_Space =>
                      Returned := Unsigned_64'Last;

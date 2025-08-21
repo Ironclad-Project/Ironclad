@@ -15,6 +15,31 @@ stable, this section will have a table of all supported releases.
 Here is a history of all releases ordered by release date including upcoming
 release changes.
 
+## Upcoming release
+
+### Non-breaking changes
+
+- Rework MMU handling code leading to better POSIX compatibility and
+  correctness.
+- Finish migration of syscalls to SMAP-friendly memory access.
+- SPARKify several components of the kernel.
+- Minor changes and fixes to the build system.
+- Fix PCI MSI/MSI-X feature detection.
+
+### Breaking changes
+
+- 🦗🦗🦗
+
+### Non-code related changes
+
+- 🦗🦗🦗
+
+### The people behind this release
+
+- streaksu - <streaksu@ironclad-os.org> | https://codeberg.org/streaksu
+- mintsuki - https://codeberg.org/mintsuki | https://github.com/mintsuki
+- no92 - https://codeberg.org/no92 | https://github.com/no92
+
 ## 0.8.0 - Wed Aug 13, 2025
 
 ### Non-breaking changes
