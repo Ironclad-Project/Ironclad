@@ -47,6 +47,7 @@ syscall_entry:
 
     xor %rbp, %rbp
     mov %rsp, %rdi
+    cld
     call syscall_handler
 
     # Pop back state.
