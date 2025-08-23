@@ -18,7 +18,7 @@ with System; use System;
 with Alignment;
 with Synchronization;
 
-package body Devices.Ramdev with SPARK_Mode => Off is
+package body Devices.Ramdev is
    --  Ramdev data.
    type Ramdev_Data is record
       Mutex         : aliased Synchronization.Readers_Writer_Lock;
@@ -47,6 +47,7 @@ package body Devices.Ramdev with SPARK_Mode => Off is
 
    procedure Init_Module (Module : Arch.Boot_RAM_File; Result : out Resource)
    is
+      pragma SPARK_Mode (Off); --  Access to procedures is not SPARK friendly.
       package A is new Alignment (Unsigned_64);
       Data   : constant Ramdev_Data_Acc := new Ramdev_Data'
          (Mutex         => Synchronization.Unlocked_RW_Lock,
@@ -80,7 +81,8 @@ package body Devices.Ramdev with SPARK_Mode => Off is
       pragma Unreferenced (Is_Blocking);
 
       Dev      : Ramdev_Data with Import, Address => Key;
-      Dev_Data : constant array (1 .. Dev.Size) of Unsigned_8
+      Dev_Size : constant Unsigned_64 := Dev.Size;
+      Dev_Data : constant array (1 .. Dev_Size) of Unsigned_8
          with Import, Address => Dev.Start_Address;
 
       Is_Holding : Boolean := False;
@@ -90,13 +92,13 @@ package body Devices.Ramdev with SPARK_Mode => Off is
       Final_Loc := Offset + Unsigned_64 (Data'Length);
       To_Read   := Data'Length;
 
-      if Offset > Dev.Size then
+      if Offset > Dev_Size then
          Data      := [others => 0];
          Ret_Count := 0;
          Success   := Dev_Success;
          return;
-      elsif Final_Loc >= Dev.Size then
-         To_Read := Natural (Dev.Size - Offset);
+      elsif Final_Loc >= Dev_Size then
+         To_Read := Natural (Dev_Size - Offset);
       end if;
 
       Synchronization.Seize_Reader (Dev.Mutex);
@@ -129,7 +131,8 @@ package body Devices.Ramdev with SPARK_Mode => Off is
       pragma Unreferenced (Is_Blocking);
 
       Dev      : Ramdev_Data with Import, Address => Key;
-      Dev_Data : array (1 .. Dev.Size) of Unsigned_8
+      Dev_Size : constant Unsigned_64 := Dev.Size;
+      Dev_Data : array (1 .. Dev_Size) of Unsigned_8
          with Import, Address => Dev.Start_Address;
 
       Is_Holding : Boolean := False;
@@ -139,12 +142,12 @@ package body Devices.Ramdev with SPARK_Mode => Off is
       Final_Loc := Offset + Unsigned_64 (Data'Length);
       To_Write  := Data'Length;
 
-      if Offset > Dev.Size then
+      if Offset > Dev_Size then
          Ret_Count := 0;
          Success   := Dev_Full;
          return;
-      elsif Final_Loc >= Dev.Size then
-         To_Write := Natural (Dev.Size - Offset);
+      elsif Final_Loc >= Dev_Size then
+         To_Write := Natural (Dev_Size - Offset);
       end if;
 
       Synchronization.Seize_Writer (Dev.Mutex);

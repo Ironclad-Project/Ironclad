@@ -14,16 +14,18 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Devices.Partitions with SPARK_Mode => Off is
+package Devices.Partitions is
    --  Register the partitions of the passed device as separate devices.
    --  The resulting support read/write, and that's it.
-   --  @param Name Name to prepend all partitions with, p<index> will be added.
-   --  @param Dev Device to scan partitions for.
-   --  @return True if everything is nominal, False if one of the systems
-   --  failed unexpectedly or the requirements are not met.
-   function Parse_Partitions
-      (Name : String;
-       Dev  : Device_Handle) return Boolean;
+   --  @param Name    Name to prepend p<index> with.
+   --  @param Dev     Device to scan partitions for.
+   --  @param Success True if everything is nominal, regardless of whether
+   --  any partitions were found. False if one of the systems
+   --  failed unexpectedly or a non-block device was passed.
+   procedure Parse_Partitions
+      (Name    : String;
+       Dev     : Device_Handle;
+       Success : out Boolean);
 
 private
 
@@ -47,12 +49,13 @@ private
       LBA_Length   : Unsigned_64;
    end record;
    type Partition_Data_Acc is access all Partition_Data;
-   function Set_Part
+   procedure Set_Part
       (Name       : String;
        Index      : Positive;
        Block_Size : Natural;
        Part       : Partition_Data_Acc;
-       ID         : UUID) return Boolean;
+       ID         : UUID;
+       Success    : out Boolean);
    ----------------------------------------------------------------------------
    procedure Read
       (Key         : System.Address;

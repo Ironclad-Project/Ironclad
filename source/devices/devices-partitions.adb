@@ -17,7 +17,7 @@
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
 
-package body Devices.Partitions with SPARK_Mode => Off is
+package body Devices.Partitions is
    --  Data for MBR partitioning.
    type MBR_Byte_Data is array (Natural range <>) of Unsigned_8;
    type MBR_Entry is record
@@ -112,22 +112,23 @@ package body Devices.Partitions with SPARK_Mode => Off is
    package Con2 is new System.Address_To_Access_Conversions (MBR_Data);
    package Con3 is new System.Address_To_Access_Conversions (GPT_Header);
 
-   function Parse_Partitions
-      (Name : String;
-       Dev  : Device_Handle) return Boolean
+   procedure Parse_Partitions
+      (Name    : String;
+       Dev     : Device_Handle;
+       Success : out Boolean)
    is
-      Success, Found_Partitions : Boolean;
+      Found_Partitions : Boolean;
    begin
       if not Devices.Is_Block_Device (Dev) then
-         return False;
+         Success := False;
+         return;
       end if;
 
       Parse_GPT_Partitions (Name, Dev, Found_Partitions, Success);
       if Success and Found_Partitions then
-         return True;
+         return;
       end if;
       Parse_MBR_Partitions (Name, Dev, Found_Partitions, Success);
-      return Success;
    end Parse_Partitions;
 
    procedure Parse_GPT_Partitions
@@ -136,6 +137,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
        Found_Partitions : out Boolean;
        Success          : out Boolean)
    is
+      pragma SPARK_Mode (Off);
       Block_Size : constant Natural := Devices.Get_Block_Size (Dev);
       Sector : Devices.Operation_Data_Acc;
       S_Addr : System.Address;
@@ -207,10 +209,10 @@ package body Devices.Partitions with SPARK_Mode => Off is
                      LBA_Length   => Partition.Ending_LBA -
                                      Partition.Starting_LBA
                   );
-                  if not Set_Part
-                     (Name, Added_Index, Block_Size, Part, Partition.GUID)
-                  then
-                     Success := False;
+                  Set_Part
+                     (Name, Added_Index, Block_Size, Part, Partition.GUID,
+                      Success);
+                  if not Success then
                      goto Return_End;
                   end if;
                   Added_Index := Added_Index + 1;
@@ -235,6 +237,7 @@ package body Devices.Partitions with SPARK_Mode => Off is
        Found_Partitions : out Boolean;
        Success          : out Boolean)
    is
+      pragma SPARK_Mode (Off);
       Block_Size : constant Natural := Devices.Get_Block_Size (Dev);
       Sector : Devices.Operation_Data_Acc;
       S_Addr : System.Address;
@@ -272,8 +275,8 @@ package body Devices.Partitions with SPARK_Mode => Off is
                 Block_Size   => Block_Size,
                 LBA_Offset   => Unsigned_64 (MBR.Entries (I).First_Sector),
                 LBA_Length   => Unsigned_64 (MBR.Entries (I).Sector_Count));
-            if not Set_Part (Name, I, Block_Size, Part, [others => 0]) then
-               Success := False;
+            Set_Part (Name, I, Block_Size, Part, [others => 0], Success);
+            if not Success then
                goto Return_End;
             end if;
          end if;
@@ -287,14 +290,15 @@ package body Devices.Partitions with SPARK_Mode => Off is
          Success          := False;
    end Parse_MBR_Partitions;
 
-   function Set_Part
+   procedure Set_Part
       (Name       : String;
        Index      : Positive;
        Block_Size : Natural;
        Part       : Partition_Data_Acc;
-       ID         : UUID) return Boolean
+       ID         : UUID;
+       Success    : out Boolean)
    is
-      Success : Boolean;
+      pragma SPARK_Mode (Off); --  Access to procedures is not SPARK friendly.
    begin
       Register ((
          Data        => Con1.To_Address (Con1.Object_Pointer (Part)),
@@ -312,10 +316,9 @@ package body Devices.Partitions with SPARK_Mode => Off is
          Remove      => null
       ), Name & [1 => 'p', 2 => Character'Val (Index + Character'Pos ('0'))],
          Success);
-      return Success;
    exception
       when Constraint_Error =>
-         return False;
+         Success := False;
    end Set_Part;
    ----------------------------------------------------------------------------
    procedure Read

@@ -18,8 +18,9 @@ with Arch.Local;
 with Userland.Process; use Userland.Process;
 with IPC.PTY; use IPC.PTY;
 
-package body Devices.TTY with SPARK_Mode => Off is
+package body Devices.TTY is
    procedure Init (Success : out Boolean) is
+      pragma SPARK_Mode (Off); --  Access to procedures is not SPARK friendly.
    begin
       Register
          ((Data        => System.Null_Address,

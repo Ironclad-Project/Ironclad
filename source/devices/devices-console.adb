@@ -16,10 +16,11 @@
 
 with Arch.Debug;
 
-package body Devices.Console with SPARK_Mode => Off is
+package body Devices.Console is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    procedure Init (Success : out Boolean) is
+      pragma SPARK_Mode (Off); --  Access to procedures is not SPARK friendly.
       Device : Resource;
    begin
       Device :=

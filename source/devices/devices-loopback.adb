@@ -17,10 +17,11 @@
 with Networking.Interfaces;
 with Scheduler;
 
-package body Devices.Loopback with SPARK_Mode => Off is
+package body Devices.Loopback is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    procedure Init (Success : out Boolean) is
+      pragma SPARK_Mode (Off); --  Access to procedures is not SPARK friendly.
       Device : Resource;
       Dev    : Device_Handle;
       Data   : constant Loopback_Data_Acc := new Loopback_Data'

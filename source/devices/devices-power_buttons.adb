@@ -16,12 +16,13 @@
 
 with Arch.Power;
 
-package body Devices.Power_Buttons with SPARK_Mode => Off is
+package body Devices.Power_Buttons is
    --  Event variables.
    Power_Button_Triggered : Boolean := False;
    Sleep_Button_Triggered : Boolean := False;
 
    procedure Init (Success : out Boolean) is
+      pragma SPARK_Mode (Off); --  Access to procedures is not SPARK friendly.
       Has_Power, Has_Sleep : Boolean;
    begin
       Arch.Power.Get_Buttons (Has_Power, Has_Sleep);

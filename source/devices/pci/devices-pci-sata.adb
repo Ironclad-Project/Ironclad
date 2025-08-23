@@ -97,11 +97,12 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
                       Mmap        => null,
                       Poll        => null,
                       Remove      => null), Final_Name, Success);
-                  if not Success or else
-                     not Partitions.Parse_Partitions
-                        (Final_Name, Fetch (Final_Name))
-                  then
-                     Success := False;
+                  if not Success then
+                     return;
+                  end if;
+                  Partitions.Parse_Partitions
+                        (Final_Name, Fetch (Final_Name), Success);
+                  if not Success then
                      return;
                   end if;
                end;

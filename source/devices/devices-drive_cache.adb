@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package body Devices.Drive_Cache with SPARK_Mode => Off is
+package body Devices.Drive_Cache is
    procedure Init
       (Drive_Arg : System.Address;
        Read      : System.Address;

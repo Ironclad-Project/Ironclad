@@ -19,7 +19,7 @@ with Synchronization;
 generic
    --  Sector size in bytes.
    Sector_Size : Natural;
-package Devices.Drive_Cache with SPARK_Mode => Off is
+package Devices.Drive_Cache is
    --  Type to represent the registry.
    type Cache_Registry is private;
 

@@ -16,10 +16,11 @@
 
 with Cryptography.Random; use Cryptography.Random;
 
-package body Devices.Streams with SPARK_Mode => Off is
+package body Devices.Streams is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    procedure Init (Success : out Boolean) is
+      pragma SPARK_Mode (Off); --  Access to procedures is not SPARK friendly.
       Success_1, Success_2, Success_3, Success_4, Success_5 : Boolean;
    begin
       Register

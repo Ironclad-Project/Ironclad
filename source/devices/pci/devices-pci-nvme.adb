@@ -291,10 +291,12 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
              Mmap        => null,
              Poll        => null,
              Remove      => null), Final_Name, Success);
-
          if Success then
-            Success := Partitions.Parse_Partitions
-               (Final_Name, Fetch (Final_Name));
+            Partitions.Parse_Partitions
+               (Final_Name, Fetch (Final_Name), Success);
+         end if;
+         if not Success then
+            return;
          end if;
       end;
    exception
