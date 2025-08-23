@@ -680,10 +680,9 @@ package body Scheduler with SPARK_Mode => Off is
          Avg_15 := 0;
    end Get_Load_Averages;
    ----------------------------------------------------------------------------
-   procedure Scheduler_ISR (State : Arch.Context.GP_Context) is
+   procedure Scheduler_ISR (State : in out Arch.Context.GP_Context) is
       Current_TID : constant TID := Arch.Local.Get_Current_Thread;
       Next_TID    :          TID := Error_TID;
-      Next_State  : Arch.Context.GP_Context;
       Timeout     : Natural;
       Curr_Sec    : Unsigned_64;
       Curr_NSec   : Unsigned_64;
@@ -784,9 +783,8 @@ package body Scheduler with SPARK_Mode => Off is
           Thread_Pool (Next_TID).Kernel_Stack (Kernel_Stack'Last)'Address);
       Arch.Local.Load_TCB (Thread_Pool (Next_TID).TCB_Pointer);
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_State);
-      Next_State := Thread_Pool (Next_TID).GP_State;
+      State := Thread_Pool (Next_TID).GP_State;
       Synchronization.Release (Scheduler_Mutex);
-      Arch.Context.Load_GP_Context (Next_State);
    exception
       when Constraint_Error =>
          Panic.Hard_Panic ("Exception while reescheduling");

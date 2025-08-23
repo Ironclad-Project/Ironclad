@@ -130,7 +130,7 @@ package Scheduler is
    ----------------------------------------------------------------------------
    --  Hook to be called by the architecture for reescheduling of the callee
    --  core.
-   procedure Scheduler_ISR (State : Arch.Context.GP_Context);
+   procedure Scheduler_ISR (State : in out Arch.Context.GP_Context);
    ----------------------------------------------------------------------------
    --  Functions to convert from IDs to user readable values and viceversa.
    function Convert (Thread : TID) return Natural;

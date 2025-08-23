@@ -45,9 +45,6 @@ package Arch.Context is
        Argument_2 : Unsigned_64 := 0;
        Argument_3 : Unsigned_64 := 0);
 
-   --  Load the passed context.
-   procedure Load_GP_Context (Ctx : GP_Context) with No_Return;
-
    --  Save architectural task data that does not fit within GP or FP data.
    procedure Save_Core_Context (Ctx : out Core_Context);
 

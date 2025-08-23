@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
 with Messages;
 with System.Machine_Code;    use System.Machine_Code;
 with Arch.GDT;
@@ -43,35 +42,6 @@ package body Arch.Context with SPARK_Mode => Off is
           RSP    => Unsigned_64 (To_Integer (Stack)),
           others => 0);
    end Init_GP_Context;
-
-   procedure Load_GP_Context (Ctx : GP_Context) is
-   begin
-      Asm (
-         "mov %0, %%rsp"   & LF & HT &
-         "pop %%rax"       & LF & HT &
-         "pop %%rbx"       & LF & HT &
-         "pop %%rcx"       & LF & HT &
-         "pop %%rdx"       & LF & HT &
-         "pop %%rsi"       & LF & HT &
-         "pop %%rdi"       & LF & HT &
-         "pop %%rbp"       & LF & HT &
-         "pop %%r8"        & LF & HT &
-         "pop %%r9"        & LF & HT &
-         "pop %%r10"       & LF & HT &
-         "pop %%r11"       & LF & HT &
-         "pop %%r12"       & LF & HT &
-         "pop %%r13"       & LF & HT &
-         "pop %%r14"       & LF & HT &
-         "pop %%r15"       & LF & HT &
-         "add $8, %%rsp"   & LF & HT &
-         "swapgs"          & LF & HT &
-         "iretq",
-         Inputs   => System.Address'Asm_Input ("rm", Ctx'Address),
-         Clobber  => "memory",
-         Volatile => True
-      );
-      loop null; end loop;
-   end Load_GP_Context;
 
    procedure Save_Core_Context (Ctx : out Core_Context) is
    begin
