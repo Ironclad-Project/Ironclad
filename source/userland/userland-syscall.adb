@@ -311,7 +311,7 @@ package body Userland.Syscall is
                else
                   Errno := Error_Invalid_Value;
                   Returned := Unsigned_64'Last;
-                  return;
+                  goto Cleanup;
                end if;
             when Description_Reader_FIFO =>
                Read (File.Inner_Reader_FIFO, Data.all, File.Is_Blocking,
@@ -339,6 +339,7 @@ package body Userland.Syscall is
             when Description_Writer_FIFO =>
                Errno    := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
+               goto Cleanup;
          end case;
 
          if Errno = Error_No_Error then
@@ -349,6 +350,7 @@ package body Userland.Syscall is
             end if;
          end if;
 
+      <<Cleanup>>
          Free (Data);
       end;
    exception
