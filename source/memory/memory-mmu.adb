@@ -70,7 +70,8 @@ package body Memory.MMU with SPARK_Mode => Off is
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Table'
          (PML4_Level => [others => 0],
-          Mutex      => Synchronization.Unlocked_RW_Lock);
+          Mutex      => Synchronization.Unlocked_RW_Lock,
+          User_Size  => 0);
 
       --  Preallocate the higher half PML4, so when we clone the kernel memmap,
       --  we can just blindly copy the entries and share mapping between all
@@ -149,7 +150,8 @@ package body Memory.MMU with SPARK_Mode => Off is
       Synchronization.Seize_Reader (Kernel_Table.Mutex);
       New_Map := new Page_Table'
          (PML4_Level => [others => 0],
-          Mutex      => Synchronization.Unlocked_RW_Lock);
+          Mutex      => Synchronization.Unlocked_RW_Lock,
+          User_Size  => 0);
       New_Map.PML4_Level (257 .. 512) := Kernel_Table.PML4_Level (257 .. 512);
       Synchronization.Release_Reader (Kernel_Table.Mutex);
    exception
@@ -165,12 +167,14 @@ package body Memory.MMU with SPARK_Mode => Off is
    begin
       Forked := new Page_Table'
          (PML4_Level => [others => 0],
-          Mutex      => Synchronization.Unlocked_RW_Lock);
+          Mutex      => Synchronization.Unlocked_RW_Lock,
+          User_Size  => 0);
 
       Synchronization.Seize_Writer (Map.Mutex);
 
-      --  Clone the higher half, which is the same in all maps.
+      --  Clone the higher half, which is the same in all maps, and user size.
       Forked.PML4_Level (257 .. 512) := Map.PML4_Level (257 .. 512);
+      Forked.User_Size := Map.User_Size;
 
       --  Go thru the lower half entries and copy.
       for I3 in Map.PML4_Level (1 .. 256)'Range loop
@@ -441,6 +445,12 @@ package body Memory.MMU with SPARK_Mode => Off is
             end if;
             Entry_Body := Arch.MMU.Construct_Entry
                (To_Address (Phys), Permissions, Caching, False);
+            if Perms.Perms.Is_User_Accessible then
+               Map.User_Size := Map.User_Size - Page_Size;
+            end if;
+            if Permissions.Is_User_Accessible then
+               Map.User_Size := Map.User_Size + Page_Size;
+            end if;
          end;
 
          Virt := Virt + Page_Size;
@@ -499,6 +509,12 @@ package body Memory.MMU with SPARK_Mode => Off is
             end if;
             Entry_Body := Arch.MMU.Construct_Entry
                (To_Address (Phys), Permissions, Caching, True);
+            if Perms.Perms.Is_User_Accessible then
+               Map.User_Size := Map.User_Size - Page_Size;
+            end if;
+            if Permissions.Is_User_Accessible then
+               Map.User_Size := Map.User_Size + Page_Size;
+            end if;
          end;
 
          Virt := Virt + Page_Size;
@@ -537,6 +553,12 @@ package body Memory.MMU with SPARK_Mode => Off is
                Entry_Body := Arch.MMU.Construct_Entry
                   (To_Address (Arch.MMU.Clean_Entry (Entry_Body)),
                       Permissions, Caching, Perms.User_Flag);
+               if Perms.Perms.Is_User_Accessible then
+                  Map.User_Size := Map.User_Size - Page_Size;
+               end if;
+               if Permissions.Is_User_Accessible then
+                  Map.User_Size := Map.User_Size + Page_Size;
+               end if;
             end if;
          end;
 
@@ -576,6 +598,9 @@ package body Memory.MMU with SPARK_Mode => Off is
                   Physical.User_Free (Memory.Memory_Offset + Orig);
                end if;
                Entry_Body := Arch.MMU.Make_Not_Present (Entry_Body);
+               if Perms.Perms.Is_User_Accessible then
+                  Map.User_Size := Map.User_Size - Page_Size;
+               end if;
             end if;
          end;
          Virt := Virt + Page_Size;
@@ -617,7 +642,7 @@ package body Memory.MMU with SPARK_Mode => Off is
    is
    begin
       Synchronization.Seize_Reader (Map.Mutex);
-      Sz := 0;
+      Sz := Map.User_Size;
       Synchronization.Release_Reader (Map.Mutex);
    exception
       when Constraint_Error =>

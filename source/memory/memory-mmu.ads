@@ -200,6 +200,7 @@ private
    type Page_Table is record
       PML4_Level : PML4;
       Mutex      : aliased Synchronization.Readers_Writer_Lock;
+      User_Size  : Unsigned_64;
    end record;
 
    procedure Get_Next_Level
