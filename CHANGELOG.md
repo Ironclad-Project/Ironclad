@@ -25,6 +25,7 @@ release changes.
 - SPARKify several components of the kernel.
 - Minor changes and fixes to the build system.
 - Fix PCI MSI/MSI-X feature detection.
+- Add `AT_PAGESZ` ELF auxiliary value support.
 
 ### Breaking changes
 

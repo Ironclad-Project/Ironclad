@@ -221,18 +221,20 @@ package body Scheduler with SPARK_Mode => Off is
          Stk_64 (Index_64 - 7)  := Userland.ELF.Auxval_Header_Count;
          Stk_64 (Index_64 - 8)  := Vector.Program_Header_Size;
          Stk_64 (Index_64 - 9)  := Userland.ELF.Auxval_Header_Size;
+         Stk_64 (Index_64 - 10) := Memory.MMU.Page_Size;
+         Stk_64 (Index_64 - 11) := Userland.ELF.Auxval_Page_Size;
 
          Userland.Process.Get_Effective_UID (Proc, EUID);
 
          if Userland.Process.Get_Capabilities (Proc).Can_Manage_MAC and then
             EUID = 0
          then
-            Stk_64 (Index_64 - 10) := 1;
+            Stk_64 (Index_64 - 12) := 1;
          else
-            Stk_64 (Index_64 - 10) := 0;
+            Stk_64 (Index_64 - 12) := 0;
          end if;
-         Stk_64 (Index_64 - 11) := Userland.ELF.Auxval_Secure_Treatment;
-         Index_64 := Index_64 - 12;
+         Stk_64 (Index_64 - 13) := Userland.ELF.Auxval_Secure_Treatment;
+         Index_64 := Index_64 - 14;
 
          --  Load envp taking into account the pointers at the beginning.
          Index_8 := Stk_8'Last;

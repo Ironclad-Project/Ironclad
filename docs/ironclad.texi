@@ -613,6 +613,9 @@ The size of program header entry.
 @item AT_PHNUM (5)
 The number of program headers.
 
+@item AT_PAGESZ (6)
+Minimum MMU page size of the system.
+
 @item AT_ENTRY (9)
 The entrypoint of the executable.
 

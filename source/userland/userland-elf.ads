@@ -27,6 +27,7 @@ package Userland.ELF is
    Auxval_Program_Headers  : constant := 3;
    Auxval_Header_Size      : constant := 4;
    Auxval_Header_Count     : constant := 5;
+   Auxval_Page_Size        : constant := 6;
    Auxval_Entrypoint       : constant := 9;
    Auxval_Secure_Treatment : constant := 23;
    type Auxval is record
