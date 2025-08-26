@@ -30,6 +30,7 @@ release changes.
 
 - Attempting to write an overlapping file lock with `F_SETLK`/`F_SETLKW` will
   now, instead of failing, update permissions and return success.
+- Phase out the `sigsuspend` syscall in favour of `ppoll` with no FD arguments.
 
 ### Non-code related changes
 

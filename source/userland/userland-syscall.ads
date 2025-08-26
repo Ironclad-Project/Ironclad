@@ -1298,11 +1298,6 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
-   procedure SigSuspend
-      (Mask     : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
-
    type CPU_Info is record
       Config_Cores : Unsigned_64;
       Online_Cores : Unsigned_64;

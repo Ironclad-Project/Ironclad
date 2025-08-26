@@ -4041,9 +4041,8 @@ package body Userland.Syscall is
        Errno     : out Errno_Value)
    is
       type Unsigned_30 is mod 2 ** 30;
-      function C1 is new Ada.Unchecked_Conversion (Signal_Bitmap, Unsigned_30);
-      function C2 is new Ada.Unchecked_Conversion (Unsigned_30, Signal_Bitmap);
-
+      function C1 is new Ada.Unchecked_Conversion (Unsigned_30, Signal_Bitmap);
+      package Trans_2 is new Memory.Userland_Transfer (Time_Spec);
       Proc       : constant             PID := Arch.Local.Get_Current_Process;
       FIAddr     : constant Integer_Address := Integer_Address (FDs_Addr);
       FSAddr     : constant  System.Address := To_Address (FIAddr);
@@ -4060,6 +4059,8 @@ package body Userland.Syscall is
       Old_Set    : Signal_Bitmap;
       Map        : Page_Table_Acc;
       Success    : Boolean;
+      Handled    : Boolean;
+      Tim        : Time_Spec;
       Can_Read, Can_Write, Can_PrioRead, Is_Error, Is_Broken : Boolean;
    begin
       Get_Common_Map (Proc, Map);
@@ -4074,28 +4075,42 @@ package body Userland.Syscall is
                goto Would_Fault_Error;
             end if;
             Get_Masked_Signals (Proc, Old_Set);
-            Set_Masked_Signals (Proc, C2 (Passed_Set and not C1 (Old_Set)));
+            Set_Masked_Signals (Proc, C1 (Passed_Set));
          end;
       end if;
 
       Arch.Clocks.Get_Monotonic_Time (Final_Sec, Final_NSec);
+      if TIAddr /= 0 then
+         Trans_2.Take_From_Userland (Map, Tim, TSAddr, Success);
+         if not Success then
+            goto Would_Fault_Error;
+         end if;
+      else
+         Tim := (Unsigned_64'Last, Unsigned_64'Last);
+      end if;
+      Time.Increment (Final_Sec, Final_NSec, Tim.Seconds, Tim.Nanoseconds);
+
+      --  If we have 0 items, we just eep.
+      if FDs_Count = 0 then
+         loop
+            Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_NSec);
+            Clear_Process_Signals (Proc, Handled);
+            exit when Handled or else Time.Is_Greater_Equal
+                  (Curr_Sec, Curr_NSec, Final_Sec, Final_NSec);
+            Scheduler.Yield_If_Able;
+         end loop;
+         goto Success_Return;
+      end if;
 
       declare
          subtype Polled_FDs is Poll_FDs (1 .. FDs_Count);
          package Trans_1 is new Memory.Userland_Transfer (Polled_FDs);
-         package Trans_2 is new Memory.Userland_Transfer (Time_Spec);
-         --  FDs  : Poll_FDs (1 .. FDs_Count) with Import, Address => FSAddr;
-         --  Tim  : Time_Spec                 with Import, Address => TSAddr;
          FDs : Polled_FDs;
-         Tim : Time_Spec;
       begin
          Trans_1.Take_From_Userland (Map, FDs, FSAddr, Success);
-         if not Success then goto Would_Fault_Error; end if;
-         Trans_2.Take_From_Userland (Map, Tim, TSAddr, Success);
-         if not Success then goto Would_Fault_Error; end if;
-
-         Time.Increment (Final_Sec, Final_NSec, Tim.Seconds,
-                             Tim.Nanoseconds);
+         if not Success then
+            goto Would_Fault_Error;
+         end if;
 
          loop
             for Polled of FDs loop
@@ -4167,9 +4182,10 @@ package body Userland.Syscall is
             end loop;
 
             Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_NSec);
-            exit when Count /= 0 or Time.Is_Greater_Equal (Curr_Sec,
-               Curr_NSec, Final_Sec, Final_NSec);
-
+            Clear_Process_Signals (Proc, Handled);
+            exit when Handled or else Count /= 0 or else
+               Time.Is_Greater_Equal
+                  (Curr_Sec, Curr_NSec, Final_Sec, Final_NSec);
             Scheduler.Yield_If_Able;
          end loop;
 
@@ -4179,12 +4195,18 @@ package body Userland.Syscall is
          end if;
       end;
 
+   <<Success_Return>>
       if S_IAddr /= 0 then
          Set_Masked_Signals (Proc, Old_Set);
       end if;
 
-      Errno    := Error_No_Error;
-      Returned := Unsigned_64 (Count);
+      if Handled then
+         Errno    := Error_Interrupted;
+         Returned := Unsigned_64'Last;
+      else
+         Errno    := Error_No_Error;
+         Returned := Unsigned_64 (Count);
+      end if;
       return;
 
    <<Would_Fault_Error>>
@@ -4981,6 +5003,7 @@ package body Userland.Syscall is
       Map      : Page_Table_Acc;
       Req, Re  : Time_Spec;
       Success  : Boolean;
+      Handled  : Boolean;
       CSec, CNSec : Unsigned_64;
       FSec, FNSec : Unsigned_64;
    begin
@@ -5015,7 +5038,8 @@ package body Userland.Syscall is
          else
             Arch.Clocks.Get_Real_Time (CSec, CNSec);
          end if;
-         exit when Time.Is_Greater_Equal (CSec, CNSec, FSec, FNSec);
+         Clear_Process_Signals (Proc, Handled);
+         exit when Handled or Time.Is_Greater_Equal (CSec, CNSec, FSec, FNSec);
          Scheduler.Yield_If_Able;
       end loop;
 
@@ -5026,8 +5050,13 @@ package body Userland.Syscall is
          goto Would_Fault_Error;
       end if;
 
-      Returned := 0;
-      Errno    := Error_No_Error;
+      if Handled then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Interrupted;
+      else
+         Returned := 0;
+         Errno    := Error_No_Error;
+      end if;
       return;
 
    <<Would_Fault_Error>>
@@ -6874,51 +6903,6 @@ package body Userland.Syscall is
       Errno    := Error_Not_Supported;
       Returned := Unsigned_64'Last;
    end Sigaltstack;
-
-   procedure SigSuspend
-      (Mask     : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
-   is
-      type Unsigned_30 is mod 2 ** 30;
-      function C1 is new Ada.Unchecked_Conversion (Unsigned_30, Signal_Bitmap);
-
-      package Trans_1 is new Memory.Userland_Transfer (Unsigned_30);
-
-      Proc    : constant             PID := Arch.Local.Get_Current_Process;
-      S_IAddr : constant Integer_Address := Integer_Address (Mask);
-      S_SAddr : constant  System.Address := To_Address (S_IAddr);
-      Old_Set : Signal_Bitmap;
-      New_Set : Unsigned_30;
-      Success : Boolean;
-      Map     : Page_Table_Acc;
-   begin
-      Get_Common_Map (Proc, Map);
-      Get_Masked_Signals (Proc, Old_Set);
-
-      Trans_1.Take_From_Userland (Map, New_Set, S_SAddr, Success);
-      if not Success then
-         goto Would_Fault_Error;
-      end if;
-
-      Set_Masked_Signals (Proc, C1 (New_Set));
-
-      loop
-         Clear_Process_Signals (Proc, Success);
-         exit when Success;
-         Scheduler.Yield_If_Able;
-      end loop;
-
-      Set_Masked_Signals (Proc, Old_Set);
-
-      Errno    := Error_Interrupted;
-      Returned := Unsigned_64'Last;
-      return;
-
-   <<Would_Fault_Error>>
-      Errno    := Error_Would_Fault;
-      Returned := Unsigned_64'Last;
-   end SigSuspend;
 
    procedure Get_CPU_Info
       (Addr     : Unsigned_64;

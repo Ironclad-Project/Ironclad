@@ -404,8 +404,6 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Signal_Return (Returned, Errno);
          when 102 =>
             Sigaltstack (Ctx.X10, Ctx.X11, Returned, Errno);
-         when 103 =>
-            SigSuspend (Ctx.X10, Returned, Errno);
          when 104 =>
             List_Mounts (Ctx.X10, Ctx.X11, Returned, Errno);
          when 105 =>

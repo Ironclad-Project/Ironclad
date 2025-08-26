@@ -195,7 +195,6 @@ Syscalls
 * create_thread::           Create new processes.
 * signal_return::           Return from a signal body.
 * sigaltstack::             Set alternative stacks for signal handling.
-* sigsuspend::              Suspend threads waiting for signals.
 * listmounts::              List the system's mounts.
 * uname::                   List system information.
 * listthreads::             List the system's threads.
@@ -1038,7 +1037,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{sigaltstack}.
 @item
-@ref{sigsuspend}.
+Empty.
 @item
 @ref{listmounts}
 @item
@@ -2875,7 +2874,8 @@ is set to @code{0}.
 
 If passed no FDs to ppoll, that is, with @code{nfds == 0}, @code{ppoll} will
 block for @code{timeout} time. This is used by some software as a means to
-implement @code{sleep} functionality, for those cases, @ref{clock_nanosleep}.
+implement @code{sleep}/@code{pause} functionality, for those cases,
+@ref{clock_nanosleep}.
 
 If @code{sigmask} is not @code{NULL}, it will atomically set the passed
 sigmask for waiting.
@@ -4194,26 +4194,6 @@ with the errno:
 @table @code
 @item EAGAIN
 Thread is not handling a signal.
-@end table
-
-@node sigsuspend
-@section sigsuspend
-
-@example c
-int sigsuspend(const sigset_t *mask);
-@end example
-
-This syscall temporarily replaces the signal mask of the calling with the given
-mask and then suspends the process until delivery of a signal whose action is
-to invoke a signal handler or to terminate a process. This syscall will return
-after the handling of the awaited signal.
-
-This syscall always returns @code{-1}, with the errno:
-
-@table @code
-@item EINTR
-The syscall was interrupted by a signal, this is basically a success return,
-since this is what we wanted!
 @end table
 
 @node listmounts
