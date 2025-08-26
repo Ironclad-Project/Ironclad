@@ -819,8 +819,14 @@ package body Userland.Syscall is
          end if;
 
          declare
-            Args : Userland.Argument_Arr    (1 .. Argv'Length);
-            Env  : Userland.Environment_Arr (1 .. Envp'Length);
+            procedure Free is new Ada.Unchecked_Deallocation
+               (Argument_Arr, Argument_Arr_Acc);
+            procedure Free is new Ada.Unchecked_Deallocation
+               (Environment_Arr, Environment_Arr_Acc);
+
+            Args : Argument_Arr_Acc := new Argument_Arr (1 .. Argv'Length);
+            Env  : Environment_Arr_Acc :=
+               new Environment_Arr (1 .. Envp'Length);
          begin
             for I in Argv'Range loop
                Args (I) := To_String (To_Address (Integer_Address (Argv (I))));
@@ -844,17 +850,19 @@ package body Userland.Syscall is
                (Exec_Path   => Path,
                 FS          => Path_FS,
                 Ino         => Path_Ino,
-                Arguments   => Args,
-                Environment => Env,
+                Arguments   => Args.all,
+                Environment => Env.all,
                 Proc        => Proc,
                 Success     => Success);
 
-            for Arg of Args loop
+            for Arg of Args.all loop
                Free (Arg);
             end loop;
-            for En of Env loop
+            for En of Env.all loop
                Free (En);
             end loop;
+            Free (Args);
+            Free (Env);
          end;
 
          if Success and then Memory.MMU.Make_Active (Map) then

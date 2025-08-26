@@ -348,25 +348,45 @@ package body Userland.Loader is
       Path_Acc := new String'(Path (1 .. Path_Len));
       Arg_Acc  := new String'(Arg  (1 .. Arg_Len));
 
-      if Arg_Len /= 0 then
-         Start_Program
-            (Exec_Path   => Exec_Path,
-             FS          => Banged_FS,
-             Ino         => Banged_Ino,
-             Arguments   => [Path_Acc, Arg_Acc] & Arguments,
-             Environment => Environment,
-             Proc        => Proc,
-             Success     => Success);
-      else
-         Start_Program
-            (Exec_Path   => Exec_Path,
-             FS          => Banged_FS,
-             Ino         => Banged_Ino,
-             Arguments   => (Path_Acc) & Arguments,
-             Environment => Environment,
-             Proc        => Proc,
-             Success     => Success);
-      end if;
+      --  Some applications, like python, will rely on us passing the original
+      --  executable path instead of whatever the user invoked with, so we must
+      --  overwrite the first argument with the raw original path.
+      --  This relies on the first arg being the path to the program.
+      declare
+         Touched_Arguments : Argument_Arr := Arguments;
+      begin
+         for I in Touched_Arguments'Range loop
+            Touched_Arguments (I) := new String'(Arguments (I).all);
+         end loop;
+         if Touched_Arguments'Length /= 0 then
+            Free (Touched_Arguments (Arguments'First));
+            Touched_Arguments (Arguments'First) := new String'(Exec_Path);
+         end if;
+
+         if Arg_Len /= 0 then
+            Start_Program
+               (Exec_Path   => Exec_Path,
+                FS          => Banged_FS,
+                Ino         => Banged_Ino,
+                Arguments   => [Path_Acc, Arg_Acc] & Touched_Arguments,
+                Environment => Environment,
+                Proc        => Proc,
+                Success     => Success);
+         else
+            Start_Program
+               (Exec_Path   => Exec_Path,
+                FS          => Banged_FS,
+                Ino         => Banged_Ino,
+                Arguments   => (Path_Acc) & Touched_Arguments,
+                Environment => Environment,
+                Proc        => Proc,
+                Success     => Success);
+         end if;
+
+         for I in Touched_Arguments'Range loop
+            Free (Touched_Arguments (I));
+         end loop;
+      end;
 
       Free (Path_Acc);
       Free (Arg_Acc);
