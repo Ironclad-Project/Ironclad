@@ -353,6 +353,7 @@ package body Scheduler with SPARK_Mode => Off is
          New_Stack := new Kernel_Stack'[others => 0];
       else
          New_Stack := Thread_Pool (New_TID).Kernel_Stack;
+         Thread_Pool (New_TID).Kernel_Stack.all := [others => 0];
       end if;
 
       Thread_Pool (New_TID) :=
