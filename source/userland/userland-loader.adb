@@ -353,7 +353,7 @@ package body Userland.Loader is
       --  overwrite the first argument with the raw original path.
       --  This relies on the first arg being the path to the program.
       declare
-         Touched_Arguments : Argument_Arr := Arguments;
+         Touched_Arguments : Argument_Arr (Arguments'First .. Arguments'Last);
       begin
          for I in Touched_Arguments'Range loop
             Touched_Arguments (I) := new String'(Arguments (I).all);
