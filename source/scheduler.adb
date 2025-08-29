@@ -605,9 +605,11 @@ package body Scheduler with SPARK_Mode => Off is
             with Import, Address => To_Address (Virtual_Address (Stack_Top));
          Index_64 : Natural := Stk_64'Last;
       begin
-         Stk_64 (Index_64) := Unsigned_64 (To_Integer (Restorer));
-         Index_64 := Index_64 - 1;
-         Index_64 := Index_64 * 8;
+         #if ArchName = """x86_64-limine""" then
+            Stk_64 (Index_64) := Unsigned_64 (To_Integer (Restorer));
+            Index_64 := Index_64 - 1;
+            Index_64 := Index_64 * 8;
+         #end if;
 
          Memory.MMU.Remap_Range
             (Map           => Map,
@@ -629,6 +631,10 @@ package body Scheduler with SPARK_Mode => Off is
              0,
              0);
          Arch.Context.Init_FP_Context (FP_State);
+
+         #if ArchName = """riscv64-limine""" then
+            GP_State.X1 := Unsigned_64 (To_Integer (Restorer));
+         #end if;
       end;
 
       Create_User_Thread
@@ -784,9 +790,9 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Local.Set_Stacks
          (Thread_Pool (Next_TID).C_State,
           Thread_Pool (Next_TID).Kernel_Stack (Kernel_Stack'Last)'Address);
-      Arch.Local.Load_TCB (Thread_Pool (Next_TID).TCB_Pointer);
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_State);
       State := Thread_Pool (Next_TID).GP_State;
+      Arch.Local.Load_TCB (State, Thread_Pool (Next_TID).TCB_Pointer);
       Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>

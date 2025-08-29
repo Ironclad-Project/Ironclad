@@ -25,7 +25,7 @@ package Arch.Local is
 
    --  Save and restore TCB pointer local storage.
    function Fetch_TCB return System.Address;
-   procedure Load_TCB (TCB : System.Address);
+   procedure Load_TCB (Ctx : in out Context.GP_Context; TCB : System.Address);
 
    --  Set the user and kernel stack for return from userland.
    procedure Set_Stacks

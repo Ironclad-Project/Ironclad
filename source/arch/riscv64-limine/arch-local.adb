@@ -50,12 +50,10 @@ package body Arch.Local with SPARK_Mode => Off is
       return Ret;
    end Fetch_TCB;
 
-   procedure Load_TCB (TCB : System.Address) is
+   procedure Load_TCB (Ctx : in out Context.GP_Context; TCB : System.Address)
+   is
    begin
-      System.Machine_Code.Asm
-         ("mv tp, %0",
-          Inputs   => System.Address'Asm_Input ("r", TCB),
-          Volatile => True);
+      Ctx.X4 := Unsigned_64 (To_Integer (TCB));
    end Load_TCB;
 
    procedure Set_Stacks

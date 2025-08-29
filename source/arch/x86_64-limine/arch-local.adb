@@ -55,7 +55,9 @@ package body Arch.Local with SPARK_Mode => Off is
       return To_Address (Integer_Address (Snippets.Read_FS));
    end Fetch_TCB;
 
-   procedure Load_TCB (TCB : System.Address) is
+   procedure Load_TCB (Ctx : in out Context.GP_Context; TCB : System.Address)
+   is
+      pragma Unreferenced (Ctx);
    begin
       Snippets.Write_FS (Unsigned_64 (To_Integer (TCB)));
    end Load_TCB;
