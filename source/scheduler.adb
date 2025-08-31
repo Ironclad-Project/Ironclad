@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with System;
+with System; use System;
 with Synchronization;
 with Panic;
 with System.Storage_Elements; use System.Storage_Elements;
@@ -60,6 +60,10 @@ package body Scheduler with SPARK_Mode => Off is
       System_Tmp_NSec : Unsigned_64;
       User_Tmp_Sec    : Unsigned_64;
       User_Tmp_NSec   : Unsigned_64;
+      User_Stack      : System.Address;
+      User_Stack_Size : Unsigned_64;
+      User_Stack_Used : Boolean;
+      Is_Disabled     : Boolean;
    end record;
    type Thread_Info_Arr     is array (TID range 1 .. TID'Last) of Thread_Info;
    type Thread_Info_Arr_Acc is access Thread_Info_Arr;
@@ -118,7 +122,11 @@ package body Scheduler with SPARK_Mode => Off is
              System_Tmp_Sec  => 0,
              System_Tmp_NSec => 0,
              User_Tmp_Sec    => 0,
-             User_Tmp_NSec   => 0)];
+             User_Tmp_NSec   => 0,
+             User_Stack      => System.Null_Address,
+             User_Stack_Size => 0,
+             User_Stack_Used => False,
+             Is_Disabled     => True)];
 
       Is_Initialized := True;
       Synchronization.Release (Scheduler_Mutex);
@@ -372,6 +380,10 @@ package body Scheduler with SPARK_Mode => Off is
           FP_State       => FP_State,
           C_State        => <>,
           Process        => Userland.Process.Convert (PID),
+          User_Stack      => System.Null_Address,
+          User_Stack_Size => 0,
+          User_Stack_Used => False,
+          Is_Disabled     => True,
           others         => 0);
 
       Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).GP_State);
@@ -571,32 +583,99 @@ package body Scheduler with SPARK_Mode => Off is
          Success := False;
    end Set_Name;
    ----------------------------------------------------------------------------
+   procedure Get_Signal_Stack
+      (Thread      : TID;
+       Addr        : out System.Address;
+       Size        : out Unsigned_64;
+       Is_Disabled : out Boolean;
+       Is_Using    : out Boolean)
+   is
+   begin
+      Addr := Thread_Pool (Thread).User_Stack;
+      Size := Thread_Pool (Thread).User_Stack_Size;
+      Is_Disabled := Thread_Pool (Thread).Is_Disabled;
+      Is_Using := Thread_Pool (Thread).User_Stack_Used;
+   exception
+      when Constraint_Error =>
+         Addr := System.Null_Address;
+         Size := 0;
+         Is_Disabled := True;
+         Is_Using := False;
+   end Get_Signal_Stack;
+
+   procedure Set_Signal_Stack
+      (Thread      : TID;
+       Addr        : System.Address;
+       Size        : Unsigned_64;
+       Is_Disabled : Boolean;
+       Success     : out Boolean)
+   is
+   begin
+      if not Thread_Pool (Thread).User_Stack_Used then
+         Thread_Pool (Thread).User_Stack := Addr;
+         Thread_Pool (Thread).User_Stack_Size := Size;
+         Thread_Pool (Thread).Is_Disabled := Is_Disabled;
+         Success := True;
+      else
+         Success := False;
+      end if;
+   exception
+      when Constraint_Error =>
+         Success := False;
+   end Set_Signal_Stack;
+
    procedure Launch_Signal_Thread
       (Signal_Number    : Unsigned_64;
        Handle, Restorer : System.Address;
+       Is_Altstack      : Boolean;
        Success          : out Boolean)
    is
-      Stack_Size : constant := Kernel_Stack_Size;
-
+      Stack_Size : Unsigned_64 := Kernel_Stack_Size;
       GP_State  : Arch.Context.GP_Context;
       FP_State  : Arch.Context.FP_Context;
       New_TID   : TID;
       Stack_Top : Unsigned_64;
       Map       : Memory.MMU.Page_Table_Acc;
+      Use_Altsk : Boolean;
+      Th        : constant TID :=
+         Arch.Local.Get_Current_Thread;
       Curr_Proc : constant Userland.Process.PID :=
          Arch.Local.Get_Current_Process;
    begin
-      --  Initialize signal stack. Start by mapping the user stack.
-      Userland.Process.Bump_Stack_Base (Curr_Proc, Stack_Size, Stack_Top);
       Userland.Process.Get_Common_Map (Curr_Proc, Map);
-      Memory.MMU.Map_Allocated_Range
-         (Map           => Map,
-          Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
-          Length        => Storage_Offset (Stack_Size),
-          Permissions   => Tmp_Stack_Permissions,
-          Success       => Success);
-      if not Success then
-         return;
+
+      --  Initialize signal stack. We either start by mapping a new user stack
+      --  or we use to passed one.
+      Use_Altsk :=
+         Is_Altstack and
+         Thread_Pool (Th).User_Stack /= System.Null_Address and
+         not Thread_Pool (Th).Is_Disabled;
+
+      if Use_Altsk then
+         Thread_Pool (Th).User_Stack_Used := True;
+         Stack_Top  := Unsigned_64 (To_Integer (Thread_Pool (Th).User_Stack));
+         Stack_Size := Thread_Pool (Th).User_Stack_Size;
+
+         Memory.MMU.Remap_Range
+            (Map           => Map,
+             Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
+             Length        => Storage_Offset (Stack_Size),
+             Permissions   => Tmp_Stack_Permissions,
+             Success       => Success);
+         if not Success then
+            return;
+         end if;
+      else
+         Userland.Process.Bump_Stack_Base (Curr_Proc, Stack_Size, Stack_Top);
+         Memory.MMU.Map_Allocated_Range
+            (Map           => Map,
+             Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
+             Length        => Storage_Offset (Stack_Size),
+             Permissions   => Tmp_Stack_Permissions,
+             Success       => Success);
+         if not Success then
+            return;
+         end if;
       end if;
 
       declare
@@ -605,11 +684,13 @@ package body Scheduler with SPARK_Mode => Off is
             with Import, Address => To_Address (Virtual_Address (Stack_Top));
          Index_64 : Natural := Stk_64'Last;
       begin
+         --  x86 requires the return address in the stack.
          #if ArchName = """x86_64-limine""" then
             Stk_64 (Index_64) := Unsigned_64 (To_Integer (Restorer));
             Index_64 := Index_64 - 1;
-            Index_64 := Index_64 * 8;
          #end if;
+
+         Index_64 := Index_64 * 8;
 
          Memory.MMU.Remap_Range
             (Map           => Map,
@@ -652,6 +733,10 @@ package body Scheduler with SPARK_Mode => Off is
       while Thread_Pool (New_TID).Is_Present loop
          Yield_If_Able;
       end loop;
+
+      if Use_Altsk then
+         Thread_Pool (Th).User_Stack_Used := False;
+      end if;
    exception
       when Constraint_Error =>
          Success := False;

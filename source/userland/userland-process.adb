@@ -94,7 +94,8 @@ package body Userland.Process with SPARK_Mode => Off is
                 Controlling_TTY => null,
                 Masked_Signals  => [others => False],
                 Raised_Signals  => [others => False],
-                Signal_Handlers => [others => (others => System.Null_Address)],
+                Signal_Handlers => [others =>
+                  (System.Null_Address, System.Null_Address, False)],
                 Prio            => Scheduler.Default_Priority,
                 Niceness        => Scheduler.Default_Niceness,
                 Pol             => Scheduler.Policy_Other,
@@ -452,7 +453,7 @@ package body Userland.Process with SPARK_Mode => Off is
       Registry (Process).Masked_Signals  := [others => False];
       Registry (Process).Raised_Signals  := [others => False];
       Registry (Process).Signal_Handlers :=
-         [others => (others => System.Null_Address)];
+         [others => (System.Null_Address, System.Null_Address, False)];
    exception
       when Constraint_Error =>
          null;
@@ -1430,12 +1431,14 @@ package body Userland.Process with SPARK_Mode => Off is
       (Proc     : PID;
        Sig      : Signal;
        Handler  : out System.Address;
-       Restorer : out System.Address)
+       Restorer : out System.Address;
+       Altstack : out Boolean)
    is
    begin
       Synchronization.Seize (Registry (Proc).Data_Mutex);
       Handler  := Registry (Proc).Signal_Handlers (Sig).Handler_Addr;
       Restorer := Registry (Proc).Signal_Handlers (Sig).Restorer_Addr;
+      Altstack := Registry (Proc).Signal_Handlers (Sig).Is_Altstack;
       Synchronization.Release (Registry (Proc).Data_Mutex);
    exception
       when Constraint_Error =>
@@ -1447,13 +1450,15 @@ package body Userland.Process with SPARK_Mode => Off is
       (Proc     : PID;
        Sig      : Signal;
        Handler  : System.Address;
-       Restorer : System.Address)
+       Restorer : System.Address;
+       Altstack : Boolean)
    is
    begin
       Synchronization.Seize (Registry (Proc).Data_Mutex);
       if Sig /= Signal_Kill or Sig /= Signal_Stop then
          Registry (Proc).Signal_Handlers (Sig).Handler_Addr  := Handler;
          Registry (Proc).Signal_Handlers (Sig).Restorer_Addr := Restorer;
+         Registry (Proc).Signal_Handlers (Sig).Is_Altstack   := Altstack;
       end if;
       Synchronization.Release (Registry (Proc).Data_Mutex);
    exception
@@ -1468,6 +1473,7 @@ package body Userland.Process with SPARK_Mode => Off is
        Restorer : out System.Address;
        No_Sig   : out Boolean;
        Ignore   : out Boolean;
+       Altstack : out Boolean;
        Old_Mask : out Signal_Bitmap)
    is
    begin
@@ -1476,6 +1482,7 @@ package body Userland.Process with SPARK_Mode => Off is
       Restorer := System.Null_Address;
       No_Sig   := True;
       Ignore   := False;
+      Altstack := False;
       Old_Mask := [others => False];
 
       Synchronization.Seize (Registry (Proc).Data_Mutex);
@@ -1486,6 +1493,7 @@ package body Userland.Process with SPARK_Mode => Off is
             Sig      := I;
             Handler  := Registry (Proc).Signal_Handlers (I).Handler_Addr;
             Restorer := Registry (Proc).Signal_Handlers (I).Restorer_Addr;
+            Altstack := Registry (Proc).Signal_Handlers (I).Is_Altstack;
             No_Sig   := False;
 
             --  POSIX established only certain signals are safely ignored, when

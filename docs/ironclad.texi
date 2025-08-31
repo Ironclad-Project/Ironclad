@@ -4177,8 +4177,8 @@ Thread is not handling a signal.
 @example c
 typedef struct @{
     void  *ss_sp;
-    int    ss_flags;
     size_t ss_size;
+    int    ss_flags;
 @} stack_t;
 
 int sigaltstack(const stack_t *ss, stack_t *old_ss);
@@ -4186,10 +4186,30 @@ int sigaltstack(const stack_t *ss, stack_t *old_ss);
 
 This syscall allows a thread to define an alternative stack to use for signal
 handling. The alternative stack will be only used if @code{sa_sigaction}
-requested it.
+requested it by using @code{SA_ONSTACK}.
 
 If @code{old_ss} is not @code{NULL}, the old alternative stack being replaced
 is returned there.
+
+If @code{ss} is not @code{NULL}, the alternative stack will be replaced
+with the pointed contents.
+
+The @code{ss_flags} field of both old and new values is a bitfield with the
+following values:
+
+By default, the alternative stack of every thread at creation points to a
+null address, and is disabled.
+
+@table @code
+@item SS_ONSTACK
+The thread is currently executing on the alternate signal stack.
+(Note that it is not possible to change the alternate signal stack if the
+thread is currently executing on it).
+
+@item SS_DISABLE
+Disable the use of this stack, using this stack with @code{sigaction} will not
+result on anything.
+@end table
 
 This syscall returns @code{0} on success, and returns @code{-1} on failure,
 with the errno:

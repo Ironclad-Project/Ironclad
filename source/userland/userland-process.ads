@@ -670,22 +670,26 @@ package Userland.Process is
    --  @param Sig      Signal to get the handler for.
    --  @param Handler  Address set for the handler.
    --  @param Restorer Address set for the restorer function.
+   --  @param Altstack Whether the signal will be handled in an altstack.
    procedure Get_Signal_Handlers
       (Proc     : PID;
        Sig      : Signal;
        Handler  : out System.Address;
-       Restorer : out System.Address);
+       Restorer : out System.Address;
+       Altstack : out Boolean);
 
    --  Set an address for a process to use as a signal handler.
    --  @param Proc     Process to set the handler for.
    --  @param Sig      Signal to set the handlers for.
    --  @param Handler  Address set for the handler.
    --  @param Restorer Address set for the restorer function.
+   --  @param Altstack Whether the signal will be handled in an altstack.
    procedure Set_Signal_Handlers
       (Proc     : PID;
        Sig      : Signal;
        Handler  : System.Address;
-       Restorer : System.Address);
+       Restorer : System.Address;
+       Altstack : Boolean);
 
    --  Get a raised signal for a process.
    --  Getting a signal will mask it.
@@ -695,6 +699,7 @@ package Userland.Process is
    --  @param Restorer Address of the restorer.
    --  @param No_Sig   The process has no more signals to process.
    --  @param Ignore   If Addr = null, this signal can be ignored, else, kill.
+   --  @param Altstack If true, handle this signal in an altstack.
    --  @param Old_Mask Masked signals after maskng the raised one.
    procedure Get_Raised_Signal_Actions
       (Proc     : PID;
@@ -703,6 +708,7 @@ package Userland.Process is
        Restorer : out System.Address;
        No_Sig   : out Boolean;
        Ignore   : out Boolean;
+       Altstack : out Boolean;
        Old_Mask : out Signal_Bitmap);
 
    procedure Get_Default_Policy (Proc : PID; Pol : out Scheduler.Policy);
@@ -780,6 +786,7 @@ private
    type Signal_Handlers is record
       Handler_Addr  : System.Address;
       Restorer_Addr : System.Address;
+      Is_Altstack   : Boolean;
    end record;
 
    Max_File_Count : constant Natural := 1024;

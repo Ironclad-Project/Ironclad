@@ -116,10 +116,26 @@ package Scheduler is
    procedure Get_Name (Thread : TID; Name : out String; Len : out Natural);
    procedure Set_Name (Thread : TID; Name : String; Success : out Boolean);
    ----------------------------------------------------------------------------
+   procedure Get_Signal_Stack
+      (Thread      : TID;
+       Addr        : out System.Address;
+       Size        : out Unsigned_64;
+       Is_Disabled : out Boolean;
+       Is_Using    : out Boolean);
+
+   procedure Set_Signal_Stack
+      (Thread      : TID;
+       Addr        : System.Address;
+       Size        : Unsigned_64;
+       Is_Disabled : Boolean;
+       Success     : out Boolean);
+
    procedure Launch_Signal_Thread
       (Signal_Number    : Unsigned_64;
        Handle, Restorer : System.Address;
+       Is_Altstack      : Boolean;
        Success          : out Boolean);
+
    procedure Exit_Signal_And_Reschedule;
    ----------------------------------------------------------------------------
    --  Get the number of processes set to run over various periods of time.

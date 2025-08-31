@@ -1078,6 +1078,7 @@ package Userland.Syscall is
    SIG_ERR : constant := Integer_Address'Last;
    SIG_IGN : constant := Integer_Address'Last - 1;
    SIG_DFL : constant := Integer_Address'Last - 2;
+   SA_ONSTACK : constant := 2#10#;
    type Sigaction_Info is record
       Handler  : System.Address; --  void handler(int, siginfo_t *, void *);
       Restorer : System.Address; --  void restorer(void);
@@ -1287,10 +1288,12 @@ package Userland.Syscall is
       (Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
+   SS_ONSTACK : constant := 1;
+   SS_DISABLE : constant := 2;
    type Stack is record
-      Addr  : Unsigned_64;
-      Flags : Unsigned_32;
+      Addr  : System.Address;
       Size  : Unsigned_64;
+      Flags : Unsigned_32;
    end record with Pack;
    procedure Sigaltstack
       (New_Addr : Unsigned_64;
