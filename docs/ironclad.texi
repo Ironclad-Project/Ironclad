@@ -3520,18 +3520,29 @@ struct sched_param @{
 	int32_t sched_priority;
 @};
 
-int sched_getscheduler(pid_t pid);
+int sched_getscheduler(pid_t pid, struct sched_param *param);
 int sched_setscheduler(pid_t pid, int policy, struct sched_param *param);
 @end example
 
 This syscalls get and set scheduler details for the passed process. @code{pid}
-can be either a PID or @code{0} for the caller.
+can be either a PID or @code{0} for the caller. @code{param} stands for the
+scheduler-specific parameters of the passed PID. For both calls @code{param}
+can be passed @code{NULL} for the OS to not modify or read it.
 
 @code{param}'s priority is only used for the real time policies, and is
 delimited by the values returned at @pxref{get_min/max_priority}.
 
-@code{sched_getscheduler} returns the scheduler or @code{-1} on failure,
+@code{sched_getscheduler} returns the scheduler policy or @code{-1} on failure,
 @code{sched_setscheduler} returns @code{0} on success or @code{-1} on failure.
+Both operations return the following errno on failure:
+
+@table @code
+@item EINVAL
+@code{pid} is not valid.
+
+@item EFAULT
+A non-@code{NULL} pointer points to not valid memory.
+@end table
 
 @node get_min/max_priority
 @section get_min/max_priority

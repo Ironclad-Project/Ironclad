@@ -1050,9 +1050,10 @@ package Userland.Syscall is
    SCHED_IDLE  : constant := 5;
 
    procedure Sched_GetScheduler
-      (PID      : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value);
+      (PID        : Unsigned_64;
+       Param_Addr : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    type Sched_Param is record
       Priority : Unsigned_32;

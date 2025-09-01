@@ -266,7 +266,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             UTimes (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
                     Returned, Errno);
          when 77 =>
-            Sched_GetScheduler (State.RDI, Returned, Errno);
+            Sched_GetScheduler (State.RDI, State.RSI, Returned, Errno);
          when 78 =>
             Sched_SetScheduler
                (State.RDI, State.RSI, State.RDX, Returned, Errno);

@@ -5597,12 +5597,20 @@ package body Userland.Syscall is
    end UTimes;
 
    procedure Sched_GetScheduler
-      (PID      : Unsigned_64;
-       Returned : out Unsigned_64;
-       Errno    : out Errno_Value)
+      (PID        : Unsigned_64;
+       Param_Addr : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value)
    is
-      Proc : Process.PID;
-      Pol  : Scheduler.Policy;
+      package Trans is new Memory.Userland_Transfer (Sched_Param);
+      Curr    : constant Process.PID := Arch.Local.Get_Current_Process;
+      P_IAddr : constant Integer_Address := Integer_Address (Param_Addr);
+      Proc    : Process.PID;
+      Prio    : Scheduler.Priority;
+      Pol     : Scheduler.Policy;
+      Param   : Sched_Param;
+      Map     : Page_Table_Acc;
+      Success : Boolean;
    begin
       if PID = 0 then
          Proc := Arch.Local.Get_Current_Process;
@@ -5615,6 +5623,19 @@ package body Userland.Syscall is
          end if;
       end if;
 
+      if P_IAddr /= 0 then
+         Get_Common_Map (Curr, Map);
+         Process.Get_Priority (Proc, Prio);
+         Param := (Priority => Unsigned_32 (Prio));
+
+         Trans.Paste_Into_Userland (Map, Param, To_Address (P_IAddr), Success);
+         if not Success then
+            Errno    := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
+      end if;
+
       Process.Get_Default_Policy (Proc, Pol);
       case Pol is
          when Scheduler.Policy_RR    => Returned := SCHED_RR;
@@ -5622,8 +5643,7 @@ package body Userland.Syscall is
          when Scheduler.Policy_FIFO  => Returned := SCHED_FIFO;
          when Scheduler.Policy_Idle  => Returned := SCHED_IDLE;
       end case;
-      Errno    := Error_No_Error;
-      Returned := 0;
+      Errno := Error_No_Error;
    exception
       when Constraint_Error =>
          Errno    := Error_Would_Block;
