@@ -31,6 +31,13 @@ jobs:
               apt-get install -y gnat-15 ;; \
           esac
 
+          mkdir toolchain_dir
+          export PATH="$(realpath toolchain_dir):$PATH"
+
+          for i in gnat gnatbind gnatchop gnatclean gnathtml gnatkr gnatlink gnatls gnatmake gnatname gnatprep; do
+            ln -s /usr/bin/$i-15 "toolchain_dir/$i"
+          done
+
       - name: Checkout code
         uses: https://code.forgejo.org/actions/checkout@v4
 
@@ -48,7 +55,7 @@ jobs:
         run: |
           set -ex
 
-          export PATH=$PWD/gnatprove-x86_64-linux-15.1.0-1/bin:$PATH
+          export PATH=$PWD/gnatprove-x86_64-linux-15.1.0-1/bin:$(realpath toolchain_dir):$PATH
 
           case "${{matrix.target_arch}}" in \
             riscv64-limine) \
