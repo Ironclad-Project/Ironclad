@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Time;
 with Alignment;
 with Messages;
 with Ada.Unchecked_Deallocation;
@@ -128,7 +127,9 @@ package body Userland.Process with SPARK_Mode => Off is
                 VFork_Mark      => False,
                 RR_Sec          => 0,
                 RR_NS        => Unsigned_64 (Scheduler.Default_RR_NS_Interval),
-                others          => 0);
+                Children_System => (0, 0),
+                Children_User   => (0, 0),
+                Creation        => (0, 0));
 
             if Parent /= Error_PID then
                Synchronization.Seize (Registry (P).Data_Mutex);
@@ -163,9 +164,7 @@ package body Userland.Process with SPARK_Mode => Off is
                Reassign_Process_Addresses (PID (I));
             end if;
 
-            Arch.Clocks.Get_Monotonic_Time
-               (Registry (I).Creation_Secs,
-                Registry (I).Creation_NSecs);
+            Arch.Clocks.Get_Monotonic_Time (Registry (I).Creation);
 
             Returned := PID (I);
             exit;
@@ -183,9 +182,9 @@ package body Userland.Process with SPARK_Mode => Off is
    begin
       Synchronization.Seize (Registry (Process).Data_Mutex);
       Synchronization.Seize (Registry_Mutex);
-      Var1 := Registry (Process).Creation_NSecs;
-      Var2 := Registry (Process).Children_UNSec;
-      Var3 := Registry (Process).Children_SNSec;
+      Var1 := Registry (Process).Creation.Nanoseconds;
+      Var2 := Registry (Process).Children_User.Nanoseconds;
+      Var3 := Registry (Process).Children_System.Nanoseconds;
       Free (Registry (Process));
       Synchronization.Release (Registry_Mutex);
 
@@ -249,75 +248,51 @@ package body Userland.Process with SPARK_Mode => Off is
    end Clear_Controlling_TTY;
 
    procedure Get_Runtime_Times
-      (Proc : PID;
-       System_Seconds, System_Nanoseconds : out Unsigned_64;
-       User_Seconds, User_Nanoseconds     : out Unsigned_64)
+      (Proc : PID; System, User : out Time.Timestamp)
    is
-      Temp1, Temp2, Temp3, Temp4 : Unsigned_64;
+      Tmp_System, Tmp_User : Time.Timestamp;
    begin
-      System_Seconds := 0;
-      System_Nanoseconds := 0;
-      User_Seconds := 0;
-      User_Nanoseconds := 0;
+      System := (0, 0);
+      User := (0, 0);
 
       Synchronization.Seize (Registry (Proc).Data_Mutex);
 
       for Th of Registry (Proc).Thread_List loop
          if Th /= Error_TID then
-            Scheduler.Get_Runtime_Times (Th, Temp1, Temp2, Temp3, Temp4);
-            System_Seconds := System_Seconds + Temp1;
-            System_Nanoseconds := System_Nanoseconds + Temp2;
-            User_Seconds := User_Seconds + Temp3;
-            User_Nanoseconds := User_Nanoseconds + Temp4;
+            Scheduler.Get_Runtimes (Th, Tmp_System, Tmp_User);
+            System := System + Tmp_System;
+            User := User + Tmp_User;
          end if;
       end loop;
 
-      Time.Normalize (System_Seconds, System_Nanoseconds);
-      Time.Normalize (User_Seconds, User_Nanoseconds);
-
       Synchronization.Release (Registry (Proc).Data_Mutex);
    exception
       when Constraint_Error =>
-         System_Seconds     := 0;
-         System_Nanoseconds := 0;
-         User_Seconds       := 0;
-         User_Nanoseconds   := 0;
+         System := (0, 0);
+         User := (0, 0);
    end Get_Runtime_Times;
 
    procedure Get_Children_Runtimes
-      (Proc : PID;
-       System_Seconds, System_Nanoseconds : out Unsigned_64;
-       User_Seconds, User_Nanoseconds     : out Unsigned_64)
+      (Proc : PID; System, User : out Time.Timestamp)
    is
    begin
       Synchronization.Seize (Registry (Proc).Data_Mutex);
-      System_Seconds := Registry (Proc).Children_SSec;
-      System_Nanoseconds := Registry (Proc).Children_SNSec;
-      User_Seconds := Registry (Proc).Children_USec;
-      User_Nanoseconds := Registry (Proc).Children_UNSec;
+      System := Registry (Proc).Children_System;
+      User := Registry (Proc).Children_User;
       Synchronization.Release (Registry (Proc).Data_Mutex);
    exception
       when Constraint_Error =>
-         System_Seconds     := 0;
-         System_Nanoseconds := 0;
-         User_Seconds       := 0;
-         User_Nanoseconds   := 0;
+      System := (0, 0);
+      User := (0, 0);
    end Get_Children_Runtimes;
 
-   procedure Get_Elapsed_Time
-      (Proc        : PID;
-       Seconds     : out Unsigned_64;
-       Nanoseconds : out Unsigned_64)
-   is
+   procedure Get_Elapsed_Time (Proc : PID; Elapsed : out Time.Timestamp) is
    begin
-      Arch.Clocks.Get_Monotonic_Time (Seconds, Nanoseconds);
-      Time.Subtract
-         (Seconds, Nanoseconds,
-          Registry (Proc).Creation_Secs, Registry (Proc).Creation_NSecs);
+      Arch.Clocks.Get_Monotonic_Time (Elapsed);
+      Elapsed := Elapsed - Registry (Proc).Creation;
    exception
       when Constraint_Error =>
-         Seconds     := 0;
-         Nanoseconds := 0;
+         Elapsed := (0, 0);
    end Get_Elapsed_Time;
 
    procedure Add_Thread
@@ -362,24 +337,22 @@ package body Userland.Process with SPARK_Mode => Off is
    end Get_Thread_Count;
 
    procedure Remove_Thread (Proc : PID; Thread : Scheduler.TID) is
-      Temp1, Temp2, Temp3, Temp4 : Unsigned_64;
+      Tmp_System, Tmp_User : Time.Timestamp;
    begin
       Synchronization.Seize (Registry (Proc).Data_Mutex);
       for I in Registry (Proc).Thread_List'Range loop
          if Registry (Proc).Thread_List (I) = Thread then
             Registry (Proc).Thread_List (I) := Error_TID;
-            Scheduler.Get_Runtime_Times (Thread, Temp1, Temp2, Temp3, Temp4);
+            Scheduler.Get_Runtimes (Thread, Tmp_System, Tmp_User);
             if Registry (Proc).Parent /= Error_PID and then
                Registry (Registry (Proc).Parent) /= null
             then
-               Time.Increment
-                  (Registry (Registry (Proc).Parent).Children_SSec,
-                   Registry (Registry (Proc).Parent).Children_SNSec,
-                   Temp1, Temp2);
-               Time.Increment
-                  (Registry (Registry (Proc).Parent).Children_USec,
-                   Registry (Registry (Proc).Parent).Children_UNSec,
-                   Temp3, Temp4);
+               Registry (Registry (Proc).Parent).Children_System :=
+                  Registry (Registry (Proc).Parent).Children_System +
+                  Tmp_System;
+               Registry (Registry (Proc).Parent).Children_User :=
+                  Registry (Registry (Proc).Parent).Children_User +
+                  Tmp_User;
             end if;
             exit;
          end if;
@@ -392,22 +365,19 @@ package body Userland.Process with SPARK_Mode => Off is
 
    procedure Flush_Threads (Proc : PID) is
       Current_Thread : constant TID := Arch.Local.Get_Current_Thread;
-      T1, T2, T3, T4 : Unsigned_64;
+      Parent : PID;
+      Tmp_System, Tmp_User : Time.Timestamp;
    begin
       Synchronization.Seize (Registry (Proc).Data_Mutex);
       for Thread of Registry (Proc).Thread_List loop
          if Thread /= Error_TID then
-            if Registry (Proc).Parent /= Error_PID and then
-               Registry (Registry (Proc).Parent) /= null
-            then
-               Scheduler.Get_Runtime_Times (Thread, T1, T2, T3, T4);
-
-               Time.Increment
-                  (Registry (Registry (Proc).Parent).Children_SSec,
-                   Registry (Registry (Proc).Parent).Children_SNSec, T1, T2);
-               Time.Increment
-                  (Registry (Registry (Proc).Parent).Children_USec,
-                   Registry (Registry (Proc).Parent).Children_UNSec, T3, T4);
+            Parent := Registry (Proc).Parent;
+            if Parent /= Error_PID and then Registry (Parent) /= null then
+               Scheduler.Get_Runtimes (Thread, Tmp_System, Tmp_User);
+               Registry (Parent).Children_System :=
+                  Registry (Parent).Children_System + Tmp_System;
+               Registry (Parent).Children_User :=
+                  Registry (Parent).Children_User + Tmp_User;
             end if;
 
             if Thread /= Current_Thread then

@@ -23,7 +23,7 @@ with Arch.Local;
 with Arch.APIC;
 with Arch.CPU;
 with Alignment;
-with Time;
+with Time; use Time;
 with Synchronization;
 with Messages;
 with Interfaces.C.Strings;
@@ -202,28 +202,19 @@ package body Arch.ACPI with SPARK_Mode => Off is
    end Get_RSDP;
 
    procedure Stall (USec : Unsigned_8) is
-      Curr_Sec, Curr_Nsec, Tgt_Sec, Tgt_Nsec : Unsigned_64;
    begin
-      Arch.Clocks.Get_Monotonic_Time (Tgt_Sec, Tgt_Nsec);
-      Time.Increment (Tgt_Sec, Tgt_Nsec, 0, Unsigned_64 (USec) * 1000);
-      loop
-         Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_Nsec);
-         exit when Time.Is_Greater_Equal
-            (Curr_Sec, Curr_Nsec, Tgt_Sec, Tgt_Nsec);
-      end loop;
+      Arch.Clocks.Busy_Monotonic_Sleep (Unsigned_64 (USec) * 1000);
    end Stall;
 
    procedure Sleep (MSec : Unsigned_64) is
       pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
-      Curr_Sec, Curr_Nsec, Tgt_Sec, Tgt_Nsec : Unsigned_64;
+      Curr, Tgt : Time.Timestamp;
    begin
-      Arch.Clocks.Get_Monotonic_Time (Tgt_Sec, Tgt_Nsec);
-      Time.Increment
-         (Tgt_Sec, Tgt_Nsec, MSec / 1000, (MSec mod 1000) * 1000000);
+      Arch.Clocks.Get_Monotonic_Time (Tgt);
+      Tgt := Tgt + (MSec / 1000, (MSec mod 1000) * 1000000);
       loop
-         Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_Nsec);
-         exit when Time.Is_Greater_Equal
-            (Curr_Sec, Curr_Nsec, Tgt_Sec, Tgt_Nsec);
+         Arch.Clocks.Get_Monotonic_Time (Curr);
+         exit when Curr >= Tgt;
          Scheduler.Yield_If_Able;
       end loop;
    exception
@@ -691,10 +682,10 @@ package body Arch.ACPI with SPARK_Mode => Off is
    end Wait_For_Event;
 
    function Get_Nanoseconds_Since_Boot return Unsigned_64 is
-      Curr_Sec, Curr_Nsec : Unsigned_64;
+      Curr : Time.Timestamp;
    begin
-      Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_Nsec);
-      return (Curr_Sec * 1_000_000_000) + Curr_Nsec;
+      Arch.Clocks.Get_Monotonic_Time (Curr);
+      return To_Nanoseconds (Curr);
    end Get_Nanoseconds_Since_Boot;
 
    type uACPI_Mutex is record

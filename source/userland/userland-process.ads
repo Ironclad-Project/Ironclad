@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
+with Time; use Time;
 with VFS;
 with Memory.MMU;
 with Synchronization;
@@ -205,21 +206,14 @@ package Userland.Process is
 
    --  Get runtime of all the threads owned by the process;
    procedure Get_Runtime_Times
-      (Proc : PID;
-       System_Seconds, System_Nanoseconds : out Unsigned_64;
-       User_Seconds, User_Nanoseconds     : out Unsigned_64);
+      (Proc : PID; System, User : out Time.Timestamp);
 
    --  Get runtime of all children processes that have exited.
    procedure Get_Children_Runtimes
-      (Proc : PID;
-       System_Seconds, System_Nanoseconds : out Unsigned_64;
-       User_Seconds, User_Nanoseconds     : out Unsigned_64);
+      (Proc : PID; System, User : out Time.Timestamp);
 
    --  Get elapsed time since creation of the process.
-   procedure Get_Elapsed_Time
-      (Proc        : PID;
-       Seconds     : out Unsigned_64;
-       Nanoseconds : out Unsigned_64);
+   procedure Get_Elapsed_Time (Proc : PID; Elapsed : out Time.Timestamp);
 
    --  Add a thread to the process.
    --  @param Proc    Process to add a thread.
@@ -831,12 +825,9 @@ private
       VFork_Mark      : Boolean;
       Did_Exit        : Boolean;
       Exit_Code       : Unsigned_8;
-      Children_SSec   : Unsigned_64;
-      Children_SNSec  : Unsigned_64;
-      Children_USec   : Unsigned_64;
-      Children_UNSec  : Unsigned_64;
-      Creation_Secs   : Unsigned_64;
-      Creation_NSecs  : Unsigned_64;
+      Children_System : Time.Timestamp;
+      Children_User   : Time.Timestamp;
+      Creation        : Time.Timestamp;
       RR_Sec          : Unsigned_64;
       RR_NS           : Unsigned_64;
    end record;

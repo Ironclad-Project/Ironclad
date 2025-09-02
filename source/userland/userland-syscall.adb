@@ -20,7 +20,7 @@ with Config;
 with System; use System;
 with Messages;
 with Interfaces.C.Strings; use Interfaces.C.Strings;
-with Time;
+with Time; use Time;
 with Panic;
 with Alignment;
 with Userland.Loader;
@@ -1750,6 +1750,7 @@ package body Userland.Syscall is
          KProc : KProc_List;
          Procs : Proc_List;
          Succs : Boolean;
+         Stamp : Timestamp;
       begin
          List_All (KProc, Ret);
          for I in 1 .. Ret loop
@@ -1761,10 +1762,8 @@ package body Userland.Syscall is
                 UID         => KProc (I).User,
                 Flags       => 0,
                 Elapsed_Time => (0, 0));
-            Get_Elapsed_Time
-               (KProc (I).Process,
-                Procs (I).Elapsed_Time.Seconds,
-                Procs (I).Elapsed_Time.Nanoseconds);
+            Get_Elapsed_Time (KProc (I).Process, Stamp);
+            Procs (I).Elapsed_Time := (Stamp.Seconds, Stamp.Nanoseconds);
             if KProc (I).Is_Being_Traced then
                Procs (I).Flags := Procs (I).Flags or PROC_IS_TRACED;
             end if;
@@ -4052,10 +4051,8 @@ package body Userland.Syscall is
       S_SAddr    : constant  System.Address := To_Address (S_IAddr);
       Count      :                  Natural := 0;
       File       : File_Description_Acc;
-      Curr_Sec   : Unsigned_64;
-      Curr_NSec  : Unsigned_64;
-      Final_Sec  : Unsigned_64;
-      Final_NSec : Unsigned_64;
+      Curr       : Time.Timestamp;
+      Final      : Time.Timestamp;
       Old_Set    : Signal_Bitmap;
       Map        : Page_Table_Acc;
       Success    : Boolean;
@@ -4079,7 +4076,7 @@ package body Userland.Syscall is
          end;
       end if;
 
-      Arch.Clocks.Get_Monotonic_Time (Final_Sec, Final_NSec);
+      Arch.Clocks.Get_Monotonic_Time (Final);
       if TIAddr /= 0 then
          Trans_2.Take_From_Userland (Map, Tim, TSAddr, Success);
          if not Success then
@@ -4088,15 +4085,14 @@ package body Userland.Syscall is
       else
          Tim := (Unsigned_64'Last, Unsigned_64'Last);
       end if;
-      Time.Increment (Final_Sec, Final_NSec, Tim.Seconds, Tim.Nanoseconds);
+      Final := Final + (Tim.Seconds, Tim.Nanoseconds);
 
       --  If we have 0 items, we just eep.
       if FDs_Count = 0 then
          loop
-            Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_NSec);
+            Arch.Clocks.Get_Monotonic_Time (Curr);
             Clear_Process_Signals (Proc, Handled);
-            exit when Handled or else Time.Is_Greater_Equal
-                  (Curr_Sec, Curr_NSec, Final_Sec, Final_NSec);
+            exit when Handled or else Curr >= Final;
             Scheduler.Yield_If_Able;
          end loop;
          goto Success_Return;
@@ -4181,11 +4177,9 @@ package body Userland.Syscall is
                end if;
             end loop;
 
-            Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_NSec);
+            Arch.Clocks.Get_Monotonic_Time (Curr);
             Clear_Process_Signals (Proc, Handled);
-            exit when Handled or else Count /= 0 or else
-               Time.Is_Greater_Equal
-                  (Curr_Sec, Curr_NSec, Final_Sec, Final_NSec);
+            exit when Handled or else Count /= 0 or else Curr >= Final;
             Scheduler.Yield_If_Able;
          end loop;
 
@@ -4928,6 +4922,7 @@ package body Userland.Syscall is
       Map   : Page_Table_Acc;
       Spec  : Time_Spec;
       Succ  : Boolean;
+      Stamp : Timestamp;
    begin
       if not Get_Capabilities (Proc).Can_Use_Clocks then
          Errno := Error_Bad_Access;
@@ -4940,30 +4935,28 @@ package body Userland.Syscall is
          when CLOCK_GETRES =>
             case Clock_ID is
                when CLOCK_MONOTONIC =>
-                  Arch.Clocks.Get_Monotonic_Resolution
-                     (Spec.Seconds, Spec.Nanoseconds);
+                  Arch.Clocks.Get_Monotonic_Resolution (Stamp);
                when CLOCK_REALTIME =>
-                  Arch.Clocks.Get_Real_Time_Resolution
-                     (Spec.Seconds, Spec.Nanoseconds);
+                  Arch.Clocks.Get_Real_Time_Resolution (Stamp);
                when others =>
                   goto Invalid_Value_Error;
             end case;
+            Spec := (Stamp.Seconds, Stamp.Nanoseconds);
          when CLOCK_GETTIME =>
             case Clock_ID is
                when CLOCK_MONOTONIC =>
-                  Arch.Clocks.Get_Monotonic_Time
-                     (Spec.Seconds, Spec.Nanoseconds);
+                  Arch.Clocks.Get_Monotonic_Time (Stamp);
                when CLOCK_REALTIME =>
-                  Arch.Clocks.Get_Real_Time
-                     (Spec.Seconds, Spec.Nanoseconds);
+                  Arch.Clocks.Get_Real_Time (Stamp);
                when others =>
                   goto Invalid_Value_Error;
             end case;
+            Spec := (Stamp.Seconds, Stamp.Nanoseconds);
          when CLOCK_SETTIME =>
             case Clock_ID is
                when CLOCK_REALTIME =>
-                  Arch.Clocks.Set_Real_Time
-                     (Spec.Seconds, Spec.Nanoseconds);
+                  Stamp := (Spec.Seconds, Spec.Nanoseconds);
+                  Arch.Clocks.Set_Real_Time (Stamp);
                when others =>
                   goto Invalid_Value_Error;
             end case;
@@ -5004,8 +4997,7 @@ package body Userland.Syscall is
       Req, Re  : Time_Spec;
       Success  : Boolean;
       Handled  : Boolean;
-      CSec, CNSec : Unsigned_64;
-      FSec, FNSec : Unsigned_64;
+      Curr, Final : Time.Timestamp;
    begin
       if not Get_Capabilities (Proc).Can_Use_Clocks then
          Errno := Error_Bad_Access;
@@ -5021,25 +5013,24 @@ package body Userland.Syscall is
       end if;
 
       if (Flags and TIMER_ABSTIME) /= 0 then
-         FSec  := Req.Seconds;
-         FNSec := Req.Nanoseconds;
+         Final := (Req.Seconds, Req.Nanoseconds);
       else
          if Clock_ID = CLOCK_MONOTONIC then
-            Arch.Clocks.Get_Monotonic_Time (FSec, FNSec);
+            Arch.Clocks.Get_Monotonic_Time (Final);
          else
-            Arch.Clocks.Get_Real_Time (FSec, FNSec);
+            Arch.Clocks.Get_Real_Time (Final);
          end if;
-         Time.Increment (FSec, FNSec, Req.Seconds, Req.Nanoseconds);
+         Final := Final + (Req.Seconds, Req.Nanoseconds);
       end if;
 
       loop
          if Clock_ID = CLOCK_MONOTONIC then
-            Arch.Clocks.Get_Monotonic_Time (CSec, CNSec);
+            Arch.Clocks.Get_Monotonic_Time (Curr);
          else
-            Arch.Clocks.Get_Real_Time (CSec, CNSec);
+            Arch.Clocks.Get_Real_Time (Curr);
          end if;
          Clear_Process_Signals (Proc, Handled);
-         exit when Handled or Time.Is_Greater_Equal (CSec, CNSec, FSec, FNSec);
+         exit when Handled or Curr >= Final;
          Scheduler.Yield_If_Able;
       end loop;
 
@@ -5076,17 +5067,17 @@ package body Userland.Syscall is
       Map   : Page_Table_Acc;
       Usage : RUsage;
       Succ  : Boolean;
+      T1, T2 : Time.Timestamp;
    begin
       case Who is
          when RUSAGE_SELF =>
-            Process.Get_Runtime_Times (Proc, Usage.System_Time.Seconds,
-               Usage.System_Time.Nanoseconds, Usage.User_Time.Seconds,
-               Usage.User_Time.Nanoseconds);
+            Process.Get_Runtime_Times (Proc, T1, T2);
+            Usage.System_Time := (T1.Seconds, T1.Nanoseconds);
+            Usage.User_Time := (T2.Seconds, T2.Nanoseconds);
          when RUSAGE_CHILDREN =>
-            Process.Get_Children_Runtimes
-               (Proc, Usage.System_Time.Seconds,
-                Usage.System_Time.Nanoseconds, Usage.User_Time.Seconds,
-                Usage.User_Time.Nanoseconds);
+            Process.Get_Children_Runtimes (Proc, T1, T2);
+            Usage.System_Time := (T1.Seconds, T1.Nanoseconds);
+            Usage.User_Time := (T2.Seconds, T2.Nanoseconds);
          when others =>
             Returned := Unsigned_64'Last;
             Errno    := Error_Invalid_Value;

@@ -16,7 +16,7 @@
 
 with Ada.Characters.Latin_1;
 with Arch.Debug;
-with Interfaces; use Interfaces;
+with Time;
 
 package body Messages with
    Refined_State => [Message_State =>
@@ -95,12 +95,12 @@ is
    end Dump_Logs;
    ----------------------------------------------------------------------------
    procedure Get_Timestamp (Timestamp : out Timestamp_Str) is
-      Sec, NSec : Unsigned_64;
+      Mono_Time : Time.Timestamp;
    begin
-      Arch.Clocks.Get_Monotonic_Time (Sec, NSec);
+      Arch.Clocks.Get_Monotonic_Time (Mono_Time);
       Timestamp := [others => '0'];
-      Timestamp (Timestamp'Last - Sec'Image'Length + 1 .. Timestamp'Last) :=
-         Sec'Image;
+      Timestamp (Timestamp'Last - Mono_Time.Seconds'Image'Length + 1
+         .. Timestamp'Last) := Mono_Time.Seconds'Image;
    end Get_Timestamp;
 
    procedure Add_To_Buffers (Message : String) is

@@ -21,6 +21,7 @@ with Synchronization; use Synchronization;
 with Arch.Clocks;
 with Memory.Physical;
 with Memory.MMU;
+with Time;
 
 package body Cryptography.Random is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
@@ -60,7 +61,7 @@ package body Cryptography.Random is
    Current_Seed       :               Seed := ([others => 0], [others => 0]);
 
    procedure Init is
-      RSec, RNSec, MSec, MNSec : Unsigned_64;
+      RT_Time, Mono_Time : Time.Timestamp;
       S : Memory.Physical.Statistics;
       V : Memory.MMU.Virtual_Statistics;
       Data1, Data2, Data3, Data4, Data5, Data6, Data7 : U64_Data;
@@ -76,14 +77,14 @@ package body Cryptography.Random is
       --  anemic.
       Memory.Physical.Get_Statistics (S);
       Memory.MMU.Get_Statistics (V);
-      Arch.Clocks.Get_Real_Time      (RSec, RNSec);
-      Arch.Clocks.Get_Monotonic_Time (MSec, MNSec);
+      Arch.Clocks.Get_Real_Time (RT_Time);
+      Arch.Clocks.Get_Monotonic_Time (Mono_Time);
 
       --  Translate to feedable data.
-      Data1 := Conv (RSec);
-      Data2 := Conv (RNSec);
-      Data3 := Conv (MSec);
-      Data4 := Conv (MNSec);
+      Data1 := Conv (RT_Time.Seconds);
+      Data2 := Conv (RT_Time.Nanoseconds);
+      Data3 := Conv (Mono_Time.Seconds);
+      Data4 := Conv (Mono_Time.Nanoseconds);
       Data5 := Conv (Unsigned_64 (S.Available));
       Data6 := Conv (Unsigned_64 (S.Free));
       Data7 := Conv (Unsigned_64 (S.Total));
@@ -97,7 +98,8 @@ package body Cryptography.Random is
    end Init;
 
    procedure Fill_Data (Data : out Crypto_Data) is
-      MSec, Nonce : Unsigned_64;
+      Mono_Time   : Time.Timestamp;
+      Nonce       : Unsigned_64;
       Cha_Block   : Chacha20.Block := [others => 0];
       Index       : Natural     := Cha_Block'Last + 1;
       Mini_Index  : Natural     := 0;
@@ -107,11 +109,12 @@ package body Cryptography.Random is
 
       --  Check whether we need to reseed at all, take the chance to take a
       --  nonce as well.
-      Arch.Clocks.Get_Monotonic_Time (MSec, Nonce);
-      if MSec > Last_Reseed_Sec or else
+      Arch.Clocks.Get_Monotonic_Time (Mono_Time);
+      Nonce := Mono_Time.Nanoseconds;
+      if Mono_Time.Seconds > Last_Reseed_Sec or else
          Nonce - Last_Reseed_NSec >= Nanoseconds_Between_Reseed
       then
-         Last_Reseed_Sec  := MSec;
+         Last_Reseed_Sec  := Mono_Time.Seconds;
          Last_Reseed_NSec := Nonce;
 
          --  Choose which pools to seed with. We are doing this with a

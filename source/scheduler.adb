@@ -23,7 +23,6 @@ with Arch;
 with Arch.Local;
 with Arch.Clocks;
 with Arch.Snippets;
-with Time;
 with Arch.MMU;
 
 package body Scheduler with SPARK_Mode => Off is
@@ -50,16 +49,11 @@ package body Scheduler with SPARK_Mode => Off is
       FP_State        : Arch.Context.FP_Context;
       C_State         : Arch.Context.Core_Context;
       Process         : Userland.Process.PID;
-      Last_Sched_Sec  : Unsigned_64;
-      Last_Sched_NSec : Unsigned_64;
-      System_Sec      : Unsigned_64;
-      System_NSec     : Unsigned_64;
-      User_Sec        : Unsigned_64;
-      User_NSec       : Unsigned_64;
-      System_Tmp_Sec  : Unsigned_64;
-      System_Tmp_NSec : Unsigned_64;
-      User_Tmp_Sec    : Unsigned_64;
-      User_Tmp_NSec   : Unsigned_64;
+      Last_Sched      : Time.Timestamp;
+      System_Runtime  : Time.Timestamp;
+      User_Runtime    : Time.Timestamp;
+      System_Tmp      : Time.Timestamp;
+      User_Tmp        : Time.Timestamp;
       User_Stack      : System.Address;
       User_Stack_Size : Unsigned_64;
       User_Stack_Used : Boolean;
@@ -113,16 +107,11 @@ package body Scheduler with SPARK_Mode => Off is
              FP_State        => <>,
              C_State         => <>,
              Process         => Userland.Process.Error_PID,
-             Last_Sched_Sec  => 0,
-             Last_Sched_NSec => 0,
-             System_Sec      => 0,
-             System_NSec     => 0,
-             User_Sec        => 0,
-             User_NSec       => 0,
-             System_Tmp_Sec  => 0,
-             System_Tmp_NSec => 0,
-             User_Tmp_Sec    => 0,
-             User_Tmp_NSec   => 0,
+             Last_Sched      => (0, 0),
+             System_Runtime  => (0, 0),
+             User_Runtime    => (0, 0),
+             System_Tmp      => (0, 0),
+             User_Tmp        => (0, 0),
              User_Stack      => System.Null_Address,
              User_Stack_Size => 0,
              User_Stack_Used => False,
@@ -384,7 +373,11 @@ package body Scheduler with SPARK_Mode => Off is
           User_Stack_Size => 0,
           User_Stack_Used => False,
           Is_Disabled     => True,
-          others         => 0);
+          Last_Sched      => (0, 0),
+          System_Runtime  => (0, 0),
+          User_Runtime    => (0, 0),
+          System_Tmp      => (0, 0),
+          User_Tmp        => (0, 0));
 
       Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).GP_State);
 
@@ -434,67 +427,43 @@ package body Scheduler with SPARK_Mode => Off is
          Waiting_Spot;
    end Bail;
 
-   procedure Get_Runtime_Times
-      (Thread : TID;
-       System_Seconds, System_Nanoseconds : out Unsigned_64;
-       User_Seconds, User_Nanoseconds     : out Unsigned_64)
-   is
+   procedure Get_Runtimes (Thread : TID; System, User : out Time.Timestamp) is
    begin
       Synchronization.Seize (Scheduler_Mutex);
-      System_Seconds := Thread_Pool (Thread).System_Sec;
-      System_Nanoseconds := Thread_Pool (Thread).System_NSec;
-      User_Seconds := Thread_Pool (Thread).User_Sec;
-      User_Nanoseconds := Thread_Pool (Thread).User_NSec;
+      System := Thread_Pool (Thread).System_Runtime;
+      User := Thread_Pool (Thread).User_Runtime;
       Synchronization.Release (Scheduler_Mutex);
    exception
       when Constraint_Error =>
          Synchronization.Release (Scheduler_Mutex);
-         System_Seconds     := 0;
-         User_Seconds       := 0;
-         System_Nanoseconds := 0;
-         User_Nanoseconds   := 0;
-   end Get_Runtime_Times;
+         System := (0, 0);
+         User := (0, 0);
+   end Get_Runtimes;
 
    procedure Signal_Kernel_Entry (Thread : TID) is
-      T1, T2  : Unsigned_64;
+      Tmp     : Time.Timestamp;
       Discard : Boolean;
    begin
-      Arch.Clocks.Get_Monotonic_Time (T1, T2);
-
-      Thread_Pool (Thread).System_Tmp_Sec := T1;
-      Thread_Pool (Thread).System_Tmp_NSec := T2;
-
-      Time.Subtract
-         (T1, T2,
-          Thread_Pool (Thread).User_Tmp_Sec,
-          Thread_Pool (Thread).User_Tmp_NSec);
-      Time.Increment
-         (Thread_Pool (Thread).User_Sec, Thread_Pool (Thread).User_NSec,
-          T1, T2);
+      Arch.Clocks.Get_Monotonic_Time (Tmp);
+      Thread_Pool (Thread).System_Tmp := Tmp;
+      Tmp := Tmp - Thread_Pool (Thread).User_Tmp;
+      Thread_Pool (Thread).User_Runtime := Thread_Pool (Thread).User_Runtime +
+         Tmp;
    exception
       when Constraint_Error =>
          null;
    end Signal_Kernel_Entry;
 
    procedure Signal_Kernel_Exit (Thread : TID) is
-      Temp_Sec, Temp_NSec : Unsigned_64;
+      Tmp : Time.Timestamp;
    begin
-      Arch.Clocks.Get_Monotonic_Time (Temp_Sec, Temp_NSec);
+      Arch.Clocks.Get_Monotonic_Time (Tmp);
+      Thread_Pool (Thread).User_Tmp := Tmp;
 
-      Thread_Pool (Thread).User_Tmp_Sec := Temp_Sec;
-      Thread_Pool (Thread).User_Tmp_NSec := Temp_NSec;
-
-      if Thread_Pool (Thread).System_Tmp_Sec /= 0 or
-         Thread_Pool (Thread).System_Tmp_NSec /= 0
-      then
-         Time.Subtract
-            (Seconds1     => Temp_Sec,
-             Nanoseconds1 => Temp_NSec,
-             Seconds2     => Thread_Pool (Thread).System_Tmp_Sec,
-             Nanoseconds2 => Thread_Pool (Thread).System_Tmp_NSec);
-         Time.Increment
-            (Thread_Pool (Thread).System_Sec, Thread_Pool (Thread).System_NSec,
-             Temp_Sec, Temp_NSec);
+      if Thread_Pool (Thread).System_Tmp /= (0, 0) then
+         Tmp := Tmp - Thread_Pool (Thread).System_Tmp;
+         Thread_Pool (Thread).System_Runtime :=
+            Thread_Pool (Thread).System_Runtime + Tmp;
       end if;
    exception
       when Constraint_Error =>
@@ -778,18 +747,17 @@ package body Scheduler with SPARK_Mode => Off is
       Current_TID : constant TID := Arch.Local.Get_Current_Thread;
       Next_TID    :          TID := Error_TID;
       Timeout     : Natural;
-      Curr_Sec    : Unsigned_64;
-      Curr_NSec   : Unsigned_64;
+      Curr        : Time.Timestamp;
       Count       : Unsigned_32;
    begin
-      Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_NSec);
+      Arch.Clocks.Get_Monotonic_Time (Curr);
 
       Synchronization.Seize (Scheduler_Mutex);
 
       --  Adjust the moving stats if at least a minute has passed since
       --  last poll.
-      if Curr_Sec >= Last_Bucket + 60 then
-         Last_Bucket := Curr_Sec;
+      if Curr.Seconds >= Last_Bucket + 60 then
+         Last_Bucket := Curr.Seconds;
          Count := 0;
          for I in Thread_Pool'First .. Thread_Pool'Last loop
             if Thread_Pool (I).Is_Present then
@@ -834,10 +802,7 @@ package body Scheduler with SPARK_Mode => Off is
       if Current_TID /= Error_TID then
          Thread_Pool (Current_TID).Is_Running := False;
 
-         Time.Subtract
-            (Curr_Sec, Curr_NSec,
-             Thread_Pool (Current_TID).Last_Sched_Sec,
-             Thread_Pool (Current_TID).Last_Sched_NSec);
+         Curr := Curr - Thread_Pool (Current_TID).Last_Sched;
 
          if Thread_Pool (Current_TID).Is_Present then
             Thread_Pool (Current_TID).PageMap :=
@@ -853,13 +818,9 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       --  Set the last time of entry to userland if none.
-      Thread_Pool (Next_TID).Last_Sched_Sec  := Curr_Sec;
-      Thread_Pool (Next_TID).Last_Sched_NSec := Curr_NSec;
-      if Thread_Pool (Next_TID).User_Tmp_Sec  = 0 and
-         Thread_Pool (Next_TID).User_Tmp_NSec = 0
-      then
-         Thread_Pool (Next_TID).User_Tmp_Sec  := Curr_Sec;
-         Thread_Pool (Next_TID).User_Tmp_NSec := Curr_NSec;
+      Thread_Pool (Next_TID).Last_Sched := Curr;
+      if Thread_Pool (Next_TID).User_Tmp = (0, 0) then
+         Thread_Pool (Next_TID).User_Tmp := Curr;
       end if;
 
       --  FIXME: This originally was between the lock release and the

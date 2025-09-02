@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
+with Time; use Time;
 
 package Arch.Clocks with
    Abstract_State => (Monotonic_Clock_State, RT_Clock_State)
@@ -39,11 +40,11 @@ is
       with Global => (Output => (Monotonic_Clock_State, RT_Clock_State));
 
    --  Get the resolution of the monotonic clock.
-   procedure Get_Monotonic_Resolution (Seconds, Nanoseconds : out Unsigned_64)
+   procedure Get_Monotonic_Resolution (Stamp : out Time.Timestamp)
       with Global => (Input => Monotonic_Clock_State);
 
    --  Get the time from the monotonic clock.
-   procedure Get_Monotonic_Time (Seconds, Nanoseconds : out Unsigned_64)
+   procedure Get_Monotonic_Time (Stamp : out Time.Timestamp)
       with Global => (Input => Monotonic_Clock_State);
 
    --  Do a quick busy monotonic sleep.
@@ -51,15 +52,15 @@ is
       with Global => (Input => Monotonic_Clock_State);
 
    --  Get the resolution of the real-time clock.
-   procedure Get_Real_Time_Resolution (Seconds, Nanoseconds : out Unsigned_64)
+   procedure Get_Real_Time_Resolution (Stamp : out Time.Timestamp)
       with Global => (Input => RT_Clock_State);
 
    --  Get the time from the real time clock.
-   procedure Get_Real_Time (Seconds, Nanoseconds : out Unsigned_64)
+   procedure Get_Real_Time (Stamp : out Time.Timestamp)
       with Global => (Input => RT_Clock_State);
 
    --  Set the time for the real time clock.
-   procedure Set_Real_Time (Seconds, Nanoseconds : Unsigned_64)
+   procedure Set_Real_Time (Stamp : Time.Timestamp)
       with Global => (In_Out => RT_Clock_State);
 
    #if ArchName = """riscv64-limine"""

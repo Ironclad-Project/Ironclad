@@ -15,15 +15,13 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Panic;
-with Time; use Time;
 with Messages;
 with Arch.ACPI;
 with System.Machine_Code;
 
 package body Arch.Clocks with
    Refined_State =>
-      (RT_Clock_State =>
-         (null),
+      (RT_Clock_State => (null),
        Monotonic_Clock_State =>
          (Is_Initialized, TSC_Tick_Resolution, TSC_Ticks_Per_Res))
 is
@@ -32,9 +30,8 @@ is
    Is_Initialized : Boolean := False;
 
    --  For monotonic, we use the TSC.
-   Nanoseconds_In_Second : constant    := 1_000_000_000;
-   TSC_Tick_Resolution   : Unsigned_64 := 100_000;
-   TSC_Ticks_Per_Res     : Unsigned_64 := Nanoseconds_In_Second;
+   TSC_Tick_Resolution : Unsigned_64 := 100_000;
+   TSC_Ticks_Per_Res : Unsigned_64 := Nanoseconds_In_Second;
 
    procedure Initialize_Sources is
       ACPI_Address : Arch.ACPI.Table_Record;
@@ -67,14 +64,12 @@ is
       Is_Initialized := True;
    end Initialize_Sources;
 
-   procedure Get_Monotonic_Resolution (Seconds, Nanoseconds : out Unsigned_64)
-   is
+   procedure Get_Monotonic_Resolution (Stamp : out Time.Timestamp) is
    begin
-      Seconds     := 0;
-      Nanoseconds := TSC_Tick_Resolution;
+      Stamp := (0, TSC_Tick_Resolution);
    end Get_Monotonic_Resolution;
 
-   procedure Get_Monotonic_Time (Seconds, Nanoseconds : out Unsigned_64) is
+   procedure Get_Monotonic_Time (Stamp : out Time.Timestamp) is
       pragma SPARK_Mode (Off); --  ASM is not SPARK-friendly.
       Cnt : Unsigned_64;
    begin
@@ -84,46 +79,37 @@ is
              Outputs  => Unsigned_64'Asm_Output ("=r", Cnt),
              Volatile => True);
 
-         Nanoseconds := (Cnt / TSC_Ticks_Per_Res) * TSC_Tick_Resolution;
-         Seconds     := Nanoseconds / Nanoseconds_In_Second;
-         Nanoseconds := Nanoseconds mod Nanoseconds_In_Second;
+         Stamp := To_Stamp ((Cnt / TSC_Ticks_Per_Res) * TSC_Tick_Resolution);
       else
-         Seconds     := 0;
-         Nanoseconds := 0;
+         Stamp := (0, 0);
       end if;
    end Get_Monotonic_Time;
 
    procedure Busy_Monotonic_Sleep (Nanoseconds : Unsigned_64) is
-      Curr_Sec, Curr_Nano : Unsigned_64;
-      Next_Sec, Next_Nano : Unsigned_64;
+      Curr, Tgt : Time.Timestamp;
    begin
       if Is_Initialized then
-         Get_Monotonic_Time (Next_Sec, Next_Nano);
-         Time.Increment (Next_Sec, Next_Nano, 0, Nanoseconds);
+         Get_Monotonic_Time (Tgt);
+         Tgt := Tgt + (0, Nanoseconds);
          loop
-            Get_Monotonic_Time (Curr_Sec, Curr_Nano);
-            exit when Time.Is_Greater_Equal
-               (Curr_Sec, Curr_Nano, Next_Sec, Next_Nano);
+            Get_Monotonic_Time (Curr);
+            exit when Curr >= Tgt;
          end loop;
       end if;
    end Busy_Monotonic_Sleep;
 
-   procedure Get_Real_Time_Resolution (Seconds, Nanoseconds : out Unsigned_64)
-   is
+   procedure Get_Real_Time_Resolution (Stamp : out Time.Timestamp) is
    begin
-      Seconds     := 0;
-      Nanoseconds := 0;
+      Stamp := (0, TSC_Tick_Resolution);
    end Get_Real_Time_Resolution;
 
-   procedure Get_Real_Time (Seconds, Nanoseconds : out Unsigned_64) is
-      Temp1, Temp2 : Unsigned_64;
+   procedure Get_Real_Time (Stamp : out Time.Timestamp) is
    begin
-      Seconds     := 0;
-      Nanoseconds := 0;
+      Stamp := (0, 0);
    end Get_Real_Time;
 
-   procedure Set_Real_Time (Seconds, Nanoseconds : Unsigned_64) is
-      pragma Unreferenced (Seconds, Nanoseconds);
+   procedure Set_Real_Time (Stamp : Time.Timestamp) is
+      pragma Unreferenced (Stamp);
    begin
       null;
    end Set_Real_Time;

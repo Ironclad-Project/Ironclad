@@ -1,5 +1,5 @@
 --  time.adb: Time-related functions.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -17,48 +17,60 @@
 package body Time is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
-   procedure Normalize (Seconds, Nanoseconds : in out Unsigned_64) is
-      Nanosecond_Seconds : constant Unsigned_64 := Nanoseconds / USec_Per_Sec;
+   function To_Stamp (Nanoseconds : Unsigned_64) return Timestamp is
    begin
-      if Seconds <= Unsigned_64'Last - Nanosecond_Seconds then
-         Seconds := Seconds + Nanosecond_Seconds;
+      return
+         (Nanoseconds / Nanoseconds_In_Second,
+          Nanoseconds mod Nanoseconds_In_Second);
+   end To_Stamp;
+
+   function To_Nanoseconds (Stamp : Timestamp) return Unsigned_64 is
+   begin
+      return (Stamp.Seconds * Nanoseconds_In_Second) + Stamp.Nanoseconds;
+   end To_Nanoseconds;
+
+   function "+" (Left, Right : Timestamp) return Timestamp is
+      Result : Timestamp;
+   begin
+      if Left.Seconds > Unsigned_64'Last - Right.Seconds then
+         Result.Seconds := Unsigned_64'Last;
       else
-         Seconds := Unsigned_64'Last;
+         Result.Seconds := Left.Seconds + Right.Seconds;
       end if;
-      Nanoseconds := Nanoseconds mod USec_Per_Sec;
-   end Normalize;
+      Result.Nanoseconds := Left.Nanoseconds + Right.Nanoseconds;
+      Normalize (Result);
+      return Result;
+   end "+";
 
-   procedure Increment
-      (Seconds1, Nanoseconds1 : in out Unsigned_64;
-       Seconds2, Nanoseconds2 : Unsigned_64)
-   is
+   function "-" (Left, Right : Timestamp) return Timestamp is
+      L      : Timestamp := Left;
+      R      : Timestamp := Right;
+      Result : Timestamp;
    begin
-      if Seconds1 > Unsigned_64'Last - Seconds2 then
-         Seconds1 := Unsigned_64'Last;
-      else
-         Seconds1 := Seconds1 + Seconds2;
+      Normalize (L);
+      Normalize (R);
+
+      Result.Seconds := L.Seconds - R.Seconds;
+      Result.Nanoseconds := L.Nanoseconds;
+      if L.Nanoseconds < R.Nanoseconds then
+         Result.Seconds := L.Seconds - 1;
+         Result.Nanoseconds := Nanoseconds_In_Second + L.Nanoseconds;
       end if;
-      Nanoseconds1 := Nanoseconds1 + Nanoseconds2;
-      Normalize (Seconds1, Nanoseconds1);
-   end Increment;
+      Result.Nanoseconds := Result.Nanoseconds - R.Nanoseconds;
+      return Result;
+   end "-";
 
-   procedure Subtract
-      (Seconds1, Nanoseconds1 : in out Unsigned_64;
-       Seconds2, Nanoseconds2 : Unsigned_64)
-   is
+   function ">=" (Left, Right : Timestamp) return Boolean is
+      L : Timestamp := Left;
+      R : Timestamp := Right;
    begin
-      Seconds1 := Seconds1 - Seconds2;
-      if Nanoseconds1 < Nanoseconds2 then
-         Seconds1 := Seconds1 - 1;
-         Nanoseconds1 := USec_Per_Sec + Nanoseconds1;
-      end if;
-      Nanoseconds1 := Nanoseconds1 - Nanoseconds2;
-   end Subtract;
+      Normalize (L);
+      Normalize (R);
 
-   function Is_Greater_Equal (S1, NS1, S2, NS2 : Unsigned_64) return Boolean is
-   begin
-      return (S1 > S2) or ((S1 = S2) and (NS1 >= NS2));
-   end Is_Greater_Equal;
+      return (Left.Seconds > Right.Seconds) or
+         ((Left.Seconds = Right.Seconds) and
+          (Left.Nanoseconds >= Right.Nanoseconds));
+   end ">=";
    ----------------------------------------------------------------------------
    function Time_To_Epoch
       (Y   : Year;
@@ -78,6 +90,18 @@ package body Time is
              Unsigned_64 (S);
    end Time_To_Epoch;
    ----------------------------------------------------------------------------
+   procedure Normalize (Stamp : in out Timestamp) is
+      Nanosecond_Seconds : constant Unsigned_64 :=
+         Stamp.Nanoseconds / Nanoseconds_In_Second;
+   begin
+      if Stamp.Seconds <= Unsigned_64'Last - Nanosecond_Seconds then
+         Stamp.Seconds := Stamp.Seconds + Nanosecond_Seconds;
+      else
+         Stamp.Seconds := Unsigned_64'Last;
+      end if;
+      Stamp.Nanoseconds := Stamp.Nanoseconds mod Nanoseconds_In_Second;
+   end Normalize;
+
    function Get_Julian_Date (Days, Months, Years : Natural) return Unsigned_64
    is
       Y : constant Unsigned_64 := Unsigned_64 (Years);

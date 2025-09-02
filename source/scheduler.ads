@@ -21,6 +21,7 @@ with Userland;
 with Userland.ELF;
 with Memory.MMU;
 with Arch.Context;
+with Time; use Time;
 
 package Scheduler is
    --  Types to represent threads.
@@ -86,10 +87,7 @@ package Scheduler is
    procedure Bail with No_Return;
 
    --  Get runtime times of the thread.
-   procedure Get_Runtime_Times
-      (Thread : TID;
-       System_Seconds, System_Nanoseconds : out Unsigned_64;
-       User_Seconds, User_Nanoseconds     : out Unsigned_64);
+   procedure Get_Runtimes (Thread : TID; System, User : out Time.Timestamp);
 
    --  Signal to the scheduler that a thread has entered or exited kernel
    --  space (for time keeping reasons).

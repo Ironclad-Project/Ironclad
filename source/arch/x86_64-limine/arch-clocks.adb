@@ -17,21 +17,15 @@
 with Arch.Snippets;
 with Arch.RTC;
 with Panic;
-with Time; use Time;
 with Arch.HPET;
 with Arch.ACPI_PM_Timer;
 with Messages;
 
 package body Arch.Clocks with
    Refined_State =>
-      (RT_Clock_State =>
-         (Is_Initialized,
-          RT_Timestamp_Seconds,
-          RT_Timestamp_Nanoseconds,
-          RT_Stored_Seconds,
-          RT_Stored_Nanoseconds),
+      (RT_Clock_State => (RT_Timestamp, RT_Stored_Stamp),
        Monotonic_Clock_State =>
-         (TSC_Tick_Resolution, TSC_Ticks_Per_Res))
+         (Is_Initialized, TSC_Tick_Resolution, TSC_Ticks_Per_Res))
 is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
@@ -41,15 +35,12 @@ is
    --  will cache RTC time as well as when it was cached in monotonic.
    --  That way, by adding deltas, we can build an okayish, finer-grained
    --  resolution clock.
-   RT_Timestamp_Seconds     : Unsigned_64;
-   RT_Timestamp_Nanoseconds : Unsigned_64;
-   RT_Stored_Seconds        : Unsigned_64;
-   RT_Stored_Nanoseconds    : Unsigned_64;
+   RT_Timestamp : Time.Timestamp := (0, 0);
+   RT_Stored_Stamp : Time.Timestamp := (0, 0);
 
    --  For monotonic, we use the TSC.
-   Nanoseconds_In_Second : constant    := 1_000_000_000;
-   TSC_Tick_Resolution   : Unsigned_64 := 100_000;
-   TSC_Ticks_Per_Res     : Unsigned_64 := Nanoseconds_In_Second;
+   TSC_Tick_Resolution : Unsigned_64 := 100_000;
+   TSC_Ticks_Per_Res : Unsigned_64 := Nanoseconds_In_Second;
 
    procedure Initialize_Sources is
       TSC_Start, TSC_End     : Unsigned_64;
@@ -124,69 +115,57 @@ is
       Is_Initialized := True;
 
       --  Set the RTC base.
-      Get_Monotonic_Time (RT_Timestamp_Seconds, RT_Timestamp_Nanoseconds);
-      RTC.Get_RTC_Date (RT_Stored_Seconds);
-      RT_Stored_Nanoseconds := 0;
+      Get_Monotonic_Time (RT_Timestamp);
+      RTC.Get_RTC_Date (RT_Stored_Stamp.Seconds);
+      RT_Stored_Stamp.Nanoseconds := 0;
    end Initialize_Sources;
 
-   procedure Get_Monotonic_Resolution (Seconds, Nanoseconds : out Unsigned_64)
-   is
+   procedure Get_Monotonic_Resolution (Stamp : out Time.Timestamp) is
    begin
-      Seconds     := 0;
-      Nanoseconds := TSC_Tick_Resolution;
+      Stamp := (0, TSC_Tick_Resolution);
    end Get_Monotonic_Resolution;
 
-   procedure Get_Monotonic_Time (Seconds, Nanoseconds : out Unsigned_64) is
-      Cnt : Unsigned_64;
+   procedure Get_Monotonic_Time (Stamp : out Time.Timestamp) is
+      Cnt : constant Unsigned_64 := Arch.Snippets.Read_TSC;
    begin
       if Is_Initialized then
-         Cnt         := Arch.Snippets.Read_TSC;
-         Nanoseconds := (Cnt / TSC_Ticks_Per_Res) * TSC_Tick_Resolution;
-         Seconds     := Nanoseconds / Nanoseconds_In_Second;
-         Nanoseconds := Nanoseconds mod Nanoseconds_In_Second;
+         Stamp := To_Stamp ((Cnt / TSC_Ticks_Per_Res) * TSC_Tick_Resolution);
       else
-         Seconds     := 0;
-         Nanoseconds := 0;
+         Stamp := (0, 0);
       end if;
    end Get_Monotonic_Time;
 
    procedure Busy_Monotonic_Sleep (Nanoseconds : Unsigned_64) is
-      Curr_Sec, Curr_Nano : Unsigned_64;
-      Next_Sec, Next_Nano : Unsigned_64;
+      Curr, Next : Time.Timestamp;
    begin
       if Is_Initialized then
-         Get_Monotonic_Time (Next_Sec, Next_Nano);
-         Time.Increment (Next_Sec, Next_Nano, 0, Nanoseconds);
+         Get_Monotonic_Time (Next);
+         Next := Next + (0, Nanoseconds);
          loop
-            Get_Monotonic_Time (Curr_Sec, Curr_Nano);
-            exit when Time.Is_Greater_Equal
-               (Curr_Sec, Curr_Nano, Next_Sec, Next_Nano);
+            Get_Monotonic_Time (Curr);
+            exit when Curr >= Next;
          end loop;
       end if;
    end Busy_Monotonic_Sleep;
 
-   procedure Get_Real_Time_Resolution (Seconds, Nanoseconds : out Unsigned_64)
-   is
+   procedure Get_Real_Time_Resolution (Stamp : out Time.Timestamp) is
    begin
-      Seconds     := 0;
-      Nanoseconds := TSC_Tick_Resolution;
+      Stamp := (0, TSC_Tick_Resolution);
    end Get_Real_Time_Resolution;
 
-   procedure Get_Real_Time (Seconds, Nanoseconds : out Unsigned_64) is
-      Temp1, Temp2 : Unsigned_64;
+   procedure Get_Real_Time (Stamp : out Time.Timestamp) is
+      Temp : Time.Timestamp;
    begin
-      Get_Monotonic_Time (Temp1, Temp2);
-      Subtract (Temp1, Temp2, RT_Timestamp_Seconds, RT_Timestamp_Nanoseconds);
-      Seconds := RT_Stored_Seconds + Temp1;
-      Nanoseconds := RT_Stored_Nanoseconds + Temp2;
+      Get_Monotonic_Time (Temp);
+      Temp := Temp - RT_Timestamp;
+      Stamp := RT_Stored_Stamp + Temp;
    end Get_Real_Time;
 
-   procedure Set_Real_Time (Seconds, Nanoseconds : Unsigned_64) is
+   procedure Set_Real_Time (Stamp : Time.Timestamp) is
    begin
-      RT_Stored_Seconds     := Seconds;
-      RT_Stored_Nanoseconds := Nanoseconds;
-      Get_Monotonic_Time (RT_Timestamp_Seconds, RT_Timestamp_Nanoseconds);
-      RTC.Set_RTC_Date (Seconds);
+      RT_Stored_Stamp := Stamp;
+      Get_Monotonic_Time (RT_Timestamp);
+      RTC.Set_RTC_Date (Stamp.Seconds);
    end Set_Real_Time;
    ----------------------------------------------------------------------------
    procedure Normalize_TSC_Hz is

@@ -18,7 +18,7 @@ with System; use System;
 with Scheduler;
 with Synchronization; use Synchronization;
 with Arch.Clocks;
-with Time;
+with Time; use Time;
 with Memory.Userland_Transfer;
 
 package body IPC.Futex is
@@ -42,7 +42,7 @@ package body IPC.Futex is
        Max_Nanos   : Unsigned_64;
        Success     : out Wait_Status)
    is
-      Curr_Sec, Curr_NSec, Final_Sec, Final_NSec : Unsigned_64;
+      Curr, Final : Time.Timestamp;
       Value : Unsigned_32;
       Success2 : Boolean;
    begin
@@ -89,8 +89,8 @@ package body IPC.Futex is
          end loop;
 
          --  Now that we have a built list of indexes to wait, we wait.
-         Arch.Clocks.Get_Monotonic_Time (Final_Sec, Final_NSec);
-         Time.Increment (Final_Sec, Final_NSec, Max_Seconds, Max_Nanos);
+         Arch.Clocks.Get_Monotonic_Time (Final);
+         Final := Final + (Max_Seconds, Max_Nanos);
 
          for I of Idx loop
             Synchronization.Seize (Registry_Mutex);
@@ -104,10 +104,8 @@ package body IPC.Futex is
             end if;
             Synchronization.Release (Registry_Mutex);
 
-            Arch.Clocks.Get_Monotonic_Time (Curr_Sec, Curr_NSec);
-            exit when Time.Is_Greater_Equal
-               (Curr_Sec, Curr_NSec, Final_Sec, Final_NSec);
-
+            Arch.Clocks.Get_Monotonic_Time (Curr);
+            exit when Curr >= Final;
             Scheduler.Yield_If_Able;
          end loop;
       end;

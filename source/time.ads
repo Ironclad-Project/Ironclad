@@ -1,5 +1,5 @@
 --  time.ads: Time-related functions.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -17,52 +17,27 @@
 with Interfaces; use Interfaces;
 
 package Time is
+   --  Some numeric constants.
+   Milliseconds_In_Second : constant := 1_000;
+   Nanoseconds_In_Microsecond : constant := 1_000_000;
+   Nanoseconds_In_Second : constant := 1_000_000_000;
+
    --  Inside Ironclad, time is often referred to as a tuple of seconds and
-   --  nanoseconds. These functions make manipulating those values easier.
+   --  nanoseconds.
+   type Timestamp is record
+      Seconds : Unsigned_64;
+      Nanoseconds : Unsigned_64;
+   end record;
 
-   --  Normalize a number of seconds and nanoseconds, by making sure
-   --  no seconds are held in the nanoseconds field.
-   --  @param Seconds     Seconds to normalize.
-   --  @param Nanoseconds Nanoseconds to normalize.
-   procedure Normalize (Seconds, Nanoseconds : in out Unsigned_64)
-      with Post => Is_Normalized (Nanoseconds);
+   --  Conversion to and from nanoseconds.
+   function To_Stamp (Nanoseconds : Unsigned_64) return Timestamp;
+   function To_Nanoseconds (Stamp : Timestamp) return Unsigned_64;
 
-   --  Add two passed timestamps write the normalized sum to the first one.
-   --  @param Seconds1     Seconds to add and result value.
-   --  @param Nanoseconds1 Nanoseconds to add and result value.
-   --  @param Seconds2     Seconds to add.
-   --  @param Nanoseconds2 Nanoseconds to add.
-   procedure Increment
-      (Seconds1, Nanoseconds1 : in out Unsigned_64;
-       Seconds2, Nanoseconds2 : Unsigned_64)
-      with Post => Is_Normalized (Nanoseconds1);
-
-   --  Subtract two timestamps, for things like getting a delta. The first
-   --  one will be used for output as well, and must be bigger than the second.
-   --  @param Seconds1     Seconds to subtract from and result value.
-   --  @param Nanoseconds1 Nanoseconds to subtract from and result value.
-   --  @param Seconds2     Seconds to subtract.
-   --  @param Nanoseconds2 Nanoseconds to subtract.
-   procedure Subtract
-      (Seconds1, Nanoseconds1 : in out Unsigned_64;
-       Seconds2, Nanoseconds2 : Unsigned_64)
-      with Pre =>
-         Is_Normalized (Nanoseconds1) and then
-         Is_Normalized (Nanoseconds2) and then
-         Is_Greater_Equal (Seconds1, Nanoseconds1, Seconds2, Nanoseconds2),
-           Post => Is_Normalized (Nanoseconds1);
-
-   --  Compare two timestamps.
-   --  @param S1  First second to compare.
-   --  @param NS1 First nanosecond to compare.
-   --  @param S2  Second second to compare.
-   --  @param NS2 Second nanosecond to compare.
-   --  @return True if the first timestamp is greater or equal.
-   function Is_Greater_Equal (S1, NS1, S2, NS2 : Unsigned_64) return Boolean
-      with Pre => Is_Normalized (NS1) and Is_Normalized (NS2);
-
-   --  Ghost function for checking whether a timestamp is normalized.
-   function Is_Normalized (NS : Unsigned_64) return Boolean with Ghost;
+   --  Binary operations, they dont return exceptions but (-1, -1) on overflow
+   --  and (0, 0) on underflow.
+   function "+" (Left, Right : Timestamp) return Timestamp;
+   function "-" (Left, Right : Timestamp) return Timestamp;
+   function ">=" (Left, Right : Timestamp) return Boolean;
    ----------------------------------------------------------------------------
    --  Types to represent several date elements.
    subtype Year    is Natural;
@@ -83,12 +58,8 @@ package Time is
 
 private
 
-   MSec_Per_Sec  : constant := 1_000;
-   USec_Per_MSec : constant := 1_000_000;
-   USec_Per_Sec  : constant := USec_Per_MSec * MSec_Per_Sec;
-
-   function Is_Normalized (NS : Unsigned_64) return Boolean is
-      (NS < USec_Per_Sec);
+   procedure Normalize (Stamp : in out Timestamp)
+      with Post => Stamp.Nanoseconds <= Nanoseconds_In_Second;
 
    function Get_Julian_Date (Days, Months, Years : Natural) return Unsigned_64;
 end Time;
