@@ -273,8 +273,8 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
 
          Caching.Init
             (NS.all'Address,
-             NS_Read'Address,
-             NS_Write'Address,
+             NS_Read'Access,
+             NS_Write'Access,
              NS.Cache_Reg);
 
          Register (

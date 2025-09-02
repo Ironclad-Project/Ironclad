@@ -191,8 +191,8 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
           Cache_Reg     => <>);
       Caching.Init
          (Dev_Data.all'Address,
-          Read_Sector'Address,
-          Write_Sector'Address,
+          Read_Sector'Access,
+          Write_Sector'Access,
           Dev_Data.Cache_Reg);
       Success := Issue_Command
          (Drive       => Dev_Data,

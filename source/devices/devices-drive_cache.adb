@@ -14,11 +14,13 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Alignment;
+
 package body Devices.Drive_Cache is
    procedure Init
       (Drive_Arg : System.Address;
-       Read      : System.Address;
-       Write     : System.Address;
+       Read      : not null Read_Sector_Acc;
+       Write     : not null Write_Sector_Acc;
        Registry  : aliased out Cache_Registry)
    is
    begin
@@ -38,8 +40,8 @@ package body Devices.Drive_Cache is
        Ret_Count : out Natural;
        Success   : out Dev_Status)
    is
-      Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
-      Current_LBA : Unsigned_64;
+      Progress, Copy_Count, Cache_Offset : Natural := 0;
+      Cache_Idx, Current_LBA : Unsigned_64;
       Succ : Boolean;
    begin
       Succ := True;
@@ -87,8 +89,8 @@ package body Devices.Drive_Cache is
        Ret_Count : out Natural;
        Success   : out Dev_Status)
    is
-      Cache_Idx, Progress, Copy_Count, Cache_Offset : Natural := 0;
-      Current_LBA : Unsigned_64;
+      Progress, Copy_Count, Cache_Offset : Natural := 0;
+      Cache_Idx, Current_LBA : Unsigned_64;
       Succ : Boolean;
    begin
       Succ := True;
@@ -135,19 +137,13 @@ package body Devices.Drive_Cache is
        Success  : out Boolean)
    is
       pragma Warnings (Off, "handler can never be entered", Reason => "Bug");
-      procedure Write_Sector
-         (Drive       : System.Address;
-          LBA         : Unsigned_64;
-          Data_Buffer : Sector_Data;
-          Success     : out Boolean)
-      with Import, Address => Registry.Write_Proc;
    begin
       Success := True;
       for Cache of Registry.Caches loop
          Synchronization.Seize (Cache.Mutex);
          if Cache.Is_Used and Cache.Is_Dirty then
-            Write_Sector (Registry.Drive_Arg, Cache.LBA_Offset, Cache.Data,
-               Success);
+            Registry.Write_Proc
+               (Registry.Drive_Arg, Cache.LBA_Offset, Cache.Data, Success);
             Cache.Is_Dirty := False;
          end if;
          Synchronization.Release (Cache.Mutex);
@@ -163,32 +159,27 @@ package body Devices.Drive_Cache is
        Count    : Unsigned_64;
        Success  : out Boolean)
    is
-      procedure Write_Sector
-         (Drive       : System.Address;
-          LBA         : Unsigned_64;
-          Data_Buffer : Sector_Data;
-          Success     : out Boolean)
-      with Import, Address => Registry.Write_Proc;
-
-      First_LBA : Unsigned_64;
-      Last_LBA  : Unsigned_64;
+      package Align is new Alignment (Unsigned_64);
+      First_LBA, LBAs, Idx : Unsigned_64;
    begin
+      Success := True;
       First_LBA := Offset / Unsigned_64 (Sector_Size);
-      Last_LBA  := (Offset + Count) / Unsigned_64 (Sector_Size);
-      Success   := True;
+      LBAs := Count / Unsigned_64 (Sector_Size);
+      LBAs := Align.Align_Up (LBAs, Unsigned_64 (Sector_Size));
 
-      for Cache of Registry.Caches loop
-         Synchronization.Seize (Cache.Mutex);
-         if Cache.Is_Used                 and
-            Cache.Is_Dirty                and
-            Cache.LBA_Offset >= First_LBA and
-            Cache.LBA_Offset <= Last_LBA
+      for I in 1 .. LBAs loop
+         Idx := Get_Cache_Index (First_LBA + I - 1);
+         Synchronization.Seize (Registry.Caches (Idx).Mutex);
+         if Registry.Caches (Idx).Is_Used and Registry.Caches (Idx).Is_Dirty
          then
-            Write_Sector (Registry.Drive_Arg, Cache.LBA_Offset, Cache.Data,
-               Success);
-            Cache.Is_Dirty := False;
+            Registry.Write_Proc
+               (Registry.Drive_Arg,
+                Registry.Caches (Idx).LBA_Offset,
+                Registry.Caches (Idx).Data,
+                Success);
+            Registry.Caches (Idx).Is_Dirty := False;
          end if;
-         Synchronization.Release (Cache.Mutex);
+         Synchronization.Release (Registry.Caches (Idx).Mutex);
       end loop;
    exception
       when Constraint_Error =>
@@ -198,77 +189,36 @@ package body Devices.Drive_Cache is
    procedure Get_Cache_Index
       (Registry : aliased in out Cache_Registry;
        LBA      : Unsigned_64;
-       Idx      : out Natural;
+       Idx      : out Unsigned_64;
        Success  : out Boolean)
    is
-      procedure Read_Sector
-         (Drive       : System.Address;
-          LBA         : Unsigned_64;
-          Data_Buffer : out Sector_Data;
-          Success     : out Boolean)
-         with Import, Address => Registry.Read_Proc;
-      procedure Write_Sector
-         (Drive       : System.Address;
-          LBA         : Unsigned_64;
-          Data_Buffer : Sector_Data;
-          Success     : out Boolean)
-      with Import, Address => Registry.Write_Proc;
-
-      Beginning : Natural;
    begin
-      --  Do as described in the package specification.
-      Beginning := Natural (LBA rem Registry.Caches'Length) + 1;
-      Idx       := Beginning;
+      Idx := Get_Cache_Index (LBA);
 
-      --  Find an index in the cache.
-      loop
-         Synchronization.Seize (Registry.Caches (Idx).Mutex);
-         if Registry.Caches (Idx).Is_Used then
-            if Registry.Caches (Idx).LBA_Offset = LBA then
-               Success := True;
+      --  If the cache is used, we can just use it if its us, or evict it.
+      Synchronization.Seize (Registry.Caches (Idx).Mutex);
+      if Registry.Caches (Idx).Is_Used then
+         if Registry.Caches (Idx).LBA_Offset = LBA then
+            Success := True;
+            return;
+         elsif Registry.Caches (Idx).Is_Dirty then
+            Registry.Write_Proc
+               (Drive       => Registry.Drive_Arg,
+                LBA         => Registry.Caches (Idx).LBA_Offset,
+                Data_Buffer => Registry.Caches (Idx).Data,
+                Success     => Success);
+            if not Success then
+               Synchronization.Release (Registry.Caches (Idx).Mutex);
                return;
             end if;
-         else
-            --  If we have a free block, that means there are no versions of
-            --  this LBA in this window of 1 .. Max_Caching_Step, since we
-            --  allocate from bottom to the top. If this one is free,
-            --  everything behind is free, since we never go from used -> free.
-            exit;
          end if;
-         Synchronization.Release (Registry.Caches (Idx).Mutex);
-
-         --  We didnt make it, so we have to evict.
-         if (Idx = Registry.Caches'Last) or
-            (Idx >= Beginning + Max_Caching_Step)
-         then
-            Idx := Beginning + (Natural (LBA rem Max_Caching_Step) + 1);
-            if Idx > Registry.Caches'Last then
-               Idx := Beginning;
-            end if;
-
-            Synchronization.Seize (Registry.Caches (Idx).Mutex);
-            if Registry.Caches (Idx).Is_Dirty then
-               Write_Sector
-                  (Drive       => Registry.Drive_Arg,
-                   LBA         => Registry.Caches (Idx).LBA_Offset,
-                   Data_Buffer => Registry.Caches (Idx).Data,
-                   Success     => Success);
-               if not Success then
-                  Synchronization.Release (Registry.Caches (Idx).Mutex);
-                  return;
-               end if;
-            end if;
-            exit;
-         else
-            Idx := Idx + 1;
-         end if;
-      end loop;
+      end if;
 
       --  Set the found index as not dirty and used, and read into it.
-      Registry.Caches (Idx).Is_Used    := True;
+      Registry.Caches (Idx).Is_Used := True;
       Registry.Caches (Idx).LBA_Offset := LBA;
-      Registry.Caches (Idx).Is_Dirty   := False;
-      Read_Sector
+      Registry.Caches (Idx).Is_Dirty := False;
+      Registry.Read_Proc
          (Drive       => Registry.Drive_Arg,
           LBA         => Registry.Caches (Idx).LBA_Offset,
           Data_Buffer => Registry.Caches (Idx).Data,
@@ -277,5 +227,13 @@ package body Devices.Drive_Cache is
       when Constraint_Error =>
          Idx     := 0;
          Success := False;
+   end Get_Cache_Index;
+
+   function Get_Cache_Index (LBA : Unsigned_64) return Unsigned_64 is
+   begin
+      return (LBA rem Max_Caching_Len) + 1;
+   exception
+      when Constraint_Error =>
+         return 0;
    end Get_Cache_Index;
 end Devices.Drive_Cache;

@@ -20,6 +20,13 @@ generic
    --  Sector size in bytes.
    Sector_Size : Natural;
 package Devices.Drive_Cache is
+   --  This module implements a small cache for drives to speed up a bit the
+   --  fetch and write of sectors by using fixed sections of memory.
+   --
+   --  This is not a dynamic page cache! Instead, this is meant to be used by
+   --  the driver itself, with page caches depending on block devices and not
+   --  this cache.
+
    --  Type to represent the registry.
    type Cache_Registry is private;
 
@@ -28,12 +35,12 @@ package Devices.Drive_Cache is
 
    --  Functions used to interface with the driver which are passed as an
    --  address to the init function.
-   type Read_Sector is access procedure
+   type Read_Sector_Acc is access procedure
       (Drive       : System.Address;
        LBA         : Unsigned_64;
        Data_Buffer : out Sector_Data;
        Success     : out Boolean);
-   type Write_Sector is access procedure
+   type Write_Sector_Acc is access procedure
       (Drive       : System.Address;
        LBA         : Unsigned_64;
        Data_Buffer : Sector_Data;
@@ -41,8 +48,8 @@ package Devices.Drive_Cache is
 
    procedure Init
       (Drive_Arg : System.Address;
-       Read      : System.Address;
-       Write     : System.Address;
+       Read      : not null Read_Sector_Acc;
+       Write     : not null Write_Sector_Acc;
        Registry  : aliased out Cache_Registry);
 
    procedure Read
@@ -73,13 +80,8 @@ private
 
    --  We use a flat array for sector caches.
    --  To calculate where a sector cache goes, we take the LBA, divide it by
-   --  the total amount of cached items, and the modulo is our start index.
-   --  If that spot is already taken, go forward a maximum number of times. If
-   --  all are taken, just deallocate the modulo of the LBA and the maximum
-   --  times, and take its place.
-   --  This maximum number is vibes based, the current number strikes a balance
-   --  in my experience.
-   Max_Caching_Step : constant := 200;
+   --  the total amount of cached items, and the modulo is our index.
+   Max_Caching_Len : constant := 10_000;
 
    type Sector_Cache is record
       Mutex      : aliased Synchronization.Mutex;
@@ -87,19 +89,21 @@ private
       LBA_Offset : Unsigned_64;
       Data       : Sector_Data;
       Is_Dirty   : Boolean;
-   end record with Alignment => 16;
-   type Sector_Caches is array (Natural range <>) of Sector_Cache;
+   end record;
+   type Sector_Caches is array (Unsigned_64 range <>) of Sector_Cache;
 
    type Cache_Registry is record
       Drive_Arg  : System.Address;
-      Read_Proc  : System.Address;
-      Write_Proc : System.Address;
-      Caches     : Sector_Caches (1 .. 250_000);
+      Read_Proc  : Read_Sector_Acc := null;
+      Write_Proc : Write_Sector_Acc := null;
+      Caches     : Sector_Caches (1 .. Max_Caching_Len);
    end record;
 
    procedure Get_Cache_Index
       (Registry : aliased in out Cache_Registry;
        LBA      : Unsigned_64;
-       Idx      : out Natural;
+       Idx      : out Unsigned_64;
        Success  : out Boolean);
+
+   function Get_Cache_Index (LBA : Unsigned_64) return Unsigned_64;
 end Devices.Drive_Cache;
