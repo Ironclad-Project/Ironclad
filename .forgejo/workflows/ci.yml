@@ -26,16 +26,18 @@ jobs:
 
           case "${{matrix.target_arch}}" in \
             riscv64-limine) \
-              apt-get install -y gnat-15-riscv64-linux-gnu ;; \
+              TOOLCHAIN_PREFIX="${{matrix.target_arch}}-"
+              apt-get install -y gcc-15-riscv64-linux-gnu gnat-15-riscv64-linux-gnu ;; \
             x86_64-limine) \
-              apt-get install -y gnat-15 ;; \
+              TOOLCHAIN_PREFIX=""
+              apt-get install -y gcc-15 gnat-15 ;; \
           esac
 
           mkdir toolchain_dir
           export PATH="$(realpath toolchain_dir):$PATH"
 
           for i in gnat gnatbind gnatchop gnatclean gnathtml gnatkr gnatlink gnatls gnatmake gnatname gnatprep; do
-            ln -s /usr/bin/$i-15 "toolchain_dir/$i"
+            ln -s /usr/bin/$TOOLCHAIN_PREFIX$i-15 "toolchain_dir/"$TOOLCHAIN_PREFIX$i"
           done
 
       - name: Checkout code
