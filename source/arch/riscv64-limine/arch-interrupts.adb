@@ -346,7 +346,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             UTimes (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Ctx.X14,
                     Returned, Errno);
          when 77 =>
-            Sched_GetScheduler (Ctx.X10, Returned, Errno);
+            Sched_GetScheduler (Ctx.X10, Ctx.X11, Returned, Errno);
          when 78 =>
             Sched_SetScheduler
                (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
