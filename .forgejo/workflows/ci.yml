@@ -19,7 +19,17 @@ jobs:
           echo 'nameserver 8.8.4.4' >>/etc/resolv.conf
 
       - name: Install dependencies
-        run: apt-get update && apt-get -y dist-upgrade && apt-get install -y nodejs wget autoconf automake git build-essential findutils make texinfo highlight gprbuild gnat
+        run: |
+          set -ex
+
+          apt-get update && apt-get -y dist-upgrade && apt-get install -y nodejs wget autoconf automake git build-essential findutils make texinfo highlight gprbuild
+
+          case "${{matrix.target_arch}}" in \
+            riscv64-limine) \
+              apt-get install -y gnat-15 ;; \
+            x86_64-limine) \
+              apt-get install -y gnat-15-riscv64-linux-gnu ;; \
+          esac
 
       - name: Checkout code
         uses: https://code.forgejo.org/actions/checkout@v4
@@ -42,12 +52,7 @@ jobs:
 
           case "${{matrix.target_arch}}" in \
             riscv64-limine) \
-              wget https://github.com/alire-project/GNAT-FSF-builds/releases/download/gnat-14.2.0-1/gnat-riscv64-elf-linux64-x86_64-14.2.0-1.tar.gz; \
-              tar -xf gnat-riscv64-elf-linux64-x86_64-14.2.0-1.tar.gz; \
-              rm gnat-riscv64-elf-linux64-x86_64-14.2.0-1.tar.gz; \
-              export PATH=$PWD/gnat-riscv64-elf-linux64-x86_64-14.2.0-1/bin:$PATH; \
-              ln -s riscv64-elf-gnatbind gnat-riscv64-elf-linux64-x86_64-14.2.0-1/bin/riscv64-elf-gnatbind-14; \
-              ./configure --host=riscv64-elf ;; \
+              ./configure --host=riscv64-linux-gnu ;; \
             x86_64-limine) \
               ./configure ;; \
           esac
