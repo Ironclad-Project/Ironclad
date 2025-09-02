@@ -53,7 +53,7 @@ package body Time is
       Result.Seconds := L.Seconds - R.Seconds;
       Result.Nanoseconds := L.Nanoseconds;
       if L.Nanoseconds < R.Nanoseconds then
-         Result.Seconds := L.Seconds - 1;
+         Result.Seconds := Result.Seconds - 1;
          Result.Nanoseconds := Nanoseconds_In_Second + L.Nanoseconds;
       end if;
       Result.Nanoseconds := Result.Nanoseconds - R.Nanoseconds;
@@ -67,9 +67,9 @@ package body Time is
       Normalize (L);
       Normalize (R);
 
-      return (Left.Seconds > Right.Seconds) or
-         ((Left.Seconds = Right.Seconds) and
-          (Left.Nanoseconds >= Right.Nanoseconds));
+      return (L.Seconds > R.Seconds) or
+         ((L.Seconds = R.Seconds) and
+          (L.Nanoseconds >= R.Nanoseconds));
    end ">=";
    ----------------------------------------------------------------------------
    function Time_To_Epoch
