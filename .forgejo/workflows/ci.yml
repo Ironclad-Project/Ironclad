@@ -26,10 +26,10 @@ jobs:
 
           case "${{matrix.target_arch}}" in \
             riscv64-limine) \
-              TOOLCHAIN_PREFIX="${{matrix.target_arch}}-"
+              TOOLCHAIN_PREFIX="${{matrix.target_arch}}-"; \
               apt-get install -y gcc-15-riscv64-linux-gnu gnat-15-riscv64-linux-gnu ;; \
             x86_64-limine) \
-              TOOLCHAIN_PREFIX=""
+              TOOLCHAIN_PREFIX=""; \
               apt-get install -y gcc-15 gnat-15 ;; \
           esac
 
