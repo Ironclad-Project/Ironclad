@@ -19,11 +19,13 @@ jobs:
           echo 'nameserver 8.8.4.4' >>/etc/resolv.conf
 
       - name: Install dependencies
+        run: apt-get update && apt-get -y dist-upgrade && apt-get install -y nodejs wget autoconf automake git build-essential findutils make texinfo highlight gprbuild
+
+      - name: Checkout code
+        uses: https://code.forgejo.org/actions/checkout@v4
+
+      - name: Install architecture-specific dependencies
         run: |
-          set -ex
-
-          apt-get update && apt-get -y dist-upgrade && apt-get install -y nodejs wget autoconf automake git build-essential findutils make texinfo highlight gprbuild
-
           case "${{matrix.target_arch}}" in \
             riscv64-limine) \
               TOOLCHAIN_PREFIX="${{matrix.target_arch}}-"; \
@@ -34,14 +36,9 @@ jobs:
           esac
 
           mkdir toolchain_dir
-          export PATH="$(realpath toolchain_dir):$PATH"
-
           for i in gnat gnatbind gnatchop gnatclean gnathtml gnatkr gnatlink gnatls gnatmake gnatname gnatprep; do
-            ln -s /usr/bin/$TOOLCHAIN_PREFIX$i-15 "toolchain_dir/"$TOOLCHAIN_PREFIX$i"
+            ln -s /usr/bin/$TOOLCHAIN_PREFIX$i-15 toolchain_dir/$TOOLCHAIN_PREFIX$i
           done
-
-      - name: Checkout code
-        uses: https://code.forgejo.org/actions/checkout@v4
 
       - name: Fetch gnatprove
         run: |
