@@ -2459,7 +2459,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                if (Bitmap (J) and 2 ** Bit) = 0 then
                   Bitmap (J) := Bitmap (J) or 2 ** Bit;
                   Curr_Block := (I * FS_Data.Super.Blocks_Per_Group) +
-                                 Unsigned_32 (J) * 8 + Unsigned_32 (Bit);
+                                 (Unsigned_32 (J - 1) * 8) + Unsigned_32 (Bit);
                   goto End_Search_Loop;
                end if;
             end loop;
@@ -2569,7 +2569,7 @@ package body VFS.EXT with SPARK_Mode => Off is
             for Bit in 0 .. 7 loop
                if (Bitmap (J) and 2 ** Bit) = 0 then
                   Curr_Block := (I * FS_Data.Super.Inodes_Per_Group) +
-                                 Unsigned_32 (J) * 8 + Unsigned_32 (Bit);
+                                 (Unsigned_32 (J - 1) * 8) + Unsigned_32 (Bit);
                   if Curr_Block > FS_Data.Super.First_Non_Reserved and
                      Curr_Block > 11
                   then
