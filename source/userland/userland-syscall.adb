@@ -7410,6 +7410,68 @@ package body Userland.Syscall is
          Errno    := Error_Bad_Permissions;
       end if;
    end Set_SID;
+
+   procedure Recv_Sock_Ctr
+      (FD       : Unsigned_64;
+       Addr     : Unsigned_64;
+       Len      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      package Trans is new Memory.Userland_Transfer (Credentials_Control_Hdr);
+      Proc      : constant PID := Arch.Local.Get_Current_Process;
+      Hdr_IAddr : constant Integer_Address := Integer_Address (Addr);
+      File      : File_Description_Acc;
+      Hdr       : Credentials_Control_Hdr;
+      Map       : Page_Table_Acc;
+      Success   : Boolean;
+      Stat      : Socket_Status;
+   begin
+      Get_Common_Map (Proc, Map);
+      Get_File (Proc, FD, File);
+      if File = null or else File.Description /= Description_Socket then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Bad_File;
+         return;
+      end if;
+
+      Hdr :=
+         (Len => Credentials_Control_Hdr'Size / 8,
+          Level => SOL_SOCKET,
+          Message_Type => SCM_CREDENTIALS,
+          Pad => 0,
+          Creds => <>);
+
+      Get_Peer_Credentials
+         (Sock => File.Inner_Socket,
+          PID => Hdr.Creds.PID,
+          UID => Hdr.Creds.UID,
+          GID => Hdr.Creds.GID,
+          Success => Stat);
+
+      Trans.Paste_Into_Userland (Map, Hdr, To_Address (Hdr_IAddr), Success);
+      if not Success then
+         Errno := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Errno := Error_No_Error;
+      Returned := 0;
+   end Recv_Sock_Ctr;
+
+   procedure Send_Sock_Ctr
+      (FD       : Unsigned_64;
+       Addr     : Unsigned_64;
+       Len      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      pragma Unreferenced (FD, Addr, Len);
+   begin
+      Errno := Error_No_Error;
+      Returned := 0;
+   end Send_Sock_Ctr;
    ----------------------------------------------------------------------------
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context) is
       Thread  : constant TID := Arch.Local.Get_Current_Thread;

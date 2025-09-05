@@ -1486,6 +1486,37 @@ package Userland.Syscall is
    procedure Set_SID
       (Returned : out Unsigned_64;
        Errno    : out Errno_Value);
+
+   type Control_Hdr is record
+      Len : Unsigned_32;
+      Level : Unsigned_32;
+      Message_Type : Unsigned_32;
+      Pad : Unsigned_32;
+   end record with Pack;
+
+   type Credentials_Control_Hdr is record
+      Len : Unsigned_32;
+      Level : Unsigned_32;
+      Message_Type : Unsigned_32;
+      Pad : Unsigned_32;
+      Creds : UCred;
+   end record with Pack;
+
+   SCM_CREDENTIALS : constant := 2;
+
+   procedure Recv_Sock_Ctr
+      (FD       : Unsigned_64;
+       Addr     : Unsigned_64;
+       Len      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure Send_Sock_Ctr
+      (FD       : Unsigned_64;
+       Addr     : Unsigned_64;
+       Len      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Pre and post syscall hook.
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context);

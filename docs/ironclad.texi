@@ -195,6 +195,7 @@ Syscalls
 * create_thread::           Create new processes.
 * signal_return::           Return from a signal body.
 * sigaltstack::             Set alternative stacks for signal handling.
+* recvsockctr/sendsockctr:: Send and receive control blocks.
 * listmounts::              List the system's mounts.
 * uname::                   List system information.
 * listthreads::             List the system's threads.
@@ -1040,7 +1041,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{sigaltstack}.
 @item
-Empty.
+@ref{recvsockctr/sendsockctr, recvsockctr}.
 @item
 @ref{listmounts}
 @item
@@ -1048,7 +1049,7 @@ Empty.
 @item
 @ref{listthreads}
 @item
-Empty.
+@ref{recvsockctr/sendsockctr, sendsockctr}.
 @item
 @ref{listnetinter}
 @item
@@ -4228,6 +4229,28 @@ with the errno:
 @table @code
 @item EAGAIN
 Thread is not handling a signal.
+@end table
+
+@node recvsockctr/sendsockctr
+@section recvsockctr/sendsockctr
+
+@example c
+int recvsockctr(int fd, void *buf, size_t len);
+int sendsockctr(int fd, void *buf, size_t len);
+@end example
+
+This syscall allows to fetch the control block of a socket refered to by
+@code{fd}. If no control data is available, nothing will be written to the
+buffer.
+
+This syscall returns @code{0} on success, and returns @code{-1} on failure,
+with the errno:
+
+@table @code
+@item EBADFD
+The passed file was not a socket.
+@item EFAULT
+The passed buffer points to invalid memory.
 @end table
 
 @node listmounts

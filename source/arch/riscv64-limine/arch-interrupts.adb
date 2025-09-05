@@ -404,12 +404,16 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Signal_Return (Returned, Errno);
          when 102 =>
             Sigaltstack (Ctx.X10, Ctx.X11, Returned, Errno);
+         when 103 =>
+            Recv_Sock_Ctr (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 104 =>
             List_Mounts (Ctx.X10, Ctx.X11, Returned, Errno);
          when 105 =>
             Uname (Ctx.X10, Returned, Errno);
          when 106 =>
             List_Threads (Ctx.X10, Ctx.X11, Returned, Errno);
+         when 107 =>
+            Send_Sock_Ctr (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 108 =>
             List_NetInter (Ctx.X10, Ctx.X11, Returned, Errno);
          when 109 =>
