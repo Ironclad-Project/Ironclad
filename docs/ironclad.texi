@@ -4239,7 +4239,7 @@ int recvsockctr(int fd, void *buf, size_t len);
 int sendsockctr(int fd, void *buf, size_t len);
 @end example
 
-This syscall allows to fetch the control block of a socket refered to by
+This syscall allows to fetch the control block of a socket referred to by
 @code{fd}. If no control data is available, nothing will be written to the
 buffer.
 

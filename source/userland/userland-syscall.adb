@@ -7418,6 +7418,7 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
+      pragma Unreferenced (Len);
       package Trans is new Memory.Userland_Transfer (Credentials_Control_Hdr);
       Proc      : constant PID := Arch.Local.Get_Current_Process;
       Hdr_IAddr : constant Integer_Address := Integer_Address (Addr);
@@ -7458,6 +7459,10 @@ package body Userland.Syscall is
 
       Errno := Error_No_Error;
       Returned := 0;
+   exception
+      when Constraint_Error =>
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Recv_Sock_Ctr;
 
    procedure Send_Sock_Ctr
