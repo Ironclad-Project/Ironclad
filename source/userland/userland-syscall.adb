@@ -7441,7 +7441,7 @@ package body Userland.Syscall is
           Level => SOL_SOCKET,
           Message_Type => SCM_CREDENTIALS,
           Pad => 0,
-          Creds => <>);
+          Creds => (0, 0, 0));
 
       Get_Peer_Credentials
          (Sock => File.Inner_Socket,
