@@ -288,74 +288,82 @@ package body Userland.Syscall is
          Final_Len : constant Natural := Final_Cnt;
          subtype Read_Data is Devices.Operation_Data (1 .. Final_Len);
          package Trans is new Memory.Userland_Transfer (Read_Data);
-         procedure Free is new Ada.Unchecked_Deallocation
-            (Operation_Data, Operation_Data_Acc);
-         Data : Operation_Data_Acc := new Read_Data'[others => 0];
+         Data : Read_Data with Import, Address => Buf_SAddr;
       begin
+         --  Ideally this would be handled with
+         --  Take_From_Userland/Paste_From_Userland, allocating an internal
+         --  buffer, reading it there, and pasting it, but 2 factors make that
+         --  horrible:
+         --  - Userland software has the habit of doing multiple megabyte reads
+         --    to load executables and similar.
+         --  - Ironclad's allocator allocates for now only contiguous physical
+         --    memory, which means that these massive megabyte reads fragment
+         --    like crazy and lead to early OOMs.
+         --  Once one of the both is fixed, we can use the other cleaner
+         --  methods.
+         Trans.Check_Access (Map, Buf_SAddr, True, Success);
+         if not Success then
+            Returned := Unsigned_64'Last;
+            Errno := Error_Would_Fault;
+            return;
+         end if;
+
+         Arch.Snippets.Enable_Userland_Memory_Access;
+
          case File.Description is
             when Description_Inode =>
                if File.Inner_Ino_Read then
                   if Flags = 0 then
                      VFS.Read
                         (File.Inner_Ino_FS, File.Inner_Ino, File.Inner_Ino_Pos,
-                         Data.all, Ret_Count, File.Is_Blocking, Success1);
+                         Data, Ret_Count, File.Is_Blocking, Success1);
                      File.Inner_Ino_Pos := File.Inner_Ino_Pos +
                                           Unsigned_64 (Ret_Count);
                   else
                      VFS.Read
                         (File.Inner_Ino_FS, File.Inner_Ino, Offset,
-                         Data.all, Ret_Count, File.Is_Blocking, Success1);
+                         Data, Ret_Count, File.Is_Blocking, Success1);
                   end if;
                   Translate_Status
                      (Success1, Unsigned_64 (Ret_Count), Returned, Errno);
                else
                   Errno := Error_Invalid_Value;
                   Returned := Unsigned_64'Last;
-                  goto Cleanup;
                end if;
             when Description_Reader_FIFO =>
-               Read (File.Inner_Reader_FIFO, Data.all, File.Is_Blocking,
+               Read (File.Inner_Reader_FIFO, Data, File.Is_Blocking,
                      Ret_Count, Success2);
                Translate_Status (Success2, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Primary_PTY =>
                IPC.PTY.Read_Primary
-                  (File.Inner_Primary_PTY, Data.all, File.Is_Blocking,
+                  (File.Inner_Primary_PTY, Data, File.Is_Blocking,
                    Ret_Count, Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Secondary_PTY =>
                IPC.PTY.Read_Secondary
-                  (File.Inner_Secondary_PTY, Data.all, File.Is_Blocking,
+                  (File.Inner_Secondary_PTY, Data, File.Is_Blocking,
                    Ret_Count, Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Socket =>
                IPC.Socket.Read
-                  (File.Inner_Socket, Data.all, File.Is_Blocking,
+                  (File.Inner_Socket, Data, File.Is_Blocking,
                    Ret_Count, Success4);
                Translate_Status
                   (Success4, Unsigned_64 (Ret_Count), Returned, Errno);
             when Description_Writer_FIFO =>
                Errno    := Error_Invalid_Value;
                Returned := Unsigned_64'Last;
-               goto Cleanup;
          end case;
 
-         if Errno = Error_No_Error then
-            Trans.Paste_Into_Userland (Map, Data.all, Buf_SAddr, Success);
-            if not Success then
-               Returned := Unsigned_64'Last;
-               Errno    := Error_Would_Fault;
-            end if;
-         end if;
-
-      <<Cleanup>>
-         Free (Data);
+         Arch.Snippets.Disable_Userland_Memory_Access;
       end;
    exception
       when Constraint_Error =>
-         Errno    := Error_Would_Block;
+         Arch.Snippets.Disable_Userland_Memory_Access;
+         Errno := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Read;
 
@@ -401,16 +409,17 @@ package body Userland.Syscall is
          Final_Len : constant Natural := Final_Cnt;
          subtype Read_Data is Devices.Operation_Data (1 .. Final_Len);
          package Trans is new Memory.Userland_Transfer (Read_Data);
-         procedure Free is new Ada.Unchecked_Deallocation
-            (Operation_Data, Operation_Data_Acc);
-         Data : Operation_Data_Acc := new Read_Data'[others => 0];
+         Data : Read_Data with Import, Address => Buf_SAddr;
       begin
-         Trans.Take_From_Userland (Map, Data.all, Buf_SAddr, Success);
+         --  The same block comment writeup as Read applies.
+         Trans.Check_Access (Map, Buf_SAddr, False, Success);
          if not Success then
             Returned := Unsigned_64'Last;
-            Errno    := Error_Would_Fault;
-            goto Cleanup;
+            Errno := Error_Would_Fault;
+            return;
          end if;
+
+         Arch.Snippets.Enable_Userland_Memory_Access;
 
          case File.Description is
             when Description_Inode =>
@@ -435,7 +444,7 @@ package body Userland.Syscall is
                end if;
 
                VFS.Write (File.Inner_Ino_FS, File.Inner_Ino,
-                          Final_Off, Data.all, Ret_Count,
+                          Final_Off, Data, Ret_Count,
                           File.Is_Blocking, Success1);
                if Flags = 0 then
                   File.Inner_Ino_Pos := File.Inner_Ino_Pos +
@@ -444,25 +453,25 @@ package body Userland.Syscall is
                Translate_Status (Success1, Unsigned_64 (Ret_Count), Returned,
                                         Errno);
             when Description_Writer_FIFO =>
-               Write (File.Inner_Writer_FIFO, Data.all, File.Is_Blocking,
+               Write (File.Inner_Writer_FIFO, Data, File.Is_Blocking,
                       Ret_Count, Success2);
                Translate_Status (Success2, Unsigned_64 (Ret_Count), Returned,
                                         Errno);
             when Description_Primary_PTY =>
                IPC.PTY.Write_Primary
-                  (File.Inner_Primary_PTY, Data.all, File.Is_Blocking,
+                  (File.Inner_Primary_PTY, Data, File.Is_Blocking,
                    Ret_Count, Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Secondary_PTY =>
                IPC.PTY.Write_Secondary
-                  (File.Inner_Secondary_PTY, Data.all, File.Is_Blocking,
+                  (File.Inner_Secondary_PTY, Data, File.Is_Blocking,
                    Ret_Count, Success5);
                Translate_Status (Success5, Unsigned_64 (Ret_Count), Returned,
                                  Errno);
             when Description_Socket =>
                IPC.Socket.Write
-                  (File.Inner_Socket, Data.all, File.Is_Blocking, Ret_Count,
+                  (File.Inner_Socket, Data, File.Is_Blocking, Ret_Count,
                    Success4);
                Translate_Status
                   (Success4, Unsigned_64 (Ret_Count), Returned, Errno);
@@ -472,11 +481,12 @@ package body Userland.Syscall is
          end case;
 
       <<Cleanup>>
-         Free (Data);
+         Arch.Snippets.Disable_Userland_Memory_Access;
       end;
    exception
       when Constraint_Error =>
-         Errno    := Error_Would_Block;
+         Arch.Snippets.Disable_Userland_Memory_Access;
+         Errno := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Write;
 

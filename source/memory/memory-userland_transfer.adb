@@ -30,26 +30,9 @@ package body Memory.Userland_Transfer is
        Addr    : System.Address;
        Success : out Boolean)
    is
-      Start  : Integer_Address := To_Integer (Addr);
-      Length : Integer_Address;
-      Result : System.Address;
-      Is_Mapped, Is_Readable, Is_Writeable, Is_Executable : Boolean;
-      Is_User_Accessible : Boolean;
    begin
-      Length := Integer_Address (T'Object_Size / 8);
-      A.Align_Memory_Range (Start, Length, Memory.MMU.Page_Size);
-      Memory.MMU.Translate_Address
-         (Map                => Map,
-          Virtual            => To_Address (Start),
-          Length             => Storage_Count (Length),
-          Physical           => Result,
-          Is_Mapped          => Is_Mapped,
-          Is_User_Accessible => Is_User_Accessible,
-          Is_Readable        => Is_Readable,
-          Is_Writeable       => Is_Writeable,
-          Is_Executable      => Is_Executable);
-      if not Is_User_Accessible or else not Is_Readable then
-         Success := False;
+      Check_Access (Map, Addr, False, Success);
+      if not Success then
          return;
       end if;
 
@@ -61,15 +44,34 @@ package body Memory.Userland_Transfer is
          Success := True;
          Arch.Snippets.Disable_Userland_Memory_Access;
       end;
-   exception
-      when Constraint_Error =>
-         Success := False;
    end Take_From_Userland;
 
    procedure Paste_Into_Userland
       (Map     : Memory.MMU.Page_Table_Acc;
        Data    : T;
        Addr    : System.Address;
+       Success : out Boolean)
+   is
+   begin
+      Check_Access (Map, Addr, True, Success);
+      if not Success then
+         return;
+      end if;
+
+      declare
+         Mem_Data : T with Import, Convention => C, Address => Addr;
+      begin
+         Arch.Snippets.Enable_Userland_Memory_Access;
+         Mem_Data := Data;
+         Success  := True;
+         Arch.Snippets.Disable_Userland_Memory_Access;
+      end;
+   end Paste_Into_Userland;
+
+   procedure Check_Access
+      (Map     : Memory.MMU.Page_Table_Acc;
+       Addr    : System.Address;
+       Write   : Boolean;
        Success : out Boolean)
    is
       Start  : Integer_Address := To_Integer (Addr);
@@ -90,21 +92,13 @@ package body Memory.Userland_Transfer is
           Is_Readable        => Is_Readable,
           Is_Writeable       => Is_Writeable,
           Is_Executable      => Is_Executable);
-      if not Is_User_Accessible or else not Is_Writeable then
-         Success := False;
-         return;
+      if Write then
+         Success := Is_User_Accessible and Is_Readable and Is_Writeable;
+      else
+         Success := Is_User_Accessible and Is_Readable;
       end if;
-
-      declare
-         Mem_Data : T with Import, Convention => C, Address => Addr;
-      begin
-         Arch.Snippets.Enable_Userland_Memory_Access;
-         Mem_Data := Data;
-         Success  := True;
-         Arch.Snippets.Disable_Userland_Memory_Access;
-      end;
    exception
       when Constraint_Error =>
          Success := False;
-   end Paste_Into_Userland;
+   end Check_Access;
 end Memory.Userland_Transfer;

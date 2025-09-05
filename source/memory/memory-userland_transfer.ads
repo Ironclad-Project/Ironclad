@@ -35,4 +35,11 @@ package Memory.Userland_Transfer is
        Data    : T;
        Addr    : System.Address;
        Success : out Boolean);
+
+   --  Accessibility checks are done by checking against the passed MMU table.
+   procedure Check_Access
+      (Map     : Memory.MMU.Page_Table_Acc;
+       Addr    : System.Address;
+       Write   : Boolean;
+       Success : out Boolean);
 end Memory.Userland_Transfer;
