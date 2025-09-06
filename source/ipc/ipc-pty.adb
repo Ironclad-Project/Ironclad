@@ -131,7 +131,11 @@ package body IPC.PTY with SPARK_Mode => Off is
          (To_Read.Primary_Mutex'Access, To_Read.Primary_Length'Access,
           To_Read.Primary_Data'Access, Is_Blocking,
           To_Read.Primary_Read, Data, Ret_Count);
-      Success := PTY_Success;
+      if not Is_Blocking and Ret_Count = 0 then
+         Success := PTY_Would_Block;
+      else
+         Success := PTY_Success;
+      end if;
    end Read_Primary;
 
    procedure Write_Primary
@@ -147,7 +151,11 @@ package body IPC.PTY with SPARK_Mode => Off is
           To_Write.Secondary_Data'Access, Is_Blocking,
           To_Write.Primary_Transmit, Data, To_Write.Term_Info, False,
           Ret_Count);
-      Success := PTY_Success;
+      if not Is_Blocking and Ret_Count = 0 then
+         Success := PTY_Would_Block;
+      else
+         Success := PTY_Success;
+      end if;
    end Write_Primary;
 
    procedure Read_Secondary
@@ -162,7 +170,11 @@ package body IPC.PTY with SPARK_Mode => Off is
          (To_Read.Secondary_Mutex'Access, To_Read.Secondary_Length'Access,
           To_Read.Secondary_Data'Access, Is_Blocking,
           To_Read.Secondary_Read, Data, Ret_Count);
-      Success := PTY_Success;
+      if not Is_Blocking and Ret_Count = 0 then
+         Success := PTY_Would_Block;
+      else
+         Success := PTY_Success;
+      end if;
    end Read_Secondary;
 
    procedure Write_Secondary
@@ -178,7 +190,11 @@ package body IPC.PTY with SPARK_Mode => Off is
           To_Write.Primary_Data'Access, Is_Blocking,
           To_Write.Secondary_Transmit, Data, To_Write.Term_Info, True,
           Ret_Count);
-      Success := PTY_Success;
+      if not Is_Blocking and Ret_Count = 0 then
+         Success := PTY_Would_Block;
+      else
+         Success := PTY_Success;
+      end if;
    end Write_Secondary;
 
    procedure Poll_Primary
