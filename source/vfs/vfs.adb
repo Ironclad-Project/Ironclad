@@ -714,13 +714,14 @@ package body VFS is
        Kind     : File_Type;
        Mode     : File_Mode;
        User     : Unsigned_32;
+       Group    : Unsigned_32;
        Status   : out FS_Status)
    is
    begin
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             EXT.Create_Node
-               (Mounts (Key).FS_Data, Relative, Path, Kind, Mode, User,
+               (Mounts (Key).FS_Data, Relative, Path, Kind, Mode, User, Group,
                 Status);
          when others =>
             Status := FS_Not_Supported;
@@ -1212,7 +1213,8 @@ package body VFS is
        Kind    : File_Type;
        Mode    : File_Mode;
        Success : out FS_Status;
-       User    : Unsigned_32)
+       User    : Unsigned_32;
+       Group   : Unsigned_32)
    is
    begin
       if Root_Idx = Error_Handle then
@@ -1227,6 +1229,7 @@ package body VFS is
           Kind     => Kind,
           Mode     => Mode,
           User     => User,
+          Group    => Group,
           Status   => Success);
    end Create_Node;
    ----------------------------------------------------------------------------

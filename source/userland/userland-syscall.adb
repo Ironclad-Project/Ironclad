@@ -3051,10 +3051,10 @@ package body Userland.Syscall is
       CWD_FS     : VFS.FS_Handle;
       CWD_Ino    : VFS.File_Inode_Number;
       Node_Type  : File_Type;
-      Tmp_Mode   : File_Mode;
       Status     : VFS.FS_Status;
       Umask      : VFS.File_Mode;
       User       : Unsigned_32;
+      Group      : Unsigned_32;
       Map        : Page_Table_Acc;
       Success    : Boolean;
    begin
@@ -3077,7 +3077,6 @@ package body Userland.Syscall is
             return;
          end if;
 
-         Process.Get_Effective_UID (Proc, User);
          Resolve_AT_Directive (Proc, Dir_FD, CWD_FS, CWD_Ino);
          if CWD_FS = VFS.Error_Handle then
             Returned := Unsigned_64'Last;
@@ -3091,17 +3090,18 @@ package body Userland.Syscall is
             Node_Type := File_Regular;
          end if;
 
-         Tmp_Mode := File_Mode (Mode and 8#777#);
+         Process.Get_Effective_UID (Proc, User);
+         Process.Get_Effective_GID (Proc, Group);
+         Userland.Process.Get_Umask (Proc, Umask);
 
-         Userland.Process.Get_Umask         (Proc, Umask);
-         Userland.Process.Get_Effective_UID (Proc, User);
          Create_Node
             (Key      => CWD_FS,
              Relative => CWD_Ino,
              Path     => Path,
-             Kind      => Node_Type,
-             Mode     => VFS.Apply_Umask (Tmp_Mode, Umask),
+             Kind     => Node_Type,
+             Mode     => VFS.Apply_Umask (File_Mode (Mode and 8#777#), Umask),
              User     => User,
+             Group    => Group,
              Status   => Status);
          Translate_Status (Status, 0, Returned, Errno);
       end;

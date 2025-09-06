@@ -302,6 +302,7 @@ package VFS is
    --  @param Kind     Type of file to create.
    --  @param Mode     Mode to use for the created file.
    --  @param User     UID to check against, 0 for root/bypass checks.
+   --  @param User     Group to give to the created file.
    --  @param Status   Status for the operation.
    procedure Create_Node
       (Key      : FS_Handle;
@@ -310,6 +311,7 @@ package VFS is
        Kind     : File_Type;
        Mode     : File_Mode;
        User     : Unsigned_32;
+       Group    : Unsigned_32;
        Status   : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
@@ -650,12 +652,14 @@ package VFS is
    --  @param Mode    Mode to set for the created inode.
    --  @param Success Status of the operation.
    --  @param User    UID to check against, 0 for root/bypass checks.
+   --  @param Group   GID to check against, 0 for root/bypass checks.
    procedure Create_Node
       (Path    : String;
        Kind    : File_Type;
        Mode    : File_Mode;
        Success : out FS_Status;
-       User    : Unsigned_32)
+       User    : Unsigned_32;
+       Group   : Unsigned_32)
       with Pre => Is_Initialized;
    ----------------------------------------------------------------------------
    --  Check whether a path is absolute.

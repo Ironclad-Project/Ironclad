@@ -251,6 +251,7 @@ package body VFS.EXT with SPARK_Mode => Off is
        Kind     : File_Type;
        Mode     : File_Mode;
        User     : Unsigned_32;
+       Group    : Unsigned_32;
        Status   : out FS_Status)
    is
       Data     : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (FS));
@@ -316,7 +317,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Creation_Time_Epoch => 0,
           Modified_Time_Epoch => 0,
           Deleted_Time_Epoch  => 0,
-          GID                 => 0,
+          GID                 => Unsigned_16 (Group),
           Hard_Link_Count     => 1,
           Sectors             => 0,
           Flags               => 0,

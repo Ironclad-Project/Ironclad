@@ -64,7 +64,7 @@ package body Userland.Corefile is
       declare
          File_Path : constant String := "/tmp/" & PID_Val'Image & ".core";
       begin
-         VFS.Create_Node (File_Path, VFS.File_Regular, 8#777#, Success, 0);
+         VFS.Create_Node (File_Path, VFS.File_Regular, 8#777#, Success, 0, 0);
          if Success /= VFS.FS_Success then
             Messages.Put_Line ("Could not create core file " & File_Path);
             return;
