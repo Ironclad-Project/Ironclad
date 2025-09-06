@@ -30,7 +30,7 @@ package body IPC.Futex is
       Wakey_Wakey : Boolean with Atomic;
       Waiters     : Unsigned_32;
    end record;
-   type Futex_Arr is array (1 .. 75) of Futex_Inner;
+   type Futex_Arr is array (1 .. 300) of Futex_Inner;
 
    Registry_Mutex : aliased Mutex := Unlocked_Mutex;
    Registry : Futex_Arr := [others => (System.Null_Address, False, 0)];
