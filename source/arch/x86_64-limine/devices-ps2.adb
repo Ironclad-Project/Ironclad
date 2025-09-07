@@ -73,19 +73,6 @@ package body Devices.PS2 with SPARK_Mode => Off is
       Arch.Snippets.Port_Out (16#64#, 16#AD#);
       Arch.Snippets.Port_Out (16#64#, 16#A7#);
 
-      --  Read from port 0x60 to flush the PS/2 controller buffer with a simple
-      --  timeout for checking dead devices and non-present controllers.
-      loop
-         exit when (Arch.Snippets.Port_In (16#64#) and 1) = 0;
-         Data := Arch.Snippets.Port_In (16#60#);
-         if Spin_Counter = 10 then
-            Success := True;
-            return;
-         end if;
-         Arch.Clocks.Busy_Monotonic_Sleep (1000); --  Purely vibes based.
-         Spin_Counter := Spin_Counter + 1;
-      end loop;
-
       --  Set the interrupt up, which is always the 34 (we are 1 based).
       Arch.IDT.Load_ISR (Keyboard_Handler'Address, Index, Success);
       if not Success then
