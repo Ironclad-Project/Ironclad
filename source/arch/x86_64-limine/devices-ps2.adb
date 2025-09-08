@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Clocks;
 with Arch.IDT;
 with Arch.APIC;
 with Arch.CPU;
@@ -66,7 +65,6 @@ package body Devices.PS2 with SPARK_Mode => Off is
    procedure Init (Success : out Boolean) is
       Index        : Arch.IDT.IRQ_Index;
       Data, Unused : Unsigned_8;
-      Spin_Counter : Integer := 0;
    begin
       --  Take the chance for initializing the PS2 controller.
       --  Disable primary and secondary PS/2 ports

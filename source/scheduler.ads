@@ -30,10 +30,9 @@ package Scheduler is
 
    --  Scheduler policies we support.
    type Policy is
-      (Policy_FIFO,
-       Policy_RR,
-       Policy_Other,
-       Policy_Idle);
+      (Policy_FIFO,   --  First-In-First-Out.
+       Policy_RR,     --  Flat round-robin using the passed quantum.
+       Policy_Other); --  Like _Other but for daemons and other low latency.
    ----------------------------------------------------------------------------
    --  Initialize the scheduler, return true on success, false on failure.
    procedure Init (Success : out Boolean);
@@ -169,6 +168,11 @@ private
    Is_Initialized : Boolean := False
       with Atomic, Volatile, Async_Readers => True, Async_Writers => True,
            Effective_Reads => True, Effective_Writes => True;
+
+   procedure Next_From_Nothing (Timeout : out Natural; Next : out TID);
+   procedure Next_FIFO (Curr : TID; Timeout : out Natural; Next : out TID);
+   procedure Next_RR (Curr : TID; Timeout : out Natural; Next : out TID);
+   procedure Next_Other (Curr : TID; Timeout : out Natural; Next : out TID);
 
    procedure Waiting_Spot with No_Return;
 end Scheduler;

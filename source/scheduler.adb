@@ -394,6 +394,7 @@ package body Scheduler with SPARK_Mode => Off is
       Synchronization.Seize (Scheduler_Mutex);
       if Thread_Pool (Thread).Is_Present then
          Thread_Pool (Thread).Is_Present := False;
+         Arch.Context.Destroy_FP_Context (Thread_Pool (Thread).FP_State);
       end if;
       Synchronization.Release (Scheduler_Mutex);
    exception
@@ -416,6 +417,7 @@ package body Scheduler with SPARK_Mode => Off is
       Synchronization.Seize (Scheduler_Mutex);
       if Thread_Pool (Thread).Is_Present then
          Thread_Pool (Thread).Is_Present := False;
+         Arch.Context.Destroy_FP_Context (Thread_Pool (Thread).FP_State);
       end if;
       Synchronization.Release (Scheduler_Mutex);
       Arch.Local.Reschedule_ASAP;
@@ -771,49 +773,35 @@ package body Scheduler with SPARK_Mode => Off is
          Buckets (Buckets'First) := Count;
       end if;
 
-      --  Find the next thread in a very rough RR.
-      for I in Current_TID + 1 .. Thread_Pool'Last loop
-         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running then
-            Next_TID := I;
-            goto Found_TID;
-         end if;
-      end loop;
-      if Current_TID /= Error_TID then
-         for I in Thread_Pool'First .. Current_TID - 1 loop
-            if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running
-            then
-               Next_TID := I;
-               goto Found_TID;
-            end if;
-         end loop;
-         Timeout := Thread_Pool (Current_TID).RR_Micro_Inter;
+      --  Find the next thread.
+      if Current_TID = Error_TID then
+         Next_From_Nothing (Timeout, Next_TID);
       else
-         Timeout := Fast_Reschedule_Micros;
+         case Thread_Pool (Current_TID).Pol is
+            when Policy_FIFO  => Next_FIFO (Current_TID, Timeout, Next_TID);
+            when Policy_Other => Next_Other (Current_TID, Timeout, Next_TID);
+            when Policy_RR    => Next_RR (Current_TID, Timeout, Next_TID);
+         end case;
       end if;
 
       --  We only get here if the thread search did not find anything, and we
       --  are just going back to whoever called.
-      Synchronization.Release (Scheduler_Mutex);
-      Arch.Local.Reschedule_In (Timeout);
-      return;
+      if Next_TID = Error_TID then
+         Synchronization.Release (Scheduler_Mutex);
+         Arch.Local.Reschedule_In (Timeout);
+         return;
+      end if;
 
-   <<Found_TID>>
       --  Save state.
       if Current_TID /= Error_TID then
          Thread_Pool (Current_TID).Is_Running := False;
-
          Curr := Curr - Thread_Pool (Current_TID).Last_Sched;
-
          if Thread_Pool (Current_TID).Is_Present then
-            Thread_Pool (Current_TID).PageMap :=
-               Memory.MMU.Get_Curr_Table_Addr;
+            Thread_Pool (Current_TID).PageMap := MMU.Get_Curr_Table_Addr;
             Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
             Thread_Pool (Current_TID).GP_State    := State;
             Arch.Context.Save_Core_Context (Thread_Pool (Current_TID).C_State);
             Arch.Context.Save_FP_Context (Thread_Pool (Current_TID).FP_State);
-         else
-            Arch.Context.Destroy_FP_Context
-               (Thread_Pool (Current_TID).FP_State);
          end if;
       end if;
 
@@ -824,9 +812,9 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       --  FIXME: This originally was between the lock release and the
-      --  loading context, putting it there though makes the kernel panic under
-      --  SMP with memory corruption. It should be there though. Why?
-      Arch.Local.Reschedule_In (Thread_Pool (Next_TID).RR_Micro_Inter);
+      --  return of the procedure, putting it there though makes the kernel
+      --  panic under x86 SMP with memory corruption.
+      Arch.Local.Reschedule_In (Timeout);
 
       --  Reset state.
       Memory.MMU.Set_Table_Addr (Thread_Pool (Next_TID).PageMap);
@@ -882,6 +870,194 @@ package body Scheduler with SPARK_Mode => Off is
          Total := 0;
    end List_All;
    ----------------------------------------------------------------------------
+   procedure Next_From_Nothing (Timeout : out Natural; Next : out TID) is
+   begin
+      --  Just loop around all threads searching for something to schedule.
+      for I in Thread_Pool'Range loop
+         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running then
+            Next := I;
+            Timeout := Thread_Pool (Next).RR_Micro_Inter;
+            return;
+         end if;
+      end loop;
+
+      Timeout := Fast_Reschedule_Micros;
+      Next := Error_TID;
+   exception
+      when Constraint_Error =>
+         Timeout := Fast_Reschedule_Micros;
+         Next := Error_TID;
+   end Next_From_Nothing;
+
+   procedure Next_FIFO (Curr : TID; Timeout : out Natural; Next : out TID) is
+      Curr_Prio : Priority;
+      FIFO_Count : Natural := 0;
+   begin
+      --  We want to check for other FIFO threads with greater priority, if
+      --  we find any, we move to the highest priority. Otherwise, we stay.
+      Curr_Prio := Thread_Pool (Curr).Prio;
+      Next := Error_TID;
+      Timeout := Thread_Pool (Curr).RR_Micro_Inter;
+      for I in Thread_Pool'Range loop
+         if Thread_Pool (I).Is_Present and Thread_Pool (I).Pol = Policy_FIFO
+         then
+            FIFO_Count := FIFO_Count + 1;
+            if not Thread_Pool (I).Is_Running and
+               Thread_Pool (I).Prio > Curr_Prio
+            then
+               Curr_Prio := Thread_Pool (I).Prio;
+               Next := I;
+               Timeout := Thread_Pool (I).RR_Micro_Inter;
+            end if;
+         end if;
+      end loop;
+
+      --  If we find no present FIFO threads, including us, that means we are
+      --  the last exited FIFO thread, thus, we schedule from nothing.
+      if FIFO_Count = 0 then
+         Next_From_Nothing (Timeout, Next);
+      end if;
+   exception
+      when Constraint_Error =>
+         Timeout := Fast_Reschedule_Micros;
+         Next := Error_TID;
+   end Next_FIFO;
+
+   procedure Next_RR (Curr : TID; Timeout : out Natural; Next : out TID) is
+      Curr_Prio : Priority;
+      RR_Count : Natural := 0;
+      RR_Equal_Prio_Count : Natural := 0;
+   begin
+      --  We want to check for other RR threads with greater priority, if
+      --  we find any, we move to the highest priority. Otherwise, we stay.
+      --  We also find total RR threads and threads with same priority.
+      Curr_Prio := Thread_Pool (Curr).Prio;
+      Next := Error_TID;
+      Timeout := Thread_Pool (Curr).RR_Micro_Inter;
+      for I in Thread_Pool'Range loop
+         if Thread_Pool (I).Is_Present and Thread_Pool (I).Pol = Policy_RR then
+            RR_Count := RR_Count + 1;
+            if not Thread_Pool (I).Is_Running then
+               if Thread_Pool (I).Prio > Curr_Prio then
+                  Curr_Prio := Thread_Pool (I).Prio;
+                  Next := I;
+                  Timeout := Thread_Pool (I).RR_Micro_Inter;
+               elsif Thread_Pool (I).Prio = Curr_Prio then
+                  RR_Equal_Prio_Count := RR_Equal_Prio_Count + 1;
+               end if;
+            end if;
+         end if;
+      end loop;
+      if Next /= Error_TID then
+         return;
+      end if;
+
+      --  If we find no present RR threads, including us, that means we are
+      --  the last exited RR thread, thus, we schedule from nothing.
+      if RR_Count = 0 then
+         Next_From_Nothing (Timeout, Next);
+         return;
+      end if;
+
+      --  We did not find higher priority and there are more RR threads apart
+      --  from us with same prio, so lets just go for the next one numerically
+      --  to avoid deadlocks.
+      if Next = Error_TID and RR_Equal_Prio_Count /= 0 then
+         for I in Curr + 1 .. Thread_Pool'Last loop
+            if Thread_Pool (I).Is_Present and
+               not Thread_Pool (I).Is_Running and
+               Thread_Pool (I).Pol = Policy_RR and
+               Thread_Pool (I).Prio = Curr_Prio
+            then
+               Next := I;
+               Timeout := Thread_Pool (I).RR_Micro_Inter;
+               return;
+            end if;
+         end loop;
+         for I in Thread_Pool'First .. Curr - 1 loop
+            if Thread_Pool (I).Is_Present and
+               not Thread_Pool (I).Is_Running and
+               Thread_Pool (I).Pol = Policy_RR and
+               Thread_Pool (I).Prio = Curr_Prio
+            then
+               Next := I;
+               Timeout := Thread_Pool (I).RR_Micro_Inter;
+               return;
+            end if;
+         end loop;
+      end if;
+
+      --  If we did not find equal prio alternatives yet we have alternatives,
+      --  we just pick an arbitrary lower prio.
+      if Next = Error_TID and RR_Count > 1 then
+         for I in Curr + 1 .. Thread_Pool'Last loop
+            if Thread_Pool (I).Is_Present and
+               not Thread_Pool (I).Is_Running and
+               Thread_Pool (I).Pol = Policy_RR
+            then
+               Next := I;
+               Timeout := Thread_Pool (I).RR_Micro_Inter;
+               return;
+            end if;
+         end loop;
+         for I in Thread_Pool'First .. Curr - 1 loop
+            if Thread_Pool (I).Is_Present and
+               not Thread_Pool (I).Is_Running and
+               Thread_Pool (I).Pol = Policy_RR
+            then
+               Next := I;
+               Timeout := Thread_Pool (I).RR_Micro_Inter;
+               return;
+            end if;
+         end loop;
+      end if;
+   exception
+      when Constraint_Error =>
+         Timeout := Fast_Reschedule_Micros;
+         Next := Error_TID;
+   end Next_RR;
+
+   procedure Next_Other (Curr : TID; Timeout : out Natural; Next : out TID) is
+   begin
+      --  We want to check if there is a real time policy thread that we can
+      --  pick into.
+      for I in Thread_Pool'Range loop
+         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running then
+            if Thread_Pool (I).Pol = Policy_FIFO or
+               Thread_Pool (I).Pol = Policy_RR
+            then
+               Next := I;
+               Timeout := Thread_Pool (I).RR_Micro_Inter;
+               return;
+            end if;
+         end if;
+      end loop;
+
+      --  Just RR into the next Policy_Other thread.
+      for I in Curr + 1 .. Thread_Pool'Last loop
+         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running then
+            Next := I;
+            Timeout := Thread_Pool (I).RR_Micro_Inter;
+            return;
+         end if;
+      end loop;
+      for I in Thread_Pool'First .. Curr - 1 loop
+         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running then
+            Next := I;
+            Timeout := Thread_Pool (I).RR_Micro_Inter;
+            return;
+         end if;
+      end loop;
+
+      --  We did not find anything so we just set our own values.
+      Next := Error_TID;
+      Timeout := Thread_Pool (Curr).RR_Micro_Inter;
+   exception
+      when Constraint_Error =>
+         Timeout := Fast_Reschedule_Micros;
+         Next := Error_TID;
+   end Next_Other;
+
    procedure Waiting_Spot is
    begin
       Arch.Snippets.Enable_Interrupts;

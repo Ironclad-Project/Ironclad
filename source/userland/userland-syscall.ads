@@ -1047,7 +1047,6 @@ package Userland.Syscall is
    SCHED_OTHER : constant := 0;
    SCHED_FIFO  : constant := 1;
    SCHED_RR    : constant := 2;
-   SCHED_IDLE  : constant := 5;
 
    procedure Sched_GetScheduler
       (PID        : Unsigned_64;

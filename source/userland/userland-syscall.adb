@@ -5642,7 +5642,6 @@ package body Userland.Syscall is
          when Scheduler.Policy_RR    => Returned := SCHED_RR;
          when Scheduler.Policy_Other => Returned := SCHED_OTHER;
          when Scheduler.Policy_FIFO  => Returned := SCHED_FIFO;
-         when Scheduler.Policy_Idle  => Returned := SCHED_IDLE;
       end case;
       Errno := Error_No_Error;
    exception
@@ -5686,7 +5685,6 @@ package body Userland.Syscall is
          when SCHED_RR    => Pol := Scheduler.Policy_RR;
          when SCHED_FIFO  => Pol := Scheduler.Policy_FIFO;
          when SCHED_OTHER => Pol := Scheduler.Policy_Other;
-         when SCHED_IDLE  => Pol := Scheduler.Policy_Idle;
          when others      => goto Invalid_Value_Error;
       end case;
 
