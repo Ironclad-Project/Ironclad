@@ -26,11 +26,10 @@ with Arch.Snippets;
 with Arch.MMU;
 
 package body Scheduler with SPARK_Mode => Off is
-   Kernel_Stack_Size : constant := Memory.Kernel_Stack_Size;
    Fast_Reschedule_Micros : constant := 10_000;
-   type Thread_Stack     is array (Natural range <>) of Unsigned_8;
-   type Thread_Stack_64  is array (Natural range <>) of Unsigned_64;
-   type Kernel_Stack     is array (1 ..  Kernel_Stack_Size) of Unsigned_8;
+   type Thread_Stack is array (Natural range <>) of Unsigned_8;
+   type Thread_Stack_64 is array (Natural range <>) of Unsigned_64;
+   type Kernel_Stack is array (1 ..  Memory.Kernel_Stack_Size) of Unsigned_8;
    type Kernel_Stack_Acc is access Kernel_Stack;
 
    type Thread_Info is record
@@ -608,12 +607,10 @@ package body Scheduler with SPARK_Mode => Off is
       Stack_Top : Unsigned_64;
       Map       : Memory.MMU.Page_Table_Acc;
       Use_Altsk : Boolean;
-      Th        : constant TID :=
-         Arch.Local.Get_Current_Thread;
-      Curr_Proc : constant Userland.Process.PID :=
-         Arch.Local.Get_Current_Process;
+      Th        : constant TID := Arch.Local.Get_Current_Thread;
+      Proc : constant Userland.Process.PID := Arch.Local.Get_Current_Process;
    begin
-      Userland.Process.Get_Common_Map (Curr_Proc, Map);
+      Userland.Process.Get_Common_Map (Proc, Map);
 
       --  Initialize signal stack. We either start by mapping a new user stack
       --  or we use to passed one.
@@ -637,7 +634,7 @@ package body Scheduler with SPARK_Mode => Off is
             return;
          end if;
       else
-         Userland.Process.Bump_Stack_Base (Curr_Proc, Stack_Size, Stack_Top);
+         Userland.Process.Bump_Stack_Base (Proc, Stack_Size, Stack_Top);
          Memory.MMU.Map_Allocated_Range
             (Map           => Map,
              Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
@@ -650,11 +647,73 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       declare
+         type Siginfo is record
+            Signal_Number : Unsigned_32;
+            Signal_Code   : Unsigned_32;
+            Signal_Errno  : Unsigned_32;
+            Signal_PID    : Unsigned_32;
+            Signal_UID    : Unsigned_32;
+            Signal_Addr   : Unsigned_64;
+            Signal_Status : Unsigned_32;
+            Sival_Pointer : Unsigned_64;
+         end record;
+
+         type U64_Arr is array (Natural range <>) of Unsigned_64;
+         type MContext is record
+            Old_Mask        : Unsigned_64;
+            Regs            : U64_Arr (1 .. 16);
+            PC, PR, SR      : Unsigned_64;
+            GBR, Mach, Macl : Unsigned_64;
+            FPRegs          : U64_Arr (1 .. 16);
+            XFPregs         : U64_Arr (1 .. 16);
+            FPSCR, FPul, FP : Unsigned_32;
+         end record;
+
+         type UContext is record
+            Link    : Unsigned_64;
+            Stack   : Unsigned_64;
+            Context : MContext;
+            Sigmask : Unsigned_64;
+         end record;
+
          Sz     : constant Natural := Natural (Stack_Size);
          Stk_64 : Thread_Stack_64 (1 .. Sz / 8)
             with Import, Address => To_Address (Virtual_Address (Stack_Top));
-         Index_64 : Natural := Stk_64'Last;
+         Info_Idx : constant Natural := Stk_64'Last - (Siginfo'Size / 64);
+         Cont_Idx : constant Natural := Info_Idx - (UContext'Size / 64);
+         Index_64 : Natural := Cont_Idx;
+         Info : Siginfo with Import, Address => Stk_64 (Info_Idx)'Address;
+         Cont : UContext with Import, Address => Stk_64 (Cont_Idx)'Address;
       begin
+         --  Load siginfo and context info.
+         Info :=
+            (Signal_Number => Unsigned_32 (Signal_Number),
+             Signal_Code   => 0,
+             Signal_Errno  => 0,
+             Signal_PID    => Unsigned_32 (Userland.Process.Convert (Proc)),
+             Signal_UID    => 0,
+             Signal_Addr   => 0,
+             Signal_Status => 0,
+             Sival_Pointer => 0);
+         Cont :=
+            (Link    => 0,
+             Stack   => 0,
+             Context =>
+               (Old_Mask => 0,
+                Regs     => [others => 0],
+                PC       => 0,
+                PR       => 0,
+                SR       => 0,
+                GBR      => 0,
+                Mach     => 0,
+                Macl     => 0,
+                FPRegs   => [others => 0],
+                XFPregs  => [others => 0],
+                FPSCR    => 0,
+                FPul     => 0,
+                FP       => 0),
+             Sigmask => 0);
+
          --  x86 requires the return address in the stack.
          #if ArchName = """x86_64-limine""" then
             Stk_64 (Index_64) := Unsigned_64 (To_Integer (Restorer));
@@ -680,8 +739,8 @@ package body Scheduler with SPARK_Mode => Off is
              To_Address (Integer_Address (Stack_Top + Unsigned_64 (Index_64))),
              Handle,
              Signal_Number,
-             0,
-             0);
+             Stack_Top + Unsigned_64 (Info_Idx),
+             Stack_Top + Unsigned_64 (Cont_Idx));
          Arch.Context.Init_FP_Context (FP_State);
 
          #if ArchName = """riscv64-limine""" then
@@ -694,7 +753,7 @@ package body Scheduler with SPARK_Mode => Off is
           FP_State => FP_State,
           Map      => Map,
           Pol      => Policy_Other,
-          PID      => Userland.Process.Convert (Curr_Proc),
+          PID      => Userland.Process.Convert (Proc),
           TCB      => Arch.Local.Fetch_TCB,
           New_TID  => New_TID);
       if not Success then
