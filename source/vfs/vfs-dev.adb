@@ -346,7 +346,7 @@ package body VFS.Dev is
    is
       pragma Unreferenced (Data);
 
-      DEV_UUID : constant := 16#9821#;
+      DEV_PARTUUID : constant := 16#9821#;
       Success  : Boolean;
    begin
       Has_Extra := False;
@@ -366,7 +366,7 @@ package body VFS.Dev is
                return;
             end if;
 
-            if Req = DEV_UUID then
+            if Req = DEV_PARTUUID then
                Arg_UUID := Fetch (Handle);
                Status   := FS_Success;
             else

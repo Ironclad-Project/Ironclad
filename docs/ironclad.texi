@@ -4895,17 +4895,19 @@ The @code{BLKGETSIZE}/@code{BLKGETSIZE64} @code{ioctl} calls are not available,
 instead, the block count and block size values of @code{stat} are used.
 @end itemize
 
-All devices in Ironclad have the @code{ioctl} call @code{DEV_UUID} implemented,
-with the signature:
+All devices in Ironclad have the @code{ioctl} call @code{DEV_PARTUUID}
+implemented, with the signature:
 
 @example c
-#define DEV_UUID 0x9821
+#define DEV_PARTUUID 0x9821
 
-ioctl(fd, DEV_UUID, &pointer_to_uuid); -- uuids being uint8_t[16];
+ioctl(fd, DEV_PARTUUID, &pointer_to_uuid); -- uuids being uint8_t[16];
 @end example
 
-This call will write the UUID of the device pointed to by @code{fd}, which, if
-all zeros, will mean that the device has no associated UUID.
+This call will write the UUID of the device pointed to by @code{fd}. If
+all zeros, will mean that the device has no associated UUID. This UUID is the
+UUID of the partition, not of the FS, like, for example, the GPT's partition
+UUID.
 
 @node Common devices
 @section Common devices
