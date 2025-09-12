@@ -206,18 +206,18 @@ package body VFS.FAT with SPARK_Mode => Off is
       end if;
 
       loop
-         Read_Directory_Entry (FS, Cluster, Index, Disk_Off, Ent, Success2);
-         if not Success2 then
-            Success := FS_IO_Failure;
-            return;
-         end if;
-
          if Index = Unsigned_64 (FS.BPB.Sectors_Per_Cluster) * 16 then
             Index := 0;
             Get_Next_Cluster (FS, Cluster, Cluster, Success2);
             if not Success2 then
                return;
             end if;
+         end if;
+
+         Read_Directory_Entry (FS, Cluster, Index, Disk_Off, Ent, Success2);
+         if not Success2 then
+            Success := FS_IO_Failure;
+            return;
          end if;
 
          if Ent.Attributes = 0 then
@@ -236,10 +236,9 @@ package body VFS.FAT with SPARK_Mode => Off is
                   Composed (1 .. Composed_Len);
                Entities (Temp).Name_Len     := Composed_Len;
                Entities (Temp).Type_Of_File := Get_Type (Ent.Attributes);
+               Ret_Count := Ret_Count + 1;
             end if;
-
-            Total     := Total     + 1;
-            Ret_Count := Ret_Count + 1;
+            Total := Total + 1;
          end if;
 
          Index := Index + 1;
@@ -505,12 +504,10 @@ package body VFS.FAT with SPARK_Mode => Off is
              Data      => Returned_Data,
              Ret_Count => Ret_Count,
              Success   => Succ);
-         if (Succ = Devices.Dev_Success) or (Ret_Count /= Returned_Data'Length)
-         then
-            Success := False;
-         else
-            Success := Returned < 16#FFFFFFF8#;
-         end if;
+         Success :=
+            Succ = Devices.Dev_Success and
+            Ret_Count = Returned_Data'Length and
+            Returned < 16#FFFFFFF8#;
       end if;
    exception
       when Constraint_Error =>
