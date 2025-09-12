@@ -47,6 +47,7 @@ package body VFS.FAT with SPARK_Mode => Off is
       BP        : BIOS_Parameter_Block;
       Ret_Count : Natural;
       Success   : Devices.Dev_Status;
+      FAT_Size  : Unsigned_32;
    begin
       declare
          BP_Data   : Operation_Data (1 .. BP'Size / 8)
@@ -63,14 +64,21 @@ package body VFS.FAT with SPARK_Mode => Off is
          end if;
       end;
 
+      if BP.Sectors_Per_FAT_Old = 0 then
+         FAT_Size := BP.Sectors_Per_FAT;
+      else
+         FAT_Size := Unsigned_32 (BP.Sectors_Per_FAT_Old);
+      end if;
+
       Data := new FAT_Data'
          (Handle         => Handle,
           Is_Read_Only   => Is_Read_Only (Handle),
           BPB            => BP,
           Sector_Count   => Unsigned_32 (BP.Sector_Count),
           FAT_Offset     => Unsigned_32 (BP.Reserved_Sectors),
+          FAT_Size       => FAT_Size,
           Cluster_Offset => Unsigned_32 (BP.Reserved_Sectors) +
-                            Unsigned_32 (BP.FAT_Count) * BP.Sectors_Per_FAT);
+                            Unsigned_32 (BP.FAT_Count) * FAT_Size);
       if Data.Sector_Count = 0 then
          Data.Sector_Count := BP.Large_Sector_Count;
       end if;
@@ -484,7 +492,7 @@ package body VFS.FAT with SPARK_Mode => Off is
       Returned_Data : Operation_Data (1 .. 4)
          with Import, Address => Returned'Address;
    begin
-      Limit  := (Unsigned_64 (Data.BPB.Sectors_Per_FAT) * Sector_Size) / 4;
+      Limit  := (Unsigned_64 (Data.FAT_Size) * Sector_Size) / 4;
       Offset := Sector_To_Disk_Offset (Data.FAT_Offset);
 
       if Unsigned_64 (Cluster_Index) >= Limit then

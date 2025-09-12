@@ -198,6 +198,7 @@ private
       BPB            : BIOS_Parameter_Block;
       Sector_Count   : Unsigned_32;
       FAT_Offset     : Unsigned_32;
+      FAT_Size       : Unsigned_32;
       Cluster_Offset : Unsigned_32;
    end record;
    type FAT_Data_Acc is access all FAT_Data;
