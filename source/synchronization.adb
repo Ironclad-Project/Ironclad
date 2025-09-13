@@ -17,44 +17,32 @@
 with System.Atomic_Operations; use System.Atomic_Operations;
 with Arch;
 with Arch.Snippets;
-with Panic;
 with Scheduler;
 
 package body Synchronization with SPARK_Mode => Off is
    pragma Suppress (All_Checks); --  Checks are too expensive in this paths.
 
-   Max_Spinlock_Block_Iters : constant := 50_000_000;
-
-   --  Both locks do a rough wait until the lock is free for cache-locality.
-   --  https://en.wikipedia.org/wiki/Test_and_test-and-set
-
-   procedure Seize
-      (Lock : aliased in out Binary_Semaphore;
-       Do_Not_Disable_Interrupts : Boolean := False)
-   is
-      Ints : Boolean := Arch.Snippets.Interrupts_Enabled;
+   procedure Seize (Lock : aliased in out Binary_Semaphore) is
+      Ints : constant Boolean := Arch.Snippets.Interrupts_Enabled;
    begin
-      Ints := Ints and not Do_Not_Disable_Interrupts;
+      --  Whether we have ints on or off, we always have to have them off.
+      Arch.Snippets.Disable_Interrupts;
 
-      if Ints then
-         Arch.Snippets.Disable_Interrupts;
-      end if;
-
-   <<RETEST>>
-      if not Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) then
-         Lock.Were_Interrupts_Enabled := Ints;
-         return;
-      end if;
-
-      for I in 1 .. Max_Spinlock_Block_Iters loop
-         if Atomic_Load_8 (Lock.Is_Locked'Address, Mem_Relaxed) = 0 then
-            goto RETEST;
-         else
-            Arch.Snippets.Pause;
+      --  We do a rough wait until the lock is free for cache-locality.
+      --  https://en.wikipedia.org/wiki/Test_and_test-and-set
+      loop
+         if not Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) then
+            Lock.Were_Interrupts_Enabled := Ints;
+            exit;
          end if;
-      end loop;
 
-      Panic.Hard_Panic ("Deadlock at " & Caller_Address (0)'Image);
+         loop
+            if Atomic_Load_8 (Lock.Is_Locked'Address, Mem_Relaxed) = 0 then
+               exit;
+            end if;
+            Arch.Snippets.Pause;
+         end loop;
+      end loop;
    end Seize;
 
    procedure Release (Lock : aliased in out Binary_Semaphore) is
@@ -68,16 +56,7 @@ package body Synchronization with SPARK_Mode => Off is
    ----------------------------------------------------------------------------
    procedure Seize (Lock : aliased in out Mutex) is
    begin
-      loop
-      <<RETEST>>
-         if not Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) then
-            return;
-         end if;
-
-         if Atomic_Load_8 (Lock.Is_Locked'Address, Mem_Relaxed) = 0 then
-            goto RETEST;
-         end if;
-
+      while Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) loop
          Scheduler.Yield_If_Able;
       end loop;
    end Seize;

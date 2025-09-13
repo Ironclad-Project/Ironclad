@@ -31,11 +31,8 @@ package Synchronization is
    --  Lock a semaphore.
    --  When entering this routine, if interrupts are enabled, they will be
    --  disabled.
-   --  @param Lock                      Semaphore to lock.
-   --  @param Do_Not_Disable_Interrupts If True, do not disable interrupts.
-   procedure Seize
-      (Lock : aliased in out Binary_Semaphore;
-       Do_Not_Disable_Interrupts : Boolean := False);
+   --  @param Lock Semaphore to lock.
+   procedure Seize (Lock : aliased in out Binary_Semaphore);
 
    --  Release a semaphore unconditionally. If interrupts were disabled, they
    --  will be reenabled.
