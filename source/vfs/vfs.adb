@@ -96,6 +96,7 @@ package body VFS is
       Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev = De then
+            Success := FS_Invalid_Value;
             goto Cleanup;
          elsif Mounts (I).Mounted_Dev = Devices.Error_Handle then
             Free_I := I;
@@ -103,6 +104,7 @@ package body VFS is
          end if;
       end loop;
 
+      Success := FS_Full;
       goto Cleanup;
 
    <<Try_Probe>>

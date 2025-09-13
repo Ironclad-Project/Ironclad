@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Messages;
 with System.Address_To_Access_Conversions;
 with Ada.Unchecked_Deallocation;
 with Alignment;
@@ -87,6 +88,7 @@ package body VFS.FAT with SPARK_Mode => Off is
       Root_Ino  := Root_PseudoInode;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while probing FAT FS");
          Data_Addr := System.Null_Address;
          Root_Ino  := 0;
    end Probe;
@@ -245,6 +247,7 @@ package body VFS.FAT with SPARK_Mode => Off is
       end loop;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while reading FAT directory entry");
          Ret_Count := 0;
          Success   := FS_IO_Failure;
    end Read_Entries;
@@ -335,6 +338,7 @@ package body VFS.FAT with SPARK_Mode => Off is
       end loop;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while reading FAT entry");
          Ret_Count := 0;
          Success   := FS_IO_Failure;
    end Read;
@@ -418,6 +422,7 @@ package body VFS.FAT with SPARK_Mode => Off is
       Success := FS_Success;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while stat-ing FAT entry");
          Success := FS_IO_Failure;
    end Stat;
    ----------------------------------------------------------------------------
@@ -451,6 +456,7 @@ package body VFS.FAT with SPARK_Mode => Off is
                      Ret_Count = Result_Data'Length;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while reading FAT dir entry");
          Disk_Offset := 0;
          Success     := False;
    end Read_Directory_Entry;
@@ -476,6 +482,7 @@ package body VFS.FAT with SPARK_Mode => Off is
                  Ret_Count = Result_Data'Length;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while reading FAT dir entry");
          Success := False;
    end Read_Directory_Entry;
 
@@ -511,6 +518,7 @@ package body VFS.FAT with SPARK_Mode => Off is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while getting the next FAT cluster");
          Returned := 0;
          Success  := False;
    end Get_Next_Cluster;
@@ -552,6 +560,7 @@ package body VFS.FAT with SPARK_Mode => Off is
       Length := Ret;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while composing FAT path");
          Result := [others => ' '];
          Length := 0;
    end Compose_Path;

@@ -57,6 +57,7 @@ package body Userland.Syscall is
          (Arch.Local.Get_Current_Process, Unsigned_8 (Code and 16#FF#));
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Sys_Exit");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Sys_Exit;
@@ -105,6 +106,7 @@ package body Userland.Syscall is
       Errno    := Error_Would_Fault;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Arch_PRCtl");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Arch_PRCtl;
@@ -220,6 +222,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Open");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Open;
@@ -243,6 +246,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Close");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Close;
@@ -362,6 +366,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Read");
          Arch.Snippets.Disable_Userland_Memory_Access;
          Errno := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -485,6 +490,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Write");
          Arch.Snippets.Disable_Userland_Memory_Access;
          Errno := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -552,6 +558,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Seek");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Seek;
@@ -673,6 +680,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Mmap");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Mmap;
@@ -706,6 +714,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Munmap");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Munmap;
@@ -897,6 +906,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Exec");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Exec;
@@ -984,6 +994,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Fork");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Fork;
@@ -1114,6 +1125,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Wait");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Wait;
@@ -1226,6 +1238,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Set_Hostname");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Set_Hostname;
@@ -1410,6 +1423,7 @@ package body Userland.Syscall is
       Errno    := Error_Would_Fault;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing FStat");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end FStat;
@@ -1474,6 +1488,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Pivot_Root");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Pivot_Root;
@@ -1509,6 +1524,7 @@ package body Userland.Syscall is
       Returned := 0;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Chdir");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Chdir;
@@ -1588,6 +1604,7 @@ package body Userland.Syscall is
       Arch.Snippets.Disable_Userland_Memory_Access;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing IOCTL");
          Arch.Snippets.Disable_Userland_Memory_Access;
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -1735,6 +1752,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Rename");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Rename;
@@ -1793,6 +1811,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing List_Procs");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end List_Procs;
@@ -1819,6 +1838,7 @@ package body Userland.Syscall is
       Errno := Error_No_Error;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Get_SID");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Get_SID;
@@ -1884,6 +1904,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing List_Mounts");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end List_Mounts;
@@ -1923,6 +1944,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Uname");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Uname;
@@ -1979,6 +2001,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing List_Threads");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end List_Threads;
@@ -2035,6 +2058,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing List_NetInter");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end List_NetInter;
@@ -2082,6 +2106,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Dump_Logs");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Dump_Logs;
@@ -2131,6 +2156,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing List_Filelocks");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end List_Filelocks;
@@ -2168,6 +2194,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Loadavg");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Loadavg;
@@ -2210,6 +2237,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Meminfo");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Meminfo;
@@ -2247,6 +2275,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing List_PCI");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end List_PCI;
@@ -2447,6 +2476,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Fcntl");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Fcntl;
@@ -2502,6 +2532,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Get_Entropy");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Get_Entropy;
@@ -2545,6 +2576,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing MProtect");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end MProtect;
@@ -2657,6 +2689,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Add_MAC_Permissions");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Add_MAC_Permissions;
@@ -2784,6 +2817,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Mount");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Mount;
@@ -2838,6 +2872,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Umount");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Umount;
@@ -2924,6 +2959,7 @@ package body Userland.Syscall is
       Errno    := Error_Would_Fault;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Readlink");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Readlink;
@@ -3017,6 +3053,7 @@ package body Userland.Syscall is
       end if;
    exception
       when others =>
+         Messages.Put_Line ("Exception while executing GetDEnts");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end GetDEnts;
@@ -3107,6 +3144,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing MakeNode");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end MakeNode;
@@ -3162,6 +3200,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Unlink");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Unlink;
@@ -3196,6 +3235,7 @@ package body Userland.Syscall is
       end case;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Truncate");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Truncate;
@@ -3288,6 +3328,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Bind");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Bind;
@@ -3357,6 +3398,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Symlink");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Symlink;
@@ -3456,6 +3498,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Connect");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Connect;
@@ -3539,6 +3582,7 @@ package body Userland.Syscall is
       end case;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing FSync");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end FSync;
@@ -3605,6 +3649,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Link");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Link;
@@ -3655,6 +3700,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing PTrace");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end PTrace;
@@ -3688,6 +3734,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Listen");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Listen;
@@ -3823,6 +3870,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Sys_Accept");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Sys_Accept;
@@ -3952,6 +4000,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Sched_RR_Interval");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Sched_RR_Interval;
@@ -4037,6 +4086,7 @@ package body Userland.Syscall is
       Translate_Status (Succ, 0, Returned, Errno);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing FAccess");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end FAccess;
@@ -4218,6 +4268,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when others =>
+         Messages.Put_Line ("Exception while executing PPoll");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end PPoll;
@@ -4265,6 +4316,7 @@ package body Userland.Syscall is
       Returned := 0;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Set_UIDs");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Set_UIDs;
@@ -4363,6 +4415,7 @@ package body Userland.Syscall is
       Translate_Status (Succ, 0, Returned, Errno);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Fchmod");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Fchmod;
@@ -4381,6 +4434,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64 (Old);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Umask");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Umask;
@@ -4425,6 +4479,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Reboot");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Reboot;
@@ -4525,6 +4580,7 @@ package body Userland.Syscall is
       Translate_Status (Succ, 0, Returned, Errno);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing FChown");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Fchown;
@@ -4551,6 +4607,7 @@ package body Userland.Syscall is
       Errno := Error_No_Error;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Get_PGID");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Get_PGID;
@@ -4587,6 +4644,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Set_PGID");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Set_PGID;
@@ -4689,6 +4747,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Get_Sock_Name");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Get_Sock_Name;
@@ -4792,6 +4851,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Get_Peer_Name");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Get_Peer_Name;
@@ -4835,6 +4895,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Shutdown");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Shutdown;
@@ -4915,6 +4976,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Futex");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Futex;
@@ -5245,6 +5307,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing RecvFrom");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end RecvFrom;
@@ -5388,6 +5451,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing SendTo");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end SendTo;
@@ -5477,6 +5541,7 @@ package body Userland.Syscall is
       Errno    := Error_Would_Fault;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Config_NetInterface");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Config_NetInterface;
@@ -5593,6 +5658,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing UTimes");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end UTimes;
@@ -5646,6 +5712,7 @@ package body Userland.Syscall is
       Errno := Error_No_Error;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Sched_GetScheduler");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Sched_GetScheduler;
@@ -5714,6 +5781,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Sched_SetScheduler");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Sched_SetScheduler;
@@ -5859,6 +5927,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Sigaction");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Sigaction;
@@ -5947,6 +6016,7 @@ package body Userland.Syscall is
       Returned := 0;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Send_Signal");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Send_Signal;
@@ -6008,6 +6078,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Get_Prio");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Get_Prio;
@@ -6076,6 +6147,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Set_Prio");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Set_Prio;
@@ -6132,6 +6204,7 @@ package body Userland.Syscall is
       Returned := 0;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Set_GIDs");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Set_GIDs;
@@ -6178,6 +6251,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Get_Groups");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Get_Groups;
@@ -6228,6 +6302,7 @@ package body Userland.Syscall is
       Returned := 0;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Set_Groups");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Set_Groups;
@@ -6293,6 +6368,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing TTY_Name");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end TTY_Name;
@@ -6339,6 +6415,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing FAdvise");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end FAdvise;
@@ -6414,6 +6491,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing SHMAt");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end SHMAt;
@@ -6501,6 +6579,7 @@ package body Userland.Syscall is
       return;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing SHMCtl");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end SHMCtl;
@@ -6551,6 +6630,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing SHMDt");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end SHMDt;
@@ -6593,6 +6673,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing SHMGet");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end SHMGet;
@@ -6702,6 +6783,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing GetSockOpt");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end GetSockOpt;
@@ -6792,6 +6874,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Get_Thread_Name");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Get_Thread_Name;
@@ -6840,6 +6923,7 @@ package body Userland.Syscall is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Set_Thread_Name");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Set_Thread_Name;
@@ -7459,6 +7543,7 @@ package body Userland.Syscall is
       Returned := 0;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Recv_Sock_Ctr");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Recv_Sock_Ctr;
@@ -7532,7 +7617,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
-         null;
+         Messages.Put_Line ("Exception while executing common syscall hook");
    end Common_Syscall_Hook;
 
    procedure Translate_Status
@@ -7563,6 +7648,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while translating FS status");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Translate_Status;
@@ -7585,6 +7671,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while translating socket status");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Translate_Status;
@@ -7607,6 +7694,7 @@ package body Userland.Syscall is
       Returned := Unsigned_64'Last;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while translating pipe status");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Translate_Status;
@@ -7628,6 +7716,7 @@ package body Userland.Syscall is
       end case;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while translating PTY status");
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
    end Translate_Status;
@@ -7737,6 +7826,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while resolving AT directive");
          FS  := VFS.Error_Handle;
          Ino := 0;
    end Resolve_AT_Directive;
@@ -7757,6 +7847,7 @@ package body Userland.Syscall is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while translating signal");
          Sig     := Signal_Abort;
          Success := False;
    end Translate_Signal;

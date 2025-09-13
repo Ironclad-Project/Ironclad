@@ -162,6 +162,7 @@ package body Devices.FB with SPARK_Mode => Off is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while early initializing FB device");
          Early_Init_Addr := System.Null_Address;
    end Early_Init;
 
@@ -263,6 +264,7 @@ package body Devices.FB with SPARK_Mode => Off is
       end loop;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while initializing FB device");
          Success := False;
    end Init;
 
@@ -321,6 +323,7 @@ package body Devices.FB with SPARK_Mode => Off is
           Caching          => Arch.MMU.Write_Combining);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while mapping FB device");
          Success := False;
    end Mmap;
 end Devices.FB;

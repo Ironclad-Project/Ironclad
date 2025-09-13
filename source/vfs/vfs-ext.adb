@@ -102,6 +102,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Data_Addr := Conv.To_Address (Conv.Object_Pointer (Data));
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception probing an EXT filesystem");
          Data_Addr := Null_Address;
    end Probe;
 
@@ -121,6 +122,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    exception
       when Constraint_Error =>
          Synchronization.Release_Writer (Data.Mutex);
+         Messages.Put_Line ("Exception remounting an EXT filesystem");
          Success := False;
    end Remount;
 
@@ -149,6 +151,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       FS := System.Null_Address;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception unmounting an EXT filesystem");
          FS := System.Null_Address;
    end Unmount;
    ----------------------------------------------------------------------------
@@ -161,6 +164,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    exception
       when Constraint_Error =>
          Synchronization.Release_Reader (Data.Mutex);
+         Messages.Put_Line ("Exception getting a EXT block size");
          Size := 0;
    end Get_Block_Size;
 
@@ -173,6 +177,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    exception
       when Constraint_Error =>
          Synchronization.Release_Reader (Data.Mutex);
+         Messages.Put_Line ("Exception getting a EXT fragment size");
          Size := 0;
    end Get_Fragment_Size;
 
@@ -187,6 +192,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    exception
       when Constraint_Error =>
          Synchronization.Release_Reader (Data.Mutex);
+         Messages.Put_Line ("Exception getting a EXT size");
          Size := 0;
    end Get_Size;
 
@@ -199,6 +205,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    exception
       when Constraint_Error =>
          Synchronization.Release_Reader (Data.Mutex);
+         Messages.Put_Line ("Exception getting a EXT inode count");
          Count := 0;
    end Get_Inode_Count;
 
@@ -216,6 +223,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    exception
       when Constraint_Error =>
          Synchronization.Release_Reader (Data.Mutex);
+         Messages.Put_Line ("Exception getting EXT free blocks");
          Free_Blocks        := 0;
          Free_Unprivileged := 0;
    end Get_Free_Blocks;
@@ -234,6 +242,7 @@ package body VFS.EXT with SPARK_Mode => Off is
    exception
       when Constraint_Error =>
          Synchronization.Release_Reader (Data.Mutex);
+         Messages.Put_Line ("Exception getting EXT free inodes");
          Free_Inodes        := 0;
          Free_Unprivileged := 0;
    end Get_Free_Inodes;
@@ -454,6 +463,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Last_Component);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while creating an EXT node");
          Status := FS_IO_Failure;
    end Create_Node;
 
@@ -482,6 +492,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Synchronization.Release_Writer (Data.Mutex);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while creating an EXT symlink");
          Status := FS_IO_Failure;
    end Create_Symbolic_Link;
 
@@ -594,6 +605,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Last_Component);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while creating an EXT hardlink");
          Status := FS_IO_Failure;
    end Create_Hard_Link;
 
@@ -718,6 +730,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Last_Component);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while renaming an EXT node");
          Status := FS_IO_Failure;
    end Rename;
 
@@ -811,6 +824,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Last_Component);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while unlinking an EXT node");
          Status := FS_IO_Failure;
    end Unlink;
 
@@ -882,6 +896,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Fetched_Inode);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while reading EXT entries");
          Ret_Count := 0;
          Success   := FS_IO_Failure;
    end Read_Entries;
@@ -925,6 +940,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Fetched_Inode);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while reading an EXT symlink");
          Path      := [others => ' '];
          Ret_Count := 0;
          Success   := FS_IO_Failure;
@@ -980,6 +996,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Fetched_Inode);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while reading EXT data");
          Data      := [others => 0];
          Ret_Count := 0;
          Success   := FS_IO_Failure;
@@ -1040,6 +1057,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Fetched_Inode);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while writing EXT data");
          Ret_Count := 0;
          Success   := FS_IO_Failure;
    end Write;
@@ -1092,6 +1110,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Inod);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while doing an EXT stat");
          Success := FS_IO_Failure;
    end Stat;
 
@@ -1166,6 +1185,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Fetched);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while doing an EXT truncation");
          Status := FS_IO_Failure;
    end Truncate;
 
@@ -1230,6 +1250,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Inod);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while doing an EXT ioctl");
          Status := FS_IO_Failure;
    end IO_Control;
 
@@ -1276,6 +1297,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Inod);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while doing an EXT mode change");
          Status := FS_IO_Failure;
    end Change_Mode;
 
@@ -1322,6 +1344,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Inod);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while doing an EXT owner change");
          Status := FS_IO_Failure;
    end Change_Owner;
 
@@ -1375,6 +1398,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Inod);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while doing an EXT access time change");
          Status := FS_IO_Failure;
    end Change_Access_Times;
 
@@ -1386,6 +1410,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       return (if Success then FS_Success else FS_IO_Failure);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while doing an EXT sync");
          return FS_IO_Failure;
    end Synchronize;
 
@@ -1580,6 +1605,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while opening an EXT inode");
          Target_Index := 0;
          Parent_Index := 0;
          Success      := False;
@@ -1633,6 +1659,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Ret_Count := Natural (File_Size);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while reading an EXT symbolic link");
          Ret_Count := 0;
    end Inner_Read_Symbolic_Link;
 
@@ -1722,6 +1749,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success    := False;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while reading an EXT entry");
          Next_Index := 0;
          Success    := False;
    end Inner_Read_Entry;
@@ -1803,6 +1831,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while doing R/W on an EXT block group");
          Success := False;
    end RW_Block_Group_Descriptor;
 
@@ -1862,6 +1891,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while doing R/W on an EXT inode");
          Success := False;
    end RW_Inode;
 
@@ -1966,6 +1996,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       return Block_Index;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while getting an EXT block's index");
          return 0;
    end Get_Block_Index;
 
@@ -2029,6 +2060,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success   := True;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while reading from an EXT inode");
          Ret_Count := 0;
          Success   := False;
    end Read_From_Inode;
@@ -2118,6 +2150,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success   := False;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while writing to an EXT inode");
          Ret_Count := 0;
          Success   := False;
    end Write_To_Inode;
@@ -2149,6 +2182,7 @@ package body VFS.EXT with SPARK_Mode => Off is
           Success     => Success);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while growing an EXT inode");
          Success := False;
    end Grow_Inode;
 
@@ -2408,6 +2442,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success := True;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while wiring blocks from an EXT inode");
          Success := False;
    end Wire_Inode_Blocks;
 
@@ -2520,6 +2555,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success := False;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while allocating EXT inode blocks");
          Ret_Block := 0;
          Success   := False;
    end Allocate_Block_For_Inode;
@@ -2623,6 +2659,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Success := False;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while allocating an EXT inode");
          Inode_Num := 0;
          Success   := False;
    end Allocate_Inode;
@@ -2715,6 +2752,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Buffer);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while adding from an EXT dir entry");
          Success := False;
    end Add_Directory_Entry;
 
@@ -2780,6 +2818,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Buffer);
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while deleting an EXT inode entry");
          Success := False;
    end Delete_Directory_Entry;
 
@@ -2884,6 +2923,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while setting size of an EXT inode");
          Success := False;
    end Set_Size;
 

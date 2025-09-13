@@ -125,6 +125,7 @@ package body Arch.Hooks with SPARK_Mode => Off is
       end if;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while getting CPU model");
          Model := [others => ' '];
    end Get_CPU_Model;
 
@@ -145,6 +146,7 @@ package body Arch.Hooks with SPARK_Mode => Off is
       end;
    exception
       when Constraint_Error =>
+         Messages.Put_Line ("Exception while getting CPU vendor");
          Vendor := [others => ' '];
    end Get_CPU_Vendor;
 
