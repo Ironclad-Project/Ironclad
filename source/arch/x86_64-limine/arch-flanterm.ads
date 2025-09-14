@@ -61,8 +61,10 @@ private
       (Ctx : Flanterm_Ctx;
        Buf : System.Address;
        Len : Unsigned_64)
-      with Import, Convention => C, External_Name => "flanterm_write";
+      with Import, Convention => C, Always_Terminates,
+           External_Name => "flanterm_write";
 
    procedure Term_Full_Refresh (Ctx : Flanterm_Ctx)
-      with Import, Convention => C, External_Name => "flanterm_full_refresh";
+      with Import, Convention => C, Always_Terminates,
+           External_Name => "flanterm_full_refresh";
 end Arch.Flanterm;

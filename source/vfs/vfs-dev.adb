@@ -443,7 +443,7 @@ package body VFS.Dev is
       Is_Error  := True;
    end Poll;
 
-   function Synchronize (Data : System.Address) return FS_Status is
+   procedure Synchronize (Data : System.Address; Status : out FS_Status) is
       pragma Unreferenced (Data);
       Buffer     : Devices.Device_List (1 .. 30);
       Buffer_Len : Natural;
@@ -454,33 +454,37 @@ package body VFS.Dev is
          exit when I > Buffer'Last;
          Devices.Synchronize (Buffer (I), Success);
          if not Success then
-            return FS_IO_Failure;
+            Status := FS_IO_Failure;
+            return;
          end if;
       end loop;
-      return FS_Success;
+      Status := FS_Success;
    end Synchronize;
 
-   function Synchronize
+   procedure Synchronize
       (Data      : System.Address;
        Ino       : File_Inode_Number;
-       Data_Only : Boolean) return FS_Status
+       Data_Only : Boolean;
+       Status    : out FS_Status)
    is
       pragma Unreferenced (Data, Data_Only);
       Handle  : Device_Handle;
       Success : Boolean;
    begin
       if Ino = Root_Inode then
-         return FS_Success;
+         Status := FS_Success;
+         return;
       elsif not (Ino in 0 .. File_Inode_Number (Natural'Last)) then
-         return FS_Invalid_Value;
+         Status := FS_Invalid_Value;
+         return;
       end if;
 
       Handle := From_Unique_ID (Natural (Ino));
       if Handle /= Devices.Error_Handle then
          Devices.Synchronize (Handle, Success);
-         return (if Success then FS_Success else FS_IO_Failure);
+         Status := (if Success then FS_Success else FS_IO_Failure);
       else
-         return FS_Invalid_Value;
+         Status := FS_Invalid_Value;
       end if;
    end Synchronize;
 

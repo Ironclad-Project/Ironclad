@@ -1052,32 +1052,33 @@ package body VFS is
       end case;
    end Poll;
 
-   function Synchronize (Key : FS_Handle) return FS_Status is
+   procedure Synchronize (Key : FS_Handle; Status : out FS_Status) is
       pragma Annotate (GNATprove, False_Positive, "precondition might fail",
          "No it does not");
    begin
       case Mounts (Key).Mounted_FS is
-         when FS_DEV => return Dev.Synchronize (Mounts (Key).FS_Data);
-         when FS_EXT => return EXT.Synchronize (Mounts (Key).FS_Data);
-         when FS_FAT => return FS_Not_Supported;
+         when FS_DEV => Dev.Synchronize (Mounts (Key).FS_Data, Status);
+         when FS_EXT => EXT.Synchronize (Mounts (Key).FS_Data, Status);
+         when FS_FAT => Status := FS_Not_Supported;
       end case;
    end Synchronize;
 
-   function Synchronize
+   procedure Synchronize
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
-       Data_Only : Boolean) return FS_Status
+       Data_Only : Boolean;
+       Status    : out FS_Status)
    is
       pragma Annotate (GNATprove, False_Positive, "precondition might fail",
          "No it does not");
    begin
       case Mounts (Key).Mounted_FS is
          when FS_DEV =>
-            return Dev.Synchronize (Mounts (Key).FS_Data, Ino, Data_Only);
+            Dev.Synchronize (Mounts (Key).FS_Data, Ino, Data_Only, Status);
          when FS_EXT =>
-            return EXT.Synchronize (Mounts (Key).FS_Data, Ino, Data_Only);
+            EXT.Synchronize (Mounts (Key).FS_Data, Ino, Data_Only, Status);
          when others =>
-            return FS_Not_Supported;
+            Status := FS_Not_Supported;
       end case;
    end Synchronize;
 
@@ -1196,13 +1197,15 @@ package body VFS is
    end Open;
 
    procedure Synchronize (Success : out Boolean) is
+      Status : FS_Status;
    begin
       Success := True;
 
       Synchronization.Seize (Mounts_Mutex);
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev /= Devices.Error_Handle then
-            if Synchronize (I) = FS_IO_Failure then
+            Synchronize (I, Status);
+            if Status /= FS_Success then
                Success := False;
             end if;
          end if;

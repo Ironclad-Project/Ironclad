@@ -3574,7 +3574,7 @@ package body Userland.Syscall is
 
       case File.Description is
          when Description_Inode =>
-            Succ := VFS.Synchronize (File.Inner_Ino_FS, File.Inner_Ino, Data);
+            VFS.Synchronize (File.Inner_Ino_FS, File.Inner_Ino, Data, Succ);
             Translate_Status (Succ, 0, Returned, Errno);
          when others =>
             Errno    := Error_Invalid_Value;
@@ -6402,7 +6402,7 @@ package body Userland.Syscall is
             Errno := Error_No_Error;
             Returned := 0;
          when POSIX_FADV_DONTNEED =>
-            Tmp := VFS.Synchronize (File.Inner_Ino_FS, File.Inner_Ino, False);
+            VFS.Synchronize (File.Inner_Ino_FS, File.Inner_Ino, False, Tmp);
             Translate_Status (Tmp, 0, Returned, Errno);
          when others =>
             Errno := Error_Invalid_Value;

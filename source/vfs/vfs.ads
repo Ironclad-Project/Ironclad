@@ -537,7 +537,7 @@ package VFS is
    --  Synchronize the whole FS driver-specific caches and used device.
    --  @param Key FS Handle to open.
    --  @return Status for the operation.
-   function Synchronize (Key : FS_Handle) return FS_Status
+   procedure Synchronize (Key : FS_Handle; Status : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Synchronize the contents of a file cached by the FS driver.
@@ -545,10 +545,11 @@ package VFS is
    --  @param Ino       Inode to operate on.
    --  @param Data_Only Flush only the data if possible, and not the metadata.
    --  @return Status for the operation.
-   function Synchronize
+   procedure Synchronize
       (Key       : FS_Handle;
        Ino       : File_Inode_Number;
-       Data_Only : Boolean) return FS_Status
+       Data_Only : Boolean;
+       Status    : out FS_Status)
       with Pre => Is_Initialized and Key /= Error_Handle;
 
    --  Change the mode of an inode.

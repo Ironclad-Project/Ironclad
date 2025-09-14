@@ -173,12 +173,13 @@ package VFS.EXT is
        Modify_Nanoseconds : Unsigned_64;
        Status             : out FS_Status);
 
-   function Synchronize (Data : System.Address) return FS_Status;
+   procedure Synchronize (Data : System.Address; Status : out FS_Status);
 
-   function Synchronize
+   procedure Synchronize
       (Data      : System.Address;
        Ino       : File_Inode_Number;
-       Data_Only : Boolean) return FS_Status;
+       Data_Only : Boolean;
+       Status    : out FS_Status);
 
 private
 

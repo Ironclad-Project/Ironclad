@@ -83,11 +83,8 @@ package body Userland.Corefile is
             return;
          end if;
 
-         if VFS.Synchronize (Core_FS, Core_Ino, False) = VFS.FS_Success then
-            Messages.Put_Line ("Dumped core at " & File_Path);
-         else
-            Messages.Put_Line ("Failed dump at " & File_Path);
-         end if;
+         VFS.Synchronize (Core_FS, Core_Ino, False, Success);
+         Messages.Put_Line ("Dumped core at " & File_Path);
       end;
    end Generate_Corefile;
 end Userland.Corefile;

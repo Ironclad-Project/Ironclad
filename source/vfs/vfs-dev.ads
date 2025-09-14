@@ -122,13 +122,14 @@ package VFS.Dev is
        Is_Error  : out Boolean)
       with Pre => Devices.Is_Initialized;
 
-   function Synchronize (Data : System.Address) return FS_Status
+   procedure Synchronize (Data : System.Address; Status : out FS_Status)
       with Pre => Devices.Is_Initialized;
 
-   function Synchronize
+   procedure Synchronize
       (Data      : System.Address;
        Ino       : File_Inode_Number;
-       Data_Only : Boolean) return FS_Status
+       Data_Only : Boolean;
+       Status    : out FS_Status)
       with Pre => Devices.Is_Initialized;
 
    function Dev_To_FS_Status (S : Devices.Dev_Status) return FS_Status;

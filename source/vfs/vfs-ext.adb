@@ -1402,27 +1402,28 @@ package body VFS.EXT with SPARK_Mode => Off is
          Status := FS_IO_Failure;
    end Change_Access_Times;
 
-   function Synchronize (Data : System.Address) return FS_Status is
+   procedure Synchronize (Data : System.Address; Status : out FS_Status) is
       FS_Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
       Success : Boolean;
    begin
       Devices.Synchronize (FS_Data.Handle, Success);
-      return (if Success then FS_Success else FS_IO_Failure);
+      Status := (if Success then FS_Success else FS_IO_Failure);
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while doing an EXT sync");
-         return FS_IO_Failure;
+         Status := FS_IO_Failure;
    end Synchronize;
 
-   function Synchronize
+   procedure Synchronize
       (Data      : System.Address;
        Ino       : File_Inode_Number;
-       Data_Only : Boolean) return FS_Status
+       Data_Only : Boolean;
+       Status    : out FS_Status)
    is
       pragma Unreferenced (Ino);
       pragma Unreferenced (Data_Only);
    begin
-      return Synchronize (Data);
+      Synchronize (Data, Status);
    end Synchronize;
    ----------------------------------------------------------------------------
    procedure Inner_Open_Inode
@@ -1996,7 +1997,6 @@ package body VFS.EXT with SPARK_Mode => Off is
       return Block_Index;
    exception
       when Constraint_Error =>
-         Messages.Put_Line ("Exception while getting an EXT block's index");
          return 0;
    end Get_Block_Index;
 
