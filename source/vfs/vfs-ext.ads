@@ -426,6 +426,12 @@ private
        Write_Operation  : Boolean;
        Success          : out Boolean);
 
+   procedure Get_Inode_Index
+      (Data        : EXT_Data_Acc;
+       Inode_Index : Unsigned_32;
+       Result      : out Unsigned_64;
+       Success     : out Boolean);
+
    procedure RW_Inode
       (Data            : EXT_Data_Acc;
        Inode_Index     : Unsigned_32;

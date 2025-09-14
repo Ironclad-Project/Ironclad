@@ -1406,8 +1406,10 @@ package body VFS.EXT with SPARK_Mode => Off is
       FS_Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
       Success : Boolean;
    begin
+      Synchronization.Seize_Reader (FS_Data.Mutex);
       Devices.Synchronize (FS_Data.Handle, Success);
       Status := (if Success then FS_Success else FS_IO_Failure);
+      Synchronization.Release_Reader (FS_Data.Mutex);
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while doing an EXT sync");
@@ -1420,10 +1422,27 @@ package body VFS.EXT with SPARK_Mode => Off is
        Data_Only : Boolean;
        Status    : out FS_Status)
    is
-      pragma Unreferenced (Ino);
-      pragma Unreferenced (Data_Only);
+      FS_Data : constant EXT_Data_Acc := EXT_Data_Acc (Conv.To_Pointer (Data));
+      Succ : Boolean;
+      Offset : Unsigned_64;
    begin
-      Synchronize (Data, Status);
+      if Data_Only then
+         Synchronization.Seize_Reader (FS_Data.Mutex);
+         Get_Inode_Index (FS_Data, Unsigned_32 (Ino), Offset, Succ);
+         if Succ then
+            Devices.Synchronize (FS_Data.Handle, Offset, Inode'Size / 8, Succ);
+            Status := (if Succ then FS_Success else FS_IO_Failure);
+         else
+            Status := FS_Invalid_Value;
+         end if;
+         Synchronization.Release_Reader (FS_Data.Mutex);
+      else
+         Synchronize (Data, Status);
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while doing an EXT partial sync");
+         Status := FS_IO_Failure;
    end Synchronize;
    ----------------------------------------------------------------------------
    procedure Inner_Open_Inode
@@ -1836,20 +1855,14 @@ package body VFS.EXT with SPARK_Mode => Off is
          Success := False;
    end RW_Block_Group_Descriptor;
 
-   procedure RW_Inode
-      (Data            : EXT_Data_Acc;
-       Inode_Index     : Unsigned_32;
-       Result          : in out Inode;
-       Write_Operation : Boolean;
-       Success         : out Boolean)
+   procedure Get_Inode_Index
+      (Data        : EXT_Data_Acc;
+       Inode_Index : Unsigned_32;
+       Result      : out Unsigned_64;
+       Success     : out Boolean)
    is
       Table_Index, Descriptor_Index : Unsigned_32;
       Block_Descriptor : Block_Group_Descriptor;
-      Succ        : Devices.Dev_Status;
-      Offset      : Unsigned_64;
-      Ret_Count   : Natural;
-      Result_Data : Operation_Data (1 .. Inode'Size / 8)
-         with Import, Address => Result'Address;
    begin
       Table_Index      := (Inode_Index - 1) mod Data.Super.Inodes_Per_Group;
       Descriptor_Index := (Inode_Index - 1) / Data.Super.Inodes_Per_Group;
@@ -1860,14 +1873,42 @@ package body VFS.EXT with SPARK_Mode => Off is
           Result           => Block_Descriptor,
           Write_Operation  => False,
           Success          => Success);
+      if Success then
+         Result :=
+            Unsigned_64 (Block_Descriptor.Inode_Table_Block) *
+            Unsigned_64 (Data.Block_Size) + Unsigned_64 (Table_Index) *
+            Unsigned_64 (Data.Super.Inode_Size);
+      else
+         Result := 0;
+      end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while getting index of an EXT inode");
+         Result := 0;
+         Success := False;
+   end Get_Inode_Index;
+
+   procedure RW_Inode
+      (Data            : EXT_Data_Acc;
+       Inode_Index     : Unsigned_32;
+       Result          : in out Inode;
+       Write_Operation : Boolean;
+       Success         : out Boolean)
+   is
+      Succ        : Devices.Dev_Status;
+      Offset      : Unsigned_64;
+      Ret_Count   : Natural;
+      Result_Data : Operation_Data (1 .. Inode'Size / 8)
+         with Import, Address => Result'Address;
+   begin
+      Get_Inode_Index
+         (Data        => Data,
+          Inode_Index => Inode_Index,
+          Result      => Offset,
+          Success     => Success);
       if not Success then
          return;
       end if;
-
-      Offset :=
-         Unsigned_64 (Block_Descriptor.Inode_Table_Block) *
-         Unsigned_64 (Data.Block_Size) + Unsigned_64 (Table_Index) *
-         Unsigned_64 (Data.Super.Inode_Size);
 
       if Write_Operation then
          Devices.Write
