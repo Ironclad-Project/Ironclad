@@ -1228,6 +1228,7 @@ package Userland.Syscall is
    SO_SNDBUF     : constant := 13;
    SO_TYPE       : constant := 16;
    SO_PEERCRED   : constant := 18;
+   SO_PASSCRED   : constant := 20;
 
    type UCred is record
       PID : Unsigned_32;

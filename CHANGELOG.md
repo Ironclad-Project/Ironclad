@@ -26,6 +26,8 @@ release changes.
 - Minor changes and fixes to the build system.
 - Fix PCI MSI/MSI-X feature detection.
 - Add `AT_PAGESZ` ELF auxiliary value support.
+- Added support `for SO_PEERCRED` and `SO_PASSCRED` for socket ancillary
+  message support, along with the `recvsockctr` and `sendsockctr` calls.
 
 ### Breaking changes
 

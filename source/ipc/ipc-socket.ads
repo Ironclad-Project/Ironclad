@@ -492,21 +492,10 @@ package IPC.Socket is
        Success : out Socket_Status)
       with Pre => Sock /= null and then Get_Domain (Sock) = UNIX;
 
-   procedure Get_Sent_Peer_Credentials
-      (Sock    : Socket_Acc;
-       PID     : out Unsigned_32;
-       UID     : out Unsigned_32;
-       GID     : out Unsigned_32;
-       Success : out Socket_Status)
-      with Pre => Sock /= null and then Get_Domain (Sock) = UNIX;
+   procedure Get_Credential_Reporting
+      (Sock : Socket_Acc; Enable : out Boolean);
 
-   procedure Send_Peer_Credentials
-      (Sock    : Socket_Acc;
-       PID     : Unsigned_32;
-       UID     : Unsigned_32;
-       GID     : Unsigned_32;
-       Success : out Socket_Status)
-      with Pre => Sock /= null and then Get_Domain (Sock) = UNIX;
+   procedure Set_Credential_Reporting (Sock : Socket_Acc; Enable : Boolean);
 
 private
 
@@ -521,10 +510,7 @@ private
             Cred_PID : Unsigned_32;
             Cred_UID : Unsigned_32;
             Cred_GID : Unsigned_32;
-            Has_Sent_Cred : Boolean;
-            Sent_Cred_PID : Unsigned_32;
-            Sent_Cred_UID : Unsigned_32;
-            Sent_Cred_GID : Unsigned_32;
+            Do_Credential_Reporting : Boolean;
             Data        : Devices.Operation_Data (1 .. Default_Socket_Size);
             Data_Length : Natural range 0 .. Default_Socket_Size;
             case Kind is

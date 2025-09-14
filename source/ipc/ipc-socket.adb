@@ -65,10 +65,7 @@ package body IPC.Socket with SPARK_Mode => Off is
                     Cred_PID => 0,
                     Cred_UID => 0,
                     Cred_GID => 0,
-                    Has_Sent_Cred => False,
-                    Sent_Cred_PID => 0,
-                    Sent_Cred_UID => 0,
-                    Sent_Cred_GID => 0,
+                    Do_Credential_Reporting => False,
                     Is_Listener    => False,
                     Connected      => null,
                     Pending_Accept => null,
@@ -84,10 +81,7 @@ package body IPC.Socket with SPARK_Mode => Off is
                     Cred_PID => 0,
                     Cred_UID => 0,
                     Cred_GID => 0,
-                    Has_Sent_Cred => False,
-                    Sent_Cred_PID => 0,
-                    Sent_Cred_UID => 0,
-                    Sent_Cred_GID => 0,
+                    Do_Credential_Reporting => False,
                     Simple_Connected => null,
                     Data             => <>,
                     Data_Length      => 0);
@@ -803,50 +797,20 @@ package body IPC.Socket with SPARK_Mode => Off is
       Synchronization.Release (Sock.Mutex);
    end Get_Peer_Credentials;
 
-   procedure Get_Sent_Peer_Credentials
-      (Sock    : Socket_Acc;
-       PID     : out Unsigned_32;
-       UID     : out Unsigned_32;
-       GID     : out Unsigned_32;
-       Success : out Socket_Status)
+   procedure Get_Credential_Reporting (Sock : Socket_Acc; Enable : out Boolean)
    is
    begin
-      PID := 0;
-      GID := 0;
-      UID := 0;
-      Success := Would_Block;
-
       Synchronization.Seize (Sock.Mutex);
-      if Sock.Has_Sent_Cred then
-         PID := Sock.Sent_Cred_PID;
-         UID := Sock.Sent_Cred_UID;
-         GID := Sock.Sent_Cred_GID;
-         Success := Plain_Success;
-      end if;
+      Enable := Sock.Do_Credential_Reporting;
       Synchronization.Release (Sock.Mutex);
-   end Get_Sent_Peer_Credentials;
+   end Get_Credential_Reporting;
 
-   procedure Send_Peer_Credentials
-      (Sock    : Socket_Acc;
-       PID     : Unsigned_32;
-       UID     : Unsigned_32;
-       GID     : Unsigned_32;
-       Success : out Socket_Status)
-   is
+   procedure Set_Credential_Reporting (Sock : Socket_Acc; Enable : Boolean) is
    begin
-      Success := Is_Bad_Type;
       Synchronization.Seize (Sock.Mutex);
-      if Sock.Pending_Accept /= null then
-         Synchronization.Seize (Sock.Pending_Accept.Mutex);
-         Sock.Pending_Accept.Has_Sent_Cred := True;
-         Sock.Pending_Accept.Sent_Cred_PID := PID;
-         Sock.Pending_Accept.Sent_Cred_UID := UID;
-         Sock.Pending_Accept.Sent_Cred_GID := GID;
-         Success := Plain_Success;
-         Synchronization.Release (Sock.Pending_Accept.Mutex);
-      end if;
+      Sock.Do_Credential_Reporting := Enable;
       Synchronization.Release (Sock.Mutex);
-   end Send_Peer_Credentials;
+   end Set_Credential_Reporting;
    ----------------------------------------------------------------------------
    procedure Inner_IPv4_Read
       (Sock      : Socket_Acc;

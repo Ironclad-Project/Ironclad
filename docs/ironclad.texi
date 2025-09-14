@@ -4038,6 +4038,7 @@ The fetched segment is not present.
 #define SO_SNDBUF     13
 #define SO_TYPE       16
 #define SO_PEERCRED   18
+#define SO_PASSCRED   20
 
 int getsockopt(int fd, int level, int name, void *val, socklen_t *len);
 int setsockopt(int fd, int level, int name, void *val, socklen_t len);
@@ -4075,6 +4076,12 @@ returned in that variable in the same format as @pxref{socket}.
 @item SO_PEERCRED
 @code{val} points to a struct of three @code{uint32_t} values, the @code{pid},
 @code{uid}, and @code{gid} of the peer.
+
+@item SO_PASSCRED
+@code{val} is a 32 bit integer value that is zero or one. One when set or
+retrieved means that the socket will receive ancillary @code{SCM_CREDENTIALS}
+data when receiving messages, if not enabled, no credentials data will be
+received even if explicitly sent.
 @end table
 
 The syscall returns 0 on success or @code{-1} on failure, with the errno:
