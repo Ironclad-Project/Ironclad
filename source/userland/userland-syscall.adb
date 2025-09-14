@@ -7519,28 +7519,28 @@ package body Userland.Syscall is
       end if;
 
       Hdr :=
-         (Len => Credentials_Control_Hdr'Size / 8,
-          Level => SOL_SOCKET,
-          Message_Type => SCM_CREDENTIALS,
-          Pad => 0,
+         (Header =>
+            (Len => Hdr'Size / 8,
+             Level => SOL_SOCKET,
+             Message_Type => SCM_CREDENTIALS,
+             Padding => 0),
           Creds => (0, 0, 0));
-
-      Get_Peer_Credentials
+      Get_Sent_Peer_Credentials
          (Sock => File.Inner_Socket,
           PID => Hdr.Creds.PID,
           UID => Hdr.Creds.UID,
           GID => Hdr.Creds.GID,
           Success => Stat);
-
-      Trans.Paste_Into_Userland (Map, Hdr, To_Address (Hdr_IAddr), Success);
-      if not Success then
-         Errno := Error_Would_Fault;
-         Returned := Unsigned_64'Last;
-         return;
+      if Stat = IPC.Socket.Plain_Success then
+         Trans.Paste_Into_Userland (Map, Hdr, To_Address (Hdr_IAddr), Success);
+         if not Success then
+            Errno := Error_Would_Fault;
+            Returned := Unsigned_64'Last;
+            return;
+         end if;
       end if;
 
-      Errno := Error_No_Error;
-      Returned := 0;
+      Translate_Status (Stat, 0, Returned, Errno);
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing Recv_Sock_Ctr");
@@ -7555,10 +7555,66 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      pragma Unreferenced (FD, Addr, Len);
+      package Trans1 is new Memory.Userland_Transfer (Control_Hdr);
+      package Trans2 is new Memory.Userland_Transfer (Credentials_Control_Hdr);
+      package Align is new Alignment (Integer_Address);
+      Proc      : constant PID := Arch.Local.Get_Current_Process;
+      Hdr_IAddr : Integer_Address := Integer_Address (Addr);
+      File      : File_Description_Acc;
+      Hdr       : Control_Hdr;
+      Cred      : Credentials_Control_Hdr;
+      Map       : Page_Table_Acc;
+      Success   : Boolean;
+      Stat      : Socket_Status;
    begin
+      Get_Common_Map (Proc, Map);
+      Get_File (Proc, FD, File);
+      if File = null or else File.Description /= Description_Socket then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_Bad_File;
+         return;
+      end if;
+
+      loop
+         Trans1.Take_From_Userland (Map, Hdr, To_Address (Hdr_IAddr), Success);
+         if not Success then
+            goto Would_Fault_Error;
+         end if;
+
+         if Hdr.Message_Type = SCM_CREDENTIALS then
+            Trans2.Take_From_Userland
+               (Map, Cred, To_Address (Hdr_IAddr), Success);
+            if not Success then
+               goto Would_Fault_Error;
+            end if;
+
+            Send_Peer_Credentials
+               (Sock => File.Inner_Socket,
+                PID => Cred.Creds.PID,
+                UID => Cred.Creds.UID,
+                GID => Cred.Creds.GID,
+                Success => Stat);
+         end if;
+
+         Hdr_IAddr := Hdr_IAddr + Integer_Address (Hdr.Len);
+         Hdr_IAddr := Align.Align_Up (Hdr_IAddr, 64);
+         if Hdr_IAddr >= Integer_Address (Addr + Len) then
+            exit;
+         end if;
+      end loop;
+
       Errno := Error_No_Error;
       Returned := 0;
+      return;
+
+   <<Would_Fault_Error>>
+      Errno := Error_Would_Fault;
+      Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Send_Sock_Ctr");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Send_Sock_Ctr;
    ----------------------------------------------------------------------------
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context) is

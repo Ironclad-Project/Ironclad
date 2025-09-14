@@ -1490,16 +1490,13 @@ package Userland.Syscall is
       Len : Unsigned_32;
       Level : Unsigned_32;
       Message_Type : Unsigned_32;
-      Pad : Unsigned_32;
-   end record with Pack;
+      Padding : Unsigned_32;
+   end record with Pack, Size => 128;
 
    type Credentials_Control_Hdr is record
-      Len : Unsigned_32;
-      Level : Unsigned_32;
-      Message_Type : Unsigned_32;
-      Pad : Unsigned_32;
+      Header : Control_Hdr;
       Creds : UCred;
-   end record with Pack;
+   end record with Pack, Size => 224;
 
    SCM_CREDENTIALS : constant := 2;
 
