@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Scheduler;
 with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
 with Messages;
@@ -254,6 +255,7 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
       loop
          Slot := Find_Command_Slot (Drive.Port_Data);
          exit when Slot /= 0;
+         Scheduler.Yield_If_Able;
       end loop;
 
       Tmp := (FIS_Host_To_Device'Size / 8) / 4;
@@ -307,11 +309,12 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
             exit;
          end if;
 
-         if Spin >= 1000000 then
+         if Spin >= 1_000 then
             goto Failure_Cleanup;
          end if;
 
          Spin := Spin + 1;
+         Scheduler.Yield_If_Able;
       end loop;
 
       --  Issue the command.
@@ -331,6 +334,8 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
          if (Drive.Port_Data.Interrupt_Status and Shift_Left (1, 30)) /= 0 then
             return False;
          end if;
+
+         Scheduler.Yield_If_Able;
       end loop;
 
       return True;
