@@ -1205,7 +1205,7 @@ package body VFS is
       for I in Mounts'Range loop
          if Mounts (I).Mounted_Dev /= Devices.Error_Handle then
             Synchronize (I, Status);
-            if Status /= FS_Success then
+            if Status /= FS_Success and Status /= FS_Not_Supported then
                Success := False;
             end if;
          end if;
