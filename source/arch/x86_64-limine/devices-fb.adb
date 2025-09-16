@@ -243,7 +243,6 @@ package body Devices.FB with SPARK_Mode => Off is
 
             Device :=
                (Data        => Data.all'Address,
-                ID          => [others => 0],
                 Is_Block    => False,
                 Block_Size  => 4096,
                 Block_Count => 0,

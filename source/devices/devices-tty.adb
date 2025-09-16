@@ -24,7 +24,6 @@ package body Devices.TTY is
    begin
       Register
          ((Data        => System.Null_Address,
-           ID          => Zero_UUID,
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,

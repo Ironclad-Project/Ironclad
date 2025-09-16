@@ -299,11 +299,11 @@ package body Devices.Partitions is
        Success    : out Boolean)
    is
       pragma SPARK_Mode (Off); --  Access to procedures is not SPARK friendly.
+      Handle : Device_Handle;
    begin
       Register ((
          Data        => Con1.To_Address (Con1.Object_Pointer (Part)),
          Is_Block    => True,
-         ID          => ID,
          Block_Size  => Block_Size,
          Block_Count => Part.LBA_Length,
          Sync        => Sync'Access,
@@ -316,6 +316,11 @@ package body Devices.Partitions is
          Remove      => null
       ), Name & [1 => 'p', 2 => Character'Val (Index + Character'Pos ('0'))],
          Success);
+      if Success then
+         Handle := Fetch
+         (Name & [1 => 'p', 2 => Character'Val (Index + Character'Pos ('0'))]);
+         Devices.Set_Partition_UUID (Handle, ID);
+      end if;
    exception
       when Constraint_Error =>
          Success := False;

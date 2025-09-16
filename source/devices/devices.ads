@@ -47,7 +47,6 @@ package Devices is
    --  Data that defines a device.
    type Resource is record
       Data        : System.Address;
-      ID          : UUID;
       Is_Block    : Boolean; --  True for block dev, false for character dev.
       Block_Size  : Natural;
       Block_Count : Unsigned_64;
@@ -128,19 +127,19 @@ package Devices is
    --  Fetch a device by numeric UUID.
    --  @param ID UUID to search.
    --  @return A handle on success, or Error_Handle on failure.
-   function Fetch (ID : UUID) return Device_Handle
+   function Fetch_By_Part_UUID (ID : UUID) return Device_Handle
       with Pre => Is_Initialized;
 
    --  Fetch a device by string representation of a numeric UUID.
    --  @param ID UUID to search.
    --  @return A handle on success, or Error_Handle on failure.
-   function Fetch_UUID (ID : UUID_String) return Device_Handle
+   function Fetch_By_Part_UUID (ID : UUID_String) return Device_Handle
       with Pre => (Is_Initialized = True);
 
    --  Fetch the numeric UUID of a device.
    --  @param Dev Device to report the UUID of.
    --  @return The UUID on success, or the Zero UUID if the device has no UUID.
-   function Fetch (Dev : Device_Handle) return UUID
+   function Fetch_Part_UUID (Dev : Device_Handle) return UUID
       with Pre => Is_Initialized;
 
    --  Write the name associated to a device handle to the passed buffer.
@@ -291,6 +290,8 @@ package Devices is
    procedure Remove (Handle : Device_Handle; Success : out Boolean)
       with Pre => ((Is_Initialized = True) and (Handle /= Error_Handle));
 
+   procedure Set_Partition_UUID (Handle : Device_Handle; ID : UUID);
+
 private
 
    type Device_Handle is new Natural range 0 .. 50;
@@ -301,6 +302,7 @@ private
       Name       : String (1 .. Max_Name_Length);
       Name_Len   : Natural range 0 .. Max_Name_Length;
       Contents   : Resource;
+      Part_ID    : UUID;
    end record;
    type Device_Arr     is array (Device_Handle range 1 .. 50) of Device;
    type Device_Arr_Acc is access Device_Arr;

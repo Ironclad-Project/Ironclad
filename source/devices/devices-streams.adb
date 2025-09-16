@@ -25,7 +25,6 @@ package body Devices.Streams is
    begin
       Register
          ((Data        => System.Null_Address,
-           ID          => Zero_UUID,
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,
@@ -39,7 +38,6 @@ package body Devices.Streams is
            Remove      => null), "null", Success_1);
       Register
          ((Data        => System.Null_Address,
-           ID          => Zero_UUID,
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,
@@ -53,7 +51,6 @@ package body Devices.Streams is
            Remove      => null), "zero", Success_2);
       Register
          ((Data        => System.Null_Address,
-           ID          => Zero_UUID,
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,
@@ -67,7 +64,6 @@ package body Devices.Streams is
            Remove      => null), "full", Success_3);
       Register
          ((Data        => System.Null_Address,
-           ID          => Zero_UUID,
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,
@@ -81,7 +77,6 @@ package body Devices.Streams is
            Remove      => null), "random", Success_4);
       Register
          ((Data        => System.Null_Address,
-           ID          => Zero_UUID,
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,

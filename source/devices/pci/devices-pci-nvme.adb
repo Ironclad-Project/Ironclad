@@ -266,7 +266,6 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
          Final_Name : constant String
             := Base_Name & Drive_Idx'Image &
                "n" & NS_Id'Image;
-         NS_UUID : constant UUID := UUID (NS_Identify.Namespace_GUID);
       begin
          Memory.Physical.Free
             (size_t (To_Integer (NS_Identify.all'Address)));
@@ -279,7 +278,6 @@ package body Devices.PCI.NVMe with SPARK_Mode => Off is
 
          Register (
             (Data => C5.To_Address (C5.Object_Pointer (NS)),
-             ID          => NS_UUID,
              Is_Block    => True,
              Block_Size  => NS_LBA_Size,
              Block_Count => NS_LBAs,

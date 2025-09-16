@@ -367,7 +367,7 @@ package body VFS.Dev is
             end if;
 
             if Req = DEV_PARTUUID then
-               Arg_UUID := Fetch (Handle);
+               Arg_UUID := Fetch_Part_UUID (Handle);
                Status   := FS_Success;
             else
                IO_Control (Handle, Req, Arg, Has_Extra, Extra, Success);

@@ -30,7 +30,6 @@ package body Devices.Loopback is
    begin
       Device :=
          (Data        => Data.all'Address,
-          ID          => Zero_UUID,
           Is_Block    => False,
           Block_Size  => 4096,
           Block_Count => 0,

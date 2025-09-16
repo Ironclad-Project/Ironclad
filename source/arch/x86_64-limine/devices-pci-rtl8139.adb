@@ -154,7 +154,6 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
          --  Register the device
          Device :=
            (Data        => C1.To_Address (C1.Object_Pointer (CD)),
-            ID          => Zero_UUID,
             Is_Block    => False,
             Block_Size  => 4096,
             Block_Count => 0,

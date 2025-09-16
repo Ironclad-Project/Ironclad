@@ -86,7 +86,6 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
                begin
                   Register (
                      (Data => C1.To_Address (C1.Object_Pointer (Drive_Data)),
-                      ID          => Zero_UUID,
                       Is_Block    => True,
                       Block_Size  => Sector_Size,
                       Block_Count => Drive_Data.Sector_Count,

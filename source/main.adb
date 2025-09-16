@@ -97,7 +97,7 @@ begin
       CL.Get_Key_Value (Cmdline, CL.Root_UUID_Key, Value, Found, Value_Len);
       if Found and Value_Len = Devices.UUID_String'Length then
          Messages.Put_Line ("Searching root " & Value (1 .. Value_Len));
-         Init_Dev := Devices.Fetch_UUID (Value (1 .. Value_Len));
+         Init_Dev := Devices.Fetch_By_Part_UUID (Value (1 .. Value_Len));
          if Init_Dev /= Devices.Error_Handle then
             Devices.Fetch_Name (Init_Dev, Value, Value_Len);
          else

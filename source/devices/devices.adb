@@ -117,21 +117,21 @@ package body Devices is
       return Error_Handle;
    end Fetch;
 
-   function Fetch (ID : UUID) return Device_Handle is
+   function Fetch_By_Part_UUID (ID : UUID) return Device_Handle is
    begin
       if ID /= Zero_UUID then
          for I in Devices_Data'Range loop
             if Devices_Data (I).Is_Present and
-               Devices_Data (I).Contents.ID = ID
+               Devices_Data (I).Part_ID = ID
             then
                return I;
             end if;
          end loop;
       end if;
       return Error_Handle;
-   end Fetch;
+   end Fetch_By_Part_UUID;
 
-   function Fetch_UUID (ID : UUID_String) return Device_Handle is
+   function Fetch_By_Part_UUID (ID : UUID_String) return Device_Handle is
       Result   : UUID := Zero_UUID;
       Returned : Device_Handle;
    begin
@@ -162,7 +162,7 @@ package body Devices is
       Convert_LE (UUID_Fragment (Result (7 .. 8)),  ID (15 .. 18));
       Convert_BE (UUID_Fragment (Result (9 .. 10)), ID (20 .. 23));
       Convert_BE (UUID_Fragment (Result (11 .. 16)), ID (25 .. 36));
-      Returned := Fetch (Result);
+      Returned := Fetch_By_Part_UUID (Result);
       if Returned /= Error_Handle then
          return Returned;
       end if;
@@ -173,13 +173,13 @@ package body Devices is
       Convert_BE (UUID_Fragment (Result (7 .. 8)),  ID (15 .. 18));
       Convert_BE (UUID_Fragment (Result (9 .. 10)), ID (20 .. 23));
       Convert_BE (UUID_Fragment (Result (11 .. 16)), ID (25 .. 36));
-      return Fetch (Result);
-   end Fetch_UUID;
+      return Fetch_By_Part_UUID (Result);
+   end Fetch_By_Part_UUID;
 
-   function Fetch (Dev : Device_Handle) return UUID is
+   function Fetch_Part_UUID (Dev : Device_Handle) return UUID is
    begin
-      return Devices_Data (Dev).Contents.ID;
-   end Fetch;
+      return Devices_Data (Dev).Part_ID;
+   end Fetch_Part_UUID;
 
    procedure Fetch_Name
       (Handle : Device_Handle;
@@ -389,6 +389,11 @@ package body Devices is
          Success := False;
       end if;
    end Remove;
+
+   procedure Set_Partition_UUID (Handle : Device_Handle; ID : UUID) is
+   begin
+      Devices_Data (Handle).Part_ID := ID;
+   end Set_Partition_UUID;
    ----------------------------------------------------------------------------
    function To_Integer (C : Character) return Unsigned_8 is
       Result : Natural;

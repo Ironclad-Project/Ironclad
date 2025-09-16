@@ -76,7 +76,6 @@ package body IPC.PTY with SPARK_Mode => Off is
 
       Resource :=
          (Data        => Conv.To_Address (Conv.Object_Pointer (Result)),
-          ID          => Devices.Zero_UUID,
           Is_Block    => False,
           Block_Size  => 4096,
           Block_Count => 0,

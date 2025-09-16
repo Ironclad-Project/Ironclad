@@ -79,7 +79,6 @@ package body Devices.PCI.i6300ESB with SPARK_Mode => Off is
 
       Register
          ((Data        => Con.To_Address (Con.Object_Pointer (Data)),
-           ID          => Zero_UUID,
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,

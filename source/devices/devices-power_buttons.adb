@@ -30,7 +30,6 @@ package body Devices.Power_Buttons is
       if Has_Power then
          Register
             ((Data        => System.Null_Address,
-              ID          => [others => 0],
               Is_Block    => False,
               Block_Size  => 4096,
               Block_Count => 0,
@@ -50,7 +49,6 @@ package body Devices.Power_Buttons is
       if Has_Sleep then
          Register
             ((Data        => System.Null_Address,
-              ID          => [others => 0],
               Is_Block    => False,
               Block_Size  => 4096,
               Block_Count => 0,

@@ -57,7 +57,6 @@ package body Devices.Ramdev is
       Result :=
          (Data        => Data.all'Address,
           Is_Block    => False,
-          ID          => [others => 0],
           Block_Size  => 4096,
           Block_Count => A.Divide_Round_Up (Data.Size, 4096),
           Read        => Read'Access,

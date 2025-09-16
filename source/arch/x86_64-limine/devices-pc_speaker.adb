@@ -22,7 +22,6 @@ package body Devices.PC_Speaker with SPARK_Mode => Off is
    begin
       Register
          ((Data        => System.Null_Address,
-           ID          => [others => 0],
            Is_Block    => False,
            Block_Size  => 4096,
            Block_Count => 0,
