@@ -117,13 +117,20 @@ package Devices.PCI is
 
    procedure Set_MSI_Vector (Dev : PCI_Device; Vector : Unsigned_8);
 
+   type Capability_Id is (Cap_MSI, Cap_Vendor_Specific, Cap_MSIX);
+   for Capability_Id use (
+      Cap_MSI => 5,
+      Cap_Vendor_Specific => 9,
+      Cap_MSIX => 17);
+   for Capability_Id'Size use Unsigned_8'Size;
+
    function Enumerate_Capability
       (Dev : PCI_Device;
-       Capability_Id : Unsigned_8) return Natural;
+       Cap : Capability_Id) return Natural;
 
    procedure Search_Capability
       (Dev : PCI_Device;
-       Capability_Id : Unsigned_8;
+       Cap : Capability_Id;
        Instance : Natural;
        Offset : out Unsigned_8;
        Success : out Boolean);

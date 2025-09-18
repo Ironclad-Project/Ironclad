@@ -383,7 +383,7 @@ package body Devices.PCI with SPARK_Mode => Off is
 
    function Enumerate_Capability
       (Dev : PCI_Device;
-       Capability_Id : Unsigned_8) return Natural
+       Cap : Capability_Id) return Natural
    is
       PciStatus : Unsigned_16;
       NextCapability, Conf : Unsigned_8;
@@ -402,7 +402,7 @@ package body Devices.PCI with SPARK_Mode => Off is
             end if;
             NextCapability := NextCapability and 16#FC#;
             Read8 (Dev, Unsigned_16 (NextCapability), Conf);
-            if Conf = Capability_Id then
+            if Conf = Capability_Id'Enum_Rep (Cap) then
                Instances := Instances + 1;
             end if;
 
@@ -418,7 +418,7 @@ package body Devices.PCI with SPARK_Mode => Off is
 
    procedure Search_Capability
       (Dev : PCI_Device;
-       Capability_Id : Unsigned_8;
+       Cap : Capability_Id;
        Instance : Natural;
        Offset : out Unsigned_8;
        Success : out Boolean)
@@ -441,7 +441,7 @@ package body Devices.PCI with SPARK_Mode => Off is
             exit when NextCapability = 0 or NextCapability = 16#FF#;
             NextCapability := NextCapability and 16#FC#;
             Read8 (Dev, Unsigned_16 (NextCapability), Conf);
-            if Conf = Capability_Id then
+            if Conf = Capability_Id'Enum_Rep (Cap) then
                Encounter := Encounter + 1;
                if Encounter = Instance then
                   Offset := NextCapability;
@@ -777,14 +777,14 @@ package body Devices.PCI with SPARK_Mode => Off is
          MSI_Support, MSIX_Support : Boolean;
       begin
          --  Check for MSI/MSI-X by reading the capabilities list.
-         Search_Capability (Result, 16#05#, 1, MSI_Offset,
+         Search_Capability (Result, Cap_MSI, 1, MSI_Offset,
             MSI_Support);
          Result.MSI_Support := MSI_Support;
          if MSI_Support then
             Result.MSI_Offset := MSI_Offset;
          end if;
 
-         Search_Capability (Result, 16#11#, 1, MSIX_Offset,
+         Search_Capability (Result, Cap_MSIX, 1, MSIX_Offset,
             MSIX_Support);
          Result.MSIX_Support := MSIX_Support;
          if MSIX_Support then
