@@ -5035,6 +5035,22 @@ buttons. Programs can @code{poll} on them for read permission. When the
 corresponding device reports being able to read, it shall be interpreted as a
 oneshot event representing a pressing of the corresponding button.
 
+@subsection virtio-block
+
+These devices represent virtio block devices, usually provided by hypervisors
+like QEMU. They support read/write operations, and must be @code{sync}'d for
+data integrity when wanting to ensure data coherency. Ironclad only supports
+modern PCI transport, and does not bother supporting legacy or transitional
+devices.
+
+These devices are named @code{vdisk} followed by a number, starting at 0.
+
+To launch qemu with a virtio block device, use something like:
+
+@example sh
+qemu-system-x86_64 -device virtio-blk-pci,drive=boot,disable-legacy=on -drive id=boot,file=gloire.img,format=raw,if=none
+@end example
+
 @node riscv64-limine devices
 @section riscv64-limine devices
 
