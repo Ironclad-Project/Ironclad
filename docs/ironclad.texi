@@ -229,6 +229,7 @@ Syscalls
 * nvmm_assist_mem::         Assist NVMM machines at memory operations.
 * nvmm_vcpu_dump::          Dump VCPU state.
 * nvmm_vcpu_stop::          Stop a VCPU.
+* pci_read/pci_write::      PCI device read/write.
 
 Networking
 
@@ -4738,6 +4739,28 @@ TBD
 @section nvmm_vcpu_stop
 
 TBD
+
+@node pci_read/pci_write
+@section pci_read/pci_write
+
+@example c
+ssize_t pci_read(uint8_t bus, uint8_t slot, uint8_t func, void *buffer, size_t count, size_t offset);
+ssize_t pci_write(uint8_t bus, uint8_t slot, uint8_t func, void *buffer, size_t count, size_t offset);
+@end example
+
+These syscalls attempts to read or write to and from the configuration space
+of a PCI device. All of the operations are blocking.
+
+These syscalls returns the number of bytes operated on, or @code{-1} on
+failure. errno is to be set to:
+
+@itemize @bullet
+@item
+@code{EFAULT}: The passed buffer is not accessible.
+
+@item
+@code{EINVAL}: The passed device coordinates dont relate to a device.
+@end itemize
 
 @node Networking
 @chapter Networking

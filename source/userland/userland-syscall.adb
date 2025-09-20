@@ -7606,6 +7606,164 @@ package body Userland.Syscall is
       Errno := Error_No_Error;
       Returned := 0;
    end Send_Sock_Ctr;
+
+   procedure PCI_Read
+      (Bus      : Unsigned_64;
+       Slot     : Unsigned_64;
+       Func     : Unsigned_64;
+       Offset   : Unsigned_64;
+       Addr     : Unsigned_64;
+       Len      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      package Trans1 is new Memory.Userland_Transfer (Unsigned_8);
+      package Trans2 is new Memory.Userland_Transfer (Unsigned_16);
+      package Trans3 is new Memory.Userland_Transfer (Unsigned_32);
+
+      Proc      : constant PID := Arch.Local.Get_Current_Process;
+      SAddr : constant System.Address := To_Address (Integer_Address (Addr));
+      Map       : Page_Table_Acc;
+
+      Ret     : Devices.PCI.PCI_Device;
+      Success : Boolean;
+      Val1 : Unsigned_8;
+      Val2 : Unsigned_16;
+      Val3 : Unsigned_32;
+   begin
+      if not Get_Capabilities (Proc).Can_Manage_Power then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("pci_read", Proc);
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Get_Common_Map (Proc, Map);
+      Devices.PCI.Search_Device
+         (Bus     => Unsigned_8 (Bus),
+          Slot    => Unsigned_8 (Slot),
+          Func    => Unsigned_8 (Func),
+          Result  => Ret,
+          Success => Success);
+      if not Success then
+         goto Invalid_Value_Error;
+      end if;
+
+      case Len is
+         when 1 =>
+            PCI.Read8 (Ret, Unsigned_16 (Offset), Val1);
+            Trans1.Paste_Into_Userland (Map, Val1, SAddr, Success);
+         when 2 =>
+            PCI.Read16 (Ret, Unsigned_16 (Offset), Val2);
+            Trans2.Paste_Into_Userland (Map, Val2, SAddr, Success);
+         when 4 =>
+            PCI.Read32 (Ret, Unsigned_16 (Offset), Val3);
+            Trans3.Paste_Into_Userland (Map, Val3, SAddr, Success);
+         when others =>
+            goto Invalid_Value_Error;
+      end case;
+
+      if Success then
+         Errno := Error_No_Error;
+         Returned := Len;
+      else
+         Errno := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+      end if;
+
+      return;
+
+   <<Invalid_Value_Error>>
+      Errno := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing PCI_Read");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end PCI_Read;
+
+   procedure PCI_Write
+      (Bus      : Unsigned_64;
+       Slot     : Unsigned_64;
+       Func     : Unsigned_64;
+       Offset   : Unsigned_64;
+       Addr     : Unsigned_64;
+       Len      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      package Trans1 is new Memory.Userland_Transfer (Unsigned_8);
+      package Trans2 is new Memory.Userland_Transfer (Unsigned_16);
+      package Trans3 is new Memory.Userland_Transfer (Unsigned_32);
+
+      Proc      : constant PID := Arch.Local.Get_Current_Process;
+      SAddr : constant System.Address := To_Address (Integer_Address (Addr));
+      Map       : Page_Table_Acc;
+
+      Ret     : Devices.PCI.PCI_Device;
+      Success : Boolean;
+      Val1 : Unsigned_8;
+      Val2 : Unsigned_16;
+      Val3 : Unsigned_32;
+   begin
+      if not Get_Capabilities (Proc).Can_Manage_Power then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("pci_write", Proc);
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Get_Common_Map (Proc, Map);
+      Devices.PCI.Search_Device
+         (Bus     => Unsigned_8 (Bus),
+          Slot    => Unsigned_8 (Slot),
+          Func    => Unsigned_8 (Func),
+          Result  => Ret,
+          Success => Success);
+      if not Success then
+         goto Invalid_Value_Error;
+      end if;
+
+      case Len is
+         when 1 =>
+            Trans1.Take_From_Userland (Map, Val1, SAddr, Success);
+            if Success then
+               PCI.Read8 (Ret, Unsigned_16 (Offset), Val1);
+            end if;
+         when 2 =>
+            Trans2.Take_From_Userland (Map, Val2, SAddr, Success);
+            if Success then
+               PCI.Read16 (Ret, Unsigned_16 (Offset), Val2);
+            end if;
+         when 4 =>
+            Trans3.Take_From_Userland (Map, Val3, SAddr, Success);
+            if Success then
+               PCI.Read32 (Ret, Unsigned_16 (Offset), Val3);
+            end if;
+         when others =>
+            goto Invalid_Value_Error;
+      end case;
+
+      if Success then
+         Errno := Error_No_Error;
+         Returned := Len;
+      else
+         Errno := Error_Would_Fault;
+         Returned := Unsigned_64'Last;
+      end if;
+
+      return;
+
+   <<Invalid_Value_Error>>
+      Errno := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing PCI_Write");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end PCI_Write;
    ----------------------------------------------------------------------------
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context) is
       Thread  : constant TID := Arch.Local.Get_Current_Thread;

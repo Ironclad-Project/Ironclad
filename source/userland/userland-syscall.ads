@@ -1514,6 +1514,26 @@ package Userland.Syscall is
        Len      : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
+
+   procedure PCI_Read
+      (Bus      : Unsigned_64;
+       Slot     : Unsigned_64;
+       Func     : Unsigned_64;
+       Offset   : Unsigned_64;
+       Addr     : Unsigned_64;
+       Len      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
+
+   procedure PCI_Write
+      (Bus      : Unsigned_64;
+       Slot     : Unsigned_64;
+       Func     : Unsigned_64;
+       Offset   : Unsigned_64;
+       Addr     : Unsigned_64;
+       Len      : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
    ----------------------------------------------------------------------------
    --  Pre and post syscall hook.
    procedure Pre_Syscall_Hook (State : Arch.Context.GP_Context);
