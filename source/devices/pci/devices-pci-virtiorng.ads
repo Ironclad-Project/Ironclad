@@ -2,11 +2,13 @@ with Devices.PCI.Virtio;
 with Synchronization;
 
 package Devices.PCI.VirtioRNG with SPARK_Mode => Off is
+   pragma Warnings (Off, "may call Last_Chance_Handler");
    type Rng_Data is record
       Queue : Devices.PCI.Virtio.Virtio_Queue_Acc;
       Mutex : aliased Synchronization.Mutex;
    end record;
    type Rng_Data_Acc is not null access all Rng_Data;
+   pragma Warnings (On, "may call Last_Chance_Handler");
 
    procedure Init (Success : out Boolean);
 

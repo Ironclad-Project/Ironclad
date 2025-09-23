@@ -36,6 +36,7 @@ package Devices.PCI.VirtioBlk with SPARK_Mode => Off is
 
    package Caching is new Devices.Drive_Cache (Sector_Size => 512);
 
+   pragma Warnings (Off, "may call Last_Chance_Handler");
    type Blk_Data is record
       Queue : Devices.PCI.Virtio.Virtio_Queue_Acc;
       LBA_Count : Unsigned_64;
@@ -43,6 +44,7 @@ package Devices.PCI.VirtioBlk with SPARK_Mode => Off is
       Mutex : aliased Synchronization.Mutex;
    end record;
    type Blk_Data_Acc is not null access all Blk_Data;
+   pragma Warnings (On, "may call Last_Chance_Handler");
 
    procedure Init (Success : out Boolean);
 

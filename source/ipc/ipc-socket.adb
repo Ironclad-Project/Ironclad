@@ -368,8 +368,10 @@ package body IPC.Socket with SPARK_Mode => Off is
       Src  : Networking.IPv4_Address;
       Hdr  : Networking.IPv4.IPv4_Packet_Header;
 
+      pragma Warnings (Off, "storage order");
       Hdr_Data : Operation_Data (1 .. Hdr'Size / 8)
          with Import, Address => Hdr'Address;
+      pragma Warnings (On, "storage order");
    begin
       case Sock.Kind is
          when Raw =>
@@ -528,8 +530,10 @@ package body IPC.Socket with SPARK_Mode => Off is
       Src  : Networking.IPv6_Address;
       Hdr  : Networking.IPv6.IPv6_Packet_Header;
 
+      pragma Warnings (Off, "storage order");
       Hdr_Data : Operation_Data (1 .. Hdr'Size / 8)
          with Import, Address => Hdr'Address;
+      pragma Warnings (On, "storage order");
    begin
       case Sock.Kind is
          when Raw =>
