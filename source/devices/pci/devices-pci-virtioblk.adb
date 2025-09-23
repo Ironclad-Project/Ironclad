@@ -188,7 +188,7 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
          with Import, Address => To_Address
             (Drive.Queue.Used_Addr + 4);
 
-      Slot : constant Unsigned_16 := Avail.Index;
+      Slot : Unsigned_16;
       Slot_Idx : Natural;
       Used_Index : Natural;
 
@@ -206,10 +206,11 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
          return False;
       end if;
 
+      Synchronization.Seize (Drive.Mutex);
+
+      Slot := Avail.Index;
       Slot_Idx := Natural (Slot mod Drive.Queue.Queue_Size);
       Used_Index := Natural (Drive.Queue.Used_Head mod Drive.Queue.Queue_Size);
-
-      Synchronization.Seize (Drive.Mutex);
 
       Desc_Array (0) :=
          (Has_Next => True,
