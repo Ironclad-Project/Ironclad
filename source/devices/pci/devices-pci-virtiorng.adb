@@ -26,7 +26,7 @@ package body Devices.PCI.VirtioRNG with SPARK_Mode => Off is
 
       End_Features : Boolean := False;
 
-      Device_Idx : Natural := 0;
+      Device_Idx : Natural := 1;
    begin
       Success := True;
 

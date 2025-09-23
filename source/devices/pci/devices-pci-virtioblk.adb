@@ -30,7 +30,7 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
 
       End_Features : Boolean := False;
 
-      Drive_Idx : Natural := 0;
+      Drive_Idx : Natural := 1;
    begin
       Success := True;
 
@@ -112,7 +112,7 @@ package body Devices.PCI.VirtioBlk with SPARK_Mode => Off is
          Common_Config.Device_Status := 11;
 
          declare
-            Base_Name : constant String := "vdisk";
+            Base_Name : constant String := "virtio-blk";
             Final_Name : constant String := Base_Name & Drive_Idx'Image;
 
             Queue : constant Devices.PCI.Virtio.Virtio_Queue_Acc :=
