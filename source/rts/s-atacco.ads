@@ -19,8 +19,7 @@ package System.Address_To_Access_Conversions is
    type Object_Pointer is access all Object with Size => Standard'Address_Size;
 
    function To_Pointer (Value : Address) return Object_Pointer;
-   function To_Address (Value : Object_Pointer) return Address
-      with SPARK_Mode => Off;
+   function To_Address (Value : Object_Pointer) return Address;
 
    pragma Import (Intrinsic, To_Pointer);
    pragma Import (Intrinsic, To_Address);

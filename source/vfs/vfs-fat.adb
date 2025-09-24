@@ -20,9 +20,8 @@ with Ada.Unchecked_Deallocation;
 with Alignment;
 with Time;
 
-package body VFS.FAT with SPARK_Mode => Off is
-   package   Conv is new System.Address_To_Access_Conversions (FAT_Data);
-   procedure Free is new Ada.Unchecked_Deallocation (FAT_Data, FAT_Data_Acc);
+package body VFS.FAT is
+   package Conv is new System.Address_To_Access_Conversions (FAT_Data);
 
    --  FAT doesnt have a notion of inodes, but Ironclad requires it, thats how
    --  POSIX works. So we will need to translate inode to file and viceversa.
@@ -107,6 +106,9 @@ package body VFS.FAT with SPARK_Mode => Off is
    end Remount;
 
    procedure Unmount (FS : in out System.Address) is
+      pragma SPARK_Mode (Off);
+      procedure Free is new Ada.Unchecked_Deallocation
+         (FAT_Data, FAT_Data_Acc);
       Data : FAT_Data_Acc := FAT_Data_Acc (Conv.To_Pointer (FS));
    begin
       Free (Data);
