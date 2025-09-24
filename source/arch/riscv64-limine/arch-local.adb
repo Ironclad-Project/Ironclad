@@ -56,14 +56,10 @@ package body Arch.Local with SPARK_Mode => Off is
       Ctx.X4 := Unsigned_64 (To_Integer (TCB));
    end Load_TCB;
 
-   procedure Set_Stacks
-      (Core : Context.Core_Context;
-       Kernel_Stack : System.Address)
-   is
+   procedure Set_Stacks (Kernel_Stack : System.Address) is
       Is_Ints : constant Boolean := Snippets.Interrupts_Enabled;
    begin
       if Is_Ints then Snippets.Disable_Interrupts; end if;
-      CPU.Get_Local.User_Stack   := Core;
       CPU.Get_Local.Kernel_Stack := Unsigned_64 (To_Integer (Kernel_Stack));
       if Is_Ints then Snippets.Enable_Interrupts; end if;
    exception

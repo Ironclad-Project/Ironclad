@@ -21,14 +21,13 @@ syscall_entry:
     mov %rsp, %gs:16
     mov %gs:8, %rsp
 
-    # These are here for simulating an average interrupt stack frame.
+    # Load state.
     push $0x3b
     push %gs:16
     push %r11
     push $0x43
     push %rcx
-    push $0
-
+    pushq %gs:16
     push %r15
     push %r14
     push %r13
@@ -66,9 +65,7 @@ syscall_entry:
     pop %r13
     pop %r14
     pop %r15
-
-    # Reload context.
-    mov %gs:16, %rsp
+    pop %rsp
 
     # Swap context back and return.
     swapgs

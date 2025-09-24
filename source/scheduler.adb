@@ -46,7 +46,6 @@ package body Scheduler with SPARK_Mode => Off is
       Kernel_Stack    : Kernel_Stack_Acc;
       GP_State        : Arch.Context.GP_Context;
       FP_State        : Arch.Context.FP_Context;
-      C_State         : Arch.Context.Core_Context;
       Process         : Userland.Process.PID;
       Last_Sched      : Time.Timestamp;
       System_Runtime  : Time.Timestamp;
@@ -104,7 +103,6 @@ package body Scheduler with SPARK_Mode => Off is
              Kernel_Stack    => null,
              GP_State        => <>,
              FP_State        => <>,
-             C_State         => <>,
              Process         => Userland.Process.Error_PID,
              Last_Sched      => (0, 0),
              System_Runtime  => (0, 0),
@@ -366,7 +364,6 @@ package body Scheduler with SPARK_Mode => Off is
           Kernel_Stack   => New_Stack,
           GP_State       => GP_State,
           FP_State       => FP_State,
-          C_State        => <>,
           Process        => Userland.Process.Convert (PID),
           User_Stack      => System.Null_Address,
           User_Stack_Size => 0,
@@ -859,7 +856,6 @@ package body Scheduler with SPARK_Mode => Off is
             Thread_Pool (Current_TID).PageMap := MMU.Get_Curr_Table_Addr;
             Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
             Thread_Pool (Current_TID).GP_State    := State;
-            Arch.Context.Save_Core_Context (Thread_Pool (Current_TID).C_State);
             Arch.Context.Save_FP_Context (Thread_Pool (Current_TID).FP_State);
          end if;
       end if;
@@ -881,8 +877,7 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Local.Set_Current_Thread (Next_TID);
       Thread_Pool (Next_TID).Is_Running := True;
       Arch.Local.Set_Stacks
-         (Thread_Pool (Next_TID).C_State,
-          Thread_Pool (Next_TID).Kernel_Stack (Kernel_Stack'Last)'Address);
+         (Thread_Pool (Next_TID).Kernel_Stack (Kernel_Stack'Last)'Address);
       Arch.Context.Load_FP_Context (Thread_Pool (Next_TID).FP_State);
       State := Thread_Pool (Next_TID).GP_State;
       Arch.Local.Load_TCB (State, Thread_Pool (Next_TID).TCB_Pointer);

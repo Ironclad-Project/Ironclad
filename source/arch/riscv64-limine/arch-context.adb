@@ -43,11 +43,6 @@ package body Arch.Context with SPARK_Mode => Off is
           others  => 0);
    end Init_GP_Context;
 
-   procedure Save_Core_Context (Ctx : out Core_Context) is
-   begin
-      Ctx := 0;
-   end Save_Core_Context;
-
    procedure Success_Fork_Result (Ctx : in out GP_Context) is
    begin
       Ctx.X10 := 0;

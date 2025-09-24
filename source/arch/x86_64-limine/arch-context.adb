@@ -17,7 +17,6 @@
 with Messages;
 with System.Machine_Code;    use System.Machine_Code;
 with Arch.GDT;
-with Arch.CPU;
 with Memory.Physical;
 with Interfaces.C;
 
@@ -42,15 +41,6 @@ package body Arch.Context with SPARK_Mode => Off is
           RSP    => Unsigned_64 (To_Integer (Stack)),
           others => 0);
    end Init_GP_Context;
-
-   procedure Save_Core_Context (Ctx : out Core_Context) is
-   begin
-      Ctx := Arch.CPU.Get_Local.User_Stack;
-   exception
-      when Constraint_Error =>
-         Messages.Put_Line ("Could not save core context");
-         Ctx := 0;
-   end Save_Core_Context;
 
    procedure Success_Fork_Result (Ctx : in out GP_Context) is
    begin

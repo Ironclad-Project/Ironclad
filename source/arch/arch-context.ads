@@ -28,12 +28,10 @@ package Arch.Context is
          F24, F25, F26, F27, F28, F29 : Unsigned_64;
          F30, F31, FCSR : Unsigned_64;
       end record with Pack;
-      subtype Core_Context is Unsigned_64;
    #elsif ArchName = """x86_64-limine"""
       --  FIXME: Alignment should be 16, but GCC does not align then?
-      subtype GP_Context   is Arch.Interrupts.ISR_GPRs;
-      subtype FP_Context   is System.Address;
-      subtype Core_Context is Unsigned_64;
+      subtype GP_Context is Arch.Interrupts.ISR_GPRs;
+      subtype FP_Context is System.Address;
    #end if;
 
    --  General-purpose context switching.
@@ -44,9 +42,6 @@ package Arch.Context is
        Argument_1 : Unsigned_64 := 0;
        Argument_2 : Unsigned_64 := 0;
        Argument_3 : Unsigned_64 := 0);
-
-   --  Save architectural task data that does not fit within GP or FP data.
-   procedure Save_Core_Context (Ctx : out Core_Context);
 
    --  When creating a thread, in success, some registers usually have to be
    --  set for success conditions, and said status is expected in userland.
