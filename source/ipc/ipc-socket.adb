@@ -1011,7 +1011,6 @@ package body IPC.Socket is
                return;
             end if;
 
-         <<Retry>>
             if Is_Blocking then
                loop
                   Synchronization.Seize (Sock.Pending_Accept.Mutex);
