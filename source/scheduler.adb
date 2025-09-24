@@ -21,9 +21,11 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Userland.Process;
 with Arch;
 with Arch.Local;
+with Arch.Hooks;
 with Arch.Clocks;
 with Arch.Snippets;
 with Arch.MMU;
+with Cryptography.Random;
 
 package body Scheduler with SPARK_Mode => Off is
    Fast_Reschedule_Micros : constant := 10_000;
@@ -171,7 +173,11 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       declare
+         UID    : Unsigned_32;
          EUID   : Unsigned_32;
+         GID    : Unsigned_32;
+         EGID   : Unsigned_32;
+         Is_Priv : Boolean;
          Sz     : constant Natural := Natural (Stack_Size);
          Stk_8  : Thread_Stack (1 .. Sz)
             with Import, Address => To_Address (Virtual_Address (Stack_Top));
@@ -180,6 +186,15 @@ package body Scheduler with SPARK_Mode => Off is
          Index_8  : Natural := Stk_8'Last;
          Index_64 : Natural := Stk_64'Last;
       begin
+         --  Get proc info.
+         Userland.Process.Get_UID (Proc, UID);
+         Userland.Process.Get_Effective_UID (Proc, EUID);
+         Userland.Process.Get_GID (Proc, GID);
+         Userland.Process.Get_Effective_GID (Proc, EGID);
+         Is_Priv :=
+            Userland.Process.Get_Capabilities (Proc).Can_Manage_MAC and then
+            EUID = 0;
+
          --  Load env into the stack.
          for En of reverse Env loop
             Stk_8 (Index_8) := 0;
@@ -204,6 +219,11 @@ package body Scheduler with SPARK_Mode => Off is
          Index_64 := (Index_8 / 8) - ((Index_8 / 8) mod 16);
          Index_64 := Index_64 - ((Args'Length + Env'Length + 3) mod 2);
 
+         --  16 random bytes of data for AT_RANDOM.
+         Cryptography.Random.Get_Integer (Stk_64 (Index_64 - 0));
+         Cryptography.Random.Get_Integer (Stk_64 (Index_64 - 1));
+         Index_64 := Index_64 - 2;
+
          --  Load auxval.
          Stk_64 (Index_64 - 0)  := 0;
          Stk_64 (Index_64 - 1)  := Userland.ELF.Auxval_Null;
@@ -217,18 +237,23 @@ package body Scheduler with SPARK_Mode => Off is
          Stk_64 (Index_64 - 9)  := Userland.ELF.Auxval_Header_Size;
          Stk_64 (Index_64 - 10) := Memory.MMU.Page_Size;
          Stk_64 (Index_64 - 11) := Userland.ELF.Auxval_Page_Size;
-
-         Userland.Process.Get_Effective_UID (Proc, EUID);
-
-         if Userland.Process.Get_Capabilities (Proc).Can_Manage_MAC and then
-            EUID = 0
-         then
-            Stk_64 (Index_64 - 12) := 1;
-         else
-            Stk_64 (Index_64 - 12) := 0;
-         end if;
+         Stk_64 (Index_64 - 12) := (if Is_Priv then 1 else 0);
          Stk_64 (Index_64 - 13) := Userland.ELF.Auxval_Secure_Treatment;
-         Index_64 := Index_64 - 14;
+         Stk_64 (Index_64 - 14) := Unsigned_64 (UID);
+         Stk_64 (Index_64 - 15) := Userland.ELF.Auxval_UID;
+         Stk_64 (Index_64 - 16) := Unsigned_64 (EUID);
+         Stk_64 (Index_64 - 17) := Userland.ELF.Auxval_EUID;
+         Stk_64 (Index_64 - 18) := Unsigned_64 (GID);
+         Stk_64 (Index_64 - 19) := Userland.ELF.Auxval_GID;
+         Stk_64 (Index_64 - 20) := Unsigned_64 (EGID);
+         Stk_64 (Index_64 - 21) := Userland.ELF.Auxval_EGID;
+         Stk_64 (Index_64 - 22) := 0;
+         Stk_64 (Index_64 - 23) := Userland.ELF.Auxval_Flags;
+         Arch.Hooks.Get_User_Hardware_Caps (Stk_64 (Index_64 - 24));
+         Stk_64 (Index_64 - 25) := Userland.ELF.Auxval_Hardware_Cap;
+         Stk_64 (Index_64 - 26) := Stack_Top + Unsigned_64 (Index_64 * 8);
+         Stk_64 (Index_64 - 27) := Userland.ELF.Auxval_Random;
+         Index_64 := Index_64 - 28;
 
          --  Load envp taking into account the pointers at the beginning.
          Index_8 := Stk_8'Last;

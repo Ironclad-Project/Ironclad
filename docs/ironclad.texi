@@ -618,13 +618,41 @@ The number of program headers.
 @item AT_PAGESZ (6)
 Minimum MMU page size of the system.
 
+@item AT_FLAGS (8)
+ELF flags for the executable, by spec, for now always equal to zero.
+
 @item AT_ENTRY (9)
 The entrypoint of the executable.
+
+@item AT_UID (11)
+UID of the process executing.
+
+@item AT_EUID (12)
+EID of the process executing.
+
+@item AT_GID (13)
+GID of the process executing.
+
+@item AT_EGID (14)
+EGID of the process executing.
+
+@item AT_HWCAP (16)
+Bitmask of CPU features, this field constains the following architecture
+specific flags:
+@table @code
+@item riscv64-limine
+Reserved for future use.
+@item x86_64-limine
+Reserved for future use.
+@end table
 
 @item AT_SECURE (23)
 The value will be 1 if the executable is to be treated securely, 0 if not.
 This flag will be set by Ironclad when the program holds the
 @code{MAC_CAP_SCHED} capability.
+
+@item AT_RANDOM (25)
+Address pointing to 16 bytes of random data.
 @end table
 
 @node Security and integrity facilities

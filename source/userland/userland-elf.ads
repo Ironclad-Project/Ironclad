@@ -28,8 +28,15 @@ package Userland.ELF is
    Auxval_Header_Size      : constant := 4;
    Auxval_Header_Count     : constant := 5;
    Auxval_Page_Size        : constant := 6;
+   Auxval_Flags            : constant := 8;
    Auxval_Entrypoint       : constant := 9;
+   Auxval_UID              : constant := 11;
+   Auxval_EUID             : constant := 12;
+   Auxval_GID              : constant := 13;
+   Auxval_EGID             : constant := 14;
+   Auxval_Hardware_Cap     : constant := 16;
    Auxval_Secure_Treatment : constant := 23;
+   Auxval_Random           : constant := 25;
    type Auxval is record
       Entrypoint           : Unsigned_64;
       Program_Headers      : Unsigned_64;

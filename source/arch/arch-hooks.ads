@@ -50,4 +50,9 @@ package Arch.Hooks is
 
    --  Get frequencies of the CPU in MHz.
    procedure Get_CPU_Frequency (Base, Max, Reference : out Unsigned_32);
+
+   --  Get the user-facing architecture-specific hwcaps.
+   --  This interface is user ABI, and is described in the documentation under
+   --  the auxval section.
+   procedure Get_User_Hardware_Caps (Output : out Unsigned_64);
 end Arch.Hooks;

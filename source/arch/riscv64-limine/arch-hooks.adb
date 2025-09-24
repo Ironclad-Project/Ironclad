@@ -156,4 +156,9 @@ package body Arch.Hooks with SPARK_Mode => Off is
       Max       := 0;
       Reference := 0;
    end Get_CPU_Frequency;
+
+   procedure Get_User_Hardware_Caps (Output : out Unsigned_64) is
+   begin
+      Output := 0;
+   end Get_User_Hardware_Caps;
 end Arch.Hooks;

@@ -32,6 +32,8 @@ release changes.
 - Added raw PCI read/write support for userland with the `pci_read` and
   `pci_write` syscalls, and gate their use behind the power management
   capability.
+- Added support for `AT_FLAGS`, `AT_UID`, `AT_EUID`, `AT_GID`, `AT_EGID`,
+  `AT_HWCAP`, and `AT_RANDOM` auxiliary values.
 
 ### Breaking changes
 
