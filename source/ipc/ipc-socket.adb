@@ -20,7 +20,7 @@ with Networking.IPv4;
 with Networking.IPv6;
 with Networking.Interfaces;
 
-package body IPC.Socket with SPARK_Mode => Off is
+package body IPC.Socket is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
    procedure Free is new Ada.Unchecked_Deallocation (Socket, Socket_Acc);
@@ -70,7 +70,7 @@ package body IPC.Socket with SPARK_Mode => Off is
                     Connected      => null,
                     Pending_Accept => null,
                     Established    => null,
-                    Data           => <>,
+                    Data           => [others => 0],
                     Data_Length    => 0);
                when Datagram =>
                   return new Socket'
@@ -83,7 +83,7 @@ package body IPC.Socket with SPARK_Mode => Off is
                     Cred_GID => 0,
                     Do_Credential_Reporting => False,
                     Simple_Connected => null,
-                    Data             => <>,
+                    Data             => [others => 0],
                     Data_Length      => 0);
                when Raw =>
                   return null;
@@ -384,7 +384,8 @@ package body IPC.Socket with SPARK_Mode => Off is
             Networking.Interfaces.Get_Interface_Address (Dev, Src);
 
             Hdr := Networking.IPv4.Generate_Header (Src, Addr, Data'Length);
-            Tmp_Data := new Operation_Data (1 .. Data'Length + (Hdr'Size / 8));
+            Tmp_Data := new Operation_Data'
+               [1 .. Data'Length + (Hdr'Size / 8) => 0];
             Tmp_Data (1 .. Hdr_Data'Length) := Hdr_Data;
             Tmp_Data (Hdr_Data'Length + 1 .. Tmp_Data'Last) := Data;
 
@@ -546,7 +547,8 @@ package body IPC.Socket with SPARK_Mode => Off is
             Networking.Interfaces.Get_Interface_Address (Dev, Src);
 
             Hdr := Networking.IPv6.Generate_Header (Src, Addr, Data'Length);
-            Tmp_Data := new Operation_Data (1 .. Data'Length + (Hdr'Size / 8));
+            Tmp_Data := new Operation_Data'
+               [1 .. Data'Length + (Hdr'Size / 8) => 0];
             Tmp_Data (1 .. Hdr_Data'Length) := Hdr_Data;
             Tmp_Data (Hdr_Data'Length + 1 .. Tmp_Data'Last) := Data;
 
@@ -570,6 +572,7 @@ package body IPC.Socket with SPARK_Mode => Off is
        Length  : out Natural;
        Success : out Boolean)
    is
+      pragma SPARK_Mode (Off);
    begin
       Path    := [others => ' '];
       Length  := 0;
@@ -594,6 +597,7 @@ package body IPC.Socket with SPARK_Mode => Off is
        Length  : out Natural;
        Success : out Boolean)
    is
+      pragma SPARK_Mode (Off);
    begin
       Path    := [others => ' '];
       Length  := 0;
@@ -617,6 +621,7 @@ package body IPC.Socket with SPARK_Mode => Off is
    end Get_Peer;
 
    procedure Bind (Sock : Socket_Acc; Path : String; Success : out Boolean) is
+      pragma SPARK_Mode (Off);
    begin
       Success := False;
 
@@ -653,6 +658,7 @@ package body IPC.Socket with SPARK_Mode => Off is
        GID     : Unsigned_32;
        Success : out Boolean)
    is
+      pragma SPARK_Mode (Off);
       To_Connect : Socket_Acc;
    begin
       Synchronization.Seize (UNIX_Bound_Mutex);
@@ -698,6 +704,7 @@ package body IPC.Socket with SPARK_Mode => Off is
        PID, UID, GID       : Unsigned_32;
        Result              : out Socket_Acc)
    is
+      pragma SPARK_Mode (Off);
       Tmp : Socket_Acc;
    begin
       Peer_Address        := [others => ' '];
@@ -734,6 +741,7 @@ package body IPC.Socket with SPARK_Mode => Off is
    end Accept_Connection;
 
    procedure Direct_Connection (Sock : Socket_Acc; Result : out Socket_Acc) is
+      pragma SPARK_Mode (Off);
    begin
       Result := Create (Sock.Dom, Sock.Kind);
       Result.Pending_Accept := Sock;
@@ -749,6 +757,7 @@ package body IPC.Socket with SPARK_Mode => Off is
        PID, UID, GID : Unsigned_32;
        Success       : out Socket_Status)
    is
+      pragma SPARK_Mode (Off);
       Discard : Boolean;
       Temp : constant Socket_Acc := Sock.Simple_Connected;
    begin
@@ -766,6 +775,7 @@ package body IPC.Socket with SPARK_Mode => Off is
        PID, UID, GID : Unsigned_32;
        Success       : out Socket_Status)
    is
+      pragma SPARK_Mode (Off);
       Discard : Boolean;
       Temp : constant Socket_Acc := Sock.Simple_Connected;
    begin
@@ -881,6 +891,7 @@ package body IPC.Socket with SPARK_Mode => Off is
    end Inner_IPv6_Write;
    ----------------------------------------------------------------------------
    function Get_Bound (Path : String) return Socket_Acc is
+      pragma SPARK_Mode (Off);
    begin
       for Ent of UNIX_Bound_Sockets loop
          if Ent.Sock /= null and then Ent.Path (1 .. Ent.Path_Len) = Path then
@@ -891,6 +902,7 @@ package body IPC.Socket with SPARK_Mode => Off is
    end Get_Bound;
 
    procedure Inner_UNIX_Close (To_Close : Socket_Acc) is
+      pragma SPARK_Mode (Off);
    begin
       Synchronization.Seize (UNIX_Bound_Mutex);
       for Ent of UNIX_Bound_Sockets loop
@@ -918,7 +930,6 @@ package body IPC.Socket with SPARK_Mode => Off is
    is
       Len : Natural := Data'Length;
    begin
-   <<Retry>>
       if Is_Blocking then
          loop
             Synchronization.Seize (Sock.Mutex);
@@ -937,16 +948,11 @@ package body IPC.Socket with SPARK_Mode => Off is
                Ret_Count := 0;
                Success   := Is_Bad_Type;
                goto Cleanup;
-            elsif Sock.Data_Length = 0 then
-               if Is_Blocking then
-                  Synchronization.Release (Sock.Mutex);
-                  goto Retry;
-               else
-                  Data      := [others => 0];
-                  Ret_Count := 0;
-                  Success   := Would_Block;
-                  goto Cleanup;
-               end if;
+            elsif not Is_Blocking and Sock.Data_Length = 0 then
+               Data      := [others => 0];
+               Ret_Count := 0;
+               Success   := Would_Block;
+               goto Cleanup;
             end if;
 
             if Len > Sock.Data_Length then
@@ -1020,15 +1026,12 @@ package body IPC.Socket with SPARK_Mode => Off is
 
             Synchronization.Seize (Sock.Mutex);
 
-            if Sock.Pending_Accept.Data_Length = Default_Socket_Size then
-               if Is_Blocking then
-                  Synchronization.Release (Sock.Mutex);
-                  goto Retry;
-               else
-                  Ret_Count := 0;
-                  Success   := Would_Block;
-                  goto Cleanup;
-               end if;
+            if not Is_Blocking and
+               Sock.Pending_Accept.Data_Length = Default_Socket_Size
+            then
+               Ret_Count := 0;
+               Success   := Would_Block;
+               goto Cleanup;
             end if;
 
             if Len > Default_Socket_Size or else

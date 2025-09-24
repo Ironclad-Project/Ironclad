@@ -184,18 +184,18 @@ private
    function Is_Valid (P : Inner_Acc) return Boolean is (P /= null);
 
    procedure Read_From_End
-      (End_Mutex   : access Synchronization.Mutex;
-       Inner_Len   : access Data_Length;
-       Inner_Data  : access TTY_Data;
+      (End_Mutex   : aliased in out Synchronization.Mutex;
+       Inner_Len   : aliased in out Data_Length;
+       Inner_Data  : aliased in out TTY_Data;
        Is_Blocking : Boolean;
        Is_Able_To  : Boolean;
        Data        : out Devices.Operation_Data;
        Ret_Count   : out Natural);
 
    procedure Write_To_End
-      (End_Mutex     : access Synchronization.Mutex;
-       Inner_Len     : access Data_Length;
-       Inner_Data    : access TTY_Data;
+      (End_Mutex     : aliased in out Synchronization.Mutex;
+       Inner_Len     : aliased in out Data_Length;
+       Inner_Data    : aliased in out TTY_Data;
        Is_Blocking   : Boolean;
        Is_Able_To    : Boolean;
        Data          : Devices.Operation_Data;

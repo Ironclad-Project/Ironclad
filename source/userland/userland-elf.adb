@@ -22,7 +22,7 @@ with Userland.Memory_Locations;
 with Userland.Syscall;
 with Arch.MMU;
 
-package body Userland.ELF with SPARK_Mode => Off is
+package body Userland.ELF is
    procedure Load_ELF
       (FS             : VFS.FS_Handle;
        Ino            : VFS.File_Inode_Number;
@@ -91,7 +91,8 @@ package body Userland.ELF with SPARK_Mode => Off is
 
       --  Loop the program headers and either load them, or get info.
       declare
-         PHDRs : array (1 .. Header.Program_Header_Count) of Program_Header;
+         Hdr_Cnt : constant Unsigned_16 := Header.Program_Header_Count;
+         PHDRs : array (1 .. Hdr_Cnt) of Program_Header;
          HSize : constant Unsigned_64 :=
             Unsigned_64 (Header.Program_Header_Size);
          RSize : constant Unsigned_64 := HSize * PHDRs'Length;

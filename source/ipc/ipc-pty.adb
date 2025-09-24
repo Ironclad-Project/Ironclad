@@ -22,17 +22,17 @@ with Devices.TermIOs; use Devices.TermIOs;
 with Userland.Process; use Userland.Process;
 with Arch.Local;
 
-package body IPC.PTY with SPARK_Mode => Off is
+package body IPC.PTY is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
-   procedure Free is new Ada.Unchecked_Deallocation (Inner, Inner_Acc);
-   package   Conv is new System.Address_To_Access_Conversions (Inner);
+   package Conv is new System.Address_To_Access_Conversions (Inner);
 
    Tracked_Lock : aliased Synchronization.Mutex :=
       Synchronization.Unlocked_Mutex;
    Tracked_Name : Natural := 1;
 
    procedure Create (Result : out Inner_Acc) is
+      pragma SPARK_Mode (Off);
       Name_Index : Natural;
       Resource   : Devices.Resource;
       Success    : Boolean;
@@ -89,6 +89,7 @@ package body IPC.PTY with SPARK_Mode => Off is
           Remove      => null);
 
       declare
+         procedure Free is new Ada.Unchecked_Deallocation (Inner, Inner_Acc);
          Final_Name : constant String := "pty" & Name_Index'Image;
       begin
          Devices.Register (Resource, Final_Name, Success);
@@ -102,6 +103,8 @@ package body IPC.PTY with SPARK_Mode => Off is
    end Create;
 
    procedure Close (Closed : in out Inner_Acc) is
+      pragma SPARK_Mode (Off);
+      procedure Free is new Ada.Unchecked_Deallocation (Inner, Inner_Acc);
       Discard : Boolean;
    begin
       Synchronization.Seize (Closed.Primary_Mutex);
@@ -127,8 +130,8 @@ package body IPC.PTY with SPARK_Mode => Off is
    is
    begin
       Read_From_End
-         (To_Read.Primary_Mutex'Access, To_Read.Primary_Length'Access,
-          To_Read.Primary_Data'Access, Is_Blocking,
+         (To_Read.Primary_Mutex, To_Read.Primary_Length,
+          To_Read.Primary_Data, Is_Blocking,
           To_Read.Primary_Read, Data, Ret_Count);
       if not Is_Blocking and Ret_Count = 0 then
          Success := PTY_Would_Block;
@@ -146,8 +149,8 @@ package body IPC.PTY with SPARK_Mode => Off is
    is
    begin
       Write_To_End
-         (To_Write.Secondary_Mutex'Access, To_Write.Secondary_Length'Access,
-          To_Write.Secondary_Data'Access, Is_Blocking,
+         (To_Write.Secondary_Mutex, To_Write.Secondary_Length,
+          To_Write.Secondary_Data, Is_Blocking,
           To_Write.Primary_Transmit, Data, To_Write.Term_Info, False,
           Ret_Count);
       if not Is_Blocking and Ret_Count = 0 then
@@ -166,8 +169,8 @@ package body IPC.PTY with SPARK_Mode => Off is
    is
    begin
       Read_From_End
-         (To_Read.Secondary_Mutex'Access, To_Read.Secondary_Length'Access,
-          To_Read.Secondary_Data'Access, Is_Blocking,
+         (To_Read.Secondary_Mutex, To_Read.Secondary_Length,
+          To_Read.Secondary_Data, Is_Blocking,
           To_Read.Secondary_Read, Data, Ret_Count);
       if not Is_Blocking and Ret_Count = 0 then
          Success := PTY_Would_Block;
@@ -185,8 +188,8 @@ package body IPC.PTY with SPARK_Mode => Off is
    is
    begin
       Write_To_End
-         (To_Write.Primary_Mutex'Access, To_Write.Primary_Length'Access,
-          To_Write.Primary_Data'Access, Is_Blocking,
+         (To_Write.Primary_Mutex, To_Write.Primary_Length,
+          To_Write.Primary_Data, Is_Blocking,
           To_Write.Secondary_Transmit, Data, To_Write.Term_Info, True,
           Ret_Count);
       if not Is_Blocking and Ret_Count = 0 then
@@ -429,9 +432,9 @@ package body IPC.PTY with SPARK_Mode => Off is
    end IO_Control;
    ----------------------------------------------------------------------------
    procedure Read_From_End
-      (End_Mutex   : access Synchronization.Mutex;
-       Inner_Len   : access Data_Length;
-       Inner_Data  : access TTY_Data;
+      (End_Mutex   : aliased in out Synchronization.Mutex;
+       Inner_Len   : aliased in out Data_Length;
+       Inner_Data  : aliased in out TTY_Data;
        Is_Blocking : Boolean;
        Is_Able_To  : Boolean;
        Data        : out Devices.Operation_Data;
@@ -446,24 +449,24 @@ package body IPC.PTY with SPARK_Mode => Off is
 
       if Is_Blocking then
          loop
-            if Inner_Len.all /= 0 then
-               Synchronization.Seize (End_Mutex.all);
-               exit when Inner_Len.all /= 0;
-               Synchronization.Release (End_Mutex.all);
+            if Inner_Len /= 0 then
+               Synchronization.Seize (End_Mutex);
+               exit when Inner_Len /= 0;
+               Synchronization.Release (End_Mutex);
             end if;
             Scheduler.Yield_If_Able;
          end loop;
       else
-         Synchronization.Seize (End_Mutex.all);
-         if Inner_Len.all = 0 then
+         Synchronization.Seize (End_Mutex);
+         if Inner_Len = 0 then
             Ret_Count := 0;
-            Synchronization.Release (End_Mutex.all);
+            Synchronization.Release (End_Mutex);
             return;
          end if;
       end if;
 
-      if Data'Length > Inner_Len.all then
-         Ret_Count := Inner_Len.all;
+      if Data'Length > Inner_Len then
+         Ret_Count := Inner_Len;
       else
          Ret_Count := Data'Length;
       end if;
@@ -477,20 +480,20 @@ package body IPC.PTY with SPARK_Mode => Off is
          for J in Inner_Data'First .. Inner_Data'Last - 1 loop
             Inner_Data (J) := Inner_Data (J + 1);
          end loop;
-         if Inner_Len.all > 0 then
-            Inner_Len.all := Inner_Len.all - 1;
+         if Inner_Len > 0 then
+            Inner_Len := Inner_Len - 1;
          else
             exit;
          end if;
       end loop;
 
-      Synchronization.Release (End_Mutex.all);
+      Synchronization.Release (End_Mutex);
    end Read_From_End;
 
    procedure Write_To_End
-      (End_Mutex     : access Synchronization.Mutex;
-       Inner_Len     : access Data_Length;
-       Inner_Data    : access TTY_Data;
+      (End_Mutex     : aliased in out Synchronization.Mutex;
+       Inner_Len     : aliased in out Data_Length;
+       Inner_Data    : aliased in out TTY_Data;
        Is_Blocking   : Boolean;
        Is_Able_To    : Boolean;
        Data          : Devices.Operation_Data;
@@ -568,40 +571,40 @@ package body IPC.PTY with SPARK_Mode => Off is
 
       if Is_Blocking then
          loop
-            if Inner_Len.all /= Inner_Data'Length then
-               Synchronization.Seize (End_Mutex.all);
-               exit when Inner_Len.all /= Inner_Data'Length;
-               Synchronization.Release (End_Mutex.all);
+            if Inner_Len /= Inner_Data'Length then
+               Synchronization.Seize (End_Mutex);
+               exit when Inner_Len /= Inner_Data'Length;
+               Synchronization.Release (End_Mutex);
             end if;
             Scheduler.Yield_If_Able;
          end loop;
       else
-         Synchronization.Seize (End_Mutex.all);
-         if Inner_Len.all = Data'Length then
+         Synchronization.Seize (End_Mutex);
+         if Inner_Len = Data'Length then
             Ret_Count := 0;
-            Synchronization.Release (End_Mutex.all);
+            Synchronization.Release (End_Mutex);
             return;
          end if;
       end if;
 
       if Data'Length > Inner_Data'Length or else
-         Data'Length > Inner_Data'Length - Inner_Len.all
+         Data'Length > Inner_Data'Length - Inner_Len
       then
          Final := Inner_Data'Length;
-         Ret_Count := Inner_Data'Length - Inner_Len.all;
+         Ret_Count := Inner_Data'Length - Inner_Len;
       else
-         Final := Inner_Len.all + Data'Length;
+         Final := Inner_Len + Data'Length;
          Ret_Count := Data'Length;
       end if;
       if Data'First > Natural'Last - Ret_Count then
          Ret_Count := Natural'Last - Data'First;
-         Final := Inner_Len.all + Ret_Count;
+         Final := Inner_Len + Ret_Count;
       end if;
 
-      Inner_Data (Inner_Len.all + 1 .. Final) :=
+      Inner_Data (Inner_Len + 1 .. Final) :=
          Data (Data'First .. Data'First + Ret_Count - 1);
-      Inner_Len.all := Final;
-      Synchronization.Release (End_Mutex.all);
+      Inner_Len := Final;
+      Synchronization.Release (End_Mutex);
    end Write_To_End;
    ----------------------------------------------------------------------------
    procedure Dev_Read
