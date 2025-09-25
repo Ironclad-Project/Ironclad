@@ -637,7 +637,7 @@ GID of the process executing.
 EGID of the process executing.
 
 @item AT_HWCAP (16)
-Bitmask of CPU features, this field constains the following architecture
+Bitmask of CPU features, this field contains the following architecture
 specific flags:
 @table @code
 @item riscv64-limine
