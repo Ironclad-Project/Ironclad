@@ -14,6 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Ada.Characters.Latin_1;
 with Ada.Unchecked_Deallocation;
 with VFS.Dev;
 with VFS.EXT;
@@ -1242,6 +1243,17 @@ package body VFS is
    begin
       return Path'Length >= 1 and then Path (Path'First) = '/';
    end Is_Absolute;
+
+   function Is_Valid (Path : String) return Boolean is
+   begin
+      --  POSIX mandates no NUL characters.
+      for C of Path loop
+         if C = Ada.Characters.Latin_1.NUL then
+            return False;
+         end if;
+      end loop;
+      return True;
+   end Is_Valid;
 
    function Apply_Umask (Mode, Umask : File_Mode) return File_Mode is
    begin

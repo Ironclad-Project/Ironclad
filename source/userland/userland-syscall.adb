@@ -160,6 +160,10 @@ package body Userland.Syscall is
             Returned := Unsigned_64'Last;
             Errno    := Error_Would_Fault;
             return;
+         elsif not VFS.Is_Valid (Path) then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Invalid_Value;
+            return;
          end if;
 
          Userland.Process.Get_Effective_UID (Curr_Proc, User);
@@ -1732,6 +1736,10 @@ package body Userland.Syscall is
             Returned := Unsigned_64'Last;
             Errno    := Error_Would_Fault;
             return;
+         elsif not VFS.Is_Valid (Src) or not VFS.Is_Valid (Tgt) then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Invalid_Value;
+            return;
          end if;
 
          Userland.Process.Get_Effective_UID (Proc, User);
@@ -2656,6 +2664,10 @@ package body Userland.Syscall is
             Returned := Unsigned_64'Last;
             Errno    := Error_Would_Fault;
             return;
+         elsif not VFS.Is_Valid (Path) then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Invalid_Value;
+            return;
          end if;
 
          Perms :=
@@ -2919,6 +2931,10 @@ package body Userland.Syscall is
          Trans_1.Take_From_Userland (Map, Path, Path_Add, Success);
          if not Success then
             goto Would_Fault_Error;
+         elsif not VFS.Is_Valid (Path) then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Invalid_Value;
+            return;
          end if;
 
          Process.Get_Effective_UID (Proc, User);
@@ -3112,6 +3128,10 @@ package body Userland.Syscall is
             Returned := Unsigned_64'Last;
             Errno    := Error_Would_Fault;
             return;
+         elsif not VFS.Is_Valid (Path) then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Invalid_Value;
+            return;
          end if;
 
          Resolve_AT_Directive (Proc, Dir_FD, CWD_FS, CWD_Ino);
@@ -3184,6 +3204,10 @@ package body Userland.Syscall is
          if not Success2 then
             Returned := Unsigned_64'Last;
             Errno    := Error_Would_Fault;
+            return;
+         elsif not VFS.Is_Valid (Path) then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Invalid_Value;
             return;
          end if;
 
@@ -3375,6 +3399,10 @@ package body Userland.Syscall is
          if not Succ1 or not Succ2 then
             Returned := Unsigned_64'Last;
             Errno    := Error_Would_Fault;
+            return;
+         elsif not VFS.Is_Valid (Path) or not VFS.Is_Valid (Targ) then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Invalid_Value;
             return;
          end if;
 
@@ -3629,6 +3657,10 @@ package body Userland.Syscall is
          if not Succ1 or not Succ2 then
             Returned := Unsigned_64'Last;
             Errno    := Error_Would_Fault;
+            return;
+         elsif not VFS.Is_Valid (Src) or not VFS.Is_Valid (Dst) then
+            Returned := Unsigned_64'Last;
+            Errno    := Error_Invalid_Value;
             return;
          end if;
 

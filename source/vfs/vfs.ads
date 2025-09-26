@@ -293,7 +293,7 @@ package VFS is
        Want_Read  : Boolean;
        Want_Write : Boolean;
        Do_Follow  : Boolean := True)
-      with Pre => Is_Initialized and Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle and Is_Valid (Path);
 
    --  Create an inode inside a mount.
    --  @param Key      FS Handle to open.
@@ -313,7 +313,7 @@ package VFS is
        User     : Unsigned_32;
        Group    : Unsigned_32;
        Status   : out FS_Status)
-      with Pre => Is_Initialized and Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle and Is_Valid (Path);
 
    --  Create a symlink with a target inside a mount.
    --  @param Key      FS Handle to open.
@@ -331,7 +331,8 @@ package VFS is
        Mode     : Unsigned_32;
        User     : Unsigned_32;
        Status   : out FS_Status)
-      with Pre => Is_Initialized and Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle and
+                  Is_Valid (Path) and Is_Valid (Target);
 
    --  Create a hard link inside a mount with a target.
    --  @param Key             FS Handle to open.
@@ -349,7 +350,8 @@ package VFS is
        Target          : String;
        User            : Unsigned_32;
        Status          : out FS_Status)
-      with Pre => Is_Initialized and Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle and
+                  Is_Valid (Path) and Is_Valid (Target);
 
    --  Rename a file to a target, optionally keeping it in the process.
    --  @param Key             FS Handle to open.
@@ -369,7 +371,8 @@ package VFS is
        Keep            : Boolean;
        User            : Unsigned_32;
        Status          : out FS_Status)
-      with Pre => Is_Initialized and Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle and
+                  Is_Valid (Source) and Is_Valid (Target);
 
    --  Queue a file for deletion inside a mount.
    --  @param Key      FS Handle to open.
@@ -385,7 +388,7 @@ package VFS is
        User     : Unsigned_32;
        Do_Dir   : Boolean;
        Status   : out FS_Status)
-      with Pre => Is_Initialized and Key /= Error_Handle;
+      with Pre => Is_Initialized and Key /= Error_Handle and Is_Valid (Path);
 
    --  Read the entries of an opened directory.
    --  @param Key       FS handle to operate on.
@@ -637,7 +640,7 @@ package VFS is
        Want_Read  : Boolean;
        Want_Write : Boolean;
        Do_Follow  : Boolean := True)
-      with Pre  => Is_Initialized,
+      with Pre  => Is_Initialized and Is_Valid (Path),
            Post => (if Success = FS_Success then
                     Key /= Error_Handle else True);
 
@@ -661,12 +664,17 @@ package VFS is
        Success : out FS_Status;
        User    : Unsigned_32;
        Group   : Unsigned_32)
-      with Pre => Is_Initialized;
+      with Pre => Is_Initialized and Is_Valid (Path);
    ----------------------------------------------------------------------------
    --  Check whether a path is absolute.
    --  @param Path to check.
    --  @return True if absolute, False if not.
    function Is_Absolute (Path : String) return Boolean;
+
+   --  Check whether a path is valid as per Ironclad/POSIX rules.
+   --  @param Path to check.
+   --  @param return True if valid, False if not.
+   function Is_Valid (Path : String) return Boolean;
 
    --  Apply a umask to a mode.
    --  @param Mode  Mode to use.
