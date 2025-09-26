@@ -174,8 +174,7 @@ package body Userland.Syscall is
          VFS.Open (Rela_FS, CWD_Ino, Path, CWD_FS, Opened_Ino, Success,
                    User, Do_Read, Do_Write, not Dont_Follow);
          if Success /= VFS.FS_Success then
-            Returned := Unsigned_64'Last;
-            Errno    := Error_No_Entity;
+            Translate_Status (Success, 0, Returned, Errno);
             return;
          end if;
 
@@ -7842,7 +7841,7 @@ package body Userland.Syscall is
          when VFS.FS_Not_Supported => Errno := Error_Not_Implemented;
          when VFS.FS_RO_Failure    => Errno := Error_Read_Only_FS;
          when VFS.FS_IO_Failure    => Errno := Error_IO;
-         when VFS.FS_Not_Allowed   => Errno := Error_Bad_Permissions;
+         when VFS.FS_Not_Allowed   => Errno := Error_Bad_Access;
          when VFS.FS_Loop          => Errno := Error_File_Loop;
          when VFS.FS_Exists        => Errno := Error_Exists;
          when VFS.FS_Full          => Errno := Error_No_Space;
