@@ -37,6 +37,7 @@ package Userland.MAC is
       Can_Change_GIDs       : Boolean;
       Can_Bypass_IPC_Checks : Boolean;
       Can_Check_System_Logs : Boolean;
+      Can_Access_Raw_PCI    : Boolean;
    end record;
 
    --  Permissions a file can have.

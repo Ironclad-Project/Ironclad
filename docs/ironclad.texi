@@ -751,6 +751,9 @@ with SystemV-style IPC objects, like the ones you can create with @ref{shmget}.
 
 @item MAC_CAP_SYS_LOG
 The process will be able to access system logs, like the kernel's dmesg.
+
+@item MAC_CAP_SYS_PCI
+The process will be able to read and write from raw PCI devices.
 @end table
 
 File filters consist on permissions given to specific paths and files, that,
@@ -2205,21 +2208,22 @@ following errno:
 @section mac_capabilities
 
 @example c
-#define MAC_CAP_SCHED     0b000000000000001
-#define MAC_CAP_SPAWN     0b000000000000010
-#define MAC_CAP_ENTROPY   0b000000000000100
-#define MAC_CAP_SYS_MEM   0b000000000001000
-#define MAC_CAP_USE_NET   0b000000000010000
-#define MAC_CAP_SYS_NET   0b000000000100000
-#define MAC_CAP_SYS_MNT   0b000000001000000
-#define MAC_CAP_SYS_PWR   0b000000010000000
-#define MAC_CAP_PTRACE    0b000000100000000
-#define MAC_CAP_SETUID    0b000001000000000
-#define MAC_CAP_SYS_MAC   0b000010000000000
-#define MAC_CAP_SIGNALALL 0b000100000000000
-#define MAC_CAP_SETGID    0b001000000000000
-#define MAC_CAP_IPC       0b010000000000000
-#define MAC_CAP_SYS_LOG   0b100000000000000
+#define MAC_CAP_SCHED     0b0000000000000001
+#define MAC_CAP_SPAWN     0b0000000000000010
+#define MAC_CAP_ENTROPY   0b0000000000000100
+#define MAC_CAP_SYS_MEM   0b0000000000001000
+#define MAC_CAP_USE_NET   0b0000000000010000
+#define MAC_CAP_SYS_NET   0b0000000000100000
+#define MAC_CAP_SYS_MNT   0b0000000001000000
+#define MAC_CAP_SYS_PWR   0b0000000010000000
+#define MAC_CAP_PTRACE    0b0000000100000000
+#define MAC_CAP_SETUID    0b0000001000000000
+#define MAC_CAP_SYS_MAC   0b0000010000000000
+#define MAC_CAP_SIGNALALL 0b0000100000000000
+#define MAC_CAP_SETGID    0b0001000000000000
+#define MAC_CAP_IPC       0b0010000000000000
+#define MAC_CAP_SYS_LOG   0b0100000000000000
+#define MAC_CAP_SYS_PCI   0b1000000000000000
 
 unsigned long get_mac_capabilities(void);
 int set_mac_capabilities(unsigned long request);

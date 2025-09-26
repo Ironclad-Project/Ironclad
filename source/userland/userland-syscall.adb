@@ -2615,6 +2615,7 @@ package body Userland.Syscall is
       if Caps.Can_Change_GIDs       then Res := Res or MAC_CAP_SETGID;  end if;
       if Caps.Can_Bypass_IPC_Checks then Res := Res or MAC_CAP_IPC;     end if;
       if Caps.Can_Check_System_Logs then Res := Res or MAC_CAP_SYS_LOG; end if;
+      if Caps.Can_Access_Raw_PCI    then Res := Res or MAC_CAP_SYS_PCI; end if;
 
       Errno := Error_No_Error;
       Returned := Res;
@@ -7630,7 +7631,7 @@ package body Userland.Syscall is
       Val2 : Unsigned_16;
       Val3 : Unsigned_32;
    begin
-      if not Get_Capabilities (Proc).Can_Manage_Power then
+      if not Get_Capabilities (Proc).Can_Access_Raw_PCI then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("pci_read", Proc);
          Returned := Unsigned_64'Last;
@@ -7706,7 +7707,7 @@ package body Userland.Syscall is
       Val2 : Unsigned_16;
       Val3 : Unsigned_32;
    begin
-      if not Get_Capabilities (Proc).Can_Manage_Power then
+      if not Get_Capabilities (Proc).Can_Access_Raw_PCI then
          Errno := Error_Bad_Access;
          Execute_MAC_Failure ("pci_write", Proc);
          Returned := Unsigned_64'Last;
@@ -7993,7 +7994,8 @@ package body Userland.Syscall is
            Caps.Can_Signal_All        and ((Bits and MAC_CAP_SIGNALALL) /= 0),
            Caps.Can_Change_GIDs       and ((Bits and MAC_CAP_SETGID)   /= 0),
            Caps.Can_Bypass_IPC_Checks and ((Bits and MAC_CAP_IPC) /= 0),
-           Caps.Can_Check_System_Logs and ((Bits and MAC_CAP_SYS_LOG) /= 0)));
+           Caps.Can_Check_System_Logs and ((Bits and MAC_CAP_SYS_LOG) /= 0),
+           Caps.Can_Access_Raw_PCI    and ((Bits and MAC_CAP_SYS_PCI) /= 0)));
    end Set_MAC_Capabilities;
 
    procedure Check_Userland_Mappability
