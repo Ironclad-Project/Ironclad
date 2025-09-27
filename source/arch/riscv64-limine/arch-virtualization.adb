@@ -15,10 +15,10 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package body Arch.Virtualization is
-   function Is_Supported return Boolean is
+   procedure Initialize (Success : out Boolean) is
    begin
-      return False;
-   end Is_Supported;
+      Success := False;
+   end Initialize;
 
    procedure Get_MSR_List (List : out MSR_List; Count : out Natural) is
    begin
