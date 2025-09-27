@@ -1,5 +1,5 @@
---  arch-virtualization.adb: Architecture-specific virtualization code.
---  Copyright (C) 2025 mintsuki
+--  arch-virtualization-svm.ads: AMD-V virtualization code.
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -14,21 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Arch.Virtualization.SVM;
-with Arch.Virtualization.VMX;
-
-package body Arch.Virtualization is
-   procedure Initialize (Success : out Boolean) is
-   begin
-      Arch.Virtualization.SVM.Initialize (Success);
-      if not Success then
-         Arch.Virtualization.VMX.Initialize (Success);
-      end if;
-   end Initialize;
-
-   procedure Get_MSR_List (List : out MSR_List; Count : out Natural) is
-   begin
-      List  := [others => 0];
-      Count := 0;
-   end Get_MSR_List;
-end Arch.Virtualization;
+package Arch.Virtualization.SVM is
+   procedure Initialize (Success : out Boolean);
+end Arch.Virtualization.SVM;
