@@ -27,7 +27,6 @@ project Ironclad is
    Linker_Flags     := "@LDFLAGS@";
 
    Common_Source_Dirs := (
-      "@SRCDIR@/source/arch/" & Arch,
       "@SRCDIR@/source/arch",
       "@SRCDIR@/source/cryptography",
       "@SRCDIR@/source/devices/pci",
@@ -44,8 +43,18 @@ project Ironclad is
    );
 
    case Arch is
-      when "riscv64-limine" | "x86_64-limine" =>
+      when "riscv64-limine" =>
          Common_Source_Dirs := Common_Source_Dirs & (
+            "@SRCDIR@/source/arch/riscv64-limine",
+            "@SRCDIR@/uacpi/source",
+            "@SRCDIR@/flanterm/src",
+            "@SRCDIR@/flanterm/src/flanterm_backends"
+         );
+      when "x86_64-limine" =>
+         Common_Source_Dirs := Common_Source_Dirs & (
+            "@SRCDIR@/source/arch/x86_64-limine/devices",
+            "@SRCDIR@/source/arch/x86_64-limine/virtualization",
+            "@SRCDIR@/source/arch/x86_64-limine",
             "@SRCDIR@/uacpi/source",
             "@SRCDIR@/flanterm/src",
             "@SRCDIR@/flanterm/src/flanterm_backends"

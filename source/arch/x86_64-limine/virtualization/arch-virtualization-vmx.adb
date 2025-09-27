@@ -22,7 +22,7 @@ with Memory.Physical;
 with Memory.MMU;
 with Arch.MMU;
 
-package body Arch.VMX is
+package body Arch.Virtualization.VMX is
    IA32_FEATURE_CONTROL_MSR : constant := 16#3A#;
    IA32_VMX_BASIC           : constant := 16#480#;
 
@@ -99,4 +99,4 @@ package body Arch.VMX is
       when Constraint_Error =>
          Success := False;
    end Initialize;
-end Arch.VMX;
+end Arch.Virtualization.VMX;
