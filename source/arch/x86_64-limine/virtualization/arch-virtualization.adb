@@ -17,7 +17,7 @@
 with Arch.Virtualization.SVM;
 with Arch.Virtualization.VMX;
 
-package body Arch.Virtualization is
+package body Arch.Virtualization with SPARK_Mode => Off is
    procedure Initialize (Success : out Boolean) is
    begin
       Arch.Virtualization.SVM.Initialize (Success);

@@ -18,7 +18,7 @@ with Interfaces; use Interfaces;
 with Arch.Snippets;
 with Messages;
 
-package body Arch.Virtualization.SVM is
+package body Arch.Virtualization.SVM with SPARK_Mode => Off is
    EFER_MSR : constant := 16#C0000080#;
 
    procedure Initialize (Success : out Boolean) is

@@ -22,7 +22,7 @@ with Memory.Physical;
 with Memory.MMU;
 with Arch.MMU;
 
-package body Arch.Virtualization.VMX is
+package body Arch.Virtualization.VMX with SPARK_Mode => Off is
    IA32_FEATURE_CONTROL_MSR : constant := 16#3A#;
    IA32_VMX_BASIC           : constant := 16#480#;
 
@@ -99,4 +99,32 @@ package body Arch.Virtualization.VMX is
       when Constraint_Error =>
          Success := False;
    end Initialize;
+   ----------------------------------------------------------------------------
+   function VMX_Read (Encoding : Unsigned_64) return Unsigned_64 is
+      Value : Unsigned_64;
+   begin
+      System.Machine_Code.Asm
+         ("vmread %%rax, %0",
+           Outputs  => Unsigned_64'Asm_Output ("=m", Value),
+           Inputs   => Unsigned_64'Asm_Input ("a", Encoding),
+           Clobber  => "memory",
+           Volatile => True);
+      return Value;
+   end VMX_Read;
+
+   procedure VMX_Write (Encoding, Value : Unsigned_64; Success : out Boolean)
+   is
+      RFlags : Unsigned_64;
+   begin
+      System.Machine_Code.Asm
+         ("vmwrite %%rdx, %%rax;" &
+          "pushfq;"               &
+          "popq %0",
+           Outputs  => Unsigned_64'Asm_Output ("=m", RFlags),
+           Inputs   => [Unsigned_64'Asm_Input ("a", Encoding),
+                        Unsigned_64'Asm_Input ("d", Value)],
+           Clobber  => "memory",
+           Volatile => True);
+      Success := (RFlags and 2#1000001#) = 0;
+   end VMX_Write;
 end Arch.Virtualization.VMX;

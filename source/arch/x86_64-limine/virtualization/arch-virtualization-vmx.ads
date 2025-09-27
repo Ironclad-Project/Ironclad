@@ -14,6 +14,11 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Arch.Virtualization.VMX is
+package Arch.Virtualization.VMX with SPARK_Mode => Off is
    procedure Initialize (Success : out Boolean);
+
+private
+
+   function VMX_Read (Encoding : Unsigned_64) return Unsigned_64;
+   procedure VMX_Write (Encoding, Value : Unsigned_64; Success : out Boolean);
 end Arch.Virtualization.VMX;
