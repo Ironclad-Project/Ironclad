@@ -17,8 +17,15 @@
 with Arch.Virtualization;
 
 package body Virtualization is
+   Has_Initialized : Boolean := False;
+
    function Is_Supported return Boolean is
    begin
-      return Arch.Virtualization.Is_Supported;
+      return Has_Initialized;
    end Is_Supported;
+
+   procedure Initialize is
+   begin
+      Arch.Virtualization.Initialize (Has_Initialized);
+   end Initialize;
 end Virtualization;

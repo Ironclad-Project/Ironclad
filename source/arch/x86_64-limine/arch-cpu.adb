@@ -18,7 +18,6 @@ with System.Machine_Code; use System.Machine_Code;
 with Arch.APIC;
 with Memory.MMU;
 with Arch.IDT;
-with Arch.VMX;
 with Alignment;
 with Panic;
 with Arch.Snippets;
@@ -334,11 +333,6 @@ package body Arch.CPU with SPARK_Mode => Off is
       Core_Locals (Core_Number).Core_TSS.Stack_Ring0 :=
          To_Address (Integer_Address (Stack_Top));
       GDT.Load_TSS (Core_Locals (Core_Number).Core_TSS'Address);
-
-      --  Enable virtualization if available
-      if VMX.Is_Supported then
-         VMX.Initialize;
-      end if;
    exception
       when Constraint_Error =>
          Panic.Hard_Panic ("Exception when initializing core");

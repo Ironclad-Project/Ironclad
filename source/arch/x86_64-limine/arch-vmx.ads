@@ -15,8 +15,5 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Arch.VMX is
-   function Is_Supported return Boolean;
-
-   procedure Initialize
-      with Pre => Is_Supported;
+   procedure Initialize (Success : out Boolean);
 end Arch.VMX;

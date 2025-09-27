@@ -34,6 +34,7 @@ with Scheduler;
 with Networking.ARP;
 with Cryptography.Random;
 with Config;
+with Virtualization;
 
 procedure Main is
    pragma SPARK_Mode (Off);
@@ -70,6 +71,7 @@ begin
    Networking.ARP.Initialize;
    Devices.Init;
    VFS.Init;
+   Virtualization.Initialize;
 
    --  Now that all services are up, run thru some errands.
    Arch.Hooks.Register_RAM_Files;

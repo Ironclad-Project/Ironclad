@@ -32,4 +32,6 @@ package Virtualization is
    ----------------------------------------------------------------------------
    --  Returns True if virtualization is supported.
    function Is_Supported return Boolean;
+
+   procedure Initialize;
 end Virtualization;

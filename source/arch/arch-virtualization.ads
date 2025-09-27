@@ -18,7 +18,7 @@ with Interfaces; use Interfaces;
 
 package Arch.Virtualization is
    --  Checks whether virtualization in any form is supported.
-   function Is_Supported return Boolean;
+   procedure Initialize (Success : out Boolean);
 
    --  List of MSRs indexes supported by the virtualization.
    type MSR_List is array (Natural range <>) of Unsigned_32;

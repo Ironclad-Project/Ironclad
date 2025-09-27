@@ -17,10 +17,10 @@
 with Arch.VMX;
 
 package body Arch.Virtualization is
-   function Is_Supported return Boolean is
+   procedure Initialize (Success : out Boolean) is
    begin
-      return Arch.VMX.Is_Supported;
-   end Is_Supported;
+      Arch.VMX.Initialize (Success);
+   end Initialize;
 
    procedure Get_MSR_List (List : out MSR_List; Count : out Natural) is
    begin
