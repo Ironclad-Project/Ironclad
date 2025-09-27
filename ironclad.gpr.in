@@ -45,6 +45,7 @@ project Ironclad is
    case Arch is
       when "riscv64-limine" =>
          Common_Source_Dirs := Common_Source_Dirs & (
+            "@SRCDIR@/source/arch/riscv64-limine/devices",
             "@SRCDIR@/source/arch/riscv64-limine",
             "@SRCDIR@/uacpi/source",
             "@SRCDIR@/flanterm/src",
