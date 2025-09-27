@@ -435,15 +435,14 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 117 =>
             NVMM_Capability (Ctx.X10, Returned, Errno);
          when 118 =>
-            NVMM_Machine_Create (Ctx.X10, Returned, Errno);
+            NVMM_Machine_Create (Returned, Errno);
          when 119 =>
             NVMM_Machine_Destroy (Ctx.X10, Returned, Errno);
          when 120 =>
             NVMM_Machine_Configure
                (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 121 =>
-            NVMM_VCPU_Create
-               (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
+            NVMM_VCPU_Create (Ctx.X10, Returned, Errno);
          when 122 =>
             NVMM_VCPU_Destroy (Ctx.X10, Ctx.X11, Returned, Errno);
          when 123 =>
@@ -476,13 +475,17 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             NVMM_GPA_2_HVA (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13,
                Returned, Errno);
          when 134 =>
-            NVMM_Assist_IO (Ctx.X10, Ctx.X11, Returned, Errno);
+            NVMM_Assist_IO
+               (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Ctx.X14,
+                Ctx.X15, Returned, Errno);
          when 135 =>
-            NVMM_Assist_Mem (Ctx.X10, Ctx.X11, Returned, Errno);
+            NVMM_Assist_Mem
+               (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Ctx.X14,
+                Ctx.X15, Returned, Errno);
          when 136 =>
-            NVMM_VCPU_Dump (Ctx.X10, Ctx.X11, Returned, Errno);
+            NVMM_VCPU_Dump (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 137 =>
-            NVMM_VCPU_Stop (Ctx.X10, Returned, Errno);
+            NVMM_VCPU_Stop (Ctx.X10, Ctx.X11, Returned, Errno);
          when 138 =>
             Set_SID (Returned, Errno);
          when others =>

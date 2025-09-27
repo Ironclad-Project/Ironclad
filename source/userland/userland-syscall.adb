@@ -7292,255 +7292,261 @@ package body Userland.Syscall is
    end NVMM_Capability;
 
    procedure NVMM_Machine_Create
-      (Machine_Addr : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_Machine_Create;
 
    procedure NVMM_Machine_Destroy
-      (Machine_Addr : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Machine  : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr);
+      pragma Unreferenced (Machine);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_Machine_Destroy;
 
    procedure NVMM_Machine_Configure
-      (Machine_Addr  : Unsigned_64;
+      (Machine       : Unsigned_64;
        Operation     : Unsigned_64;
        Argument_Addr : Unsigned_64;
        Returned      : out Unsigned_64;
        Errno         : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, Operation, Argument_Addr);
+      pragma Unreferenced (Machine, Operation, Argument_Addr);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_Machine_Configure;
 
    procedure NVMM_VCPU_Create
-      (Machine_Addr : Unsigned_64;
-       CPUID        : Unsigned_64;
-       CPU_Addr     : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Machine  : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, CPUID, CPU_Addr);
+      pragma Unreferenced (Machine);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_VCPU_Create;
 
    procedure NVMM_VCPU_Destroy
-      (Machine_Addr : Unsigned_64;
-       CPU_Addr     : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Machine  : Unsigned_64;
+       CPU_ID   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, CPU_Addr);
+      pragma Unreferenced (Machine, CPU_ID);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_VCPU_Destroy;
 
    procedure NVMM_VCPU_Configure
-      (Machine_Addr  : Unsigned_64;
-       CPU_Addr      : Unsigned_64;
+      (Machine       : Unsigned_64;
+       CPU_ID        : Unsigned_64;
        Operation     : Unsigned_64;
        Argument_Addr : Unsigned_64;
        Returned      : out Unsigned_64;
        Errno         : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, CPU_Addr, Operation, Argument_Addr);
+      pragma Unreferenced (Machine, CPU_ID, Operation, Argument_Addr);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_VCPU_Configure;
 
    procedure NVMM_VCPU_SetState
-      (Machine_Addr  : Unsigned_64;
-       CPU_Addr      : Unsigned_64;
-       Operation     : Unsigned_64;
-       Returned      : out Unsigned_64;
-       Errno         : out Errno_Value)
+      (Machine   : Unsigned_64;
+       CPU_ID    : Unsigned_64;
+       Operation : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, CPU_Addr, Operation);
+      pragma Unreferenced (Machine, CPU_ID, Operation);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_VCPU_SetState;
 
    procedure NVMM_VCPU_GetState
-      (Machine_Addr  : Unsigned_64;
-       CPU_Addr      : Unsigned_64;
-       Operation     : Unsigned_64;
-       Returned      : out Unsigned_64;
-       Errno         : out Errno_Value)
+      (Machine   : Unsigned_64;
+       CPU_ID    : Unsigned_64;
+       Operation : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, CPU_Addr, Operation);
+      pragma Unreferenced (Machine, CPU_ID, Operation);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_VCPU_GetState;
 
    procedure NVMM_VCPU_Inject
-      (Machine_Addr : Unsigned_64;
-       CPU_Addr     : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Machine  : Unsigned_64;
+       CPU_ID   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, CPU_Addr);
+      pragma Unreferenced (Machine, CPU_ID);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_VCPU_Inject;
 
    procedure NVMM_VCPU_Run
-      (Machine_Addr : Unsigned_64;
-       CPU_Addr     : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Machine  : Unsigned_64;
+       CPU_ID   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, CPU_Addr);
+      pragma Unreferenced (Machine, CPU_ID);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_VCPU_Run;
 
    procedure NVMM_GPA_Map
-      (Machine_Addr : Unsigned_64;
-       HVA          : Unsigned_64;
-       GPA          : Unsigned_64;
-       Size         : Unsigned_64;
-       Prot         : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Machine  : Unsigned_64;
+       HVA      : Unsigned_64;
+       GPA      : Unsigned_64;
+       Size     : Unsigned_64;
+       Prot     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, HVA, GPA, Size, Prot);
+      pragma Unreferenced (Machine, HVA, GPA, Size, Prot);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_GPA_Map;
 
    procedure NVMM_GPA_Unmap
-      (Machine_Addr : Unsigned_64;
-       HVA          : Unsigned_64;
-       GPA          : Unsigned_64;
-       Size         : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Machine  : Unsigned_64;
+       HVA      : Unsigned_64;
+       GPA      : Unsigned_64;
+       Size     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, HVA, GPA, Size);
+      pragma Unreferenced (Machine, HVA, GPA, Size);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_GPA_Unmap;
 
    procedure NVMM_HVA_Map
-      (Machine_Addr : Unsigned_64;
-       HVA          : Unsigned_64;
-       Size         : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Machine  : Unsigned_64;
+       HVA      : Unsigned_64;
+       Size     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, HVA, Size);
+      pragma Unreferenced (Machine, HVA, Size);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_HVA_Map;
 
    procedure NVMM_HVA_Unmap
-      (Machine_Addr : Unsigned_64;
-       HVA          : Unsigned_64;
-       Size         : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Machine  : Unsigned_64;
+       HVA      : Unsigned_64;
+       Size     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, HVA, Size);
+      pragma Unreferenced (Machine, HVA, Size);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_HVA_Unmap;
 
    procedure NVMM_GVA_2_GPA
-      (Machine_Addr : Unsigned_64;
-       CPU_Addr     : Unsigned_64;
-       GVA          : Unsigned_64;
-       GPA_Addr     : Unsigned_64;
-       Prot_Addr    : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Machine   : Unsigned_64;
+       CPU_ID    : Unsigned_64;
+       GVA       : Unsigned_64;
+       GPA_Addr  : Unsigned_64;
+       Prot_Addr : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, CPU_Addr, GVA, GPA_Addr, Prot_Addr);
+      pragma Unreferenced (Machine, CPU_ID, GVA, GPA_Addr, Prot_Addr);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_GVA_2_GPA;
 
    procedure NVMM_GPA_2_HVA
-      (Machine_Addr : Unsigned_64;
-       GPA          : Unsigned_64;
-       HVA_Addr     : Unsigned_64;
-       Prot_Addr    : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Machine   : Unsigned_64;
+       GPA       : Unsigned_64;
+       HVA_Addr  : Unsigned_64;
+       Prot_Addr : Unsigned_64;
+       Returned  : out Unsigned_64;
+       Errno     : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, GPA, HVA_Addr, Prot_Addr);
+      pragma Unreferenced (Machine, GPA, HVA_Addr, Prot_Addr);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_GPA_2_HVA;
 
    procedure NVMM_Assist_IO
-      (Machine_Addr : Unsigned_64;
-       CPU_Addr     : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Machine  : Unsigned_64;
+       CPU_ID   : Unsigned_64;
+       Port     : Unsigned_64;
+       Is_In    : Unsigned_64;
+       Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, CPU_Addr);
+      pragma Unreferenced (Machine, CPU_ID, Port, Is_In, Addr, Length);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_Assist_IO;
 
    procedure NVMM_Assist_Mem
-      (Machine_Addr : Unsigned_64;
-       CPU_Addr     : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Machine  : Unsigned_64;
+       CPU_ID   : Unsigned_64;
+       Desto    : Unsigned_64;
+       Is_Write : Unsigned_64;
+       Addr     : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, CPU_Addr);
+      pragma Unreferenced (Machine, CPU_ID, Desto, Is_Write, Addr, Length);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_Assist_Mem;
 
    procedure NVMM_VCPU_Dump
-      (Machine_Addr : Unsigned_64;
-       CPU_Addr     : Unsigned_64;
-       Returned     : out Unsigned_64;
-       Errno        : out Errno_Value)
+      (Machine  : Unsigned_64;
+       CPU_ID   : Unsigned_64;
+       Addr     : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
    is
-      pragma Unreferenced (Machine_Addr, CPU_Addr);
+      pragma Unreferenced (Machine, CPU_ID, Addr);
    begin
       Errno    := Error_No_Error;
       Returned := 0;
    end NVMM_VCPU_Dump;
 
    procedure NVMM_VCPU_Stop
-      (CPU_Addr : Unsigned_64;
+      (Machine  : Unsigned_64;
+       CPU_ID   : Unsigned_64;
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      pragma Unreferenced (CPU_Addr);
+      pragma Unreferenced (Machine, CPU_ID);
    begin
       Errno    := Error_No_Error;
       Returned := 0;

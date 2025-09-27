@@ -4675,102 +4675,233 @@ The current configuration doesn't support NVMM.
 @node nvmm_machine_create
 @section nvmm_machine_create
 
-TBD
+@example c
+int nvmm_machine_create(void);
+@end example
+
+This syscall creates a virtual machine, and returns a machine ID, or @code{-1}
+on failure.
+
+@table @code
+@item ENOMEM
+No resources were available for making the VM.
+@end table
 
 @node nvmm_machine_destroy
 @section nvmm_machine_destroy
 
-TBD
+@example c
+void nvmm_machine_destroy(int machine_id);
+@end example
+
+This syscall destroys a virtual machine, and returns @code{0} on success, or
+@code{-1} on failure.
+
+@table @code
+@item EINVAL
+The passed machine id does not exist, or the setting is not valid.
+@end table
 
 @node nvmm_machine_configure
 @section nvmm_machine_configure
 
-TBD
+@example c
+int nvmm_machine_configure(int machine_id, uint64_t setting, void *argument);
+@end example
+
+This syscall configures the virtual machine with the passed settings, and
+returns @code{0} on success, or @code{-1} on failure, with the following errno:
+
+@table @code
+@item EINVAL
+The passed machine id does not exist, or the setting is not valid.
+@item EFAULT
+The argument was not pointing to valid memory.
+@end table
 
 @node nvmm_vcpu_create
 @section nvmm_vcpu_create
 
-TBD
+@example c
+int nvmm_vcpu_create(int machine_id);
+@end example
+
+This syscall creates a virtual CPU attached to a machine, and returns a
+cpu ID, or @code{-1} on failure.
 
 @node nvmm_vcpu_destroy
 @section nvmm_vcpu_destroy
 
-TBD
+@example c
+int nvmm_vcpu_create(int machine_id);
+@end example
+
+This syscall creates a virtual CPU attached to the passed machine, and returns
+the cpu id on success, or @code{-1} on failure, with the following errno:
+
+@table @code
+@item ENOMEM
+No resources were available for creating the VCPU.
+@end table
 
 @node nvmm_vcpu_configure
 @section nvmm_vcpu_configure
 
-TBD
+@example c
+int nvmm_vcpu_configure(int machine_id, int cpu_id, uint64_t setting, void *argument);
+@end example
+
+This syscall configures the passed virtual machine's cpu with the passed
+settings, and returns @code{0} on success, or @code{-1} on failure, with the
+following errno:
+
+@table @code
+@item EINVAL
+The passed machine id or cpu does not exist, or the setting is not valid.
+@item EFAULT
+The argument was not pointing to valid memory.
+@end table
 
 @node nvmm_vcpu_setstate
 @section nvmm_vcpu_setstate
 
-TBD
+@example c
+int nvmm_vcpu_setstate(int machine_id, int cpu_id, uint64_t setting, void *addr);
+@end example
+
+This syscall instructs the machine to load values into the VCPU as requested
+with @code{setting}, and returns @code{0} on success, or @code{-1} on failure.
 
 @node nvmm_vcpu_getstate
 @section nvmm_vcpu_getstate
 
-TBD
+@example c
+int nvmm_vcpu_getstate(int machine_id, int cpu_id, uint64_t setting, void *addr);
+@end example
+
+This syscall instructs the machine to report values from the VCPU as requested
+with @code{setting}, and returns @code{0} on success, or @code{-1} on failure.
 
 @node nvmm_vcpu_inject
 @section nvmm_vcpu_inject
 
-TBD
+@example c
+int nvmm_vcpu_inject(int machine_id, int cpu_id, void *injected);
+@end example
+
+This syscall injects VCPU data and returns @code{0} on success, or @code{-1} on
+failure.
 
 @node nvmm_vcpu_run
 @section nvmm_vcpu_run
 
-TBD
+@example c
+int nvmm_vcpu_run(int machine_id, int cpu_id);
+@end example
+
+This syscall executes the VCPU and blocks until execution is stopped, returns
+@code{0} on success, or @code{-1} on failure.
 
 @node nvmm_gpa_map
 @section nvmm_gpa_map
 
-TBD
+@example c
+int nvmm_gpa_map(int machine_id, uint64_t hva_addr, uint64_t gpa_addr, size_t size, int prot);
+@end example
+
+This syscall executes the VCPU and blocks until execution is stopped, returns
+@code{0} on success, or @code{-1} on failure.
 
 @node nvmm_gpa_unmap
 @section nvmm_gpa_unmap
 
-TBD
+@example c
+int nvmm_gpa_unmap(int machine_id, uint64_t hva_addr, uint64_t gpa_addr, size_t size);
+@end example
+
+This syscall executes the VCPU and blocks until execution is stopped, returns
+@code{0} on success, or @code{-1} on failure.
 
 @node nvmm_hva_map
 @section nvmm_hva_map
 
-TBD
+@example c
+int nvmm_hva_map(int machine_id, uint64_t hva_addr, size_t size, int prot);
+@end example
+
+This syscall executes the VCPU and blocks until execution is stopped, returns
+@code{0} on success, or @code{-1} on failure.
 
 @node nvmm_hva_unmap
 @section nvmm_hva_unmap
 
-TBD
+@example c
+int nvmm_hva_unmap(int machine_id, uint64_t hva_addr, size_t size);
+@end example
+
+This syscall executes the VCPU and blocks until execution is stopped, returns
+@code{0} on success, or @code{-1} on failure.
 
 @node nvmm_gva_2_gpa
 @section nvmm_gva_2_gpa
 
-TBD
+@example c
+int nvmm_gpa_to_hva(int machine_id, int cpu, uint64_t gva_addr, uint64_t *gpa_addr, int *gpa_prot);
+@end example
+
+This syscall executes the VCPU and blocks until execution is stopped, returns
+@code{0} on success, or @code{-1} on failure.
 
 @node nvmm_gpa_2_hva
 @section nvmm_gpa_2_hva
 
-TBD
+@example c
+int nvmm_gpa_to_hva(int machine_id, uint64_t gpa_addr, uint64_t *hva_addr, int *hva_prot);
+@end example
+
+This syscall executes the VCPU and blocks until execution is stopped, returns
+@code{0} on success, or @code{-1} on failure.
 
 @node nvmm_assist_io
 @section nvmm_assist_io
 
-TBD
+@example c
+int nvmm_assist_io(int machine_id, int cpu, uint16_t port, int in, void *data, size_t size);
+@end example
+
+This syscall forwards an IO operation to the CPU, which is featured in some
+architectures like x86. It returns @code{0} on success, or @code{-1} on
+failure.
 
 @node nvmm_assist_mem
 @section nvmm_assist_mem
 
-TBD
+@example c
+int nvmm_assist_mem(int machine_id, int cpu, void *gpa, int write, void *data, size_t size);
+@end example
+
+This syscall does the same as @code{nvmm_assist_io} but with MMIO space instead
+of IO space. It features the same error codes and returns.
 
 @node nvmm_vcpu_dump
 @section nvmm_vcpu_dump
 
-TBD
+@example c
+int nvmm_vcpu_dump(int machine_id, int cpu_id, void *dump_addr);
+@end example
+
+This syscall makes the VCPU dump local state into a memory window, and
+returns @code{0} on success, or @code{-1} on failure.
 
 @node nvmm_vcpu_stop
 @section nvmm_vcpu_stop
 
-TBD
+@example c
+int nvmm_vcpu_stop(int machine_id, int cpu_id);
+@end example
+
+This syscall stops a foreign VCPU that is blocking until execution is stopped,
+returns @code{0} on success, or @code{-1} on failure.
 
 @node pci_read/pci_write
 @section pci_read/pci_write
@@ -4865,7 +4996,9 @@ hosts guides on using it
 
 NVMM usually gets exposed in the way of a library, like @code{libnvmm},
 Ironclad only provides the building blocks of said library in the form of
-syscalls.
+syscalls. Ironclad distributions are invited to use
+@url{https://codeberg.org/Ironclad/libnvmm/, Gloire's libnvmm}, developed for
+use with the Gloire distribution, but easily portable.
 
 @node Differences with NetBSD
 @section Differences with NetBSD
