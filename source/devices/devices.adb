@@ -19,6 +19,7 @@ with Devices.PCI.NVMe;
 with Devices.PCI.SATA;
 with Devices.PCI.VirtioBlk;
 with Devices.PCI.VirtioRNG;
+with Devices.PCI.VirtioNet;
 with Devices.PCI;
 with Devices.Console;
 with Devices.Loopback;
@@ -42,12 +43,13 @@ package body Devices is
           TTY.Init'Access,
           Power_Buttons.Init'Access];
 
-      PCI_Drivers : constant array (1 .. 5) of Driver_Callback :=
+      PCI_Drivers : constant array (1 .. 6) of Driver_Callback :=
          [PCI.i6300ESB.Init'Access,
           PCI.NVMe.Init'Access,
           PCI.SATA.Init'Access,
           PCI.VirtioBlk.Init'Access,
-          PCI.VirtioRNG.Init'Access];
+          PCI.VirtioRNG.Init'Access,
+          PCI.VirtioNet.Init'Access];
 
       Success : Boolean;
    begin

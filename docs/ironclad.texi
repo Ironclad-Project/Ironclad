@@ -5255,6 +5255,124 @@ To launch qemu with a VirtIO RNG device, use something like:
 qemu-system-x86_64 -device virtio-rng-pci,disable-legacy=on
 @end example
 
+@subsection virtio-net
+
+These devices allow paravirtualized networking. The driver exposes them as
+character devices named @code{virtio-net}, followed by a number. Writing sends
+packets, and reading performs a blocking receive.
+
+To launch qemu with a VirtIO Network device, use something like:
+
+@example sh
+qemu-system-x86_64 -netdev user,id=net0 -device virtio-net,disable-legacy=on,netdev=net0
+@end example
+
+In order to capture packets in a pcap file for analyzing it with Wireshark,
+append this to the command line:
+
+@example sh
+-object filter-dump,id=pcap,file=capture.pcap,netdev=net0
+@end example
+
+A sample program demonstrating how to send and receive ARP packets:
+
+@example c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
+#define ETH_P_ARP 0x0806
+#define ETH_HDR_LEN 14
+#define ARP_PKT_LEN 28
+
+int main() @{
+	const char *dev = "/dev/virtio-net0";
+	int fd = open(dev, O_RDWR);
+	if (fd < 0) @{
+		perror("open");
+		return 1;
+	@}
+
+	// Hardcoded MAC and IP addresses
+	uint8_t src_mac[6] = @{0x52, 0x54, 0x00, 0x12, 0x34, 0x56@};
+	uint8_t dst_mac[6] = @{0xff, 0xff, 0xff, 0xff, 0xff, 0xff@}; // Broadcast
+	struct in_addr src_ip, target_ip;
+	inet_pton(AF_INET, "10.0.2.15", &src_ip);
+	inet_pton(AF_INET, "10.0.2.2", &target_ip);
+
+	// Prepare Ethernet frame
+	uint8_t frame[ETH_HDR_LEN + ARP_PKT_LEN];
+	memset(frame, 0, sizeof(frame));
+
+	// Ethernet header
+	memcpy(frame, dst_mac, 6);              // Destination MAC
+	memcpy(frame + 6, src_mac, 6);          // Source MAC
+	frame[12] = 0x08; frame[13] = 0x06;      // Ethertype: ARP
+
+	// ARP payload
+	uint8_t *arp = frame + ETH_HDR_LEN;
+	arp[0] = 0x00; arp[1] = 0x01;            // Hardware type: Ethernet
+	arp[2] = 0x08; arp[3] = 0x00;            // Protocol type: IPv4
+	arp[4] = 6;                              // Hardware size
+	arp[5] = 4;                              // Protocol size
+	arp[6] = 0x00; arp[7] = 0x01;            // Opcode: request
+	memcpy(arp + 8, src_mac, 6);             // Sender MAC
+	memcpy(arp + 14, &src_ip.s_addr, 4);     // Sender IP
+	memset(arp + 18, 0x00, 6);               // Target MAC (unknown)
+	memcpy(arp + 24, &target_ip.s_addr, 4);  // Target IP
+
+	// Send ARP request
+	ssize_t w = write(fd, frame, sizeof(frame));
+	if (w != sizeof(frame)) @{
+		perror("write");
+		close(fd);
+		return 1;
+	@}
+
+	printf("ARP request sent: Who has 10.0.2.2? Tell 10.0.2.15\n");
+
+	// Blocking read for ARP reply
+	uint8_t buf[1526];
+	while (1) @{
+		ssize_t r = read(fd, buf, sizeof(buf));
+		if (r < ETH_HDR_LEN + ARP_PKT_LEN) continue;
+
+		// Check ethertype == ARP
+		if (buf[12] != 0x08 || buf[13] != 0x06) continue;
+
+		uint8_t *r_arp = buf + ETH_HDR_LEN;
+		if (r_arp[6] != 0x00 || r_arp[7] != 0x02) continue; // Opcode != reply
+
+		// Check that target IP is our IP (10.0.2.15)
+		struct in_addr target_ip_in_reply;
+		memcpy(&target_ip_in_reply.s_addr, r_arp + 24, 4);
+		if (target_ip_in_reply.s_addr != src_ip.s_addr) continue;
+
+		// Check that sender IP is 10.0.2.2
+		struct in_addr sender_ip;
+		memcpy(&sender_ip.s_addr, r_arp + 14, 4);
+		if (sender_ip.s_addr != target_ip.s_addr) continue;
+
+		// Print sender MAC (owner of 10.0.2.2)
+		uint8_t *sender_mac = r_arp + 8;
+		printf("ARP reply received: 10.0.2.2 is at %02x:%02x:%02x:%02x:%02x:%02x\n",
+			   sender_mac[0], sender_mac[1], sender_mac[2],
+			   sender_mac[3], sender_mac[4], sender_mac[5]);
+		break;
+	@}
+
+	close(fd);
+	return 0;
+@}
+@end example
+
 @node riscv64-limine devices
 @section riscv64-limine devices
 

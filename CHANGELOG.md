@@ -28,7 +28,7 @@ release changes.
 - Add `AT_PAGESZ` ELF auxiliary value support.
 - Added support for `SO_PEERCRED` and `SO_PASSCRED` for socket ancillary
   message support, along with the `recvsockctr` and `sendsockctr` calls.
-- Added support for VirtIO block and entropy devices.
+- Added support for VirtIO block, entropy, and network devices.
 - Added raw PCI read/write support for userland with the `pci_read` and
   `pci_write` syscalls, and gate their use behind the power management
   capability.
