@@ -38,6 +38,7 @@ package Userland.Syscall is
        Error_Not_Big_Enough,  --  ERANGE
        Error_Bad_Access,      --  EACCES
        Error_Would_Block,     --  EAGAIN
+       Error_Bad_File,        --  EBADF
        Error_Busy,            --  EBUSY
        Error_Child,           --  ECHILD
        Error_Exists,          --  EEXIST
@@ -63,13 +64,13 @@ package Userland.Syscall is
        Error_Bad_Permissions, --  EPERM
        Error_Read_Only_FS,    --  EROFS
        Error_Invalid_Seek,    --  ESPIPE
-       Error_Bad_Search,      --  ESRCH
-       Error_Bad_File);       --  EBADFD
+       Error_Bad_Search);     --  ESRCH
    for Errno_Value use
       (Error_No_Error        => 0,
        Error_Not_Big_Enough  => 3,
        Error_Bad_Access      => 1002,
        Error_Would_Block     => 1006,
+       Error_Bad_File        => 1008,
        Error_Busy            => 1010,
        Error_Child           => 1012,
        Error_Exists          => 1019,
@@ -95,8 +96,7 @@ package Userland.Syscall is
        Error_Bad_Permissions => 1063,
        Error_Read_Only_FS    => 1068,
        Error_Invalid_Seek    => 1069,
-       Error_Bad_Search      => 1070,
-       Error_Bad_File        => 1081);
+       Error_Bad_Search      => 1070);
 
    --  Syscall limits.
    Path_Max_Len    : constant := 1024;
