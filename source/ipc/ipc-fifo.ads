@@ -130,7 +130,7 @@ private
 
    Default_Data_Length : constant Natural := Memory.MMU.Page_Size * 10;
    type Inner is record
-      Mutex         : aliased Synchronization.Mutex;
+      Mutex         : aliased Synchronization.Binary_Semaphore;
       Reader_Closed : Boolean;
       Writer_Closed : Boolean;
       Data_Count    : Natural;

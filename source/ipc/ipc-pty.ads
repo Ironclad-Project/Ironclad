@@ -160,9 +160,9 @@ private
    subtype Data_Length is Natural range 0 .. Memory.MMU.Page_Size;
    subtype TTY_Data    is Devices.Operation_Data (1 .. Memory.MMU.Page_Size);
    type Inner is record
-      Primary_Mutex      : aliased Synchronization.Mutex;
-      Secondary_Mutex    : aliased Synchronization.Mutex;
-      Global_Data_Mutex  : aliased Synchronization.Mutex;
+      Primary_Mutex      : aliased Synchronization.Binary_Semaphore;
+      Secondary_Mutex    : aliased Synchronization.Binary_Semaphore;
+      Global_Data_Mutex  : aliased Synchronization.Binary_Semaphore;
       Primary_Read       : Boolean;
       Primary_Transmit   : Boolean;
       Secondary_Read     : Boolean;
@@ -184,7 +184,7 @@ private
    function Is_Valid (P : Inner_Acc) return Boolean is (P /= null);
 
    procedure Read_From_End
-      (End_Mutex   : aliased in out Synchronization.Mutex;
+      (End_Mutex   : aliased in out Synchronization.Binary_Semaphore;
        Inner_Len   : aliased in out Data_Length;
        Inner_Data  : aliased in out TTY_Data;
        Is_Blocking : Boolean;
@@ -193,7 +193,7 @@ private
        Ret_Count   : out Natural);
 
    procedure Write_To_End
-      (End_Mutex     : aliased in out Synchronization.Mutex;
+      (End_Mutex     : aliased in out Synchronization.Binary_Semaphore;
        Inner_Len     : aliased in out Data_Length;
        Inner_Data    : aliased in out TTY_Data;
        Is_Blocking   : Boolean;

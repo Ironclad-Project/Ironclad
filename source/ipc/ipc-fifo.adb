@@ -31,7 +31,7 @@ package body IPC.FIFO is
       return new Inner'
          (Reader_Closed => False,
           Writer_Closed => False,
-          Mutex         => Synchronization.Unlocked_Mutex,
+          Mutex         => Synchronization.Unlocked_Semaphore,
           Data_Count    => 0,
           Data          => Data);
    end Create;
@@ -44,10 +44,12 @@ package body IPC.FIFO is
        Is_Broken : out Boolean)
    is
    begin
-      Can_Read  := not Is_Empty (P);
+      Synchronization.Seize (P.Mutex);
+      Can_Read  := P.Data_Count /= 0;
       Can_Write := False;
       Is_Error  := False;
       Is_Broken := P.Writer_Closed or P.Reader_Closed;
+      Synchronization.Release (P.Mutex);
    end Poll_Reader;
 
    procedure Poll_Writer
@@ -58,15 +60,21 @@ package body IPC.FIFO is
        Is_Broken : out Boolean)
    is
    begin
+      Synchronization.Seize (P.Mutex);
       Can_Read  := False;
       Can_Write := P.Data_Count /= P.Data'Length;
       Is_Error  := False;
       Is_Broken := False;
+      Synchronization.Release (P.Mutex);
    end Poll_Writer;
 
    function Is_Empty (P : Inner_Acc) return Boolean is
+      Ret : Boolean;
    begin
-      return P.Data_Count = 0;
+      Synchronization.Seize (P.Mutex);
+      Ret := P.Data_Count = 0;
+      Synchronization.Release (P.Mutex);
+      return Ret;
    end Is_Empty;
 
    procedure Close_Reader (To_Close : in out Inner_Acc) is
@@ -128,9 +136,7 @@ package body IPC.FIFO is
       if Is_Blocking then
          loop
             Synchronization.Seize (To_Read.Mutex);
-            if To_Read.Data_Count /= 0 then
-               exit when To_Read.Data_Count /= 0;
-            end if;
+            exit when To_Read.Data_Count /= 0;
             if To_Read.Writer_Closed then
                Ret_Count := 0;
                Success   := Pipe_Success;

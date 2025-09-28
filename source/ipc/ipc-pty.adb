@@ -27,8 +27,8 @@ package body IPC.PTY is
 
    package Conv is new System.Address_To_Access_Conversions (Inner);
 
-   Tracked_Lock : aliased Synchronization.Mutex :=
-      Synchronization.Unlocked_Mutex;
+   Tracked_Lock : aliased Synchronization.Binary_Semaphore :=
+      Synchronization.Unlocked_Semaphore;
    Tracked_Name : Natural := 1;
 
    procedure Create (Result : out Inner_Acc) is
@@ -54,9 +54,9 @@ package body IPC.PTY is
           Output_Baud   => 0);
 
       Result := new Inner'
-         (Primary_Mutex      => Synchronization.Unlocked_Mutex,
-          Secondary_Mutex    => Synchronization.Unlocked_Mutex,
-          Global_Data_Mutex  => Synchronization.Unlocked_Mutex,
+         (Primary_Mutex      => Synchronization.Unlocked_Semaphore,
+          Secondary_Mutex    => Synchronization.Unlocked_Semaphore,
+          Global_Data_Mutex  => Synchronization.Unlocked_Semaphore,
           Primary_Read       => True,
           Primary_Transmit   => True,
           Secondary_Read     => True,
@@ -432,7 +432,7 @@ package body IPC.PTY is
    end IO_Control;
    ----------------------------------------------------------------------------
    procedure Read_From_End
-      (End_Mutex   : aliased in out Synchronization.Mutex;
+      (End_Mutex   : aliased in out Synchronization.Binary_Semaphore;
        Inner_Len   : aliased in out Data_Length;
        Inner_Data  : aliased in out TTY_Data;
        Is_Blocking : Boolean;
@@ -491,7 +491,7 @@ package body IPC.PTY is
    end Read_From_End;
 
    procedure Write_To_End
-      (End_Mutex     : aliased in out Synchronization.Mutex;
+      (End_Mutex     : aliased in out Synchronization.Binary_Semaphore;
        Inner_Len     : aliased in out Data_Length;
        Inner_Data    : aliased in out TTY_Data;
        Is_Blocking   : Boolean;
