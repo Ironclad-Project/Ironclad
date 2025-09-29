@@ -70,7 +70,7 @@ package body Memory.MMU with SPARK_Mode => Off is
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Table'
          (PML4_Level => [others => 0],
-          Mutex      => Synchronization.Unlocked_RW_Lock,
+          Mutex      => Synchronization.Unlocked_Semaphore,
           User_Size  => 0);
 
       --  Preallocate the higher half PML4, so when we clone the kernel memmap,
@@ -147,13 +147,13 @@ package body Memory.MMU with SPARK_Mode => Off is
 
    procedure Create_Table (New_Map : out Page_Table_Acc) is
    begin
-      Synchronization.Seize_Reader (Kernel_Table.Mutex);
+      Synchronization.Seize (Kernel_Table.Mutex);
       New_Map := new Page_Table'
          (PML4_Level => [others => 0],
-          Mutex      => Synchronization.Unlocked_RW_Lock,
+          Mutex      => Synchronization.Unlocked_Semaphore,
           User_Size  => 0);
       New_Map.PML4_Level (257 .. 512) := Kernel_Table.PML4_Level (257 .. 512);
-      Synchronization.Release_Reader (Kernel_Table.Mutex);
+      Synchronization.Release (Kernel_Table.Mutex);
    exception
       when Constraint_Error =>
          New_Map := null;
@@ -167,10 +167,10 @@ package body Memory.MMU with SPARK_Mode => Off is
    begin
       Forked := new Page_Table'
          (PML4_Level => [others => 0],
-          Mutex      => Synchronization.Unlocked_RW_Lock,
+          Mutex      => Synchronization.Unlocked_Semaphore,
           User_Size  => 0);
 
-      Synchronization.Seize_Writer (Map.Mutex);
+      Synchronization.Seize (Map.Mutex);
 
       --  Clone the higher half, which is the same in all maps, and user size.
       Forked.PML4_Level (257 .. 512) := Map.PML4_Level (257 .. 512);
@@ -257,7 +257,7 @@ package body Memory.MMU with SPARK_Mode => Off is
          end;
       end loop;
 
-      Synchronization.Release_Writer (Map.Mutex);
+      Synchronization.Release (Map.Mutex);
       return;
 
    <<Error_Cleanup>>
@@ -272,7 +272,7 @@ package body Memory.MMU with SPARK_Mode => Off is
       Perms      : Arch.MMU.Clean_Result;
       PML4_Sz    : constant Memory.Size := PML4'Size / 8;
    begin
-      Synchronization.Seize_Writer (Map.Mutex);
+      Synchronization.Seize (Map.Mutex);
       for L3 of Map.PML4_Level (1 .. 256) loop
          declare
             A3   : constant Integer_Address := Arch.MMU.Clean_Entry (L3);
@@ -366,10 +366,9 @@ package body Memory.MMU with SPARK_Mode => Off is
       Is_Writeable       := False;
       Is_Executable      := False;
 
+      Synchronization.Seize (Map.Mutex);
       while Virt < Final loop
-         Synchronization.Seize_Reader (Map.Mutex);
          Get_Page (Map, Virt, False, Page_Addr);
-         Synchronization.Release_Reader (Map.Mutex);
          declare
             Page : Unsigned_64 with Address => To_Address (Page_Addr), Import;
          begin
@@ -386,13 +385,12 @@ package body Memory.MMU with SPARK_Mode => Off is
                   Is_Executable      := Perms.Can_Execute;
                end if;
                First_Iter := False;
-            elsif Page_Addr = 0                                      or else
-                  (Is_Mapped          and not Arch.MMU.Is_Entry_Present (Page))
-                     or else
+            elsif Page_Addr = 0 or else
+                  (Is_Mapped and not Arch.MMU.Is_Entry_Present (Page)) or else
                   (Is_User_Accessible and not Perms.Is_User_Accessible) or else
-                  (Is_Readable       and not Perms.Can_Read) or else
-                  (Is_Writeable       and not Perms.Can_Write) or else
-                  (Is_Executable      and not Perms.Can_Execute)
+                  (Is_Readable and not Perms.Can_Read) or else
+                  (Is_Writeable and not Perms.Can_Write) or else
+                  (Is_Executable and not Perms.Can_Execute)
             then
                Physical           := System.Null_Address;
                Is_Mapped          := False;
@@ -405,6 +403,7 @@ package body Memory.MMU with SPARK_Mode => Off is
          end;
          Virt := Virt + Page_Size;
       end loop;
+      Synchronization.Release (Map.Mutex);
    exception
       when Constraint_Error =>
          Physical           := System.Null_Address;
@@ -431,7 +430,7 @@ package body Memory.MMU with SPARK_Mode => Off is
       Orig  : Integer_Address;
       Perms : Arch.MMU.Clean_Result;
    begin
-      Synchronization.Seize_Writer (Map.Mutex);
+      Synchronization.Seize (Map.Mutex);
       while Virt < Final loop
          Get_Page (Map, Virt, True, Addr);
 
@@ -456,7 +455,7 @@ package body Memory.MMU with SPARK_Mode => Off is
          Virt := Virt + Page_Size;
          Phys := Phys + Page_Size;
       end loop;
-      Synchronization.Release_Writer (Map.Mutex);
+      Synchronization.Release (Map.Mutex);
       Success := True;
    exception
       when Constraint_Error =>
@@ -479,7 +478,7 @@ package body Memory.MMU with SPARK_Mode => Off is
       Orig  : Virtual_Address;
       Perms : Arch.MMU.Clean_Result;
    begin
-      Synchronization.Seize_Writer (Map.Mutex);
+      Synchronization.Seize (Map.Mutex);
       while Virt < Final loop
          Get_Page (Map, Virt, True, Addr);
 
@@ -488,7 +487,7 @@ package body Memory.MMU with SPARK_Mode => Off is
              Size    => Page_Size,
              Success => Success);
          if not Success then
-            Synchronization.Release_Writer (Map.Mutex);
+            Synchronization.Release (Map.Mutex);
             return;
          end if;
          Phys := Addr1 - Memory.Memory_Offset;
@@ -520,7 +519,7 @@ package body Memory.MMU with SPARK_Mode => Off is
          Virt := Virt + Page_Size;
          Phys := Phys + Page_Size;
       end loop;
-      Synchronization.Release_Writer (Map.Mutex);
+      Synchronization.Release (Map.Mutex);
 
       Success := True;
    exception
@@ -541,7 +540,7 @@ package body Memory.MMU with SPARK_Mode => Off is
       Addr  : Virtual_Address;
       Perms : Arch.MMU.Clean_Result;
    begin
-      Synchronization.Seize_Writer (Map.Mutex);
+      Synchronization.Seize (Map.Mutex);
       while Virt < Final loop
          Get_Page (Map, Virt, False, Addr);
 
@@ -564,8 +563,8 @@ package body Memory.MMU with SPARK_Mode => Off is
 
          Virt := Virt + Page_Size;
       end loop;
-      Synchronization.Release_Writer (Map.Mutex);
       Arch.MMU.Flush_TLBs (Get_Map_Table_Addr (Map), Virtual_Start, Length);
+      Synchronization.Release (Map.Mutex);
       Success := True;
    exception
       when Constraint_Error =>
@@ -584,7 +583,7 @@ package body Memory.MMU with SPARK_Mode => Off is
       Orig  : Virtual_Address;
       Perms : Arch.MMU.Clean_Result;
    begin
-      Synchronization.Seize_Writer (Map.Mutex);
+      Synchronization.Seize (Map.Mutex);
       while Virt < Final loop
          Get_Page (Map, Virt, False, Addr);
 
@@ -605,9 +604,8 @@ package body Memory.MMU with SPARK_Mode => Off is
          end;
          Virt := Virt + Page_Size;
       end loop;
-      Synchronization.Release_Writer (Map.Mutex);
-
       Arch.MMU.Flush_TLBs (Get_Map_Table_Addr (Map), Virtual_Start, Length);
+      Synchronization.Release (Map.Mutex);
       Success := True;
    exception
       when Constraint_Error =>
@@ -641,9 +639,9 @@ package body Memory.MMU with SPARK_Mode => Off is
    procedure Get_User_Mapped_Size (Map : Page_Table_Acc; Sz : out Unsigned_64)
    is
    begin
-      Synchronization.Seize_Reader (Map.Mutex);
+      Synchronization.Seize (Map.Mutex);
       Sz := Map.User_Size;
-      Synchronization.Release_Reader (Map.Mutex);
+      Synchronization.Release (Map.Mutex);
    exception
       when Constraint_Error =>
          Sz := 0;

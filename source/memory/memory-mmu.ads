@@ -199,7 +199,7 @@ private
    type PML4_Acc is access PML4;
    type Page_Table is record
       PML4_Level : PML4;
-      Mutex      : aliased Synchronization.Readers_Writer_Lock;
+      Mutex      : aliased Synchronization.Binary_Semaphore;
       User_Size  : Unsigned_64;
    end record;
 
