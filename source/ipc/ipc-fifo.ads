@@ -66,7 +66,8 @@ package IPC.FIFO is
       with Pre => Is_Valid (P);
 
    --  Check whether the FIFO is empty.
-   function Is_Empty (P : Inner_Acc) return Boolean with Pre => Is_Valid (P);
+   procedure Is_Empty (P : Inner_Acc; Is_Empty : out Boolean)
+      with Pre => Is_Valid (P);
 
    --  Close the passed end.
    procedure Close_Reader (To_Close : in out Inner_Acc)

@@ -7844,7 +7844,9 @@ package body Userland.Syscall is
          Get_File (Proc, Unsigned_64 (Tracer_FD), File);
          if File /= null and then File.Description = Description_Writer_FIFO
          then
-            while not Is_Empty (File.Inner_Writer_FIFO) loop
+            loop
+               Is_Empty (File.Inner_Writer_FIFO, Is_Traced);
+               exit when Is_Traced;
                Scheduler.Yield_If_Able;
             end loop;
             declare

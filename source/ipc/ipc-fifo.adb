@@ -68,13 +68,11 @@ package body IPC.FIFO is
       Synchronization.Release (P.Mutex);
    end Poll_Writer;
 
-   function Is_Empty (P : Inner_Acc) return Boolean is
-      Ret : Boolean;
+   procedure Is_Empty (P : Inner_Acc; Is_Empty : out Boolean) is
    begin
       Synchronization.Seize (P.Mutex);
-      Ret := P.Data_Count = 0;
+      Is_Empty := P.Data_Count = 0;
       Synchronization.Release (P.Mutex);
-      return Ret;
    end Is_Empty;
 
    procedure Close_Reader (To_Close : in out Inner_Acc) is
