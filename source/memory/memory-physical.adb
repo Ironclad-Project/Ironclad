@@ -39,23 +39,6 @@ package body Memory.Physical with SPARK_Mode => Off is
       Block_Count : Size;
    end record;
 
-   --  We have slabs built on top of the default allocator. These slabs
-   --  are all one page in size and individually locked.
-   type Page_Data is array (0 .. (4096 * 100) - 1) of Unsigned_8;
-   type Slab (Entity_Size : Natural) is record
-      Lock          : aliased Binary_Semaphore;
-      Element_Count : Natural;
-      Element_Bump  : Natural;
-      Pool          : Page_Data;
-   end record;
-   type Slab_Acc is access Slab;
-
-   type Slab_Arr     is array (1 .. 9) of Slab_Acc;
-   type Slab_Arr_Acc is access Slab_Arr;
-
-   Slab_Init : Boolean := False;
-   Slabs     : Slab_Arr_Acc;
-
    procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map) is
       Adjusted_Length : Storage_Count  := 0;
       Adjusted_Start  : System.Address := System.Null_Address;
@@ -120,19 +103,6 @@ package body Memory.Physical with SPARK_Mode => Off is
             end loop;
          end loop;
       end;
-
-      --  Allocate the slabs.
-      Slabs := new Slab_Arr'
-         [1 => new Slab'(0008, Unlocked_Semaphore, 0, 0, Pool => <>),
-          2 => new Slab'(0016, Unlocked_Semaphore, 0, 0, Pool => <>),
-          3 => new Slab'(0032, Unlocked_Semaphore, 0, 0, Pool => <>),
-          4 => new Slab'(0064, Unlocked_Semaphore, 0, 0, Pool => <>),
-          5 => new Slab'(0128, Unlocked_Semaphore, 0, 0, Pool => <>),
-          6 => new Slab'(0256, Unlocked_Semaphore, 0, 0, Pool => <>),
-          7 => new Slab'(0512, Unlocked_Semaphore, 0, 0, Pool => <>),
-          8 => new Slab'(1024, Unlocked_Semaphore, 0, 0, Pool => <>),
-          9 => new Slab'(2048, Unlocked_Semaphore, 0, 0, Pool => <>)];
-      Slab_Init := True;
    exception
       when Constraint_Error =>
          Panic.Hard_Panic ("Exception initializing the allocator");
@@ -141,8 +111,7 @@ package body Memory.Physical with SPARK_Mode => Off is
    procedure Alloc
       (Sz : Interfaces.C.size_t; Result : out Memory.Virtual_Address)
    is
-      Size   : Interfaces.C.size_t := Sz;
-      I      : Natural;
+      Size : Interfaces.C.size_t := Sz;
    begin
       --  Check the specific GNAT semantics.
       if Size = Interfaces.C.size_t'Last then
@@ -151,51 +120,10 @@ package body Memory.Physical with SPARK_Mode => Off is
          Size := 1;
       end if;
 
-      if Slab_Init then
-         case Unsigned_32 (CLZ (Unsigned_64 (Size))) xor 63 is
-            when 0 .. 2 => I := 1;
-            when 3  => I := 2;
-            when 4  => I := 3;
-            when 5  => I := 4;
-            when 6  => I := 5;
-            when 7  => I := 6;
-            when 8  => I := 7;
-            when 9  => I := 8;
-            when 10 => I := 9;
-            when others => goto Default_Alloc;
-         end case;
-
-      <<Next_Slab_Try>>
-         Synchronization.Seize (Slabs (I).Lock);
-         if Slabs (I).Element_Bump >=
-            Slabs (I).Pool'Length / Slabs (I).Entity_Size
-         then
-            Synchronization.Release (Slabs (I).Lock);
-            if I = Slabs'Last then
-               goto Default_Alloc;
-            else
-               I := I + 1;
-               goto Next_Slab_Try;
-            end if;
-         end if;
-
-         Result :=
-            To_Integer (Slabs (I).Pool (Slabs (I).Element_Bump *
-                        Slabs (I).Entity_Size)'Address);
-         Slabs (I).Element_Bump  := Slabs (I).Element_Bump  + 1;
-         Slabs (I).Element_Count := Slabs (I).Element_Count + 1;
-         Synchronization.Release (Slabs (I).Lock);
-         return;
-      end if;
-
-   <<Default_Alloc>>
       Alloc_Pgs (Size, Result);
       if Result = 0 then
          Panic.Hard_Panic ("Exhausted memory (OOM)");
       end if;
-   exception
-      when Constraint_Error =>
-         Result := 0;
    end Alloc;
 
    procedure Free (Address : Interfaces.C.size_t) is
@@ -208,28 +136,7 @@ package body Memory.Physical with SPARK_Mode => Off is
          Real_Address := Real_Address + Memory_Offset;
       end if;
 
-      if Slab_Init then
-         for S of Slabs.all loop
-            if Real_Address >= To_Integer (S.Pool (S.Pool'First)'Address) and
-               Real_Address <= To_Integer (S.Pool (S.Pool'Last)'Address)
-            then
-               Synchronization.Seize (S.Lock);
-               if S.Element_Count = 1 then
-                  S.Element_Count := 0;
-                  S.Element_Bump  := 0;
-               else
-                  S.Element_Count := S.Element_Count - 1;
-               end if;
-               Synchronization.Release (S.Lock);
-               return;
-            end if;
-         end loop;
-      end if;
-
       Free_Pgs (size_t (Real_Address));
-   exception
-      when Constraint_Error =>
-         null;
    end Free;
    ----------------------------------------------------------------------------
    procedure Lower_Half_Alloc
