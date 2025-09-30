@@ -1181,6 +1181,9 @@ The passed access for a variable points to bad memory.
 @item EAGAIN (1006)
 The requested resource is not available at the moment.
 
+@item EBADF (1008)
+The passed FD is in a bad state or invalid.
+
 @item EBUSY (1010)
 The requested resource is busy and cannot handle the request.
 
@@ -1253,10 +1256,6 @@ A seek was issued to an invalid device.
 
 @item ESRCH (1070)
 The passed item could not be found after a search.
-
-@item EBADFD (1081)
-The passed FD is in a bad state or invalid.
-
 @end table
 
 @node exit
@@ -1912,7 +1911,7 @@ following errno:
 
 @itemize @bullet
 @item
-@code{EBADFD}: The passed descriptor is not a valid directory.
+@code{EBADF}: The passed descriptor is not a valid directory.
 @end itemize
 
 @node ioctl
@@ -2422,7 +2421,7 @@ contents or @code{-1} on failure, with the following errno:
 @item
 @code{EFAULT}: Incorrect addresses for the arguments.
 @item
-@code{EBADFD}: @code{fd} does not contain a valid file.
+@code{EBADF}: @code{fd} does not contain a valid file.
 @item
 @code{ENOENT}: @code{fd} is not a directory.
 @item
@@ -2519,7 +2518,7 @@ following errno:
 @item
 @code{EFAULT}: Bad memory address.
 @item
-@code{EBADFD}: The passed FD is not a socket.
+@code{EBADF}: The passed FD is not a socket.
 @end itemize
 
 @node mkdir
@@ -2585,7 +2584,7 @@ following errno:
 @item
 @code{EFAULT}: Bad memory address.
 @item
-@code{EBADFD}: The passed FD is not a socket.
+@code{EBADF}: The passed FD is not a socket.
 @end itemize
 
 @node openpty
@@ -2721,7 +2720,7 @@ following errno:
 @item
 @code{EINVAL}: Invalid value for backlog.
 @item
-@code{EBADFD}: The passed FD is not a socket.
+@code{EBADF}: The passed FD is not a socket.
 @item
 @code{ENOTSUPP}: The passed FD is a socket, but it is not a stream socket.
 @end itemize
@@ -2746,7 +2745,7 @@ following errno:
 @item
 @code{EINVAL}: Invalid value for backlog.
 @item
-@code{EBADFD}: The passed FD is not a socket and listening.
+@code{EBADF}: The passed FD is not a socket and listening.
 @item
 @code{ENOTSUPP}: The passed FD is a socket, but it is not a stream socket.
 @end itemize
@@ -2941,7 +2940,7 @@ Only for @code{revents}, it is set in the case of the passed FD having lost
 connection, or the FD being the reader end of a broken pipe.
 
 @item POLLNVAL
-Only for @code{revents}, equivalent of @code{EBADFD}, that is, the passed FD
+Only for @code{revents}, equivalent of @code{EBADF}, that is, the passed FD
 is not valid.
 @end table
 
@@ -4120,7 +4119,7 @@ received even if explicitly sent.
 The syscall returns 0 on success or @code{-1} on failure, with the errno:
 
 @table @code
-@item EBADFD
+@item EBADF
 @code{fd} was not open, or is not a socket.
 
 @item EACCES
@@ -4287,7 +4286,7 @@ This syscall returns @code{0} on success, and returns @code{-1} on failure,
 with the errno:
 
 @table @code
-@item EBADFD
+@item EBADF
 The passed file was not a socket.
 @item EFAULT
 The passed buffer points to invalid memory.
