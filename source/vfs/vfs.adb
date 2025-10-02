@@ -726,7 +726,7 @@ package body VFS is
             EXT.Create_Node
                (Mounts (Key).FS_Data, Relative, Path, Kind, Mode, User, Group,
                 Status);
-         when others =>
+         when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
    end Create_Node;
@@ -746,7 +746,7 @@ package body VFS is
             EXT.Create_Symbolic_Link
                (Mounts (Key).FS_Data, Relative, Path, Target, Mode, User,
                 Status);
-         when others =>
+         when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
    end Create_Symbolic_Link;
@@ -766,7 +766,7 @@ package body VFS is
             EXT.Create_Hard_Link
                (Mounts (Key).FS_Data, Relative_Path, Path, Relative_Target,
                 Target, User, Status);
-         when others =>
+         when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
    end Create_Hard_Link;
@@ -787,7 +787,7 @@ package body VFS is
             EXT.Rename
                (Mounts (Key).FS_Data, Relative_Source, Source, Relative_Target,
                 Target, Keep, User, Status);
-         when others =>
+         when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
    end Rename;
@@ -805,7 +805,7 @@ package body VFS is
          when FS_EXT =>
             EXT.Unlink (Mounts (Key).FS_Data, Relative, Path, User, Do_Dir,
                         Status);
-         when others =>
+         when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
    end Unlink;
@@ -861,7 +861,7 @@ package body VFS is
          when FS_EXT =>
             EXT.Read_Symbolic_Link
                (Mounts (Key).FS_Data, Ino, Path, Ret_Count, Success);
-         when others =>
+         when FS_FAT | FS_DEV =>
             Path      := [others => ' '];
             Ret_Count := 0;
             Success   := FS_Not_Supported;
@@ -939,7 +939,7 @@ package body VFS is
                 Data,
                 Ret_Count,
                 Success);
-         when others =>
+         when FS_FAT =>
             Ret_Count := 0;
             Success   := FS_Not_Supported;
       end case;
@@ -974,7 +974,9 @@ package body VFS is
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             EXT.Truncate (Mounts (Key).FS_Data, Ino, New_Size, Status);
-         when others =>
+         when FS_DEV =>
+            Status := FS_Invalid_Value;
+         when FS_FAT =>
             Status := FS_Not_Supported;
       end case;
    end Truncate;
@@ -1001,7 +1003,7 @@ package body VFS is
                (Mounts (Key).FS_Data, Ino, Request, Arg, Status);
             Has_Extra := False;
             Extra     := 0;
-         when others =>
+         when FS_FAT =>
             Has_Extra := False;
             Extra     := 0;
             Status    := FS_Not_Supported;
@@ -1027,7 +1029,7 @@ package body VFS is
             Dev.Mmap
                (Mounts (Key).FS_Data, Ino, Map, Address, Length, Flags,
                 Status);
-         when others =>
+         when FS_FAT | FS_EXT =>
             Status := FS_Not_Supported;
       end case;
    end Mmap;
@@ -1046,7 +1048,7 @@ package body VFS is
          when FS_DEV =>
             Dev.Poll
                (Mounts (Key).FS_Data, Ino, Can_Read, Can_Write, Is_Error);
-         when others =>
+         when FS_FAT | FS_EXT =>
             Can_Read  := True;
             Can_Write := True;
             Is_Error  := False;
@@ -1078,8 +1080,8 @@ package body VFS is
             Dev.Synchronize (Mounts (Key).FS_Data, Ino, Data_Only, Status);
          when FS_EXT =>
             EXT.Synchronize (Mounts (Key).FS_Data, Ino, Data_Only, Status);
-         when others =>
-            Status := FS_Not_Supported;
+         when FS_FAT =>
+            Status := FS_Success;
       end case;
    end Synchronize;
 
@@ -1093,7 +1095,7 @@ package body VFS is
       case Mounts (Key).Mounted_FS is
          when FS_EXT =>
             EXT.Change_Mode (Mounts (Key).FS_Data, Ino, Mode, Status);
-         when others =>
+         when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
    end Change_Mode;
@@ -1110,7 +1112,7 @@ package body VFS is
          when FS_EXT =>
             EXT.Change_Owner
                (Mounts (Key).FS_Data, Ino, Owner, Group, Status);
-         when others =>
+         when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
    end Change_Owner;
@@ -1161,7 +1163,7 @@ package body VFS is
             EXT.Change_Access_Times
                (Mounts (Key).FS_Data, Ino, Access_Seconds, Access_Nanoseconds,
                 Modify_Seconds, Modify_Nanoseconds, Status);
-         when others =>
+         when FS_FAT | FS_DEV =>
             Status := FS_Not_Supported;
       end case;
    end Change_Access_Times;
