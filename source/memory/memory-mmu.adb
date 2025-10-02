@@ -324,6 +324,13 @@ package body Memory.MMU with SPARK_Mode => Off is
             end if;
          end;
       end loop;
+
+      --  FIXME: Unlocking here should not be necessary, it should be left
+      --  locked as a security measure for use after free. Leaving it blocked
+      --  though causes a deadlock somewhere outside the MMU code, as printing
+      --  makes it clear that the pagemap is not used after destruction.
+      Synchronization.Release (Map.Mutex);
+
       F (Map);
    exception
       when Constraint_Error =>
