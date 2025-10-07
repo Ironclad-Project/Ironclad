@@ -3110,6 +3110,7 @@ package body Userland.Syscall is
       Group      : Unsigned_32;
       Map        : Page_Table_Acc;
       Success    : Boolean;
+      Type_Mode  : constant Unsigned_64 := Mode and Stat_IFMT;
    begin
       if Path_Len > Path_Max_Len then
          Errno := Error_String_Too_Long;
@@ -3141,11 +3142,16 @@ package body Userland.Syscall is
             return;
          end if;
 
-         if (Mode and Stat_IFDIR) /= 0 then
-            Node_Type := File_Directory;
-         else
-            Node_Type := File_Regular;
-         end if;
+         case Type_Mode is
+            when Stat_IFDIR =>
+               Node_Type := File_Directory;
+            when Stat_IFREG =>
+               Node_Type := File_Regular;
+            when others =>
+               Returned := Unsigned_64'Last;
+               Errno    := Error_Invalid_Value;
+               return;
+         end case;
 
          Process.Get_Effective_UID (Proc, User);
          Process.Get_Effective_GID (Proc, Group);

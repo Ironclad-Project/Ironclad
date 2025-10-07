@@ -269,6 +269,7 @@ package Userland.Syscall is
       Seconds     : Unsigned_64;
       Nanoseconds : Unsigned_64;
    end record with Pack, Size => 128;
+   Stat_IFMT  : constant := 16#F000#;
    Stat_IFIFO : constant := 16#1000#;
    Stat_IFCHR : constant := 16#2000#;
    Stat_IFDIR : constant := 16#4000#;
