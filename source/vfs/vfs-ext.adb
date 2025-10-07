@@ -14,6 +14,8 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Time;
+with Arch.Clocks;
 with Messages;
 with Panic;
 with Alignment;
@@ -275,6 +277,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Name                       : String (1 .. 2);
       Temp                       : Natural;
       Success                    : Boolean;
+      Stamp                      : Time.Timestamp;
    begin
       Synchronization.Seize_Writer (Data.Mutex);
 
@@ -318,13 +321,14 @@ package body VFS.EXT with SPARK_Mode => Off is
          goto Cleanup;
       end if;
 
+      Arch.Clocks.Get_Real_Time (Stamp);
       Target_Inode.all :=
          (Permissions         => Perms or Unsigned_16 (Mode),
           UID                 => Unsigned_16 (User),
           Size_Low            => 0,
-          Access_Time_Epoch   => 0,
-          Creation_Time_Epoch => 0,
-          Modified_Time_Epoch => 0,
+          Access_Time_Epoch   => Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#),
+          Creation_Time_Epoch => Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#),
+          Modified_Time_Epoch => Unsigned_32 (Stamp.Seconds and 16#FFFFFFFF#),
           Deleted_Time_Epoch  => 0,
           GID                 => Unsigned_16 (Group),
           Hard_Link_Count     => 1,
