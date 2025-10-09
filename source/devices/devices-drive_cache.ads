@@ -81,7 +81,7 @@ private
    --  We use a flat array for sector caches.
    --  To calculate where a sector cache goes, we take the LBA, divide it by
    --  the total amount of cached items, and the modulo is our index.
-   Max_Caching_Len : constant := 10_000;
+   Max_Caching_Len : constant := 100_000;
 
    type Sector_Cache is record
       Mutex      : aliased Synchronization.Mutex;

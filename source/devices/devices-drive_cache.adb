@@ -160,17 +160,19 @@ package body Devices.Drive_Cache is
        Success  : out Boolean)
    is
       package Align is new Alignment (Unsigned_64);
-      First_LBA, LBAs, Idx : Unsigned_64;
+      First_LBA, LBAs, Idx, Current_LBA : Unsigned_64;
    begin
       Success := True;
       First_LBA := Offset / Unsigned_64 (Sector_Size);
-      LBAs := Count / Unsigned_64 (Sector_Size);
-      LBAs := Align.Align_Up (LBAs, Unsigned_64 (Sector_Size));
+      LBAs := Align.Divide_Round_Up (Count, Unsigned_64 (Sector_Size)) + 1;
 
       for I in 1 .. LBAs loop
-         Idx := Get_Cache_Index (First_LBA + I - 1);
+         Current_LBA := First_LBA + I - 1;
+         Idx := Get_Cache_Index (Current_LBA);
          Synchronization.Seize (Registry.Caches (Idx).Mutex);
-         if Registry.Caches (Idx).Is_Used and Registry.Caches (Idx).Is_Dirty
+         if Registry.Caches (Idx).Is_Used and
+            Registry.Caches (Idx).Is_Dirty and
+            Registry.Caches (Idx).LBA_Offset = Current_LBA
          then
             Registry.Write_Proc
                (Registry.Drive_Arg,
