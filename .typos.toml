@@ -25,5 +25,6 @@ FRE = "FRE"
 ba = "ba"
 THR = "THR"
 THRE = "THRE"
+interfac = "interfac"
 
 [default.extend-identifiers]

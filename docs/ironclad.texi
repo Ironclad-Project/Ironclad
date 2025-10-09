@@ -21,7 +21,7 @@ Documentation License''.
 @subtitle Userland interfaces and devices, features, and kernel internals.
 @author streaksu
 @page
-@vskip 0pt plus 1filll
+@vskip 0pt plus 1fill
 @insertcopying
 @end titlepage
 @contents
@@ -411,8 +411,8 @@ sleeping.
 
 All RT policies have implicitly higher priority than non-RT ones, meaning that
 the OS will interrupt other tasks in order to fulfill the requirements of RT
-tasks regardless of other factors, like system responsibity or stability. Thus,
-be sure you know what you are doing when using RT policies!
+tasks regardless of other factors, like system responsiveness or stability.
+Thus, be sure you know what you are doing when using RT policies!
 
 The range of priorities accepted by @code{sched_param} is comprised of the
 range between @code{get_min_priority} and @code{get_max_priority}.
@@ -1745,7 +1745,7 @@ sent.
 @end itemize
 
 Any socket type may have @code{type} be OR'ed with @code{SOCK_NONBLOCK} or
-@code{SOCK_CLOEXEC} for setting the created socket nonblock or cloese on exec
+@code{SOCK_CLOEXEC} for setting the created socket nonblock or close-on-exec
 respectively.
 
 The syscall returns the resulting FD or @code{-1} on failure, with the
