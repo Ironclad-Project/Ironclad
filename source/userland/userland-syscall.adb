@@ -8063,7 +8063,7 @@ package body Userland.Syscall is
    is
       Descr : File_Description_Acc;
    begin
-      if Dir_FD = AT_FDCWD then
+      if Dir_FD = Unsigned_64'Mod (AT_FDCWD) then
          Process.Get_CWD (Proc, FS, Ino);
       else
          Get_File (Proc, Dir_FD, Descr);

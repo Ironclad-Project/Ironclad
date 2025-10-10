@@ -104,7 +104,7 @@ package Userland.Syscall is
    Entropy_Max_Len : constant := 256;
 
    --  AT_ directives for path-relative syscalls and common flags.
-   AT_FDCWD            : constant := Natural'Last;
+   AT_FDCWD            : constant := -100;
    AT_EMPTY_PATH       : constant := 2#01#;
    AT_SYMLINK_NOFOLLOW : constant := 2#10#;
    AT_REMOVEDIR        : constant := 500;

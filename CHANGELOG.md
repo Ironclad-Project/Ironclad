@@ -40,6 +40,9 @@ release changes.
 - Attempting to write an overlapping file lock with `F_SETLK`/`F_SETLKW` will
   now, instead of failing, update permissions and return success.
 - Phase out the `sigsuspend` syscall in favour of `ppoll` with no FD arguments.
+- The ABI value of `AT_FDCWD` has been changed to `-100` to make portability
+  easier, since many userland programs have the nasty habit of checking for
+  `AT_FDCWD` by doing `0 <`.
 
 ### Non-code related changes
 
