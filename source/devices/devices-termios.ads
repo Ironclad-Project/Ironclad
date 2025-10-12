@@ -84,6 +84,7 @@ package Devices.TermIOs is
    TIOCSPGRP  : constant := 16#5410#;
    TCSBRKP    : constant := 16#5425#;
    TIOCGSID   : constant := 16#5429#;
+   TIOCSPTLCK : constant := 16#5430#;
 
    --  Output modes for the Main_Data structure.
    OPOST : constant := 16#1#;
