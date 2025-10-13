@@ -2725,6 +2725,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Contracted : Unsigned_64;
       Available  : Unsigned_64;
       Ret_Count  : Natural;
+      Ino_Size   : Unsigned_64 := Inode_Size;
    begin
       Buffer := new Operation_Data (1 .. Natural (Inode_Size));
       Read_From_Inode
@@ -2785,19 +2786,81 @@ package body VFS.EXT with SPARK_Mode => Off is
                   end if;
                   goto Cleanup;
                end;
+            elsif Offset + Natural (Ent.Entry_Count) >= Natural (Inode_Size)
+            then
+               Ino_Size := Inode_Size + Unsigned_64 (FS_Data.Block_Size);
+               Ent.Entry_Count := Ent.Entry_Count +
+                  Unsigned_16 (FS_Data.Block_Size);
+
+               Grow_Inode
+                  (FS_Data     => FS_Data,
+                   Inode_Data  => Inode_Data,
+                   Inode_Num   => Inode_Index,
+                   Start       => 0,
+                   Count       => Ino_Size,
+                   Success     => Success);
+               if not Success then
+                  goto Cleanup;
+               end if;
+
+               Set_Size
+                  (Ino        => Inode_Data,
+                   New_Size   => Ino_Size,
+                   Is_64_Bits => FS_Data.Has_64bit_Filesizes,
+                   Success    => Success);
+               if not Success then
+                  goto Cleanup;
+               end if;
+
+               RW_Inode
+                  (Data            => FS_Data,
+                   Inode_Index     => Inode_Index,
+                   Result          => Inode_Data,
+                   Write_Operation => True,
+                   Success         => Success);
+               if not Success then
+                  goto Cleanup;
+               end if;
+
+               Write_To_Inode
+                  (FS_Data    => FS_Data,
+                   Inode_Num  => Inode_Index,
+                   Inode_Data => Inode_Data,
+                   Inode_Size => Inode_Size,
+                   Offset     => 0,
+                   Data       => Buffer.all,
+                   Ret_Count  => Ret_Count,
+                   Success    => Success);
+               if not Success or Ret_Count /= Buffer'Length then
+                  Success := False;
+                  goto Cleanup;
+               end if;
+
+               Add_Directory_Entry
+                  (FS_Data     => FS_Data,
+                   Inode_Data  => Inode_Data,
+                   Inode_Size  => Ino_Size,
+                   Inode_Index => Inode_Index,
+                   Added_Index => Added_Index,
+                   Dir_Type    => Dir_Type,
+                   Name        => Name,
+                   Success     => Success);
+               goto Cleanup;
             end if;
             Offset := Offset + Natural (Ent.Entry_Count);
          end;
       end loop;
 
-      Messages.Put_Line ("We dont support growing directory inodes");
-      Success := False;
+      raise Program_Error; -- Unreachable.
 
    <<Cleanup>>
       Free (Buffer);
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while adding from an EXT dir entry");
+         Success := False;
+      when Program_Error =>
+         Messages.Put_Line ("Unreachable reached while adding EXT dir entry");
          Success := False;
    end Add_Directory_Entry;
 
