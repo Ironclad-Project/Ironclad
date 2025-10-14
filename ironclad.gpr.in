@@ -131,6 +131,7 @@ project Ironclad is
       Base_Link_Switches := Split (Linker_Flags, " ") & (
          "-nostdlib",
          "-static",
+         "-no-pie",
          "-Wl,-nostdlib",
          "-Wl,-static",
          "-Wl,-z,max-page-size=0x1000",
