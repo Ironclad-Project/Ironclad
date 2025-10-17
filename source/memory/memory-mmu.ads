@@ -195,12 +195,12 @@ package Memory.MMU is
 
 private
 
-   type PML4 is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
-   type PML4_Acc is access PML4;
+   type PML is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
+   type PML_Acc is access PML;
    type Page_Table is record
-      PML4_Level : PML4;
-      Mutex      : aliased Synchronization.Binary_Semaphore;
-      User_Size  : Unsigned_64;
+      Top_Level : PML;
+      Mutex     : aliased Synchronization.Binary_Semaphore;
+      User_Size : Unsigned_64;
    end record;
 
    procedure Get_Next_Level
@@ -215,6 +215,6 @@ private
        Allocate : Boolean;
        Result   : out Virtual_Address);
 
-   function Idx_To_Addr (Idx_4, Idx_3, Idx_2, Idx_1 : Positive)
+   function Idx_To_Addr (Idx_5, Idx_4, Idx_3, Idx_2, Idx_1 : Positive)
       return Integer_Address;
 end Memory.MMU;

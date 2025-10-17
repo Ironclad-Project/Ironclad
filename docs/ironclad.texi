@@ -281,7 +281,7 @@ instructions on where to put kernel images, configuration formats, and the
 like.
 
 SBI support is required for Ironclad to properly work, other facilities like
-ACPI are optional.
+ACPI are optional. SV48 paging is required.
 
 For an example of RISC-V based deployment, check the boot sequence of
 @uref{https://codeberg.org/Ironclad/Gloire, Gloire}, a FOSS Ironclad
@@ -296,7 +296,8 @@ for UEFI and BIOS, our recommendation is
 @uref{https://limine-bootloader.org, Limine}, which supports both.
 
 No requirements for specific SIMD extensions are made apart from what
-x86_64 features architecturally.
+x86_64 features architecturally. Both 5 level and 4 level paging are supported,
+with the system defaulting to 5 level paging if available.
 
 @node Boot-time command-line options
 @chapter Boot-time command-line options

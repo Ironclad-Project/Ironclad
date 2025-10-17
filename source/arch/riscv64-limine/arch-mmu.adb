@@ -44,6 +44,27 @@ package body Arch.MMU is
        Response => System.Null_Address)
       with Export;
 
+   --  Paging level request.
+   Paging_Request : Arch.Limine.Paging_Mode_Request :=
+      (Base =>
+         (ID       => Arch.Limine.Paging_Mode_ID,
+          Revision => 0,
+          Response => System.Null_Address),
+       Prefered_Mode => Arch.Limine.Paging_RISCV_64_SV48,
+       Max_Mode      => Arch.Limine.Paging_RISCV_64_SV48,
+       Min_Mode      => Arch.Limine.Paging_RISCV_64_SV48)
+      with Export;
+
+   function Paging_Levels return Levels is
+      PagingPonse : Arch.Limine.Paging_Mode_Response
+         with Import, Address => Paging_Request.Base.Response;
+   begin
+      case PagingPonse.Mode is
+         when Arch.Limine.Paging_RISCV_64_SV48 => return Four_Level_Paging;
+         when others => return Five_Level_Paging;
+      end case;
+   end Paging_Levels;
+
    procedure Get_Load_Addr (A : out System.Address; Success : out Boolean) is
       PhysPonse : Arch.Limine.Kernel_Address_Response
          with Import, Address => Address_Request.Response;

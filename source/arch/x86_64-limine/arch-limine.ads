@@ -210,6 +210,23 @@ package Arch.Limine is
       DTB_Addr : System.Address;
    end record with Pack;
 
+   Paging_x86_64_4LVL : constant := 0;
+   Paging_x86_64_5LVL : constant := 1;
+   Paging_RISCV_64_SV39 : constant := 0;
+   Paging_RISCV_64_SV48 : constant := 1;
+   Paging_RISCV_64_SV57 : constant := 2;
+   type Paging_Mode_Request is record
+      Base          : Request;
+      Prefered_Mode : Unsigned_64;
+      Max_Mode      : Unsigned_64;
+      Min_Mode      : Unsigned_64;
+   end record with Pack, Volatile;
+
+   type Paging_Mode_Response is record
+      Base : Response;
+      Mode : Unsigned_64;
+   end record with Pack;
+
    --  IDs of several kinds of requests.
    Framebuffer_ID : constant Request_ID :=
       [Limine_Common_Magic_1, Limine_Common_Magic_2,
@@ -246,4 +263,8 @@ package Arch.Limine is
    DTB_ID : constant Request_ID :=
       [Limine_Common_Magic_1, Limine_Common_Magic_2,
        16#b40ddb48fb54bac7#, 16#545081493f81ffb7#];
+
+   Paging_Mode_ID : constant Request_ID :=
+      [Limine_Common_Magic_1, Limine_Common_Magic_2,
+       16#95c1a0edab0944cb#, 16#a4e5cb3842f7488a#];
 end Arch.Limine;

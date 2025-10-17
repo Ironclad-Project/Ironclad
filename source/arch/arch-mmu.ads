@@ -38,6 +38,14 @@ package Arch.MMU is
 
    Page_Size : constant := 16#1000#;
 
+   --  Available paging levels.
+   type Levels is
+      (Four_Level_Paging,  --  Standard.
+       Five_Level_Paging); --  Mostly only a thing in x86.
+
+   --  Get paging levels.
+   function Paging_Levels return Levels;
+
    --  Get the physical address at which the kernel was loaded as part of the
    --  boot process.
    procedure Get_Load_Addr (A : out System.Address; Success : out Boolean);

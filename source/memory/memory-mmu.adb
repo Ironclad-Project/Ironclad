@@ -18,6 +18,8 @@ with Interfaces.C;
 with Ada.Unchecked_Deallocation;
 with Memory.Physical;
 with Panic;
+with Messages;
+with Arch.MMU; use Arch.MMU;
 
 package body Memory.MMU with SPARK_Mode => Off is
    --  Global statistics.
@@ -61,6 +63,7 @@ package body Memory.MMU with SPARK_Mode => Off is
       Tmp  : System.Address;
       Phys : Integer_Address;
    begin
+      Messages.Put_Line ("Paging type used: " & Arch.MMU.Paging_Levels'Image);
       Arch.MMU.Get_Load_Addr (Tmp, Success);
       if not Success then
          return;
@@ -69,20 +72,20 @@ package body Memory.MMU with SPARK_Mode => Off is
 
       --  Initialize the kernel pagemap.
       MMU.Kernel_Table := new Page_Table'
-         (PML4_Level => [others => 0],
+         (Top_Level => [others => 0],
           Mutex      => Synchronization.Unlocked_Semaphore,
           User_Size  => 0);
 
-      --  Preallocate the higher half PML4, so when we clone the kernel memmap,
+      --  Preallocate the higher half PML, so when we clone the kernel memmap,
       --  we can just blindly copy the entries and share mapping between all
       --  kernel instances.
-      for E of Kernel_Table.PML4_Level (257 .. 512) loop
+      for E of Kernel_Table.Top_Level (257 .. 512) loop
          declare
-            New_Entry      : constant PML4_Acc := new PML4'(others => 0);
+            New_Entry      : constant PML_Acc := new PML'(others => 0);
             New_Entry_Addr : constant Physical_Address :=
                To_Integer (New_Entry.all'Address) - Memory_Offset;
          begin
-            Global_Table_Usage := Global_Table_Usage + (PML4'Size / 8);
+            Global_Table_Usage := Global_Table_Usage + (PML'Size / 8);
             E := Arch.MMU.Construct_Level (To_Address (New_Entry_Addr));
          end;
       end loop;
@@ -149,10 +152,10 @@ package body Memory.MMU with SPARK_Mode => Off is
    begin
       Synchronization.Seize (Kernel_Table.Mutex);
       New_Map := new Page_Table'
-         (PML4_Level => [others => 0],
+         (Top_Level => [others => 0],
           Mutex      => Synchronization.Unlocked_Semaphore,
           User_Size  => 0);
-      New_Map.PML4_Level (257 .. 512) := Kernel_Table.PML4_Level (257 .. 512);
+      New_Map.Top_Level (257 .. 512) := Kernel_Table.Top_Level (257 .. 512);
       Synchronization.Release (Kernel_Table.Mutex);
    exception
       when Constraint_Error =>
@@ -160,102 +163,197 @@ package body Memory.MMU with SPARK_Mode => Off is
    end Create_Table;
 
    procedure Fork_Table (Map : Page_Table_Acc; Forked : out Page_Table_Acc) is
+      --  FIXME: This code is a war crime, and should be generalized in a
+      --  function, or something. Its not broken, its just ugly.
+      pragma Style_Checks (Off);
+
       type Arr is array (1 .. Page_Size) of Unsigned_8;
       Addr, Addr2, Addr3 : Virtual_Address;
       Perms : Arch.MMU.Clean_Result;
       Success : Boolean;
    begin
       Forked := new Page_Table'
-         (PML4_Level => [others => 0],
+         (Top_Level => [others => 0],
           Mutex      => Synchronization.Unlocked_Semaphore,
           User_Size  => 0);
 
       Synchronization.Seize (Map.Mutex);
 
       --  Clone the higher half, which is the same in all maps, and user size.
-      Forked.PML4_Level (257 .. 512) := Map.PML4_Level (257 .. 512);
+      Forked.Top_Level (257 .. 512) := Map.Top_Level (257 .. 512);
       Forked.User_Size := Map.User_Size;
 
       --  Go thru the lower half entries and copy.
-      for I3 in Map.PML4_Level (1 .. 256)'Range loop
-         declare
-            L3   : constant Unsigned_64 := Map.PML4_Level (I3);
-            A3   : constant Integer_Address :=
-               Arch.MMU.Clean_Entry (Map.PML4_Level (I3));
-            PML3 : PML4
-               with Import, Address => To_Address (Memory_Offset + A3);
-         begin
-            if Arch.MMU.Is_Entry_Present (L3) then
-               for I2 in PML3'Range loop
-                  declare
-                     L2   : constant Unsigned_64 := PML3 (I2);
-                     A2   : constant Integer_Address :=
-                        Arch.MMU.Clean_Entry (PML3 (I2));
-                     PML2 : PML4 with Import,
-                        Address => To_Address (Memory_Offset + A2);
-                  begin
-                     if Arch.MMU.Is_Entry_Present (L2) then
-                        for I1 in PML2'Range loop
-                           declare
-                              L1  : constant Unsigned_64 := PML2 (I1);
-                              A1  : constant Integer_Address :=
-                                 Arch.MMU.Clean_Entry (L1);
-                              PML1 : PML4 with Import,
-                                 Address => To_Address (Memory_Offset + A1);
-                           begin
-                              if Arch.MMU.Is_Entry_Present (L1) then
-                                 for I0 in PML1'Range loop
-                                    declare
-                                       L0  : constant Unsigned_64 := PML1 (I0);
-                                       A0  : constant Integer_Address :=
-                                          Arch.MMU.Clean_Entry (L0);
-                                    begin
-                                       Addr := Idx_To_Addr (I3, I2, I1, I0);
-                                       Perms :=
-                                          Arch.MMU.Clean_Entry_Perms (L0);
-                                       Get_Page (Forked, Addr, True, Addr2);
+      if Arch.MMU.Paging_Levels = Arch.MMU.Five_Level_Paging then
+         for I4 in Map.Top_Level (1 .. 256)'Range loop
+            declare
+               L4   : constant Unsigned_64 := Map.Top_Level (I4);
+               A4   : constant Integer_Address :=
+                  Arch.MMU.Clean_Entry (Map.Top_Level (I4));
+               PML4 : PML
+                  with Import, Address => To_Address (Memory_Offset + A4);
+            begin
+               if Arch.MMU.Is_Entry_Present (L4) then
+                  for I3 in PML4'Range loop
+                     declare
+                        L3   : constant Unsigned_64 := PML4 (I3);
+                        A3   : constant Integer_Address :=
+                           Arch.MMU.Clean_Entry (PML4 (I3));
+                        PML3 : PML
+                           with Import, Address => To_Address (Memory_Offset + A3);
+                     begin
+                        if Arch.MMU.Is_Entry_Present (L3) then
+                           for I2 in PML3'Range loop
+                              declare
+                                 L2   : constant Unsigned_64 := PML3 (I2);
+                                 A2   : constant Integer_Address :=
+                                    Arch.MMU.Clean_Entry (PML3 (I2));
+                                 PML2 : PML with Import,
+                                    Address => To_Address (Memory_Offset + A2);
+                              begin
+                                 if Arch.MMU.Is_Entry_Present (L2) then
+                                    for I1 in PML2'Range loop
                                        declare
-                                          Res : Unsigned_64 with Import,
-                                             Address => To_Address (Addr2);
+                                          L1  : constant Unsigned_64 := PML2 (I1);
+                                          A1  : constant Integer_Address :=
+                                             Arch.MMU.Clean_Entry (L1);
+                                          PML1 : PML with Import,
+                                             Address => To_Address (Memory_Offset + A1);
                                        begin
-                                          if Perms.User_Flag then
-                                             Memory.Physical.User_Alloc
-                                                (Addr    => Addr3,
-                                                 Size    => Page_Size,
-                                                 Success => Success);
-                                             if not Success then
-                                                goto Error_Cleanup;
-                                             end if;
-                                             declare
-                                                Allocated : Arr with Import,
-                                                   Address =>
-                                                      To_Address (Addr3);
-                                                Orig : Arr with Import,
-                                                   Address => To_Address
-                                                   (Memory.Memory_Offset + A0);
-                                             begin
-                                                Allocated := Orig;
-                                             end;
-                                             Res := Arch.MMU.Construct_Entry
-                                                (To_Address (Addr3 -
-                                                 Memory.Memory_Offset),
-                                                 Perms.Perms, Perms.Caching,
-                                                 True);
-                                          else
-                                             Res := L0;
+                                          if Arch.MMU.Is_Entry_Present (L1) then
+                                             for I0 in PML1'Range loop
+                                                declare
+                                                   L0  : constant Unsigned_64 := PML1 (I0);
+                                                   A0  : constant Integer_Address :=
+                                                      Arch.MMU.Clean_Entry (L0);
+                                                begin
+                                                   Addr := Idx_To_Addr (I4, I3, I2, I1, I0);
+                                                   Perms := Arch.MMU.Clean_Entry_Perms (L0);
+                                                   Get_Page (Forked, Addr, True, Addr2);
+                                                   declare
+                                                      Res : Unsigned_64 with Import,
+                                                         Address => To_Address (Addr2);
+                                                   begin
+                                                      if Perms.User_Flag then
+                                                         Memory.Physical.User_Alloc
+                                                            (Addr    => Addr3,
+                                                             Size    => Page_Size,
+                                                             Success => Success);
+                                                         if not Success then
+                                                            goto Error_Cleanup;
+                                                         end if;
+                                                         declare
+                                                            Allocated : Arr with Import,
+                                                               Address => To_Address (Addr3);
+                                                            Orig : Arr with Import,
+                                                               Address => To_Address (Memory.Memory_Offset + A0);
+                                                         begin
+                                                            Allocated := Orig;
+                                                         end;
+                                                         Res := Arch.MMU.Construct_Entry
+                                                            (To_Address (Addr3 -
+                                                             Memory.Memory_Offset),
+                                                             Perms.Perms, Perms.Caching,
+                                                             True);
+                                                      else
+                                                         Res := L0;
+                                                      end if;
+                                                   end;
+                                                end;
+                                             end loop;
                                           end if;
                                        end;
-                                    end;
-                                 end loop;
-                              end if;
-                           end;
-                        end loop;
-                     end if;
-                  end;
-               end loop;
-            end if;
-         end;
-      end loop;
+                                    end loop;
+                                 end if;
+                              end;
+                           end loop;
+                        end if;
+                     end;
+                  end loop;
+               end if;
+            end;
+         end loop;
+      else
+         for I3 in Map.Top_Level (1 .. 256)'Range loop
+            declare
+               L3   : constant Unsigned_64 := Map.Top_Level (I3);
+               A3   : constant Integer_Address :=
+                  Arch.MMU.Clean_Entry (Map.Top_Level (I3));
+               PML3 : PML
+                  with Import, Address => To_Address (Memory_Offset + A3);
+            begin
+               if Arch.MMU.Is_Entry_Present (L3) then
+                  for I2 in PML3'Range loop
+                     declare
+                        L2   : constant Unsigned_64 := PML3 (I2);
+                        A2   : constant Integer_Address :=
+                           Arch.MMU.Clean_Entry (PML3 (I2));
+                        PML2 : PML with Import,
+                           Address => To_Address (Memory_Offset + A2);
+                     begin
+                        if Arch.MMU.Is_Entry_Present (L2) then
+                           for I1 in PML2'Range loop
+                              declare
+                                 L1  : constant Unsigned_64 := PML2 (I1);
+                                 A1  : constant Integer_Address :=
+                                    Arch.MMU.Clean_Entry (L1);
+                                 PML1 : PML with Import,
+                                    Address => To_Address (Memory_Offset + A1);
+                              begin
+                                 if Arch.MMU.Is_Entry_Present (L1) then
+                                    for I0 in PML1'Range loop
+                                       declare
+                                          L0  : constant Unsigned_64 := PML1 (I0);
+                                          A0  : constant Integer_Address :=
+                                             Arch.MMU.Clean_Entry (L0);
+                                       begin
+                                          Addr := Idx_To_Addr (1, I3, I2, I1, I0);
+                                          Perms :=
+                                             Arch.MMU.Clean_Entry_Perms (L0);
+                                          Get_Page (Forked, Addr, True, Addr2);
+                                          declare
+                                             Res : Unsigned_64 with Import,
+                                                Address => To_Address (Addr2);
+                                          begin
+                                             if Perms.User_Flag then
+                                                Memory.Physical.User_Alloc
+                                                   (Addr    => Addr3,
+                                                    Size    => Page_Size,
+                                                    Success => Success);
+                                                if not Success then
+                                                   goto Error_Cleanup;
+                                                end if;
+                                                declare
+                                                   Allocated : Arr with Import,
+                                                      Address =>
+                                                         To_Address (Addr3);
+                                                   Orig : Arr with Import,
+                                                      Address => To_Address
+                                                      (Memory.Memory_Offset + A0);
+                                                begin
+                                                   Allocated := Orig;
+                                                end;
+                                                Res := Arch.MMU.Construct_Entry
+                                                   (To_Address (Addr3 -
+                                                    Memory.Memory_Offset),
+                                                    Perms.Perms, Perms.Caching,
+                                                    True);
+                                             else
+                                                Res := L0;
+                                             end if;
+                                          end;
+                                       end;
+                                    end loop;
+                                 end if;
+                              end;
+                           end loop;
+                        end if;
+                     end;
+                  end loop;
+               end if;
+            end;
+         end loop;
+      end if;
 
       Synchronization.Release (Map.Mutex);
       return;
@@ -270,13 +368,13 @@ package body Memory.MMU with SPARK_Mode => Off is
    procedure Destroy_Table (Map : in out Page_Table_Acc) is
       Discard    : Memory.Size;
       Perms      : Arch.MMU.Clean_Result;
-      PML4_Sz    : constant Memory.Size := PML4'Size / 8;
+      PML_Sz    : constant Memory.Size := PML'Size / 8;
    begin
       Synchronization.Seize (Map.Mutex);
-      for L3 of Map.PML4_Level (1 .. 256) loop
+      for L3 of Map.Top_Level (1 .. 256) loop
          declare
             A3   : constant Integer_Address := Arch.MMU.Clean_Entry (L3);
-            PML3 : PML4
+            PML3 : PML
                with Import, Address => To_Address (Memory_Offset + A3);
          begin
             if Arch.MMU.Is_Entry_Present (L3) then
@@ -284,7 +382,7 @@ package body Memory.MMU with SPARK_Mode => Off is
                   declare
                      A2   : constant Integer_Address :=
                         Arch.MMU.Clean_Entry (L2);
-                     PML2 : PML4 with Import,
+                     PML2 : PML with Import,
                         Address => To_Address (Memory_Offset + A2);
                   begin
                      if Arch.MMU.Is_Entry_Present (L2) then
@@ -292,7 +390,7 @@ package body Memory.MMU with SPARK_Mode => Off is
                            declare
                               A1   : constant Integer_Address :=
                                  Arch.MMU.Clean_Entry (L1);
-                              PML1 : PML4 with Import,
+                              PML1 : PML with Import,
                                  Address => To_Address (Memory_Offset + A1);
                            begin
                               if Arch.MMU.Is_Entry_Present (L1) then
@@ -308,18 +406,18 @@ package body Memory.MMU with SPARK_Mode => Off is
                                     end if;
                                  end loop;
                                  Global_Table_Usage :=
-                                    Global_Table_Usage - PML4_Sz;
+                                    Global_Table_Usage - PML_Sz;
                                  Memory.Physical.Free
                                     (Interfaces.C.size_t (A1));
                               end if;
                            end;
                         end loop;
-                        Global_Table_Usage := Global_Table_Usage - PML4_Sz;
+                        Global_Table_Usage := Global_Table_Usage - PML_Sz;
                         Memory.Physical.Free (Interfaces.C.size_t (A2));
                      end if;
                   end;
                end loop;
-               Global_Table_Usage := Global_Table_Usage - PML4_Sz;
+               Global_Table_Usage := Global_Table_Usage - PML_Sz;
                Memory.Physical.Free (Interfaces.C.size_t (A3));
             end if;
          end;
@@ -341,7 +439,7 @@ package body Memory.MMU with SPARK_Mode => Off is
       Success : Boolean;
    begin
       Arch.MMU.Set_Current_Table
-         (To_Address (To_Integer (Map.PML4_Level'Address) - Memory_Offset),
+         (To_Address (To_Integer (Map.Top_Level'Address) - Memory_Offset),
           Success);
       return Success;
    exception
@@ -628,7 +726,7 @@ package body Memory.MMU with SPARK_Mode => Off is
 
    function Get_Map_Table_Addr (Map : Page_Table_Acc) return System.Address is
    begin
-      return To_Address (To_Integer (Map.PML4_Level'Address) - Memory_Offset);
+      return To_Address (To_Integer (Map.Top_Level'Address) - Memory_Offset);
    exception
       when Constraint_Error =>
          return System.Null_Address;
@@ -683,11 +781,11 @@ package body Memory.MMU with SPARK_Mode => Off is
          elsif Create_If_Not_Found then
             --  Allocate and put some default flags.
             declare
-               New_Entry      : constant PML4_Acc := new PML4'(others => 0);
+               New_Entry      : constant PML_Acc := new PML'(others => 0);
                New_Entry_Addr : constant Physical_Address :=
                   To_Integer (New_Entry.all'Address) - Memory_Offset;
             begin
-               Global_Table_Usage := Global_Table_Usage + (PML4'Size / 8);
+               Global_Table_Usage := Global_Table_Usage + (PML'Size / 8);
                Entry_Body := Arch.MMU.Construct_Level
                   (To_Address (New_Entry_Addr));
                Addr := New_Entry_Addr;
@@ -706,6 +804,8 @@ package body Memory.MMU with SPARK_Mode => Off is
        Result   : out Virtual_Address)
    is
       Addr : constant Unsigned_64 := Unsigned_64 (Virtual);
+      PML5_Entry : constant Unsigned_64 :=
+         Shift_Right (Addr and Shift_Left (16#1FF#, 48), 48);
       PML4_Entry : constant Unsigned_64 :=
          Shift_Right (Addr and Shift_Left (16#1FF#, 39), 39);
       PML3_Entry : constant Unsigned_64 :=
@@ -714,10 +814,19 @@ package body Memory.MMU with SPARK_Mode => Off is
          Shift_Right (Addr and Shift_Left (16#1FF#, 21), 21);
       PML1_Entry : constant Unsigned_64 :=
          Shift_Right (Addr and Shift_Left (16#1FF#, 12), 12);
-      Addr4, Addr3, Addr2, Addr1 : Physical_Address := Memory.Null_Address;
+      Addr5, Addr4, Addr3, Addr2, Addr1 : Physical_Address :=
+         Memory.Null_Address;
    begin
       --  Find the entries.
-      Addr4 := To_Integer (Map.PML4_Level'Address) - Memory_Offset;
+      if Arch.MMU.Paging_Levels = Arch.MMU.Five_Level_Paging then
+         Addr5 := To_Integer (Map.Top_Level'Address) - Memory_Offset;
+         Get_Next_Level (Addr5, PML5_Entry, Allocate, Addr4);
+         if Addr4 = Memory.Null_Address then
+            goto Error_Return;
+         end if;
+      else
+         Addr4 := To_Integer (Map.Top_Level'Address) - Memory_Offset;
+      end if;
       Get_Next_Level (Addr4, PML4_Entry, Allocate, Addr3);
       if Addr3 = Memory.Null_Address then
          goto Error_Return;
@@ -740,14 +849,15 @@ package body Memory.MMU with SPARK_Mode => Off is
          Panic.Hard_Panic ("Exception when fetching/allocating page");
    end Get_Page;
 
-   function Idx_To_Addr (Idx_4, Idx_3, Idx_2, Idx_1 : Positive)
+   function Idx_To_Addr (Idx_5, Idx_4, Idx_3, Idx_2, Idx_1 : Positive)
       return Integer_Address
    is
    begin
       return
-         (Integer_Address (Idx_4) - 1) * 16#8000000000# +
-         (Integer_Address (Idx_3) - 1) * 16#0040000000# +
-         (Integer_Address (Idx_2) - 1) * 16#0000200000# +
-         (Integer_Address (Idx_1) - 1) * 16#0000001000#;
+         (Integer_Address (Idx_5) - 1) * 16#1000000000000# +
+         (Integer_Address (Idx_4) - 1) * 16#0008000000000# +
+         (Integer_Address (Idx_3) - 1) * 16#0000040000000# +
+         (Integer_Address (Idx_2) - 1) * 16#0000000200000# +
+         (Integer_Address (Idx_1) - 1) * 16#0000000001000#;
    end Idx_To_Addr;
 end Memory.MMU;
