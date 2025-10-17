@@ -55,7 +55,7 @@ package body Arch.MMU is
          (ID       => Arch.Limine.Paging_Mode_ID,
           Revision => 0,
           Response => System.Null_Address),
-       Prefered_Mode => Arch.Limine.Paging_x86_64_5LVL,
+       Preferred_Mode => Arch.Limine.Paging_x86_64_5LVL,
        Max_Mode      => Arch.Limine.Paging_x86_64_5LVL,
        Min_Mode      => Arch.Limine.Paging_x86_64_4LVL)
       with Export;

@@ -217,10 +217,10 @@ package Arch.Limine is
    Paging_RISCV_64_SV57 : constant := 2;
    type Paging_Mode_Request is record
       Base          : Request;
-      Prefered_Mode : Unsigned_64;
+      Preferred_Mode : Unsigned_64;
       Max_Mode      : Unsigned_64;
       Min_Mode      : Unsigned_64;
-   end record with Pack, Volatile;
+   end record with Pack;
 
    type Paging_Mode_Response is record
       Base : Response;
