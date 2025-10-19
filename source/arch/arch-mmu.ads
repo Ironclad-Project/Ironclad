@@ -40,7 +40,8 @@ package Arch.MMU is
 
    --  Available paging levels.
    type Levels is
-      (Four_Level_Paging,  --  Standard.
+      (Three_Level_Paging, --  Three level paging for small devices.
+       Four_Level_Paging,  --  Standard.
        Five_Level_Paging); --  Mostly only a thing in x86.
 
    --  Get paging levels.

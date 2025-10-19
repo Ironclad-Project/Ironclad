@@ -34,7 +34,8 @@ release changes.
   capability.
 - Added support for `AT_FLAGS`, `AT_UID`, `AT_EUID`, `AT_GID`, `AT_EGID`,
   `AT_HWCAP`, and `AT_RANDOM` auxiliary values.
-- Added support for five level paging for `x86_64-limine`.
+- Added support for three and five level paging for `x86_64-limine` and
+  `riscv64-limine`.
 
 ### Breaking changes
 

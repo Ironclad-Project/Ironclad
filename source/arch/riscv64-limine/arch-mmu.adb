@@ -50,9 +50,9 @@ package body Arch.MMU is
          (ID       => Arch.Limine.Paging_Mode_ID,
           Revision => 0,
           Response => System.Null_Address),
-       Preferred_Mode => Arch.Limine.Paging_RISCV_64_SV48,
-       Max_Mode      => Arch.Limine.Paging_RISCV_64_SV48,
-       Min_Mode      => Arch.Limine.Paging_RISCV_64_SV48)
+       Preferred_Mode => Arch.Limine.Paging_RISCV_64_SV57,
+       Max_Mode => Arch.Limine.Paging_RISCV_64_SV57,
+       Min_Mode => Arch.Limine.Paging_RISCV_64_SV39)
       with Export;
 
    function Paging_Levels return Levels is
@@ -60,6 +60,7 @@ package body Arch.MMU is
          with Import, Address => Paging_Request.Base.Response;
    begin
       case PagingPonse.Mode is
+         when Arch.Limine.Paging_RISCV_64_SV39 => return Three_Level_Paging;
          when Arch.Limine.Paging_RISCV_64_SV48 => return Four_Level_Paging;
          when others => return Five_Level_Paging;
       end case;
@@ -94,7 +95,7 @@ package body Arch.MMU is
    function Clean_Entry (Entry_Body : Unsigned_64) return Integer_Address is
    begin
       return Integer_Address
-         (Shift_Left (Entry_Body and 16#003ffffffffffc00#, 2));
+         (Shift_Left (Entry_Body and 16#FFFFFFFFFFFFFC00#, 2));
    end Clean_Entry;
 
    function Clean_Entry_Perms (Entr : Unsigned_64) return Clean_Result is
@@ -173,9 +174,15 @@ package body Arch.MMU is
    procedure Set_Current_Table (Addr : System.Address; Success : out Boolean)
    is
       pragma SPARK_Mode (Off); --  ASM is not SPARK-friendly.
-      Mode : constant Unsigned_64 := 8 + (4 - 3);
-      Add2 :          Unsigned_64 := Unsigned_64 (To_Integer (Addr));
+      Mode : Unsigned_64;
+      Add2 : Unsigned_64 := Unsigned_64 (To_Integer (Addr));
    begin
+      Mode := 8 +
+         (case Paging_Levels is
+            when Three_Level_Paging => 0,
+            when Four_Level_Paging => 1,
+            when Five_Level_Paging => 2);
+
       Add2 := Shift_Right (Add2, 12) or Shift_Left (Mode, 60);
       System.Machine_Code.Asm
          ("csrw satp, %0; sfence.vma",
@@ -183,5 +190,8 @@ package body Arch.MMU is
           Clobber  => "memory",
           Volatile => True);
       Success := True;
+   exception
+      when Constraint_Error =>
+         Success := False;
    end Set_Current_Table;
 end Arch.MMU;

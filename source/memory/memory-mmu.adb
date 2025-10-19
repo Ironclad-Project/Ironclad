@@ -171,6 +171,7 @@ package body Memory.MMU with SPARK_Mode => Off is
       Addr, Addr2, Addr3 : Virtual_Address;
       Perms : Arch.MMU.Clean_Result;
       Success : Boolean;
+      Levels : Arch.MMU.Levels;
    begin
       Forked := new Page_Table'
          (Top_Level => [others => 0],
@@ -184,7 +185,8 @@ package body Memory.MMU with SPARK_Mode => Off is
       Forked.User_Size := Map.User_Size;
 
       --  Go thru the lower half entries and copy.
-      if Arch.MMU.Paging_Levels = Arch.MMU.Five_Level_Paging then
+      Levels := Arch.MMU.Paging_Levels;
+      if Levels = Arch.MMU.Five_Level_Paging then
          for I4 in Map.Top_Level (1 .. 256)'Range loop
             declare
                L4   : constant Unsigned_64 := Map.Top_Level (I4);
@@ -273,7 +275,7 @@ package body Memory.MMU with SPARK_Mode => Off is
                end if;
             end;
          end loop;
-      else
+      elsif Levels = Arch.MMU.Four_Level_Paging then
          for I3 in Map.Top_Level (1 .. 256)'Range loop
             declare
                L3   : constant Unsigned_64 := Map.Top_Level (I3);
@@ -345,6 +347,73 @@ package body Memory.MMU with SPARK_Mode => Off is
                                        end;
                                     end loop;
                                  end if;
+                              end;
+                           end loop;
+                        end if;
+                     end;
+                  end loop;
+               end if;
+            end;
+         end loop;
+      else
+         for I2 in Map.Top_Level (1 .. 256)'Range loop
+            declare
+               L2   : constant Unsigned_64 := Map.Top_Level (I2);
+               A2   : constant Integer_Address :=
+                  Arch.MMU.Clean_Entry (Map.Top_Level (I2));
+               PML2 : PML with Import,
+                  Address => To_Address (Memory_Offset + A2);
+            begin
+               if Arch.MMU.Is_Entry_Present (L2) then
+                  for I1 in PML2'Range loop
+                     declare
+                        L1  : constant Unsigned_64 := PML2 (I1);
+                        A1  : constant Integer_Address :=
+                           Arch.MMU.Clean_Entry (L1);
+                        PML1 : PML with Import,
+                           Address => To_Address (Memory_Offset + A1);
+                     begin
+                        if Arch.MMU.Is_Entry_Present (L1) then
+                           for I0 in PML1'Range loop
+                              declare
+                                 L0  : constant Unsigned_64 := PML1 (I0);
+                                 A0  : constant Integer_Address :=
+                                    Arch.MMU.Clean_Entry (L0);
+                              begin
+                                 Addr := Idx_To_Addr (1, 1, I2, I1, I0);
+                                 Perms :=
+                                    Arch.MMU.Clean_Entry_Perms (L0);
+                                 Get_Page (Forked, Addr, True, Addr2);
+                                 declare
+                                    Res : Unsigned_64 with Import,
+                                       Address => To_Address (Addr2);
+                                 begin
+                                    if Perms.User_Flag then
+                                       Memory.Physical.User_Alloc
+                                          (Addr    => Addr3,
+                                           Size    => Page_Size,
+                                           Success => Success);
+                                       if not Success then
+                                          goto Error_Cleanup;
+                                       end if;
+                                       declare
+                                          Allocated : Arr with Import,
+                                             Address => To_Address (Addr3);
+                                          Orig : Arr with Import,
+                                             Address => To_Address
+                                             (Memory.Memory_Offset + A0);
+                                       begin
+                                          Allocated := Orig;
+                                       end;
+                                       Res := Arch.MMU.Construct_Entry
+                                          (To_Address (Addr3 -
+                                           Memory.Memory_Offset),
+                                           Perms.Perms, Perms.Caching,
+                                           True);
+                                    else
+                                       Res := L0;
+                                    end if;
+                                 end;
                               end;
                            end loop;
                         end if;
@@ -818,19 +887,27 @@ package body Memory.MMU with SPARK_Mode => Off is
          Memory.Null_Address;
    begin
       --  Find the entries.
-      if Arch.MMU.Paging_Levels = Arch.MMU.Five_Level_Paging then
-         Addr5 := To_Integer (Map.Top_Level'Address) - Memory_Offset;
-         Get_Next_Level (Addr5, PML5_Entry, Allocate, Addr4);
-         if Addr4 = Memory.Null_Address then
-            goto Error_Return;
-         end if;
-      else
-         Addr4 := To_Integer (Map.Top_Level'Address) - Memory_Offset;
-      end if;
-      Get_Next_Level (Addr4, PML4_Entry, Allocate, Addr3);
-      if Addr3 = Memory.Null_Address then
-         goto Error_Return;
-      end if;
+      case Arch.MMU.Paging_Levels is
+         when Arch.MMU.Five_Level_Paging =>
+            Addr5 := To_Integer (Map.Top_Level'Address) - Memory_Offset;
+            Get_Next_Level (Addr5, PML5_Entry, Allocate, Addr4);
+            if Addr4 = Memory.Null_Address then
+               goto Error_Return;
+            end if;
+            Get_Next_Level (Addr4, PML4_Entry, Allocate, Addr3);
+            if Addr3 = Memory.Null_Address then
+               goto Error_Return;
+            end if;
+         when Arch.MMU.Four_Level_Paging =>
+            Addr4 := To_Integer (Map.Top_Level'Address) - Memory_Offset;
+            Get_Next_Level (Addr4, PML4_Entry, Allocate, Addr3);
+            if Addr3 = Memory.Null_Address then
+               goto Error_Return;
+            end if;
+         when Arch.MMU.Three_Level_Paging =>
+            Addr3 := To_Integer (Map.Top_Level'Address) - Memory_Offset;
+      end case;
+
       Get_Next_Level (Addr3, PML3_Entry, Allocate, Addr2);
       if Addr2 = Memory.Null_Address then
          goto Error_Return;
