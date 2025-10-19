@@ -211,7 +211,7 @@ package body Userland.ELF is
       --  will disallow loading below the minimum offset, as a security measure
       --  for making sure NULL remains unmapped on load.
       A.Align_Memory_Range (Ali_V, Ali_L, Integer_Address (Header.Alignment));
-      if (Base = 0) and (Ali_V < Memory_Locations.Offset_Min) then
+      if (Base = 0) and (Ali_V < Memory_Locations.Min_Memory_Offset) then
          Success := False;
          return;
       end if;

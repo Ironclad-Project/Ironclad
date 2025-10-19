@@ -19,10 +19,6 @@ with VFS;              use VFS;
 with Memory.MMU;         use Memory.MMU;
 
 package Userland.Loader is
-   --  By default, the offsets of loaded programs are randomized, this
-   --  behaviour can be disabled at boottime.
-   procedure Disable_ASLR;
-
    --  Start a program from a passed file, and create a process for it with
    --  1 thread running it.
    --  The format of the file is guessed.

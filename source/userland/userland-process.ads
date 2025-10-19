@@ -362,16 +362,6 @@ package Userland.Process is
    procedure Get_Common_Map (Proc : PID; Map : out Memory.MMU.Page_Table_Acc)
       with Pre => Proc /= Error_PID;
 
-   --  Bump the stack base of the process by the passed length.
-   --  @param P        Process to operate on.
-   --  @param Length   Length to bump to.
-   --  @param Previous Previous base.
-   procedure Bump_Stack_Base
-      (P        : PID;
-       Length   : Unsigned_64;
-       Previous : out Unsigned_64)
-      with Pre => P /= Error_PID;
-
    --  Bump the alloc base of the process by the passed length.
    --  @param P        Process to operate on.
    --  @param Length   Length to bump to.
@@ -817,7 +807,6 @@ private
       Thread_List     : Thread_Arr;
       File_Table      : File_Arr_Acc;
       Common_Map      : Memory.MMU.Page_Table_Acc;
-      Stack_Base      : Unsigned_64;
       Alloc_Base      : Unsigned_64;
       Perms           : MAC.Context;
       Signal_Exit     : Boolean;

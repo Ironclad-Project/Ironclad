@@ -86,10 +86,6 @@ begin
    declare
       Cmdline : String renames Arch.Cmdline (1 .. Arch.Cmdline_Len);
    begin
-      if CL.Is_Key_Present (Cmdline, CL.No_Program_ASLR) then
-         Messages.Put_Line ("Disabled loader ASLR");
-         Userland.Loader.Disable_ASLR;
-      end if;
       if CL.Is_Key_Present (Cmdline, CL.No_Location_ASLR) then
          Messages.Put_Line ("Disabled process ASLR");
          Userland.Process.Disable_ASLR;

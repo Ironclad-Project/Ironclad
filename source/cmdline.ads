@@ -24,8 +24,7 @@ package Cmdline is
    Root_UUID_Key    : constant String := "rootuuid";   --  UUID to use as /.
    Init_Key         : constant String := "init";       --  Init to load.
    Init_Arg_Key     : constant String := "initargs";   --  init's arguments.
-   No_Program_ASLR  : constant String := "noprogaslr"; --  Program ASLR.
-   No_Location_ASLR : constant String := "nolocaslr";  --  Location ASLR.
+   No_Location_ASLR : constant String := "noaslr";  --  Location ASLR.
 
    --  Get the value of a key.
    --  @param Cmdline Command line to search in.

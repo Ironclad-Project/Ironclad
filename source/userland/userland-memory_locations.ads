@@ -1,5 +1,5 @@
 --  userland-memorylocations.ads: Notable memory ranges for userland locations.
---  Copyright (C) 2021 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -15,22 +15,8 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package Userland.Memory_Locations is
-   --  These are locations in memory for processes that the kernel will use to
-   --  load programs at.
-   --  All of these addresses are bound to be randomized between the Min and
-   --  Max boundaries. When randomization is disabled, the kernel defaults to
-   --  the Min boundary.
-
    --  We start at 2M and not 0 or 16#1000# to make userland and kernel null
    --  dereferences properly trigger page faults, even when accessed as offsets
    --  in a (reasonably sized) struct.
-
-   Offset_Min     : constant := 16#00000200000#; -- Whole program offset.
-   Offset_Max     : constant := 16#00010000000#;
-   LD_Offset_Min  : constant := 16#00060000000#; --  ELF LD payload.
-   LD_Offset_Max  : constant := 16#000F0000000#;
-   Mmap_Anon_Min  : constant := 16#10000000000#; --  MAP_ANON style things.
-   Mmap_Anon_Max  : constant := 16#F0000000000#;
-   Stack_Jump_Min : constant := 16#10000000000#; --  Jump from prev MAP_ANON.
-   Stack_Jump_Max : constant := 16#20000000000#;
+   Min_Memory_Offset : constant := 16#200000#;
 end Userland.Memory_Locations;

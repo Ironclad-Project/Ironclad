@@ -22,6 +22,7 @@ with Arch.Clocks;
 with Cryptography.Random;
 with Userland.Memory_Locations;
 with IPC.FileLock;
+with Arch.MMU;
 
 package body Userland.Process with SPARK_Mode => Off is
    procedure Free is new Ada.Unchecked_Deallocation
@@ -117,7 +118,6 @@ package body Userland.Process with SPARK_Mode => Off is
                 Thread_List     => [others => Error_TID],
                 File_Table => new File_Arr'[others => (False, False, null)],
                 Common_Map      => null,
-                Stack_Base      => 0,
                 Alloc_Base      => 0,
                 Perms           => MAC.Default_Context,
                 Signal_Exit     => False,
@@ -139,7 +139,6 @@ package body Userland.Process with SPARK_Mode => Off is
                Registry (I).Masked_Signals  := Registry (P).Masked_Signals;
                Registry (I).Controlling_TTY := Registry (P).Controlling_TTY;
                Registry (I).Parent          := Parent;
-               Registry (I).Stack_Base      := Registry (P).Stack_Base;
                Registry (I).Alloc_Base      := Registry (P).Alloc_Base;
                Registry (I).Current_Dir_FS  := Registry (P).Current_Dir_FS;
                Registry (I).Current_Dir_Ino := Registry (P).Current_Dir_Ino;
@@ -394,29 +393,34 @@ package body Userland.Process with SPARK_Mode => Off is
 
    procedure Reassign_Process_Addresses (Process : PID) is
       package Aln is new Alignment (Unsigned_64);
-      Rand_Addr, Rand_Jump : Unsigned_64;
+      Rand_Addr : Unsigned_64;
    begin
-      --  Reassign the memory addresses.
+      --  Reassign the bump memory allocator address for userland.
+      --  We have to do it based on the amount of levels present, since more
+      --  levels means more available virtual memory, and thus more entropy
+      --  bits.
       if Do_ASLR then
-         Cryptography.Random.Get_Integer
-            (Memory_Locations.Mmap_Anon_Min,
-             Memory_Locations.Mmap_Anon_Max,
-             Rand_Addr);
-         Cryptography.Random.Get_Integer
-            (Memory_Locations.Stack_Jump_Min,
-             Memory_Locations.Stack_Jump_Max,
-             Rand_Jump);
-
+         case Arch.MMU.Paging_Levels is
+            when Arch.MMU.Three_Level_Paging =>
+               Cryptography.Random.Get_Integer
+                  (Userland.Memory_Locations.Min_Memory_Offset,
+                   16#80000000#, Rand_Addr);
+            when Arch.MMU.Four_Level_Paging =>
+               Cryptography.Random.Get_Integer
+                  (Userland.Memory_Locations.Min_Memory_Offset,
+                   16#F0000000000#, Rand_Addr);
+            when Arch.MMU.Five_Level_Paging =>
+               Cryptography.Random.Get_Integer
+                  (Userland.Memory_Locations.Min_Memory_Offset,
+                   16#F0000000000000#, Rand_Addr);
+         end case;
          Rand_Addr := Aln.Align_Up (Rand_Addr, Memory.MMU.Page_Size);
-         Rand_Jump := Aln.Align_Up (Rand_Jump, Memory.MMU.Page_Size);
       else
-         Rand_Addr := Memory_Locations.Mmap_Anon_Min;
-         Rand_Jump := Memory_Locations.Stack_Jump_Min;
+         Rand_Addr := Memory_Locations.Min_Memory_Offset;
       end if;
 
       Synchronization.Seize (Registry (Process).Data_Mutex);
       Registry (Process).Alloc_Base := Rand_Addr;
-      Registry (Process).Stack_Base := Rand_Addr + Rand_Jump;
       Synchronization.Release (Registry (Process).Data_Mutex);
 
       --  Reassign signal information.
@@ -737,21 +741,6 @@ package body Userland.Process with SPARK_Mode => Off is
       when Constraint_Error =>
          Map := null;
    end Get_Common_Map;
-
-   procedure Bump_Stack_Base
-      (P        : PID;
-       Length   : Unsigned_64;
-       Previous : out Unsigned_64)
-   is
-   begin
-      Synchronization.Seize (Registry (P).Data_Mutex);
-      Previous := Registry (P).Stack_Base;
-      Registry (P).Stack_Base := Previous + Length;
-      Synchronization.Release (Registry (P).Data_Mutex);
-   exception
-      when Constraint_Error =>
-         Previous := 0;
-   end Bump_Stack_Base;
 
    procedure Get_Traced_Info
       (Process   : PID;

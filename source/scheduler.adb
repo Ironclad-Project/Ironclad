@@ -161,7 +161,7 @@ package body Scheduler with SPARK_Mode => Off is
       end if;
 
       --  Initialize thread state. Start by mapping the user stack.
-      Userland.Process.Bump_Stack_Base (Proc, Stack_Size, Stack_Top);
+      Userland.Process.Bump_Alloc_Base (Proc, Stack_Size, Stack_Top);
       Memory.MMU.Map_Allocated_Range
          (Map           => Map,
           Virtual_Start => To_Address (Virtual_Address (Stack_Top)),
@@ -656,7 +656,7 @@ package body Scheduler with SPARK_Mode => Off is
             return;
          end if;
       else
-         Userland.Process.Bump_Stack_Base (Proc, Stack_Size, Stack_Top);
+         Userland.Process.Bump_Alloc_Base (Proc, Stack_Size, Stack_Top);
          Memory.MMU.Map_Allocated_Range
             (Map           => Map,
              Virtual_Start => To_Address (Virtual_Address (Stack_Top)),

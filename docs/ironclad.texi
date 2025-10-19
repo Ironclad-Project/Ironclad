@@ -346,14 +346,10 @@ Arguments to pass to init. If environment variables are what is desired,
 consider the trick of booting in typical UNIX fashion
 @code{/bin/env <vars> <init command>}.
 
-@item noprogaslr
-The offset of loaded programs in virtual memory is randomized when loading if
-possible, this option disables it system-wide at boot time and hardcodes it to
-the lowest available value.
-
-@item nolocaslr
-The same as @code{noprogaslr} but applied to memory locations like stacks
-and memory allocation.
+@item noaslr
+If possible, the offset of loaded programs in virtual memory is randomized when
+loading if possible, alongside stacks, memory mappings, and the like. This
+option disables it system-wide.
 @end table
 
 @node Scheduling and RTC
@@ -591,7 +587,8 @@ will be randomized on load time following
 and must not be relied upon. It is up to @code{ld.so} to optionally place
 additionally loaded libraries at random offsets.
 
-The stack is a fixed @code{128 KiB} in size, and is not executable, by default.
+The stack size is not specified as part of defined kernel behaviour, and is not
+executable by default.
 
 @node Auxiliary vectors
 @section Auxiliary vectors

@@ -22,21 +22,11 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Memory; use Memory;
 with Userland.ELF; use Userland.ELF;
 with Scheduler; use Scheduler;
-with Userland.Memory_Locations;
-with Alignment;
-with Cryptography.Random;
 with Devices;
 with Userland.MAC; use Userland.MAC;
 
 package body Userland.Loader is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
-
-   Do_ASLR : Boolean := True;
-
-   procedure Disable_ASLR is
-   begin
-      Do_ASLR := False;
-   end Disable_ASLR;
 
    procedure Start_Program
       (Exec_Path   : String;
@@ -177,8 +167,6 @@ package body Userland.Loader is
        Proc        : PID;
        Success     : out Boolean)
    is
-      package Aln is new Alignment (Unsigned_64);
-
       Loaded_ELF, LD_ELF : ELF.Parsed_ELF;
       Entrypoint   : Virtual_Address;
       Base_Slide   : Unsigned_64;
@@ -191,22 +179,9 @@ package body Userland.Loader is
       Returned_TID : Scheduler.TID;
       Table        : Memory.MMU.Page_Table_Acc;
    begin
-      --  Calculate the binary slides.
-      if Do_ASLR then
-         Cryptography.Random.Get_Integer
-            (Memory_Locations.Offset_Min,
-             Memory_Locations.LD_Offset_Max,
-             Base_Slide);
-         Cryptography.Random.Get_Integer
-            (Memory_Locations.LD_Offset_Min,
-             Memory_Locations.LD_Offset_Max,
-             LD_Slide);
-         Base_Slide := Aln.Align_Down (Base_Slide, Memory.MMU.Page_Size);
-         LD_Slide   := Aln.Align_Down (LD_Slide,   Memory.MMU.Page_Size);
-      else
-         Base_Slide := Memory_Locations.Offset_Min;
-         LD_Slide   := Memory_Locations.LD_Offset_Min;
-      end if;
+      --  Reserve space for the linker and base program.
+      Bump_Alloc_Base (Proc, 16#C000000#, Base_Slide);
+      Bump_Alloc_Base (Proc, 16#C000000#, LD_Slide);
 
       --  Load the executable.
       Process.Get_Common_Map (Proc, Table);
