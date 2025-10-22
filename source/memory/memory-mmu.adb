@@ -780,14 +780,17 @@ package body Memory.MMU with SPARK_Mode => Off is
                      if Perms.User_Flag then
                         Physical.User_Free (Memory_Offset + A);
                      end if;
-                     Success := True;
-                     return;
+                     goto Iter_End;
                end case;
+
                Global_Table_Usage := Global_Table_Usage - PML_Sz;
                Memory.Physical.Free (Interfaces.C.size_t (A));
+            <<Iter_End>>
             end if;
          end;
       end loop;
+
+      Success := True;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while deleting page tables");
