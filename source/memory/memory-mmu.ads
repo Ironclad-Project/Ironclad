@@ -196,6 +196,7 @@ package Memory.MMU is
 private
 
    type PML is array (1 .. 512) of Unsigned_64 with Size => 512 * 64;
+   type Variable_PML is array (Natural range <>) of Unsigned_64;
    type PML_Acc is access PML;
    type Page_Table is record
       Top_Level : PML;
@@ -217,4 +218,17 @@ private
 
    function Idx_To_Addr (Idx_5, Idx_4, Idx_3, Idx_2, Idx_1 : Positive)
       return Integer_Address;
+
+   procedure Clone_Level
+      (Idx_5, Idx_4, Idx_3, Idx_2 : Positive;
+       Current_Level : Variable_PML;
+       Current_Depth : Positive;
+       Target : Page_Table_Acc;
+       Success : out Boolean);
+
+   procedure Destroy_Level
+      (Current_Level : Variable_PML;
+       Current_Depth : Positive;
+       Map : Page_Table_Acc;
+       Success : out Boolean);
 end Memory.MMU;
