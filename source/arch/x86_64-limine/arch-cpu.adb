@@ -24,6 +24,7 @@ with Arch.Snippets;
 with Arch.Context;
 with System; use System;
 with Memory;
+with Messages;
 
 package body Arch.CPU with SPARK_Mode => Off is
    type Interrupt_Stack is array (1 .. Memory.Kernel_Stack_Size) of Unsigned_8;
@@ -249,10 +250,15 @@ package body Arch.CPU with SPARK_Mode => Off is
             Arch.Snippets.Disable_Userland_Memory_Access;
             Global_Use_SMAP := True;
          end if;
-         if (EDX and Shift_Left (1, 20)) /= 0 then
-            Snippets.Write_MSR (UCET_MSR, 2#100#); --  Enable just IBT.
-            Snippets.Write_MSR (SCET_MSR, 2#100#); --  Enable just IBT.
-         end if;
+
+         --  FIXME: Uncommenting this makes the system crash either in the
+         --  kernel IBT checks or the user IBT checks, these have to be fixed.
+         --  Hopefully once Linux 6.18 releases so IBT works under KVM QEMU.
+         --  if (EDX and Shift_Left (1, 20)) /= 0 then
+         --     CR4 := CR4 or Shift_Left (1, 23); --  Enable CET.
+         --     Snippets.Write_MSR (UCET_MSR, 2#100#); --  Enable just IBT.
+         --     Snippets.Write_MSR (SCET_MSR, 2#100#); --  Enable just IBT.
+         --  end if;
       end if;
 
       --  Check XSAVE support.

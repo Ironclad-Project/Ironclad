@@ -18,6 +18,7 @@
 
 .global memcpy
 memcpy:
+    endbr64
     mov %rdx, %rcx
     mov %rdi, %rax
     rep movsb
@@ -25,6 +26,7 @@ memcpy:
 
 .global memset
 memset:
+    endbr64
     push %rdi
     mov %rsi, %rax
     mov %rdx, %rcx
@@ -34,6 +36,7 @@ memset:
 
 .global memmove
 memmove:
+    endbr64
     mov %rdx, %rcx
     mov %rdi, %rax
 
@@ -53,6 +56,7 @@ memmove:
 
 .global memcmp
 memcmp:
+    endbr64
     mov %rdx, %rcx
     repe cmpsb
     je 2f
