@@ -32,6 +32,9 @@ package Arch.SBI is
    --  Result is a JEDEC ID or 0.
    procedure Get_Vendor_ID (Result : out Unsigned_64; Success : out Boolean);
 
+   --  Write to console.
+   procedure Console_Write (Message : String; Success : out Boolean);
+
 private
 
    SBI_SUCCESS             : constant := 0;

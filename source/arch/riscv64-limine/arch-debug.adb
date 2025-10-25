@@ -16,27 +16,27 @@
 
 with Ada.Unchecked_Conversion;
 with Interfaces; use Interfaces;
-with Devices.UART;
+with Arch.SBI;
 with Arch.Flanterm;
 
 package body Arch.Debug with SPARK_Mode => Off is
    procedure Read (Message : out Devices.Operation_Data) is
    begin
-      for C of Message loop
-         C := Devices.UART.Read_UART0;
-      end loop;
+      null;
    end Read;
 
    procedure Print (Message : Character) is
+      Discard : Boolean;
    begin
       Arch.Flanterm.Put (Message);
-      Devices.UART.Write_UART0 (Message);
+      Arch.SBI.Console_Write ([Message], Discard);
    end Print;
 
    procedure Print (Message : String) is
+      Discard : Boolean;
    begin
       Arch.Flanterm.Put (Message);
-      Devices.UART.Write_UART0 (Message);
+      Arch.SBI.Console_Write (Message, Discard);
    end Print;
 
    procedure Print (Message : Devices.Operation_Data) is

@@ -14,7 +14,6 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Devices.UART;
 with Devices.FB;
 with Arch.Flanterm;
 with Arch.Limine;
@@ -88,7 +87,6 @@ package body Arch.Entrypoint is
          end if;
 
          --  Enable dmesg buffers.
-         Devices.UART.Init_UART0;
          Devices.FB.Early_Init;
          Arch.Flanterm.Init;
          Messages.Enable_Logging;

@@ -16,10 +16,12 @@
 
 with System.Machine_Code;
 with Arch.Clocks;
+with Memory;
 
-package body Arch.SBI is
+package body Arch.SBI with SPARK_Mode => Off is
    Base_Extension_EID : constant := 16#10#;
    Time_Extension_EID : constant := 16#54494D45#;
+   Debug_Console_EID  : constant := 16#4442434E#;
 
    procedure Is_Present (Success : out Boolean) is
    begin
@@ -96,6 +98,28 @@ package body Arch.SBI is
           Arg2         => 0);
       Success := Error = SBI_SUCCESS;
    end Get_Vendor_ID;
+
+   procedure Console_Write (Message : String; Success : out Boolean) is
+      Result, Error : Unsigned_64;
+      Addr : Unsigned_64 := Unsigned_64 (To_Integer (Message'Address));
+   begin
+      if Addr > Memory.Memory_Offset then
+         Addr := Addr - Memory.Memory_Offset;
+      end if;
+
+      SBI_ECall
+         (Extension_ID => Debug_Console_EID,
+          Function_ID  => 0,
+          Result       => Result,
+          Error        => Error,
+          Arg0         => Message'Length,
+          Arg1         => Addr,
+          Arg2         => 0);
+      Success := Error = SBI_SUCCESS;
+   exception
+      when Constraint_Error =>
+         Success := False;
+   end Console_Write;
    ----------------------------------------------------------------------------
    procedure SBI_ECall
      (Extension_ID : Unsigned_64;
