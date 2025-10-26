@@ -40,6 +40,7 @@ package body Memory.Physical with SPARK_Mode => Off is
    end record;
 
    procedure Init_Allocator (Memmap : Arch.Boot_Memory_Map) is
+      package Align is new Alignment (Memory.Size);
       Adjusted_Length : Storage_Count  := 0;
       Adjusted_Start  : System.Address := System.Null_Address;
    begin
@@ -52,6 +53,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       Available_Memory := Free_Memory;
       Total_Memory     := Size (To_Integer (Memmap (Memmap'Last).Start +
                                 Memmap (Memmap'Last).Length));
+      Total_Memory := Align.Align_Down (Total_Memory, Block_Size);
 
       --  Calculate what we will need for the bitmap, and find a hole for it.
       Block_Count   := Unsigned_64 (Total_Memory) / Block_Size;
@@ -75,7 +77,6 @@ package body Memory.Physical with SPARK_Mode => Off is
          Bitmap_Body : Bitmap (0 .. Block_Count - 1) with Import;
          for Bitmap_Body'Address use To_Address (Bitmap_Address);
          Index : Unsigned_64 := 0;
-         Block_Value : Boolean;
          Block_Start, Block_Length : Unsigned_64;
       begin
          for Item of Bitmap_Body loop
@@ -84,23 +85,20 @@ package body Memory.Physical with SPARK_Mode => Off is
 
          for E of Memmap loop
             if E.MemType = Arch.Memory_Free then
-               Block_Value := Block_Free;
-            else
-               Block_Value := Block_Used;
-            end if;
+               if E.Start = To_Address (Bitmap_Address - Memory_Offset) then
+                  Block_Start  := Unsigned_64 (To_Integer (Adjusted_Start));
+                  Block_Length := Unsigned_64 (Adjusted_Length);
+               else
+                  Block_Start  := Unsigned_64 (To_Integer (E.Start));
+                  Block_Length := Unsigned_64 (E.Length);
+               end if;
 
-            if E.Start = To_Address (Bitmap_Address - Memory_Offset) then
-               Block_Start  := Unsigned_64 (To_Integer (Adjusted_Start));
-               Block_Length := Unsigned_64 (Adjusted_Length);
-            else
-               Block_Start  := Unsigned_64 (To_Integer (E.Start));
-               Block_Length := Unsigned_64 (E.Length);
+               while Index < Block_Length loop
+                  Bitmap_Body ((Block_Start + Index) / Block_Size) :=
+                     Block_Free;
+                  Index := Index + Block_Size;
+               end loop;
             end if;
-
-            while Index < Block_Length loop
-               Bitmap_Body ((Block_Start + Index) / Block_Size) := Block_Value;
-               Index := Index + Block_Size;
-            end loop;
          end loop;
       end;
    exception
