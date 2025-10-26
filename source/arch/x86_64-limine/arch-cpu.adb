@@ -24,7 +24,6 @@ with Arch.Snippets;
 with Arch.Context;
 with System; use System;
 with Memory;
-with Messages;
 
 package body Arch.CPU with SPARK_Mode => Off is
    type Interrupt_Stack is array (1 .. Memory.Kernel_Stack_Size) of Unsigned_8;
@@ -211,8 +210,8 @@ package body Arch.CPU with SPARK_Mode => Off is
       STAR_MSR  : constant := 16#C0000081#;
       LSTAR_MSR : constant := 16#C0000082#;
       FMASK_MSR : constant := 16#C0000084#;
-      UCET_MSR  : constant := 16#000006A0#;
-      SCET_MSR  : constant := 16#000006A2#;
+      --  UCET_MSR  : constant := 16#000006A0#;
+      --  SCET_MSR  : constant := 16#000006A2#;
 
       CR0   : Unsigned_64 := Snippets.Read_CR0;
       CR4   : Unsigned_64 := Snippets.Read_CR4;
