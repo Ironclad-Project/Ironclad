@@ -20,6 +20,7 @@ with Memory.Physical;
 with Panic;
 with Messages;
 with Arch.MMU; use Arch.MMU;
+with Arch; use Arch;
 
 package body Memory.MMU with SPARK_Mode => Off is
    --  Global statistics.
@@ -90,19 +91,21 @@ package body Memory.MMU with SPARK_Mode => Off is
          end;
       end loop;
 
-      --  Map the memmap memory to the memory window.
+      --  Map the usable and bootloader memmap memory to the memory window.
       for E of Memmap loop
-         Map_Range
-            (Map            => Kernel_Table,
-             Physical_Start => To_Address (To_Integer (E.Start)),
-             Virtual_Start  => To_Address (To_Integer (E.Start) +
-                                           Memory_Offset),
-             Length         => Storage_Offset (E.Length),
-             Permissions    => NX_Flags,
-             Caching        => Arch.MMU.Write_Back,
-             Success        => Success);
-         if not Success then
-            return;
+         if E.MemType = Memory_Bootloader or else E.MemType = Memory_Free then
+            Map_Range
+               (Map            => Kernel_Table,
+                Physical_Start => E.Start,
+                Virtual_Start  => To_Address (To_Integer (E.Start) +
+                                              Memory_Offset),
+                Length         => Storage_Offset (E.Length),
+                Permissions    => NX_Flags,
+                Caching        => Arch.MMU.Write_Back,
+                Success        => Success);
+            if not Success then
+               return;
+            end if;
          end if;
       end loop;
 

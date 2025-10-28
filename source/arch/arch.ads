@@ -18,13 +18,17 @@ with System;
 with System.Storage_Elements; use System.Storage_Elements;
 
 package Arch is
-   --  Memory map for the kernel, it must be sorted and have no gaps.
+   --  Physical memory map of the system. It is guaranteed to be sorted from
+   --  lowest to highest memory region.
+   --  Usable and Bootloader-reclaimable entries are aligned to page size, for
+   --  other types of entries, guarantees of alignment are not done.
    type Boot_Memory_Type is
       (Memory_Free,             --  Memory free for use by the allocators.
        Memory_Reserved,         --  MMIO addresses or memory tables or w/e.
        Memory_Kernel,           --  Kernel or RAM files.
        Memory_ACPI_Reclaimable, --  Area used by ACPI that can be reclaimed.
-       Memory_ACPI_NVS);        --  ACPI flash we cannot use for our interests.
+       Memory_ACPI_NVS,         --  ACPI flash we cannot use for our interests.
+       Memory_Bootloader);      --  Bootloader memory for stacks and such.
 
    type Boot_Memory_Region is record
       Start   : System.Address;

@@ -68,6 +68,8 @@ package body Arch.Entrypoint is
                   Type_Entry := Memory_ACPI_NVS;
                when Limine.LIMINE_MEMMAP_KERNEL_AND_MODS =>
                   Type_Entry := Memory_Kernel;
+               when Limine.LIMINE_MEMMAP_BOOTLOADER_RECL =>
+                  Type_Entry := Memory_Bootloader;
                when others =>
                   Type_Entry := Memory_Reserved;
             end case;

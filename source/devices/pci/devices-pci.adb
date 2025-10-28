@@ -659,8 +659,23 @@ package body Devices.PCI with SPARK_Mode => Off is
          Arch.ACPI.Unref_Table (ACPI_Address);
       end;
 
-      Is_Initialized := True;
-      Success := True;
+      --  FIXME: Each segment is a maximum of 256 MiB so we can just map that.
+      --  However this only maps the first segment.
+      Memory.MMU.Map_Range
+         (Map            => Memory.MMU.Kernel_Table,
+          Physical_Start => To_Address (Integer_Address (PCIe_ECAM_Start)),
+          Virtual_Start  => To_Address (Integer_Address
+            (PCIe_ECAM_Start + Memory_Offset)),
+          Length         => 16#10000000#,
+          Permissions    =>
+            (Is_User_Accessible => False,
+             Can_Read           => True,
+             Can_Write          => True,
+             Can_Execute        => False,
+             Is_Global          => True),
+          Caching        => Arch.MMU.Uncacheable,
+          Success        => Success);
+      Is_Initialized := Success;
    end Ensure_Initialized;
 
    function Get_ECAM_Addr (Bus, Slot, Func : Unsigned_8) return Unsigned_64 is
@@ -734,25 +749,6 @@ package body Devices.PCI with SPARK_Mode => Off is
       Result.Bus  := Bus;
       Result.Slot := Slot;
       Result.Func := Func;
-
-      --  Map the ECAM address.
-      Addr := Integer_Address (Get_ECAM_Addr (Bus, Slot, Func));
-      Memory.MMU.Map_Range
-         (Map            => Memory.MMU.Kernel_Table,
-          Physical_Start => To_Address (Addr),
-          Virtual_Start  => To_Address (Memory.Memory_Offset + Addr),
-          Length         => 4096,
-          Permissions    =>
-            (Is_User_Accessible => False,
-             Can_Read           => True,
-             Can_Write          => True,
-             Can_Execute        => False,
-             Is_Global          => True),
-          Success       => Success,
-          Caching       => Arch.MMU.Uncacheable);
-      if not Success then
-         return;
-      end if;
 
       --  Read additional data and fill the device record.
       Read32 (Result, 0, Config0);

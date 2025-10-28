@@ -23,7 +23,7 @@ package body Arch.Limine is
    Base_Request : Limine.Base_Revision :=
       (ID_1     => 16#f9562b2d5c95a6c8#,
        ID_2     => 16#6a7b384944536bdc#,
-       Revision => 3)
+       Revision => 4)
       with Export;
 
    Bootloader_Info_Request : Request :=

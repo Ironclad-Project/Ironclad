@@ -57,8 +57,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
    procedure Get_Revision (Revision : out Natural) is
       RSDPonse : Limine.RSDP_Response
          with Import, Address => RSDP_Request.Response;
-      R : RSDP with Import, Address =>
-         To_Address (To_Integer (RSDPonse.Addr) + Memory.Memory_Offset);
+      R : RSDP with Import, Address => To_Address (To_Integer (RSDPonse.Addr));
    begin
       Revision := Natural (R.Revision);
    end Get_Revision;
@@ -190,7 +189,7 @@ package body Arch.ACPI with SPARK_Mode => Off is
       RSDPonse : Limine.RSDP_Response
          with Import, Address => RSDP_Request.Response;
    begin
-      Addr.all := Unsigned_64 (To_Integer (RSDPonse.Addr));
+      Addr.all := Unsigned_64 (To_Integer (RSDPonse.Addr) - Memory_Offset);
       return Status_OK;
    exception
       when Constraint_Error =>
