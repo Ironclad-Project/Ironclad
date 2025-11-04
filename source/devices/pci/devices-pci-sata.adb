@@ -14,7 +14,7 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-with Scheduler;
+with Arch.Snippets;
 with System.Address_To_Access_Conversions;
 with System.Storage_Elements; use System.Storage_Elements;
 with Messages;
@@ -182,7 +182,7 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
       Tmp      := To_Integer  (Identify.all'Address);
       Tmp2     := Unsigned_64 (Tmp - Memory.Memory_Offset);
       Dev_Data := new SATA_Data'
-         (Mutex         => Synchronization.Unlocked_Mutex,
+         (Mutex         => Synchronization.Unlocked_Semaphore,
           FIS           => Port_FIS,
           Command_Area  => Cmd_Area,
           Command_TBLs  => Cmd_TBLs,
@@ -239,7 +239,6 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
       Tmp     : Integer_Address;
       Slot    : Natural;
       FIS_Ptr : C3.Object_Pointer;
-      Spin    : Natural;
       Tmp3    : Unsigned_32;
    begin
       --  Make sure we are not going to do all of this for an LBA that does not
@@ -254,7 +253,7 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
       loop
          Slot := Find_Command_Slot (Drive.Port_Data);
          exit when Slot /= 0;
-         Scheduler.Yield_If_Able;
+         Arch.Snippets.Pause;
       end loop;
 
       Tmp := (FIS_Host_To_Device'Size / 8) / 4;
@@ -301,28 +300,12 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
 
       --  Wait for completion of the port, we dont want to issue commands
       --  while busy.
-      Spin := 0;
       Tmp3 := ATA_Device_Busy or ATA_Device_DRQ;
-      loop
-         if (Drive.Port_Data.Task_File_Data and Tmp3) = 0 then
-            exit;
-         end if;
-
-         if Spin >= 1_000 then
-            goto Failure_Cleanup;
-         end if;
-
-         Spin := Spin + 1;
-         Scheduler.Yield_If_Able;
+      while (Drive.Port_Data.Task_File_Data and Tmp3) /= 0 loop
+         Arch.Snippets.Pause;
       end loop;
 
-      --  Issue the command.
-      Drive.Port_Data.Command_Issue := Shift_Left (1, Slot - 1);
-
-      --  Unlock for other commands.
-      Synchronization.Release (Drive.Mutex);
-
-      --  Poll for success.
+      --  Issue the command and poll for success.
       Drive.Port_Data.Command_Issue := Shift_Left (1, Slot - 1);
       loop
          if (Drive.Port_Data.Command_Issue and Shift_Left (1, Slot - 1)) = 0
@@ -333,15 +316,12 @@ package body Devices.PCI.SATA with SPARK_Mode => Off is
          if (Drive.Port_Data.Interrupt_Status and Shift_Left (1, 30)) /= 0 then
             return False;
          end if;
-
-         Scheduler.Yield_If_Able;
+         Arch.Snippets.Pause;
       end loop;
 
-      return True;
-
-   <<Failure_Cleanup>>
+      --  Unlock for other commands.
       Synchronization.Release (Drive.Mutex);
-      return False;
+      return True;
    exception
       when Constraint_Error =>
          return False;
