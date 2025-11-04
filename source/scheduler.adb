@@ -832,10 +832,15 @@ package body Scheduler with SPARK_Mode => Off is
       Timeout     : Natural;
       Curr        : Time.Timestamp;
       Count       : Unsigned_32;
+      Did_Seize : Boolean;
    begin
       Arch.Clocks.Get_Monotonic_Time (Curr);
 
-      Synchronization.Seize (Scheduler_Mutex);
+      Synchronization.Try_Seize (Scheduler_Mutex, Did_Seize);
+      if not Did_Seize then
+         Arch.Local.Reschedule_In (Fast_Reschedule_Micros);
+         return;
+      end if;
 
       --  Adjust the moving stats if at least a minute has passed since
       --  last poll.

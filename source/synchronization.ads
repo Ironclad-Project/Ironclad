@@ -28,6 +28,13 @@ package Synchronization is
    --  Value to initialize semaphores with.
    Unlocked_Semaphore : constant Binary_Semaphore;
 
+   --  Try to lock a semaphore, and return whether it was successfully locked.
+   --  @param Lock Semaphore to lock.
+   --  @param Success True if success at locking.
+   procedure Try_Seize
+      (Lock : aliased in out Binary_Semaphore;
+       Success : out Boolean);
+
    --  Lock a semaphore.
    --  When entering this routine, if interrupts are enabled, they will be
    --  disabled.

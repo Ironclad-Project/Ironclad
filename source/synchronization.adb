@@ -22,6 +22,21 @@ with Scheduler;
 package body Synchronization with SPARK_Mode => Off is
    pragma Suppress (All_Checks); --  Checks are too expensive in this paths.
 
+   procedure Try_Seize
+      (Lock : aliased in out Binary_Semaphore;
+       Success : out Boolean)
+   is
+      Ints : constant Boolean := Arch.Snippets.Interrupts_Enabled;
+   begin
+      Arch.Snippets.Disable_Interrupts;
+      Success := not Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire);
+      if Success then
+         Lock.Were_Interrupts_Enabled := Ints;
+      elsif Ints then
+         Arch.Snippets.Enable_Interrupts;
+      end if;
+   end Try_Seize;
+
    procedure Seize (Lock : aliased in out Binary_Semaphore) is
       Ints : constant Boolean := Arch.Snippets.Interrupts_Enabled;
    begin
