@@ -284,9 +284,10 @@ SBI support is required for Ironclad to properly work, other facilities like
 ACPI are optional. SV39, SV48, and SV57 paging modes are supported,
 with the system defaulting to SV57 if available.
 
-For an example of RISC-V based deployment, check the boot sequence of
-@uref{https://codeberg.org/Ironclad/Gloire, Gloire}, a FOSS Ironclad
-distribution.
+Early debugging info is printed through SBI, which you will need to connect
+to. Most boards use UART for this, like the MilkV Jupiter board, which can
+have its UART connected and have early kernel logs read with
+@code{screen /dev/<serial device> 115200}.
 
 @node x86_64-limine support
 @section x86_64-limine support
