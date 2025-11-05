@@ -20,7 +20,6 @@ pragma Unreferenced (Arch.Entrypoint);
 pragma Unreferenced (Runtime);
 
 with Arch;
-with Arch.Hooks;
 with Arch.ACPI;
 with Devices; use Devices;
 with VFS; use VFS;
@@ -72,9 +71,6 @@ begin
    Devices.Init;
    VFS.Init;
    Virtualization.Initialize;
-
-   --  Now that all services are up, run thru some errands.
-   Arch.Hooks.Register_RAM_Files;
 
    --  Initialize the scheduler.
    Scheduler.Init (Found);

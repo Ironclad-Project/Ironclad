@@ -37,13 +37,6 @@ package Arch is
    end record;
    type Boot_Memory_Map is array (Natural range <>) of Boot_Memory_Region;
 
-   --  Some targets may provide RAM files for roots or other purposes.
-   type Boot_RAM_File is record
-      Start  : System.Address;
-      Length : Storage_Count;
-   end record;
-   type Boot_RAM_Files is array (Natural range <>) of Boot_RAM_File;
-
    --  Cmdline of the kernel.
    Cmdline_Len : Natural := 0;
    Cmdline     : String (1 .. 256) := [others => ' '];

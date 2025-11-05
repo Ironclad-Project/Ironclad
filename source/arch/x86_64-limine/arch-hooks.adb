@@ -15,7 +15,6 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Arch.Flanterm;
-with System; use System;
 with Devices.FB;
 with Devices.PS2;
 with Devices.PC_Speaker;
@@ -25,9 +24,6 @@ with Arch.Snippets; use Arch.Snippets;
 with Arch.CPU; use Arch.CPU;
 with Arch.APIC;
 with Arch.Interrupts;
-with Messages;
-with Devices.Ramdev;
-with Arch.Limine;
 
 package body Arch.Hooks with SPARK_Mode => Off is
    procedure Devices_Hook (Success : out Boolean) is
@@ -114,41 +110,6 @@ package body Arch.Hooks with SPARK_Mode => Off is
    begin
       return Core_Count;
    end Get_Active_Core_Count;
-
-   --  Response is a pointer to an Modules_Response.
-   Modules_Request : Limine.Request :=
-      (ID       => Limine.Modules_ID,
-       Revision => 0,
-       Response => System.Null_Address)
-      with Export, Async_Writers;
-
-   procedure Register_RAM_Files is
-      Success : Boolean;
-   begin
-      if Modules_Request.Response /= System.Null_Address then
-         declare
-            ModPonse : Limine.Modules_Response
-               with Import, Address => Modules_Request.Response;
-            Inner : constant Limine.Limine_File_Arr (1 .. ModPonse.Mod_Count)
-               with Import, Address => ModPonse.Modules;
-            Translated : Boot_RAM_Files (1 .. Natural (ModPonse.Mod_Count));
-            Idx : Natural := 0;
-         begin
-            for Ent of Inner loop
-               Idx := Idx + 1;
-               Translated (Idx) := (Ent.Address, Storage_Count (Ent.Size));
-            end loop;
-
-            Devices.Ramdev.Init (Translated, Success);
-            if not Success then
-               Messages.Put_Line ("Could not load RAM files");
-            end if;
-         end;
-      end if;
-   exception
-      when Constraint_Error =>
-         Messages.Put_Line ("Errored while loading RAM files");
-   end Register_RAM_Files;
 
    procedure Get_CPU_Model (Model : out String) is
       Success : Boolean;

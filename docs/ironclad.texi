@@ -5128,14 +5128,6 @@ does not read from the debug channels.
 @code{/dev/loopback} is the network loopback device, explained on
 @ref{Loopback}.
 
-@subsection ramdev
-
-The devices starting by @code{ramdev} are virtual devices representing the
-RAM driver passed by some boot protocols, an FS can be mounted to them, or be
-otherwise used like any other block device. These RAM devices are read/write,
-but they cannot grow in size, so changes are constrained to the area the
-RAM device already has allocated.
-
 @subsection random/urandom
 
 The device @code{random} is equivalent to the one featured in other UNIX-like
