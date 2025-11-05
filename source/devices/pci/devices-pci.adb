@@ -22,8 +22,8 @@ with System.Machine_Code;
 with Memory.MMU;
 with Memory; use Memory;
 with Panic;
-with Arch.ACPI;
 with Arch.MMU;
+with Arch.PCI;
 
 package body Devices.PCI with SPARK_Mode => Off is
    --  Maximum number of different PCI entities.
@@ -633,31 +633,19 @@ package body Devices.PCI with SPARK_Mode => Off is
    end List_All;
    ----------------------------------------------------------------------------
    procedure Ensure_Initialized (Success : out Boolean) is
-      ACPI_Address : Arch.ACPI.Table_Record;
+      Addr : System.Address;
    begin
       if Is_Initialized then
          Success := True;
          return;
       end if;
 
-      Success := False;
-
-      if not Arch.ACPI.Is_Supported then
+      Arch.PCI.Fetch_ECAM_Address (Addr);
+      PCIe_ECAM_Start := Unsigned_64 (To_Integer (Addr));
+      if PCIe_ECAM_Start = 0 then
+         Success := False;
          return;
       end if;
-
-      Arch.ACPI.FindTable (Arch.ACPI.MCFG_Signature, ACPI_Address);
-      if ACPI_Address.Virt_Addr = Null_Address then
-         return;
-      end if;
-
-      declare
-         Table : Arch.ACPI.MCFG
-            with Import, Address => To_Address (ACPI_Address.Virt_Addr);
-      begin
-         PCIe_ECAM_Start := Table.Root_ECAM_Addr;
-         Arch.ACPI.Unref_Table (ACPI_Address);
-      end;
 
       --  FIXME: Each segment is a maximum of 256 MiB so we can just map that.
       --  However this only maps the first segment.

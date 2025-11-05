@@ -413,393 +413,391 @@ private
    --  Actual uACPI bindings.
    --  These are in an architecture if-block for architectures that dont
    --  support ACPI to not have to make 30 quintillion stubs.
-   #if ArchName = """x86_64-limine""" or ArchName = """riscv64-limine"""
-      type Status is
-         (Status_OK,
-          Status_Mapping_Failed,
-          Status_Out_Of_Memory,
-          Status_Bad_Checksum,
-          Status_Invalid_Signature,
-          Status_Invalid_Table_Length,
-          Status_Not_Found,
-          Status_Invalid_Argument,
-          Status_Unimplemented,
-          Status_Already_Exists,
-          Status_Internal_Error,
-          Status_Type_Mismatch,
-          Status_Init_Level_Mismatch,
-          Status_Namespace_Node_Dangling,
-          Status_No_Handler,
-          Status_No_Resource_End_Tag,
-          Status_Compiled_Out,
-          Status_Hardware_Timeout,
-          Status_Timeout,
-          Status_Overridden,
-          Status_Denied);
-      for Status use
-         (Status_OK => 0,
-          Status_Mapping_Failed => 1,
-          Status_Out_Of_Memory => 2,
-          Status_Bad_Checksum => 3,
-          Status_Invalid_Signature => 4,
-          Status_Invalid_Table_Length => 5,
-          Status_Not_Found => 6,
-          Status_Invalid_Argument => 7,
-          Status_Unimplemented => 8,
-          Status_Already_Exists => 9,
-          Status_Internal_Error => 10,
-          Status_Type_Mismatch => 11,
-          Status_Init_Level_Mismatch => 12,
-          Status_Namespace_Node_Dangling => 13,
-          Status_No_Handler => 14,
-          Status_No_Resource_End_Tag => 15,
-          Status_Compiled_Out => 16,
-          Status_Hardware_Timeout => 17,
-          Status_Timeout => 18,
-          Status_Overridden => 19,
-          Status_Denied => 20);
-      for Status'Size use 32;
+   type Status is
+      (Status_OK,
+       Status_Mapping_Failed,
+       Status_Out_Of_Memory,
+       Status_Bad_Checksum,
+       Status_Invalid_Signature,
+       Status_Invalid_Table_Length,
+       Status_Not_Found,
+       Status_Invalid_Argument,
+       Status_Unimplemented,
+       Status_Already_Exists,
+       Status_Internal_Error,
+       Status_Type_Mismatch,
+       Status_Init_Level_Mismatch,
+       Status_Namespace_Node_Dangling,
+       Status_No_Handler,
+       Status_No_Resource_End_Tag,
+       Status_Compiled_Out,
+       Status_Hardware_Timeout,
+       Status_Timeout,
+       Status_Overridden,
+       Status_Denied);
+   for Status use
+      (Status_OK => 0,
+       Status_Mapping_Failed => 1,
+       Status_Out_Of_Memory => 2,
+       Status_Bad_Checksum => 3,
+       Status_Invalid_Signature => 4,
+       Status_Invalid_Table_Length => 5,
+       Status_Not_Found => 6,
+       Status_Invalid_Argument => 7,
+       Status_Unimplemented => 8,
+       Status_Already_Exists => 9,
+       Status_Internal_Error => 10,
+       Status_Type_Mismatch => 11,
+       Status_Init_Level_Mismatch => 12,
+       Status_Namespace_Node_Dangling => 13,
+       Status_No_Handler => 14,
+       Status_No_Resource_End_Tag => 15,
+       Status_Compiled_Out => 16,
+       Status_Hardware_Timeout => 17,
+       Status_Timeout => 18,
+       Status_Overridden => 19,
+       Status_Denied => 20);
+   for Status'Size use 32;
 
-      type Sleep_State is
-         (Sleep_S0,
-          Sleep_S1,
-          Sleep_S2,
-          Sleep_S3,
-          Sleep_S4,
-          Sleep_S5);
-      for Sleep_State use
-         (Sleep_S0 => 0,
-          Sleep_S1 => 1,
-          Sleep_S2 => 2,
-          Sleep_S3 => 3,
-          Sleep_S4 => 4,
-          Sleep_S5 => 5);
-      for Sleep_State'Size use 32;
+   type Sleep_State is
+      (Sleep_S0,
+       Sleep_S1,
+       Sleep_S2,
+       Sleep_S3,
+       Sleep_S4,
+       Sleep_S5);
+   for Sleep_State use
+      (Sleep_S0 => 0,
+       Sleep_S1 => 1,
+       Sleep_S2 => 2,
+       Sleep_S3 => 3,
+       Sleep_S4 => 4,
+       Sleep_S5 => 5);
+   for Sleep_State'Size use 32;
 
-      type Log_Level is
-         (Log_Error,
-          Log_Warn,
-          Log_Info,
-          Log_Trace,
-          Log_Debug);
-      for Log_Level use
-         (Log_Error => 1,
-          Log_Warn  => 2,
-          Log_Info  => 3,
-          Log_Trace => 4,
-          Log_Debug => 5);
-      for Log_Level'Size use 32;
+   type Log_Level is
+      (Log_Error,
+       Log_Warn,
+       Log_Info,
+       Log_Trace,
+       Log_Debug);
+   for Log_Level use
+      (Log_Error => 1,
+       Log_Warn  => 2,
+       Log_Info  => 3,
+       Log_Trace => 4,
+       Log_Debug => 5);
+   for Log_Level'Size use 32;
 
-      type Fixed_Event is
-         (Fixed_Event_Timer_Status,
-          Fixed_Event_Power_Button,
-          Fixed_Event_Sleep_Button,
-          Fixed_Event_RTC);
-      for Fixed_Event use
-         (Fixed_Event_Timer_Status => 1,
-          Fixed_Event_Power_Button => 2,
-          Fixed_Event_Sleep_Button => 3,
-          Fixed_Event_RTC          => 4);
-      for Fixed_Event'Size use 32;
+   type Fixed_Event is
+      (Fixed_Event_Timer_Status,
+       Fixed_Event_Power_Button,
+       Fixed_Event_Sleep_Button,
+       Fixed_Event_RTC);
+   for Fixed_Event use
+      (Fixed_Event_Timer_Status => 1,
+       Fixed_Event_Power_Button => 2,
+       Fixed_Event_Sleep_Button => 3,
+       Fixed_Event_RTC          => 4);
+   for Fixed_Event'Size use 32;
 
-      type Interrupt_Model is
-         (Interrupt_Model_PIC,
-          Interrupt_Model_IOAPIC,
-          Interrupt_Model_IOSAPIC);
-      for Interrupt_Model use
-         (Interrupt_Model_PIC     => 0,
-          Interrupt_Model_IOAPIC  => 1,
-          Interrupt_Model_IOSAPIC => 2);
-      for Interrupt_Model'Size use 32;
-      -------------------------------------------------------------------------
-      --  Bindings we provide.
-      function Get_RSDP (Addr : access Unsigned_64) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_get_rsdp";
+   type Interrupt_Model is
+      (Interrupt_Model_PIC,
+       Interrupt_Model_IOAPIC,
+       Interrupt_Model_IOSAPIC);
+   for Interrupt_Model use
+      (Interrupt_Model_PIC     => 0,
+       Interrupt_Model_IOAPIC  => 1,
+       Interrupt_Model_IOSAPIC => 2);
+   for Interrupt_Model'Size use 32;
+   -------------------------------------------------------------------------
+   --  Bindings we provide.
+   function Get_RSDP (Addr : access Unsigned_64) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_get_rsdp";
 
-      procedure Stall (USec : Unsigned_8)
-         with Export, Convention => C, External_Name => "uacpi_kernel_stall";
+   procedure Stall (USec : Unsigned_8)
+      with Export, Convention => C, External_Name => "uacpi_kernel_stall";
 
-      procedure Sleep (MSec : Unsigned_64)
-         with Export, Convention => C, External_Name => "uacpi_kernel_sleep";
+   procedure Sleep (MSec : Unsigned_64)
+      with Export, Convention => C, External_Name => "uacpi_kernel_sleep";
 
-      function Create_Event return System.Address
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_create_event";
+   function Create_Event return System.Address
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_create_event";
 
-      procedure Free_Event (Handle : System.Address)
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_free_event";
+   procedure Free_Event (Handle : System.Address)
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_free_event";
 
-      function Create_Spinlock return System.Address
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_create_spinlock";
+   function Create_Spinlock return System.Address
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_create_spinlock";
 
-      procedure Free_Spinlock (Handle : System.Address)
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_free_spinlock";
+   procedure Free_Spinlock (Handle : System.Address)
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_free_spinlock";
 
-      function Lock_Spinlock (Handle : System.Address) return Unsigned_64
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_lock_spinlock";
+   function Lock_Spinlock (Handle : System.Address) return Unsigned_64
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_lock_spinlock";
 
-      procedure Unlock_Spinlock (Handle : System.Address; Flags : Unsigned_64)
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_unlock_spinlock";
+   procedure Unlock_Spinlock (Handle : System.Address; Flags : Unsigned_64)
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_unlock_spinlock";
 
-      function Alloc (Size : size_t) return System.Address
-         with Export, Convention => C, External_Name => "uacpi_kernel_alloc";
+   function Alloc (Size : size_t) return System.Address
+      with Export, Convention => C, External_Name => "uacpi_kernel_alloc";
 
-      procedure Free (Ptr : System.Address)
-         with Export, Convention => C, External_Name => "uacpi_kernel_free";
+   procedure Free (Ptr : System.Address)
+      with Export, Convention => C, External_Name => "uacpi_kernel_free";
 
-      type PCI_Address is record
-         Segment : Unsigned_16;
-         Bus     : Unsigned_8;
-         Device  : Unsigned_8;
-         Func    : Unsigned_8;
-      end record with Convention => C_Pass_By_Copy, Universal_Aliasing;
+   type PCI_Address is record
+      Segment : Unsigned_16;
+      Bus     : Unsigned_8;
+      Device  : Unsigned_8;
+      Func    : Unsigned_8;
+   end record with Convention => C_Pass_By_Copy, Universal_Aliasing;
 
-      function PCI_Device_Open
-         (Address : PCI_Address;
-          Handle  : access System.Address) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_pci_device_open";
+   function PCI_Device_Open
+      (Address : PCI_Address;
+         Handle  : access System.Address) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_pci_device_open";
 
-      procedure PCI_Device_Close (Handle : System.Address)
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_pci_device_close";
+   procedure PCI_Device_Close (Handle : System.Address)
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_pci_device_close";
 
-      function PCI_Read8
-         (Handle     : System.Address;
-          Offset     : size_t;
-          Value      : out Unsigned_8) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_pci_read8";
+   function PCI_Read8
+      (Handle     : System.Address;
+         Offset     : size_t;
+         Value      : out Unsigned_8) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_pci_read8";
 
-      function PCI_Write8
-         (Handle     : System.Address;
-          Offset     : size_t;
-          Value      : Unsigned_8) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_pci_write8";
+   function PCI_Write8
+      (Handle     : System.Address;
+         Offset     : size_t;
+         Value      : Unsigned_8) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_pci_write8";
 
-      function PCI_Read16
-         (Handle     : System.Address;
-          Offset     : size_t;
-          Value      : out Unsigned_16) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_pci_read16";
+   function PCI_Read16
+      (Handle     : System.Address;
+         Offset     : size_t;
+         Value      : out Unsigned_16) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_pci_read16";
 
-      function PCI_Write16
-         (Handle     : System.Address;
-          Offset     : size_t;
-          Value      : Unsigned_16) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_pci_write16";
+   function PCI_Write16
+      (Handle     : System.Address;
+         Offset     : size_t;
+         Value      : Unsigned_16) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_pci_write16";
 
-      function PCI_Read32
-         (Handle     : System.Address;
-          Offset     : size_t;
-          Value      : out Unsigned_32) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_pci_read32";
+   function PCI_Read32
+      (Handle     : System.Address;
+         Offset     : size_t;
+         Value      : out Unsigned_32) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_pci_read32";
 
-      function PCI_Write32
-         (Handle     : System.Address;
-          Offset     : size_t;
-          Value      : Unsigned_32) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_pci_write32";
+   function PCI_Write32
+      (Handle     : System.Address;
+         Offset     : size_t;
+         Value      : Unsigned_32) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_pci_write32";
 
-      function IO_Map
-         (Base   : Unsigned_64;
-          Len    : size_t;
-          Handle : out System.Address) return Status
-         with Export, Convention => C, External_Name => "uacpi_kernel_io_map";
+   function IO_Map
+      (Base   : Unsigned_64;
+         Len    : size_t;
+         Handle : out System.Address) return Status
+      with Export, Convention => C, External_Name => "uacpi_kernel_io_map";
 
-      procedure IO_Unmap (Handle : System.Address)
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_io_unmap";
+   procedure IO_Unmap (Handle : System.Address)
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_io_unmap";
 
-      function IO_Read8
-         (Handle     : System.Address;
-          Offset     : size_t;
-          Value      : out Unsigned_8) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_io_read8";
+   function IO_Read8
+      (Handle     : System.Address;
+         Offset     : size_t;
+         Value      : out Unsigned_8) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_io_read8";
 
-      function IO_Write8
-         (Handle     : System.Address;
-          Offset     : size_t;
-          Value      : Unsigned_8) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_io_write8";
+   function IO_Write8
+      (Handle     : System.Address;
+         Offset     : size_t;
+         Value      : Unsigned_8) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_io_write8";
 
-      function IO_Read16
-         (Handle     : System.Address;
-          Offset     : size_t;
-          Value      : out Unsigned_16) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_io_read16";
+   function IO_Read16
+      (Handle     : System.Address;
+         Offset     : size_t;
+         Value      : out Unsigned_16) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_io_read16";
 
-      function IO_Write16
-         (Handle     : System.Address;
-          Offset     : size_t;
-          Value      : Unsigned_16) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_io_write16";
+   function IO_Write16
+      (Handle     : System.Address;
+         Offset     : size_t;
+         Value      : Unsigned_16) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_io_write16";
 
-      function IO_Read32
-         (Handle     : System.Address;
-          Offset     : size_t;
-          Value      : out Unsigned_32) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_io_read32";
+   function IO_Read32
+      (Handle     : System.Address;
+         Offset     : size_t;
+         Value      : out Unsigned_32) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_io_read32";
 
-      function IO_Write32
-         (Handle     : System.Address;
-          Offset     : size_t;
-          Value      : Unsigned_32) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_io_write32";
+   function IO_Write32
+      (Handle     : System.Address;
+         Offset     : size_t;
+         Value      : Unsigned_32) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_io_write32";
 
-      function Map
-         (Phys_Addr : Unsigned_64;
-          Length    : size_t) return System.Address
-         with Export, Convention => C, External_Name => "uacpi_kernel_map";
+   function Map
+      (Phys_Addr : Unsigned_64;
+         Length    : size_t) return System.Address
+      with Export, Convention => C, External_Name => "uacpi_kernel_map";
 
-      procedure Unmap (Address : System.Address; Length : size_t)
-         with Export, Convention => C, External_Name => "uacpi_kernel_unmap";
+   procedure Unmap (Address : System.Address; Length : size_t)
+      with Export, Convention => C, External_Name => "uacpi_kernel_unmap";
 
-      function Wait_For_Work_Completion return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_wait_for_work_completion";
+   function Wait_For_Work_Completion return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_wait_for_work_completion";
 
-      function Install_Interrupt_Handler
-         (IRQ     : Unsigned_32;
-          Handler : System.Address;
-          Context : System.Address;
-          Handle  : out System.Address) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_install_interrupt_handler";
+   function Install_Interrupt_Handler
+      (IRQ     : Unsigned_32;
+         Handler : System.Address;
+         Context : System.Address;
+         Handle  : out System.Address) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_install_interrupt_handler";
 
-      function Uninstall_Interrupt_Handler
-         (Handler : System.Address;
-          Handle  : System.Address) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_uninstall_interrupt_handler";
+   function Uninstall_Interrupt_Handler
+      (Handler : System.Address;
+         Handle  : System.Address) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_uninstall_interrupt_handler";
 
-      function Schedule_Work
-         (Work_Type    : int;
-          Work_Handler : System.Address;
-          Context      : System.Address) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_schedule_work";
+   function Schedule_Work
+      (Work_Type    : int;
+         Work_Handler : System.Address;
+         Context      : System.Address) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_schedule_work";
 
-      function Handle_Firmware_Request (Request : System.Address) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_handle_firmware_request";
+   function Handle_Firmware_Request (Request : System.Address) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_handle_firmware_request";
 
-      procedure Signal_Event (Event : System.Address)
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_signal_event";
+   procedure Signal_Event (Event : System.Address)
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_signal_event";
 
-      procedure Reset_Event (Event : System.Address)
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_reset_event";
+   procedure Reset_Event (Event : System.Address)
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_reset_event";
 
-      function Wait_For_Event
-         (Handle  : System.Address;
-          Timeout : Unsigned_16) return Unsigned_8
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_wait_for_event";
+   function Wait_For_Event
+      (Handle  : System.Address;
+         Timeout : Unsigned_16) return Unsigned_8
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_wait_for_event";
 
-      function Get_Nanoseconds_Since_Boot return Unsigned_64
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_get_nanoseconds_since_boot";
+   function Get_Nanoseconds_Since_Boot return Unsigned_64
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_get_nanoseconds_since_boot";
 
-      function Create_Mutex return System.Address
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_create_mutex";
+   function Create_Mutex return System.Address
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_create_mutex";
 
-      procedure Free_Mutex (Handle : System.Address)
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_free_mutex";
+   procedure Free_Mutex (Handle : System.Address)
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_free_mutex";
 
-      function Acquire_Mutex
-         (Handle  : System.Address;
-          Timeout : Unsigned_16) return Status
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_acquire_mutex";
+   function Acquire_Mutex
+      (Handle  : System.Address;
+         Timeout : Unsigned_16) return Status
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_acquire_mutex";
 
-      procedure Release_Mutex (Handle : System.Address)
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_release_mutex";
+   procedure Release_Mutex (Handle : System.Address)
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_release_mutex";
 
-      function Get_Thread_ID return System.Address
-         with Export, Convention => C,
-              External_Name => "uacpi_kernel_get_thread_id";
+   function Get_Thread_ID return System.Address
+      with Export, Convention => C,
+           External_Name => "uacpi_kernel_get_thread_id";
 
-      procedure Kernel_Log (Level : int; Str_Addr : System.Address)
-         with Export, Convention => C, External_Name => "uacpi_kernel_log";
-      -------------------------------------------------------------------------
-      --  Provided API.
-      function Initialize (Flags : Unsigned_64) return Status
-         with Import, Convention => C, External_Name => "uacpi_initialize";
+   procedure Kernel_Log (Level : int; Str_Addr : System.Address)
+      with Export, Convention => C, External_Name => "uacpi_kernel_log";
+   -------------------------------------------------------------------------
+   --  Provided API.
+   function Initialize (Flags : Unsigned_64) return Status
+      with Import, Convention => C, External_Name => "uacpi_initialize";
 
-      function Namespace_Load return Status
-         with Import, Convention => C, External_Name => "uacpi_namespace_load";
+   function Namespace_Load return Status
+      with Import, Convention => C, External_Name => "uacpi_namespace_load";
 
-      function Namespace_Init return Status
-         with Import, Convention => C,
-              External_Name => "uacpi_namespace_initialize";
+   function Namespace_Init return Status
+      with Import, Convention => C,
+           External_Name => "uacpi_namespace_initialize";
 
-      procedure Context_Set_Log_Level (Level : Log_Level)
-         with Import, Convention => C,
-              External_Name => "uacpi_context_set_log_level";
+   procedure Context_Set_Log_Level (Level : Log_Level)
+      with Import, Convention => C,
+           External_Name => "uacpi_context_set_log_level";
 
-      function Reboot return Status
-         with Import, Convention => C, External_Name => "uacpi_reboot";
+   function Reboot return Status
+      with Import, Convention => C, External_Name => "uacpi_reboot";
 
-      function Prepare_For_Sleep (State : Sleep_State) return Status
-         with Import, Convention => C,
-              External_Name => "uacpi_prepare_for_sleep_state";
+   function Prepare_For_Sleep (State : Sleep_State) return Status
+      with Import, Convention => C,
+           External_Name => "uacpi_prepare_for_sleep_state";
 
-      function Enter_Sleep (State : Sleep_State) return Status
-         with Import, Convention => C,
-              External_Name => "uacpi_enter_sleep_state";
+   function Enter_Sleep (State : Sleep_State) return Status
+      with Import, Convention => C,
+           External_Name => "uacpi_enter_sleep_state";
 
-      function Setup_Early_Table_Access
-         (Buffer_Addr : System.Address;
-          Size        : Unsigned_64) return Status
-         with Import, Convention => C,
-              External_Name => "uacpi_setup_early_table_access";
+   function Setup_Early_Table_Access
+      (Buffer_Addr : System.Address;
+         Size        : Unsigned_64) return Status
+      with Import, Convention => C,
+           External_Name => "uacpi_setup_early_table_access";
 
-      function Find_Table_By_Signature
-         (Signature_Addr    : System.Address;
-          Table_Record_Addr : System.Address) return Status
-         with Import, Convention => C,
-              External_Name => "uacpi_table_find_by_signature";
+   function Find_Table_By_Signature
+      (Signature_Addr    : System.Address;
+         Table_Record_Addr : System.Address) return Status
+      with Import, Convention => C,
+           External_Name => "uacpi_table_find_by_signature";
 
-      function Unref_Table (Table_Record_Addr : System.Address) return Status
-         with Import, Convention => C, External_Name => "uacpi_table_unref";
+   function Unref_Table (Table_Record_Addr : System.Address) return Status
+      with Import, Convention => C, External_Name => "uacpi_table_unref";
 
-      function Power_Button_Handler return Unsigned_32 with Convention => C;
-      function Sleep_Button_Handler return Unsigned_32 with Convention => C;
+   function Power_Button_Handler return Unsigned_32 with Convention => C;
+   function Sleep_Button_Handler return Unsigned_32 with Convention => C;
 
-      procedure Generic_uACPI_Handler (Num : Integer);
+   procedure Generic_uACPI_Handler (Num : Integer);
 
-      function Set_Interrupt_Model
-         (Model : Interrupt_Model) return Status
-         with Import, Convention => C,
-              External_Name => "uacpi_set_interrupt_model";
+   function Set_Interrupt_Model
+      (Model : Interrupt_Model) return Status
+      with Import, Convention => C,
+           External_Name => "uacpi_set_interrupt_model";
 
-      function Install_Fixed_Event_Handler
-         (Event   : Fixed_Event;
-          Handler : System.Address;
-          User    : System.Address) return Status
-         with Import, Convention => C,
-              External_Name => "uacpi_install_fixed_event_handler";
-   #end if;
+   function Install_Fixed_Event_Handler
+      (Event   : Fixed_Event;
+         Handler : System.Address;
+         User    : System.Address) return Status
+      with Import, Convention => C,
+           External_Name => "uacpi_install_fixed_event_handler";
 end Arch.ACPI;
