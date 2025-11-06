@@ -50,8 +50,9 @@ package body Arch.ACPI with SPARK_Mode => Off is
    Is_Init      : Boolean    := False;
 
    function Is_Supported return Boolean is
+      use System;
    begin
-      return True;
+      return RSDP_Request.Response /= System.Null_Address;
    end Is_Supported;
 
    procedure Get_Revision (Revision : out Natural) is
