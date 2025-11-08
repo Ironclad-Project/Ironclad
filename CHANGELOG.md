@@ -36,6 +36,7 @@ release changes.
   `AT_HWCAP`, and `AT_RANDOM` auxiliary values.
 - Added support for three and five level paging for `x86_64-limine` and
   `riscv64-limine`.
+- Added additional `DT_` definitions.
 
 ### Breaking changes
 

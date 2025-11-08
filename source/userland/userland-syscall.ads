@@ -662,12 +662,17 @@ package Userland.Syscall is
        Errno       : out Errno_Value);
 
    --  Get directory entities.
-   DT_FIFO : constant := 1;
-   DT_CHR  : constant := 2;
-   DT_DIR  : constant := 4;
-   DT_BLK  : constant := 6;
-   DT_LNK  : constant := 7;
-   DT_REG  : constant := 8;
+   DT_UNKNOWN : constant := 0;
+   DT_FIFO    : constant := 1;
+   DT_CHR     : constant := 2;
+   DT_DIR     : constant := 4;
+   DT_BLK     : constant := 6;
+   DT_REG     : constant := 8;
+   DT_LNK     : constant := 10;
+   DT_SOCK    : constant := 12;
+   DT_MQ      : constant := 14;
+   DT_SEM     : constant := 16;
+   DT_SHM     : constant := 18;
    type Dirent is record
       D_Ino    : Unsigned_64;
       D_Off    : Unsigned_64;
