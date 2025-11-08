@@ -2057,6 +2057,7 @@ This syscall returns the current thread id. It never fails.
 #define F_GETLK         9
 #define F_SETLK         10
 #define F_SETLKW        11
+#define F_DUPFD_CLOFORK 12
 
 #define FD_CLOEXEC      0b01
 #define FD_CLOFORK      0b10
@@ -2148,6 +2149,10 @@ instead just update permissions and return success.
 @item
 @code{F_SETLKW}: The same as @code{F_SETLK}, but instead of being non-blocking,
 this call will block until the passed lock can be set.
+
+@item
+@code{F_DUPFD_CLOEXEC}: The same as @code{F_DUPFD_CLOEXEC} but with
+@code{FD_CLOFORK}.
 @end itemize
 
 On failure, the syscall returns @code{-1}. The returned @code{errno} are:

@@ -37,6 +37,7 @@ release changes.
 - Added support for three and five level paging for `x86_64-limine` and
   `riscv64-limine`.
 - Added additional `DT_` definitions.
+- Add support for `F_DUPFD_CLOFORK`.
 
 ### Breaking changes
 

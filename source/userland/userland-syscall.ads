@@ -532,6 +532,7 @@ package Userland.Syscall is
    F_GETLK         : constant := 9;
    F_SETLK         : constant := 10;
    F_SETLKW        : constant := 11;
+   F_DUPFD_CLOFORK : constant := 12;
 
    FD_CLOEXEC : constant := 2#01#;
    FD_CLOFORK : constant := 2#10#;

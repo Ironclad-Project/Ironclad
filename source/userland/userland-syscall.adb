@@ -2327,14 +2327,14 @@ package body Userland.Syscall is
       Returned := 0;
 
       case Command is
-         when F_DUPFD | F_DUPFD_CLOEXEC =>
+         when F_DUPFD | F_DUPFD_CLOEXEC | F_DUPFD_CLOFORK =>
             Duplicate (File, New_File);
             Add_File (Proc, New_File, Result_FD, Temp, Natural (Argument));
             if Temp then
                Returned := Unsigned_64 (Result_FD);
                Process.Set_FD_Flags
                   (Proc, Unsigned_64 (Result_FD),
-                   Command = F_DUPFD_CLOEXEC, False);
+                   Command = F_DUPFD_CLOEXEC, Command = F_DUPFD_CLOFORK);
             else
                Errno := Error_Too_Many_Files;
                goto Error_Return;
