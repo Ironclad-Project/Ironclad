@@ -47,6 +47,7 @@ release changes.
 - The ABI value of `AT_FDCWD` has been changed to `-100` to make portability
   easier, since many userland programs have the nasty habit of checking for
   `AT_FDCWD` by doing `0 <`.
+- Change the definition of `S_IFMT` and its kind.
 
 ### Non-code related changes
 
