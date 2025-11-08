@@ -3323,8 +3323,11 @@ instead.
 @section clock
 
 @example c
-#define CLOCK_REALTIME  0
-#define CLOCK_MONOTONIC 1
+#define CLOCK_REALTIME           0
+#define CLOCK_MONOTONIC          1
+#define CLOCK_PROCESS_CPUTIME_ID 2
+#define CLOCK_THREAD_CPUTIME_ID  3
+
 #define CLOCK_GETRES    0
 #define CLOCK_GETTIME   1
 #define CLOCK_SETTIME   2
@@ -3342,8 +3345,14 @@ Wall-clock, may jump forward and back thanks to time setting.
 @item CLOCK_MONOTONIC
 Clock that only moves forward, and is unaffected by NTP or adjustments. It
 starts from an unspecified, target-dependent point in time, usually boot.
-
 Unlike Linux, it is still counted during suspend.
+
+@item CLOCK_PROCESS_CPUTIME_ID
+Monotonic-like clock that tracks the system execution time of the current
+process.
+
+@item CLOCK_THREAD_CPUTIME_ID
+Like @code{CLOCK_PROCESS_CPUTIME_ID} but for the current thread.
 @end table
 
 @code{operation} specifies what to do, as such:

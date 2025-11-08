@@ -5040,12 +5040,17 @@ package body Userland.Syscall is
          Execute_MAC_Failure ("clock", Proc);
          Returned := Unsigned_64'Last;
          return;
+      elsif not Is_Valid_Clock (Clock_ID) then
+         Errno := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
       end if;
 
       case Operation is
          when CLOCK_GETRES =>
             case Clock_ID is
-               when CLOCK_MONOTONIC =>
+               when CLOCK_MONOTONIC | CLOCK_PROCESS_CPUTIME_ID |
+                    CLOCK_THREAD_CPUTIME_ID =>
                   Arch.Clocks.Get_Monotonic_Resolution (Stamp);
                when CLOCK_REALTIME =>
                   Arch.Clocks.Get_Real_Time_Resolution (Stamp);
@@ -5054,14 +5059,7 @@ package body Userland.Syscall is
             end case;
             Spec := (Stamp.Seconds, Stamp.Nanoseconds);
          when CLOCK_GETTIME =>
-            case Clock_ID is
-               when CLOCK_MONOTONIC =>
-                  Arch.Clocks.Get_Monotonic_Time (Stamp);
-               when CLOCK_REALTIME =>
-                  Arch.Clocks.Get_Real_Time (Stamp);
-               when others =>
-                  goto Invalid_Value_Error;
-            end case;
+            Get_Clock (Clock_ID, Stamp);
             Spec := (Stamp.Seconds, Stamp.Nanoseconds);
          when CLOCK_SETTIME =>
             case Clock_ID is
@@ -5115,6 +5113,10 @@ package body Userland.Syscall is
          Execute_MAC_Failure ("clock_nanosleep", Proc);
          Returned := Unsigned_64'Last;
          return;
+      elsif not Is_Valid_Clock (Clock_ID) then
+         Errno := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
       end if;
 
       Get_Common_Map (Proc, Map);
@@ -5126,20 +5128,12 @@ package body Userland.Syscall is
       if (Flags and TIMER_ABSTIME) /= 0 then
          Final := (Req.Seconds, Req.Nanoseconds);
       else
-         if Clock_ID = CLOCK_MONOTONIC then
-            Arch.Clocks.Get_Monotonic_Time (Final);
-         else
-            Arch.Clocks.Get_Real_Time (Final);
-         end if;
+         Get_Clock (Clock_ID, Final);
          Final := Final + (Req.Seconds, Req.Nanoseconds);
       end if;
 
       loop
-         if Clock_ID = CLOCK_MONOTONIC then
-            Arch.Clocks.Get_Monotonic_Time (Curr);
-         else
-            Arch.Clocks.Get_Real_Time (Curr);
-         end if;
+         Get_Clock (Clock_ID, Curr);
          Clear_Process_Signals (Proc, Handled);
          exit when Handled or Curr >= Final;
          Scheduler.Yield_If_Able;
@@ -8154,4 +8148,35 @@ package body Userland.Syscall is
          Has_Handled := False;
       end if;
    end Clear_Process_Signals;
+
+   function Is_Valid_Clock (ID : Unsigned_64) return Boolean is
+      Discard : Time.Timestamp;
+   begin
+      case ID is
+         when CLOCK_MONOTONIC | CLOCK_REALTIME | CLOCK_PROCESS_CPUTIME_ID |
+              CLOCK_THREAD_CPUTIME_ID =>
+            return True;
+         when others =>
+            return False;
+      end case;
+   end Is_Valid_Clock;
+
+   procedure Get_Clock (ID : Unsigned_64; Stamp : out Time.Timestamp) is
+      Discard : Time.Timestamp;
+   begin
+      case ID is
+         when CLOCK_MONOTONIC =>
+            Arch.Clocks.Get_Monotonic_Time (Stamp);
+         when CLOCK_REALTIME =>
+            Arch.Clocks.Get_Real_Time (Stamp);
+         when CLOCK_PROCESS_CPUTIME_ID =>
+            Process.Get_Runtime_Times
+               (Arch.Local.Get_Current_Process, Stamp, Discard);
+         when CLOCK_THREAD_CPUTIME_ID =>
+            Scheduler.Get_Runtimes
+               (Arch.Local.Get_Current_Thread, Stamp, Discard);
+         when others =>
+            Stamp := (0, 0);
+      end case;
+   end Get_Clock;
 end Userland.Syscall;

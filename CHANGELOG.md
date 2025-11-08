@@ -38,6 +38,7 @@ release changes.
   `riscv64-limine`.
 - Added additional `DT_` definitions.
 - Add support for `F_DUPFD_CLOFORK`.
+- Add support for `CLOCK_PROCESS_CPUTIME_ID` and `CLOCK_THREAD_CPUTIME_ID`.
 
 ### Breaking changes
 

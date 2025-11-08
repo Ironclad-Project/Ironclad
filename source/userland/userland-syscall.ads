@@ -29,6 +29,7 @@ with VFS;              use VFS;
 with IPC.Socket;       use IPC.Socket;
 with IPC.FIFO;         use IPC.FIFO;
 use IPC.PTY;
+with Time;
 
 package Userland.Syscall is
    --  Error conditions for syscalls.
@@ -972,8 +973,10 @@ package Userland.Syscall is
        Errno     : out Errno_Value);
 
    --  Clock operations.
-   CLOCK_REALTIME  : constant := 0;
-   CLOCK_MONOTONIC : constant := 1;
+   CLOCK_REALTIME           : constant := 0;
+   CLOCK_MONOTONIC          : constant := 1;
+   CLOCK_PROCESS_CPUTIME_ID : constant := 2;
+   CLOCK_THREAD_CPUTIME_ID  : constant := 3;
    CLOCK_GETRES    : constant := 0;
    CLOCK_GETTIME   : constant := 1;
    CLOCK_SETTIME   : constant := 2;
@@ -1621,4 +1624,8 @@ private
    procedure Common_Death_Preparations (Proc : PID);
 
    procedure Clear_Process_Signals (Proc : PID; Has_Handled : out Boolean);
+
+   function Is_Valid_Clock (ID : Unsigned_64) return Boolean;
+
+   procedure Get_Clock (ID : Unsigned_64; Stamp : out Time.Timestamp);
 end Userland.Syscall;
