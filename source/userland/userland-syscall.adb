@@ -140,6 +140,7 @@ package body Userland.Syscall is
       Returned_FD : Natural;
       User        : Unsigned_32;
       Map         : Page_Table_Acc;
+      Start_Pos   : Unsigned_64;
    begin
       if Path_Len > Path_Max_Len then
          Returned := Unsigned_64'Last;
@@ -182,12 +183,8 @@ package body Userland.Syscall is
             return;
          end if;
 
-         if Do_Append then
-            VFS.Stat (CWD_FS, Opened_Ino, Opened_Stat, Success);
-         else
-            Opened_Stat.Byte_Size := 0;
-         end if;
-
+         VFS.Stat (CWD_FS, Opened_Ino, Opened_Stat, Success);
+         Start_Pos := (if Do_Append then Opened_Stat.Byte_Size else 0);
          File_Perms := Check_Permissions (Curr_Proc, CWD_FS, Opened_Ino);
       end;
 
@@ -199,6 +196,10 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
          Errno    := Error_Bad_Access;
          return;
+      elsif (Opened_Stat.Type_Of_File = File_Directory) and Do_Write then
+         Returned := Unsigned_64'Last;
+         Errno := Error_Is_Directory;
+         return;
       end if;
 
       New_Descr  := new File_Description'
@@ -209,7 +210,7 @@ package body Userland.Syscall is
           Inner_Ino_Read    => Do_Read,
           Inner_Ino_Write   => Do_Write,
           Inner_Ino_FS      => CWD_FS,
-          Inner_Ino_Pos     => Opened_Stat.Byte_Size,
+          Inner_Ino_Pos     => Start_Pos,
           Inner_Ino         => Opened_Ino);
 
       Add_File (Curr_Proc, New_Descr, Returned_FD, Success2);
