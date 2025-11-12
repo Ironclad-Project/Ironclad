@@ -270,17 +270,14 @@ package Userland.Syscall is
       Seconds     : Unsigned_64;
       Nanoseconds : Unsigned_64;
    end record with Pack, Size => 128;
-   Stat_IFMT  : constant := 2#1111111111000000000000#;
-   Stat_IFIFO : constant := 2#0000000001000000000000#;
-   Stat_IFCHR : constant := 2#0000000010000000000000#;
-   Stat_IFDIR : constant := 2#0000000100000000000000#;
-   Stat_IFBLK : constant := 2#0000001000000000000000#;
-   Stat_IFREG : constant := 2#0000010000000000000000#;
-   Stat_IFLNK : constant := 2#0000100000000000000000#;
-   Stat_ISOCK : constant := 2#0001000000000000000000#;
-   Stat_IMQ   : constant := 2#0010000000000000000000#;
-   Stat_ISEM  : constant := 2#0100000000000000000000#;
-   Stat_ISHM  : constant := 2#1000000000000000000000#;
+   Stat_IFMT  : constant := 16#F000#;
+   Stat_IFIFO : constant := 16#1000#;
+   Stat_IFCHR : constant := 16#2000#;
+   Stat_IFDIR : constant := 16#4000#;
+   Stat_IFBLK : constant := 16#6000#;
+   Stat_IFREG : constant := 16#8000#;
+   Stat_IFLNK : constant := 16#A000#;
+   Stat_ISOCK : constant := 16#C000#;
    type Stat is record
       Device_Number : Unsigned_64;
       Inode_Number  : Unsigned_64;

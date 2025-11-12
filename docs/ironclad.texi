@@ -1810,17 +1810,14 @@ The syscall returns @code{0} or @code{-1} on failure, with the following errno:
 @section fstat
 
 @example c
-#define Stat_IFMT  0b1111111111000000000000
-#define Stat_IFIFO 0b0000000001000000000000
-#define Stat_IFCHR 0b0000000010000000000000
-#define Stat_IFDIR 0b0000000100000000000000
-#define Stat_IFBLK 0b0000001000000000000000
-#define Stat_IFREG 0b0000010000000000000000
-#define Stat_IFLNK 0b0000100000000000000000
-#define Stat_ISOCK 0b0001000000000000000000
-#define Stat_IMQ   0b0010000000000000000000
-#define Stat_ISEM  0b0100000000000000000000
-#define Stat_ISHM  0b1000000000000000000000
+#define S_IFMT  0xF000
+#define S_IFIFO 0x1000
+#define S_IFCHR 0x2000
+#define S_IFDIR 0x4000
+#define S_IFBLK 0x6000
+#define S_IFREG 0x8000
+#define S_IFLNK 0xA000
+#define S_ISOCK 0xC000
 
 struct stat @{
     dev_t           st_dev;
