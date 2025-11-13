@@ -29,6 +29,8 @@ package body Arch.MMU is
    Page_Acc   : constant Unsigned_64 := Shift_Left (1, 6);
    Page_Dirty : constant Unsigned_64 := Shift_Left (1, 7);
    Page_User  : constant Unsigned_64 := Shift_Left (1, 8);
+   PMBT_NC    : constant Unsigned_64 := Shift_Left (1, 61);
+   PMBT_IO    : constant Unsigned_64 := Shift_Left (2, 61);
 
    --  Response is a pointer to an Kernel_Address_Response.
    Address_Request : Arch.Limine.Request :=
@@ -99,8 +101,9 @@ package body Arch.MMU is
    end Clean_Entry;
 
    function Clean_Entry_Perms (Entr : Unsigned_64) return Clean_Result is
+      Result : Clean_Result;
    begin
-      return
+      Result :=
          (User_Flag => (Entr and Page_User) /= 0,
           Perms     =>
             (Is_User_Accessible => (Entr and Page_U) /= 0,
@@ -109,6 +112,14 @@ package body Arch.MMU is
              Can_Execute        => (Entr and Page_X) /= 0,
              Is_Global          => (Entr and Page_G) /= 0),
           Caching => Write_Back);
+
+      if (Entr and PMBT_NC) = PMBT_NC then
+         Result.Caching := Write_Combining;
+      elsif (Entr and PMBT_IO) = PMBT_IO then
+         Result.Caching := Uncacheable;
+      end if;
+
+      return Result;
    end Clean_Entry_Perms;
 
    function Construct_Entry
@@ -117,7 +128,6 @@ package body Arch.MMU is
        Caching   : Caching_Model;
        User_Flag : Boolean) return Unsigned_64
    is
-      pragma Unreferenced (Caching);
       Result : Unsigned_64;
    begin
       Result :=
@@ -128,6 +138,12 @@ package body Arch.MMU is
          (if Perm.Is_User_Accessible then Page_U else 0) or
          (if User_Flag then Page_User else 0) or
          Page_P or Page_Acc or Page_Dirty;
+
+      case Caching is
+         when Write_Back | Write_Through => null;
+         when Write_Combining => Result := Result or PMBT_NC;
+         when Uncacheable => Result := Result or PMBT_IO;
+      end case;
 
       return Shift_Right (Unsigned_64 (To_Integer (Addr)), 2) or Result;
    end Construct_Entry;

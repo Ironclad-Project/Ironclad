@@ -271,8 +271,8 @@ target, @ref{Common devices}.
 @node riscv64-limine support
 @section riscv64-limine support
 
-Ironclad supports RISC-V64 systems supporting the IMAC, ZICSR, D, and ZIFENCEI
-extensions.
+Ironclad supports RISC-V64 systems supporting the IMAC, ZICSR, D, SVPMBT, and
+ZIFENCEI extensions.
 
 A Limine protocol-compatible bootloader compliant is required, our
 recommendation is @uref{https://limine-bootloader.org, Limine}, as it is the
