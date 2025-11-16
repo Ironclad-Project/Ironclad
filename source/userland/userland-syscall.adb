@@ -3426,7 +3426,7 @@ package body Userland.Syscall is
              Relative => CWD_Ino,
              Path     => Path,
              Target   => Targ,
-             Mode     => Unsigned_32 (Mode),
+             Mode     => Unsigned_32 (Mode and 16#FFFFFFFF#),
              User     => User,
              Status   => Success);
          Translate_Status (Success, 0, Returned, Errno);
