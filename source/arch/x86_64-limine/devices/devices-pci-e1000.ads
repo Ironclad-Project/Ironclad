@@ -24,6 +24,12 @@ private
    E1000_VENDOR_ID : constant := 16#8086#;
    E1000_DEVICE_ID : constant := 16#100E#;
 
+   --  e1000e PCI Vendor/Device IDs for 82574L (also emulated by QEMU)
+   E1000E_VENDOR_ID : constant := 16#8086#;
+   E1000E_DEVICE_ID : constant := 16#10D3#;
+
+   type Device_Model is (E1000, E1000E);
+
    --  Descriptor Ring Sizes
    RX_RING_SIZE : constant := 16;
    TX_RING_SIZE : constant := 16;
@@ -168,6 +174,9 @@ private
       --  Interrupt info
       Interrupt           : Unsigned_8;
       Interrupt_IDT_Index : Unsigned_16;
+      
+      --  Device model
+      Model               : Device_Model;
    end record;
    pragma Volatile (Controller_Data);
 
@@ -204,5 +213,14 @@ private
        Ret_Count   : out Natural;
        Success     : out Dev_Status;
        Is_Blocking : Boolean);
+
+   --  Internal device init
+   --  Since e1000 and e1000e are similar enough, we can use basically the same
+   --  init code, just with different device IDs.
+   procedure Init_Device
+      (PCI_Dev : Devices.PCI.PCI_Device;
+       Model   : Device_Model;
+       Idx     : Natural;
+       Success : out Boolean);
 
 end Devices.PCI.E1000;

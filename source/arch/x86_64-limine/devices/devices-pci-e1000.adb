@@ -415,20 +415,6 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
 
    procedure Init (Success : out Boolean) is
       PCI_Dev : Devices.PCI.PCI_Device;
-      PCI_Bar : Devices.PCI.Base_Address_Register;
-
-      RX_Ring_Mem : Memory.Virtual_Address;
-      TX_Ring_Mem : Memory.Virtual_Address;
-      RX_Bufs_Start : Memory.Virtual_Address;
-      TX_Bufs_Start : Memory.Virtual_Address;
-
-      CD : Controller_Data_Acc;
-      Dev : Device_Handle;
-      Device : Resource;
-      MAC_Low : Unsigned_32;
-      MAC_High : Unsigned_16;
-      I : Natural;
-      pragma Unreferenced (I);
    begin
       Success := True;
 
@@ -447,264 +433,313 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
             return;
          end if;
 
-         --  Get the MMIO BAR (usually BAR0 for e1000)
-         Devices.PCI.Get_BAR (PCI_Dev, 0, PCI_Bar, Success);
-         if not Success then
-            Messages.Put_Line ("Failed to get e1000 BAR0");
-            return;
-         end if;
-
-         --  Map the MMIO BAR to virtual memory
-         Memory.MMU.Map_Range
-            (Map            => Memory.MMU.Kernel_Table,
-             Physical_Start => To_Address (PCI_Bar.Base),
-             Virtual_Start  => To_Address
-              (PCI_Bar.Base + Memory.Memory_Offset),
-             Length         => Storage_Count (A.Align_Up
-              ((MMIO_Registers'Size / 8), Memory.MMU.Page_Size)),
-             Permissions    =>
-              (Is_User_Accessible => False,
-               Can_Read          => True,
-               Can_Write         => True,
-               Can_Execute       => False,
-               Is_Global         => True),
-             Success        => Success);
-         if not Success then
-            Messages.Put_Line ("Failed to map MMIO BAR to virtual memory");
-            return;
-         end if;
-
-         --  Enable bus mastering
-         Devices.PCI.Enable_Bus_Mastering (PCI_Dev);
-
-         --  Allocate receive descriptor ring
-         Memory.Physical.Alloc
-            (Result => RX_Ring_Mem,
-             Sz => A.Align_Up (RX_RING_SIZE * (RX_Descriptor'Size / 8),
-                Arch.MMU.Page_Size));
-
-         --  Allocate transmit descriptor ring
-         Memory.Physical.Alloc
-            (Result => TX_Ring_Mem,
-             Sz => A.Align_Up (TX_RING_SIZE * (TX_Descriptor'Size / 8),
-                Arch.MMU.Page_Size));
-
-         --  Allocate receive packet buffers
-         Memory.Physical.Alloc
-            (Result => RX_Bufs_Start,
-             Sz => A.Align_Up (RX_RING_SIZE * MAX_PACKET_SIZE,
-                                 Arch.MMU.Page_Size));
-         if not Success then
-            Messages.Put_Line ("Failed to allocate RX packet buffers");
-            return;
-         end if;
-
-         --  Allocate transmit packet buffers
-         Memory.Physical.Alloc
-            (Result => TX_Bufs_Start,
-             Sz => A.Align_Up (TX_RING_SIZE * MAX_PACKET_SIZE,
-                                 Arch.MMU.Page_Size));
-         if not Success then
-            Messages.Put_Line ("Failed to allocate TX packet buffers");
-            return;
-         end if;
-
-         Messages.Put_Line ("E1000: MMIO BAR at " &
-            Integer_Address'Image (PCI_Bar.Base) &
-            ", mapped at " &
-            System.Address'Image
-               (To_Addr (PCI_Bar.Base + Memory.Memory_Offset)));
-
-         --  Create controller data structure
-         CD := new Controller_Data'
-            (MMIO_Regs => MMIO_Registers_Acc (C_MMIO.To_Pointer
-               (To_Addr (PCI_Bar.Base + Memory.Memory_Offset))),
-             RX_Descriptors => RX_Descriptor_Array_Acc (C_RX_Desc.To_Pointer
-                (To_Addr (RX_Ring_Mem))),
-             TX_Descriptors => TX_Descriptor_Array_Acc (C_TX_Desc.To_Pointer
-                (To_Addr (TX_Ring_Mem))),
-             RX_Buffers => [others => RX_Bufs_Start],
-             TX_Buffers => [others => TX_Bufs_Start],
-             RX_Next => 0,
-             TX_Next => 0,
-             Interrupt => 0,
-             Interrupt_IDT_Index => 0);
-
-         --  Get interrupt number from PCI config space
-         Devices.PCI.Read8 (PCI_Dev, 16#3C#, CD.Interrupt);
-
-         --  Update buffer addresses in the controller data;
-         for J in RX_Desc_Idx_Type loop
-            CD.RX_Buffers (J) := RX_Bufs_Start +
-               Memory.Virtual_Address'Mod (Unsigned_64 (J) * MAX_PACKET_SIZE);
-         end loop;
-
-         for J in TX_Desc_Idx_Type loop
-            CD.TX_Buffers (J) := TX_Bufs_Start +
-               Memory.Virtual_Address'Mod (Unsigned_64 (J) * MAX_PACKET_SIZE);
-         end loop;
-
-         --  Initialize TX descriptors
-         for J in TX_Desc_Idx_Type loop
-            CD.TX_Descriptors (J).Address := 0;
-            CD.TX_Descriptors (J).Length := 0;
-            CD.TX_Descriptors (J).CSO := 0;
-            CD.TX_Descriptors (J).CMD := 0;
-            CD.TX_Descriptors (J).Status := DESC_STATUS_DD;  -- Mark as done
-            CD.TX_Descriptors (J).CSS := 0;
-            CD.TX_Descriptors (J).VLAN := 0;
-         end loop;
-
-         --  Initialize RX descriptors with buffer addresses
-         for J in RX_Desc_Idx_Type loop
-            CD.RX_Descriptors (J).Address := Unsigned_64 (
-               CD.RX_Buffers (J) - Memory.Memory_Offset);
-            CD.RX_Descriptors (J).Length := 0;
-            CD.RX_Descriptors (J).Checksum := 0;
-            CD.RX_Descriptors (J).Status := 0;
-            CD.RX_Descriptors (J).Errors := 0;
-            CD.RX_Descriptors (J).Reserved := 0;
-         end loop;
-
-         --  Set RDBAL and RDBAH with descriptor ring addresses
-         if CD.MMIO_Regs /= null then
-            declare
-               RX_Phys : constant Unsigned_64 := Unsigned_64 (
-                  RX_Ring_Mem - Memory.Memory_Offset);
-               TX_Phys : constant Unsigned_64 := Unsigned_64 (
-                  TX_Ring_Mem - Memory.Memory_Offset);
-            begin
-               CD.MMIO_Regs.RDBAL := Unsigned_32
-                  (RX_Phys and Unsigned_64 (Unsigned_32'Last));
-               CD.MMIO_Regs.RDBAH := Unsigned_32 (Shift_Right (RX_Phys, 32));
-               CD.MMIO_Regs.TDBAL := Unsigned_32
-                  (TX_Phys and Unsigned_64 (Unsigned_32'Last));
-               CD.MMIO_Regs.TDBAH := Unsigned_32 (Shift_Right (TX_Phys, 32));
-            end;
-         end if;
-
-         --  Initialize the descriptors
-         if not Initialize_Descriptors (CD) then
-            Messages.Put_Line ("Failed to initialize descriptors");
-            return;
-         end if;
-
-         --  Enable receiver
-         if not Enable_Receiver (CD) then
-            Messages.Put_Line ("Failed to enable receiver");
-            return;
-         end if;
-
-         --  Enable transmitter
-         if not Enable_Transmitter (CD) then
-            Messages.Put_Line ("Failed to enable transmitter");
-            return;
-         end if;
-
-         --  Install interrupt handler
-         Success := Install_Interrupt_Handler (CD);
-         if not Success then
-            return;
-         end if;
-
-         --  Enable interrupts
-         if CD.MMIO_Regs /= null then
-            --  Set interrupt mask to enable:
-            --  Bit 0 (0x01): Transmit Descriptor Written Back
-            --  Bit 1 (0x02): Transmit Queue Empty
-            --  Bit 2 (0x04): Link Status Change
-            --  Bit 4 (0x10): Receive Descriptor Minimum Threshold
-            --  Bit 6 (0x40): Receiver FIFO Overrun
-            --  Bit 7 (0x80): Receive Timer Interrupt
-            --  Common mask: 0x1F6DC or simplified 0x9D
-            --   (LSU + RXT0 + RXDMT0 + TXDW + TXQE)
-            CD.MMIO_Regs.IMask := 16#1F6DC#;
-
-            --  Clear any pending interrupts
-            I := Natural (CD.MMIO_Regs.ICR);
-         end if;
-
-         --  Read MAC address from MMIO registers at offset 0x5400
-         if CD.MMIO_Regs /= null then
-            MAC_Low := CD.MMIO_Regs.RA_Low;
-            MAC_High := Unsigned_16
-               (CD.MMIO_Regs.RA_High and Unsigned_32 (Unsigned_16'Last));
-         end if;
-
-         --  Register the device with the kernel
-         Device :=
-            (Data        => C1.To_Address (C1.Object_Pointer (CD)),
-             Is_Block    => False,
-             Block_Size  => 4096,
-             Block_Count => 0,
-             Read        => Read'Access,
-             Write       => Write'Access,
-             Sync        => null,
-             Sync_Range  => null,
-             IO_Control  => null,
-             Mmap        => null,
-             Poll        => null,
-             Remove      => null);
-         Register (Device, "e1000" & Integer'Image (Idx), Success);
-
-         if Success then
-            Dev := Fetch ("e1000" & Integer'Image (Idx));
-            Networking.Interfaces.Register_Interface
-               (Interfaced  => Dev,
-                MAC         => [Unsigned_8 (MAC_Low and
-                                             Unsigned_32 (Unsigned_8'Last)),
-                                Unsigned_8 (Shift_Right (MAC_Low, 8)
-                                            and Unsigned_32 (Unsigned_8'Last)),
-                                Unsigned_8 (Shift_Right (MAC_Low, 16)
-                                            and Unsigned_32 (Unsigned_8'Last)),
-                                Unsigned_8 (Shift_Right (MAC_Low, 24)
-                                            and Unsigned_32 (Unsigned_8'Last)),
-                                Unsigned_8 (MAC_High and
-                                            Unsigned_16 (Unsigned_8'Last)),
-                                Unsigned_8 (Shift_Right (MAC_High, 8)
-                                            and Unsigned_16 (Unsigned_8'Last))
-                               ],
-                IPv4        => [10, 0, 2, 15],
-                IPv4_Subnet => [255, 0, 0, 0],
-                IPv6        => [1 .. 8 => 0, 9 .. 12 => Unsigned_8'Last,
-                 13 => 10, 14 => 0, 15 => 2, 16 => 15],
-                IPv6_Subnet => [16 => 0, 1 .. 8 => 0,
-                                others => Unsigned_8'Last],
-                Success     => Success);
-            Networking.Interfaces.Block (Dev, False, Success);
-         end if;
-
-         Messages.Put_Line ("Enumerated e1000 (82540EM), MMIO Base at " &
-            Integer_Address'Image (PCI_Bar.Base));
-         Messages.Put_Line ("  MAC Address: " &
-            Unsigned_8'Image
-               (Unsigned_8 (MAC_Low and Unsigned_32 (Unsigned_8'Last))) &
-            ":" &
-            Unsigned_8'Image
-               (Unsigned_8 (Shift_Right (MAC_Low, 8) and
-                            Unsigned_32 (Unsigned_8'Last)))
-               & ":" &
-            Unsigned_8'Image
-               (Unsigned_8 (Shift_Right (MAC_Low, 16) and
-                            Unsigned_32 (Unsigned_8'Last)))
-               & ":" &
-            Unsigned_8'Image
-               (Unsigned_8 (Shift_Right (MAC_Low, 24) and
-                            Unsigned_32 (Unsigned_8'Last)))
-               & ":" &
-            Unsigned_8'Image
-               (Unsigned_8 (MAC_High and Unsigned_16 (Unsigned_8'Last))) &
-               ":" &
-            Unsigned_8'Image
-               (Unsigned_8 (Shift_Right (MAC_High, 8) and
-                            Unsigned_16 (Unsigned_8'Last))));
+         Init_Device (PCI_Dev, E1000, Idx, Success);
       end loop;
 
-      Success := True;
+      --  Enumerate and initialize all e1000e devices
+      for Idx in 1 .. Devices.PCI.Enumerate_Devices (
+         Vendor_ID => E1000E_VENDOR_ID,
+         Device_ID => E1000E_DEVICE_ID
+      ) loop
+         Devices.PCI.Search_Device
+            (Vendor_ID => E1000E_VENDOR_ID,
+             Device_ID => E1000E_DEVICE_ID,
+             Idx => Idx,
+             Result => PCI_Dev,
+             Success => Success);
+         if not Success then
+            return;
+         end if;
+
+         Init_Device (PCI_Dev, E1000E, Idx, Success);
+      end loop;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Constraint_Error in E1000 Init!");
          Success := False;
    end Init;
+
+   procedure Init_Device
+      (PCI_Dev : Devices.PCI.PCI_Device;
+       Model   : Device_Model;
+       Idx     : Natural;
+       Success : out Boolean)
+   is
+      PCI_Bar : Devices.PCI.Base_Address_Register;
+
+      RX_Ring_Mem : Memory.Virtual_Address;
+      TX_Ring_Mem : Memory.Virtual_Address;
+      RX_Bufs_Start : Memory.Virtual_Address;
+      TX_Bufs_Start : Memory.Virtual_Address;
+
+      CD : Controller_Data_Acc;
+      Dev : Device_Handle;
+      Device : Resource;
+      MAC_Low : Unsigned_32;
+      MAC_High : Unsigned_16;
+      U : Unsigned_32;
+      pragma Unreferenced (U);
+   begin
+      
+      --  Get the MMIO BAR (usually BAR0 for e1000)
+      Devices.PCI.Get_BAR (PCI_Dev, 0, PCI_Bar, Success);
+      if not Success then
+         Messages.Put_Line ("Failed to get BAR0");
+         return;
+      end if;
+
+      --  Map the MMIO BAR to virtual memory
+      Memory.MMU.Map_Range
+         (Map            => Memory.MMU.Kernel_Table,
+            Physical_Start => To_Address (PCI_Bar.Base),
+            Virtual_Start  => To_Address
+            (PCI_Bar.Base + Memory.Memory_Offset),
+            Length         => Storage_Count (A.Align_Up
+            ((MMIO_Registers'Size / 8), Memory.MMU.Page_Size)),
+            Permissions    =>
+            (Is_User_Accessible => False,
+            Can_Read          => True,
+            Can_Write         => True,
+            Can_Execute       => False,
+            Is_Global         => True),
+            Success        => Success);
+      if not Success then
+         Messages.Put_Line ("Failed to map MMIO BAR to virtual memory");
+         return;
+      end if;
+
+      --  Enable bus mastering
+      Devices.PCI.Enable_Bus_Mastering (PCI_Dev);
+
+      --  Allocate receive descriptor ring
+      Memory.Physical.Alloc
+         (Result => RX_Ring_Mem,
+            Sz => A.Align_Up (RX_RING_SIZE * (RX_Descriptor'Size / 8),
+               Arch.MMU.Page_Size));
+
+      --  Allocate transmit descriptor ring
+      Memory.Physical.Alloc
+         (Result => TX_Ring_Mem,
+            Sz => A.Align_Up (TX_RING_SIZE * (TX_Descriptor'Size / 8),
+               Arch.MMU.Page_Size));
+
+      --  Allocate receive packet buffers
+      Memory.Physical.Alloc
+         (Result => RX_Bufs_Start,
+            Sz => A.Align_Up (RX_RING_SIZE * MAX_PACKET_SIZE,
+                              Arch.MMU.Page_Size));
+      if not Success then
+         Messages.Put_Line ("Failed to allocate RX packet buffers");
+         return;
+      end if;
+
+      --  Allocate transmit packet buffers
+      Memory.Physical.Alloc
+         (Result => TX_Bufs_Start,
+            Sz => A.Align_Up (TX_RING_SIZE * MAX_PACKET_SIZE,
+                              Arch.MMU.Page_Size));
+      if not Success then
+         Messages.Put_Line ("Failed to allocate TX packet buffers");
+         return;
+      end if;
+
+      Messages.Put_Line ("E1000: MMIO BAR at " &
+         Integer_Address'Image (PCI_Bar.Base) &
+         ", mapped at " &
+         System.Address'Image
+            (To_Addr (PCI_Bar.Base + Memory.Memory_Offset)));
+
+      --  Create controller data structure
+      CD := new Controller_Data'
+         (MMIO_Regs => MMIO_Registers_Acc (C_MMIO.To_Pointer
+            (To_Addr (PCI_Bar.Base + Memory.Memory_Offset))),
+          RX_Descriptors => RX_Descriptor_Array_Acc (C_RX_Desc.To_Pointer
+               (To_Addr (RX_Ring_Mem))),
+          TX_Descriptors => TX_Descriptor_Array_Acc (C_TX_Desc.To_Pointer
+               (To_Addr (TX_Ring_Mem))),
+          RX_Buffers => [others => RX_Bufs_Start],
+          TX_Buffers => [others => TX_Bufs_Start],
+          RX_Next => 0,
+          TX_Next => 0,
+          Interrupt => 0,
+          Interrupt_IDT_Index => 0,
+          Model => Model);
+
+      --  Get interrupt number from PCI config space
+      Devices.PCI.Read8 (PCI_Dev, 16#3C#, CD.Interrupt);
+
+      --  Update buffer addresses in the controller data;
+      for J in RX_Desc_Idx_Type loop
+         CD.RX_Buffers (J) := RX_Bufs_Start +
+            Memory.Virtual_Address'Mod (Unsigned_64 (J) * MAX_PACKET_SIZE);
+      end loop;
+
+      for J in TX_Desc_Idx_Type loop
+         CD.TX_Buffers (J) := TX_Bufs_Start +
+            Memory.Virtual_Address'Mod (Unsigned_64 (J) * MAX_PACKET_SIZE);
+      end loop;
+
+      --  Initialize TX descriptors
+      for J in TX_Desc_Idx_Type loop
+         CD.TX_Descriptors (J).Address := 0;
+         CD.TX_Descriptors (J).Length := 0;
+         CD.TX_Descriptors (J).CSO := 0;
+         CD.TX_Descriptors (J).CMD := 0;
+         CD.TX_Descriptors (J).Status := DESC_STATUS_DD;  -- Mark as done
+         CD.TX_Descriptors (J).CSS := 0;
+         CD.TX_Descriptors (J).VLAN := 0;
+      end loop;
+
+      --  Initialize RX descriptors with buffer addresses
+      for J in RX_Desc_Idx_Type loop
+         CD.RX_Descriptors (J).Address := Unsigned_64 (
+            CD.RX_Buffers (J) - Memory.Memory_Offset);
+         CD.RX_Descriptors (J).Length := 0;
+         CD.RX_Descriptors (J).Checksum := 0;
+         CD.RX_Descriptors (J).Status := 0;
+         CD.RX_Descriptors (J).Errors := 0;
+         CD.RX_Descriptors (J).Reserved := 0;
+      end loop;
+
+      --  Set RDBAL and RDBAH with descriptor ring addresses
+      if CD.MMIO_Regs /= null then
+         declare
+            RX_Phys : constant Unsigned_64 := Unsigned_64 (
+               RX_Ring_Mem - Memory.Memory_Offset);
+            TX_Phys : constant Unsigned_64 := Unsigned_64 (
+               TX_Ring_Mem - Memory.Memory_Offset);
+         begin
+            CD.MMIO_Regs.RDBAL := Unsigned_32
+               (RX_Phys and Unsigned_64 (Unsigned_32'Last));
+            CD.MMIO_Regs.RDBAH := Unsigned_32 (Shift_Right (RX_Phys, 32));
+            CD.MMIO_Regs.TDBAL := Unsigned_32
+               (TX_Phys and Unsigned_64 (Unsigned_32'Last));
+            CD.MMIO_Regs.TDBAH := Unsigned_32 (Shift_Right (TX_Phys, 32));
+         end;
+      end if;
+
+      --  Initialize the descriptors
+      if not Initialize_Descriptors (CD) then
+         Messages.Put_Line ("Failed to initialize descriptors");
+         return;
+      end if;
+
+      --  Enable receiver
+      if not Enable_Receiver (CD) then
+         Messages.Put_Line ("Failed to enable receiver");
+         return;
+      end if;
+
+      --  Enable transmitter
+      if not Enable_Transmitter (CD) then
+         Messages.Put_Line ("Failed to enable transmitter");
+         return;
+      end if;
+
+      --  Install interrupt handler
+      Success := Install_Interrupt_Handler (CD);
+      if not Success then
+         return;
+      end if;
+
+      --  Enable interrupts
+      if CD.MMIO_Regs /= null then
+         --  Set interrupt mask to enable:
+         --  Bit 0 (0x01): Transmit Descriptor Written Back
+         --  Bit 1 (0x02): Transmit Queue Empty
+         --  Bit 2 (0x04): Link Status Change
+         --  Bit 4 (0x10): Receive Descriptor Minimum Threshold
+         --  Bit 6 (0x40): Receiver FIFO Overrun
+         --  Bit 7 (0x80): Receive Timer Interrupt
+         --  Common mask: 0x1F6DC or simplified 0x9D
+         --   (LSU + RXT0 + RXDMT0 + TXDW + TXQE)
+         CD.MMIO_Regs.IMask := 16#1F6DC#;
+
+         --  Clear any pending interrupts
+         U := Unsigned_32 (CD.MMIO_Regs.ICR);
+      end if;
+
+      --  Read MAC address from MMIO registers at offset 0x5400
+      if CD.MMIO_Regs /= null then
+         MAC_Low := CD.MMIO_Regs.RA_Low;
+         MAC_High := Unsigned_16
+            (CD.MMIO_Regs.RA_High and Unsigned_32 (Unsigned_16'Last));
+      end if;
+
+      --  Register the device with the kernel
+      Device :=
+         (Data        => C1.To_Address (C1.Object_Pointer (CD)),
+            Is_Block    => False,
+            Block_Size  => 4096,
+            Block_Count => 0,
+            Read        => Read'Access,
+            Write       => Write'Access,
+            Sync        => null,
+            Sync_Range  => null,
+            IO_Control  => null,
+            Mmap        => null,
+            Poll        => null,
+            Remove      => null);
+      Register (Device, "e1000" & Integer'Image (Idx), Success);
+
+      if Success then
+         Dev := Fetch ("e1000" & Integer'Image (Idx));
+         Networking.Interfaces.Register_Interface
+            (Interfaced  => Dev,
+               MAC         => [Unsigned_8 (MAC_Low and
+                                          Unsigned_32 (Unsigned_8'Last)),
+                              Unsigned_8 (Shift_Right (MAC_Low, 8)
+                                          and Unsigned_32 (Unsigned_8'Last)),
+                              Unsigned_8 (Shift_Right (MAC_Low, 16)
+                                          and Unsigned_32 (Unsigned_8'Last)),
+                              Unsigned_8 (Shift_Right (MAC_Low, 24)
+                                          and Unsigned_32 (Unsigned_8'Last)),
+                              Unsigned_8 (MAC_High and
+                                          Unsigned_16 (Unsigned_8'Last)),
+                              Unsigned_8 (Shift_Right (MAC_High, 8)
+                                          and Unsigned_16 (Unsigned_8'Last))
+                              ],
+               IPv4        => [10, 0, 2, 15],
+               IPv4_Subnet => [255, 0, 0, 0],
+               IPv6        => [1 .. 8 => 0, 9 .. 12 => Unsigned_8'Last,
+               13 => 10, 14 => 0, 15 => 2, 16 => 15],
+               IPv6_Subnet => [16 => 0, 1 .. 8 => 0,
+                              others => Unsigned_8'Last],
+               Success     => Success);
+         Networking.Interfaces.Block (Dev, False, Success);
+      end if;
+
+      Messages.Put_Line ("Enumerated e1000-compatible device, " &
+         "Model " & Device_Model'Image (Model) & ", ID " &
+         "MMIO Base at " & Integer_Address'Image (PCI_Bar.Base));
+      Messages.Put_Line ("  MAC Address: " &
+         Unsigned_8'Image
+            (Unsigned_8 (MAC_Low and Unsigned_32 (Unsigned_8'Last))) &
+         ":" &
+         Unsigned_8'Image
+            (Unsigned_8 (Shift_Right (MAC_Low, 8) and
+                           Unsigned_32 (Unsigned_8'Last)))
+            & ":" &
+         Unsigned_8'Image
+            (Unsigned_8 (Shift_Right (MAC_Low, 16) and
+                           Unsigned_32 (Unsigned_8'Last)))
+            & ":" &
+         Unsigned_8'Image
+            (Unsigned_8 (Shift_Right (MAC_Low, 24) and
+                           Unsigned_32 (Unsigned_8'Last)))
+            & ":" &
+         Unsigned_8'Image
+            (Unsigned_8 (MAC_High and Unsigned_16 (Unsigned_8'Last))) &
+            ":" &
+         Unsigned_8'Image
+            (Unsigned_8 (Shift_Right (MAC_High, 8) and
+                           Unsigned_16 (Unsigned_8'Last))));
+                           
+      Success := True;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Constraint_Error in E1000 Init_Device!");
+         Success := False;
+   end Init_Device;
 
 end Devices.PCI.E1000;
