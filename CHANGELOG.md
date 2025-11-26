@@ -39,6 +39,8 @@ release changes.
 - Added additional `DT_` definitions.
 - Add support for `F_DUPFD_CLOFORK`.
 - Add support for `CLOCK_PROCESS_CPUTIME_ID` and `CLOCK_THREAD_CPUTIME_ID`.
+- Add an RTL8139 driver.
+- Add an E1000 and E1000e driver.
 
 ### Breaking changes
 
@@ -59,6 +61,7 @@ release changes.
 - streaksu - <streaksu@ironclad-os.org> | https://codeberg.org/streaksu
 - mintsuki - https://codeberg.org/mintsuki | https://github.com/mintsuki
 - no92 - https://codeberg.org/no92 | https://github.com/no92
+- electrode - https://codeberg.org/electrodeyt | https://github.com/electrodeyt
 
 ## 0.8.0 - Wed Aug 13, 2025
 

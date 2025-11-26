@@ -480,7 +480,6 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
       U : Unsigned_32;
       pragma Unreferenced (U);
    begin
-      
       --  Get the MMIO BAR (usually BAR0 for e1000)
       Devices.PCI.Get_BAR (PCI_Dev, 0, PCI_Bar, Success);
       if not Success then
@@ -656,7 +655,7 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
          CD.MMIO_Regs.IMask := 16#1F6DC#;
 
          --  Clear any pending interrupts
-         U := Unsigned_32 (CD.MMIO_Regs.ICR);
+         U := CD.MMIO_Regs.ICR;
       end if;
 
       --  Read MAC address from MMIO registers at offset 0x5400
@@ -734,7 +733,7 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
          Unsigned_8'Image
             (Unsigned_8 (Shift_Right (MAC_High, 8) and
                            Unsigned_16 (Unsigned_8'Last))));
-                           
+
       Success := True;
    exception
       when Constraint_Error =>

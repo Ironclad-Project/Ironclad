@@ -174,7 +174,7 @@ private
       --  Interrupt info
       Interrupt           : Unsigned_8;
       Interrupt_IDT_Index : Unsigned_16;
-      
+
       --  Device model
       Model               : Device_Model;
    end record;
