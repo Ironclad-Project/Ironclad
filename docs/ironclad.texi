@@ -491,6 +491,9 @@ supported signals with their corresponding values are:
 @item SIGXFSZ
 @item SIGWINCH
 @item SIGPWR
+@item SIGRTMIN
+@item ... 6 real time signals
+@item SIGRTMAX
 @end enumerate
 
 A Linux-like signal model is provided, where the kernel takes care of signal

@@ -115,7 +115,15 @@ package Userland.Process is
        Signal_CPU_Exceeded,
        Signal_File_Size_Exceeded,
        Signal_Window_Resize,
-       Signal_Power_Failure);
+       Signal_Power_Failure,
+       Signal_RT_1,
+       Signal_RT_2,
+       Signal_RT_3,
+       Signal_RT_4,
+       Signal_RT_5,
+       Signal_RT_6,
+       Signal_RT_7,
+       Signal_RT_8);
 
    --  These values and the values of Signal_Bitmap are userland ABI, please
    --  dont touch them if you dont want to break them!
@@ -154,8 +162,16 @@ package Userland.Process is
        Signal_CPU_Exceeded        => 27,
        Signal_File_Size_Exceeded  => 28,
        Signal_Window_Resize       => 29,
-       Signal_Power_Failure       => 30);
-   type Signal_Bitmap is array (Signal) of Boolean with Pack, Size => 30;
+       Signal_Power_Failure       => 30,
+       Signal_RT_1                => 31,
+       Signal_RT_2                => 32,
+       Signal_RT_3                => 33,
+       Signal_RT_4                => 34,
+       Signal_RT_5                => 35,
+       Signal_RT_6                => 36,
+       Signal_RT_7                => 37,
+       Signal_RT_8                => 38);
+   type Signal_Bitmap is array (Signal) of Boolean with Pack, Size => 38;
 
    --  Initialize the process registry.
    procedure Init;

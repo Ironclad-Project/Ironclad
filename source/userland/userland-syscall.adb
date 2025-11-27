@@ -4138,8 +4138,8 @@ package body Userland.Syscall is
        Returned  : out Unsigned_64;
        Errno     : out Errno_Value)
    is
-      type Unsigned_30 is mod 2 ** 30;
-      function C1 is new Ada.Unchecked_Conversion (Unsigned_30, Signal_Bitmap);
+      type Unsigned_38 is mod 2 ** 38;
+      function C1 is new Ada.Unchecked_Conversion (Unsigned_38, Signal_Bitmap);
       package Trans_2 is new Memory.Userland_Transfer (Time_Spec);
       Proc       : constant             PID := Arch.Local.Get_Current_Process;
       FIAddr     : constant Integer_Address := Integer_Address (FDs_Addr);
@@ -4163,8 +4163,8 @@ package body Userland.Syscall is
 
       if S_IAddr /= 0 then
          declare
-            package Trans is new Memory.Userland_Transfer (Unsigned_30);
-            Passed_Set : Unsigned_30;
+            package Trans is new Memory.Userland_Transfer (Unsigned_38);
+            Passed_Set : Unsigned_38;
          begin
             Trans.Take_From_Userland (Map, Passed_Set, S_SAddr, Success);
             if not Success then
@@ -5826,12 +5826,12 @@ package body Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value)
    is
-      type Unsigned_30 is mod 2 ** 30;
-      function C1 is new Ada.Unchecked_Conversion (Signal_Bitmap, Unsigned_30);
-      function C2 is new Ada.Unchecked_Conversion (Unsigned_30, Signal_Bitmap);
+      type Unsigned_38 is mod 2 ** 38;
+      function C1 is new Ada.Unchecked_Conversion (Signal_Bitmap, Unsigned_38);
+      function C2 is new Ada.Unchecked_Conversion (Unsigned_38, Signal_Bitmap);
 
       package Trans_1 is new Memory.Userland_Transfer (Signal_Bitmap);
-      package Trans_2 is new Memory.Userland_Transfer (Unsigned_30);
+      package Trans_2 is new Memory.Userland_Transfer (Unsigned_38);
 
       Proc    : constant             PID := Arch.Local.Get_Current_Process;
       S_IAddr : constant Integer_Address := Integer_Address (Set_Addr);
@@ -5839,7 +5839,7 @@ package body Userland.Syscall is
       S_SAddr : constant  System.Address := To_Address (S_IAddr);
       O_SAddr : constant  System.Address := To_Address (O_IAddr);
       Old_Set : Signal_Bitmap;
-      New_Set : Unsigned_30;
+      New_Set : Unsigned_38;
       Success : Boolean;
       Map     : Page_Table_Acc;
    begin
