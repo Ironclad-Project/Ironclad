@@ -499,14 +499,14 @@ particular to support signal control flow transfer is using @code{sa_restorer}
 and @code{signal_return} syscalls, in a construct as such:
 
 @example c
-void __inner_sigret(void) {
+void __inner_sigret(void) @{
 	SYSCALL0(SYSCALL_SIGNAL_RETURN); // Do whatever on signal end.
 	__builtin_unreachable();         // Handle error, usually just panic.
-}
+@}
 
-__attribute__((naked)) void restorer(void) {
+__attribute__((naked)) void restorer(void) @{
 	asm("call __inner_sigret"); // Needed since the restorer is just jumped to.
-}
+@}
 @end example
 
 In a normal desktop system, this will be implemented by the libc or similar
