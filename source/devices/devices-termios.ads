@@ -16,7 +16,7 @@
 
 package Devices.TermIOs is
    --  Structures handled by the termios interface.
-   type Special_Characters is array (0 .. 10) of Unsigned_8;
+   type Special_Characters is array (0 .. 11) of Unsigned_32;
    type Local_Modes is record
       Echo_Input         : Boolean;
       Do_Erase           : Boolean;
