@@ -249,13 +249,17 @@ package body IPC.FIFO is
           False_Positive,
           "memory leak",
           "Cannot verify that the pipes have only 1 reference, but they do");
+      Must_Free : Boolean;
    begin
-      if To_Close.Reader_Closed and To_Close.Writer_Closed then
+      --  Binary semaphores in ironclad keep track of interrupt state, so we
+      --  must unlock to avoid interrupt deadlock even when freeing.
+      Must_Free := To_Close.Reader_Closed and To_Close.Writer_Closed;
+      Synchronization.Release (To_Close.Mutex);
+      if Must_Free then
          Free (To_Close.Data);
          Free (To_Close);
       else
-         Synchronization.Release (To_Close.Mutex);
+         To_Close := null;
       end if;
-      To_Close := null;
    end Common_Close;
 end IPC.FIFO;

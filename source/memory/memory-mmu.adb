@@ -228,10 +228,8 @@ package body Memory.MMU with SPARK_Mode => Off is
          Messages.Put_Line ("Failed to free map");
       end if;
 
-      --  FIXME: Unlocking here should not be necessary, it should be left
-      --  locked as a security measure for use after free. Leaving it blocked
-      --  though causes a deadlock somewhere outside the MMU code, as printing
-      --  makes it clear that the pagemap is not used after destruction.
+      --  Binary semaphores in ironclad keep track of interrupt state, so we
+      --  must unlock to avoid interrupt deadlock even when deleting object.
       Synchronization.Release (Map.Mutex);
 
       F (Map);

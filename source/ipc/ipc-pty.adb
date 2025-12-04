@@ -105,19 +105,27 @@ package body IPC.PTY is
    procedure Close (Closed : in out Inner_Acc) is
       pragma SPARK_Mode (Off);
       procedure Free is new Ada.Unchecked_Deallocation (Inner, Inner_Acc);
-      Discard : Boolean;
+      Discard, Must_Free : Boolean;
    begin
       Synchronization.Seize (Closed.Primary_Mutex);
       Synchronization.Seize (Closed.Secondary_Mutex);
       Synchronization.Seize (Closed.Global_Data_Mutex);
-      if Closed.Was_Closed then
+
+      Must_Free := Closed.Was_Closed;
+      if Must_Free then
          Devices.Remove (Closed.Device_Handle, Discard);
-         Free (Closed);
       else
          Closed.Was_Closed := True;
-         Synchronization.Release (Closed.Primary_Mutex);
-         Synchronization.Release (Closed.Secondary_Mutex);
-         Synchronization.Release (Closed.Global_Data_Mutex);
+      end if;
+
+      --  Binary semaphores in ironclad keep track of interrupt state, so we
+      --  must unlock to avoid interrupt deadlock even when freeing.
+      Synchronization.Release (Closed.Global_Data_Mutex);
+      Synchronization.Release (Closed.Secondary_Mutex);
+      Synchronization.Release (Closed.Primary_Mutex);
+
+      if Must_Free then
+         Free (Closed);
       end if;
    end Close;
 
