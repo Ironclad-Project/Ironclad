@@ -27,6 +27,8 @@ with Arch.MMU;
 package body Userland.Process with SPARK_Mode => Off is
    procedure Free is new Ada.Unchecked_Deallocation
       (Process_Data, Process_Data_Acc);
+   procedure Free is new Ada.Unchecked_Deallocation
+      (File_Arr, File_Arr_Acc);
 
    Do_ASLR : Boolean := True;
 
@@ -942,6 +944,7 @@ package body Userland.Process with SPARK_Mode => Off is
       --  until we are waited.
       Flush_Threads (Process);
       Flush_Files   (Process);
+      Free (Registry (Process).File_Table);
       Issue_Exit (Process, Killer);
 
       if Exiting_Ourselves then
@@ -970,6 +973,7 @@ package body Userland.Process with SPARK_Mode => Off is
       --  until we are waited.
       Flush_Threads (Process);
       Flush_Files   (Process);
+      Free (Registry (Process).File_Table);
       Issue_Exit (Process, Code);
 
       if Exiting_Ourselves then
