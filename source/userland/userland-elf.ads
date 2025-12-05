@@ -44,10 +44,12 @@ package Userland.ELF is
       Program_Header_Size  : Unsigned_64;
    end record;
 
+   subtype Linker_Str is String (1 .. 128);
    type Parsed_ELF is record
       Was_Loaded  : Boolean;
       Entrypoint  : System.Address;
-      Linker_Path : String_Acc;
+      Linker_Path : Linker_Str;
+      Linker_Len  : Natural;
       Vector      : Auxval;
       Exec_Stack  : Boolean;
    end record;
@@ -182,7 +184,8 @@ private
       (FS     : VFS.FS_Handle;
        Ino    : VFS.File_Inode_Number;
        Header : Program_Header;
-       Linker : out String_Acc);
+       Linker : out Linker_Str;
+       Len    : out Natural);
 
    --  Load and map a loadable program header to memory.
    procedure Load_Header

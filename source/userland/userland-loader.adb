@@ -191,12 +191,12 @@ package body Userland.Loader is
          return;
       end if;
 
-      if Loaded_ELF.Linker_Path /= null then
+      if Loaded_ELF.Linker_Len /= 0 then
          --  Interpreter paths are relative, so we build an absolute one on
          --  the spot using Path, which is absolute.
-         LD_Path (9 .. Loaded_ELF.Linker_Path.all'Length + 8) :=
-            Loaded_ELF.Linker_Path (1 .. Loaded_ELF.Linker_Path.all'Length);
-         Open (LD_Path (9 .. 7 + Loaded_ELF.Linker_Path.all'Length), LD_FS,
+         LD_Path (9 .. Loaded_ELF.Linker_Len + 8) :=
+            Loaded_ELF.Linker_Path (1 .. Loaded_ELF.Linker_Len);
+         Open (LD_Path (9 .. 7 + Loaded_ELF.Linker_Len), LD_FS,
                LD_Ino, Success2, 0, True, False);
          if Success2 /= VFS.FS_Success then
             Success := False;

@@ -47,7 +47,8 @@ package body Userland.ELF is
       Result :=
          (Was_Loaded  => False,
           Entrypoint  => System.Null_Address,
-          Linker_Path => null,
+          Linker_Path => [others => ' '],
+          Linker_Len  => 0,
           Vector =>
             (Entrypoint => 0,
              Program_Headers => 0,
@@ -120,7 +121,8 @@ package body Userland.ELF is
                when Program_Header_Table_Segment =>
                   Result.Vector.Program_Headers := Base + HDR.Virt_Address;
                when Program_Interpreter_Segment =>
-                  Get_Linker (FS, Ino, HDR, Result.Linker_Path);
+                  Get_Linker (FS, Ino, HDR, Result.Linker_Path,
+                     Result.Linker_Len);
                when Program_GNU_Stack =>
                   Result.Exec_Stack := (HDR.Flags and Flags_Executable) /= 0;
                when others =>
@@ -140,7 +142,8 @@ package body Userland.ELF is
       (FS     : VFS.FS_Handle;
        Ino    : VFS.File_Inode_Number;
        Header : Program_Header;
-       Linker : out String_Acc)
+       Linker : out Linker_Str;
+       Len    : out Natural)
    is
       pragma SPARK_Mode (Off);
       use VFS;
@@ -151,21 +154,25 @@ package body Userland.ELF is
       Discard2  : Boolean;
       Success   : FS_Status;
    begin
-      Ret := new String'[1 .. Header.File_Size_Bytes => ' '];
+      if Header.File_Size_Bytes > Linker.Length then
+         Len := 0;
+         return;
+      end if;
+
       declare
          Ret_Data : Devices.Operation_Data (1 .. Header.File_Size_Bytes)
-            with Import, Address => Ret (1)'Address;
+            with Import, Address => Linker'Address;
       begin
          VFS.Read (FS, Ino, Header.Offset, Ret_Data, Ret_Count, True, Success);
       end;
       if Success = FS_Success and Ret_Count = Header.File_Size_Bytes then
-         Linker := Ret;
+         Len := Header.File_Size_Bytes;
       else
-         Linker := null;
+         Len := 0;
       end if;
    exception
       when Constraint_Error =>
-         Linker := null;
+         Len := 0;
    end Get_Linker;
 
    procedure Load_Header
