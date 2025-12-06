@@ -149,12 +149,11 @@ package body Userland.ELF is
       use VFS;
 
       Discard   : Unsigned_64;
-      Ret       : String_Acc;
       Ret_Count : Natural;
       Discard2  : Boolean;
       Success   : FS_Status;
    begin
-      if Header.File_Size_Bytes > Linker.Length then
+      if Header.File_Size_Bytes > Linker'Length then
          Len := 0;
          return;
       end if;
@@ -170,9 +169,6 @@ package body Userland.ELF is
       else
          Len := 0;
       end if;
-   exception
-      when Constraint_Error =>
-         Len := 0;
    end Get_Linker;
 
    procedure Load_Header
