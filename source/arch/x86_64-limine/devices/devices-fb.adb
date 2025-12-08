@@ -279,6 +279,8 @@ package body Devices.FB with SPARK_Mode => Off is
       FBIOGET_VSCREENINFO : constant := 16#4600#;
       FBIOPUT_VSCREENINFO : constant := 16#4601#;
       FBIOGET_FSCREENINFO : constant := 16#4602#;
+      FBIOGETCMAP         : constant := 16#4604#;
+      FBIOPUTCMAP         : constant := 16#4605#;
 
       Dev_Data : Internal_FB_Data  with Import, Address => Key;
       Var_Req  : FB_Var_ScreenInfo with Import, Address => Argument;
@@ -292,6 +294,8 @@ package body Devices.FB with SPARK_Mode => Off is
          when FBIOGET_VSCREENINFO => Var_Req := Dev_Data.Variable_Info;
          when FBIOPUT_VSCREENINFO => Dev_Data.Variable_Info := Var_Req;
          when FBIOGET_FSCREENINFO => Fix_Req := Dev_Data.Fixed_Info;
+         --  FIXME: Limine gives us no way to set grayscale or anything.
+         when FBIOGETCMAP | FBIOPUTCMAP => null;
          when others => Success := False;
       end case;
    end IO_Control;
