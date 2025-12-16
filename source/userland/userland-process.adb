@@ -950,6 +950,9 @@ package body Userland.Process with SPARK_Mode => Off is
       if Exiting_Ourselves then
          Scheduler.Bail;
       end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception exiting process");
    end Exit_Process;
 
    procedure Exit_Process (Process : PID; Code : Unsigned_8) is
@@ -979,6 +982,9 @@ package body Userland.Process with SPARK_Mode => Off is
       if Exiting_Ourselves then
          Scheduler.Bail;
       end if;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception exiting process");
    end Exit_Process;
 
    procedure Set_CWD
