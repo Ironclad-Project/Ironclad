@@ -488,6 +488,14 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             NVMM_VCPU_Stop (Ctx.X10, Ctx.X11, Returned, Errno);
          when 138 =>
             Set_SID (Returned, Errno);
+         when 139 =>
+            PCI_Read
+               (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Ctx.X14,
+                Ctx.X15, Returned, Errno);
+         when 140 =>
+            PCI_Write
+               (Ctx.X10, Ctx.X11, Ctx.X12, Ctx.X13, Ctx.X14,
+                Ctx.X15, Returned, Errno);
          when others =>
             Userland.Process.Raise_Signal
                (Local.Get_Current_Process,

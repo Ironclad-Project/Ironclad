@@ -408,8 +408,18 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             NVMM_VCPU_Stop (State.RDI, State.RSI, Returned, Errno);
          when 138 =>
             Set_SID (Returned, Errno);
+         when 139 =>
+            PCI_Read
+               (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
+                State.R9, Returned, Errno);
+         when 140 =>
+            PCI_Write
+               (State.RDI, State.RSI, State.RDX, State.R12, State.R8,
+                State.R9, Returned, Errno);
          when others =>
-            --  glibc stupidity.
+            Userland.Process.Raise_Signal
+               (Local.Get_Current_Process,
+                Userland.Process.Signal_Bad_Syscall);
             Returned := Unsigned_64'Last;
             Errno    := Error_Not_Implemented;
       end case;
