@@ -48,6 +48,9 @@ package Arch.Snippets is
    --  can be enabled and disabled.
    procedure Enable_Userland_Memory_Access  with Inline;
    procedure Disable_Userland_Memory_Access with Inline;
+
+   --  Make sure every memory access is completed before this.
+   procedure Full_Memory_Load_Store_Barrier with Inline;
    ----------------------------------------------------------------------------
    --  Architecture-specific snippets.
    --  FIXME: We use gnatprep for setting up architecture-specific snppets.

@@ -409,9 +409,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 138 =>
             Set_SID (Returned, Errno);
          when others =>
-            Userland.Process.Raise_Signal
-               (Local.Get_Current_Process,
-                Userland.Process.Signal_Bad_Syscall);
+            --  glibc stupidity.
             Returned := Unsigned_64'Last;
             Errno    := Error_Not_Implemented;
       end case;

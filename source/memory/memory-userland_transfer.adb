@@ -40,6 +40,7 @@ package body Memory.Userland_Transfer is
          Mem_Data : constant T with Import, Convention => C, Address => Addr;
       begin
          Arch.Snippets.Enable_Userland_Memory_Access;
+         Arch.Snippets.Full_Memory_Load_Store_Barrier;
          Data    := Mem_Data;
          Success := True;
          Arch.Snippets.Disable_Userland_Memory_Access;
@@ -64,6 +65,7 @@ package body Memory.Userland_Transfer is
          Arch.Snippets.Enable_Userland_Memory_Access;
          Mem_Data := Data;
          Success  := True;
+         Arch.Snippets.Full_Memory_Load_Store_Barrier;
          Arch.Snippets.Disable_Userland_Memory_Access;
       end;
    end Paste_Into_Userland;

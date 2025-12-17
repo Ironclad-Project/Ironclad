@@ -366,11 +366,13 @@ package body Userland.Syscall is
                Returned := Unsigned_64'Last;
          end case;
 
+         Arch.Snippets.Full_Memory_Load_Store_Barrier;
          Arch.Snippets.Disable_Userland_Memory_Access;
       end;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing Read");
+         Arch.Snippets.Full_Memory_Load_Store_Barrier;
          Arch.Snippets.Disable_Userland_Memory_Access;
          Errno := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -490,11 +492,13 @@ package body Userland.Syscall is
          end case;
 
       <<Cleanup>>
+         Arch.Snippets.Full_Memory_Load_Store_Barrier;
          Arch.Snippets.Disable_Userland_Memory_Access;
       end;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing Write");
+         Arch.Snippets.Full_Memory_Load_Store_Barrier;
          Arch.Snippets.Disable_Userland_Memory_Access;
          Errno := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -1605,10 +1609,12 @@ package body Userland.Syscall is
       end if;
 
    <<Cleanup>>
+      Arch.Snippets.Full_Memory_Load_Store_Barrier;
       Arch.Snippets.Disable_Userland_Memory_Access;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Exception while executing IOCTL");
+         Arch.Snippets.Full_Memory_Load_Store_Barrier;
          Arch.Snippets.Disable_Userland_Memory_Access;
          Errno    := Error_Would_Block;
          Returned := Unsigned_64'Last;
@@ -7977,6 +7983,7 @@ package body Userland.Syscall is
          Arg_Result : String_Acc;
       begin
          Arg_Result := new String'(Arg_String);
+         Arch.Snippets.Full_Memory_Load_Store_Barrier;
          Arch.Snippets.Disable_Userland_Memory_Access;
          return Arg_Result;
       end;

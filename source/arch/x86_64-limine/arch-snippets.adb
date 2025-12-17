@@ -72,6 +72,11 @@ package body Arch.Snippets with SPARK_Mode => Off is
          Asm ("clac", Clobber => "cc", Volatile => True);
       end if;
    end Disable_Userland_Memory_Access;
+
+   procedure Full_Memory_Load_Store_Barrier is
+   begin
+      Asm ("mfence", Volatile => True);
+   end Full_Memory_Load_Store_Barrier;
    ----------------------------------------------------------------------------
    procedure Port_Out (Port : Unsigned_16; Value : Unsigned_8) is
    begin
