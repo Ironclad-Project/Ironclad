@@ -89,6 +89,6 @@ package body Arch.Snippets with SPARK_Mode => Off is
 
    procedure Full_Memory_Load_Store_Barrier is
    begin
-      Asm ("fence", Volatile => True);
+      System.Machine_Code.Asm ("fence", Volatile => True);
    end Full_Memory_Load_Store_Barrier;
 end Arch.Snippets;
