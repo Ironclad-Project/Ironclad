@@ -2077,7 +2077,7 @@ This syscalls creates a pipe with the passed flags and returns the registered
 file descriptors in @code{pipefd}. Index @code{0} is the reader end, @code{1}
 is the writing one.
 
-The only available flag for use is @code{O_NONBLOCK}.
+@code{flags} accepts @code{O_NONBLOCK}, @code{O_CLOEXEC}, and @code{O_CLOFORK}.
 
 The syscall returns @code{0} on success and @code{-1} on failure, with the
 following errno:

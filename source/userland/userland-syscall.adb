@@ -1648,6 +1648,8 @@ package body Userland.Syscall is
       Ad    : constant Integer_Address := Integer_Address (Result_Addr);
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
       Block : constant         Boolean := (Flags and O_NONBLOCK) = 0;
+      Do_Cloexec : constant Boolean := (Flags and O_CLOEXEC) /= 0;
+      Do_CloFork : constant Boolean := (Flags and O_CLOFORK) /= 0;
 
       Res : Result_Arr;
       Returned2 : IPC.FIFO.Inner_Acc;
@@ -1669,23 +1671,34 @@ package body Userland.Syscall is
       Add_File (Proc, Reader_Desc, Res (1), Succ1);
       Add_File (Proc, Writer_Desc, Res (2), Succ2);
       if not Succ1 or not Succ2 then
-         Close (Reader_Desc);
-         Close (Writer_Desc);
          Errno := Error_Too_Many_Files;
          Returned := Unsigned_64'Last;
-         return;
+         goto Cleanup;
       end if;
+
+      Set_FD_Flags (Proc, Unsigned_64 (Res (1)), Do_Cloexec, Do_CloFork);
+      Set_FD_Flags (Proc, Unsigned_64 (Res (2)), Do_Cloexec, Do_CloFork);
 
       Get_Common_Map (Proc, Map);
       Trans.Paste_Into_Userland (Map, Res, To_Address (Ad), Succ1);
       if not Succ1 then
          Errno := Error_Would_Fault;
          Returned := Unsigned_64'Last;
-         return;
+         goto Cleanup;
       end if;
 
       Errno := Error_No_Error;
       Returned := 0;
+      return;
+
+   <<Cleanup>>
+      Close (Reader_Desc);
+      Close (Writer_Desc);
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Pipe");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
    end Pipe;
 
    procedure Get_UID (Returned : out Unsigned_64; Errno : out Errno_Value) is

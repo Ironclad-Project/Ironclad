@@ -41,6 +41,7 @@ release changes.
 - Add support for `CLOCK_PROCESS_CPUTIME_ID` and `CLOCK_THREAD_CPUTIME_ID`.
 - Add an RTL8139 driver.
 - Add an E1000 and E1000e driver.
+- Make the @code{pipe} syscall accept @{O_CLOEXEC} and @code{O_CLOFORK}.
 
 ### Breaking changes
 
