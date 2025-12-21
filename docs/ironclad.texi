@@ -456,7 +456,7 @@ The ones Ironclad PTYs interact with are @code{OPOST} and @code{ONLCR}.
 
 The termios structure used by the PTYs and other kernel uses is:
 
-@code c
+@example c
 /* indices for the c_cc array in struct termios */
 #define NCCS    11
 #define VEOF     0
@@ -549,7 +549,7 @@ struct termios @{
     uint32_t c_ibaud;
     uint32_t c_obaud;
 @};
-@end code
+@end example
 
 @node Signals
 @section Signals
