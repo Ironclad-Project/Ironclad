@@ -3079,13 +3079,13 @@ package body Userland.Syscall is
                   Returned := Unsigned_64'Last;
                   Errno    := Error_Would_Fault;
                end if;
-
-               Free (Tmp_Buffer);
             end;
          else
             Returned := Unsigned_64'Last;
             Errno    := Error_No_Entity;
          end if;
+
+         Free (Tmp_Buffer);
       end if;
    exception
       when others =>
