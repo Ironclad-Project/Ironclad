@@ -49,7 +49,6 @@ package body Scheduler with SPARK_Mode => Off is
       GP_State        : Arch.Context.GP_Context;
       FP_State        : Arch.Context.FP_Context;
       Process         : Userland.Process.PID;
-      Last_Sched      : Time.Timestamp;
       System_Runtime  : Time.Timestamp;
       User_Runtime    : Time.Timestamp;
       System_Tmp      : Time.Timestamp;
@@ -106,7 +105,6 @@ package body Scheduler with SPARK_Mode => Off is
              GP_State        => <>,
              FP_State        => <>,
              Process         => Userland.Process.Error_PID,
-             Last_Sched      => (0, 0),
              System_Runtime  => (0, 0),
              User_Runtime    => (0, 0),
              System_Tmp      => (0, 0),
@@ -394,12 +392,12 @@ package body Scheduler with SPARK_Mode => Off is
           User_Stack_Size => 0,
           User_Stack_Used => False,
           Is_Disabled     => True,
-          Last_Sched      => (0, 0),
           System_Runtime  => (0, 0),
           User_Runtime    => (0, 0),
           System_Tmp      => (0, 0),
           User_Tmp        => (0, 0));
 
+      Arch.Clocks.Get_Monotonic_Time (Thread_Pool (New_TID).User_Tmp);
       Arch.Context.Success_Fork_Result (Thread_Pool (New_TID).GP_State);
 
    <<End_Return>>
@@ -464,14 +462,12 @@ package body Scheduler with SPARK_Mode => Off is
    end Get_Runtimes;
 
    procedure Signal_Kernel_Entry (Thread : TID) is
-      Tmp     : Time.Timestamp;
-      Discard : Boolean;
+      Tmp : Time.Timestamp;
    begin
       Arch.Clocks.Get_Monotonic_Time (Tmp);
       Thread_Pool (Thread).System_Tmp := Tmp;
-      Tmp := Tmp - Thread_Pool (Thread).User_Tmp;
       Thread_Pool (Thread).User_Runtime := Thread_Pool (Thread).User_Runtime +
-         Tmp;
+         (Tmp - Thread_Pool (Thread).User_Tmp);
    exception
       when Constraint_Error =>
          null;
@@ -881,19 +877,12 @@ package body Scheduler with SPARK_Mode => Off is
       --  Save state.
       if Current_TID /= Error_TID then
          Thread_Pool (Current_TID).Is_Running := False;
-         Curr := Curr - Thread_Pool (Current_TID).Last_Sched;
          if Thread_Pool (Current_TID).Is_Present then
             Thread_Pool (Current_TID).PageMap := MMU.Get_Curr_Table_Addr;
             Thread_Pool (Current_TID).TCB_Pointer := Arch.Local.Fetch_TCB;
             Thread_Pool (Current_TID).GP_State    := State;
             Arch.Context.Save_FP_Context (Thread_Pool (Current_TID).FP_State);
          end if;
-      end if;
-
-      --  Set the last time of entry to userland if none.
-      Thread_Pool (Next_TID).Last_Sched := Curr;
-      if Thread_Pool (Next_TID).User_Tmp = (0, 0) then
-         Thread_Pool (Next_TID).User_Tmp := Curr;
       end if;
 
       --  FIXME: This originally was between the lock release and the
