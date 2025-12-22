@@ -1333,9 +1333,7 @@ package body Userland.Process with SPARK_Mode => Off is
          null;
       else
          Synchronization.Seize (Registry (Proc).Data_Mutex);
-         if not Registry (Proc).Masked_Signals (Sig) then
-            Registry (Proc).Raised_Signals (Sig) := True;
-         end if;
+         Registry (Proc).Raised_Signals (Sig) := True;
          Synchronization.Release (Registry (Proc).Data_Mutex);
       end if;
    exception
