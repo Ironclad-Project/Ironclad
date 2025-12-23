@@ -277,22 +277,25 @@ package VFS is
    --  @param Path       Path to be accessed inside Relative, or absolute.
    --  @param Final_Key  Final FS Handle we end on.
    --  @param Ino        Found inode, if any.
-   --  @param Success    Returned status for the operation.
-   --  @param User       UID to check against, 0 for root/bypass checks.
-   --  @param Want_Read  True for read permission, False for not.
-   --  @param Want_Write True for write permission, False for not.
-   --  @param Do_Follow  If true, follow symlinks, hard links are always used.
+   --  @param Success       Returned status for the operation.
+   --  @param User          UID to check against, 0 for root/bypass checks.
+   --  @param Want_Read     True for read permission, False for not.
+   --  @param Want_Write    True for write permission, False for not.
+   --  @param Do_Follow     If true, follow symlinks.
+   --  @param Symlink_Depth Symlink recursion depth (loop detection).
+   Max_Symlink_Depth : constant := 40;  --  POSIX SYMLOOP_MAX
    procedure Open
-      (Key        : FS_Handle;
-       Relative   : File_Inode_Number;
-       Path       : String;
-       Final_Key  : out FS_Handle;
-       Ino        : out File_Inode_Number;
-       Success    : out FS_Status;
-       User       : Unsigned_32;
-       Want_Read  : Boolean;
-       Want_Write : Boolean;
-       Do_Follow  : Boolean := True)
+      (Key           : FS_Handle;
+       Relative      : File_Inode_Number;
+       Path          : String;
+       Final_Key     : out FS_Handle;
+       Ino           : out File_Inode_Number;
+       Success       : out FS_Status;
+       User          : Unsigned_32;
+       Want_Read     : Boolean;
+       Want_Write    : Boolean;
+       Do_Follow     : Boolean := True;
+       Symlink_Depth : Natural := 0)
       with Pre => Is_Initialized and Key /= Error_Handle and Is_Valid (Path);
 
    --  Create an inode inside a mount.

@@ -412,16 +412,17 @@ package body VFS is
    end Get_Max_Length;
    ----------------------------------------------------------------------------
    procedure Open
-      (Key        : FS_Handle;
-       Relative   : File_Inode_Number;
-       Path       : String;
-       Final_Key  : out FS_Handle;
-       Ino        : out File_Inode_Number;
-       Success    : out FS_Status;
-       User       : Unsigned_32;
-       Want_Read  : Boolean;
-       Want_Write : Boolean;
-       Do_Follow  : Boolean := True)
+      (Key           : FS_Handle;
+       Relative      : File_Inode_Number;
+       Path          : String;
+       Final_Key     : out FS_Handle;
+       Ino           : out File_Inode_Number;
+       Success       : out FS_Status;
+       User          : Unsigned_32;
+       Want_Read     : Boolean;
+       Want_Write    : Boolean;
+       Do_Follow     : Boolean := True;
+       Symlink_Depth : Natural := 0)
    is
       pragma Annotate
          (GNATprove,
@@ -456,6 +457,11 @@ package body VFS is
              Name_Len     => 0,
              Type_Of_File => File_Regular)];
    begin
+      --  Check for symlink loop (too many levels of symlinks).
+      if Symlink_Depth > Max_Symlink_Depth then
+         goto Symlink_Loop_Return;
+      end if;
+
       if Path'Length = 0 or Root_Idx = Error_Handle then
          goto Invalid_Value_Return;
       end if;
@@ -564,16 +570,17 @@ package body VFS is
                end if;
 
                Open
-                  (Key        => Orig_Key,
-                   Relative   => Orig_Ino,
-                   Path       => Symlink_Path (1 .. Symlink_Len),
-                   Final_Key  => Final_Key,
-                   Ino        => Ino,
-                   Success    => Success,
-                   User       => User,
-                   Want_Read  => Want_Read,
-                   Want_Write => Want_Write,
-                   Do_Follow  => Do_Follow);
+                  (Key           => Orig_Key,
+                   Relative      => Orig_Ino,
+                   Path          => Symlink_Path (1 .. Symlink_Len),
+                   Final_Key     => Final_Key,
+                   Ino           => Ino,
+                   Success       => Success,
+                   User          => User,
+                   Want_Read     => Want_Read,
+                   Want_Write    => Want_Write,
+                   Do_Follow     => Do_Follow,
+                   Symlink_Depth => Symlink_Depth + 1);
                goto Cleanup_Only_Return;
             elsif Entry_Stat.Type_Of_File = File_Directory then
                --  Check whether we are dealing with a mount.
@@ -640,17 +647,18 @@ package body VFS is
                end if;
 
                Open
-                  (Key        => Orig_Key,
-                   Relative   => Orig_Ino,
-                   Path       => Symlink_Path (1 .. Symlink_Len) & "/" &
+                  (Key           => Orig_Key,
+                   Relative      => Orig_Ino,
+                   Path          => Symlink_Path (1 .. Symlink_Len) & "/" &
                               Path (Path'First + Path_Last + 1 .. Path'Last),
-                   Final_Key  => Final_Key,
-                   Ino        => Ino,
-                   Success    => Success,
-                   User       => User,
-                   Want_Read  => Want_Read,
-                   Want_Write => Want_Write,
-                   Do_Follow  => Do_Follow);
+                   Final_Key     => Final_Key,
+                   Ino           => Ino,
+                   Success       => Success,
+                   User          => User,
+                   Want_Read     => Want_Read,
+                   Want_Write    => Want_Write,
+                   Do_Follow     => Do_Follow,
+                   Symlink_Depth => Symlink_Depth + 1);
                goto Cleanup_Only_Return;
             when others =>
                goto Invalid_Value_Return;
@@ -703,6 +711,14 @@ package body VFS is
       Final_Key := Error_Handle;
       Ino       := 0;
       Success   := FS_Not_Allowed;
+      return;
+
+   <<Symlink_Loop_Return>>
+      Free1 (Symlink_Path);
+      Free2 (Dir_Entries);
+      Final_Key := Error_Handle;
+      Ino       := 0;
+      Success   := FS_Loop;
       return;
 
    <<Cleanup_Only_Return>>
