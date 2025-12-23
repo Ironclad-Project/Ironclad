@@ -516,7 +516,7 @@ package body Userland.Process with SPARK_Mode => Off is
       Success := False;
 
       for Ent of Registry (Process).File_Table.all loop
-         if Ent.Description = null then
+         if Ent.Description /= null then
             Count_Of_FDs := Count_Of_FDs + 1;
          end if;
       end loop;
