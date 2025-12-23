@@ -203,7 +203,7 @@ package body Userland.Process with SPARK_Mode => Off is
       end;
    exception
       when Constraint_Error =>
-         null;
+         Synchronization.Release (Registry_Mutex);
    end Delete_Process;
 
    procedure Get_Controlling_TTY (Proc : PID; TTY : out IPC.PTY.Inner_Acc) is
