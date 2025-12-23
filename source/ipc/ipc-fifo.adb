@@ -193,21 +193,29 @@ package body IPC.FIFO is
       Len   : Natural := Data'Length;
       Final : Natural;
    begin
-      if To_Write.Reader_Closed then
-         Ret_Count := 0;
-         Success   := Broken_Failure;
-         return;
-      end if;
-
       if Is_Blocking then
          loop
             Synchronization.Seize (To_Write.Mutex);
+            --  Check Reader_Closed inside lock to avoid TOCTOU race
+            if To_Write.Reader_Closed then
+               Synchronization.Release (To_Write.Mutex);
+               Ret_Count := 0;
+               Success   := Broken_Failure;
+               return;
+            end if;
             exit when To_Write.Data_Count /= To_Write.Data'Length;
             Synchronization.Release (To_Write.Mutex);
             Scheduler.Yield_If_Able;
          end loop;
       else
          Synchronization.Seize (To_Write.Mutex);
+         --  Check Reader_Closed inside lock to avoid TOCTOU race
+         if To_Write.Reader_Closed then
+            Synchronization.Release (To_Write.Mutex);
+            Ret_Count := 0;
+            Success   := Broken_Failure;
+            return;
+         end if;
          if To_Write.Data_Count = To_Write.Data'Length then
             Ret_Count := 0;
             Success   := Would_Block_Failure;
