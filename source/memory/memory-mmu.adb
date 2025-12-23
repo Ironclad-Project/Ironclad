@@ -363,6 +363,13 @@ package body Memory.MMU with SPARK_Mode => Off is
          Virt := Virt + Page_Size;
          Phys := Phys + Page_Size;
       end loop;
+
+      --  FIXME: Ideally we should be way more picky with invalidations, but
+      --  Map_Range can result in a less restrictive entry going to more
+      --  restrictive, so while we dont have the logic to discern when this
+      --  happens, we will just always invalidate.
+      Arch.MMU.Flush_TLBs (Get_Map_Table_Addr (Map), Virtual_Start, Length);
+
       Synchronization.Release (Map.Mutex);
       Success := True;
    exception
@@ -471,7 +478,13 @@ package body Memory.MMU with SPARK_Mode => Off is
 
          Virt := Virt + Page_Size;
       end loop;
+
+      --  FIXME: Ideally we should be way more picky with invalidations, but
+      --  Remap_Range can result in a less restrictive entry going to more
+      --  restrictive, so while we dont have the logic to discern when this
+      --  happens, we will just always invalidate.
       Arch.MMU.Flush_TLBs (Get_Map_Table_Addr (Map), Virtual_Start, Length);
+
       Synchronization.Release (Map.Mutex);
       Success := True;
    exception
