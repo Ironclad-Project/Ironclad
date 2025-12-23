@@ -426,7 +426,7 @@ package body VFS.EXT with SPARK_Mode => Off is
                 Ret_Count   => Temp,
                 Success     => Success);
 
-            Desc_Index := Target_Index - 1 / Data.Super.Inodes_Per_Group;
+            Desc_Index := (Target_Index - 1) / Data.Super.Inodes_Per_Group;
             RW_Block_Group_Descriptor
                (Data             => Data,
                 Descriptor_Index => Desc_Index,
@@ -496,6 +496,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Synchronization.Release_Writer (Data.Mutex);
    exception
       when Constraint_Error =>
+         Synchronization.Release_Writer (Data.Mutex);
          Messages.Put_Line ("Exception while creating an EXT symlink");
          Status := FS_IO_Failure;
    end Create_Symbolic_Link;
@@ -609,6 +610,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Last_Component);
    exception
       when Constraint_Error =>
+         Synchronization.Release_Writer (Data.Mutex);
          Messages.Put_Line ("Exception while creating an EXT hardlink");
          Status := FS_IO_Failure;
    end Create_Hard_Link;
@@ -734,6 +736,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Last_Component);
    exception
       when Constraint_Error =>
+         Synchronization.Release_Writer (Data.Mutex);
          Messages.Put_Line ("Exception while renaming an EXT node");
          Status := FS_IO_Failure;
    end Rename;
@@ -828,6 +831,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Last_Component);
    exception
       when Constraint_Error =>
+         Synchronization.Release_Writer (Data.Mutex);
          Messages.Put_Line ("Exception while unlinking an EXT node");
          Status := FS_IO_Failure;
    end Unlink;
@@ -900,6 +904,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Fetched_Inode);
    exception
       when Constraint_Error =>
+         Synchronization.Release_Reader (FS.Mutex);
          Messages.Put_Line ("Exception while reading EXT entries");
          Ret_Count := 0;
          Success   := FS_IO_Failure;
@@ -944,6 +949,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Fetched_Inode);
    exception
       when Constraint_Error =>
+         Synchronization.Release_Reader (FS.Mutex);
          Messages.Put_Line ("Exception while reading an EXT symlink");
          Path      := [others => ' '];
          Ret_Count := 0;
@@ -1000,6 +1006,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Fetched_Inode);
    exception
       when Constraint_Error =>
+         Synchronization.Release_Reader (FS.Mutex);
          Messages.Put_Line ("Exception while reading EXT data");
          Data      := [others => 0];
          Ret_Count := 0;
@@ -1061,6 +1068,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Fetched_Inode);
    exception
       when Constraint_Error =>
+         Synchronization.Release_Writer (FS.Mutex);
          Messages.Put_Line ("Exception while writing EXT data");
          Ret_Count := 0;
          Success   := FS_IO_Failure;
@@ -1114,6 +1122,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Inod);
    exception
       when Constraint_Error =>
+         Synchronization.Release_Reader (FS.Mutex);
          Messages.Put_Line ("Exception while doing an EXT stat");
          Success := FS_IO_Failure;
    end Stat;
@@ -1189,6 +1198,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Fetched);
    exception
       when Constraint_Error =>
+         Synchronization.Release_Writer (FS.Mutex);
          Messages.Put_Line ("Exception while doing an EXT truncation");
          Status := FS_IO_Failure;
    end Truncate;
@@ -1301,6 +1311,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Inod);
    exception
       when Constraint_Error =>
+         Synchronization.Release_Writer (FS.Mutex);
          Messages.Put_Line ("Exception while doing an EXT mode change");
          Status := FS_IO_Failure;
    end Change_Mode;
@@ -1348,6 +1359,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Inod);
    exception
       when Constraint_Error =>
+         Synchronization.Release_Writer (FS.Mutex);
          Messages.Put_Line ("Exception while doing an EXT owner change");
          Status := FS_IO_Failure;
    end Change_Owner;
@@ -1402,6 +1414,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Free (Inod);
    exception
       when Constraint_Error =>
+         Synchronization.Release_Writer (FS.Mutex);
          Messages.Put_Line ("Exception while doing an EXT access time change");
          Status := FS_IO_Failure;
    end Change_Access_Times;
@@ -1416,6 +1429,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       Synchronization.Release_Reader (FS_Data.Mutex);
    exception
       when Constraint_Error =>
+         Synchronization.Release_Reader (FS_Data.Mutex);
          Messages.Put_Line ("Exception while doing an EXT sync");
          Status := FS_IO_Failure;
    end Synchronize;
@@ -1445,6 +1459,7 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
    exception
       when Constraint_Error =>
+         Synchronization.Release_Reader (FS_Data.Mutex);
          Messages.Put_Line ("Exception while doing an EXT partial sync");
          Status := FS_IO_Failure;
    end Synchronize;
