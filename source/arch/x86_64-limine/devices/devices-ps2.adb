@@ -548,6 +548,8 @@ package body Devices.PS2 with SPARK_Mode => Off is
       Arch.APIC.LAPIC_EOI;
    exception
       when Constraint_Error =>
-         null;
+         Messages.Put_Line ("Exception in PS2 mouse handler");
+         Synchronization.Release (Ms_Data_Mutex);
+         Arch.APIC.LAPIC_EOI;
    end Mouse_Handler;
 end Devices.PS2;
