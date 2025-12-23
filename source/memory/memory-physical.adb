@@ -57,7 +57,7 @@ package body Memory.Physical with SPARK_Mode => Off is
 
       --  Calculate what we will need for the bitmap, and find a hole for it.
       Block_Count   := Unsigned_64 (Total_Memory) / Block_Size;
-      Bitmap_Length := Size (Block_Count) / 8;
+      Bitmap_Length := Align.Align_Up (Size (Block_Count) / 8, Block_Size);
       for E of Memmap loop
          if E.MemType = Arch.Memory_Free and Size (E.Length) > Bitmap_Length
          then
@@ -76,8 +76,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       declare
          Bitmap_Body : Bitmap (0 .. Block_Count - 1) with Import;
          for Bitmap_Body'Address use To_Address (Bitmap_Address);
-         Index : Unsigned_64 := 0;
-         Block_Start, Block_Length : Unsigned_64;
+         I, Block_Start, Block_Length : Unsigned_64;
       begin
          for Item of Bitmap_Body loop
             Item := Block_Used;
@@ -93,10 +92,10 @@ package body Memory.Physical with SPARK_Mode => Off is
                   Block_Length := Unsigned_64 (E.Length);
                end if;
 
-               while Index < Block_Length loop
-                  Bitmap_Body ((Block_Start + Index) / Block_Size) :=
-                     Block_Free;
-                  Index := Index + Block_Size;
+               Block_Start := Block_Start / Block_Size;
+               Block_Length := Block_Length / Block_Size;
+               for I in 1 .. Block_Length loop
+                  Bitmap_Body (Block_Start + I - 1) := Block_Free;
                end loop;
             end if;
          end loop;
