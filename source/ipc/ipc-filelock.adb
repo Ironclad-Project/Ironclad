@@ -180,7 +180,8 @@ package body IPC.FileLock is
             Registry (I).Ino = Acquired_Ino
          then
             if Registry (I).Is_Write or Is_Write or
-               (Registry (I).Start <= Start and Registry (I).Length >= Length)
+               (Registry (I).Start < Start + Length and
+                Start < Registry (I).Start + Registry (I).Length)
             then
                Conflicting := I;
                Success := False;
