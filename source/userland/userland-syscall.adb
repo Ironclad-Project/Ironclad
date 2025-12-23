@@ -1628,12 +1628,21 @@ package body Userland.Syscall is
       Errno    := Error_No_Error;
    end Sched_Yield;
 
-   procedure Get_Min_Pri (Returned : out Unsigned_64; Errno : out Errno_Value)
+   procedure Get_Priority_Limits
+      (Which      : Unsigned_64;
+       Min_Or_Max : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value)
    is
+      pragma Unreferenced (Which);
    begin
-      Returned := Unsigned_64 (Scheduler.Priority'First);
-      Errno    := Error_No_Error;
-   end Get_Min_Pri;
+      if Min_Or_Max /= 0 then
+         Returned := Unsigned_64 (Scheduler.Priority'Last);
+      else
+         Returned := Unsigned_64 (Scheduler.Priority'First);
+      end if;
+      Errno := Error_No_Error;
+   end Get_Priority_Limits;
 
    procedure Pipe
       (Result_Addr : Unsigned_64;
@@ -2312,13 +2321,6 @@ package body Userland.Syscall is
       Errno    := Error_No_Error;
       Returned := Unsigned_64 (Convert (Arch.Local.Get_Current_Thread));
    end Get_TID;
-
-   procedure Get_Max_Pri (Returned : out Unsigned_64; Errno : out Errno_Value)
-   is
-   begin
-      Returned := Unsigned_64 (Scheduler.Priority'Last);
-      Errno    := Error_No_Error;
-   end Get_Max_Pri;
 
    procedure Fcntl
       (FD       : Unsigned_64;

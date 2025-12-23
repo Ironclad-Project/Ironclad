@@ -52,6 +52,8 @@ release changes.
   easier, since many userland programs have the nasty habit of checking for
   `AT_FDCWD` by doing `0 <`.
 - Change the definition of `S_IFMT` and its kind.
+- Merge the `get_min_prio` and `set_max_prio` into a common more complete
+  syscall.
 
 ### Non-code related changes
 

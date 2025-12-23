@@ -175,7 +175,7 @@ Syscalls
 * config_netinter::         Configure network interfaces.
 * utimes::                  Modify timestamps for a file.
 * get/set_scheduler::       Get and set scheduling details for a process.
-* get_min/max_priority::    Get the minimum and maximum scheduler priority.
+* get_priority_limits::     Get the minimum and maximum scheduler priorities.
 * sigprogmask::             Fetch and change a process' blocked signal.
 * sigaction::               Fetch and change a signal's action.
 * send_signal::             Send a signal to a process.
@@ -414,8 +414,8 @@ tasks regardless of other factors, like system responsiveness or stability.
 Thus, be sure you know what you are doing when using RT policies!
 
 The range of priorities accepted by @code{sched_param} is comprised of the
-range between @code{get_min_priority} and @code{get_max_priority}.
-@pxref{get_min/max_priority}.
+range between the minimum and maximum priorities reported by
+@pxref{get_priority_limits}.
 
 @node Inter-process communication
 @chapter Inter-process communication
@@ -1013,7 +1013,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{sched_yield}.
 @item
-@ref{get_min/max_priority, get_min_priority}.
+@ref{get_priority_limits}.
 @item
 @ref{pipe}.
 @item
@@ -1027,7 +1027,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{gettid}.
 @item
-@ref{get_min/max_priority, get_max_priority}.
+Empty.
 @item
 @ref{fcntl}.
 @item
@@ -3695,7 +3695,7 @@ scheduler-specific parameters of the passed PID. For both calls @code{param}
 can be passed @code{NULL} for the OS to not modify or read it.
 
 @code{param}'s priority is only used for the real time policies, and is
-delimited by the values returned at @pxref{get_min/max_priority}.
+delimited by the values returned by @pxref{get_priority_limits}.
 
 @code{sched_getscheduler} returns the scheduler policy or @code{-1} on failure,
 @code{sched_setscheduler} returns @code{0} on success or @code{-1} on failure.
@@ -3709,16 +3709,19 @@ Both operations return the following errno on failure:
 A non-@code{NULL} pointer points to not valid memory.
 @end table
 
-@node get_min/max_priority
-@section get_min/max_priority
+@node get_priority_limits
+@section get_priority_limits
 
 @example c
-int get_min_prio(void);
-int get_max_prio(void);
+int get_priority_limits(int which, int min_or_max);
 @end example
 
-This syscalls return the minimum and maximum priority that the params for
-@code{sched_setscheduler} take, they never fail.
+This syscall returns the minimum and maximum priority that the params for
+functions like @code{sched_setscheduler} take for @code{which} scheduler policy.
+It never fails.
+
+If @code{min_or_max} is not zero, the maximum priority is returned, otherwise,
+the minimum.
 
 @node sigprogmask
 @section sigprogmask

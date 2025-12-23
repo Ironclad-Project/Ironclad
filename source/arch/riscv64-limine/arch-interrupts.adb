@@ -216,7 +216,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 21 =>
             Sched_Yield (Returned, Errno);
          when 22 =>
-            Get_Min_Pri (Returned, Errno);
+            Get_Priority_Limits (Ctx.X10, Ctx.X11, Returned, Errno);
          when 23 =>
             Pipe (Ctx.X10, Ctx.X11, Returned, Errno);
          when 24 =>
@@ -230,8 +230,6 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Get_SID (Ctx.X10, Returned, Errno);
          when 28 =>
             Get_TID (Returned, Errno);
-         when 29 =>
-            Get_Max_Pri (Returned, Errno);
          when 30 =>
             Fcntl (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 31 =>

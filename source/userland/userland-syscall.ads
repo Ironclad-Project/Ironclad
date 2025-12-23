@@ -345,7 +345,12 @@ package Userland.Syscall is
    --  Yield.
    procedure Sched_Yield (Returned : out Unsigned_64; Errno : out Errno_Value);
 
-   procedure Get_Min_Pri (Returned : out Unsigned_64; Errno : out Errno_Value);
+   --  Get limits on scheduler priority.
+   procedure Get_Priority_Limits
+      (Which      : Unsigned_64;
+       Min_Or_Max : Unsigned_64;
+       Returned   : out Unsigned_64;
+       Errno      : out Errno_Value);
 
    --  Create a pair of pipes.
    procedure Pipe
@@ -518,8 +523,6 @@ package Userland.Syscall is
 
    --  Get the current thread id.
    procedure Get_TID (Returned : out Unsigned_64; Errno : out Errno_Value);
-
-   procedure Get_Max_Pri (Returned : out Unsigned_64; Errno : out Errno_Value);
 
    --  Multiplexed operation for files.
    F_DUPFD         : constant := 1;
