@@ -8069,7 +8069,9 @@ package body Userland.Syscall is
    is
       pragma Unreferenced (Map);
    begin
-      Can_Map := Addr + Virtual_Address (Byte_Count) < Memory_Offset;
+      Can_Map :=
+         Addr < Memory_Offset and then
+         Byte_Count <= Unsigned_64 (Memory_Offset - Addr);
    end Check_Userland_Mappability;
 
    procedure Resolve_AT_Directive
