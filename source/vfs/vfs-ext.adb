@@ -1459,7 +1459,6 @@ package body VFS.EXT with SPARK_Mode => Off is
       end if;
    exception
       when Constraint_Error =>
-         Synchronization.Release_Reader (FS_Data.Mutex);
          Messages.Put_Line ("Exception while doing an EXT partial sync");
          Status := FS_IO_Failure;
    end Synchronize;

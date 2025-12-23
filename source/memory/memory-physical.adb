@@ -76,7 +76,7 @@ package body Memory.Physical with SPARK_Mode => Off is
       declare
          Bitmap_Body : Bitmap (0 .. Block_Count - 1) with Import;
          for Bitmap_Body'Address use To_Address (Bitmap_Address);
-         I, Block_Start, Block_Length : Unsigned_64;
+         Block_Start, Block_Length : Unsigned_64;
       begin
          for Item of Bitmap_Body loop
             Item := Block_Used;
