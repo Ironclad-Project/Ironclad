@@ -181,8 +181,8 @@ package body Userland.Process with SPARK_Mode => Off is
    procedure Delete_Process (Process : PID) is
       Var1, Var2, Var3 : Unsigned_64;
    begin
-      Synchronization.Seize (Registry (Process).Data_Mutex);
       Synchronization.Seize (Registry_Mutex);
+      Synchronization.Seize (Registry (Process).Data_Mutex);
       Var1 := Registry (Process).Creation.Nanoseconds;
       Var2 := Registry (Process).Children_User.Nanoseconds;
       Var3 := Registry (Process).Children_System.Nanoseconds;
