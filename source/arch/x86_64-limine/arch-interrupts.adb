@@ -467,7 +467,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
       Arch.APIC.LAPIC_EOI;
    exception
       when Constraint_Error =>
-         null;
+         Arch.APIC.LAPIC_EOI;
    end Invalidate_Handler;
 
    procedure Default_ISR_Handler is
