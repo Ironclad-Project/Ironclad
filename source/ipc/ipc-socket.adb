@@ -1054,7 +1054,7 @@ package body IPC.Socket is
             Synchronization.Release (Sock.Mutex);
          when others =>
             if Sock.Simple_Connected = null or
-               Data'Length <= Default_Socket_Size
+               Data'Length > Default_Socket_Size
             then
                Ret_Count := 0;
                Success   := Would_Block;
