@@ -1422,7 +1422,7 @@ package body Userland.Process with SPARK_Mode => Off is
    is
    begin
       Synchronization.Seize (Registry (Proc).Data_Mutex);
-      if Sig /= Signal_Kill or Sig /= Signal_Stop then
+      if Sig /= Signal_Kill and Sig /= Signal_Stop then
          Registry (Proc).Signal_Handlers (Sig).Handler_Addr  := Handler;
          Registry (Proc).Signal_Handlers (Sig).Restorer_Addr := Restorer;
          Registry (Proc).Signal_Handlers (Sig).Is_Altstack   := Altstack;
