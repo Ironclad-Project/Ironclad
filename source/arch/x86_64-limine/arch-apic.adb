@@ -441,6 +441,7 @@ package body Arch.APIC with SPARK_Mode => Off is
              Caching        => Arch.MMU.Uncacheable);
          if not Is_Mapped then
             Count := 0;
+            return;
          end if;
       end if;
 
