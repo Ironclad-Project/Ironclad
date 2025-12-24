@@ -282,8 +282,10 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
 
       Packet_Len := CD.RX_Descriptors (CD.RX_Next).Length;
 
-      --  Check if packet fits in buffer
-      if Natural (Packet_Len) > Data'Length then
+      --  Validate packet length from hardware before use.
+      if (Packet_Len > MAX_PACKET_SIZE) or else
+         (Natural (Packet_Len) > Data'Length)
+      then
          Ret_Count := 0;
          Success := Dev_IO_Failure;
          return;
@@ -400,6 +402,7 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
          loop
             exit when (CD.TX_Descriptors (CD.TX_Next).Status and
                DESC_STATUS_DD) /= 0;
+            Scheduler.Yield_If_Able;
          end loop;
       end if;
 

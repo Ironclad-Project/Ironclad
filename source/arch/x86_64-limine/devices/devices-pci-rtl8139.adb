@@ -330,12 +330,21 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
          Packet_Header       : Unsigned_16;
          This_Receive_Buffer : Receive_Buffer
             with Import, Address => To_Address (CD.Receive_Buffer_Start);
-         --  TODO: read the packet header; it contains bits for if the
-         --  packet was properly received, and if CRC passed.
-         pragma Unreferenced (Packet_Header);
+         --  Packet header status bits:
+         --    Bit 0: ROK (Receive OK)
+         --    Bit 1: FAE (Frame Alignment Error)
+         --    Bit 2: CRC (CRC Error)
+         ROK_Bit : constant Unsigned_16 := 16#0001#;
       begin
          --  For some reason, CAPR is offset by -0x10. Offset this.
          CAPR := CAPR + 16#10#;
+
+         --  Bounds check before accessing packet header.
+         if Integer (CAPR) + 4 > RECEIVE_BUFFER_SIZE then
+            Ret_Count := 0;
+            Success := Dev_IO_Failure;
+            return;
+         end if;
 
          --  Read the packet header.
          --  We have to offset everything by one as this array starts at 1.
@@ -348,6 +357,16 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
             Unsigned_16 (This_Receive_Buffer (Integer (CAPR + 4)) * 2**8)
          or
             Unsigned_16 (This_Receive_Buffer (Integer (CAPR + 3)));
+
+         --  Validate packet was received correctly (ROK bit must be set) and
+         --  packet length.
+         if ((Packet_Header and ROK_Bit) = 0) or else
+            (Packet_Length < 60 or Packet_Length > 1518)
+         then
+            Ret_Count := 0;
+            Success := Dev_IO_Failure;
+            return;
+         end if;
 
          --  Copy the packet data out.
          if Integer (Packet_Length) <= Data'Length then
@@ -418,12 +437,23 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
          --  Check if we own the current descriptor index
          --  AKA, if we are sending packets too quickly, wait for a descriptor
          --  to open up
-         loop
-            Transmit_Descriptor := Get_IO_32 (CD,
-               Transmit_Descriptor_Status_Registers (CD.Transmit_Desc_Idx));
-            exit when (Transmit_Descriptor and 16#2000#) /= 0;
-            Scheduler.Yield_If_Able;
-         end loop;
+         declare
+            Timeout_Counter : Natural := 0;
+            Max_Timeout : constant Natural := 100_000;
+         begin
+            loop
+               Transmit_Descriptor := Get_IO_32 (CD,
+                  Transmit_Descriptor_Status_Registers (CD.Transmit_Desc_Idx));
+               exit when (Transmit_Descriptor and 16#2000#) /= 0;
+               Timeout_Counter := Timeout_Counter + 1;
+               if Timeout_Counter >= Max_Timeout then
+                  Ret_Count := 0;
+                  Success := Dev_IO_Failure;
+                  return;
+               end if;
+               Scheduler.Yield_If_Able;
+            end loop;
+         end;
 
          --  Create the descriptor index, write the address and then the status
          --  descriptor
