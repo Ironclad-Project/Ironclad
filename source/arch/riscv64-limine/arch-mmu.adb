@@ -139,6 +139,7 @@ package body Arch.MMU is
          (if User_Flag then Page_User else 0) or
          Page_P or Page_Acc or Page_Dirty;
 
+      --  FIXME: We use the svpbmt extension without checking!
       case Caching is
          when Write_Back | Write_Through => null;
          when Write_Combining => Result := Result or PMBT_NC;
@@ -146,6 +147,9 @@ package body Arch.MMU is
       end case;
 
       return Shift_Right (Unsigned_64 (To_Integer (Addr)), 2) or Result;
+   exception
+      when Constraint_Error =>
+         return 0;
    end Construct_Entry;
 
    function Construct_Level (Addr : System.Address) return Unsigned_64 is
