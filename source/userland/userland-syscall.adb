@@ -594,6 +594,7 @@ package body Userland.Syscall is
       Map        : Page_Table_Acc;
       Hint       : Unsigned_64 := Hint2;
       Length     : Unsigned_64 := Length2;
+      Ret_Count : Natural;
    begin
       Get_Common_Map (Proc, Map);
       if not Get_Capabilities (Proc).Can_Modify_Memory then
@@ -658,7 +659,43 @@ package body Userland.Syscall is
                 Length      => Length,
                 Flags       => Perms,
                 Status      => Status);
-            if Status /= VFS.FS_Success then
+            if Status = VFS.FS_Not_Supported then
+               --  TODO: Devices have their own path for mmap'd files, which
+               --  vfs.mmap handles. This path is for FSs that dont support
+               --  that as a quick work-around while we don't have a proper
+               --  mmap implementation.
+               Map_Allocated_Range
+                  (Map           => Map,
+                   Virtual_Start => To_Address (Final_Hint),
+                   Length        => Storage_Count (Length),
+                   Permissions   => (False, True, True, False, False),
+                   Success       => Success);
+               if not Success then
+                  goto No_Memory_Return;
+               end if;
+
+               declare
+                  Data : Operation_Data (1 .. Natural (Length))
+                     with Import, Address => To_Address (Final_Hint);
+               begin
+                  VFS.Read
+                     (File.Inner_Ino_FS, File.Inner_Ino, Offset,
+                      Data, Ret_Count, True, Status);
+                  if Status /= VFS.FS_Success then
+                     goto Unmap_Final_Return;
+                  end if;
+               end;
+
+               Remap_Range
+                  (Map           => Map,
+                   Virtual_Start => To_Address (Final_Hint),
+                   Length        => Storage_Count (Length),
+                   Permissions   => Perms,
+                   Success       => Success);
+               if not Success then
+                  goto Unmap_Final_Return;
+               end if;
+            elsif Status /= VFS.FS_Success then
                goto No_Memory_Return;
             end if;
 
@@ -671,6 +708,12 @@ package body Userland.Syscall is
       end if;
 
       return;
+
+   <<Unmap_Final_Return>>
+      Unmap_Range
+         (Map, To_Address (Final_Hint), Storage_Count (Length),
+          Success);
+      goto No_Memory_Return;
 
    <<Invalid_Value_Return>>
       Errno := Error_Invalid_Value;
