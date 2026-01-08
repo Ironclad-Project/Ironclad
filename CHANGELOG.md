@@ -42,6 +42,8 @@ release changes.
 - Add an RTL8139 driver.
 - Add an E1000 and E1000e driver.
 - Make the @code{pipe} syscall accept @{O_CLOEXEC} and @code{O_CLOFORK}.
+- Added domain handling with `uname` returning the domain name and
+  `setdomainname`.
 
 ### Breaking changes
 
@@ -54,6 +56,8 @@ release changes.
 - Change the definition of `S_IFMT` and its kind.
 - Merge the `get_min_prio` and `set_max_prio` into a common more complete
   syscall.
+- Make `uname` return the domain name, increasing struct size and changing
+  layout.
 
 ### Non-code related changes
 

@@ -130,6 +130,7 @@ Syscalls
 * rename::                  Rename a file.
 * listprocs::               List system processes.
 * gettid::                  Get the current thread id.
+* setdomainname::           Set the domain name.
 * fcntl::                   Multiplexed operations for files.
 * exit_thread::             Exit the calling thread.
 * getentropy::              Bypass /dev/random for avoiding DoS attacks.
@@ -1027,7 +1028,7 @@ supported architectures and the ABI for each of them. Here is the table:
 @item
 @ref{gettid}.
 @item
-Empty.
+@ref{setdomainname}.
 @item
 @ref{fcntl}.
 @item
@@ -2152,6 +2153,27 @@ int gettid(void);
 @end example
 
 This syscall returns the current thread id. It never fails.
+
+@node setdomainname
+@section setdomainname
+
+@example c
+int setdomainname(const char *buffer, size_t length);
+@end example
+
+This syscall sets the kernel domain name to the passed string. @code{0} is
+returned on success and @code{-1} on failure, with the following errno:
+
+@itemize @bullet
+@item
+@code{EFAULT}: The passed buffer points to an invalid address.
+
+@item
+@code{EINVAL}: The passed length is bigger than the kernel can handle or 0.
+
+@item
+@code{EACCES}: MAC did not allow this.
+@end itemize
 
 @node fcntl
 @section fcntl
@@ -4473,11 +4495,12 @@ failure, with the following errno:
 
 @example c
 struct utsname @{
-    char system_name[65];
-    char node_name[65];
+    char sysname[65];
+    char nodename[65];
     char release[65];
     char version[65];
     char machine[65];
+    char domainname[65];
 @} __attribute__((packed));
 
 int uname(struct utsname *addr);

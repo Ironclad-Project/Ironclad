@@ -1,5 +1,5 @@
---  networking.adb: Specification of networking library.
---  Copyright (C) 2023 streaksu
+--  networking.adb: Networking library.
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -29,9 +29,9 @@ package body Networking is
          Length := Hostname_Length;
       end if;
 
-      Seize (Hostname_Lock);
+      Seize (Names_Lock);
       Name (Name'First .. Name'First + Length - 1) := Hostname (1 .. Length);
-      Release (Hostname_Lock);
+      Release (Names_Lock);
    end Get_Hostname;
 
    procedure Set_Hostname (Name : String; Success : out Boolean) is
@@ -41,11 +41,40 @@ package body Networking is
          return;
       end if;
 
-      Seize (Hostname_Lock);
+      Seize (Names_Lock);
       Hostname_Length := Name'Length;
       Hostname (1 .. Name'Length) := Name;
-      Release (Hostname_Lock);
+      Release (Names_Lock);
       Success := True;
    end Set_Hostname;
+
+   procedure Get_Domain_Name (Name : out String; Length : out Natural) is
+   begin
+      Name := [others => Ada.Characters.Latin_1.NUL];
+
+      if Name'Length < Domain_Length then
+         Length := Name'Length;
+      else
+         Length := Hostname_Length;
+      end if;
+
+      Seize (Names_Lock);
+      Name (Name'First .. Name'First + Length - 1) := Hostname (1 .. Length);
+      Release (Names_Lock);
+   end Get_Domain_Name;
+
+   procedure Set_Domain_Name (Name : String; Success : out Boolean) is
+   begin
+      if Name'Length = 0 or Name'Length > Hostname'Length then
+         Success := False;
+         return;
+      end if;
+
+      Seize (Names_Lock);
+      Hostname_Length := Name'Length;
+      Hostname (1 .. Name'Length) := Name;
+      Release (Names_Lock);
+      Success := True;
+   end Set_Domain_Name;
 end Networking;
 

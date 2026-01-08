@@ -430,6 +430,7 @@ package Userland.Syscall is
       Release     : String (1 .. 65);
       Version     : String (1 .. 65);
       Machine     : String (1 .. 65);
+      Domain      : String (1 .. 65);
    end record;
 
    procedure Uname
@@ -523,6 +524,13 @@ package Userland.Syscall is
 
    --  Get the current thread id.
    procedure Get_TID (Returned : out Unsigned_64; Errno : out Errno_Value);
+
+   --  Set domain name.
+   procedure Set_Domain_Name
+      (Address  : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value);
 
    --  Multiplexed operation for files.
    F_DUPFD         : constant := 1;

@@ -149,6 +149,8 @@ package body Arch.Interrupts with SPARK_Mode => Off is
             Get_SID (State.RDI, Returned, Errno);
          when 28 =>
             Get_TID (Returned, Errno);
+         when 29 =>
+            Set_Domain_Name (State.RDI, State.RSI, Returned, Errno);
          when 30 =>
             Fcntl (State.RDI, State.RSI, State.RDX, Returned, Errno);
          when 31 =>

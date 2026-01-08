@@ -2010,6 +2010,8 @@ package body Userland.Syscall is
          Config.Arch_Name & Ada.Characters.Latin_1.NUL;
       UTS.Machine (1 .. Config.Architecture'Length + 1) :=
          Config.Architecture & Ada.Characters.Latin_1.NUL;
+      Networking.Get_Domain_Name (UTS.Domain, Len);
+      UTS.Domain (Len + 1) := Ada.Characters.Latin_1.NUL;
 
       Get_Common_Map (Proc, Map);
       Trans.Paste_Into_Userland (Map, UTS, To_Address (IAddr), Success);
@@ -2363,6 +2365,65 @@ package body Userland.Syscall is
       Errno    := Error_No_Error;
       Returned := Unsigned_64 (Convert (Arch.Local.Get_Current_Thread));
    end Get_TID;
+
+   procedure Set_Domain_Name
+      (Address  : Unsigned_64;
+       Length   : Unsigned_64;
+       Returned : out Unsigned_64;
+       Errno    : out Errno_Value)
+   is
+      Proc    : constant             PID := Arch.Local.Get_Current_Process;
+      IAddr   : constant Integer_Address := Integer_Address (Address);
+      SAddr   : constant  System.Address := To_Address (IAddr);
+      Success : Boolean;
+      Map     : Page_Table_Acc;
+   begin
+      if not Get_Capabilities (Proc).Can_Manage_Networking then
+         Errno := Error_Bad_Access;
+         Execute_MAC_Failure ("set_domain_name", Proc);
+         Returned := Unsigned_64'Last;
+         return;
+      elsif Length > Unsigned_64 (Networking.Domain_Name_Max_Len) then
+         Returned := Unsigned_64'Last;
+         Errno    := Error_String_Too_Long;
+         return;
+      end if;
+
+      declare
+         subtype Domain_String is String (1 .. Natural (Length));
+         package Trans is new Memory.Userland_Transfer (Domain_String);
+         Name : Domain_String;
+      begin
+         Get_Common_Map (Proc, Map);
+         Trans.Take_From_Userland (Map, Name, SAddr, Success);
+         if not Success then
+            goto Would_Fault_Error;
+         end if;
+
+         Networking.Set_Domain_Name (Name, Success);
+         if not Success then
+            goto Invalid_Value_Error;
+         end if;
+      end;
+
+      Errno := Error_No_Error;
+      Returned := 0;
+      return;
+
+   <<Invalid_Value_Error>>
+      Errno := Error_Invalid_Value;
+      Returned := Unsigned_64'Last;
+      return;
+
+   <<Would_Fault_Error>>
+      Returned := Unsigned_64'Last;
+      Errno    := Error_Would_Fault;
+   exception
+      when Constraint_Error =>
+         Messages.Put_Line ("Exception while executing Set_Domain_Name");
+         Errno    := Error_Would_Block;
+         Returned := Unsigned_64'Last;
+   end Set_Domain_Name;
 
    procedure Fcntl
       (FD       : Unsigned_64;

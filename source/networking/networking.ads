@@ -1,5 +1,5 @@
 --  networking.ads: Networking library.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -29,8 +29,9 @@ package Networking is
    IPv4_8_Submask   : constant IPv4_Address := [255, 0, 0, 0];
    IPv6_128_Submask : constant IPv6_Address := [others => 16#FF#];
    ----------------------------------------------------------------------------
-   --  Maximum size of a hostname.
+   --  Maximum size of identifyers.
    Hostname_Max_Len : constant Natural;
+   Domain_Name_Max_Len : constant Natural;
 
    --  Fetch the system's hostname.
    --  @param Name   Buffer to write the hostname.
@@ -44,12 +45,26 @@ package Networking is
    --  @return True on success, False on failure.
    procedure Set_Hostname (Name : String; Success : out Boolean);
 
+   --  Fetch the system's domain name.
+   --  @param Name   Buffer to write the domain name.
+   --  @param Length Length of the hostname, even if it doesn't fit.
+   procedure Get_Domain_Name (Name : out String; Length : out Natural)
+      with Pre => Name'Length /= 0 and then
+                  Name'Last <= Natural'Last - Domain_Name_Max_Len;
+
+   --  Set the system's domain name.
+   --  @param Name Domain name to set;
+   --  @return True on success, False on failure.
+   procedure Set_Domain_Name (Name : String; Success : out Boolean);
+
 private
 
-   Hostname_Max_Len : constant Natural := 255;
+   Hostname_Max_Len : constant Natural := 64;
+   Domain_Name_Max_Len : constant Natural := 64;
 
-   Hostname_Lock   : aliased Mutex := Unlocked_Mutex;
+   Names_Lock : aliased Mutex := Unlocked_Mutex;
    Hostname_Length : Natural range 0 .. Hostname_Max_Len := 4;
-   Hostname : String (1 .. Hostname_Max_Len) := "none" & [1 .. 251 => ' '];
-
+   Hostname : String (1 .. Hostname_Max_Len) := "none" & [1 .. 60 => ' '];
+   Domain_Length : Natural range 0 .. Domain_Name_Max_Len := 4;
+   Domain : String (1 .. Domain_Name_Max_Len) := "none" & [1 .. 60 => ' '];
 end Networking;
