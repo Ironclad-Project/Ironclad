@@ -26,6 +26,9 @@ with Messages;
 with Memory.Physical;
 with Alignment;
 with Networking.Interfaces;
+with Networking.Stack;
+with Networking.DHCP;
+with Networking.DNS;
 with Scheduler;
 
 with Interfaces.C; use Interfaces.C;
@@ -96,15 +99,16 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
          --    Bit 1 (0x2):       EN  - Receiver Enable
          --    Bit 2 (0x4):       SBP - Store Bad Packets
          --    Bit 3 (0x8):       UPE - Unicast Promiscuous Enable
+         --    Bit 4 (0x10):      MPE - Multicast Promiscuous Enable
          --    Bit 15 (0x8000):   BAM - Broadcast Accept Mode
          --    Bit 25 (0x2000000): BSIZE extension for 8K buffers
          --    Bit 26 (0x4000000): SECRC - Strip Ethernet CRC
          --  Buffer size: bits 16-17 = 0b10 (for 512 bytes) + bit 25 =
          --    8192 bytes
-         --  RCTL = EN | SBP | UPE | BAM | SECRC | BSIZE_8192
-         --       = 0x2 | 0x4 | 0x8 | 0x8000 | 0x4000000 | 0x20000
-         --       = 0x402800E
-         CD.MMIO_Regs.RCTL := 16#402800E#;
+         --  RCTL = EN | SBP | UPE | MPE | BAM | SECRC | BSIZE_8192
+         --       = 0x2 | 0x4 | 0x8 | 0x10 | 0x8000 | 0x4000000 | 0x20000
+         --       = 0x402801E
+         CD.MMIO_Regs.RCTL := 16#402801E#;
       end if;
       return True;
    exception
@@ -159,7 +163,6 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
          end if;
       end loop;
 
-      Messages.Put_Line ("Unexpected E1000 Interrupt!");
       Arch.APIC.LAPIC_EOI;
    end Generic_E1000_Interrupt_Handler;
 
@@ -169,9 +172,6 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
       Success : Boolean;
       I       : Arch.IDT.IRQ_Index;
    begin
-      Messages.Put_Line ("E1000 Interrupt at " & Unsigned_8'Image
-       (CD.Interrupt));
-
       --  Allocate an interrupt in the IDT and unmask it
       I := Arch.IDT.IRQ_Index (CD.Interrupt + 33);
       Arch.IDT.Load_ISR
@@ -210,6 +210,7 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
    procedure Handle_Interrupt (CD : Controller_Data_Acc)
    is
       ICR : Unsigned_32;
+      Packet_Len : Unsigned_16;
    begin
       if CD.MMIO_Regs /= null then
          --  Read interrupt cause (reading ICR acknowledges the interrupt)
@@ -223,18 +224,74 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
          --  Bit 6 (0x40): Receiver FIFO Overrun
          --  Bit 7 (0x80): Receive Timer Interrupt
 
-         if (ICR and 16#04#) /= 0 then
-            Messages.Put_Line ("E1000: Link status changed");
-         end if;
-
          if (ICR and 16#80#) /= 0 or (ICR and 16#10#) /= 0 then
-            Messages.Put_Line ("E1000: Packet(s) received (ICR=" &
-               Unsigned_32'Image (ICR) & ")");
-            --  The actual packet processing will happen when Read is called
-         end if;
-
-         if (ICR and 16#02#) /= 0 or (ICR and 16#01#) /= 0 then
-            Messages.Put_Line ("E1000: Transmit completed");
+            --  Read and dispatch all available packets.
+            while (CD.RX_Descriptors (CD.RX_Next).Status and RX_STATUS_DD)
+                  /= 0
+            loop
+               Packet_Len := CD.RX_Descriptors (CD.RX_Next).Length;
+               --  Only process complete packets (EOP=1).
+               --  Multi-descriptor packets (EOP=0) accumulate in reassembly.
+               if (CD.RX_Descriptors (CD.RX_Next).Status and RX_STATUS_EOP)
+                  /= 0
+               then
+                  --  End of packet. Check if we have accumulated data.
+                  if CD.Reassembly_Len > 0 then
+                     --  Append this fragment to reassembly buffer.
+                     declare
+                        RX_Buffer : Operation_Data (1 .. Natural (Packet_Len))
+                           with Import, Address => To_Addr
+                              (CD.RX_Buffers (CD.RX_Next));
+                        Total_Len : constant Natural :=
+                           CD.Reassembly_Len + Natural (Packet_Len);
+                     begin
+                        if Total_Len <= MAX_PACKET_SIZE then
+                           CD.Reassembly_Buffer
+                              (CD.Reassembly_Len + 1 .. Total_Len) :=
+                                 RX_Buffer;
+                           Networking.Stack.Process_Received_Frame
+                              (CD.Dev_Handle,
+                               CD.Reassembly_Buffer (1 .. Total_Len));
+                        end if;
+                     end;
+                     CD.Reassembly_Len := 0;
+                  elsif Packet_Len > 0 and Packet_Len <= MAX_PACKET_SIZE then
+                     --  Single-descriptor packet, process directly.
+                     declare
+                        RX_Buffer : Operation_Data (1 .. Natural (Packet_Len))
+                           with Import, Address => To_Addr
+                              (CD.RX_Buffers (CD.RX_Next));
+                     begin
+                        Networking.Stack.Process_Received_Frame
+                           (CD.Dev_Handle, RX_Buffer);
+                     end;
+                  end if;
+               else
+                  --  EOP=0: This is a fragment, accumulate it.
+                  if Packet_Len > 0 then
+                     declare
+                        RX_Buffer : Operation_Data (1 .. Natural (Packet_Len))
+                           with Import, Address => To_Addr
+                              (CD.RX_Buffers (CD.RX_Next));
+                        New_Len : constant Natural :=
+                           CD.Reassembly_Len + Natural (Packet_Len);
+                     begin
+                        if New_Len <= MAX_PACKET_SIZE then
+                           CD.Reassembly_Buffer
+                              (CD.Reassembly_Len + 1 .. New_Len) := RX_Buffer;
+                           CD.Reassembly_Len := New_Len;
+                        else
+                           --  Too large, discard.
+                           CD.Reassembly_Len := 0;
+                        end if;
+                     end;
+                  end if;
+               end if;
+               --  Reset descriptor for reuse.
+               CD.RX_Descriptors (CD.RX_Next).Status := 0;
+               CD.MMIO_Regs.RDT := Unsigned_32 (CD.RX_Next);
+               CD.RX_Next := CD.RX_Next + 1;
+            end loop;
          end if;
       end if;
 
@@ -341,8 +398,6 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
 
       --  Check if packet is too large
       if Data'Length > MAX_PACKET_SIZE then
-         Messages.Put_Line ("E1000 Write: Packet too large (" &
-            Data'Length'Image & " bytes, max=" & MAX_PACKET_SIZE'Image & ")");
          Ret_Count := 0;
          Success := Dev_IO_Failure;
          return;
@@ -393,8 +448,6 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
 
       if CD.MMIO_Regs /= null then
          CD.MMIO_Regs.TDT := Unsigned_32 (CD.TX_Next);
-      else
-         Messages.Put_Line ("E1000 Write: ERROR - MMIO_Regs is null!");
       end if;
 
       --  Wait for transmission to complete if blocking
@@ -486,7 +539,6 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
       --  Get the MMIO BAR (usually BAR0 for e1000)
       Devices.PCI.Get_BAR (PCI_Dev, 0, PCI_Bar, Success);
       if not Success then
-         Messages.Put_Line ("Failed to get BAR0");
          return;
       end if;
 
@@ -506,7 +558,6 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
             Is_Global         => True),
             Success        => Success);
       if not Success then
-         Messages.Put_Line ("Failed to map MMIO BAR to virtual memory");
          return;
       end if;
 
@@ -530,26 +581,12 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
          (Result => RX_Bufs_Start,
             Sz => A.Align_Up (RX_RING_SIZE * MAX_PACKET_SIZE,
                               Arch.MMU.Page_Size));
-      if not Success then
-         Messages.Put_Line ("Failed to allocate RX packet buffers");
-         return;
-      end if;
 
       --  Allocate transmit packet buffers
       Memory.Physical.Alloc
          (Result => TX_Bufs_Start,
             Sz => A.Align_Up (TX_RING_SIZE * MAX_PACKET_SIZE,
                               Arch.MMU.Page_Size));
-      if not Success then
-         Messages.Put_Line ("Failed to allocate TX packet buffers");
-         return;
-      end if;
-
-      Messages.Put_Line ("E1000: MMIO BAR at " &
-         Integer_Address'Image (PCI_Bar.Base) &
-         ", mapped at " &
-         System.Address'Image
-            (To_Addr (PCI_Bar.Base + Memory.Memory_Offset)));
 
       --  Create controller data structure
       CD := new Controller_Data'
@@ -565,7 +602,10 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
           TX_Next => 0,
           Interrupt => 0,
           Interrupt_IDT_Index => 0,
-          Model => Model);
+          Model => Model,
+          Dev_Handle => Error_Handle,
+          Reassembly_Buffer => [others => 0],
+          Reassembly_Len => 0);
 
       --  Get interrupt number from PCI config space
       Devices.PCI.Read8 (PCI_Dev, 16#3C#, CD.Interrupt);
@@ -626,6 +666,17 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
          return;
       end if;
 
+      --  Read MAC address and program RA registers BEFORE enabling receiver.
+      --  The AV bit (bit 31 in RA_High) must be set for the hardware to
+      --  receive unicast packets destined to this MAC address.
+      if CD.MMIO_Regs /= null then
+         MAC_Low := CD.MMIO_Regs.RA_Low;
+         MAC_High := Unsigned_16
+            (CD.MMIO_Regs.RA_High and Unsigned_32 (Unsigned_16'Last));
+         CD.MMIO_Regs.RA_Low := MAC_Low;
+         CD.MMIO_Regs.RA_High := Unsigned_32 (MAC_High) or 16#80000000#;
+      end if;
+
       --  Enable receiver
       if not Enable_Receiver (CD) then
          Messages.Put_Line ("Failed to enable receiver");
@@ -661,13 +712,6 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
          U := CD.MMIO_Regs.ICR;
       end if;
 
-      --  Read MAC address from MMIO registers at offset 0x5400
-      if CD.MMIO_Regs /= null then
-         MAC_Low := CD.MMIO_Regs.RA_Low;
-         MAC_High := Unsigned_16
-            (CD.MMIO_Regs.RA_High and Unsigned_32 (Unsigned_16'Last));
-      end if;
-
       --  Register the device with the kernel
       Device :=
          (Data        => C1.To_Address (C1.Object_Pointer (CD)),
@@ -686,62 +730,46 @@ package body Devices.PCI.E1000 with SPARK_Mode => Off is
 
       if Success then
          Dev := Fetch ("e1000" & Integer'Image (Idx));
-         Networking.Interfaces.Register_Interface
-            (Interfaced  => Dev,
-               MAC         => [Unsigned_8 (MAC_Low and
-                                          Unsigned_32 (Unsigned_8'Last)),
-                              Unsigned_8 (Shift_Right (MAC_Low, 8)
-                                          and Unsigned_32 (Unsigned_8'Last)),
-                              Unsigned_8 (Shift_Right (MAC_Low, 16)
-                                          and Unsigned_32 (Unsigned_8'Last)),
-                              Unsigned_8 (Shift_Right (MAC_Low, 24)
-                                          and Unsigned_32 (Unsigned_8'Last)),
-                              Unsigned_8 (MAC_High and
-                                          Unsigned_16 (Unsigned_8'Last)),
-                              Unsigned_8 (Shift_Right (MAC_High, 8)
-                                          and Unsigned_16 (Unsigned_8'Last))
-                              ],
-               IPv4        => [10, 0, 2, 15],
-               IPv4_Subnet => [255, 0, 0, 0],
-               IPv6        => [1 .. 8 => 0, 9 .. 12 => Unsigned_8'Last,
-               13 => 10, 14 => 0, 15 => 2, 16 => 15],
-               IPv6_Subnet => [16 => 0, 1 .. 8 => 0,
-                              others => Unsigned_8'Last],
-               Success     => Success);
-         Networking.Interfaces.Block (Dev, False, Success);
+         CD.Dev_Handle := Dev;
+         declare
+            MAC_Addr : constant Networking.MAC_Address :=
+               [Unsigned_8 (MAC_Low and Unsigned_32 (Unsigned_8'Last)),
+                Unsigned_8 (Shift_Right (MAC_Low, 8)
+                            and Unsigned_32 (Unsigned_8'Last)),
+                Unsigned_8 (Shift_Right (MAC_Low, 16)
+                            and Unsigned_32 (Unsigned_8'Last)),
+                Unsigned_8 (Shift_Right (MAC_Low, 24)
+                            and Unsigned_32 (Unsigned_8'Last)),
+                Unsigned_8 (MAC_High and Unsigned_16 (Unsigned_8'Last)),
+                Unsigned_8 (Shift_Right (MAC_High, 8)
+                            and Unsigned_16 (Unsigned_8'Last))];
+            Lease   : Networking.DHCP.DHCP_Lease;
+            DHCP_Ok : Boolean;
+         begin
+            --  Register with no IP initially.
+            Networking.Interfaces.Register_Interface
+               (Interfaced  => Dev,
+                MAC         => MAC_Addr,
+                IPv4        => [0, 0, 0, 0],
+                IPv4_Subnet => [0, 0, 0, 0],
+                Success     => Success);
+            Networking.Interfaces.Block (Dev, False, Success);
+
+            --  Perform DHCP discovery.
+            Networking.DHCP.Discover (Dev, MAC_Addr, Lease, DHCP_Ok);
+            if DHCP_Ok and Lease.Is_Valid then
+               Networking.Interfaces.Modify_Addresses
+                  (Dev, Lease.Assigned_IP, Lease.Subnet_Mask, Success);
+               Networking.Stack.Set_Gateway (Lease.Gateway_IP);
+               Networking.DNS.Set_DNS_Server (Lease.DNS_Server_IP);
+            else
+               Messages.Put_Line ("E1000: DHCP failed, no IP assigned");
+            end if;
+         end;
       end if;
-
-      Messages.Put_Line ("Enumerated e1000-compatible device, " &
-         "Model " & Device_Model'Image (Model) & ", ID " &
-         "MMIO Base at " & Integer_Address'Image (PCI_Bar.Base));
-      Messages.Put_Line ("  MAC Address: " &
-         Unsigned_8'Image
-            (Unsigned_8 (MAC_Low and Unsigned_32 (Unsigned_8'Last))) &
-         ":" &
-         Unsigned_8'Image
-            (Unsigned_8 (Shift_Right (MAC_Low, 8) and
-                           Unsigned_32 (Unsigned_8'Last)))
-            & ":" &
-         Unsigned_8'Image
-            (Unsigned_8 (Shift_Right (MAC_Low, 16) and
-                           Unsigned_32 (Unsigned_8'Last)))
-            & ":" &
-         Unsigned_8'Image
-            (Unsigned_8 (Shift_Right (MAC_Low, 24) and
-                           Unsigned_32 (Unsigned_8'Last)))
-            & ":" &
-         Unsigned_8'Image
-            (Unsigned_8 (MAC_High and Unsigned_16 (Unsigned_8'Last))) &
-            ":" &
-         Unsigned_8'Image
-            (Unsigned_8 (Shift_Right (MAC_High, 8) and
-                           Unsigned_16 (Unsigned_8'Last))));
-
-      Success := True;
    exception
       when Constraint_Error =>
          Messages.Put_Line ("Constraint_Error in E1000 Init_Device!");
          Success := False;
    end Init_Device;
-
 end Devices.PCI.E1000;

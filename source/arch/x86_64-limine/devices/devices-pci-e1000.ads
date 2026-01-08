@@ -20,6 +20,7 @@ package Devices.PCI.E1000 with SPARK_Mode => Off is
    procedure Init (Success : out Boolean);
 
 private
+
    --  e1000 PCI Vendor/Device IDs for 82540EM (emulated by QEMU)
    E1000_VENDOR_ID : constant := 16#8086#;
    E1000_DEVICE_ID : constant := 16#100E#;
@@ -177,6 +178,13 @@ private
 
       --  Device model
       Model               : Device_Model;
+
+      --  Registered device handle for network stack.
+      Dev_Handle          : Device_Handle;
+
+      --  Reassembly buffer for multi-descriptor packets.
+      Reassembly_Buffer   : Packet_Buffer;
+      Reassembly_Len      : Natural;
    end record;
    pragma Volatile (Controller_Data);
 
@@ -222,5 +230,4 @@ private
        Model   : Device_Model;
        Idx     : Natural;
        Success : out Boolean);
-
 end Devices.PCI.E1000;

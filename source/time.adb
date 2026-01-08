@@ -71,6 +71,17 @@ package body Time is
          ((L.Seconds = R.Seconds) and
           (L.Nanoseconds >= R.Nanoseconds));
    end ">=";
+
+   function ">" (Left, Right : Timestamp) return Boolean is
+      L : Timestamp := Left;
+      R : Timestamp := Right;
+   begin
+      Normalize (L);
+      Normalize (R);
+
+      return (L.Seconds > R.Seconds) or
+         ((L.Seconds = R.Seconds) and (L.Nanoseconds > R.Nanoseconds));
+   end ">";
    ----------------------------------------------------------------------------
    function Time_To_Epoch
       (Y   : Year;

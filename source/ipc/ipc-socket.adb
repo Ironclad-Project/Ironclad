@@ -17,11 +17,14 @@
 with Ada.Unchecked_Deallocation;
 with Scheduler;
 with Networking.IPv4;
-with Networking.IPv6;
 with Networking.Interfaces;
+with Networking.TCP;
 
 package body IPC.Socket is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
+
+   use type Networking.IPv4_Address;
+   use type Networking.TCP.TCP_State;
 
    procedure Free is new Ada.Unchecked_Deallocation (Socket, Socket_Acc);
    procedure Free is new Ada.Unchecked_Deallocation
@@ -32,27 +35,37 @@ package body IPC.Socket is
       case Dom is
          when IPv4 =>
             case Kind is
+               when Stream =>
+                  return new Socket'
+                   (Mutex            => Synchronization.Unlocked_Mutex,
+                    Dom              => IPv4,
+                    Kind             => Stream,
+                    IPv4_Local_Addr  => [others => 0],
+                    IPv4_Local_Port  => 0,
+                    IPv4_Remote_Addr => [others => 0],
+                    IPv4_Remote_Port => 0,
+                    IPv4_TCP_Handle  => Networking.Stack.Invalid_TCP_Handle,
+                    IPv4_Is_Listener => False);
+               when Datagram =>
+                  return new Socket'
+                   (Mutex            => Synchronization.Unlocked_Mutex,
+                    Dom              => IPv4,
+                    Kind             => Datagram,
+                    IPv4_Local_Addr  => [others => 0],
+                    IPv4_Local_Port  => 0,
+                    IPv4_Remote_Addr => [others => 0],
+                    IPv4_Remote_Port => 0,
+                    IPv4_Is_Bound    => False,
+                    IPv4_UDP_Handle  => Networking.Stack.Invalid_UDP_Handle);
                when Raw =>
                   return new Socket'
-                   (Mutex        => Synchronization.Unlocked_Mutex,
-                    Dom          => IPv4,
-                    Kind          => Raw,
-                    IPv4_Cached_Address => [others => 0],
-                    IPv4_Cached_Port => 0);
-               when others =>
-                  return null;
-            end case;
-         when IPv6 =>
-            case Kind is
-               when Raw =>
-                  return new Socket'
-                   (Mutex        => Synchronization.Unlocked_Mutex,
-                    Dom          => IPv6,
-                    Kind          => Raw,
-                    IPv6_Cached_Address => [others => 0],
-                    IPv6_Cached_Port => 0);
-               when others =>
-                  return null;
+                   (Mutex            => Synchronization.Unlocked_Mutex,
+                    Dom              => IPv4,
+                    Kind             => Raw,
+                    IPv4_Local_Addr  => [others => 0],
+                    IPv4_Local_Port  => 0,
+                    IPv4_Remote_Addr => [others => 0],
+                    IPv4_Remote_Port => 0);
             end case;
          when UNIX =>
             case Kind is
@@ -102,11 +115,30 @@ package body IPC.Socket is
    end Get_Type;
 
    procedure Close (To_Close : in out Socket_Acc) is
+      TCP_Handle : Networking.Stack.TCP_Conn_Handle;
+      UDP_Handle : Networking.Stack.UDP_Socket_Handle;
    begin
       Synchronization.Seize (To_Close.Mutex);
       case To_Close.Dom is
-         when IPv4 | IPv6 =>
-            null;
+         when IPv4 =>
+            case To_Close.Kind is
+               when Stream =>
+                  if To_Close.IPv4_TCP_Handle /=
+                     Networking.Stack.Invalid_TCP_Handle
+                  then
+                     TCP_Handle := To_Close.IPv4_TCP_Handle;
+                     Networking.Stack.TCP_Close (TCP_Handle);
+                  end if;
+               when Datagram =>
+                  if To_Close.IPv4_UDP_Handle /=
+                     Networking.Stack.Invalid_UDP_Handle
+                  then
+                     UDP_Handle := To_Close.IPv4_UDP_Handle;
+                     Networking.Stack.UDP_Close (UDP_Handle);
+                  end if;
+               when Raw =>
+                  null;
+            end case;
          when UNIX =>
             Inner_UNIX_Close (To_Close);
       end case;
@@ -120,13 +152,56 @@ package body IPC.Socket is
        Is_Broken : out Boolean;
        Is_Error  : out Boolean)
    is
+      State : Networking.TCP.TCP_State;
    begin
       Synchronization.Seize (Sock.Mutex);
       case Sock.Dom is
-         when IPv4 | IPv6 =>
-            Can_Read  := False;
-            Can_Write := False;
-            Is_Broken := False;
+         when IPv4 =>
+            --  For TCP stream sockets, check connection state.
+            if Sock.Kind = Stream then
+               if Sock.IPv4_TCP_Handle /= Networking.Stack.Invalid_TCP_Handle
+               then
+                  --  Connected TCP socket can write.
+                  Can_Write := True;
+                  --  Check if there's data to read in recv buffer.
+                  Can_Read := Networking.Stack.TCP_Has_Data
+                     (Sock.IPv4_TCP_Handle);
+                  --  Check if connection is closed/closing.
+                  State := Networking.Stack.TCP_Get_State
+                     (Sock.IPv4_TCP_Handle);
+                  if State = Networking.TCP.State_Close_Wait or else
+                     State = Networking.TCP.State_Closed
+                  then
+                     --  Peer closed, report as readable (will return EOF).
+                     Can_Read := True;
+                     Is_Broken := True;
+                  else
+                     Is_Broken := False;
+                  end if;
+               else
+                  Can_Read  := False;
+                  Can_Write := False;
+                  Is_Broken := False;
+               end if;
+            elsif Sock.Kind = Datagram then
+               --  UDP sockets can always write.
+               Can_Write := True;
+               --  Check if there's data to read.
+               if Sock.IPv4_Is_Bound and then
+                  Sock.IPv4_UDP_Handle /= Networking.Stack.Invalid_UDP_Handle
+               then
+                  Can_Read :=
+                     Networking.Stack.UDP_Has_Data (Sock.IPv4_UDP_Handle);
+               else
+                  Can_Read := False;
+               end if;
+               Is_Broken := False;
+            else
+               --  Raw sockets.
+               Can_Read  := False;
+               Can_Write := True;
+               Is_Broken := False;
+            end if;
             Is_Error  := False;
          when UNIX =>
             Inner_UNIX_Poll (Sock, Can_Read, Can_Write, Is_Broken, Is_Error);
@@ -145,8 +220,6 @@ package body IPC.Socket is
       case Sock.Dom is
          when IPv4 =>
             Inner_IPv4_Read (Sock, Data, Ret_Count, Success);
-         when IPv6 =>
-            Inner_IPv6_Read (Sock, Data, Ret_Count, Success);
          when UNIX =>
             Inner_UNIX_Read (Sock, Data, Is_Blocking, Ret_Count, Success);
       end case;
@@ -163,8 +236,6 @@ package body IPC.Socket is
       case Sock.Dom is
          when IPv4 =>
             Inner_IPv4_Write (Sock, Data, Ret_Count, Success);
-         when IPv6 =>
-            Inner_IPv6_Write (Sock, Data, Ret_Count, Success);
          when UNIX =>
             Inner_UNIX_Write (Sock, Data, Is_Blocking, Ret_Count, Success);
       end case;
@@ -179,7 +250,7 @@ package body IPC.Socket is
    begin
       Synchronization.Seize (Sock.Mutex);
       case Sock.Dom is
-         when IPv4 | IPv6 =>
+         when IPv4 =>
             Success := False;
          when UNIX =>
             Inner_UNIX_Shutdown
@@ -219,7 +290,7 @@ package body IPC.Socket is
    begin
       Synchronization.Seize (Sock.Mutex);
       case Sock.Dom is
-         when IPv4 | IPv6 =>
+         when IPv4 =>
             Result := null;
          when UNIX =>
             Accept_Connection
@@ -232,7 +303,7 @@ package body IPC.Socket is
    begin
       Synchronization.Seize (Sock.Mutex);
       case Sock.Dom is
-         when IPv4 | IPv6 =>
+         when IPv4 =>
             Result := null;
          when UNIX =>
             Direct_Connection (Sock, Result);
@@ -271,11 +342,27 @@ package body IPC.Socket is
        Addr : Networking.IPv4_Address;
        Port : Networking.IPv4_Port) return Boolean
    is
-      pragma Unreferenced (Sock);
-      pragma Unreferenced (Addr);
-      pragma Unreferenced (Port);
+      Handle  : Networking.Stack.UDP_Socket_Handle;
+      Success : Boolean;
    begin
-      return False;
+      case Sock.Kind is
+         when Datagram =>
+            Networking.Stack.UDP_Bind
+               (Local_IP   => Addr,
+                Local_Port => Unsigned_16 (Port),
+                Handle     => Handle,
+                Success    => Success);
+            if Success then
+               Sock.IPv4_Local_Addr := Addr;
+               Sock.IPv4_Local_Port := Port;
+               Sock.IPv4_Is_Bound := True;
+               Sock.IPv4_UDP_Handle := Handle;
+               return True;
+            end if;
+            return False;
+         when others =>
+            return False;
+      end case;
    end Bind;
 
    procedure Connect
@@ -284,14 +371,56 @@ package body IPC.Socket is
        Port    : Networking.IPv4_Port;
        Success : out Boolean)
    is
+      Local_IP : Networking.IPv4_Address;
+      Handle   : Networking.Stack.TCP_Conn_Handle;
+      Dev      : Devices.Device_Handle;
    begin
       case Sock.Kind is
-         when Raw =>
-            Sock.IPv4_Cached_Address := Addr;
-            Sock.IPv4_Cached_Port := Port;
+         when Stream =>
+            --  Get our local IP from a suitable interface.
+            Networking.Interfaces.Get_Suitable_Interface
+               (IP         => Addr,
+                Interfaced => Dev);
+
+            if Dev /= Devices.Error_Handle then
+               Networking.Interfaces.Get_Interface_Address (Dev, Local_IP);
+            else
+               --  No suitable interface found, fail.
+               Local_IP := [0, 0, 0, 0];
+            end if;
+
+            --  Check if we have a valid local IP.
+            if Local_IP = Networking.IPv4_Address'(0, 0, 0, 0) then
+               Success := False;
+               Synchronization.Release (Sock.Mutex);
+               return;
+            end if;
+
+            Sock.IPv4_Local_Addr := Local_IP;
+            Sock.IPv4_Remote_Addr := Addr;
+            Sock.IPv4_Remote_Port := Port;
+
+            --  Establish TCP connection.
+            Networking.Stack.TCP_Connect
+               (Local_IP    => Local_IP,
+                Local_Port  => Unsigned_16 (Sock.IPv4_Local_Port),
+                Remote_IP   => Addr,
+                Remote_Port => Unsigned_16 (Port),
+                Handle      => Handle,
+                Success     => Success);
+
+            if Success then
+               Sock.IPv4_TCP_Handle := Handle;
+            end if;
+         when Datagram =>
+            --  For UDP, just cache the address for sendto default.
+            Sock.IPv4_Remote_Addr := Addr;
+            Sock.IPv4_Remote_Port := Port;
             Success := True;
-         when others =>
-            Success := False;
+         when Raw =>
+            Sock.IPv4_Remote_Addr := Addr;
+            Sock.IPv4_Remote_Port := Port;
+            Success := True;
       end case;
    end Connect;
 
@@ -314,20 +443,26 @@ package body IPC.Socket is
       (Sock      : Socket_Acc;
        Data      : out Devices.Operation_Data;
        Ret_Count : out Natural;
-       Addr      : Networking.IPv4_Address;
-       Port      : Networking.IPv4_Port;
+       Addr      : out Networking.IPv4_Address;
+       Port      : out Networking.IPv4_Port;
        Success   : out Socket_Status)
    is
-      pragma Unreferenced (Port);
-
       Succ : Devices.Dev_Status;
       Dev  : Devices.Device_Handle;
       Src  : Networking.IPv4_Address;
       Hdr_Size : constant Natural := Networking.IPv4.IPv4_Packet_Header'Size;
+      Recv_Src_IP   : Networking.IPv4_Address;
+      Recv_Src_Port : Unsigned_16;
+      UDP_Success   : Boolean;
    begin
+      --  Initialize output parameters.
+      Addr := [others => 0];
+      Port := 0;
       case Sock.Kind is
          when Raw =>
-            Networking.Interfaces.Get_Suitable_Interface (Addr, Dev);
+            --  Use the socket's local address to find interface.
+            Networking.Interfaces.Get_Suitable_Interface
+               (Sock.IPv4_Local_Addr, Dev);
             if Dev = Devices.Error_Handle then
                Data      := [others => 0];
                Ret_Count := 0;
@@ -345,10 +480,68 @@ package body IPC.Socket is
             else
                Success := Would_Block;
             end if;
-         when others =>
-            Data := [others => 0];
-            Ret_Count := 0;
-            Success := Is_Bad_Type;
+         when Stream =>
+            --  TCP socket read.
+            declare
+               TCP_Success : Boolean;
+            begin
+               Networking.Stack.TCP_Recv
+                  (Handle      => Sock.IPv4_TCP_Handle,
+                   Data        => Data,
+                   Received    => Ret_Count,
+                   Is_Blocking => True,
+                   Success     => TCP_Success);
+               if TCP_Success then
+                  --  TCP doesn't return source address per-read.
+                  Addr := Sock.IPv4_Remote_Addr;
+                  Port := Sock.IPv4_Remote_Port;
+                  Success := Plain_Success;
+               else
+                  Data := [others => 0];
+                  Ret_Count := 0;
+                  Success := Would_Block;
+               end if;
+            end;
+         when Datagram =>
+            --  Auto-bind to ephemeral port if not already bound.
+            if not Sock.IPv4_Is_Bound or else
+               Sock.IPv4_UDP_Handle = Networking.Stack.Invalid_UDP_Handle
+            then
+               declare
+                  Bind_Handle  : Networking.Stack.UDP_Socket_Handle;
+                  Bind_Success : Boolean;
+               begin
+                  Networking.Stack.UDP_Bind
+                     (Local_IP   => [0, 0, 0, 0],
+                      Local_Port => 0,  --  Will assign ephemeral.
+                      Handle     => Bind_Handle,
+                      Success    => Bind_Success);
+                  if not Bind_Success then
+                     Data := [others => 0];
+                     Ret_Count := 0;
+                     Success := Would_Block;
+                     return;
+                  end if;
+                  Sock.IPv4_Is_Bound := True;
+                  Sock.IPv4_UDP_Handle := Bind_Handle;
+               end;
+            end if;
+            Networking.Stack.UDP_Recvfrom
+               (Handle      => Sock.IPv4_UDP_Handle,
+                Data        => Data,
+                Received    => Ret_Count,
+                Src_IP      => Recv_Src_IP,
+                Src_Port    => Recv_Src_Port,
+                Is_Blocking => True,
+                Success     => UDP_Success);
+            if UDP_Success then
+               --  Return the source address to userspace.
+               Addr := Recv_Src_IP;
+               Port := Networking.IPv4_Port (Recv_Src_Port);
+               Success := Plain_Success;
+            else
+               Success := Would_Block;
+            end if;
       end case;
    end Read;
 
@@ -360,13 +553,12 @@ package body IPC.Socket is
        Port      : Networking.IPv4_Port;
        Success   : out Socket_Status)
    is
-      pragma Unreferenced (Port);
-
       Succ : Devices.Dev_Status;
       Dev  : Devices.Device_Handle;
       Tmp_Data : Operation_Data_Acc;
       Src  : Networking.IPv4_Address;
       Hdr  : Networking.IPv4.IPv4_Packet_Header;
+      UDP_Success : Boolean;
 
       pragma Warnings (Off, "storage order");
       Hdr_Data : Operation_Data (1 .. Hdr'Size / 8)
@@ -383,7 +575,7 @@ package body IPC.Socket is
             end if;
             Networking.Interfaces.Get_Interface_Address (Dev, Src);
 
-            Hdr := Networking.IPv4.Generate_Header (Src, Addr, Data'Length);
+            Hdr := Networking.IPv4.Generate_Header (Src, Addr, Data'Length, 0);
             Tmp_Data := new Operation_Data'
                [1 .. Data'Length + (Hdr'Size / 8) => 0];
             Tmp_Data (1 .. Hdr_Data'Length) := Hdr_Data;
@@ -393,6 +585,41 @@ package body IPC.Socket is
             Free (Tmp_Data);
 
             if Succ = Devices.Dev_Success then
+               Success := Plain_Success;
+            else
+               Success := Would_Block;
+            end if;
+         when Datagram =>
+            --  Auto-bind to ephemeral port if not already bound.
+            if not Sock.IPv4_Is_Bound or else
+               Sock.IPv4_UDP_Handle = Networking.Stack.Invalid_UDP_Handle
+            then
+               declare
+                  Bind_Handle  : Networking.Stack.UDP_Socket_Handle;
+                  Bind_Success : Boolean;
+               begin
+                  Networking.Stack.UDP_Bind
+                     (Local_IP   => [0, 0, 0, 0],
+                      Local_Port => 0,  --  Will assign ephemeral.
+                      Handle     => Bind_Handle,
+                      Success    => Bind_Success);
+                  if not Bind_Success then
+                     Ret_Count := 0;
+                     Success := Would_Block;
+                     return;
+                  end if;
+                  Sock.IPv4_Is_Bound := True;
+                  Sock.IPv4_UDP_Handle := Bind_Handle;
+               end;
+            end if;
+            Networking.Stack.UDP_Sendto
+               (Handle    => Sock.IPv4_UDP_Handle,
+                Dest_IP   => Addr,
+                Dest_Port => Unsigned_16 (Port),
+                Data      => Data,
+                Sent      => Ret_Count,
+                Success   => UDP_Success);
+            if UDP_Success then
                Success := Plain_Success;
             else
                Success := Would_Block;
@@ -400,169 +627,6 @@ package body IPC.Socket is
          when others =>
             Ret_Count := 0;
             Success := Is_Bad_Type;
-      end case;
-   end Write;
-   ----------------------------------------------------------------------------
-   procedure Get_Bound
-      (Sock    : Socket_Acc;
-       Addr    : out Networking.IPv6_Address;
-       Port    : out Networking.IPv6_Port;
-       Success : out Boolean)
-   is
-      pragma Unreferenced (Sock);
-   begin
-      Addr := [others => 0];
-      Port := 0;
-      Success := False;
-   end Get_Bound;
-
-   procedure Get_Peer
-      (Sock    : Socket_Acc;
-       Addr    : out Networking.IPv6_Address;
-       Port    : out Networking.IPv6_Port;
-       Success : out Boolean)
-   is
-      pragma Unreferenced (Sock);
-   begin
-      Addr := [others => 0];
-      Port := 0;
-      Success := False;
-   end Get_Peer;
-
-
-   function Bind
-      (Sock : Socket_Acc;
-       Addr : Networking.IPv6_Address;
-       Port : Networking.IPv6_Port) return Boolean
-   is
-      pragma Unreferenced (Sock);
-      pragma Unreferenced (Addr);
-      pragma Unreferenced (Port);
-   begin
-      return False;
-   end Bind;
-
-   procedure Connect
-      (Sock    : Socket_Acc;
-       Addr    : Networking.IPv6_Address;
-       Port    : Networking.IPv6_Port;
-       Success : out Boolean)
-   is
-   begin
-      case Sock.Kind is
-         when Raw =>
-            Sock.IPv6_Cached_Address := Addr;
-            Sock.IPv6_Cached_Port := Port;
-            Success := True;
-         when others =>
-            Success := False;
-      end case;
-   end Connect;
-
-   procedure Accept_Connection
-      (Sock         : Socket_Acc;
-       Is_Blocking  : Boolean := True;
-       Peer_Address : out Networking.IPv6_Address;
-       Peer_Port    : out Networking.IPv6_Port;
-       Result       : out Socket_Acc)
-   is
-      pragma Unreferenced (Sock);
-      pragma Unreferenced (Is_Blocking);
-   begin
-      Peer_Address := [others => 0];
-      Peer_Port := 0;
-      Result := null;
-   end Accept_Connection;
-
-   procedure Read
-      (Sock      : Socket_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Addr      : Networking.IPv6_Address;
-       Port      : Networking.IPv6_Port;
-       Success   : out Socket_Status)
-   is
-      pragma Unreferenced (Port);
-
-      Succ : Devices.Dev_Status;
-      Dev  : Devices.Device_Handle;
-      Src  : Networking.IPv6_Address;
-      Hdr_Size : constant Natural := Networking.IPv6.IPv6_Packet_Header'Size;
-   begin
-      case Sock.Kind is
-         when Raw =>
-            Networking.Interfaces.Get_Suitable_Interface (Addr, Dev);
-            if Dev = Devices.Error_Handle then
-               Data      := [others => 0];
-               Ret_Count := 0;
-               Success   := Would_Block;
-               return;
-            end if;
-            Networking.Interfaces.Get_Interface_Address (Dev, Src);
-
-            Devices.Read (Dev, 0, Data, Ret_Count, Succ);
-            Data (Data'First .. Data'Last - (Hdr_Size / 8)) :=
-               Data (Data'First + (Hdr_Size / 8) .. Data'Last);
-            Ret_Count := Ret_Count - (Hdr_Size / 8);
-            if Succ = Devices.Dev_Success then
-               Success := Plain_Success;
-            else
-               Success := Would_Block;
-            end if;
-         when others =>
-            Ret_Count := 0;
-            Success   := Is_Bad_Type;
-      end case;
-   end Read;
-
-   procedure Write
-      (Sock      : Socket_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Addr      : Networking.IPv6_Address;
-       Port      : Networking.IPv6_Port;
-       Success   : out Socket_Status)
-   is
-      pragma Unreferenced (Port);
-
-      Succ : Devices.Dev_Status;
-      Dev  : Devices.Device_Handle;
-      Tmp_Data : Operation_Data_Acc;
-      Src  : Networking.IPv6_Address;
-      Hdr  : Networking.IPv6.IPv6_Packet_Header;
-
-      pragma Warnings (Off, "storage order");
-      Hdr_Data : Operation_Data (1 .. Hdr'Size / 8)
-         with Import, Address => Hdr'Address;
-      pragma Warnings (On, "storage order");
-   begin
-      case Sock.Kind is
-         when Raw =>
-            Networking.Interfaces.Get_Suitable_Interface (Addr, Dev);
-            if Dev = Devices.Error_Handle then
-               Ret_Count := 0;
-               Success   := Would_Block;
-               return;
-            end if;
-            Networking.Interfaces.Get_Interface_Address (Dev, Src);
-
-            Hdr := Networking.IPv6.Generate_Header (Src, Addr, Data'Length);
-            Tmp_Data := new Operation_Data'
-               [1 .. Data'Length + (Hdr'Size / 8) => 0];
-            Tmp_Data (1 .. Hdr_Data'Length) := Hdr_Data;
-            Tmp_Data (Hdr_Data'Length + 1 .. Tmp_Data'Last) := Data;
-
-            Devices.Write (Dev, 0, Tmp_Data.all, Ret_Count, Succ);
-            Free (Tmp_Data);
-
-            if Succ = Devices.Dev_Success then
-               Success := Plain_Success;
-            else
-               Success := Would_Block;
-            end if;
-         when others =>
-            Ret_Count := 0;
-            Success   := Is_Bad_Type;
       end case;
    end Write;
    ----------------------------------------------------------------------------
@@ -825,6 +889,30 @@ package body IPC.Socket is
       Sock.Do_Credential_Reporting := Enable;
       Synchronization.Release (Sock.Mutex);
    end Set_Credential_Reporting;
+
+   procedure Set_Recv_Timeout
+      (Sock : Socket_Acc;
+       Timeout : Time.Timestamp;
+       Success : out Boolean)
+   is
+   begin
+      Success := Sock /= null;
+      if not Success then
+         return;
+      end if;
+
+      --  UDP or UNIX don't support timeout yet, silently accept.
+      case Sock.Dom is
+         when IPv4 =>
+            if Sock.Kind = Stream then
+               --  Set timeout on TCP connection.
+               Networking.Stack.TCP_Set_Recv_Timeout
+                  (Sock.IPv4_TCP_Handle, Timeout, Success);
+            end if;
+         when UNIX =>
+            null;
+      end case;
+   end Set_Recv_Timeout;
    ----------------------------------------------------------------------------
    procedure Inner_IPv4_Read
       (Sock      : Socket_Acc;
@@ -832,14 +920,36 @@ package body IPC.Socket is
        Ret_Count : out Natural;
        Success   : out Socket_Status)
    is
+      TCP_Success : Boolean;
    begin
-      Read
-         (Sock      => Sock,
-          Data      => Data,
-          Ret_Count => Ret_Count,
-          Addr      => Sock.IPv4_Cached_Address,
-          Port      => Sock.IPv4_Cached_Port,
-          Success   => Success);
+      case Sock.Kind is
+         when Stream =>
+            if Sock.IPv4_TCP_Handle = Networking.Stack.Invalid_TCP_Handle then
+               Data := [others => 0];
+               Ret_Count := 0;
+               Success := Is_Bad_Type;
+               return;
+            end if;
+            Networking.Stack.TCP_Recv
+               (Handle      => Sock.IPv4_TCP_Handle,
+                Data        => Data,
+                Received    => Ret_Count,
+                Is_Blocking => True,
+                Success     => TCP_Success);
+            if TCP_Success then
+               Success := Plain_Success;
+            else
+               Success := Would_Block;
+            end if;
+         when others =>
+            Read
+               (Sock      => Sock,
+                Data      => Data,
+                Ret_Count => Ret_Count,
+                Addr      => Sock.IPv4_Remote_Addr,
+                Port      => Sock.IPv4_Remote_Port,
+                Success   => Success);
+      end case;
    end Inner_IPv4_Read;
 
    procedure Inner_IPv4_Write
@@ -848,47 +958,35 @@ package body IPC.Socket is
        Ret_Count : out Natural;
        Success   : out Socket_Status)
    is
+      TCP_Success : Boolean;
    begin
-      Write
-         (Sock      => Sock,
-          Data      => Data,
-          Ret_Count => Ret_Count,
-          Addr      => Sock.IPv4_Cached_Address,
-          Port      => Sock.IPv4_Cached_Port,
-          Success   => Success);
+      case Sock.Kind is
+         when Stream =>
+            if Sock.IPv4_TCP_Handle = Networking.Stack.Invalid_TCP_Handle then
+               Ret_Count := 0;
+               Success := Is_Bad_Type;
+               return;
+            end if;
+            Networking.Stack.TCP_Send
+               (Handle  => Sock.IPv4_TCP_Handle,
+                Data    => Data,
+                Sent    => Ret_Count,
+                Success => TCP_Success);
+            if TCP_Success then
+               Success := Plain_Success;
+            else
+               Success := Would_Block;
+            end if;
+         when others =>
+            Write
+               (Sock      => Sock,
+                Data      => Data,
+                Ret_Count => Ret_Count,
+                Addr      => Sock.IPv4_Remote_Addr,
+                Port      => Sock.IPv4_Remote_Port,
+                Success   => Success);
+      end case;
    end Inner_IPv4_Write;
-   ----------------------------------------------------------------------------
-   procedure Inner_IPv6_Read
-      (Sock      : Socket_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Socket_Status)
-   is
-   begin
-      Read
-         (Sock      => Sock,
-          Data      => Data,
-          Ret_Count => Ret_Count,
-          Addr      => Sock.IPv6_Cached_Address,
-          Port      => Sock.IPv6_Cached_Port,
-          Success   => Success);
-   end Inner_IPv6_Read;
-
-   procedure Inner_IPv6_Write
-      (Sock      : Socket_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Socket_Status)
-   is
-   begin
-      Write
-         (Sock      => Sock,
-          Data      => Data,
-          Ret_Count => Ret_Count,
-          Addr      => Sock.IPv6_Cached_Address,
-          Port      => Sock.IPv6_Cached_Port,
-          Success   => Success);
-   end Inner_IPv6_Write;
    ----------------------------------------------------------------------------
    function Get_Bound (Path : String) return Socket_Acc is
       pragma SPARK_Mode (Off);

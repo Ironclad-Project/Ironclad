@@ -35,19 +35,12 @@ package Networking.Interfaces is
        MAC         : Networking.MAC_Address;
        IPv4        : IPv4_Address;
        IPv4_Subnet : IPv4_Address;
-       IPv6        : IPv6_Address;
-       IPv6_Subnet : IPv6_Address;
        Success     : out Boolean);
 
    --  Fetch the registered address of an interface.
    procedure Get_Interface_Address
       (Interfaced : Devices.Device_Handle;
        IP         : out IPv4_Address)
-      with Pre => ARP.Is_Initialized;
-
-   procedure Get_Interface_Address
-      (Interfaced : Devices.Device_Handle;
-       IP         : out IPv6_Address)
       with Pre => ARP.Is_Initialized;
 
    --  Block or unblock an interface.
@@ -65,22 +58,10 @@ package Networking.Interfaces is
        Interfaced : out Devices.Device_Handle)
       with Pre => ARP.Is_Initialized;
 
-   procedure Get_Suitable_Interface
-      (IP         : IPv6_Address;
-       Interfaced : out Devices.Device_Handle)
-      with Pre => ARP.Is_Initialized;
-
    procedure Modify_Addresses
       (Interfaced : Devices.Device_Handle;
        IP         : IPv4_Address;
        IP_Subnet  : IPv4_Address;
-       Success    : out Boolean)
-      with Pre => ARP.Is_Initialized;
-
-   procedure Modify_Addresses
-      (Interfaced : Devices.Device_Handle;
-       IP         : IPv6_Address;
-       IP_Subnet  : IPv6_Address;
        Success    : out Boolean)
       with Pre => ARP.Is_Initialized;
 

@@ -131,6 +131,7 @@ support for POSIX soft and hard limits.
   program bases.
 - Tons of bug fixes.
 - Improve signal handling.
+- Add basic IPv4 networking stack and DHCP discovery.
 
 ### Breaking changes
 

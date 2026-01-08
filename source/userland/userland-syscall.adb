@@ -1197,7 +1197,6 @@ package body Userland.Syscall is
    begin
       case Domain is
          when AF_INET  => Dom := IPC.Socket.IPv4;
-         when AF_INET6 => Dom := IPC.Socket.IPv6;
          when AF_UNIX  => Dom := IPC.Socket.UNIX;
          when others   => goto Invalid_Value_Return;
       end case;
@@ -3372,22 +3371,7 @@ package body Userland.Syscall is
                Succ := Bind
                   (Sock => File.Inner_Socket,
                    Addr => Addr.Sin_Addr,
-                   Port => Networking.IPv4_Port (Addr.Sin_Port));
-            end;
-         when IPC.Socket.IPv6 =>
-            declare
-               package Trans is new Memory.Userland_Transfer (SockAddr_In6);
-               Addr : SockAddr_In6;
-            begin
-               Trans.Take_From_Userland (Map, Addr, SAddr, Succ);
-               if not Succ then
-                  goto Would_Fault_Error;
-               end if;
-
-               Succ := Bind
-                  (Sock => File.Inner_Socket,
-                   Addr => Addr.Sin6_Addr,
-                   Port => Networking.IPv6_Port (Addr.Sin6_Port));
+                   Port => Ntohs (Addr.Sin_Port));
             end;
          when IPC.Socket.UNIX =>
             declare
@@ -3539,23 +3523,7 @@ package body Userland.Syscall is
                Connect
                   (Sock    => File.Inner_Socket,
                    Addr    => Addr.Sin_Addr,
-                   Port    => Networking.IPv4_Port (Addr.Sin_Port),
-                   Success => Succ);
-            end;
-         when IPC.Socket.IPv6 =>
-            declare
-               package Trans is new Memory.Userland_Transfer (SockAddr_In6);
-               Addr : SockAddr_In6;
-            begin
-               Trans.Take_From_Userland (Map, Addr, SAddr, Succ);
-               if not Succ then
-                  goto Would_Fault_Error;
-               end if;
-
-               Connect
-                  (Sock    => File.Inner_Socket,
-                   Addr    => Addr.Sin6_Addr,
-                   Port    => Networking.IPv6_Port (Addr.Sin6_Port),
+                   Port    => Ntohs (Addr.Sin_Port),
                    Success => Succ);
             end;
          when IPC.Socket.UNIX =>
@@ -3888,31 +3856,16 @@ package body Userland.Syscall is
             when IPC.Socket.IPv4 =>
                declare
                   package Trans is new Memory.Userland_Transfer (SockAddr_In);
-                  Addr : SockAddr_In;
+                  Addr     : SockAddr_In;
+                  Tmp_Port : Networking.IPv4_Port;
                begin
                   Accept_Connection
                      (Sock         => File.Inner_Socket,
                       Is_Blocking  => not Block,
                       Peer_Address => Addr.Sin_Addr,
-                      Peer_Port    => Networking.IPv4_Port (Addr.Sin_Port),
+                      Peer_Port    => Tmp_Port,
                       Result       => Sock);
-
-                  Trans.Paste_Into_Userland (Map, Addr, A_SAddr, Succ);
-                  if not Succ then
-                     goto Would_Fault_Error;
-                  end if;
-               end;
-            when IPC.Socket.IPv6 =>
-               declare
-                  package Trans is new Memory.Userland_Transfer (SockAddr_In6);
-                  Addr : SockAddr_In6;
-               begin
-                  Accept_Connection
-                     (Sock         => File.Inner_Socket,
-                      Is_Blocking  => not Block,
-                      Peer_Address => Addr.Sin6_Addr,
-                      Peer_Port    => Networking.IPv6_Port (Addr.Sin6_Port),
-                      Result       => Sock);
+                  Addr.Sin_Port := Ntohs (Unsigned_16 (Tmp_Port));
 
                   Trans.Paste_Into_Userland (Map, Addr, A_SAddr, Succ);
                   if not Succ then
@@ -4783,27 +4736,13 @@ package body Userland.Syscall is
          when IPC.Socket.IPv4 =>
             declare
                package Trans is new Memory.Userland_Transfer (SockAddr_In);
-               Addr : SockAddr_In;
+               Addr     : SockAddr_In;
+               Tmp_Port : Networking.IPv4_Port;
             begin
                Length := Addr'Size / 8;
                Addr.Sin_Family := AF_INET;
-               Get_Bound (File.Inner_Socket, Addr.Sin_Addr,
-                  Networking.IPv4_Port (Addr.Sin_Port), BSucc);
-
-               Trans.Paste_Into_Userland (Map, Addr, ASAddr, Succ);
-               if not Succ then
-                  goto Would_Fault_Error;
-               end if;
-            end;
-         when IPC.Socket.IPv6 =>
-            declare
-               package Trans is new Memory.Userland_Transfer (SockAddr_In6);
-               Addr : SockAddr_In6;
-            begin
-               Length := Addr'Size / 8;
-               Addr.Sin6_Family := AF_INET6;
-               Get_Bound (File.Inner_Socket, Addr.Sin6_Addr,
-                  Networking.IPv6_Port (Addr.Sin6_Port), BSucc);
+               Get_Bound (File.Inner_Socket, Addr.Sin_Addr, Tmp_Port, BSucc);
+               Addr.Sin_Port := Ntohs (Unsigned_16 (Tmp_Port));
 
                Trans.Paste_Into_Userland (Map, Addr, ASAddr, Succ);
                if not Succ then
@@ -4886,27 +4825,13 @@ package body Userland.Syscall is
          when IPC.Socket.IPv4 =>
             declare
                package Trans is new Memory.Userland_Transfer (SockAddr_In);
-               Addr : SockAddr_In;
+               Addr     : SockAddr_In;
+               Tmp_Port : Networking.IPv4_Port;
             begin
                Length := Addr'Size / 8;
                Addr.Sin_Family := AF_INET;
-               Get_Peer (File.Inner_Socket, Addr.Sin_Addr,
-                  Networking.IPv4_Port (Addr.Sin_Port), BSucc);
-
-               Trans.Paste_Into_Userland (Map, Addr, ASAddr, Succ);
-               if not Succ then
-                  goto Would_Fault_Error;
-               end if;
-            end;
-         when IPC.Socket.IPv6 =>
-            declare
-               package Trans is new Memory.Userland_Transfer (SockAddr_In6);
-               Addr : SockAddr_In6;
-            begin
-               Length := Addr'Size / 8;
-               Addr.Sin6_Family := AF_INET6;
-               Get_Peer (File.Inner_Socket, Addr.Sin6_Addr,
-                  Networking.IPv6_Port (Addr.Sin6_Port), BSucc);
+               Get_Peer (File.Inner_Socket, Addr.Sin_Addr, Tmp_Port, BSucc);
+               Addr.Sin_Port := Ntohs (Unsigned_16 (Tmp_Port));
 
                Trans.Paste_Into_Userland (Map, Addr, ASAddr, Succ);
                if not Succ then
@@ -5314,41 +5239,26 @@ package body Userland.Syscall is
                   declare
                      package T is new Memory.Userland_Transfer (SockAddr_In);
                      Addr : SockAddr_In;
+                     Src_Addr : Networking.IPv4_Address;
+                     Src_Port : Networking.IPv4_Port;
                   begin
-                     T.Take_From_Userland (Map, Addr, ASAddr, Success2);
-                     if not Success2 then
-                        Returned := Unsigned_64'Last;
-                        Errno    := Error_Would_Fault;
-                        goto Cleanup;
-                     end if;
-
                      IPC.Socket.Read
                         (Sock      => File.Inner_Socket,
                          Data      => Data.all,
                          Ret_Count => Ret_Count,
-                         Addr      => Addr.Sin_Addr,
-                         Port      => Networking.IPv4_Port (Addr.Sin_Port),
+                         Addr      => Src_Addr,
+                         Port      => Src_Port,
                          Success   => Success);
-                  end;
-               when IPC.Socket.IPv6 =>
-                  declare
-                     package T is new Memory.Userland_Transfer (SockAddr_In6);
-                     Addr : SockAddr_In6;
-                  begin
-                     T.Take_From_Userland (Map, Addr, ASAddr, Success2);
-                     if not Success2 then
-                        Returned := Unsigned_64'Last;
-                        Errno    := Error_Would_Fault;
-                        goto Cleanup;
-                     end if;
 
-                     IPC.Socket.Read
-                        (Sock      => File.Inner_Socket,
-                         Data      => Data.all,
-                         Ret_Count => Ret_Count,
-                         Addr      => Addr.Sin6_Addr,
-                         Port      => Networking.IPv6_Port (Addr.Sin6_Port),
-                         Success   => Success);
+                     --  Write source address back to userspace.
+                     if Success = IPC.Socket.Plain_Success and AIAddr /= 0 then
+                        Addr.Sin_Family := AF_INET;
+                        Addr.Sin_Port := Ntohs (Unsigned_16 (Src_Port));
+                        Addr.Sin_Addr := Src_Addr;
+                        Addr.Padding := 0;
+                        T.Paste_Into_Userland (Map, Addr, ASAddr, Success2);
+                        --  Ignore write failure, data was still received.
+                     end if;
                   end;
                when IPC.Socket.UNIX =>
                   declare
@@ -5479,27 +5389,7 @@ package body Userland.Syscall is
                          Data      => Data.all,
                          Ret_Count => Ret_Count,
                          Addr      => Addr.Sin_Addr,
-                         Port      => Networking.IPv4_Port (Addr.Sin_Port),
-                         Success   => Success);
-                  end;
-               when IPC.Socket.IPv6 =>
-                  declare
-                     package T is new Memory.Userland_Transfer (SockAddr_In6);
-                     Addr : SockAddr_In6;
-                  begin
-                     T.Take_From_Userland (Map, Addr, ASAddr, Success2);
-                     if not Success2 then
-                        Returned := Unsigned_64'Last;
-                        Errno    := Error_Would_Fault;
-                        goto Cleanup;
-                     end if;
-
-                     IPC.Socket.Write
-                        (Sock      => File.Inner_Socket,
-                         Data      => Data.all,
-                         Ret_Count => Ret_Count,
-                         Addr      => Addr.Sin6_Addr,
-                         Port      => Networking.IPv6_Port (Addr.Sin6_Port),
+                         Port      => Ntohs (Addr.Sin_Port),
                          Success   => Success);
                   end;
                when IPC.Socket.UNIX =>
@@ -5562,7 +5452,6 @@ package body Userland.Syscall is
    is
       package Transfer_1 is new Memory.Userland_Transfer (Boolean);
       package Transfer_2 is new Memory.Userland_Transfer (Addr4_NetInterface);
-      package Transfer_3 is new Memory.Userland_Transfer (Addr6_NetInterface);
 
       Proc  : constant             PID := Arch.Local.Get_Current_Process;
       IAddr : constant Integer_Address := Integer_Address (Arg_Addr);
@@ -5575,7 +5464,6 @@ package body Userland.Syscall is
       Map   : Page_Table_Acc;
       Blk :            Boolean;
       IP4 : Addr4_NetInterface;
-      IP6 : Addr6_NetInterface;
    begin
       Get_File (Proc, InterDev, File);
       if not Get_Capabilities (Proc).Can_Manage_Networking then
@@ -5612,13 +5500,6 @@ package body Userland.Syscall is
             end if;
             Networking.Interfaces.Modify_Addresses
                (Handl, IP4.IP, IP4.Sub, Suc);
-         when NETINTER_SET_STATIC_IP6 =>
-            Transfer_3.Take_From_Userland (Map, IP6, SAddr, Suc);
-            if not Suc then
-               goto Would_Fault_Error;
-            end if;
-            Networking.Interfaces.Modify_Addresses
-               (Handl, IP6.IP, IP6.Sub, Suc);
          when others =>
             Suc := False;
       end case;
@@ -6906,13 +6787,17 @@ package body Userland.Syscall is
        Errno    : out Errno_Value)
    is
       pragma Unreferenced (Len);
-      package Trans is new Memory.Userland_Transfer (Unsigned_32);
+      package Trans_1 is new Memory.Userland_Transfer (Unsigned_32);
+      package Trans_2 is new Memory.Userland_Transfer (Time_Spec);
+
       Proc : constant PID := Arch.Local.Get_Current_Process;
       IAddr : constant Integer_Address := Integer_Address (Addr);
       File : File_Description_Acc;
       Arg : Unsigned_32;
       Map : Page_Table_Acc;
       Success : Boolean;
+      Tv : Time_Spec;
+      Timeout : Time.Timestamp;
    begin
       Get_Common_Map (Proc, Map);
       Get_File (Proc, Sock, File);
@@ -6930,12 +6815,24 @@ package body Userland.Syscall is
                goto Invalid_Value_Error;
             end if;
 
-            Trans.Take_From_Userland (Map, Arg, To_Address (IAddr), Success);
+            Trans_1.Take_From_Userland (Map, Arg, To_Address (IAddr), Success);
             if not Success then
                goto Would_Fault_Error;
             end if;
 
             Set_Credential_Reporting (File.Inner_Socket, Arg /= 0);
+         when SO_RCVTIMEO =>
+            --  Read timeval structure from userspace.
+            Trans_2.Take_From_Userland (Map, Tv, To_Address (IAddr), Success);
+            if not Success then
+               goto Would_Fault_Error;
+            end if;
+
+            Timeout := (Seconds => Tv.Seconds, Nanoseconds => Tv.Nanoseconds);
+            Set_Recv_Timeout (File.Inner_Socket, Timeout, Success);
+            if not Success then
+               goto Invalid_Value_Error;
+            end if;
          when SO_SNDBUF =>
             null;
          when others =>
@@ -7249,7 +7146,6 @@ package body Userland.Syscall is
    begin
       case Domain is
          when AF_INET  => Dom := IPC.Socket.IPv4;
-         when AF_INET6 => Dom := IPC.Socket.IPv6;
          when AF_UNIX  => Dom := IPC.Socket.UNIX;
          when others   => goto Invalid_Value_Return;
       end case;
@@ -7882,6 +7778,11 @@ package body Userland.Syscall is
       Scheduler.Signal_Kernel_Exit (Thread);
    end Post_Syscall_Hook;
    ----------------------------------------------------------------------------
+   function Ntohs (Port : Unsigned_16) return Unsigned_16 is
+   begin
+      return Shift_Left (Port and 16#FF#, 8) or Shift_Right (Port, 8);
+   end Ntohs;
+
    procedure Common_Syscall_Hook
       (Thread : TID;
        State  : Arch.Context.GP_Context)

@@ -38,6 +38,7 @@ package Time is
    function "+" (Left, Right : Timestamp) return Timestamp;
    function "-" (Left, Right : Timestamp) return Timestamp;
    function ">=" (Left, Right : Timestamp) return Boolean;
+   function ">" (Left, Right : Timestamp) return Boolean;
    ----------------------------------------------------------------------------
    --  Types to represent several date elements.
    subtype Year    is Natural;

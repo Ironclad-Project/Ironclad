@@ -49,8 +49,6 @@ package body Devices.Loopback is
              MAC         => [others => 1],
              IPv4        => [127, 0, 0, 1],
              IPv4_Subnet => [255, 0, 0, 0],
-             IPv6        => [1 .. 15 => 0, 16 => 1],
-             IPv6_Subnet => [others => 16#FF#],
              Success     => Success);
          Networking.Interfaces.Block (Dev, False, Success);
       end if;

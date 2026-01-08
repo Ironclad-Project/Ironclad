@@ -33,8 +33,6 @@ package body Networking.Interfaces is
        MAC         : Networking.MAC_Address;
        IPv4        : IPv4_Address;
        IPv4_Subnet : IPv4_Address;
-       IPv6        : IPv6_Address;
-       IPv6_Subnet : IPv6_Address;
        Success     : out Boolean)
    is
       pragma SPARK_Mode (Off); --  We need the 'Address here.
@@ -46,7 +44,7 @@ package body Networking.Interfaces is
             Int.Handle := Interfaced;
             Int.Is_Blocked := True;
             Int.MAC := MAC;
-            ARP.Add_Static (Int.MAC, IPv4, IPv4_Subnet, IPv6, IPv6_Subnet);
+            ARP.Add_Static (Int.MAC, IPv4, IPv4_Subnet);
             Success := True;
             exit;
          end if;
@@ -60,23 +58,6 @@ package body Networking.Interfaces is
        IP         : out IPv4_Address)
    is
       Discard : IPv4_Address;
-   begin
-      IP := [others => 0];
-      Seize (Interfaces_Lock);
-      for Int of Interfaces loop
-         if Int.Handle = Interfaced then
-            ARP.Lookup (Int.MAC, IP, Discard);
-            exit;
-         end if;
-      end loop;
-      Release (Interfaces_Lock);
-   end Get_Interface_Address;
-
-   procedure Get_Interface_Address
-      (Interfaced : Devices.Device_Handle;
-       IP         : out IPv6_Address)
-   is
-      Discard : IPv6_Address;
    begin
       IP := [others => 0];
       Seize (Interfaces_Lock);
@@ -111,49 +92,60 @@ package body Networking.Interfaces is
       (IP         : IPv4_Address;
        Interfaced : out Devices.Device_Handle)
    is
-      IP_Sub : IPv4_Address;
-      IP2    : IPv4_Address;
+      IP_Sub      : IPv4_Address;
+      IP2         : IPv4_Address;
+      Match_Found : Boolean := False;
+      Fallback    : Devices.Device_Handle := Devices.Error_Handle;
    begin
       Interfaced := Devices.Error_Handle;
       Seize (Interfaces_Lock);
-      for Int of Interfaces loop
-         if Int.Handle /= Devices.Error_Handle and not Int.Is_Blocked then
-            ARP.Lookup (Int.MAC, IP2, IP_Sub);
-            for I in IP_Sub'Range loop
-               if IP_Sub (I) /= 0 and then IP (I) /= IP2 (I) then
-                  goto End_Iter;
-               end if;
-            end loop;
-            Interfaced := Int.Handle;
-            exit;
-         <<End_Iter>>
-         end if;
-      end loop;
-      Release (Interfaces_Lock);
-   end Get_Suitable_Interface;
+      for Idx in Interfaces'Range loop
+         declare
+            Int : Inner_Interface renames Interfaces (Idx);
+         begin
+            if Int.Handle /= Devices.Error_Handle and not Int.Is_Blocked then
+               ARP.Lookup (Int.MAC, IP2, IP_Sub);
 
-   procedure Get_Suitable_Interface
-      (IP         : IPv6_Address;
-       Interfaced : out Devices.Device_Handle)
-   is
-      IP_Sub : IPv6_Address;
-      IP2    : IPv6_Address;
-   begin
-      Interfaced := Devices.Error_Handle;
-      Seize (Interfaces_Lock);
-      for Int of Interfaces loop
-         if Int.Handle /= Devices.Error_Handle and not Int.Is_Blocked then
-            ARP.Lookup (Int.MAC, IP2, IP_Sub);
-            for I in IP_Sub'Range loop
-               if IP_Sub (I) /= 0 and then IP (I) /= IP2 (I) then
+               --  Skip interfaces with no valid IP/subnet.
+               if IP2 = IPv4_Address'(0, 0, 0, 0) then
                   goto End_Iter;
                end if;
-            end loop;
-            Interfaced := Int.Handle;
-            exit;
-         <<End_Iter>>
-         end if;
+
+               --  Skip loopback (127.x.x.x).
+               if IP2 (1) = 127 then
+                  goto End_Iter;
+               end if;
+
+               --  Remember first non-loopback interface as fallback.
+               if Fallback = Devices.Error_Handle then
+                  Fallback := Int.Handle;
+               end if;
+
+               --  Check if destination is on same subnet.
+               Match_Found := True;
+               for I in IP_Sub'Range loop
+                  if IP_Sub (I) /= 0 and then IP (I) /= IP2 (I) then
+                     Match_Found := False;
+                     exit;
+                  end if;
+               end loop;
+
+               if Match_Found then
+                  Interfaced := Int.Handle;
+                  exit;
+               end if;
+            <<End_Iter>>
+            end if;
+         end;
       end loop;
+
+      --  If no exact subnet match, use fallback for external routing.
+      if Interfaced = Devices.Error_Handle and
+         Fallback /= Devices.Error_Handle
+      then
+         Interfaced := Fallback;
+      end if;
+
       Release (Interfaces_Lock);
    end Get_Suitable_Interface;
 
@@ -161,25 +153,6 @@ package body Networking.Interfaces is
       (Interfaced : Devices.Device_Handle;
        IP         : IPv4_Address;
        IP_Subnet  : IPv4_Address;
-       Success    : out Boolean)
-   is
-   begin
-      Success := False;
-      Seize (Interfaces_Lock);
-      for Int of Interfaces loop
-         if Int.Handle = Interfaced then
-            ARP.Modify_Static (Int.MAC, IP, IP_Subnet);
-            Success := True;
-            exit;
-         end if;
-      end loop;
-      Release (Interfaces_Lock);
-   end Modify_Addresses;
-
-   procedure Modify_Addresses
-      (Interfaced : Devices.Device_Handle;
-       IP         : IPv6_Address;
-       IP_Subnet  : IPv6_Address;
        Success    : out Boolean)
    is
    begin
@@ -226,10 +199,6 @@ package body Networking.Interfaces is
                   (Buffer (Buffer'First + Curr_Index).MAC,
                    Buffer (Buffer'First + Curr_Index).IPv4,
                    Buffer (Buffer'First + Curr_Index).IPv4_Subnet);
-               ARP.Lookup
-                  (Buffer (Buffer'First + Curr_Index).MAC,
-                   Buffer (Buffer'First + Curr_Index).IPv6,
-                   Buffer (Buffer'First + Curr_Index).IPv6_Subnet);
 
                Curr_Index := Curr_Index + 1;
             end if;

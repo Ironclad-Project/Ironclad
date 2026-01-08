@@ -164,9 +164,6 @@ package body Devices.PCI.VirtioNet with SPARK_Mode => Off is
                    MAC         => Net_Config.Mac,
                    IPv4        => [10, 0, 2, 15],
                    IPv4_Subnet => [255, 0, 0, 0],
-                   IPv6        => [1 .. 8 => 0, 9 .. 12 => 16#FF#,
-                                   13 => 10, 14 => 0,  15 => 2, 16 => 15],
-                   IPv6_Subnet => [16 => 0, 1 .. 8 => 0, others => 16#FF#],
                    Success     => Success);
                Networking.Interfaces.Block (Dev, False, Success);
             end if;

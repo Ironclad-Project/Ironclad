@@ -22,8 +22,8 @@ package Networking is
    type MAC_Address  is array (1 ..  6) of Unsigned_8;
    type IPv4_Address is array (1 ..  4) of Unsigned_8;
    type IPv6_Address is array (1 .. 16) of Unsigned_8;
-   type IPv4_Port is new Unsigned_16;
-   type IPv6_Port is new Unsigned_16;
+   subtype IPv4_Port is Unsigned_16;
+   subtype IPv6_Port is Unsigned_16;
 
    --  Standard submasks.
    IPv4_8_Submask   : constant IPv4_Address := [255, 0, 0, 0];

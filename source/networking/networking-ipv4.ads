@@ -15,6 +15,7 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with System;
+with Devices;
 
 package Networking.IPv4 is
    --  Structure of an IPv4 header.
@@ -23,6 +24,11 @@ package Networking.IPv4 is
    type Unsigned_4  is mod 2**4;
    type Unsigned_6  is mod 2**6;
    type Unsigned_13 is mod 2**13;
+
+   --  IP Protocol numbers.
+   Protocol_ICMP : constant Unsigned_8 := 1;
+   Protocol_TCP  : constant Unsigned_8 := 6;
+   Protocol_UDP  : constant Unsigned_8 := 17;
 
    --  Little does GNAT know, byte arrays dont have endianness...
    pragma Warnings (Off, "scalar storage order specified");
@@ -59,9 +65,39 @@ package Networking.IPv4 is
    end record;
    pragma Warnings (On, "scalar storage order specified");
 
+   Header_Size : constant Natural := IPv4_Packet_Header'Size / 8;
+
+   --  Generate an IPv4 header (with checksum calculated).
+   --  @param Source_IP   Source IP address.
+   --  @param Desto_IP    Destination IP address.
+   --  @param Data_Length Length of payload data.
+   --  @param Protocol    IP protocol number (TCP=6, UDP=17, ICMP=1).
+   --  @return Complete IPv4 header with valid checksum.
    function Generate_Header
       (Source_IP, Desto_IP : IPv4_Address;
-       Data_Length         : Natural) return IPv4_Packet_Header
+       Data_Length         : Natural;
+       Protocol            : Unsigned_8) return IPv4_Packet_Header
       with Pre => Data_Length <=
                   Natural (Unsigned_16'Last - (IPv4_Packet_Header'Size / 8));
+
+   --  Calculate the IP header checksum.
+   --  @param Header The header to calculate checksum for.
+   --  @return The 16-bit one's complement checksum.
+   function Calculate_Checksum
+      (Header : IPv4_Packet_Header) return Unsigned_16;
+
+   --  Parse an IPv4 header from raw data.
+   --  @param Data    Raw packet data.
+   --  @param Header  Parsed header output.
+   --  @param Success True if successfully parsed.
+   procedure Parse_Header
+      (Data    : Devices.Operation_Data;
+       Header  : out IPv4_Packet_Header;
+       Success : out Boolean)
+      with Pre => Data'Length >= Header_Size;
+
+   --  Verify the checksum of a parsed header.
+   --  @param Header The header to verify.
+   --  @return True if checksum is valid.
+   function Verify_Checksum (Header : IPv4_Packet_Header) return Boolean;
 end Networking.IPv4;

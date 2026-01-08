@@ -4202,6 +4202,7 @@ The fetched segment is not present.
 
 #define SO_ACCEPTCONN 1
 #define SO_ERROR      5
+#define SO_RCVTIMEO   11
 #define SO_SNDBUF     13
 #define SO_TYPE       16
 #define SO_PEERCRED   18
@@ -4229,6 +4230,10 @@ protocol. @code{getsockopt} only.
 @code{val} will point to an @code{uint32_t}. The value will be written with the
 present socket error if any, or @code{0} if none are present. @code{getsockopt}
 only.
+
+@item SO_RCVTIMEO
+@code{val} will point to a @code{timeval} struct. Which will be used as socket
+receive timeout value.
 
 @item SO_SNDBUF
 @code{val} will point to an @code{uint32_t}. If getting the value, the current

@@ -1239,6 +1239,7 @@ package Userland.Syscall is
 
    SO_ACCEPTCONN : constant := 1;
    SO_ERROR      : constant := 5;
+   SO_RCVTIMEO   : constant := 11;
    SO_SNDBUF     : constant := 13;
    SO_TYPE       : constant := 16;
    SO_PEERCRED   : constant := 18;
@@ -1568,6 +1569,8 @@ package Userland.Syscall is
        Can_Map    : out Boolean);
 
 private
+
+   function Ntohs (Port : Unsigned_16) return Unsigned_16;
 
    procedure Common_Syscall_Hook
       (Thread : TID;

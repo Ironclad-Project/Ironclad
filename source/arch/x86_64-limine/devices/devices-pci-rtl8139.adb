@@ -173,24 +173,10 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
                 MAC         => [others => 1],
                 IPv4        => [10, 0, 2, 15],
                 IPv4_Subnet => [255, 0, 0, 0],
-                IPv6        => [1 .. 8 => 0, 9 .. 12 => 16#FF#,
-                 13 => 10, 14 => 0,  15 => 2, 16 => 15],
-                IPv6_Subnet => [16 => 0, 1 .. 8 => 0, others => 16#FF#],
                 Success     => Success);
             Networking.Interfaces.Block (Dev, False, Success);
          end if;
-
-         Messages.Put_Line ("Enumerated RTL8139, IO Base at "
-          & Unsigned_16'Image (CD.IO_Base));
-         Messages.Put_Line ("MAC Address: " &
-            Unsigned_64'Image (Unsigned_64 (Get_IO_8 (CD, REG_ID + 0))) & ":" &
-            Unsigned_64'Image (Unsigned_64 (Get_IO_8 (CD, REG_ID + 1))) & ":" &
-            Unsigned_64'Image (Unsigned_64 (Get_IO_8 (CD, REG_ID + 2))) & ":" &
-            Unsigned_64'Image (Unsigned_64 (Get_IO_8 (CD, REG_ID + 3))) & ":" &
-            Unsigned_64'Image (Unsigned_64 (Get_IO_8 (CD, REG_ID + 4))) & ":" &
-            Unsigned_64'Image (Unsigned_64 (Get_IO_8 (CD, REG_ID + 5))));
       end loop;
-      Success := True;
    exception
       when Constraint_Error =>
          Success := False;
@@ -562,5 +548,4 @@ package body Devices.PCI.RTL8139 with SPARK_Mode => Off is
          Messages.Put_Line ("Constraint_Error in Get_IO_32");
          return 0;
    end Get_IO_32;
-
 end Devices.PCI.RTL8139;

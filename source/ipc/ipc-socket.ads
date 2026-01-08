@@ -17,7 +17,9 @@
 with Synchronization;
 with Devices; use Devices;
 with Networking;
+with Networking.Stack;
 with Interfaces; use Interfaces;
+with Time;
 
 package IPC.Socket is
    --  Here lies the implementation of the quintessential POSIX IPC, be it
@@ -25,7 +27,6 @@ package IPC.Socket is
 
    type Domain is
       (IPv4,  --  IPv4-based networking.
-       IPv6,  --  IPv6-based networking.
        UNIX); --  UNIX-domain sockets for local IPC.
 
    type DataType is
@@ -235,15 +236,15 @@ package IPC.Socket is
    --  @param Sock      Socket to read from, or its connection.
    --  @param Data      Data to read to.
    --  @param Ret_Count Count of data read.
-   --  @param Addr      IPv4 address to read from.
-   --  @param Port      IPv4 port.
+   --  @param Addr      IPv4 address (output: source address).
+   --  @param Port      IPv4 port (output: source port).
    --  @param Success   Resulting status of the operation.
    procedure Read
       (Sock      : Socket_Acc;
        Data      : out Devices.Operation_Data;
        Ret_Count : out Natural;
-       Addr      : Networking.IPv4_Address;
-       Port      : Networking.IPv4_Port;
+       Addr      : out Networking.IPv4_Address;
+       Port      : out Networking.IPv4_Port;
        Success   : out Socket_Status)
       with Pre => Sock /= null             and then
                   Get_Domain (Sock) = IPv4 and then
@@ -265,111 +266,6 @@ package IPC.Socket is
        Success   : out Socket_Status)
       with Pre => Sock /= null             and then
                   Get_Domain (Sock) = IPv4 and then
-                  Get_Type (Sock) /= Stream;
-   ----------------------------------------------------------------------------
-   --  IPv6-specific versions of operations, along with domain-specific stuff.
-   --  These operations use IPv6 addresses and ports.
-
-   --  Get the address of the passed socket.
-   --  @param Sock    Socket to get the address of.
-   --  @param Addr    Fetched address.
-   --  @param Port    Fetched port.
-   --  @param Success True in success, False if not supported / not bound.
-   procedure Get_Bound
-      (Sock    : Socket_Acc;
-       Addr    : out Networking.IPv6_Address;
-       Port    : out Networking.IPv6_Port;
-       Success : out Boolean)
-      with Pre => Sock /= null and then Get_Domain (Sock) = IPv4;
-
-   --  Get the address of the passed socket's peer set with 'connect'.
-   --  @param Sock    Socket to get the address of.
-   --  @param Addr    Fetched address.
-   --  @param Port    Fetched port.
-   --  @param Success True in success, False if not supported / not connected.
-   procedure Get_Peer
-      (Sock    : Socket_Acc;
-       Addr    : out Networking.IPv6_Address;
-       Port    : out Networking.IPv6_Port;
-       Success : out Boolean)
-      with Pre => Sock /= null and then Get_Domain (Sock) = IPv6;
-
-   --  Bind a socket to an address.
-   --  @param Sock Socket to bind to an address.
-   --  @param Addr Fetched address.
-   --  @param Port Fetched port.
-   --  @return True on success, False on failure.
-   function Bind
-      (Sock : Socket_Acc;
-       Addr : Networking.IPv6_Address;
-       Port : Networking.IPv6_Port) return Boolean
-      with Pre => Sock /= null and then Get_Domain (Sock) = IPv6;
-
-   --  Connect a socket, if connection-based, the function will do handshake
-   --  and all the shinenigans. Connection-less sockets will use from now on
-   --  this address only for sending and receiving.
-   --  @param Sock    Socket to use to connect.
-   --  @param Addr    Fetched address.
-   --  @param Port    Fetched port.
-   --  @param Success True on success, False on failure.
-   procedure Connect
-      (Sock    : Socket_Acc;
-       Addr    : Networking.IPv6_Address;
-       Port    : Networking.IPv6_Port;
-       Success : out Boolean)
-      with Pre => Sock /= null and then Get_Domain (Sock) = IPv6;
-
-   --  Accept a new connection, creating a connected socket for interfacing
-   --  with it. If blocking, the operation will block.
-   --  @param Sock         Server listening socket to use for accepting.
-   --  @param Is_Blocking  True to make the accepted socket blocking.
-   --  @param Peer_Address Address of the connected.
-   --  @param Peer_Port    Port of the connected.
-   --  @param Result       ew accepted socket, or null on failure.
-   procedure Accept_Connection
-      (Sock         : Socket_Acc;
-       Is_Blocking  : Boolean := True;
-       Peer_Address : out Networking.IPv6_Address;
-       Peer_Port    : out Networking.IPv6_Port;
-       Result       : out Socket_Acc)
-      with Pre => Sock /= null             and then
-                  Get_Domain (Sock) = IPv6 and then
-                  Get_Type (Sock) = Stream;
-
-   --  Read from a connection-less socket.
-   --  @param Sock      Socket to read from, or its connection.
-   --  @param Data      Data to read to.
-   --  @param Ret_Count Count of data read.
-   --  @param Addr      IPv6 address to read from.
-   --  @param Port      IPv6 port.
-   --  @param Success   Resulting status of the operation.
-   procedure Read
-      (Sock      : Socket_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Addr      : Networking.IPv6_Address;
-       Port      : Networking.IPv6_Port;
-       Success   : out Socket_Status)
-      with Pre => Sock /= null             and then
-                  Get_Domain (Sock) = IPv6 and then
-                  Get_Type (Sock) /= Stream;
-
-   --  Write to a socket.
-   --  @param Sock      Socket to write to, or its connection.
-   --  @param Data      Data to write.
-   --  @param Ret_Count Count of written data.
-   --  @param Addr      IPv6 address to read from.
-   --  @param Port      IPv6 port.
-   --  @param Success   Resulting status of the operation.
-   procedure Write
-      (Sock      : Socket_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Addr      : Networking.IPv6_Address;
-       Port      : Networking.IPv6_Port;
-       Success   : out Socket_Status)
-      with Pre => Sock /= null             and then
-                  Get_Domain (Sock) = IPv6 and then
                   Get_Type (Sock) /= Stream;
    ----------------------------------------------------------------------------
    --  UNIX-specific versions of operations, along with domain-specific stuff.
@@ -497,6 +393,15 @@ package IPC.Socket is
 
    procedure Set_Credential_Reporting (Sock : Socket_Acc; Enable : Boolean);
 
+   --  Set receive timeout for a socket.
+   --  @param Sock    Socket to set timeout on.
+   --  @param Timeout Timeout value.
+   --  @param Success True if timeout was set successfully.
+   procedure Set_Recv_Timeout
+      (Sock : Socket_Acc;
+       Timeout : Time.Timestamp;
+       Success : out Boolean);
+
 private
 
    Default_Socket_Size : constant Natural := 16#2000#;
@@ -523,19 +428,18 @@ private
                   Simple_Connected : Socket_Acc;
             end case;
          when IPv4 =>
+            IPv4_Local_Addr  : Networking.IPv4_Address;
+            IPv4_Local_Port  : Networking.IPv4_Port;
+            IPv4_Remote_Addr : Networking.IPv4_Address;
+            IPv4_Remote_Port : Networking.IPv4_Port;
             case Kind is
+               when Stream =>
+                  IPv4_TCP_Handle : Networking.Stack.TCP_Conn_Handle;
+                  IPv4_Is_Listener : Boolean;
+               when Datagram =>
+                  IPv4_Is_Bound : Boolean;
+                  IPv4_UDP_Handle : Networking.Stack.UDP_Socket_Handle;
                when Raw =>
-                  IPv4_Cached_Address : Networking.IPv4_Address;
-                  IPv4_Cached_Port    : Networking.IPv4_Port;
-               when others =>
-                  null;
-            end case;
-         when IPv6 =>
-            case Kind is
-               when Raw =>
-                  IPv6_Cached_Address : Networking.IPv6_Address;
-                  IPv6_Cached_Port    : Networking.IPv6_Port;
-               when others =>
                   null;
             end case;
       end case;
@@ -549,19 +453,6 @@ private
        Success   : out Socket_Status);
 
    procedure Inner_IPv4_Write
-      (Sock      : Socket_Acc;
-       Data      : Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Socket_Status);
-   ----------------------------------------------------------------------------
-   --  IPv6 functions.
-   procedure Inner_IPv6_Read
-      (Sock      : Socket_Acc;
-       Data      : out Devices.Operation_Data;
-       Ret_Count : out Natural;
-       Success   : out Socket_Status);
-
-   procedure Inner_IPv6_Write
       (Sock      : Socket_Acc;
        Data      : Devices.Operation_Data;
        Ret_Count : out Natural;
