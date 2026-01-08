@@ -55,24 +55,24 @@ package body Networking is
       if Name'Length < Domain_Length then
          Length := Name'Length;
       else
-         Length := Hostname_Length;
+         Length := Domain_Length;
       end if;
 
       Seize (Names_Lock);
-      Name (Name'First .. Name'First + Length - 1) := Hostname (1 .. Length);
+      Name (Name'First .. Name'First + Length - 1) := Domain (1 .. Length);
       Release (Names_Lock);
    end Get_Domain_Name;
 
    procedure Set_Domain_Name (Name : String; Success : out Boolean) is
    begin
-      if Name'Length = 0 or Name'Length > Hostname'Length then
+      if Name'Length = 0 or Name'Length > Domain'Length then
          Success := False;
          return;
       end if;
 
       Seize (Names_Lock);
-      Hostname_Length := Name'Length;
-      Hostname (1 .. Name'Length) := Name;
+      Domain_Length := Name'Length;
+      Domain (1 .. Name'Length) := Name;
       Release (Names_Lock);
       Success := True;
    end Set_Domain_Name;

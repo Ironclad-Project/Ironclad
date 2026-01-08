@@ -29,7 +29,7 @@ package Networking is
    IPv4_8_Submask   : constant IPv4_Address := [255, 0, 0, 0];
    IPv6_128_Submask : constant IPv6_Address := [others => 16#FF#];
    ----------------------------------------------------------------------------
-   --  Maximum size of identifyers.
+   --  Maximum size of identifiers.
    Hostname_Max_Len : constant Natural;
    Domain_Name_Max_Len : constant Natural;
 
