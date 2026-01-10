@@ -1,5 +1,5 @@
 --  synchronization.ads: Specification of the synchronization library.
---  Copyright (C) 2023 streaksu
+--  Copyright (C) 2025 streaksu
 --
 --  This program is free software: you can redistribute it and/or modify
 --  it under the terms of the GNU General Public License as published by
@@ -15,14 +15,11 @@
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 with Interfaces; use Interfaces;
-with System;     use System;
 
 package Synchronization is
-   --  A simple binary semaphore for critical sections only.
-   --
-   --  Interrupt control is implemented with it, as to improve responsiveness,
-   --  having an interrupt happen while holding a lock could add massive
-   --  amounts of latency.
+   --  A simple binary semaphore for critical sections only. Interrupt control
+   --  is implemented as to improve responsiveness, having an interrupt happen
+   --  while holding a lock could add massive amounts of latency.
    type Binary_Semaphore is private;
 
    --  Value to initialize semaphores with.
@@ -35,9 +32,7 @@ package Synchronization is
       (Lock : aliased in out Binary_Semaphore;
        Success : out Boolean);
 
-   --  Lock a semaphore.
-   --  When entering this routine, if interrupts are enabled, they will be
-   --  disabled.
+   --  Lock a semaphore. If interrupts are enabled, they will be disabled.
    --  @param Lock Semaphore to lock.
    procedure Seize (Lock : aliased in out Binary_Semaphore);
 
@@ -46,8 +41,6 @@ package Synchronization is
    --  @param Lock Semaphore to release.
    procedure Release (Lock : aliased in out Binary_Semaphore);
    ----------------------------------------------------------------------------
-   --  A more complex synchronization mechanism for more generic uses.
-   --
    --  Mutexes will use the scheduler if available and other utilities to
    --  more effectively use waiting time. Use this to guard resources where
    --  having a bit of latency at the time of entering the critical section
@@ -67,8 +60,6 @@ package Synchronization is
    --  @param Lock  Mutex to lock.
    procedure Release (Lock : aliased in out Mutex);
    ----------------------------------------------------------------------------
-   --  A lock for several readers and one writer.
-   --
    --  Behaves the same as a Mutex in regards to interrupts, while
    --  implementing the readers-writer lock semantics.
    --  https://en.wikipedia.org/wiki/Readers%E2%80%93writer_lock
@@ -101,10 +92,18 @@ private
    end record;
    Unlocked_Semaphore : constant Binary_Semaphore := (0, False);
    ----------------------------------------------------------------------------
+   --  This array should be TIDs but circular dependencies yadda yadda.
+   --  We use a preallocated small array to store our TIDs to avoid allocations
+   --  despite the fact that it complicates our design a bit and makes it
+   --  slower.
+   type Mutex_Waiter_Pool is array (1 .. 10) of Natural;
+
    type Mutex is record
       Is_Locked : Unsigned_8;
+      Pool_Mutex : aliased Binary_Semaphore;
+      Thread_Pool : Mutex_Waiter_Pool;
    end record;
-   Unlocked_Mutex : constant Mutex := (Is_Locked => 0);
+   Unlocked_Mutex : constant Mutex := (0, Unlocked_Semaphore, [others => 0]);
    ----------------------------------------------------------------------------
    type Readers_Writer_Lock is record
       Readers     : Natural;
@@ -115,7 +114,4 @@ private
       (Readers     => 0,
        Semaphore_1 => Unlocked_Mutex,
        Semaphore_2 => Unlocked_Mutex);
-   ----------------------------------------------------------------------------
-   function Caller_Address (Depth : Natural) return System.Address;
-   pragma Import (Intrinsic, Caller_Address, "__builtin_return_address");
 end Synchronization;

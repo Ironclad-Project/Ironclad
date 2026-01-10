@@ -14,6 +14,11 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with Arch.Clocks;
+with Arch.Local;
+with Scheduler;
+with Userland.Process;
+
 package body Time is
    pragma Suppress (All_Checks); --  Unit passes AoRTE checks.
 
@@ -82,6 +87,46 @@ package body Time is
       return (L.Seconds > R.Seconds) or
          ((L.Seconds = R.Seconds) and (L.Nanoseconds > R.Nanoseconds));
    end ">";
+   ----------------------------------------------------------------------------
+   procedure Get_Time (Clock : Clock_Type; Stamp : out Timestamp) is
+      Discard : Time.Timestamp;
+   begin
+      case Clock is
+         when Monotonic_Clock =>
+            Arch.Clocks.Get_Monotonic_Time (Stamp);
+         when Real_Time_Clock =>
+            Arch.Clocks.Get_Real_Time (Stamp);
+         when Thread_CPU_Time_Clock =>
+            Userland.Process.Get_Runtime_Times
+               (Arch.Local.Get_Current_Process, Stamp, Discard);
+         when Process_CPU_Time_Clock =>
+            Scheduler.Get_Runtimes
+               (Arch.Local.Get_Current_Thread, Stamp, Discard);
+      end case;
+   end Get_Time;
+
+   procedure Set_Time (Clock : Clock_Type; Stamp : Timestamp) is
+   begin
+      case Clock is
+         when Real_Time_Clock =>
+            Arch.Clocks.Set_Real_Time (Stamp);
+         when others =>
+            null;
+      end case;
+   end Set_Time;
+
+   procedure Get_Resolution (Clock : Clock_Type; Stamp : out Timestamp) is
+      Discard : Time.Timestamp;
+   begin
+      case Clock is
+         --  The Thread and process CPU times are pegged to monotonic.
+         when Monotonic_Clock | Thread_CPU_Time_Clock |
+              Process_CPU_Time_Clock =>
+            Arch.Clocks.Get_Monotonic_Resolution (Stamp);
+         when Real_Time_Clock =>
+            Arch.Clocks.Get_Real_Time (Stamp);
+      end case;
+   end Get_Resolution;
    ----------------------------------------------------------------------------
    function Time_To_Epoch
       (Y   : Year;

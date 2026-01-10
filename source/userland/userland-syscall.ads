@@ -438,11 +438,13 @@ package Userland.Syscall is
        Returned : out Unsigned_64;
        Errno    : out Errno_Value);
 
+   Thread_Suspended : constant := 1;
    type Thread_Info is record
       Thread_Id   : Unsigned_16;
       Niceness    : Unsigned_16;
       Priority    : Unsigned_16;
       Process_PID : Unsigned_16;
+      Flags       : Unsigned_32;
    end record with Pack;
    type Thread_Info_Arr is array (Natural range <>) of Thread_Info;
 
@@ -1638,5 +1640,8 @@ private
 
    function Is_Valid_Clock (ID : Unsigned_64) return Boolean;
 
-   procedure Get_Clock (ID : Unsigned_64; Stamp : out Time.Timestamp);
+   procedure Translate_Clock
+      (ID      : Unsigned_64;
+       Clock   : out Time.Clock_Type;
+       Success : out Boolean);
 end Userland.Syscall;

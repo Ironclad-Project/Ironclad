@@ -57,6 +57,8 @@ package body Scheduler with SPARK_Mode => Off is
       User_Stack_Size : Unsigned_64;
       User_Stack_Used : Boolean;
       Is_Disabled     : Boolean;
+      Start_Clock     : Time.Clock_Type;
+      Start_Time      : Time.Timestamp;
    end record;
    type Thread_Info_Arr     is array (TID range 1 .. TID'Last) of Thread_Info;
    type Thread_Info_Arr_Acc is access Thread_Info_Arr;
@@ -112,7 +114,9 @@ package body Scheduler with SPARK_Mode => Off is
              User_Stack      => System.Null_Address,
              User_Stack_Size => 0,
              User_Stack_Used => False,
-             Is_Disabled     => True)];
+             Is_Disabled     => True,
+             Start_Clock     => Time.Monotonic_Clock,
+             Start_Time      => (0, 0))];
 
       Is_Initialized := True;
       Synchronization.Release (Scheduler_Mutex);
@@ -392,6 +396,8 @@ package body Scheduler with SPARK_Mode => Off is
           User_Stack_Size => 0,
           User_Stack_Used => False,
           Is_Disabled     => True,
+          Start_Clock     => Time.Monotonic_Clock,
+          Start_Time      => (0, 0),
           System_Runtime  => (0, 0),
           User_Runtime    => (0, 0),
           System_Tmp      => (0, 0),
@@ -488,6 +494,62 @@ package body Scheduler with SPARK_Mode => Off is
       when Constraint_Error =>
          null;
    end Signal_Kernel_Exit;
+
+   procedure Suspend_Until
+      (Clock      : Time.Clock_Type;
+       Start_Time : Time.Timestamp)
+   is
+      Thread : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
+      Stop : Boolean;
+   begin
+      Synchronization.Seize (Scheduler_Mutex);
+      Thread_Pool (Thread).Start_Clock := Clock;
+      Thread_Pool (Thread).Start_Time := Start_Time;
+      Synchronization.Release (Scheduler_Mutex);
+
+      loop
+         Synchronization.Seize (Scheduler_Mutex);
+         Stop := Is_Not_Suspended (Thread);
+         Synchronization.Release (Scheduler_Mutex);
+         exit when Stop;
+         Scheduler.Yield_If_Able;
+      end loop;
+   exception
+      when Constraint_Error =>
+         null;
+   end Suspend_Until;
+
+   procedure Mark_Suspend is
+      Thread : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
+   begin
+      --  Wait until the end of time is pretty close to waiting forever.
+      Synchronization.Seize (Scheduler_Mutex);
+      Thread_Pool (Thread).Start_Clock := Time.Monotonic_Clock;
+      Thread_Pool (Thread).Start_Time := (others => Unsigned_64'Last);
+      Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
+   end Mark_Suspend;
+
+   procedure Lift_Suspension (Thread : TID) is
+   begin
+      --  Wait until the beginning of time is pretty close to not waiting.
+      Synchronization.Seize (Scheduler_Mutex);
+      Thread_Pool (Thread).Start_Clock := Time.Monotonic_Clock;
+      Thread_Pool (Thread).Start_Time := (0, 0);
+      Synchronization.Release (Scheduler_Mutex);
+   exception
+      when Constraint_Error =>
+         null;
+   end Lift_Suspension;
+
+   procedure Is_Suspended (Thread : TID; Suspended : out Boolean) is
+   begin
+      Synchronization.Seize (Scheduler_Mutex);
+      Suspended := not Is_Not_Suspended (Thread);
+      Synchronization.Release (Scheduler_Mutex);
+   end Is_Suspended;
 
    function Get_Niceness (Thread : TID) return Niceness is
    begin
@@ -947,7 +1009,7 @@ package body Scheduler with SPARK_Mode => Off is
    begin
       --  Just loop around all threads searching for something to schedule.
       for I in Thread_Pool'Range loop
-         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running then
+         if Is_Runnable (I) then
             Next := I;
             Timeout := Thread_Pool (Next).RR_Micro_Inter;
             return;
@@ -975,9 +1037,7 @@ package body Scheduler with SPARK_Mode => Off is
          if Thread_Pool (I).Is_Present and Thread_Pool (I).Pol = Policy_FIFO
          then
             FIFO_Count := FIFO_Count + 1;
-            if not Thread_Pool (I).Is_Running and
-               Thread_Pool (I).Prio > Curr_Prio
-            then
+            if Is_Runnable (I) and (Thread_Pool (I).Prio > Curr_Prio) then
                Curr_Prio := Thread_Pool (I).Prio;
                Next := I;
                Timeout := Thread_Pool (I).RR_Micro_Inter;
@@ -1010,7 +1070,7 @@ package body Scheduler with SPARK_Mode => Off is
       for I in Thread_Pool'Range loop
          if Thread_Pool (I).Is_Present and Thread_Pool (I).Pol = Policy_RR then
             RR_Count := RR_Count + 1;
-            if not Thread_Pool (I).Is_Running then
+            if Is_Runnable (I) then
                if Thread_Pool (I).Prio > Curr_Prio then
                   Curr_Prio := Thread_Pool (I).Prio;
                   Next := I;
@@ -1037,8 +1097,7 @@ package body Scheduler with SPARK_Mode => Off is
       --  to avoid deadlocks.
       if Next = Error_TID and RR_Equal_Prio_Count /= 0 then
          for I in Curr + 1 .. Thread_Pool'Last loop
-            if Thread_Pool (I).Is_Present and
-               not Thread_Pool (I).Is_Running and
+            if Is_Runnable (I) and
                Thread_Pool (I).Pol = Policy_RR and
                Thread_Pool (I).Prio = Curr_Prio
             then
@@ -1048,8 +1107,7 @@ package body Scheduler with SPARK_Mode => Off is
             end if;
          end loop;
          for I in Thread_Pool'First .. Curr - 1 loop
-            if Thread_Pool (I).Is_Present and
-               not Thread_Pool (I).Is_Running and
+            if Is_Runnable (I) and
                Thread_Pool (I).Pol = Policy_RR and
                Thread_Pool (I).Prio = Curr_Prio
             then
@@ -1064,20 +1122,14 @@ package body Scheduler with SPARK_Mode => Off is
       --  we just pick an arbitrary lower prio.
       if Next = Error_TID and RR_Count > 1 then
          for I in Curr + 1 .. Thread_Pool'Last loop
-            if Thread_Pool (I).Is_Present and
-               not Thread_Pool (I).Is_Running and
-               Thread_Pool (I).Pol = Policy_RR
-            then
+            if Is_Runnable (I) and (Thread_Pool (I).Pol = Policy_RR) then
                Next := I;
                Timeout := Thread_Pool (I).RR_Micro_Inter;
                return;
             end if;
          end loop;
          for I in Thread_Pool'First .. Curr - 1 loop
-            if Thread_Pool (I).Is_Present and
-               not Thread_Pool (I).Is_Running and
-               Thread_Pool (I).Pol = Policy_RR
-            then
+            if Is_Runnable (I) and (Thread_Pool (I).Pol = Policy_RR) then
                Next := I;
                Timeout := Thread_Pool (I).RR_Micro_Inter;
                return;
@@ -1095,27 +1147,26 @@ package body Scheduler with SPARK_Mode => Off is
       --  We want to check if there is a real time policy thread that we can
       --  pick into.
       for I in Thread_Pool'Range loop
-         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running then
-            if Thread_Pool (I).Pol = Policy_FIFO or
-               Thread_Pool (I).Pol = Policy_RR
-            then
-               Next := I;
-               Timeout := Thread_Pool (I).RR_Micro_Inter;
-               return;
-            end if;
+         if Is_Runnable (I) and then
+            (Thread_Pool (I).Pol = Policy_FIFO or
+             Thread_Pool (I).Pol = Policy_RR)
+         then
+            Next := I;
+            Timeout := Thread_Pool (I).RR_Micro_Inter;
+            return;
          end if;
       end loop;
 
       --  Just RR into the next Policy_Other thread.
       for I in Curr + 1 .. Thread_Pool'Last loop
-         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running then
+         if Is_Runnable (I) then
             Next := I;
             Timeout := Thread_Pool (I).RR_Micro_Inter;
             return;
          end if;
       end loop;
       for I in Thread_Pool'First .. Curr - 1 loop
-         if Thread_Pool (I).Is_Present and not Thread_Pool (I).Is_Running then
+         if Is_Runnable (I) then
             Next := I;
             Timeout := Thread_Pool (I).RR_Micro_Inter;
             return;
@@ -1136,4 +1187,25 @@ package body Scheduler with SPARK_Mode => Off is
       Arch.Snippets.Enable_Interrupts;
       loop Arch.Snippets.Wait_For_Interrupt; end loop;
    end Waiting_Spot;
+
+   function Is_Runnable (T : TID) return Boolean is
+   begin
+      return
+         Thread_Pool (T).Is_Present and
+         not Thread_Pool (T).Is_Running and
+         Is_Not_Suspended (T);
+   exception
+      when Constraint_Error =>
+         return False;
+   end Is_Runnable;
+
+   function Is_Not_Suspended (T : TID) return Boolean is
+      Curr : Time.Timestamp;
+   begin
+      Time.Get_Time (Thread_Pool (T).Start_Clock, Curr);
+      return Curr >= Thread_Pool (T).Start_Time;
+   exception
+      when Constraint_Error =>
+         return False;
+   end Is_Not_Suspended;
 end Scheduler;

@@ -25,7 +25,6 @@ with Panic;
 with Alignment;
 with Userland.Loader;
 with Memory.MMU; use Memory.MMU;
-with Arch.Clocks;
 with Arch.Local;
 with Memory.Physical;
 with Memory; use Memory;
@@ -2059,7 +2058,8 @@ package body Userland.Syscall is
                (Thread_Id   => Unsigned_16 (Convert (KInfo (I).Thread)),
                 Niceness    => 0,
                 Priority    => 0,
-                Process_PID => Unsigned_16 (KInfo (I).Proc));
+                Process_PID => Unsigned_16 (KInfo (I).Proc),
+                Flags       => 0);
             N := Get_Niceness (KInfo (I).Thread);
             if N >= 0 then
                Info (I).Niceness := Unsigned_16 (N);
@@ -2068,6 +2068,8 @@ package body Userland.Syscall is
             end if;
             Info (I).Priority := Unsigned_16
                (Scheduler.Get_Priority (KInfo (I).Thread));
+            Scheduler.Is_Suspended (KInfo (I).Thread, Succ);
+            Info (I).Flags := (if Succ then Thread_Suspended else 0);
          end loop;
 
          Trans.Paste_Into_Userland (Map, Info, SAddr, Succ);
@@ -4233,7 +4235,7 @@ package body Userland.Syscall is
       Old_Set    : Signal_Bitmap;
       Map        : Page_Table_Acc;
       Success    : Boolean;
-      Handled    : Boolean;
+      Handled    : Boolean := False;
       Tim        : Time_Spec;
       Can_Read, Can_Write, Can_PrioRead, Is_Error, Is_Broken : Boolean;
    begin
@@ -4253,7 +4255,7 @@ package body Userland.Syscall is
          end;
       end if;
 
-      Arch.Clocks.Get_Monotonic_Time (Final);
+      Time.Get_Time (Time.Monotonic_Clock, Final);
       if TIAddr /= 0 then
          Trans_2.Take_From_Userland (Map, Tim, TSAddr, Success);
          if not Success then
@@ -4266,12 +4268,7 @@ package body Userland.Syscall is
 
       --  If we have 0 items, we just eep.
       if FDs_Count = 0 then
-         loop
-            Arch.Clocks.Get_Monotonic_Time (Curr);
-            Clear_Process_Signals (Proc, Handled);
-            exit when Handled or else Curr >= Final;
-            Scheduler.Yield_If_Able;
-         end loop;
+         Scheduler.Suspend_Until (Time.Monotonic_Clock, Final);
          goto Success_Return;
       end if;
 
@@ -4354,7 +4351,7 @@ package body Userland.Syscall is
                end if;
             end loop;
 
-            Arch.Clocks.Get_Monotonic_Time (Curr);
+            Time.Get_Time (Time.Monotonic_Clock, Curr);
             Clear_Process_Signals (Proc, Handled);
             exit when Handled or else Count /= 0 or else Curr >= Final;
             Scheduler.Yield_If_Able;
@@ -5083,6 +5080,7 @@ package body Userland.Syscall is
       Map   : Page_Table_Acc;
       Spec  : Time_Spec;
       Succ  : Boolean;
+      Clock : Time.Clock_Type;
       Stamp : Timestamp;
    begin
       if not Get_Capabilities (Proc).Can_Use_Clocks then
@@ -5091,34 +5089,26 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
          return;
       elsif not Is_Valid_Clock (Clock_ID) then
-         Errno := Error_Invalid_Value;
-         Returned := Unsigned_64'Last;
-         return;
+         goto Invalid_Value_Error;
+      end if;
+
+      Translate_Clock (Clock_ID, Clock, Succ);
+      if not Succ then
+         goto Invalid_Value_Error;
       end if;
 
       case Operation is
          when CLOCK_GETRES =>
-            case Clock_ID is
-               when CLOCK_MONOTONIC | CLOCK_PROCESS_CPUTIME_ID |
-                    CLOCK_THREAD_CPUTIME_ID =>
-                  Arch.Clocks.Get_Monotonic_Resolution (Stamp);
-               when CLOCK_REALTIME =>
-                  Arch.Clocks.Get_Real_Time_Resolution (Stamp);
-               when others =>
-                  goto Invalid_Value_Error;
-            end case;
+            Time.Get_Resolution (Clock, Stamp);
             Spec := (Stamp.Seconds, Stamp.Nanoseconds);
          when CLOCK_GETTIME =>
-            Get_Clock (Clock_ID, Stamp);
+            Time.Get_Time (Clock, Stamp);
             Spec := (Stamp.Seconds, Stamp.Nanoseconds);
          when CLOCK_SETTIME =>
-            case Clock_ID is
-               when CLOCK_REALTIME =>
-                  Stamp := (Spec.Seconds, Spec.Nanoseconds);
-                  Arch.Clocks.Set_Real_Time (Stamp);
-               when others =>
-                  goto Invalid_Value_Error;
-            end case;
+            if Clock /= Time.Real_Time_Clock then
+               goto Invalid_Value_Error;
+            end if;
+            Time.Set_Time (Clock, (Spec.Seconds, Spec.Nanoseconds));
          when others =>
             goto Invalid_Value_Error;
       end case;
@@ -5155,8 +5145,8 @@ package body Userland.Syscall is
       Map      : Page_Table_Acc;
       Req, Re  : Time_Spec;
       Success  : Boolean;
-      Handled  : Boolean;
-      Curr, Final : Time.Timestamp;
+      Clock : Time.Clock_Type;
+      Final : Time.Timestamp;
    begin
       if not Get_Capabilities (Proc).Can_Use_Clocks then
          Errno := Error_Bad_Access;
@@ -5164,6 +5154,13 @@ package body Userland.Syscall is
          Returned := Unsigned_64'Last;
          return;
       elsif not Is_Valid_Clock (Clock_ID) then
+         Errno := Error_Invalid_Value;
+         Returned := Unsigned_64'Last;
+         return;
+      end if;
+
+      Translate_Clock (Clock_ID, Clock, Success);
+      if not Success then
          Errno := Error_Invalid_Value;
          Returned := Unsigned_64'Last;
          return;
@@ -5178,16 +5175,11 @@ package body Userland.Syscall is
       if (Flags and TIMER_ABSTIME) /= 0 then
          Final := (Req.Seconds, Req.Nanoseconds);
       else
-         Get_Clock (Clock_ID, Final);
+         Time.Get_Time (Clock, Final);
          Final := Final + (Req.Seconds, Req.Nanoseconds);
       end if;
 
-      loop
-         Get_Clock (Clock_ID, Curr);
-         Clear_Process_Signals (Proc, Handled);
-         exit when Handled or Curr >= Final;
-         Scheduler.Yield_If_Able;
-      end loop;
+      Scheduler.Suspend_Until (Clock, Final);
 
       Re.Seconds := 0;
       Re.Nanoseconds := 0;
@@ -5196,13 +5188,8 @@ package body Userland.Syscall is
          goto Would_Fault_Error;
       end if;
 
-      if Handled then
-         Returned := Unsigned_64'Last;
-         Errno    := Error_Interrupted;
-      else
-         Returned := 0;
-         Errno    := Error_No_Error;
-      end if;
+      Returned := 0;
+      Errno    := Error_No_Error;
       return;
 
    <<Would_Fault_Error>>
@@ -8190,22 +8177,25 @@ package body Userland.Syscall is
       end case;
    end Is_Valid_Clock;
 
-   procedure Get_Clock (ID : Unsigned_64; Stamp : out Time.Timestamp) is
-      Discard : Time.Timestamp;
+   procedure Translate_Clock
+      (ID      : Unsigned_64;
+       Clock   : out Time.Clock_Type;
+       Success : out Boolean)
+   is
    begin
+      Success := True;
       case ID is
          when CLOCK_MONOTONIC =>
-            Arch.Clocks.Get_Monotonic_Time (Stamp);
+            Clock := Time.Monotonic_Clock;
          when CLOCK_REALTIME =>
-            Arch.Clocks.Get_Real_Time (Stamp);
+            Clock := Time.Real_Time_Clock;
          when CLOCK_PROCESS_CPUTIME_ID =>
-            Process.Get_Runtime_Times
-               (Arch.Local.Get_Current_Process, Stamp, Discard);
+            Clock := Time.Thread_CPU_Time_Clock;
          when CLOCK_THREAD_CPUTIME_ID =>
-            Scheduler.Get_Runtimes
-               (Arch.Local.Get_Current_Thread, Stamp, Discard);
+            Clock := Time.Process_CPU_Time_Clock;
          when others =>
-            Stamp := (0, 0);
+            Clock := Time.Monotonic_Clock;
+            Success := False;
       end case;
-   end Get_Clock;
+   end Translate_Clock;
 end Userland.Syscall;

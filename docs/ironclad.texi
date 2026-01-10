@@ -4523,6 +4523,7 @@ struct thread_info @{
     uint16_t niceness;
     uint16_t priority;
     uint16_t pid;
+    uint32_t flags; // 1 if the thread is suspended.
 @} __attribute__((packed));
 
 size_t listthreads(struct thread_info *addr, size_t len);

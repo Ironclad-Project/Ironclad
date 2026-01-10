@@ -58,6 +58,7 @@ release changes.
   syscall.
 - Make `uname` return the domain name, increasing struct size and changing
   layout.
+- Change `listthreads`'s data layout to return flags regarding thread state.
 
 ### Non-code related changes
 

@@ -14,8 +14,10 @@
 --  You should have received a copy of the GNU General Public License
 --  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+with System; use System;
 with System.Atomic_Operations; use System.Atomic_Operations;
 with Arch;
+with Arch.Local;
 with Arch.Snippets;
 with Scheduler;
 
@@ -51,10 +53,7 @@ package body Synchronization with SPARK_Mode => Off is
             exit;
          end if;
 
-         loop
-            if Atomic_Load_8 (Lock.Is_Locked'Address, Mem_Relaxed) = 0 then
-               exit;
-            end if;
+         while Atomic_Load_8 (Lock.Is_Locked'Address, Mem_Relaxed) /= 0 loop
             Arch.Snippets.Pause;
          end loop;
       end loop;
@@ -70,15 +69,38 @@ package body Synchronization with SPARK_Mode => Off is
    end Release;
    ----------------------------------------------------------------------------
    procedure Seize (Lock : aliased in out Mutex) is
+      Th : constant Scheduler.TID := Arch.Local.Get_Current_Thread;
    begin
-      while Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) loop
-         Scheduler.Yield_If_Able;
-      end loop;
+      Synchronization.Seize (Lock.Pool_Mutex);
+      if Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) then
+         for ID of Lock.Thread_Pool loop
+            if ID = 0 then
+               ID := Scheduler.Convert (Th);
+               Scheduler.Mark_Suspend;
+               exit;
+            end if;
+         end loop;
+
+         Synchronization.Release (Lock.Pool_Mutex);
+         while Atomic_Test_And_Set (Lock.Is_Locked'Address, Mem_Acquire) loop
+            Scheduler.Yield_If_Able;
+         end loop;
+      else
+         Synchronization.Release (Lock.Pool_Mutex);
+      end if;
    end Seize;
 
    procedure Release (Lock : aliased in out Mutex) is
    begin
+      Synchronization.Seize (Lock.Pool_Mutex);
+      for ID of Lock.Thread_Pool loop
+         if ID /= 0 then
+            Scheduler.Lift_Suspension (Scheduler.Convert (ID));
+            ID := 0;
+         end if;
+      end loop;
       Atomic_Clear (Lock.Is_Locked'Address, Mem_Release);
+      Synchronization.Release (Lock.Pool_Mutex);
    end Release;
    ----------------------------------------------------------------------------
    procedure Seize_Reader (Lock : aliased in out Readers_Writer_Lock) is

@@ -92,6 +92,21 @@ package Scheduler is
    --  space (for time keeping reasons).
    procedure Signal_Kernel_Entry (Thread : TID);
    procedure Signal_Kernel_Exit (Thread : TID);
+
+   --  Do not schedule the calling thread until a certain timestamp is hit.
+   procedure Suspend_Until
+      (Clock      : Time.Clock_Type;
+       Start_Time : Time.Timestamp);
+
+   --  Do not schedule the calling thread, at all, and do not yield, but
+   --  return.
+   procedure Mark_Suspend;
+
+   --  Lift the suspension of a thread.
+   procedure Lift_Suspension (Thread : TID);
+
+   --  Check whether a thread is suspended.
+   procedure Is_Suspended (Thread : TID; Suspended : out Boolean);
    ----------------------------------------------------------------------------
    --  Some scheduling algorithms allow priority, in those cases, it is
    --  interacted with using POSIX-compatible niceness.
@@ -175,4 +190,6 @@ private
    procedure Next_Other (Curr : TID; Timeout : out Natural; Next : out TID);
 
    procedure Waiting_Spot with No_Return;
+   function Is_Runnable (T : TID) return Boolean;
+   function Is_Not_Suspended (T : TID) return Boolean;
 end Scheduler;

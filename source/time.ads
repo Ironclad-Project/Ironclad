@@ -40,6 +40,20 @@ package Time is
    function ">=" (Left, Right : Timestamp) return Boolean;
    function ">" (Left, Right : Timestamp) return Boolean;
    ----------------------------------------------------------------------------
+   --  Architecture-independent clock functions
+
+   --  All available clocks.
+   type Clock_Type is
+      (Monotonic_Clock,         --  Only goes forward, non-settable.
+       Real_Time_Clock,         --  Represents wall clock, settable.
+       Thread_CPU_Time_Clock,   --  Clock representing thread CPU time.
+       Process_CPU_Time_Clock); --  Same as thread CPU time but for process.
+
+   --  Functions to get values out of the clocks.
+   procedure Get_Time (Clock : Clock_Type; Stamp : out Timestamp);
+   procedure Set_Time (Clock : Clock_Type; Stamp : Timestamp);
+   procedure Get_Resolution (Clock : Clock_Type; Stamp : out Timestamp);
+   ----------------------------------------------------------------------------
    --  Types to represent several date elements.
    subtype Year    is Natural;
    subtype Month   is Natural range 1 .. 12;
