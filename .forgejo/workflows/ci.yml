@@ -1,10 +1,10 @@
-name: Ironclad CI
+name: CI
 
 on: [push, pull_request]
 
 jobs:
-  ci_build:
-    name: Check for compilation failures
+  build_and_check:
+    name: Build project and check
     runs-on: codeberg-small
     container: debian:sid
     strategy:
@@ -42,12 +42,17 @@ jobs:
             ln -s /usr/bin/$TOOLCHAIN_PREFIX$i-15 toolchain_dir/$TOOLCHAIN_PREFIX$i
           done
 
-      - name: Fetch gnatprove
+      - name: Fetch check dependencies
         run: |
           set -ex
+
           wget https://github.com/alire-project/GNAT-FSF-builds/releases/download/gnatprove-15.1.0-1/gnatprove-x86_64-linux-15.1.0-1.tar.gz
           tar -xf gnatprove-x86_64-linux-15.1.0-1.tar.gz
           rm gnatprove-x86_64-linux-15.1.0-1.tar.gz
+
+          wget https://github.com/crate-ci/typos/releases/download/v1.42.0/typos-v1.42.0-x86_64-unknown-linux-musl.tar.gz
+          tar xf typos-v1.42.0-x86_64-unknown-linux-musl.tar.gz
+          rm typos-v1.42.0-x86_64-unknown-linux-musl.tar.gz
 
       - name: Bootstrap
         run: ./bootstrap
@@ -56,7 +61,7 @@ jobs:
         run: |
           set -ex
 
-          export PATH="$PWD/gnatprove-x86_64-linux-15.1.0-1/bin:$PWD/toolchain_dir:$PATH"
+          export PATH="$PWD/gnatprove-x86_64-linux-15.1.0-1/bin:$PWD/typos-v1.42.0-x86_64-unknown-linux-musl/bin:$PWD/toolchain_dir:$PATH"
 
           case "${{matrix.target_arch}}" in \
             riscv64-limine) \
@@ -66,5 +71,6 @@ jobs:
           esac
 
           make
+          make check-typos
           make check-rts-stone
           make check-kernel-stone
