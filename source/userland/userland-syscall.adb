@@ -674,7 +674,8 @@ package body Userland.Syscall is
                end if;
 
                declare
-                  Data : Operation_Data (1 .. Natural (Length))
+                  Data_Len : constant Natural := Natural (Length);
+                  Data : Operation_Data (1 .. Data_Len)
                      with Import, Address => To_Address (Final_Hint);
                begin
                   VFS.Read
@@ -3431,10 +3432,11 @@ package body Userland.Syscall is
                   goto Would_Fault_Error;
                end if;
 
-               Succ := Bind
+               Bind
                   (Sock => File.Inner_Socket,
                    Addr => Addr.Sin_Addr,
-                   Port => Ntohs (Addr.Sin_Port));
+                   Port => Ntohs (Addr.Sin_Port),
+                   Success => Succ);
             end;
          when IPC.Socket.UNIX =>
             declare

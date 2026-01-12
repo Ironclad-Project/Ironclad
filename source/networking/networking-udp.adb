@@ -26,9 +26,8 @@ package body Networking.UDP is
       --  UDP pseudo-header for checksum:
       --  Source IP + Dest IP + Zero + Protocol + UDP Length
       --  Then UDP header + data.
-
       pragma Warnings (Off, "storage order");
-      Hdr_Bytes : Devices.Operation_Data (1 .. Header_Size)
+      Hdr_Bytes : constant Devices.Operation_Data (1 .. Header_Size)
          with Import, Address => Hdr'Address;
       pragma Warnings (On, "storage order");
 
@@ -123,7 +122,6 @@ package body Networking.UDP is
       pragma Warnings (On, "storage order");
    begin
       Header_Bytes := Data (Data'First .. Data'First + Header_Size - 1);
-      --  Basic validation: length should be at least 8.
       Success := Header.Length >= 8;
    exception
       when Constraint_Error =>
@@ -147,7 +145,7 @@ package body Networking.UDP is
       --  result should be 0xFFFF.
       declare
          pragma Warnings (Off, "storage order");
-         Hdr_Bytes : Devices.Operation_Data (1 .. Header_Size)
+         Hdr_Bytes : constant Devices.Operation_Data (1 .. Header_Size)
             with Import, Address => Hdr'Address;
          pragma Warnings (On, "storage order");
 

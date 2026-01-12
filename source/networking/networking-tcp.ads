@@ -116,7 +116,7 @@ package Networking.TCP is
       --  Receive timeout (0 = infinite/blocking).
       Recv_Timeout : Time.Timestamp;
    end record;
-   type TCP_Connection_Acc is access all TCP_Connection;
+   type TCP_Connection_Acc is access TCP_Connection;
 
    --  Parse a TCP header from raw data.
    --  @param Data    Raw packet data.
@@ -260,5 +260,5 @@ package Networking.TCP is
 
    --  Generate a pseudo-random initial sequence number.
    --  @return A sequence number based on current time/counter.
-   function Generate_ISN return Unsigned_32;
+   procedure Generate_ISN (ISN : out Unsigned_32);
 end Networking.TCP;

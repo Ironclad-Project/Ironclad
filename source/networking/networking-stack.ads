@@ -275,7 +275,7 @@ package Networking.Stack is
 
    function Allocate_TCP_Slot return TCP_Conn_Handle;
 
-   function Get_Ephemeral_Port return Unsigned_16;
+   procedure Get_Ephemeral_Port (Port : out Unsigned_16);
 
 private
 

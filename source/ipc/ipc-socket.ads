@@ -192,14 +192,15 @@ package IPC.Socket is
       with Pre => Sock /= null and then Get_Domain (Sock) = IPv4;
 
    --  Bind a socket to an address.
-   --  @param Sock Socket to bind to an address.
-   --  @param Addr Fetched address.
-   --  @param Port Fetched port.
-   --  @return True on success, False on failure.
-   function Bind
-      (Sock : Socket_Acc;
-       Addr : Networking.IPv4_Address;
-       Port : Networking.IPv4_Port) return Boolean
+   --  @param Sock    Socket to bind to an address.
+   --  @param Addr    Fetched address.
+   --  @param Port    Fetched port.
+   --  @param Success True on success, False on failure.
+   procedure Bind
+      (Sock    : Socket_Acc;
+       Addr    : Networking.IPv4_Address;
+       Port    : Networking.IPv4_Port;
+       Success : out Boolean)
       with Pre => Sock /= null and then Get_Domain (Sock) = IPv4;
 
    --  Connect a socket, if connection-based, the function will do handshake

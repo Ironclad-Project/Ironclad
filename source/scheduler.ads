@@ -190,6 +190,6 @@ private
    procedure Next_Other (Curr : TID; Timeout : out Natural; Next : out TID);
 
    procedure Waiting_Spot with No_Return;
-   function Is_Runnable (T : TID) return Boolean;
-   function Is_Not_Suspended (T : TID) return Boolean;
+   procedure Evaluate_Runnable (T : TID; Can_Run : out Boolean);
+   procedure Evaluate_Suspended (T : TID; Suspended : out Boolean);
 end Scheduler;

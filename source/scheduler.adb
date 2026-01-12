@@ -509,9 +509,9 @@ package body Scheduler with SPARK_Mode => Off is
 
       loop
          Synchronization.Seize (Scheduler_Mutex);
-         Stop := Is_Not_Suspended (Thread);
+         Evaluate_Suspended (Thread, Stop);
          Synchronization.Release (Scheduler_Mutex);
-         exit when Stop;
+         exit when not Stop;
          Scheduler.Yield_If_Able;
       end loop;
    exception
@@ -547,7 +547,7 @@ package body Scheduler with SPARK_Mode => Off is
    procedure Is_Suspended (Thread : TID; Suspended : out Boolean) is
    begin
       Synchronization.Seize (Scheduler_Mutex);
-      Suspended := not Is_Not_Suspended (Thread);
+      Evaluate_Suspended (Thread, Suspended);
       Synchronization.Release (Scheduler_Mutex);
    end Is_Suspended;
 
@@ -1006,10 +1006,12 @@ package body Scheduler with SPARK_Mode => Off is
    end List_All;
    ----------------------------------------------------------------------------
    procedure Next_From_Nothing (Timeout : out Natural; Next : out TID) is
+      Can_Run : Boolean;
    begin
       --  Just loop around all threads searching for something to schedule.
       for I in Thread_Pool'Range loop
-         if Is_Runnable (I) then
+         Evaluate_Runnable (I, Can_Run);
+         if Can_Run then
             Next := I;
             Timeout := Thread_Pool (Next).RR_Micro_Inter;
             return;
@@ -1027,6 +1029,7 @@ package body Scheduler with SPARK_Mode => Off is
    procedure Next_FIFO (Curr : TID; Timeout : out Natural; Next : out TID) is
       Curr_Prio : Priority;
       FIFO_Count : Natural := 0;
+      Can_Run : Boolean;
    begin
       --  We want to check for other FIFO threads with greater priority, if
       --  we find any, we move to the highest priority. Otherwise, we stay.
@@ -1034,10 +1037,10 @@ package body Scheduler with SPARK_Mode => Off is
       Next := Error_TID;
       Timeout := Thread_Pool (Curr).RR_Micro_Inter;
       for I in Thread_Pool'Range loop
-         if Thread_Pool (I).Is_Present and Thread_Pool (I).Pol = Policy_FIFO
-         then
+         Evaluate_Runnable (I, Can_Run);
+         if Can_Run and (Thread_Pool (I).Pol = Policy_FIFO) then
             FIFO_Count := FIFO_Count + 1;
-            if Is_Runnable (I) and (Thread_Pool (I).Prio > Curr_Prio) then
+            if Thread_Pool (I).Prio > Curr_Prio then
                Curr_Prio := Thread_Pool (I).Prio;
                Next := I;
                Timeout := Thread_Pool (I).RR_Micro_Inter;
@@ -1060,6 +1063,7 @@ package body Scheduler with SPARK_Mode => Off is
       Curr_Prio : Priority;
       RR_Count : Natural := 0;
       RR_Equal_Prio_Count : Natural := 0;
+      Can_Run : Boolean;
    begin
       --  We want to check for other RR threads with greater priority, if
       --  we find any, we move to the highest priority. Otherwise, we stay.
@@ -1068,16 +1072,15 @@ package body Scheduler with SPARK_Mode => Off is
       Next := Error_TID;
       Timeout := Thread_Pool (Curr).RR_Micro_Inter;
       for I in Thread_Pool'Range loop
-         if Thread_Pool (I).Is_Present and Thread_Pool (I).Pol = Policy_RR then
+         Evaluate_Runnable (I, Can_Run);
+         if Can_Run and Thread_Pool (I).Pol = Policy_RR then
             RR_Count := RR_Count + 1;
-            if Is_Runnable (I) then
-               if Thread_Pool (I).Prio > Curr_Prio then
-                  Curr_Prio := Thread_Pool (I).Prio;
-                  Next := I;
-                  Timeout := Thread_Pool (I).RR_Micro_Inter;
-               elsif Thread_Pool (I).Prio = Curr_Prio then
-                  RR_Equal_Prio_Count := RR_Equal_Prio_Count + 1;
-               end if;
+            if Thread_Pool (I).Prio > Curr_Prio then
+               Curr_Prio := Thread_Pool (I).Prio;
+               Next := I;
+               Timeout := Thread_Pool (I).RR_Micro_Inter;
+            elsif Thread_Pool (I).Prio = Curr_Prio then
+               RR_Equal_Prio_Count := RR_Equal_Prio_Count + 1;
             end if;
          end if;
       end loop;
@@ -1097,8 +1100,8 @@ package body Scheduler with SPARK_Mode => Off is
       --  to avoid deadlocks.
       if Next = Error_TID and RR_Equal_Prio_Count /= 0 then
          for I in Curr + 1 .. Thread_Pool'Last loop
-            if Is_Runnable (I) and
-               Thread_Pool (I).Pol = Policy_RR and
+            Evaluate_Runnable (I, Can_Run);
+            if Can_Run and Thread_Pool (I).Pol = Policy_RR and
                Thread_Pool (I).Prio = Curr_Prio
             then
                Next := I;
@@ -1107,8 +1110,8 @@ package body Scheduler with SPARK_Mode => Off is
             end if;
          end loop;
          for I in Thread_Pool'First .. Curr - 1 loop
-            if Is_Runnable (I) and
-               Thread_Pool (I).Pol = Policy_RR and
+            Evaluate_Runnable (I, Can_Run);
+            if Can_Run and Thread_Pool (I).Pol = Policy_RR and
                Thread_Pool (I).Prio = Curr_Prio
             then
                Next := I;
@@ -1122,14 +1125,16 @@ package body Scheduler with SPARK_Mode => Off is
       --  we just pick an arbitrary lower prio.
       if Next = Error_TID and RR_Count > 1 then
          for I in Curr + 1 .. Thread_Pool'Last loop
-            if Is_Runnable (I) and (Thread_Pool (I).Pol = Policy_RR) then
+            Evaluate_Runnable (I, Can_Run);
+            if Can_Run and (Thread_Pool (I).Pol = Policy_RR) then
                Next := I;
                Timeout := Thread_Pool (I).RR_Micro_Inter;
                return;
             end if;
          end loop;
          for I in Thread_Pool'First .. Curr - 1 loop
-            if Is_Runnable (I) and (Thread_Pool (I).Pol = Policy_RR) then
+            Evaluate_Runnable (I, Can_Run);
+            if Can_Run and (Thread_Pool (I).Pol = Policy_RR) then
                Next := I;
                Timeout := Thread_Pool (I).RR_Micro_Inter;
                return;
@@ -1143,11 +1148,13 @@ package body Scheduler with SPARK_Mode => Off is
    end Next_RR;
 
    procedure Next_Other (Curr : TID; Timeout : out Natural; Next : out TID) is
+      Can_Run : Boolean;
    begin
       --  We want to check if there is a real time policy thread that we can
       --  pick into.
       for I in Thread_Pool'Range loop
-         if Is_Runnable (I) and then
+         Evaluate_Runnable (I, Can_Run);
+         if Can_Run and then
             (Thread_Pool (I).Pol = Policy_FIFO or
              Thread_Pool (I).Pol = Policy_RR)
          then
@@ -1159,14 +1166,16 @@ package body Scheduler with SPARK_Mode => Off is
 
       --  Just RR into the next Policy_Other thread.
       for I in Curr + 1 .. Thread_Pool'Last loop
-         if Is_Runnable (I) then
+         Evaluate_Runnable (I, Can_Run);
+         if Can_Run then
             Next := I;
             Timeout := Thread_Pool (I).RR_Micro_Inter;
             return;
          end if;
       end loop;
       for I in Thread_Pool'First .. Curr - 1 loop
-         if Is_Runnable (I) then
+         Evaluate_Runnable (I, Can_Run);
+         if Can_Run then
             Next := I;
             Timeout := Thread_Pool (I).RR_Micro_Inter;
             return;
@@ -1188,24 +1197,25 @@ package body Scheduler with SPARK_Mode => Off is
       loop Arch.Snippets.Wait_For_Interrupt; end loop;
    end Waiting_Spot;
 
-   function Is_Runnable (T : TID) return Boolean is
+   procedure Evaluate_Runnable (T : TID; Can_Run : out Boolean) is
    begin
-      return
-         Thread_Pool (T).Is_Present and
-         not Thread_Pool (T).Is_Running and
-         Is_Not_Suspended (T);
+      Can_Run := Thread_Pool (T).Is_Present and not Thread_Pool (T).Is_Running;
+      if Can_Run then
+         Evaluate_Suspended (T, Can_Run);
+         Can_Run := not Can_Run;
+      end if;
    exception
       when Constraint_Error =>
-         return False;
-   end Is_Runnable;
+         Can_Run := False;
+   end Evaluate_Runnable;
 
-   function Is_Not_Suspended (T : TID) return Boolean is
+   procedure Evaluate_Suspended (T : TID; Suspended : out Boolean) is
       Curr : Time.Timestamp;
    begin
       Time.Get_Time (Thread_Pool (T).Start_Clock, Curr);
-      return Curr >= Thread_Pool (T).Start_Time;
+      Suspended := Thread_Pool (T).Start_Time > Curr;
    exception
       when Constraint_Error =>
-         return False;
-   end Is_Not_Suspended;
+         Suspended := False;
+   end Evaluate_Suspended;
 end Scheduler;

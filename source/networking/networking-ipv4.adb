@@ -22,7 +22,7 @@ package body Networking.IPv4 is
    is
       --  Convert header to array of 16-bit words for checksumming.
       pragma Warnings (Off, "storage order");
-      Header_Bytes : Devices.Operation_Data (1 .. Header_Size)
+      Header_Bytes : constant Devices.Operation_Data (1 .. Header_Size)
          with Import, Address => Header'Address;
       pragma Warnings (On, "storage order");
 
@@ -93,7 +93,7 @@ package body Networking.IPv4 is
       --  When calculating checksum over a header that already has a checksum,
       --  the result should be 0 if valid.
       pragma Warnings (Off, "storage order");
-      Header_Bytes : Devices.Operation_Data (1 .. Header_Size)
+      Header_Bytes : constant Devices.Operation_Data (1 .. Header_Size)
          with Import, Address => Header'Address;
       pragma Warnings (On, "storage order");
 
@@ -110,7 +110,6 @@ package body Networking.IPv4 is
          Sum := (Sum and 16#FFFF#) + Shift_Right (Sum, 16);
       end loop;
 
-      --  Result should be all 1s (0xFFFF) if checksum is valid.
       return Unsigned_16 (Sum and 16#FFFF#) = 16#FFFF#;
    end Verify_Checksum;
 end Networking.IPv4;

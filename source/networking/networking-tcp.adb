@@ -19,7 +19,7 @@ with Arch.Clocks;
 
 package body Networking.TCP is
    --  Counter for ISN generation (simple approach).
-   ISN_Counter : Unsigned_32 := 0 with Volatile;
+   ISN_Counter : Unsigned_32 := 0;
 
    function Calculate_Checksum
       (Hdr     : TCP_Header;
@@ -30,9 +30,8 @@ package body Networking.TCP is
       --  TCP pseudo-header for checksum:
       --  Source IP (4) + Dest IP (4) + Zero + Protocol + TCP Length (2)
       --  Then TCP header + data.
-
       pragma Warnings (Off, "storage order");
-      Hdr_Bytes : Devices.Operation_Data (1 .. Header_Size)
+      Hdr_Bytes : constant Devices.Operation_Data (1 .. Header_Size)
          with Import, Address => Hdr'Address;
       pragma Warnings (On, "storage order");
 
@@ -82,7 +81,6 @@ package body Networking.TCP is
          Sum := (Sum and 16#FFFF#) + Shift_Right (Sum, 16);
       end loop;
 
-      --  Return one's complement.
       return not Unsigned_16 (Sum and 16#FFFF#);
    exception
       when Constraint_Error =>
@@ -256,7 +254,7 @@ package body Networking.TCP is
        Data : out Devices.Operation_Data)
    is
       pragma Warnings (Off, "storage order");
-      Hdr_Bytes : Devices.Operation_Data (1 .. Header_Size)
+      Hdr_Bytes : constant Devices.Operation_Data (1 .. Header_Size)
          with Import, Address => Hdr'Address;
       pragma Warnings (On, "storage order");
    begin
@@ -266,18 +264,18 @@ package body Networking.TCP is
          Data := [others => 0];
    end To_Bytes;
 
-   function Generate_ISN return Unsigned_32 is
+   procedure Generate_ISN (ISN : out Unsigned_32) is
       Stamp : Time.Timestamp;
    begin
       --  Simple ISN generation: use clock ticks plus a counter.
       --  A more secure implementation would use a hash of connection tuple.
       Arch.Clocks.Get_Monotonic_Time (Stamp);
       ISN_Counter := ISN_Counter + 1;
-      return Unsigned_32 (Stamp.Seconds and 16#FFFF#) * 64000 +
+      ISN := Unsigned_32 (Stamp.Seconds and 16#FFFF#) * 64000 +
              Unsigned_32 (Stamp.Nanoseconds and 16#FFFF#) +
              ISN_Counter * 64000;
    exception
       when Constraint_Error =>
-         return 0;
+         ISN := 0;
    end Generate_ISN;
 end Networking.TCP;

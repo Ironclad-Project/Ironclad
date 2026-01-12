@@ -23,7 +23,7 @@ with Networking.Interfaces;
 with Scheduler;
 with Arch.Clocks;
 
-package body Networking.Stack is
+package body Networking.Stack with SPARK_Mode => Off is
    use type Devices.Dev_Status;
    use type Devices.Device_Handle;
    use type TCP.TCP_State;
@@ -251,15 +251,14 @@ package body Networking.Stack is
       return Invalid_TCP_Handle;
    end Allocate_TCP_Slot;
 
-   function Get_Ephemeral_Port return Unsigned_16 is
-      Port : constant Unsigned_16 := Next_Ephemeral_Port;
+   procedure Get_Ephemeral_Port (Port : out Unsigned_16) is
    begin
+      Port := Next_Ephemeral_Port;
       if Next_Ephemeral_Port = 65535 then
          Next_Ephemeral_Port := 49152;
       else
          Next_Ephemeral_Port := Next_Ephemeral_Port + 1;
       end if;
-      return Port;
    end Get_Ephemeral_Port;
 
    procedure Send_TCP_Packet
@@ -270,7 +269,7 @@ package body Networking.Stack is
        Success : out Boolean)
    is
       pragma Warnings (Off, "storage order");
-      Tcp_Hdr_Bytes : Devices.Operation_Data (1 .. TCP.Header_Size)
+      Tcp_Hdr_Bytes : constant Devices.Operation_Data (1 .. TCP.Header_Size)
          with Import, Address => Tcp_Hdr'Address;
       pragma Warnings (On, "storage order");
    begin
@@ -332,11 +331,11 @@ package body Networking.Stack is
 
       --  Allocate ephemeral port if needed.
       if Act_Local_Port = 0 then
-         Act_Local_Port := Get_Ephemeral_Port;
+         Get_Ephemeral_Port (Act_Local_Port);
       end if;
 
       --  Create connection.
-      ISN := TCP.Generate_ISN;
+      TCP.Generate_ISN (ISN);
       Conn := new TCP.TCP_Connection'
          (State       => TCP.State_Syn_Sent,
           Mutex       => Synchronization.Unlocked_Mutex,
@@ -1148,7 +1147,7 @@ package body Networking.Stack is
                      else
                         Deliver_TCP_Packet
                            (Dev, IP_Hdr.Source_IP, TCP_Hdr,
-                            Devices.Operation_Data'(1 .. 0 => <>));
+                            Devices.Operation_Data'(1 .. 0 => 0));
                      end if;
                   end if;
                end;

@@ -160,7 +160,7 @@ package body Networking.ARP is
        Data   : out Devices.Operation_Data)
    is
       pragma Warnings (Off, "storage order");
-      Packet_Bytes : Devices.Operation_Data (1 .. ARP_Packet_Size)
+      Packet_Bytes : constant Devices.Operation_Data (1 .. ARP_Packet_Size)
          with Import, Address => Packet'Address;
       pragma Warnings (On, "storage order");
    begin

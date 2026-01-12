@@ -37,7 +37,7 @@ package body Networking.Ethernet is
       Hdr : constant Ethernet_Header := Create_Header (Dest, Src, Ether_Typ);
 
       pragma Warnings (Off, "storage order");
-      Hdr_Data : Devices.Operation_Data (1 .. Header_Size)
+      Hdr_Data : constant Devices.Operation_Data (1 .. Header_Size)
          with Import, Address => Hdr'Address;
       pragma Warnings (On, "storage order");
    begin

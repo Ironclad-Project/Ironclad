@@ -337,13 +337,13 @@ package body IPC.Socket is
       Success := False;
    end Get_Peer;
 
-   function Bind
-      (Sock : Socket_Acc;
-       Addr : Networking.IPv4_Address;
-       Port : Networking.IPv4_Port) return Boolean
+   procedure Bind
+      (Sock    : Socket_Acc;
+       Addr    : Networking.IPv4_Address;
+       Port    : Networking.IPv4_Port;
+       Success : out Boolean)
    is
-      Handle  : Networking.Stack.UDP_Socket_Handle;
-      Success : Boolean;
+      Handle : Networking.Stack.UDP_Socket_Handle;
    begin
       case Sock.Kind is
          when Datagram =>
@@ -357,11 +357,9 @@ package body IPC.Socket is
                Sock.IPv4_Local_Port := Port;
                Sock.IPv4_Is_Bound := True;
                Sock.IPv4_UDP_Handle := Handle;
-               return True;
             end if;
-            return False;
          when others =>
-            return False;
+            Success := False;
       end case;
    end Bind;
 
