@@ -231,7 +231,7 @@ package body Arch.Interrupts with SPARK_Mode => Off is
          when 28 =>
             Get_TID (Returned, Errno);
          when 29 =>
-            Set_Domain_Name (State.RDI, State.RSI, Returned, Errno);
+            Set_Domain_Name (Ctx.X10, Ctx.X11, Returned, Errno);
          when 30 =>
             Fcntl (Ctx.X10, Ctx.X11, Ctx.X12, Returned, Errno);
          when 31 =>
