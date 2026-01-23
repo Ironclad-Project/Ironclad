@@ -4462,12 +4462,21 @@ package body Userland.Syscall is
 
       if (Flags and AT_EMPTY_PATH) /= 0 then
          Get_File (Proc, Dir_FD, File_Desc);
-         if File_Desc = null or else File_Desc.Description /= Description_Inode
-         then
+         if File_Desc = null then
             Errno    := Error_Bad_File;
             Returned := Unsigned_64'Last;
             return;
          end if;
+
+         --  Sometimes software will ask us to do changes on things like PTYs
+         --  or FIFOs that we internally have as non Inodes, in those cases, we
+         --  can just ignore.
+         if File_Desc.Description /= Description_Inode then
+            Errno    := Error_No_Error;
+            Returned := 0;
+            return;
+         end if;
+
          FS  := File_Desc.Inner_Ino_FS;
          Ino := File_Desc.Inner_Ino;
       else
@@ -4626,12 +4635,21 @@ package body Userland.Syscall is
 
       if (Flags and AT_EMPTY_PATH) /= 0 then
          Get_File (Proc, Dir_FD, File_Desc);
-         if File_Desc = null or else File_Desc.Description /= Description_Inode
-         then
+         if File_Desc = null then
             Errno    := Error_Bad_File;
             Returned := Unsigned_64'Last;
             return;
          end if;
+
+         --  Sometimes software will ask us to do changes on things like PTYs
+         --  or FIFOs that we internally have as non Inodes, in those cases, we
+         --  can just ignore.
+         if File_Desc.Description /= Description_Inode then
+            Errno    := Error_No_Error;
+            Returned := 0;
+            return;
+         end if;
+
          FS  := File_Desc.Inner_Ino_FS;
          Ino := File_Desc.Inner_Ino;
       else
